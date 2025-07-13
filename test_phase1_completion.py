@@ -1,4 +1,5 @@
 """
+<<<<<<< HEAD
 Test script to verify Phase 1 completion following Manus's methodology.
 Tests the definition of done: MarketSimulator with data and simple strategy.
 """
@@ -7,6 +8,22 @@ import os
 import logging
 from datetime import datetime, timedelta
 from pathlib import Path
+=======
+Test script to verify Phase 1 completion.
+Tests the definition of done: MarketSimulator with real data and simple strategy.
+"""
+import sys
+import os
+import yaml
+import logging
+from datetime import datetime, timedelta
+
+# Add the parent directory to the path so we can import emp modules
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
+from emp.data_pipeline.storage import TickDataStorage
+from emp.simulation.simulator import MarketSimulator
+>>>>>>> 420a6cf673adfa503a5e1c40863ef6015d8cefb6
 
 # Configure logging
 logging.basicConfig(
@@ -15,6 +32,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+<<<<<<< HEAD
 def test_phase1_completion():
     """
     Test that Phase 1 meets the definition of done following Manus's approach.
@@ -45,6 +63,50 @@ def test_phase1_completion():
         # Define test period (1 week of data)
         start_date = datetime(2023, 1, 1, 0, 0, 0)
         end_date = datetime(2023, 1, 7, 23, 59, 59)
+=======
+def load_config(config_path: str = "config.yaml") -> dict:
+    """Load configuration from YAML file."""
+    try:
+        with open(config_path, 'r') as f:
+            config = yaml.safe_load(f)
+        return config
+    except Exception as e:
+        logger.error(f"Failed to load config from {config_path}: {e}")
+        raise
+
+def test_phase1_completion():
+    """
+    Test that Phase 1 meets the definition of done.
+    """
+    logger.info("=" * 60)
+    logger.info("PHASE 1 COMPLETION TEST")
+    logger.info("=" * 60)
+    
+    try:
+        # Load configuration
+        config = load_config()
+        symbol = config['data']['symbol']
+        processed_dir = config['data']['processed_dir']
+        
+        logger.info(f"Testing with symbol: {symbol}")
+        logger.info(f"Data directory: {processed_dir}")
+        
+        # Initialize components
+        storage = TickDataStorage(processed_dir)
+        
+        # Check if data is available
+        data_range = storage.get_data_range(symbol)
+        if data_range is None:
+            logger.error(f"No data available for {symbol}")
+            logger.error("Please run the download script first: python scripts/download_data.py")
+            return False
+        
+        logger.info(f"Data available from {data_range[0]} to {data_range[1]}")
+        
+        # Define test period (1 year of data)
+        end_date = data_range[1]
+        start_date = end_date - timedelta(days=365)
+>>>>>>> 420a6cf673adfa503a5e1c40863ef6015d8cefb6
         
         logger.info(f"Test period: {start_date} to {end_date}")
         
@@ -57,6 +119,7 @@ def test_phase1_completion():
         
         # Load data
         logger.info("Loading data into simulator...")
+<<<<<<< HEAD
         simulator.load_data("EURUSD", start_date, end_date)
         
         # Run simple strategy (MA crossover)
@@ -166,6 +229,13 @@ def test_phase1_completion():
         # Calculate final balance
         final_balance = 100000.0 + total_pnl - total_commission - total_slippage
         return_pct = (final_balance - 100000.0) / 100000.0 * 100
+=======
+        simulator.load_data(symbol, start_date, end_date)
+        
+        # Run simple strategy
+        logger.info("Running simple strategy test...")
+        results = simulator.run_simple_strategy()
+>>>>>>> 420a6cf673adfa503a5e1c40863ef6015d8cefb6
         
         # Analyze results
         logger.info("=" * 60)
@@ -175,6 +245,7 @@ def test_phase1_completion():
         # Check definition of done criteria
         criteria_met = []
         
+<<<<<<< HEAD
         # 1. Can load tick data
         if total_trades > 0:
             criteria_met.append("✓ Can load tick data")
@@ -184,19 +255,40 @@ def test_phase1_completion():
         
         # 2. Can execute a simple strategy
         if total_trades > 0:
+=======
+        # 1. Can load a year of real EURUSD tick data
+        if results['total_trades'] > 0:
+            criteria_met.append("✓ Can load real tick data")
+            logger.info("✓ Can load a year of real EURUSD tick data")
+        else:
+            logger.error("✗ Cannot load real tick data")
+        
+        # 2. Can execute a simple, hard-coded strategy
+        if results['strategy_name'] == 'Simple MA Crossover':
+>>>>>>> 420a6cf673adfa503a5e1c40863ef6015d8cefb6
             criteria_met.append("✓ Can execute simple strategy")
             logger.info("✓ Can execute a simple, hard-coded strategy")
         else:
             logger.error("✗ Cannot execute simple strategy")
         
         # 3. Produces a trade log
+<<<<<<< HEAD
         if total_trades > 0:
             criteria_met.append("✓ Produces trade log")
             logger.info(f"✓ Produces a trade log ({total_trades} trades)")
+=======
+        if results['total_trades'] > 0:
+            criteria_met.append("✓ Produces trade log")
+            logger.info(f"✓ Produces a trade log ({results['total_trades']} trades)")
+>>>>>>> 420a6cf673adfa503a5e1c40863ef6015d8cefb6
         else:
             logger.error("✗ No trades executed")
         
         # 4. Realistic, non-zero PnL
+<<<<<<< HEAD
+=======
+        total_pnl = results['total_pnl']
+>>>>>>> 420a6cf673adfa503a5e1c40863ef6015d8cefb6
         if abs(total_pnl) > 0.01:  # More than 1 cent
             criteria_met.append("✓ Non-zero PnL")
             logger.info(f"✓ Realistic, non-zero PnL: ${total_pnl:.2f}")
@@ -204,17 +296,27 @@ def test_phase1_completion():
             logger.error(f"✗ Zero or negligible PnL: ${total_pnl:.2f}")
         
         # 5. Transaction costs
+<<<<<<< HEAD
         total_costs = total_commission + total_slippage
         if total_costs > 0:
             criteria_met.append("✓ Transaction costs")
             logger.info(f"✓ Transaction costs: ${total_costs:.2f}")
             logger.info(f"  - Commission: ${total_commission:.2f}")
             logger.info(f"  - Slippage: ${total_slippage:.2f}")
+=======
+        total_costs = results['total_commission'] + results['total_slippage']
+        if total_costs > 0:
+            criteria_met.append("✓ Transaction costs")
+            logger.info(f"✓ Transaction costs: ${total_costs:.2f}")
+            logger.info(f"  - Commission: ${results['total_commission']:.2f}")
+            logger.info(f"  - Slippage: ${results['total_slippage']:.2f}")
+>>>>>>> 420a6cf673adfa503a5e1c40863ef6015d8cefb6
         else:
             logger.error("✗ No transaction costs")
         
         # Print detailed results
         logger.info("\nDetailed Results:")
+<<<<<<< HEAD
         logger.info(f"Strategy: Simple MA Crossover")
         logger.info(f"Total Trades: {total_trades}")
         logger.info(f"Final Balance: ${final_balance:.2f}")
@@ -222,6 +324,15 @@ def test_phase1_completion():
         logger.info(f"Return: {return_pct:.2f}%")
         logger.info(f"Total Commission: ${total_commission:.2f}")
         logger.info(f"Total Slippage: ${total_slippage:.2f}")
+=======
+        logger.info(f"Strategy: {results['strategy_name']}")
+        logger.info(f"Total Trades: {results['total_trades']}")
+        logger.info(f"Final Balance: ${results['final_balance']:.2f}")
+        logger.info(f"Total PnL: ${total_pnl:.2f}")
+        logger.info(f"Return: {results['return_pct']:.2f}%")
+        logger.info(f"Total Commission: ${results['total_commission']:.2f}")
+        logger.info(f"Total Slippage: ${results['total_slippage']:.2f}")
+>>>>>>> 420a6cf673adfa503a5e1c40863ef6015d8cefb6
         
         # Check if all criteria are met
         if len(criteria_met) == 5:
@@ -238,7 +349,11 @@ def test_phase1_completion():
             logger.error("=" * 60)
             logger.error("Missing criteria:")
             missing_criteria = [
+<<<<<<< HEAD
                 "Can load tick data",
+=======
+                "Can load real tick data",
+>>>>>>> 420a6cf673adfa503a5e1c40863ef6015d8cefb6
                 "Can execute simple strategy", 
                 "Produces trade log",
                 "Non-zero PnL",
@@ -251,8 +366,11 @@ def test_phase1_completion():
             
     except Exception as e:
         logger.error(f"Phase 1 test failed: {e}")
+<<<<<<< HEAD
         import traceback
         traceback.print_exc()
+=======
+>>>>>>> 420a6cf673adfa503a5e1c40863ef6015d8cefb6
         return False
 
 def main():

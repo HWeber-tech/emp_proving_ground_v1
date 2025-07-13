@@ -1,25 +1,34 @@
 """
-PnL Engine for the EMP Proving Ground system.
+PnL Engine Module - v2.0 Implementation
 
-This module provides precise profit and loss calculations:
-- EnhancedPosition: Position tracking with v2.0 features
-- TradeRecord: Immutable trade transaction records
+This module implements the robust PnL calculation system as specified in v2.0,
+using Decimal for all financial calculations and comprehensive trade tracking.
 """
 
 import logging
-from dataclasses import dataclass, field
 from datetime import datetime
-from decimal import Decimal
-from typing import Dict, List, Any
+from decimal import Decimal, getcontext, ROUND_HALF_UP
+from typing import List, Dict, Any, Optional
+from dataclasses import dataclass, field
+from enum import Enum
 
 from .core import Instrument
+
+# Configure decimal precision for financial calculations
+getcontext().prec = 12
+getcontext().rounding = ROUND_HALF_UP
 
 logger = logging.getLogger(__name__)
 
 
 @dataclass
 class TradeRecord:
-    """Immutable record of a trade transaction for audit trail"""
+    """
+    Immutable record of a trade transaction for audit trail.
+    
+    This class provides a complete audit trail of all trading activities,
+    ensuring transparency and compliance with financial regulations.
+    """
     timestamp: datetime
     trade_type: str  # 'OPEN', 'ADD', 'REDUCE', 'CLOSE', 'REVERSE', 'SWAP'
     quantity: int
@@ -28,11 +37,29 @@ class TradeRecord:
     slippage: Decimal
     swap_fee: Decimal = Decimal('0')
     metadata: Dict[str, Any] = field(default_factory=dict)
+    
+    def __post_init__(self):
+        """Validate trade record data."""
+        if self.quantity == 0 and self.trade_type != 'SWAP':
+            raise ValueError("Trade quantity cannot be zero for non-swap trades")
+        if self.price < 0:
+            raise ValueError("Trade price cannot be negative")
+        if self.commission < 0:
+            raise ValueError("Commission cannot be negative")
+        if self.slippage < 0:
+            raise ValueError("Slippage cannot be negative")
+        if self.swap_fee < 0:
+            raise ValueError("Swap fee cannot be negative")
 
 
 @dataclass
 class EnhancedPosition:
-    """Enhanced position with v2.0 features for precise PnL tracking"""
+    """
+    Enhanced position with v2.0 features and complete audit trail.
+    
+    This class implements the position management logic from the original unified file,
+    ensuring all financial calculations use Decimal for precision and accuracy.
+    """
     symbol: str
     quantity: int  # Positive for long, negative for short
     avg_price: Decimal
@@ -47,8 +74,17 @@ class EnhancedPosition:
     def update(self, trade_quantity: int, trade_price: Decimal, 
                commission: Decimal, slippage: Decimal, 
                current_time: datetime, trade_type: str = "UNKNOWN") -> None:
-        """Update position with new trade"""
+        """
+        Update position with new trade.
         
+        Args:
+            trade_quantity: Quantity of the trade (positive for buy, negative for sell)
+            trade_price: Price of the trade
+            commission: Commission paid
+            slippage: Slippage incurred
+            current_time: Timestamp of the trade
+            trade_type: Type of trade ('OPEN', 'ADD', 'REDUCE', 'CLOSE', 'REVERSE')
+        """
         # Create trade record
         trade_record = TradeRecord(
             timestamp=current_time,
@@ -111,9 +147,16 @@ class EnhancedPosition:
             self.quantity = trade_quantity
             self.avg_price = trade_price
             self.entry_timestamp = current_time
+        
+        logger.debug(f"Position updated: {trade_type} {trade_quantity} @ {trade_price}")
     
     def update_unrealized_pnl(self, current_market_price: Decimal) -> None:
-        """Update unrealized PnL and track MAE/MFE"""
+        """
+        Update unrealized PnL and track MAE/MFE.
+        
+        Args:
+            current_market_price: Current market price
+        """
         if self.quantity == 0:
             self.unrealized_pnl = Decimal('0')
             return
@@ -132,7 +175,13 @@ class EnhancedPosition:
             self.max_favorable_excursion = pnl
     
     def apply_swap_fee(self, current_time: datetime, instrument: Instrument) -> None:
-        """Apply swap fee if past swap time"""
+        """
+        Apply swap fee if past swap time.
+        
+        Args:
+            current_time: Current timestamp
+            instrument: Trading instrument
+        """
         if self.quantity == 0:
             return
         
@@ -167,54 +216,66 @@ class EnhancedPosition:
             
             # Update last swap time
             self.last_swap_time = current_time
+            
+            logger.debug(f"Applied swap fee: {swap_fee}")
     
     def get_total_pnl(self) -> Decimal:
-        """Get total PnL (realized + unrealized)"""
+        """Get total PnL (realized + unrealized)."""
         return self.realized_pnl + self.unrealized_pnl
     
-    def get_total_commission(self) -> Decimal:
-        """Get total commission paid"""
-        total = sum(trade.commission for trade in self.trade_history)
-        return total if total else Decimal('0')
-    
-    def get_total_slippage(self) -> Decimal:
-        """Get total slippage incurred"""
-        total = sum(trade.slippage for trade in self.trade_history)
-        return total if total else Decimal('0')
-    
-    def get_total_swap_fees(self) -> Decimal:
-        """Get total swap fees paid"""
-        total = sum(trade.swap_fee for trade in self.trade_history)
-        return total if total else Decimal('0')
+    def get_total_cost(self) -> Decimal:
+        """Get total transaction costs."""
+        total_cost = Decimal('0')
+        for trade in self.trade_history:
+            total_cost += trade.commission + trade.slippage + trade.swap_fee
+        return total_cost
     
     def get_trade_count(self) -> int:
-        """Get number of trades in this position"""
+        """Get total number of trades."""
         return len(self.trade_history)
     
     def get_position_value(self, current_price: Decimal) -> Decimal:
-        """Get current position value"""
-        return abs(self.quantity * current_price)
+        """Get current position value."""
+        return abs(self.quantity) * current_price
     
-    def get_margin_requirement(self, leverage: Decimal = Decimal('1')) -> Decimal:
-        """Get margin requirement for this position"""
-        if leverage <= 0:
-            raise ValueError("Leverage must be positive")
-        return self.get_position_value(self.avg_price) / leverage
+    def get_margin_required(self, instrument: Instrument, leverage: Decimal) -> Decimal:
+        """Calculate margin required for this position."""
+        position_value = self.get_position_value(self.avg_price)
+        return position_value / leverage
     
     def is_long(self) -> bool:
-        """Check if position is long"""
+        """Check if position is long."""
         return self.quantity > 0
     
     def is_short(self) -> bool:
-        """Check if position is short"""
+        """Check if position is short."""
         return self.quantity < 0
     
     def is_flat(self) -> bool:
-        """Check if position is flat (no position)"""
+        """Check if position is flat (no position)."""
         return self.quantity == 0
     
     def get_duration(self, current_time: datetime) -> float:
-        """Get position duration in days"""
+        """Get position duration in days."""
         if self.is_flat():
             return 0.0
-        return (current_time - self.entry_timestamp).total_seconds() / (24 * 3600) 
+        duration = current_time - self.entry_timestamp
+        return duration.total_seconds() / (24 * 3600)  # Convert to days
+    
+    def get_summary(self) -> Dict[str, Any]:
+        """Get position summary."""
+        return {
+            'symbol': self.symbol,
+            'quantity': self.quantity,
+            'avg_price': float(self.avg_price),
+            'unrealized_pnl': float(self.unrealized_pnl),
+            'realized_pnl': float(self.realized_pnl),
+            'total_pnl': float(self.get_total_pnl()),
+            'max_adverse_excursion': float(self.max_adverse_excursion),
+            'max_favorable_excursion': float(self.max_favorable_excursion),
+            'trade_count': self.get_trade_count(),
+            'total_cost': float(self.get_total_cost()),
+            'is_long': self.is_long(),
+            'is_short': self.is_short(),
+            'is_flat': self.is_flat()
+        } 

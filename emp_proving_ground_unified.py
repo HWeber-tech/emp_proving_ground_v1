@@ -21,6 +21,16 @@ from scipy.signal import find_peaks
 from sklearn.neural_network import MLPRegressor
 from sklearn.preprocessing import StandardScaler
 from sklearn.exceptions import NotFittedError
+from decimal import Decimal, getcontext, ROUND_HALF_UP
+from pydantic import BaseModel, Field, validator
+import warnings
+
+# Configure global decimal precision for financial calculations
+getcontext().prec = 12
+getcontext().rounding = ROUND_HALF_UP
+
+# Suppress warnings for cleaner output
+warnings.filterwarnings('ignore')
 
 # ==============================================================================
 # ### Component: Data Pipeline ###
@@ -35,6 +45,195 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# ==============================================================================
+# ### Part 0: Foundational Principles & Dependencies ###
+# ==============================================================================
+
+class RiskConfig(BaseModel):
+    """Configuration for risk management"""
+    max_risk_per_trade_pct: Decimal = Field(default=Decimal('0.02'), description="Maximum risk per trade as percentage of equity")
+    max_leverage: Decimal = Field(default=Decimal('10.0'), description="Maximum allowed leverage")
+    max_total_exposure_pct: Decimal = Field(default=Decimal('0.5'), description="Maximum total exposure as percentage of equity")
+    max_drawdown_pct: Decimal = Field(default=Decimal('0.25'), description="Maximum drawdown before stopping")
+    min_position_size: int = Field(default=1000, description="Minimum position size in units")
+    max_position_size: int = Field(default=1000000, description="Maximum position size in units")
+    mandatory_stop_loss: bool = Field(default=True, description="Whether stop loss is mandatory")
+    research_mode: bool = Field(default=False, description="Research mode disables some safety checks")
+    
+    @validator('max_risk_per_trade_pct', 'max_leverage', 'max_total_exposure_pct', 'max_drawdown_pct')
+    def validate_percentages(cls, v):
+        if v <= 0 or v > 1:
+            raise ValueError(f"Percentage must be between 0 and 1, got {v}")
+        return v
+
+@dataclass
+class Instrument:
+    """Instrument metadata for financial calculations"""
+    symbol: str
+    pip_decimal_places: int
+    contract_size: Decimal
+    long_swap_rate: Decimal
+    short_swap_rate: Decimal
+    margin_currency: str
+    swap_time: str = "22:00"  # Default swap time UTC
+    
+    def __post_init__(self):
+        if self.pip_decimal_places < 0:
+            raise ValueError("pip_decimal_places must be non-negative")
+        if self.contract_size <= 0:
+            raise ValueError("contract_size must be positive")
+
+class InstrumentProvider:
+    """Provides instrument metadata"""
+    
+    def __init__(self, instruments_file: str = "configs/instruments.json"):
+        self.instruments_file = Path(instruments_file)
+        self.instruments: Dict[str, Instrument] = {}
+        self._load_instruments()
+    
+    def _load_instruments(self):
+        """Load instrument definitions from JSON file"""
+        if not self.instruments_file.exists():
+            # Create default instruments
+            self._create_default_instruments()
+        else:
+            with open(self.instruments_file, 'r') as f:
+                data = json.load(f)
+                for symbol, config in data.items():
+                    self.instruments[symbol] = Instrument(
+                        symbol=symbol,
+                        pip_decimal_places=config['pip_decimal_places'],
+                        contract_size=Decimal(str(config['contract_size'])),
+                        long_swap_rate=Decimal(str(config['long_swap_rate'])),
+                        short_swap_rate=Decimal(str(config['short_swap_rate'])),
+                        margin_currency=config['margin_currency'],
+                        swap_time=config.get('swap_time', '22:00')
+                    )
+    
+    def _create_default_instruments(self):
+        """Create default instrument definitions"""
+        default_instruments = {
+            'EUR_USD': {
+                'pip_decimal_places': 4,
+                'contract_size': '100000',
+                'long_swap_rate': '-0.0001',
+                'short_swap_rate': '0.0001',
+                'margin_currency': 'USD',
+                'swap_time': '22:00'
+            },
+            'GBP_USD': {
+                'pip_decimal_places': 4,
+                'contract_size': '100000',
+                'long_swap_rate': '-0.0002',
+                'short_swap_rate': '0.0002',
+                'margin_currency': 'USD',
+                'swap_time': '22:00'
+            },
+            'USD_JPY': {
+                'pip_decimal_places': 2,
+                'contract_size': '100000',
+                'long_swap_rate': '-0.0001',
+                'short_swap_rate': '0.0001',
+                'margin_currency': 'USD',
+                'swap_time': '22:00'
+            }
+        }
+        
+        # Save default instruments
+        self.instruments_file.parent.mkdir(parents=True, exist_ok=True)
+        with open(self.instruments_file, 'w') as f:
+            json.dump(default_instruments, f, indent=2)
+        
+        # Load them
+        self._load_instruments()
+    
+    def get_instrument(self, symbol: str) -> Optional[Instrument]:
+        """Get instrument by symbol"""
+        return self.instruments.get(symbol)
+    
+    def list_instruments(self) -> List[str]:
+        """List all available instruments"""
+        return list(self.instruments.keys())
+
+class CurrencyConverter:
+    """Handles currency conversions for pip value calculations"""
+    
+    def __init__(self, rates_file: str = "configs/exchange_rates.json"):
+        self.rates_file = Path(rates_file)
+        self.rates: Dict[str, Decimal] = {}
+        self._load_rates()
+    
+    def _load_rates(self):
+        """Load exchange rates from JSON file"""
+        if not self.rates_file.exists():
+            # Create default rates
+            self._create_default_rates()
+        else:
+            with open(self.rates_file, 'r') as f:
+                data = json.load(f)
+                self.rates = {k: Decimal(str(v)) for k, v in data.items()}
+    
+    def _create_default_rates(self):
+        """Create default exchange rates"""
+        default_rates = {
+            'EUR_USD': '1.1000',
+            'GBP_USD': '1.2500',
+            'USD_JPY': '110.00',
+            'USD_EUR': '0.9091',
+            'USD_GBP': '0.8000',
+            'JPY_USD': '0.0091'
+        }
+        
+        # Save default rates
+        self.rates_file.parent.mkdir(parents=True, exist_ok=True)
+        with open(self.rates_file, 'w') as f:
+            json.dump(default_rates, f, indent=2)
+        
+        # Load them
+        self._load_rates()
+    
+    def get_rate(self, from_currency: str, to_currency: str) -> Decimal:
+        """Get exchange rate between currencies"""
+        if from_currency == to_currency:
+            return Decimal('1.0')
+        
+        # Try direct rate
+        pair = f"{from_currency}_{to_currency}"
+        if pair in self.rates:
+            return self.rates[pair]
+        
+        # Try inverse rate
+        inverse_pair = f"{to_currency}_{from_currency}"
+        if inverse_pair in self.rates:
+            return Decimal('1.0') / self.rates[inverse_pair]
+        
+        # If not found, return 1.0 (assume same currency)
+        logger.warning(f"Exchange rate not found for {from_currency} to {to_currency}, using 1.0")
+        return Decimal('1.0')
+    
+    def calculate_pip_value(self, instrument: Instrument, account_currency: str) -> Decimal:
+        """Calculate pip value in account currency"""
+        # Get the quote currency from the symbol
+        base_currency, quote_currency = instrument.symbol.split('_')
+        
+        # Calculate pip value in quote currency
+        pip_value_quote = Decimal('0.0001') if instrument.pip_decimal_places == 4 else Decimal('0.01')
+        pip_value_quote *= instrument.contract_size
+        
+        # Convert to account currency
+        if quote_currency != account_currency:
+            rate = self.get_rate(quote_currency, account_currency)
+            pip_value_account = pip_value_quote * rate
+        else:
+            pip_value_account = pip_value_quote
+        
+        return pip_value_account
+
+
+# ==============================================================================
+# ### Component: Data Pipeline ###
+# (Content from storage.py, clean.py, ingest.py)
+# ==============================================================================
 
 class TickDataStorage:
     """
@@ -91,7 +290,7 @@ class TickDataStorage:
         
         # Load data from Parquet files (simplified for demo)
         # In real implementation, would load multiple files and filter
-        file_path = self.processed_dir / f"{symbol}_{start_time.year}.parquet"
+        file_path = self.processed_dir / symbol / f"{symbol}_{start_time.year}_{start_time.month:02d}.parquet"
         
         if not file_path.exists():
             logger.warning(f"No data file found for {symbol} {start_time.year}")
@@ -1109,6 +1308,8 @@ class Order:
     status: OrderStatus = OrderStatus.PENDING
     filled_quantity: float = 0.0
     filled_price: Optional[float] = None
+    stop_loss: Optional[float] = None
+    take_profit: Optional[float] = None
 
 
 @dataclass
@@ -1119,6 +1320,279 @@ class Position:
     avg_price: float
     unrealized_pnl: float = 0.0
     realized_pnl: float = 0.0
+
+
+# ==============================================================================
+# ### Part 1: Risk Management Core (Enhanced) ###
+# ==============================================================================
+
+@dataclass
+class TradeRecord:
+    """Immutable record of a trade transaction for audit trail"""
+    timestamp: datetime
+    trade_type: str  # 'OPEN', 'ADD', 'REDUCE', 'CLOSE', 'REVERSE'
+    quantity: int
+    price: Decimal
+    commission: Decimal
+    slippage: Decimal
+    swap_fee: Decimal = Decimal('0')
+    metadata: Dict[str, Any] = field(default_factory=dict)
+
+@dataclass
+class EnhancedPosition:
+    """Enhanced position with v2.0 features"""
+    symbol: str
+    quantity: int  # Positive for long, negative for short
+    avg_price: Decimal
+    entry_timestamp: datetime
+    last_swap_time: datetime
+    unrealized_pnl: Decimal = Decimal('0')
+    realized_pnl: Decimal = Decimal('0')
+    max_adverse_excursion: Decimal = Decimal('0')
+    max_favorable_excursion: Decimal = Decimal('0')
+    trade_history: List[TradeRecord] = field(default_factory=list)
+    
+    def update(self, trade_quantity: int, trade_price: Decimal, 
+               commission: Decimal, slippage: Decimal, 
+               current_time: datetime, trade_type: str = "UNKNOWN") -> None:
+        """Update position with new trade"""
+        
+        # Create trade record
+        trade_record = TradeRecord(
+            timestamp=current_time,
+            trade_type=trade_type,
+            quantity=trade_quantity,
+            price=trade_price,
+            commission=commission,
+            slippage=slippage
+        )
+        self.trade_history.append(trade_record)
+        
+        # Calculate new position
+        old_quantity = self.quantity
+        old_avg_price = self.avg_price
+        
+        if trade_type in ["OPEN", "ADD"]:
+            # Opening or adding to position
+            if old_quantity == 0:
+                # Opening new position
+                self.quantity = trade_quantity
+                self.avg_price = trade_price
+                self.entry_timestamp = current_time
+            else:
+                # Adding to existing position
+                total_quantity = old_quantity + trade_quantity
+                self.avg_price = ((old_quantity * old_avg_price) + (trade_quantity * trade_price)) / total_quantity
+                self.quantity = total_quantity
+                
+        elif trade_type in ["REDUCE", "CLOSE"]:
+            # Reducing or closing position
+            if abs(trade_quantity) > abs(old_quantity):
+                raise ValueError(f"Cannot close more than current position: {trade_quantity} vs {old_quantity}")
+            
+            # Calculate realized PnL
+            if trade_type == "CLOSE":
+                # Full close
+                pnl = (trade_price - old_avg_price) * old_quantity
+                if old_quantity < 0:  # Short position
+                    pnl = -pnl
+                self.realized_pnl += pnl
+                self.quantity = 0
+            else:
+                # Partial close
+                pnl = (trade_price - old_avg_price) * trade_quantity
+                if old_quantity < 0:  # Short position
+                    pnl = -pnl
+                self.realized_pnl += pnl
+                self.quantity = old_quantity - trade_quantity
+                
+        elif trade_type == "REVERSE":
+            # Reverse position (close old and open new)
+            # First close existing position
+            if old_quantity != 0:
+                pnl = (trade_price - old_avg_price) * old_quantity
+                if old_quantity < 0:  # Short position
+                    pnl = -pnl
+                self.realized_pnl += pnl
+            
+            # Then open new position
+            self.quantity = trade_quantity
+            self.avg_price = trade_price
+            self.entry_timestamp = current_time
+    
+    def update_unrealized_pnl(self, current_market_price: Decimal) -> None:
+        """Update unrealized PnL and track MAE/MFE"""
+        if self.quantity == 0:
+            self.unrealized_pnl = Decimal('0')
+            return
+        
+        # Calculate unrealized PnL
+        pnl = (current_market_price - self.avg_price) * self.quantity
+        if self.quantity < 0:  # Short position
+            pnl = -pnl
+        
+        self.unrealized_pnl = pnl
+        
+        # Update MAE/MFE
+        if pnl < self.max_adverse_excursion:
+            self.max_adverse_excursion = pnl
+        if pnl > self.max_favorable_excursion:
+            self.max_favorable_excursion = pnl
+    
+    def apply_swap_fee(self, current_time: datetime, instrument: Instrument) -> None:
+        """Apply swap fee if past swap time"""
+        if self.quantity == 0:
+            return
+        
+        # Parse swap time
+        swap_hour, swap_minute = map(int, instrument.swap_time.split(':'))
+        swap_time = current_time.replace(hour=swap_hour, minute=swap_minute, second=0, microsecond=0)
+        
+        # Check if we're past swap time and it's a new day
+        if (current_time >= swap_time and 
+            current_time.date() > self.last_swap_time.date()):
+            
+            # Apply appropriate swap rate
+            if self.quantity > 0:  # Long position
+                swap_fee = instrument.long_swap_rate * abs(self.quantity)
+            else:  # Short position
+                swap_fee = instrument.short_swap_rate * abs(self.quantity)
+            
+            # Add to trade history
+            swap_record = TradeRecord(
+                timestamp=current_time,
+                trade_type="SWAP",
+                quantity=0,
+                price=Decimal('0'),
+                commission=Decimal('0'),
+                slippage=Decimal('0'),
+                swap_fee=swap_fee
+            )
+            self.trade_history.append(swap_record)
+            
+            # Update realized PnL
+            self.realized_pnl -= swap_fee
+            
+            # Update last swap time
+            self.last_swap_time = current_time
+
+@dataclass
+class ValidationResult:
+    """Result of risk validation"""
+    is_valid: bool
+    reason: str
+    risk_metadata: Optional[Dict[str, Any]] = None
+
+class RiskManager:
+    """Enhanced risk management core"""
+    
+    def __init__(self, config: RiskConfig, instrument_provider: InstrumentProvider):
+        self.config = config
+        self.instrument_provider = instrument_provider
+        self.currency_converter = CurrencyConverter()
+        
+        logger.info(f"Initialized RiskManager with config: {config}")
+    
+    def calculate_position_size(self, account_equity: Decimal, stop_loss_pips: Decimal, 
+                               instrument: Instrument, account_currency: str = "USD") -> int:
+        """Calculate position size based on risk parameters"""
+        
+        # Validate inputs
+        if account_equity <= 0:
+            raise ValueError(f"Account equity must be positive, got {account_equity}")
+        if stop_loss_pips <= 0:
+            raise ValueError(f"Stop loss pips must be positive, got {stop_loss_pips}")
+        
+        # Calculate pip value
+        pip_value = self.currency_converter.calculate_pip_value(instrument, account_currency)
+        
+        # Calculate risk amount
+        risk_amount = account_equity * self.config.max_risk_per_trade_pct
+        
+        # Calculate stop loss value
+        stop_loss_value = stop_loss_pips * pip_value
+        
+        # Calculate position size
+        if stop_loss_value == 0:
+            logger.warning("Stop loss value is zero, returning 0 position size")
+            return 0
+        
+        size_in_lots = risk_amount / stop_loss_value
+        size_in_units = int(size_in_lots * instrument.contract_size)
+        
+        # Apply size constraints
+        size_in_units = max(self.config.min_position_size, 
+                           min(self.config.max_position_size, size_in_units))
+        
+        logger.debug(f"Calculated position size: {size_in_units} units "
+                    f"(risk: {risk_amount}, stop_loss: {stop_loss_value})")
+        
+        return size_in_units
+    
+    def validate_order(self, proposed_order: Order, account_state: Dict, 
+                      open_positions: Dict[str, EnhancedPosition]) -> ValidationResult:
+        """Validate order against risk rules"""
+        
+        # Check 1: Max Drawdown (Master circuit breaker)
+        if "max_drawdown_pct" in account_state:
+            if account_state["max_drawdown_pct"] > self.config.max_drawdown_pct:
+                return ValidationResult(
+                    is_valid=False,
+                    reason=f"Max drawdown exceeded: {account_state['max_drawdown_pct']:.2%} > {self.config.max_drawdown_pct:.2%}"
+                )
+        
+        # Check 2: Mandatory Stop Loss
+        if self.config.mandatory_stop_loss and not self.config.research_mode:
+            if not hasattr(proposed_order, 'stop_loss') or proposed_order.stop_loss is None:
+                return ValidationResult(
+                    is_valid=False,
+                    reason="Stop loss is mandatory but not provided"
+                )
+        
+        # Check 3: Max Leverage
+        total_notional = sum(abs(pos.quantity) * pos.avg_price 
+                           for pos in open_positions.values())
+        if total_notional > 0:
+            leverage = total_notional / account_state.get("equity", 1)
+            if leverage > self.config.max_leverage:
+                return ValidationResult(
+                    is_valid=False,
+                    reason=f"Max leverage exceeded: {leverage:.2f} > {self.config.max_leverage}"
+                )
+        
+        # Check 4: Max Total Exposure
+        total_exposure = sum(abs(pos.quantity) * pos.avg_price 
+                           for pos in open_positions.values())
+        exposure_pct = total_exposure / account_state.get("equity", 1)
+        if exposure_pct > self.config.max_total_exposure_pct:
+            return ValidationResult(
+                is_valid=False,
+                reason=f"Max total exposure exceeded: {exposure_pct:.2%} > {self.config.max_total_exposure_pct:.2%}"
+            )
+        
+        # Check 5: Min/Max Position Size
+        if proposed_order.quantity < self.config.min_position_size:
+            return ValidationResult(
+                is_valid=False,
+                reason=f"Position size too small: {proposed_order.quantity} < {self.config.min_position_size}"
+            )
+        
+        if proposed_order.quantity > self.config.max_position_size:
+            return ValidationResult(
+                is_valid=False,
+                reason=f"Position size too large: {proposed_order.quantity} > {self.config.max_position_size}"
+            )
+        
+        # All checks passed
+        return ValidationResult(
+            is_valid=True,
+            reason="Order approved",
+            risk_metadata={
+                "leverage": leverage if total_notional > 0 else 0,
+                "exposure_pct": exposure_pct,
+                "total_notional": total_notional
+            }
+        )
 
 
 @dataclass

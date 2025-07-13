@@ -1,0 +1,28 @@
+# EMP Proving Ground v1.0 - Central Configuration
+
+data:
+  raw_dir: data/raw
+  processed_dir: data/processed
+  symbol: EURUSD
+  start_year: 2018
+  end_year: 2024
+
+simulation:
+  commission_per_trade: 0.0001  # 1 pip
+  base_slippage_bps: 0.5
+  size_impact_factor: 0.1
+  volatility_factor: 0.2
+  initial_balance: 100000
+  leverage: 1.0
+
+evolution:
+  population_size: 50
+  generations: 10
+  elite_ratio: 0.1
+  crossover_ratio: 0.8
+  mutation_ratio: 0.1
+  mutation_rate: 0.1
+
+adversary:
+  enabled: true
+  intensity: 0.7 

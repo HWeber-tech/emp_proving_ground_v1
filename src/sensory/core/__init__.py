@@ -1,27 +1,4 @@
-"""
-Core components for the multidimensional market intelligence system.
-"""
+"""Core components for the market intelligence system"""
 
-from .base import (
-    MarketRegime,
-    ConfidenceLevel,
-    DimensionalReading,
-    MarketUnderstanding,
-    DimensionalSensor,
-    MarketNarrative,
-    DimensionalCorrelationMatrix,
-    RegimeDetector,
-    MemoryBank
-)
+from .base import MarketData, DimensionalReading, MarketRegime, ConfidenceLevel
 
-__all__ = [
-    'MarketRegime',
-    'ConfidenceLevel', 
-    'DimensionalReading',
-    'MarketUnderstanding',
-    'DimensionalSensor',
-    'MarketNarrative',
-    'DimensionalCorrelationMatrix',
-    'RegimeDetector',
-    'MemoryBank'
-] 

@@ -1,7 +1,2 @@
-"""
-Orchestration components for the multidimensional market intelligence system.
-"""
+"""Orchestration and fusion engines"""
 
-from .intelligence_engine import IntelligenceEngine
-
-__all__ = ['IntelligenceEngine'] 

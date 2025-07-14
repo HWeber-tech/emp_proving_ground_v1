@@ -22,7 +22,7 @@ warnings.filterwarnings('ignore')
 
 from ..core.base import (
     DimensionalSensor, DimensionalReading, MarketData, MarketRegime,
-    MarketNarrative, MemoryBank, DimensionalCorrelationMatrix
+    MarketNarrative, MemoryBank, CrossDimensionalCorrelation
 )
 from ..dimensions.why_dimension import WhyDimension
 from ..dimensions.how_dimension import HowDimension
@@ -326,7 +326,7 @@ class IntelligenceEngine:
         self.memory_bank = MemoryBank()
         
         # Cross-dimensional analysis
-        self.correlation_tracker = DimensionalCorrelationMatrix()
+        self.correlation_tracker = CrossDimensionalCorrelation()
         
         # Intelligence history
         self.understanding_history: deque = deque(maxlen=1000)

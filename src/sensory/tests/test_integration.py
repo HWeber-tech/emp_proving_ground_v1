@@ -26,11 +26,11 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from core.base import MarketData, DimensionalReading, MarketRegime
 from orchestration.enhanced_intelligence_engine import ContextualFusionEngine
-from dimensions.why_dimension import FundamentalIntelligenceEngine
-from dimensions.enhanced_how_dimension import InstitutionalIntelligenceEngine
-from dimensions.enhanced_what_dimension import TechnicalRealityEngine
-from dimensions.enhanced_when_dimension import ChronalIntelligenceEngine
-from dimensions.enhanced_anomaly_dimension import AnomalyIntelligenceEngine
+from market_intelligence.dimensions.enhanced_why_dimension import EnhancedFundamentalIntelligenceEngine
+from market_intelligence.dimensions.enhanced_how_dimension import InstitutionalIntelligenceEngine
+from market_intelligence.dimensions.enhanced_what_dimension import TechnicalRealityEngine
+from market_intelligence.dimensions.enhanced_when_dimension import ChronalIntelligenceEngine
+from market_intelligence.dimensions.enhanced_anomaly_dimension import AnomalyIntelligenceEngine
 
 # Configure logging for tests
 logging.basicConfig(level=logging.WARNING)
@@ -117,7 +117,7 @@ class TestDimensionalEngines:
     async def test_why_engine_basic_functionality(self, sample_market_data):
         """Test WHY dimension engine basic functionality"""
         
-        engine = FundamentalIntelligenceEngine()
+        engine = EnhancedFundamentalIntelligenceEngine()
         
         # Test basic analysis
         reading = await engine.analyze_fundamental_intelligence(sample_market_data)
@@ -197,7 +197,7 @@ class TestDimensionalEngines:
         trending_data = data_generator.generate_sequence('trending_bull', 20)
         
         engines = {
-            'WHY': FundamentalIntelligenceEngine(),
+            'WHY': EnhancedFundamentalIntelligenceEngine(),
             'HOW': InstitutionalIntelligenceEngine(),
             'WHAT': TechnicalRealityEngine(),
             'WHEN': ChronalIntelligenceEngine(),

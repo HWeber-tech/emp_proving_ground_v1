@@ -449,8 +449,9 @@ class StatisticalAnomalyDetector:
                     affected_dimensions=['WHAT'],
                     market_impact=0.3
                 ))
-        except:
-            pass
+        except Exception as e:
+            logger.debug(f"Statistical anomaly detection failed: {e}")
+            # Continue with other anomaly detection methods
         
         # Test for volatility clustering breaks
         volatilities = np.array(list(self.volatility_history)[-20:])
@@ -868,8 +869,9 @@ class ChaosDetector:
                 slope, _ = np.polyfit(log_scales, log_rs, 1)
                 return max(0.0, min(slope, 1.0))
         
-        except:
-            pass
+        except Exception as e:
+            logger.debug(f"Hurst exponent calculation failed: {e}")
+            # Return neutral value indicating no clear trend persistence
         
         return 0.5
     
@@ -905,8 +907,9 @@ class ChaosDetector:
             if divergences:
                 return np.mean(divergences)
         
-        except:
-            pass
+        except Exception as e:
+            logger.debug(f"Lyapunov exponent calculation failed: {e}")
+            # Return zero indicating no detected chaos
         
         return 0.0
     

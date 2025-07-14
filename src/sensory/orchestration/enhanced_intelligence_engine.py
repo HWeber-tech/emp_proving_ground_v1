@@ -20,7 +20,7 @@ from scipy.optimize import minimize
 import logging
 
 from src.sensory.core.base import DimensionalReading, MarketData, MarketRegime
-from src.sensory.dimensions.why_dimension import WhyDimension
+from src.sensory.dimensions.enhanced_why_dimension import EnhancedFundamentalIntelligenceEngine
 from src.sensory.dimensions.enhanced_how_dimension import InstitutionalMechanicsEngine
 from src.sensory.dimensions.enhanced_what_dimension import TechnicalRealityEngine
 from src.sensory.dimensions.enhanced_when_dimension import ChronalIntelligenceEngine
@@ -890,13 +890,20 @@ class NarrativeGenerator:
             conflicting_evidence = self._identify_conflicting_evidence(evidence)
             return template.format(conflicting_evidence=conflicting_evidence)
         
-        # Fill in evidence placeholders
+        # Handle missing evidence with robust error recovery
         try:
             narrative = template.format(**evidence)
         except KeyError as e:
-            # Handle missing evidence gracefully
+            # Handle missing evidence gracefully by providing fallback text
             missing_key = str(e).strip("'")
-            evidence[missing_key] = "mixed signals"
+            fallback_evidence = {
+                'why_evidence': 'fundamental factors',
+                'how_evidence': 'institutional activity',
+                'what_evidence': 'technical patterns',
+                'when_evidence': 'timing considerations',
+                'anomaly_evidence': 'market anomalies'
+            }
+            evidence[missing_key] = fallback_evidence.get(missing_key, 'mixed signals')
             narrative = template.format(**evidence)
         
         return narrative
@@ -971,8 +978,8 @@ class ContextualFusionEngine:
     """
     
     def __init__(self):
-        # Component engines
-        self.why_engine = WhyDimension()
+        # Initialize dimensional engines
+        self.why_engine = EnhancedFundamentalIntelligenceEngine()
         self.how_engine = InstitutionalMechanicsEngine()
         self.what_engine = TechnicalRealityEngine()
         self.when_engine = ChronalIntelligenceEngine()

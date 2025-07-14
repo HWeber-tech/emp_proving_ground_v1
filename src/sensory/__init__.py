@@ -16,11 +16,23 @@ __author__ = "Market Intelligence Team"
 from .orchestration.enhanced_intelligence_engine import ContextualFusionEngine as SensoryCortex
 from .core.base import DimensionalReading as SensoryReading
 
+# Export enhanced dimensional engines
+from .dimensions.enhanced_why_dimension import EnhancedFundamentalIntelligenceEngine
+from .dimensions.enhanced_how_dimension import InstitutionalMechanicsEngine
+from .dimensions.enhanced_what_dimension import TechnicalRealityEngine
+from .dimensions.enhanced_when_dimension import ChronalIntelligenceEngine
+from .dimensions.enhanced_anomaly_dimension import AnomalyIntelligenceEngine
+
 # Also export the actual classes for new code
 __all__ = [
     'SensoryCortex',
     'SensoryReading', 
     'ContextualFusionEngine',
-    'DimensionalReading'
+    'DimensionalReading',
+    'EnhancedFundamentalIntelligenceEngine',
+    'InstitutionalMechanicsEngine',
+    'TechnicalRealityEngine',
+    'ChronalIntelligenceEngine',
+    'AnomalyIntelligenceEngine'
 ]
 

@@ -9,7 +9,7 @@ A sophisticated market analysis system that understands markets through five int
 - ANOMALY: Chaos, manipulation, and stress responses
 """
 
-__version__ = "1.0.0"
+__version__ = "2.0.0"  # Updated for production release
 __author__ = "Market Intelligence Team"
 
 # Export main classes for compatibility with existing code
@@ -23,16 +23,45 @@ from .dimensions.enhanced_what_dimension import TechnicalRealityEngine
 from .dimensions.enhanced_when_dimension import ChronalIntelligenceEngine
 from .dimensions.enhanced_anomaly_dimension import AnomalyIntelligenceEngine
 
+# Export production components
+from .core.production_validator import ProductionValidator, ProductionError, production_validator
+from .core.real_data_providers import (
+    DataIntegrationOrchestrator, 
+    DataProviderError,
+    RealFREDDataProvider,
+    RealOrderFlowProvider,
+    RealPriceDataProvider,
+    RealNewsDataProvider
+)
+from .infrastructure.streaming_pipeline import StreamingPipeline, StreamType, StreamMessage
+
 # Also export the actual classes for new code
 __all__ = [
+    # Legacy compatibility
     'SensoryCortex',
     'SensoryReading', 
     'ContextualFusionEngine',
     'DimensionalReading',
+    
+    # Enhanced dimensional engines
     'EnhancedFundamentalIntelligenceEngine',
     'InstitutionalMechanicsEngine',
     'TechnicalRealityEngine',
     'ChronalIntelligenceEngine',
-    'AnomalyIntelligenceEngine'
+    'AnomalyIntelligenceEngine',
+    
+    # Production components
+    'ProductionValidator',
+    'ProductionError',
+    'production_validator',
+    'DataIntegrationOrchestrator',
+    'DataProviderError',
+    'RealFREDDataProvider',
+    'RealOrderFlowProvider',
+    'RealPriceDataProvider',
+    'RealNewsDataProvider',
+    'StreamingPipeline',
+    'StreamType',
+    'StreamMessage'
 ]
 

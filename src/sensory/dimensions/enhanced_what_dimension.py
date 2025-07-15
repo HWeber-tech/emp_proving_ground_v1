@@ -554,7 +554,7 @@ class TechnicalRealityEngine:
         self.price_analyzer = PriceActionAnalyzer()
         
         # Market regime detection
-        self.current_regime = MarketRegime.UNKNOWN
+        self.current_regime = MarketRegime.RANGING_LOW_VOL
         self.regime_confidence = 0.0
         
         # Pattern recognition
@@ -616,7 +616,7 @@ class TechnicalRealityEngine:
             self.current_regime = MarketRegime.TRENDING_BEAR
             self.regime_confidence = trend.strength * trend.quality
         elif trend.direction == 'ranging' or trend.strength < 0.4:
-            self.current_regime = MarketRegime.RANGING
+            self.current_regime = MarketRegime.RANGING_LOW_VOL
             self.regime_confidence = 1.0 - trend.strength
         else:
             self.current_regime = MarketRegime.TRANSITIONAL

@@ -19,7 +19,7 @@ from scipy import stats
 from scipy.optimize import minimize
 import logging
 
-from src.sensory.core.base import DimensionalReading, MarketData, MarketRegime
+from src.sensory.core.base import DimensionalReading, MarketData, MarketRegime, MarketRegimeDetector
 from src.sensory.dimensions.enhanced_why_dimension import EnhancedFundamentalIntelligenceEngine
 from src.sensory.dimensions.enhanced_how_dimension import InstitutionalMechanicsEngine
 from src.sensory.dimensions.enhanced_what_dimension import TechnicalRealityEngine
@@ -510,46 +510,19 @@ class AdaptiveWeightManager:
         
         self.current_regime = regime
         
-        # Adjust weights based on market regime
-        regime_adjustments = {
-            MarketRegime.TRENDING_BULL: {
-                'WHY': 1.2,    # Fundamentals matter more in trends
-                'HOW': 1.1,    # Institutional flow important
-                'WHAT': 1.3,   # Technical analysis crucial
-                'WHEN': 0.9,   # Timing less critical
-                'ANOMALY': 0.8 # Anomalies less relevant
-            },
-            MarketRegime.TRENDING_BEAR: {
-                'WHY': 1.2,
-                'HOW': 1.1,
-                'WHAT': 1.3,
-                'WHEN': 0.9,
-                'ANOMALY': 0.8
-            },
-            MarketRegime.RANGING: {
-                'WHY': 0.8,    # Fundamentals less important
-                'HOW': 1.2,    # Institutional levels matter
-                'WHAT': 1.1,   # Support/resistance key
-                'WHEN': 1.3,   # Timing crucial in ranges
-                'ANOMALY': 1.0 # Normal anomaly relevance
-            },
-            MarketRegime.VOLATILE: {
-                'WHY': 0.9,
-                'HOW': 1.1,
-                'WHAT': 0.8,   # Technical less reliable
-                'WHEN': 1.2,   # Session timing important
-                'ANOMALY': 1.4 # Anomalies very relevant
-            },
-            MarketRegime.TRANSITIONAL: {
-                'WHY': 1.1,
-                'HOW': 1.0,
-                'WHAT': 0.9,
-                'WHEN': 1.0,
-                'ANOMALY': 1.3 # Transitions often anomalous
-            }
+        # Regime-specific weight adjustments
+        regime_factors = {
+            MarketRegime.TRENDING_BULL: {'why': 1.2, 'how': 1.1, 'what': 1.3, 'when': 1.0, 'anomaly': 0.8},
+            MarketRegime.TRENDING_BEAR: {'why': 1.2, 'how': 1.1, 'what': 1.3, 'when': 1.0, 'anomaly': 0.8},
+            MarketRegime.RANGING_HIGH_VOL: {'why': 0.9, 'how': 1.3, 'what': 1.2, 'when': 1.1, 'anomaly': 1.2},
+            MarketRegime.RANGING_LOW_VOL: {'why': 1.1, 'how': 0.8, 'what': 1.0, 'when': 1.3, 'anomaly': 0.7},
+            MarketRegime.TRANSITION: {'why': 1.0, 'how': 1.0, 'what': 1.0, 'when': 1.4, 'anomaly': 1.1},
+            MarketRegime.CRISIS: {'why': 0.7, 'how': 0.8, 'what': 0.6, 'when': 0.9, 'anomaly': 1.5},
+            MarketRegime.VOLATILE: {'why': 0.8, 'how': 1.2, 'what': 0.9, 'when': 1.0, 'anomaly': 1.3},
+            MarketRegime.UNKNOWN: {'why': 1.0, 'how': 1.0, 'what': 1.0, 'when': 1.0, 'anomaly': 1.0}
         }
         
-        adjustments = regime_adjustments.get(regime, {})
+        adjustments = regime_factors.get(regime, {})
         
         for dimension, factor in adjustments.items():
             if dimension in self.weights:
@@ -989,6 +962,7 @@ class ContextualFusionEngine:
         self.correlation_analyzer = CorrelationAnalyzer()
         self.weight_manager = AdaptiveWeightManager()
         self.narrative_generator = NarrativeGenerator()
+        self.regime_detector = MarketRegimeDetector()
         
         # Current state
         self.current_readings: Dict[str, DimensionalReading] = {}
@@ -1012,7 +986,7 @@ class ContextualFusionEngine:
         patterns = self.correlation_analyzer.get_cross_dimensional_patterns()
         
         # Update adaptive weights
-        self._update_adaptive_weights(readings, correlations)
+        self._update_adaptive_weights(readings, correlations, market_data)
         
         # Calculate unified synthesis
         synthesis = self._calculate_unified_synthesis(readings, correlations, patterns)
@@ -1044,7 +1018,7 @@ class ContextualFusionEngine:
         
         try:
             # Get HOW reading
-            how_reading = await self.how_engine.analyze_institutional_intelligence(market_data)
+            how_reading = await self.how_engine.analyze_institutional_mechanics(market_data)
             readings['HOW'] = how_reading
         except Exception as e:
             logger.warning(f"Failed to get HOW reading: {e}")
@@ -1073,7 +1047,8 @@ class ContextualFusionEngine:
         return readings
     
     def _update_adaptive_weights(self, readings: Dict[str, DimensionalReading],
-                                correlations: Dict[Tuple[str, str], DimensionalCorrelation]) -> None:
+                                correlations: Dict[Tuple[str, str], DimensionalCorrelation],
+                                market_data: MarketData) -> None:
         """Update adaptive weights based on current conditions"""
         
         # Update confidence factors
@@ -1083,39 +1058,8 @@ class ContextualFusionEngine:
         self.weight_manager.update_correlation_factors(correlations)
         
         # Determine market regime for regime factors
-        regime = self._determine_market_regime(readings)
+        regime = self.regime_detector.determine_regime(market_data)
         self.weight_manager.update_regime_factors(regime)
-    
-    def _determine_market_regime(self, readings: Dict[str, DimensionalReading]) -> MarketRegime:
-        """Determine current market regime from dimensional readings"""
-        
-        # Simple regime detection based on dimensional characteristics
-        if 'ANOMALY' in readings and readings['ANOMALY'].value > 0.6:
-            return MarketRegime.VOLATILE
-        
-        if 'WHAT' in readings:
-            what_context = readings['WHAT'].context or {}
-            regime = what_context.get('market_regime', 'UNKNOWN')
-            
-            if 'TRENDING_BULL' in regime:
-                return MarketRegime.TRENDING_BULL
-            elif 'TRENDING_BEAR' in regime:
-                return MarketRegime.TRENDING_BEAR
-            elif 'RANGING' in regime:
-                return MarketRegime.RANGING
-            elif 'TRANSITIONAL' in regime:
-                return MarketRegime.TRANSITIONAL
-        
-        # Check for volatility indicators
-        volatility_indicators = 0
-        for reading in readings.values():
-            if reading.value > 0.7 or reading.confidence < 0.3:
-                volatility_indicators += 1
-        
-        if volatility_indicators >= 2:
-            return MarketRegime.VOLATILE
-        
-        return MarketRegime.UNKNOWN
     
     def _calculate_unified_synthesis(self, readings: Dict[str, DimensionalReading],
                                    correlations: Dict[Tuple[str, str], DimensionalCorrelation],
@@ -1288,14 +1232,17 @@ class ContextualFusionEngine:
         # Check for specific patterns first
         for pattern in patterns:
             if pattern.confidence > 0.6:
-                if 'confluence' in pattern.pattern_name:
-                    return MarketNarrative.CONFLUENCE_SETUP
-                elif 'breakout' in pattern.pattern_name:
+                if pattern.pattern_name == 'multidimensional_breakout':
                     return MarketNarrative.TECHNICAL_BREAKOUT
-                elif 'institutional' in pattern.pattern_name:
-                    return MarketNarrative.INSTITUTIONAL_FLOW
-                elif 'anomaly' in pattern.pattern_name or 'regime' in pattern.pattern_name:
+                elif pattern.pattern_name == 'fundamental_technical_confluence':
+                    if unified_score > 0:
+                        return MarketNarrative.FUNDAMENTAL_DRIVEN
+                    else:
+                        return MarketNarrative.INSTITUTIONAL_FLOW
+                elif pattern.pattern_name == 'anomaly_regime_change':
                     return MarketNarrative.REGIME_TRANSITION
+                elif pattern.pattern_name == 'institutional_temporal_alignment':
+                    return MarketNarrative.INSTITUTIONAL_FLOW
         
         # Check for anomaly dominance
         if 'ANOMALY' in readings and readings['ANOMALY'].value > 0.6:

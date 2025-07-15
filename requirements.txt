@@ -10,3 +10,10 @@ PyYAML>=6.0
 lru-dict>=1.1.8
 pathlib2>=2.3.0
 pydantic
+
+# Production dependencies
+aiohttp>=3.8.0
+aioredis>=2.0.0
+aiokafka>=0.8.0
+redis>=4.0.0
+kafka-python>=2.0.0

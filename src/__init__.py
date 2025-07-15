@@ -15,7 +15,7 @@ __author__ = "EMP Team"
 from .core import *
 from .risk import *
 from .pnl import *
-from .sensory import *
+from .sensory import SensoryCortex, SensoryReading, EnhancedFundamentalIntelligenceEngine, InstitutionalMechanicsEngine, TechnicalRealityEngine, ChronalIntelligenceEngine, AnomalyIntelligenceEngine
 from .evolution import *
 from .simulation import *
 from .data import *
@@ -38,6 +38,11 @@ __all__ = [
     # Sensory cortex
     "SensoryCortex",
     "SensoryReading",
+    "EnhancedFundamentalIntelligenceEngine",
+    "InstitutionalMechanicsEngine",
+    "TechnicalRealityEngine",
+    "ChronalIntelligenceEngine",
+    "AnomalyIntelligenceEngine",
     
     # Evolution engine
     "EvolutionEngine",

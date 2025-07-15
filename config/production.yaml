@@ -1,0 +1,169 @@
+# Production Configuration
+# This file contains production settings for the market intelligence system
+
+# Environment
+environment: "production"
+debug: false
+log_level: "INFO"
+
+# Real Data Provider Configuration
+data_providers:
+  # FRED API (Federal Reserve Economic Data)
+  fred:
+    api_key: "${FRED_API_KEY}"  # Set via environment variable
+    base_url: "https://api.stlouisfed.org/fred"
+    rate_limit: 120  # requests per minute
+    
+  # Exchange/Broker APIs
+  exchange:
+    name: "IBKR"  # Interactive Brokers
+    api_key: "${EXCHANGE_API_KEY}"
+    base_url: "https://api.ibkr.com"
+    
+  # Price Data Vendor
+  price_data:
+    vendor: "Dukascopy"
+    api_key: "${PRICE_DATA_API_KEY}"
+    base_url: "https://api.dukascopy.com"
+    
+  # News API
+  news:
+    api_key: "${NEWS_API_KEY}"
+    sentiment_api_key: "${SENTIMENT_API_KEY}"
+    base_url: "https://api.newsapi.org"
+
+# Streaming Infrastructure
+streaming:
+  kafka:
+    bootstrap_servers: ["localhost:9092"]
+    topic_prefix: "market_intelligence"
+    producer_config:
+      acks: "all"
+      retries: 3
+    consumer_config:
+      auto_offset_reset: "latest"
+      enable_auto_commit: true
+      
+  redis:
+    url: "redis://localhost:6379"
+    max_connections: 20
+    socket_timeout: 5
+    socket_connect_timeout: 5
+
+# Data Persistence
+persistence:
+  database:
+    type: "timescaledb"
+    host: "localhost"
+    port: 5432
+    database: "market_intelligence"
+    username: "${DB_USERNAME}"
+    password: "${DB_PASSWORD}"
+    
+  # Data retention policies
+  retention:
+    market_data: "30d"  # Keep 30 days of market data
+    order_flow: "7d"    # Keep 7 days of order flow
+    economic_data: "1y" # Keep 1 year of economic data
+    news_events: "90d"  # Keep 90 days of news
+
+# Performance Settings
+performance:
+  # Analysis settings
+  max_concurrent_analyses: 10
+  analysis_timeout: 5000  # milliseconds
+  
+  # Caching settings
+  cache_ttl:
+    market_data: 60      # 1 minute
+    order_flow: 30       # 30 seconds
+    economic_data: 3600  # 1 hour
+    news_events: 300     # 5 minutes
+    
+  # Memory limits
+  max_memory_usage: "2GB"
+  gc_threshold: 0.8
+
+# Security Settings
+security:
+  # API key validation
+  validate_api_keys: true
+  reject_demo_keys: true
+  
+  # Rate limiting
+  rate_limit_enabled: true
+  max_requests_per_minute: 1000
+  
+  # Data encryption
+  encrypt_sensitive_data: true
+  encryption_key: "${ENCRYPTION_KEY}"
+
+# Monitoring and Alerting
+monitoring:
+  # Health checks
+  health_check_interval: 30  # seconds
+  health_check_timeout: 10   # seconds
+  
+  # Metrics
+  metrics_enabled: true
+  metrics_port: 8080
+  
+  # Alerting
+  alerts:
+    enabled: true
+    webhook_url: "${ALERT_WEBHOOK_URL}"
+    
+  # Logging
+  log_retention: "30d"
+  log_level: "INFO"
+
+# Production Validator Settings
+production_validator:
+  strict_mode: true
+  block_simulation: true
+  validate_environment: true
+  validate_data_sources: true
+  
+  # Forbidden patterns
+  forbidden_patterns:
+    - "simulate"
+    - "mock"
+    - "fake"
+    - "random"
+    - "test_data"
+    - "demo"
+
+# Deployment Settings
+deployment:
+  # Service configuration
+  service_name: "market-intelligence"
+  service_port: 8000
+  
+  # Resource limits
+  cpu_limit: "2"
+  memory_limit: "4Gi"
+  
+  # Scaling
+  min_replicas: 2
+  max_replicas: 10
+  
+  # Health checks
+  liveness_probe:
+    path: "/health"
+    initial_delay: 30
+    period: 10
+    
+  readiness_probe:
+    path: "/ready"
+    initial_delay: 5
+    period: 5
+
+# Backup and Recovery
+backup:
+  enabled: true
+  schedule: "0 2 * * *"  # Daily at 2 AM
+  retention: "7d"
+  storage:
+    type: "s3"
+    bucket: "${BACKUP_BUCKET}"
+    region: "${BACKUP_REGION}" 

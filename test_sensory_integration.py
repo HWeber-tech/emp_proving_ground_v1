@@ -8,6 +8,7 @@ import os
 import pandas as pd
 from datetime import datetime, timedelta
 import numpy as np
+import asyncio
 
 # Add the src directory to the path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
@@ -95,11 +96,11 @@ def test_sensory_integration():
     # Test dimensional sensors
     print("Testing dimensional sensors...")
     try:
-        from sensory.dimensions.why_dimension import WhyDimension
-        from sensory.dimensions.how_dimension import HowDimension
-        from sensory.dimensions.what_dimension import WhatDimension
-        from sensory.dimensions.when_dimension import WhenDimension
-        from sensory.dimensions.anomaly_dimension import AnomalyDimension
+        from sensory.dimensions.enhanced_why_dimension import EnhancedFundamentalIntelligenceEngine as WhyDimension
+        from sensory.dimensions.enhanced_how_dimension import InstitutionalMechanicsEngine as HowDimension
+        from sensory.dimensions.enhanced_what_dimension import TechnicalRealityEngine as WhatDimension
+        from sensory.dimensions.enhanced_when_dimension import ChronalIntelligenceEngine as WhenDimension
+        from sensory.dimensions.enhanced_anomaly_dimension import AnomalyIntelligenceEngine as AnomalyDimension
         
         # Create sensors
         why_sensor = WhyDimension()
@@ -120,7 +121,7 @@ def test_sensory_integration():
     # Test intelligence engine
     print("Testing intelligence engine...")
     try:
-        from sensory.orchestration.intelligence_engine import IntelligenceEngine
+        from sensory.orchestration.enhanced_intelligence_engine import ContextualFusionEngine as IntelligenceEngine
         
         # Create the intelligence engine
         engine = IntelligenceEngine()
@@ -137,13 +138,16 @@ def test_sensory_integration():
             spread=0.0001
         )
         
-        understanding = engine.process_market_data(test_market_data)
+        # Run the async analysis method
+        result = asyncio.run(engine.analyze_market_intelligence(test_market_data))
+        print("✓ Successfully ran intelligence engine analysis")
         
         print(f"✓ Successfully processed market data:")
-        print(f"  Narrative: {understanding.narrative[:100]}...")
-        print(f"  Confidence: {understanding.confidence:.3f}")
-        print(f"  Intelligence Level: {understanding.intelligence_level.name}")
-        print(f"  Regime: {understanding.regime.name}")
+        print(f"  Narrative: {result.narrative_text[:100]}...")
+        print(f"  Confidence: {result.confidence:.3f}")
+        print(f"  Intelligence Level: {result.intelligence_level.name}")
+        print(f"  Dominant Narrative: {result.dominant_narrative.name}")
+        print(f"  Unified Score: {result.unified_score:.3f}")
         
     except Exception as e:
         print(f"✗ Failed to test intelligence engine: {e}")
@@ -158,35 +162,32 @@ def test_sensory_integration():
                 return df
         
         mock_storage = MockDataStorage()
-        cortex = SensoryCortex('EURUSD', mock_storage)
+        cortex = SensoryCortex()  # No arguments needed for ContextualFusionEngine
         
         print("✓ Successfully created SensoryCortex")
         
-        # Test calibration (should always return True)
-        success = cortex.calibrate(df['timestamp'].min(), df['timestamp'].max())
-        if success:
-            print("✓ Calibration successful")
-        
-        # Test processing a data point
+        # Test processing a data point using the correct interface
         test_row = df.iloc[-1]
-        current_data = pd.Series({
-            'open': test_row['open'],
-            'high': test_row['high'],
-            'low': test_row['low'],
-            'close': test_row['close'],
-            'volume': test_row['volume']
-        }, name=test_row['timestamp'])
+        test_market_data = MarketData(
+            timestamp=test_row['timestamp'],
+            symbol='EURUSD',
+            bid=test_row['close'] - 0.0001,
+            ask=test_row['close'] + 0.0001,
+            volume=test_row['volume'],
+            spread=0.0002
+        )
         
-        reading = cortex.perceive(current_data)
+        # Use the correct method for ContextualFusionEngine
+        result = asyncio.run(cortex.analyze_market_intelligence(test_market_data))
         
         print(f"✓ Successfully processed data through SensoryCortex:")
-        print(f"  Overall Sentiment: {reading.overall_sentiment}")
-        print(f"  Confidence Level: {reading.confidence_level:.3f}")
-        print(f"  Risk Level: {reading.risk_level:.3f}")
-        print(f"  Macro Trend: {reading.macro_trend}")
-        print(f"  Technical Signal: {reading.technical_signal}")
-        print(f"  Session Phase: {reading.session_phase}")
-        print(f"  Manipulation Probability: {reading.manipulation_probability:.3f}")
+        print(f"  Intelligence Level: {result.intelligence_level.name}")
+        print(f"  Confidence: {result.confidence:.3f}")
+        print(f"  Unified Score: {result.unified_score:.3f}")
+        print(f"  Dominant Narrative: {result.dominant_narrative.name}")
+        print(f"  Narrative Coherence: {result.narrative_coherence.name}")
+        print(f"  Risk Factors: {len(result.risk_factors)}")
+        print(f"  Opportunity Factors: {len(result.opportunity_factors)}")
         
     except Exception as e:
         print(f"✗ Failed to test SensoryCortex interface: {e}")

@@ -22,13 +22,14 @@ import threading
 
 
 class MarketRegime(Enum):
-    """Market regime classification"""
+    UNKNOWN = auto()
     TRENDING_BULL = auto()
     TRENDING_BEAR = auto()
     RANGING_HIGH_VOL = auto()
     RANGING_LOW_VOL = auto()
     TRANSITION = auto()
     CRISIS = auto()
+    VOLATILE = auto()
 
 
 class ConfidenceLevel(Enum):
@@ -278,65 +279,151 @@ class DimensionalCorrelationMatrix:
             return float(np.mean(alignment_scores)) if alignment_scores else 0.0
 
 
-class RegimeDetector:
-    """Detects and tracks market regime changes"""
+class MarketRegimeDetector:
+    """Sophisticated market regime detection based on multiple factors"""
     
-    def __init__(self):
-        self.current_regime = MarketRegime.RANGING_LOW_VOL
-        self.regime_confidence = 0.5
-        self.regime_history: deque[Tuple[datetime, MarketRegime, float]] = deque(maxlen=100)
-        self.volatility_window: deque[float] = deque(maxlen=50)
-        self.trend_window: deque[float] = deque(maxlen=50)
+    def __init__(self, lookback_periods: int = 50):
+        self.lookback_periods = lookback_periods
+        self.price_history = deque(maxlen=lookback_periods)
+        self.volume_history = deque(maxlen=lookback_periods)
+        self.volatility_history = deque(maxlen=lookback_periods)
+        self.trend_history = deque(maxlen=lookback_periods)
         
-    def update_regime(self, understanding: MarketUnderstanding) -> MarketRegime:
-        """Update market regime based on dimensional understanding"""
+    def update_market_data(self, market_data: MarketData) -> None:
+        """Update with new market data"""
+        mid_price = market_data.mid_price
+        self.price_history.append(mid_price)
+        self.volume_history.append(market_data.volume)
         
-        # Extract key metrics
-        consensus_direction = understanding.consensus_direction
-        consensus_strength = understanding.consensus_strength
-        anomaly_level = abs(understanding.anomaly_reading.value)
+        # Calculate volatility (rolling standard deviation of returns)
+        if len(self.price_history) >= 2:
+            returns = np.diff(list(self.price_history))
+            volatility = np.std(returns) if len(returns) > 0 else 0.0
+            self.volatility_history.append(volatility)
         
-        # Estimate volatility from dimensional readings
-        volatility = np.std([r.value for r in understanding.all_readings])
-        self.volatility_window.append(volatility)
+        # Calculate trend strength
+        if len(self.price_history) >= 20:
+            recent_prices = list(self.price_history)[-20:]
+            x = np.arange(len(recent_prices))
+            slope = np.polyfit(x, recent_prices, 1)[0]
+            trend_strength = abs(slope) / np.mean(recent_prices) if np.mean(recent_prices) > 0 else 0.0
+            self.trend_history.append(trend_strength)
+    
+    def determine_regime(self, market_data: MarketData) -> MarketRegime:
+        """Determine current market regime based on comprehensive analysis"""
         
-        # Track trend
-        self.trend_window.append(consensus_direction)
+        self.update_market_data(market_data)
         
-        # Calculate regime indicators
-        avg_volatility = np.mean(self.volatility_window) if self.volatility_window else 0.5
-        trend_consistency = np.std(self.trend_window) if len(self.trend_window) > 1 else 1.0
+        if len(self.price_history) < 10:
+            return MarketRegime.UNKNOWN
         
-        # Regime classification logic
-        if anomaly_level > 0.8:
-            new_regime = MarketRegime.CRISIS
-            confidence = anomaly_level
-        elif avg_volatility > 0.7 and trend_consistency < 0.3:
-            if abs(consensus_direction) > 0.5:
-                new_regime = MarketRegime.TRENDING_BULL if consensus_direction > 0 else MarketRegime.TRENDING_BEAR
+        # Calculate key metrics
+        volatility = self._calculate_current_volatility()
+        trend_strength = self._calculate_trend_strength()
+        volume_profile = self._analyze_volume_profile()
+        price_momentum = self._calculate_price_momentum()
+        
+        # Crisis detection (extreme conditions)
+        if self._is_crisis_condition(volatility, volume_profile):
+            return MarketRegime.CRISIS
+        
+        # Volatile regime detection
+        if self._is_volatile_condition(volatility, volume_profile):
+            return MarketRegime.VOLATILE
+        
+        # Trending regime detection
+        if self._is_trending_condition(trend_strength, price_momentum):
+            if price_momentum > 0:
+                return MarketRegime.TRENDING_BULL
             else:
-                new_regime = MarketRegime.RANGING_HIGH_VOL
-            confidence = consensus_strength
-        elif avg_volatility < 0.3:
-            new_regime = MarketRegime.RANGING_LOW_VOL
-            confidence = 1.0 - avg_volatility
-        elif trend_consistency > 0.7:
-            new_regime = MarketRegime.TRANSITION
-            confidence = trend_consistency
-        else:
-            if abs(consensus_direction) > 0.4:
-                new_regime = MarketRegime.TRENDING_BULL if consensus_direction > 0 else MarketRegime.TRENDING_BEAR
+                return MarketRegime.TRENDING_BEAR
+        
+        # Ranging regime detection
+        if self._is_ranging_condition(trend_strength, volatility):
+            if volatility > self._get_volatility_threshold() * 1.5:
+                return MarketRegime.RANGING_HIGH_VOL
             else:
-                new_regime = MarketRegime.RANGING_HIGH_VOL
-            confidence = consensus_strength
+                return MarketRegime.RANGING_LOW_VOL
         
-        # Update regime if confidence is sufficient
-        if confidence > 0.6:
-            self.current_regime = new_regime
-            self.regime_confidence = confidence
-            self.regime_history.append((understanding.timestamp, new_regime, confidence))
+        # Transition regime
+        if self._is_transition_condition(trend_strength, volatility, volume_profile):
+            return MarketRegime.TRANSITION
         
-        return self.current_regime
+        return MarketRegime.UNKNOWN
+    
+    def _calculate_current_volatility(self) -> float:
+        """Calculate current volatility level"""
+        if len(self.volatility_history) < 5:
+            return 0.0
+        return np.mean(list(self.volatility_history)[-5:])
+    
+    def _calculate_trend_strength(self) -> float:
+        """Calculate current trend strength"""
+        if len(self.trend_history) < 5:
+            return 0.0
+        return np.mean(list(self.trend_history)[-5:])
+    
+    def _analyze_volume_profile(self) -> Dict[str, float]:
+        """Analyze volume characteristics"""
+        if len(self.volume_history) < 10:
+            return {'avg_volume': 0.0, 'volume_trend': 0.0, 'volume_volatility': 0.0}
+        
+        volumes = list(self.volume_history)[-10:]
+        avg_volume = np.mean(volumes)
+        volume_trend = np.polyfit(range(len(volumes)), volumes, 1)[0] / avg_volume if avg_volume > 0 else 0.0
+        volume_volatility = np.std(volumes) / avg_volume if avg_volume > 0 else 0.0
+        
+        return {
+            'avg_volume': avg_volume,
+            'volume_trend': volume_trend,
+            'volume_volatility': volume_volatility
+        }
+    
+    def _calculate_price_momentum(self) -> float:
+        """Calculate price momentum (short-term trend)"""
+        if len(self.price_history) < 5:
+            return 0.0
+        
+        recent_prices = list(self.price_history)[-5:]
+        return (recent_prices[-1] - recent_prices[0]) / recent_prices[0] if recent_prices[0] > 0 else 0.0
+    
+    def _get_volatility_threshold(self) -> float:
+        """Get adaptive volatility threshold"""
+        if len(self.volatility_history) < 20:
+            return 0.001  # Default threshold
+        
+        historical_vol = list(self.volatility_history)
+        return np.percentile(historical_vol, 75)  # 75th percentile as threshold
+    
+    def _is_crisis_condition(self, volatility: float, volume_profile: Dict[str, float]) -> bool:
+        """Detect crisis conditions"""
+        vol_threshold = self._get_volatility_threshold()
+        return (volatility > vol_threshold * 3.0 or 
+                volume_profile['volume_volatility'] > 2.0)
+    
+    def _is_volatile_condition(self, volatility: float, volume_profile: Dict[str, float]) -> bool:
+        """Detect volatile conditions"""
+        vol_threshold = self._get_volatility_threshold()
+        return (volatility > vol_threshold * 2.0 or 
+                volume_profile['volume_volatility'] > 1.5)
+    
+    def _is_trending_condition(self, trend_strength: float, price_momentum: float) -> bool:
+        """Detect trending conditions"""
+        return (trend_strength > 0.0001 and  # Strong trend
+                abs(price_momentum) > 0.002)  # Clear momentum
+    
+    def _is_ranging_condition(self, trend_strength: float, volatility: float) -> bool:
+        """Detect ranging conditions"""
+        vol_threshold = self._get_volatility_threshold()
+        return (trend_strength < 0.00005 and  # Weak trend
+                volatility < vol_threshold * 2.0)  # Moderate volatility
+    
+    def _is_transition_condition(self, trend_strength: float, volatility: float, 
+                               volume_profile: Dict[str, float]) -> bool:
+        """Detect transition conditions"""
+        vol_threshold = self._get_volatility_threshold()
+        return (0.00005 <= trend_strength <= 0.0001 and  # Moderate trend
+                vol_threshold <= volatility <= vol_threshold * 2.0)  # Moderate volatility
 
 
 class MemoryBank:
@@ -404,4 +491,14 @@ class MemoryBank:
         consensus_avg = np.mean([direction_sim, strength_sim, alignment_sim])
         
         return dim_weight * dim_avg + consensus_weight * consensus_avg
+
+
+@dataclass
+class EconomicData:
+    indicator: str
+    value: float
+    timestamp: datetime
+    frequency: str
+    surprise_factor: float
+    importance: float
 

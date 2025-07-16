@@ -23,7 +23,8 @@ from src.core import RiskConfig, InstrumentProvider, CurrencyConverter
 from src.risk import RiskManager
 from src.pnl import EnhancedPosition, TradeRecord
 from src.data import TickDataStorage, TickDataCleaner, DukascopyIngestor
-from src.sensory import SensoryCortex, SensoryReading
+from src.sensory.orchestration.master_orchestrator import MasterOrchestrator
+from src.sensory.core.base import InstrumentMeta
 from src.evolution import EvolutionEngine, DecisionGenome, EvolutionConfig, FitnessEvaluator
 from src.simulation import MarketSimulator, AdversarialEngine
 
@@ -58,8 +59,17 @@ def setup_system():
     # Initialize risk management
     risk_manager = RiskManager(risk_config, instrument_provider)
     
-    # Initialize sensory cortex
-    sensory_cortex = SensoryCortex("EURUSD", data_storage)
+    # Initialize sensory cortex with new v2.2 API
+    instrument_meta = InstrumentMeta(
+        symbol="EURUSD",
+        pip_size=0.0001,
+        lot_size=100000,
+        timezone="UTC",
+        typical_spread=0.00015,
+        avg_daily_range=0.01
+    )
+    
+    sensory_cortex = MasterOrchestrator(instrument_meta)
     
     # Initialize evolution engine
     evolution_config = EvolutionConfig(
@@ -232,7 +242,7 @@ def demonstrate_components(system):
     
     # Demonstrate evolution engine
     logger.info("=== Evolution Engine Demo ===")
-    population_summary = system['evolution_engine'].get_population_summary()
+    population_summary = system['evolution_engine'].get_evolution_summary()
     logger.info(f"Population size: {population_summary.get('population_size', 0)}")
     
     # Demonstrate data pipeline
@@ -255,8 +265,8 @@ def main():
         # Demonstrate components
         demonstrate_components(system)
         
-        # Calibrate sensory cortex
-        calibrate_sensory_cortex(system)
+        # Calibrate sensory cortex (MasterOrchestrator doesn't require calibration)
+        # calibrate_sensory_cortex(system)
         
         # Run evolution (short run for demo)
         run_evolution(system, generations=3)
@@ -272,4 +282,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main() 
+    main()        

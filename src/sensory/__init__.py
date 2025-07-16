@@ -1,5 +1,5 @@
 """
-Multidimensional Market Intelligence System
+Sensory Cortex v2.2 - Production-Ready Market Intelligence System
 
 A sophisticated market analysis system that understands markets through five interconnected dimensions:
 - WHY: Fundamental forces driving market behavior
@@ -9,38 +9,36 @@ A sophisticated market analysis system that understands markets through five int
 - ANOMALY: Chaos, manipulation, and stress responses
 """
 
-__version__ = "2.0.0"  # Updated for production release
+__version__ = "2.2.0"  # Updated for v2.2 production release
 __author__ = "Market Intelligence Team"
 
 # Export main classes for compatibility with existing code
-from .orchestration.enhanced_intelligence_engine import ContextualFusionEngine as SensoryCortex
+from .orchestration.master_orchestrator import MasterOrchestrator as SensoryCortex
 from .core.base import DimensionalReading as SensoryReading
 
-# Export enhanced dimensional engines
-from .dimensions.enhanced_why_dimension import EnhancedFundamentalIntelligenceEngine
-from .dimensions.enhanced_how_dimension import InstitutionalMechanicsEngine
-from .dimensions.enhanced_what_dimension import TechnicalRealityEngine
-from .dimensions.enhanced_when_dimension import ChronalIntelligenceEngine
-from .dimensions.enhanced_anomaly_dimension import AnomalyIntelligenceEngine
+# Export v2.2 dimensional engines
+from .dimensions.why_engine import WHYEngine as EnhancedFundamentalIntelligenceEngine
+from .dimensions.how_engine import HOWEngine as InstitutionalMechanicsEngine
+from .dimensions.what_engine import WATEngine as TechnicalRealityEngine
+from .dimensions.when_engine import WHENEngine as ChronalIntelligenceEngine
+from .dimensions.anomaly_engine import ANOMALYEngine as AnomalyIntelligenceEngine
 
-# Export production components
-from .core.production_validator import ProductionValidator, ProductionError, production_validator
-from .core.real_data_providers import (
-    DataIntegrationOrchestrator, 
-    DataProviderError,
-    RealFREDDataProvider,
-    RealOrderFlowProvider,
-    RealPriceDataProvider,
-    RealNewsDataProvider
+# Export core components
+from .core.base import (
+    MarketData, InstrumentMeta, OrderBookSnapshot, OrderBookLevel,
+    MarketRegime, EconomicEvent, EventTier
 )
-from .infrastructure.streaming_pipeline import StreamingPipeline, StreamType, StreamMessage
+from .core.utils import (
+    EMA, WelfordVar, compute_confidence, normalize_signal,
+    calculate_momentum, PerformanceTracker
+)
 
 # Also export the actual classes for new code
 __all__ = [
     # Legacy compatibility
     'SensoryCortex',
     'SensoryReading', 
-    'ContextualFusionEngine',
+    'MasterOrchestrator',
     'DimensionalReading',
     
     # Enhanced dimensional engines
@@ -50,18 +48,19 @@ __all__ = [
     'ChronalIntelligenceEngine',
     'AnomalyIntelligenceEngine',
     
-    # Production components
-    'ProductionValidator',
-    'ProductionError',
-    'production_validator',
-    'DataIntegrationOrchestrator',
-    'DataProviderError',
-    'RealFREDDataProvider',
-    'RealOrderFlowProvider',
-    'RealPriceDataProvider',
-    'RealNewsDataProvider',
-    'StreamingPipeline',
-    'StreamType',
-    'StreamMessage'
+    # Core components
+    'MarketData',
+    'InstrumentMeta',
+    'OrderBookSnapshot',
+    'OrderBookLevel',
+    'MarketRegime',
+    'EconomicEvent',
+    'EventTier',
+    'EMA',
+    'WelfordVar',
+    'compute_confidence',
+    'normalize_signal',
+    'calculate_momentum',
+    'PerformanceTracker'
 ]
 

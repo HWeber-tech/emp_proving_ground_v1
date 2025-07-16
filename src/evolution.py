@@ -15,9 +15,8 @@ import pandas as pd
 from scipy import stats
 from sklearn.preprocessing import StandardScaler
 
-from .core import Instrument
-from .data import TickDataStorage
-from .sensory import SensoryCortex, SensoryReading
+from core import Instrument
+from data import TickDataStorage
 
 # Configure decimal precision for financial calculations
 getcontext().prec = 12
@@ -47,7 +46,7 @@ class DecisionGenome:
     crossover_count: int = 0
     created_at: datetime = field(default_factory=datetime.now)
     
-    def evaluate(self, market_data: pd.DataFrame, sensory_cortex: SensoryCortex) -> Dict[str, Any]:
+    def evaluate(self, market_data: pd.DataFrame, sensory_cortex) -> Dict[str, Any]:
         """
         Evaluate the genome against market data.
         
@@ -234,7 +233,7 @@ class DecisionGenome:
         
         return results
     
-    def _evaluate_decision_tree(self, sensory_reading: SensoryReading) -> str:
+    def _evaluate_decision_tree(self, sensory_reading) -> str:
         """
         Evaluate the decision tree against a sensory reading.
         
@@ -379,7 +378,7 @@ class FitnessEvaluator:
         
         logger.info("FitnessEvaluator initialized with anti-fragility metrics")
     
-    def evaluate_genome(self, genome: DecisionGenome, sensory_cortex: SensoryCortex) -> Dict[str, float]:
+    def evaluate_genome(self, genome: DecisionGenome, sensory_cortex) -> Dict[str, float]:
         """
         Evaluate a genome across multiple dimensions.
         
@@ -757,8 +756,19 @@ class EvolutionEngine:
     
     def _evaluate_population(self):
         """Evaluate all genomes in the population."""
-        # Create sensory cortex for evaluation
-        sensory_cortex = SensoryCortex("EURUSD", self.fitness_evaluator.data_storage)
+        # Create sensory cortex for evaluation (deferred import to avoid circular dependency)
+        from sensory.orchestration.master_orchestrator import MasterOrchestrator
+        from sensory.core.base import InstrumentMeta
+        
+        instrument_meta = InstrumentMeta(
+            symbol="EURUSD",
+            pip_size=0.0001,
+            lot_size=100000,
+            timezone="UTC",
+            typical_spread=0.00015,
+            avg_daily_range=0.01
+        )
+        sensory_cortex = MasterOrchestrator(instrument_meta)
         
         for genome in self.population:
             self.fitness_evaluator.evaluate_genome(genome, sensory_cortex)
@@ -875,4 +885,4 @@ class EvolutionEngine:
             'best_genome': self.best_genome.genome_id if self.best_genome else None,
             'best_fitness': self.best_genome.fitness_score if self.best_genome else 0.0,
             'population_size': len(self.population)
-        } 
+        }          

@@ -70,9 +70,9 @@ jobs:
     
     - name: Check for merge conflicts
       run: |
-        if grep -r '<<<<<<< HEAD' . --exclude-dir=.git --exclude-dir=archive; then
+        if grep -r '<<<<<<< HEAD' . --exclude-dir=.git --exclude-dir=archive --exclude-dir=.github; then
             echo "❌ Merge conflicts detected"
             exit 1
         else
             echo "✅ No merge conflicts found"
-        fi 
+        fi   

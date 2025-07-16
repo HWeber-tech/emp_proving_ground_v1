@@ -12,7 +12,7 @@ from typing import List, Dict, Any, Optional
 from dataclasses import dataclass, field
 from enum import Enum
 
-from .core import Instrument
+from core import Instrument
 
 # Configure decimal precision for financial calculations
 getcontext().prec = 12
@@ -278,4 +278,4 @@ class EnhancedPosition:
             'is_long': self.is_long(),
             'is_short': self.is_short(),
             'is_flat': self.is_flat()
-        } 
+        }  

@@ -13,15 +13,15 @@ __version__ = "2.0.0"  # Updated for production release
 __author__ = "Market Intelligence Team"
 
 # Export main classes for compatibility with existing code
-from .orchestration.enhanced_intelligence_engine import ContextualFusionEngine as SensoryCortex
+from .orchestration.master_orchestrator import MasterOrchestrator as SensoryCortex
 from .core.base import DimensionalReading as SensoryReading
 
-# Export enhanced dimensional engines
-from .dimensions.enhanced_why_dimension import EnhancedFundamentalIntelligenceEngine
-from .dimensions.enhanced_how_dimension import InstitutionalMechanicsEngine
-from .dimensions.enhanced_what_dimension import TechnicalRealityEngine
-from .dimensions.enhanced_when_dimension import ChronalIntelligenceEngine
-from .dimensions.enhanced_anomaly_dimension import AnomalyIntelligenceEngine
+# Export v2.2 dimensional engines
+from .dimensions.why_engine import WHYEngine as EnhancedFundamentalIntelligenceEngine
+from .dimensions.how_engine import HOWEngine as InstitutionalMechanicsEngine
+from .dimensions.what_engine import WATEngine as TechnicalRealityEngine
+from .dimensions.when_engine import WHENEngine as ChronalIntelligenceEngine
+from .dimensions.anomaly_engine import ANOMALYEngine as AnomalyIntelligenceEngine
 
 # Export production components
 from .core.production_validator import ProductionValidator, ProductionError, production_validator
@@ -33,14 +33,14 @@ from .core.real_data_providers import (
     RealPriceDataProvider,
     RealNewsDataProvider
 )
-from .infrastructure.streaming_pipeline import StreamingPipeline, StreamType, StreamMessage
+# from .infrastructure.streaming_pipeline import StreamingPipeline, StreamType, StreamMessage
 
 # Also export the actual classes for new code
 __all__ = [
     # Legacy compatibility
     'SensoryCortex',
     'SensoryReading', 
-    'ContextualFusionEngine',
+    'MasterOrchestrator',
     'DimensionalReading',
     
     # Enhanced dimensional engines
@@ -60,8 +60,8 @@ __all__ = [
     'RealOrderFlowProvider',
     'RealPriceDataProvider',
     'RealNewsDataProvider',
-    'StreamingPipeline',
-    'StreamType',
-    'StreamMessage'
+    # 'StreamingPipeline',
+    # 'StreamType',
+    # 'StreamMessage'
 ]
 

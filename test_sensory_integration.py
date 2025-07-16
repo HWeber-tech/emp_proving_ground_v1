@@ -67,26 +67,30 @@ def test_sensory_integration():
     # Test importing the sensory module
     print("Testing sensory module import...")
     try:
-        from sensory import SensoryCortex
-        print("✓ Successfully imported SensoryCortex")
+        from src.sensory.orchestration.master_orchestrator import MasterOrchestrator
+        from src.sensory.core.base import InstrumentMeta
+        print("✓ Successfully imported MasterOrchestrator")
     except ImportError as e:
-        print(f"✗ Failed to import SensoryCortex: {e}")
+        print(f"✗ Failed to import MasterOrchestrator: {e}")
         return
     
     # Test creating a simple market data object
     print("Testing market data object creation...")
     try:
-        from sensory.core.base import MarketData
+        from src.sensory.core.base import MarketData
         from datetime import datetime
         
-        # Create a simple market data object
+        # Create a simple market data object with all required fields
         test_data = MarketData(
-            timestamp=datetime.now(),
             symbol='EURUSD',
-            bid=1.1000,
-            ask=1.1001,
+            timestamp=datetime.now(),
+            open=1.1000,
+            high=1.1002,
+            low=1.0998,
+            close=1.1001,
             volume=1000,
-            spread=0.0001
+            bid=1.1000,
+            ask=1.1001
         )
         print("✓ Successfully created MarketData object")
     except Exception as e:
@@ -96,112 +100,119 @@ def test_sensory_integration():
     # Test dimensional sensors
     print("Testing dimensional sensors...")
     try:
-        from sensory.dimensions.enhanced_why_dimension import EnhancedFundamentalIntelligenceEngine as WhyDimension
-        from sensory.dimensions.enhanced_how_dimension import InstitutionalMechanicsEngine as HowDimension
-        from sensory.dimensions.enhanced_what_dimension import TechnicalRealityEngine as WhatDimension
-        from sensory.dimensions.enhanced_when_dimension import ChronalIntelligenceEngine as WhenDimension
-        from sensory.dimensions.enhanced_anomaly_dimension import AnomalyIntelligenceEngine as AnomalyDimension
+        from src.sensory.dimensions.why_engine import WHYEngine
+        from src.sensory.dimensions.how_engine import HOWEngine
+        from src.sensory.dimensions.what_engine import WATEngine
+        from src.sensory.dimensions.when_engine import WHENEngine
+        from src.sensory.dimensions.anomaly_engine import ANOMALYEngine
+        
+        instrument_meta = InstrumentMeta(
+            symbol="EURUSD",
+            pip_size=0.0001,
+            lot_size=100000,
+            timezone="UTC",
+            typical_spread=0.00015,
+            avg_daily_range=0.01
+        )
         
         # Create sensors
-        why_sensor = WhyDimension()
-        how_sensor = HowDimension()
-        what_sensor = WhatDimension()
-        when_sensor = WhenDimension()
-        anomaly_sensor = AnomalyDimension()
+        why_sensor = WHYEngine(instrument_meta)
+        how_sensor = HOWEngine(instrument_meta)
+        what_sensor = WATEngine(instrument_meta)
+        when_sensor = WHENEngine(instrument_meta)
+        anomaly_sensor = ANOMALYEngine(instrument_meta)
         
         print("✓ Successfully created all dimensional sensors")
         
-        # The original system doesn't need calibration
-        print("✓ Original system uses adaptive learning (no calibration needed)")
+        # The v2.2 system doesn't need calibration
+        print("✓ v2.2 system uses real-time adaptive intelligence (no calibration needed)")
         
     except Exception as e:
         print(f"✗ Failed to test dimensional sensors: {e}")
         return
     
-    # Test intelligence engine
-    print("Testing intelligence engine...")
+    print("Testing master orchestrator...")
     try:
-        from sensory.orchestration.enhanced_intelligence_engine import ContextualFusionEngine as IntelligenceEngine
+        # Create the master orchestrator
+        orchestrator = MasterOrchestrator(instrument_meta)
         
-        # Create the intelligence engine
-        engine = IntelligenceEngine()
-        
-        print("✓ Successfully created IntelligenceEngine")
+        print("✓ Successfully created MasterOrchestrator")
         
         # Test processing a market data point
         test_market_data = MarketData(
-            timestamp=datetime.now(),
             symbol='EURUSD',
-            bid=1.1000,
-            ask=1.1001,
+            timestamp=datetime.now(),
+            open=1.1000,
+            high=1.1002,
+            low=1.0998,
+            close=1.1001,
             volume=1000,
-            spread=0.0001
+            bid=1.1000,
+            ask=1.1001
         )
         
         # Run the async analysis method
-        result = asyncio.run(engine.analyze_market_intelligence(test_market_data))
-        print("✓ Successfully ran intelligence engine analysis")
+        result = asyncio.run(orchestrator.update(test_market_data))
+        print("✓ Successfully ran master orchestrator analysis")
         
         print(f"✓ Successfully processed market data:")
-        print(f"  Narrative: {result.narrative_text[:100]}...")
+        print(f"  Signal Strength: {result.signal_strength:.3f}")
         print(f"  Confidence: {result.confidence:.3f}")
-        print(f"  Intelligence Level: {result.intelligence_level.name}")
-        print(f"  Dominant Narrative: {result.dominant_narrative.name}")
-        print(f"  Unified Score: {result.unified_score:.3f}")
+        print(f"  Regime: {result.regime}")
+        print(f"  Evidence count: {len(result.evidence)}")
+        print(f"  Consensus Level: {result.consensus_level:.3f}")
         
     except Exception as e:
-        print(f"✗ Failed to test intelligence engine: {e}")
+        print(f"✗ Failed to test master orchestrator: {e}")
         return
     
-    # Test the full SensoryCortex interface
-    print("Testing full SensoryCortex interface...")
+    # Test the full MasterOrchestrator interface
+    print("Testing full MasterOrchestrator interface...")
     try:
-        # Create a mock data storage
-        class MockDataStorage:
-            def get_data_range(self, symbol, start_time, end_time):
-                return df
+        # Create the master orchestrator
+        cortex = MasterOrchestrator(instrument_meta)
         
-        mock_storage = MockDataStorage()
-        cortex = SensoryCortex()  # No arguments needed for ContextualFusionEngine
-        
-        print("✓ Successfully created SensoryCortex")
+        print("✓ Successfully created MasterOrchestrator")
         
         # Test processing a data point using the correct interface
         test_row = df.iloc[-1]
         test_market_data = MarketData(
-            timestamp=test_row['timestamp'],
             symbol='EURUSD',
-            bid=test_row['close'] - 0.0001,
-            ask=test_row['close'] + 0.0001,
+            timestamp=test_row['timestamp'],
+            open=test_row['open'],
+            high=test_row['high'],
+            low=test_row['low'],
+            close=test_row['close'],
             volume=test_row['volume'],
-            spread=0.0002
+            bid=test_row['close'] - 0.0001,
+            ask=test_row['close'] + 0.0001
         )
         
-        # Use the correct method for ContextualFusionEngine
-        result = asyncio.run(cortex.analyze_market_intelligence(test_market_data))
+        # Use the correct method for MasterOrchestrator
+        result = asyncio.run(cortex.update(test_market_data))
         
-        print(f"✓ Successfully processed data through SensoryCortex:")
-        print(f"  Intelligence Level: {result.intelligence_level.name}")
+        print(f"✓ Successfully processed data through MasterOrchestrator:")
+        print(f"  Signal Strength: {result.signal_strength:.3f}")
         print(f"  Confidence: {result.confidence:.3f}")
-        print(f"  Unified Score: {result.unified_score:.3f}")
-        print(f"  Dominant Narrative: {result.dominant_narrative.name}")
-        print(f"  Narrative Coherence: {result.narrative_coherence.name}")
-        print(f"  Risk Factors: {len(result.risk_factors)}")
-        print(f"  Opportunity Factors: {len(result.opportunity_factors)}")
+        print(f"  Regime: {result.regime}")
+        print(f"  Evidence count: {len(result.evidence)}")
+        print(f"  Consensus Level: {result.consensus_level:.3f}")
+        system_health = cortex.get_system_health()
+        print(f"  System Health: {system_health:.1%}")
         
     except Exception as e:
-        print(f"✗ Failed to test SensoryCortex interface: {e}")
+        print(f"✗ Failed to test MasterOrchestrator interface: {e}")
         return
     
-    print("\n🎉 Sensory system integration test completed successfully!")
+    print("\n🎉 Sensory Cortex v2.2 integration test completed successfully!")
     print("\nKey features tested:")
     print("  ✓ Module imports")
     print("  ✓ Data structures")
     print("  ✓ Dimensional sensors")
-    print("  ✓ Intelligence engine")
-    print("  ✓ Full SensoryCortex interface")
+    print("  ✓ Master orchestrator")
+    print("  ✓ Full MasterOrchestrator interface")
     print("  ✓ Data processing")
-    print("\nThe complete multidimensional market intelligence system is ready for use!")
+    print("\nThe complete Sensory Cortex v2.2 production-ready system is ready for use!")
 
 if __name__ == "__main__":
-    test_sensory_integration() 
+    test_sensory_integration()      

@@ -12,12 +12,12 @@ from typing import Dict, Optional, Any, TYPE_CHECKING
 from dataclasses import dataclass
 from pydantic import BaseModel, Field, validator
 
-from .core import RiskConfig, Instrument, InstrumentProvider
+from core import RiskConfig, Instrument, InstrumentProvider
 
 # Type checking imports to avoid circular dependencies
 if TYPE_CHECKING:
-    from .pnl import EnhancedPosition
-    from .simulation import Order
+    from pnl import EnhancedPosition
+    from simulation import Order
 
 # Configure decimal precision for financial calculations
 getcontext().prec = 12
@@ -257,4 +257,4 @@ class RiskManager:
             risk_amount = Decimal(str(abs(order.quantity))) * instrument.contract_size * Decimal('0.01')  # 1% risk
             return risk_amount / account_equity
         
-        return Decimal('0') 
+        return Decimal('0')  

@@ -22,6 +22,14 @@ class MarketRegime(Enum):
     EXHAUSTED = "exhausted"
     BREAKOUT = "breakout"
     REVERSAL = "reversal"
+    UNKNOWN = "unknown"
+    VOLATILE = "volatile"
+    TRENDING_BULL = "trending_bull"
+    TRENDING_BEAR = "trending_bear"
+    RANGING_HIGH_VOL = "ranging_high_vol"
+    RANGING_LOW_VOL = "ranging_low_vol"
+    TRANSITION = "transition"
+    CRISIS = "crisis"
 
 
 class ConfidenceLevel(Enum):

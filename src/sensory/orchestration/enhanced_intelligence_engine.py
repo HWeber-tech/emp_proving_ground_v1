@@ -19,7 +19,7 @@ from scipy import stats
 from scipy.optimize import minimize
 import logging
 
-from src.sensory.core.base import DimensionalReading, MarketData, MarketRegime, MarketRegimeDetector
+from src.sensory.core.base import DimensionalReading, MarketData, MarketRegime
 from src.sensory.dimensions.enhanced_why_dimension import EnhancedFundamentalIntelligenceEngine
 from src.sensory.dimensions.enhanced_how_dimension import InstitutionalMechanicsEngine
 from src.sensory.dimensions.enhanced_what_dimension import TechnicalRealityEngine
@@ -962,7 +962,6 @@ class ContextualFusionEngine:
         self.correlation_analyzer = CorrelationAnalyzer()
         self.weight_manager = AdaptiveWeightManager()
         self.narrative_generator = NarrativeGenerator()
-        self.regime_detector = MarketRegimeDetector()
         
         # Current state
         self.current_readings: Dict[str, DimensionalReading] = {}
@@ -1058,7 +1057,7 @@ class ContextualFusionEngine:
         self.weight_manager.update_correlation_factors(correlations)
         
         # Determine market regime for regime factors
-        regime = self.regime_detector.determine_regime(market_data)
+        regime = MarketRegime.UNKNOWN  # Default regime when detector is not available
         self.weight_manager.update_regime_factors(regime)
     
     def _calculate_unified_synthesis(self, readings: Dict[str, DimensionalReading],

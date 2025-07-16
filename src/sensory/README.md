@@ -158,11 +158,180 @@ async def analyze():
 asyncio.run(analyze())
 ```
 
+## Driver Formulas
+
+### WHY Dimension (Fundamental Intelligence)
+```python
+# Economic surprise factor
+surprise_factor = (actual - forecast) / historical_std_dev
+
+# Policy rate differential impact
+rate_impact = (current_rate - baseline_rate) * currency_weight
+
+# Calendar proximity weighting
+time_decay = exp(-time_to_event_hours / decay_constant)
+
+# Final WHY signal
+why_signal = (surprise_factor * 0.4) + (rate_impact * 0.3) + (calendar_proximity * 0.3)
+```
+
+### HOW Dimension (Institutional Flow)
+```python
+# Volume-weighted price impact
+vwap_deviation = (current_price - vwap) / atr
+
+# Order flow imbalance (Lee-Ready classification)
+flow_imbalance = (buy_volume - sell_volume) / total_volume
+
+# Spread regime analysis
+spread_regime = log(current_spread / median_spread_20)
+
+# Final HOW signal
+how_signal = (vwap_deviation * 0.4) + (flow_imbalance * 0.4) + (spread_regime * 0.2)
+```
+
+### WHAT Dimension (Technical Analysis)
+```python
+# Multi-timeframe RSI divergence
+rsi_divergence = (price_slope - rsi_slope) / price_volatility
+
+# ATR volatility regime
+vol_regime = current_atr / ema_atr_60
+
+# Pattern confluence score
+confluence = ma_cross_signal + bollinger_squeeze + inside_bar_breakout
+
+# Final WHAT signal  
+what_signal = (rsi_divergence * 0.3) + (vol_regime * 0.3) + (confluence * 0.4)
+```
+
+### WHEN Dimension (Temporal Intelligence)
+```python
+# Session overlap intensity
+session_weight = london_weight + ny_weight + asian_weight
+
+# Economic news proximity
+news_proximity = exp(-minutes_to_news / 60)
+
+# Option gamma exposure (placeholder)
+gamma_impact = 0.0  # TODO: Implement gamma strike analysis
+
+# Final WHEN signal
+when_signal = (session_weight * 0.5) + (news_proximity * 0.5) + (gamma_impact * 0.0)
+```
+
+### ANOMALY Dimension (Glitch Detection)
+```python
+# EWMA z-score of returns
+ewma_mean = lambda * previous_mean + (1 - lambda) * current_return
+ewma_var = lambda * previous_var + (1 - lambda) * (current_return - ewma_mean)^2
+z_score = (current_return - ewma_mean) / sqrt(ewma_var)
+
+# Anomaly signal with saturation
+anomaly_signal = sign(z_score) * min(abs(z_score) / 6, 1.0)
+anomaly_confidence = min(abs(z_score) / 4, 1.0)
+```
+
+## CSV Data Dependencies
+
+The sensory system requires three CSV data files in the `sensory/data/` directory:
+
+### `yield_curve.csv`
+Schema: `date,symbol,tenor,rate`
+- **date**: ISO format date (YYYY-MM-DD)
+- **symbol**: Currency pair (e.g., USD, EUR, GBP)
+- **tenor**: Yield curve tenor (1M, 3M, 6M, 1Y, 2Y, 5Y, 10Y, 30Y)
+- **rate**: Interest rate as decimal (e.g., 0.0525 for 5.25%)
+
+Example:
+```csv
+date,symbol,tenor,rate
+2024-01-15,USD,1M,0.0533
+2024-01-15,USD,3M,0.0542
+2024-01-15,USD,1Y,0.0485
+```
+
+### `risk_indexes.csv`
+Schema: `date,index,value`
+- **date**: ISO format date (YYYY-MM-DD)
+- **index**: Risk index name (VIX, VSTOXX, MOVE, etc.)
+- **value**: Index value as float
+
+Example:
+```csv
+date,index,value
+2024-01-15,VIX,13.45
+2024-01-15,VSTOXX,15.23
+2024-01-15,MOVE,89.12
+```
+
+### `policy_rates.csv`
+Schema: `date,central_bank,rate,change`
+- **date**: ISO format date (YYYY-MM-DD)
+- **central_bank**: Central bank identifier (FED, ECB, BOE, BOJ, etc.)
+- **rate**: Policy rate as decimal (e.g., 0.0525 for 5.25%)
+- **change**: Rate change from previous meeting as decimal
+
+Example:
+```csv
+date,central_bank,rate,change
+2024-01-15,FED,0.0525,0.0000
+2024-01-15,ECB,0.0400,-0.0025
+2024-01-15,BOE,0.0525,0.0025
+```
+
+## Running the Demo
+
+### Quick Smoke Test
+```bash
+cd /home/ubuntu/repos/emp_proving_ground_v1
+python scripts/minimal_sensory_demo.py
+```
+
+This runs a simplified 100k tick demonstration that validates the fusion loop stays alive and produces non-zero dimensional readings.
+
+### Full System Demo
+```bash
+cd /home/ubuntu/repos/emp_proving_ground_v1
+python scripts/sensory_demo.py
+```
+
+This runs the complete sensory system with all dimensional engines and real data integration.
+
+### Expected Output
+```
+🧠 Sensory Cortex Smoke Test Demo
+==================================================
+✓ Successfully imported sensory system components
+Generating 100,000 ticks for EURUSD...
+✓ Generated test tick generator
+Initializing ContextualFusionEngine...
+✓ ContextualFusionEngine initialized successfully
+
+📊 Processing ticks (printing every 1000 ticks)...
+Tick     | Time     | WHY    | HOW    | WHAT   | WHEN   | ANOMALY | Unified | Confidence
+------------------------------------------------------------------------------------------
+       0 | 19:57:16 | +0.71 | +1.00 | +1.00 | +1.00 | +1.00 | +0.94 | 0.67
+    1000 | 20:13:56 | +0.62 | +1.00 | +1.00 | +1.00 | +1.00 | +0.92 | 0.70
+    ...
+
+==================================================
+🎯 Demo Results:
+✓ Total ticks processed: 100,000
+✓ Successful updates: 100,000
+✓ Errors encountered: 0
+✓ Success rate: 100.0%
+✓ Processing time: 15.5 seconds
+✓ Ticks per second: 6457
+
+🎉 SMOKE TEST PASSED: Fusion loop stayed alive for 100k+ ticks!
+```
+
 ## Usage Examples
 
 ### 1. Real-Time Analysis
 ```python
-from market_intelligence.examples.complete_demo import IntelligenceDemo
+from sensory.examples.complete_demo import IntelligenceDemo
 
 # Run comprehensive demonstration
 demo = IntelligenceDemo()
@@ -171,7 +340,7 @@ await demo.run_comprehensive_demo()
 
 ### 2. Interactive Mode
 ```python
-from market_intelligence.examples.complete_demo import InteractiveDemo
+from sensory.examples.complete_demo import InteractiveDemo
 
 # Run interactive demonstration
 demo = InteractiveDemo()
@@ -181,8 +350,8 @@ await demo.run_interactive_demo()
 ### 3. Custom Integration
 ```python
 # Initialize individual dimensional engines
-from market_intelligence.dimensions.enhanced_what_dimension import TechnicalRealityEngine
-from market_intelligence.dimensions.enhanced_how_dimension import InstitutionalIntelligenceEngine
+from sensory.dimensions.enhanced_what_dimension import TechnicalRealityEngine
+from sensory.dimensions.enhanced_how_dimension import InstitutionalIntelligenceEngine
 
 what_engine = TechnicalRealityEngine()
 how_engine = InstitutionalIntelligenceEngine()

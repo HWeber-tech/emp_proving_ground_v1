@@ -438,4 +438,4 @@ class DukascopyIngestor:
             group = group.drop('date', axis=1)
             group.to_parquet(file_path, index=False)
         
-        logger.info(f"Saved {len(data)} ticks for {symbol} {year}") 
+        logger.info(f"Saved {len(data)} ticks for {symbol} {year}")

@@ -885,4 +885,4 @@ class EvolutionEngine:
             'best_genome': self.best_genome.genome_id if self.best_genome else None,
             'best_fitness': self.best_genome.fitness_score if self.best_genome else 0.0,
             'population_size': len(self.population)
-        }          
+        }

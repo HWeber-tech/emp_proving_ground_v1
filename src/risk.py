@@ -257,4 +257,4 @@ class RiskManager:
             risk_amount = Decimal(str(abs(order.quantity))) * instrument.contract_size * Decimal('0.01')  # 1% risk
             return risk_amount / account_equity
         
-        return Decimal('0')  
+        return Decimal('0')

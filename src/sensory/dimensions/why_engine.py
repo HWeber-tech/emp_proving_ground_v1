@@ -15,11 +15,11 @@ from pathlib import Path
 import aiohttp
 import json
 
-from src.sensory.core.base import (
+from ..core.base import (
     DimensionalSensor, DimensionalReading, MarketData, InstrumentMeta,
     MarketRegime, EconomicEvent, EventTier
 )
-from src.sensory.core.utils import (
+from ..core.utils import (
     EMA, WelfordVar, compute_confidence, normalize_signal,
     calculate_momentum, PerformanceTracker
 )
@@ -446,7 +446,7 @@ class WHYEngine(DimensionalSensor):
             return reading
             
         except Exception as e:
-            logger.error(f"Error in WHY engine update: {e}")
+            logger.exception(f"Error in WHY engine update: {e}")
             return self._create_error_reading(market_data.timestamp, str(e))
     
     async def _perform_fundamental_analysis(

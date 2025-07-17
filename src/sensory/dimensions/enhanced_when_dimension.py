@@ -286,7 +286,15 @@ class TemporalAnalyzer:
         
         if self.session_start_time and self.session_volatility:
             # Calculate session statistics
-            session_duration = transition_time - self.session_start_time
+            start_time = self.session_start_time
+            current_time = transition_time
+            
+            if start_time.tzinfo is not None:
+                start_time = start_time.replace(tzinfo=None)
+            if current_time.tzinfo is not None:
+                current_time = current_time.replace(tzinfo=None)
+                
+            session_duration = current_time - start_time
             avg_volatility = np.mean(list(self.session_volatility))
             avg_volume = np.mean(list(self.session_volume))
             
@@ -335,6 +343,9 @@ class TemporalAnalyzer:
         
         current_time = market_data.timestamp
         
+        if current_time.tzinfo is not None:
+            current_time = current_time.replace(tzinfo=None)
+        
         # Hourly patterns
         hour_key = current_time.hour
         self.hourly_patterns[hour_key].append({
@@ -374,6 +385,9 @@ class TemporalAnalyzer:
     
     def _clean_old_patterns(self, cutoff_time: datetime) -> None:
         """Remove old pattern data beyond lookback period"""
+        
+        if cutoff_time.tzinfo is not None:
+            cutoff_time = cutoff_time.replace(tzinfo=None)
         
         for pattern_dict in [self.hourly_patterns, self.daily_patterns, 
                            self.weekly_patterns, self.monthly_patterns]:
@@ -479,7 +493,7 @@ class TemporalAnalyzer:
             return None
         
         # Find most volatile day
-        max_day = max(daily_volatility, key=daily_volatility.get)
+        max_day = max(daily_volatility, key=lambda k: daily_volatility[k])
         max_volatility = daily_volatility[max_day]
         avg_volatility = np.mean(list(daily_volatility.values()))
         
@@ -523,10 +537,10 @@ class TemporalAnalyzer:
         if volatility_consistency > 0.6 or abs(directional_bias) > 0.2:
             return TemporalPattern(
                 pattern_type=f'{self.current_session.name}_behavior',
-                strength=max(volatility_consistency, abs(directional_bias) * 2),
+                strength=max(float(volatility_consistency), float(abs(directional_bias) * 2)),
                 duration=timedelta(hours=2),  # Typical session duration
                 next_occurrence=self._calculate_next_session_occurrence(),
-                confidence=volatility_consistency,
+                confidence=float(volatility_consistency),
                 historical_accuracy=0.7
             )
         
@@ -555,7 +569,7 @@ class TemporalAnalyzer:
                         if avg_volatility > overall_avg * 1.2:  # 20% above average
                             patterns.append(TemporalPattern(
                                 pattern_type=f'week_{week}_volatility',
-                                strength=(avg_volatility / overall_avg) - 1.0,
+                                strength=float((avg_volatility / overall_avg) - 1.0),
                                 duration=timedelta(weeks=1),
                                 next_occurrence=self._calculate_next_week_occurrence(week),
                                 confidence=0.5,
@@ -564,7 +578,7 @@ class TemporalAnalyzer:
         
         # Monthly patterns
         if self.monthly_patterns:
-            current_month = datetime.now().month
+            current_month = datetime.utcnow().month
             if current_month in self.monthly_patterns and len(self.monthly_patterns[current_month]) >= 5:
                 data = self.monthly_patterns[current_month]
                 avg_volatility = np.mean([d['volatility'] for d in data])
@@ -584,7 +598,7 @@ class TemporalAnalyzer:
                         
                         patterns.append(TemporalPattern(
                             pattern_type=f'{month_names[current_month]}_seasonal',
-                            strength=(avg_volatility / other_avg) - 1.0,
+                            strength=float((avg_volatility / other_avg) - 1.0),
                             duration=timedelta(days=30),
                             next_occurrence=self._calculate_next_month_occurrence(current_month),
                             confidence=0.4,
@@ -595,7 +609,7 @@ class TemporalAnalyzer:
     
     def _calculate_next_hour_occurrence(self, target_hour: int) -> datetime:
         """Calculate next occurrence of specific hour"""
-        now = datetime.now()
+        now = datetime.utcnow()
         target_time = now.replace(hour=target_hour, minute=0, second=0, microsecond=0)
         
         if target_time <= now:
@@ -605,7 +619,7 @@ class TemporalAnalyzer:
     
     def _calculate_next_day_occurrence(self, target_day: int) -> datetime:
         """Calculate next occurrence of specific day of week"""
-        now = datetime.now()
+        now = datetime.utcnow()
         days_ahead = target_day - now.weekday()
         
         if days_ahead <= 0:  # Target day already happened this week
@@ -615,7 +629,7 @@ class TemporalAnalyzer:
     
     def _calculate_next_session_occurrence(self) -> datetime:
         """Calculate next occurrence of current session"""
-        now = datetime.now()
+        now = datetime.utcnow()
         session_profile = self.session_profiles[self.current_session]
         
         # Calculate next occurrence (tomorrow at session start time)
@@ -630,7 +644,7 @@ class TemporalAnalyzer:
     
     def _calculate_next_week_occurrence(self, target_week: int) -> datetime:
         """Calculate next occurrence of specific week of month"""
-        now = datetime.now()
+        now = datetime.utcnow()
         
         # Calculate first day of next month
         if now.month == 12:
@@ -645,7 +659,7 @@ class TemporalAnalyzer:
     
     def _calculate_next_month_occurrence(self, target_month: int) -> datetime:
         """Calculate next occurrence of specific month"""
-        now = datetime.now()
+        now = datetime.utcnow()
         
         if target_month > now.month:
             return now.replace(month=target_month, day=1)
@@ -654,6 +668,9 @@ class TemporalAnalyzer:
     
     def _update_event_horizon(self, current_time: datetime) -> None:
         """Update upcoming events that may affect temporal behavior"""
+        
+        if current_time.tzinfo is not None:
+            current_time = current_time.replace(tzinfo=None)
         
         # Clear expired events
         self.event_horizon = [
@@ -664,6 +681,9 @@ class TemporalAnalyzer:
         # Add upcoming session transitions as events
         next_session_time = self._calculate_next_session_transition(current_time)
         if next_session_time:
+            if next_session_time.tzinfo is not None:
+                next_session_time = next_session_time.replace(tzinfo=None)
+            
             time_to_event = next_session_time - current_time
             
             if time_to_event <= timedelta(hours=2):  # Within 2 hours
@@ -684,7 +704,11 @@ class TemporalAnalyzer:
     def _calculate_next_session_transition(self, current_time: datetime) -> Optional[datetime]:
         """Calculate next major session transition"""
         
-        utc_time = current_time.replace(tzinfo=timezone.utc)
+        # Ensure we work with timezone-naive datetime for consistency
+        if current_time.tzinfo is not None:
+            utc_time = current_time.replace(tzinfo=None)
+        else:
+            utc_time = current_time
         
         # Major transition times (UTC)
         transition_times = [
@@ -820,7 +844,7 @@ class TemporalAnalyzer:
             event_strength * 0.2
         )
         
-        return min(total_strength, 1.0)
+        return min(float(total_strength), 1.0)
     
     def calculate_temporal_confidence(self) -> float:
         """Calculate confidence in temporal analysis"""
@@ -847,7 +871,7 @@ class TemporalAnalyzer:
             expected_volatility = session_profile.typical_volatility
             
             volatility_consistency = 1.0 - abs(np.mean(recent_volatilities) - expected_volatility) / expected_volatility
-            volatility_consistency = max(0, min(volatility_consistency, 1.0))
+            volatility_consistency = max(0, min(float(volatility_consistency), 1.0))
             
             confidence_factors.append(volatility_consistency * 0.3)
         
@@ -883,17 +907,18 @@ class ChronalIntelligenceEngine:
         confidence = self.temporal_analyzer.calculate_temporal_confidence()
         
         # Generate context
-        context = self._generate_temporal_context()
+        context = self._generate_temporal_context(market_data)
         
         return DimensionalReading(
             dimension='WHEN',
-            value=temporal_strength,
+            signal_strength=temporal_strength,
             confidence=confidence,
+            regime=MarketRegime.UNKNOWN,  # Default regime for temporal analysis
             context=context,
             timestamp=market_data.timestamp
         )
     
-    def _generate_temporal_context(self) -> Dict[str, Any]:
+    def _generate_temporal_context(self, market_data: Optional[MarketData] = None) -> Dict[str, Any]:
         """Generate contextual information about temporal analysis"""
         
         session_profile = self.temporal_analyzer.session_profiles[self.temporal_analyzer.current_session]
@@ -935,8 +960,16 @@ class ChronalIntelligenceEngine:
             ]
         
         # Add session timing info
-        if self.temporal_analyzer.session_start_time:
-            session_duration = market_data.timestamp - self.temporal_analyzer.session_start_time
+        if self.temporal_analyzer.session_start_time and market_data:
+            start_time = self.temporal_analyzer.session_start_time
+            current_time = market_data.timestamp
+            
+            if start_time.tzinfo is not None:
+                start_time = start_time.replace(tzinfo=None)
+            if current_time.tzinfo is not None:
+                current_time = current_time.replace(tzinfo=None)
+                
+            session_duration = current_time - start_time
             context['session_info'] = {
                 'duration_minutes': session_duration.total_seconds() / 60,
                 'session_volatility': list(self.temporal_analyzer.session_volatility)[-5:] if self.temporal_analyzer.session_volatility else [],
@@ -991,7 +1024,7 @@ async def main():
         if i % 60 == 0:  # Print every hour
             print(f"Temporal Intelligence Reading (Hour {i//60}):")
             print(f"  Time: {current_time.strftime('%H:%M')}")
-            print(f"  Value: {reading.value:.3f}")
+            print(f"  Value: {reading.signal_strength:.3f}")
             print(f"  Confidence: {reading.confidence:.3f}")
             print(f"  Session: {reading.context.get('current_session', 'Unknown')}")
             print(f"  Regime: {reading.context.get('temporal_regime', 'Unknown')}")

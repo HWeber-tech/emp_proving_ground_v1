@@ -181,9 +181,8 @@ class EconomicDataProvider:
             
             # Random chance of events each day
             if np.random.random() < 0.3:  # 30% chance per day
-                indicator, currency, importance, base_impact = np.random.choice(
-                    indicators, p=[0.15, 0.15, 0.1, 0.1, 0.1, 0.08, 0.08, 0.08, 0.06, 0.06, 0.04]
-                )
+                choice_idx = np.random.choice(len(indicators), p=[0.15, 0.15, 0.1, 0.1, 0.1, 0.08, 0.08, 0.08, 0.06, 0.06, 0.04])
+                indicator, currency, importance, base_impact = indicators[choice_idx]
                 
                 # Generate forecast and actual values
                 forecast = np.random.normal(0, 1)
@@ -568,7 +567,7 @@ class FundamentalAnalyzer:
         # Store in history
         self.sentiment_history.append(self.risk_sentiment)
         
-        return self.risk_sentiment
+        return float(self.risk_sentiment)
     
     def analyze_yield_differentials(self, currency_pair: str) -> float:
         """Analyze yield differentials and carry trade flows"""
@@ -670,8 +669,9 @@ class EnhancedFundamentalIntelligenceEngine:
             
             return DimensionalReading(
                 dimension='WHY',
-                value=fundamental_score,
+                signal_strength=fundamental_score,
                 confidence=confidence,
+                regime=MarketRegime.UNKNOWN,  # Default regime for fundamental analysis
                 context=context,
                 timestamp=market_data.timestamp
             )
@@ -682,8 +682,9 @@ class EnhancedFundamentalIntelligenceEngine:
             # Return neutral reading on error
             return DimensionalReading(
                 dimension='WHY',
-                value=0.0,
+                signal_strength=0.0,
                 confidence=0.3,
+                regime=MarketRegime.UNKNOWN,
                 context={'error': str(e), 'status': 'degraded'},
                 timestamp=market_data.timestamp
             )
@@ -719,7 +720,7 @@ class EnhancedFundamentalIntelligenceEngine:
             base_confidence = base_confidence * 0.8 + historical_accuracy * 0.2
         
         # Ensure bounds
-        confidence = max(0.1, min(base_confidence, 0.95))
+        confidence = max(0.1, min(float(base_confidence), 0.95))
         
         self.confidence_history.append(confidence)
         
@@ -745,7 +746,7 @@ class EnhancedFundamentalIntelligenceEngine:
             new_weight = current_weight + adjustment
             
             # Keep weights within reasonable bounds
-            self.weights[factor_name] = max(0.05, min(new_weight, 0.5))
+            self.weights[factor_name] = max(0.05, min(float(new_weight), 0.5))
         
         # Normalize weights to sum to 1.0
         total_weight = sum(self.weights.values())
@@ -842,7 +843,7 @@ async def main():
         
         if i % 5 == 0:  # Print every 5th analysis
             print(f"Fundamental Intelligence Reading (Period {i}):")
-            print(f"  Value: {reading.value:.3f}")
+            print(f"  Value: {reading.signal_strength:.3f}")
             print(f"  Confidence: {reading.confidence:.3f}")
             print(f"  Dominant Factor: {reading.context.get('dominant_factor', 'unknown')}")
             

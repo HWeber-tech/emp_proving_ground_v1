@@ -154,6 +154,7 @@ class MarketData(BaseModel):
     # Derived fields
     spread: float = Field(default=0.0)
     mid_price: float = Field(default=0.0)
+    volatility: float = Field(default=0.0, description="Current volatility measure")
     
     # Optional Level 2 data
     bid_volume: Optional[float] = None
@@ -192,6 +193,18 @@ class EconomicEvent(BaseModel):
     
     # Time to event (for forward-looking analysis)
     time_to_event_hours: float = Field(0.0, description="Hours until event (negative if past)")
+
+
+class EconomicData(BaseModel):
+    """
+    Economic data point structure for fundamental analysis.
+    """
+    indicator: str
+    value: float
+    timestamp: datetime
+    frequency: str = Field("daily", description="Data frequency (daily, weekly, monthly, etc.)")
+    surprise_factor: float = Field(0.0, ge=-1.0, le=1.0, description="Surprise factor relative to expectations")
+    importance: float = Field(0.5, ge=0.0, le=1.0, description="Importance weight for this indicator")
 
 
 class OrderBookLevel(BaseModel):

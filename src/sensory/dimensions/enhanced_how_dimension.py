@@ -602,8 +602,9 @@ class InstitutionalMechanicsEngine:
         
         return DimensionalReading(
             dimension='HOW',
-            value=institutional_strength,
+            signal_strength=institutional_strength,
             confidence=confidence,
+            regime=MarketRegime.UNKNOWN,  # Default regime for institutional analysis
             context=context,
             timestamp=market_data.timestamp
         )
@@ -782,7 +783,7 @@ async def main():
         
         if i % 20 == 0:  # Print every 20th reading
             print(f"Institutional Mechanics Reading:")
-            print(f"  Value: {reading.value:.3f}")
+            print(f"  Value: {reading.signal_strength:.3f}")
             print(f"  Confidence: {reading.confidence:.3f}")
             print(f"  Context: {reading.context}")
             print()

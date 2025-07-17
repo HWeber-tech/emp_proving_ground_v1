@@ -15,19 +15,19 @@ from dataclasses import dataclass, field
 from enum import Enum
 import json
 
-from src.sensory.core.base import (
+from ..core.base import (
     DimensionalSensor, DimensionalReading, MarketData, InstrumentMeta,
     MarketRegime, OrderBookSnapshot
 )
-from src.sensory.core.utils import (
+from ..core.utils import (
     EMA, WelfordVar, compute_confidence, normalize_signal,
     calculate_momentum, PerformanceTracker
 )
-from src.sensory.dimensions.why_engine import WHYEngine
-from src.sensory.dimensions.how_engine import HOWEngine
-from src.sensory.dimensions.what_engine import WATEngine
-from src.sensory.dimensions.when_engine import WHENEngine
-from src.sensory.dimensions.anomaly_engine import ANOMALYEngine
+from ..dimensions.why_engine import WHYEngine
+from ..dimensions.how_engine import HOWEngine
+from ..dimensions.what_engine import WATEngine
+from ..dimensions.when_engine import WHENEngine
+from ..dimensions.anomaly_engine import ANOMALYEngine
 
 logger = logging.getLogger(__name__)
 
@@ -741,13 +741,13 @@ class MasterOrchestrator:
         
         # Calculate signal agreement
         signal_std = np.std(signals) if len(signals) > 1 else 0.0
-        signal_agreement = max(0.0, 1.0 - signal_std)
+        signal_agreement = max(0.0, 1.0 - float(signal_std))
         
         # Weight by average confidence
         avg_confidence = np.mean(confidences) if confidences else 0.0
         
         consensus = signal_agreement * avg_confidence
-        return min(1.0, consensus)
+        return min(1.0, float(consensus))
     
     def _calculate_synthesis_confidence(
         self,

@@ -284,11 +284,11 @@ class StatisticalAnomalyDetector:
                 anomalies.append(AnomalyEvent(
                     anomaly_type=AnomalyType.STATISTICAL_OUTLIER,
                     timestamp=market_data.timestamp,
-                    severity=min(price_zscore / self.price_threshold - 1.0, 1.0),
-                    confidence=min(price_zscore / 5.0, 1.0),
+                    severity=min(float(price_zscore / self.price_threshold - 1.0), 1.0),
+                    confidence=min(float(price_zscore / 5.0), 1.0),
                     description=f"Price Z-score anomaly: {price_zscore:.2f}",
                     affected_dimensions=['WHAT'],
-                    market_impact=min(price_zscore / 10.0, 0.5)
+                    market_impact=min(float(price_zscore / 10.0), 0.5)
                 ))
         
         # Volume anomalies
@@ -303,11 +303,11 @@ class StatisticalAnomalyDetector:
                 anomalies.append(AnomalyEvent(
                     anomaly_type=AnomalyType.STATISTICAL_OUTLIER,
                     timestamp=market_data.timestamp,
-                    severity=min(volume_zscore / self.volume_threshold - 1.0, 1.0),
-                    confidence=min(volume_zscore / 5.0, 1.0),
+                    severity=min(float(volume_zscore / self.volume_threshold - 1.0), 1.0),
+                    confidence=min(float(volume_zscore / 5.0), 1.0),
                     description=f"Volume Z-score anomaly: {volume_zscore:.2f}",
                     affected_dimensions=['HOW'],
-                    market_impact=min(volume_zscore / 15.0, 0.3)
+                    market_impact=min(float(volume_zscore / 15.0), 0.3)
                 ))
         
         # Volatility anomalies
@@ -322,11 +322,11 @@ class StatisticalAnomalyDetector:
                 anomalies.append(AnomalyEvent(
                     anomaly_type=AnomalyType.STATISTICAL_OUTLIER,
                     timestamp=market_data.timestamp,
-                    severity=min(volatility_zscore / self.volatility_threshold - 1.0, 1.0),
-                    confidence=min(volatility_zscore / 4.0, 1.0),
+                    severity=min(float(volatility_zscore / self.volatility_threshold - 1.0), 1.0),
+                    confidence=min(float(volatility_zscore / 4.0), 1.0),
                     description=f"Volatility Z-score anomaly: {volatility_zscore:.2f}",
                     affected_dimensions=['WHAT', 'WHEN'],
-                    market_impact=min(volatility_zscore / 8.0, 0.4)
+                    market_impact=min(float(volatility_zscore / 8.0), 0.4)
                 ))
         
         return anomalies
@@ -345,7 +345,7 @@ class StatisticalAnomalyDetector:
             
             if len(current_features) > 0:
                 # Scale features
-                scaled_features = self.scaler.transform([current_features])
+                scaled_features = self.scaler.transform(np.array([current_features]))
                 
                 # Get anomaly score
                 anomaly_score = self.isolation_forest.decision_function(scaled_features)[0]
@@ -465,7 +465,7 @@ class StatisticalAnomalyDetector:
                 anomalies.append(AnomalyEvent(
                     anomaly_type=AnomalyType.STRUCTURAL_BREAK,
                     timestamp=market_data.timestamp,
-                    severity=min(vol_var / (vol_mean * 5) - 1.0, 1.0),
+                    severity=min(float(vol_var / (vol_mean * 5) - 1.0), 1.0),
                     confidence=0.6,
                     description="Volatility clustering break detected",
                     affected_dimensions=['WHAT', 'WHEN'],
@@ -669,7 +669,7 @@ class ManipulationDetector:
             return ManipulationEvent(
                 signature=ManipulationSignature.SPOOFING,
                 timestamp=market_data.timestamp,
-                strength=min(current_spread / avg_spread - 1.0, 1.0),
+                strength=min(float(current_spread / avg_spread - 1.0), 1.0),
                 target_level=None,
                 volume_signature=self._calculate_volume_signature(),
                 success_probability=0.5,
@@ -743,7 +743,7 @@ class ManipulationDetector:
                     timestamp=market_data.timestamp,
                     strength=min(acceleration * 1000 + volume_acceleration / 5, 1.0),
                     target_level=None,
-                    volume_signature=volume_acceleration,
+                    volume_signature=float(volume_acceleration),
                     success_probability=0.4,  # Often fails
                     counter_strategy="fade_after_exhaustion"
                 )
@@ -760,7 +760,7 @@ class ManipulationDetector:
         recent_volume = np.mean(volumes[-5:])
         historical_volume = np.mean(volumes[:-5])
         
-        return min(recent_volume / historical_volume, 3.0) / 3.0 if historical_volume > 0 else 0.5
+        return min(float(recent_volume / historical_volume), 3.0) / 3.0 if historical_volume > 0 else 0.5
 
 class ChaosDetector:
     """
@@ -905,7 +905,7 @@ class ChaosDetector:
                                 divergences.append(divergence)
             
             if divergences:
-                return np.mean(divergences)
+                return float(np.mean(divergences))
         
         except Exception as e:
             logger.debug(f"Lyapunov exponent calculation failed: {e}")
@@ -1402,8 +1402,9 @@ class AnomalyIntelligenceEngine:
         
         return DimensionalReading(
             dimension='ANOMALY',
-            value=anomaly_strength,
+            signal_strength=anomaly_strength,
             confidence=confidence,
+            regime=MarketRegime.UNKNOWN,  # Default regime for anomaly analysis
             context=context,
             timestamp=market_data.timestamp
         )
@@ -1539,6 +1540,15 @@ class AnomalyIntelligenceEngine:
         ]
         context['significant_anomalies'] = significant_anomalies[-5:]  # Last 5
         
+        if self.recent_anomalies:
+            # Collect all affected dimensions from recent anomalies
+            all_affected = set()
+            for anomaly in self.recent_anomalies:
+                all_affected.update(anomaly.affected_dimensions)
+            context['affected_dimensions'] = ', '.join(sorted(all_affected))
+        else:
+            context['affected_dimensions'] = 'none'
+        
         return context
 
 # Example usage
@@ -1591,9 +1601,9 @@ async def main():
         # Analyze anomaly intelligence
         reading = await engine.analyze_anomaly_intelligence(market_data)
         
-        if i % 50 == 0 or reading.value > 0.3:  # Print every 50th or when anomalies detected
+        if i % 50 == 0 or reading.signal_strength > 0.3:  # Print every 50th or when anomalies detected
             print(f"Anomaly Intelligence Reading (Period {i}):")
-            print(f"  Value: {reading.value:.3f}")
+            print(f"  Value: {reading.signal_strength:.3f}")
             print(f"  Confidence: {reading.confidence:.3f}")
             print(f"  System Stress: {reading.context.get('system_stress_level', 0):.3f}")
             print(f"  Antifragility: {reading.context.get('antifragility_score', 0):.3f}")

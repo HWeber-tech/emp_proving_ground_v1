@@ -10,18 +10,18 @@ import logging
 import numpy as np
 import pandas as pd
 from datetime import datetime, timedelta, time
-from typing import Dict, List, Optional, Tuple, NamedTuple
+from typing import Dict, List, Optional, Tuple, NamedTuple, Any
 from dataclasses import dataclass
 from enum import Enum
 import pytz
 import aiohttp
 import json
 
-from src.sensory.core.base import (
+from ..core.base import (
     DimensionalSensor, DimensionalReading, MarketData, InstrumentMeta,
     MarketRegime, EconomicEvent, EventTier
 )
-from src.sensory.core.utils import (
+from ..core.utils import (
     EMA, WelfordVar, compute_confidence, normalize_signal,
     calculate_momentum, PerformanceTracker
 )
@@ -96,7 +96,7 @@ class EconomicCalendarProvider:
         self, 
         start_date: datetime, 
         end_date: datetime,
-        currencies: List[str] = None
+        currencies: Optional[List[str]] = None
     ) -> List[EconomicEvent]:
         """
         Get economic events for date range.
@@ -117,7 +117,7 @@ class EconomicCalendarProvider:
         self,
         start_date: datetime,
         end_date: datetime,
-        currencies: List[str] = None
+        currencies: Optional[List[str]] = None
     ) -> List[EconomicEvent]:
         """Generate deterministic economic events for backtesting."""
         events = []
@@ -305,7 +305,7 @@ class SessionAnalyzer:
         current_session: TradingSession,
         market_data: MarketData,
         price_history: List[MarketData]
-    ) -> Dict[str, float]:
+    ) -> Dict[str, Any]:
         """
         Analyze current session dynamics.
         
@@ -531,7 +531,7 @@ class EventHorizonAnalyzer:
         current_time: datetime,
         upcoming_events: List[EconomicEvent],
         recent_events: List[EconomicEvent]
-    ) -> Dict[str, any]:
+    ) -> Dict[str, Any]:
         """
         Analyze event horizon impact on market timing.
         
@@ -576,7 +576,13 @@ class EventHorizonAnalyzer:
         uncertainty = 0.0
         
         for event in events:
-            time_to_event = (event.timestamp - current_time).total_seconds() / 3600  # Hours
+            event_time = event.timestamp
+            if event_time.tzinfo is not None and current_time.tzinfo is None:
+                current_time = pytz.UTC.localize(current_time)
+            elif event_time.tzinfo is None and current_time.tzinfo is not None:
+                event_time = pytz.UTC.localize(event_time)
+            
+            time_to_event = (event_time - current_time).total_seconds() / 3600  # Hours
             
             if time_to_event <= 0 or time_to_event > 168:  # Skip past events or events > 1 week away
                 continue
@@ -620,7 +626,13 @@ class EventHorizonAnalyzer:
         weighted_bias = 0.0
         
         for event in events:
-            time_since_event = (current_time - event.timestamp).total_seconds() / 3600  # Hours
+            event_time = event.timestamp
+            if event_time.tzinfo is not None and current_time.tzinfo is None:
+                current_time = pytz.UTC.localize(current_time)
+            elif event_time.tzinfo is None and current_time.tzinfo is not None:
+                event_time = pytz.UTC.localize(event_time)
+            
+            time_since_event = (current_time - event_time).total_seconds() / 3600  # Hours
             
             if time_since_event < 0 or time_since_event > 72:  # Skip future events or events > 3 days old
                 continue
@@ -676,7 +688,7 @@ class EventHorizonAnalyzer:
             recent['directional_bias'] * recent_weight
         )
     
-    def _identify_timing_windows(self, current_time: datetime, events: List[EconomicEvent]) -> Dict[str, any]:
+    def _identify_timing_windows(self, current_time: datetime, events: List[EconomicEvent]) -> Dict[str, Any]:
         """Identify optimal timing windows around events."""
         if current_time.tzinfo is None:
             current_time = pytz.UTC.localize(current_time)
@@ -687,7 +699,13 @@ class EventHorizonAnalyzer:
         }
         
         for event in events:
-            time_to_event = (event.timestamp - current_time).total_seconds() / 3600
+            event_time = event.timestamp
+            if event_time.tzinfo is not None and current_time.tzinfo is None:
+                current_time = pytz.UTC.localize(current_time)
+            elif event_time.tzinfo is None and current_time.tzinfo is not None:
+                event_time = pytz.UTC.localize(event_time)
+            
+            time_to_event = (event_time - current_time).total_seconds() / 3600
             
             if 0 < time_to_event <= 24:  # Events within 24 hours
                 if event.tier in [EventTier.TIER_1, EventTier.TIER_2]:
@@ -713,7 +731,7 @@ class EventHorizonAnalyzer:
         
         return windows
     
-    def _find_next_major_event(self, current_time: datetime, events: List[EconomicEvent]) -> Optional[Dict[str, any]]:
+    def _find_next_major_event(self, current_time: datetime, events: List[EconomicEvent]) -> Optional[Dict[str, Any]]:
         """Find the next major event."""
         if current_time.tzinfo is None:
             current_time = pytz.UTC.localize(current_time)
@@ -723,7 +741,14 @@ class EventHorizonAnalyzer:
             return None
         
         next_event = min(major_events, key=lambda x: x.timestamp)
-        time_to_event = (next_event.timestamp - current_time).total_seconds() / 3600
+        
+        event_time = next_event.timestamp
+        if event_time.tzinfo is not None and current_time.tzinfo is None:
+            current_time = pytz.UTC.localize(current_time)
+        elif event_time.tzinfo is None and current_time.tzinfo is not None:
+            event_time = pytz.UTC.localize(event_time)
+        
+        time_to_event = (event_time - current_time).total_seconds() / 3600
         
         return {
             'event': next_event.event_name,
@@ -853,7 +878,7 @@ class WHENEngine(DimensionalSensor):
             return reading
             
         except Exception as e:
-            logger.error(f"Error in WHEN engine update: {e}")
+            logger.exception(f"Error in WHEN engine update: {e}")
             return self._create_error_reading(market_data.timestamp, str(e))
     
     async def _update_economic_events(self, timestamp: datetime) -> None:
@@ -863,7 +888,7 @@ class WHENEngine(DimensionalSensor):
         
         # Refresh events every hour
         if (self.last_event_fetch is None or 
-            (timestamp - self.last_event_fetch).total_seconds() > 3600):
+            self._safe_datetime_diff(timestamp, self.last_event_fetch) > 3600):
             
             start_date = timestamp - timedelta(days=3)
             end_date = timestamp + timedelta(days=7)
@@ -889,11 +914,11 @@ class WHENEngine(DimensionalSensor):
     
     def _analyze_temporal_dynamics(
         self,
-        session_analysis: Dict[str, any],
+        session_analysis: Dict[str, Any],
         cyclical_analysis: Dict[str, float],
-        event_horizon: Dict[str, any],
+        event_horizon: Dict[str, Any],
         market_data: MarketData
-    ) -> Dict[str, any]:
+    ) -> Dict[str, Any]:
         """
         Analyze comprehensive temporal dynamics.
         
@@ -950,7 +975,7 @@ class WHENEngine(DimensionalSensor):
         
         return analysis
     
-    def _calculate_signal_strength(self, analysis: Dict[str, any]) -> float:
+    def _calculate_signal_strength(self, analysis: Dict[str, Any]) -> float:
         """Calculate overall signal strength from temporal analysis."""
         temporal_bias = analysis.get('temporal_bias', 0.0)
         timing_quality = analysis.get('timing_quality', 0.0)
@@ -960,7 +985,7 @@ class WHENEngine(DimensionalSensor):
         
         return np.clip(signal_strength, -1.0, 1.0)
     
-    def _calculate_confidence(self, analysis: Dict[str, any]) -> float:
+    def _calculate_confidence(self, analysis: Dict[str, Any]) -> float:
         """Calculate confidence in temporal analysis."""
         timing_quality = analysis.get('timing_quality', 0.0)
         session_timing = analysis.get('session_timing', 0.0)
@@ -976,7 +1001,7 @@ class WHENEngine(DimensionalSensor):
             confluence_signals=[timing_quality, abs(session_timing), abs(cyclical_timing)]
         )
     
-    def _detect_market_regime(self, analysis: Dict[str, any], session_analysis: Dict[str, any]) -> MarketRegime:
+    def _detect_market_regime(self, analysis: Dict[str, Any], session_analysis: Dict[str, Any]) -> MarketRegime:
         """Detect market regime from temporal analysis."""
         timing_quality = analysis.get('timing_quality', 0.0)
         session_strength = session_analysis.get('session_strength', 0.0)
@@ -1001,7 +1026,7 @@ class WHENEngine(DimensionalSensor):
         else:
             return MarketRegime.CONSOLIDATING
     
-    def _extract_evidence(self, analysis: Dict[str, any], session_analysis: Dict[str, any]) -> Dict[str, float]:
+    def _extract_evidence(self, analysis: Dict[str, Any], session_analysis: Dict[str, Any]) -> Dict[str, float]:
         """Extract evidence scores for transparency."""
         evidence = {}
         
@@ -1013,7 +1038,7 @@ class WHENEngine(DimensionalSensor):
         
         return evidence
     
-    def _generate_warnings(self, analysis: Dict[str, any], event_horizon: Dict[str, any]) -> List[str]:
+    def _generate_warnings(self, analysis: Dict[str, Any], event_horizon: Dict[str, Any]) -> List[str]:
         """Generate warnings about temporal analysis."""
         warnings = []
         
@@ -1082,4 +1107,13 @@ class WHENEngine(DimensionalSensor):
         self.temporal_bias = EMA(30)
         
         logger.info("WHEN Engine reset completed")
+    
+    def _safe_datetime_diff(self, dt1: datetime, dt2: datetime) -> float:
+        """Safely calculate difference between two datetimes, handling timezone issues."""
+        if dt1.tzinfo is not None and dt2.tzinfo is None:
+            dt2 = pytz.UTC.localize(dt2)
+        elif dt1.tzinfo is None and dt2.tzinfo is not None:
+            dt1 = pytz.UTC.localize(dt1)
+        
+        return (dt1 - dt2).total_seconds()
 

@@ -14,11 +14,11 @@ from typing import Dict, List, Optional, Tuple, NamedTuple
 from dataclasses import dataclass
 from enum import Enum
 
-from src.sensory.core.base import (
+from ..core.base import (
     DimensionalSensor, DimensionalReading, MarketData, InstrumentMeta,
     MarketRegime
 )
-from src.sensory.core.utils import (
+from ..core.utils import (
     EMA, WelfordVar, compute_confidence, normalize_signal,
     calculate_momentum, PerformanceTracker
 )
@@ -579,7 +579,7 @@ class WATEngine(DimensionalSensor):
             return reading
             
         except Exception as e:
-            logger.error(f"Error in WHAT engine update: {e}")
+            logger.exception(f"Error in WHAT engine update: {e}")
             return self._create_error_reading(market_data.timestamp, str(e))
     
     def _analyze_market_structure(

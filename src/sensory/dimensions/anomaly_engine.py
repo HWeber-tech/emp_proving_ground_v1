@@ -18,11 +18,11 @@ from sklearn.preprocessing import StandardScaler
 import warnings
 warnings.filterwarnings('ignore')
 
-from src.sensory.core.base import (
+from ..core.base import (
     DimensionalSensor, DimensionalReading, MarketData, InstrumentMeta,
     MarketRegime, OrderBookSnapshot
 )
-from src.sensory.core.utils import (
+from ..core.utils import (
     EMA, WelfordVar, compute_confidence, normalize_signal,
     calculate_momentum, PerformanceTracker
 )
@@ -698,7 +698,7 @@ class ANOMALYEngine(DimensionalSensor):
             return reading
             
         except Exception as e:
-            logger.error(f"Error in ANOMALY engine update: {e}")
+            logger.exception(f"Error in ANOMALY engine update: {e}")
             return self._create_error_reading(market_data.timestamp, str(e))
     
     def _extract_features(self, market_data: MarketData, order_book: Optional[OrderBookSnapshot]) -> np.ndarray:

@@ -19,12 +19,12 @@ from scipy import stats
 from scipy.optimize import minimize
 import logging
 
-from src.sensory.core.base import DimensionalReading, MarketData, MarketRegime
-from src.sensory.dimensions.enhanced_why_dimension import EnhancedFundamentalIntelligenceEngine
-from src.sensory.dimensions.enhanced_how_dimension import InstitutionalMechanicsEngine
-from src.sensory.dimensions.enhanced_what_dimension import TechnicalRealityEngine
-from src.sensory.dimensions.enhanced_when_dimension import ChronalIntelligenceEngine
-from src.sensory.dimensions.enhanced_anomaly_dimension import AnomalyIntelligenceEngine
+from ..core.base import DimensionalReading, MarketData, MarketRegime
+from ..dimensions.enhanced_why_dimension import EnhancedFundamentalIntelligenceEngine
+from ..dimensions.enhanced_how_dimension import InstitutionalMechanicsEngine
+from ..dimensions.enhanced_what_dimension import TechnicalRealityEngine
+from ..dimensions.enhanced_when_dimension import ChronalIntelligenceEngine
+from ..dimensions.enhanced_anomaly_dimension import AnomalyIntelligenceEngine
 
 logger = logging.getLogger(__name__)
 
@@ -96,10 +96,10 @@ class AdaptiveWeight:
     dimension: str
     base_weight: float
     current_weight: float
-    performance_factor: float
-    regime_factor: float
-    correlation_factor: float
-    confidence_factor: float
+    performance_factor: float = 1.0
+    regime_factor: float = 1.0
+    correlation_factor: float = 1.0
+    confidence_factor: float = 1.0
 
 class CorrelationAnalyzer:
     """
@@ -130,7 +130,7 @@ class CorrelationAnalyzer:
         
         if reading.dimension in self.dimensional_history:
             self.dimensional_history[reading.dimension].append({
-                'value': reading.value,
+                'signal_strength': reading.signal_strength,
                 'confidence': reading.confidence,
                 'timestamp': reading.timestamp,
                 'context': reading.context
@@ -176,9 +176,17 @@ class CorrelationAnalyzer:
             
             # Find corresponding reading in dimension B
             for reading_b in history_b:
-                if abs((reading_b['timestamp'] - timestamp).total_seconds()) < 300:  # Within 5 minutes
-                    values_a.append(reading_a['value'])
-                    values_b.append(reading_b['value'])
+                timestamp_b = reading_b['timestamp']
+                
+                # Normalize timezone handling for datetime subtraction
+                if timestamp.tzinfo is not None and timestamp_b.tzinfo is None:
+                    timestamp_b = timestamp_b.replace(tzinfo=timestamp.tzinfo)
+                elif timestamp.tzinfo is None and timestamp_b.tzinfo is not None:
+                    timestamp = timestamp.replace(tzinfo=timestamp_b.tzinfo)
+                
+                if abs((timestamp_b - timestamp).total_seconds()) < 300:  # Within 5 minutes
+                    values_a.append(reading_a['signal_strength'])
+                    values_b.append(reading_b['signal_strength'])
                     break
         
         if len(values_a) < 10:
@@ -275,7 +283,7 @@ class CorrelationAnalyzer:
         
         if abs(mean_corr) > 0.1:
             stability = 1.0 - (std_corr / abs(mean_corr))
-            return max(0.0, min(stability, 1.0))
+            return max(0.0, min(float(stability), 1.0))
         else:
             return 0.5
     
@@ -314,8 +322,8 @@ class CorrelationAnalyzer:
             return None
         
         # Get recent readings
-        recent_why = [reading['value'] for reading in list(why_history)[-10:]]
-        recent_what = [reading['value'] for reading in list(what_history)[-10:]]
+        recent_why = [reading['signal_strength'] for reading in list(why_history)[-10:]]
+        recent_what = [reading['signal_strength'] for reading in list(what_history)[-10:]]
         
         # Check for alignment
         why_direction = 1 if np.mean(recent_why) > 0 else -1
@@ -326,7 +334,7 @@ class CorrelationAnalyzer:
             why_strength = abs(np.mean(recent_why))
             what_strength = abs(np.mean(recent_what))
             
-            alignment_strength = min(why_strength, what_strength)
+            alignment_strength = min(float(why_strength), float(what_strength))
             
             if alignment_strength > 0.3:  # Significant alignment
                 return CrossDimensionalPattern(
@@ -355,8 +363,8 @@ class CorrelationAnalyzer:
         recent_when = list(when_history)[-5:]
         
         # Check for high institutional activity during high temporal activity
-        avg_how = np.mean([reading['value'] for reading in recent_how])
-        avg_when = np.mean([reading['value'] for reading in recent_when])
+        avg_how = np.mean([reading['signal_strength'] for reading in recent_how])
+        avg_when = np.mean([reading['signal_strength'] for reading in recent_when])
         
         if avg_how > 0.5 and avg_when > 0.5:  # Both dimensions showing high activity
             
@@ -368,7 +376,7 @@ class CorrelationAnalyzer:
                 return CrossDimensionalPattern(
                     pattern_name='institutional_temporal_alignment',
                     involved_dimensions=['HOW', 'WHEN'],
-                    pattern_strength=min(avg_how, avg_when),
+                    pattern_strength=min(float(avg_how), float(avg_when)),
                     confidence=0.6,
                     expected_outcome='volatility_spike',
                     historical_accuracy=0.55,
@@ -385,7 +393,7 @@ class CorrelationAnalyzer:
         if len(anomaly_history) < 10:
             return None
         
-        recent_anomalies = [reading['value'] for reading in list(anomaly_history)[-10:]]
+        recent_anomalies = [reading['signal_strength'] for reading in list(anomaly_history)[-10:]]
         
         # Check for sustained high anomaly levels
         if np.mean(recent_anomalies) > 0.4 and np.std(recent_anomalies) < 0.2:
@@ -407,7 +415,7 @@ class CorrelationAnalyzer:
                 return CrossDimensionalPattern(
                     pattern_name='anomaly_regime_change',
                     involved_dimensions=['ANOMALY'] + other_dimensions,
-                    pattern_strength=np.mean(recent_anomalies),
+                    pattern_strength=float(np.mean(recent_anomalies)),
                     confidence=0.5,
                     expected_outcome='regime_transition',
                     historical_accuracy=0.45,
@@ -434,7 +442,7 @@ class CorrelationAnalyzer:
         
         for dim in active_dimensions:
             recent_readings = list(self.dimensional_history[dim])[-3:]
-            avg_value = np.mean([reading['value'] for reading in recent_readings])
+            avg_value = np.mean([reading['signal_strength'] for reading in recent_readings])
             avg_confidence = np.mean([reading['confidence'] for reading in recent_readings])
             
             if abs(avg_value) > 0.3 and avg_confidence > 0.5:  # Strong signal with confidence
@@ -447,7 +455,7 @@ class CorrelationAnalyzer:
             return CrossDimensionalPattern(
                 pattern_name='multidimensional_breakout',
                 involved_dimensions=aligned_dimensions,
-                pattern_strength=pattern_strength,
+                pattern_strength=float(pattern_strength),
                 confidence=0.8,
                 expected_outcome='significant_move',
                 historical_accuracy=0.7,
@@ -546,9 +554,28 @@ class AdaptiveWeightManager:
             if dimension in correlation_strengths:
                 avg_correlation = np.mean(correlation_strengths[dimension])
                 # Higher correlation = higher weight (up to 1.3x)
-                self.weights[dimension].correlation_factor = 1.0 + (avg_correlation * 0.3)
+                old_weight = self.weights[dimension]
+                self.weights[dimension] = AdaptiveWeight(
+                    dimension=old_weight.dimension,
+                    base_weight=old_weight.base_weight,
+                    current_weight=old_weight.current_weight,
+                    performance_factor=old_weight.performance_factor,
+                    regime_factor=old_weight.regime_factor,
+                    correlation_factor=float(1.0 + (avg_correlation * 0.3)),
+                    confidence_factor=old_weight.confidence_factor
+                )
             else:
-                self.weights[dimension].correlation_factor = 1.0
+                # Create new weight object with default correlation factor
+                old_weight = self.weights[dimension]
+                self.weights[dimension] = AdaptiveWeight(
+                    dimension=old_weight.dimension,
+                    base_weight=old_weight.base_weight,
+                    current_weight=old_weight.current_weight,
+                    performance_factor=old_weight.performance_factor,
+                    regime_factor=old_weight.regime_factor,
+                    correlation_factor=1.0,
+                    confidence_factor=old_weight.confidence_factor
+                )
     
     def update_confidence_factors(self, readings: Dict[str, DimensionalReading]) -> None:
         """Update confidence-based weight factors"""
@@ -556,7 +583,17 @@ class AdaptiveWeightManager:
         for dimension, reading in readings.items():
             if dimension in self.weights:
                 # Higher confidence = higher weight
-                self.weights[dimension].confidence_factor = reading.confidence
+                # Create new weight object with updated confidence factor
+                old_weight = self.weights[dimension]
+                self.weights[dimension] = AdaptiveWeight(
+                    dimension=old_weight.dimension,
+                    base_weight=old_weight.base_weight,
+                    current_weight=old_weight.current_weight,
+                    performance_factor=old_weight.performance_factor,
+                    regime_factor=old_weight.regime_factor,
+                    correlation_factor=old_weight.correlation_factor,
+                    confidence_factor=reading.confidence
+                )
     
     def calculate_current_weights(self) -> Dict[str, float]:
         """Calculate current adaptive weights"""
@@ -727,7 +764,7 @@ class NarrativeGenerator:
                     return 'institutional_flow'
         
         # Check for anomaly dominance
-        if 'ANOMALY' in readings and readings['ANOMALY'].value > 0.5:
+        if 'ANOMALY' in readings and readings['ANOMALY'].signal_strength > 0.5:
             return 'anomaly_warning'
         
         # Check for strong directional bias
@@ -738,19 +775,19 @@ class NarrativeGenerator:
                 return 'bearish_confluence'
         
         # Check for fundamental dominance
-        if 'WHY' in readings and readings['WHY'].value > 0.5:
+        if 'WHY' in readings and readings['WHY'].signal_strength > 0.5:
             return 'fundamental_shift'
         
         # Check for technical dominance
-        if 'WHAT' in readings and readings['WHAT'].value > 0.5:
+        if 'WHAT' in readings and readings['WHAT'].signal_strength > 0.5:
             return 'technical_breakout'
         
         # Check for institutional dominance
-        if 'HOW' in readings and readings['HOW'].value > 0.5:
+        if 'HOW' in readings and readings['HOW'].signal_strength > 0.5:
             return 'institutional_flow'
         
         # Check for low volatility/consolidation
-        if all(abs(reading.value) < 0.3 for reading in readings.values()):
+        if all(abs(reading.signal_strength) < 0.3 for reading in readings.values()):
             return 'consolidation'
         
         # Default to uncertainty
@@ -766,6 +803,8 @@ class NarrativeGenerator:
             
             if dimension == 'WHY':
                 evidence['why_evidence'] = self._extract_why_evidence(reading, context)
+                # Extract risk_assessment from WHY context for narrative templates
+                evidence['risk_assessment'] = context.get('risk_assessment', 'neutral')
             elif dimension == 'HOW':
                 evidence['how_evidence'] = self._extract_how_evidence(reading, context)
             elif dimension == 'WHAT':
@@ -774,33 +813,43 @@ class NarrativeGenerator:
                 evidence['when_evidence'] = self._extract_when_evidence(reading, context)
             elif dimension == 'ANOMALY':
                 evidence['anomaly_evidence'] = self._extract_anomaly_evidence(reading, context)
+                # Extract affected_dimensions from ANOMALY context for narrative templates
+                evidence['affected_dimensions'] = context.get('affected_dimensions', ['multiple dimensions'])
         
         return evidence
     
     def _extract_why_evidence(self, reading: DimensionalReading, context: Dict) -> str:
         """Extract WHY dimension evidence"""
         
-        if reading.value > 0.5:
-            return "positive fundamental backdrop with supportive economic conditions"
-        elif reading.value < -0.5:
-            return "negative fundamental pressures from economic headwinds"
-        elif reading.value > 0.2:
-            return "moderately positive fundamental environment"
-        elif reading.value < -0.2:
-            return "some fundamental concerns emerging"
+        # Extract risk_assessment from context if available
+        risk_assessment = context.get('risk_assessment', 'neutral')
+        
+        if reading.signal_strength > 0.5:
+            evidence = "positive fundamental backdrop with supportive economic conditions"
+        elif reading.signal_strength < -0.5:
+            evidence = "negative fundamental pressures from economic headwinds"
+        elif reading.signal_strength > 0.2:
+            evidence = "moderately positive fundamental environment"
+        elif reading.signal_strength < -0.2:
+            evidence = "some fundamental concerns emerging"
         else:
-            return "neutral fundamental conditions"
+            evidence = "neutral fundamental conditions"
+        
+        if risk_assessment != 'neutral':
+            evidence += f" with {risk_assessment} sentiment"
+        
+        return evidence
     
     def _extract_how_evidence(self, reading: DimensionalReading, context: Dict) -> str:
         """Extract HOW dimension evidence"""
         
-        if reading.value > 0.5:
+        if reading.signal_strength > 0.5:
             return "strong institutional buying interest with significant order flow"
-        elif reading.value < -0.5:
+        elif reading.signal_strength < -0.5:
             return "institutional selling pressure evident in order flow patterns"
-        elif reading.value > 0.2:
+        elif reading.signal_strength > 0.2:
             return "moderate institutional participation"
-        elif reading.value < -0.2:
+        elif reading.signal_strength < -0.2:
             return "some institutional distribution detected"
         else:
             return "balanced institutional positioning"
@@ -808,13 +857,13 @@ class NarrativeGenerator:
     def _extract_what_evidence(self, reading: DimensionalReading, context: Dict) -> str:
         """Extract WHAT dimension evidence"""
         
-        if reading.value > 0.5:
+        if reading.signal_strength > 0.5:
             return "strong technical momentum with clear directional bias"
-        elif reading.value < -0.5:
+        elif reading.signal_strength < -0.5:
             return "weak technical structure with bearish momentum"
-        elif reading.value > 0.2:
+        elif reading.signal_strength > 0.2:
             return "constructive technical setup developing"
-        elif reading.value < -0.2:
+        elif reading.signal_strength < -0.2:
             return "technical deterioration in progress"
         else:
             return "neutral technical conditions with range-bound action"
@@ -825,9 +874,9 @@ class NarrativeGenerator:
         session = context.get('current_session', 'unknown')
         regime = context.get('temporal_regime', 'unknown')
         
-        if reading.value > 0.5:
+        if reading.signal_strength > 0.5:
             return f"favorable timing with high-activity {session} session"
-        elif reading.value < -0.5:
+        elif reading.signal_strength < -0.5:
             return f"poor timing during low-activity {session} period"
         elif 'OVERLAP' in session:
             return "session overlap providing increased volatility potential"
@@ -839,7 +888,7 @@ class NarrativeGenerator:
     def _extract_anomaly_evidence(self, reading: DimensionalReading, context: Dict) -> str:
         """Extract ANOMALY dimension evidence"""
         
-        anomaly_level = reading.value
+        anomaly_level = reading.signal_strength
         stress_level = context.get('system_stress_level', 0)
         
         if anomaly_level > 0.7:
@@ -874,7 +923,9 @@ class NarrativeGenerator:
                 'how_evidence': 'institutional activity',
                 'what_evidence': 'technical patterns',
                 'when_evidence': 'timing considerations',
-                'anomaly_evidence': 'market anomalies'
+                'anomaly_evidence': 'market anomalies',
+                'risk_assessment': 'cautious positioning',
+                'affected_dimensions': 'multiple dimensions'
             }
             evidence[missing_key] = fallback_evidence.get(missing_key, 'mixed signals')
             narrative = template.format(**evidence)
@@ -1075,7 +1126,7 @@ class ContextualFusionEngine:
         for dimension, reading in readings.items():
             if dimension in weights:
                 weight = weights[dimension]
-                weighted_value = reading.value * reading.confidence * weight
+                weighted_value = reading.signal_strength * reading.confidence * weight
                 unified_score += weighted_value
                 total_weight += weight * reading.confidence
         
@@ -1147,7 +1198,7 @@ class ContextualFusionEngine:
         if len(readings) < 2:
             return 0.0
         
-        values = [reading.value for reading in readings.values()]
+        values = [reading.signal_strength for reading in readings.values()]
         
         # Calculate pairwise agreement
         agreements = []
@@ -1159,7 +1210,7 @@ class ContextualFusionEngine:
                 agreement = (sign_agreement + magnitude_similarity) / 2.0
                 agreements.append(agreement)
         
-        return np.mean(agreements) if agreements else 0.0
+        return float(np.mean(agreements)) if agreements else 0.0
     
     def _determine_intelligence_level(self, readings: Dict[str, DimensionalReading],
                                     confidence: float,
@@ -1244,7 +1295,7 @@ class ContextualFusionEngine:
                     return MarketNarrative.INSTITUTIONAL_FLOW
         
         # Check for anomaly dominance
-        if 'ANOMALY' in readings and readings['ANOMALY'].value > 0.6:
+        if 'ANOMALY' in readings and readings['ANOMALY'].signal_strength > 0.6:
             anomaly_context = readings['ANOMALY'].context or {}
             if anomaly_context.get('active_manipulations'):
                 return MarketNarrative.MANIPULATION_ACTIVE
@@ -1256,7 +1307,7 @@ class ContextualFusionEngine:
         dominant_dimension = None
         
         for dimension, reading in readings.items():
-            weighted_value = abs(reading.value) * reading.confidence
+            weighted_value = abs(reading.signal_strength) * reading.confidence
             if weighted_value > max_value:
                 max_value = weighted_value
                 dominant_dimension = dimension
@@ -1294,12 +1345,12 @@ class ContextualFusionEngine:
         
         for dimension, reading in readings.items():
             # Evidence supports unified score direction
-            if (unified_score > 0 and reading.value > 0.2) or (unified_score < 0 and reading.value < -0.2):
-                supporting_evidence.append(f"{dimension} dimension shows {reading.value:.2f} with {reading.confidence:.0%} confidence")
+            if (unified_score > 0 and reading.signal_strength > 0.2) or (unified_score < 0 and reading.signal_strength < -0.2):
+                supporting_evidence.append(f"{dimension} dimension shows {reading.signal_strength:.2f} with {reading.confidence:.0%} confidence")
             
             # Evidence contradicts unified score direction
-            elif (unified_score > 0 and reading.value < -0.2) or (unified_score < 0 and reading.value > 0.2):
-                contradicting_evidence.append(f"{dimension} dimension shows opposing signal of {reading.value:.2f}")
+            elif (unified_score > 0 and reading.signal_strength < -0.2) or (unified_score < 0 and reading.signal_strength > 0.2):
+                contradicting_evidence.append(f"{dimension} dimension shows opposing signal of {reading.signal_strength:.2f}")
         
         return supporting_evidence, contradicting_evidence
     
@@ -1311,7 +1362,7 @@ class ContextualFusionEngine:
         opportunity_factors = []
         
         # Anomaly-based risks
-        if 'ANOMALY' in readings and readings['ANOMALY'].value > 0.4:
+        if 'ANOMALY' in readings and readings['ANOMALY'].signal_strength > 0.4:
             risk_factors.append("Elevated anomaly levels increase uncertainty")
             
             anomaly_context = readings['ANOMALY'].context or {}
@@ -1338,7 +1389,7 @@ class ContextualFusionEngine:
         # High confidence opportunities
         high_confidence_dimensions = [
             dim for dim, reading in readings.items()
-            if reading.confidence > 0.7 and abs(reading.value) > 0.3
+            if reading.confidence > 0.7 and abs(reading.signal_strength) > 0.3
         ]
         
         if len(high_confidence_dimensions) >= 2:
@@ -1358,7 +1409,7 @@ class ContextualFusionEngine:
         diagnostics = {
             'current_readings': {
                 dim: {
-                    'value': reading.value,
+                    'signal_strength': reading.signal_strength,
                     'confidence': reading.confidence,
                     'timestamp': reading.timestamp.isoformat()
                 }

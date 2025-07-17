@@ -26,7 +26,7 @@ from .dimensions.anomaly_engine import ANOMALYEngine as AnomalyIntelligenceEngin
 # Export core components
 from .core.base import (
     MarketData, InstrumentMeta, OrderBookSnapshot, OrderBookLevel,
-    MarketRegime, EconomicEvent, EventTier
+    MarketRegime, EconomicEvent, EventTier, EconomicData
 )
 from .core.utils import (
     EMA, WelfordVar, compute_confidence, normalize_signal,
@@ -56,6 +56,7 @@ __all__ = [
     'MarketRegime',
     'EconomicEvent',
     'EventTier',
+    'EconomicData',
     'EMA',
     'WelfordVar',
     'compute_confidence',

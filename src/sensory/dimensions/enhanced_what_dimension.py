@@ -123,7 +123,7 @@ class PriceActionAnalyzer:
         # Higher volatility = less sensitive (avoid noise)
         # Lower volatility = more sensitive (catch smaller swings)
         base_sensitivity = 0.5
-        volatility_factor = min(volatility * 1000, 2.0)  # Scale volatility
+        volatility_factor = min(float(volatility * 1000), 2.0)  # Scale volatility
         self.swing_detection_sensitivity = base_sensitivity * (2.0 - volatility_factor)
         self.swing_detection_sensitivity = max(0.1, min(self.swing_detection_sensitivity, 1.0))
     
@@ -164,14 +164,14 @@ class PriceActionAnalyzer:
                 # Calculate swing strength based on prominence and volume
                 if idx > 0 and idx < len(highs) - 1:
                     prominence = min(highs[idx] - highs[idx-1], highs[idx] - highs[idx+1])
-                    volume_strength = min(swing_volume / np.mean(volumes[-20:]), 2.0) if len(volumes) >= 20 else 1.0
+                    volume_strength = min(float(swing_volume / np.mean(volumes[-20:])), 2.0) if len(volumes) >= 20 else 1.0
                     strength = min((prominence / prominence_threshold) * volume_strength / 2, 1.0)
                 else:
                     strength = 0.5
                 
                 swing_point = SwingPoint(
                     timestamp=timestamps[idx],
-                    price=swing_price,
+                    price=float(swing_price),
                     type='high',
                     strength=strength
                 )
@@ -188,14 +188,14 @@ class PriceActionAnalyzer:
                 
                 if idx > 0 and idx < len(lows) - 1:
                     prominence = min(lows[idx-1] - lows[idx], lows[idx+1] - lows[idx])
-                    volume_strength = min(swing_volume / np.mean(volumes[-20:]), 2.0) if len(volumes) >= 20 else 1.0
+                    volume_strength = min(float(swing_volume / np.mean(volumes[-20:])), 2.0) if len(volumes) >= 20 else 1.0
                     strength = min((prominence / prominence_threshold) * volume_strength / 2, 1.0)
                 else:
                     strength = 0.5
                 
                 swing_point = SwingPoint(
                     timestamp=timestamps[idx],
-                    price=swing_price,
+                    price=float(swing_price),
                     type='low',
                     strength=strength
                 )
@@ -324,7 +324,7 @@ class PriceActionAnalyzer:
             momentum_strength = 0.5
         
         # Combine swing strength and momentum
-        return (avg_strength + momentum_strength) / 2
+        return float((avg_strength + momentum_strength) / 2)
     
     def _calculate_trend_quality(self, recent_swings: List[SwingPoint]) -> float:
         """Calculate trend quality based on swing consistency"""
@@ -340,7 +340,7 @@ class PriceActionAnalyzer:
         
         if len(time_intervals) > 1:
             interval_consistency = 1.0 - (np.std(time_intervals) / np.mean(time_intervals))
-            interval_consistency = max(0, min(interval_consistency, 1.0))
+            interval_consistency = max(0, min(float(interval_consistency), 1.0))
         else:
             interval_consistency = 0.5
         
@@ -348,7 +348,7 @@ class PriceActionAnalyzer:
         strengths = [sp.strength for sp in recent_swings]
         strength_consistency = 1.0 - np.std(strengths) if len(strengths) > 1 else 0.5
         
-        return (interval_consistency + strength_consistency) / 2
+        return float((interval_consistency + strength_consistency) / 2)
     
     def _identify_key_levels(self, swing_highs: List[SwingPoint], swing_lows: List[SwingPoint]) -> List[float]:
         """Identify key support and resistance levels"""
@@ -593,8 +593,9 @@ class TechnicalRealityEngine:
         
         return DimensionalReading(
             dimension='WHAT',
-            value=technical_strength,
+            signal_strength=technical_strength,
             confidence=confidence,
+            regime=self.current_regime,  # Use the detected regime
             context=context,
             timestamp=market_data.timestamp
         )
@@ -619,7 +620,7 @@ class TechnicalRealityEngine:
             self.current_regime = MarketRegime.RANGING_LOW_VOL
             self.regime_confidence = 1.0 - trend.strength
         else:
-            self.current_regime = MarketRegime.TRANSITIONAL
+            self.current_regime = MarketRegime.TRANSITION
             self.regime_confidence = 0.5
     
     def _calculate_structure_clarity(self) -> float:
@@ -784,7 +785,7 @@ async def main():
         
         if i % 50 == 0:  # Print every 50th reading
             print(f"Technical Reality Reading (Period {i}):")
-            print(f"  Value: {reading.value:.3f}")
+            print(f"  Value: {reading.signal_strength:.3f}")
             print(f"  Confidence: {reading.confidence:.3f}")
             print(f"  Market Regime: {reading.context.get('market_regime', 'Unknown')}")
             if 'trend' in reading.context:

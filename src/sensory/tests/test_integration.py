@@ -22,15 +22,15 @@ from unittest.mock import Mock, patch
 # Import system components
 import sys
 import os
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from core.base import MarketData, DimensionalReading, MarketRegime
-from orchestration.enhanced_intelligence_engine import ContextualFusionEngine
-from market_intelligence.dimensions.enhanced_why_dimension import EnhancedFundamentalIntelligenceEngine
-from market_intelligence.dimensions.enhanced_how_dimension import InstitutionalIntelligenceEngine
-from market_intelligence.dimensions.enhanced_what_dimension import TechnicalRealityEngine
-from market_intelligence.dimensions.enhanced_when_dimension import ChronalIntelligenceEngine
-from market_intelligence.dimensions.enhanced_anomaly_dimension import AnomalyIntelligenceEngine
+from src.sensory.core.base import MarketData, DimensionalReading, MarketRegime
+from src.sensory.orchestration.enhanced_intelligence_engine import ContextualFusionEngine
+from src.sensory.dimensions.enhanced_why_dimension import EnhancedFundamentalIntelligenceEngine
+from src.sensory.dimensions.enhanced_how_dimension import InstitutionalMechanicsEngine
+from src.sensory.dimensions.enhanced_what_dimension import TechnicalRealityEngine
+from src.sensory.dimensions.enhanced_when_dimension import ChronalIntelligenceEngine
+from src.sensory.dimensions.enhanced_anomaly_dimension import AnomalyIntelligenceEngine
 
 # Configure logging for tests
 logging.basicConfig(level=logging.WARNING)
@@ -91,11 +91,15 @@ class TestDataGenerator:
         volatility = max(volatility, 0.001)  # Minimum volatility
         
         return MarketData(
+            symbol='EURUSD',
             timestamp=current_time,
+            open=self.current_price,
+            high=self.current_price + 0.0002,
+            low=self.current_price - 0.0002,
+            close=self.current_price,
             bid=self.current_price - 0.0001,
             ask=self.current_price + 0.0001,
-            volume=volume,
-            volatility=volatility
+            volume=volume
         )
     
     def generate_sequence(self, scenario: str, length: int) -> List[MarketData]:
@@ -124,7 +128,7 @@ class TestDimensionalEngines:
         
         assert isinstance(reading, DimensionalReading)
         assert reading.dimension == 'WHY'
-        assert -1.0 <= reading.value <= 1.0
+        assert -1.0 <= reading.signal_strength <= 1.0
         assert 0.0 <= reading.confidence <= 1.0
         assert isinstance(reading.context, dict)
         assert reading.timestamp is not None
@@ -133,14 +137,14 @@ class TestDimensionalEngines:
     async def test_how_engine_basic_functionality(self, sample_market_data):
         """Test HOW dimension engine basic functionality"""
         
-        engine = InstitutionalIntelligenceEngine()
+        engine = InstitutionalMechanicsEngine()
         
         # Test basic analysis
-        reading = await engine.analyze_institutional_intelligence(sample_market_data)
+        reading = await engine.analyze_institutional_mechanics(sample_market_data)
         
         assert isinstance(reading, DimensionalReading)
         assert reading.dimension == 'HOW'
-        assert -1.0 <= reading.value <= 1.0
+        assert -1.0 <= reading.signal_strength <= 1.0
         assert 0.0 <= reading.confidence <= 1.0
         assert isinstance(reading.context, dict)
     
@@ -155,7 +159,7 @@ class TestDimensionalEngines:
         
         assert isinstance(reading, DimensionalReading)
         assert reading.dimension == 'WHAT'
-        assert -1.0 <= reading.value <= 1.0
+        assert -1.0 <= reading.signal_strength <= 1.0
         assert 0.0 <= reading.confidence <= 1.0
         assert isinstance(reading.context, dict)
     
@@ -170,7 +174,7 @@ class TestDimensionalEngines:
         
         assert isinstance(reading, DimensionalReading)
         assert reading.dimension == 'WHEN'
-        assert -1.0 <= reading.value <= 1.0
+        assert -1.0 <= reading.signal_strength <= 1.0
         assert 0.0 <= reading.confidence <= 1.0
         assert isinstance(reading.context, dict)
     
@@ -185,7 +189,7 @@ class TestDimensionalEngines:
         
         assert isinstance(reading, DimensionalReading)
         assert reading.dimension == 'ANOMALY'
-        assert 0.0 <= reading.value <= 1.0  # Anomaly is always positive
+        assert 0.0 <= reading.signal_strength <= 1.0  # Anomaly is always positive
         assert 0.0 <= reading.confidence <= 1.0
         assert isinstance(reading.context, dict)
     
@@ -198,7 +202,7 @@ class TestDimensionalEngines:
         
         engines = {
             'WHY': EnhancedFundamentalIntelligenceEngine(),
-            'HOW': InstitutionalIntelligenceEngine(),
+            'HOW': InstitutionalMechanicsEngine(),
             'WHAT': TechnicalRealityEngine(),
             'WHEN': ChronalIntelligenceEngine(),
             'ANOMALY': AnomalyIntelligenceEngine()
@@ -212,7 +216,7 @@ class TestDimensionalEngines:
                 if name == 'WHY':
                     reading = await engine.analyze_fundamental_intelligence(market_data)
                 elif name == 'HOW':
-                    reading = await engine.analyze_institutional_intelligence(market_data)
+                    reading = await engine.analyze_institutional_mechanics(market_data)
                 elif name == 'WHAT':
                     reading = await engine.analyze_technical_reality(market_data)
                 elif name == 'WHEN':
@@ -226,7 +230,7 @@ class TestDimensionalEngines:
         for name, reading in readings.items():
             assert reading is not None
             assert reading.dimension == name
-            assert isinstance(reading.value, (int, float))
+            assert isinstance(reading.signal_strength, (int, float))
             assert isinstance(reading.confidence, (int, float))
     
     @pytest.mark.asyncio
@@ -242,7 +246,7 @@ class TestDimensionalEngines:
         # Feed data to anomaly engine
         for market_data in anomalous_data:
             reading = await anomaly_engine.analyze_anomaly_intelligence(market_data)
-            anomaly_readings.append(reading.value)
+            anomaly_readings.append(reading.signal_strength)
         
         # Should detect some anomalies
         max_anomaly = max(anomaly_readings)
@@ -614,7 +618,7 @@ class TestScenarioValidation:
             
             # Check anomaly level in current readings
             if 'ANOMALY' in fusion_engine.current_readings:
-                anomaly_levels.append(fusion_engine.current_readings['ANOMALY'].value)
+                anomaly_levels.append(fusion_engine.current_readings['ANOMALY'].signal_strength)
         
         # Should detect some anomalies
         if anomaly_levels:

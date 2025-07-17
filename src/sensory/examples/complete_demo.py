@@ -369,7 +369,7 @@ class IntelligenceDemo:
         # Dimensional readings
         print("DIMENSIONAL READINGS:")
         for dimension, reading in self.fusion_engine.current_readings.items():
-            print(f"  {dimension:8s}: {reading.value:+.3f} (confidence: {reading.confidence:.3f})")
+            print(f"  {dimension:8s}: {reading.signal_strength:+.3f} (confidence: {reading.confidence:.3f})")
         print()
         
         # Adaptive weights
@@ -609,7 +609,7 @@ class InteractiveDemo:
         if 'current_readings' in diagnostics:
             print("Current Dimensional Readings:")
             for dimension, reading in diagnostics['current_readings'].items():
-                print(f"  {dimension:8s}: {reading['value']:+.3f} (conf: {reading['confidence']:.3f})")
+                print(f"  {dimension:8s}: {reading['signal_strength']:+.3f} (conf: {reading['confidence']:.3f})")
             print()
         
         # Adaptive weights

@@ -1,5 +1,5 @@
 {
-  "EUR_USD": {
+  "EURUSD": {
     "pip_decimal_places": 4,
     "contract_size": "100000",
     "long_swap_rate": "-0.0001",
@@ -7,7 +7,7 @@
     "margin_currency": "USD",
     "swap_time": "22:00"
   },
-  "GBP_USD": {
+  "GBPUSD": {
     "pip_decimal_places": 4,
     "contract_size": "100000",
     "long_swap_rate": "-0.0002",
@@ -15,7 +15,7 @@
     "margin_currency": "USD",
     "swap_time": "22:00"
   },
-  "USD_JPY": {
+  "USDJPY": {
     "pip_decimal_places": 2,
     "contract_size": "100000",
     "long_swap_rate": "-0.0001",

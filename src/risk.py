@@ -12,7 +12,7 @@ from typing import Dict, Optional, Any, TYPE_CHECKING
 from dataclasses import dataclass
 from pydantic import BaseModel, Field, validator
 
-from core import RiskConfig, Instrument, InstrumentProvider
+from src.core import RiskConfig, Instrument, InstrumentProvider
 
 # Type checking imports to avoid circular dependencies
 if TYPE_CHECKING:
@@ -221,6 +221,46 @@ class RiskManager:
             return Decimal('0')
         
         return total_exposure / account_equity
+    
+    def validate_position(self, position: 'EnhancedPosition', instrument: Instrument, 
+                         equity: Decimal) -> bool:
+        """
+        Validate a position against risk management rules.
+        
+        Args:
+            position: Position to validate
+            instrument: Trading instrument
+            equity: Current account equity
+            
+        Returns:
+            True if position is valid, False otherwise
+        """
+        try:
+            # Check position size limits
+            if not (self.config.min_position_size <= abs(position.quantity) <= 
+                   self.config.max_position_size):
+                logger.warning(f"Position size {position.quantity} outside limits")
+                return False
+            
+            # Check leverage limits
+            position_value = position.get_position_value(Decimal(str(instrument.contract_size)))
+            leverage_used = position_value / equity if equity > 0 else Decimal('0')
+            
+            if leverage_used > self.config.max_leverage:
+                logger.warning(f"Leverage {leverage_used} exceeds maximum {self.config.max_leverage}")
+                return False
+            
+            # Check exposure limits
+            exposure_pct = position_value / equity if equity > 0 else Decimal('0')
+            if exposure_pct > self.config.max_total_exposure_pct:
+                logger.warning(f"Exposure {exposure_pct} exceeds maximum {self.config.max_total_exposure_pct}")
+                return False
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error validating position: {e}")
+            return False
     
     def _calculate_exposure_pct(self, order: 'Order', account_state: Dict, 
                               open_positions: Dict[str, 'EnhancedPosition']) -> Decimal:

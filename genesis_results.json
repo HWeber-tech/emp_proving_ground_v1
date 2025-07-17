@@ -1,0 +1,186 @@
+{
+  "start_time": "2025-07-17T22:04:44.059625",
+  "config": {
+    "symbol": "EURUSD",
+    "population_size": 10,
+    "generations": 5,
+    "mutation_rate": 0.1,
+    "crossover_rate": 0.6,
+    "elite_ratio": 0.1,
+    "start_date": "2024-01-01",
+    "end_date": "2024-01-31",
+    "timeframe": "H1",
+    "max_risk_per_trade": 0.02,
+    "max_drawdown": 0.25,
+    "max_leverage": 10.0,
+    "initial_balance": 100000.0,
+    "adversarial_difficulty": 0.3
+  },
+  "generations": [
+    {
+      "generation": 1,
+      "best_fitness": 0.2634416141637355,
+      "avg_fitness": 0.2608567604400459,
+      "population_diversity": 0.0017454304392437454
+    },
+    {
+      "generation": 2,
+      "best_fitness": 0.26284997778458613,
+      "avg_fitness": 0.2602654796789383,
+      "population_diversity": 0.0017453432554983758
+    },
+    {
+      "generation": 3,
+      "best_fitness": 0.26284997778458613,
+      "avg_fitness": 0.2602654796789383,
+      "population_diversity": 0.0017453432554983758
+    },
+    {
+      "generation": 4,
+      "best_fitness": 0.26284997778458613,
+      "avg_fitness": 0.2602654796789383,
+      "population_diversity": 0.0017453432554983758
+    },
+    {
+      "generation": 5,
+      "best_fitness": 0.26284997778458613,
+      "avg_fitness": 0.2602654796789383,
+      "population_diversity": 0.0017453432554983758
+    }
+  ],
+  "final_population": [
+    {
+      "genome_id": "genome_0005",
+      "fitness": 0.26284997778458613,
+      "strategy": "random",
+      "risk_profile": "balanced"
+    },
+    {
+      "genome_id": "genome_0009",
+      "fitness": 0.26153107738230136,
+      "strategy": "random",
+      "risk_profile": "balanced"
+    },
+    {
+      "genome_id": "genome_0000",
+      "fitness": 0.2612517088901163,
+      "strategy": "random",
+      "risk_profile": "balanced"
+    },
+    {
+      "genome_id": "genome_0001",
+      "fitness": 0.2612225511764402,
+      "strategy": "random",
+      "risk_profile": "balanced"
+    },
+    {
+      "genome_id": "genome_0004",
+      "fitness": 0.2605923325354587,
+      "strategy": "random",
+      "risk_profile": "balanced"
+    },
+    {
+      "genome_id": "genome_0003",
+      "fitness": 0.26048155841051057,
+      "strategy": "random",
+      "risk_profile": "balanced"
+    },
+    {
+      "genome_id": "genome_0008",
+      "fitness": 0.26018156338427056,
+      "strategy": "random",
+      "risk_profile": "balanced"
+    },
+    {
+      "genome_id": "genome_0007",
+      "fitness": 0.26007119692372016,
+      "strategy": "random",
+      "risk_profile": "balanced"
+    },
+    {
+      "genome_id": "genome_0002",
+      "fitness": 0.25817007850345475,
+      "strategy": "random",
+      "risk_profile": "balanced"
+    },
+    {
+      "genome_id": "genome_0006",
+      "fitness": 0.25630275179852396,
+      "strategy": "random",
+      "risk_profile": "balanced"
+    }
+  ],
+  "baseline_metrics": {},
+  "system_health": {
+    "sensory_cortex": {
+      "overall_health": 1.0,
+      "healthy_engines": 5,
+      "total_engines": 5,
+      "degraded_engines": [],
+      "average_performance": 0.5,
+      "average_reliability": 0.5,
+      "consensus_trend": 0.0,
+      "confidence_trend": 0.0
+    },
+    "data_pipeline": {
+      "data_loaded": true,
+      "data_quality": 1.0
+    },
+    "evolution_engine": {
+      "population_initialized": true,
+      "fitness_evaluator_ready": true
+    },
+    "baseline_metrics": {
+      "buy_hold_return": 0.0664317586293545,
+      "random_strategy_return": 0.0001874066905380838,
+      "data_points": 720,
+      "volatility": 0.015837657213712934,
+      "sharpe_ratio": 4.194544542347778
+    }
+  },
+  "end_time": "2025-07-17T22:05:05.614386",
+  "final_metrics": {
+    "total_runtime_seconds": 21.554761,
+    "evolution_summary": {
+      "total_generations": 0,
+      "best_fitness_history": [
+        0.2634416141637355,
+        0.26284997778458613,
+        0.26284997778458613,
+        0.26284997778458613,
+        0.26284997778458613
+      ],
+      "avg_fitness_history": [
+        0.2608567604400459,
+        0.2602654796789383,
+        0.2602654796789383,
+        0.2602654796789383,
+        0.2602654796789383
+      ],
+      "diversity_history": [
+        0.0017454304392437454,
+        0.0017453432554983758,
+        0.0017453432554983758,
+        0.0017453432554983758,
+        0.0017453432554983758
+      ],
+      "best_genome": "genome_0005",
+      "best_fitness": 0.26284997778458613,
+      "population_size": 10
+    },
+    "system_performance": {
+      "memory_usage": {
+        "rss_mb": 0,
+        "vms_mb": 0,
+        "percent": 0
+      },
+      "cache_stats": {
+        "hits": 0,
+        "misses": 3,
+        "cached_datasets": 3
+      },
+      "total_generations": 5,
+      "final_population_size": 10
+    }
+  }
+}

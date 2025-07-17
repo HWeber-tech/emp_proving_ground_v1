@@ -143,6 +143,20 @@ class TickDataStorage:
         
         return ohlcv
 
+    def get_data_range(self, symbol: str, start_time: datetime, end_time: datetime) -> pd.DataFrame:
+        """
+        Get data for a specific date range (used by evolution engine)
+        
+        Args:
+            symbol: Trading symbol
+            start_time: Start time
+            end_time: End time
+            
+        Returns:
+            DataFrame with OHLCV data
+        """
+        return self.get_ohlcv(symbol, start_time, end_time, freq="H")
+
     def _ticks_to_ohlcv(self, tick_data: pd.DataFrame, freq: str) -> pd.DataFrame:
         """
         Convert tick data to OHLCV format
@@ -164,23 +178,68 @@ class TickDataStorage:
         # Set timestamp as index for resampling
         tick_data.set_index('timestamp', inplace=True)
         
+        # Check which columns are available
+        available_columns = tick_data.columns.tolist()
+        
+        # Define aggregation rules based on available columns
+        agg_rules = {}
+        
+        if 'bid' in available_columns:
+            agg_rules['bid'] = 'ohlc'
+        if 'ask' in available_columns:
+            agg_rules['ask'] = 'ohlc'
+        if 'bid_volume' in available_columns:
+            agg_rules['bid_volume'] = 'sum'
+        if 'ask_volume' in available_columns:
+            agg_rules['ask_volume'] = 'sum'
+        if 'volume' in available_columns:
+            agg_rules['volume'] = 'sum'
+        
+        # If no volume columns available, create synthetic volume
+        if 'bid_volume' not in available_columns and 'ask_volume' not in available_columns and 'volume' not in available_columns:
+            tick_data['volume'] = np.random.randint(1000, 10000, len(tick_data))
+            agg_rules['volume'] = 'sum'
+        
         # Resample to desired frequency
-        ohlcv = tick_data.resample(freq).agg({
-            'bid': 'ohlc',
-            'ask': 'ohlc',
-            'bid_volume': 'sum',
-            'ask_volume': 'sum'
-        })
+        ohlcv = tick_data.resample(freq).agg(agg_rules)
         
         # Flatten column names
         ohlcv.columns = ['_'.join(col).strip() for col in ohlcv.columns]
         
-        # Calculate mid price
-        ohlcv['open'] = (ohlcv['bid_open'] + ohlcv['ask_open']) / 2
-        ohlcv['high'] = (ohlcv['bid_high'] + ohlcv['ask_high']) / 2
-        ohlcv['low'] = (ohlcv['bid_low'] + ohlcv['ask_low']) / 2
-        ohlcv['close'] = (ohlcv['bid_close'] + ohlcv['ask_close']) / 2
-        ohlcv['volume'] = ohlcv['bid_volume'] + ohlcv['ask_volume']
+        # Calculate OHLCV based on available columns
+        if 'bid_open' in ohlcv.columns and 'ask_open' in ohlcv.columns:
+            ohlcv['open'] = (ohlcv['bid_open'] + ohlcv['ask_open']) / 2
+            ohlcv['high'] = (ohlcv['bid_high'] + ohlcv['ask_high']) / 2
+            ohlcv['low'] = (ohlcv['bid_low'] + ohlcv['ask_low']) / 2
+            ohlcv['close'] = (ohlcv['bid_close'] + ohlcv['ask_close']) / 2
+        elif 'bid_open' in ohlcv.columns:
+            ohlcv['open'] = ohlcv['bid_open']
+            ohlcv['high'] = ohlcv['bid_high']
+            ohlcv['low'] = ohlcv['bid_low']
+            ohlcv['close'] = ohlcv['bid_close']
+        elif 'ask_open' in ohlcv.columns:
+            ohlcv['open'] = ohlcv['ask_open']
+            ohlcv['high'] = ohlcv['ask_high']
+            ohlcv['low'] = ohlcv['ask_low']
+            ohlcv['close'] = ohlcv['ask_close']
+        else:
+            # Fallback to close price for all OHLC
+            ohlcv['open'] = ohlcv['close']
+            ohlcv['high'] = ohlcv['close']
+            ohlcv['low'] = ohlcv['close']
+        
+        # Calculate volume
+        if 'bid_volume' in ohlcv.columns and 'ask_volume' in ohlcv.columns:
+            ohlcv['volume'] = ohlcv['bid_volume'] + ohlcv['ask_volume']
+        elif 'bid_volume' in ohlcv.columns:
+            ohlcv['volume'] = ohlcv['bid_volume']
+        elif 'ask_volume' in ohlcv.columns:
+            ohlcv['volume'] = ohlcv['ask_volume']
+        elif 'volume' in ohlcv.columns:
+            ohlcv['volume'] = ohlcv['volume']
+        else:
+            # Create synthetic volume
+            ohlcv['volume'] = np.random.randint(1000, 10000, len(ohlcv))
         
         # Keep only OHLCV columns
         ohlcv = ohlcv[['open', 'high', 'low', 'close', 'volume']]
@@ -231,7 +290,7 @@ class TickDataCleaner:
         Args:
             df: Raw tick data DataFrame
             symbol: Trading symbol
-            
+        
         Returns:
             Cleaned DataFrame
         """
@@ -300,7 +359,7 @@ class DukascopyIngestor:
         Args:
             symbol: Trading symbol
             year: Year to ingest
-            
+        
         Returns:
             True if successful, False otherwise
         """
@@ -345,7 +404,7 @@ class DukascopyIngestor:
             symbol: Trading symbol
             start_time: Start time
             end_time: End time
-            
+        
         Returns:
             DataFrame with tick data or None if failed
         """
@@ -367,7 +426,7 @@ class DukascopyIngestor:
             symbol: Trading symbol
             start_time: Start time
             end_time: End time
-            
+        
         Returns:
             DataFrame with synthetic tick data
         """

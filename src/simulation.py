@@ -14,6 +14,19 @@ from dataclasses import dataclass
 from typing import Dict, List, Optional, Any, Callable
 from enum import Enum
 
+# Import sensory cortex components
+try:
+    from src.sensory.orchestration.master_orchestrator import MasterOrchestrator, SynthesisResult
+    from src.sensory.core.base import InstrumentMeta, MarketData, OrderBookSnapshot
+    SENSORY_AVAILABLE = True
+except ImportError:
+    SENSORY_AVAILABLE = False
+    MasterOrchestrator = None
+    SynthesisResult = None
+    InstrumentMeta = None
+    MarketData = None
+    OrderBookSnapshot = None
+
 logger = logging.getLogger(__name__)
 
 
@@ -53,8 +66,27 @@ class Order:
 
 
 @dataclass
+class MarketUnderstanding:
+    """Enhanced market state with sensory cortex insights"""
+    signal_strength: float = 0.0
+    confidence: float = 0.0
+    regime: str = "consolidating"
+    narrative: str = ""
+    anomaly_level: float = 0.0
+    consensus_level: float = 0.0
+    dimensional_weights: Dict[str, float] = None
+    warnings: List[str] = None
+    
+    def __post_init__(self):
+        if self.dimensional_weights is None:
+            self.dimensional_weights = {}
+        if self.warnings is None:
+            self.warnings = []
+
+
+@dataclass
 class MarketState:
-    """Current market state"""
+    """Current market state with sensory insights"""
     timestamp: datetime
     symbol: str
     bid: float
@@ -68,6 +100,9 @@ class MarketState:
     atr: Optional[float] = None
     volatility: Optional[float] = None
     session: Optional[str] = None
+    
+    # Sensory cortex insights
+    market_understanding: Optional[MarketUnderstanding] = None
 
 
 class MarketSimulator:
@@ -108,6 +143,10 @@ class MarketSimulator:
         self.trade_history = []
         self.equity_curve = []
         
+        # Sensory cortex integration
+        self.sensory_cortex = None
+        self.instrument_meta = None
+        
         # Adversarial callbacks
         self.adversarial_callbacks: List[Callable] = []
         
@@ -144,6 +183,25 @@ class MarketSimulator:
         except Exception as e:
             logger.error(f"Error loading data: {e}")
             return False
+    
+    def initialize_sensory_cortex(self, instrument_meta: InstrumentMeta):
+        """
+        Initialize sensory cortex for market understanding
+        
+        Args:
+            instrument_meta: Instrument metadata for sensory cortex
+        """
+        if not SENSORY_AVAILABLE:
+            logger.warning("Sensory cortex not available - running blind simulation")
+            return
+            
+        try:
+            self.instrument_meta = instrument_meta
+            self.sensory_cortex = MasterOrchestrator(instrument_meta)
+            logger.info(f"Initialized sensory cortex for {instrument_meta.symbol}")
+        except Exception as e:
+            logger.error(f"Failed to initialize sensory cortex: {e}")
+            self.sensory_cortex = None
     
     def _prepare_data(self):
         """Prepare market data for simulation"""
@@ -205,17 +263,21 @@ class MarketSimulator:
         # Create market state
         market_state = MarketState(
             timestamp=tick['timestamp'],
-            symbol=self.symbol,
-            bid=tick['bid'],
-            ask=tick['ask'],
-            bid_volume=tick['bid_volume'],
-            ask_volume=tick['ask_volume'],
-            spread_bps=tick['spread_bps'],
-            mid_price=tick['mid_price'],
-            atr=tick.get('atr'),
-            volatility=tick.get('volatility'),
-            session=tick.get('session')
+            symbol=self.symbol or "UNKNOWN",
+            bid=float(tick['bid']),
+            ask=float(tick['ask']),
+            bid_volume=float(tick['bid_volume']),
+            ask_volume=float(tick['ask_volume']),
+            spread_bps=float(tick['spread_bps']),
+            mid_price=float(tick['mid_price']),
+            atr=float(tick.get('atr', 0.0)) if tick.get('atr') is not None else 0.0,
+            volatility=float(tick.get('volatility', 0.0)) if tick.get('volatility') is not None else 0.0,
+            session=str(tick.get('session', 'unknown'))
         )
+        
+        # Process through sensory cortex if available
+        market_understanding = self._process_sensory_analysis(tick)
+        market_state.market_understanding = market_understanding
         
         # Apply adversarial effects
         self._apply_adversarial_effects()
@@ -239,6 +301,58 @@ class MarketSimulator:
         
         self.current_index += 1
         return market_state
+    
+    def _process_sensory_analysis(self, tick) -> Optional[MarketUnderstanding]:
+        """
+        Process market data through sensory cortex
+        
+        Args:
+            tick: Current market tick data
+            
+        Returns:
+            Market understanding with sensory insights
+        """
+        if self.sensory_cortex is None or not SENSORY_AVAILABLE:
+            return None
+            
+        try:
+            # Create MarketData object for sensory cortex
+            market_data = MarketData(
+                timestamp=tick['timestamp'],
+                symbol=self.symbol or "UNKNOWN",
+                bid=float(tick['bid']),
+                ask=float(tick['ask']),
+                close=float(tick['mid_price']),
+                high=float(max(tick['bid'], tick['ask'])),
+                low=float(min(tick['bid'], tick['ask'])),
+                volume=float(tick.get('bid_volume', 0) + tick.get('ask_volume', 0))
+            )
+            
+            # Run sensory analysis (synchronous for simulation)
+            import asyncio
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                synthesis_result = loop.run_until_complete(
+                    self.sensory_cortex.update(market_data)
+                )
+                
+                return MarketUnderstanding(
+                    signal_strength=float(synthesis_result.signal_strength),
+                    confidence=float(synthesis_result.confidence),
+                    regime=str(synthesis_result.regime.value) if hasattr(synthesis_result.regime, 'value') else str(synthesis_result.regime),
+                    narrative=str(synthesis_result.narrative),
+                    anomaly_level=float(synthesis_result.evidence.get('anomaly_level', 0.0)),
+                    consensus_level=float(synthesis_result.consensus_level),
+                    dimensional_weights=dict(synthesis_result.dimensional_weights),
+                    warnings=list(synthesis_result.warnings)
+                )
+            finally:
+                loop.close()
+                
+        except Exception as e:
+            logger.warning(f"Error in sensory analysis: {e}")
+            return None
     
     def _apply_adversarial_effects(self):
         """Apply adversarial effects to market"""
@@ -665,4 +779,4 @@ class AdversarialEngine:
     
     def get_event_history(self) -> List[AdversarialEvent]:
         """Get event history"""
-        return self.event_history.copy() 
+        return self.event_history.copy()

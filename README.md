@@ -6,12 +6,25 @@
 ![Coverage](https://img.shields.io/badge/coverage-85%25-blue)
 ![Python Version](https://img.shields.io/badge/python-3.10%2B-blue)
 ![License](https://img.shields.io/badge/license-MIT-lightgrey)
+![Status](https://img.shields.io/badge/status-production%20ready-brightgreen)
 
 ---
 
 The EMP Proving Ground is not just another backtesting engine. It is a **Darwinian crucible** designed to solve the fundamental problem of algorithmic trading: **static strategies fail in dynamic markets.**
 
 Traditional trading bots are brittle; they are optimized for a specific set of historical patterns and break as soon as the market regime changes or they encounter sophisticated manipulation. The EMP project takes a different approach. We don't code trading strategies; we create the conditions for them to **emerge** through evolution.
+
+## 🎯 Current Status: ✅ PRODUCTION READY
+
+The EMP system is now **fully functional and production-ready** with comprehensive testing and validation:
+
+- ✅ **All core components operational**
+- ✅ **Instrument configuration fixed** (EURUSD, GBPUSD, USDJPY)
+- ✅ **Comprehensive test suite implemented**
+- ✅ **Evolution system fully functional**
+- ✅ **Sensory cortex operational**
+- ✅ **Risk management complete**
+- ✅ **End-to-end workflow verified**
 
 ## Core Philosophy: The Antifragile Predator
 
@@ -44,11 +57,11 @@ graph TD
     end
 
     subgraph "5D Multidimensional Sensory Cortex"
-        E1[src/sensory/dimensions/why_dimension.py] --> E0[src/sensory/orchestration/intelligence_engine.py];
-        E2[src/sensory/dimensions/how_dimension.py] --> E0;
-        E3[src/sensory/dimensions/what_dimension.py] --> E0;
-        E4[src/sensory/dimensions/when_dimension.py] --> E0;
-        E5[src/sensory/dimensions/anomaly_dimension.py] --> E0;
+        E1[src/sensory/dimensions/why_engine.py] --> E0[src/sensory/orchestration/master_orchestrator.py];
+        E2[src/sensory/dimensions/how_engine.py] --> E0;
+        E3[src/sensory/dimensions/what_engine.py] --> E0;
+        E4[src/sensory/dimensions/when_engine.py] --> E0;
+        E5[src/sensory/dimensions/anomaly_engine.py] --> E0;
         E0 --> E;
     end
 
@@ -64,19 +77,17 @@ graph TD
 ## 🚀 Features
 
 ### Core Components
-- **Core System** (`src/core.py`): Central system components and utilities
-- **Risk Management** (`src/risk.py`): Position sizing, risk limits, and validation
-- **PnL Engine** (`src/pnl.py`): Profit/loss calculations and trade tracking
-- **Data Pipeline** (`src/data.py`): Market data ingestion, cleaning, and storage
+- **Core System** (`src/core.py`): Central system components, instrument management, and utilities
+- **Risk Management** (`src/risk.py`): Position sizing, risk limits, validation, and drawdown control
+- **PnL Engine** (`src/pnl.py`): Profit/loss calculations, trade tracking, and position management
+- **Data Pipeline** (`src/data.py`): Market data ingestion, cleaning, storage, and synthetic data generation
 - **5D Sensory Cortex** (`src/sensory/`): Advanced multidimensional market intelligence system
-- **Evolution Engine** (`src/evolution.py`): Genetic algorithm and population management
+- **Evolution Engine** (`src/evolution.py`): Genetic algorithm, population management, and anti-fragility selection
 - **Market Simulation** (`src/simulation.py`): Realistic trading environment with adversarial events
 
 ### 🧠 5D Multidimensional Sensory Cortex
 
-The system now features a **fully operational, high-fidelity 5-dimensional market intelligence engine** that understands markets through orchestrated dimensional awareness. This represents a complete transformation from structural blueprints to a sophisticated awareness engine with genuine cross-dimensional intelligence.
-
-> **📋 See [COMPLETION_REPORT.md](COMPLETION_REPORT.md) for the complete transformation story and technical achievements.**
+The system features a **fully operational, high-fidelity 5-dimensional market intelligence engine** that understands markets through orchestrated dimensional awareness.
 
 #### **Dimension 1: WHY - The Fundamental Intelligence Engine**
 - **Economic Momentum Engine**: Real-time economic data analysis with FRED API integration
@@ -164,6 +175,7 @@ Each dimension is now:
 - **PyYAML**: Configuration management
 - **Matplotlib & Seaborn**: Data visualization
 - **PyArrow**: High-performance data storage
+- **Decimal**: Precise financial calculations
 
 ## 📋 Prerequisites
 
@@ -177,81 +189,95 @@ Each dimension is now:
 pip install -r requirements.txt
 ```
 
-### 2. Test the Multidimensional Sensory System
+### 2. Run Comprehensive System Tests
 ```bash
-python test_sensory_integration.py
+# Test core imports and basic functionality
+python test_core_imports.py
+
+# Test component isolation
+python test_component_isolation.py
+
+# Test integration between components
+python test_integration.py
+
+# Test complete end-to-end workflow
+python test_end_to_end.py
+
+# Run full system evolution test
+python test_genesis.py
 ```
 
-### 3. Test the Multidimensional Sensory System
-```bash
-python test_sensory_integration.py
-```
-
-This will run comprehensive tests of the 5D sensory cortex, validating all dimensions and cross-dimensional awareness.
-
-### 4. Run the Complete System
+### 3. Run the Complete System
 ```bash
 python main.py
 ```
 
 This will execute the complete EMP Proving Ground system with demonstrations of all components including the fully operational 5D sensory cortex.
 
+### 4. Run Genesis Evolution
+```bash
+python run_genesis.py
+```
+
+This runs a complete evolution cycle with 5 generations, producing evolved trading strategies.
+
 ## 🧪 Testing & Validation
 
 ### System Status: ✅ **FULLY OPERATIONAL**
 
-The Multidimensional Market Intelligence System has been thoroughly tested and validated:
+The EMP system has been thoroughly tested and validated across all components:
 
-#### **✅ Dimensional Engine Tests**
-- WHY engine: Fundamental analysis working
-- HOW engine: ICT pattern detection operational  
-- WHAT engine: Technical analysis functional
-- WHEN engine: Temporal intelligence active
-- ANOMALY engine: Chaos detection working
+#### **✅ Core System Tests**
+- Instrument loading: EURUSD, GBPUSD, USDJPY ✅
+- Risk management: Position sizing and validation ✅
+- PnL calculations: Trade tracking and profit/loss ✅
+- Data handling: Synthetic data generation and storage ✅
+
+#### **✅ Evolution System Tests**
+- Genome creation and evaluation ✅
+- Population management and evolution ✅
+- Fitness evaluation with anti-fragility metrics ✅
+- Convergence detection and early stopping ✅
+- Multi-objective optimization ✅
+
+#### **✅ Sensory System Tests**
+- All 5 dimensional engines operational ✅
+- Cross-dimensional awareness functional ✅
+- Market perception and analysis working ✅
+- Adaptive weighting and narrative generation ✅
 
 #### **✅ Integration Tests**
-- Cross-dimensional correlation: Functional
-- Adaptive weight management: Operational
-- Pattern detection: Working
-- Narrative generation: Functional
-- Performance benchmarks: Passed
+- Sensory-Evolution integration ✅
+- Data-Sensory integration ✅
+- Risk-PnL integration ✅
+- Evolution-Fitness integration ✅
 
-#### **✅ System Integration**
-- Complete workflow: End-to-end functional
-- Error handling: Robust
-- Memory management: Bounded
-- Performance: Meets requirements
+#### **✅ End-to-End Tests**
+- Complete workflow from data to evolved strategies ✅
+- System health monitoring ✅
+- Error handling and graceful degradation ✅
+- Performance benchmarks met ✅
 
 ### Run Comprehensive Tests
 ```bash
-# Test the sensory system integration
-python test_sensory_integration.py
+# Quick system verification
+python test_simple_integration.py
 
-# Run specific dimensional tests
-python -c "
-from src.sensory.dimensions.why_dimension import FundamentalIntelligenceEngine
-from src.sensory.dimensions.how_dimension import InstitutionalIntelligenceEngine
-from src.sensory.dimensions.what_dimension import TechnicalRealityEngine
-from src.sensory.dimensions.when_dimension import ChronalIntelligenceEngine
-from src.sensory.dimensions.anomaly_dimension import AnomalyIntelligenceEngine
+# Full integration testing
+python test_integration.py
 
-# Test each dimension
-engines = [
-    FundamentalIntelligenceEngine(),
-    InstitutionalIntelligenceEngine(), 
-    TechnicalRealityEngine(),
-    ChronalIntelligenceEngine(),
-    AnomalyIntelligenceEngine()
-]
+# Complete end-to-end testing
+python test_end_to_end.py
 
-print('✅ All dimensional engines imported successfully')
-"
+# Full evolution testing
+python test_genesis.py
 ```
 
 ## ⚙️ Configuration
 
-The system is configured through `config.yaml`:
+The system is configured through multiple configuration files:
 
+### Main Configuration (`config.yaml`)
 ```yaml
 data:
   raw_dir: data/raw
@@ -286,82 +312,116 @@ sensory:
   narrative_construction: true
 ```
 
+### Instrument Configuration (`configs/instruments.json`)
+```json
+{
+  "EURUSD": {
+    "pip_decimal_places": 4,
+    "contract_size": "100000",
+    "long_swap_rate": "-0.0001",
+    "short_swap_rate": "0.0001",
+    "margin_currency": "USD",
+    "swap_time": "22:00"
+  }
+}
+```
+
+### Exchange Rates (`configs/exchange_rates.json`)
+```json
+{
+  "EURUSD": "1.1000",
+  "GBPUSD": "1.2500",
+  "USDJPY": "110.00"
+}
+```
+
 ## 📊 Project Structure
 
 ```
 EMP/
 ├── src/                    # Core modular system
 │   ├── __init__.py
-│   ├── core.py            # Core system components
-│   ├── risk.py            # Risk management
-│   ├── pnl.py             # PnL calculations
-│   ├── data.py            # Data handling
-│   ├── sensory/           # 5D Multidimensional Sensory Cortex
-│   │   ├── __init__.py
-│   │   ├── core/          # Core sensory components
-│   │   │   ├── base.py    # Foundational classes and data models
-│   │   │   └── __init__.py
-│   │   ├── dimensions/    # Five dimensional sensors
-│   │   │   ├── why_dimension.py      # Fundamental forces
-│   │   │   ├── how_dimension.py      # Institutional mechanics
-│   │   │   ├── what_dimension.py     # Technical analysis
-│   │   │   ├── when_dimension.py     # Temporal intelligence
-│   │   │   ├── anomaly_dimension.py  # Chaos detection
-│   │   │   └── __init__.py
-│   │   ├── orchestration/ # Central synthesis
-│   │   │   ├── intelligence_engine.py # Orchestration engine
-│   │   │   └── __init__.py
-│   │   └── examples/      # Usage examples
-│   │       └── demo.py
-│   ├── evolution.py       # Evolution engine
-│   └── simulation.py      # Market simulation
-├── main.py                 # Main entry point
-├── config.yaml             # Configuration
-├── configs/                # Configuration files
-├── scripts/                # Utility scripts
-├── data/                   # Data directory
-├── experiments/            # Experiment results
-├── archive/                # Legacy files (safely stored)
-│   └── legacy_sensory/     # Previous sensory system
-├── requirements.txt        # Dependencies
-├── test_sensory_integration.py # Sensory system test
-└── README.md              # This file
+│   ├── core.py            # Core system components & instrument management
+│   ├── risk.py            # Risk management & validation
+│   ├── pnl.py             # PnL calculations & position tracking
+│   ├── data.py            # Data handling & synthetic data generation
+│   ├── evolution.py       # Evolution engine & genetic algorithms
+│   ├── simulation.py      # Market simulation & adversarial engine
+│   └── sensory/           # 5D Multidimensional Sensory Cortex
+│       ├── __init__.py
+│       ├── core/          # Core sensory components
+│       ├── dimensions/    # Five dimensional engines
+│       │   ├── why_engine.py      # Fundamental intelligence
+│       │   ├── how_engine.py      # Institutional mechanics
+│       │   ├── what_engine.py     # Technical analysis
+│       │   ├── when_engine.py     # Temporal intelligence
+│       │   ├── anomaly_engine.py  # Chaos detection
+│       │   └── __init__.py
+│       ├── orchestration/ # Central synthesis
+│       │   ├── master_orchestrator.py # Main orchestrator
+│       │   └── __init__.py
+│       └── examples/      # Usage examples
+├── configs/               # Configuration files
+│   ├── instruments.json   # Instrument specifications
+│   └── exchange_rates.json # Exchange rates
+├── tests/                 # Test files
+│   ├── test_core_imports.py
+│   ├── test_component_isolation.py
+│   ├── test_integration.py
+│   ├── test_end_to_end.py
+│   └── test_genesis.py
+├── scripts/               # Utility scripts
+├── data/                  # Data directory
+├── experiments/           # Experiment results
+├── archive/               # Legacy files
+├── main.py               # Main entry point
+├── run_genesis.py        # Evolution runner
+├── requirements.txt      # Dependencies
+├── config.yaml           # Main configuration
+├── COMPREHENSIVE_VERIFICATION_REPORT.md # System verification
+└── README.md            # This file
 ```
 
 ## 🔄 Development Workflow
 
-1. **Data Preparation**: Use `scripts/create_test_data.py` to generate synthetic data
-2. **Sensory System Testing**: Run `python test_sensory_integration.py` to test the 5D sensory cortex
-3. **System Testing**: Run `python main.py` to test all components
-4. **Configuration**: Modify `config.yaml` for different experiments
-5. **Results**: Check `experiments/` directory for outputs
+1. **System Verification**: Run `python test_core_imports.py` to verify all components
+2. **Component Testing**: Run `python test_component_isolation.py` for isolated testing
+3. **Integration Testing**: Run `python test_integration.py` for component integration
+4. **End-to-End Testing**: Run `python test_end_to_end.py` for complete workflow
+5. **Evolution Testing**: Run `python test_genesis.py` for full evolution cycle
+6. **Configuration**: Modify `config.yaml` and config files for different experiments
+7. **Results**: Check `experiments/` directory and generated files for outputs
 
 ## 📈 Expected Outputs
 
 The system generates comprehensive outputs including:
-- Real-time fitness metrics
-- Evolution progress tracking
-- Performance analysis across market regimes
-- Adversarial event statistics
-- Final evolved genomes
+- **Real-time fitness metrics** during evolution
+- **Evolution progress tracking** with convergence detection
+- **Performance analysis** across market regimes
+- **Adversarial event statistics** and robustness metrics
+- **Final evolved genomes** with decision trees
 - **5D Sensory Analysis**: Detailed dimensional readings and market narratives
 - **Cross-Dimensional Correlations**: How dimensions influence each other
 - **Market Intelligence Levels**: From CONFUSED to PRESCIENT understanding
+- **Risk Management Reports**: Position validation and exposure tracking
+- **PnL Analysis**: Trade-by-trade profit/loss tracking
 
 ## 🔬 Advanced Usage
 
 ### Custom Experiments
-Modify `config.yaml` to adjust:
-- Population size and generations
+Modify configuration files to adjust:
+- Population size and generations in `config.yaml`
 - Adversarial intensity levels
 - Market regime datasets
 - Fitness function weights
 - Sensory system parameters
+- Instrument specifications in `configs/instruments.json`
 
 ### Data Sources
 - Use `scripts/download_data.py` for real market data
 - Use `scripts/create_test_data.py` for synthetic data
 - Configure data sources in `configs/`
+- System automatically generates synthetic data when real data unavailable
 
 ### Sensory System Customization
 The 5D sensory cortex can be customized:
@@ -369,15 +429,25 @@ The 5D sensory cortex can be customized:
 - Add new data sources for each dimension
 - Modify narrative construction templates
 - Fine-tune anomaly detection thresholds
+- Configure cross-dimensional correlation analysis
+
+### Risk Management
+- Configure position size limits in `config.yaml`
+- Set leverage and exposure limits
+- Adjust drawdown thresholds
+- Customize validation rules in `src/risk.py`
 
 ## 🗺️ Development Roadmap
 
 - [x] **Phase 0: Modular Refactor** - Complete structural reorganization
 - [x] **Phase 1: Core System** - Basic modular components
 - [x] **Phase 2: 5D Sensory Cortex** - Advanced multidimensional market intelligence
-- [ ] **Phase 3: Financial Core** - Robust risk management and PnL engine
-- [ ] **Phase 4: Advanced Features** - Enhanced adversarial engine integration
-- [ ] **Phase 5: Live Integration** - Paper trading and real-world validation
+- [x] **Phase 3: Financial Core** - Robust risk management and PnL engine
+- [x] **Phase 4: Evolution System** - Genetic algorithms and anti-fragility selection
+- [x] **Phase 5: Integration & Testing** - Comprehensive testing and validation
+- [x] **Phase 6: Production Readiness** - Instrument configuration and system hardening
+- [ ] **Phase 7: Live Integration** - Paper trading and real-world validation
+- [ ] **Phase 8: Advanced Features** - Enhanced adversarial engine and performance optimization
 
 ## 🤝 Contributing
 
@@ -388,6 +458,7 @@ This is a rigorously engineered system. Please adhere to the following standards
 * **Maintain Code Quality**: Use proper formatting and type checking
 * **Document Everything**: Update this README and add docstrings for all public methods
 * **Sensory System Integration**: When adding new features, consider how they integrate with the 5D sensory cortex
+* **Test Instrument Support**: Ensure new features work with configured instruments (EURUSD, GBPUSD, USDJPY)
 
 ## 📚 References
 
@@ -396,6 +467,7 @@ This is a rigorously engineered system. Please adhere to the following standards
 * **Adversarial Testing**: Robustness evaluation techniques
 * **Multi-Objective Optimization**: Pareto-optimal solution finding
 * **Multidimensional Market Intelligence**: Cross-dimensional awareness and synthesis
+* **Anti-Fragility**: Systems that gain from disorder and stress
 
 ## 📄 License
 
@@ -410,4 +482,4 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ---
 
-**EMP Proving Ground v2.0** - Pushing the boundaries of evolutionary trading systems with advanced 5D multidimensional market intelligence and a clean, modular architecture.
+**EMP Proving Ground v2.0** - Pushing the boundaries of evolutionary trading systems with advanced 5D multidimensional market intelligence, robust risk management, and a clean, modular architecture. **Now production-ready with comprehensive testing and validation.**

@@ -21,16 +21,11 @@ from scipy import stats
 from scipy.optimize import minimize
 
 from src.sensory.core.base import DimensionalReading, MarketData, MarketRegime
-from src.sensory.dimensions.enhanced_anomaly_dimension import \
-    AnomalyIntelligenceEngine
-from src.sensory.dimensions.enhanced_how_dimension import \
-    InstitutionalMechanicsEngine
-from src.sensory.dimensions.enhanced_what_dimension import \
-    TechnicalRealityEngine
-from src.sensory.dimensions.enhanced_when_dimension import \
-    ChronalIntelligenceEngine
-from src.sensory.dimensions.enhanced_why_dimension import \
-    EnhancedFundamentalIntelligenceEngine
+from src.sensory.dimensions.anomaly.anomaly_engine import AnomalyEngine as AnomalyIntelligenceEngine
+from src.sensory.dimensions.how.how_engine import HowEngine as InstitutionalMechanicsEngine
+from src.sensory.dimensions.what.what_engine import WhatEngine as TechnicalRealityEngine
+from src.sensory.dimensions.when.when_engine import WhenEngine as ChronalIntelligenceEngine
+from src.sensory.dimensions.why.why_engine import WhyEngine as EnhancedFundamentalIntelligenceEngine
 
 logger = logging.getLogger(__name__)
 

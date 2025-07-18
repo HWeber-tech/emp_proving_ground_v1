@@ -58,6 +58,43 @@ class VolumeProfile:
     value_area_low: float
     point_of_control: float  # Price with highest volume
 
+@dataclass
+class TechnicalIndicators:
+    """Traditional technical indicators for complementary analysis"""
+    # Momentum indicators
+    rsi: float
+    stochastic_k: float
+    stochastic_d: float
+    williams_r: float
+    cci: float
+    
+    # Volatility indicators
+    bollinger_upper: float
+    bollinger_middle: float
+    bollinger_lower: float
+    atr: float
+    keltner_upper: float
+    keltner_lower: float
+    
+    # Trend indicators
+    macd: float
+    macd_signal: float
+    macd_histogram: float
+    adx: float
+    di_plus: float
+    di_minus: float
+    
+    # Volume indicators
+    obv: float
+    vwap: float
+    money_flow_index: float
+    
+    # Custom indicators
+    support_level: float
+    resistance_level: float
+    pivot_point: float
+    fibonacci_retracement: Dict[str, float]
+
 class PriceActionAnalyzer:
     """
     Advanced price action analyzer that identifies market structure,
@@ -78,6 +115,7 @@ class PriceActionAnalyzer:
         self.swing_points: List[SwingPoint] = []
         self.trend_structure: Optional[TrendStructure] = None
         self.momentum_profile: Optional[MomentumProfile] = None
+        self.technical_indicators: Optional[TechnicalIndicators] = None
         
         # Adaptive parameters
         self.swing_detection_sensitivity = 0.5  # Adaptive based on volatility
@@ -108,6 +146,7 @@ class PriceActionAnalyzer:
             self._analyze_trend_structure()
             self._analyze_momentum_dynamics()
             self._update_swing_confirmations()
+            self._calculate_technical_indicators()
     
     def _update_adaptive_parameters(self) -> None:
         """Update analysis parameters based on current market conditions"""
@@ -543,6 +582,307 @@ class PriceActionAnalyzer:
                 scores.append(swing_score * 0.2)
         
         return np.sum(scores) if scores else 0.0
+    
+    def _calculate_technical_indicators(self) -> None:
+        """Calculate traditional technical indicators for complementary analysis"""
+        if len(self.price_history) < 50:
+            self.technical_indicators = None
+            return
+        
+        try:
+            # Convert to pandas DataFrame for easier calculation
+            prices = list(self.price_history)
+            highs = list(self.high_history)
+            lows = list(self.low_history)
+            volumes = list(self.volume_history)
+            
+            # Create OHLCV data
+            data = pd.DataFrame({
+                'Open': prices,
+                'High': highs,
+                'Low': lows,
+                'Close': prices,
+                'Volume': volumes
+            })
+            
+            # Calculate indicators
+            indicators = TechnicalIndicators(
+                # Momentum indicators
+                rsi=self._calculate_rsi(data['Close']),
+                stochastic_k=self._calculate_stochastic_k(data),
+                stochastic_d=self._calculate_stochastic_d(data),
+                williams_r=self._calculate_williams_r(data),
+                cci=self._calculate_cci(data),
+                
+                # Volatility indicators
+                bollinger_upper=self._calculate_bollinger_bands(data['Close'])[0],
+                bollinger_middle=self._calculate_bollinger_bands(data['Close'])[1],
+                bollinger_lower=self._calculate_bollinger_bands(data['Close'])[2],
+                atr=self._calculate_atr(data),
+                keltner_upper=self._calculate_keltner_channels(data)[0],
+                keltner_lower=self._calculate_keltner_channels(data)[1],
+                
+                # Trend indicators
+                macd=self._calculate_macd(data['Close'])[0],
+                macd_signal=self._calculate_macd(data['Close'])[1],
+                macd_histogram=self._calculate_macd(data['Close'])[2],
+                adx=self._calculate_adx(data),
+                di_plus=self._calculate_directional_indicators(data)[0],
+                di_minus=self._calculate_directional_indicators(data)[1],
+                
+                # Volume indicators
+                obv=self._calculate_obv(data),
+                vwap=self._calculate_vwap(data),
+                money_flow_index=self._calculate_money_flow_index(data),
+                
+                # Custom indicators
+                support_level=self._calculate_support_level(data),
+                resistance_level=self._calculate_resistance_level(data),
+                pivot_point=self._calculate_pivot_point(data),
+                fibonacci_retracement=self._calculate_fibonacci_retracement(data)
+            )
+            
+            self.technical_indicators = indicators
+            
+        except Exception as e:
+            logger.error(f"Error calculating technical indicators: {e}")
+            self.technical_indicators = None
+    
+    def _calculate_rsi(self, prices: pd.Series, period: int = 14) -> float:
+        """Calculate RSI."""
+        try:
+            delta = prices.diff()
+            gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
+            loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
+            rs = gain / loss
+            rsi = 100 - (100 / (1 + rs))
+            return float(rsi.iloc[-1]) if not pd.isna(rsi.iloc[-1]) else 50.0
+        except:
+            return 50.0
+    
+    def _calculate_stochastic_k(self, data: pd.DataFrame, period: int = 14) -> float:
+        """Calculate Stochastic %K."""
+        try:
+            low_min = data['Low'].rolling(window=period).min()
+            high_max = data['High'].rolling(window=period).max()
+            k = 100 * ((data['Close'] - low_min) / (high_max - low_min))
+            return float(k.iloc[-1]) if not pd.isna(k.iloc[-1]) else 50.0
+        except:
+            return 50.0
+    
+    def _calculate_stochastic_d(self, data: pd.DataFrame, period: int = 14) -> float:
+        """Calculate Stochastic %D."""
+        try:
+            k = pd.Series([self._calculate_stochastic_k(data.iloc[:i+1]) for i in range(len(data))])
+            d = k.rolling(window=3).mean()
+            return float(d.iloc[-1]) if not pd.isna(d.iloc[-1]) else 50.0
+        except:
+            return 50.0
+    
+    def _calculate_williams_r(self, data: pd.DataFrame, period: int = 14) -> float:
+        """Calculate Williams %R."""
+        try:
+            low_min = data['Low'].rolling(window=period).min()
+            high_max = data['High'].rolling(window=period).max()
+            wr = -100 * ((high_max - data['Close']) / (high_max - low_min))
+            return float(wr.iloc[-1]) if not pd.isna(wr.iloc[-1]) else -50.0
+        except:
+            return -50.0
+    
+    def _calculate_cci(self, data: pd.DataFrame, period: int = 20) -> float:
+        """Calculate CCI."""
+        try:
+            tp = (data['High'] + data['Low'] + data['Close']) / 3
+            sma = tp.rolling(window=period).mean()
+            mad = tp.rolling(window=period).apply(lambda x: np.mean(np.abs(x - x.mean())))
+            cci = (tp - sma) / (0.015 * mad)
+            return float(cci.iloc[-1]) if not pd.isna(cci.iloc[-1]) else 0.0
+        except:
+            return 0.0
+    
+    def _calculate_bollinger_bands(self, prices: pd.Series, period: int = 20, std_dev: int = 2) -> Tuple[float, float, float]:
+        """Calculate Bollinger Bands."""
+        try:
+            sma = prices.rolling(window=period).mean()
+            std = prices.rolling(window=period).std()
+            upper = sma + (std * std_dev)
+            lower = sma - (std * std_dev)
+            return float(upper.iloc[-1]), float(sma.iloc[-1]), float(lower.iloc[-1])
+        except:
+            return 0.0, 0.0, 0.0
+    
+    def _calculate_atr(self, data: pd.DataFrame, period: int = 14) -> float:
+        """Calculate Average True Range."""
+        try:
+            high_low = data['High'] - data['Low']
+            high_close = np.abs(data['High'] - data['Close'].shift())
+            low_close = np.abs(data['Low'] - data['Close'].shift())
+            true_range = np.maximum(high_low, np.maximum(high_close, low_close))
+            atr = true_range.rolling(window=period).mean()
+            return float(atr.iloc[-1]) if not pd.isna(atr.iloc[-1]) else 0.0
+        except:
+            return 0.0
+    
+    def _calculate_keltner_channels(self, data: pd.DataFrame, period: int = 20) -> Tuple[float, float]:
+        """Calculate Keltner Channels."""
+        try:
+            tp = (data['High'] + data['Low'] + data['Close']) / 3
+            atr = self._calculate_atr(data, period)
+            upper = tp + (2 * atr)
+            lower = tp - (2 * atr)
+            return float(upper.iloc[-1]), float(lower.iloc[-1])
+        except:
+            return 0.0, 0.0
+    
+    def _calculate_macd(self, prices: pd.Series, fast: int = 12, slow: int = 26, signal: int = 9) -> Tuple[float, float, float]:
+        """Calculate MACD."""
+        try:
+            ema_fast = prices.ewm(span=fast).mean()
+            ema_slow = prices.ewm(span=slow).mean()
+            macd_line = ema_fast - ema_slow
+            signal_line = macd_line.ewm(span=signal).mean()
+            histogram = macd_line - signal_line
+            return float(macd_line.iloc[-1]), float(signal_line.iloc[-1]), float(histogram.iloc[-1])
+        except:
+            return 0.0, 0.0, 0.0
+    
+    def _calculate_adx(self, data: pd.DataFrame, period: int = 14) -> float:
+        """Calculate ADX."""
+        try:
+            # Simplified ADX calculation
+            high_diff = data['High'].diff()
+            low_diff = data['Low'].diff()
+            
+            plus_dm = np.where((high_diff > low_diff) & (high_diff > 0), high_diff, 0)
+            minus_dm = np.where((low_diff > high_diff) & (low_diff > 0), low_diff, 0)
+            
+            tr = self._calculate_atr(data, period)
+            plus_di = 100 * (pd.Series(plus_dm).rolling(period).mean() / tr)
+            minus_di = 100 * (pd.Series(minus_dm).rolling(period).mean() / tr)
+            
+            dx = 100 * np.abs(plus_di - minus_di) / (plus_di + minus_di)
+            adx = pd.Series(dx).rolling(period).mean()
+            
+            return float(adx.iloc[-1]) if not pd.isna(adx.iloc[-1]) else 25.0
+        except:
+            return 25.0
+    
+    def _calculate_directional_indicators(self, data: pd.DataFrame, period: int = 14) -> Tuple[float, float]:
+        """Calculate Directional Indicators."""
+        try:
+            # Simplified calculation
+            high_diff = data['High'].diff()
+            low_diff = data['Low'].diff()
+            
+            plus_dm = np.where((high_diff > low_diff) & (high_diff > 0), high_diff, 0)
+            minus_dm = np.where((low_diff > high_diff) & (low_diff > 0), low_diff, 0)
+            
+            tr = self._calculate_atr(data, period)
+            plus_di = 100 * (pd.Series(plus_dm).rolling(period).mean() / tr)
+            minus_di = 100 * (pd.Series(minus_dm).rolling(period).mean() / tr)
+            
+            return float(plus_di.iloc[-1]), float(minus_di.iloc[-1])
+        except:
+            return 25.0, 25.0
+    
+    def _calculate_obv(self, data: pd.DataFrame) -> float:
+        """Calculate On-Balance Volume."""
+        try:
+            if len(data) < 2:
+                return float(data['Volume'].iloc[0]) if len(data) > 0 else 0.0
+            
+            obv = pd.Series(index=data.index, dtype=float)
+            obv.iloc[0] = data['Volume'].iloc[0]
+            
+            for i in range(1, len(data)):
+                if data['Close'].iloc[i] > data['Close'].iloc[i-1]:
+                    obv.iloc[i] = obv.iloc[i-1] + data['Volume'].iloc[i]
+                elif data['Close'].iloc[i] < data['Close'].iloc[i-1]:
+                    obv.iloc[i] = obv.iloc[i-1] - data['Volume'].iloc[i]
+                else:
+                    obv.iloc[i] = obv.iloc[i-1]
+            
+            result = obv.iloc[-1]
+            return float(result) if not pd.isna(result) else 0.0
+        except:
+            return 0.0
+    
+    def _calculate_vwap(self, data: pd.DataFrame) -> float:
+        """Calculate VWAP."""
+        try:
+            typical_price = (data['High'] + data['Low'] + data['Close']) / 3
+            vwap = (typical_price * data['Volume']).cumsum() / data['Volume'].cumsum()
+            return float(vwap.iloc[-1])
+        except:
+            return 0.0
+    
+    def _calculate_money_flow_index(self, data: pd.DataFrame, period: int = 14) -> float:
+        """Calculate Money Flow Index."""
+        try:
+            typical_price = (data['High'] + data['Low'] + data['Close']) / 3
+            money_flow = typical_price * data['Volume']
+            
+            positive_flow = pd.Series(0.0, index=data.index)
+            negative_flow = pd.Series(0.0, index=data.index)
+            
+            for i in range(1, len(data)):
+                if typical_price.iloc[i] > typical_price.iloc[i-1]:
+                    positive_flow.iloc[i] = money_flow.iloc[i]
+                elif typical_price.iloc[i] < typical_price.iloc[i-1]:
+                    negative_flow.iloc[i] = money_flow.iloc[i]
+            
+            positive_mf = positive_flow.rolling(window=period).sum()
+            negative_mf = negative_flow.rolling(window=period).sum()
+            
+            mfi = 100 - (100 / (1 + positive_mf / negative_mf))
+            return float(mfi.iloc[-1]) if not pd.isna(mfi.iloc[-1]) else 50.0
+        except:
+            return 50.0
+    
+    def _calculate_support_level(self, data: pd.DataFrame) -> float:
+        """Calculate support level."""
+        try:
+            recent_lows = data['Low'].tail(20)
+            return float(recent_lows.min())
+        except:
+            return 0.0
+    
+    def _calculate_resistance_level(self, data: pd.DataFrame) -> float:
+        """Calculate resistance level."""
+        try:
+            recent_highs = data['High'].tail(20)
+            return float(recent_highs.max())
+        except:
+            return 0.0
+    
+    def _calculate_pivot_point(self, data: pd.DataFrame) -> float:
+        """Calculate pivot point."""
+        try:
+            high = data['High'].iloc[-1]
+            low = data['Low'].iloc[-1]
+            close = data['Close'].iloc[-1]
+            return float((high + low + close) / 3)
+        except:
+            return 0.0
+    
+    def _calculate_fibonacci_retracement(self, data: pd.DataFrame) -> Dict[str, float]:
+        """Calculate Fibonacci retracement levels."""
+        try:
+            high = data['High'].max()
+            low = data['Low'].min()
+            diff = high - low
+            
+            return {
+                '0.0': float(low),
+                '0.236': float(low + 0.236 * diff),
+                '0.382': float(low + 0.382 * diff),
+                '0.5': float(low + 0.5 * diff),
+                '0.618': float(low + 0.618 * diff),
+                '0.786': float(low + 0.786 * diff),
+                '1.0': float(high)
+            }
+        except:
+            return {}
 
 class TechnicalRealityEngine:
     """
@@ -590,6 +930,18 @@ class TechnicalRealityEngine:
         
         # Generate context
         context = self._generate_technical_context()
+        
+        # Include technical indicators in context if available
+        if self.price_analyzer.technical_indicators:
+            context['technical_indicators'] = {
+                'rsi': self.price_analyzer.technical_indicators.rsi,
+                'macd': self.price_analyzer.technical_indicators.macd,
+                'bollinger_upper': self.price_analyzer.technical_indicators.bollinger_upper,
+                'bollinger_lower': self.price_analyzer.technical_indicators.bollinger_lower,
+                'atr': self.price_analyzer.technical_indicators.atr,
+                'support_level': self.price_analyzer.technical_indicators.support_level,
+                'resistance_level': self.price_analyzer.technical_indicators.resistance_level
+            }
         
         return DimensionalReading(
             dimension='WHAT',

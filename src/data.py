@@ -433,7 +433,7 @@ class DukascopyIngestor:
     
     def _download_real_data(self, symbol: str, start_time: datetime, end_time: datetime) -> Optional[pd.DataFrame]:
         """
-        Download real data from Dukascopy (placeholder implementation)
+        Download real data from multiple sources.
         
         Args:
             symbol: Trading symbol
@@ -443,15 +443,138 @@ class DukascopyIngestor:
         Returns:
             DataFrame with tick data or None if failed
         """
-        # This is a placeholder - in a real implementation, you would:
-        # 1. Use Dukascopy's API or download from their servers
-        # 2. Parse the binary tick data format
-        # 3. Convert to DataFrame format
-        
         logger.info(f"Attempting to download real data for {symbol} from {start_time} to {end_time}")
         
-        # For now, return None to trigger synthetic data generation
+        # Try multiple data sources in order of preference
+        sources = [
+            ('dukascopy', self._download_from_dukascopy),
+            ('yahoo', self._download_from_yahoo),
+            ('alpha_vantage', self._download_from_alpha_vantage)
+        ]
+        
+        for source_name, download_func in sources:
+            try:
+                logger.info(f"Trying {source_name} for {symbol}")
+                data = download_func(symbol, start_time, end_time)
+                
+                if data is not None and not data.empty:
+                    logger.info(f"Successfully downloaded {len(data)} records from {source_name}")
+                    return data
+                else:
+                    logger.warning(f"No data available from {source_name}")
+                    
+            except Exception as e:
+                logger.error(f"Error downloading from {source_name}: {e}")
+                continue
+        
+        logger.warning(f"All data sources failed for {symbol}")
         return None
+    
+    def _download_from_dukascopy(self, symbol: str, start_time: datetime, end_time: datetime) -> Optional[pd.DataFrame]:
+        """Download data from Dukascopy."""
+        try:
+            from src.data.dukascopy_ingestor import DukascopyIngestor
+            
+            ingestor = DukascopyIngestor()
+            data = ingestor.download_tick_data(symbol, start_time, end_time)
+            
+            if data is not None and not data.empty:
+                # Convert to expected format
+                if 'bid_volume' not in data.columns:
+                    data['bid_volume'] = 1000  # Default volume
+                if 'ask_volume' not in data.columns:
+                    data['ask_volume'] = 1000  # Default volume
+                
+                return data
+            
+        except ImportError:
+            logger.warning("Dukascopy ingestor not available")
+        except Exception as e:
+            logger.error(f"Error downloading from Dukascopy: {e}")
+        
+        return None
+    
+    def _download_from_yahoo(self, symbol: str, start_time: datetime, end_time: datetime) -> Optional[pd.DataFrame]:
+        """Download data from Yahoo Finance."""
+        try:
+            from src.data.real_data_ingestor import RealDataIngestor
+            
+            ingestor = RealDataIngestor()
+            data = ingestor.download_yahoo_data(symbol, start_time, end_time)
+            
+            if data is not None and not data.empty:
+                # Convert OHLCV to tick-like format
+                tick_data = self._ohlcv_to_ticks(data)
+                return tick_data
+            
+        except ImportError:
+            logger.warning("Real data ingestor not available")
+        except Exception as e:
+            logger.error(f"Error downloading from Yahoo: {e}")
+        
+        return None
+    
+    def _download_from_alpha_vantage(self, symbol: str, start_time: datetime, end_time: datetime) -> Optional[pd.DataFrame]:
+        """Download data from Alpha Vantage."""
+        try:
+            from src.data.real_data_ingestor import RealDataIngestor
+            
+            ingestor = RealDataIngestor()
+            data = ingestor.download_alpha_vantage_data(symbol, start_time, end_time)
+            
+            if data is not None and not data.empty:
+                # Convert OHLCV to tick-like format
+                tick_data = self._ohlcv_to_ticks(data)
+                return tick_data
+            
+        except ImportError:
+            logger.warning("Real data ingestor not available")
+        except Exception as e:
+            logger.error(f"Error downloading from Alpha Vantage: {e}")
+        
+        return None
+    
+    def _ohlcv_to_ticks(self, ohlcv_data: pd.DataFrame) -> pd.DataFrame:
+        """Convert OHLCV data to tick-like format."""
+        try:
+            # Create tick data from OHLCV
+            ticks = []
+            
+            for timestamp, row in ohlcv_data.iterrows():
+                # Create multiple ticks per OHLCV bar for more realistic data
+                base_time = timestamp
+                
+                # Create ticks at different times within the bar
+                tick_times = [
+                    base_time,
+                    base_time + timedelta(minutes=15),
+                    base_time + timedelta(minutes=30),
+                    base_time + timedelta(minutes=45)
+                ]
+                
+                for tick_time in tick_times:
+                    # Interpolate price between open and close
+                    progress = (tick_time - base_time).total_seconds() / 3600  # Progress through hour
+                    price = row['open'] + (row['close'] - row['open']) * progress
+                    
+                    # Add some spread
+                    spread = 0.0001  # 1 pip
+                    bid = price - spread / 2
+                    ask = price + spread / 2
+                    
+                    ticks.append({
+                        'timestamp': tick_time,
+                        'bid': bid,
+                        'ask': ask,
+                        'bid_volume': row.get('volume', 1000) / 4,  # Distribute volume
+                        'ask_volume': row.get('volume', 1000) / 4
+                    })
+            
+            return pd.DataFrame(ticks)
+            
+        except Exception as e:
+            logger.error(f"Error converting OHLCV to ticks: {e}")
+            return pd.DataFrame()
     
     def _generate_fallback_data(self, symbol: str, start_time: datetime, end_time: datetime) -> pd.DataFrame:
         """

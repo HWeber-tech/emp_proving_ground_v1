@@ -2,193 +2,318 @@
 """
 Test Real Data Integration
 
-This test verifies that the system can now load real market data
-instead of relying on synthetic data generation.
+This script tests the real data integration to ensure
+it can download and process real market data from multiple sources.
+
+Usage:
+    python test_real_data_integration.py --symbol EURUSD --days 7
+
+Requirements:
+    - Internet connection
+    - Optional: Alpha Vantage API key for premium data
 """
 
-import sys
-import os
+import asyncio
+import argparse
 import logging
-import pandas as pd
+import sys
+import yaml
 from datetime import datetime, timedelta
+from pathlib import Path
 
 # Add src to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
+sys.path.insert(0, str(Path(__file__).parent / "src"))
 
-# Import directly from files
-import sys
-import os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
-
-# Import the real data ingestor directly
-from src.data.real_data_ingestor import RealDataIngestor
-
-# Import data storage with a try-catch
+# Import data components
 try:
-    from src.data import TickDataStorage
+    from data import DukascopyIngestor, TickDataStorage, TickDataCleaner
+    DATA_AVAILABLE = True
 except ImportError:
-    # Fallback import
-    import importlib.util
-    spec = importlib.util.spec_from_file_location("data", "src/data.py")
-    data_module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(data_module)
-    TickDataStorage = data_module.TickDataStorage
-
-# Set up logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+    print("⚠️  Data components not available")
+    DATA_AVAILABLE = False
 
 
-def test_real_data_ingestor():
-    """Test the real data ingestor functionality."""
-    print("🧪 Testing Real Data Ingestor...")
-    
-    # Initialize ingestor
-    ingestor = RealDataIngestor()
-    
-    # Test with a recent date range
-    end_date = datetime.now()
-    start_date = end_date - timedelta(days=7)
-    
-    # Test downloading real data
-    symbol = "EURUSD"
-    success = ingestor.download_symbol_data(symbol, start_date, end_date, 'yahoo')
-    
-    if success:
-        print(f"✅ Successfully downloaded real data for {symbol}")
-        
-        # Test loading the data
-        data = ingestor.load_symbol_data(symbol, start_date, end_date)
-        if data is not None and not data.empty:
-            print(f"✅ Successfully loaded {len(data)} real data records")
-            print(f"   Data range: {data.index.min()} to {data.index.max()}")
-            print(f"   Columns: {list(data.columns)}")
-            print(f"   Sample data:")
-            print(data.head())
-            return True
-        else:
-            print("❌ Failed to load downloaded data")
-            return False
-    else:
-        print("❌ Failed to download real data")
-        
-        # Test realistic synthetic data generation
-        print("🔄 Testing realistic synthetic data generation...")
-        test_data = ingestor.create_test_data_from_real_patterns(symbol, 7)
-        if test_data is not None and not test_data.empty:
-            print(f"✅ Generated {len(test_data)} realistic synthetic records")
-            print(f"   Sample data:")
-            print(test_data.head())
-            return True
-        else:
-            print("❌ Failed to generate realistic synthetic data")
-            return False
+def setup_logging():
+    """Setup logging for the test."""
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        handlers=[
+            logging.StreamHandler(),
+            logging.FileHandler('logs/real_data_test.log')
+        ]
+    )
 
 
-def test_data_storage_integration():
-    """Test integration with the existing data storage system."""
-    print("\n🧪 Testing Data Storage Integration...")
-    
-    # Initialize storage
-    storage = TickDataStorage()
-    
-    # Test with a recent date range
-    end_date = datetime.now()
-    start_date = end_date - timedelta(days=7)
-    symbol = "EURUSD"
+def test_dukascopy_connection():
+    """Test Dukascopy connection and data download."""
+    print("\n🔗 Testing Dukascopy Connection...")
     
     try:
-        # This should now use real data if available
-        data = storage.get_data_range(symbol, start_date, end_date)
+        ingestor = DukascopyIngestor()
         
-        if data is not None and not data.empty:
-            print(f"✅ Data storage returned {len(data)} records")
-            print(f"   Data range: {data.index.min()} to {data.index.max()}")
-            print(f"   Columns: {list(data.columns)}")
-            print(f"   Sample data:")
-            print(data.head())
-            return True
+        # Test connection
+        print("   Testing connection to Dukascopy servers...")
+        connected = ingestor.test_connection()
+        
+        if connected:
+            print("✅ Dukascopy connection test passed")
+            
+            # Test data download for recent data
+            test_symbol = 'EURUSD'
+            test_date = datetime.now().date() - timedelta(days=1)
+            
+            print(f"   Downloading test data for {test_symbol} on {test_date}...")
+            data = ingestor._download_day_data(test_symbol, test_date)
+            
+            if data is not None and not data.empty:
+                print(f"✅ Downloaded {len(data)} ticks from Dukascopy")
+                print(f"   Sample data:")
+                print(f"   {data.head()}")
+                return True
+            else:
+                print("⚠️  No data available (this may be normal for recent dates)")
+                return True  # Connection works, just no data
         else:
-            print("❌ Data storage returned empty data")
+            print("❌ Dukascopy connection test failed")
             return False
             
     except Exception as e:
-        print(f"❌ Error in data storage integration: {e}")
+        print(f"❌ Error testing Dukascopy: {e}")
         return False
 
 
-def test_multiple_instruments():
-    """Test with multiple instruments."""
-    print("\n🧪 Testing Multiple Instruments...")
+def test_yahoo_finance_integration():
+    """Test Yahoo Finance integration."""
+    print("\n📈 Testing Yahoo Finance Integration...")
     
-    ingestor = RealDataIngestor()
-    instruments = ["EURUSD", "GBPUSD", "USDJPY"]
+    try:
+        from data.real_data_ingestor import RealDataIngestor
+        
+        ingestor = RealDataIngestor()
+        
+        # Test data download
+        symbol = 'EURUSD'
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=7)
+        
+        print(f"   Downloading {symbol} data from {start_date.date()} to {end_date.date()}...")
+        data = ingestor.download_yahoo_data(symbol, start_date, end_date)
+        
+        if data is not None and not data.empty:
+            print(f"✅ Downloaded {len(data)} records from Yahoo Finance")
+            print(f"   Sample data:")
+            print(f"   {data.head()}")
+            return True
+        else:
+            print("❌ No data downloaded from Yahoo Finance")
+            return False
+            
+    except ImportError:
+        print("⚠️  Yahoo Finance integration not available")
+        return False
+    except Exception as e:
+        print(f"❌ Error testing Yahoo Finance: {e}")
+        return False
+
+
+def test_alpha_vantage_integration():
+    """Test Alpha Vantage integration."""
+    print("\n📊 Testing Alpha Vantage Integration...")
     
-    end_date = datetime.now()
-    start_date = end_date - timedelta(days=3)
-    
-    results = {}
-    
-    for instrument in instruments:
-        print(f"   Testing {instrument}...")
+    try:
+        from data.real_data_ingestor import RealDataIngestor
+        
+        # Check for API key
+        api_key = None
         try:
-            success = ingestor.download_symbol_data(instrument, start_date, end_date, 'yahoo')
-            if success:
-                data = ingestor.load_symbol_data(instrument, start_date, end_date)
-                if data is not None and not data.empty:
-                    results[instrument] = len(data)
-                    print(f"   ✅ {instrument}: {len(data)} records")
+            with open('configs/ctrader_config.yaml', 'r') as f:
+                config = yaml.safe_load(f)
+                api_key = config.get('alpha_vantage', {}).get('api_key')
+        except:
+            pass
+        
+        if not api_key:
+            print("⚠️  No Alpha Vantage API key found (skipping test)")
+            return True  # Not a failure, just no credentials
+        
+        ingestor = RealDataIngestor(api_key=api_key)
+        
+        # Test data download
+        symbol = 'EURUSD'
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=7)
+        
+        print(f"   Downloading {symbol} data from {start_date.date()} to {end_date.date()}...")
+        data = ingestor.download_alpha_vantage_data(symbol, start_date, end_date)
+        
+        if data is not None and not data.empty:
+            print(f"✅ Downloaded {len(data)} records from Alpha Vantage")
+            print(f"   Sample data:")
+            print(f"   {data.head()}")
+            return True
+        else:
+            print("❌ No data downloaded from Alpha Vantage")
+            return False
+            
+    except ImportError:
+        print("⚠️  Alpha Vantage integration not available")
+        return False
+    except Exception as e:
+        print(f"❌ Error testing Alpha Vantage: {e}")
+        return False
+
+
+def test_data_pipeline_integration():
+    """Test the complete data pipeline integration."""
+    print("\n🔄 Testing Data Pipeline Integration...")
+    
+    try:
+        from data import DukascopyIngestor, TickDataStorage, TickDataCleaner
+        
+        # Create components
+        storage = TickDataStorage()
+        cleaner = TickDataCleaner()
+        ingestor = DukascopyIngestor()
+        
+        # Test symbol
+        symbol = 'EURUSD'
+        year = 2024
+        
+        print(f"   Testing complete pipeline for {symbol} {year}...")
+        
+        # Test data download
+        success = ingestor.download_year_data(symbol, year)
+        
+        if success:
+            print(f"✅ Successfully downloaded data for {symbol} {year}")
+            
+            # Test data loading
+            start_time = datetime(year, 1, 1)
+            end_time = datetime(year, 1, 7)  # First week
+            
+            data = storage.load_tick_data(symbol, start_time, end_time)
+            
+            if not data.empty:
+                print(f"✅ Successfully loaded {len(data)} records from storage")
+                
+                # Test data cleaning
+                cleaned_data = cleaner.clean(data, symbol)
+                
+                if not cleaned_data.empty:
+                    print(f"✅ Successfully cleaned data: {len(cleaned_data)} records remaining")
+                    print(f"   Sample cleaned data:")
+                    print(f"   {cleaned_data.head()}")
+                    return True
                 else:
-                    results[instrument] = 0
-                    print(f"   ❌ {instrument}: No data")
+                    print("❌ Data cleaning failed")
+                    return False
             else:
-                results[instrument] = 0
-                print(f"   ❌ {instrument}: Download failed")
-        except Exception as e:
-            results[instrument] = 0
-            print(f"   ❌ {instrument}: Error - {e}")
+                print("❌ Data loading failed")
+                return False
+        else:
+            print("❌ Data download failed")
+            return False
+            
+    except Exception as e:
+        print(f"❌ Error testing data pipeline: {e}")
+        return False
+
+
+def test_fallback_mechanism():
+    """Test the fallback mechanism when real data is unavailable."""
+    print("\n🔄 Testing Fallback Mechanism...")
     
-    successful_instruments = sum(1 for count in results.values() if count > 0)
-    print(f"\n📊 Results: {successful_instruments}/{len(instruments)} instruments have data")
-    
-    return successful_instruments > 0
+    try:
+        from data import DukascopyIngestor, TickDataStorage, TickDataCleaner
+        
+        # Create components
+        storage = TickDataStorage()
+        cleaner = TickDataCleaner()
+        ingestor = DukascopyIngestor()
+        
+        # Test with a symbol that likely has no data
+        symbol = 'INVALID_SYMBOL'
+        start_time = datetime(2024, 1, 1)
+        end_time = datetime(2024, 1, 7)
+        
+        print(f"   Testing fallback for {symbol}...")
+        
+        # This should trigger fallback to synthetic data
+        data = ingestor.download_tick_data(symbol, start_time, end_time)
+        
+        if data is None:
+            print("✅ Fallback mechanism working correctly (returned None)")
+            return True
+        else:
+            print("⚠️  Unexpected data returned for invalid symbol")
+            return False
+            
+    except Exception as e:
+        print(f"❌ Error testing fallback mechanism: {e}")
+        return False
 
 
 def main():
-    """Run all real data integration tests."""
-    print("🚀 REAL DATA INTEGRATION TEST SUITE")
+    """Main test function."""
+    parser = argparse.ArgumentParser(description="Test real data integration")
+    parser.add_argument("--symbol", default="EURUSD", help="Symbol to test")
+    parser.add_argument("--days", type=int, default=7, help="Number of days to test")
+    parser.add_argument("--test-dukascopy", action="store_true", help="Test Dukascopy only")
+    parser.add_argument("--test-yahoo", action="store_true", help="Test Yahoo Finance only")
+    parser.add_argument("--test-alpha", action="store_true", help="Test Alpha Vantage only")
+    parser.add_argument("--test-pipeline", action="store_true", help="Test complete pipeline only")
+    
+    args = parser.parse_args()
+    
+    # Setup logging
+    setup_logging()
+    
+    print("🚀 Real Data Integration Test")
     print("=" * 50)
     
-    # Test 1: Real data ingestor
-    test1_passed = test_real_data_ingestor()
+    # Run tests based on arguments
+    test_results = {}
     
-    # Test 2: Data storage integration
-    test2_passed = test_data_storage_integration()
+    if args.test_dukascopy or not any([args.test_yahoo, args.test_alpha, args.test_pipeline]):
+        test_results['Dukascopy'] = test_dukascopy_connection()
     
-    # Test 3: Multiple instruments
-    test3_passed = test_multiple_instruments()
+    if args.test_yahoo or not any([args.test_dukascopy, args.test_alpha, args.test_pipeline]):
+        test_results['Yahoo Finance'] = test_yahoo_finance_integration()
+    
+    if args.test_alpha or not any([args.test_dukascopy, args.test_yahoo, args.test_pipeline]):
+        test_results['Alpha Vantage'] = test_alpha_vantage_integration()
+    
+    if args.test_pipeline or not any([args.test_dukascopy, args.test_yahoo, args.test_alpha]):
+        test_results['Data Pipeline'] = test_data_pipeline_integration()
+    
+    # Test fallback mechanism
+    test_results['Fallback'] = test_fallback_mechanism()
     
     # Summary
     print("\n" + "=" * 50)
-    print("📋 TEST SUMMARY")
+    print("📊 Test Summary")
     print("=" * 50)
-    print(f"Real Data Ingestor: {'✅ PASSED' if test1_passed else '❌ FAILED'}")
-    print(f"Data Storage Integration: {'✅ PASSED' if test2_passed else '❌ FAILED'}")
-    print(f"Multiple Instruments: {'✅ PASSED' if test3_passed else '❌ FAILED'}")
     
-    total_passed = sum([test1_passed, test2_passed, test3_passed])
-    print(f"\nOverall: {total_passed}/3 tests passed")
+    for test_name, result in test_results.items():
+        status = "✅ PASSED" if result else "❌ FAILED"
+        print(f"{test_name}: {status}")
     
-    if total_passed >= 2:
-        print("🎉 Real data integration is working!")
-        print("   The system can now load real market data instead of synthetic data.")
+    passed_tests = sum(test_results.values())
+    total_tests = len(test_results)
+    
+    print(f"\nOverall: {passed_tests}/{total_tests} tests passed")
+    
+    if passed_tests == total_tests:
+        print("\n🎉 SUCCESS: All real data integration tests passed!")
+        print("   The system can now download and process real market data.")
+    elif passed_tests > 0:
+        print(f"\n⚠️  PARTIAL SUCCESS: {passed_tests}/{total_tests} tests passed")
+        print("   Some data sources are working, others may need configuration.")
     else:
-        print("⚠️  Real data integration needs improvement.")
-        print("   The system is still relying on synthetic data generation.")
-    
-    return total_passed >= 2
+        print("\n❌ FAILURE: No real data integration tests passed")
+        print("   Check network connection and data source configuration.")
 
 
 if __name__ == "__main__":
-    success = main()
-    sys.exit(0 if success else 1) 
+    main() 

@@ -1165,13 +1165,13 @@ class ChronalIntelligenceEngine(DimensionalSensor):
         try:
             # Update temporal analyzer
             self.temporal_analyzer.update_market_data(market_data)
-        self.temporal_analyzer.update_temporal_data(market_data)
+            self.temporal_analyzer.update_temporal_data(market_data)
         
             # Detect market regime
             regime = self.temporal_analyzer.detect_market_regime()
         
             # Calculate temporal confidence
-        confidence = self.temporal_analyzer.calculate_temporal_confidence()
+            confidence = self.temporal_analyzer.calculate_temporal_confidence()
         
             # Generate signal strength based on regime and confidence
             signal_strength = self._calculate_signal_strength(regime, confidence)
@@ -1186,13 +1186,13 @@ class ChronalIntelligenceEngine(DimensionalSensor):
             
             # Create reading
             reading = DimensionalReading(
-            dimension='WHEN',
+                dimension='WHEN',
                 signal_strength=signal_strength,
-            confidence=confidence,
+                confidence=confidence,
                 regime=self._determine_regime(regime),
-            context=context,
-            timestamp=market_data.timestamp
-        )
+                context=context,
+                timestamp=market_data.timestamp
+            )
     
             # Store last reading and mark as initialized
             self.last_reading = reading

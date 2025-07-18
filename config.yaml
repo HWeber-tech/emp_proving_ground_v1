@@ -1,28 +1,106 @@
-# EMP Proving Ground v1.0 - Central Configuration
+# EMP Proving Ground Configuration
+# Current Status: Mock Framework - Production Roadmap Active
 
+# System Mode Configuration
+system:
+  mode: "mock"  # "mock" | "paper" | "live"
+  environment: "development"  # "development" | "staging" | "production"
+  debug: true
+  log_level: "INFO"
+
+# Data Source Configuration
 data:
-  raw_dir: data/raw
-  processed_dir: data/processed
-  symbol: EURUSD
-  start_year: 2018
-  end_year: 2024
+  source: "mock"  # "mock" | "yahoo" | "alpha_vantage" | "dukascopy"
+  providers:
+    primary: "mock"
+    fallback: "mock"
+    real_providers:
+      - "yahoo_finance"
+      - "alpha_vantage"
+      - "dukascopy"
+  fallback_to_mock: true
+  cache_duration: 300  # seconds
+  max_retries: 3
 
-simulation:
-  commission_per_trade: 0.0001  # 1 pip
-  base_slippage_bps: 0.5
-  size_impact_factor: 0.1
-  volatility_factor: 0.2
-  initial_balance: 100000
-  leverage: 1.0
+# Trading Configuration
+trading:
+  mode: "mock"  # "mock" | "paper" | "live"
+  broker: "mock_ctrader"  # "mock_ctrader" | "ctrader_demo" | "ctrader_live"
+  account_type: "demo"  # "demo" | "live"
+  instruments:
+    - "EURUSD"
+    - "GBPUSD"
+    - "USDJPY"
+  position_sizing: "kelly"  # "fixed" | "kelly" | "risk_parity"
+  max_position_size: 0.02  # 2% of account
 
+# Risk Management
+risk:
+  max_drawdown: 0.02  # 2%
+  max_daily_loss: 0.01  # 1%
+  max_position_risk: 0.005  # 0.5%
+  kill_switch_enabled: true
+  emergency_stop_loss: 0.05  # 5%
+
+# Sensory System Configuration
+sensory:
+  dimensions:
+    what: true
+    when: true
+    where: true
+    why: true
+    how: true
+  data_sources:
+    market_data: "mock"
+    economic_data: "mock"
+    sentiment_data: "mock"
+    news_data: "mock"
+
+# Evolution Engine Configuration
 evolution:
-  population_size: 50
-  generations: 10
-  elite_ratio: 0.1
-  crossover_ratio: 0.8
-  mutation_ratio: 0.1
+  population_size: 100
+  generations: 50
   mutation_rate: 0.1
+  crossover_rate: 0.8
+  elitism: 0.1
 
-adversary:
+# API Keys (for future real integrations)
+api_keys:
+  alpha_vantage: ""  # Add your Alpha Vantage API key
+  fred_api: ""       # Add your FRED API key
+  news_api: ""       # Add your News API key
+  ctrader:
+    client_id: ""
+    client_secret: ""
+    demo_account: true
+
+# Performance Tracking
+performance:
+  track_real_pnl: false  # Will be true when live
+  benchmark: "SPY"  # Benchmark for performance comparison
+  risk_free_rate: 0.02  # 2% annual risk-free rate
+
+# Logging Configuration
+logging:
+  level: "INFO"
+  file: "logs/emp_system.log"
+  max_size: "10MB"
+  backup_count: 5
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+
+# Database Configuration
+database:
+  type: "sqlite"  # "sqlite" | "postgresql" | "mongodb"
+  path: "data/emp_database.db"
+  backup_enabled: true
+  backup_interval: 3600  # seconds
+
+# Monitoring Configuration
+monitoring:
   enabled: true
-  intensity: 0.7 
+  metrics_port: 8080
+  health_check_interval: 30  # seconds
+  alert_thresholds:
+    error_rate: 0.01
+    latency_ms: 1000
+    memory_usage: 0.8 

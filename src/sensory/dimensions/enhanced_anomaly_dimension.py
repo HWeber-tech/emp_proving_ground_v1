@@ -1586,64 +1586,67 @@ class AnomalyIntelligenceEngine(DimensionalSensor):
         # Anomaly history
         self.recent_anomalies: List[AnomalyEvent] = []
         
-    async def analyze_anomaly_intelligence(self, market_data: MarketData, order_book: Optional[OrderBookSnapshot] = None) -> DimensionalReading:
+    async def analyze_anomaly_intelligence(self, market_data: MarketData) -> DimensionalReading:
         """Perform comprehensive anomaly analysis"""
         
         try:
-            # Update anomaly detector
+            # Update all detectors
             self.anomaly_detector.update_data(market_data)
+            self.manipulation_detector.update_data(market_data)
+            self.chaos_detector.update_data(market_data)
+            self.self_refutation_engine.validate_predictions(market_data)
             
             # Update pattern detector
             self.pattern_recognition_detector.update_data(market_data)
             
             # Get anomaly signals
             statistical_anomalies = self.anomaly_detector.detect_statistical_anomalies(market_data)
-        manipulation_events = self.manipulation_detector.detect_manipulation_patterns(market_data)
-        chaos_events = self.chaos_detector.detect_chaos_patterns(market_data)
-        refutation_events = self.self_refutation_engine.validate_predictions(market_data)
+            manipulation_events = self.manipulation_detector.detect_manipulation_patterns(market_data)
+            chaos_events = self.chaos_detector.detect_chaos_patterns(market_data)
+            refutation_events = self.self_refutation_engine.validate_predictions(market_data)
             pattern_anomalies = self.pattern_recognition_detector.detect_patterns(market_data)
         
-        # Combine all anomalies
-        all_anomalies = statistical_anomalies.copy()
+            # Combine all anomalies
+            all_anomalies = statistical_anomalies.copy()
         
-        # Convert manipulation events to anomaly events
-        for manip in manipulation_events:
-            anomaly = AnomalyEvent(
-                anomaly_type=AnomalyType.MANIPULATION_PATTERN,
-                timestamp=manip.timestamp,
-                severity=manip.strength,
-                confidence=manip.success_probability,
-                description=f"Manipulation: {manip.signature.name}",
-                affected_dimensions=['HOW'],
-                market_impact=manip.strength * 0.6
-            )
-            all_anomalies.append(anomaly)
+            # Convert manipulation events to anomaly events
+            for manip in manipulation_events:
+                anomaly = AnomalyEvent(
+                    anomaly_type=AnomalyType.MANIPULATION_PATTERN,
+                    timestamp=manip.timestamp,
+                    severity=manip.strength,
+                    confidence=manip.success_probability,
+                    description=f"Manipulation: {manip.signature.name}",
+                    affected_dimensions=['HOW'],
+                    market_impact=manip.strength * 0.6
+                )
+                all_anomalies.append(anomaly)
         
-        # Convert chaos events to anomaly events
-        for chaos in chaos_events:
-            anomaly = AnomalyEvent(
-                anomaly_type=AnomalyType.CHAOS_EMERGENCE,
-                timestamp=chaos.timestamp,
-                severity=chaos.intensity,
-                confidence=1.0 - chaos.predictability,
-                description=f"Chaos: {chaos.pattern.name}",
-                affected_dimensions=['WHAT', 'WHEN'],
-                market_impact=chaos.system_stress
-            )
-            all_anomalies.append(anomaly)
+            # Convert chaos events to anomaly events
+            for chaos in chaos_events:
+                anomaly = AnomalyEvent(
+                    anomaly_type=AnomalyType.CHAOS_EMERGENCE,
+                    timestamp=chaos.timestamp,
+                    severity=chaos.intensity,
+                    confidence=1.0 - chaos.predictability,
+                    description=f"Chaos: {chaos.pattern.name}",
+                    affected_dimensions=['WHAT', 'WHEN'],
+                    market_impact=chaos.system_stress
+                )
+                all_anomalies.append(anomaly)
         
-        # Convert refutation events to anomaly events
-        for refutation in refutation_events:
-            anomaly = AnomalyEvent(
-                anomaly_type=AnomalyType.SELF_REFUTATION,
-                timestamp=market_data.timestamp,
-                severity=min(refutation.error_magnitude * 10, 1.0),
-                confidence=refutation.confidence_was,
-                description=f"Self-refutation: {refutation.learning_opportunity}",
-                affected_dimensions=['WHY', 'WHAT', 'HOW', 'WHEN'],
-                market_impact=0.2
-            )
-            all_anomalies.append(anomaly)
+            # Convert refutation events to anomaly events
+            for refutation in refutation_events:
+                anomaly = AnomalyEvent(
+                    anomaly_type=AnomalyType.SELF_REFUTATION,
+                    timestamp=market_data.timestamp,
+                    severity=min(refutation.error_magnitude * 10, 1.0),
+                    confidence=refutation.confidence_was,
+                    description=f"Self-refutation: {refutation.learning_opportunity}",
+                    affected_dimensions=['WHY', 'WHAT', 'HOW', 'WHEN'],
+                    market_impact=0.2
+                )
+                all_anomalies.append(anomaly)
         
             # Convert pattern anomalies to anomaly events
             for pattern in pattern_anomalies:
@@ -1658,18 +1661,18 @@ class AnomalyIntelligenceEngine(DimensionalSensor):
                 )
                 all_anomalies.append(anomaly)
             
-        # Update recent anomalies
-        self.recent_anomalies.extend(all_anomalies)
-        cutoff_time = market_data.timestamp - timedelta(hours=2)
-        self.recent_anomalies = [
-            anomaly for anomaly in self.recent_anomalies
-            if anomaly.timestamp > cutoff_time
-        ]
+            # Update recent anomalies
+            self.recent_anomalies.extend(all_anomalies)
+            cutoff_time = market_data.timestamp - timedelta(hours=2)
+            self.recent_anomalies = [
+                anomaly for anomaly in self.recent_anomalies
+                if anomaly.timestamp > cutoff_time
+            ]
         
             # Calculate anomaly score
             anomaly_score = self._calculate_anomaly_score(all_anomalies, pattern_anomalies)
         
-        # Calculate confidence
+            # Calculate confidence
             confidence = self._calculate_confidence(all_anomalies, pattern_anomalies)
             
             # Determine regime
@@ -1727,13 +1730,13 @@ class AnomalyIntelligenceEngine(DimensionalSensor):
             
             # Create reading
             reading = DimensionalReading(
-            dimension='ANOMALY',
+                dimension='ANOMALY',
                 signal_strength=anomaly_score,
-            confidence=confidence,
+                confidence=confidence,
                 regime=regime,
-            context=context,
-            timestamp=market_data.timestamp
-        )
+                context=context,
+                timestamp=market_data.timestamp
+            )
             
             # Store last reading and mark as initialized
             self.last_reading = reading
@@ -1809,9 +1812,9 @@ class AnomalyIntelligenceEngine(DimensionalSensor):
         else:
             return MarketRegime.CONSOLIDATING
     
-    async def update(self, market_data: MarketData, order_book: Optional[OrderBookSnapshot] = None) -> DimensionalReading:
+    async def update(self, market_data: MarketData) -> DimensionalReading:
         """Process new market data and return dimensional reading."""
-        return await self.analyze_anomaly_intelligence(market_data, order_book)
+        return await self.analyze_anomaly_intelligence(market_data)
     
     def snapshot(self) -> DimensionalReading:
         """Return current dimensional state without processing new data."""

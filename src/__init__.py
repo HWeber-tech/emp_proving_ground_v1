@@ -17,7 +17,8 @@ from .risk import *
 from .pnl import *
 from .evolution import *
 from .simulation import *
-from .data import *
+# Import from main data.py file specifically
+from .data import DataManager, DataConfig, MockDataGenerator, DataProvider
 
 __all__ = [
     # Core components
@@ -44,6 +45,10 @@ __all__ = [
     "AdversarialEngine",
     
     # Data pipeline
+    "DataManager",
+    "DataConfig", 
+    "MockDataGenerator",
+    "DataProvider",
     "TickDataStorage",
     "TickDataCleaner",
     "DukascopyIngestor",

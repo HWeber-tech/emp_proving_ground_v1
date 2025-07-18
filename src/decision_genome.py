@@ -427,20 +427,6 @@ class DecisionGenome:
                     # Convert row to MarketData format if needed
                     from src.sensory.core.base import MarketData
 
-                    market_data = MarketData(
-                        symbol="EURUSD",
-                        timestamp=row.name if hasattr(row, "name") else datetime.now(),
-                        open=row.get("open", row.get("close", 1.1000)),
-                        high=row.get("high", row.get("close", 1.1000)),
-                        low=row.get("low", row.get("close", 1.1000)),
-                        close=row.get("close", 1.1000),
-                        volume=row.get("volume", 1000),
-                        bid=row.get("bid", row.get("low", row.get("close", 1.1000))),
-                        ask=row.get("ask", row.get("high", row.get("close", 1.1002))),
-                        source="synthetic",
-                        latency_ms=0.0,
-                    )
-
                     # Try to get synthesis result (this would be async in real usage)
                     # For now, create a simple reading based on price movement
                     if "close" in row:

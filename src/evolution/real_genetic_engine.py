@@ -339,7 +339,6 @@ class StrategyEvaluator:
 
         # Risk management parameters
         max_position_size = strategy.risk_management.get("max_position_size", 0.1)
-        stop_loss = strategy.risk_management.get("stop_loss", 0.02)
         take_profit = strategy.risk_management.get("take_profit", 0.04)
 
         for signal in signals:

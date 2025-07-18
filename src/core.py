@@ -50,12 +50,14 @@ class RiskConfig(BaseModel):
     )
 
     @validator("max_risk_per_trade_pct", "max_total_exposure_pct", "max_drawdown_pct")
+    @classmethod
     def validate_percentages(cls, v):
         if v <= 0 or v > 1:
             raise ValueError("Percentage values must be between 0 and 1")
         return v
 
     @validator("max_leverage")
+    @classmethod
     def validate_leverage(cls, v):
         if v <= 0:
             raise ValueError("Leverage must be positive")

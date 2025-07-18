@@ -36,13 +36,18 @@ emp_proving_ground/
 ├── docs/                  # Documentation
 │   ├── api/               # API documentation
 │   ├── guides/            # User guides
-│   └── reports/           # Project reports
+│   └── reports/           # Project reports (25 files)
+├── logs/                  # System logs
+├── backup_before_cleanup/ # Pre-cleanup backup
 └── archive/               # Legacy/archived files
 ```
 
 ## 📚 Documentation
 
 ### Project Reports
+All project reports are organized in `docs/reports/`:
+- [System Wide Audit Report](docs/reports/SYSTEM_WIDE_AUDIT_REPORT.md) - Latest system audit
+- [Cleanup Completion Report](docs/reports/CLEANUP_COMPLETION_REPORT.md) - Project cleanup summary
 - [Comprehensive Audit Summary](docs/reports/COMPREHENSIVE_AUDIT_SUMMARY.md)
 - [Strategic Planning Session](docs/reports/STRATEGIC_PLANNING_SESSION.md)
 - [Production Integration Summary](docs/reports/PRODUCTION_INTEGRATION_SUMMARY.md)
@@ -53,20 +58,23 @@ emp_proving_ground/
 - [Honest Development Blueprint](docs/reports/HONEST_DEVELOPMENT_BLUEPRINT.md)
 - [Integration Summary](docs/reports/INTEGRATION_SUMMARY.md)
 
+### Recent Updates
+- [Report Relocation Summary](docs/reports/REPORT_RELOCATION_SUMMARY.md) - Documentation organization
+
 ## 🛠️ Quick Start
 
 1. **Install Dependencies:**
-   ```bash
-   pip install -r requirements.txt
-   ```
+```bash
+pip install -r requirements.txt
+```
 
 2. **Configure System:**
-   ```bash
+```bash
    # Edit configuration files in configs/
-   ```
+```
 
 3. **Run Tests:**
-   ```bash
+```bash
    # Unit tests
    python -m pytest tests/unit/
    
@@ -78,9 +86,9 @@ emp_proving_ground/
    ```
 
 4. **Start System:**
-   ```bash
-   python main.py
-   ```
+```bash
+python main.py
+```
 
 ## 🔧 Configuration
 
@@ -99,6 +107,8 @@ Configuration files are organized in the `configs/` directory:
 - Advanced risk management system
 - Performance tracking and analytics
 - Order book analysis and market microstructure
+- **System-wide audit and cleanup completed**
+- **Documentation reorganization and standardization**
 
 **🔄 IN PROGRESS:**
 - System hardening and optimization
@@ -123,6 +133,6 @@ This project is proprietary and confidential.
 
 ---
 
-**Last Updated:** $(date)  
+**Last Updated:** July 18, 2024  
 **Version:** 2.0.0  
 **Status:** Production Ready

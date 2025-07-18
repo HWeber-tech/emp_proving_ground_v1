@@ -8,14 +8,17 @@ adaptive intelligence synthesis.
 """
 
 import logging
+import math
 from collections import defaultdict, deque
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum, auto
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, NamedTuple, Optional, Tuple
 
 import numpy as np
+import pandas as pd
 from scipy import stats
+from scipy.optimize import minimize
 
 from src.sensory.core.base import DimensionalReading, MarketData, MarketRegime
 from src.sensory.dimensions.enhanced_anomaly_dimension import \
@@ -149,7 +152,7 @@ class CorrelationAnalyzer:
         if reading.dimension in self.dimensional_history:
             self.dimensional_history[reading.dimension].append(
                 {
-                    "value": reading.signal_strength,
+                    "value": reading.value,
                     "confidence": reading.confidence,
                     "timestamp": reading.timestamp,
                     "context": reading.context,
@@ -209,9 +212,7 @@ class CorrelationAnalyzer:
 
         # Calculate correlation
         try:
-            correlation_result = stats.pearsonr(values_a, values_b)
-            correlation = correlation_result[0] if not np.isnan(correlation_result[0]) else 0.0
-            p_value = correlation_result[1]
+            correlation, p_value = stats.pearsonr(values_a, values_b)
             significance = 1.0 - p_value if not np.isnan(p_value) else 0.0
 
             # Calculate lag correlation (simplified)
@@ -223,7 +224,7 @@ class CorrelationAnalyzer:
             return DimensionalCorrelation(
                 dimension_a=dim_a,
                 dimension_b=dim_b,
-                correlation=correlation,
+                correlation=correlation if not np.isnan(correlation) else 0.0,
                 significance=significance,
                 lag=lag,
                 stability=stability,
@@ -251,27 +252,24 @@ class CorrelationAnalyzer:
         for lag in range(-max_lag, max_lag + 1):
             try:
                 if lag == 0:
-                    corr_result = stats.pearsonr(values_a, values_b)
-                    corr = corr_result[0] if not np.isnan(corr_result[0]) else 0.0
+                    corr, _ = stats.pearsonr(values_a, values_b)
                 elif lag > 0:
                     # B leads A
                     if len(values_a) > lag and len(values_b) > lag:
-                        corr_result = stats.pearsonr(values_a[lag:], values_b[:-lag])
-                        corr = corr_result[0] if not np.isnan(corr_result[0]) else 0.0
+                        corr, _ = stats.pearsonr(values_a[lag:], values_b[:-lag])
                     else:
                         continue
                 else:
                     # A leads B
                     lag_abs = abs(lag)
                     if len(values_a) > lag_abs and len(values_b) > lag_abs:
-                        corr_result = stats.pearsonr(
+                        corr, _ = stats.pearsonr(
                             values_a[:-lag_abs], values_b[lag_abs:]
                         )
-                        corr = corr_result[0] if not np.isnan(corr_result[0]) else 0.0
                     else:
                         continue
 
-                if abs(corr) > abs(best_correlation):
+                if not np.isnan(corr) and abs(corr) > abs(best_correlation):
                     best_correlation = corr
                     best_lag = lag
 
@@ -297,9 +295,8 @@ class CorrelationAnalyzer:
             window_b = values_b[i - window_size : i]
 
             try:
-                corr_result = stats.pearsonr(window_a, window_b)
-                corr = corr_result[0] if not np.isnan(corr_result[0]) else 0.0
-                if corr != 0.0:
+                corr, _ = stats.pearsonr(window_a, window_b)
+                if not np.isnan(corr):
                     rolling_correlations.append(corr)
             except:
                 continue
@@ -849,7 +846,7 @@ class NarrativeGenerator:
                     return "institutional_flow"
 
         # Check for anomaly dominance
-        if "ANOMALY" in readings and readings["ANOMALY"].signal_strength > 0.5:
+        if "ANOMALY" in readings and readings["ANOMALY"].value > 0.5:
             return "anomaly_warning"
 
         # Check for strong directional bias
@@ -860,19 +857,19 @@ class NarrativeGenerator:
                 return "bearish_confluence"
 
         # Check for fundamental dominance
-        if "WHY" in readings and readings["WHY"].signal_strength > 0.5:
+        if "WHY" in readings and readings["WHY"].value > 0.5:
             return "fundamental_shift"
 
         # Check for technical dominance
-        if "WHAT" in readings and readings["WHAT"].signal_strength > 0.5:
+        if "WHAT" in readings and readings["WHAT"].value > 0.5:
             return "technical_breakout"
 
         # Check for institutional dominance
-        if "HOW" in readings and readings["HOW"].signal_strength > 0.5:
+        if "HOW" in readings and readings["HOW"].value > 0.5:
             return "institutional_flow"
 
         # Check for low volatility/consolidation
-        if all(abs(reading.signal_strength) < 0.3 for reading in readings.values()):
+        if all(abs(reading.value) < 0.3 for reading in readings.values()):
             return "consolidation"
 
         # Default to uncertainty
@@ -910,13 +907,13 @@ class NarrativeGenerator:
     def _extract_why_evidence(self, reading: DimensionalReading, context: Dict) -> str:
         """Extract WHY dimension evidence"""
 
-        if reading.signal_strength > 0.5:
+        if reading.value > 0.5:
             return "positive fundamental backdrop with supportive economic conditions"
-        elif reading.signal_strength < -0.5:
+        elif reading.value < -0.5:
             return "negative fundamental pressures from economic headwinds"
-        elif reading.signal_strength > 0.2:
+        elif reading.value > 0.2:
             return "moderately positive fundamental environment"
-        elif reading.signal_strength < -0.2:
+        elif reading.value < -0.2:
             return "some fundamental concerns emerging"
         else:
             return "neutral fundamental conditions"
@@ -924,13 +921,13 @@ class NarrativeGenerator:
     def _extract_how_evidence(self, reading: DimensionalReading, context: Dict) -> str:
         """Extract HOW dimension evidence"""
 
-        if reading.signal_strength > 0.5:
+        if reading.value > 0.5:
             return "strong institutional buying interest with significant order flow"
-        elif reading.signal_strength < -0.5:
+        elif reading.value < -0.5:
             return "institutional selling pressure evident in order flow patterns"
-        elif reading.signal_strength > 0.2:
+        elif reading.value > 0.2:
             return "moderate institutional participation"
-        elif reading.signal_strength < -0.2:
+        elif reading.value < -0.2:
             return "some institutional distribution detected"
         else:
             return "balanced institutional positioning"
@@ -938,13 +935,13 @@ class NarrativeGenerator:
     def _extract_what_evidence(self, reading: DimensionalReading, context: Dict) -> str:
         """Extract WHAT dimension evidence"""
 
-        if reading.signal_strength > 0.5:
+        if reading.value > 0.5:
             return "strong technical momentum with clear directional bias"
-        elif reading.signal_strength < -0.5:
+        elif reading.value < -0.5:
             return "weak technical structure with bearish momentum"
-        elif reading.signal_strength > 0.2:
+        elif reading.value > 0.2:
             return "constructive technical setup developing"
-        elif reading.signal_strength < -0.2:
+        elif reading.value < -0.2:
             return "technical deterioration in progress"
         else:
             return "neutral technical conditions with range-bound action"
@@ -955,9 +952,9 @@ class NarrativeGenerator:
         session = context.get("current_session", "unknown")
         regime = context.get("temporal_regime", "unknown")
 
-        if reading.signal_strength > 0.5:
+        if reading.value > 0.5:
             return f"favorable timing with high-activity {session} session"
-        elif reading.signal_strength < -0.5:
+        elif reading.value < -0.5:
             return f"poor timing during low-activity {session} period"
         elif "OVERLAP" in session:
             return "session overlap providing increased volatility potential"
@@ -971,7 +968,7 @@ class NarrativeGenerator:
     ) -> str:
         """Extract ANOMALY dimension evidence"""
 
-        anomaly_level = reading.signal_strength
+        anomaly_level = reading.value
         stress_level = context.get("system_stress_level", 0)
 
         if anomaly_level > 0.7:
@@ -1246,7 +1243,7 @@ class ContextualFusionEngine:
         for dimension, reading in readings.items():
             if dimension in weights:
                 weight = weights[dimension]
-                weighted_value = reading.signal_strength * reading.confidence * weight
+                weighted_value = reading.value * reading.confidence * weight
                 unified_score += weighted_value
                 total_weight += weight * reading.confidence
 
@@ -1334,7 +1331,7 @@ class ContextualFusionEngine:
         if len(readings) < 2:
             return 0.0
 
-        values = [reading.signal_strength for reading in readings.values()]
+        values = [reading.value for reading in readings.values()]
 
         # Calculate pairwise agreement
         agreements = []
@@ -1443,7 +1440,7 @@ class ContextualFusionEngine:
                     return MarketNarrative.INSTITUTIONAL_FLOW
 
         # Check for anomaly dominance
-        if "ANOMALY" in readings and readings["ANOMALY"].signal_strength > 0.6:
+        if "ANOMALY" in readings and readings["ANOMALY"].value > 0.6:
             anomaly_context = readings["ANOMALY"].context or {}
             if anomaly_context.get("active_manipulations"):
                 return MarketNarrative.MANIPULATION_ACTIVE
@@ -1455,7 +1452,7 @@ class ContextualFusionEngine:
         dominant_dimension = None
 
         for dimension, reading in readings.items():
-            weighted_value = abs(reading.signal_strength) * reading.confidence
+            weighted_value = abs(reading.value) * reading.confidence
             if weighted_value > max_value:
                 max_value = weighted_value
                 dominant_dimension = dimension
@@ -1494,19 +1491,19 @@ class ContextualFusionEngine:
 
         for dimension, reading in readings.items():
             # Evidence supports unified score direction
-            if (unified_score > 0 and reading.signal_strength > 0.2) or (
-                unified_score < 0 and reading.signal_strength < -0.2
+            if (unified_score > 0 and reading.value > 0.2) or (
+                unified_score < 0 and reading.value < -0.2
             ):
                 supporting_evidence.append(
-                    f"{dimension} dimension shows {reading.signal_strength:.2f} with {reading.confidence:.0%} confidence"
+                    f"{dimension} dimension shows {reading.value:.2f} with {reading.confidence:.0%} confidence"
                 )
 
             # Evidence contradicts unified score direction
-            elif (unified_score > 0 and reading.signal_strength < -0.2) or (
-                unified_score < 0 and reading.signal_strength > 0.2
+            elif (unified_score > 0 and reading.value < -0.2) or (
+                unified_score < 0 and reading.value > 0.2
             ):
                 contradicting_evidence.append(
-                    f"{dimension} dimension shows opposing signal of {reading.signal_strength:.2f}"
+                    f"{dimension} dimension shows opposing signal of {reading.value:.2f}"
                 )
 
         return supporting_evidence, contradicting_evidence
@@ -1522,7 +1519,7 @@ class ContextualFusionEngine:
         opportunity_factors = []
 
         # Anomaly-based risks
-        if "ANOMALY" in readings and readings["ANOMALY"].signal_strength > 0.4:
+        if "ANOMALY" in readings and readings["ANOMALY"].value > 0.4:
             risk_factors.append("Elevated anomaly levels increase uncertainty")
 
             anomaly_context = readings["ANOMALY"].context or {}
@@ -1555,7 +1552,7 @@ class ContextualFusionEngine:
         high_confidence_dimensions = [
             dim
             for dim, reading in readings.items()
-            if reading.confidence > 0.7 and abs(reading.signal_strength) > 0.3
+            if reading.confidence > 0.7 and abs(reading.value) > 0.3
         ]
 
         if len(high_confidence_dimensions) >= 2:
@@ -1579,7 +1576,7 @@ class ContextualFusionEngine:
         diagnostics = {
             "current_readings": {
                 dim: {
-                    "value": reading.signal_strength,
+                    "value": reading.value,
                     "confidence": reading.confidence,
                     "timestamp": reading.timestamp.isoformat(),
                 }

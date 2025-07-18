@@ -1,66 +1,97 @@
 """
-Sensory Cortex v2.2 - Production-Ready Market Intelligence System
+EMP Sensory Cortex v2.2 - Main Package
 
-A sophisticated market analysis system that understands markets through five interconnected dimensions:
-- WHY: Fundamental forces driving market behavior
-- HOW: Institutional mechanics and execution patterns  
-- WHAT: Technical manifestations and price action
-- WHEN: Temporal patterns and timing dynamics
-- ANOMALY: Chaos, manipulation, and stress responses
+The sensory cortex is the analytical brain of the EMP system, processing market data
+through multiple dimensional engines to understand market behavior.
+
+Author: EMP Development Team
+Date: July 18, 2024
+Phase: 2 - Sensory Cortex Refactoring
 """
 
-__version__ = "2.2.0"  # Updated for v2.2 production release
-__author__ = "Market Intelligence Team"
-
-# Export main classes for compatibility with existing code
-from .orchestration.master_orchestrator import MasterOrchestrator as SensoryCortex
-from .core.base import DimensionalReading as SensoryReading
-
-# Export v2.2 dimensional engines
-from .dimensions.enhanced_why_dimension import EnhancedFundamentalIntelligenceEngine
-from .dimensions.enhanced_how_dimension import InstitutionalMechanicsEngine
-from .dimensions.enhanced_what_dimension import TechnicalRealityEngine
-from .dimensions.enhanced_when_dimension import ChronalIntelligenceEngine
-from .dimensions.enhanced_anomaly_dimension import AnomalyIntelligenceEngine
-
-# Export core components
+# Core imports
 from .core.base import (
-    MarketData, InstrumentMeta, OrderBookSnapshot, OrderBookLevel,
-    MarketRegime, EconomicEvent, EventTier
-)
-from .core.utils import (
-    EMA, WelfordVar, compute_confidence, normalize_signal,
-    calculate_momentum, PerformanceTracker
+    MarketData,
+    DimensionalReading,
+    MarketRegime,
+    ConfidenceLevel,
+    EventTier,
+    SessionType,
+    InstrumentMeta,
+    EconomicEvent,
+    OrderBookSnapshot,
+    SystemHealth
 )
 
-# Also export the actual classes for new code
+# Import the new refactored engines
+from .dimensions.how import HowEngine
+from .dimensions.what import WhatEngine
+from .dimensions.when import WhenEngine
+from .dimensions.why import WhyEngine
+from .dimensions.anomaly import AnomalyEngine
+
+# Import legacy compatibility classes for backward compatibility
+from .dimensions.compatibility import (
+    InstitutionalMechanicsEngine,
+    TechnicalRealityEngine,
+    ChronalIntelligenceEngine,
+    EnhancedFundamentalIntelligenceEngine,
+    AnomalyIntelligenceEngine,
+    MarketRegimeDetector,
+    AdvancedPatternRecognition,
+    TemporalAnalyzer,
+    PatternRecognitionDetector,
+    PatternType,
+    AnomalyType
+)
+
+# Orchestration imports
+try:
+    from .orchestration.master_orchestrator import MasterOrchestrator
+    from .orchestration.enhanced_intelligence_engine import ContextualFusionEngine
+except ImportError:
+    # Orchestration modules might not be fully implemented yet
+    MasterOrchestrator = None
+    ContextualFusionEngine = None
+
+__version__ = "2.2.0"
+__author__ = "EMP Development Team"
+
 __all__ = [
-    # Legacy compatibility
-    'SensoryCortex',
-    'SensoryReading', 
-    'MasterOrchestrator',
-    'DimensionalReading',
+    # Core classes
+    'MarketData',
+    'DimensionalReading', 
+    'MarketRegime',
+    'ConfidenceLevel',
+    'EventTier',
+    'SessionType',
+    'InstrumentMeta',
+    'EconomicEvent',
+    'OrderBookSnapshot',
+    'SystemHealth',
     
-    # Enhanced dimensional engines
-    'EnhancedFundamentalIntelligenceEngine',
+    # New refactored engines
+    'HowEngine',
+    'WhatEngine',
+    'WhenEngine', 
+    'WhyEngine',
+    'AnomalyEngine',
+    
+    # Legacy compatibility classes
     'InstitutionalMechanicsEngine',
     'TechnicalRealityEngine',
     'ChronalIntelligenceEngine',
+    'EnhancedFundamentalIntelligenceEngine',
     'AnomalyIntelligenceEngine',
+    'MarketRegimeDetector',
+    'AdvancedPatternRecognition',
+    'TemporalAnalyzer',
+    'PatternRecognitionDetector',
+    'PatternType',
+    'AnomalyType',
     
-    # Core components
-    'MarketData',
-    'InstrumentMeta',
-    'OrderBookSnapshot',
-    'OrderBookLevel',
-    'MarketRegime',
-    'EconomicEvent',
-    'EventTier',
-    'EMA',
-    'WelfordVar',
-    'compute_confidence',
-    'normalize_signal',
-    'calculate_momentum',
-    'PerformanceTracker'
+    # Orchestration (if available)
+    'MasterOrchestrator',
+    'ContextualFusionEngine'
 ]
 

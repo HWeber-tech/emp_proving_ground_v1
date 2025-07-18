@@ -1,8 +1,8 @@
 """
-How Engine - Main Technical Analysis Engine
+Why Engine - Fundamental Intelligence and Market Drivers Engine
 
-This is the main engine for the "how" sense that orchestrates all technical analysis,
-indicators, patterns, and market mechanics analysis.
+This is the main engine for the "why" sense that handles fundamental analysis,
+market drivers, and economic intelligence.
 
 Author: EMP Development Team
 Date: July 18, 2024
@@ -15,28 +15,28 @@ from datetime import datetime
 import pandas as pd
 import numpy as np
 
-from src.sensory.core.base import MarketData, DimensionalReading, MarketRegime
+from src.sensory.core.base import MarketData, DimensionalReading, MarketRegime, ConfidenceLevel
 
 logger = logging.getLogger(__name__)
 
 
-class HowEngine:
+class WhyEngine:
     """
-    Main engine for technical analysis and market mechanics.
+    Main engine for fundamental intelligence and market driver analysis.
     
-    This engine processes market data to understand HOW the market is moving,
-    including technical indicators, patterns, momentum, and volatility analysis.
+    This engine processes market data to understand WHY the market moves,
+    including fundamental analysis, economic drivers, and sentiment.
     """
     
     def __init__(self, config: Optional[Dict[str, Any]] = None):
-        """Initialize the how engine with configuration"""
+        """Initialize the why engine with configuration"""
         self.config = config or {}
-        logger.info("How Engine initialized")
+        logger.info("Why Engine initialized")
     
     def analyze_market_data(self, market_data: List[MarketData], 
                           symbol: str = "UNKNOWN") -> Dict[str, Any]:
         """
-        Perform comprehensive technical analysis on market data.
+        Perform comprehensive fundamental analysis on market data.
         
         Args:
             market_data: List of market data points
@@ -53,37 +53,36 @@ class HowEngine:
             # Convert to DataFrame for easier analysis
             df = self._market_data_to_dataframe(market_data)
             
-            # Perform all analyses (sub-modules will be implemented next)
+            # Perform all analyses
             analysis_results = {
                 'symbol': symbol,
                 'timestamp': datetime.now(),
                 'data_points': len(market_data),
-                'indicators': {},  # Will be implemented in indicators sub-module
-                'patterns': [],    # Will be implemented in patterns sub-module
-                'momentum': {},    # Will be implemented in momentum sub-module
-                'volatility': {},  # Will be implemented in volatility sub-module
-                'signals': []      # Will be implemented in signals sub-module
+                'fundamental_intelligence': {}, # Will be implemented in fundamental_intelligence sub-module
+                'economic_analysis': {},        # Will be implemented in economic_analysis sub-module
+                'market_drivers': {},           # Will be implemented in market_drivers sub-module
+                'sentiment_analysis': {}        # Will be implemented in sentiment_analysis sub-module
             }
             
-            logger.info(f"Technical analysis completed for {symbol}")
+            logger.info(f"Fundamental analysis completed for {symbol}")
             
             return analysis_results
             
         except Exception as e:
-            logger.error(f"Error in technical analysis for {symbol}: {e}")
+            logger.error(f"Error in fundamental analysis for {symbol}: {e}")
             return {}
     
     def get_dimensional_reading(self, market_data: List[MarketData], 
                               symbol: str = "UNKNOWN") -> DimensionalReading:
         """
-        Get a dimensional reading for the how sense.
+        Get a dimensional reading for the why sense.
         
         Args:
             market_data: List of market data points
             symbol: Symbol being analyzed
             
         Returns:
-            DimensionalReading with how sense analysis
+            DimensionalReading with why sense analysis
         """
         analysis = self.analyze_market_data(market_data, symbol)
         
@@ -92,7 +91,7 @@ class HowEngine:
         confidence = 0.5       # Will be calculated based on data quality
         
         return DimensionalReading(
-            dimension="HOW",
+            dimension="WHY",
             signal_strength=signal_strength,
             confidence=confidence,
             regime=MarketRegime.UNKNOWN,
@@ -109,12 +108,15 @@ class HowEngine:
         for md in market_data:
             data.append({
                 'timestamp': md.timestamp,
-                'open': md.bid,  # Using bid as open approximation
-                'high': md.ask,  # Using ask as high approximation
-                'low': md.bid,   # Using bid as low approximation
-                'close': (md.bid + md.ask) / 2,  # Mid-price as close
+                'open': md.open,
+                'high': md.high,
+                'low': md.low,
+                'close': md.close,
                 'volume': md.volume,
-                'volatility': 0.0  # Will be calculated if needed
+                'bid': md.bid,
+                'ask': md.ask,
+                'spread': md.spread,
+                'mid_price': md.mid_price
             })
         
         df = pd.DataFrame(data)
@@ -126,6 +128,6 @@ class HowEngine:
 
 # Example usage
 if __name__ == "__main__":
-    # Test the how engine
-    engine = HowEngine()
-    print("How Engine initialized successfully") 
+    # Test the why engine
+    engine = WhyEngine()
+    print("Why Engine initialized successfully") 

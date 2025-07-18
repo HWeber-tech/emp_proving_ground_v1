@@ -22,6 +22,7 @@ from ..evolution.real_genetic_engine import RealGeneticEngine
 from ..analysis.market_regime_detector import MarketRegimeDetector
 from ..analysis.pattern_recognition import AdvancedPatternRecognition
 from .strategy_manager import StrategyManager, StrategySignal
+from .advanced_risk_manager import AdvancedRiskManager, RiskLimits
 from src.decision_genome import DecisionGenome
 
 logger = logging.getLogger(__name__)
@@ -89,6 +90,10 @@ class LiveTradingExecutor:
         self.regime_detector = MarketRegimeDetector()
         self.pattern_recognition = AdvancedPatternRecognition()
         self.strategy_manager = StrategyManager()  # Strategy integration
+        
+        # Advanced risk management
+        risk_limits = RiskLimits()
+        self.advanced_risk_manager = AdvancedRiskManager(risk_limits, self.strategy_manager)
         
         # State management
         self.connected = False
@@ -168,8 +173,9 @@ class LiveTradingExecutor:
             # Step 4: Execute signals
             await self._execute_trading_signals(signals)
             
-            # Step 5: Update performance
+            # Step 5: Update performance and risk metrics
             self._update_performance()
+            self._update_risk_metrics()
             
         except Exception as e:
             logger.error(f"Error in trading cycle: {e}")
@@ -319,22 +325,42 @@ class LiveTradingExecutor:
                 await self._execute_signal(signal)
     
     async def _should_execute_signal(self, signal: TradingSignal) -> bool:
-        """Check if signal should be executed based on risk management."""
+        """Check if signal should be executed based on advanced risk management."""
         # Check if we have too many positions
         current_positions = len(self.ctrader.get_positions())
         if current_positions >= self.max_positions:
             logger.info(f"Max positions reached ({current_positions}), skipping signal")
             return False
         
-        # Check risk management
-        if not self.risk_manager.check_signal(signal):
-            logger.info(f"Signal rejected by risk manager: {signal.symbol}")
+        # Convert TradingSignal to StrategySignal for advanced risk validation
+        strategy_signal = StrategySignal(
+            strategy_id=signal.symbol,  # Use symbol as strategy ID for now
+            symbol=signal.symbol,
+            action=signal.action,
+            confidence=signal.confidence,
+            entry_price=signal.entry_price,
+            stop_loss=signal.stop_loss,
+            take_profit=signal.take_profit,
+            volume=signal.volume,
+            timestamp=signal.timestamp or datetime.now()
+        )
+        
+        # Advanced risk validation
+        is_valid, reason, risk_metadata = self.advanced_risk_manager.validate_signal(
+            strategy_signal, self.market_data
+        )
+        
+        if not is_valid:
+            logger.info(f"Signal rejected by advanced risk manager: {signal.symbol} - {reason}")
             return False
         
         # Check confidence threshold
         if signal.confidence < 0.6:
             logger.info(f"Signal confidence too low ({signal.confidence:.2%}): {signal.symbol}")
             return False
+        
+        # Log risk metadata
+        logger.debug(f"Risk metadata for {signal.symbol}: {risk_metadata}")
         
         return True
     
@@ -464,6 +490,36 @@ class LiveTradingExecutor:
         self.performance.win_rate = winning_trades / total_trades if total_trades > 0 else 0
         self.performance.avg_win = total_profit / winning_trades if winning_trades > 0 else 0
         self.performance.avg_loss = total_loss / losing_trades if losing_trades > 0 else 0
+    
+    def _update_risk_metrics(self):
+        """Update advanced risk metrics."""
+        try:
+            positions = self.ctrader.get_positions()
+            orders = self.ctrader.get_orders()
+            
+            # Get account state (mock values for now)
+            equity = 10000.0  # This would come from account info
+            margin = sum(abs(p.volume * p.entry_price) for p in positions)
+            
+            # Update portfolio state
+            self.advanced_risk_manager.update_portfolio_state(
+                positions=positions,
+                equity=equity,
+                margin=margin,
+                orders=orders
+            )
+            
+            # Update risk metrics
+            self.advanced_risk_manager.update_risk_metrics(positions, self.market_data)
+            
+            # Log risk alerts
+            risk_report = self.advanced_risk_manager.get_risk_report()
+            if risk_report['alerts']:
+                for alert in risk_report['alerts']:
+                    logger.warning(f"Risk Alert: {alert}")
+            
+        except Exception as e:
+            logger.error(f"Error updating risk metrics: {e}")
     
     def get_performance_summary(self) -> Dict[str, Any]:
         """Get performance summary."""

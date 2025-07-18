@@ -367,8 +367,19 @@ class NewsAPIDataProvider:
         return total_score / article_count if article_count > 0 else 0.0
 
 
+# Import additional data providers
+try:
+    from .alpha_vantage_integration import AlphaVantageProvider, AlphaVantageConfig
+    from .fred_integration import FREDProvider, FREDConfig
+    from .newsapi_integration import NewsAPIProvider, NewsAPIConfig
+    ADVANCED_PROVIDERS_AVAILABLE = True
+except ImportError as e:
+    logging.warning(f"Advanced data providers not available: {e}")
+    ADVANCED_PROVIDERS_AVAILABLE = False
+
+
 class RealDataManager:
-    """Main data manager for real data integration"""
+    """Enhanced real data manager with all data sources"""
     
     def __init__(self, config: Dict[str, Any]):
         self.config = config
@@ -379,10 +390,10 @@ class RealDataManager:
         # Initialize data providers
         self._initialize_providers()
         
-        logger.info("Real Data Manager initialized")
+        logger.info("Enhanced Real Data Manager initialized")
     
     def _initialize_providers(self):
-        """Initialize data providers based on configuration"""
+        """Initialize all data providers"""
         try:
             # Yahoo Finance (always available, no API key required)
             yahoo_config = DataSourceConfig(
@@ -393,37 +404,72 @@ class RealDataManager:
             self.providers['yahoo_finance'] = YahooFinanceDataProvider(yahoo_config)
             
             # Alpha Vantage (requires API key)
-            alpha_config = DataSourceConfig(
-                source_name="alpha_vantage",
-                api_key=os.getenv('ALPHA_VANTAGE_API_KEY'),
-                base_url="https://www.alphavantage.co/query",
-                rate_limit=5,  # 5 requests per minute for free tier
-                timeout=30
-            )
-            if alpha_config.api_key:
-                self.providers['alpha_vantage'] = AlphaVantageDataProvider(alpha_config)
-            
-            # FRED API (requires API key)
-            fred_config = DataSourceConfig(
-                source_name="fred",
-                api_key=os.getenv('FRED_API_KEY'),
-                base_url="https://api.stlouisfed.org/fred/series/observations",
-                rate_limit=120,  # 120 requests per minute
-                timeout=30
-            )
-            if fred_config.api_key:
-                self.providers['fred'] = FREDDataProvider(fred_config)
-            
-            # NewsAPI (requires API key)
-            news_config = DataSourceConfig(
-                source_name="newsapi",
-                api_key=os.getenv('NEWS_API_KEY'),
-                base_url="https://newsapi.org/v2/everything",
-                rate_limit=100,  # 100 requests per day for free tier
-                timeout=30
-            )
-            if news_config.api_key:
-                self.providers['newsapi'] = NewsAPIDataProvider(news_config)
+            if ADVANCED_PROVIDERS_AVAILABLE:
+                alpha_config = AlphaVantageConfig(
+                    api_key=os.getenv('ALPHA_VANTAGE_API_KEY', ''),
+                    rate_limit=5,  # 5 requests per minute for free tier
+                    timeout=30
+                )
+                if alpha_config.api_key:
+                    self.providers['alpha_vantage'] = AlphaVantageProvider(alpha_config)
+                    logger.info("Alpha Vantage provider initialized")
+                else:
+                    logger.warning("Alpha Vantage API key not found")
+                
+                # FRED API (requires API key)
+                fred_config = FREDConfig(
+                    api_key=os.getenv('FRED_API_KEY', ''),
+                    rate_limit=120,  # 120 requests per minute
+                    timeout=30
+                )
+                if fred_config.api_key:
+                    self.providers['fred'] = FREDProvider(fred_config)
+                    logger.info("FRED API provider initialized")
+                else:
+                    logger.warning("FRED API key not found")
+                
+                # NewsAPI (requires API key)
+                news_config = NewsAPIConfig(
+                    api_key=os.getenv('NEWS_API_KEY', ''),
+                    rate_limit=100,  # 100 requests per day for free tier
+                    timeout=30
+                )
+                if news_config.api_key:
+                    self.providers['newsapi'] = NewsAPIProvider(news_config)
+                    logger.info("NewsAPI provider initialized")
+                else:
+                    logger.warning("NewsAPI key not found")
+            else:
+                # Fallback to basic implementations
+                alpha_config = DataSourceConfig(
+                    source_name="alpha_vantage",
+                    api_key=os.getenv('ALPHA_VANTAGE_API_KEY'),
+                    base_url="https://www.alphavantage.co/query",
+                    rate_limit=5,
+                    timeout=30
+                )
+                if alpha_config.api_key:
+                    self.providers['alpha_vantage'] = AlphaVantageDataProvider(alpha_config)
+                
+                fred_config = DataSourceConfig(
+                    source_name="fred",
+                    api_key=os.getenv('FRED_API_KEY'),
+                    base_url="https://api.stlouisfed.org/fred/series/observations",
+                    rate_limit=120,
+                    timeout=30
+                )
+                if fred_config.api_key:
+                    self.providers['fred'] = FREDDataProvider(fred_config)
+                
+                news_config = DataSourceConfig(
+                    source_name="newsapi",
+                    api_key=os.getenv('NEWS_API_KEY'),
+                    base_url="https://newsapi.org/v2/everything",
+                    rate_limit=100,
+                    timeout=30
+                )
+                if news_config.api_key:
+                    self.providers['newsapi'] = NewsAPIDataProvider(news_config)
             
             logger.info(f"Initialized {len(self.providers)} data providers: {list(self.providers.keys())}")
             
@@ -440,6 +486,8 @@ class RealDataManager:
                     data = await provider.get_market_data(symbol)
                 elif isinstance(provider, AlphaVantageDataProvider):
                     data = await provider.get_real_time_data(symbol)
+                elif ADVANCED_PROVIDERS_AVAILABLE and isinstance(provider, AlphaVantageProvider):
+                    data = await provider.get_real_time_quote(symbol)
                 else:
                     logger.warning(f"Provider {source} does not support market data")
                     data = None
@@ -465,31 +513,123 @@ class RealDataManager:
             logger.error(f"Error getting market data for {symbol}: {e}")
             return None
     
-    async def get_economic_data(self, indicator: str = "GDP") -> Optional[pd.DataFrame]:
-        """Get economic data from FRED"""
-        if "fred" in self.providers:
-            provider = self.providers["fred"]
+    async def get_technical_indicators(self, symbol: str, indicator: str = "RSI", source: str = "alpha_vantage") -> Optional[Dict[str, Any]]:
+        """Get technical indicators from specified source"""
+        if source in self.providers:
+            provider = self.providers[source]
             
-            if indicator == "GDP":
-                return await provider.get_gdp_data()
-            elif indicator == "INFLATION":
-                return await provider.get_inflation_data()
-            elif indicator == "UNEMPLOYMENT":
-                return await provider.get_unemployment_data()
-            else:
-                return await provider.get_economic_indicator(indicator)
+            if isinstance(provider, AlphaVantageDataProvider):
+                return await provider.get_technical_indicators(symbol, indicator)
+            elif ADVANCED_PROVIDERS_AVAILABLE and isinstance(provider, AlphaVantageProvider):
+                return await provider.get_technical_indicator(symbol, indicator)
         
-        logger.warning("FRED API not available for economic data")
+        logger.warning(f"Technical indicators not available from {source}")
         return None
     
-    async def get_sentiment_data(self, query: str = "forex trading") -> Optional[Dict[str, Any]]:
-        """Get sentiment data from NewsAPI"""
-        if "newsapi" in self.providers:
-            provider = self.providers["newsapi"]
-            return await provider.get_market_sentiment(query)
+    async def get_economic_data(self, indicator: str = "GDP", source: str = "fred") -> Optional[pd.DataFrame]:
+        """Get economic data from specified source"""
+        if source in self.providers:
+            provider = self.providers[source]
+            
+            if isinstance(provider, FREDDataProvider):
+                if indicator == "GDP":
+                    return await provider.get_gdp_data()
+                elif indicator == "INFLATION":
+                    return await provider.get_inflation_data()
+                elif indicator == "UNEMPLOYMENT":
+                    return await provider.get_unemployment_data()
+                else:
+                    return await provider.get_economic_indicator(indicator)
+            elif ADVANCED_PROVIDERS_AVAILABLE and isinstance(provider, FREDProvider):
+                if indicator == "GDP":
+                    return await provider.get_gdp_data()
+                elif indicator == "INFLATION":
+                    return await provider.get_inflation_data()
+                elif indicator == "UNEMPLOYMENT":
+                    return await provider.get_unemployment_data()
+                elif indicator == "INTEREST_RATE":
+                    return await provider.get_interest_rate_data()
+                elif indicator == "CONSUMER_SENTIMENT":
+                    return await provider.get_consumer_sentiment_data()
+                elif indicator == "HOUSING":
+                    return await provider.get_housing_data()
+                else:
+                    return await provider.get_series_observations(indicator)
         
-        logger.warning("NewsAPI not available for sentiment data")
+        logger.warning(f"Economic data not available from {source}")
         return None
+    
+    async def get_sentiment_data(self, query: str = "forex trading", source: str = "newsapi") -> Optional[Dict[str, Any]]:
+        """Get sentiment data from specified source"""
+        if source in self.providers:
+            provider = self.providers[source]
+            
+            if isinstance(provider, NewsAPIDataProvider):
+                return await provider.get_market_sentiment(query)
+            elif ADVANCED_PROVIDERS_AVAILABLE and isinstance(provider, NewsAPIProvider):
+                return await provider.get_market_sentiment(query)
+        
+        logger.warning(f"Sentiment data not available from {source}")
+        return None
+    
+    async def get_advanced_data(self, data_type: str, **kwargs) -> Optional[Any]:
+        """Get advanced data from appropriate provider"""
+        try:
+            if data_type == "technical_indicators":
+                symbol = kwargs.get('symbol', 'AAPL')
+                indicator = kwargs.get('indicator', 'RSI')
+                source = kwargs.get('source', 'alpha_vantage')
+                return await self.get_technical_indicators(symbol, indicator, source)
+            
+            elif data_type == "economic_dashboard":
+                source = kwargs.get('source', 'fred')
+                if source in self.providers and ADVANCED_PROVIDERS_AVAILABLE:
+                    provider = self.providers[source]
+                    if isinstance(provider, FREDProvider):
+                        return await provider.get_economic_dashboard()
+                return None
+            
+            elif data_type == "sentiment_trends":
+                queries = kwargs.get('queries', ['forex', 'stocks', 'crypto'])
+                source = kwargs.get('source', 'newsapi')
+                if source in self.providers and ADVANCED_PROVIDERS_AVAILABLE:
+                    provider = self.providers[source]
+                    if isinstance(provider, NewsAPIProvider):
+                        return await provider.get_sentiment_trends(queries)
+                return None
+            
+            elif data_type == "intraday_data":
+                symbol = kwargs.get('symbol', 'AAPL')
+                interval = kwargs.get('interval', '5min')
+                source = kwargs.get('source', 'alpha_vantage')
+                if source in self.providers and ADVANCED_PROVIDERS_AVAILABLE:
+                    provider = self.providers[source]
+                    if isinstance(provider, AlphaVantageProvider):
+                        return await provider.get_intraday_data(symbol, interval)
+                return None
+            
+            else:
+                logger.warning(f"Unknown advanced data type: {data_type}")
+                return None
+                
+        except Exception as e:
+            logger.error(f"Error getting advanced data {data_type}: {e}")
+            return None
+    
+    def get_provider_status(self) -> Dict[str, Any]:
+        """Get status of all providers"""
+        status = {}
+        
+        for name, provider in self.providers.items():
+            if hasattr(provider, 'get_api_status'):
+                status[name] = provider.get_api_status()
+            else:
+                status[name] = {
+                    'available': True,
+                    'api_key_configured': hasattr(provider, 'api_key') and bool(provider.api_key)
+                }
+        
+        return status
     
     def _update_data_quality(self, source: str, data: MarketData):
         """Update data quality metrics"""

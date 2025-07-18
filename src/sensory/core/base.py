@@ -8,14 +8,14 @@ These provide type safety, clear data contracts, and eliminate the need for ad-h
 from abc import ABC, abstractmethod
 from datetime import datetime, time
 from enum import Enum
-from typing import Dict, List, Optional, Tuple, Any, Union
-from pydantic import BaseModel, Field, validator, model_validator
-import numpy as np
-from dataclasses import dataclass
+from typing import Any, Dict, List, Optional, Tuple
+
+from pydantic import BaseModel, Field, model_validator, validator
 
 
 class MarketRegime(Enum):
     """Market volatility and trend regimes"""
+
     TRENDING_STRONG = "trending_strong"
     TRENDING_WEAK = "trending_weak"
     CONSOLIDATING = "consolidating"
@@ -34,6 +34,7 @@ class MarketRegime(Enum):
 
 class ConfidenceLevel(Enum):
     """Standardized confidence levels across all dimensions"""
+
     VERY_LOW = 0.1
     LOW = 0.3
     MEDIUM = 0.5
@@ -43,6 +44,7 @@ class ConfidenceLevel(Enum):
 
 class EventTier(Enum):
     """Economic event importance tiers"""
+
     TIER_1 = "tier_1"  # High impact (NFP, FOMC, CPI)
     TIER_2 = "tier_2"  # Medium impact (PMI, Retail Sales)
     TIER_3 = "tier_3"  # Low impact (Housing data, minor indicators)
@@ -50,6 +52,7 @@ class EventTier(Enum):
 
 class SessionType(Enum):
     """Trading session types"""
+
     ASIAN = "asian"
     LONDON = "london"
     NEW_YORK = "new_york"
@@ -62,26 +65,29 @@ class InstrumentMeta(BaseModel):
     Canonical instrument metadata that all dimensional engines can rely on.
     Provides essential trading parameters and session information.
     """
+
     symbol: str = Field(..., description="Trading symbol (e.g., EURUSD)")
     pip_size: float = Field(..., description="Pip size for the instrument")
     lot_size: int = Field(100000, description="Standard lot size")
     timezone: str = Field("UTC", description="Instrument timezone")
-    
+
     # Trading sessions with start/end times
     sessions: Dict[str, Tuple[str, str]] = Field(
         default_factory=lambda: {
             "ASIAN": ("00:00", "09:00"),
             "LONDON": ("08:00", "17:00"),
-            "NEW_YORK": ("13:00", "22:00")
+            "NEW_YORK": ("13:00", "22:00"),
         },
-        description="Trading sessions with start/end times in HH:MM format"
+        description="Trading sessions with start/end times in HH:MM format",
     )
-    
+
     # Spread and volatility characteristics
     typical_spread: float = Field(0.0001, description="Typical spread in price units")
-    avg_daily_range: float = Field(0.01, description="Average daily range in price units")
-    
-    @validator('sessions')
+    avg_daily_range: float = Field(
+        0.01, description="Average daily range in price units"
+    )
+
+    @validator("sessions")
     def validate_sessions(cls, v):
         """Validate session time formats"""
         for session, (start, end) in v.items():
@@ -89,7 +95,9 @@ class InstrumentMeta(BaseModel):
                 time.fromisoformat(start)
                 time.fromisoformat(end)
             except ValueError:
-                raise ValueError(f"Invalid time format in session {session}: {start}-{end}")
+                raise ValueError(
+                    f"Invalid time format in session {session}: {start}-{end}"
+                )
         return v
 
 
@@ -98,33 +106,48 @@ class DimensionalReading(BaseModel):
     Canonical output format for all dimensional sensors.
     Standardizes how each dimension communicates its perception to the orchestrator.
     """
-    dimension: str = Field(..., description="Dimension name (WHY/HOW/WHAT/WHEN/ANOMALY)")
+
+    dimension: str = Field(
+        ..., description="Dimension name (WHY/HOW/WHAT/WHEN/ANOMALY)"
+    )
     timestamp: datetime = Field(default_factory=datetime.utcnow)
-    
+
     # Core signal components
-    signal_strength: float = Field(..., ge=-1.0, le=1.0, description="Primary signal (-1 to +1)")
-    confidence: float = Field(..., ge=0.0, le=1.0, description="Signal confidence (0 to 1)")
-    
+    signal_strength: float = Field(
+        ..., ge=-1.0, le=1.0, description="Primary signal (-1 to +1)"
+    )
+    confidence: float = Field(
+        ..., ge=0.0, le=1.0, description="Signal confidence (0 to 1)"
+    )
+
     # Context and metadata
     regime: MarketRegime = Field(..., description="Detected market regime")
-    context: Dict[str, Any] = Field(default_factory=dict, description="Dimension-specific context")
-    
+    context: Dict[str, Any] = Field(
+        default_factory=dict, description="Dimension-specific context"
+    )
+
     # Quality metrics
-    data_quality: float = Field(1.0, ge=0.0, le=1.0, description="Input data quality score")
-    processing_time_ms: float = Field(0.0, description="Processing time in milliseconds")
-    
+    data_quality: float = Field(
+        1.0, ge=0.0, le=1.0, description="Input data quality score"
+    )
+    processing_time_ms: float = Field(
+        0.0, description="Processing time in milliseconds"
+    )
+
     # Supporting evidence
-    evidence: Dict[str, float] = Field(default_factory=dict, description="Supporting evidence scores")
+    evidence: Dict[str, float] = Field(
+        default_factory=dict, description="Supporting evidence scores"
+    )
     warnings: List[str] = Field(default_factory=list, description="Processing warnings")
-    
-    @validator('signal_strength')
+
+    @validator("signal_strength")
     def validate_signal_strength(cls, v):
         """Ensure signal strength is within valid range"""
         if not -1.0 <= v <= 1.0:
             raise ValueError(f"Signal strength must be between -1.0 and 1.0, got {v}")
         return v
-    
-    @validator('confidence')
+
+    @validator("confidence")
     def validate_confidence(cls, v):
         """Ensure confidence is within valid range"""
         if not 0.0 <= v <= 1.0:
@@ -137,33 +160,34 @@ class MarketData(BaseModel):
     Standardized market data structure for all dimensional engines.
     Replaces ad-hoc data structures with a canonical format.
     """
+
     symbol: str
     timestamp: datetime
-    
+
     # OHLCV data
     open: float
     high: float
     low: float
     close: float
     volume: float
-    
+
     # Bid/Ask data
     bid: float
     ask: float
-    
+
     # Derived fields
     spread: float = Field(default=0.0)
     mid_price: float = Field(default=0.0)
-    
+
     # Optional Level 2 data
     bid_volume: Optional[float] = None
     ask_volume: Optional[float] = None
-    
+
     # Data source metadata
     source: str = Field("unknown", description="Data source identifier")
     latency_ms: float = Field(0.0, description="Data latency in milliseconds")
-    
-    @model_validator(mode='after')
+
+    @model_validator(mode="after")
     def calculate_derived_fields(self):
         """Calculate derived fields after validation."""
         self.spread = self.ask - self.bid
@@ -175,29 +199,34 @@ class EconomicEvent(BaseModel):
     """
     Economic calendar event structure for the WHY dimension.
     """
+
     event_id: str
     timestamp: datetime
     currency: str
     event_name: str
     tier: EventTier
-    
+
     # Event details
     actual: Optional[float] = None
     forecast: Optional[float] = None
     previous: Optional[float] = None
-    
+
     # Impact assessment
     impact_score: float = Field(0.0, ge=0.0, le=1.0)
-    surprise_index: float = Field(0.0, ge=-1.0, le=1.0)  # (actual - forecast) / std_dev
-    
+    # (actual - forecast) / std_dev
+    surprise_index: float = Field(0.0, ge=-1.0, le=1.0)
+
     # Time to event (for forward-looking analysis)
-    time_to_event_hours: float = Field(0.0, description="Hours until event (negative if past)")
+    time_to_event_hours: float = Field(
+        0.0, description="Hours until event (negative if past)"
+    )
 
 
 class OrderBookLevel(BaseModel):
     """
     Order book level for institutional flow analysis (HOW dimension).
     """
+
     price: float
     volume: float
     order_count: int = 1
@@ -207,19 +236,24 @@ class OrderBookSnapshot(BaseModel):
     """
     Complete order book snapshot for Level 2 analysis.
     """
+
     symbol: str
     timestamp: datetime
-    
-    bids: List[OrderBookLevel] = Field(..., description="Bid levels (highest to lowest)")
-    asks: List[OrderBookLevel] = Field(..., description="Ask levels (lowest to highest)")
-    
+
+    bids: List[OrderBookLevel] = Field(
+        ..., description="Bid levels (highest to lowest)"
+    )
+    asks: List[OrderBookLevel] = Field(
+        ..., description="Ask levels (lowest to highest)"
+    )
+
     # Derived metrics
     spread: float = Field(default=0.0)
     mid_price: float = Field(default=0.0)
     total_bid_volume: float = Field(default=0.0)
     total_ask_volume: float = Field(default=0.0)
-    
-    @model_validator(mode='after')
+
+    @model_validator(mode="after")
     def calculate_derived_fields(self):
         """Calculate derived fields after validation."""
         if self.bids and self.asks:
@@ -240,82 +274,81 @@ class DimensionalSensor(ABC):
     Abstract base class for all dimensional sensors.
     Enforces consistent interface and behavior across all dimensions.
     """
-    
+
     def __init__(self, instrument_meta: InstrumentMeta):
         self.instrument_meta = instrument_meta
         self.last_reading: Optional[DimensionalReading] = None
         self.is_initialized = False
-        
+
     @abstractmethod
     async def update(self, market_data: MarketData) -> DimensionalReading:
         """
         Process new market data and return dimensional reading.
-        
+
         Args:
             market_data: Latest market data
-            
+
         Returns:
             DimensionalReading with current perception
         """
-        pass
-    
+
     @abstractmethod
     def snapshot(self) -> DimensionalReading:
         """
         Return current dimensional state without processing new data.
-        
+
         Returns:
             Current DimensionalReading or default if not initialized
         """
-        pass
-    
+
     @abstractmethod
     def reset(self) -> None:
         """Reset sensor state for new trading session or instrument."""
-        pass
-    
+
     def get_dimension_name(self) -> str:
         """Return the dimension name for this sensor."""
-        return self.__class__.__name__.replace('Engine', '').replace('Sensor', '').upper()
+        return (
+            self.__class__.__name__.replace("Engine", "").replace("Sensor", "").upper()
+        )
 
 
 class SystemHealth(BaseModel):
     """
     System health metrics for monitoring and diagnostics.
     """
+
     timestamp: datetime = Field(default_factory=datetime.utcnow)
-    
+
     # Performance metrics
     total_processing_time_ms: float = 0.0
     memory_usage_mb: float = 0.0
     cpu_usage_percent: float = 0.0
-    
+
     # Data quality metrics
     data_freshness_seconds: float = 0.0
     missing_data_count: int = 0
     error_count: int = 0
-    
+
     # Dimensional health
     active_dimensions: List[str] = Field(default_factory=list)
     failed_dimensions: List[str] = Field(default_factory=list)
-    
+
     # Overall system status
     overall_health_score: float = Field(1.0, ge=0.0, le=1.0)
     status: str = "healthy"  # healthy, degraded, critical
-    
+
     def is_healthy(self) -> bool:
         """Check if system is in healthy state."""
         return (
-            self.overall_health_score >= 0.7 and
-            len(self.failed_dimensions) == 0 and
-            self.error_count == 0
+            self.overall_health_score >= 0.7
+            and len(self.failed_dimensions) == 0
+            and self.error_count == 0
         )
 
 
 # Type aliases for clarity
 SignalStrength = float  # -1.0 to +1.0
-Confidence = float      # 0.0 to 1.0
+Confidence = float  # 0.0 to 1.0
 Price = float
 Volume = float
 Timestamp = datetime
-

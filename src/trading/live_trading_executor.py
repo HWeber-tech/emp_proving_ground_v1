@@ -23,6 +23,7 @@ from ..analysis.market_regime_detector import MarketRegimeDetector
 from ..analysis.pattern_recognition import AdvancedPatternRecognition
 from .strategy_manager import StrategyManager, StrategySignal
 from .advanced_risk_manager import AdvancedRiskManager, RiskLimits
+from .performance_tracker import PerformanceTracker
 from src.decision_genome import DecisionGenome
 
 logger = logging.getLogger(__name__)
@@ -94,6 +95,9 @@ class LiveTradingExecutor:
         # Advanced risk management
         risk_limits = RiskLimits()
         self.advanced_risk_manager = AdvancedRiskManager(risk_limits, self.strategy_manager)
+        
+        # Performance tracking
+        self.performance_tracker = PerformanceTracker(initial_balance=100000.0)  # Default balance
         
         # State management
         self.connected = False
@@ -384,6 +388,19 @@ class LiveTradingExecutor:
             if order_id:
                 logger.info(f"Order placed: {signal.action} {signal.volume} {signal.symbol} (ID: {order_id})")
                 self.signals.append(signal)
+                
+                # Record trade in performance tracker
+                trade_data = {
+                    'symbol': signal.symbol,
+                    'action': signal.action,
+                    'entry_price': signal.entry_price,
+                    'size': signal.volume,
+                    'strategy': 'evolutionary',
+                    'entry_time': datetime.now(),
+                    'stop_loss': signal.stop_loss,
+                    'take_profit': signal.take_profit
+                }
+                self.performance_tracker.record_trade(trade_data)
             else:
                 logger.error(f"Failed to place order for {signal.symbol}")
                 
@@ -453,6 +470,17 @@ class LiveTradingExecutor:
     def _on_position_update(self, position: Position):
         """Handle position updates."""
         logger.info(f"Position update: {position.position_id} - P&L: {position.profit_loss}")
+        
+        # Update performance tracker
+        position_data = {
+            'symbol': position.symbol_id,
+            'volume': position.volume,
+            'entry_price': position.entry_price,
+            'current_price': position.current_price,
+            'pnl': position.profit_loss,
+            'side': position.side.value
+        }
+        self.performance_tracker.update_position(position_data)
     
     def _on_error(self, error_msg: str):
         """Handle errors."""
@@ -468,28 +496,32 @@ class LiveTradingExecutor:
                 pass
     
     def _update_performance(self):
-        """Update performance metrics."""
-        positions = self.ctrader.get_positions()
-        
-        # Calculate basic metrics
-        total_trades = len(positions)
-        winning_trades = sum(1 for p in positions if p.profit_loss > 0)
-        losing_trades = sum(1 for p in positions if p.profit_loss < 0)
-        
-        total_profit = sum(p.profit_loss for p in positions if p.profit_loss > 0)
-        total_loss = sum(p.profit_loss for p in positions if p.profit_loss < 0)
-        net_profit = total_profit + total_loss
-        
-        # Update performance
-        self.performance.total_trades = total_trades
-        self.performance.winning_trades = winning_trades
-        self.performance.losing_trades = losing_trades
-        self.performance.total_profit = total_profit
-        self.performance.total_loss = total_loss
-        self.performance.net_profit = net_profit
-        self.performance.win_rate = winning_trades / total_trades if total_trades > 0 else 0
-        self.performance.avg_win = total_profit / winning_trades if winning_trades > 0 else 0
-        self.performance.avg_loss = total_loss / losing_trades if losing_trades > 0 else 0
+        """Update performance metrics using performance tracker."""
+        try:
+            # Update daily equity
+            current_equity = self.performance_tracker.current_balance
+            self.performance_tracker.update_daily_equity(current_equity)
+            
+            # Calculate comprehensive metrics
+            metrics = self.performance_tracker.calculate_metrics()
+            
+            # Update legacy performance object for compatibility
+            self.performance.total_trades = metrics.total_trades
+            self.performance.winning_trades = metrics.winning_trades
+            self.performance.losing_trades = metrics.losing_trades
+            self.performance.win_rate = metrics.win_rate
+            self.performance.avg_win = metrics.avg_win
+            self.performance.avg_loss = metrics.avg_loss
+            self.performance.max_drawdown = metrics.max_drawdown
+            self.performance.sharpe_ratio = metrics.sharpe_ratio
+            
+            # Log performance alerts
+            alerts = self.performance_tracker.get_performance_alerts()
+            for alert in alerts:
+                logger.warning(f"Performance Alert: {alert['message']}")
+                
+        except Exception as e:
+            logger.error(f"Error updating performance: {e}")
     
     def _update_risk_metrics(self):
         """Update advanced risk metrics."""
@@ -536,6 +568,18 @@ class LiveTradingExecutor:
             'max_drawdown': f"{self.performance.max_drawdown:.2%}",
             'sharpe_ratio': f"{self.performance.sharpe_ratio:.2f}"
         }
+    
+    def get_comprehensive_performance_report(self, report_type: str = "comprehensive") -> Dict[str, Any]:
+        """Get comprehensive performance report using performance tracker."""
+        return self.performance_tracker.generate_report(report_type)
+    
+    def export_performance_data(self, format: str = "json") -> str:
+        """Export performance data."""
+        return self.performance_tracker.export_data(format)
+    
+    def get_performance_alerts(self) -> List[Dict[str, Any]]:
+        """Get performance alerts."""
+        return self.performance_tracker.get_performance_alerts()
 
 
 class LiveRiskManager:

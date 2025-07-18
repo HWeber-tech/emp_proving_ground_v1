@@ -9,8 +9,9 @@ execution through IC Markets cTrader OpenAPI.
 import asyncio
 import logging
 import json
+import numpy as np
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, Tuple
 from dataclasses import dataclass
 import pandas as pd
 
@@ -24,6 +25,7 @@ from ..analysis.pattern_recognition import AdvancedPatternRecognition
 from .strategy_manager import StrategyManager, StrategySignal
 from .advanced_risk_manager import AdvancedRiskManager, RiskLimits
 from .performance_tracker import PerformanceTracker
+from .order_book_analyzer import OrderBookAnalyzer
 from src.decision_genome import DecisionGenome
 
 logger = logging.getLogger(__name__)
@@ -99,6 +101,9 @@ class LiveTradingExecutor:
         # Performance tracking
         self.performance_tracker = PerformanceTracker(initial_balance=100000.0)  # Default balance
         
+        # Order book analysis
+        self.order_book_analyzer = OrderBookAnalyzer(max_levels=20, history_window=1000)
+        
         # State management
         self.connected = False
         self.running = False
@@ -168,16 +173,19 @@ class LiveTradingExecutor:
             # Step 1: Update market data
             await self._update_market_data()
             
-            # Step 2: Perform market analysis
+            # Step 2: Update order book analysis
+            await self._update_order_book_analysis()
+            
+            # Step 3: Perform market analysis
             await self._perform_market_analysis()
             
-            # Step 3: Generate trading signals
+            # Step 4: Generate trading signals
             signals = await self._generate_trading_signals()
             
-            # Step 4: Execute signals
+            # Step 5: Execute signals
             await self._execute_trading_signals(signals)
             
-            # Step 5: Update performance and risk metrics
+            # Step 6: Update performance and risk metrics
             self._update_performance()
             self._update_risk_metrics()
             
@@ -190,6 +198,53 @@ class LiveTradingExecutor:
             market_data = self.ctrader.get_market_data(symbol)
             if market_data:
                 self.market_data[symbol] = market_data
+    
+    async def _update_order_book_analysis(self):
+        """Update order book analysis for all symbols."""
+        for symbol in self.symbols:
+            # Get order book data from cTrader (mock implementation)
+            order_book_data = await self._get_order_book_data(symbol)
+            if order_book_data:
+                bids, asks = order_book_data
+                self.order_book_analyzer.update_order_book(symbol, bids, asks)
+                
+                # Log order book insights
+                analysis = self.order_book_analyzer.get_market_analysis(symbol)
+                if analysis:
+                    logger.debug(f"Order book analysis for {symbol}: spread={analysis['current']['spread']:.5f}, "
+                               f"liquidity={analysis['current']['total_liquidity']:.1f}")
+    
+    async def _get_order_book_data(self, symbol: str) -> Optional[Tuple[List[Tuple[float, float]], List[Tuple[float, float]]]]:
+        """Get order book data for a symbol (mock implementation)."""
+        try:
+            # Mock order book data - in real implementation, this would come from cTrader
+            market_data = self.market_data.get(symbol)
+            if not market_data:
+                return None
+            
+            # Generate realistic order book around current price
+            current_price = (market_data.bid + market_data.ask) / 2
+            spread = market_data.ask - market_data.bid
+            
+            # Generate bid levels (descending prices)
+            bids = []
+            for i in range(10):
+                price = current_price - (i * spread * 0.5)
+                volume = np.random.uniform(0.1, 5.0)  # Random volume between 0.1 and 5 lots
+                bids.append((price, volume))
+            
+            # Generate ask levels (ascending prices)
+            asks = []
+            for i in range(10):
+                price = current_price + (i * spread * 0.5)
+                volume = np.random.uniform(0.1, 5.0)  # Random volume between 0.1 and 5 lots
+                asks.append((price, volume))
+            
+            return bids, asks
+            
+        except Exception as e:
+            logger.error(f"Error getting order book data for {symbol}: {e}")
+            return None
     
     async def _perform_market_analysis(self):
         """Perform market analysis for all symbols."""
@@ -321,6 +376,72 @@ class LiveTradingExecutor:
             )
         
         return None
+    
+    def _adjust_signal_with_order_book(self, signal: TradingSignal, order_book_analysis: Dict[str, Any]) -> TradingSignal:
+        """Adjust trading signal based on order book analysis."""
+        try:
+            current = order_book_analysis.get('current', {})
+            signals = order_book_analysis.get('signals', {})
+            
+            # Adjust confidence based on order book signals
+            confidence_adjustment = 0.0
+            
+            # Liquidity signal
+            if signals.get('liquidity_signal') == 'positive':
+                confidence_adjustment += 0.1
+            elif signals.get('liquidity_signal') == 'negative':
+                confidence_adjustment -= 0.1
+            
+            # Spread signal
+            if signals.get('spread_signal') == 'positive':
+                confidence_adjustment += 0.05
+            elif signals.get('spread_signal') == 'negative':
+                confidence_adjustment -= 0.05
+            
+            # Imbalance signal
+            imbalance_signal = signals.get('imbalance_signal')
+            if imbalance_signal == 'buy' and signal.action == 'buy':
+                confidence_adjustment += 0.1
+            elif imbalance_signal == 'sell' and signal.action == 'sell':
+                confidence_adjustment += 0.1
+            elif imbalance_signal and imbalance_signal != signal.action:
+                confidence_adjustment -= 0.1
+            
+            # Pressure signal
+            pressure_signal = signals.get('pressure_signal')
+            if pressure_signal == signal.action:
+                confidence_adjustment += 0.05
+            elif pressure_signal and pressure_signal != signal.action:
+                confidence_adjustment -= 0.05
+            
+            # Apply confidence adjustment
+            new_confidence = max(0.1, min(0.95, signal.confidence + confidence_adjustment))
+            signal.confidence = new_confidence
+            
+            # Adjust volume based on liquidity
+            liquidity = current.get('total_liquidity', 0)
+            if liquidity > 100:  # High liquidity
+                signal.volume = min(signal.volume * 1.2, 0.05)  # Increase volume up to 0.05 lots
+            elif liquidity < 20:  # Low liquidity
+                signal.volume = max(signal.volume * 0.8, 0.005)  # Decrease volume, minimum 0.005 lots
+            
+            # Adjust stop loss based on spread
+            spread = current.get('spread', 0)
+            if spread > 0.0005 and signal.entry_price:  # Wide spread
+                # Widen stop loss to account for spread
+                if signal.action == 'buy':
+                    signal.stop_loss = signal.entry_price * 0.985  # 1.5% stop loss
+                else:
+                    signal.stop_loss = signal.entry_price * 1.015  # 1.5% stop loss
+            
+            logger.debug(f"Signal adjusted for {signal.symbol}: confidence={new_confidence:.3f}, "
+                        f"volume={signal.volume:.3f}, spread={spread:.5f}")
+            
+            return signal
+            
+        except Exception as e:
+            logger.error(f"Error adjusting signal with order book: {e}")
+            return signal
     
     async def _execute_trading_signals(self, signals: List[TradingSignal]):
         """Execute trading signals."""
@@ -580,6 +701,22 @@ class LiveTradingExecutor:
     def get_performance_alerts(self) -> List[Dict[str, Any]]:
         """Get performance alerts."""
         return self.performance_tracker.get_performance_alerts()
+    
+    def get_order_book_analysis(self, symbol: str) -> Dict[str, Any]:
+        """Get order book analysis for a symbol."""
+        return self.order_book_analyzer.get_market_analysis(symbol)
+    
+    def get_liquidity_analysis(self, symbol: str, volume: float) -> Dict[str, Any]:
+        """Get liquidity analysis for a specific volume."""
+        return self.order_book_analyzer.get_liquidity_analysis(symbol, volume)
+    
+    def get_order_book_snapshot(self, symbol: str):
+        """Get the latest order book snapshot for a symbol."""
+        return self.order_book_analyzer.get_order_book_snapshot(symbol)
+    
+    def export_order_book_data(self, symbol: str, format: str = "json") -> str:
+        """Export order book data for analysis."""
+        return self.order_book_analyzer.export_order_book_data(symbol, format)
 
 
 class LiveRiskManager:

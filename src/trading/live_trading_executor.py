@@ -1,0 +1,489 @@
+#!/usr/bin/env python3
+"""
+Live Trading Executor - Evolutionary Strategy Execution
+
+This module integrates the evolutionary trading strategies with live trading
+execution through IC Markets cTrader OpenAPI.
+"""
+
+import asyncio
+import logging
+import json
+from datetime import datetime, timedelta
+from typing import Dict, List, Optional, Any
+from dataclasses import dataclass
+import pandas as pd
+
+from .mock_ctrader_interface import (
+    CTraderInterface, TradingConfig, MarketData, Order, Position,
+    TradingMode, OrderType, OrderSide
+)
+from ..evolution.real_genetic_engine import RealGeneticEngine
+from ..analysis.market_regime_detector import MarketRegimeDetector
+from ..analysis.pattern_recognition import AdvancedPatternRecognition
+
+logger = logging.getLogger(__name__)
+
+
+@dataclass
+class TradingSignal:
+    """Trading signal from evolutionary strategy."""
+    symbol: str
+    action: str  # 'buy', 'sell', 'hold'
+    confidence: float
+    entry_price: Optional[float] = None
+    stop_loss: Optional[float] = None
+    take_profit: Optional[float] = None
+    volume: float = 0.01  # Default 0.01 lots
+    timestamp: Optional[datetime] = None
+
+
+@dataclass
+class TradingPerformance:
+    """Trading performance metrics."""
+    total_trades: int = 0
+    winning_trades: int = 0
+    losing_trades: int = 0
+    total_profit: float = 0.0
+    total_loss: float = 0.0
+    net_profit: float = 0.0
+    win_rate: float = 0.0
+    avg_win: float = 0.0
+    avg_loss: float = 0.0
+    max_drawdown: float = 0.0
+    sharpe_ratio: float = 0.0
+
+
+class LiveTradingExecutor:
+    """
+    Live trading executor that integrates evolutionary strategies with cTrader.
+    
+    This class manages:
+    - Real-time strategy execution
+    - Risk management
+    - Performance tracking
+    - Market analysis integration
+    """
+    
+    def __init__(self, config: TradingConfig, symbols: List[str], 
+                 max_positions: int = 5, max_risk_per_trade: float = 0.02):
+        """
+        Initialize the live trading executor.
+        
+        Args:
+            config: Trading configuration
+            symbols: List of symbols to trade
+            max_positions: Maximum concurrent positions
+            max_risk_per_trade: Maximum risk per trade (2% default)
+        """
+        self.config = config
+        self.symbols = symbols
+        self.max_positions = max_positions
+        self.max_risk_per_trade = max_risk_per_trade
+        
+        # Initialize components
+        self.ctrader = CTraderInterface(config)
+        self.genetic_engine = RealGeneticEngine(data_source="real")  # Use real data source
+        self.regime_detector = MarketRegimeDetector()
+        self.pattern_recognition = AdvancedPatternRecognition()
+        
+        # State management
+        self.connected = False
+        self.running = False
+        self.performance = TradingPerformance()
+        self.signals = []
+        self.risk_manager = LiveRiskManager(max_risk_per_trade)
+        
+        # Market data cache
+        self.market_data = {}
+        self.last_analysis = {}
+        
+        logger.info(f"Live trading executor initialized for {len(symbols)} symbols")
+    
+    async def start(self) -> bool:
+        """
+        Start the live trading executor.
+        
+        Returns:
+            True if started successfully, False otherwise
+        """
+        try:
+            logger.info("Starting live trading executor...")
+            
+            # Connect to cTrader
+            if not await self.ctrader.connect():
+                logger.error("Failed to connect to cTrader")
+                return False
+            
+            self.connected = True
+            
+            # Subscribe to market data
+            for symbol in self.symbols:
+                await self.ctrader.subscribe_to_symbol(symbol)
+                logger.info(f"Subscribed to {symbol}")
+            
+            # Set up callbacks
+            self.ctrader.add_callback('price_update', self._on_price_update)
+            self.ctrader.add_callback('order_update', self._on_order_update)
+            self.ctrader.add_callback('position_update', self._on_position_update)
+            self.ctrader.add_callback('error', self._on_error)
+            
+            self.running = True
+            logger.info("Live trading executor started successfully")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Failed to start live trading executor: {e}")
+            return False
+    
+    async def stop(self):
+        """Stop the live trading executor."""
+        self.running = False
+        if self.connected:
+            await self.ctrader.disconnect()
+            self.connected = False
+        logger.info("Live trading executor stopped")
+    
+    async def run_trading_cycle(self):
+        """Run a complete trading cycle."""
+        if not self.running:
+            return
+        
+        try:
+            # Step 1: Update market data
+            await self._update_market_data()
+            
+            # Step 2: Perform market analysis
+            await self._perform_market_analysis()
+            
+            # Step 3: Generate trading signals
+            signals = await self._generate_trading_signals()
+            
+            # Step 4: Execute signals
+            await self._execute_trading_signals(signals)
+            
+            # Step 5: Update performance
+            self._update_performance()
+            
+        except Exception as e:
+            logger.error(f"Error in trading cycle: {e}")
+    
+    async def _update_market_data(self):
+        """Update market data for all symbols."""
+        for symbol in self.symbols:
+            market_data = self.ctrader.get_market_data(symbol)
+            if market_data:
+                self.market_data[symbol] = market_data
+    
+    async def _perform_market_analysis(self):
+        """Perform market analysis for all symbols."""
+        for symbol in self.symbols:
+            if symbol in self.market_data:
+                # Get historical data for analysis
+                # This would need to be implemented based on your data source
+                historical_data = await self._get_historical_data(symbol)
+                
+                if historical_data is not None and not historical_data.empty:
+                    # Detect market regime
+                    regime_result = self.regime_detector.detect_regime(historical_data, symbol)
+                    
+                    # Detect patterns
+                    patterns = self.pattern_recognition.detect_patterns(historical_data, symbol)
+                    
+                    self.last_analysis[symbol] = {
+                        'regime': regime_result,
+                        'patterns': patterns,
+                        'timestamp': datetime.now()
+                    }
+    
+    async def _generate_trading_signals(self) -> List[TradingSignal]:
+        """Generate trading signals using evolutionary strategies."""
+        signals = []
+        
+        for symbol in self.symbols:
+            if symbol in self.market_data and symbol in self.last_analysis:
+                # Get current market data
+                market_data = self.market_data[symbol]
+                analysis = self.last_analysis[symbol]
+                
+                # Generate signal using genetic engine
+                signal = await self._generate_signal_for_symbol(symbol, market_data, analysis)
+                
+                if signal and signal.action != 'hold':
+                    signals.append(signal)
+        
+        return signals
+    
+    async def _generate_signal_for_symbol(self, symbol: str, market_data: MarketData, 
+                                        analysis: Dict) -> Optional[TradingSignal]:
+        """Generate trading signal for a specific symbol."""
+        try:
+            # Get current price
+            current_price = (market_data.bid + market_data.ask) / 2
+            
+            # Analyze market conditions
+            regime = analysis['regime']
+            patterns = analysis['patterns']
+            
+            # Use genetic engine to evaluate strategy
+            # This is a simplified version - in practice, you'd use the evolved strategies
+            signal = self._evaluate_market_conditions(symbol, current_price, regime, patterns)
+            
+            if signal:
+                signal.timestamp = datetime.now()
+                return signal
+            
+        except Exception as e:
+            logger.error(f"Error generating signal for {symbol}: {e}")
+        
+        return None
+    
+    def _evaluate_market_conditions(self, symbol: str, price: float, regime, patterns) -> Optional[TradingSignal]:
+        """Evaluate market conditions and generate signal."""
+        # This is a simplified signal generation logic
+        # In practice, you'd use the evolved strategies from the genetic engine
+        
+        # Check for bullish conditions
+        bullish_conditions = 0
+        bearish_conditions = 0
+        
+        # Regime analysis
+        if regime.regime.value in ['trending_up', 'breakout']:
+            bullish_conditions += 1
+        elif regime.regime.value in ['trending_down']:
+            bearish_conditions += 1
+        
+        # Pattern analysis
+        for pattern in patterns[:3]:  # Top 3 patterns
+            if pattern.pattern_type.value in ['ascending_triangle', 'bull_flag', 'double_bottom']:
+                bullish_conditions += 1
+            elif pattern.pattern_type.value in ['descending_triangle', 'bear_flag', 'double_top']:
+                bearish_conditions += 1
+        
+        # Generate signal based on conditions
+        if bullish_conditions > bearish_conditions and bullish_conditions >= 2:
+            return TradingSignal(
+                symbol=symbol,
+                action='buy',
+                confidence=min(0.9, 0.5 + (bullish_conditions * 0.1)),
+                entry_price=price,
+                stop_loss=price * 0.99,  # 1% stop loss
+                take_profit=price * 1.02,  # 2% take profit
+                volume=0.01
+            )
+        elif bearish_conditions > bullish_conditions and bearish_conditions >= 2:
+            return TradingSignal(
+                symbol=symbol,
+                action='sell',
+                confidence=min(0.9, 0.5 + (bearish_conditions * 0.1)),
+                entry_price=price,
+                stop_loss=price * 1.01,  # 1% stop loss
+                take_profit=price * 0.98,  # 2% take profit
+                volume=0.01
+            )
+        
+        return None
+    
+    async def _execute_trading_signals(self, signals: List[TradingSignal]):
+        """Execute trading signals."""
+        for signal in signals:
+            if await self._should_execute_signal(signal):
+                await self._execute_signal(signal)
+    
+    async def _should_execute_signal(self, signal: TradingSignal) -> bool:
+        """Check if signal should be executed based on risk management."""
+        # Check if we have too many positions
+        current_positions = len(self.ctrader.get_positions())
+        if current_positions >= self.max_positions:
+            logger.info(f"Max positions reached ({current_positions}), skipping signal")
+            return False
+        
+        # Check risk management
+        if not self.risk_manager.check_signal(signal):
+            logger.info(f"Signal rejected by risk manager: {signal.symbol}")
+            return False
+        
+        # Check confidence threshold
+        if signal.confidence < 0.6:
+            logger.info(f"Signal confidence too low ({signal.confidence:.2%}): {signal.symbol}")
+            return False
+        
+        return True
+    
+    async def _execute_signal(self, signal: TradingSignal):
+        """Execute a trading signal."""
+        try:
+            # Determine order type and side
+            order_type = OrderType.MARKET
+            side = OrderSide.BUY if signal.action == 'buy' else OrderSide.SELL
+            
+            # Place order
+            order_id = await self.ctrader.place_order(
+                symbol_name=signal.symbol,
+                order_type=order_type,
+                side=side,
+                volume=signal.volume,
+                stop_loss=signal.stop_loss,
+                take_profit=signal.take_profit
+            )
+            
+            if order_id:
+                logger.info(f"Order placed: {signal.action} {signal.volume} {signal.symbol} (ID: {order_id})")
+                self.signals.append(signal)
+            else:
+                logger.error(f"Failed to place order for {signal.symbol}")
+                
+        except Exception as e:
+            logger.error(f"Error executing signal for {signal.symbol}: {e}")
+    
+    async def _get_historical_data(self, symbol: str) -> Optional[pd.DataFrame]:
+        """Get historical data for analysis."""
+        # This would integrate with your data source
+        # For now, return None to indicate no historical data
+        return None
+    
+    def _on_price_update(self, market_data: MarketData):
+        """Handle price updates."""
+        symbol = market_data.symbol_name
+        self.market_data[symbol] = market_data
+        
+        # Update position P&L
+        self._update_position_pnl(symbol, market_data)
+    
+    def _on_order_update(self, order: Order):
+        """Handle order updates."""
+        logger.info(f"Order update: {order.order_id} - {order.status}")
+    
+    def _on_position_update(self, position: Position):
+        """Handle position updates."""
+        logger.info(f"Position update: {position.position_id} - P&L: {position.profit_loss}")
+    
+    def _on_error(self, error_msg: str):
+        """Handle errors."""
+        logger.error(f"Trading error: {error_msg}")
+    
+    def _update_position_pnl(self, symbol: str, market_data: MarketData):
+        """Update position P&L for a symbol."""
+        positions = self.ctrader.get_positions()
+        for position in positions:
+            if self.ctrader._get_symbol_name(position.symbol_id) == symbol:
+                # Update P&L calculation
+                # This would need to be implemented based on position structure
+                pass
+    
+    def _update_performance(self):
+        """Update performance metrics."""
+        positions = self.ctrader.get_positions()
+        
+        # Calculate basic metrics
+        total_trades = len(positions)
+        winning_trades = sum(1 for p in positions if p.profit_loss > 0)
+        losing_trades = sum(1 for p in positions if p.profit_loss < 0)
+        
+        total_profit = sum(p.profit_loss for p in positions if p.profit_loss > 0)
+        total_loss = sum(p.profit_loss for p in positions if p.profit_loss < 0)
+        net_profit = total_profit + total_loss
+        
+        # Update performance
+        self.performance.total_trades = total_trades
+        self.performance.winning_trades = winning_trades
+        self.performance.losing_trades = losing_trades
+        self.performance.total_profit = total_profit
+        self.performance.total_loss = total_loss
+        self.performance.net_profit = net_profit
+        self.performance.win_rate = winning_trades / total_trades if total_trades > 0 else 0
+        self.performance.avg_win = total_profit / winning_trades if winning_trades > 0 else 0
+        self.performance.avg_loss = total_loss / losing_trades if losing_trades > 0 else 0
+    
+    def get_performance_summary(self) -> Dict[str, Any]:
+        """Get performance summary."""
+        return {
+            'total_trades': self.performance.total_trades,
+            'winning_trades': self.performance.winning_trades,
+            'losing_trades': self.performance.losing_trades,
+            'win_rate': f"{self.performance.win_rate:.2%}",
+            'net_profit': f"${self.performance.net_profit:.2f}",
+            'total_profit': f"${self.performance.total_profit:.2f}",
+            'total_loss': f"${self.performance.total_loss:.2f}",
+            'avg_win': f"${self.performance.avg_win:.2f}",
+            'avg_loss': f"${self.performance.avg_loss:.2f}",
+            'max_drawdown': f"{self.performance.max_drawdown:.2%}",
+            'sharpe_ratio': f"{self.performance.sharpe_ratio:.2f}"
+        }
+
+
+class LiveRiskManager:
+    """Risk management for live trading."""
+    
+    def __init__(self, max_risk_per_trade: float = 0.02):
+        self.max_risk_per_trade = max_risk_per_trade
+        self.daily_loss_limit = 0.05  # 5% daily loss limit
+        self.daily_loss = 0.0
+        self.last_reset = datetime.now().date()
+    
+    def check_signal(self, signal: TradingSignal) -> bool:
+        """Check if signal meets risk management criteria."""
+        # Reset daily loss if new day
+        current_date = datetime.now().date()
+        if current_date > self.last_reset:
+            self.daily_loss = 0.0
+            self.last_reset = current_date
+        
+        # Check daily loss limit
+        if self.daily_loss >= self.daily_loss_limit:
+            return False
+        
+        # Check position sizing
+        if signal.volume > self.max_risk_per_trade:
+            return False
+        
+        return True
+    
+    def update_daily_loss(self, loss: float):
+        """Update daily loss tracking."""
+        self.daily_loss += abs(loss)
+
+
+async def main():
+    """Test the live trading executor."""
+    import argparse
+    
+    parser = argparse.ArgumentParser(description="Test live trading executor")
+    parser.add_argument("--config", required=True, help="Path to trading config file")
+    parser.add_argument("--symbols", nargs="+", default=["EURUSD"], help="Symbols to trade")
+    parser.add_argument("--duration", type=int, default=60, help="Test duration in seconds")
+    
+    args = parser.parse_args()
+    
+    # Load config
+    with open(args.config, 'r') as f:
+        config_data = json.load(f)
+    
+    config = TradingConfig(**config_data)
+    
+    # Create executor
+    executor = LiveTradingExecutor(config, args.symbols)
+    
+    # Start trading
+    if await executor.start():
+        print(f"Live trading executor started. Running for {args.duration} seconds...")
+        
+        # Run trading cycles
+        start_time = datetime.now()
+        while (datetime.now() - start_time).seconds < args.duration:
+            await executor.run_trading_cycle()
+            await asyncio.sleep(5)  # 5-second cycles
+        
+        # Stop and show performance
+        await executor.stop()
+        
+        print("\nTrading Performance Summary:")
+        performance = executor.get_performance_summary()
+        for key, value in performance.items():
+            print(f"  {key}: {value}")
+    else:
+        print("Failed to start live trading executor")
+
+
+if __name__ == "__main__":
+    asyncio.run(main()) 

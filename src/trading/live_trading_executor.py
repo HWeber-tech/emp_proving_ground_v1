@@ -21,6 +21,8 @@ from .mock_ctrader_interface import (
 from ..evolution.real_genetic_engine import RealGeneticEngine
 from ..analysis.market_regime_detector import MarketRegimeDetector
 from ..analysis.pattern_recognition import AdvancedPatternRecognition
+from .strategy_manager import StrategyManager, StrategySignal
+from src.decision_genome import DecisionGenome
 
 logger = logging.getLogger(__name__)
 
@@ -86,6 +88,7 @@ class LiveTradingExecutor:
         self.genetic_engine = RealGeneticEngine(data_source="real")  # Use real data source
         self.regime_detector = MarketRegimeDetector()
         self.pattern_recognition = AdvancedPatternRecognition()
+        self.strategy_manager = StrategyManager()  # Strategy integration
         
         # State management
         self.connected = False
@@ -127,6 +130,9 @@ class LiveTradingExecutor:
             self.ctrader.add_callback('order_update', self._on_order_update)
             self.ctrader.add_callback('position_update', self._on_position_update)
             self.ctrader.add_callback('error', self._on_error)
+            
+            # Load evolved strategies from genetic engine
+            await self._load_evolved_strategies()
             
             self.running = True
             logger.info("Live trading executor started successfully")
@@ -197,19 +203,41 @@ class LiveTradingExecutor:
                     }
     
     async def _generate_trading_signals(self) -> List[TradingSignal]:
-        """Generate trading signals using evolutionary strategies."""
+        """Generate trading signals using evolved strategies."""
         signals = []
         
         for symbol in self.symbols:
-            if symbol in self.market_data and symbol in self.last_analysis:
-                # Get current market data
+            if symbol in self.market_data:
                 market_data = self.market_data[symbol]
-                analysis = self.last_analysis[symbol]
                 
-                # Generate signal using genetic engine
-                signal = await self._generate_signal_for_symbol(symbol, market_data, analysis)
+                # Convert market data to dictionary format for strategy manager
+                market_data_dict = {
+                    'symbol': symbol,
+                    'timestamp': market_data.timestamp,
+                    'open': market_data.open,
+                    'high': market_data.high,
+                    'low': market_data.low,
+                    'close': market_data.close,
+                    'volume': market_data.volume,
+                    'bid': market_data.bid,
+                    'ask': market_data.ask
+                }
                 
-                if signal and signal.action != 'hold':
+                # Use strategy manager to evaluate evolved strategies
+                strategy_signal = self.strategy_manager.select_best_strategy(symbol, market_data_dict)
+                
+                if strategy_signal:
+                    # Convert StrategySignal to TradingSignal
+                    signal = TradingSignal(
+                        symbol=strategy_signal.symbol,
+                        action=strategy_signal.action,
+                        confidence=strategy_signal.confidence,
+                        entry_price=strategy_signal.entry_price,
+                        stop_loss=strategy_signal.stop_loss,
+                        take_profit=strategy_signal.take_profit,
+                        volume=strategy_signal.volume,
+                        timestamp=strategy_signal.timestamp
+                    )
                     signals.append(signal)
         
         return signals
@@ -335,6 +363,48 @@ class LiveTradingExecutor:
                 
         except Exception as e:
             logger.error(f"Error executing signal for {signal.symbol}: {e}")
+    
+    async def _load_evolved_strategies(self):
+        """Load evolved strategies from the genetic engine."""
+        try:
+            # Get best strategies from genetic engine
+            best_strategies = self.genetic_engine.get_best_strategies(count=5)
+            
+            for strategy in best_strategies:
+                # Convert TradingStrategy to DecisionGenome format
+                genome = self._convert_strategy_to_genome(strategy)
+                success = self.strategy_manager.add_strategy(genome)
+                if success:
+                    logger.info(f"Loaded evolved strategy: {strategy.id} (fitness: {strategy.fitness_score:.3f})")
+                else:
+                    logger.warning(f"Failed to load strategy: {strategy.id}")
+            
+            logger.info(f"Loaded {len(best_strategies)} evolved strategies")
+            
+        except Exception as e:
+            logger.error(f"Error loading evolved strategies: {e}")
+    
+    def _convert_strategy_to_genome(self, strategy) -> DecisionGenome:
+        """Convert TradingStrategy to DecisionGenome format."""
+        # Create decision tree from strategy parameters
+        decision_tree = {
+            'parameters': strategy.parameters,
+            'indicators': strategy.indicators,
+            'entry_rules': strategy.entry_rules,
+            'exit_rules': strategy.exit_rules,
+            'risk_management': strategy.risk_management
+        }
+        
+        # Create DecisionGenome
+        genome = DecisionGenome(
+            genome_id=strategy.id,
+            decision_tree=decision_tree,
+            fitness_score=strategy.fitness_score,
+            generation=strategy.generation,
+            parent_ids=strategy.parent_ids
+        )
+        
+        return genome
     
     async def _get_historical_data(self, symbol: str) -> Optional[pd.DataFrame]:
         """Get historical data for analysis."""

@@ -19,13 +19,14 @@ from .mock_ctrader_interface import (
     CTraderInterface, TradingConfig, MarketData, Order, Position,
     TradingMode, OrderType, OrderSide
 )
-from ..evolution.real_genetic_engine import RealGeneticEngine
-from ..analysis.market_regime_detector import MarketRegimeDetector
-from ..analysis.pattern_recognition import AdvancedPatternRecognition
+from src.evolution.real_genetic_engine import RealGeneticEngine
+from src.analysis.market_regime_detector import MarketRegimeDetector
+from src.analysis.pattern_recognition import AdvancedPatternRecognition
 from .strategy_manager import StrategyManager, StrategySignal
 from .advanced_risk_manager import AdvancedRiskManager, RiskLimits
 from .performance_tracker import PerformanceTracker
 from .order_book_analyzer import OrderBookAnalyzer
+from src.analysis.advanced_analytics import AdvancedAnalytics
 from src.decision_genome import DecisionGenome
 
 logger = logging.getLogger(__name__)
@@ -104,6 +105,9 @@ class LiveTradingExecutor:
         # Order book analysis
         self.order_book_analyzer = OrderBookAnalyzer(max_levels=20, history_window=1000)
         
+        # Advanced analytics
+        self.advanced_analytics = AdvancedAnalytics()
+        
         # State management
         self.connected = False
         self.running = False
@@ -179,13 +183,16 @@ class LiveTradingExecutor:
             # Step 3: Perform market analysis
             await self._perform_market_analysis()
             
-            # Step 4: Generate trading signals
+            # Step 4: Perform advanced analytics
+            await self._perform_advanced_analytics()
+            
+            # Step 5: Generate trading signals
             signals = await self._generate_trading_signals()
             
-            # Step 5: Execute signals
+            # Step 6: Execute signals
             await self._execute_trading_signals(signals)
             
-            # Step 6: Update performance and risk metrics
+            # Step 7: Update performance and risk metrics
             self._update_performance()
             self._update_risk_metrics()
             
@@ -266,6 +273,36 @@ class LiveTradingExecutor:
                         'patterns': patterns,
                         'timestamp': datetime.now()
                     }
+    
+    async def _perform_advanced_analytics(self):
+        """Perform advanced analytics for all symbols."""
+        for symbol in self.symbols:
+            try:
+                # Get historical data for analysis
+                historical_data = await self._get_historical_data(symbol)
+                
+                if historical_data is not None and not historical_data.empty:
+                    # Analyze sentiment
+                    sentiment = self.advanced_analytics.analyze_sentiment(symbol)
+                    
+                    # Calculate advanced indicators
+                    indicators = self.advanced_analytics.calculate_advanced_indicators(symbol, historical_data)
+                    
+                    # Analyze market correlation
+                    correlation = self.advanced_analytics.analyze_market_correlation(symbol, historical_data)
+                    
+                    # Get comprehensive analysis
+                    analysis = self.advanced_analytics.get_comprehensive_analysis(symbol, historical_data)
+                    
+                    # Log key insights
+                    if analysis:
+                        logger.debug(f"Advanced analytics for {symbol}: "
+                                   f"sentiment={sentiment.sentiment_type.value}, "
+                                   f"rsi={indicators.rsi:.1f}, "
+                                   f"beta={correlation.beta:.2f}")
+                
+            except Exception as e:
+                logger.error(f"Error performing advanced analytics for {symbol}: {e}")
     
     async def _generate_trading_signals(self) -> List[TradingSignal]:
         """Generate trading signals using evolved strategies."""

@@ -16,7 +16,7 @@ from typing import Dict, List, Optional, Callable, Any
 from dataclasses import dataclass, asdict
 from enum import Enum
 import requests
-from ctrader_open_api import Client, Protobuf, Messages
+from ctrader_open_api import Client, Protobuf, messages
 from ctrader_open_api.enums import ProtoOAPayloadType
 
 logger = logging.getLogger(__name__)
@@ -191,7 +191,7 @@ class CTraderInterface:
     async def _authenticate_application(self) -> bool:
         """Authenticate the application."""
         try:
-            app_auth_req = Messages.ProtoOAApplicationAuthReq()
+            app_auth_req = messages.ProtoOAApplicationAuthReq()
             app_auth_req.clientId = self.config.client_id
             app_auth_req.clientSecret = self.config.client_secret
             
@@ -209,7 +209,7 @@ class CTraderInterface:
     async def _authenticate_account(self) -> bool:
         """Authenticate the trading account."""
         try:
-            account_auth_req = Messages.ProtoOAAccountAuthReq()
+            account_auth_req = messages.ProtoOAAccountAuthReq()
             account_auth_req.ctidTraderAccountId = self.config.account_id
             account_auth_req.accessToken = self.config.access_token
             
@@ -227,7 +227,7 @@ class CTraderInterface:
     async def _load_symbols(self) -> bool:
         """Load available symbols."""
         try:
-            symbols_req = Messages.ProtoOASymbolsListReq()
+            symbols_req = messages.ProtoOASymbolsListReq()
             symbols_req.ctidTraderAccountId = self.config.account_id
             
             await self.client.send(symbols_req)
@@ -259,7 +259,7 @@ class CTraderInterface:
                 return False
             
             # Subscribe to spot prices
-            subscribe_req = Messages.ProtoOASubscribeSpotsReq()
+            subscribe_req = messages.ProtoOASubscribeSpotsReq()
             subscribe_req.ctidTraderAccountId = self.config.account_id
             subscribe_req.symbolId.append(symbol_id)
             
@@ -301,7 +301,7 @@ class CTraderInterface:
             
             # Create order request
             if order_type == OrderType.MARKET:
-                order_req = Messages.ProtoOANewOrderReq()
+                order_req = messages.ProtoOANewOrderReq()
                 order_req.ctidTraderAccountId = self.config.account_id
                 order_req.symbolId = symbol_id
                 order_req.orderType = self._get_proto_order_type(order_type)
@@ -318,7 +318,7 @@ class CTraderInterface:
                     logger.error("Price required for limit/stop orders")
                     return None
                 
-                order_req = Messages.ProtoOANewOrderReq()
+                order_req = messages.ProtoOANewOrderReq()
                 order_req.ctidTraderAccountId = self.config.account_id
                 order_req.symbolId = symbol_id
                 order_req.orderType = self._get_proto_order_type(order_type)
@@ -361,7 +361,7 @@ class CTraderInterface:
             order = self.orders[order_id]
             
             # Create cancel request
-            cancel_req = Messages.ProtoOACancelOrderReq()
+            cancel_req = messages.ProtoOACancelOrderReq()
             cancel_req.ctidTraderAccountId = self.config.account_id
             cancel_req.orderId = int(order_id)
             
@@ -393,10 +393,9 @@ class CTraderInterface:
             position = self.positions[position_id]
             
             # Create close request
-            close_req = Messages.ProtoOAClosePositionReq()
+            close_req = messages.ProtoOAClosePositionReq()
             close_req.ctidTraderAccountId = self.config.account_id
             close_req.positionId = int(position_id)
-            close_req.volume = int(position.volume * 100)  # Convert to integer
             
             await self.client.send(close_req)
             logger.info(f"Close request sent for position {position_id}")
@@ -464,7 +463,7 @@ class CTraderInterface:
     def _handle_spot_event(self, message: Protobuf):
         """Handle spot price events."""
         try:
-            spot_event = Messages.ProtoOASpotEvent()
+            spot_event = messages.ProtoOASpotEvent()
             spot_event.ParseFromString(message.payload)
             
             symbol_id = spot_event.symbolId
@@ -505,7 +504,7 @@ class CTraderInterface:
     def _handle_execution_event(self, message: Protobuf):
         """Handle execution events (order fills, position updates)."""
         try:
-            execution_event = Messages.ProtoOAExecutionEvent()
+            execution_event = messages.ProtoOAExecutionEvent()
             execution_event.ParseFromString(message.payload)
             
             # Handle order execution
@@ -534,7 +533,7 @@ class CTraderInterface:
     def _handle_error_event(self, message: Protobuf):
         """Handle error events."""
         try:
-            error_res = Messages.ProtoOAErrorRes()
+            error_res = messages.ProtoOAErrorRes()
             error_res.ParseFromString(message.payload)
             
             error_msg = f"cTrader Error: {error_res.description} (Code: {error_res.errorCode})"
@@ -553,7 +552,7 @@ class CTraderInterface:
     def _handle_symbols_list(self, message: Protobuf):
         """Handle symbols list response."""
         try:
-            symbols_res = Messages.ProtoOASymbolsListRes()
+            symbols_res = messages.ProtoOASymbolsListRes()
             symbols_res.ParseFromString(message.payload)
             
             for symbol in symbols_res.symbol:

@@ -155,6 +155,41 @@ class TickDataStorage:
         Returns:
             DataFrame with OHLCV data
         """
+        # Try to load real data first
+        try:
+            from src.data.real_data_ingestor import RealDataIngestor
+            ingestor = RealDataIngestor()
+            
+            # Try to load existing data
+            real_data = ingestor.load_symbol_data(symbol, start_time, end_time)
+            
+            if real_data is not None and not real_data.empty:
+                logger.info(f"Loaded {len(real_data)} real data records for {symbol}")
+                # Convert to OHLCV format if needed
+                if 'open' in real_data.columns and 'high' in real_data.columns:
+                    return real_data[['open', 'high', 'low', 'close', 'volume']]
+                else:
+                    # Convert tick data to OHLCV
+                    return self._ticks_to_ohlcv(real_data.reset_index(), "H")
+            
+            # If no real data available, try to download it
+            logger.info(f"No existing real data found for {symbol}, attempting download...")
+            success = ingestor.download_symbol_data(symbol, start_time, end_time, 'yahoo')
+            
+            if success:
+                real_data = ingestor.load_symbol_data(symbol, start_time, end_time)
+                if real_data is not None and not real_data.empty:
+                    logger.info(f"Successfully downloaded and loaded {len(real_data)} real data records")
+                    if 'open' in real_data.columns and 'high' in real_data.columns:
+                        return real_data[['open', 'high', 'low', 'close', 'volume']]
+                    else:
+                        return self._ticks_to_ohlcv(real_data.reset_index(), "H")
+            
+        except Exception as e:
+            logger.warning(f"Error loading real data for {symbol}: {e}")
+        
+        # Fallback to existing OHLCV method
+        logger.info(f"Using fallback data method for {symbol}")
         return self.get_ohlcv(symbol, start_time, end_time, freq="H")
 
     def _ticks_to_ohlcv(self, tick_data: pd.DataFrame, freq: str) -> pd.DataFrame:

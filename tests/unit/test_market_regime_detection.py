@@ -26,7 +26,7 @@ def test_market_regime_detection():
     
     try:
         # Import the market regime detector
-        from src.analysis.market_regime_detector import MarketRegimeDetector, MarketRegime
+        from src.sensory.dimensions.enhanced_when_dimension import MarketRegimeDetector, MarketRegime
         from src.data.real_data_ingestor import RealDataIngestor
         
         # Get real market data
@@ -73,7 +73,7 @@ def test_regime_history():
     print("\n🧪 Testing Regime History...")
     
     try:
-        from src.analysis.market_regime_detector import MarketRegimeDetector
+        from src.sensory.dimensions.enhanced_when_dimension import MarketRegimeDetector
         from src.data.real_data_ingestor import RealDataIngestor
         
         # Get real market data
@@ -132,7 +132,7 @@ def test_multiple_instruments():
     print("\n🧪 Testing Multiple Instruments...")
     
     try:
-        from src.analysis.market_regime_detector import MarketRegimeDetector
+        from src.sensory.dimensions.enhanced_when_dimension import MarketRegimeDetector
         from src.data.real_data_ingestor import RealDataIngestor
         
         ingestor = RealDataIngestor()
@@ -181,7 +181,7 @@ def test_regime_metrics():
     print("\n🧪 Testing Regime Metrics...")
     
     try:
-        from src.analysis.market_regime_detector import MarketRegimeDetector
+        from src.sensory.dimensions.enhanced_when_dimension import MarketRegimeDetector
         from src.data.real_data_ingestor import RealDataIngestor
         
         ingestor = RealDataIngestor()

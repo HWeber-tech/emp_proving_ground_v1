@@ -543,7 +543,7 @@ class InstitutionalMechanicsEngine(DimensionalSensor):
     
     def __init__(self, instrument_meta: InstrumentMeta):
         super().__init__(instrument_meta)
-        self.institutional_analyzer = InstitutionalAnalyzer()
+        self.institutional_analyzer = ICTPatternDetector()
         
         # Performance tracking
         self.analysis_history = deque(maxlen=100)
@@ -568,7 +568,10 @@ class InstitutionalMechanicsEngine(DimensionalSensor):
                 signal_strength=0.0,
                 confidence=0.0,
                 regime=MarketRegime.UNKNOWN,
-                context={'status': 'not_initialized'}
+                context={'status': 'not_initialized'},
+                timestamp=datetime.now(),
+                data_quality=0.0,
+                processing_time_ms=0
             )
     
     def reset(self) -> None:
@@ -585,35 +588,29 @@ class InstitutionalMechanicsEngine(DimensionalSensor):
             # Update institutional analyzer
             self.institutional_analyzer.update_market_data(market_data)
             
-            # Get institutional signals
-            flow_signal = self.institutional_analyzer.analyze_institutional_flow()
-            order_flow_signal = self.institutional_analyzer.analyze_order_flow()
-            liquidity_signal = self.institutional_analyzer.analyze_liquidity()
-            positioning_signal = self.institutional_analyzer.analyze_positioning()
+            # Get institutional footprint score
+            institutional_score = self.institutional_analyzer.get_institutional_footprint_score()
             
-            # Calculate weighted institutional score
-            institutional_score = (
-                flow_signal * 0.4 +
-                order_flow_signal * 0.3 +
-                liquidity_signal * 0.2 +
-                positioning_signal * 0.1
+            # Calculate confidence based on pattern count and strength
+            pattern_count = (
+                len(self.institutional_analyzer.order_blocks) +
+                len(self.institutional_analyzer.fair_value_gaps) +
+                len(self.institutional_analyzer.liquidity_sweeps) +
+                len(self.institutional_analyzer.structure_shifts)
             )
             
-            # Calculate confidence
-            confidence = self._calculate_confidence([
-                flow_signal, order_flow_signal, liquidity_signal, positioning_signal
-            ])
+            confidence = min(0.3 + (pattern_count * 0.1), 0.9)
             
             # Determine regime
             regime = self._determine_regime(institutional_score)
             
             # Create context
             context = {
-                'flow_signal': flow_signal,
-                'order_flow_signal': order_flow_signal,
-                'liquidity_signal': liquidity_signal,
-                'positioning_signal': positioning_signal,
                 'institutional_score': institutional_score,
+                'order_blocks': len(self.institutional_analyzer.order_blocks),
+                'fair_value_gaps': len(self.institutional_analyzer.fair_value_gaps),
+                'liquidity_sweeps': len(self.institutional_analyzer.liquidity_sweeps),
+                'structure_shifts': len(self.institutional_analyzer.structure_shifts),
                 'confidence': confidence
             }
             
@@ -624,7 +621,9 @@ class InstitutionalMechanicsEngine(DimensionalSensor):
                 confidence=confidence,
                 regime=regime,
                 context=context,
-                timestamp=market_data.timestamp
+                timestamp=market_data.timestamp,
+                data_quality=0.8,
+                processing_time_ms=50
             )
             
             # Store last reading and mark as initialized
@@ -642,7 +641,9 @@ class InstitutionalMechanicsEngine(DimensionalSensor):
                 signal_strength=0.0,
                 confidence=0.3,
                 context={'error': str(e), 'status': 'degraded'},
-                timestamp=market_data.timestamp
+                timestamp=market_data.timestamp,
+                data_quality=0.3,
+                processing_time_ms=10
             )
     
     def _calculate_confidence(self, signals: List[float]) -> float:

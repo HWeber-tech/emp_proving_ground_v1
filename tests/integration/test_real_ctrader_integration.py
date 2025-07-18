@@ -241,7 +241,7 @@ async def test_mock_ctrader_fallback():
 async def main():
     """Main test function."""
     parser = argparse.ArgumentParser(description="Test cTrader integration")
-    parser.add_argument("--config", default="configs/ctrader_config.yaml", 
+    parser.add_argument("--config", default="configs/trading/ctrader_config.yaml",
                        help="Path to cTrader config file")
     parser.add_argument("--test-mock", action="store_true", 
                        help="Test mock interface only")

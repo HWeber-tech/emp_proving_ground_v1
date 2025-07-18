@@ -16,15 +16,15 @@ def test_real_data_availability():
     """Test: Can we access real market data?"""
     print("\n🔍 REALITY CHECK: Data Availability")
     
-    # Test 1: Real EURUSD data file
-    real_data_paths = [
+    # Check for real data files
+    data_files = [
         "data/raw/EURUSD_2023.csv",
         "data/raw/EURUSD_2024.csv",
         "data/processed/EURUSD_ohlcv.csv"
     ]
     
     real_data_found = False
-    for path in real_data_paths:
+    for path in data_files:
         if os.path.exists(path):
             print(f"✅ Found real data: {path}")
             real_data_found = True

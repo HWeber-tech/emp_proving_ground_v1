@@ -1246,6 +1246,9 @@ class ChronalIntelligenceEngine(DimensionalSensor):
         
         return regime_mapping.get(str(regime), MarketRegime.UNKNOWN)
 
+# Backward compatibility aliases
+MarketRegimeDetector = TemporalAnalyzer
+
 # Example usage
 async def main():
     """Example usage of the enhanced temporal intelligence engine"""

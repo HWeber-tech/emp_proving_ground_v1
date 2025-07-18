@@ -27,8 +27,8 @@ def test_phase3_market_analysis():
     
     try:
         # Import analysis components
-        from src.analysis.market_regime_detector import MarketRegimeDetector, MarketRegime
-        from src.analysis.pattern_recognition import AdvancedPatternRecognition, PatternType
+        from src.sensory.dimensions.enhanced_when_dimension import MarketRegimeDetector, MarketRegime
+        from src.sensory.dimensions.enhanced_anomaly_dimension import AdvancedPatternRecognition, PatternType
         from src.data.real_data_ingestor import RealDataIngestor
         
         # Get real market data
@@ -100,8 +100,8 @@ def test_regime_pattern_integration():
     print("\n🧪 Testing Regime-Pattern Integration...")
     
     try:
-        from src.analysis.market_regime_detector import MarketRegimeDetector
-        from src.analysis.pattern_recognition import AdvancedPatternRecognition
+        from src.sensory.dimensions.enhanced_when_dimension import MarketRegimeDetector
+        from src.sensory.dimensions.enhanced_anomaly_dimension import AdvancedPatternRecognition
         from src.data.real_data_ingestor import RealDataIngestor
         
         ingestor = RealDataIngestor()
@@ -163,8 +163,8 @@ def test_analysis_accuracy():
     print("\n🧪 Testing Analysis Accuracy...")
     
     try:
-        from src.analysis.market_regime_detector import MarketRegimeDetector
-        from src.analysis.pattern_recognition import AdvancedPatternRecognition
+        from src.sensory.dimensions.enhanced_when_dimension import MarketRegimeDetector
+        from src.sensory.dimensions.enhanced_anomaly_dimension import AdvancedPatternRecognition
         from src.data.real_data_ingestor import RealDataIngestor
         
         ingestor = RealDataIngestor()
@@ -229,8 +229,8 @@ def test_analysis_performance():
     
     try:
         import time
-        from src.analysis.market_regime_detector import MarketRegimeDetector
-        from src.analysis.pattern_recognition import AdvancedPatternRecognition
+        from src.sensory.dimensions.enhanced_when_dimension import MarketRegimeDetector
+        from src.sensory.dimensions.enhanced_anomaly_dimension import AdvancedPatternRecognition
         from src.data.real_data_ingestor import RealDataIngestor
         
         ingestor = RealDataIngestor()

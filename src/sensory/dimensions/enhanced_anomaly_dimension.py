@@ -2037,6 +2037,9 @@ async def main():
             
             print()
 
+# Backward compatibility aliases
+AdvancedPatternRecognition = PatternRecognitionDetector
+
 if __name__ == "__main__":
     import asyncio
     asyncio.run(main())

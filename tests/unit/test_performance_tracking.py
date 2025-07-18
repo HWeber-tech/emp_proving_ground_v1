@@ -21,8 +21,8 @@ from src.trading.performance_tracker import PerformanceTracker, PerformanceMetri
 from src.trading.live_trading_executor import LiveTradingExecutor
 from src.trading.mock_ctrader_interface import TradingConfig, MarketData, Order, Position, OrderSide
 from src.evolution.real_genetic_engine import RealGeneticEngine
-from src.analysis.market_regime_detector import MarketRegimeDetector
-from src.analysis.pattern_recognition import AdvancedPatternRecognition
+from src.sensory.dimensions.enhanced_when_dimension import MarketRegimeDetector
+from src.sensory.dimensions.enhanced_anomaly_dimension import AdvancedPatternRecognition
 
 class PerformanceTrackingTester:
     """Test suite for performance tracking integration."""

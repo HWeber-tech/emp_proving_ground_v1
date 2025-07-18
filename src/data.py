@@ -473,10 +473,9 @@ class DukascopyIngestor:
     def _download_from_dukascopy(self, symbol: str, start_time: datetime, end_time: datetime) -> Optional[pd.DataFrame]:
         """Download data from Dukascopy."""
         try:
-            from src.data.dukascopy_ingestor import DukascopyIngestor
-            
-            ingestor = DukascopyIngestor()
-            data = ingestor.download_tick_data(symbol, start_time, end_time)
+            # Use the class directly since it's in the same module
+            ingestor = DukascopyIngestor(self.storage, self.cleaner)
+            data = ingestor._download_real_data(symbol, start_time, end_time)
             
             if data is not None and not data.empty:
                 # Convert to expected format
@@ -487,8 +486,6 @@ class DukascopyIngestor:
                 
                 return data
             
-        except ImportError:
-            logger.warning("Dukascopy ingestor not available")
         except Exception as e:
             logger.error(f"Error downloading from Dukascopy: {e}")
         
@@ -497,8 +494,7 @@ class DukascopyIngestor:
     def _download_from_yahoo(self, symbol: str, start_time: datetime, end_time: datetime) -> Optional[pd.DataFrame]:
         """Download data from Yahoo Finance."""
         try:
-            from src.data.real_data_ingestor import RealDataIngestor
-            
+            # Use the class directly since it's in the same module
             ingestor = RealDataIngestor()
             data = ingestor.download_yahoo_data(symbol, start_time, end_time)
             
@@ -507,8 +503,6 @@ class DukascopyIngestor:
                 tick_data = self._ohlcv_to_ticks(data)
                 return tick_data
             
-        except ImportError:
-            logger.warning("Real data ingestor not available")
         except Exception as e:
             logger.error(f"Error downloading from Yahoo: {e}")
         
@@ -517,8 +511,7 @@ class DukascopyIngestor:
     def _download_from_alpha_vantage(self, symbol: str, start_time: datetime, end_time: datetime) -> Optional[pd.DataFrame]:
         """Download data from Alpha Vantage."""
         try:
-            from src.data.real_data_ingestor import RealDataIngestor
-            
+            # Use the class directly since it's in the same module
             ingestor = RealDataIngestor()
             data = ingestor.download_alpha_vantage_data(symbol, start_time, end_time)
             
@@ -527,8 +520,6 @@ class DukascopyIngestor:
                 tick_data = self._ohlcv_to_ticks(data)
                 return tick_data
             
-        except ImportError:
-            logger.warning("Real data ingestor not available")
         except Exception as e:
             logger.error(f"Error downloading from Alpha Vantage: {e}")
         

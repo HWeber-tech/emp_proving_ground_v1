@@ -1,247 +1,149 @@
 # SYSTEM-WIDE AUDIT REPORT
-## EMP Proving Ground - Complete Project Analysis
+## Post-Cleanup Import and Path Verification
 
-**Date:** $(date)  
-**Audit Type:** Comprehensive System-Wide Cleanup  
-**Status:** CRITICAL CLEANUP REQUIRED
-
----
-
-## 🚨 CRITICAL ISSUES IDENTIFIED
-
-### 1. **ROOT DIRECTORY CLUTTER** (SEVERE)
-**Issue:** 50+ files scattered in root directory
-**Impact:** Impossible to navigate, development confusion
-
-**Files to Organize:**
-- **Test Files (15+):** `test_*.py` files scattered everywhere
-- **Documentation (10+):** Multiple `.md` files with overlapping content
-- **Configuration (3):** `config.yaml`, `requirements.txt`, `.gitignore`
-- **Scripts (5+):** `main.py`, `run_genesis.py`, `sync_repo.py`, etc.
-- **Data Files (2):** `genesis_results.json`, `genesis_summary.txt`
-
-### 2. **DUPLICATE CONFIGURATION DIRECTORIES** (HIGH)
-**Issue:** Both `config/` and `configs/` directories exist
-**Impact:** Configuration confusion, maintenance overhead
-
-### 3. **TEST FILE SCATTERING** (HIGH)
-**Issue:** Test files in root, `tests/`, and scattered throughout
-**Impact:** Inconsistent testing, difficult to run comprehensive tests
-
-### 4. **DOCUMENTATION DUPLICATION** (MEDIUM)
-**Issue:** Multiple similar documentation files
-**Impact:** Information fragmentation, maintenance overhead
-
-### 5. **ARCHIVE INCONSISTENCY** (MEDIUM)
-**Issue:** Some files archived, others not
-**Impact:** Unclear what's current vs. legacy
+**Date:** December 2024  
+**Audit Type:** Import and Path Verification  
+**Scope:** Complete codebase after cleanup reorganization  
 
 ---
 
-## 📊 DETAILED INVENTORY
+## EXECUTIVE SUMMARY
 
-### **ROOT DIRECTORY FILES (50+)**
+The system-wide audit reveals several critical import and path issues that need immediate attention. While the core system structure is sound, there are broken imports and missing configuration files that prevent proper functionality.
 
-#### **Test Files (15+)**
-```
-test_simple_integration.py
-test_sensory_integration.py
-test_order_book_integration.py
-test_performance_tracking.py
-test_advanced_risk_management.py
-test_strategy_integration.py
-test_real_data_integration.py
-test_real_ctrader_integration.py
-test_phase4_live_trading.py
-test_phase3_market_analysis.py
-test_market_regime_detection.py
-test_real_genetic_engine.py
-test_real_data_simple.py
-test_reality_check.py
-test_integration.py
-test_end_to_end.py
-test_component_isolation.py
-test_core_imports.py
-test_evolution_fixes.py
-test_genesis.py
-test_integration_hardening.py
-test_simple_imports.py
-```
-
-#### **Documentation Files (10+)**
-```
-README.md
-COMPREHENSIVE_AUDIT_SUMMARY.md
-STRATEGIC_PLANNING_SESSION.md
-MOCK_REPLACEMENT_PLAN.md
-MOCK_INVENTORY.md
-PRODUCTION_INTEGRATION_SUMMARY.md
-DECISION_MATRIX.md
-IMMEDIATE_ACTION_PLAN.md
-STRATEGIC_BLUEPRINT_FORWARD.md
-SENSORY_INTEGRATION_COMPLETE.md
-SENSORY_AUDIT_AND_CLEANUP_PLAN.md
-PHASE1_COMPLETION_REPORT.md
-PHASE1_PROGRESS_REPORT.md
-HONEST_DEVELOPMENT_BLUEPRINT.md
-COMPREHENSIVE_VERIFICATION_REPORT.md
-EVOLUTION_FIXES_SUMMARY.md
-INTEGRATION_HARDENING_SUMMARY.md
-INTEGRATION_VALIDATION_REPORT.md
-PRODUCTION_VALIDATION_REPORT.md
-INTEGRATION_SUMMARY.md
-COMPLETION_REPORT.md
-```
-
-#### **Configuration Files (3)**
-```
-config.yaml
-requirements.txt
-.gitignore
-```
-
-#### **Script Files (5+)**
-```
-main.py
-run_genesis.py
-sync_repo.py
-verify_integration.py
-cleanup_plan.md
-```
-
-#### **Data Files (2)**
-```
-genesis_results.json
-genesis_summary.txt
-```
-
-### **DIRECTORY STRUCTURE ISSUES**
-
-#### **Duplicate Config Directories**
-- `config/` (empty)
-- `configs/` (contains actual config files)
-
-#### **Scattered Test Locations**
-- Root directory: 20+ test files
-- `tests/` directory: 1 test file
-- Various scattered test files
-
-#### **Archive Inconsistency**
-- `archive/` directory exists but some legacy files still in root
-- Some files should be archived but aren't
+### Key Findings:
+- ✅ **Core imports working**: Basic sensory, evolution, and data imports function correctly
+- ❌ **Analysis module missing**: All `src.analysis.*` imports are broken (moved to sensory dimensions)
+- ❌ **Missing config files**: `instruments.json` and `exchange_rates.json` missing from configs/
+- ⚠️ **Hardcoded paths**: Some files still reference old directory structures
+- ⚠️ **Test inconsistencies**: Some tests reference non-existent modules
 
 ---
 
-## 🎯 CLEANUP PRIORITIES
+## DETAILED FINDINGS
 
-### **PRIORITY 1: CRITICAL (Immediate)**
-1. **Organize Test Files** - Move all test files to `tests/` directory
-2. **Consolidate Configuration** - Merge `config/` and `configs/`
-3. **Clean Root Directory** - Move non-essential files to appropriate locations
+### 1. BROKEN IMPORTS (CRITICAL)
 
-### **PRIORITY 2: HIGH (This Week)**
-1. **Consolidate Documentation** - Merge similar documentation files
-2. **Archive Legacy Files** - Move outdated files to archive
-3. **Organize Scripts** - Create `scripts/` directory
+#### 1.1 Analysis Module Imports
+**Issue:** All imports from `src.analysis.*` are broken
+**Files Affected:**
+- `tests/unit/test_phase3_market_analysis.py`
+- `tests/unit/test_phase4_live_trading.py`
+- `tests/unit/test_performance_tracking.py`
+- `tests/unit/test_market_regime_detection.py`
 
-### **PRIORITY 3: MEDIUM (Next Week)**
-1. **Standardize Naming** - Consistent file naming conventions
-2. **Update Documentation** - Single source of truth for project status
-3. **Clean Dependencies** - Remove unused imports and files
+**Root Cause:** Analysis functionality was moved to sensory dimensions during cleanup, but imports weren't updated.
 
----
+**Required Fixes:**
+```python
+# OLD (broken)
+from src.analysis.market_regime_detector import MarketRegimeDetector
+from src.analysis.pattern_recognition import AdvancedPatternRecognition
 
-## 📋 PROPOSED NEW STRUCTURE
-
-```
-emp_proving_ground/
-├── README.md                    # Main project documentation
-├── requirements.txt             # Dependencies
-├── .gitignore                   # Git ignore rules
-├── config.yaml                  # Main configuration
-├── main.py                      # Main entry point
-├── src/                         # Source code
-│   ├── core/                    # Core components
-│   ├── sensory/                 # 5D sensory system
-│   ├── evolution/               # Genetic programming
-│   ├── trading/                 # Trading components
-│   ├── data/                    # Data handling
-│   └── risk/                    # Risk management
-├── tests/                       # All test files
-│   ├── unit/                    # Unit tests
-│   ├── integration/             # Integration tests
-│   └── end_to_end/              # End-to-end tests
-├── configs/                     # Configuration files
-│   ├── trading/                 # Trading configs
-│   ├── data/                    # Data configs
-│   └── system/                  # System configs
-├── data/                        # Data storage
-│   ├── raw/                     # Raw data
-│   ├── processed/               # Processed data
-│   └── strategies/              # Strategy files
-├── scripts/                     # Utility scripts
-├── docs/                        # Documentation
-│   ├── api/                     # API documentation
-│   ├── guides/                  # User guides
-│   └── reports/                 # Project reports
-├── archive/                     # Legacy/archived files
-└── logs/                        # Log files
+# NEW (correct)
+from src.sensory.dimensions.enhanced_when_dimension import MarketRegimeDetector
+from src.sensory.dimensions.enhanced_anomaly_dimension import AdvancedPatternRecognition
 ```
 
----
+#### 1.2 Missing Configuration Files
+**Issue:** Core configuration files missing from expected locations
+**Missing Files:**
+- `configs/instruments.json`
+- `configs/exchange_rates.json`
 
-## 🚀 CLEANUP ACTION PLAN
+**Files Affected:**
+- `src/core.py` (lines 69, 174)
+- Various test files
 
-### **PHASE 1: IMMEDIATE CLEANUP (Today)**
-1. Create organized directory structure
-2. Move all test files to `tests/` directory
-3. Consolidate configuration directories
-4. Move documentation to `docs/` directory
+**Root Cause:** Files were moved during cleanup but not restored to new locations.
 
-### **PHASE 2: CONSOLIDATION (This Week)**
-1. Merge similar documentation files
-2. Archive outdated files
-3. Standardize naming conventions
-4. Update import paths
+### 2. PATH REFERENCE ISSUES (MEDIUM)
 
-### **PHASE 3: OPTIMIZATION (Next Week)**
-1. Remove unused files
-2. Update documentation
-3. Create comprehensive README
-4. Establish development guidelines
+#### 2.1 Hardcoded Directory References
+**Files with Issues:**
+- `tests/unit/test_reality_check.py` - References old data paths
+- `tests/integration/test_real_data_integration.py` - References old config paths
+- `tests/integration/test_real_ctrader_integration.py` - References old config paths
 
----
+#### 2.2 Configuration Path Mismatches
+**Issue:** Some config references point to old directory structure
+**Affected:** Core system components expecting files in `configs/` but files are in `configs/system/`
 
-## ⚠️ RISKS AND MITIGATION
+### 3. WORKING IMPORTS (VERIFIED)
 
-### **Risks:**
-- Breaking import paths during reorganization
-- Losing important files during cleanup
-- Disrupting development workflow
+#### 3.1 Core System Imports ✅
+- `src.sensory.*` - All working correctly
+- `src.evolution.real_genetic_engine` - Working correctly
+- `src.data.real_data_ingestor` - Working correctly
+- `src.trading.*` - Working correctly
 
-### **Mitigation:**
-- Use git to track all changes
-- Test thoroughly after each phase
-- Create backup before major changes
-- Update documentation as we go
-
----
-
-## 📈 SUCCESS METRICS
-
-### **Before Cleanup:**
-- 50+ files in root directory
-- Duplicate configuration directories
-- Scattered test files
-- Multiple similar documentation files
-
-### **After Cleanup:**
-- Clean root directory (< 10 essential files)
-- Single configuration directory
-- Organized test structure
-- Consolidated documentation
-- Clear project structure
+#### 3.2 Main Application ✅
+- `main.py` - All imports working correctly
+- Core system initialization - Functional
 
 ---
 
-**Next Step:** Execute Phase 1 cleanup immediately 
+## IMPACT ASSESSMENT
+
+### High Impact Issues
+1. **Analysis imports broken** - Prevents market analysis functionality
+2. **Missing config files** - Prevents proper system initialization
+3. **Test failures** - Prevents comprehensive testing
+
+### Medium Impact Issues
+1. **Path inconsistencies** - May cause runtime errors
+2. **Hardcoded references** - Maintenance issues
+
+### Low Impact Issues
+1. **Warning messages** - Pydantic deprecation warnings
+2. **Test return values** - Non-critical test issues
+
+---
+
+## RECOMMENDED FIXES
+
+### Phase 1: Critical Fixes (Immediate)
+1. **Update analysis imports** in all test files
+2. **Restore missing config files** to `configs/system/`
+3. **Fix hardcoded paths** in test files
+
+### Phase 2: Path Standardization (Next)
+1. **Update all config references** to use new directory structure
+2. **Standardize path handling** across the codebase
+3. **Update documentation** to reflect new structure
+
+### Phase 3: Code Quality (Future)
+1. **Fix Pydantic deprecation warnings**
+2. **Standardize test return values**
+3. **Add import validation tests**
+
+---
+
+## VERIFICATION PLAN
+
+### Pre-Fix Verification
+- [x] Core imports working
+- [x] Main application functional
+- [x] Sensory system operational
+
+### Post-Fix Verification
+- [ ] All analysis imports working
+- [ ] All config files accessible
+- [ ] All tests passing
+- [ ] No broken path references
+- [ ] Main application fully functional
+
+---
+
+## CONCLUSION
+
+The system is fundamentally sound with a clean architecture, but requires immediate attention to fix broken imports and missing configuration files. The cleanup was successful in organizing the codebase, but some integration points were missed.
+
+**Priority:** High - Fixes needed before production deployment  
+**Effort:** Medium - Approximately 2-4 hours of focused work  
+**Risk:** Low - All issues are straightforward to resolve
+
+---
+
+**Audit Completed By:** AI Assistant  
+**Next Review:** After fixes implementation 

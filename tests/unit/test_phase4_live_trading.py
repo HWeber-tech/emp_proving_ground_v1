@@ -106,8 +106,7 @@ def test_live_trading_executor_components():
     
     try:
         from src.trading.live_trading_executor import (
-            LiveTradingExecutor, LiveRiskManager,
-            TradingSignal, TradingPerformance
+            LiveTradingExecutor, TradingSignal, LiveRiskManager, TradingPerformance
         )
         from src.trading.mock_ctrader_interface import TradingConfig, TradingMode
         
@@ -168,10 +167,12 @@ def test_trading_integration():
     print("\n🧪 Testing Trading Integration...")
     
     try:
-        from src.trading.live_trading_executor import LiveTradingExecutor
+        from src.trading.live_trading_executor import (
+            LiveTradingExecutor, TradingSignal, LiveRiskManager, TradingPerformance
+        )
         from src.trading.mock_ctrader_interface import TradingConfig, TradingMode
-        from src.analysis.market_regime_detector import MarketRegimeDetector
-        from src.analysis.pattern_recognition import AdvancedPatternRecognition
+        from src.sensory.dimensions.enhanced_when_dimension import MarketRegimeDetector
+        from src.sensory.dimensions.enhanced_anomaly_dimension import AdvancedPatternRecognition
         from src.evolution.real_genetic_engine import RealGeneticEngine
         
         # Test configuration
@@ -215,7 +216,7 @@ def test_trading_signal_generation():
     try:
         from src.trading.live_trading_executor import LiveTradingExecutor, TradingSignal
         from src.trading.mock_ctrader_interface import TradingConfig, TradingMode
-        from src.analysis.market_regime_detector import MarketRegime, RegimeResult
+        from src.sensory.dimensions.enhanced_when_dimension import MarketRegime, RegimeResult
         
         # Test configuration
         config = TradingConfig(

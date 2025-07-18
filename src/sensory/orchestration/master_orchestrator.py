@@ -23,11 +23,11 @@ from src.sensory.core.utils import (
     EMA, WelfordVar, compute_confidence, normalize_signal,
     calculate_momentum, PerformanceTracker
 )
-from src.sensory.dimensions.why_engine import WHYEngine
-from src.sensory.dimensions.how_engine import HOWEngine
-from src.sensory.dimensions.what_engine import WATEngine
-from src.sensory.dimensions.when_engine import WHENEngine
-from src.sensory.dimensions.anomaly_engine import ANOMALYEngine
+from src.sensory.dimensions.enhanced_why_dimension import EnhancedFundamentalIntelligenceEngine as WHYEngine
+from src.sensory.dimensions.enhanced_how_dimension import InstitutionalMechanicsEngine as HOWEngine
+from src.sensory.dimensions.enhanced_what_dimension import TechnicalRealityEngine as WATEngine
+from src.sensory.dimensions.enhanced_when_dimension import ChronalIntelligenceEngine as WHENEngine
+from src.sensory.dimensions.enhanced_anomaly_dimension import AnomalyIntelligenceEngine as ANOMALYEngine
 
 logger = logging.getLogger(__name__)
 

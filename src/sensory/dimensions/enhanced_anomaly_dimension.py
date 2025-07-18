@@ -20,7 +20,7 @@ from sklearn.ensemble import IsolationForest
 from sklearn.preprocessing import StandardScaler
 import logging
 
-from ..core.base import DimensionalReading, MarketData, MarketRegime
+from ..core.base import DimensionalReading, MarketData, MarketRegime, DimensionalSensor, InstrumentMeta, OrderBookSnapshot
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +34,7 @@ class AnomalyType(Enum):
     CORRELATION_BREAK = auto()        # Cross-dimensional correlation breaks
     SELF_REFUTATION = auto()          # Model prediction failures
     CHAOS_EMERGENCE = auto()          # Chaotic behavior patterns
+    PRICE_PATTERN = auto()            # Chart pattern anomalies (integrated from analysis)
 
 class ManipulationSignature(Enum):
     """Known manipulation patterns"""
@@ -52,6 +53,21 @@ class ChaosPattern(Enum):
     FRACTAL_BREAKDOWN = auto()        # Self-similarity breakdown
     PHASE_TRANSITION = auto()         # Sudden state changes
     EMERGENCE = auto()                # New behavior patterns emerging
+
+class PatternType(Enum):
+    """Trading pattern types - integrated from analysis"""
+    ASCENDING_TRIANGLE = "ascending_triangle"
+    DESCENDING_TRIANGLE = "descending_triangle"
+    SYMMETRICAL_TRIANGLE = "symmetrical_triangle"
+    BULL_FLAG = "bull_flag"
+    BEAR_FLAG = "bear_flag"
+    HEAD_SHOULDERS = "head_shoulders"
+    INVERSE_HEAD_SHOULDERS = "inverse_head_shoulders"
+    DOUBLE_TOP = "double_top"
+    DOUBLE_BOTTOM = "double_bottom"
+    WEDGE = "wedge"
+    CHANNEL = "channel"
+    UNKNOWN = "unknown"
 
 @dataclass
 class AnomalyEvent:
@@ -129,9 +145,13 @@ class StatisticalAnomalyDetector:
         
         mid_price = (market_data.bid + market_data.ask) / 2
         
+        # Calculate volatility from price data
+        price_change = abs(market_data.close - market_data.open) / market_data.open
+        volatility = price_change
+        
         self.price_history.append(mid_price)
         self.volume_history.append(market_data.volume)
-        self.volatility_history.append(market_data.volatility)
+        self.volatility_history.append(volatility)
         self.timestamp_history.append(market_data.timestamp)
         
         # Retrain model periodically
@@ -316,7 +336,9 @@ class StatisticalAnomalyDetector:
         volatility_std = np.std(volatilities)
         
         if volatility_std > 0:
-            volatility_zscore = abs(market_data.volatility - volatility_mean) / volatility_std
+            # Calculate current volatility from market data
+            current_volatility = abs(market_data.close - market_data.open) / market_data.open
+            volatility_zscore = abs(current_volatility - volatility_mean) / volatility_std
             
             if volatility_zscore > self.volatility_threshold:
                 anomalies.append(AnomalyEvent(
@@ -388,7 +410,9 @@ class StatisticalAnomalyDetector:
         # Add current data point
         current_prices = np.append(recent_prices, mid_price)
         current_volumes = np.append(recent_volumes, market_data.volume)
-        current_volatilities = np.append(recent_volatilities, market_data.volatility)
+        # Calculate current volatility from market data
+        current_volatility = abs(market_data.close - market_data.open) / market_data.open
+        current_volatilities = np.append(recent_volatilities, current_volatility)
         
         features = [
             # Price features
@@ -1182,139 +1206,377 @@ class ChaosDetector:
 
 class SelfRefutationEngine:
     """
-    Self-refutation and meta-learning engine
+    Self-refutation engine that tracks prediction failures and learns from them
     """
     
     def __init__(self):
         # Prediction tracking
-        self.predictions: List[Dict] = []
-        self.refutation_events: List[SelfRefutationEvent] = []
-        
-        # Learning metrics
-        self.prediction_accuracy = 0.5
-        self.confidence_calibration = 0.5
-        self.overconfidence_bias = 0.0
-        
-    def record_prediction(self, prediction_type: str, predicted_value: float, 
-                         confidence: float, timestamp: datetime) -> None:
-        """Record a prediction for later validation"""
-        
-        self.predictions.append({
-            'type': prediction_type,
-            'predicted_value': predicted_value,
-            'confidence': confidence,
-            'timestamp': timestamp,
-            'validated': False
-        })
-        
-        # Keep only recent predictions
-        cutoff_time = timestamp - timedelta(hours=24)
-        self.predictions = [
-            pred for pred in self.predictions
-            if pred['timestamp'] > cutoff_time
-        ]
+        self.predictions: List[Dict[str, Any]] = []
+        self.learning_metrics = {
+            'total_predictions': 0,
+            'successful_predictions': 0,
+            'failed_predictions': 0,
+            'average_error': 0.0,
+            'confidence_calibration': 0.0
+        }
     
-    def validate_predictions(self, market_data: MarketData) -> List[SelfRefutationEvent]:
-        """Validate previous predictions and detect refutations"""
-        
-        refutations = []
-        current_time = market_data.timestamp
+    def validate_predictions(self, actual_data: MarketData) -> List[SelfRefutationEvent]:
+        """Validate previous predictions against actual data"""
+        validated_predictions = []
         
         for prediction in self.predictions:
-            if not prediction['validated']:
-                # Check if enough time has passed for validation
-                time_elapsed = current_time - prediction['timestamp']
+            # Simple validation logic
+            if 'price_prediction' in prediction:
+                actual_price = actual_data.close
+                predicted_price = prediction['price_prediction']
+                error = abs(actual_price - predicted_price) / actual_price
                 
-                if time_elapsed > timedelta(minutes=30):  # 30 minutes for validation
-                    actual_value = self._get_actual_value(prediction['type'], market_data)
-                    
-                    if actual_value is not None:
-                        error_magnitude = abs(actual_value - prediction['predicted_value'])
-                        relative_error = error_magnitude / abs(prediction['predicted_value']) if prediction['predicted_value'] != 0 else error_magnitude
-                        
-                        # Check for significant prediction failure
-                        if relative_error > 0.5 and prediction['confidence'] > 0.7:  # High confidence, high error
-                            
-                            refutation = SelfRefutationEvent(
-                                prediction_type=prediction['type'],
-                                predicted_value=prediction['predicted_value'],
-                                actual_value=actual_value,
-                                error_magnitude=error_magnitude,
-                                confidence_was=prediction['confidence'],
-                                learning_opportunity=self._generate_learning_opportunity(prediction, actual_value)
-                            )
-                            
-                            refutations.append(refutation)
-                            self.refutation_events.append(refutation)
-                        
-                        # Update learning metrics
-                        self._update_learning_metrics(prediction, actual_value)
-                        prediction['validated'] = True
+                validated_prediction = SelfRefutationEvent(
+                    prediction_type='price',
+                    predicted_value=predicted_price,
+                    actual_value=actual_price,
+                    error_magnitude=error,
+                    confidence_was=prediction.get('confidence', 0.5),
+                    learning_opportunity=f"Price prediction error: {error:.3f}"
+                )
+                validated_predictions.append(validated_prediction)
         
-        return refutations
-    
-    def _get_actual_value(self, prediction_type: str, market_data: MarketData) -> Optional[float]:
-        """Get actual value for comparison with prediction"""
-        
-        if prediction_type == 'price':
-            return (market_data.bid + market_data.ask) / 2
-        elif prediction_type == 'volatility':
-            return market_data.volatility
-        elif prediction_type == 'volume':
-            return market_data.volume
-        
-        return None
-    
-    def _update_learning_metrics(self, prediction: Dict, actual_value: float) -> None:
-        """Update learning metrics based on prediction accuracy"""
-        
-        error = abs(actual_value - prediction['predicted_value'])
-        relative_error = error / abs(prediction['predicted_value']) if prediction['predicted_value'] != 0 else error
-        
-        # Update accuracy (exponential moving average)
-        accuracy = 1.0 - min(relative_error, 1.0)
-        self.prediction_accuracy = 0.9 * self.prediction_accuracy + 0.1 * accuracy
-        
-        # Update confidence calibration
-        confidence_error = abs(prediction['confidence'] - accuracy)
-        calibration = 1.0 - confidence_error
-        self.confidence_calibration = 0.9 * self.confidence_calibration + 0.1 * calibration
-        
-        # Update overconfidence bias
-        overconfidence = prediction['confidence'] - accuracy
-        self.overconfidence_bias = 0.9 * self.overconfidence_bias + 0.1 * overconfidence
-    
-    def _generate_learning_opportunity(self, prediction: Dict, actual_value: float) -> str:
-        """Generate learning opportunity description"""
-        
-        error_direction = "overestimated" if prediction['predicted_value'] > actual_value else "underestimated"
-        error_magnitude = abs(actual_value - prediction['predicted_value'])
-        
-        return f"Model {error_direction} {prediction['type']} by {error_magnitude:.4f} with {prediction['confidence']:.2f} confidence"
+        return validated_predictions
     
     def get_meta_learning_insights(self) -> Dict[str, Any]:
-        """Get meta-learning insights about model performance"""
-        
+        """Get meta-learning insights from prediction failures"""
         return {
-            'prediction_accuracy': self.prediction_accuracy,
-            'confidence_calibration': self.confidence_calibration,
-            'overconfidence_bias': self.overconfidence_bias,
-            'recent_refutations': len(self.refutation_events),
-            'learning_rate': max(0.1, 1.0 - self.prediction_accuracy),  # Learn faster when less accurate
-            'reliability_score': (self.prediction_accuracy + self.confidence_calibration) / 2
+            'total_predictions': self.learning_metrics['total_predictions'],
+            'success_rate': self.learning_metrics['successful_predictions'] / max(1, self.learning_metrics['total_predictions']),
+            'average_error': self.learning_metrics['average_error'],
+            'confidence_calibration': self.learning_metrics['confidence_calibration']
         }
 
-class AnomalyIntelligenceEngine:
+class PatternRecognitionDetector:
     """
-    Main engine for anomaly detection and chaos intelligence
-    Orchestrates all anomaly detection components
+    Advanced pattern recognition detector - integrated from analysis
     """
     
-    def __init__(self):
-        self.statistical_detector = StatisticalAnomalyDetector()
+    def __init__(self, min_pattern_bars: int = 10, max_pattern_bars: int = 100):
+        self.min_pattern_bars = min_pattern_bars
+        self.max_pattern_bars = max_pattern_bars
+        
+        # Data storage
+        self.price_history = deque(maxlen=200)
+        self.high_history = deque(maxlen=200)
+        self.low_history = deque(maxlen=200)
+        self.volume_history = deque(maxlen=200)
+        self.timestamp_history = deque(maxlen=200)
+        
+        logger.info(f"Pattern recognition detector initialized")
+    
+    def update_data(self, market_data: MarketData) -> None:
+        """Update with new market data"""
+        mid_price = (market_data.bid + market_data.ask) / 2
+        
+        # Estimate high/low from mid and spread
+        spread = market_data.ask - market_data.bid
+        estimated_high = mid_price + spread * 0.6
+        estimated_low = mid_price - spread * 0.6
+        
+        self.price_history.append(mid_price)
+        self.high_history.append(estimated_high)
+        self.low_history.append(estimated_low)
+        self.volume_history.append(market_data.volume)
+        self.timestamp_history.append(market_data.timestamp)
+    
+    def detect_patterns(self, market_data: MarketData) -> List[AnomalyEvent]:
+        """Detect trading patterns and return as anomaly events"""
+        if len(self.price_history) < self.min_pattern_bars:
+            return []
+        
+        try:
+            patterns = []
+            
+            # Detect different pattern types
+            patterns.extend(self._detect_triangles(market_data))
+            patterns.extend(self._detect_flags(market_data))
+            patterns.extend(self._detect_head_shoulders(market_data))
+            patterns.extend(self._detect_double_patterns(market_data))
+            patterns.extend(self._detect_channels(market_data))
+            
+            # Convert patterns to anomaly events
+            anomaly_events = []
+            for pattern in patterns:
+                anomaly_events.append(AnomalyEvent(
+                    anomaly_type=AnomalyType.PRICE_PATTERN,
+                    timestamp=market_data.timestamp,
+                    severity=pattern['confidence'],
+                    confidence=pattern['confidence'],
+                    description=f"Pattern detected: {pattern['pattern_type']}",
+                    affected_dimensions=['WHAT', 'ANOMALY'],
+                    market_impact=pattern['confidence'] * 0.3
+                ))
+            
+            return anomaly_events
+            
+        except Exception as e:
+            logger.error(f"Error detecting patterns: {e}")
+            return []
+    
+    def _detect_triangles(self, market_data: MarketData) -> List[Dict[str, Any]]:
+        """Detect triangle patterns"""
+        patterns = []
+        
+        if len(self.price_history) < self.min_pattern_bars:
+            return patterns
+        
+        # Look for triangle patterns in recent data
+        for i in range(self.min_pattern_bars, min(len(self.price_history), self.max_pattern_bars)):
+            window_data = {
+                'high': list(self.high_history)[-i:],
+                'low': list(self.low_history)[-i:],
+                'close': list(self.price_history)[-i:]
+            }
+            
+            # Find peaks and troughs
+            highs = np.array(window_data['high'])
+            lows = np.array(window_data['low'])
+            
+            peaks = self._find_peaks(highs)
+            troughs = self._find_peaks(-lows)  # Invert lows to find troughs
+            
+            if len(peaks) >= 3 and len(troughs) >= 3:
+                # Analyze trend lines
+                upper_trend = self._fit_trend_line(peaks, highs[peaks])
+                lower_trend = self._fit_trend_line(troughs, lows[troughs])
+                
+                if upper_trend and lower_trend:
+                    upper_slope = upper_trend['slope']
+                    lower_slope = lower_trend['slope']
+                    
+                    # Determine triangle type
+                    if abs(upper_slope) < 0.001 and lower_slope > 0.001:
+                        patterns.append({
+                            'pattern_type': PatternType.ASCENDING_TRIANGLE,
+                            'confidence': 0.7,
+                            'description': 'Ascending triangle formation'
+                        })
+                    elif upper_slope < -0.001 and abs(lower_slope) < 0.001:
+                        patterns.append({
+                            'pattern_type': PatternType.DESCENDING_TRIANGLE,
+                            'confidence': 0.7,
+                            'description': 'Descending triangle formation'
+                        })
+                    elif abs(upper_slope - lower_slope) < 0.002:
+                        patterns.append({
+                            'pattern_type': PatternType.SYMMETRICAL_TRIANGLE,
+                            'confidence': 0.6,
+                            'description': 'Symmetrical triangle formation'
+                        })
+        
+        return patterns
+    
+    def _detect_flags(self, market_data: MarketData) -> List[Dict[str, Any]]:
+        """Detect flag patterns"""
+        patterns = []
+        
+        if len(self.price_history) < self.min_pattern_bars:
+            return patterns
+        
+        for i in range(self.min_pattern_bars, min(len(self.price_history), self.max_pattern_bars)):
+            window_data = {
+                'high': list(self.high_history)[-i:],
+                'low': list(self.low_history)[-i:],
+                'close': list(self.price_history)[-i:]
+            }
+            
+            # Check for strong move followed by consolidation
+            first_half = {
+                'high': window_data['high'][:len(window_data['high'])//2],
+                'low': window_data['low'][:len(window_data['low'])//2],
+                'close': window_data['close'][:len(window_data['close'])//2]
+            }
+            second_half = {
+                'high': window_data['high'][len(window_data['high'])//2:],
+                'low': window_data['low'][len(window_data['low'])//2:],
+                'close': window_data['close'][len(window_data['close'])//2:]
+            }
+            
+            # Calculate momentum
+            first_momentum = self._calculate_momentum(first_half)
+            second_momentum = self._calculate_momentum(second_half)
+            
+            # Check for flag conditions
+            if abs(first_momentum) > 0.02 and abs(second_momentum) < 0.005:
+                if first_momentum > 0:
+                    patterns.append({
+                        'pattern_type': PatternType.BULL_FLAG,
+                        'confidence': 0.7,
+                        'description': 'Bull flag pattern'
+                    })
+                else:
+                    patterns.append({
+                        'pattern_type': PatternType.BEAR_FLAG,
+                        'confidence': 0.7,
+                        'description': 'Bear flag pattern'
+                    })
+        
+        return patterns
+    
+    def _detect_head_shoulders(self, market_data: MarketData) -> List[Dict[str, Any]]:
+        """Detect head and shoulders patterns"""
+        patterns = []
+        
+        if len(self.price_history) < 20:
+            return patterns
+        
+        # Simplified head and shoulders detection
+        highs = np.array(list(self.high_history)[-20:])
+        peaks = self._find_peaks(highs)
+        
+        if len(peaks) >= 3:
+            # Check for head and shoulders pattern
+            peak_values = highs[peaks]
+            if len(peak_values) >= 3:
+                # Look for three peaks with middle peak higher
+                for i in range(len(peak_values) - 2):
+                    left = peak_values[i]
+                    middle = peak_values[i + 1]
+                    right = peak_values[i + 2]
+                    
+                    if middle > left and middle > right and abs(left - right) < middle * 0.1:
+                        patterns.append({
+                            'pattern_type': PatternType.HEAD_SHOULDERS,
+                            'confidence': 0.6,
+                            'description': 'Head and shoulders pattern'
+                        })
+                        break
+        
+        return patterns
+    
+    def _detect_double_patterns(self, market_data: MarketData) -> List[Dict[str, Any]]:
+        """Detect double top/bottom patterns"""
+        patterns = []
+        
+        if len(self.price_history) < 15:
+            return patterns
+        
+        highs = np.array(list(self.high_history)[-15:])
+        lows = np.array(list(self.low_history)[-15:])
+        
+        # Detect double top
+        peaks = self._find_peaks(highs)
+        if len(peaks) >= 2:
+            peak_values = highs[peaks]
+            if len(peak_values) >= 2:
+                # Check if two peaks are similar in height
+                if abs(peak_values[-1] - peak_values[-2]) < peak_values[-1] * 0.05:
+                    patterns.append({
+                        'pattern_type': PatternType.DOUBLE_TOP,
+                        'confidence': 0.6,
+                        'description': 'Double top pattern'
+                    })
+        
+        # Detect double bottom
+        troughs = self._find_peaks(-lows)
+        if len(troughs) >= 2:
+            trough_values = lows[troughs]
+            if len(trough_values) >= 2:
+                # Check if two troughs are similar in depth
+                if abs(trough_values[-1] - trough_values[-2]) < trough_values[-1] * 0.05:
+                    patterns.append({
+                        'pattern_type': PatternType.DOUBLE_BOTTOM,
+                        'confidence': 0.6,
+                        'description': 'Double bottom pattern'
+                    })
+        
+        return patterns
+    
+    def _detect_channels(self, market_data: MarketData) -> List[Dict[str, Any]]:
+        """Detect channel patterns"""
+        patterns = []
+        
+        if len(self.price_history) < 10:
+            return patterns
+        
+        # Simplified channel detection
+        highs = np.array(list(self.high_history)[-10:])
+        lows = np.array(list(self.low_history)[-10:])
+        
+        # Fit trend lines to highs and lows
+        upper_trend = self._fit_trend_line_to_highs(highs)
+        lower_trend = self._fit_trend_line_to_lows(lows)
+        
+        if upper_trend and lower_trend:
+            # Check if lines are roughly parallel
+            slope_diff = abs(upper_trend['slope'] - lower_trend['slope'])
+            if slope_diff < 0.01:  # Lines are roughly parallel
+                patterns.append({
+                    'pattern_type': PatternType.CHANNEL,
+                    'confidence': 0.5,
+                    'description': 'Channel pattern'
+                })
+        
+        return patterns
+    
+    def _find_peaks(self, data: np.ndarray, window: int = 3) -> List[int]:
+        """Find peaks in data"""
+        peaks = []
+        for i in range(window, len(data) - window):
+            if all(data[i] >= data[j] for j in range(i - window, i + window + 1)):
+                peaks.append(i)
+        return peaks
+    
+    def _fit_trend_line(self, x_points: List[int], y_points: List[float]) -> Optional[Dict[str, float]]:
+        """Fit a trend line to points"""
+        if len(x_points) < 2:
+            return None
+        
+        try:
+            slope, intercept = np.polyfit(x_points, y_points, 1)
+            return {'slope': slope, 'intercept': intercept}
+        except:
+            return None
+    
+    def _fit_trend_line_to_highs(self, highs: np.ndarray) -> Optional[Dict[str, float]]:
+        """Fit trend line to highs"""
+        x_points = list(range(len(highs)))
+        y_points = highs.tolist()
+        return self._fit_trend_line(x_points, y_points)
+    
+    def _fit_trend_line_to_lows(self, lows: np.ndarray) -> Optional[Dict[str, float]]:
+        """Fit trend line to lows"""
+        x_points = list(range(len(lows)))
+        y_points = lows.tolist()
+        return self._fit_trend_line(x_points, y_points)
+    
+    def _calculate_momentum(self, data: Dict[str, List[float]]) -> float:
+        """Calculate momentum from data"""
+        if not data['close']:
+            return 0.0
+        
+        closes = np.array(data['close'])
+        if len(closes) < 2:
+            return 0.0
+        
+        return (closes[-1] - closes[0]) / closes[0]
+
+class AnomalyIntelligenceEngine(DimensionalSensor):
+    """
+    Enhanced anomaly intelligence engine with sophisticated pattern detection
+    """
+    
+    def __init__(self, instrument_meta: InstrumentMeta):
+        super().__init__(instrument_meta)
+        self.anomaly_detector = StatisticalAnomalyDetector()
         self.manipulation_detector = ManipulationDetector()
         self.chaos_detector = ChaosDetector()
         self.self_refutation_engine = SelfRefutationEngine()
+        self.pattern_recognition_detector = PatternRecognitionDetector()
+        
+        # Performance tracking
+        self.analysis_history = deque(maxlen=100)
+        self.confidence_history = deque(maxlen=50)
+        
+        # Adaptive parameters
+        self.learning_rate = 0.05
+        self.confidence_threshold = 0.6
         
         # Current state
         self.current_anomaly_level = 0.0
@@ -1323,90 +1585,254 @@ class AnomalyIntelligenceEngine:
         
         # Anomaly history
         self.recent_anomalies: List[AnomalyEvent] = []
+    
+    async def analyze_anomaly_intelligence(self, market_data: MarketData, order_book: Optional[OrderBookSnapshot] = None) -> DimensionalReading:
+        """Perform comprehensive anomaly analysis"""
         
-    async def analyze_anomaly_intelligence(self, market_data: MarketData) -> DimensionalReading:
-        """Analyze anomaly intelligence and return dimensional reading"""
-        
-        # Update all detectors
-        self.statistical_detector.update_data(market_data)
-        self.manipulation_detector.update_data(market_data)
-        self.chaos_detector.update_data(market_data)
-        
-        # Detect anomalies
-        statistical_anomalies = self.statistical_detector.detect_statistical_anomalies(market_data)
-        manipulation_events = self.manipulation_detector.detect_manipulation_patterns(market_data)
-        chaos_events = self.chaos_detector.detect_chaos_patterns(market_data)
-        refutation_events = self.self_refutation_engine.validate_predictions(market_data)
-        
-        # Combine all anomalies
-        all_anomalies = statistical_anomalies.copy()
-        
-        # Convert manipulation events to anomaly events
-        for manip in manipulation_events:
-            anomaly = AnomalyEvent(
-                anomaly_type=AnomalyType.MANIPULATION_PATTERN,
-                timestamp=manip.timestamp,
-                severity=manip.strength,
-                confidence=manip.success_probability,
-                description=f"Manipulation: {manip.signature.name}",
-                affected_dimensions=['HOW'],
-                market_impact=manip.strength * 0.6
+        try:
+            # Update anomaly detector
+            self.anomaly_detector.update_data(market_data)
+            
+            # Update pattern detector
+            self.pattern_recognition_detector.update_data(market_data)
+            
+            # Get anomaly signals
+            statistical_anomalies = self.anomaly_detector.detect_statistical_anomalies(market_data)
+            manipulation_events = self.manipulation_detector.detect_manipulation_patterns(market_data)
+            chaos_events = self.chaos_detector.detect_chaos_patterns(market_data)
+            refutation_events = self.self_refutation_engine.validate_predictions(market_data)
+            pattern_anomalies = self.pattern_recognition_detector.detect_patterns(market_data)
+            
+            # Combine all anomalies
+            all_anomalies = statistical_anomalies.copy()
+            
+            # Convert manipulation events to anomaly events
+            for manip in manipulation_events:
+                anomaly = AnomalyEvent(
+                    anomaly_type=AnomalyType.MANIPULATION_PATTERN,
+                    timestamp=manip.timestamp,
+                    severity=manip.strength,
+                    confidence=manip.success_probability,
+                    description=f"Manipulation: {manip.signature.name}",
+                    affected_dimensions=['HOW'],
+                    market_impact=manip.strength * 0.6
+                )
+                all_anomalies.append(anomaly)
+            
+            # Convert chaos events to anomaly events
+            for chaos in chaos_events:
+                anomaly = AnomalyEvent(
+                    anomaly_type=AnomalyType.CHAOS_EMERGENCE,
+                    timestamp=chaos.timestamp,
+                    severity=chaos.intensity,
+                    confidence=1.0 - chaos.predictability,
+                    description=f"Chaos: {chaos.pattern.name}",
+                    affected_dimensions=['WHAT', 'WHEN'],
+                    market_impact=chaos.system_stress
+                )
+                all_anomalies.append(anomaly)
+            
+            # Convert refutation events to anomaly events
+            for refutation in refutation_events:
+                anomaly = AnomalyEvent(
+                    anomaly_type=AnomalyType.SELF_REFUTATION,
+                    timestamp=market_data.timestamp,
+                    severity=min(refutation.error_magnitude * 10, 1.0),
+                    confidence=refutation.confidence_was,
+                    description=f"Self-refutation: {refutation.learning_opportunity}",
+                    affected_dimensions=['WHY', 'WHAT', 'HOW', 'WHEN'],
+                    market_impact=0.2
+                )
+                all_anomalies.append(anomaly)
+            
+            # Convert pattern anomalies to anomaly events
+            for pattern in pattern_anomalies:
+                anomaly = AnomalyEvent(
+                    anomaly_type=AnomalyType.PRICE_PATTERN,
+                    timestamp=pattern.timestamp,
+                    severity=pattern.severity,
+                    confidence=pattern.confidence,
+                    description=f"Pattern anomaly: {pattern.description}",
+                    affected_dimensions=['WHAT'],
+                    market_impact=pattern.market_impact
+                )
+                all_anomalies.append(anomaly)
+            
+            # Update recent anomalies
+            self.recent_anomalies.extend(all_anomalies)
+            cutoff_time = market_data.timestamp - timedelta(hours=2)
+            self.recent_anomalies = [
+                anomaly for anomaly in self.recent_anomalies
+                if anomaly.timestamp > cutoff_time
+            ]
+            
+            # Calculate anomaly score
+            anomaly_score = self._calculate_anomaly_score(all_anomalies, pattern_anomalies)
+            
+            # Calculate confidence
+            confidence = self._calculate_confidence(all_anomalies, pattern_anomalies)
+            
+            # Determine regime
+            regime = self._determine_regime(anomaly_score)
+            
+            # Create context
+            context = {
+                'anomalies_detected': len(all_anomalies),
+                'patterns_detected': len(pattern_anomalies),
+                'anomaly_score': anomaly_score,
+                'confidence': confidence,
+                'anomaly_types': [a.anomaly_type.name for a in all_anomalies[:5]],  # Top 5
+                'pattern_types': [p.pattern_type.name for p in pattern_anomalies[:5]]   # Top 5
+            }
+            
+            # Add anomaly breakdown by type
+            anomaly_types = defaultdict(int)
+            for anomaly in all_anomalies:
+                anomaly_types[anomaly.anomaly_type.name] += 1
+            context['anomaly_breakdown'] = dict(anomaly_types)
+            
+            # Add chaos metrics
+            context['chaos_metrics'] = {
+                'hurst_exponent': self.chaos_detector.hurst_exponent,
+                'lyapunov_exponent': self.chaos_detector.lyapunov_exponent,
+                'correlation_dimension': self.chaos_detector.correlation_dimension
+            }
+            
+            # Add manipulation status
+            active_manipulations = [
+                {
+                    'signature': manip.signature.name,
+                    'strength': manip.strength,
+                    'target_level': manip.target_level
+                }
+                for manip in self.manipulation_detector.active_manipulations
+            ]
+            context['active_manipulations'] = active_manipulations
+            
+            # Add meta-learning insights
+            context['meta_learning'] = self.self_refutation_engine.get_meta_learning_insights()
+            
+            # Add recent significant anomalies
+            significant_anomalies = [
+                {
+                    'type': anomaly.anomaly_type.name,
+                    'severity': anomaly.severity,
+                    'description': anomaly.description,
+                    'affected_dimensions': anomaly.affected_dimensions
+                }
+                for anomaly in self.recent_anomalies
+                if anomaly.severity > 0.5
+            ]
+            context['significant_anomalies'] = significant_anomalies[-5:]  # Last 5
+            
+            # Create reading
+            reading = DimensionalReading(
+                dimension='ANOMALY',
+                signal_strength=anomaly_score,
+                confidence=confidence,
+                regime=regime,
+                context=context,
+                timestamp=market_data.timestamp
             )
-            all_anomalies.append(anomaly)
-        
-        # Convert chaos events to anomaly events
-        for chaos in chaos_events:
-            anomaly = AnomalyEvent(
-                anomaly_type=AnomalyType.CHAOS_EMERGENCE,
-                timestamp=chaos.timestamp,
-                severity=chaos.intensity,
-                confidence=1.0 - chaos.predictability,
-                description=f"Chaos: {chaos.pattern.name}",
-                affected_dimensions=['WHAT', 'WHEN'],
-                market_impact=chaos.system_stress
+            
+            # Store last reading and mark as initialized
+            self.last_reading = reading
+            self.is_initialized = True
+            
+            return reading
+            
+        except Exception as e:
+            logger.error(f"Anomaly analysis failed: {e}")
+            
+            # Return neutral reading on error
+            return DimensionalReading(
+                dimension='ANOMALY',
+                signal_strength=0.0,
+                confidence=0.3,
+                regime=MarketRegime.UNKNOWN,
+                context={'error': str(e), 'status': 'degraded'},
+                timestamp=market_data.timestamp
             )
-            all_anomalies.append(anomaly)
+    
+    def _calculate_anomaly_score(self, anomalies: List, patterns: List) -> float:
+        """Calculate anomaly score from detected anomalies and patterns."""
+        # Base score from number of anomalies
+        anomaly_count = len(anomalies)
+        pattern_count = len(patterns)
         
-        # Convert refutation events to anomaly events
-        for refutation in refutation_events:
-            anomaly = AnomalyEvent(
-                anomaly_type=AnomalyType.SELF_REFUTATION,
-                timestamp=market_data.timestamp,
-                severity=min(refutation.error_magnitude * 10, 1.0),
-                confidence=refutation.confidence_was,
-                description=f"Self-refutation: {refutation.learning_opportunity}",
-                affected_dimensions=['WHY', 'WHAT', 'HOW', 'WHEN'],
-                market_impact=0.2
+        # Normalize counts
+        anomaly_factor = min(anomaly_count / 10.0, 1.0)  # Cap at 10 anomalies
+        pattern_factor = min(pattern_count / 20.0, 1.0)  # Cap at 20 patterns
+        
+        # Calculate score (positive for bullish patterns, negative for bearish)
+        score = 0.0
+        
+        # Add pattern signals
+        for pattern in patterns:
+            if hasattr(pattern, 'pattern_type'):
+                if pattern.pattern_type in [PatternType.ASCENDING_TRIANGLE, PatternType.BULL_FLAG, PatternType.DOUBLE_BOTTOM]:
+                    score += 0.1
+                elif pattern.pattern_type in [PatternType.DESCENDING_TRIANGLE, PatternType.BEAR_FLAG, PatternType.DOUBLE_TOP]:
+                    score -= 0.1
+            elif hasattr(pattern, 'anomaly_type') and pattern.anomaly_type == AnomalyType.PRICE_PATTERN:
+                # Handle AnomalyEvent objects that represent patterns
+                if 'bull' in pattern.description.lower() or 'ascending' in pattern.description.lower():
+                    score += 0.1
+                elif 'bear' in pattern.description.lower() or 'descending' in pattern.description.lower():
+                    score -= 0.1
+        
+        # Add anomaly signals (anomalies often indicate potential reversals)
+        if anomaly_count > 5:
+            score *= -0.5  # High anomalies suggest instability
+        
+        # Normalize score
+        return max(-1.0, min(1.0, score))
+    
+    def _calculate_confidence(self, anomalies: List, patterns: List) -> float:
+        """Calculate confidence based on anomaly and pattern detection."""
+        # Base confidence from detection quality
+        anomaly_confidence = min(len(anomalies) / 5.0, 1.0)  # More anomalies = higher confidence
+        pattern_confidence = min(len(patterns) / 10.0, 1.0)  # More patterns = higher confidence
+        
+        # Combine confidences
+        confidence = (anomaly_confidence * 0.6 + pattern_confidence * 0.4)
+        return max(0.1, min(confidence, 0.95))
+    
+    def _determine_regime(self, anomaly_score: float) -> MarketRegime:
+        """Determine market regime from anomaly score."""
+        if abs(anomaly_score) > 0.5:
+            return MarketRegime.VOLATILE
+        elif anomaly_score > 0.2:
+            return MarketRegime.BREAKOUT
+        elif anomaly_score < -0.2:
+            return MarketRegime.REVERSAL
+        else:
+            return MarketRegime.CONSOLIDATING
+    
+    async def update(self, market_data: MarketData, order_book: Optional[OrderBookSnapshot] = None) -> DimensionalReading:
+        """Process new market data and return dimensional reading."""
+        return await self.analyze_anomaly_intelligence(market_data, order_book)
+    
+    def snapshot(self) -> DimensionalReading:
+        """Return current dimensional state without processing new data."""
+        if self.last_reading:
+            return self.last_reading
+        else:
+            # Return default reading
+            return DimensionalReading(
+                dimension='ANOMALY',
+                signal_strength=0.0,
+                confidence=0.0,
+                regime=MarketRegime.UNKNOWN,
+                context={'status': 'not_initialized'}
             )
-            all_anomalies.append(anomaly)
-        
-        # Update recent anomalies
-        self.recent_anomalies.extend(all_anomalies)
-        cutoff_time = market_data.timestamp - timedelta(hours=2)
-        self.recent_anomalies = [
-            anomaly for anomaly in self.recent_anomalies
-            if anomaly.timestamp > cutoff_time
-        ]
-        
-        # Calculate anomaly strength
-        anomaly_strength = self._calculate_anomaly_strength()
-        
-        # Update system stress and antifragility
-        self._update_system_metrics()
-        
-        # Calculate confidence
-        confidence = self._calculate_anomaly_confidence()
-        
-        # Generate context
-        context = self._generate_anomaly_context()
-        
-        return DimensionalReading(
-            dimension='ANOMALY',
-            value=anomaly_strength,
-            confidence=confidence,
-            context=context,
-            timestamp=market_data.timestamp
-        )
+    
+    def reset(self) -> None:
+        """Reset sensor state for new trading session or instrument."""
+        self.analysis_history.clear()
+        self.confidence_history.clear()
+        self.last_reading = None
+        self.is_initialized = False
     
     def _calculate_anomaly_strength(self) -> float:
         """Calculate overall anomaly strength"""
@@ -1470,11 +1896,11 @@ class AnomalyIntelligenceEngine:
         confidence_factors = []
         
         # Data quality (amount of historical data)
-        data_quality = min(len(self.statistical_detector.price_history) / 100, 1.0)
+        data_quality = min(len(self.anomaly_detector.price_history) / 100, 1.0)
         confidence_factors.append(data_quality * 0.3)
         
         # Model training status
-        if self.statistical_detector.model_trained:
+        if self.anomaly_detector.model_trained:
             confidence_factors.append(0.3)
         
         # Meta-learning insights

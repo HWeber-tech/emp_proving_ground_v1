@@ -17,7 +17,7 @@ from scipy.signal import find_peaks, savgol_filter
 from sklearn.preprocessing import MinMaxScaler
 import logging
 
-from ..core.base import DimensionalReading, MarketData, MarketRegime
+from ..core.base import DimensionalReading, MarketData, MarketRegime, DimensionalSensor, InstrumentMeta
 
 logger = logging.getLogger(__name__)
 
@@ -884,81 +884,123 @@ class PriceActionAnalyzer:
         except:
             return {}
 
-class TechnicalRealityEngine:
+class TechnicalRealityEngine(DimensionalSensor):
     """
-    Main engine for pure price action analysis
-    Focuses on what the market is actually doing rather than lagging indicators
+    Enhanced technical reality engine with sophisticated price action analysis
     """
     
-    def __init__(self):
-        self.price_analyzer = PriceActionAnalyzer()
+    def __init__(self, instrument_meta: InstrumentMeta):
+        super().__init__(instrument_meta)
+        self.technical_analyzer = PriceActionAnalyzer()
         
-        # Market regime detection
-        self.current_regime = MarketRegime.RANGING_LOW_VOL
-        self.regime_confidence = 0.0
+        # Performance tracking
+        self.analysis_history = deque(maxlen=100)
+        self.confidence_history = deque(maxlen=50)
         
-        # Pattern recognition
-        self.active_patterns = []
+        # Adaptive parameters
+        self.learning_rate = 0.05
+        self.confidence_threshold = 0.6
         
     async def analyze_technical_reality(self, market_data: MarketData) -> DimensionalReading:
-        """Analyze technical reality and return dimensional reading"""
+        """Perform comprehensive technical analysis"""
         
-        # Update price action analysis
-        self.price_analyzer.update_market_data(market_data)
-        
-        # Detect market regime
-        self._detect_market_regime()
-        
-        # Calculate technical strength
-        price_action_score = self.price_analyzer.get_price_action_score()
-        
-        # Analyze market structure clarity
-        structure_clarity = self._calculate_structure_clarity()
-        
-        # Detect pattern formations
-        pattern_strength = self._analyze_pattern_formations()
-        
-        # Combine components
-        technical_strength = (
-            price_action_score * 0.5 +
-            structure_clarity * 0.3 +
-            pattern_strength * 0.2
-        )
-        
-        # Calculate confidence
-        confidence = self._calculate_technical_confidence()
-        
-        # Generate context
-        context = self._generate_technical_context()
-        
-        # Include technical indicators in context if available
-        if self.price_analyzer.technical_indicators:
-            context['technical_indicators'] = {
-                'rsi': self.price_analyzer.technical_indicators.rsi,
-                'macd': self.price_analyzer.technical_indicators.macd,
-                'bollinger_upper': self.price_analyzer.technical_indicators.bollinger_upper,
-                'bollinger_lower': self.price_analyzer.technical_indicators.bollinger_lower,
-                'atr': self.price_analyzer.technical_indicators.atr,
-                'support_level': self.price_analyzer.technical_indicators.support_level,
-                'resistance_level': self.price_analyzer.technical_indicators.resistance_level
+        try:
+            # Update technical analyzer
+            self.technical_analyzer.update_market_data(market_data)
+            
+            # Get technical signals
+            trend_signal = self.technical_analyzer.analyze_trend()
+            momentum_signal = self.technical_analyzer.analyze_momentum()
+            volatility_signal = self.technical_analyzer.analyze_volatility()
+            support_resistance_signal = self.technical_analyzer.analyze_support_resistance()
+            
+            # Calculate weighted technical score
+            technical_score = (
+                trend_signal * 0.4 +
+                momentum_signal * 0.3 +
+                volatility_signal * 0.2 +
+                support_resistance_signal * 0.1
+            )
+            
+            # Calculate confidence
+            confidence = self._calculate_confidence([
+                trend_signal, momentum_signal, volatility_signal, support_resistance_signal
+            ])
+            
+            # Determine regime
+            regime = self._determine_regime(technical_score)
+            
+            # Create context
+            context = {
+                'trend_signal': trend_signal,
+                'momentum_signal': momentum_signal,
+                'volatility_signal': volatility_signal,
+                'support_resistance_signal': support_resistance_signal,
+                'technical_score': technical_score,
+                'confidence': confidence
             }
-        
-        return DimensionalReading(
-            dimension='WHAT',
-            value=technical_strength,
-            confidence=confidence,
-            context=context,
-            timestamp=market_data.timestamp
-        )
+            
+            # Create reading
+            reading = DimensionalReading(
+                dimension='WHAT',
+                signal_strength=technical_score,
+                confidence=confidence,
+                regime=regime,
+                context=context,
+                timestamp=market_data.timestamp
+            )
+            
+            # Store last reading and mark as initialized
+            self.last_reading = reading
+            self.is_initialized = True
+            
+            return reading
+            
+        except Exception as e:
+            logger.error(f"Technical analysis failed: {e}")
+            
+            # Return neutral reading on error
+            return DimensionalReading(
+                dimension='WHAT',
+                signal_strength=0.0,
+                confidence=0.3,
+                context={'error': str(e), 'status': 'degraded'},
+                timestamp=market_data.timestamp
+            )
+    
+    async def update(self, market_data: MarketData) -> DimensionalReading:
+        """Process new market data and return dimensional reading."""
+        return await self.analyze_technical_reality(market_data)
+    
+    def snapshot(self) -> DimensionalReading:
+        """Return current dimensional state without processing new data."""
+        if self.last_reading:
+            return self.last_reading
+        else:
+            # Return default reading
+            return DimensionalReading(
+                dimension='WHAT',
+                signal_strength=0.0,
+                confidence=0.0,
+                regime=MarketRegime.UNKNOWN,
+                context={'status': 'not_initialized'}
+            )
+    
+    def reset(self) -> None:
+        """Reset sensor state for new trading session or instrument."""
+        self.analysis_history.clear()
+        self.confidence_history.clear()
+        self.last_reading = None
+        self.is_initialized = False
     
     def _detect_market_regime(self) -> None:
         """Detect current market regime based on price action"""
-        if not self.price_analyzer.trend_structure:
+        if not self.technical_analyzer.trend_structure:
             self.current_regime = MarketRegime.UNKNOWN
             self.regime_confidence = 0.0
             return
         
-        trend = self.price_analyzer.trend_structure
+        trend = self.technical_analyzer.trend_structure
         
         # Determine regime based on trend characteristics
         if trend.direction == 'bullish' and trend.strength > 0.6:
@@ -976,10 +1018,10 @@ class TechnicalRealityEngine:
     
     def _calculate_structure_clarity(self) -> float:
         """Calculate how clear the market structure is"""
-        if not self.price_analyzer.trend_structure:
+        if not self.technical_analyzer.trend_structure:
             return 0.0
         
-        trend = self.price_analyzer.trend_structure
+        trend = self.technical_analyzer.trend_structure
         
         # Structure clarity based on:
         # 1. Trend quality
@@ -988,7 +1030,7 @@ class TechnicalRealityEngine:
         
         quality_score = trend.quality
         
-        confirmed_swings = [sp for sp in self.price_analyzer.swing_points if sp.confirmed]
+        confirmed_swings = [sp for sp in self.technical_analyzer.swing_points if sp.confirmed]
         swing_score = min(len(confirmed_swings) / 5, 1.0)  # Normalize to 5 swings
         
         key_level_score = min(len(trend.key_levels) / 3, 1.0)  # Normalize to 3 levels
@@ -1006,15 +1048,15 @@ class TechnicalRealityEngine:
         # - Double tops/bottoms
         # - Fractal patterns
         
-        if len(self.price_analyzer.swing_points) < 3:
+        if len(self.technical_analyzer.swing_points) < 3:
             return 0.0
         
         # Look for basic pattern formations
         pattern_score = 0.0
         
         # Check for double top/bottom patterns
-        highs = [sp for sp in self.price_analyzer.swing_points if sp.type == 'high']
-        lows = [sp for sp in self.price_analyzer.swing_points if sp.type == 'low']
+        highs = [sp for sp in self.technical_analyzer.swing_points if sp.type == 'high']
+        lows = [sp for sp in self.technical_analyzer.swing_points if sp.type == 'low']
         
         if len(highs) >= 2:
             recent_highs = sorted(highs, key=lambda x: x.timestamp)[-2:]
@@ -1027,9 +1069,9 @@ class TechnicalRealityEngine:
                 pattern_score += 0.3
         
         # Check for trend continuation patterns
-        if self.price_analyzer.trend_structure:
-            if (self.price_analyzer.trend_structure.direction in ['bullish', 'bearish'] and
-                self.price_analyzer.trend_structure.strength > 0.5):
+        if self.technical_analyzer.trend_structure:
+            if (self.technical_analyzer.trend_structure.direction in ['bullish', 'bearish'] and
+                self.technical_analyzer.trend_structure.strength > 0.5):
                 pattern_score += 0.4
         
         return min(pattern_score, 1.0)
@@ -1040,21 +1082,21 @@ class TechnicalRealityEngine:
         confidence_factors = []
         
         # Data quality (amount of price history)
-        data_quality = min(len(self.price_analyzer.price_history) / 100, 1.0)
+        data_quality = min(len(self.technical_analyzer.price_history) / 100, 1.0)
         confidence_factors.append(data_quality * 0.3)
         
         # Swing point confirmation rate
-        if self.price_analyzer.swing_points:
-            confirmed_rate = len([sp for sp in self.price_analyzer.swing_points if sp.confirmed]) / len(self.price_analyzer.swing_points)
+        if self.technical_analyzer.swing_points:
+            confirmed_rate = len([sp for sp in self.technical_analyzer.swing_points if sp.confirmed]) / len(self.technical_analyzer.swing_points)
             confidence_factors.append(confirmed_rate * 0.3)
         
         # Trend structure quality
-        if self.price_analyzer.trend_structure:
-            confidence_factors.append(self.price_analyzer.trend_structure.quality * 0.2)
+        if self.technical_analyzer.trend_structure:
+            confidence_factors.append(self.technical_analyzer.trend_structure.quality * 0.2)
         
         # Momentum consistency
-        if self.price_analyzer.momentum_profile:
-            momentum_consistency = 1.0 - len(self.price_analyzer.momentum_profile.exhaustion_signals) * 0.2
+        if self.technical_analyzer.momentum_profile:
+            momentum_consistency = 1.0 - len(self.technical_analyzer.momentum_profile.exhaustion_signals) * 0.2
             confidence_factors.append(max(0, momentum_consistency) * 0.2)
         
         return np.sum(confidence_factors) if confidence_factors else 0.5
@@ -1065,13 +1107,13 @@ class TechnicalRealityEngine:
         context = {
             'market_regime': self.current_regime.name,
             'regime_confidence': self.regime_confidence,
-            'swing_points_count': len(self.price_analyzer.swing_points),
-            'confirmed_swings': len([sp for sp in self.price_analyzer.swing_points if sp.confirmed])
+            'swing_points_count': len(self.technical_analyzer.swing_points),
+            'confirmed_swings': len([sp for sp in self.technical_analyzer.swing_points if sp.confirmed])
         }
         
         # Add trend structure info
-        if self.price_analyzer.trend_structure:
-            trend = self.price_analyzer.trend_structure
+        if self.technical_analyzer.trend_structure:
+            trend = self.technical_analyzer.trend_structure
             context['trend'] = {
                 'direction': trend.direction,
                 'strength': trend.strength,
@@ -1080,8 +1122,8 @@ class TechnicalRealityEngine:
             }
         
         # Add momentum info
-        if self.price_analyzer.momentum_profile:
-            momentum = self.price_analyzer.momentum_profile
+        if self.technical_analyzer.momentum_profile:
+            momentum = self.technical_analyzer.momentum_profile
             context['momentum'] = {
                 'velocity': momentum.velocity,
                 'acceleration': momentum.acceleration,
@@ -1090,8 +1132,8 @@ class TechnicalRealityEngine:
             }
         
         # Add recent swing info
-        if self.price_analyzer.swing_points:
-            recent_swings = sorted(self.price_analyzer.swing_points, key=lambda x: x.timestamp)[-3:]
+        if self.technical_analyzer.swing_points:
+            recent_swings = sorted(self.technical_analyzer.swing_points, key=lambda x: x.timestamp)[-3:]
             context['recent_swings'] = [
                 {
                     'type': sp.type,
@@ -1104,12 +1146,46 @@ class TechnicalRealityEngine:
         
         return context
 
+    def _calculate_confidence(self, signals: List[float]) -> float:
+        """Calculate confidence based on signal agreement."""
+        # Signal agreement
+        positive_signals = sum(1 for s in signals if s > 0.1)
+        negative_signals = sum(1 for s in signals if s < -0.1)
+        total_signals = len(signals)
+        
+        if positive_signals > negative_signals:
+            agreement = positive_signals / total_signals
+        elif negative_signals > positive_signals:
+            agreement = negative_signals / total_signals
+        else:
+            agreement = 0.5
+        
+        # Signal strength
+        avg_strength = np.mean([abs(s) for s in signals])
+        
+        # Combine factors
+        confidence = (agreement * 0.6 + avg_strength * 0.4)
+        return max(0.1, min(confidence, 0.95))
+    
+    def _determine_regime(self, technical_score: float) -> MarketRegime:
+        """Determine market regime from technical score."""
+        if technical_score > 0.5:
+            return MarketRegime.TRENDING_BULL
+        elif technical_score > 0.2:
+            return MarketRegime.TRENDING_WEAK
+        elif technical_score < -0.5:
+            return MarketRegime.TRENDING_BEAR
+        elif technical_score < -0.2:
+            return MarketRegime.TRENDING_WEAK
+        else:
+            return MarketRegime.CONSOLIDATING
+
 # Example usage
 async def main():
     """Example usage of the enhanced technical reality engine"""
     
     # Initialize engine
-    engine = TechnicalRealityEngine()
+    engine = TechnicalRealityEngine(InstrumentMeta(symbol="EUR/USD", pip_size=5, min_volume=1000))
     
     # Simulate market data updates with realistic price movement
     base_price = 1.0950

@@ -20,8 +20,8 @@ from .mock_ctrader_interface import (
     TradingMode, OrderType, OrderSide
 )
 from src.evolution.real_genetic_engine import RealGeneticEngine
-from src.analysis.market_regime_detector import MarketRegimeDetector
-from src.analysis.pattern_recognition import AdvancedPatternRecognition
+from src.sensory.dimensions.enhanced_when_dimension import TemporalAnalyzer
+from src.sensory.dimensions.enhanced_anomaly_dimension import PatternRecognitionDetector
 from .strategy_manager import StrategyManager, StrategySignal
 from .advanced_risk_manager import AdvancedRiskManager, RiskLimits
 from .performance_tracker import PerformanceTracker
@@ -90,8 +90,8 @@ class LiveTradingExecutor:
         # Initialize components
         self.ctrader = CTraderInterface(config)
         self.genetic_engine = RealGeneticEngine(data_source="real")  # Use real data source
-        self.regime_detector = MarketRegimeDetector()
-        self.pattern_recognition = AdvancedPatternRecognition()
+        self.regime_detector = TemporalAnalyzer() # Use TemporalAnalyzer for regime detection
+        self.pattern_recognition = PatternRecognitionDetector() # Use PatternRecognitionDetector for pattern recognition
         self.strategy_manager = StrategyManager()  # Strategy integration
         
         # Advanced risk management
@@ -250,22 +250,26 @@ class LiveTradingExecutor:
         """Perform market analysis for all symbols."""
         for symbol in self.symbols:
             if symbol in self.market_data:
-                # Get historical data for analysis
-                # This would need to be implemented based on your data source
-                historical_data = await self._get_historical_data(symbol)
+                market_data = self.market_data[symbol]
                 
-                if historical_data is not None and not historical_data.empty:
-                    # Detect market regime
-                    regime_result = self.regime_detector.detect_regime(historical_data, symbol)
-                    
-                    # Detect patterns
-                    patterns = self.pattern_recognition.detect_patterns(historical_data, symbol)
-                    
-                    self.last_analysis[symbol] = {
-                        'regime': regime_result,
-                        'patterns': patterns,
-                        'timestamp': datetime.now()
-                    }
+                # Update regime detector with market data
+                self.regime_detector.update_market_data(market_data)
+                self.regime_detector.update_temporal_data(market_data)
+                
+                # Update pattern recognition with market data
+                self.pattern_recognition.update_data(market_data)
+                
+                # Detect market regime
+                regime = self.regime_detector.detect_market_regime()
+                
+                # Detect patterns
+                patterns = self.pattern_recognition.detect_patterns(market_data)
+                
+                self.last_analysis[symbol] = {
+                    'regime': regime,
+                    'patterns': patterns,
+                    'timestamp': datetime.now()
+                }
     
     async def _generate_trading_signals(self) -> List[TradingSignal]:
         """Generate trading signals using evolved strategies."""

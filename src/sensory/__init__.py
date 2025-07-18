@@ -17,11 +17,11 @@ from .orchestration.master_orchestrator import MasterOrchestrator as SensoryCort
 from .core.base import DimensionalReading as SensoryReading
 
 # Export v2.2 dimensional engines
-from .dimensions.why_engine import WHYEngine as EnhancedFundamentalIntelligenceEngine
-from .dimensions.how_engine import HOWEngine as InstitutionalMechanicsEngine
-from .dimensions.what_engine import WATEngine as TechnicalRealityEngine
-from .dimensions.when_engine import WHENEngine as ChronalIntelligenceEngine
-from .dimensions.anomaly_engine import ANOMALYEngine as AnomalyIntelligenceEngine
+from .dimensions.enhanced_why_dimension import EnhancedFundamentalIntelligenceEngine
+from .dimensions.enhanced_how_dimension import InstitutionalMechanicsEngine
+from .dimensions.enhanced_what_dimension import TechnicalRealityEngine
+from .dimensions.enhanced_when_dimension import ChronalIntelligenceEngine
+from .dimensions.enhanced_anomaly_dimension import AnomalyIntelligenceEngine
 
 # Export core components
 from .core.base import (

@@ -19,7 +19,7 @@ import requests
 import json
 from scipy import stats
 
-from ..core.base import DimensionalReading, MarketData, MarketRegime
+from ..core.base import DimensionalReading, MarketData, MarketRegime, DimensionalSensor, InstrumentMeta
 
 logger = logging.getLogger(__name__)
 
@@ -591,12 +591,13 @@ class FundamentalAnalyzer:
         
         return np.tanh(adjusted_differential)
 
-class EnhancedFundamentalIntelligenceEngine:
+class EnhancedFundamentalIntelligenceEngine(DimensionalSensor):
     """
     Enhanced fundamental intelligence engine with sophisticated analysis
     """
     
-    def __init__(self):
+    def __init__(self, instrument_meta: InstrumentMeta):
+        super().__init__(instrument_meta)
         self.fundamental_analyzer = FundamentalAnalyzer()
         
         # Analysis weights (adaptive)
@@ -668,13 +669,21 @@ class EnhancedFundamentalIntelligenceEngine:
                 }
             })
             
-            return DimensionalReading(
+            # Create reading
+            reading = DimensionalReading(
                 dimension='WHY',
-                value=fundamental_score,
+                signal_strength=fundamental_score,
                 confidence=confidence,
+                regime=self._determine_regime(fundamental_score),
                 context=context,
                 timestamp=market_data.timestamp
             )
+            
+            # Store last reading and mark as initialized
+            self.last_reading = reading
+            self.is_initialized = True
+            
+            return reading
             
         except Exception as e:
             logger.error(f"Fundamental analysis failed: {e}")
@@ -687,6 +696,31 @@ class EnhancedFundamentalIntelligenceEngine:
                 context={'error': str(e), 'status': 'degraded'},
                 timestamp=market_data.timestamp
             )
+    
+    async def update(self, market_data: MarketData) -> DimensionalReading:
+        """Process new market data and return dimensional reading."""
+        return await self.analyze_fundamental_intelligence(market_data)
+    
+    def snapshot(self) -> DimensionalReading:
+        """Return current dimensional state without processing new data."""
+        if self.last_reading:
+            return self.last_reading
+        else:
+            # Return default reading
+            return DimensionalReading(
+                dimension='WHY',
+                signal_strength=0.0,
+                confidence=0.0,
+                regime=MarketRegime.UNKNOWN,
+                context={'status': 'not_initialized'}
+            )
+    
+    def reset(self) -> None:
+        """Reset sensor state for new trading session or instrument."""
+        self.analysis_history.clear()
+        self.confidence_history.clear()
+        self.last_reading = None
+        self.is_initialized = False
     
     def _calculate_confidence(self, factor_values: List[float], final_score: float) -> float:
         """Calculate confidence based on factor agreement and strength"""
@@ -814,6 +848,19 @@ class EnhancedFundamentalIntelligenceEngine:
         }
         
         return diagnostics
+
+    def _determine_regime(self, fundamental_score: float) -> MarketRegime:
+        """Determine market regime from fundamental score."""
+        if fundamental_score > 0.5:
+            return MarketRegime.TRENDING_BULL
+        elif fundamental_score > 0.2:
+            return MarketRegime.TRENDING_WEAK
+        elif fundamental_score < -0.5:
+            return MarketRegime.TRENDING_BEAR
+        elif fundamental_score < -0.2:
+            return MarketRegime.TRENDING_WEAK
+        else:
+            return MarketRegime.CONSOLIDATING
 
 # Example usage
 async def main():

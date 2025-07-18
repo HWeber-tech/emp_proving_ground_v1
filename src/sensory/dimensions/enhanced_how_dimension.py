@@ -17,7 +17,7 @@ from scipy import stats
 from scipy.signal import find_peaks
 import logging
 
-from ..core.base import DimensionalReading, MarketData, MarketRegime
+from ..core.base import DimensionalReading, MarketData, MarketRegime, DimensionalSensor, InstrumentMeta
 from ..core.data_integration import OrderBookSnapshot, OrderFlowDataProvider
 
 logger = logging.getLogger(__name__)
@@ -536,257 +536,146 @@ class ICTPatternDetector:
         
         return np.sum(scores) if scores else 0.0
 
-class InstitutionalMechanicsEngine:
+class InstitutionalMechanicsEngine(DimensionalSensor):
     """
-    Main engine for detecting institutional mechanics and order flow patterns
-    Integrates ICT pattern detection with real-time order flow analysis
+    Enhanced institutional mechanics engine with sophisticated flow analysis
     """
     
-    def __init__(self, order_flow_provider: Optional[OrderFlowDataProvider] = None):
-        self.order_flow_provider = order_flow_provider
-        self.ict_detector = ICTPatternDetector()
+    def __init__(self, instrument_meta: InstrumentMeta):
+        super().__init__(instrument_meta)
+        self.institutional_analyzer = InstitutionalAnalyzer()
         
-        # Order flow metrics
-        self.order_flow_history = deque(maxlen=100)
-        self.imbalance_history = deque(maxlen=50)
+        # Performance tracking
+        self.analysis_history = deque(maxlen=100)
+        self.confidence_history = deque(maxlen=50)
         
         # Adaptive parameters
-        self.imbalance_threshold = 0.3
-        self.volume_spike_threshold = 2.0
-        
-    async def analyze_institutional_mechanics(self, market_data: MarketData) -> DimensionalReading:
-        """Analyze institutional mechanics and return dimensional reading"""
-        
-        # Update ICT pattern detection
-        self.ict_detector.update_market_data(market_data)
-        
-        # Get order flow data if available
-        order_flow_imbalance = 0.0
-        liquidity_score = 0.5
-        
-        if self.order_flow_provider:
-            try:
-                # Get real-time order flow data
-                order_flow_imbalance = await self.order_flow_provider.calculate_order_flow_imbalance()
-                order_book = await self.order_flow_provider.get_order_book()
-                
-                if order_book:
-                    liquidity_score = self._calculate_liquidity_quality(order_book)
-                
-            except Exception as e:
-                logger.warning(f"Failed to get order flow data: {e}")
-        
-        # Store order flow metrics
-        self.order_flow_history.append(order_flow_imbalance)
-        
-        # Calculate institutional footprint components
-        ict_footprint = self.ict_detector.get_institutional_footprint_score()
-        order_flow_strength = self._calculate_order_flow_strength(order_flow_imbalance)
-        algorithmic_activity = self._detect_algorithmic_patterns(market_data)
-        
-        # Combine components into unified reading
-        institutional_strength = (
-            ict_footprint * 0.4 +
-            order_flow_strength * 0.3 +
-            algorithmic_activity * 0.2 +
-            liquidity_score * 0.1
-        )
-        
-        # Calculate confidence based on data quality and consistency
-        confidence = self._calculate_confidence(
-            ict_footprint, order_flow_strength, algorithmic_activity
-        )
-        
-        # Generate contextual information
-        context = self._generate_institutional_context()
-        
-        return DimensionalReading(
-            dimension='HOW',
-            value=institutional_strength,
-            confidence=confidence,
-            context=context,
-            timestamp=market_data.timestamp
-        )
+        self.learning_rate = 0.05
+        self.confidence_threshold = 0.6
+
+    async def update(self, market_data: MarketData) -> DimensionalReading:
+        """Process new market data and return dimensional reading."""
+        return await self.analyze_institutional_mechanics(market_data)
     
-    def _calculate_liquidity_quality(self, order_book) -> float:
-        """Calculate liquidity quality from order book"""
-        if not order_book or not order_book.bids or not order_book.asks:
-            return 0.5
-        
-        # Calculate spread quality
-        spread_score = 1.0 - min(order_book.spread / 0.001, 1.0)  # Normalize spread
-        
-        # Calculate depth quality
-        top_5_bid_size = sum(level.size for level in order_book.bids[:5])
-        top_5_ask_size = sum(level.size for level in order_book.asks[:5])
-        total_top_5 = top_5_bid_size + top_5_ask_size
-        
-        depth_score = min(total_top_5 / 5_000_000, 1.0)  # Normalize to 5M
-        
-        # Calculate balance quality
-        if total_top_5 > 0:
-            balance = min(top_5_bid_size, top_5_ask_size) / total_top_5 * 2
+    def snapshot(self) -> DimensionalReading:
+        """Return current dimensional state without processing new data."""
+        if self.last_reading:
+            return self.last_reading
         else:
-            balance = 0.5
-        
-        # Weighted combination
-        return spread_score * 0.4 + depth_score * 0.4 + balance * 0.2
+            # Return default reading
+            return DimensionalReading(
+                dimension='HOW',
+                signal_strength=0.0,
+                confidence=0.0,
+                regime=MarketRegime.UNKNOWN,
+                context={'status': 'not_initialized'}
+            )
     
-    def _calculate_order_flow_strength(self, imbalance: float) -> float:
-        """Calculate order flow strength from imbalance data"""
-        if len(self.order_flow_history) < 5:
-            return 0.5
+    def reset(self) -> None:
+        """Reset sensor state for new trading session or instrument."""
+        self.analysis_history.clear()
+        self.confidence_history.clear()
+        self.last_reading = None
+        self.is_initialized = False
+
+    async def analyze_institutional_mechanics(self, market_data: MarketData) -> DimensionalReading:
+        """Perform comprehensive institutional analysis"""
         
-        # Analyze imbalance trend
-        recent_imbalances = list(self.order_flow_history)[-10:]
-        imbalance_trend = np.mean(recent_imbalances)
-        imbalance_consistency = 1.0 - np.std(recent_imbalances)
-        
-        # Strong institutional flow shows consistent directional imbalance
-        strength = abs(imbalance_trend) * imbalance_consistency
-        
-        return min(strength, 1.0)
-    
-    def _detect_algorithmic_patterns(self, market_data: MarketData) -> float:
-        """Detect algorithmic trading patterns (TWAP, VWAP, Icebergs)"""
-        
-        # Simplified algorithmic detection
-        # In production, this would analyze:
-        # - Regular order sizes (TWAP patterns)
-        # - Volume-weighted execution (VWAP patterns)
-        # - Hidden order patterns (Icebergs)
-        
-        volume_consistency = self._calculate_volume_consistency()
-        timing_regularity = self._calculate_timing_regularity()
-        
-        # Algorithmic activity shows regular patterns
-        algo_score = (volume_consistency + timing_regularity) / 2
-        
-        return min(algo_score, 1.0)
-    
-    def _calculate_volume_consistency(self) -> float:
-        """Calculate consistency in volume patterns (indicates algo activity)"""
-        if len(self.ict_detector.volume_history) < 10:
-            return 0.5
-        
-        volumes = np.array(list(self.ict_detector.volume_history)[-20:])
-        
-        # High consistency (low variance) indicates algorithmic patterns
-        if np.mean(volumes) > 0:
-            consistency = 1.0 - (np.std(volumes) / np.mean(volumes))
-            return max(0, min(consistency, 1.0))
-        
-        return 0.5
-    
-    def _calculate_timing_regularity(self) -> float:
-        """Calculate regularity in timing patterns"""
-        if len(self.ict_detector.timestamp_history) < 10:
-            return 0.5
-        
-        timestamps = list(self.ict_detector.timestamp_history)[-10:]
-        
-        # Calculate time intervals
-        intervals = []
-        for i in range(1, len(timestamps)):
-            interval = (timestamps[i] - timestamps[i-1]).total_seconds()
-            intervals.append(interval)
-        
-        if len(intervals) > 1:
-            # Regular intervals indicate algorithmic execution
-            interval_std = np.std(intervals)
-            interval_mean = np.mean(intervals)
+        try:
+            # Update institutional analyzer
+            self.institutional_analyzer.update_market_data(market_data)
             
-            if interval_mean > 0:
-                regularity = 1.0 - (interval_std / interval_mean)
-                return max(0, min(regularity, 1.0))
-        
-        return 0.5
-    
-    def _calculate_confidence(self, ict_score: float, flow_score: float, algo_score: float) -> float:
-        """Calculate confidence in institutional mechanics reading"""
-        
-        # Base confidence on data availability and consistency
-        data_availability = 0.8  # Assume good data availability
-        
-        # Consistency check - all components should align
-        scores = [ict_score, flow_score, algo_score]
-        score_std = np.std(scores)
-        consistency = 1.0 - min(score_std, 1.0)
-        
-        # Pattern strength - stronger patterns = higher confidence
-        pattern_strength = np.mean(scores)
-        
-        confidence = (
-            data_availability * 0.4 +
-            consistency * 0.3 +
-            pattern_strength * 0.3
-        )
-        
-        return min(confidence, 1.0)
-    
-    def _generate_institutional_context(self) -> Dict[str, Any]:
-        """Generate contextual information about institutional activity"""
-        
-        context = {
-            'active_order_blocks': len([ob for ob in self.ict_detector.order_blocks if not ob.broken]),
-            'active_fvgs': len([fvg for fvg in self.ict_detector.fair_value_gaps if not fvg.is_filled]),
-            'recent_liquidity_sweeps': len([
-                sweep for sweep in self.ict_detector.liquidity_sweeps 
-                if sweep.timestamp > datetime.now() - timedelta(hours=1)
-            ]),
-            'structure_shifts': len([
-                shift for shift in self.ict_detector.structure_shifts 
-                if shift.timestamp > datetime.now() - timedelta(hours=2)
+            # Get institutional signals
+            flow_signal = self.institutional_analyzer.analyze_institutional_flow()
+            order_flow_signal = self.institutional_analyzer.analyze_order_flow()
+            liquidity_signal = self.institutional_analyzer.analyze_liquidity()
+            positioning_signal = self.institutional_analyzer.analyze_positioning()
+            
+            # Calculate weighted institutional score
+            institutional_score = (
+                flow_signal * 0.4 +
+                order_flow_signal * 0.3 +
+                liquidity_signal * 0.2 +
+                positioning_signal * 0.1
+            )
+            
+            # Calculate confidence
+            confidence = self._calculate_confidence([
+                flow_signal, order_flow_signal, liquidity_signal, positioning_signal
             ])
-        }
-        
-        # Add pattern details
-        if self.ict_detector.order_blocks:
-            strongest_ob = max(self.ict_detector.order_blocks, key=lambda x: x.strength)
-            context['strongest_order_block'] = {
-                'direction': strongest_ob.direction,
-                'strength': strongest_ob.strength,
-                'price_level': (strongest_ob.price_high + strongest_ob.price_low) / 2
+            
+            # Determine regime
+            regime = self._determine_regime(institutional_score)
+            
+            # Create context
+            context = {
+                'flow_signal': flow_signal,
+                'order_flow_signal': order_flow_signal,
+                'liquidity_signal': liquidity_signal,
+                'positioning_signal': positioning_signal,
+                'institutional_score': institutional_score,
+                'confidence': confidence
             }
-        
-        if self.ict_detector.liquidity_sweeps:
-            recent_sweep = max(self.ict_detector.liquidity_sweeps, key=lambda x: x.timestamp)
-            context['latest_liquidity_sweep'] = {
-                'direction': recent_sweep.direction,
-                'level': recent_sweep.swept_level,
-                'reversal_strength': recent_sweep.reversal_strength
-            }
-        
-        return context
-
-# Example usage
-async def main():
-    """Example usage of the enhanced institutional mechanics engine"""
+            
+            # Create reading
+            reading = DimensionalReading(
+                dimension='HOW',
+                signal_strength=institutional_score,
+                confidence=confidence,
+                regime=regime,
+                context=context,
+                timestamp=market_data.timestamp
+            )
+            
+            # Store last reading and mark as initialized
+            self.last_reading = reading
+            self.is_initialized = True
+            
+            return reading
+            
+        except Exception as e:
+            logger.error(f"Institutional analysis failed: {e}")
+            
+            # Return neutral reading on error
+            return DimensionalReading(
+                dimension='HOW',
+                signal_strength=0.0,
+                confidence=0.3,
+                context={'error': str(e), 'status': 'degraded'},
+                timestamp=market_data.timestamp
+            )
     
-    # Initialize engine
-    engine = InstitutionalMechanicsEngine()
+    def _calculate_confidence(self, signals: List[float]) -> float:
+        """Calculate confidence based on signal agreement."""
+        # Signal agreement
+        positive_signals = sum(1 for s in signals if s > 0.1)
+        negative_signals = sum(1 for s in signals if s < -0.1)
+        total_signals = len(signals)
+        
+        if positive_signals > negative_signals:
+            agreement = positive_signals / total_signals
+        elif negative_signals > positive_signals:
+            agreement = negative_signals / total_signals
+        else:
+            agreement = 0.5
+        
+        # Signal strength
+        avg_strength = np.mean([abs(s) for s in signals])
+        
+        # Combine factors
+        confidence = (agreement * 0.6 + avg_strength * 0.4)
+        return max(0.1, min(confidence, 0.95))
     
-    # Simulate market data updates
-    for i in range(100):
-        # Create sample market data
-        market_data = MarketData(
-            timestamp=datetime.now(),
-            bid=1.0950 + np.random.normal(0, 0.0005),
-            ask=1.0952 + np.random.normal(0, 0.0005),
-            volume=1000 + np.random.exponential(500),
-            volatility=0.008 + np.random.normal(0, 0.002)
-        )
-        
-        # Analyze institutional mechanics
-        reading = await engine.analyze_institutional_mechanics(market_data)
-        
-        if i % 20 == 0:  # Print every 20th reading
-            print(f"Institutional Mechanics Reading:")
-            print(f"  Value: {reading.value:.3f}")
-            print(f"  Confidence: {reading.confidence:.3f}")
-            print(f"  Context: {reading.context}")
-            print()
-
-if __name__ == "__main__":
-    asyncio.run(main())
+    def _determine_regime(self, institutional_score: float) -> MarketRegime:
+        """Determine market regime from institutional score."""
+        if institutional_score > 0.5:
+            return MarketRegime.TRENDING_BULL
+        elif institutional_score > 0.2:
+            return MarketRegime.TRENDING_WEAK
+        elif institutional_score < -0.5:
+            return MarketRegime.TRENDING_BEAR
+        elif institutional_score < -0.2:
+            return MarketRegime.TRENDING_WEAK
+        else:
+            return MarketRegime.CONSOLIDATING
 

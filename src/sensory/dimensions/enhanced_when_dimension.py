@@ -19,7 +19,7 @@ from scipy import stats
 from scipy.signal import find_peaks
 import logging
 
-from ..core.base import DimensionalReading, MarketData, MarketRegime
+from ..core.base import DimensionalReading, MarketData, MarketRegime, DimensionalSensor, InstrumentMeta
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +45,8 @@ class TemporalRegime(Enum):
     LOW_ACTIVITY = auto()     # Minor sessions or quiet periods
     TRANSITION = auto()       # Session handovers
     EVENT_DRIVEN = auto()     # Around major news events
+
+
 
 class ChronoBehavior(Enum):
     """Chronological behavior patterns"""
@@ -116,6 +118,12 @@ class TemporalAnalyzer:
         # Pattern detection
         self.detected_patterns: List[TemporalPattern] = []
         self.event_horizon: List[EventHorizon] = []
+        
+        # Market regime detection (integrated from analysis)
+        self.price_history = deque(maxlen=200)
+        self.volume_history = deque(maxlen=200)
+        self.lookback_period = 50
+        self.volatility_threshold = 0.02
         
         # Adaptive parameters
         self.volatility_threshold = 0.008
@@ -315,86 +323,116 @@ class TemporalAnalyzer:
         self.session_price_change = 0.0
     
     def _update_session_tracking(self, market_data: MarketData) -> None:
-        """Update current session tracking metrics"""
+        """Update session-specific tracking metrics"""
         
-        if not self.session_start_time:
-            self.session_start_time = market_data.timestamp
+        # Calculate volatility from price data
+        price_change = abs(market_data.close - market_data.open) / market_data.open
+        volatility = price_change
         
-        # Track session metrics
-        self.session_volatility.append(market_data.volatility)
+        self.session_volatility.append(volatility)
         self.session_volume.append(market_data.volume)
+        self.session_price_change += (market_data.close - market_data.open) / market_data.open
         
-        # Calculate session price change (simplified)
-        if len(self.session_volatility) > 1:
-            # Estimate price change from volatility (in real implementation, track actual prices)
-            price_change_estimate = market_data.volatility * np.random.choice([-1, 1])
-            self.session_price_change += price_change_estimate
+        # Update session profile if we have enough data
+        if len(self.session_volatility) >= 10:
+            current_profile = self.session_profiles[self.current_session]
+            avg_volatility = np.mean(list(self.session_volatility)[-10:])
+            
+            # Adjust profile based on current conditions
+            if abs(avg_volatility - current_profile.typical_volatility) > 0.005:
+                # Significant deviation from typical volatility
+                logger.info(f"Session {self.current_session} volatility deviation: {avg_volatility:.4f} vs {current_profile.typical_volatility:.4f}")
     
     def _store_temporal_patterns(self, market_data: MarketData) -> None:
-        """Store data for temporal pattern analysis"""
+        """Store temporal patterns for analysis"""
+        
+        # Calculate volatility from price data
+        price_change = abs(market_data.close - market_data.open) / market_data.open
+        volatility = price_change
         
         current_time = market_data.timestamp
         
-        # Hourly patterns
+        # Store session data
+        session_data = {
+            'timestamp': current_time,
+            'price': market_data.close,
+            'volume': market_data.volume,
+            'avg_volatility': volatility,
+            'price_change': (market_data.close - market_data.open) / market_data.open
+        }
+        
+        self.session_data[self.current_session].append(session_data)
+        
+        # Store hourly patterns
         hour_key = current_time.hour
-        self.hourly_patterns[hour_key].append({
-            'volatility': market_data.volatility,
+        hourly_data = {
+            'timestamp': current_time,
+            'price': market_data.close,
             'volume': market_data.volume,
-            'timestamp': current_time
-        })
+            'volatility': volatility
+        }
+        self.hourly_patterns[hour_key].append(hourly_data)
         
-        # Daily patterns
+        # Store daily patterns
         day_key = current_time.weekday()
-        self.daily_patterns[day_key].append({
-            'volatility': market_data.volatility,
+        daily_data = {
+            'timestamp': current_time,
+            'price': market_data.close,
             'volume': market_data.volume,
-            'session': self.current_session,
-            'timestamp': current_time
-        })
+            'volatility': volatility
+        }
+        self.daily_patterns[day_key].append(daily_data)
         
-        # Weekly patterns (week of month)
-        week_of_month = (current_time.day - 1) // 7 + 1
-        self.weekly_patterns[week_of_month].append({
-            'volatility': market_data.volatility,
+        # Store weekly patterns
+        week_key = current_time.isocalendar()[1]
+        weekly_data = {
+            'timestamp': current_time,
+            'price': market_data.close,
             'volume': market_data.volume,
-            'timestamp': current_time
-        })
+            'volatility': volatility
+        }
+        self.weekly_patterns[week_key].append(weekly_data)
         
-        # Monthly patterns
+        # Store monthly patterns
         month_key = current_time.month
-        self.monthly_patterns[month_key].append({
-            'volatility': market_data.volatility,
+        monthly_data = {
+            'timestamp': current_time,
+            'price': market_data.close,
             'volume': market_data.volume,
-            'timestamp': current_time
-        })
+            'volatility': volatility
+        }
+        self.monthly_patterns[month_key].append(monthly_data)
         
         # Clean old data
-        cutoff_time = current_time - timedelta(days=self.lookback_days)
-        self._clean_old_patterns(cutoff_time)
+        self._clean_old_patterns(current_time)
     
     def _clean_old_patterns(self, cutoff_time: datetime) -> None:
-        """Remove old pattern data beyond lookback period"""
+        """Remove old pattern data to prevent memory bloat"""
+        cutoff_days_ago = cutoff_time - timedelta(days=self.lookback_days)
         
-        for pattern_dict in [self.hourly_patterns, self.daily_patterns, 
-                           self.weekly_patterns, self.monthly_patterns]:
-            for key in pattern_dict:
+        for pattern_dict in [self.hourly_patterns, self.daily_patterns, self.weekly_patterns, self.monthly_patterns]:
+            for key in list(pattern_dict.keys()):
                 pattern_dict[key] = [
-                    item for item in pattern_dict[key]
-                    if item['timestamp'] > cutoff_time
+                    data for data in pattern_dict[key] 
+                    if data['timestamp'] > cutoff_days_ago
                 ]
     
     def _update_adaptive_parameters(self, market_data: MarketData) -> None:
-        """Update adaptive parameters based on recent market behavior"""
+        """Update adaptive parameters based on current market conditions"""
         
-        if len(self.session_volatility) >= 10:
-            # Adapt volatility threshold to recent conditions
-            recent_vol = np.mean(list(self.session_volatility)[-10:])
-            self.volatility_threshold = recent_vol * 1.5
+        # Calculate volatility from price data
+        price_change = abs(market_data.close - market_data.open) / market_data.open
+        volatility = price_change
         
-        if len(self.session_volume) >= 10:
-            # Adapt volume threshold to recent conditions
-            recent_vol = np.mean(list(self.session_volume)[-10:])
-            self.volume_threshold = recent_vol * 0.8
+        # Adjust volatility threshold based on recent volatility
+        if len(self.session_volatility) >= 20:
+            recent_volatility = np.mean(list(self.session_volatility)[-20:])
+            self.volatility_threshold = max(0.005, recent_volatility * 0.8)
+        
+        # Adjust volume threshold based on recent volume
+        if len(self.session_volume) >= 20:
+            recent_volume = np.mean(list(self.session_volume)[-20:])
+            self.volume_threshold = max(100, recent_volume * 0.5)
     
     def _detect_temporal_patterns(self) -> None:
         """Detect recurring temporal patterns"""
@@ -684,7 +722,8 @@ class TemporalAnalyzer:
     def _calculate_next_session_transition(self, current_time: datetime) -> Optional[datetime]:
         """Calculate next major session transition"""
         
-        utc_time = current_time.replace(tzinfo=timezone.utc)
+        # Use timezone-naive datetime
+        utc_time = current_time
         
         # Major transition times (UTC)
         transition_times = [
@@ -825,125 +864,387 @@ class TemporalAnalyzer:
     def calculate_temporal_confidence(self) -> float:
         """Calculate confidence in temporal analysis"""
         
-        confidence_factors = []
+        # Base confidence from data quality
+        data_confidence = min(1.0, len(self.session_data) / 100.0)
         
-        # Data quality (amount of historical data)
-        total_data_points = sum(len(data) for data in self.session_data.values())
-        data_quality = min(total_data_points / 100, 1.0)  # Normalize to 100 data points
-        confidence_factors.append(data_quality * 0.3)
-        
-        # Pattern consistency
+        # Pattern confidence
+        pattern_confidence = 0.0
         if self.detected_patterns:
-            pattern_confidence = np.mean([p.confidence * p.historical_accuracy for p in self.detected_patterns])
-            confidence_factors.append(pattern_confidence * 0.4)
+            avg_pattern_confidence = sum(p.confidence for p in self.detected_patterns) / len(self.detected_patterns)
+            pattern_confidence = avg_pattern_confidence * 0.3
         
-        # Session profile reliability
-        session_profile = self.session_profiles[self.current_session]
-        session_data = self.session_data.get(self.current_session, [])
+        # Session profile confidence
+        session_confidence = 0.0
+        if self.current_session in self.session_profiles:
+            profile = self.session_profiles[self.current_session]
+            # Higher confidence for sessions with more historical data
+            session_confidence = min(1.0, len(self.session_data.get(self.current_session, [])) / 50.0) * 0.4
         
-        if len(session_data) >= 5:
-            # Calculate how well current session matches historical profile
-            recent_volatilities = [d['avg_volatility'] for d in session_data[-5:]]
-            expected_volatility = session_profile.typical_volatility
+        # Event horizon confidence
+        event_confidence = 0.0
+        if self.event_horizon:
+            # Higher confidence for more important events
+            avg_importance = sum(e.importance for e in self.event_horizon) / len(self.event_horizon)
+            event_confidence = avg_importance * 0.3
+        
+        total_confidence = data_confidence + pattern_confidence + session_confidence + event_confidence
+        return min(1.0, total_confidence)
+    
+    # Market Regime Detection Methods (integrated from analysis)
+    def update_market_data(self, market_data: MarketData) -> None:
+        """Update market data for regime detection"""
+        mid_price = (market_data.bid + market_data.ask) / 2
+        self.price_history.append(mid_price)
+        self.volume_history.append(market_data.volume)
+    
+    def detect_market_regime(self) -> MarketRegime:
+        """Detect current market regime using integrated analysis"""
+        if len(self.price_history) < self.lookback_period:
+            return MarketRegime.UNKNOWN
+        
+        try:
+            # Calculate technical indicators
+            indicators = self._calculate_regime_indicators()
             
-            volatility_consistency = 1.0 - abs(np.mean(recent_volatilities) - expected_volatility) / expected_volatility
-            volatility_consistency = max(0, min(volatility_consistency, 1.0))
+            # Analyze different aspects
+            trend_analysis = self._analyze_trend(indicators)
+            volatility_analysis = self._analyze_volatility(indicators)
+            momentum_analysis = self._analyze_momentum(indicators)
             
-            confidence_factors.append(volatility_consistency * 0.3)
+            # Combine analyses to determine regime
+            regime = self._combine_regime_analyses(trend_analysis, volatility_analysis, momentum_analysis)
+            
+            return regime
+            
+        except Exception as e:
+            logger.error(f"Error detecting market regime: {e}")
+            return MarketRegime.UNKNOWN
+    
+    def _calculate_regime_indicators(self) -> Dict[str, np.ndarray]:
+        """Calculate technical indicators for regime analysis"""
+        prices = np.array(list(self.price_history))
+        volumes = np.array(list(self.volume_history))
         
-        return np.sum(confidence_factors) if confidence_factors else 0.5
+        indicators = {}
+        
+        # Price-based indicators
+        returns = np.diff(prices) / prices[:-1]
+        indicators['returns'] = returns
+        indicators['log_returns'] = np.log(prices[1:] / prices[:-1])
+        
+        # Moving averages
+        indicators['sma_20'] = self._calculate_sma(prices, 20)
+        indicators['sma_50'] = self._calculate_sma(prices, 50)
+        indicators['ema_12'] = self._calculate_ema(prices, 12)
+        indicators['ema_26'] = self._calculate_ema(prices, 26)
+        
+        # Volatility indicators
+        indicators['atr'] = self._calculate_atr(prices, 14)
+        indicators['volatility'] = self._calculate_rolling_std(returns, 20)
+        
+        # Momentum indicators
+        indicators['rsi'] = self._calculate_rsi(prices, 14)
+        indicators['macd'] = indicators['ema_12'] - indicators['ema_26']
+        indicators['macd_signal'] = self._calculate_ema(indicators['macd'], 9)
+        
+        # Volume indicators
+        indicators['volume_sma'] = self._calculate_sma(volumes, 20)
+        indicators['volume_ratio'] = volumes / indicators['volume_sma']
+        
+        return indicators
+    
+    def _calculate_sma(self, data: np.ndarray, period: int) -> np.ndarray:
+        """Calculate Simple Moving Average"""
+        if len(data) < period:
+            return np.full_like(data, np.nan)
+        
+        sma = np.convolve(data, np.ones(period)/period, mode='valid')
+        # Pad with NaN to match original length
+        return np.concatenate([np.full(period-1, np.nan), sma])
+    
+    def _calculate_ema(self, data: np.ndarray, period: int) -> np.ndarray:
+        """Calculate Exponential Moving Average"""
+        if len(data) < period:
+            return np.full_like(data, np.nan)
+        
+        alpha = 2.0 / (period + 1)
+        ema = np.zeros_like(data)
+        ema[0] = data[0]
+        
+        for i in range(1, len(data)):
+            ema[i] = alpha * data[i] + (1 - alpha) * ema[i-1]
+        
+        return ema
+    
+    def _calculate_atr(self, prices: np.ndarray, period: int) -> np.ndarray:
+        """Calculate Average True Range"""
+        if len(prices) < 2:
+            return np.full_like(prices, np.nan)
+        
+        # Calculate True Range (simplified for OHLC approximation)
+        tr = np.abs(np.diff(prices))
+        atr = self._calculate_sma(tr, period)
+        return atr
+    
+    def _calculate_rolling_std(self, data: np.ndarray, period: int) -> np.ndarray:
+        """Calculate rolling standard deviation"""
+        if len(data) < period:
+            return np.full_like(data, np.nan)
+        
+        std = np.zeros_like(data)
+        for i in range(period-1, len(data)):
+            std[i] = np.std(data[i-period+1:i+1])
+        
+        return std
+    
+    def _calculate_rsi(self, prices: np.ndarray, period: int) -> np.ndarray:
+        """Calculate Relative Strength Index"""
+        if len(prices) < period + 1:
+            return np.full_like(prices, np.nan)
+        
+        deltas = np.diff(prices)
+        gains = np.where(deltas > 0, deltas, 0)
+        losses = np.where(deltas < 0, -deltas, 0)
+        
+        avg_gains = self._calculate_sma(gains, period)
+        avg_losses = self._calculate_sma(losses, period)
+        
+        rs = avg_gains / np.where(avg_losses == 0, 1e-10, avg_losses)
+        rsi = 100 - (100 / (1 + rs))
+        
+        return rsi
+    
+    def _analyze_trend(self, indicators: Dict[str, np.ndarray]) -> Dict[str, float]:
+        """Analyze market trend"""
+        recent_data = {k: v[-self.lookback_period:] for k, v in indicators.items()}
+        
+        # Trend strength using linear regression
+        prices = recent_data['sma_20']
+        valid_prices = prices[~np.isnan(prices)]
+        
+        if len(valid_prices) < 10:
+            return {'trend_strength': 0, 'trend_direction': 0, 'trend_confidence': 0}
+        
+        x = np.arange(len(valid_prices))
+        slope, intercept = np.polyfit(x, valid_prices, 1)
+        
+        # Calculate R-squared for trend confidence
+        y_pred = slope * x + intercept
+        ss_res = np.sum((valid_prices - y_pred) ** 2)
+        ss_tot = np.sum((valid_prices - valid_prices.mean()) ** 2)
+        r_squared = 1 - (ss_res / ss_tot) if ss_tot != 0 else 0
+        
+        # Moving average alignment
+        ma_alignment = 0
+        if not np.isnan(recent_data['sma_20'][-1]) and not np.isnan(recent_data['sma_50'][-1]):
+            ma_alignment = 1 if recent_data['sma_20'][-1] > recent_data['sma_50'][-1] else -1
+        
+        return {
+            'trend_strength': abs(slope),
+            'trend_direction': np.sign(slope),
+            'trend_confidence': r_squared,
+            'ma_alignment': ma_alignment
+        }
+    
+    def _analyze_volatility(self, indicators: Dict[str, np.ndarray]) -> Dict[str, float]:
+        """Analyze market volatility"""
+        recent_data = {k: v[-self.lookback_period:] for k, v in indicators.items()}
+        
+        # Current volatility
+        current_vol = recent_data['volatility'][-1] if not np.isnan(recent_data['volatility'][-1]) else 0
+        
+        # Volatility trend
+        vol_trend = 0
+        if len(recent_data['volatility']) >= 10:
+            vol_trend = np.polyfit(range(10), recent_data['volatility'][-10:], 1)[0]
+        
+        # Volatility regime
+        vol_regime = "high" if current_vol > self.volatility_threshold else "low"
+        
+        return {
+            'current_volatility': current_vol,
+            'volatility_trend': vol_trend,
+            'volatility_regime': vol_regime
+        }
+    
+    def _analyze_momentum(self, indicators: Dict[str, np.ndarray]) -> Dict[str, float]:
+        """Analyze market momentum"""
+        recent_data = {k: v[-self.lookback_period:] for k, v in indicators.items()}
+        
+        # RSI analysis
+        current_rsi = recent_data['rsi'][-1] if not np.isnan(recent_data['rsi'][-1]) else 50
+        
+        # MACD analysis
+        current_macd = recent_data['macd'][-1] if not np.isnan(recent_data['macd'][-1]) else 0
+        current_signal = recent_data['macd_signal'][-1] if not np.isnan(recent_data['macd_signal'][-1]) else 0
+        
+        # Momentum strength
+        momentum_strength = abs(current_macd - current_signal)
+        
+        return {
+            'rsi': current_rsi,
+            'macd': current_macd,
+            'macd_signal': current_signal,
+            'momentum_strength': momentum_strength
+        }
+    
+    def _combine_regime_analyses(self, trend: Dict, volatility: Dict, momentum: Dict) -> MarketRegime:
+        """Combine analyses to determine market regime"""
+        
+        # Trend-based classification
+        if trend['trend_confidence'] > 0.7:
+            if trend['trend_direction'] > 0:
+                return MarketRegime.TRENDING_BULL
+            else:
+                return MarketRegime.TRENDING_BEAR
+        
+        # Volatility-based classification
+        if volatility['volatility_regime'] == "high":
+            if trend['trend_strength'] > 0.01:
+                return MarketRegime.VOLATILE
+            else:
+                return MarketRegime.RANGING_HIGH_VOL
+        
+        # Momentum-based classification
+        if momentum['rsi'] > 70:
+            return MarketRegime.EXHAUSTED
+        elif momentum['rsi'] < 30:
+            return MarketRegime.EXHAUSTED
+        
+        # Default classification
+        if trend['trend_strength'] > 0.005:
+            return MarketRegime.TRENDING_WEAK
+        else:
+            return MarketRegime.RANGING_LOW_VOL
 
-class ChronalIntelligenceEngine:
+class ChronalIntelligenceEngine(DimensionalSensor):
     """
-    Main engine for temporal market intelligence
-    Orchestrates all temporal analysis components
+    Enhanced temporal intelligence engine with sophisticated time-based analysis
     """
     
-    def __init__(self):
+    def __init__(self, instrument_meta: InstrumentMeta):
+        super().__init__(instrument_meta)
         self.temporal_analyzer = TemporalAnalyzer()
         
-        # Current state
-        self.current_temporal_regime = TemporalRegime.MEDIUM_ACTIVITY
-        self.current_chrono_behavior = ChronoBehavior.CONSOLIDATION
+        # Performance tracking
+        self.analysis_history = deque(maxlen=100)
+        self.confidence_history = deque(maxlen=50)
         
-    async def analyze_temporal_intelligence(self, market_data: MarketData) -> DimensionalReading:
-        """Analyze temporal intelligence and return dimensional reading"""
-        
-        # Update temporal analysis
-        self.temporal_analyzer.update_temporal_data(market_data)
-        
-        # Get current temporal state
-        self.current_temporal_regime = self.temporal_analyzer.get_temporal_regime()
-        self.current_chrono_behavior = self.temporal_analyzer.get_chrono_behavior()
-        
-        # Calculate temporal strength
-        temporal_strength = self.temporal_analyzer.calculate_temporal_strength()
-        
-        # Calculate confidence
-        confidence = self.temporal_analyzer.calculate_temporal_confidence()
-        
-        # Generate context
-        context = self._generate_temporal_context()
-        
-        return DimensionalReading(
-            dimension='WHEN',
-            value=temporal_strength,
-            confidence=confidence,
-            context=context,
-            timestamp=market_data.timestamp
-        )
+        # Adaptive parameters
+        self.learning_rate = 0.05
+        self.confidence_threshold = 0.6
+
+    async def update(self, market_data: MarketData) -> DimensionalReading:
+        """Process new market data and return dimensional reading."""
+        return await self.analyze_temporal_intelligence(market_data)
     
-    def _generate_temporal_context(self) -> Dict[str, Any]:
-        """Generate contextual information about temporal analysis"""
+    def snapshot(self) -> DimensionalReading:
+        """Return current dimensional state without processing new data."""
+        if self.last_reading:
+            return self.last_reading
+        else:
+            # Return default reading
+            return DimensionalReading(
+                dimension='WHEN',
+                signal_strength=0.0,
+                confidence=0.0,
+                regime=MarketRegime.UNKNOWN,
+                context={'status': 'not_initialized'}
+            )
+    
+    def reset(self) -> None:
+        """Reset sensor state for new trading session or instrument."""
+        self.analysis_history.clear()
+        self.confidence_history.clear()
+        self.last_reading = None
+        self.is_initialized = False
+
+    async def analyze_temporal_intelligence(self, market_data: MarketData) -> DimensionalReading:
+        """Perform comprehensive temporal analysis"""
         
-        session_profile = self.temporal_analyzer.session_profiles[self.temporal_analyzer.current_session]
-        
-        context = {
-            'current_session': self.temporal_analyzer.current_session.name,
-            'temporal_regime': self.current_temporal_regime.name,
-            'chrono_behavior': self.current_chrono_behavior.name,
-            'session_characteristics': {
-                'typical_volatility': session_profile.typical_volatility,
-                'institutional_activity': session_profile.institutional_activity,
-                'breakout_probability': session_profile.breakout_probability,
-                'reversal_probability': session_profile.reversal_probability
+        try:
+            # Update temporal analyzer
+            self.temporal_analyzer.update_market_data(market_data)
+            self.temporal_analyzer.update_temporal_data(market_data)
+            
+            # Detect market regime
+            regime = self.temporal_analyzer.detect_market_regime()
+            
+            # Calculate temporal confidence
+            confidence = self.temporal_analyzer.calculate_temporal_confidence()
+            
+            # Generate signal strength based on regime and confidence
+            signal_strength = self._calculate_signal_strength(regime, confidence)
+            
+            # Create context
+            context = {
+                'regime': regime.value if hasattr(regime, 'value') else str(regime),
+                'confidence': confidence,
+                'session': self.temporal_analyzer.current_session.value if hasattr(self.temporal_analyzer.current_session, 'value') else str(self.temporal_analyzer.current_session),
+                'patterns': len(self.temporal_analyzer.detected_patterns)
             }
+            
+            # Create reading
+            reading = DimensionalReading(
+                dimension='WHEN',
+                signal_strength=signal_strength,
+                confidence=confidence,
+                regime=self._determine_regime(regime),
+                context=context,
+                timestamp=market_data.timestamp
+            )
+            
+            # Store last reading and mark as initialized
+            self.last_reading = reading
+            self.is_initialized = True
+            
+            return reading
+            
+        except Exception as e:
+            logger.error(f"Temporal analysis failed: {e}")
+            
+            # Return neutral reading on error
+            return DimensionalReading(
+                dimension='WHEN',
+                signal_strength=0.0,
+                confidence=0.3,
+                context={'error': str(e), 'status': 'degraded'},
+                timestamp=market_data.timestamp
+            )
+    
+    def _calculate_signal_strength(self, regime, confidence: float) -> float:
+        """Calculate signal strength from regime and confidence."""
+        # Base signal strength from regime
+        regime_signals = {
+            'trending_up': 0.7,
+            'trending_down': -0.7,
+            'ranging': 0.0,
+            'volatile': 0.0,
+            'calm': 0.0,
+            'breakout': 0.5,
+            'reversal': -0.3,
+            'unknown': 0.0
         }
         
-        # Add detected patterns
-        if self.temporal_analyzer.detected_patterns:
-            context['detected_patterns'] = [
-                {
-                    'type': pattern.pattern_type,
-                    'strength': pattern.strength,
-                    'confidence': pattern.confidence,
-                    'next_occurrence': pattern.next_occurrence.isoformat() if pattern.next_occurrence else None
-                }
-                for pattern in self.temporal_analyzer.detected_patterns
-            ]
+        base_signal = regime_signals.get(str(regime), 0.0)
         
-        # Add event horizon
-        if self.temporal_analyzer.event_horizon:
-            context['upcoming_events'] = [
-                {
-                    'name': event.event_name,
-                    'time_to_event_minutes': event.time_to_event.total_seconds() / 60,
-                    'importance': event.importance,
-                    'expected_impact': event.expected_volatility_impact
-                }
-                for event in self.temporal_analyzer.event_horizon
-            ]
+        # Adjust by confidence
+        return base_signal * confidence
+    
+    def _determine_regime(self, regime) -> MarketRegime:
+        """Convert temporal regime to market regime."""
+        regime_mapping = {
+            'trending_up': MarketRegime.TRENDING_BULL,
+            'trending_down': MarketRegime.TRENDING_BEAR,
+            'ranging': MarketRegime.CONSOLIDATING,
+            'volatile': MarketRegime.VOLATILE,
+            'calm': MarketRegime.CONSOLIDATING,
+            'breakout': MarketRegime.BREAKOUT,
+            'reversal': MarketRegime.REVERSAL,
+            'unknown': MarketRegime.UNKNOWN
+        }
         
-        # Add session timing info
-        if self.temporal_analyzer.session_start_time:
-            session_duration = market_data.timestamp - self.temporal_analyzer.session_start_time
-            context['session_info'] = {
-                'duration_minutes': session_duration.total_seconds() / 60,
-                'session_volatility': list(self.temporal_analyzer.session_volatility)[-5:] if self.temporal_analyzer.session_volatility else [],
-                'session_volume': list(self.temporal_analyzer.session_volume)[-5:] if self.temporal_analyzer.session_volume else []
-            }
-        
-        return context
+        return regime_mapping.get(str(regime), MarketRegime.UNKNOWN)
 
 # Example usage
 async def main():

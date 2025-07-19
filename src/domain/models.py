@@ -264,4 +264,4 @@ class CurrencyConverter:
             rate = self.get_rate(instrument.margin_currency, account_currency)
             pip_value = Decimal('10.0') * rate
         
-        return pip_value 
+        return pip_value

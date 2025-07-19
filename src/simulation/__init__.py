@@ -1,22 +1,16 @@
 """
-EMP Simulation Envelope v1.1
+Simulation Layer v1.0 - High-Fidelity Simulation Envelope
 
-The simulation layer responsible for market simulation, stress testing,
-adversarial testing, and fitness evaluation in the EMP Ultimate Architecture v1.1.
-
-This layer owns all simulation functions including:
-- Market simulation and backtesting
-- Stress testing and scenario analysis
-- Adversarial testing and robustness validation
-- Fitness evaluation and scoring
-- Validation and verification systems
+Implements SIM-01, SIM-02, and SIM-03 tickets for comprehensive simulation management.
+Provides tick-by-tick market simulation with realistic execution and fitness evaluation.
 """
 
-from .market_simulator import *
-from .stress_tester import *
-from .adversarial import *
-from .validators import *
+from .simulation_orchestrator import SimulationOrchestrator
+from .market_simulator import MarketSimulator
+from .execution.simulation_execution_engine import SimulationExecutionEngine
 
-__version__ = "1.1.0"
-__author__ = "EMP System"
-__description__ = "Simulation envelope for testing and validation" 
+__all__ = [
+    'SimulationOrchestrator',
+    'MarketSimulator', 
+    'SimulationExecutionEngine'
+]

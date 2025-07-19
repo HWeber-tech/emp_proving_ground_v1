@@ -1,136 +1,191 @@
 """
 EMP Performance Analyzer v1.1
 
-Comprehensive performance analysis module that processes trading data
-to calculate performance metrics, returns analysis, and trade statistics.
+Performance analysis and scoring for the thinking layer.
+Migrated from evolution layer to thinking layer where cognitive functions belong.
 """
 
 import numpy as np
-from typing import Dict, List, Any, Optional
-from datetime import datetime
-from dataclasses import dataclass
+import pandas as pd
+from typing import Dict, List, Optional, Tuple, Any
+from datetime import datetime, timedelta
+import logging
 
-from src.core.interfaces import SensorySignal, AnalysisResult
-from src.core.exceptions import ThinkingException
+from ...core.events import TradeIntent, PerformanceMetrics, AnalysisResult
 
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class PerformanceMetrics:
-    """Comprehensive performance metrics."""
-    total_return: float
-    annualized_return: float
-    volatility: float
-    sharpe_ratio: float
-    sortino_ratio: float
-    calmar_ratio: float
-    max_drawdown: float
-    win_rate: float
-    profit_factor: float
-    average_win: float
-    average_loss: float
-    consecutive_wins: int
-    consecutive_losses: int
-    recovery_time: float
-    metadata: Dict[str, Any]
-
-
 class PerformanceAnalyzer:
-    """Analyzes performance from trading data and sensory signals."""
+    """Performance analyzer for cognitive assessment of trading strategies."""
     
-    def __init__(self, config: Optional[Dict[str, Any]] = None):
-        self.config = config or {}
-        self.risk_free_rate = self.config.get('risk_free_rate', 0.02)
-        self.lookback_periods = self.config.get('lookback_periods', 252)
-        self._performance_history: List[Dict[str, Any]] = []
+    def __init__(self, risk_free_rate: float = 0.02, trading_days_per_year: int = 252):
+        self.risk_free_rate = risk_free_rate
+        self.trading_days_per_year = trading_days_per_year
+        self.analysis_history: List[Dict[str, Any]] = []
         
-    def analyze(self, trading_data: Dict[str, Any], 
-                sensory_signals: Optional[List[SensorySignal]] = None) -> AnalysisResult:
-        """Analyze performance from trading data."""
+        logger.info(f"Performance Analyzer initialized with {risk_free_rate:.2%} risk-free rate")
+        
+    def analyze_performance(self, trade_history: List[TradeIntent], 
+                          initial_capital: float = 100000.0) -> AnalysisResult:
+        """Analyze trading performance and generate metrics."""
         try:
-            # Extract performance data
-            equity_curve = trading_data.get('equity_curve', [])
-            trade_history = trading_data.get('trade_history', [])
-            
-            if not equity_curve:
-                return self._create_neutral_result()
+            if not trade_history:
+                logger.warning("Empty trade history provided for performance analysis")
+                return self._create_default_analysis()
                 
+            # Convert trade history to performance data
+            performance_data = self._convert_trades_to_performance(trade_history, initial_capital)
+            
             # Calculate performance metrics
-            performance_metrics = self._calculate_performance_metrics(
-                equity_curve, trade_history
-            )
+            metrics = self._calculate_performance_metrics(performance_data)
+            
+            # Calculate confidence based on data quality
+            confidence = self._calculate_analysis_confidence(performance_data)
             
             # Create analysis result
-            return AnalysisResult(
+            result = AnalysisResult(
                 timestamp=datetime.now(),
                 analysis_type="performance_analysis",
                 result={
-                    'total_return': performance_metrics.total_return,
-                    'annualized_return': performance_metrics.annualized_return,
-                    'volatility': performance_metrics.volatility,
-                    'sharpe_ratio': performance_metrics.sharpe_ratio,
-                    'sortino_ratio': performance_metrics.sortino_ratio,
-                    'calmar_ratio': performance_metrics.calmar_ratio,
-                    'max_drawdown': performance_metrics.max_drawdown,
-                    'win_rate': performance_metrics.win_rate,
-                    'profit_factor': performance_metrics.profit_factor,
-                    'average_win': performance_metrics.average_win,
-                    'average_loss': performance_metrics.average_loss,
-                    'consecutive_wins': performance_metrics.consecutive_wins,
-                    'consecutive_losses': performance_metrics.consecutive_losses,
-                    'recovery_time': performance_metrics.recovery_time,
-                    'metadata': performance_metrics.metadata
+                    "performance_metrics": metrics.__dict__,
+                    "trade_count": len(trade_history),
+                    "analysis_period": self._calculate_analysis_period(trade_history),
+                    "initial_capital": initial_capital,
+                    "final_capital": performance_data['equity_curve'].iloc[-1] if len(performance_data['equity_curve']) > 0 else initial_capital
                 },
-                confidence=self._calculate_confidence(trading_data),
+                confidence=confidence,
                 metadata={
-                    'trade_count': len(trade_history),
-                    'data_points': len(equity_curve),
-                    'analysis_method': 'comprehensive_performance'
+                    "analyzer_version": "1.1.0",
+                    "method": "comprehensive_performance_analysis",
+                    "risk_free_rate": self.risk_free_rate,
+                    "trading_days_per_year": self.trading_days_per_year
                 }
             )
             
+            # Store in history
+            self.analysis_history.append({
+                "timestamp": result.timestamp,
+                "trade_count": len(trade_history),
+                "total_return": metrics.total_return,
+                "sharpe_ratio": metrics.sharpe_ratio,
+                "max_drawdown": metrics.max_drawdown,
+                "confidence": confidence
+            })
+            
+            logger.debug(f"Performance analyzed: {metrics.total_return:.2%} return, {metrics.sharpe_ratio:.2f} Sharpe")
+            return result
+            
         except Exception as e:
-            raise ThinkingException(f"Error in performance analysis: {e}")
+            logger.error(f"Error analyzing performance: {e}")
+            return self._create_default_analysis()
             
-    def _calculate_performance_metrics(self, equity_curve: List[float], 
-                                     trade_history: List[Dict[str, Any]]) -> PerformanceMetrics:
-        """Calculate comprehensive performance metrics."""
-        if not equity_curve:
-            return self._create_neutral_performance_metrics()
-            
-        # Calculate returns
-        returns = self._calculate_returns(equity_curve)
+    def _convert_trades_to_performance(self, trade_history: List[TradeIntent], 
+                                     initial_capital: float) -> Dict[str, Any]:
+        """Convert trade history to performance data structure."""
+        # Sort trades by timestamp
+        sorted_trades = sorted(trade_history, key=lambda x: x.timestamp)
         
-        if not returns:
-            return self._create_neutral_performance_metrics()
-            
-        returns_array = np.array(returns)
+        # Initialize performance tracking
+        current_capital = initial_capital
+        equity_curve = [initial_capital]
+        timestamps = [sorted_trades[0].timestamp if sorted_trades else datetime.now()]
+        returns = []
+        trade_returns = []
+        
+        for trade in sorted_trades:
+            if trade.action == "HOLD":
+                continue
+                
+            # Calculate trade P&L (simplified)
+            if trade.price:
+                if trade.action == "BUY":
+                    # Assume we're buying and will sell later
+                    trade_pnl = 0  # Will be calculated on sell
+                elif trade.action == "SELL":
+                    # Calculate P&L from previous buy
+                    trade_pnl = trade.quantity * (trade.price - 0)  # Simplified
+                    current_capital += trade_pnl
+                    trade_returns.append(trade_pnl / current_capital)
+                    
+                equity_curve.append(current_capital)
+                timestamps.append(trade.timestamp)
+                
+                if len(equity_curve) > 1:
+                    period_return = (equity_curve[-1] - equity_curve[-2]) / equity_curve[-2]
+                    returns.append(period_return)
+                    
+        return {
+            'equity_curve': pd.Series(equity_curve, index=timestamps),
+            'returns': pd.Series(returns),
+            'trade_returns': trade_returns,
+            'initial_capital': initial_capital,
+            'final_capital': current_capital
+        }
+        
+    def _calculate_performance_metrics(self, performance_data: Dict[str, Any]) -> PerformanceMetrics:
+        """Calculate comprehensive performance metrics."""
+        equity_curve = performance_data['equity_curve']
+        returns = performance_data['returns']
+        trade_returns = performance_data['trade_returns']
+        initial_capital = performance_data['initial_capital']
+        final_capital = performance_data['final_capital']
         
         # Basic return metrics
-        total_return = (equity_curve[-1] - equity_curve[0]) / equity_curve[0]
-        annualized_return = self._calculate_annualized_return(returns_array)
+        total_return = (final_capital - initial_capital) / initial_capital if initial_capital > 0 else 0
         
-        # Risk metrics
-        volatility = np.std(returns_array) * np.sqrt(252)  # Annualized
+        # Annualized return
+        if len(equity_curve) > 1:
+            days = (equity_curve.index[-1] - equity_curve.index[0]).days
+            if days > 0:
+                annualized_return = ((final_capital / initial_capital) ** (self.trading_days_per_year / days)) - 1
+            else:
+                annualized_return = total_return
+        else:
+            annualized_return = total_return
+            
+        # Volatility
+        volatility = returns.std() * np.sqrt(self.trading_days_per_year) if len(returns) > 1 else 0
         
         # Sharpe ratio
-        sharpe_ratio = self._calculate_sharpe_ratio(returns_array)
-        
+        if volatility > 0:
+            excess_return = annualized_return - self.risk_free_rate
+            sharpe_ratio = excess_return / volatility
+        else:
+            sharpe_ratio = 0
+            
         # Sortino ratio
-        sortino_ratio = self._calculate_sortino_ratio(returns_array)
-        
+        if len(returns) > 1:
+            negative_returns = returns[returns < 0]
+            downside_deviation = negative_returns.std() * np.sqrt(self.trading_days_per_year) if len(negative_returns) > 1 else 0
+            if downside_deviation > 0:
+                sortino_ratio = (annualized_return - self.risk_free_rate) / downside_deviation
+            else:
+                sortino_ratio = 0
+        else:
+            sortino_ratio = 0
+            
         # Maximum drawdown
         max_drawdown = self._calculate_max_drawdown(equity_curve)
         
-        # Calmar ratio
-        calmar_ratio = annualized_return / max_drawdown if max_drawdown > 0 else 0.0
-        
+        # Win rate and profit factor
+        if trade_returns:
+            winning_trades = [r for r in trade_returns if r > 0]
+            losing_trades = [r for r in trade_returns if r < 0]
+            
+            win_rate = len(winning_trades) / len(trade_returns) if trade_returns else 0
+            
+            total_profit = sum(winning_trades) if winning_trades else 0
+            total_loss = abs(sum(losing_trades)) if losing_trades else 0
+            
+            profit_factor = total_profit / total_loss if total_loss > 0 else (total_profit if total_profit > 0 else 0)
+        else:
+            win_rate = 0
+            profit_factor = 0
+            
         # Trade statistics
-        trade_stats = self._calculate_trade_statistics(trade_history)
-        
-        # Recovery time
-        recovery_time = self._calculate_recovery_time(equity_curve)
+        total_trades = len(trade_returns)
+        avg_trade_duration = self._calculate_avg_trade_duration(performance_data)
         
         return PerformanceMetrics(
             total_return=total_return,
@@ -138,247 +193,146 @@ class PerformanceAnalyzer:
             volatility=volatility,
             sharpe_ratio=sharpe_ratio,
             sortino_ratio=sortino_ratio,
-            calmar_ratio=calmar_ratio,
             max_drawdown=max_drawdown,
-            win_rate=trade_stats['win_rate'],
-            profit_factor=trade_stats['profit_factor'],
-            average_win=trade_stats['average_win'],
-            average_loss=trade_stats['average_loss'],
-            consecutive_wins=trade_stats['consecutive_wins'],
-            consecutive_losses=trade_stats['consecutive_losses'],
-            recovery_time=recovery_time,
+            win_rate=win_rate,
+            profit_factor=profit_factor,
+            total_trades=total_trades,
+            avg_trade_duration=avg_trade_duration,
             metadata={
-                'return_count': len(returns),
-                'trade_count': len(trade_history),
-                'analysis_periods': self.lookback_periods
+                "analysis_timestamp": datetime.now().isoformat(),
+                "data_points": len(equity_curve)
             }
         )
         
-    def _calculate_returns(self, equity_curve: List[float]) -> List[float]:
-        """Calculate returns from equity curve."""
+    def _calculate_max_drawdown(self, equity_curve: pd.Series) -> float:
+        """Calculate maximum drawdown from equity curve."""
         if len(equity_curve) < 2:
-            return []
-            
-        returns = []
-        for i in range(1, len(equity_curve)):
-            if equity_curve[i-1] != 0:
-                ret = (equity_curve[i] - equity_curve[i-1]) / equity_curve[i-1]
-                returns.append(ret)
-                
-        return returns
-        
-    def _calculate_annualized_return(self, returns: np.ndarray) -> float:
-        """Calculate annualized return."""
-        if len(returns) == 0:
             return 0.0
             
-        mean_return = np.mean(returns)
-        return mean_return * 252  # Annualize
+        # Calculate running maximum
+        running_max = equity_curve.expanding().max()
         
-    def _calculate_sharpe_ratio(self, returns: np.ndarray) -> float:
-        """Calculate Sharpe ratio."""
-        if len(returns) == 0:
+        # Calculate drawdown
+        drawdown = (equity_curve - running_max) / running_max
+        
+        # Return maximum drawdown
+        return abs(drawdown.min())
+        
+    def _calculate_avg_trade_duration(self, performance_data: Dict[str, Any]) -> float:
+        """Calculate average trade duration in days."""
+        # This is a simplified calculation
+        # In a real implementation, you'd track entry and exit times for each trade
+        if len(performance_data['equity_curve']) < 2:
             return 0.0
             
-        mean_return = np.mean(returns)
-        std_return = np.std(returns)
+        total_days = (performance_data['equity_curve'].index[-1] - performance_data['equity_curve'].index[0]).days
+        trade_count = len(performance_data['trade_returns'])
         
-        if std_return == 0:
+        if trade_count > 0:
+            return total_days / trade_count
+        else:
             return 0.0
             
-        # Annualize
-        annualized_return = mean_return * 252
-        annualized_std = std_return * np.sqrt(252)
+    def _calculate_analysis_confidence(self, performance_data: Dict[str, Any]) -> float:
+        """Calculate confidence in performance analysis."""
+        confidence_factors = []
         
-        return (annualized_return - self.risk_free_rate) / annualized_std
-        
-    def _calculate_sortino_ratio(self, returns: np.ndarray) -> float:
-        """Calculate Sortino ratio."""
-        if len(returns) == 0:
-            return 0.0
+        # Data sufficiency
+        data_points = len(performance_data['equity_curve'])
+        if data_points >= 100:
+            confidence_factors.append(1.0)
+        elif data_points >= 50:
+            confidence_factors.append(0.8)
+        elif data_points >= 20:
+            confidence_factors.append(0.6)
+        else:
+            confidence_factors.append(0.3)
             
-        mean_return = np.mean(returns)
-        negative_returns = returns[returns < 0]
-        
-        if len(negative_returns) == 0:
-            return float('inf') if mean_return > 0 else 0.0
+        # Trade frequency
+        trade_count = len(performance_data['trade_returns'])
+        if trade_count >= 50:
+            confidence_factors.append(1.0)
+        elif trade_count >= 20:
+            confidence_factors.append(0.8)
+        elif trade_count >= 10:
+            confidence_factors.append(0.6)
+        else:
+            confidence_factors.append(0.3)
             
-        downside_deviation = np.std(negative_returns)
-        
-        if downside_deviation == 0:
-            return 0.0
+        # Time span
+        if len(performance_data['equity_curve']) > 1:
+            time_span = (performance_data['equity_curve'].index[-1] - performance_data['equity_curve'].index[0]).days
+            if time_span >= 252:  # 1 year
+                confidence_factors.append(1.0)
+            elif time_span >= 126:  # 6 months
+                confidence_factors.append(0.8)
+            elif time_span >= 63:   # 3 months
+                confidence_factors.append(0.6)
+            else:
+                confidence_factors.append(0.4)
+        else:
+            confidence_factors.append(0.1)
             
-        # Annualize
-        annualized_return = mean_return * 252
-        annualized_downside = downside_deviation * np.sqrt(252)
+        return np.mean(confidence_factors)
         
-        return (annualized_return - self.risk_free_rate) / annualized_downside
-        
-    def _calculate_max_drawdown(self, equity_curve: List[float]) -> float:
-        """Calculate maximum drawdown."""
-        if not equity_curve:
-            return 0.0
-            
-        peak = equity_curve[0]
-        max_dd = 0.0
-        
-        for equity in equity_curve:
-            if equity > peak:
-                peak = equity
-            dd = (peak - equity) / peak
-            max_dd = max(max_dd, dd)
-            
-        return max_dd
-        
-    def _calculate_trade_statistics(self, trade_history: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """Calculate trade statistics."""
+    def _calculate_analysis_period(self, trade_history: List[TradeIntent]) -> Dict[str, Any]:
+        """Calculate the analysis period from trade history."""
         if not trade_history:
-            return {
-                'win_rate': 0.0,
-                'profit_factor': 0.0,
-                'average_win': 0.0,
-                'average_loss': 0.0,
-                'consecutive_wins': 0,
-                'consecutive_losses': 0
-            }
+            return {"start": None, "end": None, "duration_days": 0}
             
-        # Separate winning and losing trades
-        winning_trades = [t for t in trade_history if t.get('pnl', 0) > 0]
-        losing_trades = [t for t in trade_history if t.get('pnl', 0) < 0]
-        
-        # Calculate basic statistics
-        win_rate = len(winning_trades) / len(trade_history) if trade_history else 0.0
-        
-        total_wins = sum(t.get('pnl', 0) for t in winning_trades)
-        total_losses = abs(sum(t.get('pnl', 0) for t in losing_trades))
-        
-        profit_factor = total_wins / total_losses if total_losses > 0 else total_wins
-        
-        average_win = total_wins / len(winning_trades) if winning_trades else 0.0
-        average_loss = total_losses / len(losing_trades) if losing_trades else 0.0
-        
-        # Calculate consecutive wins/losses
-        consecutive_wins = self._calculate_consecutive_wins(trade_history)
-        consecutive_losses = self._calculate_consecutive_losses(trade_history)
+        start_time = min(trade.timestamp for trade in trade_history)
+        end_time = max(trade.timestamp for trade in trade_history)
+        duration_days = (end_time - start_time).days
         
         return {
-            'win_rate': win_rate,
-            'profit_factor': profit_factor,
-            'average_win': average_win,
-            'average_loss': average_loss,
-            'consecutive_wins': consecutive_wins,
-            'consecutive_losses': consecutive_losses
+            "start": start_time.isoformat(),
+            "end": end_time.isoformat(),
+            "duration_days": duration_days
         }
         
-    def _calculate_consecutive_wins(self, trade_history: List[Dict[str, Any]]) -> int:
-        """Calculate maximum consecutive wins."""
-        max_consecutive = 0
-        current_consecutive = 0
-        
-        for trade in trade_history:
-            if trade.get('pnl', 0) > 0:
-                current_consecutive += 1
-                max_consecutive = max(max_consecutive, current_consecutive)
-            else:
-                current_consecutive = 0
-                
-        return max_consecutive
-        
-    def _calculate_consecutive_losses(self, trade_history: List[Dict[str, Any]]) -> int:
-        """Calculate maximum consecutive losses."""
-        max_consecutive = 0
-        current_consecutive = 0
-        
-        for trade in trade_history:
-            if trade.get('pnl', 0) < 0:
-                current_consecutive += 1
-                max_consecutive = max(max_consecutive, current_consecutive)
-            else:
-                current_consecutive = 0
-                
-        return max_consecutive
-        
-    def _calculate_recovery_time(self, equity_curve: List[float]) -> float:
-        """Calculate average recovery time from drawdowns."""
-        if len(equity_curve) < 2:
-            return 0.0
-            
-        recovery_times = []
-        peak = equity_curve[0]
-        underwater_start = None
-        
-        for i, equity in enumerate(equity_curve):
-            if equity > peak:
-                if underwater_start is not None:
-                    recovery_times.append(i - underwater_start)
-                    underwater_start = None
-                peak = equity
-            elif underwater_start is None and equity < peak:
-                underwater_start = i
-                
-        return float(np.mean(recovery_times)) if recovery_times else 0.0
-        
-    def _calculate_confidence(self, trading_data: Dict[str, Any]) -> float:
-        """Calculate confidence in performance analysis."""
-        equity_curve = trading_data.get('equity_curve', [])
-        trade_history = trading_data.get('trade_history', [])
-        
-        # Confidence based on data quality
-        data_confidence = min(len(equity_curve) / 100, 1.0)  # More data = higher confidence
-        trade_confidence = min(len(trade_history) / 50, 1.0)  # More trades = higher confidence
-        
-        return (data_confidence + trade_confidence) / 2
-        
-    def _create_neutral_performance_metrics(self) -> PerformanceMetrics:
-        """Create neutral performance metrics when no data is available."""
-        return PerformanceMetrics(
-            total_return=0.0,
-            annualized_return=0.0,
-            volatility=0.0,
-            sharpe_ratio=0.0,
-            sortino_ratio=0.0,
-            calmar_ratio=0.0,
-            max_drawdown=0.0,
-            win_rate=0.0,
-            profit_factor=0.0,
-            average_win=0.0,
-            average_loss=0.0,
-            consecutive_wins=0,
-            consecutive_losses=0,
-            recovery_time=0.0,
-            metadata={
-                'return_count': 0,
-                'trade_count': 0,
-                'analysis_periods': 0
-            }
-        )
-        
-    def _create_neutral_result(self) -> AnalysisResult:
-        """Create a neutral analysis result when no data is available."""
+    def _create_default_analysis(self) -> AnalysisResult:
+        """Create default analysis when performance analysis fails."""
         return AnalysisResult(
             timestamp=datetime.now(),
             analysis_type="performance_analysis",
             result={
-                'total_return': 0.0,
-                'annualized_return': 0.0,
-                'volatility': 0.0,
-                'sharpe_ratio': 0.0,
-                'sortino_ratio': 0.0,
-                'calmar_ratio': 0.0,
-                'max_drawdown': 0.0,
-                'win_rate': 0.0,
-                'profit_factor': 0.0,
-                'average_win': 0.0,
-                'average_loss': 0.0,
-                'consecutive_wins': 0,
-                'consecutive_losses': 0,
-                'recovery_time': 0.0,
-                'metadata': {}
+                "performance_metrics": PerformanceMetrics().__dict__,
+                "trade_count": 0,
+                "analysis_period": {"start": None, "end": None, "duration_days": 0},
+                "initial_capital": 0,
+                "final_capital": 0
             },
-            confidence=0.0,
+            confidence=0.1,
             metadata={
-                'trade_count': 0,
-                'data_points': 0,
-                'analysis_method': 'neutral_fallback'
+                "analyzer_version": "1.1.0",
+                "method": "default_fallback",
+                "error": "Insufficient data for analysis"
             }
-        ) 
+        )
+        
+    def get_performance_history(self, limit: Optional[int] = None) -> List[Dict[str, Any]]:
+        """Get performance analysis history."""
+        if limit:
+            return self.analysis_history[-limit:]
+        return self.analysis_history.copy()
+        
+    def get_performance_statistics(self) -> Dict[str, Any]:
+        """Get statistics about performance analyses."""
+        if not self.analysis_history:
+            return {}
+            
+        returns = [h['total_return'] for h in self.analysis_history]
+        sharpe_ratios = [h['sharpe_ratio'] for h in self.analysis_history]
+        drawdowns = [h['max_drawdown'] for h in self.analysis_history]
+        confidences = [h['confidence'] for h in self.analysis_history]
+        
+        return {
+            'total_analyses': len(self.analysis_history),
+            'average_return': np.mean(returns),
+            'return_std': np.std(returns),
+            'average_sharpe': np.mean(sharpe_ratios),
+            'average_drawdown': np.mean(drawdowns),
+            'average_confidence': np.mean(confidences),
+            'best_return': max(returns) if returns else 0,
+            'worst_return': min(returns) if returns else 0
+        } 

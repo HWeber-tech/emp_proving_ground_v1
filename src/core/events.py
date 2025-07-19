@@ -1,140 +1,278 @@
 """
 EMP Core Events v1.1
 
-Defines the event types and structures used throughout the EMP system
-for inter-layer communication and system coordination.
+Defines the core event models for inter-layer communication
+in the EMP Ultimate Architecture v1.1.
 """
 
-from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, Union
 from enum import Enum
+from pydantic import BaseModel, Field, validator
+import numpy as np
 
 
 class EventType(Enum):
-    """Event types for system-wide event classification."""
+    """Types of events in the EMP system."""
+    MARKET_UNDERSTANDING = "market_understanding"
+    CONTEXT_PACKET = "context_packet"
+    TRADE_INTENT = "trade_intent"
+    FITNESS_REPORT = "fitness_report"
+    SENSORY_SIGNAL = "sensory_signal"
+    THINKING_ANALYSIS = "thinking_analysis"
+    EVOLUTION_EVENT = "evolution_event"
+    GOVERNANCE_DECISION = "governance_decision"
+    OPERATIONAL_STATUS = "operational_status"
+
+
+class MarketData(BaseModel):
+    """Market data structure for sensory processing."""
+    symbol: str
+    timestamp: datetime
+    open: float
+    high: float
+    low: float
+    close: float
+    volume: float
+    bid: Optional[float] = None
+    ask: Optional[float] = None
+    source: str = "unknown"
+    latency_ms: float = 0.0
     
-    # Sensory events
-    SENSORY_SIGNAL_RECEIVED = "sensory.signal.received"
-    SENSORY_ORGAN_CALIBRATED = "sensory.organ.calibrated"
+    class Config:
+        json_encoders = {
+            datetime: lambda v: v.isoformat(),
+            np.ndarray: lambda v: v.tolist()
+        }
+
+
+class SensorySignal(BaseModel):
+    """Sensory signal from sensory organs."""
+    timestamp: datetime
+    signal_type: str
+    value: float
+    confidence: float
+    metadata: Dict[str, Any] = Field(default_factory=dict)
     
-    # Thinking events
-    ANALYSIS_COMPLETED = "thinking.analysis.completed"
-    PATTERN_DETECTED = "thinking.pattern.detected"
-    INFERENCE_MADE = "thinking.inference.made"
+    class Config:
+        json_encoders = {
+            datetime: lambda v: v.isoformat()
+        }
+
+
+class MarketUnderstanding(BaseModel):
+    """Market understanding from sensory layer."""
+    timestamp: datetime
+    symbol: str
+    signals: List[SensorySignal] = Field(default_factory=list)
+    composite_score: float = 0.0
+    confidence: float = 0.0
+    metadata: Dict[str, Any] = Field(default_factory=dict)
     
-    # Trading events
-    TRADING_DECISION_MADE = "trading.decision.made"
-    ORDER_EXECUTED = "trading.order.executed"
-    POSITION_OPENED = "trading.position.opened"
-    POSITION_CLOSED = "trading.position.closed"
+    @validator('composite_score')
+    def validate_composite_score(cls, v):
+        return max(-1.0, min(1.0, v))
     
-    # Evolution events
-    GENERATION_COMPLETED = "evolution.generation.completed"
-    FITNESS_EVALUATED = "evolution.fitness.evaluated"
-    POPULATION_EVOLVED = "evolution.population.evolved"
+    @validator('confidence')
+    def validate_confidence(cls, v):
+        return max(0.0, min(1.0, v))
     
-    # Governance events
-    STRATEGY_APPROVED = "governance.strategy.approved"
-    STRATEGY_REJECTED = "governance.strategy.rejected"
-    AUDIT_LOG_CREATED = "governance.audit.log.created"
+    class Config:
+        json_encoders = {
+            datetime: lambda v: v.isoformat()
+        }
+
+
+class AnalysisResult(BaseModel):
+    """Analysis result from thinking layer."""
+    timestamp: datetime
+    analysis_type: str
+    result: Dict[str, Any] = Field(default_factory=dict)
+    confidence: float = 0.0
+    metadata: Dict[str, Any] = Field(default_factory=dict)
     
-    # Operational events
-    SYSTEM_STARTED = "operational.system.started"
-    SYSTEM_STOPPED = "operational.system.stopped"
-    HEALTH_CHECK_FAILED = "operational.health.check.failed"
+    @validator('confidence')
+    def validate_confidence(cls, v):
+        return max(0.0, min(1.0, v))
+    
+    class Config:
+        json_encoders = {
+            datetime: lambda v: v.isoformat()
+        }
 
 
-@dataclass
-class BaseEvent:
-    """Base event class with common properties."""
-    event_type: EventType
-    timestamp: datetime = field(default_factory=datetime.now)
-    source: str = ""
-    metadata: Dict[str, Any] = field(default_factory=dict)
-    event_id: str = ""
+class ContextPacket(BaseModel):
+    """Context packet from thinking layer."""
+    timestamp: datetime
+    market_understanding: MarketUnderstanding
+    analyses: List[AnalysisResult] = Field(default_factory=list)
+    context_score: float = 0.0
+    confidence: float = 0.0
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+    
+    @validator('context_score')
+    def validate_context_score(cls, v):
+        return max(-1.0, min(1.0, v))
+    
+    @validator('confidence')
+    def validate_confidence(cls, v):
+        return max(0.0, min(1.0, v))
+    
+    class Config:
+        json_encoders = {
+            datetime: lambda v: v.isoformat()
+        }
 
 
-@dataclass
-class SensoryEvent(BaseEvent):
-    """Sensory layer events."""
-    signal: Optional[Dict[str, Any]] = None
-    organ_id: str = ""
+class TradeIntent(BaseModel):
+    """Trade intent from adaptive core."""
+    timestamp: datetime
+    symbol: str
+    action: str  # 'BUY', 'SELL', 'HOLD'
+    quantity: float
+    price: Optional[float] = None
+    stop_loss: Optional[float] = None
+    take_profit: Optional[float] = None
+    confidence: float = 0.0
+    strategy_id: str
+    genome_id: str
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+    
+    @validator('action')
+    def validate_action(cls, v):
+        if v not in ['BUY', 'SELL', 'HOLD']:
+            raise ValueError('Action must be BUY, SELL, or HOLD')
+        return v
+    
+    @validator('confidence')
+    def validate_confidence(cls, v):
+        return max(0.0, min(1.0, v))
+    
+    class Config:
+        json_encoders = {
+            datetime: lambda v: v.isoformat()
+        }
 
 
-@dataclass
-class ThinkingEvent(BaseEvent):
-    """Thinking layer events."""
-    analysis_result: Optional[Dict[str, Any]] = None
-    pattern_id: str = ""
+class PerformanceMetrics(BaseModel):
+    """Performance metrics for fitness evaluation."""
+    total_return: float = 0.0
+    annualized_return: float = 0.0
+    volatility: float = 0.0
+    sharpe_ratio: float = 0.0
+    sortino_ratio: float = 0.0
+    max_drawdown: float = 0.0
+    win_rate: float = 0.0
+    profit_factor: float = 0.0
+    total_trades: int = 0
+    avg_trade_duration: float = 0.0
+    metadata: Dict[str, Any] = Field(default_factory=dict)
 
 
-@dataclass
-class TradingEvent(BaseEvent):
-    """Trading layer events."""
-    decision: Optional[Dict[str, Any]] = None
-    strategy_id: str = ""
-    symbol: str = ""
+class RiskMetrics(BaseModel):
+    """Risk metrics for fitness evaluation."""
+    var_95: float = 0.0
+    var_99: float = 0.0
+    cvar_95: float = 0.0
+    cvar_99: float = 0.0
+    beta: float = 0.0
+    correlation: float = 0.0
+    current_drawdown: float = 0.0
+    risk_score: float = 0.0
+    metadata: Dict[str, Any] = Field(default_factory=dict)
 
 
-@dataclass
-class EvolutionEvent(BaseEvent):
-    """Evolution layer events."""
-    population_size: int = 0
+class FitnessReport(BaseModel):
+    """Fitness report from simulation envelope."""
+    timestamp: datetime
+    genome_id: str
+    strategy_id: str
+    performance_metrics: PerformanceMetrics
+    risk_metrics: RiskMetrics
+    fitness_score: float = 0.0
     generation: int = 0
-    best_fitness: float = 0.0
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+    
+    @validator('fitness_score')
+    def validate_fitness_score(cls, v):
+        return max(0.0, min(1.0, v))
+    
+    class Config:
+        json_encoders = {
+            datetime: lambda v: v.isoformat()
+        }
 
 
-@dataclass
-class GovernanceEvent(BaseEvent):
-    """Governance layer events."""
-    strategy_id: str = ""
-    approval_status: str = ""
-    reason: str = ""
+class EvolutionEvent(BaseModel):
+    """Evolution event from adaptive core."""
+    timestamp: datetime
+    event_type: str  # 'generation_complete', 'mutation', 'crossover', 'selection'
+    genome_id: str
+    generation: int
+    population_size: int
+    best_fitness: float
+    average_fitness: float
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+    
+    class Config:
+        json_encoders = {
+            datetime: lambda v: v.isoformat()
+        }
 
 
-@dataclass
-class OperationalEvent(BaseEvent):
-    """Operational layer events."""
-    component: str = ""
-    status: str = ""
-    error_message: str = ""
+class GovernanceDecision(BaseModel):
+    """Governance decision from governance layer."""
+    timestamp: datetime
+    decision_type: str  # 'approve', 'reject', 'escalate', 'auto_approve'
+    strategy_id: str
+    genome_id: str
+    approver: Optional[str] = None
+    reason: Optional[str] = None
+    risk_assessment: Dict[str, Any] = Field(default_factory=dict)
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+    
+    class Config:
+        json_encoders = {
+            datetime: lambda v: v.isoformat()
+        }
 
 
-# Event factory functions
-def create_sensory_event(signal: Dict[str, Any], organ_id: str) -> SensoryEvent:
-    """Create a sensory event."""
-    return SensoryEvent(
-        event_type=EventType.SENSORY_SIGNAL_RECEIVED,
-        signal=signal,
-        organ_id=organ_id
-    )
+class OperationalStatus(BaseModel):
+    """Operational status from operational backbone."""
+    timestamp: datetime
+    component: str
+    status: str  # 'healthy', 'warning', 'critical', 'offline'
+    metrics: Dict[str, Any] = Field(default_factory=dict)
+    alerts: List[str] = Field(default_factory=list)
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+    
+    class Config:
+        json_encoders = {
+            datetime: lambda v: v.isoformat()
+        }
 
 
-def create_thinking_event(analysis_result: Dict[str, Any], pattern_id: str) -> ThinkingEvent:
-    """Create a thinking event."""
-    return ThinkingEvent(
-        event_type=EventType.ANALYSIS_COMPLETED,
-        analysis_result=analysis_result,
-        pattern_id=pattern_id
-    )
-
-
-def create_trading_event(decision: Dict[str, Any], strategy_id: str, symbol: str) -> TradingEvent:
-    """Create a trading event."""
-    return TradingEvent(
-        event_type=EventType.TRADING_DECISION_MADE,
-        decision=decision,
-        strategy_id=strategy_id,
-        symbol=symbol
-    )
-
-
-def create_evolution_event(population_size: int, generation: int, best_fitness: float) -> EvolutionEvent:
-    """Create an evolution event."""
-    return EvolutionEvent(
-        event_type=EventType.GENERATION_COMPLETED,
-        population_size=population_size,
-        generation=generation,
-        best_fitness=best_fitness
-    ) 
+class BaseEvent(BaseModel):
+    """Base event class for all EMP events."""
+    event_type: EventType
+    timestamp: datetime
+    source: str
+    target: Optional[str] = None
+    payload: Union[
+        MarketUnderstanding,
+        ContextPacket,
+        TradeIntent,
+        FitnessReport,
+        SensorySignal,
+        AnalysisResult,
+        EvolutionEvent,
+        GovernanceDecision,
+        OperationalStatus
+    ]
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+    
+    class Config:
+        json_encoders = {
+            datetime: lambda v: v.isoformat()
+        }
+        use_enum_values = True 

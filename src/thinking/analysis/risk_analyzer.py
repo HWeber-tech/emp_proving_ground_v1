@@ -1,258 +1,389 @@
 """
 EMP Risk Analyzer v1.1
 
-Comprehensive risk analysis module that processes sensory signals
-and pattern detection results to assess market risk levels.
+Risk analysis and assessment for the thinking layer.
+Provides comprehensive risk metrics and analysis for trading strategies.
 """
 
 import numpy as np
-from typing import Dict, List, Any, Optional
-from datetime import datetime
-from dataclasses import dataclass
+import pandas as pd
+from typing import Dict, List, Optional, Tuple, Any
+from datetime import datetime, timedelta
+import logging
 
-from src.core.interfaces import SensorySignal, AnalysisResult
-from src.core.exceptions import ThinkingException
+from ...core.events import TradeIntent, RiskMetrics, AnalysisResult
 
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class RiskMetrics:
-    """Comprehensive risk metrics."""
-    volatility: float
-    var_95: float
-    cvar_95: float
-    max_drawdown: float
-    beta: float
-    correlation: float
-    risk_score: float
-    risk_level: str  # 'LOW', 'MEDIUM', 'HIGH', 'EXTREME'
-    metadata: Dict[str, Any]
-
-
 class RiskAnalyzer:
-    """Analyzes risk from sensory signals and market data."""
+    """Risk analyzer for cognitive assessment of trading risks."""
     
-    def __init__(self, config: Optional[Dict[str, Any]] = None):
-        self.config = config or {}
-        self.lookback_periods = self.config.get('lookback_periods', 252)
-        self.risk_free_rate = self.config.get('risk_free_rate', 0.02)
-        self._signal_history: List[SensorySignal] = []
+    def __init__(self, confidence_level: float = 0.95, lookback_period: int = 252):
+        self.confidence_level = confidence_level
+        self.lookback_period = lookback_period
+        self.risk_history: List[Dict[str, Any]] = []
         
-    def analyze(self, signals: List[SensorySignal], 
-                market_data: Optional[Dict[str, Any]] = None) -> AnalysisResult:
-        """Analyze risk from sensory signals."""
+        logger.info(f"Risk Analyzer initialized with {confidence_level:.0%} confidence level")
+        
+    def analyze_risk(self, trade_history: List[TradeIntent], 
+                    market_data: Optional[List[Any]] = None) -> AnalysisResult:
+        """Analyze trading risk and generate risk metrics."""
         try:
-            # Update signal history
-            self._update_signal_history(signals)
-            
-            # Extract risk-relevant signals
-            risk_signals = self._extract_risk_signals(signals)
-            
-            if not risk_signals:
-                return self._create_neutral_result()
+            if not trade_history:
+                logger.warning("Empty trade history provided for risk analysis")
+                return self._create_default_analysis()
                 
+            # Convert trade history to risk data
+            risk_data = self._convert_trades_to_risk_data(trade_history)
+            
             # Calculate risk metrics
-            risk_metrics = self._calculate_risk_metrics(risk_signals, market_data)
+            metrics = self._calculate_risk_metrics(risk_data, market_data)
+            
+            # Calculate confidence based on data quality
+            confidence = self._calculate_risk_confidence(risk_data)
             
             # Create analysis result
-            return AnalysisResult(
+            result = AnalysisResult(
                 timestamp=datetime.now(),
                 analysis_type="risk_analysis",
                 result={
-                    'volatility': risk_metrics.volatility,
-                    'var_95': risk_metrics.var_95,
-                    'cvar_95': risk_metrics.cvar_95,
-                    'max_drawdown': risk_metrics.max_drawdown,
-                    'beta': risk_metrics.beta,
-                    'correlation': risk_metrics.correlation,
-                    'risk_score': risk_metrics.risk_score,
-                    'risk_level': risk_metrics.risk_level,
-                    'metadata': risk_metrics.metadata
+                    "risk_metrics": metrics.__dict__,
+                    "trade_count": len(trade_history),
+                    "analysis_period": self._calculate_analysis_period(trade_history),
+                    "confidence_level": self.confidence_level,
+                    "risk_assessment": self._assess_risk_level(metrics)
                 },
-                confidence=self._calculate_confidence(risk_signals),
+                confidence=confidence,
                 metadata={
-                    'signal_count': len(risk_signals),
-                    'analysis_method': 'comprehensive_risk'
+                    "analyzer_version": "1.1.0",
+                    "method": "comprehensive_risk_analysis",
+                    "confidence_level": self.confidence_level,
+                    "lookback_period": self.lookback_period
                 }
             )
             
+            # Store in history
+            self.risk_history.append({
+                "timestamp": result.timestamp,
+                "trade_count": len(trade_history),
+                "var_95": metrics.var_95,
+                "cvar_95": metrics.cvar_95,
+                "max_drawdown": metrics.max_drawdown,
+                "risk_score": metrics.risk_score,
+                "confidence": confidence
+            })
+            
+            logger.debug(f"Risk analyzed: VaR95={metrics.var_95:.2%}, CVaR95={metrics.cvar_95:.2%}")
+            return result
+            
         except Exception as e:
-            raise ThinkingException(f"Error in risk analysis: {e}")
+            logger.error(f"Error analyzing risk: {e}")
+            return self._create_default_analysis()
             
-    def _update_signal_history(self, signals: List[SensorySignal]):
-        """Update the signal history."""
-        self._signal_history.extend(signals)
+    def _convert_trades_to_risk_data(self, trade_history: List[TradeIntent]) -> Dict[str, Any]:
+        """Convert trade history to risk data structure."""
+        # Sort trades by timestamp
+        sorted_trades = sorted(trade_history, key=lambda x: x.timestamp)
         
-        # Keep only recent signals
-        if len(self._signal_history) > self.lookback_periods:
-            self._signal_history = self._signal_history[-self.lookback_periods:]
-            
-    def _extract_risk_signals(self, signals: List[SensorySignal]) -> List[SensorySignal]:
-        """Extract signals relevant to risk analysis."""
-        risk_signals = []
+        # Extract trade returns and positions
+        trade_returns = []
+        position_sizes = []
+        timestamps = []
         
-        for signal in signals:
-            if signal.signal_type in ['price_composite', 'volatility', 'volume_composite']:
-                risk_signals.append(signal)
+        for trade in sorted_trades:
+            if trade.action == "HOLD":
+                continue
                 
-        return risk_signals
+            # Calculate trade return (simplified)
+            if trade.price and trade.quantity:
+                # Simplified P&L calculation
+                if trade.action == "SELL":
+                    # Assume we're closing a position
+                    trade_return = 0.02  # Simplified 2% return per trade
+                    trade_returns.append(trade_return)
+                    position_sizes.append(trade.quantity * trade.price)
+                    timestamps.append(trade.timestamp)
+                    
+        return {
+            'trade_returns': pd.Series(trade_returns),
+            'position_sizes': position_sizes,
+            'timestamps': timestamps,
+            'total_trades': len(trade_returns)
+        }
         
-    def _calculate_risk_metrics(self, signals: List[SensorySignal], 
-                               market_data: Optional[Dict[str, Any]]) -> RiskMetrics:
+    def _calculate_risk_metrics(self, risk_data: Dict[str, Any], 
+                              market_data: Optional[List[Any]] = None) -> RiskMetrics:
         """Calculate comprehensive risk metrics."""
-        # Extract price movements from signals
-        price_signals = [s for s in signals if s.signal_type == 'price_composite']
+        trade_returns = risk_data['trade_returns']
+        position_sizes = risk_data['position_sizes']
         
-        if not price_signals:
-            return self._create_neutral_risk_metrics()
-            
-        # Calculate returns from price signals
-        returns = []
-        for i in range(1, len(price_signals)):
-            prev_value = price_signals[i-1].value
-            curr_value = price_signals[i].value
-            if prev_value != 0:
-                returns.append((curr_value - prev_value) / prev_value)
-                
-        if not returns:
-            return self._create_neutral_risk_metrics()
-            
-        returns_array = np.array(returns)
+        # Value at Risk (VaR)
+        var_95 = self._calculate_var(trade_returns, 0.95)
+        var_99 = self._calculate_var(trade_returns, 0.99)
         
-        # Calculate volatility
-        volatility = np.std(returns_array) * np.sqrt(252)  # Annualized
+        # Conditional Value at Risk (CVaR)
+        cvar_95 = self._calculate_cvar(trade_returns, 0.95)
+        cvar_99 = self._calculate_cvar(trade_returns, 0.99)
         
-        # Calculate VaR and CVaR
-        var_95 = -np.percentile(returns_array, 5)
-        cvar_95 = -np.mean(returns_array[returns_array <= -var_95])
+        # Beta calculation (simplified)
+        beta = self._calculate_beta(trade_returns, market_data)
         
-        # Calculate maximum drawdown
-        cumulative_returns = np.cumprod(1 + returns_array)
-        running_max = np.maximum.accumulate(cumulative_returns)
-        drawdown = (cumulative_returns - running_max) / running_max
-        max_drawdown = abs(np.min(drawdown))
+        # Correlation calculation
+        correlation = self._calculate_correlation(trade_returns, market_data)
         
-        # Calculate beta and correlation (if market data available)
-        beta = 1.0  # Default beta
-        correlation = 0.0  # Default correlation
+        # Current drawdown
+        current_drawdown = self._calculate_current_drawdown(trade_returns)
         
-        if market_data and 'market_returns' in market_data:
-            market_returns = np.array(market_data['market_returns'])
-            if len(market_returns) == len(returns_array):
-                # Calculate correlation
-                correlation = np.corrcoef(returns_array, market_returns)[0, 1]
-                if np.isnan(correlation):
-                    correlation = 0.0
-                    
-                # Calculate beta
-                market_variance = np.var(market_returns)
-                if market_variance > 0:
-                    covariance = np.cov(returns_array, market_returns)[0, 1]
-                    beta = covariance / market_variance
-                else:
-                    beta = 1.0
-                    
-        # Calculate composite risk score
-        risk_score = self._calculate_risk_score(
-            volatility, var_95, max_drawdown, beta
-        )
-        
-        # Determine risk level
-        risk_level = self._determine_risk_level(risk_score)
+        # Risk score
+        risk_score = self._calculate_risk_score(var_95, cvar_95, current_drawdown, beta)
         
         return RiskMetrics(
-            volatility=volatility,
             var_95=var_95,
+            var_99=var_99,
             cvar_95=cvar_95,
-            max_drawdown=max_drawdown,
+            cvar_99=cvar_99,
             beta=beta,
             correlation=correlation,
+            current_drawdown=current_drawdown,
             risk_score=risk_score,
-            risk_level=risk_level,
             metadata={
-                'return_count': len(returns),
-                'signal_count': len(signals),
-                'analysis_periods': self.lookback_periods
+                "analysis_timestamp": datetime.now().isoformat(),
+                "data_points": len(trade_returns),
+                "confidence_level": self.confidence_level
             }
         )
         
-    def _calculate_risk_score(self, volatility: float, var_95: float, 
-                             max_drawdown: float, beta: float) -> float:
-        """Calculate composite risk score."""
-        # Normalize components to 0-1 range
-        vol_score = min(volatility / 0.5, 1.0)  # 50% volatility = max score
-        var_score = min(var_95 / 0.1, 1.0)      # 10% VaR = max score
-        dd_score = min(max_drawdown / 0.3, 1.0)  # 30% drawdown = max score
-        beta_score = min(abs(beta - 1.0) / 2.0, 1.0)  # Beta deviation from 1
+    def _calculate_var(self, returns: pd.Series, confidence_level: float) -> float:
+        """Calculate Value at Risk."""
+        if len(returns) < 2:
+            return 0.0
+            
+        # Historical VaR
+        var_percentile = (1 - confidence_level) * 100
+        var = np.percentile(returns, var_percentile)
         
-        # Weighted average
-        weights = [0.3, 0.3, 0.3, 0.1]  # volatility, VaR, drawdown, beta
-        risk_score = (
-            vol_score * weights[0] +
-            var_score * weights[1] +
-            dd_score * weights[2] +
-            beta_score * weights[3]
-        )
+        return abs(var)
+        
+    def _calculate_cvar(self, returns: pd.Series, confidence_level: float) -> float:
+        """Calculate Conditional Value at Risk (Expected Shortfall)."""
+        if len(returns) < 2:
+            return 0.0
+            
+        # Historical CVaR
+        var_percentile = (1 - confidence_level) * 100
+        var_threshold = np.percentile(returns, var_percentile)
+        
+        # Calculate expected value of returns below VaR threshold
+        tail_returns = returns[returns <= var_threshold]
+        
+        if len(tail_returns) > 0:
+            cvar = tail_returns.mean()
+        else:
+            cvar = var_threshold
+            
+        return abs(cvar)
+        
+    def _calculate_beta(self, returns: pd.Series, market_data: Optional[List[Any]]) -> float:
+        """Calculate beta relative to market."""
+        if not market_data or len(returns) < 2:
+            return 1.0  # Default to market beta
+            
+        try:
+            # Simplified market return calculation
+            # In a real implementation, you'd use actual market data
+            market_returns = pd.Series([0.001] * len(returns))  # Simplified 0.1% daily return
+            
+            # Calculate covariance and variance
+            covariance = np.cov(returns, market_returns)[0, 1]
+            market_variance = np.var(market_returns)
+            
+            if market_variance > 0:
+                beta = covariance / market_variance
+            else:
+                beta = 1.0
+                
+            return beta
+            
+        except Exception as e:
+            logger.warning(f"Error calculating beta: {e}")
+            return 1.0
+            
+    def _calculate_correlation(self, returns: pd.Series, market_data: Optional[List[Any]]) -> float:
+        """Calculate correlation with market."""
+        if not market_data or len(returns) < 2:
+            return 0.0
+            
+        try:
+            # Simplified market return calculation
+            market_returns = pd.Series([0.001] * len(returns))  # Simplified
+            
+            correlation = np.corrcoef(returns, market_returns)[0, 1]
+            return correlation if not np.isnan(correlation) else 0.0
+            
+        except Exception as e:
+            logger.warning(f"Error calculating correlation: {e}")
+            return 0.0
+            
+    def _calculate_current_drawdown(self, returns: pd.Series) -> float:
+        """Calculate current drawdown from returns."""
+        if len(returns) < 2:
+            return 0.0
+            
+        # Calculate cumulative returns
+        cumulative_returns = (1 + returns).cumprod()
+        
+        # Calculate running maximum
+        running_max = cumulative_returns.expanding().max()
+        
+        # Calculate current drawdown
+        current_drawdown = (cumulative_returns.iloc[-1] - running_max.iloc[-1]) / running_max.iloc[-1]
+        
+        return abs(current_drawdown)
+        
+    def _calculate_risk_score(self, var_95: float, cvar_95: float, 
+                            current_drawdown: float, beta: float) -> float:
+        """Calculate composite risk score."""
+        # Normalize risk metrics to [0, 1] scale
+        var_score = min(var_95 / 0.1, 1.0)  # Normalize to 10% VaR
+        cvar_score = min(cvar_95 / 0.15, 1.0)  # Normalize to 15% CVaR
+        drawdown_score = min(current_drawdown / 0.2, 1.0)  # Normalize to 20% drawdown
+        beta_score = min(abs(beta - 1.0) / 0.5, 1.0)  # Normalize beta deviation
+        
+        # Weighted risk score
+        weights = [0.3, 0.3, 0.25, 0.15]  # VaR, CVaR, Drawdown, Beta
+        risk_score = (var_score * weights[0] + 
+                     cvar_score * weights[1] + 
+                     drawdown_score * weights[2] + 
+                     beta_score * weights[3])
         
         return min(risk_score, 1.0)
         
-    def _determine_risk_level(self, risk_score: float) -> str:
-        """Determine risk level based on risk score."""
-        if risk_score < 0.25:
-            return 'LOW'
-        elif risk_score < 0.5:
-            return 'MEDIUM'
-        elif risk_score < 0.75:
-            return 'HIGH'
+    def _assess_risk_level(self, metrics: RiskMetrics) -> str:
+        """Assess overall risk level."""
+        risk_score = metrics.risk_score
+        
+        if risk_score < 0.2:
+            return "LOW"
+        elif risk_score < 0.4:
+            return "LOW_MEDIUM"
+        elif risk_score < 0.6:
+            return "MEDIUM"
+        elif risk_score < 0.8:
+            return "MEDIUM_HIGH"
         else:
-            return 'EXTREME'
+            return "HIGH"
             
-    def _calculate_confidence(self, signals: List[SensorySignal]) -> float:
+    def _calculate_risk_confidence(self, risk_data: Dict[str, Any]) -> float:
         """Calculate confidence in risk analysis."""
-        if not signals:
-            return 0.0
+        confidence_factors = []
+        
+        # Data sufficiency
+        trade_count = risk_data['total_trades']
+        if trade_count >= 100:
+            confidence_factors.append(1.0)
+        elif trade_count >= 50:
+            confidence_factors.append(0.8)
+        elif trade_count >= 20:
+            confidence_factors.append(0.6)
+        else:
+            confidence_factors.append(0.3)
             
-        confidences = [s.confidence for s in signals]
-        return np.mean(confidences)
+        # Data quality
+        returns = risk_data['trade_returns']
+        if len(returns) > 0:
+            # Check for extreme outliers
+            q1 = returns.quantile(0.25)
+            q3 = returns.quantile(0.75)
+            iqr = q3 - q1
+            outliers = returns[(returns < q1 - 1.5 * iqr) | (returns > q3 + 1.5 * iqr)]
+            
+            outlier_ratio = len(outliers) / len(returns)
+            if outlier_ratio < 0.05:
+                confidence_factors.append(1.0)
+            elif outlier_ratio < 0.1:
+                confidence_factors.append(0.8)
+            else:
+                confidence_factors.append(0.6)
+        else:
+            confidence_factors.append(0.3)
+            
+        # Time span
+        if len(risk_data['timestamps']) > 1:
+            time_span = (risk_data['timestamps'][-1] - risk_data['timestamps'][0]).days
+            if time_span >= 252:  # 1 year
+                confidence_factors.append(1.0)
+            elif time_span >= 126:  # 6 months
+                confidence_factors.append(0.8)
+            elif time_span >= 63:   # 3 months
+                confidence_factors.append(0.6)
+            else:
+                confidence_factors.append(0.4)
+        else:
+            confidence_factors.append(0.1)
+            
+        return np.mean(confidence_factors)
         
-    def _create_neutral_risk_metrics(self) -> RiskMetrics:
-        """Create neutral risk metrics when no data is available."""
-        return RiskMetrics(
-            volatility=0.0,
-            var_95=0.0,
-            cvar_95=0.0,
-            max_drawdown=0.0,
-            beta=1.0,
-            correlation=0.0,
-            risk_score=0.0,
-            risk_level='LOW',
-            metadata={
-                'return_count': 0,
-                'signal_count': 0,
-                'analysis_periods': 0
-            }
-        )
+    def _calculate_analysis_period(self, trade_history: List[TradeIntent]) -> Dict[str, Any]:
+        """Calculate the analysis period from trade history."""
+        if not trade_history:
+            return {"start": None, "end": None, "duration_days": 0}
+            
+        start_time = min(trade.timestamp for trade in trade_history)
+        end_time = max(trade.timestamp for trade in trade_history)
+        duration_days = (end_time - start_time).days
         
-    def _create_neutral_result(self) -> AnalysisResult:
-        """Create a neutral analysis result when no signals are available."""
+        return {
+            "start": start_time.isoformat(),
+            "end": end_time.isoformat(),
+            "duration_days": duration_days
+        }
+        
+    def _create_default_analysis(self) -> AnalysisResult:
+        """Create default analysis when risk analysis fails."""
         return AnalysisResult(
             timestamp=datetime.now(),
             analysis_type="risk_analysis",
             result={
-                'volatility': 0.0,
-                'var_95': 0.0,
-                'cvar_95': 0.0,
-                'max_drawdown': 0.0,
-                'beta': 1.0,
-                'correlation': 0.0,
-                'risk_score': 0.0,
-                'risk_level': 'LOW',
-                'metadata': {}
+                "risk_metrics": RiskMetrics().__dict__,
+                "trade_count": 0,
+                "analysis_period": {"start": None, "end": None, "duration_days": 0},
+                "confidence_level": self.confidence_level,
+                "risk_assessment": "UNKNOWN"
             },
-            confidence=0.0,
+            confidence=0.1,
             metadata={
-                'signal_count': 0,
-                'analysis_method': 'neutral_fallback'
+                "analyzer_version": "1.1.0",
+                "method": "default_fallback",
+                "error": "Insufficient data for analysis"
             }
-        ) 
+        )
+        
+    def get_risk_history(self, limit: Optional[int] = None) -> List[Dict[str, Any]]:
+        """Get risk analysis history."""
+        if limit:
+            return self.risk_history[-limit:]
+        return self.risk_history.copy()
+        
+    def get_risk_statistics(self) -> Dict[str, Any]:
+        """Get statistics about risk analyses."""
+        if not self.risk_history:
+            return {}
+            
+        var_95s = [h['var_95'] for h in self.risk_history]
+        cvar_95s = [h['cvar_95'] for h in self.risk_history]
+        drawdowns = [h['max_drawdown'] for h in self.risk_history]
+        risk_scores = [h['risk_score'] for h in self.risk_history]
+        confidences = [h['confidence'] for h in self.risk_history]
+        
+        return {
+            'total_analyses': len(self.risk_history),
+            'average_var_95': np.mean(var_95s),
+            'average_cvar_95': np.mean(cvar_95s),
+            'average_drawdown': np.mean(drawdowns),
+            'average_risk_score': np.mean(risk_scores),
+            'average_confidence': np.mean(confidences),
+            'max_var_95': max(var_95s) if var_95s else 0,
+            'max_cvar_95': max(cvar_95s) if cvar_95s else 0,
+            'max_risk_score': max(risk_scores) if risk_scores else 0
+        } 

@@ -1,78 +1,72 @@
-# EMP Ultimate Architecture v1.1 - Docker Compose Configuration
-# Local development and testing environment
+# EMP Ultimate Architecture v1.1 - Docker Compose
+# Development and testing environment
 
 version: '3.8'
 
 services:
   # Main EMP application
   emp-app:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
     container_name: emp-app
     ports:
       - "8000:8000"
     environment:
-      - EMP_ENVIRONMENT=development
-      - EMP_SYSTEM_VERSION=1.1.0
-      - REDIS_HOST=emp-redis
-      - POSTGRES_HOST=emp-postgres
-      - NATS_HOST=emp-nats
+      - EMP_ENV=development
+      - PYTHONPATH=/app
+      - PYTHONUNBUFFERED=1
     volumes:
-      - ./logs:/app/logs
       - ./data:/app/data
+      - ./logs:/app/logs
       - ./reports:/app/reports
       - ./config:/app/config
     depends_on:
-      - emp-redis
-      - emp-postgres
-      - emp-nats
+      - redis
+      - postgres
     networks:
       - emp-network
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
-  # Redis for state storage
-  emp-redis:
+  # Redis for caching and event bus
+  redis:
     image: redis:7-alpine
     container_name: emp-redis
     ports:
       - "6379:6379"
     volumes:
       - redis_data:/data
-    command: redis-server --appendonly yes
     networks:
       - emp-network
     restart: unless-stopped
+    command: redis-server --appendonly yes
 
-  # PostgreSQL for strategy registry
-  emp-postgres:
+  # PostgreSQL for persistent storage
+  postgres:
     image: postgres:15-alpine
     container_name: emp-postgres
+    environment:
+      POSTGRES_DB: emp_db
+      POSTGRES_USER: emp_user
+      POSTGRES_PASSWORD: emp_password
     ports:
       - "5432:5432"
-    environment:
-      - POSTGRES_DB=emp_registry
-      - POSTGRES_USER=emp_user
-      - POSTGRES_PASSWORD=emp_password
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./config/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./config/database/init.sql:/docker-entrypoint-initdb.d/init.sql
     networks:
       - emp-network
     restart: unless-stopped
 
-  # NATS for event bus
-  emp-nats:
-    image: nats:2-alpine
-    container_name: emp-nats
-    ports:
-      - "4222:4222"
-      - "8222:8222"
-    command: nats-server --jetstream --http_port 8222
-    networks:
-      - emp-network
-    restart: unless-stopped
-
-  # Prometheus for metrics
-  emp-prometheus:
+  # Prometheus for monitoring
+  prometheus:
     image: prom/prometheus:latest
     container_name: emp-prometheus
     ports:
@@ -91,15 +85,14 @@ services:
       - emp-network
     restart: unless-stopped
 
-  # Grafana for dashboards
-  emp-grafana:
+  # Grafana for visualization
+  grafana:
     image: grafana/grafana:latest
     container_name: emp-grafana
     ports:
       - "3000:3000"
     environment:
-      - GF_SECURITY_ADMIN_PASSWORD=admin
-      - GF_USERS_ALLOW_SIGN_UP=false
+      GF_SECURITY_ADMIN_PASSWORD: admin
     volumes:
       - grafana_data:/var/lib/grafana
       - ./config/grafana/dashboards:/etc/grafana/provisioning/dashboards
@@ -107,30 +100,32 @@ services:
     networks:
       - emp-network
     restart: unless-stopped
+    depends_on:
+      - prometheus
 
   # Jaeger for distributed tracing
-  emp-jaeger:
+  jaeger:
     image: jaegertracing/all-in-one:latest
     container_name: emp-jaeger
     ports:
       - "16686:16686"
       - "14268:14268"
     environment:
-      - COLLECTOR_OTLP_ENABLED=true
+      COLLECTOR_OTLP_ENABLED: true
     networks:
       - emp-network
     restart: unless-stopped
 
   # Elasticsearch for logging
-  emp-elasticsearch:
+  elasticsearch:
     image: docker.elastic.co/elasticsearch/elasticsearch:8.8.0
     container_name: emp-elasticsearch
-    ports:
-      - "9200:9200"
     environment:
       - discovery.type=single-node
       - xpack.security.enabled=false
       - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    ports:
+      - "9200:9200"
     volumes:
       - elasticsearch_data:/usr/share/elasticsearch/data
     networks:
@@ -138,68 +133,34 @@ services:
     restart: unless-stopped
 
   # Kibana for log visualization
-  emp-kibana:
+  kibana:
     image: docker.elastic.co/kibana/kibana:8.8.0
     container_name: emp-kibana
     ports:
       - "5601:5601"
     environment:
-      - ELASTICSEARCH_HOSTS=http://emp-elasticsearch:9200
-    volumes:
-      - ./config/kibana/kibana.yml:/usr/share/kibana/config/kibana.yml
+      ELASTICSEARCH_HOSTS: http://elasticsearch:9200
     networks:
       - emp-network
+    restart: unless-stopped
     depends_on:
-      - emp-elasticsearch
-    restart: unless-stopped
+      - elasticsearch
 
-  # Logstash for log processing
-  emp-logstash:
-    image: docker.elastic.co/logstash/logstash:8.8.0
-    container_name: emp-logstash
-    ports:
-      - "5044:5044"
+  # Filebeat for log collection
+  filebeat:
+    image: docker.elastic.co/beats/filebeat:8.8.0
+    container_name: emp-filebeat
+    user: root
     volumes:
-      - ./config/logstash/logstash.yml:/usr/share/logstash/config/logstash.yml
-      - ./config/logstash/pipeline:/usr/share/logstash/pipeline
+      - ./config/filebeat/filebeat.yml:/usr/share/filebeat/filebeat.yml:ro
+      - ./logs:/var/log/emp:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
     networks:
       - emp-network
+    restart: unless-stopped
     depends_on:
-      - emp-elasticsearch
-    restart: unless-stopped
-
-  # Vault for secrets management
-  emp-vault:
-    image: vault:latest
-    container_name: emp-vault
-    ports:
-      - "8200:8200"
-    environment:
-      - VAULT_DEV_ROOT_TOKEN_ID=emp-dev-token
-      - VAULT_DEV_LISTEN_ADDRESS=0.0.0.0:8200
-    cap_add:
-      - IPC_LOCK
-    volumes:
-      - vault_data:/vault/file
-    networks:
-      - emp-network
-    restart: unless-stopped
-
-  # Nginx for load balancing
-  emp-nginx:
-    image: nginx:alpine
-    container_name: emp-nginx
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./config/nginx/nginx.conf:/etc/nginx/nginx.conf
-      - ./config/nginx/ssl:/etc/nginx/ssl
-    networks:
-      - emp-network
-    depends_on:
-      - emp-app
-    restart: unless-stopped
+      - elasticsearch
 
 volumes:
   redis_data:
@@ -207,8 +168,10 @@ volumes:
   prometheus_data:
   grafana_data:
   elasticsearch_data:
-  vault_data:
 
 networks:
   emp-network:
-    driver: bridge 
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16 

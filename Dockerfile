@@ -1,51 +1,53 @@
 # EMP Ultimate Architecture v1.1 - Production Dockerfile
-# Multi-stage build for optimized production image
+# Multi-stage build for optimized production deployment
 
 # Stage 1: Build stage
 FROM python:3.11-slim as builder
 
-# Set environment variables
-ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1 \
-    PIP_NO_CACHE_DIR=1 \
-    PIP_DISABLE_PIP_VERSION_CHECK=1
+# Set build arguments
+ARG BUILD_DATE
+ARG VCS_REF
+ARG VERSION
 
-# Install system dependencies
+# Set labels
+LABEL maintainer="EMP System <emp@example.com>"
+LABEL org.opencontainers.image.created=$BUILD_DATE
+LABEL org.opencontainers.image.revision=$VCS_REF
+LABEL org.opencontainers.image.version=$VERSION
+LABEL org.opencontainers.image.title="EMP Ultimate Architecture v1.1"
+LABEL org.opencontainers.image.description="Evolutionary Market Prediction System"
+LABEL org.opencontainers.image.vendor="EMP System"
+
+# Install build dependencies
 RUN apt-get update && apt-get install -y \
     build-essential \
-    curl \
-    git \
+    gcc \
+    g++ \
     && rm -rf /var/lib/apt/lists/*
 
 # Create virtual environment
 RUN python -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
-# Copy requirements and install Python dependencies
+# Copy requirements and install dependencies
 COPY requirements.txt .
-RUN pip install --upgrade pip && \
-    pip install -r requirements.txt
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
 
 # Stage 2: Production stage
 FROM python:3.11-slim as production
 
-# Set environment variables
-ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1 \
-    PATH="/opt/venv/bin:$PATH" \
-    EMP_ENVIRONMENT=production \
-    EMP_SYSTEM_VERSION=1.1.0
+# Create non-root user
+RUN groupadd -r emp && useradd -r -g emp emp
 
 # Install runtime dependencies
 RUN apt-get update && apt-get install -y \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Create non-root user
-RUN groupadd -r emp && useradd -r -g emp emp
-
 # Copy virtual environment from builder
 COPY --from=builder /opt/venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
 
 # Set working directory
 WORKDIR /app
@@ -54,14 +56,19 @@ WORKDIR /app
 COPY src/ ./src/
 COPY config/ ./config/
 COPY main.py .
-COPY requirements.txt .
+COPY run_genesis.py .
 
 # Create necessary directories
-RUN mkdir -p /app/logs /app/data /app/reports && \
+RUN mkdir -p data logs reports && \
     chown -R emp:emp /app
 
 # Switch to non-root user
 USER emp
+
+# Set environment variables
+ENV PYTHONPATH=/app
+ENV PYTHONUNBUFFERED=1
+ENV EMP_ENV=production
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \

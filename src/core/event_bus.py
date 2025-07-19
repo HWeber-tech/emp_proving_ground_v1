@@ -1,62 +1,76 @@
 """
-EMP Core Event Bus v1.1
+EMP Event Bus v1.1
 
-Provides the event-driven communication infrastructure for inter-layer
-communication in the EMP system. This is the backbone for the event-driven
-architecture.
+Asyncio-based event bus for inter-layer communication
+in the EMP Ultimate Architecture v1.1.
 """
 
 import asyncio
 import logging
-from typing import Dict, List, Callable, Any, Optional
+from typing import Dict, List, Callable, Any, Optional, Set
 from datetime import datetime
-from dataclasses import dataclass
-from enum import Enum
+from collections import defaultdict
 
-from .events import BaseEvent, EventType, SensoryEvent, ThinkingEvent, TradingEvent, EvolutionEvent, GovernanceEvent, OperationalEvent
+from .events import BaseEvent, EventType
 
 logger = logging.getLogger(__name__)
 
 
 class EventBus:
-    """Central event bus for EMP system communication."""
+    """Asyncio event bus for EMP system communication."""
     
     def __init__(self):
-        self._subscribers: Dict[EventType, List[Callable]] = {}
+        self._subscribers: Dict[EventType, Set[Callable]] = defaultdict(set)
         self._event_history: List[BaseEvent] = []
         self._max_history: int = 10000
         self._running: bool = False
-        self._loop: Optional[asyncio.AbstractEventLoop] = None
+        self._queue: asyncio.Queue = asyncio.Queue()
+        self._task: Optional[asyncio.Task] = None
+        
+        logger.info("Event Bus initialized")
         
     async def start(self):
         """Start the event bus."""
+        if self._running:
+            logger.warning("Event Bus already running")
+            return
+            
         self._running = True
-        self._loop = asyncio.get_event_loop()
-        logger.info("Event bus started")
+        self._task = asyncio.create_task(self._process_events())
+        logger.info("Event Bus started")
         
     async def stop(self):
         """Stop the event bus."""
+        if not self._running:
+            logger.warning("Event Bus not running")
+            return
+            
         self._running = False
-        logger.info("Event bus stopped")
         
-    def subscribe(self, event_type: EventType, callback: Callable[[BaseEvent], None]):
+        if self._task:
+            self._task.cancel()
+            try:
+                await self._task
+            except asyncio.CancelledError:
+                pass
+                
+        logger.info("Event Bus stopped")
+        
+    def subscribe(self, event_type: EventType, callback: Callable):
         """Subscribe to an event type."""
-        if event_type not in self._subscribers:
-            self._subscribers[event_type] = []
-        self._subscribers[event_type].append(callback)
-        logger.debug(f"Subscribed to {event_type.value}")
+        self._subscribers[event_type].add(callback)
+        logger.debug(f"Subscribed to {event_type.value}: {callback.__name__}")
         
-    def unsubscribe(self, event_type: EventType, callback: Callable[[BaseEvent], None]):
+    def unsubscribe(self, event_type: EventType, callback: Callable):
         """Unsubscribe from an event type."""
         if event_type in self._subscribers:
-            if callback in self._subscribers[event_type]:
-                self._subscribers[event_type].remove(callback)
-                logger.debug(f"Unsubscribed from {event_type.value}")
-                
+            self._subscribers[event_type].discard(callback)
+            logger.debug(f"Unsubscribed from {event_type.value}: {callback.__name__}")
+            
     async def publish(self, event: BaseEvent):
-        """Publish an event to all subscribers."""
+        """Publish an event to the bus."""
         if not self._running:
-            logger.warning("Event bus not running, event dropped")
+            logger.warning("Event Bus not running, cannot publish event")
             return
             
         # Add to history
@@ -64,62 +78,110 @@ class EventBus:
         if len(self._event_history) > self._max_history:
             self._event_history.pop(0)
             
-        # Notify subscribers
-        if event.event_type in self._subscribers:
-            for callback in self._subscribers[event.event_type]:
-                try:
-                    if asyncio.iscoroutinefunction(callback):
-                        await callback(event)
-                    else:
-                        callback(event)
-                except Exception as e:
-                    logger.error(f"Error in event callback: {e}")
-                    
+        # Add to processing queue
+        await self._queue.put(event)
         logger.debug(f"Published event: {event.event_type.value}")
         
-    def get_event_history(self, event_type: Optional[EventType] = None, limit: int = 100) -> List[BaseEvent]:
-        """Get event history, optionally filtered by type."""
-        if event_type:
-            filtered = [e for e in self._event_history if e.event_type == event_type]
-        else:
-            filtered = self._event_history
+    async def _process_events(self):
+        """Process events from the queue."""
+        while self._running:
+            try:
+                # Wait for event with timeout
+                event = await asyncio.wait_for(self._queue.get(), timeout=1.0)
+                
+                # Get subscribers for this event type
+                subscribers = self._subscribers.get(event.event_type, set())
+                
+                if not subscribers:
+                    logger.debug(f"No subscribers for event type: {event.event_type.value}")
+                    continue
+                    
+                # Create tasks for all subscribers
+                tasks = []
+                for callback in subscribers:
+                    task = asyncio.create_task(self._call_subscriber(callback, event))
+                    tasks.append(task)
+                    
+                # Wait for all subscribers to complete
+                if tasks:
+                    await asyncio.gather(*tasks, return_exceptions=True)
+                    
+            except asyncio.TimeoutError:
+                # No events in queue, continue
+                continue
+            except Exception as e:
+                logger.error(f"Error processing event: {e}")
+                
+    async def _call_subscriber(self, callback: Callable, event: BaseEvent):
+        """Call a subscriber with an event."""
+        try:
+            if asyncio.iscoroutinefunction(callback):
+                await callback(event)
+            else:
+                callback(event)
+        except Exception as e:
+            logger.error(f"Error in subscriber {callback.__name__}: {e}")
             
-        return filtered[-limit:] if limit else filtered
+    def get_event_history(self, event_type: Optional[EventType] = None, 
+                         limit: Optional[int] = None) -> List[BaseEvent]:
+        """Get event history, optionally filtered by type."""
+        history = self._event_history
+        
+        if event_type:
+            history = [e for e in history if e.event_type == event_type]
+            
+        if limit:
+            history = history[-limit:]
+            
+        return history
+        
+    def get_subscriber_count(self, event_type: EventType) -> int:
+        """Get the number of subscribers for an event type."""
+        return len(self._subscribers.get(event_type, set()))
+        
+    def get_all_subscribers(self) -> Dict[EventType, Set[Callable]]:
+        """Get all subscribers."""
+        return dict(self._subscribers)
         
     def clear_history(self):
         """Clear event history."""
         self._event_history.clear()
         logger.info("Event history cleared")
+        
+    def is_running(self) -> bool:
+        """Check if the event bus is running."""
+        return self._running
+        
+    def get_queue_size(self) -> int:
+        """Get the current queue size."""
+        return self._queue.qsize()
 
 
 # Global event bus instance
 event_bus = EventBus()
 
 
-# Convenience functions for publishing events
-async def publish_sensory_event(signal: Dict[str, Any], organ_id: str):
-    """Publish a sensory event."""
-    from .events import create_sensory_event
-    event = create_sensory_event(signal, organ_id)
+# Convenience functions for global event bus
+async def publish_event(event: BaseEvent):
+    """Publish an event to the global event bus."""
     await event_bus.publish(event)
 
 
-async def publish_thinking_event(analysis_result: Dict[str, Any], pattern_id: str):
-    """Publish a thinking event."""
-    from .events import create_thinking_event
-    event = create_thinking_event(analysis_result, pattern_id)
-    await event_bus.publish(event)
+def subscribe_to_event(event_type: EventType, callback: Callable):
+    """Subscribe to an event type on the global event bus."""
+    event_bus.subscribe(event_type, callback)
 
 
-async def publish_trading_event(decision: Dict[str, Any], strategy_id: str, symbol: str):
-    """Publish a trading event."""
-    from .events import create_trading_event
-    event = create_trading_event(decision, strategy_id, symbol)
-    await event_bus.publish(event)
+def unsubscribe_from_event(event_type: EventType, callback: Callable):
+    """Unsubscribe from an event type on the global event bus."""
+    event_bus.unsubscribe(event_type, callback)
 
 
-async def publish_evolution_event(population_size: int, generation: int, best_fitness: float):
-    """Publish an evolution event."""
-    from .events import create_evolution_event
-    event = create_evolution_event(population_size, generation, best_fitness)
-    await event_bus.publish(event) 
+async def start_event_bus():
+    """Start the global event bus."""
+    await event_bus.start()
+
+
+async def stop_event_bus():
+    """Stop the global event bus."""
+    await event_bus.stop() 

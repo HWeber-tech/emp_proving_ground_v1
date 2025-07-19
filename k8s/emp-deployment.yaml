@@ -47,77 +47,36 @@ metadata:
   name: emp-app
   namespace: emp-system
   labels:
-    app: emp
-    component: app
-    version: "1.1.0"
+    app: emp-app
+    version: v1.1
 spec:
   replicas: 3
   selector:
     matchLabels:
-      app: emp
-      component: app
+      app: emp-app
   template:
     metadata:
       labels:
-        app: emp
-        component: app
-        version: "1.1.0"
+        app: emp-app
+        version: v1.1
     spec:
       containers:
       - name: emp-app
-        image: emp-system:1.1.0
-        imagePullPolicy: Always
+        image: emp-app:v1.1
         ports:
         - containerPort: 8000
           name: http
-        - containerPort: 9090
-          name: metrics
         env:
-        - name: EMP_ENVIRONMENT
-          valueFrom:
-            configMapKeyRef:
-              name: emp-config
-              key: EMP_ENVIRONMENT
-        - name: EMP_SYSTEM_VERSION
-          valueFrom:
-            configMapKeyRef:
-              name: emp-config
-              key: EMP_SYSTEM_VERSION
-        - name: LOG_LEVEL
-          valueFrom:
-            configMapKeyRef:
-              name: emp-config
-              key: LOG_LEVEL
+        - name: EMP_ENV
+          value: "production"
+        - name: PYTHONPATH
+          value: "/app"
+        - name: PYTHONUNBUFFERED
+          value: "1"
         - name: REDIS_HOST
-          valueFrom:
-            configMapKeyRef:
-              name: emp-config
-              key: REDIS_HOST
+          value: "emp-redis"
         - name: POSTGRES_HOST
-          valueFrom:
-            configMapKeyRef:
-              name: emp-config
-              key: POSTGRES_HOST
-        - name: NATS_HOST
-          valueFrom:
-            configMapKeyRef:
-              name: emp-config
-              key: NATS_HOST
-        - name: POSTGRES_PASSWORD
-          valueFrom:
-            secretKeyRef:
-              name: emp-secrets
-              key: POSTGRES_PASSWORD
-        - name: REDIS_PASSWORD
-          valueFrom:
-            secretKeyRef:
-              name: emp-secrets
-              key: REDIS_PASSWORD
-        - name: API_KEY
-          valueFrom:
-            secretKeyRef:
-              name: emp-secrets
-              key: API_KEY
+          value: "emp-postgres"
         resources:
           requests:
             memory: "512Mi"
@@ -131,30 +90,26 @@ spec:
             port: 8000
           initialDelaySeconds: 30
           periodSeconds: 10
-          timeoutSeconds: 5
-          failureThreshold: 3
         readinessProbe:
           httpGet:
             path: /ready
             port: 8000
           initialDelaySeconds: 5
           periodSeconds: 5
-          timeoutSeconds: 3
-          failureThreshold: 3
         volumeMounts:
-        - name: emp-logs
-          mountPath: /app/logs
         - name: emp-data
           mountPath: /app/data
+        - name: emp-logs
+          mountPath: /app/logs
         - name: emp-reports
           mountPath: /app/reports
       volumes:
-      - name: emp-logs
-        persistentVolumeClaim:
-          claimName: emp-logs-pvc
       - name: emp-data
         persistentVolumeClaim:
           claimName: emp-data-pvc
+      - name: emp-logs
+        persistentVolumeClaim:
+          claimName: emp-logs-pvc
       - name: emp-reports
         persistentVolumeClaim:
           claimName: emp-reports-pvc
@@ -166,23 +121,14 @@ kind: Service
 metadata:
   name: emp-app-service
   namespace: emp-system
-  labels:
-    app: emp
-    component: app
 spec:
-  type: ClusterIP
-  ports:
-  - port: 8000
-    targetPort: 8000
-    protocol: TCP
-    name: http
-  - port: 9090
-    targetPort: 9090
-    protocol: TCP
-    name: metrics
   selector:
-    app: emp
-    component: app
+    app: emp-app
+  ports:
+  - protocol: TCP
+    port: 80
+    targetPort: 8000
+  type: ClusterIP
 
 ---
 # Ingress for external access
@@ -253,7 +199,7 @@ spec:
     - ReadWriteOnce
   resources:
     requests:
-      storage: 10Gi
+      storage: 5Gi
   storageClassName: fast-ssd
 
 ---
@@ -267,7 +213,7 @@ spec:
     - ReadWriteOnce
   resources:
     requests:
-      storage: 50Gi
+      storage: 10Gi
   storageClassName: fast-ssd
 
 ---
@@ -281,5 +227,5 @@ spec:
     - ReadWriteOnce
   resources:
     requests:
-      storage: 20Gi
+      storage: 5Gi
   storageClassName: fast-ssd 

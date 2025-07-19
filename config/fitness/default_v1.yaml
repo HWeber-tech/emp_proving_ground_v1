@@ -1,75 +1,75 @@
-# EMP Fitness Definition - Default v1
-# This configuration defines the fitness criteria for strategy evolution
+# EMP Fitness Definition v1.1 - Default Configuration
+# Defines fitness criteria for evolved trading strategies
 
 fitness_definition:
-  name: "default_v1"
   version: "1.1.0"
-  description: "Balanced fitness function for general market conditions"
+  name: "default_v1"
+  description: "Default fitness definition for balanced risk-return optimization"
+  created_at: "2024-01-01T00:00:00Z"
+  author: "EMP System"
   
-  # Primary fitness components
-  components:
-    returns:
-      weight: 0.25
-      metrics:
-        - total_return
-        - annualized_return
-        - sharpe_ratio
-        - sortino_ratio
-        - calmar_ratio
+  # Performance Metrics Weights
+  performance_weights:
+    total_return: 0.25
+    annualized_return: 0.20
+    sharpe_ratio: 0.20
+    sortino_ratio: 0.15
+    win_rate: 0.10
+    profit_factor: 0.10
     
-    risk:
-      weight: 0.25
-      metrics:
-        - max_drawdown
-        - var_95
-        - cvar_95
-        - volatility
-        - downside_deviation
+  # Risk Metrics Weights
+  risk_weights:
+    max_drawdown: 0.30
+    volatility: 0.25
+    var_95: 0.20
+    cvar_95: 0.15
+    beta: 0.10
     
-    consistency:
-      weight: 0.20
-      metrics:
-        - win_rate
-        - profit_factor
-        - average_win
-        - average_loss
-        - consecutive_wins
-        - consecutive_losses
+  # Thresholds for Minimum Acceptable Performance
+  minimum_thresholds:
+    total_return: 0.05        # 5% minimum return
+    sharpe_ratio: 0.5         # 0.5 minimum Sharpe ratio
+    sortino_ratio: 0.5        # 0.5 minimum Sortino ratio
+    win_rate: 0.45            # 45% minimum win rate
+    max_drawdown: 0.20        # 20% maximum drawdown
+    volatility: 0.30          # 30% maximum volatility
     
-    efficiency:
-      weight: 0.15
-      metrics:
-        - recovery_time
-        - underwater_periods
-        - trade_frequency
-        - holding_period
+  # Penalty Factors for Violations
+  penalty_factors:
+    below_minimum_return: 0.5
+    below_minimum_sharpe: 0.7
+    above_maximum_drawdown: 0.8
+    above_maximum_volatility: 0.6
     
-    robustness:
-      weight: 0.15
-      metrics:
-        - regime_adaptability
-        - stress_test_performance
-        - correlation_stability
-        - parameter_sensitivity
-  
-  # Thresholds for minimum acceptable performance
-  thresholds:
-    min_sharpe_ratio: 0.5
-    max_drawdown_limit: 0.20
-    min_win_rate: 0.40
-    min_profit_factor: 1.2
-    max_volatility: 0.30
-  
-  # Penalties for violations
-  penalties:
-    drawdown_violation: 0.5
-    volatility_violation: 0.3
-    win_rate_violation: 0.2
-    profit_factor_violation: 0.4
-  
-  # Bonuses for exceptional performance
-  bonuses:
-    high_sharpe: 0.1
-    low_drawdown: 0.1
-    high_consistency: 0.1
-    regime_adaptability: 0.1 
+  # Bonus Factors for Excellence
+  bonus_factors:
+    high_return_bonus: 1.2    # 20% bonus for returns > 15%
+    high_sharpe_bonus: 1.15   # 15% bonus for Sharpe > 1.5
+    low_drawdown_bonus: 1.1   # 10% bonus for drawdown < 10%
+    
+  # Time-based Adjustments
+  time_adjustments:
+    minimum_trades: 50        # Minimum trades for valid evaluation
+    minimum_days: 30          # Minimum trading days
+    decay_factor: 0.95        # Decay factor for older performance
+    
+  # Regime-specific Adjustments
+  regime_adjustments:
+    bull_market_multiplier: 1.0
+    bear_market_multiplier: 1.1
+    sideways_market_multiplier: 1.05
+    high_volatility_multiplier: 0.9
+    
+  # Compliance Requirements
+  compliance:
+    max_position_size: 0.1    # 10% maximum position size
+    max_leverage: 2.0         # 2x maximum leverage
+    max_correlation: 0.7      # 70% maximum correlation
+    min_diversification: 3    # Minimum 3 positions
+    
+  # Evaluation Parameters
+  evaluation:
+    backtest_period: 252      # 1 year of trading days
+    forward_test_period: 63   # 3 months forward testing
+    confidence_interval: 0.95 # 95% confidence interval
+    monte_carlo_sims: 1000    # Number of Monte Carlo simulations 

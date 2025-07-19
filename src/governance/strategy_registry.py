@@ -1,29 +1,26 @@
 """
 EMP Strategy Registry v1.1
 
-Manages approved strategies, their lifecycle, and provides
-registry services for strategy deployment and monitoring.
+Manages strategy lifecycle and champion genomes for the governance layer
+in the EMP Ultimate Architecture v1.1.
 """
 
-import asyncio
-import logging
 import json
-from typing import Dict, List, Any, Optional, Set
+import logging
+from typing import Dict, List, Optional, Any
 from datetime import datetime, timedelta
-from dataclasses import dataclass
+from pathlib import Path
+from dataclasses import dataclass, asdict
 from enum import Enum
 
-from src.genome.models.genome import DecisionGenome
-from src.core.exceptions import GovernanceException
-from src.core.event_bus import event_bus
+from ..core.events import FitnessReport, GovernanceDecision
 
 logger = logging.getLogger(__name__)
 
 
 class StrategyStatus(Enum):
-    """Status of registered strategies."""
-    DRAFT = "draft"
-    PENDING_APPROVAL = "pending_approval"
+    """Strategy lifecycle status."""
+    REGISTERED = "registered"
     APPROVED = "approved"
     ACTIVE = "active"
     SUSPENDED = "suspended"
@@ -31,442 +28,322 @@ class StrategyStatus(Enum):
     ARCHIVED = "archived"
 
 
-class StrategyType(Enum):
-    """Types of trading strategies."""
-    TREND_FOLLOWING = "trend_following"
-    MEAN_REVERSION = "mean_reversion"
-    MOMENTUM = "momentum"
-    ARBITRAGE = "arbitrage"
-    STATISTICAL_ARBITRAGE = "statistical_arbitrage"
-    MACHINE_LEARNING = "machine_learning"
-    EVOLVED = "evolved"
-    HYBRID = "hybrid"
+class ApprovalLevel(Enum):
+    """Approval levels for strategies."""
+    AUTO = "auto"
+    LOW_RISK = "low_risk"
+    MEDIUM_RISK = "medium_risk"
+    HIGH_RISK = "high_risk"
+    CRITICAL = "critical"
 
 
 @dataclass
-class StrategyMetadata:
-    """Metadata for a registered strategy."""
+class StrategyRecord:
+    """Record for a registered strategy."""
     strategy_id: str
+    genome_id: str
     name: str
     description: str
-    version: str
-    author: str
     created_at: datetime
-    updated_at: datetime
-    strategy_type: StrategyType
     status: StrategyStatus
-    tags: List[str]
-    risk_level: str
-    expected_return: float
-    max_drawdown: float
-    sharpe_ratio: float
-    sortino_ratio: float
-    win_rate: float
-    profit_factor: float
-    total_trades: int
-    avg_trade_duration: float
-    instruments: List[str]
-    timeframes: List[str]
-    parameters: Dict[str, Any]
-    constraints: Dict[str, Any]
-    dependencies: List[str]
-    documentation_url: Optional[str] = None
-    source_code_url: Optional[str] = None
-
-
-@dataclass
-class StrategyPerformance:
-    """Performance metrics for a strategy."""
-    strategy_id: str
-    timestamp: datetime
-    total_return: float
-    annualized_return: float
-    volatility: float
-    sharpe_ratio: float
-    sortino_ratio: float
-    max_drawdown: float
-    current_drawdown: float
-    win_rate: float
-    profit_factor: float
-    total_trades: int
-    winning_trades: int
-    losing_trades: int
-    avg_win: float
-    avg_loss: float
-    largest_win: float
-    largest_loss: float
-    consecutive_wins: int
-    consecutive_losses: int
-    recovery_time: float
-    risk_metrics: Dict[str, float]
+    approval_level: ApprovalLevel
+    fitness_score: float
+    performance_metrics: Dict[str, Any]
+    risk_metrics: Dict[str, Any]
     metadata: Dict[str, Any]
+    approved_by: Optional[str] = None
+    approved_at: Optional[datetime] = None
+    last_updated: Optional[datetime] = None
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for JSON serialization."""
+        data = asdict(self)
+        data['created_at'] = self.created_at.isoformat()
+        if self.approved_at:
+            data['approved_at'] = self.approved_at.isoformat()
+        if self.last_updated:
+            data['last_updated'] = self.last_updated.isoformat()
+        data['status'] = self.status.value
+        data['approval_level'] = self.approval_level.value
+        return data
+    
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'StrategyRecord':
+        """Create from dictionary."""
+        data['created_at'] = datetime.fromisoformat(data['created_at'])
+        if data.get('approved_at'):
+            data['approved_at'] = datetime.fromisoformat(data['approved_at'])
+        if data.get('last_updated'):
+            data['last_updated'] = datetime.fromisoformat(data['last_updated'])
+        data['status'] = StrategyStatus(data['status'])
+        data['approval_level'] = ApprovalLevel(data['approval_level'])
+        return cls(**data)
 
 
 class StrategyRegistry:
-    """Registry for managing approved strategies."""
+    """Registry for managing trading strategies."""
     
-    def __init__(self, config: Optional[Dict[str, Any]] = None):
-        self.config = config or {}
-        self.strategies: Dict[str, StrategyMetadata] = {}
-        self.performance_history: Dict[str, List[StrategyPerformance]] = {}
-        self.active_strategies: Set[str] = set()
-        self.deprecated_strategies: Set[str] = set()
+    def __init__(self, registry_file: str = "data/strategy_registry.json"):
+        self.registry_file = Path(registry_file)
+        self.registry_file.parent.mkdir(parents=True, exist_ok=True)
+        self.strategies: Dict[str, StrategyRecord] = {}
+        self.champion_strategies: List[str] = []
+        self.max_champions: int = 10
         
-        # Registry configuration
-        self.max_strategies = self.config.get('max_strategies', 1000)
-        self.performance_history_days = self.config.get('performance_history_days', 365)
-        self.auto_archive_days = self.config.get('auto_archive_days', 30)
+        logger.info(f"Strategy Registry initialized with file: {registry_file}")
+        self._load_registry()
         
-        logger.info("Strategy Registry initialized")
-        
-    async def register_strategy(self, genome: DecisionGenome, metadata: Dict[str, Any]) -> str:
-        """Register a new strategy from a genome."""
+    def _load_registry(self):
+        """Load registry from file."""
         try:
-            # Generate strategy ID
-            strategy_id = f"strategy_{genome.genome_id}_{datetime.now().timestamp()}"
+            if self.registry_file.exists():
+                with open(self.registry_file, 'r') as f:
+                    data = json.load(f)
+                    
+                # Load strategies
+                for strategy_data in data.get('strategies', []):
+                    strategy = StrategyRecord.from_dict(strategy_data)
+                    self.strategies[strategy.strategy_id] = strategy
+                    
+                # Load champion list
+                self.champion_strategies = data.get('champions', [])
+                
+                logger.info(f"Loaded {len(self.strategies)} strategies from registry")
+            else:
+                logger.info("No existing registry file found, starting fresh")
+                
+        except Exception as e:
+            logger.error(f"Error loading registry: {e}")
             
-            # Create strategy metadata
-            strategy_metadata = StrategyMetadata(
+    def _save_registry(self):
+        """Save registry to file."""
+        try:
+            data = {
+                'strategies': [strategy.to_dict() for strategy in self.strategies.values()],
+                'champions': self.champion_strategies,
+                'last_updated': datetime.now().isoformat()
+            }
+            
+            with open(self.registry_file, 'w') as f:
+                json.dump(data, f, indent=2)
+                
+            logger.debug("Registry saved to file")
+            
+        except Exception as e:
+            logger.error(f"Error saving registry: {e}")
+            
+    def register_strategy(self, strategy_id: str, genome_id: str, name: str, 
+                         description: str, fitness_score: float,
+                         performance_metrics: Dict[str, Any],
+                         risk_metrics: Dict[str, Any],
+                         metadata: Optional[Dict[str, Any]] = None) -> bool:
+        """Register a new strategy."""
+        try:
+            if strategy_id in self.strategies:
+                logger.warning(f"Strategy {strategy_id} already registered")
+                return False
+                
+            # Determine approval level based on risk metrics
+            approval_level = self._determine_approval_level(risk_metrics)
+            
+            strategy = StrategyRecord(
                 strategy_id=strategy_id,
-                name=metadata.get('name', f"Evolved Strategy {strategy_id}"),
-                description=metadata.get('description', 'Evolved trading strategy'),
-                version=metadata.get('version', '1.0.0'),
-                author=metadata.get('author', 'EMP Evolution Engine'),
+                genome_id=genome_id,
+                name=name,
+                description=description,
                 created_at=datetime.now(),
-                updated_at=datetime.now(),
-                strategy_type=StrategyType.EVOLVED,
-                status=StrategyStatus.DRAFT,
-                tags=metadata.get('tags', ['evolved', 'genetic']),
-                risk_level=metadata.get('risk_level', 'moderate'),
-                expected_return=metadata.get('expected_return', 0.0),
-                max_drawdown=metadata.get('max_drawdown', 0.0),
-                sharpe_ratio=metadata.get('sharpe_ratio', 0.0),
-                sortino_ratio=metadata.get('sortino_ratio', 0.0),
-                win_rate=metadata.get('win_rate', 0.0),
-                profit_factor=metadata.get('profit_factor', 0.0),
-                total_trades=metadata.get('total_trades', 0),
-                avg_trade_duration=metadata.get('avg_trade_duration', 0.0),
-                instruments=metadata.get('instruments', ['EURUSD']),
-                timeframes=metadata.get('timeframes', ['1H']),
-                parameters=genome.to_dict(),
-                constraints=metadata.get('constraints', {}),
-                dependencies=metadata.get('dependencies', []),
-                documentation_url=metadata.get('documentation_url'),
-                source_code_url=metadata.get('source_code_url')
+                status=StrategyStatus.REGISTERED,
+                approval_level=approval_level,
+                fitness_score=fitness_score,
+                performance_metrics=performance_metrics,
+                risk_metrics=risk_metrics,
+                metadata=metadata or {}
             )
             
-            # Store strategy
-            self.strategies[strategy_id] = strategy_metadata
-            self.performance_history[strategy_id] = []
+            self.strategies[strategy_id] = strategy
+            self._save_registry()
             
-            # Emit strategy registered event
-            await event_bus.publish('registry.strategy.registered', {
-                'strategy_id': strategy_id,
-                'genome_id': genome.genome_id,
-                'status': strategy_metadata.status.value
-            })
-            
-            logger.info(f"Registered strategy {strategy_id}")
-            return strategy_id
+            logger.info(f"Registered strategy: {strategy_id} ({name})")
+            return True
             
         except Exception as e:
-            raise GovernanceException(f"Error registering strategy: {e}")
+            logger.error(f"Error registering strategy: {e}")
+            return False
             
-    async def approve_strategy(self, strategy_id: str, approver: str, 
-                             comments: str = "") -> bool:
-        """Approve a strategy for deployment."""
+    def approve_strategy(self, strategy_id: str, approver: str, 
+                        auto_approve: bool = False) -> bool:
+        """Approve a strategy."""
         try:
             if strategy_id not in self.strategies:
-                raise GovernanceException(f"Strategy {strategy_id} not found")
+                logger.error(f"Strategy {strategy_id} not found")
+                return False
                 
             strategy = self.strategies[strategy_id]
             
-            # Update status
+            if strategy.status != StrategyStatus.REGISTERED:
+                logger.warning(f"Strategy {strategy_id} is not in REGISTERED status")
+                return False
+                
+            # Check if auto-approval is allowed
+            if not auto_approve and strategy.approval_level in [ApprovalLevel.HIGH_RISK, ApprovalLevel.CRITICAL]:
+                logger.info(f"Strategy {strategy_id} requires manual approval")
+                return False
+                
             strategy.status = StrategyStatus.APPROVED
-            strategy.updated_at = datetime.now()
+            strategy.approved_by = approver
+            strategy.approved_at = datetime.now()
+            strategy.last_updated = datetime.now()
             
-            # Emit strategy approved event
-            await event_bus.publish('registry.strategy.approved', {
-                'strategy_id': strategy_id,
-                'approver': approver,
-                'comments': comments
-            })
+            self._save_registry()
             
-            logger.info(f"Strategy {strategy_id} approved by {approver}")
+            logger.info(f"Approved strategy: {strategy_id} by {approver}")
             return True
             
         except Exception as e:
-            raise GovernanceException(f"Error approving strategy: {e}")
+            logger.error(f"Error approving strategy: {e}")
+            return False
             
-    async def activate_strategy(self, strategy_id: str, activator: str) -> bool:
-        """Activate a strategy for live trading."""
+    def activate_strategy(self, strategy_id: str) -> bool:
+        """Activate an approved strategy."""
         try:
             if strategy_id not in self.strategies:
-                raise GovernanceException(f"Strategy {strategy_id} not found")
+                logger.error(f"Strategy {strategy_id} not found")
+                return False
                 
             strategy = self.strategies[strategy_id]
             
-            # Check if strategy is approved
             if strategy.status != StrategyStatus.APPROVED:
-                raise GovernanceException(f"Strategy {strategy_id} is not approved")
+                logger.warning(f"Strategy {strategy_id} is not in APPROVED status")
+                return False
                 
-            # Update status
             strategy.status = StrategyStatus.ACTIVE
-            strategy.updated_at = datetime.now()
-            self.active_strategies.add(strategy_id)
+            strategy.last_updated = datetime.now()
             
-            # Emit strategy activated event
-            await event_bus.publish('registry.strategy.activated', {
-                'strategy_id': strategy_id,
-                'activator': activator
-            })
+            self._save_registry()
             
-            logger.info(f"Strategy {strategy_id} activated by {activator}")
+            logger.info(f"Activated strategy: {strategy_id}")
             return True
             
         except Exception as e:
-            raise GovernanceException(f"Error activating strategy: {e}")
+            logger.error(f"Error activating strategy: {e}")
+            return False
             
-    async def suspend_strategy(self, strategy_id: str, suspender: str, 
-                             reason: str) -> bool:
+    def suspend_strategy(self, strategy_id: str, reason: str = "") -> bool:
         """Suspend an active strategy."""
         try:
             if strategy_id not in self.strategies:
-                raise GovernanceException(f"Strategy {strategy_id} not found")
+                logger.error(f"Strategy {strategy_id} not found")
+                return False
                 
             strategy = self.strategies[strategy_id]
             
-            # Update status
+            if strategy.status != StrategyStatus.ACTIVE:
+                logger.warning(f"Strategy {strategy_id} is not in ACTIVE status")
+                return False
+                
             strategy.status = StrategyStatus.SUSPENDED
-            strategy.updated_at = datetime.now()
-            self.active_strategies.discard(strategy_id)
+            strategy.last_updated = datetime.now()
+            strategy.metadata['suspension_reason'] = reason
             
-            # Emit strategy suspended event
-            await event_bus.publish('registry.strategy.suspended', {
-                'strategy_id': strategy_id,
-                'suspender': suspender,
-                'reason': reason
-            })
+            self._save_registry()
             
-            logger.info(f"Strategy {strategy_id} suspended by {suspender}")
+            logger.info(f"Suspended strategy: {strategy_id} - {reason}")
             return True
             
         except Exception as e:
-            raise GovernanceException(f"Error suspending strategy: {e}")
+            logger.error(f"Error suspending strategy: {e}")
+            return False
             
-    async def deprecate_strategy(self, strategy_id: str, deprecator: str, 
-                               reason: str) -> bool:
-        """Deprecate a strategy."""
+    def update_champion_strategies(self, fitness_reports: List[FitnessReport]) -> bool:
+        """Update champion strategies based on fitness reports."""
         try:
-            if strategy_id not in self.strategies:
-                raise GovernanceException(f"Strategy {strategy_id} not found")
+            # Create temporary list of strategies with fitness scores
+            strategy_scores = []
+            
+            for report in fitness_reports:
+                if report.strategy_id in self.strategies:
+                    strategy_scores.append((report.strategy_id, report.fitness_score))
+                    
+            # Sort by fitness score (descending)
+            strategy_scores.sort(key=lambda x: x[1], reverse=True)
+            
+            # Update champion list
+            new_champions = [strategy_id for strategy_id, _ in strategy_scores[:self.max_champions]]
+            
+            if new_champions != self.champion_strategies:
+                self.champion_strategies = new_champions
+                self._save_registry()
+                logger.info(f"Updated champion strategies: {new_champions}")
                 
-            strategy = self.strategies[strategy_id]
-            
-            # Update status
-            strategy.status = StrategyStatus.DEPRECATED
-            strategy.updated_at = datetime.now()
-            self.active_strategies.discard(strategy_id)
-            self.deprecated_strategies.add(strategy_id)
-            
-            # Emit strategy deprecated event
-            await event_bus.publish('registry.strategy.deprecated', {
-                'strategy_id': strategy_id,
-                'deprecator': deprecator,
-                'reason': reason
-            })
-            
-            logger.info(f"Strategy {strategy_id} deprecated by {deprecator}")
             return True
             
         except Exception as e:
-            raise GovernanceException(f"Error deprecating strategy: {e}")
+            logger.error(f"Error updating champion strategies: {e}")
+            return False
             
-    async def update_performance(self, strategy_id: str, 
-                               performance: StrategyPerformance) -> bool:
-        """Update performance metrics for a strategy."""
-        try:
-            if strategy_id not in self.strategies:
-                raise GovernanceException(f"Strategy {strategy_id} not found")
-                
-            # Add performance record
-            self.performance_history[strategy_id].append(performance)
-            
-            # Update strategy metadata with latest performance
-            strategy = self.strategies[strategy_id]
-            strategy.sharpe_ratio = performance.sharpe_ratio
-            strategy.sortino_ratio = performance.sortino_ratio
-            strategy.win_rate = performance.win_rate
-            strategy.profit_factor = performance.profit_factor
-            strategy.total_trades = performance.total_trades
-            strategy.updated_at = datetime.now()
-            
-            # Clean up old performance data
-            await self._cleanup_old_performance(strategy_id)
-            
-            # Emit performance updated event
-            await event_bus.publish('registry.performance.updated', {
-                'strategy_id': strategy_id,
-                'total_return': performance.total_return,
-                'sharpe_ratio': performance.sharpe_ratio
-            })
-            
-            return True
-            
-        except Exception as e:
-            raise GovernanceException(f"Error updating performance: {e}")
-            
-    async def _cleanup_old_performance(self, strategy_id: str):
-        """Clean up old performance data."""
-        try:
-            cutoff_date = datetime.now() - timedelta(days=self.performance_history_days)
-            
-            if strategy_id in self.performance_history:
-                self.performance_history[strategy_id] = [
-                    p for p in self.performance_history[strategy_id]
-                    if p.timestamp > cutoff_date
-                ]
-                
-        except Exception as e:
-            logger.error(f"Error cleaning up old performance data: {e}")
-            
-    def get_strategy(self, strategy_id: str) -> Optional[StrategyMetadata]:
-        """Get strategy by ID."""
+    def get_strategy(self, strategy_id: str) -> Optional[StrategyRecord]:
+        """Get a strategy by ID."""
         return self.strategies.get(strategy_id)
         
-    def get_strategies_by_status(self, status: StrategyStatus) -> List[StrategyMetadata]:
-        """Get strategies by status."""
+    def get_strategies_by_status(self, status: StrategyStatus) -> List[StrategyRecord]:
+        """Get all strategies with a specific status."""
         return [s for s in self.strategies.values() if s.status == status]
         
-    def get_active_strategies(self) -> List[StrategyMetadata]:
+    def get_active_strategies(self) -> List[StrategyRecord]:
         """Get all active strategies."""
-        return [s for s in self.strategies.values() if s.status == StrategyStatus.ACTIVE]
+        return self.get_strategies_by_status(StrategyStatus.ACTIVE)
         
-    def get_strategies_by_type(self, strategy_type: StrategyType) -> List[StrategyMetadata]:
-        """Get strategies by type."""
-        return [s for s in self.strategies.values() if s.strategy_type == strategy_type]
+    def get_champion_strategies(self) -> List[StrategyRecord]:
+        """Get champion strategies."""
+        return [self.strategies[sid] for sid in self.champion_strategies if sid in self.strategies]
         
-    def get_strategies_by_instrument(self, instrument: str) -> List[StrategyMetadata]:
-        """Get strategies that trade a specific instrument."""
-        return [s for s in self.strategies.values() if instrument in s.instruments]
+    def get_strategies_needing_approval(self) -> List[StrategyRecord]:
+        """Get strategies that need manual approval."""
+        return [s for s in self.strategies.values() 
+                if s.status == StrategyStatus.REGISTERED 
+                and s.approval_level in [ApprovalLevel.HIGH_RISK, ApprovalLevel.CRITICAL]]
         
-    def get_performance_history(self, strategy_id: str, 
-                              days: Optional[int] = None) -> List[StrategyPerformance]:
-        """Get performance history for a strategy."""
-        if strategy_id not in self.performance_history:
-            return []
-            
-        history = self.performance_history[strategy_id]
-        
-        if days:
-            cutoff_date = datetime.now() - timedelta(days=days)
-            history = [p for p in history if p.timestamp > cutoff_date]
-            
-        return history
-        
-    def get_latest_performance(self, strategy_id: str) -> Optional[StrategyPerformance]:
-        """Get latest performance for a strategy."""
-        history = self.get_performance_history(strategy_id)
-        return history[-1] if history else None
-        
-    def search_strategies(self, query: str) -> List[StrategyMetadata]:
-        """Search strategies by name, description, or tags."""
-        query_lower = query.lower()
-        results = []
-        
-        for strategy in self.strategies.values():
-            if (query_lower in strategy.name.lower() or
-                query_lower in strategy.description.lower() or
-                any(query_lower in tag.lower() for tag in strategy.tags)):
-                results.append(strategy)
-                
-        return results
-        
-    async def auto_archive_strategies(self):
-        """Automatically archive old deprecated strategies."""
+    def _determine_approval_level(self, risk_metrics: Dict[str, Any]) -> ApprovalLevel:
+        """Determine approval level based on risk metrics."""
         try:
-            cutoff_date = datetime.now() - timedelta(days=self.auto_archive_days)
-            archived_count = 0
+            max_dd = risk_metrics.get('max_drawdown', 0)
+            var_95 = abs(risk_metrics.get('var_95', 0))
+            volatility = risk_metrics.get('volatility', 0)
             
-            for strategy_id, strategy in self.strategies.items():
-                if (strategy.status == StrategyStatus.DEPRECATED and
-                    strategy.updated_at < cutoff_date):
-                    strategy.status = StrategyStatus.ARCHIVED
-                    strategy.updated_at = datetime.now()
-                    archived_count += 1
-                    
-            if archived_count > 0:
-                logger.info(f"Auto-archived {archived_count} deprecated strategies")
+            # Critical risk
+            if max_dd > 0.25 or var_95 > 0.15 or volatility > 0.40:
+                return ApprovalLevel.CRITICAL
+                
+            # High risk
+            elif max_dd > 0.15 or var_95 > 0.10 or volatility > 0.30:
+                return ApprovalLevel.HIGH_RISK
+                
+            # Medium risk
+            elif max_dd > 0.10 or var_95 > 0.05 or volatility > 0.20:
+                return ApprovalLevel.MEDIUM_RISK
+                
+            # Low risk
+            elif max_dd > 0.05 or var_95 > 0.02 or volatility > 0.10:
+                return ApprovalLevel.LOW_RISK
+                
+            # Auto approval
+            else:
+                return ApprovalLevel.AUTO
                 
         except Exception as e:
-            logger.error(f"Error auto-archiving strategies: {e}")
+            logger.error(f"Error determining approval level: {e}")
+            return ApprovalLevel.MEDIUM_RISK
             
     def get_registry_summary(self) -> Dict[str, Any]:
-        """Get registry summary."""
+        """Get registry summary statistics."""
         status_counts = {}
         for status in StrategyStatus:
             status_counts[status.value] = len(self.get_strategies_by_status(status))
             
-        type_counts = {}
-        for strategy_type in StrategyType:
-            type_counts[strategy_type.value] = len(self.get_strategies_by_type(strategy_type))
-            
         return {
             'total_strategies': len(self.strategies),
-            'active_strategies': len(self.active_strategies),
-            'deprecated_strategies': len(self.deprecated_strategies),
+            'champion_strategies': len(self.champion_strategies),
             'status_counts': status_counts,
-            'type_counts': type_counts,
-            'performance_history_records': sum(len(h) for h in self.performance_history.values()),
-            'max_strategies': self.max_strategies,
-            'performance_history_days': self.performance_history_days
-        }
-        
-    def export_strategy(self, strategy_id: str) -> Dict[str, Any]:
-        """Export strategy data."""
-        if strategy_id not in self.strategies:
-            raise GovernanceException(f"Strategy {strategy_id} not found")
-            
-        strategy = self.strategies[strategy_id]
-        performance_history = self.get_performance_history(strategy_id)
-        
-        return {
-            'strategy': strategy.__dict__,
-            'performance_history': [p.__dict__ for p in performance_history],
-            'export_timestamp': datetime.now().isoformat()
-        }
-        
-    def import_strategy(self, strategy_data: Dict[str, Any]) -> str:
-        """Import strategy data."""
-        try:
-            strategy_dict = strategy_data['strategy']
-            
-            # Convert string dates back to datetime
-            strategy_dict['created_at'] = datetime.fromisoformat(strategy_dict['created_at'])
-            strategy_dict['updated_at'] = datetime.fromisoformat(strategy_dict['updated_at'])
-            
-            # Convert enum values
-            strategy_dict['strategy_type'] = StrategyType(strategy_dict['strategy_type'])
-            strategy_dict['status'] = StrategyStatus(strategy_dict['status'])
-            
-            # Create strategy metadata
-            strategy = StrategyMetadata(**strategy_dict)
-            
-            # Store strategy
-            self.strategies[strategy.strategy_id] = strategy
-            
-            # Import performance history
-            if 'performance_history' in strategy_data:
-                performance_history = []
-                for p_dict in strategy_data['performance_history']:
-                    p_dict['timestamp'] = datetime.fromisoformat(str(p_dict['timestamp']))
-                    performance = StrategyPerformance(**p_dict)
-                    performance_history.append(performance)
-                    
-                self.performance_history[strategy.strategy_id] = performance_history
-                
-            logger.info(f"Imported strategy {strategy.strategy_id}")
-            return strategy.strategy_id
-            
-        except Exception as e:
-            raise GovernanceException(f"Error importing strategy: {e}") 
+            'pending_approval': len(self.get_strategies_needing_approval()),
+            'active_strategies': len(self.get_active_strategies())
+        } 

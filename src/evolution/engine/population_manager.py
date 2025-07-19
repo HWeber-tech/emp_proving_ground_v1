@@ -11,7 +11,7 @@ from typing import List, Dict, Any, Optional, Tuple, Callable
 from datetime import datetime
 import logging
 
-from ...genome.models.genome import StrategyGenome
+from ...genome.models.genome import DecisionGenome
 from ...core.events import FitnessReport, EvolutionEvent
 from ...core.event_bus import publish_event, EventType
 
@@ -24,19 +24,19 @@ class PopulationManager:
     def __init__(self, population_size: int = 100, elite_size: int = 10):
         self.population_size = population_size
         self.elite_size = elite_size
-        self.population: List[StrategyGenome] = []
+        self.population: List[DecisionGenome] = []
         self.fitness_cache: Dict[str, float] = {}
         self.generation = 0
         self.population_history: List[Dict[str, Any]] = []
         
         logger.info(f"Population Manager initialized with size {population_size}")
         
-    def initialize_population(self, genome_factory: Callable[[], StrategyGenome]):
+    def initialize_population(self, genome_factory: Callable[[], DecisionGenome]):
         """Initialize population with random genomes."""
         self.population = []
         for i in range(self.population_size):
             genome = genome_factory()
-            genome.id = f"genome_gen{self.generation}_id{i}"
+            genome.genome_id = f"genome_gen{self.generation}_id{i}"
             self.population.append(genome)
             
         logger.info(f"Initialized population with {len(self.population)} genomes")
@@ -52,7 +52,7 @@ class PopulationManager:
         """Get fitness score for a genome."""
         return self.fitness_cache.get(genome_id, 0.0)
         
-    def get_best_genomes(self, count: Optional[int] = None) -> List[StrategyGenome]:
+    def get_best_genomes(self, count: Optional[int] = None) -> List[DecisionGenome]:
         """Get the best genomes based on fitness."""
         if count is None:
             count = self.elite_size
@@ -60,23 +60,23 @@ class PopulationManager:
         # Sort population by fitness
         sorted_population = sorted(
             self.population, 
-            key=lambda g: self.get_fitness(g.id), 
+            key=lambda g: self.get_fitness(g.genome_id), 
             reverse=True
         )
         
         return sorted_population[:count]
         
-    def get_worst_genomes(self, count: int) -> List[StrategyGenome]:
+    def get_worst_genomes(self, count: int) -> List[DecisionGenome]:
         """Get the worst genomes based on fitness."""
         # Sort population by fitness
         sorted_population = sorted(
             self.population, 
-            key=lambda g: self.get_fitness(g.id)
+            key=lambda g: self.get_fitness(g.genome_id)
         )
         
         return sorted_population[:count]
         
-    def replace_genomes(self, new_genomes: List[StrategyGenome], 
+    def replace_genomes(self, new_genomes: List[DecisionGenome], 
                        replace_indices: List[int]):
         """Replace genomes at specified indices."""
         for i, genome in zip(replace_indices, new_genomes):
@@ -85,14 +85,14 @@ class PopulationManager:
                 
         logger.debug(f"Replaced {len(new_genomes)} genomes in population")
         
-    def add_genomes(self, new_genomes: List[StrategyGenome]):
+    def add_genomes(self, new_genomes: List[DecisionGenome]):
         """Add new genomes to population."""
         self.population.extend(new_genomes)
         logger.debug(f"Added {len(new_genomes)} genomes to population")
         
     def remove_genomes(self, genome_ids: List[str]):
         """Remove genomes by ID."""
-        self.population = [g for g in self.population if g.id not in genome_ids]
+        self.population = [g for g in self.population if g.genome_id not in genome_ids]
         logger.debug(f"Removed {len(genome_ids)} genomes from population")
         
     def calculate_diversity(self) -> float:
@@ -109,45 +109,65 @@ class PopulationManager:
                 )
                 distances.append(distance)
                 
-        return np.mean(distances) if distances else 0.0
+        return float(np.mean(distances)) if distances else 0.0
         
-    def _calculate_genome_distance(self, genome1: StrategyGenome, 
-                                 genome2: StrategyGenome) -> float:
+    def _calculate_genome_distance(self, genome1: DecisionGenome, 
+                                 genome2: DecisionGenome) -> float:
         """Calculate distance between two genomes."""
-        # Euclidean distance between parameter vectors
-        params1 = np.array(genome1.parameters)
-        params2 = np.array(genome2.parameters)
-        
-        return np.linalg.norm(params1 - params2)
+        # Calculate distance based on genome parameters
+        # This is a simplified distance calculation
+        try:
+            # Use strategy parameters for distance calculation
+            params1 = [
+                genome1.strategy.entry_threshold,
+                genome1.strategy.exit_threshold,
+                genome1.strategy.momentum_weight,
+                genome1.strategy.trend_weight,
+                genome1.risk.risk_tolerance,
+                genome1.risk.position_size_multiplier
+            ]
+            params2 = [
+                genome2.strategy.entry_threshold,
+                genome2.strategy.exit_threshold,
+                genome2.strategy.momentum_weight,
+                genome2.strategy.trend_weight,
+                genome2.risk.risk_tolerance,
+                genome2.risk.position_size_multiplier
+            ]
+            
+            return float(np.linalg.norm(np.array(params1) - np.array(params2)))
+        except Exception as e:
+            logger.warning(f"Error calculating genome distance: {e}")
+            return 0.0
         
     def calculate_average_fitness(self) -> float:
         """Calculate average fitness of population."""
         if not self.population:
             return 0.0
             
-        fitness_values = [self.get_fitness(g.id) for g in self.population]
-        return np.mean(fitness_values)
+        fitness_values = [self.get_fitness(g.genome_id) for g in self.population]
+        return float(np.mean(fitness_values))
         
     def calculate_fitness_std(self) -> float:
         """Calculate standard deviation of fitness."""
         if not self.population:
             return 0.0
             
-        fitness_values = [self.get_fitness(g.id) for g in self.population]
-        return np.std(fitness_values)
+        fitness_values = [self.get_fitness(g.genome_id) for g in self.population]
+        return float(np.std(fitness_values))
         
     def get_population_statistics(self) -> Dict[str, Any]:
         """Get comprehensive population statistics."""
         if not self.population:
             return {}
             
-        fitness_values = [self.get_fitness(g.id) for g in self.population]
+        fitness_values = [self.get_fitness(g.genome_id) for g in self.population]
         
         return {
             'population_size': len(self.population),
             'generation': self.generation,
-            'average_fitness': np.mean(fitness_values),
-            'fitness_std': np.std(fitness_values),
+            'average_fitness': float(np.mean(fitness_values)),
+            'fitness_std': float(np.std(fitness_values)),
             'best_fitness': max(fitness_values),
             'worst_fitness': min(fitness_values),
             'diversity': self.calculate_diversity(),
@@ -198,17 +218,28 @@ class PopulationManager:
         logger.info("Population reset")
         
     def export_population(self) -> Dict[str, Any]:
-        """Export current population state."""
+        """Export population state."""
         return {
-            'population': [g.to_dict() for g in self.population],
+            'population': [genome.to_dict() for genome in self.population],
             'fitness_cache': self.fitness_cache,
             'generation': self.generation,
-            'statistics': self.get_population_statistics()
+            'population_size': self.population_size,
+            'elite_size': self.elite_size
         }
         
     def import_population(self, data: Dict[str, Any]):
         """Import population state."""
-        self.population = [StrategyGenome.from_dict(g) for g in data.get('population', [])]
-        self.fitness_cache = data.get('fitness_cache', {})
-        self.generation = data.get('generation', 0)
-        logger.info(f"Imported population with {len(self.population)} genomes") 
+        try:
+            self.population = [DecisionGenome.from_dict(genome_data) for genome_data in data.get('population', [])]
+            self.fitness_cache = data.get('fitness_cache', {})
+            self.generation = data.get('generation', 0)
+            self.population_size = data.get('population_size', self.population_size)
+            self.elite_size = data.get('elite_size', self.elite_size)
+            
+            logger.info(f"Imported population with {len(self.population)} genomes")
+        except Exception as e:
+            logger.error(f"Error importing population: {e}")
+            
+    def get_population(self) -> List[DecisionGenome]:
+        """Get current population."""
+        return self.population.copy() 

@@ -8,12 +8,14 @@ Orchestrates selection, variation, and population management components.
 import asyncio
 import logging
 import random
+import numpy as np
 from typing import List, Dict, Any, Optional, Callable
 from datetime import datetime
 
-from ...genome.models.genome import StrategyGenome
+from ...genome.models.genome import DecisionGenome
 from ...core.events import FitnessReport, EvolutionEvent
 from ...core.event_bus import publish_event, EventType
+from ...simulation.evaluation.fitness_evaluator import FitnessEvaluator, EvaluationContext
 from .population_manager import PopulationManager
 from ..selection.selection_strategies import SelectionStrategy, SelectionFactory
 from ..variation.variation_strategies import CrossoverStrategy, MutationStrategy, VariationFactory
@@ -50,6 +52,9 @@ class GeneticEngine:
             mutation_strategy, **kwargs.get('mutation_kwargs', {})
         )
         
+        # Initialize fitness evaluator (simulation envelope)
+        self.fitness_evaluator = FitnessEvaluator()
+        
         # Evolution parameters
         self.crossover_rate = crossover_rate
         self.mutation_rate = mutation_rate
@@ -60,34 +65,37 @@ class GeneticEngine:
         
         logger.info(f"Genetic Engine initialized with {population_size} population size")
         
-    def initialize_population(self, genome_factory: Callable[[], StrategyGenome]):
+    def initialize_population(self, genome_factory: Callable[[], DecisionGenome]):
         """Initialize population with random genomes."""
         self.population_manager.initialize_population(genome_factory)
         self.generation = 0
         
-    async def evolve_generation(self, fitness_reports: List[FitnessReport]) -> List[StrategyGenome]:
-        """Evolve one generation."""
+    async def evolve_generation(self, market_data: Optional[Dict[str, Any]] = None) -> List[DecisionGenome]:
+        """Evolve one generation using the simulation envelope for fitness evaluation."""
         try:
-            # Update fitness cache
+            # Step 1: Evaluate current population using simulation envelope
+            fitness_reports = await self._evaluate_population(market_data)
+            
+            # Step 2: Update fitness cache in population manager
             self.population_manager.update_fitness_cache(fitness_reports)
             
-            # Get current population statistics
+            # Step 3: Get current population statistics
             stats = self.population_manager.get_population_statistics()
             
-            # Create new population
+            # Step 4: Create new population through selection and variation
             new_population = await self._create_new_population()
             
-            # Update population
+            # Step 5: Update population
             self.population_manager.population = new_population
             
-            # Advance generation
+            # Step 6: Advance generation
             self.population_manager.advance_generation()
             self.generation += 1
             
-            # Log evolution
+            # Step 7: Log evolution
             self._log_evolution(stats)
             
-            # Publish evolution event
+            # Step 8: Publish evolution event
             await self._publish_evolution_event(stats)
             
             logger.info(f"Evolved generation {self.generation} with {len(new_population)} genomes")
@@ -97,7 +105,54 @@ class GeneticEngine:
             logger.error(f"Error evolving generation: {e}")
             return self.population_manager.population
             
-    async def _create_new_population(self) -> List[StrategyGenome]:
+    async def _evaluate_population(self, market_data: Optional[Dict[str, Any]] = None) -> List[FitnessReport]:
+        """Evaluate population using simulation envelope."""
+        fitness_reports = []
+        population = self.population_manager.get_population()
+        
+        for genome in population:
+            try:
+                # Create evaluation context
+                context = EvaluationContext(
+                    strategy_id=f"strategy_{genome.genome_id}",
+                    genome_id=genome.genome_id,
+                    generation=self.generation,
+                    initial_capital=100000.0,  # Default initial capital
+                    evaluation_period=252,  # Default evaluation period
+                    market_data=market_data
+                )
+                
+                # Evaluate genome using simulation envelope
+                if market_data and "backtest_results" in market_data:
+                    # Use backtest results if available
+                    fitness_report = await self.fitness_evaluator.evaluate_backtest_fitness(
+                        market_data["backtest_results"], context
+                    )
+                else:
+                    # Create empty trade history for basic evaluation
+                    empty_trade_history = []
+                    fitness_report = await self.fitness_evaluator.evaluate_fitness(
+                        empty_trade_history, context
+                    )
+                    
+                fitness_reports.append(fitness_report)
+                
+            except Exception as e:
+                logger.error(f"Error evaluating genome {genome.genome_id}: {e}")
+                # Create default fitness report
+                context = EvaluationContext(
+                    strategy_id=f"strategy_{genome.genome_id}",
+                    genome_id=genome.genome_id,
+                    generation=self.generation,
+                    initial_capital=100000.0,
+                    evaluation_period=252
+                )
+                default_report = self.fitness_evaluator._create_default_fitness_report(context)
+                fitness_reports.append(default_report)
+                
+        return fitness_reports
+        
+    async def _create_new_population(self) -> List[DecisionGenome]:
         """Create new population through selection, crossover, and mutation."""
         new_population = []
         population_size = self.population_manager.population_size
@@ -137,14 +192,14 @@ class GeneticEngine:
             else:
                 # Fallback: create random individuals
                 logger.warning("Insufficient parents for crossover, creating random individuals")
-                # This would need a genome factory
                 break
                 
         # Ensure population size
         while len(new_population) < population_size:
             # Create random individual (simplified)
-            random_genome = StrategyGenome()
-            random_genome.id = f"random_gen{self.generation}_id{len(new_population)}"
+            random_genome = DecisionGenome(
+                genome_id=f"random_gen{self.generation}_id{len(new_population)}"
+            )
             new_population.append(random_genome)
             
         return new_population[:population_size]
@@ -185,12 +240,12 @@ class GeneticEngine:
         # Note: In a real implementation, this would be properly async
         # await publish_event(event)
         
-    def get_best_genome(self) -> Optional[StrategyGenome]:
+    def get_best_genome(self) -> Optional[DecisionGenome]:
         """Get the best genome from current population."""
         best_genomes = self.population_manager.get_best_genomes(1)
         return best_genomes[0] if best_genomes else None
         
-    def get_population(self) -> List[StrategyGenome]:
+    def get_population(self) -> List[DecisionGenome]:
         """Get current population."""
         return self.population_manager.population.copy()
         

@@ -95,6 +95,56 @@ class FitnessEvaluator:
             logger.error(f"Error evaluating fitness: {e}")
             return self._create_default_fitness_report(context)
             
+    async def evaluate_backtest_fitness(self, backtest_results: Dict[str, Any], 
+                                      context: EvaluationContext) -> FitnessReport:
+        """Evaluate fitness from backtest results (for genome evaluation)."""
+        try:
+            # Step 1: Orchestrate performance analysis from backtest results
+            performance_result = self.performance_analyzer.analyze_backtest_results(backtest_results)
+            
+            # Step 2: Create simplified trade history for risk analysis
+            trade_history = self._create_trade_history_from_backtest(backtest_results)
+            risk_result = await self._orchestrate_risk_analysis(trade_history, context)
+            
+            # Step 3: Extract metrics
+            performance_metrics = self._extract_performance_metrics(performance_result)
+            risk_metrics = self._extract_risk_metrics(risk_result)
+            
+            # Step 4: Calculate fitness score
+            fitness_score = self._calculate_fitness_score(performance_metrics, risk_metrics, context)
+            
+            # Step 5: Create fitness report
+            fitness_report = FitnessReport(
+                timestamp=datetime.now(),
+                genome_id=context.genome_id,
+                strategy_id=context.strategy_id,
+                performance_metrics=performance_metrics,
+                risk_metrics=risk_metrics,
+                fitness_score=fitness_score,
+                generation=context.generation,
+                metadata={
+                    "evaluator_version": "1.1.0",
+                    "method": "backtest_fitness_evaluation",
+                    "evaluation_period": context.evaluation_period,
+                    "initial_capital": backtest_results.get("equity_curve", [0])[0] if backtest_results.get("equity_curve") else 0,
+                    "trade_count": len(backtest_results.get("trades", [])),
+                    "source": "genome_backtest"
+                }
+            )
+            
+            # Step 6: Publish fitness report event
+            await publish_event(fitness_report)
+            
+            # Step 7: Store evaluation history
+            self._store_evaluation_history(fitness_report, context)
+            
+            logger.info(f"Backtest fitness evaluation completed: {fitness_score:.4f} for {context.genome_id}")
+            return fitness_report
+            
+        except Exception as e:
+            logger.error(f"Error evaluating backtest fitness: {e}")
+            return self._create_default_fitness_report(context)
+            
     async def _orchestrate_performance_analysis(self, trade_history: List[TradeIntent], 
                                               context: EvaluationContext) -> Any:
         """Orchestrate performance analysis through thinking layer."""
@@ -126,6 +176,26 @@ class FitnessEvaluator:
         except Exception as e:
             logger.error(f"Error orchestrating risk analysis: {e}")
             raise
+            
+    def _create_trade_history_from_backtest(self, backtest_results: Dict[str, Any]) -> List[TradeIntent]:
+        """Create trade history from backtest results for risk analysis."""
+        trade_history = []
+        trades = backtest_results.get("trades", [])
+        
+        for trade in trades:
+            # Create TradeIntent from backtest trade data
+            trade_intent = TradeIntent(
+                timestamp=trade.get("entry_time", datetime.now()),
+                symbol="UNKNOWN",  # Would be available in real implementation
+                action="BUY" if trade.get("pnl", 0) > 0 else "SELL",  # Simplified
+                quantity=abs(trade.get("quantity", 0)),
+                price=trade.get("entry_price", 0),
+                strategy_id="backtest_strategy",
+                genome_id="backtest_genome"
+            )
+            trade_history.append(trade_intent)
+            
+        return trade_history
             
     def _extract_performance_metrics(self, performance_result: Any) -> PerformanceMetrics:
         """Extract performance metrics from thinking layer result."""

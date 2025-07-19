@@ -5,6 +5,7 @@ Analyzes sensory signals to detect and classify market trends.
 Provides trend direction, strength, and confidence metrics.
 """
 
+import logging
 import numpy as np
 from typing import Dict, List, Any, Optional
 from datetime import datetime

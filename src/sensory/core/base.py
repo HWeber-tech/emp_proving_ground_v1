@@ -5,12 +5,15 @@ Canonical dataclasses that serve as the common language for the entire sensory s
 These provide type safety, clear data contracts, and eliminate the need for ad-hoc data structures.
 """
 
+import logging
 from abc import ABC, abstractmethod
 from datetime import datetime, time
 from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple
 
 from pydantic import BaseModel, Field, model_validator, validator
+
+logger = logging.getLogger(__name__)
 
 
 class MarketRegime(Enum):
@@ -58,6 +61,41 @@ class SessionType(Enum):
     NEW_YORK = "new_york"
     OVERLAP_LONDON_NY = "overlap_london_ny"
     DEAD_ZONE = "dead_zone"
+
+
+class SensoryReading(BaseModel):
+    """Standardized sensory reading from any organ."""
+    
+    organ_name: str
+    timestamp: datetime
+    data: Dict[str, Any] = Field(default_factory=dict)
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+
+
+class SensoryOrgan(ABC):
+    """Base class for all sensory organs."""
+    
+    def __init__(self, name: str, config: Dict[str, Any]):
+        self.name = name
+        self.config = config
+        self.logger = logging.getLogger(f"sensory.{name}")
+        
+    @abstractmethod
+    async def process(self, market_data: 'MarketData') -> SensoryReading:
+        """Process market data and return sensory reading."""
+        pass
+        
+    def _create_error_reading(self, timestamp: datetime) -> SensoryReading:
+        """Create error reading when processing fails."""
+        return SensoryReading(
+            organ_name=self.name,
+            timestamp=timestamp,
+            data={},
+            metadata={
+                "error": "Processing failed",
+                "organ_version": "1.1.0"
+            }
+        )
 
 
 class InstrumentMeta(BaseModel):

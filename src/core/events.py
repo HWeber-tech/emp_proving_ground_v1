@@ -1,278 +1,163 @@
 """
-EMP Core Events v1.1
-
-Defines the core event models for inter-layer communication
-in the EMP Ultimate Architecture v1.1.
+Core Event Contracts for EMP Ultimate Architecture v1.1
+Defines all inter-layer communication contracts using Pydantic models.
 """
 
 from datetime import datetime
-from typing import Dict, List, Any, Optional, Union
+from decimal import Decimal
+from typing import Dict, List, Optional, Any
 from enum import Enum
-from pydantic import BaseModel, Field, validator
-import numpy as np
+from pydantic import BaseModel, Field
 
 
-class EventType(Enum):
-    """Types of events in the EMP system."""
+class EventType(str, Enum):
+    """Standardized event types for the EMP system."""
     MARKET_UNDERSTANDING = "market_understanding"
     CONTEXT_PACKET = "context_packet"
     TRADE_INTENT = "trade_intent"
+    EXECUTION_REPORT = "execution_report"
     FITNESS_REPORT = "fitness_report"
-    SENSORY_SIGNAL = "sensory_signal"
-    THINKING_ANALYSIS = "thinking_analysis"
-    EVOLUTION_EVENT = "evolution_event"
-    GOVERNANCE_DECISION = "governance_decision"
-    OPERATIONAL_STATUS = "operational_status"
-
-
-class MarketData(BaseModel):
-    """Market data structure for sensory processing."""
-    symbol: str
-    timestamp: datetime
-    open: float
-    high: float
-    low: float
-    close: float
-    volume: float
-    bid: Optional[float] = None
-    ask: Optional[float] = None
-    source: str = "unknown"
-    latency_ms: float = 0.0
-    
-    class Config:
-        json_encoders = {
-            datetime: lambda v: v.isoformat(),
-            np.ndarray: lambda v: v.tolist()
-        }
-
-
-class SensorySignal(BaseModel):
-    """Sensory signal from sensory organs."""
-    timestamp: datetime
-    signal_type: str
-    value: float
-    confidence: float
-    metadata: Dict[str, Any] = Field(default_factory=dict)
-    
-    class Config:
-        json_encoders = {
-            datetime: lambda v: v.isoformat()
-        }
-
-
-class MarketUnderstanding(BaseModel):
-    """Market understanding from sensory layer."""
-    timestamp: datetime
-    symbol: str
-    signals: List[SensorySignal] = Field(default_factory=list)
-    composite_score: float = 0.0
-    confidence: float = 0.0
-    metadata: Dict[str, Any] = Field(default_factory=dict)
-    
-    @validator('composite_score')
-    def validate_composite_score(cls, v):
-        return max(-1.0, min(1.0, v))
-    
-    @validator('confidence')
-    def validate_confidence(cls, v):
-        return max(0.0, min(1.0, v))
-    
-    class Config:
-        json_encoders = {
-            datetime: lambda v: v.isoformat()
-        }
-
-
-class AnalysisResult(BaseModel):
-    """Analysis result from thinking layer."""
-    timestamp: datetime
-    analysis_type: str
-    result: Dict[str, Any] = Field(default_factory=dict)
-    confidence: float = 0.0
-    metadata: Dict[str, Any] = Field(default_factory=dict)
-    
-    @validator('confidence')
-    def validate_confidence(cls, v):
-        return max(0.0, min(1.0, v))
-    
-    class Config:
-        json_encoders = {
-            datetime: lambda v: v.isoformat()
-        }
-
-
-class ContextPacket(BaseModel):
-    """Context packet from thinking layer."""
-    timestamp: datetime
-    market_understanding: MarketUnderstanding
-    analyses: List[AnalysisResult] = Field(default_factory=list)
-    context_score: float = 0.0
-    confidence: float = 0.0
-    metadata: Dict[str, Any] = Field(default_factory=dict)
-    
-    @validator('context_score')
-    def validate_context_score(cls, v):
-        return max(-1.0, min(1.0, v))
-    
-    @validator('confidence')
-    def validate_confidence(cls, v):
-        return max(0.0, min(1.0, v))
-    
-    class Config:
-        json_encoders = {
-            datetime: lambda v: v.isoformat()
-        }
-
-
-class TradeIntent(BaseModel):
-    """Trade intent from adaptive core."""
-    timestamp: datetime
-    symbol: str
-    action: str  # 'BUY', 'SELL', 'HOLD'
-    quantity: float
-    price: Optional[float] = None
-    stop_loss: Optional[float] = None
-    take_profit: Optional[float] = None
-    confidence: float = 0.0
-    strategy_id: str
-    genome_id: str
-    metadata: Dict[str, Any] = Field(default_factory=dict)
-    
-    @validator('action')
-    def validate_action(cls, v):
-        if v not in ['BUY', 'SELL', 'HOLD']:
-            raise ValueError('Action must be BUY, SELL, or HOLD')
-        return v
-    
-    @validator('confidence')
-    def validate_confidence(cls, v):
-        return max(0.0, min(1.0, v))
-    
-    class Config:
-        json_encoders = {
-            datetime: lambda v: v.isoformat()
-        }
-
-
-class PerformanceMetrics(BaseModel):
-    """Performance metrics for fitness evaluation."""
-    total_return: float = 0.0
-    annualized_return: float = 0.0
-    volatility: float = 0.0
-    sharpe_ratio: float = 0.0
-    sortino_ratio: float = 0.0
-    max_drawdown: float = 0.0
-    win_rate: float = 0.0
-    profit_factor: float = 0.0
-    total_trades: int = 0
-    avg_trade_duration: float = 0.0
-    metadata: Dict[str, Any] = Field(default_factory=dict)
-
-
-class RiskMetrics(BaseModel):
-    """Risk metrics for fitness evaluation."""
-    var_95: float = 0.0
-    var_99: float = 0.0
-    cvar_95: float = 0.0
-    cvar_99: float = 0.0
-    beta: float = 0.0
-    correlation: float = 0.0
-    current_drawdown: float = 0.0
-    risk_score: float = 0.0
-    metadata: Dict[str, Any] = Field(default_factory=dict)
-
-
-class FitnessReport(BaseModel):
-    """Fitness report from simulation envelope."""
-    timestamp: datetime
-    genome_id: str
-    strategy_id: str
-    performance_metrics: PerformanceMetrics
-    risk_metrics: RiskMetrics
-    fitness_score: float = 0.0
-    generation: int = 0
-    metadata: Dict[str, Any] = Field(default_factory=dict)
-    
-    @validator('fitness_score')
-    def validate_fitness_score(cls, v):
-        return max(0.0, min(1.0, v))
-    
-    class Config:
-        json_encoders = {
-            datetime: lambda v: v.isoformat()
-        }
-
-
-class EvolutionEvent(BaseModel):
-    """Evolution event from adaptive core."""
-    timestamp: datetime
-    event_type: str  # 'generation_complete', 'mutation', 'crossover', 'selection'
-    genome_id: str
-    generation: int
-    population_size: int
-    best_fitness: float
-    average_fitness: float
-    metadata: Dict[str, Any] = Field(default_factory=dict)
-    
-    class Config:
-        json_encoders = {
-            datetime: lambda v: v.isoformat()
-        }
-
-
-class GovernanceDecision(BaseModel):
-    """Governance decision from governance layer."""
-    timestamp: datetime
-    decision_type: str  # 'approve', 'reject', 'escalate', 'auto_approve'
-    strategy_id: str
-    genome_id: str
-    approver: Optional[str] = None
-    reason: Optional[str] = None
-    risk_assessment: Dict[str, Any] = Field(default_factory=dict)
-    metadata: Dict[str, Any] = Field(default_factory=dict)
-    
-    class Config:
-        json_encoders = {
-            datetime: lambda v: v.isoformat()
-        }
-
-
-class OperationalStatus(BaseModel):
-    """Operational status from operational backbone."""
-    timestamp: datetime
-    component: str
-    status: str  # 'healthy', 'warning', 'critical', 'offline'
-    metrics: Dict[str, Any] = Field(default_factory=dict)
-    alerts: List[str] = Field(default_factory=list)
-    metadata: Dict[str, Any] = Field(default_factory=dict)
-    
-    class Config:
-        json_encoders = {
-            datetime: lambda v: v.isoformat()
-        }
+    GENOME_UPDATE = "genome_update"
+    TELEMETRY = "telemetry"
 
 
 class BaseEvent(BaseModel):
-    """Base event class for all EMP events."""
-    event_type: EventType
+    """Base class for all events in the EMP system."""
+    event_id: str
     timestamp: datetime
     source: str
-    target: Optional[str] = None
-    payload: Union[
-        MarketUnderstanding,
-        ContextPacket,
-        TradeIntent,
-        FitnessReport,
-        SensorySignal,
-        AnalysisResult,
-        EvolutionEvent,
-        GovernanceDecision,
-        OperationalStatus
-    ]
+    correlation_id: Optional[str] = None
+
+
+class PerformanceMetrics(BaseModel):
+    """Performance metrics for strategies and components."""
+    sharpe_ratio: Decimal
+    max_drawdown: Decimal
+    win_rate: Decimal
+    profit_factor: Decimal
+    total_return: Decimal
+    volatility: Decimal
+    trades: int
+    avg_trade_duration: int
+
+
+class MarketUnderstanding(BaseEvent):
+    """Event published by Sensory Layer to Thinking Layer."""
+    symbol: str
+    price: Decimal
+    volume: Decimal
+    indicators: Dict[str, Decimal] = Field(default_factory=dict)
     metadata: Dict[str, Any] = Field(default_factory=dict)
-    
-    class Config:
-        json_encoders = {
-            datetime: lambda v: v.isoformat()
-        }
-        use_enum_values = True 
+
+
+class ContextPacket(BaseEvent):
+    """Event published by Thinking Layer to Adaptive Core."""
+    regime: str
+    patterns: Dict[str, Any] = Field(default_factory=dict)
+    risk_metrics: Dict[str, Decimal] = Field(default_factory=dict)
+    confidence: Decimal
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+
+
+class TradeIntent(BaseEvent):
+    """Event published by Adaptive Core to Trading Layer."""
+    symbol: str
+    action: str  # BUY, SELL, HOLD
+    quantity: Decimal
+    price: Optional[Decimal] = None
+    order_type: str = "MARKET"
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+
+
+class ExecutionReport(BaseEvent):
+    """Event published by Trading Layer after trade execution."""
+    trade_intent_id: str
+    symbol: str
+    action: str
+    quantity: Decimal
+    price: Decimal
+    fees: Decimal = Decimal('0')
+    status: str  # FILLED, PARTIAL, REJECTED, ERROR
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+
+
+class FitnessReport(BaseEvent):
+    """Event published by Simulation Envelope to Adaptive Core."""
+    genome_id: str
+    fitness_score: Decimal
+    metrics: Dict[str, Decimal] = Field(default_factory=dict)
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+
+
+class GenomeUpdate(BaseEvent):
+    """Event for genome evolution notifications."""
+    genome_id: str
+    action: str  # CREATED, UPDATED, PROMOTED, RETIRED
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+
+
+class Telemetry(BaseEvent):
+    """System health and performance telemetry."""
+    component: str
+    metric: str
+    value: Decimal
+    tags: Dict[str, str] = Field(default_factory=dict)
+
+
+class SensorySignal(BaseEvent):
+    """Signal from sensory organs."""
+    signal_type: str
+    value: Decimal
+    confidence: Decimal
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+
+
+class AnalysisResult(BaseEvent):
+    """Result from thinking layer analysis."""
+    analysis_type: str
+    result: Dict[str, Any]
+    confidence: Decimal
+    recommendations: List[str] = Field(default_factory=list)
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+
+
+class GovernanceDecision(BaseEvent):
+    """Decision from governance layer."""
+    decision_type: str
+    approved: bool
+    reason: str
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+
+
+class MarketData(BaseModel):
+    """Market data structure for sensory input."""
+    timestamp: datetime
+    symbol: str
+    open: Decimal
+    high: Decimal
+    low: Decimal
+    close: Decimal
+    volume: Decimal
+    bid: Optional[Decimal] = None
+    ask: Optional[Decimal] = None
+
+
+class RiskMetrics(BaseModel):
+    """Risk metrics for trading and governance."""
+    var_95: Decimal
+    var_99: Decimal
+    max_drawdown: Decimal
+    sharpe_ratio: Decimal
+    sortino_ratio: Decimal
+    beta: Decimal
+    alpha: Decimal
+
+
+class EvolutionEvent(BaseEvent):
+    """Events related to genetic evolution."""
+    generation: int
+    population_size: int
+    best_fitness: Decimal
+    average_fitness: Decimal
+    diversity_score: Decimal
+    metadata: Dict[str, Any] = Field(default_factory=dict)

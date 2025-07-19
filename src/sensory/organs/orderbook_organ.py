@@ -10,8 +10,12 @@ from typing import Dict, List, Any, Optional
 from datetime import datetime
 from dataclasses import dataclass
 
-from src.core.interfaces import SensoryOrgan, MarketData, SensorySignal
+from src.sensory.core.base import SensoryOrgan, MarketData
+from src.sensory.core.sensory_signal import SensorySignal
 from src.core.exceptions import SensoryException
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -297,4 +301,4 @@ class OrderbookOrgan(SensoryOrgan):
                 'signal_count': len(signals),
                 'individual_signals': [s.signal_type for s in signals]
             }
-        ) 
+        )

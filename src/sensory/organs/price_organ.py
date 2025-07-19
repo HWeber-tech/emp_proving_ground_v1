@@ -10,9 +10,13 @@ import pandas as pd
 from typing import Dict, List, Any, Optional
 from datetime import datetime
 from dataclasses import dataclass
+import logging
 
-from src.core.interfaces import SensoryOrgan, MarketData, SensorySignal
+from src.sensory.core.base import SensoryOrgan, MarketData
+from src.sensory.core.sensory_signal import SensorySignal
 from src.core.exceptions import SensoryException
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -275,4 +279,4 @@ class PriceOrgan(SensoryOrgan):
                 'signal_count': len(signals),
                 'individual_signals': [s.signal_type for s in signals]
             }
-        ) 
+        )

@@ -11,8 +11,8 @@ from typing import Dict, List, Optional, Any
 from datetime import datetime
 from dataclasses import dataclass
 
-from ...core.events import MarketData, SensorySignal, MarketUnderstanding
-from ...core.event_bus import publish_event, EventType
+from src.core.events import MarketData, SensorySignal, MarketUnderstanding
+from src.core.event_bus import publish_event, EventType
 
 logger = logging.getLogger(__name__)
 
@@ -359,4 +359,4 @@ class SensoryCortex:
         """Clear understanding and signal history."""
         self.understanding_history.clear()
         self.signal_history.clear()
-        logger.info("Sensory cortex history cleared") 
+        logger.info("Sensory cortex history cleared")

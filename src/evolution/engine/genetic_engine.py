@@ -1,319 +1,284 @@
 """
 EMP Genetic Engine v1.1
 
-Modular genetic engine for the adaptive core.
-Orchestrates selection, variation, and population management components.
+Lean orchestrator for the evolutionary process.
+Uses dependency injection to coordinate modular components.
 """
 
-import asyncio
 import logging
 import random
-import numpy as np
-from typing import List, Dict, Any, Optional, Callable
+from typing import List, Dict, Any, Optional
+from dataclasses import dataclass
 from datetime import datetime
 
-from ...genome.models.genome import DecisionGenome
-from ...core.events import FitnessReport, EvolutionEvent
-from ...core.event_bus import publish_event, EventType
-from ...simulation.evaluation.fitness_evaluator import FitnessEvaluator, EvaluationContext
-from .population_manager import PopulationManager
-from ..selection.selection_strategies import SelectionStrategy, SelectionFactory
-from ..variation.variation_strategies import CrossoverStrategy, MutationStrategy, VariationFactory
+from src.core.interfaces import (
+    IPopulationManager,
+    ISelectionStrategy,
+    ICrossoverStrategy,
+    IMutationStrategy,
+    IFitnessEvaluator,
+    IGenomeFactory,
+    IEvolutionLogger
+)
+from src.genome.models.genome import DecisionGenome
 
 logger = logging.getLogger(__name__)
 
 
+@dataclass
+class EvolutionConfig:
+    """Configuration for the genetic engine."""
+    population_size: int = 100
+    elite_count: int = 5
+    crossover_rate: float = 0.8
+    mutation_rate: float = 0.1
+    max_generations: int = 100
+    target_fitness: Optional[float] = None
+    early_stopping_generations: int = 10
+
+
+@dataclass
+class EvolutionStats:
+    """Statistics for a generation."""
+    generation: int
+    best_fitness: float
+    average_fitness: float
+    worst_fitness: float
+    fitness_std: float
+    diversity_score: float
+    elapsed_time: float
+
+
 class GeneticEngine:
-    """Modular genetic engine orchestrating evolution components."""
+    """
+    Lean orchestrator for the evolutionary process.
     
-    def __init__(self, 
-                 population_size: int = 100,
-                 elite_size: int = 10,
-                 selection_strategy: str = "tournament",
-                 crossover_strategy: str = "uniform",
-                 mutation_strategy: str = "gaussian",
-                 crossover_rate: float = 0.8,
-                 mutation_rate: float = 0.1,
-                 **kwargs):
+    This class coordinates the evolutionary process using injected components.
+    It delegates all specific operations to specialized modules and focuses
+    on orchestration and state management.
+    """
+    
+    def __init__(
+        self,
+        population_manager: IPopulationManager,
+        selection_strategy: ISelectionStrategy,
+        crossover_strategy: ICrossoverStrategy,
+        mutation_strategy: IMutationStrategy,
+        fitness_evaluator: IFitnessEvaluator,
+        genome_factory: IGenomeFactory,
+        evolution_logger: Optional[IEvolutionLogger] = None,
+        config: Optional[EvolutionConfig] = None
+    ):
+        """
+        Initialize the genetic engine with injected dependencies.
         
-        # Initialize population manager
-        self.population_manager = PopulationManager(population_size, elite_size)
+        Args:
+            population_manager: Manages the population of genomes
+            selection_strategy: Strategy for selecting parents
+            crossover_strategy: Strategy for creating offspring
+            mutation_strategy: Strategy for mutating genomes
+            fitness_evaluator: Evaluates genome fitness
+            genome_factory: Creates new genomes
+            evolution_logger: Optional logger for evolution progress
+            config: Evolution configuration
+        """
+        self.population_manager = population_manager
+        self.selection_strategy = selection_strategy
+        self.crossover_strategy = crossover_strategy
+        self.mutation_strategy = mutation_strategy
+        self.fitness_evaluator = fitness_evaluator
+        self.genome_factory = genome_factory
+        self.evolution_logger = evolution_logger
+        self.config = config or EvolutionConfig()
         
-        # Initialize selection strategy
-        self.selection_strategy = SelectionFactory.create_strategy(
-            selection_strategy, **kwargs.get('selection_kwargs', {})
-        )
+        self._best_genome: Optional[DecisionGenome] = None
+        self._best_fitness: float = float('-inf')
+        self._generation_history: List[EvolutionStats] = []
         
-        # Initialize variation strategies
-        self.crossover_strategy = VariationFactory.create_crossover_strategy(
-            crossover_strategy, **kwargs.get('crossover_kwargs', {})
-        )
-        self.mutation_strategy = VariationFactory.create_mutation_strategy(
-            mutation_strategy, **kwargs.get('mutation_kwargs', {})
-        )
+        logger.info("GeneticEngine initialized with dependency injection")
+    
+    def initialize_population(self) -> None:
+        """Initialize the population using the genome factory."""
+        self.population_manager.initialize_population(self.genome_factory.create_genome)
+        self._evaluate_population()
+        logger.info("Population initialized")
+    
+    def evolve_generation(self) -> EvolutionStats:
+        """
+        Evolve one generation using the evolutionary process.
         
-        # Initialize fitness evaluator (simulation envelope)
-        self.fitness_evaluator = FitnessEvaluator()
+        Returns:
+            Statistics for this generation
+        """
+        start_time = datetime.now()
         
-        # Evolution parameters
-        self.crossover_rate = crossover_rate
-        self.mutation_rate = mutation_rate
-        self.generation = 0
+        # Get current population and fitness scores
+        population = self.population_manager.get_population()
+        fitness_scores = [genome.fitness_score for genome in population]
         
-        # Evolution history
-        self.evolution_history: List[Dict[str, Any]] = []
+        # Create new population
+        new_population = []
         
-        logger.info(f"Genetic Engine initialized with {population_size} population size")
+        # Preserve elite genomes
+        elite_genomes = self.population_manager.get_best_genomes(self.config.elite_count)
+        new_population.extend(elite_genomes)
         
-    def initialize_population(self, genome_factory: Callable[[], DecisionGenome]):
-        """Initialize population with random genomes."""
-        self.population_manager.initialize_population(genome_factory)
-        self.generation = 0
+        # Generate offspring
+        offspring_needed = self.config.population_size - len(new_population)
         
-    async def evolve_generation(self, market_data: Optional[Dict[str, Any]] = None) -> List[DecisionGenome]:
-        """Evolve one generation using the simulation envelope for fitness evaluation."""
-        try:
-            # Step 1: Evaluate current population using simulation envelope
-            fitness_reports = await self._evaluate_population(market_data)
+        for _ in range(offspring_needed):
+            # Select parents
+            parent1 = self.selection_strategy.select(population, fitness_scores)
+            parent2 = self.selection_strategy.select(population, fitness_scores)
             
-            # Step 2: Update fitness cache in population manager
-            self.population_manager.update_fitness_cache(fitness_reports)
+            # Create offspring
+            if random.random() < self.config.crossover_rate:
+                child1, child2 = self.crossover_strategy.crossover(parent1, parent2)
+                child = child1  # Use first child
+            else:
+                child = parent1  # Clone parent
             
-            # Step 3: Get current population statistics
-            stats = self.population_manager.get_population_statistics()
+            # Mutate child
+            if random.random() < self.config.mutation_rate:
+                child = self.mutation_strategy.mutate(child, self.config.mutation_rate)
+                child.mutation_count += 1
             
-            # Step 4: Create new population through selection and variation
-            new_population = await self._create_new_population()
+            # Update generation and parent info
+            child.generation = self.population_manager.generation + 1
+            child.parent_ids = [parent1.genome_id, parent2.genome_id]
             
-            # Step 5: Update population
-            self.population_manager.population = new_population
+            new_population.append(child)
+        
+        # Update population
+        self.population_manager.update_population(new_population)
+        
+        # Evaluate new population
+        self._evaluate_population()
+        
+        # Update best genome
+        self._update_best_genome()
+        
+        # Advance generation
+        self.population_manager.advance_generation()
+        
+        # Create stats
+        stats = self._create_generation_stats(start_time)
+        self._generation_history.append(stats)
+        
+        # Log if logger provided
+        if self.evolution_logger:
+            self.evolution_logger.log_generation(
+                stats.generation,
+                self.population_manager.get_population_statistics()
+            )
+        
+        logger.debug(f"Evolved generation {stats.generation}: best_fitness={stats.best_fitness:.4f}")
+        
+        return stats
+    
+    def evolve(self, max_generations: Optional[int] = None) -> List[EvolutionStats]:
+        """
+        Evolve multiple generations.
+        
+        Args:
+            max_generations: Maximum generations to evolve (uses config if None)
             
-            # Step 6: Advance generation
-            self.population_manager.advance_generation()
-            self.generation += 1
+        Returns:
+            List of generation statistics
+        """
+        max_gens = max_generations or self.config.max_generations
+        
+        logger.info(f"Starting evolution for {max_gens} generations")
+        
+        for generation in range(max_gens):
+            stats = self.evolve_generation()
             
-            # Step 7: Log evolution
-            self._log_evolution(stats)
+            # Check for early stopping
+            if self._should_stop_early(stats):
+                logger.info(f"Early stopping at generation {generation + 1}")
+                break
             
-            # Step 8: Publish evolution event
-            await self._publish_evolution_event(stats)
-            
-            logger.info(f"Evolved generation {self.generation} with {len(new_population)} genomes")
-            return new_population
-            
-        except Exception as e:
-            logger.error(f"Error evolving generation: {e}")
-            return self.population_manager.population
-            
-    async def _evaluate_population(self, market_data: Optional[Dict[str, Any]] = None) -> List[FitnessReport]:
-        """Evaluate population using simulation envelope."""
-        fitness_reports = []
+            # Check target fitness
+            if (self.config.target_fitness and 
+                stats.best_fitness >= self.config.target_fitness):
+                logger.info(f"Target fitness reached at generation {generation + 1}")
+                break
+        
+        logger.info(f"Evolution completed after {len(self._generation_history)} generations")
+        
+        return self._generation_history
+    
+    def _evaluate_population(self) -> None:
+        """Evaluate fitness for all genomes in the population."""
         population = self.population_manager.get_population()
         
         for genome in population:
-            try:
-                # Create evaluation context
-                context = EvaluationContext(
-                    strategy_id=f"strategy_{genome.genome_id}",
-                    genome_id=genome.genome_id,
-                    generation=self.generation,
-                    initial_capital=100000.0,  # Default initial capital
-                    evaluation_period=252,  # Default evaluation period
-                    market_data=market_data
-                )
+            if genome.fitness_score == 0.0:  # Only evaluate if not already evaluated
+                fitness = self.fitness_evaluator.evaluate(genome)
+                genome.fitness_score = fitness
+    
+    def _update_best_genome(self) -> None:
+        """Update the best genome found so far."""
+        best_genomes = self.population_manager.get_best_genomes(1)
+        if best_genomes:
+            best = best_genomes[0]
+            if best.fitness_score > self._best_fitness:
+                self._best_genome = best
+                self._best_fitness = best.fitness_score
                 
-                # Evaluate genome using simulation envelope
-                if market_data and "backtest_results" in market_data:
-                    # Use backtest results if available
-                    fitness_report = await self.fitness_evaluator.evaluate_backtest_fitness(
-                        market_data["backtest_results"], context
-                    )
-                else:
-                    # Create empty trade history for basic evaluation
-                    empty_trade_history = []
-                    fitness_report = await self.fitness_evaluator.evaluate_fitness(
-                        empty_trade_history, context
-                    )
-                    
-                fitness_reports.append(fitness_report)
-                
-            except Exception as e:
-                logger.error(f"Error evaluating genome {genome.genome_id}: {e}")
-                # Create default fitness report
-                context = EvaluationContext(
-                    strategy_id=f"strategy_{genome.genome_id}",
-                    genome_id=genome.genome_id,
-                    generation=self.generation,
-                    initial_capital=100000.0,
-                    evaluation_period=252
-                )
-                default_report = self.fitness_evaluator._create_default_fitness_report(context)
-                fitness_reports.append(default_report)
-                
-        return fitness_reports
+                if self.evolution_logger:
+                    self.evolution_logger.log_best_genome(best, best.fitness_score)
+    
+    def _create_generation_stats(self, start_time: datetime) -> EvolutionStats:
+        """Create statistics for the current generation."""
+        stats = self.population_manager.get_population_statistics()
+        elapsed_time = (datetime.now() - start_time).total_seconds()
         
-    async def _create_new_population(self) -> List[DecisionGenome]:
-        """Create new population through selection, crossover, and mutation."""
-        new_population = []
-        population_size = self.population_manager.population_size
-        elite_size = self.population_manager.elite_size
-        
-        # Elitism: preserve best individuals
-        elite = self.population_manager.get_best_genomes(elite_size)
-        new_population.extend(elite)
-        
-        # Generate remaining individuals
-        remaining_size = population_size - elite_size
-        
-        while len(new_population) < population_size:
-            # Selection
-            parents = self.selection_strategy.select(
-                self.population_manager.population,
-                [],  # Fitness reports not needed here as we use cache
-                selection_size=2
-            )
-            
-            if len(parents) >= 2:
-                # Crossover
-                if random.random() < self.crossover_rate:
-                    child1, child2 = self.crossover_strategy.crossover(parents[0], parents[1])
-                    
-                    # Mutation
-                    child1 = self.mutation_strategy.mutate(child1, self.mutation_rate)
-                    child2 = self.mutation_strategy.mutate(child2, self.mutation_rate)
-                    
-                    new_population.extend([child1, child2])
-                else:
-                    # No crossover, just mutation
-                    child1 = self.mutation_strategy.mutate(parents[0], self.mutation_rate)
-                    child2 = self.mutation_strategy.mutate(parents[1], self.mutation_rate)
-                    
-                    new_population.extend([child1, child2])
-            else:
-                # Fallback: create random individuals
-                logger.warning("Insufficient parents for crossover, creating random individuals")
-                break
-                
-        # Ensure population size
-        while len(new_population) < population_size:
-            # Create random individual (simplified)
-            random_genome = DecisionGenome(
-                genome_id=f"random_gen{self.generation}_id{len(new_population)}"
-            )
-            new_population.append(random_genome)
-            
-        return new_population[:population_size]
-        
-    def _log_evolution(self, stats: Dict[str, Any]):
-        """Log evolution statistics."""
-        entry = {
-            'generation': self.generation,
-            'timestamp': datetime.now(),
-            'statistics': stats,
-            'selection_strategy': self.selection_strategy.name,
-            'crossover_strategy': self.crossover_strategy.name,
-            'mutation_strategy': self.mutation_strategy.name,
-            'crossover_rate': self.crossover_rate,
-            'mutation_rate': self.mutation_rate
-        }
-        
-        self.evolution_history.append(entry)
-        
-    async def _publish_evolution_event(self, stats: Dict[str, Any]):
-        """Publish evolution event."""
-        event = EvolutionEvent(
-            timestamp=datetime.now(),
-            event_type="generation_complete",
-            genome_id="",  # Will be set by caller
-            generation=self.generation,
-            population_size=stats['population_size'],
+        return EvolutionStats(
+            generation=stats['generation'],
             best_fitness=stats['best_fitness'],
             average_fitness=stats['average_fitness'],
-            metadata={
-                'selection_strategy': self.selection_strategy.name,
-                'crossover_strategy': self.crossover_strategy.name,
-                'mutation_strategy': self.mutation_strategy.name,
-                'diversity': stats['diversity']
-            }
+            worst_fitness=stats['worst_fitness'],
+            fitness_std=stats['fitness_std'],
+            diversity_score=stats['diversity_score'],
+            elapsed_time=elapsed_time
         )
+    
+    def _should_stop_early(self, stats: EvolutionStats) -> bool:
+        """Check if evolution should stop early."""
+        if len(self._generation_history) < self.config.early_stopping_generations:
+            return False
         
-        # Note: In a real implementation, this would be properly async
-        # await publish_event(event)
+        # Check if improvement has plateaued
+        recent_best = [g.best_fitness for g in self._generation_history[-self.config.early_stopping_generations:]]
+        if len(recent_best) >= 2:
+            improvement = recent_best[-1] - recent_best[0]
+            return improvement < 0.001  # Very small improvement threshold
         
+        return False
+    
     def get_best_genome(self) -> Optional[DecisionGenome]:
-        """Get the best genome from current population."""
-        best_genomes = self.population_manager.get_best_genomes(1)
-        return best_genomes[0] if best_genomes else None
-        
-    def get_population(self) -> List[DecisionGenome]:
-        """Get current population."""
-        return self.population_manager.population.copy()
-        
-    def get_population_statistics(self) -> Dict[str, Any]:
-        """Get current population statistics."""
-        return self.population_manager.get_population_statistics()
-        
-    def get_evolution_history(self, limit: Optional[int] = None) -> List[Dict[str, Any]]:
-        """Get evolution history."""
-        if limit:
-            return self.evolution_history[-limit:]
-        return self.evolution_history.copy()
-        
-    def change_selection_strategy(self, strategy_name: str, **kwargs):
-        """Change selection strategy."""
-        self.selection_strategy = SelectionFactory.create_strategy(strategy_name, **kwargs)
-        logger.info(f"Changed selection strategy to {strategy_name}")
-        
-    def change_crossover_strategy(self, strategy_name: str, **kwargs):
-        """Change crossover strategy."""
-        self.crossover_strategy = VariationFactory.create_crossover_strategy(strategy_name, **kwargs)
-        logger.info(f"Changed crossover strategy to {strategy_name}")
-        
-    def change_mutation_strategy(self, strategy_name: str, **kwargs):
-        """Change mutation strategy."""
-        self.mutation_strategy = VariationFactory.create_mutation_strategy(strategy_name, **kwargs)
-        logger.info(f"Changed mutation strategy to {strategy_name}")
-        
-    def update_parameters(self, crossover_rate: Optional[float] = None, 
-                         mutation_rate: Optional[float] = None):
-        """Update evolution parameters."""
-        if crossover_rate is not None:
-            self.crossover_rate = crossover_rate
-        if mutation_rate is not None:
-            self.mutation_rate = mutation_rate
-            
-        logger.info(f"Updated parameters: crossover_rate={self.crossover_rate}, mutation_rate={self.mutation_rate}")
-        
-    def reset_evolution(self):
-        """Reset evolution state."""
-        self.population_manager.reset_population()
-        self.generation = 0
-        self.evolution_history = []
-        logger.info("Evolution reset")
-        
-    def export_state(self) -> Dict[str, Any]:
-        """Export current evolution state."""
-        return {
-            'population': self.population_manager.export_population(),
-            'evolution_history': self.evolution_history,
-            'generation': self.generation,
-            'parameters': {
-                'crossover_rate': self.crossover_rate,
-                'mutation_rate': self.mutation_rate,
-                'selection_strategy': self.selection_strategy.name,
-                'crossover_strategy': self.crossover_strategy.name,
-                'mutation_strategy': self.mutation_strategy.name
-            }
-        }
-        
-    def import_state(self, data: Dict[str, Any]):
-        """Import evolution state."""
-        self.population_manager.import_population(data.get('population', {}))
-        self.evolution_history = data.get('evolution_history', [])
-        self.generation = data.get('generation', 0)
-        
-        params = data.get('parameters', {})
-        self.crossover_rate = params.get('crossover_rate', self.crossover_rate)
-        self.mutation_rate = params.get('mutation_rate', self.mutation_rate)
-        
-        logger.info("Evolution state imported") 
+        """Get the best genome found so far."""
+        return self._best_genome
+    
+    def get_best_fitness(self) -> float:
+        """Get the best fitness score found so far."""
+        return self._best_fitness
+    
+    def get_generation_history(self) -> List[EvolutionStats]:
+        """Get the complete evolution history."""
+        return self._generation_history.copy()
+    
+    def reset(self) -> None:
+        """Reset the genetic engine to initial state."""
+        self.population_manager.reset()
+        self._best_genome = None
+        self._best_fitness = float('-inf')
+        self._generation_history.clear()
+        logger.info("GeneticEngine reset to initial state")
+    
+    def __repr__(self) -> str:
+        """String representation of the genetic engine."""
+        return (f"GeneticEngine(generation={self.population_manager.generation}, "
+                f"best_fitness={self._best_fitness:.4f}, "
+                f"population_size={self.population_manager.population_size})")

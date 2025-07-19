@@ -1,28 +1,24 @@
 """
-Evolution package for EMP system.
+EMP Evolution Layer v1.1
 
-This package contains:
-- Real genetic programming engine
-- Strategy evolution and optimization
-- Trading strategy evaluation
+The Evolution Layer orchestrates the genetic programming and evolution of
+trading strategies. It manages populations, selection, variation, and
+evaluation to drive continuous improvement and adaptation.
+
+Architecture:
+- engine/: Genetic engine and population management
+- selection/: Selection algorithms (tournament, fitness proportionate)
+- variation/: Crossover, mutation, and recombination operators
+- evaluation/: Fitness evaluation and backtesting
+- meta/: Meta-evolution for self-improving evolution
 """
 
-from .real_genetic_engine import RealGeneticEngine, TradingStrategy, StrategyEvaluator, TechnicalIndicators
+from .engine import *
+from .selection import *
+from .variation import *
+from .evaluation import *
+from .meta import *
 
-# Backward compatibility aliases
-EvolutionEngine = RealGeneticEngine
-DecisionGenome = TradingStrategy
-FitnessEvaluator = StrategyEvaluator
-
-class EvolutionConfig:
-    """Configuration for evolution engine"""
-    def __init__(self, population_size=100, elite_ratio=0.1, crossover_ratio=0.6, mutation_ratio=0.3):
-        self.population_size = population_size
-        self.elite_ratio = elite_ratio
-        self.crossover_ratio = crossover_ratio
-        self.mutation_ratio = mutation_ratio
-
-__all__ = [
-    'RealGeneticEngine', 'TradingStrategy', 'StrategyEvaluator', 'TechnicalIndicators',
-    'EvolutionEngine', 'DecisionGenome', 'EvolutionConfig', 'FitnessEvaluator'
-] 
+__version__ = "1.1.0"
+__author__ = "EMP System"
+__description__ = "Evolution Layer - Genetic Programming and Evolution" 

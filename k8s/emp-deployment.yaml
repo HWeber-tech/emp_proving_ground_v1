@@ -1,0 +1,285 @@
+# EMP Ultimate Architecture v1.1 - Kubernetes Deployment
+# Production deployment configuration
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: emp-system
+  labels:
+    name: emp-system
+    app: emp
+    version: "1.1.0"
+
+---
+# ConfigMap for application configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: emp-config
+  namespace: emp-system
+data:
+  EMP_ENVIRONMENT: "production"
+  EMP_SYSTEM_VERSION: "1.1.0"
+  LOG_LEVEL: "INFO"
+  REDIS_HOST: "emp-redis"
+  POSTGRES_HOST: "emp-postgres"
+  NATS_HOST: "emp-nats"
+
+---
+# Secret for sensitive configuration
+apiVersion: v1
+kind: Secret
+metadata:
+  name: emp-secrets
+  namespace: emp-system
+type: Opaque
+data:
+  # Base64 encoded secrets
+  POSTGRES_PASSWORD: ZW1wX3Byb2RfcGFzc3dvcmQ=  # emp_prod_password
+  REDIS_PASSWORD: ZW1wX3JlZGlzX3Bhc3N3b3Jk  # emp_redis_password
+  API_KEY: ZW1wX2FwaV9rZXk=  # emp_api_key
+
+---
+# Deployment for main EMP application
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: emp-app
+  namespace: emp-system
+  labels:
+    app: emp
+    component: app
+    version: "1.1.0"
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: emp
+      component: app
+  template:
+    metadata:
+      labels:
+        app: emp
+        component: app
+        version: "1.1.0"
+    spec:
+      containers:
+      - name: emp-app
+        image: emp-system:1.1.0
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8000
+          name: http
+        - containerPort: 9090
+          name: metrics
+        env:
+        - name: EMP_ENVIRONMENT
+          valueFrom:
+            configMapKeyRef:
+              name: emp-config
+              key: EMP_ENVIRONMENT
+        - name: EMP_SYSTEM_VERSION
+          valueFrom:
+            configMapKeyRef:
+              name: emp-config
+              key: EMP_SYSTEM_VERSION
+        - name: LOG_LEVEL
+          valueFrom:
+            configMapKeyRef:
+              name: emp-config
+              key: LOG_LEVEL
+        - name: REDIS_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: emp-config
+              key: REDIS_HOST
+        - name: POSTGRES_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: emp-config
+              key: POSTGRES_HOST
+        - name: NATS_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: emp-config
+              key: NATS_HOST
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: emp-secrets
+              key: POSTGRES_PASSWORD
+        - name: REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: emp-secrets
+              key: REDIS_PASSWORD
+        - name: API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: emp-secrets
+              key: API_KEY
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8000
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+        volumeMounts:
+        - name: emp-logs
+          mountPath: /app/logs
+        - name: emp-data
+          mountPath: /app/data
+        - name: emp-reports
+          mountPath: /app/reports
+      volumes:
+      - name: emp-logs
+        persistentVolumeClaim:
+          claimName: emp-logs-pvc
+      - name: emp-data
+        persistentVolumeClaim:
+          claimName: emp-data-pvc
+      - name: emp-reports
+        persistentVolumeClaim:
+          claimName: emp-reports-pvc
+
+---
+# Service for EMP application
+apiVersion: v1
+kind: Service
+metadata:
+  name: emp-app-service
+  namespace: emp-system
+  labels:
+    app: emp
+    component: app
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8000
+    targetPort: 8000
+    protocol: TCP
+    name: http
+  - port: 9090
+    targetPort: 9090
+    protocol: TCP
+    name: metrics
+  selector:
+    app: emp
+    component: app
+
+---
+# Ingress for external access
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: emp-ingress
+  namespace: emp-system
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+spec:
+  tls:
+  - hosts:
+    - emp.example.com
+    secretName: emp-tls
+  rules:
+  - host: emp.example.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: emp-app-service
+            port:
+              number: 8000
+
+---
+# Horizontal Pod Autoscaler
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: emp-hpa
+  namespace: emp-system
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: emp-app
+  minReplicas: 3
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+
+---
+# Persistent Volume Claims
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: emp-logs-pvc
+  namespace: emp-system
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+  storageClassName: fast-ssd
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: emp-data-pvc
+  namespace: emp-system
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 50Gi
+  storageClassName: fast-ssd
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: emp-reports-pvc
+  namespace: emp-system
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 20Gi
+  storageClassName: fast-ssd 

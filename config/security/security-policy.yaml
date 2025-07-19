@@ -1,0 +1,312 @@
+# EMP Ultimate Architecture v1.1 - Security Policy Configuration
+# RBAC, Network Policies, and Security Contexts
+
+---
+# Service Account for EMP application
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: emp-service-account
+  namespace: emp-system
+  labels:
+    app: emp
+    component: app
+
+---
+# Cluster Role for EMP application
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: emp-cluster-role
+  labels:
+    app: emp
+rules:
+# Pod and service monitoring
+- apiGroups: [""]
+  resources: ["pods", "services", "endpoints"]
+  verbs: ["get", "list", "watch"]
+# Metrics access
+- apiGroups: [""]
+  resources: ["nodes", "nodes/proxy"]
+  verbs: ["get", "list", "watch"]
+# ConfigMap and Secret access
+- apiGroups: [""]
+  resources: ["configmaps", "secrets"]
+  verbs: ["get", "list", "watch"]
+# Namespace access
+- apiGroups: [""]
+  resources: ["namespaces"]
+  verbs: ["get", "list", "watch"]
+
+---
+# Cluster Role Binding
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: emp-cluster-role-binding
+  labels:
+    app: emp
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: emp-cluster-role
+subjects:
+- kind: ServiceAccount
+  name: emp-service-account
+  namespace: emp-system
+
+---
+# Network Policy for EMP application
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: emp-network-policy
+  namespace: emp-system
+  labels:
+    app: emp
+spec:
+  podSelector:
+    matchLabels:
+      app: emp
+      component: app
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  # Allow health checks
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: kube-system
+    ports:
+    - protocol: TCP
+      port: 8000
+  # Allow metrics scraping
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: monitoring
+    ports:
+    - protocol: TCP
+      port: 9090
+  # Allow internal communication
+  - from:
+    - podSelector:
+        matchLabels:
+          app: emp
+    ports:
+    - protocol: TCP
+      port: 8000
+  egress:
+  # Allow DNS resolution
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          name: kube-system
+    ports:
+    - protocol: UDP
+      port: 53
+  # Allow Redis access
+  - to:
+    - podSelector:
+        matchLabels:
+          app: emp-redis
+    ports:
+    - protocol: TCP
+      port: 6379
+  # Allow PostgreSQL access
+  - to:
+    - podSelector:
+        matchLabels:
+          app: emp-postgres
+    ports:
+    - protocol: TCP
+      port: 5432
+  # Allow NATS access
+  - to:
+    - podSelector:
+        matchLabels:
+          app: emp-nats
+    ports:
+    - protocol: TCP
+      port: 4222
+  # Allow external API access (restricted)
+  - to:
+    - ipBlock:
+        cidr: 0.0.0.0/0
+    ports:
+    - protocol: TCP
+      port: 443
+    - protocol: TCP
+      port: 80
+
+---
+# Pod Security Policy
+apiVersion: policy/v1beta1
+kind: PodSecurityPolicy
+metadata:
+  name: emp-psp
+  labels:
+    app: emp
+spec:
+  privileged: false
+  allowPrivilegeEscalation: false
+  requiredDropCapabilities:
+  - ALL
+  volumes:
+  - 'configMap'
+  - 'emptyDir'
+  - 'projected'
+  - 'secret'
+  - 'downwardAPI'
+  - 'persistentVolumeClaim'
+  hostNetwork: false
+  hostIPC: false
+  hostPID: false
+  runAsUser:
+    rule: 'MustRunAsNonRoot'
+  seLinux:
+    rule: 'RunAsAny'
+  supplementalGroups:
+    rule: 'MustRunAs'
+    ranges:
+    - min: 1
+      max: 65535
+  fsGroup:
+    rule: 'MustRunAs'
+    ranges:
+    - min: 1
+      max: 65535
+  readOnlyRootFilesystem: true
+
+---
+# Security Context for EMP pods
+apiVersion: v1
+kind: Pod
+metadata:
+  name: emp-pod-template
+  namespace: emp-system
+spec:
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    runAsGroup: 1000
+    fsGroup: 1000
+    seccompProfile:
+      type: RuntimeDefault
+    capabilities:
+      drop:
+      - ALL
+  containers:
+  - name: emp-app
+    securityContext:
+      allowPrivilegeEscalation: false
+      readOnlyRootFilesystem: true
+      runAsNonRoot: true
+      runAsUser: 1000
+      capabilities:
+        drop:
+        - ALL
+
+---
+# Vault configuration for secrets management
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vault-config
+  namespace: emp-system
+data:
+  vault.hcl: |
+    storage "file" {
+      path = "/vault/file"
+    }
+    
+    listener "tcp" {
+      address     = "0.0.0.0:8200"
+      tls_disable = 1
+    }
+    
+    api_addr = "http://0.0.0.0:8200"
+    cluster_addr = "https://0.0.0.0:8201"
+    
+    ui = true
+    
+    seal "shamir" {
+    }
+
+---
+# Vault service account
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: vault-service-account
+  namespace: emp-system
+  labels:
+    app: vault
+
+---
+# Vault cluster role
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: vault-cluster-role
+  labels:
+    app: vault
+rules:
+- apiGroups: [""]
+  resources: ["secrets"]
+  verbs: ["*"]
+- apiGroups: [""]
+  resources: ["configmaps"]
+  verbs: ["*"]
+
+---
+# Vault cluster role binding
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: vault-cluster-role-binding
+  labels:
+    app: vault
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: vault-cluster-role
+subjects:
+- kind: ServiceAccount
+  name: vault-service-account
+  namespace: emp-system
+
+---
+# Security audit policy
+apiVersion: audit.k8s.io/v1
+kind: Policy
+metadata:
+  name: emp-audit-policy
+rules:
+# Log pod changes at RequestResponse level
+- level: RequestResponse
+  resources:
+  - group: ""
+    resources: ["pods"]
+# Log deployment changes at RequestResponse level
+- level: RequestResponse
+  resources:
+  - group: "apps"
+    resources: ["deployments"]
+# Log service changes at RequestResponse level
+- level: RequestResponse
+  resources:
+  - group: ""
+    resources: ["services"]
+# Log all other resources at Metadata level
+- level: Metadata
+  resources:
+  - group: ""
+    resources: ["*"]
+# Log authentication at RequestResponse level
+- level: RequestResponse
+  users: ["system:serviceaccount:emp-system:emp-service-account"]
+# Log all other users at Metadata level
+- level: Metadata
+  users: ["*"] 

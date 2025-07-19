@@ -1,97 +1,23 @@
 """
-EMP Sensory Cortex v2.2 - Main Package
+EMP Sensory Layer v1.1
 
-The sensory cortex is the analytical brain of the EMP system, processing market data
-through multiple dimensional engines to understand market behavior.
+The Sensory Layer is responsible for raw market perception and signal processing.
+It acts as the "eyes and ears" of the system, processing raw market data into
+perceived signals that can be consumed by the Thinking Layer.
 
-Author: EMP Development Team
-Date: July 18, 2024
-Phase: 2 - Sensory Cortex Refactoring
+Architecture:
+- organs/: Specialized sensory organs for different data types
+- integration/: Sensory cortex for cross-modal integration
+- calibration/: Calibration and validation of sensory inputs
+- models/: Data models for perception
 """
 
-# Core imports
-from .core.base import (
-    MarketData,
-    DimensionalReading,
-    MarketRegime,
-    ConfidenceLevel,
-    EventTier,
-    SessionType,
-    InstrumentMeta,
-    EconomicEvent,
-    OrderBookSnapshot,
-    SystemHealth
-)
+from .organs import *
+from .integration import *
+from .calibration import *
+from .models import *
 
-# Import the new refactored engines
-from .dimensions.how import HowEngine
-from .dimensions.what import WhatEngine
-from .dimensions.when import WhenEngine
-from .dimensions.why import WhyEngine
-from .dimensions.anomaly import AnomalyEngine
-
-# Import legacy compatibility classes for backward compatibility
-from .dimensions.compatibility import (
-    InstitutionalMechanicsEngine,
-    TechnicalRealityEngine,
-    ChronalIntelligenceEngine,
-    EnhancedFundamentalIntelligenceEngine,
-    AnomalyIntelligenceEngine,
-    MarketRegimeDetector,
-    AdvancedPatternRecognition,
-    TemporalAnalyzer,
-    PatternRecognitionDetector,
-    PatternType,
-    AnomalyType
-)
-
-# Orchestration imports
-try:
-    from .orchestration.master_orchestrator import MasterOrchestrator
-    from .orchestration.enhanced_intelligence_engine import ContextualFusionEngine
-except ImportError:
-    # Orchestration modules might not be fully implemented yet
-    MasterOrchestrator = None
-    ContextualFusionEngine = None
-
-__version__ = "2.2.0"
-__author__ = "EMP Development Team"
-
-__all__ = [
-    # Core classes
-    'MarketData',
-    'DimensionalReading', 
-    'MarketRegime',
-    'ConfidenceLevel',
-    'EventTier',
-    'SessionType',
-    'InstrumentMeta',
-    'EconomicEvent',
-    'OrderBookSnapshot',
-    'SystemHealth',
-    
-    # New refactored engines
-    'HowEngine',
-    'WhatEngine',
-    'WhenEngine', 
-    'WhyEngine',
-    'AnomalyEngine',
-    
-    # Legacy compatibility classes
-    'InstitutionalMechanicsEngine',
-    'TechnicalRealityEngine',
-    'ChronalIntelligenceEngine',
-    'EnhancedFundamentalIntelligenceEngine',
-    'AnomalyIntelligenceEngine',
-    'MarketRegimeDetector',
-    'AdvancedPatternRecognition',
-    'TemporalAnalyzer',
-    'PatternRecognitionDetector',
-    'PatternType',
-    'AnomalyType',
-    
-    # Orchestration (if available)
-    'MasterOrchestrator',
-    'ContextualFusionEngine'
-]
+__version__ = "1.1.0"
+__author__ = "EMP System"
+__description__ = "Sensory Layer - Market Perception and Signal Processing"
 

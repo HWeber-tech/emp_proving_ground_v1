@@ -1,0 +1,75 @@
+# EMP Fitness Definition - Default v1
+# This configuration defines the fitness criteria for strategy evolution
+
+fitness_definition:
+  name: "default_v1"
+  version: "1.1.0"
+  description: "Balanced fitness function for general market conditions"
+  
+  # Primary fitness components
+  components:
+    returns:
+      weight: 0.25
+      metrics:
+        - total_return
+        - annualized_return
+        - sharpe_ratio
+        - sortino_ratio
+        - calmar_ratio
+    
+    risk:
+      weight: 0.25
+      metrics:
+        - max_drawdown
+        - var_95
+        - cvar_95
+        - volatility
+        - downside_deviation
+    
+    consistency:
+      weight: 0.20
+      metrics:
+        - win_rate
+        - profit_factor
+        - average_win
+        - average_loss
+        - consecutive_wins
+        - consecutive_losses
+    
+    efficiency:
+      weight: 0.15
+      metrics:
+        - recovery_time
+        - underwater_periods
+        - trade_frequency
+        - holding_period
+    
+    robustness:
+      weight: 0.15
+      metrics:
+        - regime_adaptability
+        - stress_test_performance
+        - correlation_stability
+        - parameter_sensitivity
+  
+  # Thresholds for minimum acceptable performance
+  thresholds:
+    min_sharpe_ratio: 0.5
+    max_drawdown_limit: 0.20
+    min_win_rate: 0.40
+    min_profit_factor: 1.2
+    max_volatility: 0.30
+  
+  # Penalties for violations
+  penalties:
+    drawdown_violation: 0.5
+    volatility_violation: 0.3
+    win_rate_violation: 0.2
+    profit_factor_violation: 0.4
+  
+  # Bonuses for exceptional performance
+  bonuses:
+    high_sharpe: 0.1
+    low_drawdown: 0.1
+    high_consistency: 0.1
+    regime_adaptability: 0.1 

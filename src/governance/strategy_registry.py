@@ -1,349 +1,322 @@
 """
-EMP Strategy Registry v1.1
+EMP Strategy Registry v1.1 - SQLite Implementation
 
-Manages strategy lifecycle and champion genomes for the governance layer
-in the EMP Ultimate Architecture v1.1.
+Persistent strategy registry using SQLite for champion genome storage.
+Implements GOV-02 ticket requirements for database-backed strategy management.
 """
 
+import sqlite3
 import json
 import logging
 from typing import Dict, List, Optional, Any
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
-from dataclasses import dataclass, asdict
-from enum import Enum
-
-from ..core.events import FitnessReport, GovernanceDecision
 
 logger = logging.getLogger(__name__)
 
 
-class StrategyStatus(Enum):
-    """Strategy lifecycle status."""
-    REGISTERED = "registered"
-    APPROVED = "approved"
-    ACTIVE = "active"
-    SUSPENDED = "suspended"
-    DEPRECATED = "deprecated"
-    ARCHIVED = "archived"
-
-
-class ApprovalLevel(Enum):
-    """Approval levels for strategies."""
-    AUTO = "auto"
-    LOW_RISK = "low_risk"
-    MEDIUM_RISK = "medium_risk"
-    HIGH_RISK = "high_risk"
-    CRITICAL = "critical"
-
-
-@dataclass
-class StrategyRecord:
-    """Record for a registered strategy."""
-    strategy_id: str
-    genome_id: str
-    name: str
-    description: str
-    created_at: datetime
-    status: StrategyStatus
-    approval_level: ApprovalLevel
-    fitness_score: float
-    performance_metrics: Dict[str, Any]
-    risk_metrics: Dict[str, Any]
-    metadata: Dict[str, Any]
-    approved_by: Optional[str] = None
-    approved_at: Optional[datetime] = None
-    last_updated: Optional[datetime] = None
-    
-    def to_dict(self) -> Dict[str, Any]:
-        """Convert to dictionary for JSON serialization."""
-        data = asdict(self)
-        data['created_at'] = self.created_at.isoformat()
-        if self.approved_at:
-            data['approved_at'] = self.approved_at.isoformat()
-        if self.last_updated:
-            data['last_updated'] = self.last_updated.isoformat()
-        data['status'] = self.status.value
-        data['approval_level'] = self.approval_level.value
-        return data
-    
-    @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'StrategyRecord':
-        """Create from dictionary."""
-        data['created_at'] = datetime.fromisoformat(data['created_at'])
-        if data.get('approved_at'):
-            data['approved_at'] = datetime.fromisoformat(data['approved_at'])
-        if data.get('last_updated'):
-            data['last_updated'] = datetime.fromisoformat(data['last_updated'])
-        data['status'] = StrategyStatus(data['status'])
-        data['approval_level'] = ApprovalLevel(data['approval_level'])
-        return cls(**data)
-
-
 class StrategyRegistry:
-    """Registry for managing trading strategies."""
+    """Persistent strategy registry using SQLite database."""
     
-    def __init__(self, registry_file: str = "data/strategy_registry.json"):
-        self.registry_file = Path(registry_file)
-        self.registry_file.parent.mkdir(parents=True, exist_ok=True)
-        self.strategies: Dict[str, StrategyRecord] = {}
-        self.champion_strategies: List[str] = []
-        self.max_champions: int = 10
+    def __init__(self, db_path: str = "governance.db"):
+        self.db_path = Path(db_path)
+        self.conn = sqlite3.connect(self.db_path)
+        self.conn.row_factory = sqlite3.Row
+        self._initialize_database()
         
-        logger.info(f"Strategy Registry initialized with file: {registry_file}")
-        self._load_registry()
-        
-    def _load_registry(self):
-        """Load registry from file."""
+    def _initialize_database(self):
+        """Initialize SQLite database with required schema."""
         try:
-            if self.registry_file.exists():
-                with open(self.registry_file, 'r') as f:
-                    data = json.load(f)
-                    
-                # Load strategies
-                for strategy_data in data.get('strategies', []):
-                    strategy = StrategyRecord.from_dict(strategy_data)
-                    self.strategies[strategy.strategy_id] = strategy
-                    
-                # Load champion list
-                self.champion_strategies = data.get('champions', [])
-                
-                logger.info(f"Loaded {len(self.strategies)} strategies from registry")
-            else:
-                logger.info("No existing registry file found, starting fresh")
-                
-        except Exception as e:
-            logger.error(f"Error loading registry: {e}")
+            cursor = self.conn.cursor()
             
-    def _save_registry(self):
-        """Save registry to file."""
-        try:
-            data = {
-                'strategies': [strategy.to_dict() for strategy in self.strategies.values()],
-                'champions': self.champion_strategies,
-                'last_updated': datetime.now().isoformat()
-            }
+            # Create strategies table if it doesn't exist
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS strategies (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    genome_id TEXT UNIQUE NOT NULL,
+                    created_at TIMESTAMP NOT NULL,
+                    dna TEXT NOT NULL,
+                    fitness_report TEXT NOT NULL,
+                    status TEXT NOT NULL DEFAULT 'evolved',
+                    strategy_name TEXT,
+                    generation INTEGER,
+                    fitness_score REAL,
+                    max_drawdown REAL,
+                    sharpe_ratio REAL,
+                    total_return REAL,
+                    volatility REAL
+                )
+            ''')
             
-            with open(self.registry_file, 'w') as f:
-                json.dump(data, f, indent=2)
-                
-            logger.debug("Registry saved to file")
+            # Create indexes for performance
+            cursor.execute('''
+                CREATE INDEX IF NOT EXISTS idx_genome_id ON strategies(genome_id)
+            ''')
+            cursor.execute('''
+                CREATE INDEX IF NOT EXISTS idx_status ON strategies(status)
+            ''')
+            cursor.execute('''
+                CREATE INDEX IF NOT EXISTS idx_fitness_score ON strategies(fitness_score DESC)
+            ''')
+            
+            self.conn.commit()
+            logger.info(f"Strategy Registry initialized with database: {self.db_path}")
             
         except Exception as e:
-            logger.error(f"Error saving registry: {e}")
+            logger.error(f"Error initializing database: {e}")
+            raise
             
-    def register_strategy(self, strategy_id: str, genome_id: str, name: str, 
-                         description: str, fitness_score: float,
-                         performance_metrics: Dict[str, Any],
-                         risk_metrics: Dict[str, Any],
-                         metadata: Optional[Dict[str, Any]] = None) -> bool:
-        """Register a new strategy."""
+    def register_champion(self, genome, fitness_report: Dict[str, Any]) -> bool:
+        """
+        Register a champion genome with its fitness report.
+        
+        Args:
+            genome: The evolved genome object
+            fitness_report: Dictionary containing fitness metrics
+            
+        Returns:
+            bool: True if registration successful, False otherwise
+        """
         try:
-            if strategy_id in self.strategies:
-                logger.warning(f"Strategy {strategy_id} already registered")
-                return False
-                
-            # Determine approval level based on risk metrics
-            approval_level = self._determine_approval_level(risk_metrics)
+            cursor = self.conn.cursor()
             
-            strategy = StrategyRecord(
-                strategy_id=strategy_id,
-                genome_id=genome_id,
-                name=name,
-                description=description,
-                created_at=datetime.now(),
-                status=StrategyStatus.REGISTERED,
-                approval_level=approval_level,
-                fitness_score=fitness_score,
-                performance_metrics=performance_metrics,
-                risk_metrics=risk_metrics,
-                metadata=metadata or {}
+            # Serialize genome DNA (decision tree) to JSON
+            dna_json = json.dumps(genome.decision_tree if hasattr(genome, 'decision_tree') else str(genome))
+            
+            # Serialize fitness report to JSON
+            report_json = json.dumps(fitness_report)
+            
+            # Extract key metrics for quick querying
+            strategy_name = getattr(genome, 'name', f"genome_{genome.id if hasattr(genome, 'id') else 'unknown'}")
+            generation = getattr(genome, 'generation', 0)
+            fitness_score = fitness_report.get('fitness_score', 0.0)
+            max_drawdown = fitness_report.get('max_drawdown', 0.0)
+            sharpe_ratio = fitness_report.get('sharpe_ratio', 0.0)
+            total_return = fitness_report.get('total_return', 0.0)
+            volatility = fitness_report.get('volatility', 0.0)
+            
+            cursor.execute('''
+                INSERT OR REPLACE INTO strategies 
+                (genome_id, created_at, dna, fitness_report, status, strategy_name, 
+                 generation, fitness_score, max_drawdown, sharpe_ratio, total_return, volatility)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (
+                genome.id if hasattr(genome, 'id') else str(genome),
+                datetime.now(),
+                dna_json,
+                report_json,
+                'evolved',
+                strategy_name,
+                generation,
+                fitness_score,
+                max_drawdown,
+                sharpe_ratio,
+                total_return,
+                volatility
+            ))
+            
+            self.conn.commit()
+            logger.info(f"Registered champion genome: {genome.id if hasattr(genome, 'id') else str(genome)}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error registering champion: {e}")
+            self.conn.rollback()
+            return False
+            
+    def get_strategy(self, strategy_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Retrieve a strategy by its ID.
+        
+        Args:
+            strategy_id: The genome_id of the strategy
+            
+        Returns:
+            Dictionary with strategy data or None if not found
+        """
+        try:
+            cursor = self.conn.cursor()
+            cursor.execute(
+                'SELECT * FROM strategies WHERE genome_id = ?', (strategy_id,)
+            )
+            row = cursor.fetchone()
+            
+            if row:
+                return {
+                    'id': row['id'],
+                    'genome_id': row['genome_id'],
+                    'created_at': row['created_at'],
+                    'dna': json.loads(row['dna']),
+                    'fitness_report': json.loads(row['fitness_report']),
+                    'status': row['status'],
+                    'strategy_name': row['strategy_name'],
+                    'generation': row['generation'],
+                    'fitness_score': row['fitness_score'],
+                    'max_drawdown': row['max_drawdown'],
+                    'sharpe_ratio': row['sharpe_ratio'],
+                    'total_return': row['total_return'],
+                    'volatility': row['volatility']
+                }
+            return None
+            
+        except Exception as e:
+            logger.error(f"Error retrieving strategy: {e}")
+            return None
+            
+    def update_strategy_status(self, strategy_id: str, new_status: str) -> bool:
+        """
+        Update the status of a strategy.
+        
+        Args:
+            strategy_id: The genome_id of the strategy
+            new_status: New status value
+            
+        Returns:
+            bool: True if update successful, False otherwise
+        """
+        try:
+            cursor = self.conn.cursor()
+            cursor.execute(
+                'UPDATE strategies SET status = ? WHERE genome_id = ?',
+                (new_status, strategy_id)
             )
             
-            self.strategies[strategy_id] = strategy
-            self._save_registry()
-            
-            logger.info(f"Registered strategy: {strategy_id} ({name})")
-            return True
-            
-        except Exception as e:
-            logger.error(f"Error registering strategy: {e}")
-            return False
-            
-    def approve_strategy(self, strategy_id: str, approver: str, 
-                        auto_approve: bool = False) -> bool:
-        """Approve a strategy."""
-        try:
-            if strategy_id not in self.strategies:
-                logger.error(f"Strategy {strategy_id} not found")
-                return False
-                
-            strategy = self.strategies[strategy_id]
-            
-            if strategy.status != StrategyStatus.REGISTERED:
-                logger.warning(f"Strategy {strategy_id} is not in REGISTERED status")
-                return False
-                
-            # Check if auto-approval is allowed
-            if not auto_approve and strategy.approval_level in [ApprovalLevel.HIGH_RISK, ApprovalLevel.CRITICAL]:
-                logger.info(f"Strategy {strategy_id} requires manual approval")
-                return False
-                
-            strategy.status = StrategyStatus.APPROVED
-            strategy.approved_by = approver
-            strategy.approved_at = datetime.now()
-            strategy.last_updated = datetime.now()
-            
-            self._save_registry()
-            
-            logger.info(f"Approved strategy: {strategy_id} by {approver}")
-            return True
-            
-        except Exception as e:
-            logger.error(f"Error approving strategy: {e}")
-            return False
-            
-    def activate_strategy(self, strategy_id: str) -> bool:
-        """Activate an approved strategy."""
-        try:
-            if strategy_id not in self.strategies:
-                logger.error(f"Strategy {strategy_id} not found")
-                return False
-                
-            strategy = self.strategies[strategy_id]
-            
-            if strategy.status != StrategyStatus.APPROVED:
-                logger.warning(f"Strategy {strategy_id} is not in APPROVED status")
-                return False
-                
-            strategy.status = StrategyStatus.ACTIVE
-            strategy.last_updated = datetime.now()
-            
-            self._save_registry()
-            
-            logger.info(f"Activated strategy: {strategy_id}")
-            return True
-            
-        except Exception as e:
-            logger.error(f"Error activating strategy: {e}")
-            return False
-            
-    def suspend_strategy(self, strategy_id: str, reason: str = "") -> bool:
-        """Suspend an active strategy."""
-        try:
-            if strategy_id not in self.strategies:
-                logger.error(f"Strategy {strategy_id} not found")
-                return False
-                
-            strategy = self.strategies[strategy_id]
-            
-            if strategy.status != StrategyStatus.ACTIVE:
-                logger.warning(f"Strategy {strategy_id} is not in ACTIVE status")
-                return False
-                
-            strategy.status = StrategyStatus.SUSPENDED
-            strategy.last_updated = datetime.now()
-            strategy.metadata['suspension_reason'] = reason
-            
-            self._save_registry()
-            
-            logger.info(f"Suspended strategy: {strategy_id} - {reason}")
-            return True
-            
-        except Exception as e:
-            logger.error(f"Error suspending strategy: {e}")
-            return False
-            
-    def update_champion_strategies(self, fitness_reports: List[FitnessReport]) -> bool:
-        """Update champion strategies based on fitness reports."""
-        try:
-            # Create temporary list of strategies with fitness scores
-            strategy_scores = []
-            
-            for report in fitness_reports:
-                if report.strategy_id in self.strategies:
-                    strategy_scores.append((report.strategy_id, report.fitness_score))
-                    
-            # Sort by fitness score (descending)
-            strategy_scores.sort(key=lambda x: x[1], reverse=True)
-            
-            # Update champion list
-            new_champions = [strategy_id for strategy_id, _ in strategy_scores[:self.max_champions]]
-            
-            if new_champions != self.champion_strategies:
-                self.champion_strategies = new_champions
-                self._save_registry()
-                logger.info(f"Updated champion strategies: {new_champions}")
-                
-            return True
-            
-        except Exception as e:
-            logger.error(f"Error updating champion strategies: {e}")
-            return False
-            
-    def get_strategy(self, strategy_id: str) -> Optional[StrategyRecord]:
-        """Get a strategy by ID."""
-        return self.strategies.get(strategy_id)
-        
-    def get_strategies_by_status(self, status: StrategyStatus) -> List[StrategyRecord]:
-        """Get all strategies with a specific status."""
-        return [s for s in self.strategies.values() if s.status == status]
-        
-    def get_active_strategies(self) -> List[StrategyRecord]:
-        """Get all active strategies."""
-        return self.get_strategies_by_status(StrategyStatus.ACTIVE)
-        
-    def get_champion_strategies(self) -> List[StrategyRecord]:
-        """Get champion strategies."""
-        return [self.strategies[sid] for sid in self.champion_strategies if sid in self.strategies]
-        
-    def get_strategies_needing_approval(self) -> List[StrategyRecord]:
-        """Get strategies that need manual approval."""
-        return [s for s in self.strategies.values() 
-                if s.status == StrategyStatus.REGISTERED 
-                and s.approval_level in [ApprovalLevel.HIGH_RISK, ApprovalLevel.CRITICAL]]
-        
-    def _determine_approval_level(self, risk_metrics: Dict[str, Any]) -> ApprovalLevel:
-        """Determine approval level based on risk metrics."""
-        try:
-            max_dd = risk_metrics.get('max_drawdown', 0)
-            var_95 = abs(risk_metrics.get('var_95', 0))
-            volatility = risk_metrics.get('volatility', 0)
-            
-            # Critical risk
-            if max_dd > 0.25 or var_95 > 0.15 or volatility > 0.40:
-                return ApprovalLevel.CRITICAL
-                
-            # High risk
-            elif max_dd > 0.15 or var_95 > 0.10 or volatility > 0.30:
-                return ApprovalLevel.HIGH_RISK
-                
-            # Medium risk
-            elif max_dd > 0.10 or var_95 > 0.05 or volatility > 0.20:
-                return ApprovalLevel.MEDIUM_RISK
-                
-            # Low risk
-            elif max_dd > 0.05 or var_95 > 0.02 or volatility > 0.10:
-                return ApprovalLevel.LOW_RISK
-                
-            # Auto approval
+            if cursor.rowcount > 0:
+                self.conn.commit()
+                logger.info(f"Updated strategy {strategy_id} status to {new_status}")
+                return True
             else:
-                return ApprovalLevel.AUTO
+                logger.warning(f"Strategy {strategy_id} not found")
+                return False
                 
         except Exception as e:
-            logger.error(f"Error determining approval level: {e}")
-            return ApprovalLevel.MEDIUM_RISK
+            logger.error(f"Error updating strategy status: {e}")
+            self.conn.rollback()
+            return False
+            
+    def get_champion_strategies(self, limit: int = 10) -> List[Dict[str, Any]]:
+        """
+        Get the top performing strategies.
+        
+        Args:
+            limit: Maximum number of strategies to return
+            
+        Returns:
+            List of strategy dictionaries
+        """
+        try:
+            cursor = self.conn.cursor()
+            cursor.execute('''
+                SELECT * FROM strategies 
+                WHERE status IN ('evolved', 'approved', 'active')
+                ORDER BY fitness_score DESC
+                LIMIT ?
+            ''', (limit,))
+            
+            strategies = []
+            for row in cursor.fetchall():
+                strategies.append({
+                    'id': row['id'],
+                    'genome_id': row['genome_id'],
+                    'created_at': row['created_at'],
+                    'dna': json.loads(row['dna']),
+                    'fitness_report': json.loads(row['fitness_report']),
+                    'status': row['status'],
+                    'strategy_name': row['strategy_name'],
+                    'generation': row['generation'],
+                    'fitness_score': row['fitness_score'],
+                    'max_drawdown': row['max_drawdown'],
+                    'sharpe_ratio': row['sharpe_ratio'],
+                    'total_return': row['total_return'],
+                    'volatility': row['volatility']
+                })
+                
+            return strategies
+            
+        except Exception as e:
+            logger.error(f"Error retrieving champion strategies: {e}")
+            return []
+            
+    def get_strategies_by_status(self, status: str) -> List[Dict[str, Any]]:
+        """
+        Get all strategies with a specific status.
+        
+        Args:
+            status: Status value to filter by
+            
+        Returns:
+            List of strategy dictionaries
+        """
+        try:
+            cursor = self.conn.cursor()
+            cursor.execute(
+                'SELECT * FROM strategies WHERE status = ?', (status,)
+            )
+            
+            strategies = []
+            for row in cursor.fetchall():
+                strategies.append({
+                    'id': row['id'],
+                    'genome_id': row['genome_id'],
+                    'created_at': row['created_at'],
+                    'dna': json.loads(row['dna']),
+                    'fitness_report': json.loads(row['fitness_report']),
+                    'status': row['status'],
+                    'strategy_name': row['strategy_name'],
+                    'generation': row['generation'],
+                    'fitness_score': row['fitness_score']
+                })
+                
+            return strategies
+            
+        except Exception as e:
+            logger.error(f"Error retrieving strategies by status: {e}")
+            return []
             
     def get_registry_summary(self) -> Dict[str, Any]:
-        """Get registry summary statistics."""
-        status_counts = {}
-        for status in StrategyStatus:
-            status_counts[status.value] = len(self.get_strategies_by_status(status))
+        """
+        Get summary statistics of the registry.
+        
+        Returns:
+            Dictionary with registry statistics
+        """
+        try:
+            cursor = self.conn.cursor()
+            cursor.execute('''
+                SELECT 
+                    COUNT(*) as total_strategies,
+                    COUNT(CASE WHEN status = 'evolved' THEN 1 END) as evolved_count,
+                    COUNT(CASE WHEN status = 'approved' THEN 1 END) as approved_count,
+                    COUNT(CASE WHEN status = 'active' THEN 1 END) as active_count,
+                    AVG(fitness_score) as avg_fitness_score,
+                    MAX(fitness_score) as max_fitness_score,
+                    MIN(fitness_score) as min_fitness_score
+                FROM strategies
+            ''')
             
-        return {
-            'total_strategies': len(self.strategies),
-            'champion_strategies': len(self.champion_strategies),
-            'status_counts': status_counts,
-            'pending_approval': len(self.get_strategies_needing_approval()),
-            'active_strategies': len(self.get_active_strategies())
-        } 
+            row = cursor.fetchone()
+            
+            return {
+                'total_strategies': row['total_strategies'],
+                'evolved_count': row['evolved_count'],
+                'approved_count': row['approved_count'],
+                'active_count': row['active_count'],
+                'avg_fitness_score': row['avg_fitness_score'] or 0.0,
+                'max_fitness_score': row['max_fitness_score'] or 0.0,
+                'min_fitness_score': row['min_fitness_score'] or 0.0,
+                'database_path': str(self.db_path)
+            }
+            
+        except Exception as e:
+            logger.error(f"Error getting registry summary: {e}")
+            return {'error': str(e)}
+            
+    def close(self):
+        """Close database connection."""
+        if self.conn:
+            self.conn.close()
+            logger.info("Strategy Registry database connection closed")
+            
+    def __del__(self):
+        """Cleanup database connection on destruction."""
+        self.close()

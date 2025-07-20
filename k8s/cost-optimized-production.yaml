@@ -1,0 +1,245 @@
+# Cost-Optimized Production Infrastructure
+# EMP Proving Ground - Phase 2 Budget-Friendly Deployment
+
+---
+# EKS Cluster Configuration (Cost-Optimized)
+apiVersion: eksctl.io/v1alpha5
+kind: ClusterConfig
+
+metadata:
+  name: emp-production-cost-optimized
+  region: us-east-1
+  version: "1.28"
+
+nodeGroups:
+  # Single mixed-use node group with spot instances
+  - name: mixed-nodes
+    instanceType: t3.medium  # Reduced from t3.large/c5.2xlarge
+    desiredCapacity: 2       # Reduced from 5-10 nodes
+    minSize: 1
+    maxSize: 4               # Reduced max scaling
+    volumeSize: 30           # Reduced from 50-100GB
+    labels:
+      nodegroup-type: mixed
+    spot: true               # 60-90% cost savings
+    spotAllocationStrategy: capacity-optimized
+
+managedNodeGroups:
+  - name: managed-small
+    instanceType: t3.small   # For system workloads
+    desiredCapacity: 1
+    minSize: 1
+    maxSize: 2
+    volumeSize: 20
+
+---
+# RDS Configuration (Single-AZ, Smaller Instance)
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: rds-cost-config
+  namespace: emp-system
+data:
+  db-config.yaml: |
+    database:
+      engine: postgres
+      engineVersion: "15.4"
+      instanceClass: db.t3.micro  # Reduced from db.r5.xlarge
+      allocatedStorage: 20        # Reduced from 100GB
+      multiAZ: false              # 50% cost reduction
+      backupRetentionPeriod: 1    # Reduced from 7 days
+      storageEncrypted: true
+
+---
+# ElastiCache Redis Configuration (Single Node)
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: redis-cost-config
+  namespace: emp-system
+data:
+  redis-config.yaml: |
+    redis:
+      engine: redis
+      engineVersion: "7.0"
+      nodeType: cache.t3.micro    # Reduced from cache.r6g.large
+      numCacheNodes: 1            # Single node vs 3-node cluster
+      automaticFailover: false    # Cost savings
+      atRestEncryptionEnabled: true
+
+---
+# Cost-Optimized Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: emp-core-cost-optimized
+  namespace: emp-system
+spec:
+  replicas: 2                    # Reduced from 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: emp-core-cost-optimized
+  template:
+    metadata:
+      labels:
+        app: emp-core-cost-optimized
+    spec:
+      containers:
+      - name: emp-core
+        image: emp/emp-core:v2.0.0
+        resources:
+          requests:
+            cpu: 100m            # Reduced from 500m
+            memory: 256Mi        # Reduced from 1Gi
+          limits:
+            cpu: 500m            # Reduced from 2
+            memory: 1Gi          # Reduced from 4Gi
+
+---
+# Horizontal Pod Autoscaler (Conservative)
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: emp-core-hpa-cost
+  namespace: emp-system
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: emp-core-cost-optimized
+  minReplicas: 1                 # Reduced from 3
+  maxReplicas: 5                 # Reduced from 20
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 80   # Higher threshold
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 85
+
+---
+# Alternative: Single EC2 Instance Setup
+# For development/testing - 90% cost reduction
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: single-instance-setup
+  namespace: emp-system
+data:
+  setup.sh: |
+    #!/bin/bash
+    # Single t3.small instance with Docker Compose
+    # Total monthly cost: ~$15-25
+    
+    # Install Docker
+    curl -fsSL https://get.docker.com -o get-docker.sh
+    sh get-docker.sh
+    
+    # Install Docker Compose
+    curl -L "https://github.com/docker/compose/releases/download/v2.20.0/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+    chmod +x /usr/local/bin/docker-compose
+    
+    # Run services
+    docker-compose up -d
+
+---
+# Docker Compose for Single Instance
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: docker-compose-yaml
+  namespace: emp-system
+data:
+  docker-compose.yml: |
+    version: '3.8'
+    services:
+      emp-core:
+        image: emp/emp-core:v2.0.0
+        ports:
+          - "8080:8080"
+        environment:
+          - DATABASE_URL=postgresql://emp:password@postgres:5432/emp
+          - REDIS_URL=redis://redis:6379
+        depends_on:
+          - postgres
+          - redis
+      
+      postgres:
+        image: postgres:15-alpine
+        environment:
+          POSTGRES_DB: emp
+          POSTGRES_USER: emp
+          POSTGRES_PASSWORD: password
+        volumes:
+          - postgres_data:/var/lib/postgresql/data
+      
+      redis:
+        image: redis:7-alpine
+        command: redis-server --appendonly yes
+        volumes:
+          - redis_data:/data
+      
+      prometheus:
+        image: prom/prometheus:latest
+        ports:
+          - "9090:9090"
+        volumes:
+          - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      
+      grafana:
+        image: grafana/grafana:latest
+        ports:
+          - "3000:3000"
+        environment:
+          - GF_SECURITY_ADMIN_PASSWORD=admin
+    
+    volumes:
+      postgres_data:
+      redis_data:
+
+---
+# Cost Comparison Summary
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cost-comparison
+  namespace: emp-system
+data:
+  costs.yaml: |
+    # Monthly Cost Estimates (AWS US-East-1)
+    
+    # Original Production Setup:
+    # - EKS Cluster: ~$500-1000
+    # - RDS Multi-AZ: ~$200-500  
+    # - Redis Cluster: ~$100-300
+    # - Load Balancer: ~$20-50
+    # - Data Transfer: ~$50-200
+    # Total: ~$950-2200/month
+    
+    # Cost-Optimized Setup:
+    # - Single t3.small EC2: ~$15-25
+    # - RDS t3.micro: ~$15-20
+    # - Redis t3.micro: ~$10-15
+    # - Single ALB: ~$20-30
+    # Total: ~$60-90/month
+    
+    # Scaling Path:
+    # 1. Start with single instance ($60-90/month)
+    # 2. Scale to 2-3 instances ($150-300/month)
+    # 3. Full production when profitable ($950+/month)
+    
+    # Spot Instance Savings:
+    # - t3.medium spot: ~70% savings vs on-demand
+    # - c5.large spot: ~60-80% savings
+    # - Use spot for non-critical workloads

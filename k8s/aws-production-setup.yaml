@@ -1,0 +1,400 @@
+# AWS Production Deployment Configuration
+# EMP Phase 2 Production Infrastructure
+# Kubernetes manifests for AWS EKS deployment
+
+---
+# Namespace
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: emp-production
+  labels:
+    name: emp-production
+    environment: production
+    phase: phase2
+
+---
+# ConfigMap for application configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: emp-config
+  namespace: emp-production
+data:
+  # Database configuration
+  DB_HOST: "emp-rds.cluster-xyz.us-east-1.rds.amazonaws.com"
+  DB_PORT: "5432"
+  DB_NAME: "emp_production"
+  DB_SSL_MODE: "require"
+  
+  # Redis configuration
+  REDIS_HOST: "emp-redis.abc123.cache.amazonaws.com"
+  REDIS_PORT: "6379"
+  REDIS_DB: "0"
+  
+  # Application settings
+  LOG_LEVEL: "INFO"
+  ENVIRONMENT: "production"
+  PHASE: "2"
+  
+  # Monitoring
+  PROMETHEUS_ENDPOINT: "http://prometheus:9090"
+  GRAFANA_ENDPOINT: "http://grafana:3000"
+  
+  # AWS specific
+  AWS_REGION: "us-east-1"
+  S3_BUCKET: "emp-production-data"
+  CLOUDWATCH_GROUP: "/aws/eks/emp/production"
+
+---
+# Secret for sensitive configuration
+apiVersion: v1
+kind: Secret
+metadata:
+  name: emp-secrets
+  namespace: emp-production
+type: Opaque
+data:
+  # Base64 encoded secrets
+  DB_PASSWORD: <base64-encoded-password>
+  REDIS_PASSWORD: <base64-encoded-password>
+  JWT_SECRET: <base64-encoded-secret>
+  API_KEY: <base64-encoded-api-key>
+
+---
+# Service Account for AWS IAM roles
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: emp-service-account
+  namespace: emp-production
+  annotations:
+    eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/emp-production-role
+
+---
+# Persistent Volume Claim for data storage
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: emp-data-pvc
+  namespace: emp-production
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 100Gi
+  storageClassName: gp3
+
+---
+# Deployment for EMP Core Service
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: emp-core
+  namespace: emp-production
+  labels:
+    app: emp-core
+    component: core
+    phase: phase2
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: emp-core
+  template:
+    metadata:
+      labels:
+        app: emp-core
+        component: core
+        phase: phase2
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: emp-service-account
+      containers:
+      - name: emp-core
+        image: emp:phase2-latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8080
+          name: http
+          protocol: TCP
+        - containerPort: 8081
+          name: metrics
+          protocol: TCP
+        env:
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: NODE_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+        envFrom:
+        - configMapRef:
+            name: emp-config
+        - secretRef:
+            name: emp-secrets
+        resources:
+          requests:
+            memory: "2Gi"
+            cpu: "1000m"
+          limits:
+            memory: "4Gi"
+            cpu: "2000m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+        volumeMounts:
+        - name: data-volume
+          mountPath: /app/data
+        - name: config-volume
+          mountPath: /app/config
+          readOnly: true
+      volumes:
+      - name: data-volume
+        persistentVolumeClaim:
+          claimName: emp-data-pvc
+      - name: config-volume
+        configMap:
+          name: emp-config
+      nodeSelector:
+        node.kubernetes.io/instance-type: m5.large
+      tolerations:
+      - key: "dedicated"
+        operator: "Equal"
+        value: "emp"
+        effect: "NoSchedule"
+
+---
+# Horizontal Pod Autoscaler
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: emp-core-hpa
+  namespace: emp-production
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: emp-core
+  minReplicas: 3
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+      - type: Percent
+        value: 50
+        periodSeconds: 60
+    scaleUp:
+      stabilizationWindowSeconds: 60
+      policies:
+      - type: Percent
+        value: 100
+        periodSeconds: 30
+
+---
+# Service for EMP Core
+apiVersion: v1
+kind: Service
+metadata:
+  name: emp-core-service
+  namespace: emp-production
+  labels:
+    app: emp-core
+spec:
+  type: ClusterIP
+  ports:
+  - port: 80
+    targetPort: 8080
+    protocol: TCP
+    name: http
+  - port: 8081
+    targetPort: 8081
+    protocol: TCP
+    name: metrics
+  selector:
+    app: emp-core
+
+---
+# Ingress for external access
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: emp-ingress
+  namespace: emp-production
+  annotations:
+    kubernetes.io/ingress.class: alb
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:us-east-1:123456789012:certificate/12345678-1234-1234-1234-123456789012
+    alb.ingress.kubernetes.io/ssl-policy: ELBSecurityPolicy-TLS-1-2-2017-01
+    alb.ingress.kubernetes.io/healthcheck-path: /health
+    alb.ingress.kubernetes.io/healthcheck-interval-seconds: '30'
+    alb.ingress.kubernetes.io/healthcheck-timeout-seconds: '5'
+    alb.ingress.kubernetes.io/healthy-threshold-count: '2'
+    alb.ingress.kubernetes.io/unhealthy-threshold-count: '3'
+spec:
+  rules:
+  - host: emp.production.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: emp-core-service
+            port:
+              number: 80
+
+---
+# Pod Disruption Budget
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: emp-core-pdb
+  namespace: emp-production
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: emp-core
+
+---
+# Network Policy for security
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: emp-network-policy
+  namespace: emp-production
+spec:
+  podSelector:
+    matchLabels:
+      app: emp-core
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: emp-production
+    - podSelector:
+        matchLabels:
+          app: emp-core
+    ports:
+    - protocol: TCP
+      port: 8080
+  egress:
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          name: emp-production
+    ports:
+    - protocol: TCP
+      port: 5432  # PostgreSQL
+    - protocol: TCP
+      port: 6379  # Redis
+    - protocol: TCP
+      port: 80    # HTTP
+    - protocol: TCP
+      port: 443   # HTTPS
+
+---
+# ServiceMonitor for Prometheus
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: emp-core-monitor
+  namespace: emp-production
+  labels:
+    app: emp-core
+spec:
+  selector:
+    matchLabels:
+      app: emp-core
+  endpoints:
+  - port: metrics
+    interval: 30s
+    path: /metrics
+    honorLabels: true
+
+---
+# Resource Quotas
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: emp-production-quota
+  namespace: emp-production
+spec:
+  hard:
+    requests.cpu: "10"
+    requests.memory: 20Gi
+    limits.cpu: "20"
+    limits.memory: 40Gi
+    persistentvolumeclaims: "5"
+    services: "10"
+    secrets: "10"
+    configmaps: "10"
+
+---
+# Limit Ranges
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: emp-limit-range
+  namespace: emp-production
+spec:
+  limits:
+  - default:
+      cpu: "2000m"
+      memory: "4Gi"
+    defaultRequest:
+      cpu: "1000m"
+      memory: "2Gi"
+    type: Container
+  - max:
+      storage: "100Gi"
+    min:
+      storage: "1Gi"
+    type: PersistentVolumeClaim

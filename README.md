@@ -1,4 +1,4 @@
-# 🐺 Evolving Market Predator (EMP) v1.0
+#  Evolving Market Predator (EMP) v1.0
 
 **An Autonomous Hunter-Killer Algorithm for Financial Markets**
 
@@ -7,13 +7,13 @@
 ![Python](https://img.shields.io/badge/python-3.10+-blue.svg)
 ![Architecture](https://img.shields.io/badge/architecture-v1.1-clean-blue.svg)
 
-## 🎯 What is the Evolving Market Predator?
+##  What is the Evolving Market Predator?
 
 The EMP is **not** a trading bot—it's a **digital alpha predator**. Operating on Darwinian evolution principles, it uses a powerful Genetic Programming engine to breed apex trading strategies that hunt for alpha in the chaos of modern markets.
 
 Within its **Simulation Envelope**—a digital jungle where only the fittest survive—primitive strategies compete, mutate, crossbreed, and adapt over hundreds of generations. The weakest are culled. The strongest become the next generation of hunters.
 
-## 🧬 The Predator's Anatomy (Architecture v1.1)
+##  The Predator's Anatomy (Architecture v1.1)
 
 The system is built on a strict 8-layer modular architecture designed for evolutionary adaptability:
 
@@ -24,18 +24,18 @@ The system is built on a strict 8-layer modular architecture designed for evolut
 └───────────────────────────────┬─────────────────────────────────────────┘
                                 │ Defines "Good" & Audits
 ┌───────────────────────────────┴─────────────────────────────────────────┐
-│                    8. OPERATIONAL BACKBONE                               │
-│              (Metabolism & Nervous System)                               │
-│  ┌──────────────┐  ┌──────────────┐  ┌────────────────┐                │
-│  │ StateStore   │──│ EventBus     │──│ Container      │                │
-│  │ (Redis)      │  │ (NATS)       │  │ Orchestrator   │                │
-│  └──────────────┘  └──────────────┘  └────────────────┘                │
+│                    8. OPERATIONAL BACKBONE                              │
+│              (Metabolism & Nervous System)                              │
+│  ┌──────────────┐  ┌──────────────┐  ┌────────────────┐                 │
+│  │ StateStore   │──│ EventBus     │──│ Container      │                 │
+│  │ (Redis)      │  │ (NATS)       │  │ Orchestrator   │                 │
+│  └──────────────┘  └──────────────┘  └────────────────┘                 │
 └───────────────────────────────┬─────────────────────────────────────────┘
                                 │
-┌───────────────────────────────┴─────────────────────────────────────────┐
-│  1. SENSORY LAYER          │  2. THINKING LAYER      │  6. TRADING LAYER │
-│  "What is the scent?"      │  "Prey or danger?"      │  "How to strike?" │
-└──────────────┬─────────────┴──────────────┬──────────┴──────────────┬────┘
+┌───────────────────────────────┴───────────────────────────────────────────┐
+│  1. SENSORY LAYER          │  2. THINKING LAYER      │  6. TRADING LAYER  │
+│  "What is the scent?"      │  "Prey or danger?"      │  "How to strike?"  │
+└──────────────┬─────────────┴─────────────┬───────────┴──────────────┬─────┘
                │                           │                          │
                └───────────────────────────┼──────────────────────────┘
                                            │
@@ -63,7 +63,7 @@ The system is built on a strict 8-layer modular architecture designed for evolut
 | **7. Governance Layer** | "What are the genetic rules of engagement?" |
 | **8. Operational Backbone** | "What is the predator's metabolism?" |
 
-## 🏹 The Anatomy of a Hunt
+##  The Anatomy of a Hunt
 
 The predator's actions follow a high-speed, asynchronous cycle:
 
@@ -74,7 +74,7 @@ The predator's actions follow a high-speed, asynchronous cycle:
 5. **The Strike**: TradingManager executes via CTraderBrokerInterface
 6. **Confirmation & Learning**: ExecutionEvent updates state → Learning occurs
 
-## 🛠️ Technology Stack
+##  Technology Stack
 
 | Category | Technologies |
 |----------|--------------|
@@ -85,7 +85,7 @@ The predator's actions follow a high-speed, asynchronous cycle:
 | **CLI** | Typer |
 | **Quality** | Ruff, MyPy, pytest |
 
-## 🚀 Quick Start
+##  Quick Start
 
 ### Prerequisites
 - Python 3.10+
@@ -133,9 +133,9 @@ python -m src.cli.main run simulation --strategy-id <ID>
 python -m src.cli.main run live
 ```
 
-## 📊 Project Status
+##  Project Status
 
-### ✅ v1.0 - Apex Specimen Complete
+###  v1.0 - Apex Specimen Complete
 - [x] v1.1 Architecture fully realized
 - [x] Event-driven core with NATS
 - [x] High-fidelity Simulation Envelope
@@ -145,20 +145,20 @@ python -m src.cli.main run live
 - [x] Real-time monitoring via WebSocket
 - [x] IC Markets cTrader Demo API integration
 
-### 🎯 v1.1 - Production Hardening (Next)
+###  v1.1 - Production Hardening (Next)
 - [ ] Token refreshing (OPS-04)
 - [ ] Dynamic symbol mapping (SENSORY-04)
 - [ ] Structured logging (OPS-05)
 - [ ] Advanced fitness functions (GOV-04)
 - [ ] Handler's Dashboard (UI-03)
 
-### 🔮 v2.0 - Cognitive Enhancement (Future)
+###  v2.0 - Cognitive Enhancement (Future)
 - [ ] Real-time web dashboard
 - [ ] Sensory expansion (order book, sentiment)
 - [ ] Active instinct with PatternMemory
 - [ ] Meta-evolution capabilities
 
-## 🎮 CLI Commands
+##  CLI Commands
 
 The predator CLI is your main control interface:
 
@@ -183,7 +183,7 @@ predator monitor dashboard
 predator monitor logs --tail 100
 ```
 
-## 🔧 Configuration
+##  Configuration
 
 ### Environment Variables
 ```bash
@@ -205,7 +205,7 @@ NATS_URL=nats://localhost:4222
 - `config/governance/strategy_registry.yaml`: Strategy governance
 - `config/fitness/default_v1.yaml`: Fitness function parameters
 
-## 🧪 Testing
+##  Testing
 
 ```bash
 # Run all tests
@@ -220,7 +220,7 @@ pytest tests/end_to_end/
 pytest --cov=src tests/
 ```
 
-## 📈 Monitoring
+##  Monitoring
 
 ### Real-time Dashboard
 Access the WebSocket dashboard at `http://localhost:8000/dashboard`
@@ -230,7 +230,7 @@ Access the WebSocket dashboard at `http://localhost:8000/dashboard`
 - Metrics: `http://localhost:8000/metrics`
 - WebSocket: `ws://localhost:8000/ws`
 
-## 🐳 Docker Deployment
+##  Docker Deployment
 
 ```bash
 # Development
@@ -240,7 +240,7 @@ docker-compose up
 docker-compose -f docker-compose.prod.yml up -d
 ```
 
-## 🤝 Contributing
+##  Contributing
 
 1. Ensure code passes `ruff` and `mypy`
 2. Write tests for new features

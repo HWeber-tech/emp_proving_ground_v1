@@ -1,437 +1,453 @@
-# EMP Ultimate Architecture v1.1 - Production Deployment Guide
+# EMP v1.0 Production Deployment Guide
 
 ## Overview
+This guide provides comprehensive instructions for deploying the Evolving Market Predator (EMP) v1.0 system in a production environment. The system is now production-ready with enhanced stability, monitoring, and operational capabilities.
 
-This guide provides comprehensive instructions for deploying the EMP Ultimate Architecture v1.1 in a production environment. The system is designed for high availability, scalability, and security.
+## System Architecture
 
-## Table of Contents
+### Core Components
+- **Sensory Cortex**: Multi-dimensional market analysis engine
+- **Pattern Memory**: Long-term memory for trading contexts
+- **Chaos Engine**: Adversarial stress testing
+- **Structured Logging**: Comprehensive audit trails
+- **Real-time Dashboard**: Live monitoring interface
+- **Token Manager**: Automated cTrader token refresh
+- **PostgreSQL Integration**: Robust strategy persistence
 
-1. [Prerequisites](#prerequisites)
-2. [Architecture Overview](#architecture-overview)
-3. [Infrastructure Setup](#infrastructure-setup)
-4. [Security Configuration](#security-configuration)
-5. [Deployment Steps](#deployment-steps)
-6. [Monitoring Setup](#monitoring-setup)
-7. [Backup and Recovery](#backup-and-recovery)
-8. [Troubleshooting](#troubleshooting)
-9. [Maintenance](#maintenance)
+### Infrastructure Stack
+- **Backend**: Python 3.9+ with asyncio
+- **Database**: PostgreSQL 14+ with Redis caching
+- **Monitoring**: Prometheus + Grafana
+- **Containerization**: Docker + Docker Compose
+- **Web Interface**: Real-time dashboard with WebSocket support
 
-## Prerequisites
+## Pre-Deployment Checklist
 
-### System Requirements
-
-- **Kubernetes Cluster**: v1.24+ with at least 3 nodes
-- **CPU**: 8+ cores per node
-- **Memory**: 16GB+ RAM per node
-- **Storage**: 100GB+ SSD storage per node
-- **Network**: High-speed network connectivity
-
-### Software Requirements
-
-- **Docker**: 20.10+
-- **kubectl**: v1.24+
-- **Helm**: v3.8+
-- **Prometheus**: v2.40+
-- **Grafana**: v9.0+
-- **Redis**: v7.0+
-- **PostgreSQL**: v15+
-- **NATS**: v2.8+
-
-### Security Requirements
-
-- **SSL/TLS Certificates**: Valid certificates for all external endpoints
-- **Secrets Management**: HashiCorp Vault or equivalent
-- **Network Security**: Firewall rules and network policies
-- **RBAC**: Role-based access control configured
-
-## Architecture Overview
-
-### System Layers
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    PRODUCTION ENVIRONMENT                       │
-├─────────────────────────────────────────────────────────────────┤
-│  Load Balancer (NGINX/Traefik)                                 │
-├─────────────────────────────────────────────────────────────────┤
-│  Ingress Controller (NGINX)                                     │
-├─────────────────────────────────────────────────────────────────┤
-│  EMP Application Layer (3+ replicas)                           │
-├─────────────────────────────────────────────────────────────────┤
-│  Data Layer (Redis, PostgreSQL, NATS)                          │
-├─────────────────────────────────────────────────────────────────┤
-│  Monitoring Layer (Prometheus, Grafana, Jaeger)                │
-├─────────────────────────────────────────────────────────────────┤
-│  Security Layer (Vault, Network Policies)                      │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-### Component Architecture
-
-1. **Sensory Layer**: Market data processing and signal generation
-2. **Thinking Layer**: Analysis, inference, and decision making
-3. **Adaptive Core**: Genetic evolution and strategy optimization
-4. **Trading Layer**: Strategy execution and risk management
-5. **Governance Layer**: Human oversight and compliance
-6. **Operational Backbone**: Infrastructure and state management
-
-## Infrastructure Setup
-
-### 1. Kubernetes Cluster Setup
-
+### 1. Environment Setup
 ```bash
-# Create production namespace
-kubectl create namespace emp-system
+# Verify Python version
+python --version  # Should be 3.9+
 
-# Apply namespace labels
-kubectl label namespace emp-system name=emp-system
-kubectl label namespace emp-system environment=production
+# Install system dependencies
+pip install -r requirements.txt
+
+# Verify Docker installation
+docker --version
+docker-compose --version
 ```
 
-### 2. Storage Setup
+### 2. Configuration Files
+Ensure all configuration files are properly set:
 
+#### `.env` Configuration
 ```bash
-# Create storage classes
-kubectl apply -f k8s/storage-classes.yaml
+# Database
+DATABASE_URL=postgresql://user:password@localhost:5432/emp_prod
+REDIS_URL=redis://localhost:6379/0
 
-# Create persistent volumes
-kubectl apply -f k8s/persistent-volumes.yaml
+# cTrader API
+CTRADER_CLIENT_ID=your_client_id
+CTRADER_CLIENT_SECRET=your_client_secret
+CTRADER_REFRESH_TOKEN=your_refresh_token
+CTRADER_ACCOUNT_ID=your_account_id
+
+# External APIs
+ALPHA_VANTAGE_API_KEY=your_alpha_vantage_key
+FRED_API_KEY=your_fred_key
+NEWS_API_KEY=your_news_api_key
+
+# Security
+JWT_SECRET_KEY=your_jwt_secret_key
+ENCRYPTION_KEY=your_encryption_key
 ```
 
-### 3. Network Setup
+#### `config.yaml` Production Settings
+```yaml
+system:
+  name: "EMP Production"
+  version: "1.0.0"
+  environment: "production"
+  debug: false
 
-```bash
-# Install NGINX Ingress Controller
-helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
-helm install ingress-nginx ingress-nginx/ingress-nginx \
-  --namespace ingress-nginx \
-  --create-namespace \
-  --set controller.replicaCount=3
+trading:
+  max_positions: 10
+  max_daily_loss: 1000.0
+  risk_per_trade: 0.02
+  slippage_tolerance: 0.001
 
-# Install cert-manager for SSL certificates
-helm repo add jetstack https://charts.jetstack.io
-helm install cert-manager jetstack/cert-manager \
-  --namespace cert-manager \
-  --create-namespace \
-  --set installCRDs=true
-```
+data:
+  sources:
+    - yahoo_finance
+    - alpha_vantage
+    - fred
+    - newsapi
+  
+  refresh_interval: 60  # seconds
+  cache_duration: 300   # seconds
 
-## Security Configuration
-
-### 1. Secrets Management
-
-```bash
-# Install HashiCorp Vault
-helm repo add hashicorp https://helm.releases.hashicorp.com
-helm install vault hashicorp/vault \
-  --namespace emp-system \
-  --set server.dev.enabled=true \
-  --set server.dev.devRootToken=emp-dev-token
-
-# Initialize Vault
-kubectl exec -n emp-system vault-0 -- vault operator init
-
-# Unseal Vault
-kubectl exec -n emp-system vault-0 -- vault operator unseal
-```
-
-### 2. Network Policies
-
-```bash
-# Apply network policies
-kubectl apply -f config/security/network-policies.yaml
-
-# Apply RBAC configuration
-kubectl apply -f config/security/rbac.yaml
-```
-
-### 3. Pod Security Policies
-
-```bash
-# Apply pod security policies
-kubectl apply -f config/security/pod-security-policies.yaml
-
-# Apply security contexts
-kubectl apply -f config/security/security-contexts.yaml
+monitoring:
+  health_check_interval: 30
+  metrics_retention_days: 30
+  log_level: "INFO"
 ```
 
 ## Deployment Steps
 
-### 1. Build and Push Docker Images
+### 1. Database Setup
 
+#### PostgreSQL Setup
 ```bash
-# Build production image
-docker build -t emp-system:1.1.0 .
+# Create database
+createdb emp_prod
 
-# Tag for registry
-docker tag emp-system:1.1.0 your-registry.com/emp-system:1.1.0
+# Run migrations
+psql -d emp_prod -f scripts/migrations/001_initial_schema.sql
 
-# Push to registry
-docker push your-registry.com/emp-system:1.1.0
+# Verify connection
+psql -d emp_prod -c "SELECT version();"
 ```
 
-### 2. Deploy Infrastructure Components
-
+#### Redis Setup
 ```bash
-# Deploy Redis
-kubectl apply -f k8s/redis-deployment.yaml
+# Start Redis
+redis-server --daemonize yes
 
-# Deploy PostgreSQL
-kubectl apply -f k8s/postgres-deployment.yaml
-
-# Deploy NATS
-kubectl apply -f k8s/nats-deployment.yaml
+# Test connection
+redis-cli ping  # Should return PONG
 ```
 
-### 3. Deploy Monitoring Stack
+### 2. Docker Deployment
 
+#### Build and Start Services
 ```bash
-# Deploy Prometheus
-kubectl apply -f k8s/prometheus-deployment.yaml
+# Build images
+docker-compose build
 
-# Deploy Grafana
-kubectl apply -f k8s/grafana-deployment.yaml
+# Start services
+docker-compose up -d
 
-# Deploy Jaeger
-kubectl apply -f k8s/jaeger-deployment.yaml
+# Verify services
+docker-compose ps
 ```
 
-### 4. Deploy EMP Application
+#### Docker Compose Configuration
+```yaml
+version: '3.8'
 
-```bash
-# Apply configuration
-kubectl apply -f k8s/emp-configmap.yaml
-kubectl apply -f k8s/emp-secrets.yaml
+services:
+  emp-app:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://emp:emp@postgres:5432/emp_prod
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - postgres
+      - redis
+    volumes:
+      - ./logs:/app/logs
+      - ./data:/app/data
 
-# Deploy application
-kubectl apply -f k8s/emp-deployment.yaml
+  postgres:
+    image: postgres:14
+    environment:
+      POSTGRES_DB: emp_prod
+      POSTGRES_USER: emp
+      POSTGRES_PASSWORD: emp
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
 
-# Deploy services
-kubectl apply -f k8s/emp-services.yaml
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
 
-# Deploy ingress
-kubectl apply -f k8s/emp-ingress.yaml
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./config/prometheus:/etc/prometheus
+      - prometheus_data:/prometheus
+
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - grafana_data:/var/lib/grafana
+
+volumes:
+  postgres_data:
+  redis_data:
+  prometheus_data:
+  grafana_data:
 ```
 
-### 5. Verify Deployment
+### 3. Security Configuration
 
+#### SSL/TLS Setup
 ```bash
-# Check pod status
-kubectl get pods -n emp-system
+# Generate SSL certificates
+openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -days 365 -nodes
 
-# Check services
-kubectl get services -n emp-system
-
-# Check ingress
-kubectl get ingress -n emp-system
-
-# Check logs
-kubectl logs -n emp-system deployment/emp-app
+# Update nginx configuration
+cp config/nginx/production.conf /etc/nginx/sites-available/emp
 ```
 
-## Monitoring Setup
+#### API Security
+```python
+# Rate limiting
+from fastapi import FastAPI, Request
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
 
-### 1. Prometheus Configuration
+limiter = Limiter(key_func=get_remote_address)
+app = FastAPI()
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-```bash
-# Apply Prometheus configuration
-kubectl apply -f config/prometheus/prometheus.yml
-
-# Apply alerting rules
-kubectl apply -f config/prometheus/alerting-rules.yml
+@limiter.limit("100/minute")
+@app.get("/api/trades")
+async def get_trades(request: Request):
+    pass
 ```
 
-### 2. Grafana Dashboards
+### 4. Monitoring Setup
 
-```bash
-# Import dashboards
-kubectl apply -f config/grafana/dashboards/
+#### Prometheus Configuration
+```yaml
+# config/prometheus/prometheus.yml
+global:
+  scrape_interval: 15s
 
-# Configure data sources
-kubectl apply -f config/grafana/datasources/
+scrape_configs:
+  - job_name: 'emp-app'
+    static_configs:
+      - targets: ['emp-app:8000']
+    metrics_path: '/metrics'
+    
+  - job_name: 'postgres'
+    static_configs:
+      - targets: ['postgres:5432']
 ```
 
-### 3. Alerting Configuration
+#### Grafana Dashboards
+Import the provided dashboards:
+- `dashboards/emp-overview.json`
+- `dashboards/trading-metrics.json`
+- `dashboards/system-health.json`
 
+### 5. Health Checks
+
+#### Application Health Check
 ```bash
-# Deploy AlertManager
-kubectl apply -f k8s/alertmanager-deployment.yaml
+# Check application health
+curl http://localhost:8000/health
 
-# Configure alerting rules
-kubectl apply -f config/alerting/alert-rules.yaml
+# Expected response
+{
+  "status": "healthy",
+  "timestamp": "2024-07-20T10:30:00Z",
+  "services": {
+    "database": "ok",
+    "redis": "ok",
+    "broker": "ok"
+  }
+}
 ```
 
-## Backup and Recovery
-
-### 1. Database Backup
-
+#### Database Health Check
 ```bash
-# Create backup script
-cat > backup-postgres.sh << 'EOF'
-#!/bin/bash
-DATE=$(date +%Y%m%d_%H%M%S)
-kubectl exec -n emp-system emp-postgres-0 -- \
-  pg_dump -U emp_user emp_registry > backup_${DATE}.sql
-EOF
-
-# Schedule daily backups
-kubectl apply -f k8s/backup-cronjob.yaml
+# Check database connection
+psql -d emp_prod -c "SELECT COUNT(*) FROM strategies;"
 ```
 
-### 2. Configuration Backup
+## Production Features
 
+### 1. Token Management
+The system now includes automatic cTrader token refresh:
+- Tokens are refreshed 1 hour before expiry
+- Refresh tokens are securely stored in Redis
+- Failed refreshes trigger alerts
+
+### 2. Pattern Memory
+Enhanced memory system for trading contexts:
+- Stores historical trading patterns
+- Provides similarity-based recall
+- Tracks outcomes for learning
+
+### 3. Chaos Testing
+Built-in adversarial testing:
+- Configurable chaos injection
+- Black swan event simulation
+- Network failure testing
+- Memory pressure testing
+
+### 4. Structured Logging
+Comprehensive logging with:
+- Correlation IDs for request tracking
+- Performance metrics
+- Audit trails for trading actions
+- Real-time log streaming
+
+### 5. Real-time Dashboard
+Live monitoring interface:
+- WebSocket-based real-time updates
+- Portfolio status
+- Active trades
+- System health
+- Pattern memory insights
+
+## Operational Procedures
+
+### Daily Operations
 ```bash
-# Backup configurations
-kubectl get configmap -n emp-system -o yaml > config-backup.yaml
-kubectl get secret -n emp-system -o yaml > secrets-backup.yaml
+# Check system health
+./scripts/health_check.sh
+
+# Review logs
+./scripts/review_logs.sh
+
+# Check trading performance
+./scripts/performance_report.sh
 ```
 
-### 3. Disaster Recovery
-
+### Backup Procedures
 ```bash
-# Create recovery script
-cat > disaster-recovery.sh << 'EOF'
-#!/bin/bash
-# Restore from backup
-kubectl apply -f config-backup.yaml
-kubectl apply -f secrets-backup.yaml
+# Database backup
+pg_dump emp_prod > backups/emp_prod_$(date +%Y%m%d).sql
 
-# Restore database
-kubectl exec -i emp-postgres-0 -- psql -U emp_user emp_registry < backup_latest.sql
-EOF
+# Redis backup
+redis-cli BGSAVE
+
+# Configuration backup
+tar -czf backups/config_$(date +%Y%m%d).tar.gz config/
 ```
+
+### Monitoring Alerts
+Set up alerts for:
+- High CPU/memory usage
+- Database connection failures
+- Trading losses exceeding thresholds
+- Token refresh failures
+- Chaos events
 
 ## Troubleshooting
 
 ### Common Issues
 
-1. **Pod Startup Issues**
-   ```bash
-   # Check pod events
-   kubectl describe pod -n emp-system emp-app-xxx
-   
-   # Check logs
-   kubectl logs -n emp-system emp-app-xxx
-   ```
-
-2. **Database Connection Issues**
-   ```bash
-   # Test database connectivity
-   kubectl exec -n emp-system emp-app-xxx -- \
-     python -c "import psycopg2; print('DB OK')"
-   ```
-
-3. **Memory Issues**
-   ```bash
-   # Check resource usage
-   kubectl top pods -n emp-system
-   
-   # Check memory limits
-   kubectl describe pod -n emp-system emp-app-xxx
-   ```
-
-### Debug Commands
-
+#### 1. Database Connection Issues
 ```bash
-# Get system status
-kubectl get all -n emp-system
+# Check PostgreSQL status
+systemctl status postgresql
 
-# Check events
-kubectl get events -n emp-system --sort-by='.lastTimestamp'
+# Check connection
+psql -d emp_prod -c "SELECT 1;"
 
-# Port forward for debugging
-kubectl port-forward -n emp-system svc/emp-app-service 8000:8000
-
-# Access application logs
-kubectl logs -f -n emp-system deployment/emp-app
+# Restart if needed
+sudo systemctl restart postgresql
 ```
 
-## Maintenance
-
-### 1. Regular Maintenance Tasks
-
-- **Daily**: Check system health and performance
-- **Weekly**: Review logs and metrics
-- **Monthly**: Update security patches
-- **Quarterly**: Performance optimization review
-
-### 2. Scaling Operations
-
+#### 2. Redis Connection Issues
 ```bash
-# Scale application
-kubectl scale deployment emp-app -n emp-system --replicas=5
+# Check Redis status
+redis-cli ping
 
-# Scale database
-kubectl scale statefulset emp-postgres -n emp-system --replicas=3
+# Check memory usage
+redis-cli info memory
+
+# Restart if needed
+sudo systemctl restart redis
 ```
 
-### 3. Updates and Upgrades
-
+#### 3. Token Refresh Failures
 ```bash
-# Update application
-kubectl set image deployment/emp-app emp-app=emp-system:1.1.1 -n emp-system
+# Check token status
+curl http://localhost:8000/api/token/status
 
-# Rollback if needed
-kubectl rollout undo deployment/emp-app -n emp-system
+# Manual refresh
+curl -X POST http://localhost:8000/api/token/refresh
 ```
 
-### 4. Health Checks
+### Performance Tuning
 
+#### Database Optimization
+```sql
+-- Create indexes for performance
+CREATE INDEX idx_strategies_created_at ON strategies(created_at);
+CREATE INDEX idx_trades_symbol_timestamp ON trades(symbol, timestamp);
+CREATE INDEX idx_events_type_timestamp ON events(type, timestamp);
+```
+
+#### Redis Optimization
 ```bash
-# Check application health
-curl -f http://emp.example.com/health
-
-# Check metrics endpoint
-curl -f http://emp.example.com/metrics
-
-# Check database connectivity
-kubectl exec -n emp-system emp-app-xxx -- python -c "import psycopg2; print('OK')"
+# Set memory limits
+redis-cli config set maxmemory 1gb
+redis-cli config set maxmemory-policy allkeys-lru
 ```
 
 ## Security Best Practices
 
-1. **Regular Security Audits**
-   - Monthly vulnerability scans
-   - Quarterly penetration testing
-   - Annual security assessments
+### 1. Network Security
+- Use HTTPS for all external communications
+- Implement rate limiting
+- Use VPN for database access
+- Regular security audits
 
-2. **Access Control**
-   - Use RBAC for all access
-   - Implement least privilege principle
-   - Regular access reviews
+### 2. Data Security
+- Encrypt sensitive data at rest
+- Use secure key management
+- Regular security updates
+- Access logging
 
-3. **Network Security**
-   - Use network policies
-   - Implement service mesh
-   - Regular firewall rule reviews
+### 3. API Security
+- Implement OAuth2 authentication
+- Use API keys for external services
+- Regular token rotation
+- Request signing
 
-4. **Secrets Management**
-   - Rotate secrets regularly
-   - Use Vault for all secrets
-   - Audit secret access
+## Scaling Considerations
 
-## Performance Optimization
+### Horizontal Scaling
+- Use load balancers for multiple instances
+- Implement database read replicas
+- Use Redis clustering
+- CDN for static assets
 
-1. **Resource Optimization**
-   - Monitor resource usage
-   - Adjust limits based on usage
-   - Use horizontal pod autoscaling
+### Vertical Scaling
+- Monitor resource usage
+- Optimize database queries
+- Use connection pooling
+- Implement caching strategies
 
-2. **Database Optimization**
-   - Regular index maintenance
-   - Query optimization
-   - Connection pooling
+## Support and Maintenance
 
-3. **Network Optimization**
-   - Use service mesh
-   - Optimize network policies
-   - Monitor network latency
+### Regular Maintenance Tasks
+- Daily: Health checks, log review
+- Weekly: Performance analysis, security updates
+- Monthly: Database optimization, backup verification
+- Quarterly: Security audit, capacity planning
 
-## Support and Documentation
+### Emergency Procedures
+- Incident response plan
+- Rollback procedures
+- Communication protocols
+- Recovery procedures
 
-- **System Documentation**: [docs/README.md](docs/README.md)
-- **API Documentation**: [docs/API.md](docs/API.md)
-- **Troubleshooting Guide**: [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)
-- **Security Guide**: [docs/SECURITY.md](docs/SECURITY.md)
+## Contact Information
+- **Technical Support**: support@emp-trading.com
+- **Emergency Hotline**: +1-800-EMP-HELP
+- **Documentation**: https://docs.emp-trading.com
+- **Status Page**: https://status.emp-trading.com
 
-For additional support, contact the EMP development team. 
+---
+
+**Note**: This deployment guide assumes a production environment with proper security measures. Always test in a staging environment before deploying to production.

@@ -1,242 +1,253 @@
 """
-Pattern Memory - Ticket THINK-02
-Cognitive memory system for pattern recognition
+Enhanced Pattern Memory with Active Recall
+
+Provides long-term memory storage and retrieval for trading contexts,
+enabling the system to recall similar historical situations.
 """
 
-import numpy as np
-import json
+import asyncio
 import logging
-from typing import List, Dict, Any
-from datetime import datetime
-from pathlib import Path
+import numpy as np
+from typing import List, Tuple, Optional, Dict, Any
+from dataclasses import dataclass
+from datetime import datetime, timedelta
+import json
+
+from src.core.events import EventBus
+from src.operational.state_store import StateStore
 
 logger = logging.getLogger(__name__)
 
 
+@dataclass
+class MemoryEntry:
+    """A single memory entry with context and outcome."""
+    timestamp: datetime
+    latent_vector: np.ndarray
+    market_context: Dict[str, Any]
+    trading_outcome: Dict[str, Any]
+    metadata: Dict[str, Any]
+
+
 class PatternMemory:
     """
-    Long-term memory system for market pattern recognition
-    Stores and retrieves market patterns based on latent vectors
+    Long-term memory system for trading patterns.
+    
+    Features:
+    - Stores historical trading contexts
+    - Provides similarity-based recall
+    - Tracks outcomes for pattern learning
+    - Automatic memory management
     """
     
-    def __init__(self, dimension: int = 64, index_path: str = "data/pattern_memory.json"):
-        self.dimension = dimension
-        self.index_path = Path(index_path)
-        self.index_path.parent.mkdir(parents=True, exist_ok=True)
+    def __init__(self, event_bus: EventBus, state_store: StateStore):
+        self.event_bus = event_bus
+        self.state_store = state_store
+        self._memory_key = "emp:pattern_memory"
+        self._max_memory_size = 10000
+        self._similarity_threshold = 0.7
+        self._memory: List[MemoryEntry] = []
         
-        # Storage for patterns
-        self.vectors = []  # Store vectors for retrieval
-        self.metadata = []  # Store associated metadata
+    async def initialize(self) -> None:
+        """Initialize pattern memory from storage."""
+        await self._load_memory()
         
-        # Load existing patterns if available
-        self._load_patterns()
+    async def store_context(
+        self,
+        latent_vector: np.ndarray,
+        market_context: Dict[str, Any],
+        trading_outcome: Dict[str, Any],
+        metadata: Dict[str, Any] = None
+    ) -> None:
+        """Store a new trading context in memory."""
+        entry = MemoryEntry(
+            timestamp=datetime.utcnow(),
+            latent_vector=latent_vector,
+            market_context=market_context,
+            trading_outcome=trading_outcome,
+            metadata=metadata or {}
+        )
         
-        logger.info(f"PatternMemory initialized with dimension {dimension}")
+        self._memory.append(entry)
+        
+        # Keep memory size manageable
+        if len(self._memory) > self._max_memory_size:
+            self._memory = self._memory[-self._max_memory_size:]
+        
+        # Persist to storage
+        await self._save_memory()
+        
+        logger.debug(f"Stored new memory entry, total: {len(self._memory)}")
     
-    def _load_patterns(self) -> None:
-        """Load existing patterns from disk"""
-        try:
-            if self.index_path.exists():
-                with open(self.index_path, 'r') as f:
-                    data = json.load(f)
-                    self.vectors = [np.array(v) for v in data.get('vectors', [])]
-                    self.metadata = data.get('metadata', [])
-                
-                logger.info(f"Loaded pattern memory with {len(self.vectors)} patterns")
-            else:
-                logger.info("No existing pattern memory found, starting fresh")
-        except Exception as e:
-            logger.warning(f"Failed to load pattern memory: {e}")
-            self.vectors = []
-            self.metadata = []
-    
-    def _save_patterns(self) -> None:
-        """Save patterns to disk"""
-        try:
-            data = {
-                'vectors': [v.tolist() for v in self.vectors],
-                'metadata': self.metadata,
-                'last_updated': datetime.now().isoformat()
-            }
-            
-            with open(self.index_path, 'w') as f:
-                json.dump(data, f, indent=2)
-                
-            logger.debug("Pattern memory saved to disk")
-        except Exception as e:
-            logger.error(f"Failed to save pattern memory: {e}")
-    
-    def add_pattern(self, vector: List[float], metadata: Dict[str, Any]) -> None:
+    async def find_similar_contexts(
+        self,
+        query_vector: np.ndarray,
+        max_results: int = 5,
+        time_window: Optional[timedelta] = None
+    ) -> List[Tuple[float, MemoryEntry]]:
         """
-        Add a pattern to memory
+        Find similar historical contexts.
         
         Args:
-            vector: Latent vector representing the pattern
-            metadata: Associated metadata for the pattern
-        """
-        try:
-            # Convert to numpy array
-            vector_np = np.array(vector, dtype=np.float32)
-            
-            # Ensure vector has correct dimension
-            if len(vector_np) != self.dimension:
-                logger.warning(f"Vector dimension mismatch: expected {self.dimension}, got {len(vector_np)}")
-                return
-            
-            # Store vector and metadata
-            self.vectors.append(vector_np)
-            self.metadata.append({
-                'timestamp': datetime.now().isoformat(),
-                **metadata
-            })
-            
-            logger.debug(f"Added pattern to memory. Total patterns: {len(self.vectors)}")
-            
-            # Save periodically (every 100 additions)
-            if len(self.vectors) % 100 == 0:
-                self._save_patterns()
-                
-        except Exception as e:
-            logger.error(f"Error adding pattern to memory: {e}")
-    
-    def find_similar_patterns(self, query_vector: List[float], k: int = 5) -> List[Dict[str, Any]]:
-        """
-        Find k most similar patterns to the query vector
-        
-        Args:
-            query_vector: Vector to search for
-            k: Number of similar patterns to return
+            query_vector: The latent vector to compare against
+            max_results: Maximum number of similar contexts to return
+            time_window: Only consider contexts within this time window
             
         Returns:
-            List of similar patterns with distances and metadata
+            List of (similarity_score, memory_entry) tuples
         """
-        try:
-            if len(self.vectors) == 0:
-                logger.warning("No patterns in memory")
-                return []
-            
-            if len(self.vectors) < k:
-                k = len(self.vectors)
-            
-            # Convert query to numpy array
-            query = np.array(query_vector, dtype=np.float32)
-            
-            # Calculate distances using L2 norm
-            distances = []
-            for i, vec in enumerate(self.vectors):
-                distance = float(np.linalg.norm(query - vec))
-                distances.append((distance, i))
-            
-            # Sort by distance and take top k
-            distances.sort(key=lambda x: x[0])
-            
-            # Build results
-            results = []
-            for distance, idx in distances[:k]:
-                result = {
-                    'distance': distance,
-                    'index': idx,
-                    'metadata': self.metadata[idx],
-                    'vector': self.vectors[idx].tolist()
-                }
-                results.append(result)
-            
-            logger.debug(f"Found {len(results)} similar patterns")
-            return results
-            
-        except Exception as e:
-            logger.error(f"Error finding similar patterns: {e}")
+        if len(self._memory) == 0:
             return []
+        
+        # Filter by time window if provided
+        candidates = self._memory
+        if time_window:
+            cutoff = datetime.utcnow() - time_window
+            candidates = [m for m in self._memory if m.timestamp >= cutoff]
+        
+        if len(candidates) == 0:
+            return []
+        
+        # Calculate similarities
+        similarities = []
+        for entry in candidates:
+            similarity = self._calculate_similarity(query_vector, entry.latent_vector)
+            if similarity >= self._similarity_threshold:
+                similarities.append((similarity, entry))
+        
+        # Sort by similarity (descending) and limit results
+        similarities.sort(key=lambda x: x[0], reverse=True)
+        return similarities[:max_results]
     
-    def get_memory_stats(self) -> Dict[str, Any]:
-        """Get statistics about the pattern memory"""
+    def _calculate_similarity(self, vec1: np.ndarray, vec2: np.ndarray) -> float:
+        """Calculate cosine similarity between two vectors."""
+        if vec1.shape != vec2.shape:
+            return 0.0
+        
+        # Cosine similarity
+        dot_product = np.dot(vec1, vec2)
+        norm1 = np.linalg.norm(vec1)
+        norm2 = np.linalg.norm(vec2)
+        
+        if norm1 == 0 or norm2 == 0:
+            return 0.0
+        
+        return float(dot_product / (norm1 * norm2))
+    
+    async def get_pattern_statistics(self) -> Dict[str, Any]:
+        """Get statistics about stored patterns."""
+        if not self._memory:
+            return {
+                'total_patterns': 0,
+                'time_span': None,
+                'average_outcome': None
+            }
+        
+        # Calculate time span
+        timestamps = [m.timestamp for m in self._memory]
+        time_span = max(timestamps) - min(timestamps)
+        
+        # Calculate average outcome
+        outcomes = [m.trading_outcome.get('pnl', 0) for m in self._memory]
+        avg_outcome = np.mean(outcomes) if outcomes else 0
+        
         return {
-            'total_patterns': len(self.vectors),
-            'dimension': self.dimension,
-            'last_updated': datetime.now().isoformat()
+            'total_patterns': len(self._memory),
+            'time_span': str(time_span),
+            'average_outcome': float(avg_outcome),
+            'recent_patterns': len([m for m in self._memory 
+                                 if m.timestamp > datetime.utcnow() - timedelta(hours=24)])
         }
     
-    def clear_memory(self) -> None:
-        """Clear all patterns from memory"""
+    async def _load_memory(self) -> None:
+        """Load memory from Redis storage."""
         try:
-            self.vectors = []
-            self.metadata = []
-            
-            # Remove saved file
-            if self.index_path.exists():
-                self.index_path.unlink()
+            data = await self.state_store.get(self._memory_key)
+            if data:
+                memory_data = json.loads(data)
+                self._memory = []
                 
-            logger.info("Pattern memory cleared")
+                for entry_data in memory_data:
+                    entry = MemoryEntry(
+                        timestamp=datetime.fromisoformat(entry_data['timestamp']),
+                        latent_vector=np.array(entry_data['latent_vector']),
+                        market_context=entry_data['market_context'],
+                        trading_outcome=entry_data['trading_outcome'],
+                        metadata=entry_data['metadata']
+                    )
+                    self._memory.append(entry)
+                
+                logger.info(f"Loaded {len(self._memory)} memory entries")
+            else:
+                logger.info("No memory data found, starting fresh")
+                
         except Exception as e:
-            logger.error(f"Error clearing pattern memory: {e}")
+            logger.error(f"Failed to load memory: {e}")
+            self._memory = []
     
-    def save_memory(self) -> None:
-        """Explicitly save memory to disk"""
-        self._save_patterns()
+    async def _save_memory(self) -> None:
+        """Save memory to Redis storage."""
+        try:
+            memory_data = []
+            for entry in self._memory:
+                memory_data.append({
+                    'timestamp': entry.timestamp.isoformat(),
+                    'latent_vector': entry.latent_vector.tolist(),
+                    'market_context': entry.market_context,
+                    'trading_outcome': entry.trading_outcome,
+                    'metadata': entry.metadata
+                })
+            
+            await self.state_store.set(
+                self._memory_key,
+                json.dumps(memory_data),
+                expire=86400  # 24 hours
+            )
+            
+        except Exception as e:
+            logger.error(f"Failed to save memory: {e}")
     
-    def get_recent_patterns(self, limit: int = 10) -> List[Dict[str, Any]]:
-        """Get the most recent patterns added to memory"""
-        recent_count = min(limit, len(self.metadata))
-        recent_patterns = []
+    async def clear_memory(self) -> None:
+        """Clear all stored patterns."""
+        self._memory.clear()
+        await self.state_store.delete(self._memory_key)
+        logger.info("Pattern memory cleared")
+    
+    async def get_memory_context(self, query_vector: np.ndarray) -> Optional[Dict[str, Any]]:
+        """
+        Get enriched context with memory matches.
         
-        for i in range(recent_count):
-            idx = len(self.metadata) - recent_count + i
-            if idx >= 0:
-                pattern = {
-                    'metadata': self.metadata[idx],
-                    'vector': self.vectors[idx].tolist()
-                }
-                recent_patterns.append(pattern)
+        Returns:
+            Dictionary with memory context including similar patterns
+        """
+        similar_contexts = await self.find_similar_contexts(query_vector)
         
-        return recent_patterns
+        if not similar_contexts:
+            return None
+        
+        # Extract insights from similar contexts
+        similar_outcomes = [entry.trading_outcome for _, entry in similar_contexts]
+        avg_pnl = np.mean([o.get('pnl', 0) for o in similar_outcomes])
+        win_rate = np.mean([o.get('win', 0) for o in similar_outcomes])
+        
+        return {
+            'similar_patterns': len(similar_contexts),
+            'average_pnl': float(avg_pnl),
+            'win_rate': float(win_rate),
+            'confidence': float(similar_contexts[0][0]) if similar_contexts else 0,
+            'recent_patterns': len([s for _, s in similar_contexts 
+                                 if s.timestamp > datetime.utcnow() - timedelta(hours=24)])
+        }
 
 
-# Example usage and testing
-if __name__ == "__main__":
-    import numpy as np
-    
-    def test_pattern_memory():
-        # Create pattern memory
-        memory = PatternMemory(dimension=4)
-        
-        # Test data
-        test_patterns = [
-            {
-                'vector': [0.1, 0.2, 0.3, 0.4],
-                'metadata': {'symbol': 'EURUSD', 'price': 1.1000, 'volume': 1000}
-            },
-            {
-                'vector': [0.1, 0.2, 0.3, 0.45],
-                'metadata': {'symbol': 'EURUSD', 'price': 1.1005, 'volume': 1100}
-            },
-            {
-                'vector': [0.1, 0.2, 0.3, 0.5],
-                'metadata': {'symbol': 'EURUSD', 'price': 1.1010, 'volume': 1200}
-            }
-        ]
-        
-        # Add patterns to memory
-        for pattern in test_patterns:
-            memory.add_pattern(pattern['vector'], pattern['metadata'])
-        
-        # Test similarity search
-        query_vector = [0.1, 0.2, 0.3, 0.42]
-        similar = memory.find_similar_patterns(query_vector, k=2)
-        
-        print("Memory stats:", memory.get_memory_stats())
-        print("Similar patterns found:", len(similar))
-        for result in similar:
-            print(f"Distance: {result['distance']}, Metadata: {result['metadata']}")
-        
-        # Test recent patterns
-        recent = memory.get_recent_patterns(5)
-        print("Recent patterns:", len(recent))
-        
-        # Save memory
-        memory.save_memory()
-        
-        # Test loading
-        new_memory = PatternMemory(dimension=4)
-        print("Loaded memory stats:", new_memory.get_memory_stats())
-    
-    test_pattern_memory()
+# Global instance
+_pattern_memory: Optional[PatternMemory] = None
+
+
+async def get_pattern_memory(event_bus: EventBus, state_store: StateStore) -> PatternMemory:
+    """Get or create global pattern memory instance."""
+    global _pattern_memory
+    if _pattern_memory is None:
+        _pattern_memory = PatternMemory(event_bus, state_store)
+        await _pattern_memory.initialize()
+    return _pattern_memory

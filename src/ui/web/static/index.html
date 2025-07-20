@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EMP v1.0 - Live Trading Dashboard</title>
+    <link rel="stylesheet" href="dashboard.css">
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+</head>
+<body>
+    <div class="dashboard-container">
+        <!-- Header -->
+        <header class="dashboard-header">
+            <h1>EMP v1.0 - Evolving Market Predator</h1>
+            <div class="status-bar">
+                <span id="connection-status" class="status-indicator">Connecting...</span>
+                <span id="last-update">Never</span>
+            </div>
+        </header>
+
+        <!-- Main Grid -->
+        <main class="dashboard-grid">
+            <!-- Portfolio Overview -->
+            <section class="card portfolio-card">
+                <h2>Portfolio Status</h2>
+                <div class="portfolio-grid">
+                    <div class="metric">
+                        <label>Balance</label>
+                        <span id="balance" class="value">$0.00</span>
+                    </div>
+                    <div class="metric">
+                        <label>Equity</label>
+                        <span id="equity" class="value">$0.00</span>
+                    </div>
+                    <div class="metric">
+                        <label>P&L</label>
+                        <span id="pnl" class="value positive">$0.00</span>
+                    </div>
+                    <div class="metric">
+                        <label>Win Rate</label>
+                        <span id="win-rate" class="value">0%</span>
+                    </div>
+                </div>
+                <div class="timestamp">
+                    Updated: <span id="portfolio-timestamp">Never</span>
+                </div>
+            </section>
+
+            <!-- Market Data -->
+            <section class="card market-card">
+                <h2>Market Data</h2>
+                <div class="market-grid">
+                    <div class="metric">
+                        <label>Symbol</label>
+                        <span id="market-symbol" class="value">EURUSD</span>
+                    </div>
+                    <div class="metric">
+                        <label>Price</label>
+                        <span id="current-price" class="value">1.09500</span>
+                    </div>
+                    <div class="metric">
+                        <label>Spread</label>
+                        <span id="spread" class="value">0.00010</span>
+                    </div>
+                    <div class="metric">
+                        <label>Volume</label>
+                        <span id="volume" class="value">0</span>
+                    </div>
+                    <div class="metric">
+                        <label>Volatility</label>
+                        <span id="volatility" class="value">0.01%</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Active Trades -->
+            <section class="card trades-card">
+                <h2>Active Trades <span id="active-trades" class="badge">0</span></h2>
+                <div class="trades-container">
+                    <table id="trades-table">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Symbol</th>
+                                <th>Type</th>
+                                <th>Volume</th>
+                                <th>Price</th>
+                                <th>P&L</th>
+                                <th>Time</th>
+                            </tr>
+                        </thead>
+                        <tbody id="trades-tbody">
+                            <tr class="no-trades">
+                                <td colspan="7">No active trades</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Trade Log -->
+            <section class="card log-card">
+                <h2>Trade Log <span id="trade-count" class="badge">0</span></h2>
+                <div class="log-container">
+                    <table id="trade-log">
+                        <thead>
+                            <tr>
+                                <th>Time</th>
+                                <th>Action</th>
+                                <th>Symbol</th>
+                                <th>Volume</th>
+                                <th>Price</th>
+                                <th>P&L</th>
+                            </tr>
+                        </thead>
+                        <tbody id="trade-log-tbody">
+                            <tr class="no-trades">
+                                <td colspan="6">No trades yet</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Event Stream -->
+            <section class="card events-card">
+                <h2>Event Stream <span id="event-count" class="badge">0</span></h2>
+                <div class="events-container">
+                    <div id="event-stream" class="event-list">
+                        <div class="loading">Connecting to event stream...</div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- System Health -->
+            <section class="card health-card">
+                <h2>System Health</h2>
+                <div class="health-grid">
+                    <div class="metric">
+                        <label>CPU Usage</label>
+                        <span id="cpu-usage" class="value">0%</span>
+                    </div>
+                    <div class="metric">
+                        <label>Memory</label>
+                        <span id="memory-usage" class="value">0MB</span>
+                    </div>
+                    <div class="metric">
+                        <label>Redis</label>
+                        <span id="redis-status" class="status-ok">OK</span>
+                    </div>
+                    <div class="metric">
+                        <label>Database</label>
+                        <span id="db-status" class="status-ok">OK</span>
+                    </div>
+                </div>
+                <div class="timestamp">
+                    Health check: <span id="health-timestamp">Never</span>
+                </div>
+            </section>
+
+            <!-- Memory Context -->
+            <section class="card memory-card">
+                <h2>Pattern Memory</h2>
+                <div class="memory-info">
+                    <div class="metric">
+                        <label>Similar Patterns</label>
+                        <span id="similar-patterns" class="value">0</span>
+                    </div>
+                    <div class="metric">
+                        <label>Avg P&L</label>
+                        <span id="avg-pnl" class="value">$0.00</span>
+                    </div>
+                    <div class="metric">
+                        <label>Win Rate</label>
+                        <span id="memory-win-rate" class="value">0%</span>
+                    </div>
+                    <div class="metric">
+                        <label>Confidence</label>
+                        <span id="memory-confidence" class="value">0%</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Chaos Testing -->
+            <section class="card chaos-card">
+                <h2>Chaos Testing</h2>
+                <div class="chaos-controls">
+                    <button id="chaos-enable" class="btn btn-warning">Enable Chaos</button>
+                    <button id="chaos-disable" class="btn btn-secondary">Disable Chaos</button>
+                </div>
+                <div class="chaos-status">
+                    <span id="chaos-active" class="status-inactive">Inactive</span>
+                    <span id="chaos-events" class="badge">0</span>
+                </div>
+            </section>
+        </main>
+
+        <!-- Footer -->
+        <footer class="dashboard-footer">
+            <div class="footer-info">
+                <span>EMP v1.0 - Production Ready</span>
+                <span id="system-status">Initializing...</span>
+            </div>
+        </footer>
+    </div>
+
+    <!-- Scripts -->
+    <script src="dashboard.js"></script>
+</body>
+</html>

@@ -4,7 +4,7 @@ Provides centralized configuration for all system components
 """
 
 import os
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from dataclasses import dataclass
 from decimal import Decimal
 
@@ -14,15 +14,17 @@ class SystemConfig:
     """System configuration settings"""
     
     # cTrader Configuration
-    ctrader_host: str = "api.ctrader.com"
-    ctrader_port: int = 443
+    ctrader_demo_host: str = "demo.ctraderapi.com"
+    ctrader_live_host: str = "live.ctraderapi.com"
+    ctrader_port: int = 5035
     ctrader_account_id: int = 0
     ctrader_client_id: str = ""
     ctrader_client_secret: str = ""
     ctrader_access_token: str = ""
+    ctrader_refresh_token: str = ""
     
     # Default symbols for trading
-    default_symbols: List[str] = None
+    default_symbols: Optional[List[str]] = None
     
     # Database settings
     database_url: str = "sqlite:///emp.db"

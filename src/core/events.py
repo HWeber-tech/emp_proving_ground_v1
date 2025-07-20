@@ -56,6 +56,8 @@ class ContextPacket(BaseEvent):
     patterns: Dict[str, Any] = Field(default_factory=dict)
     risk_metrics: Dict[str, Decimal] = Field(default_factory=dict)
     confidence: Decimal
+    latent_vec: List[float] = Field(default_factory=list)  # Vector for pattern memory
+    market_state: Dict[str, Any] = Field(default_factory=dict)
     metadata: Dict[str, Any] = Field(default_factory=dict)
 
 

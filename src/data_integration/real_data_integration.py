@@ -708,4 +708,4 @@ async def test_real_data_integration():
 
 
 if __name__ == "__main__":
-    asyncio.run(test_real_data_integration()) 
+    asyncio.run(test_real_data_integration())

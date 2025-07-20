@@ -14,12 +14,10 @@ from pathlib import Path
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
-from src.core.configuration import load_config, get_config
+from src.core.configuration import load_config
 from src.core.event_bus import event_bus
-from src.sensory.integration.sensory_cortex import SensoryCortex
-from src.sensory.organs.price_organ import PriceOrgan
-from src.thinking.patterns.trend_detector import TrendDetector
-from src.thinking.analysis.risk_analyzer import RiskAnalyzer
+from src.core.models import InstrumentMeta
+from src.data_integration.real_data_integration import RealDataManager
 from src.governance.fitness_store import FitnessStore
 from src.operational.state_store import StateStore
 
@@ -31,9 +29,7 @@ class EMPSystem:
     
     def __init__(self):
         self.config = None
-        self.sensory_cortex = None
-        self.trend_detector = None
-        self.risk_analyzer = None
+        self.data_manager = None
         self.fitness_store = None
         self.state_store = None
         self.running = False
@@ -47,6 +43,16 @@ class EMPSystem:
             self.config = load_config(config_path)
             logger.info(f"Configuration loaded: {self.config.system_name} v{self.config.system_version}")
             
+            # Create instrument metadata
+            instrument_config = InstrumentMeta(
+                symbol="EURUSD",
+                pip_size=0.0001,
+                lot_size=100000,
+                commission=0.0,
+                spread=0.0001
+            )
+            logger.info(f"Instrument metadata created: {instrument_config.symbol}")
+            
             # Initialize operational backbone
             self.state_store = StateStore(self.config.operational.get('redis', {}))
             logger.info("State store initialized")
@@ -55,26 +61,13 @@ class EMPSystem:
             self.fitness_store = FitnessStore()
             logger.info("Fitness store initialized")
             
-            # Initialize sensory layer
-            self.sensory_cortex = SensoryCortex()
-            
-            # Register sensory organs
-            price_organ = PriceOrgan()
-            self.sensory_cortex.register_organ('price', price_organ)
-            logger.info("Sensory organs registered")
-            
-            # Initialize thinking layer
-            self.trend_detector = TrendDetector()
-            self.risk_analyzer = RiskAnalyzer()
-            logger.info("Thinking patterns initialized")
+            # Initialize data manager with config
+            self.data_manager = RealDataManager(self.config.data_sources or {})
+            logger.info("Data manager initialized")
             
             # Start event bus
             await event_bus.start()
             logger.info("Event bus started")
-            
-            # Start sensory cortex
-            await self.sensory_cortex.start()
-            logger.info("Sensory cortex started")
             
             logger.info("EMP system initialization complete")
             
@@ -87,6 +80,13 @@ class EMPSystem:
         try:
             self.running = True
             logger.info("EMP system started")
+            
+            # Test data manager
+            market_data = await self.data_manager.get_market_data("EURUSD=X")
+            if market_data:
+                logger.info(f"Successfully retrieved market data: {market_data}")
+            else:
+                logger.warning("Failed to retrieve market data")
             
             # Main system loop
             while self.running:
@@ -106,17 +106,9 @@ class EMPSystem:
             
             self.running = False
             
-            # Stop sensory cortex
-            if self.sensory_cortex:
-                await self.sensory_cortex.stop()
-                
             # Stop event bus
             await event_bus.stop()
             
-            # Close state store
-            if self.state_store:
-                self.state_store.close()
-                
             logger.info("EMP system shutdown complete")
             
         except Exception as e:
@@ -129,9 +121,8 @@ class EMPSystem:
             'system_version': self.config.system_version if self.config else 'Unknown',
             'environment': self.config.environment if self.config else 'Unknown',
             'running': self.running,
-            'sensory_organs': self.sensory_cortex.get_organ_status() if self.sensory_cortex else {},
+            'data_sources': self.data_manager.get_available_sources() if self.data_manager else [],
             'fitness_definitions': self.fitness_store.list_definitions() if self.fitness_store else [],
-            'state_store_healthy': self.state_store.health_check() if self.state_store else False
         }
 
 

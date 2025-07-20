@@ -6,60 +6,16 @@ ensuring no un-validated trade intent reaches the execution engine.
 """
 
 import logging
+import redis
 from typing import Optional
 from datetime import datetime
 
 from src.core.events import TradeIntent, TradeRejected
 from src.trading.risk.position_sizer import PositionSizer
 from src.trading.risk.risk_gateway import RiskGateway
+from src.trading.monitoring.portfolio_monitor import PortfolioMonitor
 
 logger = logging.getLogger(__name__)
-
-
-class MockPortfolioMonitor:
-    """
-    Mock portfolio monitor for testing risk management integration.
-    
-    Provides basic portfolio state for risk validation.
-    """
-    
-    def __init__(self, initial_equity: float = 10000.0):
-        """
-        Initialize mock portfolio monitor.
-        
-        Args:
-            initial_equity: Starting account equity
-        """
-        self.equity = initial_equity
-        self.open_positions_count = 0
-        self.current_daily_drawdown = 0.0
-        self.pip_value = 0.0001  # Default for most currency pairs
-        
-    def get_state(self) -> dict:
-        """
-        Get current portfolio state for risk validation.
-        
-        Returns:
-            Dictionary with current portfolio metrics
-        """
-        return {
-            "equity": self.equity,
-            "open_positions_count": self.open_positions_count,
-            "current_daily_drawdown": self.current_daily_drawdown,
-            "pip_value": self.pip_value
-        }
-    
-    def update_equity(self, new_equity: float):
-        """Update account equity."""
-        self.equity = new_equity
-        
-    def increment_positions(self):
-        """Increment open positions count."""
-        self.open_positions_count += 1
-        
-    def decrement_positions(self):
-        """Decrement open positions count."""
-        self.open_positions_count = max(0, self.open_positions_count - 1)
 
 
 class TradingManager:
@@ -97,7 +53,7 @@ class TradingManager:
         self.execution_engine = execution_engine
         
         # Initialize risk management components
-        self.portfolio_monitor = MockPortfolioMonitor(initial_equity)
+        self.portfolio_monitor = PortfolioMonitor(event_bus, redis.Redis(host='localhost', port=6379, db=0))
         self.position_sizer = PositionSizer(risk_per_trade)
         self.risk_gateway = RiskGateway(
             strategy_registry=strategy_registry,

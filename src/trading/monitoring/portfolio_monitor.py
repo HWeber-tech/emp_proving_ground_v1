@@ -10,7 +10,8 @@ from typing import Dict, Any, Optional
 from datetime import datetime
 import logging
 
-from src.core.events import EventBus, ExecutionReport
+from src.core.events import ExecutionReport
+from src.core.event_bus import EventBus
 
 logger = logging.getLogger(__name__)
 

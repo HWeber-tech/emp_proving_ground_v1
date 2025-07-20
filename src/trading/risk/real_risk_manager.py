@@ -6,14 +6,14 @@ Replaces the stub with functional risk management using Kelly Criterion
 import asyncio
 import numpy as np
 import logging
-from typing import List, Dict, Optional, Tuple
+from typing import List, Dict, Optional, Tuple, Any
 from dataclasses import dataclass
 from datetime import datetime
 import sqlite3
 import json
 
 from ..models import Position, TradingSignal
-from ..portfolio.portfolio_monitor import PortfolioMonitor
+from ..monitoring.portfolio_monitor import PortfolioMonitor
 from ...config.risk_config import RiskConfig
 
 logger = logging.getLogger(__name__)

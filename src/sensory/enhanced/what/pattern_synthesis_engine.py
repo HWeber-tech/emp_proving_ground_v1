@@ -28,6 +28,17 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass
+class PatternSynthesis:
+    """Unified pattern synthesis result"""
+    fractal_patterns: List[Dict[str, Any]]
+    harmonic_patterns: List[Dict[str, Any]]
+    volume_profile: Dict[str, Any]
+    price_action_dna: Dict[str, Any]
+    pattern_strength: float
+    confidence_score: float
+
+
+@dataclass
 class FractalPattern:
     """Represents a detected fractal pattern"""
     pattern_type: str
@@ -91,20 +102,20 @@ class PatternSynthesisEngine:
         self.dna_synthesizer = PriceActionDNASynthesizer()
         self.validator = PatternValidator()
         
-    async def analyze_patterns(self, market_data: pd.DataFrame) -> Dict[str, Any]:
+    async def synthesize_patterns(self, market_data: pd.DataFrame) -> PatternSynthesis:
         """
-        Comprehensive pattern analysis of market data.
+        Comprehensive pattern synthesis of market data.
         
         Args:
             market_data: OHLCV DataFrame with datetime index
             
         Returns:
-            Dictionary containing all pattern analysis results
+            PatternSynthesis object containing all pattern analysis results
         """
         try:
             if market_data.empty or len(market_data) < 50:
                 logger.warning("Insufficient data for pattern analysis")
-                return self._get_fallback_analysis()
+                return self._get_fallback_synthesis()
             
             # Detect fractal patterns
             fractal_patterns = await self.fractal_detector.detect_fractals(market_data)
@@ -123,22 +134,71 @@ class PatternSynthesisEngine:
                 fractal_patterns, harmonic_patterns, market_data
             )
             
-            return {
-                'timestamp': datetime.now(),
-                'fractal_patterns': fractal_patterns,
-                'harmonic_patterns': harmonic_patterns,
-                'volume_profile': volume_profile,
-                'price_action_dna': price_dna,
-                'pattern_strength': pattern_strength,
-                'confidence': self._calculate_confidence(
-                    fractal_patterns, harmonic_patterns, volume_profile
-                ),
-                'synthesis_quality': self._assess_synthesis_quality(market_data)
-            }
+            # Calculate confidence score
+            confidence_score = self._calculate_confidence(
+                fractal_patterns, harmonic_patterns, volume_profile
+            )
+            
+            return PatternSynthesis(
+                fractal_patterns=[self._fractal_to_dict(f) for f in fractal_patterns],
+                harmonic_patterns=[self._harmonic_to_dict(h) for h in harmonic_patterns],
+                volume_profile=self._volume_to_dict(volume_profile),
+                price_action_dna=self._dna_to_dict(price_dna),
+                pattern_strength=pattern_strength,
+                confidence_score=confidence_score
+            )
             
         except Exception as e:
             logger.error(f"Pattern synthesis failed: {e}")
-            return self._get_fallback_analysis()
+            return self._get_fallback_synthesis()
+    
+    def _fractal_to_dict(self, fractal: FractalPattern) -> Dict[str, Any]:
+        """Convert FractalPattern to dictionary"""
+        return {
+            'pattern_type': fractal.pattern_type,
+            'start_time': fractal.start_time,
+            'end_time': fractal.end_time,
+            'start_price': fractal.start_price,
+            'end_price': fractal.end_price,
+            'retracement_levels': fractal.retracement_levels,
+            'extension_levels': fractal.extension_levels,
+            'confidence': fractal.confidence,
+            'strength': fractal.strength
+        }
+    
+    def _harmonic_to_dict(self, harmonic: HarmonicPattern) -> Dict[str, Any]:
+        """Convert HarmonicPattern to dictionary"""
+        return {
+            'pattern_name': harmonic.pattern_name,
+            'points': harmonic.points,
+            'ratios': harmonic.ratios,
+            'target_price': harmonic.target_price,
+            'stop_loss': harmonic.stop_loss,
+            'confidence': harmonic.confidence,
+            'validity': harmonic.validity
+        }
+    
+    def _volume_to_dict(self, volume: VolumeProfile) -> Dict[str, Any]:
+        """Convert VolumeProfile to dictionary"""
+        return {
+            'value_area_high': volume.value_area_high,
+            'value_area_low': volume.value_area_low,
+            'point_of_control': volume.point_of_control,
+            'high_volume_nodes': volume.high_volume_nodes,
+            'low_volume_nodes': volume.low_volume_nodes,
+            'volume_distribution': volume.volume_distribution
+        }
+    
+    def _dna_to_dict(self, dna: PriceActionDNA) -> Dict[str, Any]:
+        """Convert PriceActionDNA to dictionary"""
+        return {
+            'dna_sequence': dna.dna_sequence,
+            'volatility_signature': dna.volatility_signature,
+            'momentum_signature': dna.momentum_signature,
+            'volume_signature': dna.volume_signature,
+            'pattern_complexity': dna.pattern_complexity,
+            'uniqueness_score': dna.uniqueness_score
+        }
     
     def _calculate_confidence(self, fractals: List, harmonics: List, volume: VolumeProfile) -> float:
         """Calculate overall confidence in pattern analysis"""
@@ -150,33 +210,16 @@ class PatternSynthesisEngine:
         ]
         return min(1.0, np.mean(factors))
     
-    def _assess_synthesis_quality(self, data: pd.DataFrame) -> float:
-        """Assess the quality of pattern synthesis based on data characteristics"""
-        if len(data) < 100:
-            return 0.3
-        
-        # Check for sufficient volatility
-        volatility = data['high'].rolling(20).std().iloc[-1] / data['close'].iloc[-1]
-        volatility_score = min(1.0, volatility * 100)
-        
-        # Check for sufficient volume
-        avg_volume = data['volume'].mean()
-        volume_score = min(1.0, np.log10(avg_volume + 1) / 5.0)
-        
-        return (volatility_score + volume_score) / 2.0
-    
-    def _get_fallback_analysis(self) -> Dict[str, Any]:
-        """Return fallback analysis when pattern detection fails"""
-        return {
-            'timestamp': datetime.now(),
-            'fractal_patterns': [],
-            'harmonic_patterns': [],
-            'volume_profile': None,
-            'price_action_dna': None,
-            'pattern_strength': 0.0,
-            'confidence': 0.1,
-            'synthesis_quality': 0.0
-        }
+    def _get_fallback_synthesis(self) -> PatternSynthesis:
+        """Return fallback synthesis when pattern detection fails"""
+        return PatternSynthesis(
+            fractal_patterns=[],
+            harmonic_patterns=[],
+            volume_profile={},
+            price_action_dna={},
+            pattern_strength=0.0,
+            confidence_score=0.1
+        )
 
 
 class FractalDetector:
@@ -821,4 +864,12 @@ class WhatDimension:
     
     async def analyze(self, market_data: pd.DataFrame) -> Dict[str, Any]:
         """Analyze market data using WHAT dimension"""
-        return await self.engine.analyze_patterns(market_data)
+        result = await self.engine.synthesize_patterns(market_data)
+        return {
+            'fractal_patterns': result.fractal_patterns,
+            'harmonic_patterns': result.harmonic_patterns,
+            'volume_profile': result.volume_profile,
+            'price_action_dna': result.price_action_dna,
+            'pattern_strength': result.pattern_strength,
+            'confidence_score': result.confidence_score
+        }

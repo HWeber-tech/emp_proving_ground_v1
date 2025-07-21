@@ -125,6 +125,137 @@ class TestInstitutionalFootprintHunter:
         assert result.confidence_score == 0.1
 
 
+class TestPatternSynthesisEngine:
+    """Test suite for WHAT dimension - Pattern Synthesis Engine"""
+    
+    @pytest.fixture
+    def pattern_engine(self):
+        return PatternSynthesisEngine()
+    
+    @pytest.fixture
+    def sample_market_data(self):
+        """Create sample market data for testing"""
+        dates = pd.date_range(start='2024-01-01', periods=100, freq='1H')
+        return pd.DataFrame({
+            'open': np.random.randn(100).cumsum() + 100,
+            'high': np.random.randn(100).cumsum() + 101,
+            'low': np.random.randn(100).cumsum() + 99,
+            'close': np.random.randn(100).cumsum() + 100,
+            'volume': np.random.randint(1000, 10000, 100)
+        }, index=dates)
+    
+    @pytest.mark.asyncio
+    async def test_pattern_analysis_basic(self, pattern_engine, sample_market_data):
+        """Test basic pattern synthesis"""
+        result = await pattern_engine.synthesize_patterns(sample_market_data)
+        
+        assert isinstance(result, PatternSynthesis)
+        assert isinstance(result.fractal_patterns, list)
+        assert isinstance(result.harmonic_patterns, list)
+        assert isinstance(result.volume_profile, dict)
+        assert isinstance(result.price_action_dna, dict)
+        assert 0.0 <= result.pattern_strength <= 1.0
+        assert 0.0 <= result.confidence_score <= 1.0
+    
+    @pytest.mark.asyncio
+    async def test_pattern_empty_data(self, pattern_engine):
+        """Test pattern synthesis with empty data"""
+        empty_data = pd.DataFrame()
+        result = await pattern_engine.synthesize_patterns(empty_data)
+        
+        assert len(result.fractal_patterns) == 0
+        assert len(result.harmonic_patterns) == 0
+        assert result.confidence_score == 0.1
+
+
+class TestTemporalAdvantageSystem:
+    """Test suite for WHEN dimension - Temporal Advantage System"""
+    
+    @pytest.fixture
+    def temporal_system(self):
+        return TemporalAdvantageSystem()
+    
+    @pytest.fixture
+    def sample_market_data(self):
+        """Create sample market data for testing"""
+        dates = pd.date_range(start='2024-01-01', periods=100, freq='1H')
+        return pd.DataFrame({
+            'close': np.random.randn(100).cumsum() + 100
+        }, index=dates)
+    
+    @pytest.mark.asyncio
+    async def test_temporal_analysis_basic(self, temporal_system, sample_market_data):
+        """Test basic temporal advantage analysis"""
+        result = await temporal_system.analyze_temporal_advantage(sample_market_data)
+        
+        assert isinstance(result, TemporalAdvantage)
+        assert 0.0 <= result.session_transition_score <= 1.0
+        assert isinstance(result.economic_calendar_impact, dict)
+        assert isinstance(result.microstructure_timing, dict)
+        assert isinstance(result.volatility_regime, str)
+        assert isinstance(result.optimal_entry_window, tuple)
+        assert 0.0 <= result.confidence_score <= 1.0
+
+
+class TestManipulationDetectionSystem:
+    """Test suite for ANOMALY dimension - Manipulation Detection"""
+    
+    @pytest.fixture
+    def detection_system(self):
+        return ManipulationDetectionSystem()
+    
+    @pytest.fixture
+    def sample_market_data(self):
+        """Create sample market data for testing"""
+        dates = pd.date_range(start='2024-01-01', periods=100, freq='1H')
+        return pd.DataFrame({
+            'close': np.random.randn(100).cumsum() + 100,
+            'volume': np.random.randint(1000, 10000, 100)
+        }, index=dates)
+    
+    @pytest.mark.asyncio
+    async def test_detection_basic(self, detection_system, sample_market_data):
+        """Test basic manipulation detection"""
+        result = await detection_system.detect_manipulation(sample_market_data)
+        
+        assert isinstance(result, AnomalyDetection)
+        assert isinstance(result.spoofing_detected, bool)
+        assert 0.0 <= result.wash_trading_score <= 1.0
+        assert 0.0 <= result.pump_dump_probability <= 1.0
+        assert 0.0 <= result.overall_risk_score <= 1.0
+        assert 0.0 <= result.confidence_score <= 1.0
+
+
+class TestChaosAdaptationSystem:
+    """Test suite for CHAOS dimension - Antifragile Adaptation"""
+    
+    @pytest.fixture
+    def chaos_system(self):
+        return ChaosAdaptationSystem()
+    
+    @pytest.fixture
+    def sample_market_data(self):
+        """Create sample market data for testing"""
+        dates = pd.date_range(start='2024-01-01', periods=100, freq='1H')
+        return pd.DataFrame({
+            'close': np.random.randn(100).cumsum() + 100,
+            'volume': np.random.randint(1000, 10000, 100)
+        }, index=dates)
+    
+    @pytest.mark.asyncio
+    async def test_chaos_analysis_basic(self, chaos_system, sample_market_data):
+        """Test basic chaos adaptation analysis"""
+        result = await chaos_system.analyze_chaos_adaptation(sample_market_data)
+        
+        assert isinstance(result, ChaosAdaptation)
+        assert 0.0 <= result.black_swan_probability <= 1.0
+        assert 0.0 <= result.volatility_harvest_opportunity <= 1.0
+        assert 0.0 <= result.crisis_alpha_potential <= 1.0
+        assert isinstance(result.regime_change_detected, bool)
+        assert isinstance(result.adaptation_strategy, str)
+        assert 0.0 <= result.confidence_score <= 1.0
+
+
 class TestSensoryIntegrationOrchestrator:
     """Test suite for unified sensory integration"""
     
@@ -136,15 +267,27 @@ class TestSensoryIntegrationOrchestrator:
     def sample_market_data(self):
         """Create sample market data for integration testing"""
         dates = pd.date_range(start='2024-01-01', periods=100, freq='1H')
-        return {
-            'price_data': pd.DataFrame({
-                'open': np.random.randn(100).cumsum() + 100,
-                'high': np.random.randn(100).cumsum() + 101,
-                'low': np.random.randn(100).cumsum() + 99,
-                'close': np.random.randn(100).cumsum() + 100,
-                'volume': np.random.randint(1000, 10000, 100)
-            }, index=dates)
-        }
+        return pd.DataFrame({
+            'open': np.random.randn(100).cumsum() + 100,
+            'high': np.random.randn(100).cumsum() + 101,
+            'low': np.random.randn(100).cumsum() + 99,
+            'close': np.random.randn(100).cumsum() + 100,
+            'volume': np.random.randint(1000, 10000, 100)
+        }, index=dates)
+    
+    @pytest.mark.asyncio
+    async def test_unified_intelligence_analysis(self, orchestrator, sample_market_data):
+        """Test unified intelligence analysis across all dimensions"""
+        result = await orchestrator.analyze_unified_intelligence(sample_market_data, 'EURUSD')
+        
+        assert isinstance(result, UnifiedMarketIntelligence)
+        assert result.symbol == 'EURUSD'
+        assert isinstance(result.timestamp, datetime)
+        assert 0.0 <= result.overall_confidence <= 1.0
+        assert -1.0 <= result.signal_strength <= 1.0
+        assert 0.0 <= result.risk_assessment <= 1.0
+        assert 0.0 <= result.opportunity_score <= 1.0
+        assert 0.0 <= result.confluence_score <= 1.0
     
     @pytest.mark.asyncio
     async def test_integration_basic(self, orchestrator, sample_market_data):

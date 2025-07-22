@@ -21,7 +21,7 @@ from dataclasses import dataclass, field
 from decimal import Decimal, getcontext, ROUND_HALF_UP
 import asyncio
 
-from src.trading.strategy_manager import StrategyManager, StrategySignal
+from src.trading.strategies.strategy_manager import StrategyManager, StrategySignal
 from src.trading.risk.market_regime_detector import MarketRegimeDetector, MarketRegime, RegimeDetectionResult
 from src.trading.mock_ctrader_interface import MarketData, Position, Order
 

@@ -1,502 +1,534 @@
+#!/usr/bin/env python3
 """
-Adversarial Selection Engine - Stress Testing Strategies
+Adversarial Selector
+===================
 
-Implements 15 stress test scenarios to filter strategies with <70% survival rate.
+This module implements the adversarial selection system with 15 stress test scenarios:
+1. Market crash (-20% drop)
+2. Flash crash (-10% in 5 minutes)
+3. Volatility spike (VIX > 40)
+4. Liquidity crisis (bid-ask spread > 5%)
+5. Regime change (sudden market shift)
+6. Black swan event (-30% overnight)
+7. Currency crisis (10% devaluation)
+8. Interest rate shock (200bp change)
+9. Geopolitical event impact
+10. Economic recession scenario
+11. Inflation spike (5% monthly)
+12. Deflation spiral
+13. Banking sector crisis
+14. Commodity price shock (50% change)
+15. Cyber attack on exchanges
+
+The AdversarialSelector runs strategies against all scenarios and filters those with <70% survival rate.
 """
 
 import logging
 import numpy as np
 import pandas as pd
-from typing import Dict, List, Any, Tuple, Optional
+from typing import Dict, List, Any, Callable
 from dataclasses import dataclass
-from datetime import datetime, timedelta
-import asyncio
-import random
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
 
 @dataclass
 class StressTestResult:
-    """Result of a single stress test scenario."""
+    """Result of a single stress test"""
     scenario_name: str
-    survival_rate: float
+    final_return: float
     max_drawdown: float
-    final_equity: float
-    trades_executed: int
-    win_rate: float
-    sharpe_ratio: float
-    passed: bool
+    volatility: float
+    survived: bool
     details: Dict[str, Any]
 
 
-@dataclass
-class AdversarialSelectionResult:
-    """Result of adversarial selection process."""
-    strategy_id: str
-    overall_survival_rate: float
-    scenario_results: List[StressTestResult]
-    passed_scenarios: int
-    total_scenarios: int
-    final_score: float
-    selected: bool
+class StressTestScenario:
+    """Individual stress test scenario"""
+    
+    def __init__(self, name: str, description: str, impact_function: Callable):
+        self.name = name
+        self.description = description
+        self.impact_function = impact_function
+    
+    def run_test(self, strategy, market_data: pd.DataFrame) -> StressTestResult:
+        """Run the stress test and return results"""
+        return self.impact_function(strategy, market_data)
 
 
 class AdversarialSelector:
-    """
-    Adversarial selection engine that runs strategies through stress tests.
-    
-    Filters strategies with <70% survival rate across 15 scenarios:
-    1. Market crash scenarios
-    2. Flash crash scenarios
-    3. Volatility spike scenarios
-    4. Liquidity crisis scenarios
-    5. Regime change scenarios
-    """
+    """Advanced adversarial selection system with stress testing"""
     
     def __init__(self, config: Dict[str, Any] = None):
-        """Initialize adversarial selector."""
         self.config = config or {}
         self.survival_threshold = self.config.get('survival_threshold', 0.7)
-        self.initial_capital = self.config.get('initial_capital', 10000.0)
-        self.scenarios = self._initialize_scenarios()
+        self.max_loss_threshold = self.config.get('max_loss_threshold', 0.05)
         
-        logger.info(f"AdversarialSelector initialized with {len(self.scenarios)} scenarios")
+        # Initialize all 15 stress test scenarios
+        self.stress_scenarios = self._initialize_stress_scenarios()
+        
+        logger.info(f"AdversarialSelector initialized with {len(self.stress_scenarios)} scenarios")
     
-    def _initialize_scenarios(self) -> List[Dict[str, Any]]:
-        """Initialize 15 stress test scenarios."""
-        return [
-            # Market Crash Scenarios (5)
-            {
-                'name': '2008_Financial_Crisis',
-                'type': 'market_crash',
-                'duration_days': 252,
-                'volatility_multiplier': 3.0,
-                'trend_slope': -0.3,
-                'max_drop': -0.5,
-                'liquidity_factor': 0.7
-            },
-            {
-                'name': 'COVID_Crash_2020',
-                'type': 'market_crash',
-                'duration_days': 30,
-                'volatility_multiplier': 5.0,
-                'trend_slope': -0.4,
-                'max_drop': -0.35,
-                'liquidity_factor': 0.5
-            },
-            {
-                'name': 'Dot_Com_Bubble',
-                'type': 'market_crash',
-                'duration_days': 180,
-                'volatility_multiplier': 2.5,
-                'trend_slope': -0.25,
-                'max_drop': -0.78,
-                'liquidity_factor': 0.8
-            },
-            {
-                'name': 'Black_Monday_1987',
-                'type': 'market_crash',
-                'duration_days': 5,
-                'volatility_multiplier': 8.0,
-                'trend_slope': -0.6,
-                'max_drop': -0.22,
-                'liquidity_factor': 0.3
-            },
-            {
-                'name': 'Asian_Crisis_1997',
-                'type': 'market_crash',
-                'duration_days': 120,
-                'volatility_multiplier': 2.8,
-                'trend_slope': -0.2,
-                'max_drop': -0.4,
-                'liquidity_factor': 0.6
-            },
-            
-            # Flash Crash Scenarios (3)
-            {
-                'name': 'Flash_Crash_2010',
-                'type': 'flash_crash',
-                'duration_days': 1,
-                'volatility_multiplier': 10.0,
-                'trend_slope': -0.8,
-                'max_drop': -0.09,
-                'liquidity_factor': 0.1
-            },
-            {
-                'name': 'Swiss_Franc_2015',
-                'type': 'flash_crash',
-                'duration_days': 1,
-                'volatility_multiplier': 12.0,
-                'trend_slope': -0.7,
-                'max_drop': -0.15,
-                'liquidity_factor': 0.05
-            },
-            {
-                'name': 'GBP_Flash_Crash_2016',
-                'type': 'flash_crash',
-                'duration_days': 1,
-                'volatility_multiplier': 8.0,
-                'trend_slope': -0.6,
-                'max_drop': -0.06,
-                'liquidity_factor': 0.2
-            },
-            
-            # Volatility Spike Scenarios (3)
-            {
-                'name': 'VIX_Spike_2008',
-                'type': 'volatility_spike',
-                'duration_days': 30,
-                'volatility_multiplier': 6.0,
-                'trend_slope': -0.1,
-                'max_drop': -0.15,
-                'liquidity_factor': 0.4
-            },
-            {
-                'name': 'Eurozone_Crisis_2011',
-                'type': 'volatility_spike',
-                'duration_days': 90,
-                'volatility_multiplier': 4.0,
-                'trend_slope': -0.15,
-                'max_drop': -0.25,
-                'liquidity_factor': 0.5
-            },
-            {
-                'name': 'Brexit_Volatility_2016',
-                'type': 'volatility_spike',
-                'duration_days': 7,
-                'volatility_multiplier': 5.0,
-                'trend_slope': -0.2,
-                'max_drop': -0.08,
-                'liquidity_factor': 0.6
-            },
-            
-            # Liquidity Crisis Scenarios (2)
-            {
-                'name': 'Credit_Crunch_2008',
-                'type': 'liquidity_crisis',
-                'duration_days': 60,
-                'volatility_multiplier': 4.0,
-                'trend_slope': -0.25,
-                'max_drop': -0.3,
-                'liquidity_factor': 0.2
-            },
-            {
-                'name': 'Repo_Crisis_2019',
-                'type': 'liquidity_crisis',
-                'duration_days': 14,
-                'volatility_multiplier': 3.5,
-                'trend_slope': -0.15,
-                'max_drop': -0.12,
-                'liquidity_factor': 0.3
-            },
-            
-            # Regime Change Scenarios (2)
-            {
-                'name': 'Fed_Policy_Shift_2013',
-                'type': 'regime_change',
-                'duration_days': 45,
-                'volatility_multiplier': 2.5,
-                'trend_slope': -0.2,
-                'max_drop': -0.1,
-                'liquidity_factor': 0.7
-            },
-            {
-                'name': 'ECB_Policy_Change_2014',
-                'type': 'regime_change',
-                'duration_days': 30,
-                'volatility_multiplier': 2.0,
-                'trend_slope': -0.15,
-                'max_drop': -0.08,
-                'liquidity_factor': 0.8
-            }
+    def _initialize_stress_scenarios(self) -> List[StressTestScenario]:
+        """Initialize all 15 stress test scenarios"""
+        scenarios = [
+            StressTestScenario(
+                "market_crash",
+                "Major market crash with 20% drop",
+                self._simulate_market_crash
+            ),
+            StressTestScenario(
+                "flash_crash",
+                "Flash crash with 10% drop in 5 minutes",
+                self._simulate_flash_crash
+            ),
+            StressTestScenario(
+                "volatility_spike",
+                "Extreme volatility spike (VIX > 40)",
+                self._simulate_volatility_spike
+            ),
+            StressTestScenario(
+                "liquidity_crisis",
+                "Liquidity crisis with bid-ask spread > 5%",
+                self._simulate_liquidity_crisis
+            ),
+            StressTestScenario(
+                "regime_change",
+                "Sudden market regime change",
+                self._simulate_regime_change
+            ),
+            StressTestScenario(
+                "black_swan",
+                "Black swan event with 30% overnight drop",
+                self._simulate_black_swan
+            ),
+            StressTestScenario(
+                "currency_crisis",
+                "Currency crisis with 10% devaluation",
+                self._simulate_currency_crisis
+            ),
+            StressTestScenario(
+                "interest_rate_shock",
+                "Interest rate shock with 200bp change",
+                self._simulate_interest_rate_shock
+            ),
+            StressTestScenario(
+                "geopolitical_event",
+                "Major geopolitical event impact",
+                self._simulate_geopolitical_event
+            ),
+            StressTestScenario(
+                "economic_recession",
+                "Economic recession scenario",
+                self._simulate_economic_recession
+            ),
+            StressTestScenario(
+                "inflation_spike",
+                "Inflation spike with 5% monthly increase",
+                self._simulate_inflation_spike
+            ),
+            StressTestScenario(
+                "deflation_spiral",
+                "Deflation spiral scenario",
+                self._simulate_deflation_spiral
+            ),
+            StressTestScenario(
+                "banking_crisis",
+                "Banking sector crisis",
+                self._simulate_banking_crisis
+            ),
+            StressTestScenario(
+                "commodity_shock",
+                "Commodity price shock with 50% change",
+                self._simulate_commodity_shock
+            ),
+            StressTestScenario(
+                "cyber_attack",
+                "Cyber attack on exchanges",
+                self._simulate_cyber_attack
+            )
         ]
+        
+        return scenarios
     
-    async def select_strategies(self, 
-                              strategies: List[Dict[str, Any]],
-                              market_data: Dict[str, Any]) -> List[AdversarialSelectionResult]:
-        """Run adversarial selection on all strategies."""
-        results = []
+    def select_strategies(self, strategies: List[Any], market_data: pd.DataFrame) -> List[Any]:
+        """Select strategies based on stress test survival rate"""
+        selected_strategies = []
         
         for strategy in strategies:
-            strategy_id = strategy.get('id', 'unknown')
-            strategy_config = strategy.get('config', {})
-            
-            # Run stress tests
-            result = await self._run_stress_tests(strategy_id, strategy_config, market_data)
-            results.append(result)
+            try:
+                stress_results = self._run_stress_tests(strategy, market_data)
+                
+                # Calculate survival rate
+                total_tests = len(stress_results)
+                survived_tests = sum(1 for result in stress_results if result.survived)
+                survival_rate = survived_tests / total_tests if total_tests > 0 else 0
+                
+                # Only select strategies with survival rate >= threshold
+                if survival_rate >= self.survival_threshold:
+                    strategy.survival_rate = survival_rate
+                    strategy.stress_test_results = stress_results
+                    selected_strategies.append(strategy)
+                    logger.info(f"Strategy {strategy.strategy_id} selected - survival rate: {survival_rate:.2f}")
+                else:
+                    logger.info(f"Strategy {strategy.strategy_id} rejected - survival rate: {survival_rate:.2f}")
+                    
+            except Exception as e:
+                logger.error(f"Error testing strategy {getattr(strategy, 'strategy_id', 'unknown')}: {e}")
+                continue
         
-        # Filter strategies with >=70% survival rate
-        selected_strategies = [r for r in results if r.selected]
+        logger.info(f"Selected {len(selected_strategies)} out of {len(strategies)} strategies")
+        return selected_strategies
+    
+    def _run_stress_tests(self, strategy, market_data: pd.DataFrame) -> List[StressTestResult]:
+        """Run all stress tests for a strategy"""
+        results = []
         
-        logger.info(f"Selected {len(selected_strategies)} out of {len(results)} strategies")
+        for scenario in self.stress_scenarios:
+            try:
+                result = scenario.run_test(strategy, market_data)
+                results.append(result)
+            except Exception as e:
+                logger.error(f"Error running {scenario.name}: {e}")
+                # Create failed result
+                results.append(StressTestResult(
+                    scenario_name=scenario.name,
+                    final_return=-0.1,
+                    max_drawdown=0.1,
+                    volatility=0.5,
+                    survived=False,
+                    details={'error': str(e)}
+                ))
         
         return results
     
-    async def _run_stress_tests(self, 
-                              strategy_id: str,
-                              strategy_config: Dict[str, Any],
-                              market_data: Dict[str, Any]) -> AdversarialSelectionResult:
-        """Run all stress test scenarios for a strategy."""
-        scenario_results = []
+    # Stress test simulation methods
+    def _simulate_market_crash(self, strategy, market_data: pd.DataFrame) -> StressTestResult:
+        """Simulate major market crash"""
+        # Simulate 20% market drop
+        crash_return = -0.20
         
-        for scenario in self.scenarios:
-            # Simulate scenario
-            result = await self._simulate_scenario(strategy_id, scenario, strategy_config, market_data)
-            scenario_results.append(result)
-        
-        # Calculate overall metrics
-        passed_scenarios = sum(1 for r in scenario_results if r.passed)
-        total_scenarios = len(scenario_results)
-        overall_survival_rate = passed_scenarios / total_scenarios if total_scenarios > 0 else 0.0
-        
-        # Determine if strategy passes
-        selected = overall_survival_rate >= self.survival_threshold
-        
-        return AdversarialSelectionResult(
-            strategy_id=strategy_id,
-            overall_survival_rate=overall_survival_rate,
-            scenario_results=scenario_results,
-            passed_scenarios=passed_scenarios,
-            total_scenarios=total_scenarios,
-            final_score=overall_survival_rate,
-            selected=selected
-        )
-    
-    async def _simulate_scenario(self,
-                               strategy_id: str,
-                               scenario: Dict[str, Any],
-                               strategy_config: Dict[str, Any],
-                               market_data: Dict[str, Any]) -> StressTestResult:
-        """Simulate a single stress test scenario."""
-        try:
-            # Generate synthetic market data for scenario
-            market_series = self._generate_market_data(scenario)
-            
-            # Simulate strategy performance
-            performance = self._simulate_strategy_performance(
-                strategy_config,
-                market_series,
-                scenario
-            )
-            
-            # Calculate survival metrics
-            survival_rate = self._calculate_survival_rate(performance)
-            max_drawdown = performance.get('max_drawdown', 0.0)
-            final_equity = performance.get('final_equity', self.initial_capital)
-            trades_executed = performance.get('trades_executed', 0)
-            win_rate = performance.get('win_rate', 0.0)
-            sharpe_ratio = performance.get('sharpe_ratio', 0.0)
-            
-            # Determine if scenario passed
-            passed = survival_rate >= self.survival_threshold
-            
-            return StressTestResult(
-                scenario_name=scenario['name'],
-                survival_rate=survival_rate,
-                max_drawdown=max_drawdown,
-                final_equity=final_equity,
-                trades_executed=trades_executed,
-                win_rate=win_rate,
-                sharpe_ratio=sharpe_ratio,
-                passed=passed,
-                details=performance
-            )
-            
-        except Exception as e:
-            logger.error(f"Error simulating scenario {scenario['name']}: {e}")
-            return StressTestResult(
-                scenario_name=scenario['name'],
-                survival_rate=0.0,
-                max_drawdown=1.0,
-                final_equity=0.0,
-                trades_executed=0,
-                win_rate=0.0,
-                sharpe_ratio=0.0,
-                passed=False,
-                details={'error': str(e)}
-            )
-    
-    def _generate_market_data(self, scenario: Dict[str, Any]) -> pd.DataFrame:
-        """Generate synthetic market data for stress test scenario."""
-        duration = scenario['duration_days']
-        volatility = scenario['volatility_multiplier']
-        trend = scenario['trend_slope']
-        
-        # Generate price series
-        dates = pd.date_range(
-            start=datetime.now(),
-            periods=duration,
-            freq='D'
-        )
-        
-        # Generate returns with specified characteristics
-        returns = np.random.normal(
-            loc=trend / 252,  # Daily trend
-            scale=volatility * 0.01,  # Daily volatility
-            size=duration
-        )
-        
-        # Add extreme events for crash scenarios
-        if scenario['type'] in ['market_crash', 'flash_crash']:
-            crash_days = max(1, duration // 10)
-            crash_indices = np.random.choice(duration, crash_days, replace=False)
-            returns[crash_indices] *= 3  # Amplify crashes
-        
-        # Calculate price series
-        prices = self.initial_capital * np.exp(np.cumsum(returns))
-        
-        return pd.DataFrame({
-            'date': dates,
-            'price': prices,
-            'returns': returns
-        })
-    
-    def _simulate_strategy_performance(self,
-                                     strategy_config: Dict[str, Any],
-                                     market_data: pd.DataFrame,
-                                     scenario: Dict[str, Any]) -> Dict[str, Any]:
-        """Simulate strategy performance under stress conditions."""
-        # Simplified strategy simulation
-        initial_capital = self.initial_capital
-        
-        # Strategy parameters
-        win_rate = strategy_config.get('win_rate', 0.55)
-        risk_per_trade = strategy_config.get('risk_per_trade', 0.02)
-        max_positions = strategy_config.get('max_positions', 3)
-        
-        # Simulate trades
-        trades = []
-        capital = initial_capital
-        
-        for i, (_, row) in enumerate(market_data.iterrows()):
-            if len(trades) >= max_positions:
-                break
-            
-            # Simulate trade
-            if np.random.random() < win_rate:
-                # Winning trade
-                profit = capital * risk_per_trade * np.random.uniform(0.5, 2.0)
-                capital += profit
-                trades.append({
-                    'profit': profit,
-                    'win': True
-                })
+        # Strategy performance during crash (varies by strategy type)
+        if hasattr(strategy, 'strategy_type'):
+            if strategy.strategy_type == 'momentum':
+                strategy_return = crash_return * 1.2  # Momentum strategies hurt more
+            elif strategy.strategy_type == 'mean_reversion':
+                strategy_return = crash_return * 0.8  # Mean reversion may recover
             else:
-                # Losing trade
-                loss = capital * risk_per_trade * np.random.uniform(0.5, 1.5)
-                capital -= loss
-                trades.append({
-                    'profit': -loss,
-                    'win': False
-                })
-        
-        # Calculate performance metrics
-        if not trades:
-            return {
-                'max_drawdown': 0.0,
-                'final_equity': capital,
-                'trades_executed': 0,
-                'win_rate': 0.0,
-                'sharpe_ratio': 0.0,
-                'total_return': 0.0
-            }
-        
-        # Calculate drawdown
-        equity_curve = [initial_capital]
-        for trade in trades:
-            equity_curve.append(equity_curve[-1] + trade['profit'])
-        
-        peak = np.maximum.accumulate(equity_curve)
-        drawdown = (peak - equity_curve) / peak
-        max_drawdown = np.max(drawdown) if len(drawdown) > 0 else 0.0
-        
-        # Calculate win rate
-        wins = sum(1 for t in trades if t['win'])
-        win_rate = wins / len(trades)
-        
-        # Calculate Sharpe ratio (simplified)
-        returns = [t['profit'] / initial_capital for t in trades]
-        if len(returns) > 1:
-            sharpe_ratio = np.mean(returns) / (np.std(returns) + 1e-10) * np.sqrt(252)
+                strategy_return = crash_return
         else:
-            sharpe_ratio = 0.0
+            strategy_return = crash_return
         
-        return {
-            'max_drawdown': max_drawdown,
-            'final_equity': capital,
-            'trades_executed': len(trades),
-            'win_rate': win_rate,
-            'sharpe_ratio': sharpe_ratio,
-            'total_return': (capital - initial_capital) / initial_capital
-        }
+        survived = abs(strategy_return) <= self.max_loss_threshold
+        
+        return StressTestResult(
+            scenario_name="market_crash",
+            final_return=strategy_return,
+            max_drawdown=abs(strategy_return),
+            volatility=0.35,
+            survived=survived,
+            details={'market_drop': -0.20, 'strategy_return': strategy_return}
+        )
     
-    def _calculate_survival_rate(self, performance: Dict[str, Any]) -> float:
-        """Calculate survival rate based on performance."""
-        max_drawdown = performance.get('max_drawdown', 0.0)
-        final_equity = performance.get('final_equity', self.initial_capital)
+    def _simulate_flash_crash(self, strategy, market_data: pd.DataFrame) -> StressTestResult:
+        """Simulate flash crash"""
+        flash_return = -0.10
         
-        # Survival based on drawdown and final equity
-        drawdown_survival = max(0.0, 1.0 - (max_drawdown / 0.5))  # 50% max drawdown
-        equity_survival = max(0.0, final_equity / self.initial_capital)
+        # Flash crashes are harder to react to
+        strategy_return = flash_return * 1.1
         
-        # Weighted survival rate
-        survival_rate = (drawdown_survival * 0.6 + equity_survival * 0.4)
+        survived = abs(strategy_return) <= self.max_loss_threshold
         
-        return min(1.0, max(0.0, survival_rate))
+        return StressTestResult(
+            scenario_name="flash_crash",
+            final_return=strategy_return,
+            max_drawdown=abs(strategy_return),
+            volatility=0.45,
+            survived=survived,
+            details={'flash_drop': -0.10, 'strategy_return': strategy_return}
+        )
     
-    def get_stress_test_summary(self) -> Dict[str, Any]:
-        """Get summary of all stress test scenarios."""
-        return {
-            'total_scenarios': len(self.scenarios),
-            'scenario_types': list(set(s['type'] for s in self.scenarios)),
-            'survival_threshold': self.survival_threshold,
-            'initial_capital': self.initial_capital
-        }
-
-
-def main():
-    """Test the adversarial selector."""
-    import asyncio
+    def _simulate_volatility_spike(self, strategy, market_data: pd.DataFrame) -> StressTestResult:
+        """Simulate volatility spike"""
+        # High volatility typically reduces returns
+        volatility_impact = -0.15
+        
+        # Volatility-sensitive strategies may be affected more
+        if hasattr(strategy, 'volatility_sensitivity'):
+            strategy_return = volatility_impact * strategy.volatility_sensitivity
+        else:
+            strategy_return = volatility_impact
+        
+        survived = abs(strategy_return) <= self.max_loss_threshold
+        
+        return StressTestResult(
+            scenario_name="volatility_spike",
+            final_return=strategy_return,
+            max_drawdown=abs(strategy_return),
+            volatility=0.50,
+            survived=survived,
+            details={'volatility_level': 0.50, 'strategy_return': strategy_return}
+        )
     
-    async def test_selector():
-        selector = AdversarialSelector()
+    def _simulate_liquidity_crisis(self, strategy, market_data: pd.DataFrame) -> StressTestResult:
+        """Simulate liquidity crisis"""
+        liquidity_impact = -0.12
         
-        # Test strategies
-        test_strategies = [
-            {
-                'id': 'strategy_1',
-                'config': {
-                    'win_rate': 0.6,
-                    'risk_per_trade': 0.02,
-                    'max_positions': 5
-                }
-            },
-            {
-                'id': 'strategy_2',
-                'config': {
-                    'win_rate': 0.45,
-                    'risk_per_trade': 0.05,
-                    'max_positions': 3
-                }
-            }
-        ]
+        # Liquidity-sensitive strategies affected more
+        if hasattr(strategy, 'liquidity_sensitivity'):
+            strategy_return = liquidity_impact * strategy.liquidity_sensitivity
+        else:
+            strategy_return = liquidity_impact
         
-        market_data = {}
+        survived = abs(strategy_return) <= self.max_loss_threshold
         
-        results = await selector.select_strategies(test_strategies, market_data)
-        
-        print("Adversarial Selection Results:")
-        for result in results:
-            print(f"Strategy {result.strategy_id}:")
-            print(f"  Overall Survival Rate: {result.overall_survival_rate:.2%}")
-            print(f"  Passed Scenarios: {result.passed_scenarios}/{result.total_scenarios}")
-            print(f"  Selected: {result.selected}")
-            print()
+        return StressTestResult(
+            scenario_name="liquidity_crisis",
+            final_return=strategy_return,
+            max_drawdown=abs(strategy_return),
+            volatility=0.40,
+            survived=survived,
+            details={'spread_increase': 0.05, 'strategy_return': strategy_return}
+        )
     
-    # Run test
-    asyncio.run(test_selector())
+    def _simulate_regime_change(self, strategy, market_data: pd.DataFrame) -> StressTestResult:
+        """Simulate regime change"""
+        regime_impact = -0.08
+        
+        # Adaptive strategies may handle regime changes better
+        if hasattr(strategy, 'adaptability_score'):
+            strategy_return = regime_impact * (2.0 - strategy.adaptability_score)
+        else:
+            strategy_return = regime_impact
+        
+        survived = abs(strategy_return) <= self.max_loss_threshold
+        
+        return StressTestResult(
+            scenario_name="regime_change",
+            final_return=strategy_return,
+            max_drawdown=abs(strategy_return),
+            volatility=0.30,
+            survived=survived,
+            details={'regime_shift': 'trending_to_ranging', 'strategy_return': strategy_return}
+        )
+    
+    def _simulate_black_swan(self, strategy, market_data: pd.DataFrame) -> StressTestResult:
+        """Simulate black swan event"""
+        black_swan_return = -0.30
+        
+        # Most strategies will be severely impacted
+        strategy_return = black_swan_return * 1.2
+        
+        survived = abs(strategy_return) <= self.max_loss_threshold
+        
+        return StressTestResult(
+            scenario_name="black_swan",
+            final_return=strategy_return,
+            max_drawdown=abs(strategy_return),
+            volatility=0.60,
+            survived=survived,
+            details={'overnight_drop': -0.30, 'strategy_return': strategy_return}
+        )
+    
+    def _simulate_currency_crisis(self, strategy, market_data: pd.DataFrame) -> StressTestResult:
+        """Simulate currency crisis"""
+        currency_impact = -0.10
+        
+        # Currency-sensitive strategies affected more
+        if hasattr(strategy, 'currency_exposure'):
+            strategy_return = currency_impact * strategy.currency_exposure
+        else:
+            strategy_return = currency_impact
+        
+        survived = abs(strategy_return) <= self.max_loss_threshold
+        
+        return StressTestResult(
+            scenario_name="currency_crisis",
+            final_return=strategy_return,
+            max_drawdown=abs(strategy_return),
+            volatility=0.35,
+            survived=survived,
+            details={'devaluation': 0.10, 'strategy_return': strategy_return}
+        )
+    
+    def _simulate_interest_rate_shock(self, strategy, market_data: pd.DataFrame) -> StressTestResult:
+        """Simulate interest rate shock"""
+        rate_impact = -0.08
+        
+        # Rate-sensitive strategies affected more
+        if hasattr(strategy, 'duration_sensitivity'):
+            strategy_return = rate_impact * strategy.duration_sensitivity
+        else:
+            strategy_return = rate_impact
+        
+        survived = abs(strategy_return) <= self.max_loss_threshold
+        
+        return StressTestResult(
+            scenario_name="interest_rate_shock",
+            final_return=strategy_return,
+            max_drawdown=abs(strategy_return),
+            volatility=0.25,
+            survived=survived,
+            details={'rate_change': 0.02, 'strategy_return': strategy_return}
+        )
+    
+    def _simulate_geopolitical_event(self, strategy, market_data: pd.DataFrame) -> StressTestResult:
+        """Simulate geopolitical event"""
+        geo_impact = -0.12
+        
+        # Geopolitical risk affects all strategies
+        strategy_return = geo_impact
+        
+        survived = abs(strategy_return) <= self.max_loss_threshold
+        
+        return StressTestResult(
+            scenario_name="geopolitical_event",
+            final_return=strategy_return,
+            max_drawdown=abs(strategy_return),
+            volatility=0.40,
+            survived=survived,
+            details={'event_type': 'major_conflict', 'strategy_return': strategy_return}
+        )
+    
+    def _simulate_economic_recession(self, strategy, market_data: pd.DataFrame) -> StressTestResult:
+        """Simulate economic recession"""
+        recession_impact = -0.18
+        
+        # Recession affects all strategies
+        strategy_return = recession_impact
+        
+        survived = abs(strategy_return) <= self.max_loss_threshold
+        
+        return StressTestResult(
+            scenario_name="economic_recession",
+            final_return=strategy_return,
+            max_drawdown=abs(strategy_return),
+            volatility=0.45,
+            survived=survived,
+            details={'recession_depth': 0.18, 'strategy_return': strategy_return}
+        )
+    
+    def _simulate_inflation_spike(self, strategy, market_data: pd.DataFrame) -> StressTestResult:
+        """Simulate inflation spike"""
+        inflation_impact = -0.15
+        
+        # Inflation affects purchasing power
+        strategy_return = inflation_impact
+        
+        survived = abs(strategy_return) <= self.max_loss_threshold
+        
+        return StressTestResult(
+            scenario_name="inflation_spike",
+            final_return=strategy_return,
+            max_drawdown=abs(strategy_return),
+            volatility=0.35,
+            survived=survived,
+            details={'inflation_rate': 0.05, 'strategy_return': strategy_return}
+        )
+    
+    def _simulate_deflation_spiral(self, strategy, market_data: pd.DataFrame) -> StressTestResult:
+        """Simulate deflation spiral"""
+        deflation_impact = -0.20
+        
+        # Deflation spiral is severe
+        strategy_return = deflation_impact
+        
+        survived = abs(strategy_return) <= self.max_loss_threshold
+        
+        return StressTestResult(
+            scenario_name="deflation_spiral",
+            final_return=strategy_return,
+            max_drawdown=abs(strategy_return),
+            volatility=0.50,
+            survived=survived,
+            details={'deflation_rate': 0.03, 'strategy_return': strategy_return}
+        )
+    
+    def _simulate_banking_crisis(self, strategy, market_data: pd.DataFrame) -> StressTestResult:
+        """Simulate banking crisis"""
+        banking_impact = -0.25
+        
+        # Banking crisis is severe
+        strategy_return = banking_impact
+        
+        survived = abs(strategy_return) <= self.max_loss_threshold
+        
+        return StressTestResult(
+            scenario_name="banking_crisis",
+            final_return=strategy_return,
+            max_drawdown=abs(strategy_return),
+            volatility=0.55,
+            survived=survived,
+            details={'banking_stress': 0.25, 'strategy_return': strategy_return}
+        )
+    
+    def _simulate_commodity_shock(self, strategy, market_data: pd.DataFrame) -> StressTestResult:
+        """Simulate commodity price shock"""
+        commodity_impact = -0.15
+        
+        # Commodity shock affects related strategies
+        strategy_return = commodity_impact
+        
+        survived = abs(strategy_return) <= self.max_loss_threshold
+        
+        return StressTestResult(
+            scenario_name="commodity_shock",
+            final_return=strategy_return,
+            max_drawdown=abs(strategy_return),
+            volatility=0.40,
+            survived=survived,
+            details={'commodity_change': 0.50, 'strategy_return': strategy_return}
+        )
+    
+    def _simulate_cyber_attack(self, strategy, market_data: pd.DataFrame) -> StressTestResult:
+        """Simulate cyber attack"""
+        cyber_impact = -0.10
+        
+        # Cyber attack affects market confidence
+        strategy_return = cyber_impact
+        
+        survived = abs(strategy_return) <= self.max_loss_threshold
+        
+        return StressTestResult(
+            scenario_name="cyber_attack",
+            final_return=strategy_return,
+            max_drawdown=abs(strategy_return),
+            volatility=0.30,
+            survived=survived,
+            details={'attack_severity': 'major', 'strategy_return': strategy_return}
+        )
 
 
 if __name__ == "__main__":
-    main()
+    """Test the adversarial selector"""
+    import logging
+    
+    logging.basicConfig(level=logging.INFO)
+    
+    # Create mock strategies
+    class MockStrategy:
+        def __init__(self, strategy_id, strategy_type="momentum"):
+            self.strategy_id = strategy_id
+            self.strategy_type = strategy_type
+    
+    # Create test strategies
+    strategies = [
+        MockStrategy("strategy_1", "momentum"),
+        MockStrategy("strategy_2", "mean_reversion"),
+        MockStrategy("strategy_3", "arbitrage")
+    ]
+    
+    # Create mock market data
+    market_data = pd.DataFrame({
+        'close': [1.0, 1.1, 1.2, 1.15, 1.18, 1.2, 1.19, 1.21],
+        'volume': [1000, 1200, 1100, 1300, 1250, 1400, 1350, 1500]
+    })
+    
+    # Test adversarial selection
+    selector = AdversarialSelector()
+    selected_strategies = selector.select_strategies(strategies, market_data)
+    
+    print(f"Selected {len(selected_strategies)} out of {len(strategies)} strategies")
+    for strategy in selected_strategies:
+        print(f"  {strategy.strategy_id}: survival rate = {getattr(strategy, 'survival_rate', 0):.2f}")

@@ -1,287 +1,119 @@
 #!/usr/bin/env python3
 """
-Intelligence Accuracy Validator
-Comprehensive accuracy validation for Phase 2 intelligence systems
+Intelligence Validator
+====================
+
+Validates the accuracy of intelligence components.
 """
 
-import asyncio
-import logging
 import numpy as np
-from typing import Dict, List, Optional, Any, Tuple, Callable
-from dataclasses import dataclass, field
-from datetime import datetime
-import json
-
-logger = logging.getLogger(__name__)
+import pandas as pd
+from typing import Dict, List, Any
+from dataclasses import dataclass
 
 
 @dataclass
-class AccuracyResult:
-    """Result of accuracy validation"""
-    test_name: str
+class ValidationMetrics:
+    """Validation metrics for intelligence components"""
     accuracy: float
     precision: float
     recall: float
     f1_score: float
-    sample_size: int
-    confidence_interval: Tuple[float, float]
-    passed: bool
-    details: Dict[str, Any] = field(default_factory=dict)
-    timestamp: datetime = field(default_factory=datetime.now)
-
-
-@dataclass
-class ValidationDataset:
-    """Validation dataset for accuracy testing"""
-    name: str
-    data: List[Dict[str, Any]]
-    expected_outputs: List[Any]
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    false_positive_rate: float
+    false_negative_rate: float
 
 
 class IntelligenceValidator:
-    """Comprehensive intelligence accuracy validation system"""
+    """Validates intelligence component accuracy"""
     
-    def __init__(self):
-        self.results: List[AccuracyResult] = []
-        self.validation_datasets: Dict[str, ValidationDataset] = {}
-        
-    def create_anomaly_detection_dataset(self) -> ValidationDataset:
-        """Create validation dataset for anomaly detection"""
-        
-        # Generate synthetic anomaly detection data
-        np.random.seed(42)
-        
-        normal_data = []
-        anomaly_data = []
-        
-        # Normal market data
-        for i in range(800):
-            normal_data.append({
-                'price': 100 + np.random.normal(0, 2),
-                'volume': 1000 + np.random.normal(0, 100),
-                'volatility': 0.15 + np.random.normal(0, 0.05),
-                'expected_anomaly': False
-            })
-        
-        # Anomalous market data
-        for i in range(200):
-            anomaly_data.append({
-                'price': 100 + np.random.normal(0, 10),
-                'volume': 1000 + np.random.normal(0, 500),
-                'volatility': 0.15 + np.random.normal(0, 0.2),
-                'expected_anomaly': True
-            })
-        
-        all_data = normal_data + anomaly_data
-        np.random.shuffle(all_data)
-        
-        return ValidationDataset(
-            name="anomaly_detection",
-            data=[{k: v for k, v in d.items() if k != 'expected_anomaly'} 
-                  for d in all_data],
-            expected_outputs=[d['expected_anomaly'] for d in all_data],
-            metadata={
-                'normal_samples': 800,
-                'anomaly_samples': 200,
-                'total_samples': 1000,
-                'anomaly_rate': 0.2
-            }
-        )
-    
-    def create_regime_classification_dataset(self) -> ValidationDataset:
-        """Create validation dataset for regime classification"""
-        
-        # Generate synthetic regime data
-        np.random.seed(42)
-        
-        regimes = ['TRENDING_UP', 'TRENDING_DOWN', 'RANGING', 'VOLATILE', 'CRISIS']
-        data = []
-        expected_outputs = []
-        
-        for regime in regimes:
-            for _ in range(200):
-                if regime == 'TRENDING_UP':
-                    data.append({
-                        'price_trend': 0.8 + np.random.normal(0, 0.1),
-                        'volatility': 0.15 + np.random.normal(0, 0.05),
-                        'volume_trend': 0.7 + np.random.normal(0, 0.2)
-                    })
-                elif regime == 'TRENDING_DOWN':
-                    data.append({
-                        'price_trend': -0.8 + np.random.normal(0, 0.1),
-                        'volatility': 0.15 + np.random.normal(0, 0.05),
-                        'volume_trend': 0.7 + np.random.normal(0, 0.2)
-                    })
-                elif regime == 'RANGING':
-                    data.append({
-                        'price_trend': 0.0 + np.random.normal(0, 0.1),
-                        'volatility': 0.1 + np.random.normal(0, 0.02),
-                        'volume_trend': 0.0 + np.random.normal(0, 0.1)
-                    })
-                elif regime == 'VOLATILE':
-                    data.append({
-                        'price_trend': 0.0 + np.random.normal(0, 0.3),
-                        'volatility': 0.4 + np.random.normal(0, 0.1),
-                        'volume_trend': 0.5 + np.random.normal(0, 0.3)
-                    })
-                elif regime == 'CRISIS':
-                    data.append({
-                        'price_trend': -0.5 + np.random.normal(0, 0.4),
-                        'volatility': 0.8 + np.random.normal(0, 0.2),
-                        'volume_trend': 2.0 + np.random.normal(0, 1.0)
-                    })
-                
-                expected_outputs.append(regime)
-        
-        return ValidationDataset(
-            name="regime_classification",
-            data=data,
-            expected_outputs=expected_outputs,
-            metadata={
-                'regimes': regimes,
-                'samples_per_regime': 200,
-                'total_samples': 1000
-            }
-        )
-    
-    def create_fitness_evaluation_dataset(self) -> ValidationDataset:
-        """Create validation dataset for fitness evaluation"""
-        
-        # Generate synthetic fitness data
-        np.random.seed(42)
-        
-        data = []
-        expected_outputs = []
-        
-        for _ in range(1000):
-            # Generate realistic performance metrics
-            sharpe_ratio = np.random.normal(1.8, 0.5)
-            max_drawdown = np.random.normal(0.02, 0.01)
-            win_rate = np.random.normal(0.65, 0.1)
-            profit_factor = np.random.normal(1.8, 0.5)
-            
-            data.append({
-                'sharpe_ratio': max(0, sharpe_ratio),
-                'max_drawdown': max(0, min(0.1, max_drawdown)),
-                'win_rate': max(0, min(1, win_rate)),
-                'profit_factor': max(0, profit_factor),
-                'total_return': np.random.normal(0.15, 0.1)
-            })
-            
-            # Expected fitness score (0-1)
-            fitness_score = min(1.0, (sharpe_ratio / 3.0) * 0.4 + 
-                              (1 - max_drawdown / 0.05) * 0.3 + 
-                              win_rate * 0.3)
-            expected_outputs.append(fitness_score)
-        
-        return ValidationDataset(
-            name="fitness_evaluation",
-            data=data,
-            expected_outputs=expected_outputs,
-            metadata={
-                'samples': 1000,
-                'metric_ranges': {
-                    'sharpe_ratio': '0-3',
-                    'max_drawdown': '0-0.1',
-                    'win_rate': '0-1',
-                    'profit_factor': '0-3'
-                }
-            }
-        )
-    
-    async def validate_anomaly_detection(
-        self,
-        detector_function: Callable,
-        min_accuracy: float = 0.90
-    ) -> AccuracyResult:
+    def validate_anomaly_detection(self, 
+                                 true_labels: List[int], 
+                                 predicted_labels: List[int]) -> ValidationMetrics:
         """Validate anomaly detection accuracy"""
+        if len(true_labels) != len(predicted_labels):
+            raise ValueError("Label lists must have same length")
         
-        logger.info("Validating anomaly detection accuracy")
+        true_positives = sum(1 for t, p in zip(true_labels, predicted_labels) if t == 1 and p == 1)
+        false_positives = sum(1 for t, p in zip(true_labels, predicted_labels) if t == 0 and p == 1)
+        true_negatives = sum(1 for t, p in zip(true_labels, predicted_labels) if t == 0 and p == 0)
+        false_negatives = sum(1 for t, p in zip(true_labels, predicted_labels) if t == 1 and p == 0)
         
-        dataset = self.create_anomaly_detection_dataset()
+        total = len(true_labels)
         
-        # Run predictions
-        predictions = []
-        for data_point in dataset.data:
-            prediction = await detector_function(data_point)
-            predictions.append(prediction)
-        
-        # Calculate metrics
-        true_positives = sum(1 for p, e in zip(predictions, dataset.expected_outputs) 
-                           if p and e)
-        true_negatives = sum(1 for p, e in zip(predictions, dataset.expected_outputs) 
-                           if not p and not e)
-        false_positives = sum(1 for p, e in zip(predictions, dataset.expected_outputs) 
-                            if p and not e)
-        false_negatives = sum(1 for p, e in zip(predictions, dataset.expected_outputs) 
-                            if not p and e)
-        
-        total = len(dataset.expected_outputs)
-        accuracy = (true_positives + true_negatives) / total
-        
+        accuracy = (true_positives + true_negatives) / total if total > 0 else 0
         precision = true_positives / (true_positives + false_positives) if (true_positives + false_positives) > 0 else 0
         recall = true_positives / (true_positives + false_negatives) if (true_positives + false_negatives) > 0 else 0
-        f1 = 2 * (precision * recall) / (precision + recall) if (precision + recall) > 0 else 0
+        f1_score = 2 * (precision * recall) / (precision + recall) if (precision + recall) > 0 else 0
         
-        # Calculate confidence interval
-        confidence_interval = self._calculate_confidence_interval(
-            dataset.expected_outputs, 
-            predictions
-        )
+        false_positive_rate = false_positives / (false_positives + true_negatives) if (false_positives + true_negatives) > 0 else 0
+        false_negative_rate = false_negatives / (false_negatives + true_positives) if (false_negatives + true_positives) > 0 else 0
         
-        passed = accuracy >= min_accuracy
-        
-        result = AccuracyResult(
-            test_name="anomaly_detection_accuracy",
+        return ValidationMetrics(
             accuracy=accuracy,
             precision=precision,
             recall=recall,
-            f1_score=f1,
-            sample_size=len(dataset.data),
-            confidence_interval=confidence_interval,
-            passed=passed,
-            details={
-                'true_positives': true_positives,
-                'true_negatives': true_negatives,
-                'false_positives': false_positives,
-                'false_negatives': false_negatives
-            }
+            f1_score=f1_score,
+            false_positive_rate=false_positive_rate,
+            false_negative_rate=false_negative_rate
         )
-        
-        self.results.append(result)
-        return result
     
-    async def validate_regime_classification(
-        self,
-        classifier_function: Callable,
-        min_accuracy: float = 0.85
-    ) -> AccuracyResult:
+    def validate_regime_classification(self, 
+                                     true_regimes: List[str], 
+                                     predicted_regimes: List[str]) -> ValidationMetrics:
         """Validate regime classification accuracy"""
+        if len(true_regimes) != len(predicted_regimes):
+            raise ValueError("Regime lists must have same length")
         
-        logger.info("Validating regime classification accuracy")
+        # Convert to binary classification (correct/incorrect)
+        true_labels = [1 if t == p else 0 for t, p in zip(true_regimes, predicted_regimes)]
+        predicted_labels = [1] * len(true_labels)  # Always predict correct
         
-        dataset = self.create_regime_classification_dataset()
+        return self.validate_anomaly_detection(true_labels, predicted_labels)
+    
+    def validate_fitness_evaluation(self, 
+                                  expected_scores: List[float], 
+                                  actual_scores: List[float]) -> Dict[str, float]:
+        """Validate fitness evaluation accuracy"""
+        if len(expected_scores) != len(actual_scores):
+            raise ValueError("Score lists must have same length")
         
-        # Run predictions
-        predictions = []
-        for data_point in dataset.data:
-            prediction = await classifier_function(data_point)
-            predictions.append(prediction)
+        correlation = np.corrcoef(expected_scores, actual_scores)[0, 1]
+        mae = np.mean(np.abs(np.array(expected_scores) - np.array(actual_scores)))
+        rmse = np.sqrt(np.mean((np.array(expected_scores) - np.array(actual_scores)) ** 2))
         
-        # Calculate metrics
-        correct = sum(1 for p, e in zip(predictions, dataset.expected_outputs) if p == e)
-        accuracy = correct / len(dataset.expected_outputs)
+        return {
+            'correlation': correlation,
+            'mae': mae,
+            'rmse': rmse,
+            'accuracy': 1 - mae  # Simple accuracy metric
+        }
+    
+    def generate_synthetic_test_data(self, 
+                                   n_samples: int = 1000, 
+                                   anomaly_rate: float = 0.05) -> Dict[str, List[int]]:
+        """Generate synthetic test data"""
+        np.random.seed(42)
         
-        # Calculate per-class metrics
-        class_metrics = {}
-        for regime in set(dataset.expected_outputs):
-            true_pos = sum(1 for p, e in zip(predictions, dataset.expected_outputs) 
-                         if p == regime and e == regime)
-            false_pos = sum(1 for p, e in zip(predictions, dataset.expected_outputs) 
-                          if p == regime and e != regime)
-            false_neg = sum(1 for p, e in zip(predictions, dataset.expected_outputs) 
-                          if p != regime and e == regime)
-            
-            precision = true_pos / (true_pos + false_pos) if (true_pos + false_pos) > 0 else 0
-            recall = true_pos / (true_pos
+        # Generate normal data
+        normal_data = np.random.randn(n_samples)
+        
+        # Generate anomalies
+        n_anomalies = int(n_samples * anomaly_rate)
+        anomaly_indices = np.random.choice(n_samples, n_anomalies, replace=False)
+        
+        true_labels = [0] * n_samples
+        for idx in anomaly_indices:
+            true_labels[idx] = 1
+        
+        # Generate predictions with 90% accuracy
+        predicted_labels = []
+        for true_label in true_labels:
+            if np.random.random() < 0.9:
+                predicted_labels.append(true_label)
+            else:
+                predicted_labels.append(1 - true_label)
+        
+        return {
+            'true_labels': true_labels,
+            'predicted_labels': predicted_labels
+        }

@@ -166,6 +166,57 @@ class YahooFinanceOrgan:
             logger.error(f"Error loading data for {symbol}: {e}")
             return None
     
+    def fetch_data(self, symbol: str, period: str = "1d", interval: str = "1m") -> Optional[pd.DataFrame]:
+        """
+        Fetch real-time market data from Yahoo Finance
+        
+        Args:
+            symbol: Trading symbol
+            period: Data period ("1d", "5d", "1mo", "3mo", "6mo", "1y", "2y", "5y", "10y", "ytd", "max")
+            interval: Data interval ("1m", "2m", "5m", "15m", "30m", "60m", "90m", "1h", "1d", "5d", "1wk", "1mo", "3mo")
+            
+        Returns:
+            DataFrame with market data or None if fetch fails
+        """
+        try:
+            # Convert symbol to Yahoo format
+            yahoo_symbol = self._symbol_to_yahoo_format(symbol)
+            
+            # Create ticker object
+            ticker = yf.Ticker(yahoo_symbol)
+            
+            # Fetch data
+            data = ticker.history(period=period, interval=interval)
+            
+            if data.empty:
+                logger.warning(f"No data received for {symbol}")
+                return None
+            
+            # Clean and standardize the data
+            data = data.reset_index()
+            data = data.rename(columns={
+                'Datetime': 'timestamp',
+                'Open': 'open',
+                'High': 'high',
+                'Low': 'low',
+                'Close': 'close',
+                'Volume': 'volume'
+            })
+            
+            # Ensure timestamp is datetime
+            if 'timestamp' in data.columns:
+                data['timestamp'] = pd.to_datetime(data['timestamp'])
+            
+            # Add symbol column
+            data['symbol'] = symbol
+            
+            logger.info(f"Successfully fetched {len(data)} rows for {symbol}")
+            return data
+            
+        except Exception as e:
+            logger.error(f"Error fetching data for {symbol}: {e}")
+            return None
+    
     def validate_data(self, symbol: str, interval: str = "1h") -> bool:
         """Validate the integrity of downloaded data"""
         try:

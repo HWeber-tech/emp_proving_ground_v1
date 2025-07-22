@@ -337,11 +337,43 @@ class TickDataStorage:
     def get_data_range(self, instrument: str, start: datetime, end: datetime) -> Optional[pd.DataFrame]:
         """Get data range for specified instrument and dates"""
         try:
-            # Create synthetic data for testing
-            dates = pd.date_range(start=start, end=end, freq='H')
+            # Use real market data instead of synthetic data
+            from src.data_integration.real_data_integration import RealDataManager
             
-            # Generate realistic price data
-            np.random.seed(42)  # For reproducibility
+            # Initialize real data manager
+            config = {'fallback_to_mock': False}
+            data_manager = RealDataManager(config)
+            
+            # Try to get real historical data
+            symbol = instrument.upper()
+            if not symbol.endswith('=X') and len(symbol) == 6:
+                symbol = f"{symbol[:3]}{symbol[3:6]}=X"
+            
+            # Get data from Yahoo Finance
+            import yfinance as yf
+            ticker = yf.Ticker(symbol)
+            data = ticker.history(start=start, end=end, interval='1h')
+            
+            if not data.empty:
+                # Convert to required format
+                df = data.reset_index()
+                df = df.rename(columns={
+                    'Datetime': 'timestamp',
+                    'Open': 'open',
+                    'High': 'high',
+                    'Low': 'low',
+                    'Close': 'close',
+                    'Volume': 'volume'
+                })
+                
+                # Ensure timestamp is datetime
+                if 'timestamp' in df.columns:
+                    df['timestamp'] = pd.to_datetime(df['timestamp'])
+                
+                return df
+            
+            # Fallback to basic structure if no real data
+            dates = pd.date_range(start=start, end=end, freq='H')
             returns = np.random.normal(0.0001, 0.001, len(dates))
             prices = 1.1000 * np.exp(np.cumsum(returns))
             

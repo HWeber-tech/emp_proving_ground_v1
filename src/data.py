@@ -24,7 +24,16 @@ from typing import Dict, List, Optional, Union, Any
 from dataclasses import dataclass
 from pathlib import Path
 
-from src.sensory.core.base import MarketData, InstrumentMeta, MarketRegime
+@dataclass
+class MarketData:
+    """Simple market data container to avoid circular imports"""
+    timestamp: datetime
+    bid: float
+    ask: float
+    volume: float
+    volatility: float
+    symbol: str = "UNKNOWN"
+    timeframe: str = "1m"
 
 # Import real data integration modules
 try:

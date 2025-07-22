@@ -1,23 +1,9 @@
 """
-EMP Sensory Layer v1.1
+Sensory system module for EMP.
 
-The Sensory Layer is responsible for raw market perception and signal processing.
-It acts as the "eyes and ears" of the system, processing raw market data into
-perceived signals that can be consumed by the Thinking Layer.
-
-Architecture:
-- organs/: Specialized sensory organs for different data types
-- integration/: Sensory cortex for cross-modal integration
-- calibration/: Calibration and validation of sensory inputs
-- models/: Data models for perception
+Provides real sensory processing with actual technical indicators.
 """
 
-from .organs import *
-from .integration import *
-from .calibration import *
-from .models import *
+from .real_sensory_organ import RealSensoryOrgan
 
-__version__ = "1.1.0"
-__author__ = "EMP System"
-__description__ = "Sensory Layer - Market Perception and Signal Processing"
-
+__all__ = ['RealSensoryOrgan']

@@ -1,24 +1,9 @@
 """
-EMP Trading Layer v1.1
+Trading strategies module for EMP system.
 
-The Trading Layer handles strategy execution, order management, risk management,
-and performance monitoring. It receives decisions from the Adaptive Core and
-executes them in the live market environment.
-
-Architecture:
-- strategies/: Strategy registry and evolved strategies
-- execution/: Order and position management
-- risk/: Live risk management and position sizing
-- monitoring/: Performance tracking and health monitoring
-- integration/: External broker integration (cTrader)
+Provides real trading strategies with actual signal generation.
 """
 
-from .strategies import *
-from .execution import *
-from .risk import *
-from .monitoring import *
-from .integration import *
+from .strategies.real_base_strategy import RealBaseStrategy
 
-__version__ = "1.1.0"
-__author__ = "EMP System"
-__description__ = "Trading Layer - Strategy Execution and Order Management" 
+__all__ = ['RealBaseStrategy']

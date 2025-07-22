@@ -1,16 +1,14 @@
 """
-Base fitness class for multi-dimensional fitness evaluation.
+Base fitness interface for evolution engine.
 
-Provides abstract base class and common utilities for all fitness dimensions.
+Provides the interface that fitness evaluators must implement.
 """
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Dict, Any, Optional
-import numpy as np
-import logging
-
-logger = logging.getLogger(__name__)
+from typing import Dict, Any
+from src.decision_genome import DecisionGenome
+from src.data import MarketData
 
 
 @dataclass
@@ -32,7 +30,7 @@ class FitnessResult:
 class BaseFitness(ABC):
     """Abstract base class for all fitness dimensions."""
     
-    def __init__(self, config: Optional[Dict[str, Any]] = None):
+    def __init__(self, config: Dict[str, Any] = None):
         """Initialize fitness dimension with configuration."""
         self.config = config or {}
         self.name = self.__class__.__name__
@@ -44,30 +42,12 @@ class BaseFitness(ABC):
                          strategy_performance: Dict[str, Any],
                          market_data: Dict[str, Any],
                          regime_data: Dict[str, Any]) -> FitnessResult:
-        """
-        Calculate fitness score for this dimension.
-        
-        Args:
-            strategy_performance: Strategy performance metrics
-            market_data: Market conditions and data
-            regime_data: Market regime information
-            
-        Returns:
-            FitnessResult with normalized score and metadata
-        """
+        """Calculate fitness score for this dimension."""
         pass
     
     @abstractmethod
     def get_optimal_weight(self, market_regime: str) -> float:
-        """
-        Get optimal weight for this fitness dimension based on market regime.
-        
-        Args:
-            market_regime: Current market regime
-            
-        Returns:
-            Weight multiplier for this dimension
-        """
+        """Get optimal weight for this fitness dimension based on market regime."""
         pass
     
     def normalize_score(self, raw_score: float, 
@@ -93,7 +73,6 @@ class BaseFitness(ABC):
         missing_keys = [key for key in required_keys if key not in data]
         
         if missing_keys:
-            logger.warning(f"{self.name}: Missing required keys: {missing_keys}")
             return False
         
         return True
@@ -106,3 +85,30 @@ class BaseFitness(ABC):
     def get_description(self) -> str:
         """Return description of this fitness dimension."""
         return f"{self.name}: {self.__doc__ or 'No description provided'}"
+
+
+class IFitnessEvaluator(ABC):
+    """Interface for fitness evaluators used by the evolution engine."""
+    
+    @abstractmethod
+    def evaluate(self, genome: DecisionGenome, market_data: MarketData) -> float:
+        """
+        Evaluate the fitness of a genome based on market data.
+        
+        Args:
+            genome: The decision genome to evaluate
+            market_data: Market data for evaluation
+            
+        Returns:
+            Fitness score (higher is better)
+        """
+        pass
+
+
+class MockFitnessEvaluator(IFitnessEvaluator):
+    """Mock fitness evaluator for testing purposes."""
+    
+    def evaluate(self, genome: DecisionGenome, market_data: MarketData) -> float:
+        """Return a random fitness score for testing."""
+        import random
+        return random.random()

@@ -1,165 +1,137 @@
 """
-Core Event Contracts for EMP Ultimate Architecture v1.1
-Defines all inter-layer communication contracts using Pydantic models.
+Event Bus - Simple Implementation
+================================
+
+Provides event-driven communication for Phase 3 systems.
 """
 
+import asyncio
+import logging
+from typing import Dict, List, Any, Callable, Optional
 from datetime import datetime
-from decimal import Decimal
-from typing import Dict, List, Optional, Any
-from enum import Enum
-from pydantic import BaseModel, Field
+
+logger = logging.getLogger(__name__)
 
 
-class EventType(str, Enum):
-    """Standardized event types for the EMP system."""
-    MARKET_UNDERSTANDING = "market_understanding"
-    CONTEXT_PACKET = "context_packet"
-    TRADE_INTENT = "trade_intent"
-    EXECUTION_REPORT = "execution_report"
-    FITNESS_REPORT = "fitness_report"
-    GENOME_UPDATE = "genome_update"
-    TELEMETRY = "telemetry"
+class EventBus:
+    """Simple event bus for system communication."""
+    
+    def __init__(self):
+        self._subscribers: Dict[str, List[Callable]] = {}
+        self._event_history = []
+        
+    async def subscribe(self, event_type: str, callback: Callable) -> bool:
+        """Subscribe to an event type."""
+        if event_type not in self._subscribers:
+            self._subscribers[event_type] = []
+        self._subscribers[event_type].append(callback)
+        return True
+    
+    async def emit(self, event_type: str, data: Any) -> bool:
+        """Emit an event."""
+        event = {
+            'type': event_type,
+            'data': data,
+            'timestamp': datetime.utcnow().isoformat()
+        }
+        
+        self._event_history.append(event)
+        
+        # Keep only last 1000 events
+        if len(self._event_history) > 1000:
+            self._event_history = self._event_history[-1000:]
+        
+        # Notify subscribers
+        if event_type in self._subscribers:
+            for callback in self._subscribers[event_type]:
+                try:
+                    if asyncio.iscoroutinefunction(callback):
+                        await callback(data)
+                    else:
+                        callback(data)
+                except Exception as e:
+                    logger.error(f"Error in event callback: {e}")
+        
+        return True
+    
+    async def get_events(self, event_type: Optional[str] = None, 
+                        limit: int = 100) -> List[Dict[str, Any]]:
+        """Get recent events."""
+        events = self._event_history
+        
+        if event_type:
+            events = [e for e in events if e['type'] == event_type]
+        
+        return events[-limit:]
+    
+    async def clear_events(self) -> bool:
+        """Clear event history."""
+        self._event_history.clear()
+        return True
 
 
-class BaseEvent(BaseModel):
-    """Base class for all events in the EMP system."""
-    event_id: str
-    timestamp: datetime
-    source: str
-    correlation_id: Optional[str] = None
+# Global instance
+_event_bus: Optional[EventBus] = None
 
 
-class PerformanceMetrics(BaseModel):
-    """Performance metrics for strategies and components."""
-    sharpe_ratio: Decimal
-    max_drawdown: Decimal
-    win_rate: Decimal
-    profit_factor: Decimal
-    total_return: Decimal
-    volatility: Decimal
-    trades: int
-    avg_trade_duration: int
+async def get_event_bus() -> EventBus:
+    """Get or create global event bus instance."""
+    global _event_bus
+    if _event_bus is None:
+        _event_bus = EventBus()
+    return _event_bus
 
 
-class MarketUnderstanding(BaseEvent):
-    """Event published by Sensory Layer to Thinking Layer."""
-    symbol: str
-    price: Decimal
-    volume: Decimal
-    indicators: Dict[str, Decimal] = Field(default_factory=dict)
-    metadata: Dict[str, Any] = Field(default_factory=dict)
+# Event models for Phase 3
+class AlgorithmSignature:
+    """Represents an algorithmic trading signature."""
+    
+    def __init__(self, signature_id: str, pattern: str, confidence: float):
+        self.signature_id = signature_id
+        self.pattern = pattern
+        self.confidence = confidence
+    
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            'signature_id': self.signature_id,
+            'pattern': self.pattern,
+            'confidence': self.confidence
+        }
 
 
-class ContextPacket(BaseEvent):
-    """Event published by Thinking Layer to Adaptive Core."""
-    regime: str
-    patterns: Dict[str, Any] = Field(default_factory=dict)
-    risk_metrics: Dict[str, Decimal] = Field(default_factory=dict)
-    confidence: Decimal
-    latent_vec: List[float] = Field(default_factory=list)  # Vector for pattern memory
-    market_state: Dict[str, Any] = Field(default_factory=dict)
-    metadata: Dict[str, Any] = Field(default_factory=dict)
+class CompetitorBehavior:
+    """Represents competitor behavior analysis."""
+    
+    def __init__(self, competitor_id: str, behavior_type: str, 
+                 frequency: float, impact: float):
+        self.competitor_id = competitor_id
+        self.behavior_type = behavior_type
+        self.frequency = frequency
+        self.impact = impact
+    
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            'competitor_id': self.competitor_id,
+            'behavior_type': self.behavior_type,
+            'frequency': self.frequency,
+            'impact': self.impact
+        }
 
 
-class TradeIntent(BaseEvent):
-    """Event published by Adaptive Core to Trading Layer."""
-    symbol: str
-    action: str  # BUY, SELL, HOLD
-    quantity: Decimal
-    price: Optional[Decimal] = None
-    order_type: str = "MARKET"
-    metadata: Dict[str, Any] = Field(default_factory=dict)
-
-
-class ExecutionReport(BaseEvent):
-    """Event published by Trading Layer after trade execution."""
-    trade_intent_id: str
-    symbol: str
-    action: str
-    quantity: Decimal
-    price: Decimal
-    fees: Decimal = Decimal('0')
-    status: str  # FILLED, PARTIAL, REJECTED, ERROR
-    metadata: Dict[str, Any] = Field(default_factory=dict)
-
-
-class FitnessReport(BaseEvent):
-    """Event published by Simulation Envelope to Adaptive Core."""
-    genome_id: str
-    fitness_score: Decimal
-    metrics: Dict[str, Decimal] = Field(default_factory=dict)
-    metadata: Dict[str, Any] = Field(default_factory=dict)
-
-
-class GenomeUpdate(BaseEvent):
-    """Event for genome evolution notifications."""
-    genome_id: str
-    action: str  # CREATED, UPDATED, PROMOTED, RETIRED
-    metadata: Dict[str, Any] = Field(default_factory=dict)
-
-
-class Telemetry(BaseEvent):
-    """System health and performance telemetry."""
-    component: str
-    metric: str
-    value: Decimal
-    tags: Dict[str, str] = Field(default_factory=dict)
-
-
-class SensorySignal(BaseEvent):
-    """Signal from sensory organs."""
-    signal_type: str
-    value: Decimal
-    confidence: Decimal
-    metadata: Dict[str, Any] = Field(default_factory=dict)
-
-
-class AnalysisResult(BaseEvent):
-    """Result from thinking layer analysis."""
-    analysis_type: str
-    result: Dict[str, Any]
-    confidence: Decimal
-    recommendations: List[str] = Field(default_factory=list)
-    metadata: Dict[str, Any] = Field(default_factory=dict)
-
-
-class GovernanceDecision(BaseEvent):
-    """Decision from governance layer."""
-    decision_type: str
-    approved: bool
-    reason: str
-    metadata: Dict[str, Any] = Field(default_factory=dict)
-
-
-class MarketData(BaseModel):
-    """Market data structure for sensory input."""
-    timestamp: datetime
-    symbol: str
-    open: Decimal
-    high: Decimal
-    low: Decimal
-    close: Decimal
-    volume: Decimal
-    bid: Optional[Decimal] = None
-    ask: Optional[Decimal] = None
-
-
-class RiskMetrics(BaseModel):
-    """Risk metrics for trading and governance."""
-    var_95: Decimal
-    var_99: Decimal
-    max_drawdown: Decimal
-    sharpe_ratio: Decimal
-    sortino_ratio: Decimal
-    beta: Decimal
-    alpha: Decimal
-
-
-class EvolutionEvent(BaseEvent):
-    """Events related to genetic evolution."""
-    generation: int
-    population_size: int
-    best_fitness: Decimal
-    average_fitness: Decimal
-    diversity_score: Decimal
-    metadata: Dict[str, Any] = Field(default_factory=dict)
+class CounterStrategy:
+    """Represents a counter-strategy."""
+    
+    def __init__(self, strategy_id: str, target_behavior: str, 
+                 effectiveness: float, parameters: Dict[str, Any]):
+        self.strategy_id = strategy_id
+        self.target_behavior = target_behavior
+        self.effectiveness = effectiveness
+        self.parameters = parameters
+    
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            'strategy_id': self.strategy_id,
+            'target_behavior': self.target_behavior,
+            'effectiveness': self.effectiveness,
+            'parameters': self.parameters
+        }

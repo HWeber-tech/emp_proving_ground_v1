@@ -5,63 +5,71 @@ Provides centralized configuration for all system components
 
 import os
 from typing import List, Dict, Any, Optional
-from dataclasses import dataclass
+from pydantic import BaseModel, Field
 from decimal import Decimal
+from typing import Literal
 
 
-@dataclass
-class SystemConfig:
+class SystemConfig(BaseModel):
     """System configuration settings"""
     
     # cTrader Configuration
-    ctrader_demo_host: str = "demo.ctraderapi.com"
-    ctrader_live_host: str = "live.ctraderapi.com"
-    ctrader_port: int = 5035
-    ctrader_account_id: int = 0
-    ctrader_client_id: str = ""
-    ctrader_client_secret: str = ""
-    ctrader_access_token: str = ""
-    ctrader_refresh_token: str = ""
+    ctrader_demo_host: str = Field(default="demo.ctraderapi.com", description="cTrader demo host")
+    ctrader_live_host: str = Field(default="live.ctraderapi.com", description="cTrader live host")
+    ctrader_port: int = Field(default=5035, description="cTrader port")
+    ctrader_account_id: int = Field(default=0, description="cTrader account ID")
+    ctrader_client_id: str = Field(default="", description="cTrader client ID")
+    ctrader_client_secret: str = Field(default="", description="cTrader client secret")
+    ctrader_access_token: str = Field(default="", description="cTrader access token")
+    ctrader_refresh_token: str = Field(default="", description="cTrader refresh token")
     
     # FIX Protocol Configuration
-    fix_price_sender_comp_id: str = ""
-    fix_price_username: str = ""
-    fix_price_password: str = ""
-    fix_trade_sender_comp_id: str = ""
-    fix_trade_username: str = ""
-    fix_trade_password: str = ""
+    fix_price_sender_comp_id: str = Field(default="", description="FIX price sender comp ID")
+    fix_price_username: str = Field(default="", description="FIX price username")
+    fix_price_password: str = Field(default="", description="FIX price password")
+    fix_trade_sender_comp_id: str = Field(default="", description="FIX trade sender comp ID")
+    fix_trade_username: str = Field(default="", description="FIX trade username")
+    fix_trade_password: str = Field(default="", description="FIX trade password")
+    
+    # Master Switch - The Professional Upgrade
+    CONNECTION_PROTOCOL: Literal["fix", "openapi"] = Field(
+        default="fix",
+        description="The communication protocol to use for live trading and data"
+    )
     
     # Default symbols for trading
-    default_symbols: Optional[List[str]] = None
+    default_symbols: Optional[List[str]] = Field(
+        default_factory=lambda: [
+            "EURUSD", "GBPUSD", "USDJPY", "AUDUSD", "USDCAD",
+            "XAUUSD", "XAGUSD"
+        ],
+        description="Default trading symbols"
+    )
     
     # Database settings
-    database_url: str = "sqlite:///emp.db"
+    database_url: str = Field(default="sqlite:///emp.db", description="Database URL")
     
     # Logging settings
-    log_level: str = "INFO"
+    log_level: str = Field(default="INFO", description="Logging level")
     
     # Trading settings
-    max_risk_per_trade: Decimal = Decimal("0.02")
-    max_total_exposure: Decimal = Decimal("0.10")
-    max_drawdown: Decimal = Decimal("0.20")
+    max_risk_per_trade: Decimal = Field(default=Decimal("0.02"), description="Max risk per trade")
+    max_total_exposure: Decimal = Field(default=Decimal("0.10"), description="Max total exposure")
+    max_drawdown: Decimal = Field(default=Decimal("0.20"), description="Max drawdown")
     
     # FIX Symbol Mapping (symbol name -> FIX symbolId)
-    fix_symbol_map: Dict[str, int] = Field(default_factory=lambda: {
-        "EURUSD": 1,
-        "GBPUSD": 2,
-        "USDJPY": 3,
-        "AUDUSD": 4,
-        "USDCAD": 5,
-        "XAUUSD": 6,
-        "XAGUSD": 7
-    })
-    
-    def __post_init__(self):
-        if self.default_symbols is None:
-            self.default_symbols = [
-                "EURUSD", "GBPUSD", "USDJPY", "AUDUSD", "USDCAD",
-                "XAUUSD", "XAGUSD"
-            ]
+    fix_symbol_map: Dict[str, int] = Field(
+        default_factory=lambda: {
+            "EURUSD": 1,
+            "GBPUSD": 2,
+            "USDJPY": 3,
+            "AUDUSD": 4,
+            "USDCAD": 5,
+            "XAUUSD": 6,
+            "XAGUSD": 7
+        },
+        description="FIX symbol mapping"
+    )
     
     def validate_credentials(self) -> bool:
         """Validate cTrader credentials are provided"""
@@ -70,6 +78,10 @@ class SystemConfig:
             self.ctrader_client_secret and
             self.ctrader_access_token
         )
+
+    class Config:
+        env_prefix = ""
+        case_sensitive = False
 
 
 # Global configuration instance

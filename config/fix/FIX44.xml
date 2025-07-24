@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<fix major="4" minor="4">
+  <header/>
+  <trailer/>
+  <messages>
+    <message name="Heartbeat" msgtype="0" msgcat="admin"/>
+    <message name="TestRequest" msgtype="1" msgcat="admin"/>
+    <message name="ResendRequest" msgtype="2" msgcat="admin"/>
+    <message name="Reject" msgtype="3" msgcat="admin"/>
+    <message name="SequenceReset" msgtype="4" msgcat="admin"/>
+    <message name="Logout" msgtype="5" msgcat="admin"/>
+    <message name="Logon" msgtype="A" msgcat="admin"/>
+    <message name="News" msgtype="B" msgcat="app"/>
+    <message name="Email" msgtype="C" msgcat="app"/>
+    <message name="NewOrderSingle" msgtype="D" msgcat="app"/>
+    <message name="ExecutionReport" msgtype="8" msgcat="app"/>
+    <message name="OrderCancelReject" msgtype="9" msgcat="app"/>
+    <message name="Logon" msgtype="A" msgcat="admin"/>
+    <message name="Logout" msgtype="5" msgcat="admin"/>
+    <message name="Heartbeat" msgtype="0" msgcat="admin"/>
+    <message name="TestRequest" msgtype="1" msgcat="admin"/>
+    <message name="ResendRequest" msgtype="2" msgcat="admin"/>
+    <message name="Reject" msgtype="3" msgcat="admin"/>
+    <message name="SequenceReset" msgtype="4" msgcat="admin"/>
+  </messages>
+  <fields>
+    <field number="1" name="Account" type="STRING"/>
+    <field number="6" name="AvgPx" type="PRICE"/>
+    <field number="8" name="BeginString" type="STRING"/>
+    <field number="9" name="BodyLength" type="LENGTH"/>
+    <field number="11" name="ClOrdID" type="STRING"/>
+    <field number="14" name="CumQty" type="QTY"/>
+    <field number="15" name="Currency" type="CURRENCY"/>
+    <field number="16" name="EndSeqNo" type="SEQNUM"/>
+    <field number="17" name="ExecID" type="STRING"/>
+    <field number="21" name="HandlInst" type="CHAR"/>
+    <field number="22" name="IDSource" type="STRING"/>
+    <field number="31" name="LastPx" type="PRICE"/>
+    <field number="32" name="LastQty" type="QTY"/>
+    <field number="34" name="MsgSeqNum" type="SEQNUM"/>
+    <field number="35" name="MsgType" type="STRING"/>
+    <field number="36" name="NewSeqNo" type="SEQNUM"/>
+    <field number="37" name="OrderID" type="STRING"/>
+    <field number="38" name="OrderQty" type="QTY"/>
+    <field number="39" name="OrdStatus" type="CHAR"/>
+    <field number="40" name="OrdType" type="CHAR"/>
+    <field number="41" name="OrigClOrdID" type="STRING"/>
+    <field number="43" name="PossDupFlag" type="BOOLEAN"/>
+    <field number="44" name="Price" type="PRICE"/>
+    <field number="45" name="RefSeqNum" type="SEQNUM"/>
+    <field number="48" name="SecurityID" type="STRING"/>
+    <field number="49" name="SenderCompID" type="STRING"/>
+    <field number="50" name="SenderSubID" type="STRING"/>
+    <field number="52" name="SendingTime" type="UTCTIMESTAMP"/>
+    <field number="54" name="Side" type="CHAR"/>
+    <field number="55" name="Symbol" type="STRING"/>
+    <field number="56" name="TargetCompID" type="STRING"/>
+    <field number="57" name="TargetSubID" type="STRING"/>
+    <field number="58" name="Text" type="STRING"/>
+    <field number="59" name="TimeInForce" type="CHAR"/>
+    <field number="60" name="TransactTime" type="UTCTIMESTAMP"/>
+    <field number="98" name="EncryptMethod" type="INT"/>
+    <field number="108" name="HeartBtInt" type="INT"/>
+    <field number="112" name="TestReqID" type="STRING"/>
+    <field number="115" name="OnBehalfOfCompID" type="STRING"/>
+    <field number="116" name="OnBehalfOfSubID" type="STRING"/>
+    <field number="122" name="OrigSendingTime" type="UTCTIMESTAMP"/>
+    <field number="128" name="DeliverToCompID" type="STRING"/>
+    <field name="DeliverToSubID" number="129" type="STRING"/>
+    <field name="SecureDataLen" number="90" type="LENGTH"/>
+    <field name="SecureData" number="91" type="DATA"/>
+    <field name="SignatureLength" number="93" type="LENGTH"/>
+    <field name="Signature" number="89" type="DATA"/>
+    <field name="CheckSum" number="10" type="STRING"/>
+    <field name="Username" number="553" type="STRING"/>
+    <field name="Password" number="554" type="STRING"/>
+  </fields>
+</fix>

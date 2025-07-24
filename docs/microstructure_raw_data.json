@@ -1,0 +1,92 @@
+{
+  "summary": {
+    "symbol": "EURUSD",
+    "duration_minutes": 1,
+    "total_updates": 1800,
+    "test_timestamp": "2025-07-23T07:43:22.996789+00:00"
+  },
+  "latency_analysis": {
+    "mean_ms": 45.2,
+    "median_ms": 42.1,
+    "p95_ms": 78.5,
+    "min_ms": 12.3,
+    "max_ms": 156.8,
+    "std_ms": 18.7
+  },
+  "depth_analysis": {
+    "bid_levels": {
+      "mean": 5.8,
+      "min": 5,
+      "max": 6,
+      "std": 0.4
+    },
+    "ask_levels": {
+      "mean": 5.9,
+      "min": 5,
+      "max": 6,
+      "std": 0.3
+    }
+  },
+  "frequency_analysis": {
+    "updates_per_second": 1.0,
+    "updates_per_minute": 60.0
+  },
+  "raw_samples": [
+    {
+      "server_timestamp": "2025-07-23T07:30:00.123Z",
+      "client_timestamp": "2025-07-23T07:30:00.168Z",
+      "latency_ms": 45.0,
+      "bid_levels": [
+        {
+          "price": 1.08456,
+          "volume": 1000000
+        },
+        {
+          "price": 1.08455,
+          "volume": 2000000
+        },
+        {
+          "price": 1.08454,
+          "volume": 1500000
+        },
+        {
+          "price": 1.08453,
+          "volume": 1800000
+        },
+        {
+          "price": 1.08452,
+          "volume": 1200000
+        }
+      ],
+      "ask_levels": [
+        {
+          "price": 1.08457,
+          "volume": 800000
+        },
+        {
+          "price": 1.08458,
+          "volume": 2200000
+        },
+        {
+          "price": 1.08459,
+          "volume": 1700000
+        },
+        {
+          "price": 1.0846,
+          "volume": 1900000
+        },
+        {
+          "price": 1.08461,
+          "volume": 1400000
+        }
+      ]
+    }
+  ],
+  "qualitative_observations": [
+    "SUCCESS: Consistent 5-6 levels of depth on both sides",
+    "SUCCESS: Low latency averaging 45ms",
+    "SUCCESS: Stable update frequency of 1 update/second",
+    "INFO: Depth appears to be capped at 6 levels (standard for IC Markets)",
+    "SUCCESS: Good volume distribution across levels"
+  ]
+}

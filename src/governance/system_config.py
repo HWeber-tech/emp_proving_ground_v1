@@ -23,6 +23,14 @@ class SystemConfig:
     ctrader_access_token: str = ""
     ctrader_refresh_token: str = ""
     
+    # FIX Protocol Configuration
+    fix_price_sender_comp_id: str = ""
+    fix_price_username: str = ""
+    fix_price_password: str = ""
+    fix_trade_sender_comp_id: str = ""
+    fix_trade_username: str = ""
+    fix_trade_password: str = ""
+    
     # Default symbols for trading
     default_symbols: Optional[List[str]] = None
     
@@ -36,6 +44,17 @@ class SystemConfig:
     max_risk_per_trade: Decimal = Decimal("0.02")
     max_total_exposure: Decimal = Decimal("0.10")
     max_drawdown: Decimal = Decimal("0.20")
+    
+    # FIX Symbol Mapping (symbol name -> FIX symbolId)
+    fix_symbol_map: Dict[str, int] = Field(default_factory=lambda: {
+        "EURUSD": 1,
+        "GBPUSD": 2,
+        "USDJPY": 3,
+        "AUDUSD": 4,
+        "USDCAD": 5,
+        "XAUUSD": 6,
+        "XAGUSD": 7
+    })
     
     def __post_init__(self):
         if self.default_symbols is None:
@@ -63,3 +82,11 @@ config.ctrader_access_token = os.getenv("CTRADER_ACCESS_TOKEN", "")
 config.ctrader_account_id = int(os.getenv("CTRADER_ACCOUNT_ID", "0"))
 config.database_url = os.getenv("DATABASE_URL", "sqlite:///emp.db")
 config.log_level = os.getenv("LOG_LEVEL", "INFO")
+
+# FIX Protocol credentials
+config.fix_price_sender_comp_id = os.getenv("FIX_PRICE_SENDER_COMP_ID", "")
+config.fix_price_username = os.getenv("FIX_PRICE_USERNAME", "")
+config.fix_price_password = os.getenv("FIX_PRICE_PASSWORD", "")
+config.fix_trade_sender_comp_id = os.getenv("FIX_TRADE_SENDER_COMP_ID", "")
+config.fix_trade_username = os.getenv("FIX_TRADE_USERNAME", "")
+config.fix_trade_password = os.getenv("FIX_TRADE_PASSWORD", "")

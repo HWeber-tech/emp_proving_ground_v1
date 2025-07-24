@@ -30,6 +30,10 @@ pydantic>=1.8.0
 # cTrader API
 ctrader-open-api-py>=1.0.0
 
+# FIX Protocol
+simplefix>=1.0.17
+# quickfix>=1.15.1  # Uncomment when Windows compilation issues resolved
+
 # Utilities
 python-dotenv>=0.19.0
 requests>=2.25.0

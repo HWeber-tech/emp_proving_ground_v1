@@ -1,137 +1,101 @@
 """
-Event Bus - Simple Implementation
-================================
-
-Provides event-driven communication for Phase 3 systems.
+Core Event Models for EMP v4.0
+Defines the primary sensory events and data structures
 """
 
-import asyncio
-import logging
-from typing import Dict, List, Any, Callable, Optional
+from pydantic import BaseModel, Field
+from typing import List, Optional, Dict, Any
 from datetime import datetime
 
-logger = logging.getLogger(__name__)
 
-
-class EventBus:
-    """Simple event bus for system communication."""
+class OrderBookLevel(BaseModel):
+    """Represents a single price level in the order book."""
+    price: float
+    size: float  # Volume at this price level
     
-    def __init__(self):
-        self._subscribers: Dict[str, List[Callable]] = {}
-        self._event_history = []
-        
-    async def subscribe(self, event_type: str, callback: Callable) -> bool:
-        """Subscribe to an event type."""
-        if event_type not in self._subscribers:
-            self._subscribers[event_type] = []
-        self._subscribers[event_type].append(callback)
-        return True
+    def __str__(self):
+        return f"Level(price={self.price}, size={self.size})"
+
+
+class OrderBook(BaseModel):
+    """Represents a snapshot of the full order book."""
+    bids: List[OrderBookLevel] = Field(default_factory=list)
+    asks: List[OrderBookLevel] = Field(default_factory=list)
     
-    async def emit(self, event_type: str, data: Any) -> bool:
-        """Emit an event."""
-        event = {
-            'type': event_type,
-            'data': data,
-            'timestamp': datetime.utcnow().isoformat()
-        }
-        
-        self._event_history.append(event)
-        
-        # Keep only last 1000 events
-        if len(self._event_history) > 1000:
-            self._event_history = self._event_history[-1000:]
-        
-        # Notify subscribers
-        if event_type in self._subscribers:
-            for callback in self._subscribers[event_type]:
-                try:
-                    if asyncio.iscoroutinefunction(callback):
-                        await callback(data)
-                    else:
-                        callback(data)
-                except Exception as e:
-                    logger.error(f"Error in event callback: {e}")
-        
-        return True
+    @property
+    def best_bid(self) -> Optional[float]:
+        """Get the best bid price."""
+        return self.bids[0].price if self.bids else None
     
-    async def get_events(self, event_type: Optional[str] = None, 
-                        limit: int = 100) -> List[Dict[str, Any]]:
-        """Get recent events."""
-        events = self._event_history
-        
-        if event_type:
-            events = [e for e in events if e['type'] == event_type]
-        
-        return events[-limit:]
+    @property
+    def best_ask(self) -> Optional[float]:
+        """Get the best ask price."""
+        return self.asks[0].price if self.asks else None
     
-    async def clear_events(self) -> bool:
-        """Clear event history."""
-        self._event_history.clear()
-        return True
-
-
-# Global instance
-_event_bus: Optional[EventBus] = None
-
-
-async def get_event_bus() -> EventBus:
-    """Get or create global event bus instance."""
-    global _event_bus
-    if _event_bus is None:
-        _event_bus = EventBus()
-    return _event_bus
-
-
-# Event models for Phase 3
-class AlgorithmSignature:
-    """Represents an algorithmic trading signature."""
+    @property
+    def spread(self) -> Optional[float]:
+        """Get the bid-ask spread."""
+        if self.best_bid and self.best_ask:
+            return self.best_ask - self.best_bid
+        return None
     
-    def __init__(self, signature_id: str, pattern: str, confidence: float):
-        self.signature_id = signature_id
-        self.pattern = pattern
-        self.confidence = confidence
+    def add_bid(self, price: float, size: float):
+        """Add a bid level, maintaining sorted order (highest first)."""
+        self.bids.append(OrderBookLevel(price=price, size=size))
+        self.bids.sort(key=lambda x: x.price, reverse=True)
     
-    def to_dict(self) -> Dict[str, Any]:
-        return {
-            'signature_id': self.signature_id,
-            'pattern': self.pattern,
-            'confidence': self.confidence
-        }
+    def add_ask(self, price: float, size: float):
+        """Add an ask level, maintaining sorted order (lowest first)."""
+        self.asks.append(OrderBookLevel(price=price, size=size))
+        self.asks.sort(key=lambda x: x.price)
 
 
-class CompetitorBehavior:
-    """Represents competitor behavior analysis."""
+class MarketUnderstanding(BaseModel):
+    """
+    The primary sensory event of the system.
+    v4.0 Schema: Enriched with full order book depth.
+    """
+    timestamp: datetime
+    symbol: str
     
-    def __init__(self, competitor_id: str, behavior_type: str, 
-                 frequency: float, impact: float):
-        self.competitor_id = competitor_id
-        self.behavior_type = behavior_type
-        self.frequency = frequency
-        self.impact = impact
+    # Top-of-book (for legacy/simple strategies)
+    best_bid: float
+    best_ask: float
+    last_trade_price: Optional[float] = None
     
-    def to_dict(self) -> Dict[str, Any]:
-        return {
-            'competitor_id': self.competitor_id,
-            'behavior_type': self.behavior_type,
-            'frequency': self.frequency,
-            'impact': self.impact
-        }
+    # The new, high-resolution data
+    order_book: OrderBook  # The full depth of market
+    
+    # Metadata for tracking
+    source: str = "FIX"  # Source of this market data
+    sequence_number: Optional[int] = None  # FIX sequence number
+    
+    # Derived metrics (can be calculated later)
+    spread: Optional[float] = None
+    mid_price: Optional[float] = None
+    
+    def __post_init__(self):
+        """Calculate derived metrics after initialization."""
+        if self.order_book:
+            self.spread = self.order_book.spread
+            if self.order_book.best_bid and self.order_book.best_ask:
+                self.mid_price = (self.order_book.best_bid + self.order_book.best_ask) / 2
+    
+    def __str__(self):
+        return f"MarketUnderstanding({self.symbol} @ {self.timestamp})"
 
 
-class CounterStrategy:
-    """Represents a counter-strategy."""
-    
-    def __init__(self, strategy_id: str, target_behavior: str, 
-                 effectiveness: float, parameters: Dict[str, Any]):
-        self.strategy_id = strategy_id
-        self.target_behavior = target_behavior
-        self.effectiveness = effectiveness
-        self.parameters = parameters
-    
-    def to_dict(self) -> Dict[str, Any]:
-        return {
-            'strategy_id': self.strategy_id,
-            'target_behavior': self.target_behavior,
-            'effectiveness': self.effectiveness,
-            'parameters': self.parameters
-        }
+class MarketDataRequest(BaseModel):
+    """Request for market data subscription."""
+    symbol: str
+    depth: int = 0  # 0 for full depth
+    subscription_type: str = "SNAPSHOT_PLUS_UPDATES"
+
+
+class MarketDataSubscription(BaseModel):
+    """Active market data subscription."""
+    symbol: str
+    subscription_id: str
+    depth: int
+    active: bool = True
+    created_at: datetime = Field(default_factory=datetime.utcnow)

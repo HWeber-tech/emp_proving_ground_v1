@@ -1,0 +1,761 @@
+{
+  "pass_statements": [
+    {
+      "line": 413,
+      "type": "pass_statement",
+      "context": "class DataProvider",
+      "file": "src\\data.py"
+    },
+    {
+      "line": 468,
+      "type": "pass_statement",
+      "context": "function _validate_order",
+      "file": "src\\simulation.py"
+    },
+    {
+      "line": 471,
+      "type": "pass_statement",
+      "context": "function _validate_order",
+      "file": "src\\simulation.py"
+    },
+    {
+      "line": 55,
+      "type": "pass_statement",
+      "context": "class EventBus",
+      "file": "src\\core\\event_bus.py"
+    },
+    {
+      "line": 24,
+      "type": "pass_statement",
+      "context": "class SensoryException",
+      "file": "src\\core\\exceptions.py"
+    },
+    {
+      "line": 29,
+      "type": "pass_statement",
+      "context": "class ThinkingException",
+      "file": "src\\core\\exceptions.py"
+    },
+    {
+      "line": 34,
+      "type": "pass_statement",
+      "context": "class TradingException",
+      "file": "src\\core\\exceptions.py"
+    },
+    {
+      "line": 39,
+      "type": "pass_statement",
+      "context": "class EvolutionException",
+      "file": "src\\core\\exceptions.py"
+    },
+    {
+      "line": 44,
+      "type": "pass_statement",
+      "context": "class GovernanceException",
+      "file": "src\\core\\exceptions.py"
+    },
+    {
+      "line": 49,
+      "type": "pass_statement",
+      "context": "class OperationalException",
+      "file": "src\\core\\exceptions.py"
+    },
+    {
+      "line": 54,
+      "type": "pass_statement",
+      "context": "class ConfigurationException",
+      "file": "src\\core\\exceptions.py"
+    },
+    {
+      "line": 59,
+      "type": "pass_statement",
+      "context": "class ValidationException",
+      "file": "src\\core\\exceptions.py"
+    },
+    {
+      "line": 64,
+      "type": "pass_statement",
+      "context": "class DataException",
+      "file": "src\\core\\exceptions.py"
+    },
+    {
+      "line": 69,
+      "type": "pass_statement",
+      "context": "class NetworkException",
+      "file": "src\\core\\exceptions.py"
+    },
+    {
+      "line": 74,
+      "type": "pass_statement",
+      "context": "class TimeoutException",
+      "file": "src\\core\\exceptions.py"
+    },
+    {
+      "line": 79,
+      "type": "pass_statement",
+      "context": "class InsufficientDataException",
+      "file": "src\\core\\exceptions.py"
+    },
+    {
+      "line": 84,
+      "type": "pass_statement",
+      "context": "class StrategyException",
+      "file": "src\\core\\exceptions.py"
+    },
+    {
+      "line": 89,
+      "type": "pass_statement",
+      "context": "class RiskException",
+      "file": "src\\core\\exceptions.py"
+    },
+    {
+      "line": 94,
+      "type": "pass_statement",
+      "context": "class ExecutionException",
+      "file": "src\\core\\exceptions.py"
+    },
+    {
+      "line": 99,
+      "type": "pass_statement",
+      "context": "class SimulationException",
+      "file": "src\\core\\exceptions.py"
+    },
+    {
+      "line": 104,
+      "type": "pass_statement",
+      "context": "class GenomeException",
+      "file": "src\\core\\exceptions.py"
+    },
+    {
+      "line": 109,
+      "type": "pass_statement",
+      "context": "class FitnessException",
+      "file": "src\\core\\exceptions.py"
+    },
+    {
+      "line": 114,
+      "type": "pass_statement",
+      "context": "class EventBusException",
+      "file": "src\\core\\exceptions.py"
+    },
+    {
+      "line": 119,
+      "type": "pass_statement",
+      "context": "class StateStoreException",
+      "file": "src\\core\\exceptions.py"
+    },
+    {
+      "line": 124,
+      "type": "pass_statement",
+      "context": "class AuditException",
+      "file": "src\\core\\exceptions.py"
+    },
+    {
+      "line": 129,
+      "type": "pass_statement",
+      "context": "class HumanApprovalException",
+      "file": "src\\core\\exceptions.py"
+    },
+    {
+      "line": 35,
+      "type": "pass_statement",
+      "context": "function process",
+      "file": "src\\core\\interfaces.py"
+    },
+    {
+      "line": 41,
+      "type": "pass_statement",
+      "context": "function name",
+      "file": "src\\core\\interfaces.py"
+    },
+    {
+      "line": 47,
+      "type": "pass_statement",
+      "context": "function weight",
+      "file": "src\\core\\interfaces.py"
+    },
+    {
+      "line": 71,
+      "type": "pass_statement",
+      "context": "function select",
+      "file": "src\\core\\interfaces.py"
+    },
+    {
+      "line": 77,
+      "type": "pass_statement",
+      "context": "function name",
+      "file": "src\\core\\interfaces.py"
+    },
+    {
+      "line": 96,
+      "type": "pass_statement",
+      "context": "function initialize_population",
+      "file": "src\\core\\interfaces.py"
+    },
+    {
+      "line": 101,
+      "type": "pass_statement",
+      "context": "function get_population",
+      "file": "src\\core\\interfaces.py"
+    },
+    {
+      "line": 114,
+      "type": "pass_statement",
+      "context": "function get_best_genomes",
+      "file": "src\\core\\interfaces.py"
+    },
+    {
+      "line": 124,
+      "type": "pass_statement",
+      "context": "function update_population",
+      "file": "src\\core\\interfaces.py"
+    },
+    {
+      "line": 129,
+      "type": "pass_statement",
+      "context": "function get_population_statistics",
+      "file": "src\\core\\interfaces.py"
+    },
+    {
+      "line": 135,
+      "type": "pass_statement",
+      "context": "function population_size",
+      "file": "src\\core\\interfaces.py"
+    },
+    {
+      "line": 141,
+      "type": "pass_statement",
+      "context": "function generation",
+      "file": "src\\core\\interfaces.py"
+    },
+    {
+      "line": 146,
+      "type": "pass_statement",
+      "context": "function advance_generation",
+      "file": "src\\core\\interfaces.py"
+    },
+    {
+      "line": 168,
+      "type": "pass_statement",
+      "context": "function crossover",
+      "file": "src\\core\\interfaces.py"
+    },
+    {
+      "line": 174,
+      "type": "pass_statement",
+      "context": "function name",
+      "file": "src\\core\\interfaces.py"
+    },
+    {
+      "line": 196,
+      "type": "pass_statement",
+      "context": "function mutate",
+      "file": "src\\core\\interfaces.py"
+    },
+    {
+      "line": 202,
+      "type": "pass_statement",
+      "context": "function name",
+      "file": "src\\core\\interfaces.py"
+    },
+    {
+      "line": 223,
+      "type": "pass_statement",
+      "context": "function evaluate",
+      "file": "src\\core\\interfaces.py"
+    },
+    {
+      "line": 229,
+      "type": "pass_statement",
+      "context": "function name",
+      "file": "src\\core\\interfaces.py"
+    },
+    {
+      "line": 242,
+      "type": "pass_statement",
+      "context": "function create_genome",
+      "file": "src\\core\\interfaces.py"
+    },
+    {
+      "line": 255,
+      "type": "pass_statement",
+      "context": "function create_from_template",
+      "file": "src\\core\\interfaces.py"
+    },
+    {
+      "line": 260,
+      "type": "pass_statement",
+      "context": "function reset",
+      "file": "src\\core\\interfaces.py"
+    },
+    {
+      "line": 271,
+      "type": "pass_statement",
+      "context": "function log_generation",
+      "file": "src\\core\\interfaces.py"
+    },
+    {
+      "line": 276,
+      "type": "pass_statement",
+      "context": "function log_best_genome",
+      "file": "src\\core\\interfaces.py"
+    },
+    {
+      "line": 281,
+      "type": "pass_statement",
+      "context": "function get_evolution_history",
+      "file": "src\\core\\interfaces.py"
+    },
+    {
+      "line": 18,
+      "type": "pass_statement",
+      "context": "function calculate",
+      "file": "src\\sensory\\indicators.py"
+    },
+    {
+      "line": 94,
+      "type": "pass_statement",
+      "context": "class ChaosEngine",
+      "file": "src\\simulation\\chaos_engine.py"
+    },
+    {
+      "line": 25,
+      "type": "pass_statement",
+      "context": "function cli",
+      "file": "src\\ui\\cli\\main_cli.py"
+    },
+    {
+      "line": 31,
+      "type": "pass_statement",
+      "context": "function data",
+      "file": "src\\ui\\cli\\main_cli.py"
+    },
+    {
+      "line": 621,
+      "type": "pass_statement",
+      "context": "function _update_position_pnl",
+      "file": "src\\trading\\execution\\live_trading_executor.py"
+    },
+    {
+      "line": 456,
+      "type": "pass_statement",
+      "context": "function _on_message_received",
+      "file": "src\\trading\\integration\\ctrader_interface.py"
+    },
+    {
+      "line": 29,
+      "type": "pass_statement",
+      "context": "function generate_signal",
+      "file": "src\\trading\\strategies\\base_strategy.py"
+    },
+    {
+      "line": 34,
+      "type": "pass_statement",
+      "context": "function get_parameters",
+      "file": "src\\trading\\strategies\\base_strategy.py"
+    },
+    {
+      "line": 39,
+      "type": "pass_statement",
+      "context": "function set_parameters",
+      "file": "src\\trading\\strategies\\base_strategy.py"
+    },
+    {
+      "line": 145,
+      "type": "pass_statement",
+      "context": "class BaseStrategy",
+      "file": "src\\trading\\strategies\\strategy_engine.py"
+    },
+    {
+      "line": 151,
+      "type": "pass_statement",
+      "context": "function calculate_position_size",
+      "file": "src\\trading\\strategies\\strategy_engine.py"
+    },
+    {
+      "line": 157,
+      "type": "pass_statement",
+      "context": "function should_exit_position",
+      "file": "src\\trading\\strategies\\strategy_engine.py"
+    },
+    {
+      "line": 240,
+      "type": "pass_statement",
+      "context": "function update_performance",
+      "file": "src\\trading\\strategies\\strategy_engine.py"
+    },
+    {
+      "line": 119,
+      "type": "pass_statement",
+      "context": "class BaseStrategy",
+      "file": "src\\trading\\strategy_engine\\base_strategy.py"
+    },
+    {
+      "line": 125,
+      "type": "pass_statement",
+      "context": "function calculate_position_size",
+      "file": "src\\trading\\strategy_engine\\base_strategy.py"
+    },
+    {
+      "line": 131,
+      "type": "pass_statement",
+      "context": "function should_exit_position",
+      "file": "src\\trading\\strategy_engine\\base_strategy.py"
+    },
+    {
+      "line": 215,
+      "type": "pass_statement",
+      "context": "function update_performance",
+      "file": "src\\trading\\strategy_engine\\base_strategy.py"
+    },
+    {
+      "line": 271,
+      "type": "pass_statement",
+      "context": "function _calculate_results",
+      "file": "src\\trading\\strategy_engine\\backtesting\\backtest_engine.py"
+    },
+    {
+      "line": 274,
+      "type": "pass_statement",
+      "context": "function _calculate_results",
+      "file": "src\\trading\\strategy_engine\\backtesting\\backtest_engine.py"
+    },
+    {
+      "line": 86,
+      "type": "pass_statement",
+      "context": "class SensoryOrgan",
+      "file": "src\\sensory\\core\\base.py"
+    },
+    {
+      "line": 133,
+      "type": "pass_statement",
+      "context": "class SensoryCortex",
+      "file": "src\\sensory\\orchestration\\master_orchestrator.py"
+    },
+    {
+      "line": 430,
+      "type": "pass_statement",
+      "context": "function _validate_elliott_sequence",
+      "file": "src\\sensory\\enhanced\\what\\pattern_synthesis_engine.py"
+    },
+    {
+      "line": 58,
+      "type": "pass_statement",
+      "context": "function calculate_fitness",
+      "file": "src\\evolution\\fitness\\base_fitness.py"
+    },
+    {
+      "line": 71,
+      "type": "pass_statement",
+      "context": "function get_optimal_weight",
+      "file": "src\\evolution\\fitness\\base_fitness.py"
+    },
+    {
+      "line": 104,
+      "type": "pass_statement",
+      "context": "function get_required_keys",
+      "file": "src\\evolution\\fitness\\base_fitness.py"
+    },
+    {
+      "line": 33,
+      "type": "pass_statement",
+      "context": "function select",
+      "file": "src\\evolution\\selection\\selection_strategies.py"
+    },
+    {
+      "line": 31,
+      "type": "pass_statement",
+      "context": "function crossover",
+      "file": "src\\evolution\\variation\\variation_strategies.py"
+    },
+    {
+      "line": 140,
+      "type": "pass_statement",
+      "context": "function mutate",
+      "file": "src\\evolution\\variation\\variation_strategies.py"
+    }
+  ],
+  "not_implemented_errors": [
+    {
+      "line": 131,
+      "type": "not_implemented_error",
+      "context": "function calculate_size_kelly",
+      "file": "src\\trading\\risk\\position_sizer.py"
+    }
+  ],
+  "mock_objects": [
+    {
+      "line": 137,
+      "type": "mock_object",
+      "name": "MockDataGenerator",
+      "context": "function __init__",
+      "file": "src\\data.py"
+    },
+    {
+      "line": 421,
+      "type": "mock_object",
+      "name": "mock_config",
+      "context": "global",
+      "file": "src\\data.py"
+    },
+    {
+      "line": 422,
+      "type": "mock_object",
+      "name": "mock_manager",
+      "context": "global",
+      "file": "src\\data.py"
+    },
+    {
+      "line": 422,
+      "type": "mock_object",
+      "name": "mock_config",
+      "context": "global",
+      "file": "src\\data.py"
+    },
+    {
+      "line": 425,
+      "type": "mock_object",
+      "name": "mock_data",
+      "context": "global",
+      "file": "src\\data.py"
+    },
+    {
+      "line": 425,
+      "type": "mock_object",
+      "name": "mock_manager",
+      "context": "global",
+      "file": "src\\data.py"
+    },
+    {
+      "line": 426,
+      "type": "mock_object",
+      "name": "mock_data",
+      "context": "global",
+      "file": "src\\data.py"
+    },
+    {
+      "line": 451,
+      "type": "mock_object",
+      "name": "mock_manager",
+      "context": "global",
+      "file": "src\\data.py"
+    },
+    {
+      "line": 33,
+      "type": "mock_object",
+      "name": "MOCK",
+      "context": "class DataSource",
+      "file": "src\\data_integration\\data_fusion.py"
+    },
+    {
+      "line": 130,
+      "type": "mock_object",
+      "name": "mock_response",
+      "context": "class MockCTraderClient",
+      "file": "src\\trading\\mock_ctrader_interface.py"
+    },
+    {
+      "line": 136,
+      "type": "mock_object",
+      "name": "mock_response",
+      "context": "class MockCTraderClient",
+      "file": "src\\trading\\mock_ctrader_interface.py"
+    },
+    {
+      "line": 141,
+      "type": "mock_object",
+      "name": "mock_response",
+      "context": "class MockCTraderClient",
+      "file": "src\\trading\\mock_ctrader_interface.py"
+    },
+    {
+      "line": 148,
+      "type": "mock_object",
+      "name": "mock_response",
+      "context": "class MockCTraderClient",
+      "file": "src\\trading\\mock_ctrader_interface.py"
+    },
+    {
+      "line": 201,
+      "type": "mock_object",
+      "name": "MockCTraderClient",
+      "context": "class MockCTraderInterface",
+      "file": "src\\trading\\mock_ctrader_interface.py"
+    },
+    {
+      "line": 502,
+      "type": "mock_object",
+      "name": "mock_tokens",
+      "context": "function exchange_code_for_token",
+      "file": "src\\trading\\mock_ctrader_interface.py"
+    },
+    {
+      "line": 510,
+      "type": "mock_object",
+      "name": "mock_tokens",
+      "context": "function exchange_code_for_token",
+      "file": "src\\trading\\mock_ctrader_interface.py"
+    },
+    {
+      "line": 520,
+      "type": "mock_object",
+      "name": "mock_tokens",
+      "context": "function refresh_token",
+      "file": "src\\trading\\mock_ctrader_interface.py"
+    },
+    {
+      "line": 528,
+      "type": "mock_object",
+      "name": "mock_tokens",
+      "context": "function refresh_token",
+      "file": "src\\trading\\mock_ctrader_interface.py"
+    },
+    {
+      "line": 538,
+      "type": "mock_object",
+      "name": "mock_accounts",
+      "context": "function get_trading_accounts",
+      "file": "src\\trading\\mock_ctrader_interface.py"
+    },
+    {
+      "line": 548,
+      "type": "mock_object",
+      "name": "mock_accounts",
+      "context": "function get_trading_accounts",
+      "file": "src\\trading\\mock_ctrader_interface.py"
+    },
+    {
+      "line": 556,
+      "type": "mock_object",
+      "name": "MockCTraderInterface",
+      "context": "global",
+      "file": "src\\trading\\mock_ctrader_interface.py"
+    },
+    {
+      "line": 576,
+      "type": "mock_object",
+      "name": "MockCTraderInterface",
+      "context": "function main",
+      "file": "src\\trading\\mock_ctrader_interface.py"
+    },
+    {
+      "line": 130,
+      "type": "mock_object",
+      "name": "mock_response",
+      "context": "class MockCTraderClient",
+      "file": "src\\trading\\integration\\mock_ctrader_interface.py"
+    },
+    {
+      "line": 136,
+      "type": "mock_object",
+      "name": "mock_response",
+      "context": "class MockCTraderClient",
+      "file": "src\\trading\\integration\\mock_ctrader_interface.py"
+    },
+    {
+      "line": 141,
+      "type": "mock_object",
+      "name": "mock_response",
+      "context": "class MockCTraderClient",
+      "file": "src\\trading\\integration\\mock_ctrader_interface.py"
+    },
+    {
+      "line": 148,
+      "type": "mock_object",
+      "name": "mock_response",
+      "context": "class MockCTraderClient",
+      "file": "src\\trading\\integration\\mock_ctrader_interface.py"
+    },
+    {
+      "line": 201,
+      "type": "mock_object",
+      "name": "MockCTraderClient",
+      "context": "class MockCTraderInterface",
+      "file": "src\\trading\\integration\\mock_ctrader_interface.py"
+    },
+    {
+      "line": 502,
+      "type": "mock_object",
+      "name": "mock_tokens",
+      "context": "function exchange_code_for_token",
+      "file": "src\\trading\\integration\\mock_ctrader_interface.py"
+    },
+    {
+      "line": 510,
+      "type": "mock_object",
+      "name": "mock_tokens",
+      "context": "function exchange_code_for_token",
+      "file": "src\\trading\\integration\\mock_ctrader_interface.py"
+    },
+    {
+      "line": 520,
+      "type": "mock_object",
+      "name": "mock_tokens",
+      "context": "function refresh_token",
+      "file": "src\\trading\\integration\\mock_ctrader_interface.py"
+    },
+    {
+      "line": 528,
+      "type": "mock_object",
+      "name": "mock_tokens",
+      "context": "function refresh_token",
+      "file": "src\\trading\\integration\\mock_ctrader_interface.py"
+    },
+    {
+      "line": 538,
+      "type": "mock_object",
+      "name": "mock_accounts",
+      "context": "function get_trading_accounts",
+      "file": "src\\trading\\integration\\mock_ctrader_interface.py"
+    },
+    {
+      "line": 548,
+      "type": "mock_object",
+      "name": "mock_accounts",
+      "context": "function get_trading_accounts",
+      "file": "src\\trading\\integration\\mock_ctrader_interface.py"
+    },
+    {
+      "line": 556,
+      "type": "mock_object",
+      "name": "MockCTraderInterface",
+      "context": "global",
+      "file": "src\\trading\\integration\\mock_ctrader_interface.py"
+    },
+    {
+      "line": 576,
+      "type": "mock_object",
+      "name": "MockCTraderInterface",
+      "context": "function main",
+      "file": "src\\trading\\integration\\mock_ctrader_interface.py"
+    },
+    {
+      "line": 517,
+      "type": "mock_object",
+      "name": "MockStrategy",
+      "context": "global",
+      "file": "src\\evolution\\selection\\adversarial_selector.py"
+    },
+    {
+      "line": 518,
+      "type": "mock_object",
+      "name": "MockStrategy",
+      "context": "global",
+      "file": "src\\evolution\\selection\\adversarial_selector.py"
+    },
+    {
+      "line": 519,
+      "type": "mock_object",
+      "name": "MockStrategy",
+      "context": "global",
+      "file": "src\\evolution\\selection\\adversarial_selector.py"
+    }
+  ],
+  "summary": {
+    "total_pass_statements": 79,
+    "total_not_implemented_errors": 1,
+    "total_mock_objects": 38,
+    "total_issues": 118,
+    "status": "FAILED"
+  }
+}

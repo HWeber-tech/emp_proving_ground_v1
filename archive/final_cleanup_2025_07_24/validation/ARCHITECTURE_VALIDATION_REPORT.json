@@ -1,0 +1,111 @@
+{
+  "timestamp": "2025-07-19T14:42:37.127841",
+  "version": "1.1.0",
+  "overall_compliance": {
+    "score": 100.0,
+    "level": "FULLY_COMPLIANT"
+  },
+  "validations": {
+    "directory_structure": {
+      "total_directories": 35,
+      "existing_directories": 35,
+      "missing_directories": 0,
+      "structure_score": 100.0,
+      "results": {
+        "src/sensory/organs": "EXISTS",
+        "src/sensory/integration": "EXISTS",
+        "src/sensory/calibration": "EXISTS",
+        "src/sensory/models": "EXISTS",
+        "src/thinking/patterns": "EXISTS",
+        "src/thinking/analysis": "EXISTS",
+        "src/thinking/inference": "EXISTS",
+        "src/thinking/memory": "EXISTS",
+        "src/thinking/models": "EXISTS",
+        "src/simulation/market_simulator": "EXISTS",
+        "src/simulation/stress_tester": "EXISTS",
+        "src/simulation/adversarial": "EXISTS",
+        "src/simulation/validators": "EXISTS",
+        "src/genome/encoders": "EXISTS",
+        "src/genome/decoders": "EXISTS",
+        "src/genome/models": "EXISTS",
+        "src/evolution/engine": "EXISTS",
+        "src/evolution/selection": "EXISTS",
+        "src/evolution/variation": "EXISTS",
+        "src/evolution/evaluation": "EXISTS",
+        "src/evolution/meta": "EXISTS",
+        "src/trading/strategies": "EXISTS",
+        "src/trading/execution": "EXISTS",
+        "src/trading/risk": "EXISTS",
+        "src/trading/monitoring": "EXISTS",
+        "src/trading/integration": "EXISTS",
+        "src/ui/web": "EXISTS",
+        "src/ui/cli": "EXISTS",
+        "src/ui/models": "EXISTS",
+        "src/governance": "EXISTS",
+        "src/operational": "EXISTS",
+        "config/fitness": "EXISTS",
+        "config/governance": "EXISTS",
+        "config/operational": "EXISTS",
+        "k8s": "EXISTS"
+      },
+      "missing": []
+    },
+    "core_files": {
+      "total_files": 17,
+      "existing_files": 17,
+      "missing_files": 0,
+      "files_score": 100.0,
+      "results": {
+        "src/core/events.py": "EXISTS",
+        "src/core/event_bus.py": "EXISTS",
+        "src/thinking/patterns/regime_classifier.py": "EXISTS",
+        "src/thinking/analysis/performance_analyzer.py": "EXISTS",
+        "src/thinking/analysis/risk_analyzer.py": "EXISTS",
+        "src/simulation/evaluation/fitness_evaluator.py": "EXISTS",
+        "src/evolution/selection/selection_strategies.py": "EXISTS",
+        "src/evolution/variation/variation_strategies.py": "EXISTS",
+        "src/evolution/engine/population_manager.py": "EXISTS",
+        "src/evolution/engine/genetic_engine.py": "EXISTS",
+        "src/sensory/integration/sensory_cortex.py": "EXISTS",
+        "src/governance/fitness_store.py": "EXISTS",
+        "src/governance/strategy_registry.py": "EXISTS",
+        "config/fitness/default_v1.yaml": "EXISTS",
+        "Dockerfile": "EXISTS",
+        "docker-compose.yml": "EXISTS",
+        "k8s/emp-deployment.yaml": "EXISTS"
+      },
+      "missing": []
+    },
+    "layer_separation": {
+      "violations": [],
+      "separation_score": 100,
+      "total_violations": 0
+    },
+    "event_driven_architecture": {
+      "event_bus_exists": true,
+      "events_exists": true,
+      "sensory_cortex_exists": true,
+      "thinking_components_exist": true,
+      "event_score": 100
+    },
+    "governance_layer": {
+      "fitness_store_exists": true,
+      "strategy_registry_exists": true,
+      "fitness_config_exists": true,
+      "governance_score": 100
+    },
+    "operational_backbone": {
+      "dockerfile_exists": true,
+      "docker_compose_exists": true,
+      "k8s_exists": true,
+      "operational_score": 100
+    }
+  },
+  "summary": {
+    "total_directories": 35,
+    "existing_directories": 35,
+    "total_files": 17,
+    "existing_files": 17,
+    "separation_violations": 0
+  }
+}

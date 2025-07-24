@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 """
-Simple FIX Connection Verification Script
-Tests basic FIX connection to IC Markets cTrader
+FIX Connection Verification Script
+Tests the complete FIX protocol integration with IC Markets cTrader
 """
 
+import asyncio
 import logging
 import sys
 import os
-import time
+from datetime import datetime
 
 # Add src to path for imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
@@ -18,119 +19,196 @@ from src.operational.enhanced_fix_application import EnhancedFIXApplication
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(sys.stdout),
+        logging.FileHandler('logs/fix/connection_test.log')
+    ]
 )
 
 log = logging.getLogger(__name__)
 
 
-def main():
-    """
-    Simple verification script for FIX connections.
-    This script tests basic connectivity to IC Markets cTrader FIX gateways.
-    """
-    print("=" * 60)
-    print("EMP v4.0 FIX Connection Verification")
-    print("=" * 60)
+class FIXConnectionTester:
+    """Comprehensive FIX connection tester for IC Markets cTrader"""
     
-    try:
-        config = SystemConfig()
+    def __init__(self):
+        self.config = SystemConfig()
+        self.price_session = None
+        self.trade_session = None
         
-        # Test Price Connection
-        print("\n1. Testing Price FIX Connection...")
-        price_config = {
-            'SenderCompID': config.fix_price_sender_comp_id or 'YOUR_PRICE_SENDER_ID',
-            'Username': config.fix_price_username or 'YOUR_PRICE_USERNAME',
-            'Password': config.fix_price_password or 'YOUR_PRICE_PASSWORD'
-        }
+    def test_price_connection(self) -> bool:
+        """Test price FIX connection (port 5211)"""
+        log.info("Testing price FIX connection...")
         
-        price_app = EnhancedFIXApplication(
-            session_config=price_config,
-            session_type='price'
-        )
-        
-        price_success = price_app.start(
-            host='demo-uk-eqx-01.p.c-trader.com',
-            port=5211
-        )
-        
-        if price_success:
-            print("✓ Price FIX connection successful")
-        else:
-            print("✗ Price FIX connection failed")
-        
-        # Test Trade Connection
-        print("\n2. Testing Trade FIX Connection...")
-        trade_config = {
-            'SenderCompID': config.fix_trade_sender_comp_id or 'YOUR_TRADE_SENDER_ID',
-            'Username': config.fix_trade_username or 'YOUR_TRADE_USERNAME',
-            'Password': config.fix_trade_password or 'YOUR_TRADE_PASSWORD'
-        }
-        
-        trade_app = EnhancedFIXApplication(
-            session_config=trade_config,
-            session_type='trade'
-        )
-        
-        trade_success = trade_app.start(
-            host='demo-uk-eqx-01.p.c-trader.com',
-            port=5212
-        )
-        
-        if trade_success:
-            print("✓ Trade FIX connection successful")
-        else:
-            print("✗ Trade FIX connection failed")
-        
-        # Keep connections alive for observation
-        if price_success or trade_success:
-            print("\n3. Observing connections for 30 seconds...")
-            print("Look for 'SUCCESSFUL LOGON' messages in the logs above.")
-            print("Press Ctrl+C to exit early.")
+        try:
+            # Check credentials
+            if not self.config.fix_price_sender_comp_id:
+                log.error("Price FIX credentials not configured")
+                return False
+                
+            session_config = {
+                'SenderCompID': self.config.fix_price_sender_comp_id,
+                'Username': self.config.fix_price_username,
+                'Password': self.config.fix_price_password
+            }
             
-            try:
-                time.sleep(30)
-            except KeyboardInterrupt:
-                print("\nExiting early...")
+            # Create price session
+            self.price_session = EnhancedFIXApplication(
+                session_config=session_config,
+                session_type='price'
+            )
+            
+            # Connect to demo server
+            success = self.price_session.start(
+                host='demo-uk-eqx-01.p.c-trader.com',
+                port=5211
+            )
+            
+            if success:
+                log.info("✓ Price FIX connection successful")
+                return True
+            else:
+                log.error("✗ Price FIX connection failed")
+                return False
+                
+        except Exception as e:
+            log.error(f"Price FIX connection error: {e}")
+            return False
+    
+    def test_trade_connection(self) -> bool:
+        """Test trade FIX connection (port 5212)"""
+        log.info("Testing trade FIX connection...")
         
-        # Cleanup
-        print("\n4. Cleaning up...")
-        if price_app:
-            price_app.stop()
-        if trade_app:
-            trade_app.stop()
+        try:
+            # Check credentials
+            if not self.config.fix_trade_sender_comp_id:
+                log.error("Trade FIX credentials not configured")
+                return False
+                
+            session_config = {
+                'SenderCompID': self.config.fix_trade_sender_comp_id,
+                'Username': self.config.fix_trade_username,
+                'Password': self.config.fix_trade_password
+            }
+            
+            # Create trade session
+            self.trade_session = EnhancedFIXApplication(
+                session_config=session_config,
+                session_type='trade'
+            )
+            
+            # Connect to demo server
+            success = self.trade_session.start(
+                host='demo-uk-eqx-01.p.c-trader.com',
+                port=5212
+            )
+            
+            if success:
+                log.info("✓ Trade FIX connection successful")
+                return True
+            else:
+                log.error("✗ Trade FIX connection failed")
+                return False
+                
+        except Exception as e:
+            log.error(f"Trade FIX connection error: {e}")
+            return False
+    
+    def run_comprehensive_test(self) -> bool:
+        """Run comprehensive FIX connection test"""
+        log.info("=" * 60)
+        log.info("EMP v4.0 FIX Connection Verification")
+        log.info("=" * 60)
+        
+        results = {
+            'price_connection': False,
+            'trade_connection': False
+        }
+        
+        # Test price connection
+        results['price_connection'] = self.test_price_connection()
+        
+        # Test trade connection
+        results['trade_connection'] = self.test_trade_connection()
         
         # Summary
-        print("\n" + "=" * 60)
-        print("VERIFICATION SUMMARY")
-        print("=" * 60)
+        log.info("=" * 60)
+        log.info("FIX Connection Test Results:")
+        log.info(f"Price Connection: {'✓ PASS' if results['price_connection'] else '✗ FAIL'}")
+        log.info(f"Trade Connection: {'✓ PASS' if results['trade_connection'] else '✗ FAIL'}")
         
-        if price_success and trade_success:
-            print("🎉 Both FIX connections established successfully!")
-            print("\nNext steps:")
-            print("1. Update your .env file with actual FIX credentials")
-            print("2. Run: python scripts/verify_fix_sensory_integration.py")
-            print("3. Test market data subscription")
-            return True
+        all_passed = all(results.values())
+        if all_passed:
+            log.info("🎉 All FIX connections verified successfully!")
         else:
-            print("⚠ Some connections failed")
-            print("\nTroubleshooting:")
-            print("1. Check your .env file for FIX credentials")
-            print("2. Verify network connectivity to demo-uk-eqx-01.p.c-trader.com")
-            print("3. Ensure ports 5211 (price) and 5212 (trade) are accessible")
-            return False
-            
-    except KeyboardInterrupt:
-        print("\nVerification interrupted by user")
-        return False
-    except Exception as e:
-        print(f"\nVerification failed: {e}")
-        return False
+            log.error("❌ Some FIX connections failed. Check logs for details.")
+        
+        return all_passed
+    
+    def cleanup(self):
+        """Clean up connections"""
+        if self.price_session:
+            self.price_session.stop()
+        if self.trade_session:
+            self.trade_session.stop()
+    
+    def print_setup_instructions(self):
+        """Print setup instructions for users"""
+        print("\n" + "=" * 60)
+        print("FIX CONNECTION SETUP INSTRUCTIONS")
+        print("=" * 60)
+        print("\n1. Copy .env.example to .env:")
+        print("   cp .env.example .env")
+        print("\n2. Update your FIX credentials in .env:")
+        print("   FIX_PRICE_SENDER_COMP_ID=your_price_sender_id")
+        print("   FIX_PRICE_USERNAME=your_price_username")
+        print("   FIX_PRICE_PASSWORD=your_price_password")
+        print("   FIX_TRADE_SENDER_COMP_ID=your_trade_sender_id")
+        print("   FIX_TRADE_USERNAME=your_trade_username")
+        print("   FIX_TRADE_PASSWORD=your_trade_password")
+        print("\n3. Run the verification:")
+        print("   python scripts/verify_fix_connection.py")
+        print("\n4. Check logs in logs/fix/ for detailed information")
+        print("=" * 60)
+
+
+def main():
+    """Main test runner"""
+    tester = FIXConnectionTester()
+    
+    # Check if credentials are configured
+    config = SystemConfig()
+    credentials_configured = any([
+        config.fix_price_sender_comp_id,
+        config.fix_price_username,
+        config.fix_price_password,
+        config.fix_trade_sender_comp_id,
+        config.fix_trade_username,
+        config.fix_trade_password
+    ])
+    
+    if not credentials_configured:
+        print("\n❌ FIX credentials not configured!")
+        tester.print_setup_instructions()
+        return
+    
+    # Run comprehensive test
+    success = tester.run_comprehensive_test()
+    
+    # Wait for connections to establish
+    print("\n⏳ Waiting 30 seconds for connections to establish...")
+    time.sleep(30)
+    
+    # Cleanup
+    tester.cleanup()
+    
+    if success:
+        print("\n✅ All tests completed successfully!")
+    else:
+        print("\n❌ Some tests failed. Check the logs above for details.")
 
 
 if __name__ == "__main__":
-    # Create logs directory
-    os.makedirs('logs', exist_ok=True)
-    
-    success = main()
-    sys.exit(0 if success else 1)
+    import time
+    main()

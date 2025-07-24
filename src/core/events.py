@@ -6,6 +6,8 @@ Defines the primary sensory events and data structures
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
 from datetime import datetime
+from decimal import Decimal
+from enum import Enum
 
 
 class OrderBookLevel(BaseModel):
@@ -99,3 +101,54 @@ class MarketDataSubscription(BaseModel):
     depth: int
     active: bool = True
     created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class OrderStatus(str, Enum):
+    """Order status enumeration for trade execution"""
+    NEW = "NEW"
+    PARTIALLY_FILLED = "PARTIALLY_FILLED"
+    FILLED = "FILLED"
+    DONE_FOR_DAY = "DONE_FOR_DAY"
+    CANCELED = "CANCELED"
+    REPLACED = "REPLACED"
+    PENDING_CANCEL = "PENDING_CANCEL"
+    STOPPED = "STOPPED"
+    REJECTED = "REJECTED"
+    UNKNOWN = "UNKNOWN"
+
+
+class ExecutionReportEvent(BaseModel):
+    """Execution report event for trade confirmations"""
+    order_id: str
+    symbol: str
+    side: str  # BUY or SELL
+    quantity: Decimal
+    filled_quantity: Decimal
+    remaining_quantity: Decimal
+    price: Decimal
+    filled_price: Decimal
+    status: OrderStatus
+    timestamp: datetime
+    exec_id: Optional[str] = None
+    account: Optional[str] = None
+    text: Optional[str] = None
+    
+    def __str__(self):
+        return f"ExecutionReport({self.order_id}: {self.status} {self.side} {self.symbol} {self.filled_quantity}/{self.quantity}@{self.filled_price})"
+
+
+class TradeIntent(BaseModel):
+    """Trade intent for order placement"""
+    symbol: str
+    side: str  # BUY or SELL
+    quantity: Decimal
+    order_type: str  # 1=Market, 2=Limit, 4=Stop
+    price: Optional[Decimal] = None
+    stop_price: Optional[Decimal] = None
+    time_in_force: str = "0"  # 0=Day, 1=GTC, 3=IOC, 4=FOK
+    account: Optional[str] = None
+    strategy_id: Optional[str] = None
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+    
+    def __str__(self):
+        return f"TradeIntent({self.side} {self.quantity} {self.symbol} {self.order_type})"

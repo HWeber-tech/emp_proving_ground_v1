@@ -28,7 +28,7 @@ class EnhancedFIXApplication:
     messages to the FIXSensoryOrgan for processing.
     """
     
-    def __init__(self, session_config: Dict[str, str], session_type: str, sensory_organ=None):
+    def __init__(self, session_config: Dict[str, str], session_type: str, sensory_organ=None, broker_interface=None):
         """
         Initialize enhanced FIX application
         
@@ -36,10 +36,12 @@ class EnhancedFIXApplication:
             session_config: Dictionary containing session configuration
             session_type: Either 'price' or 'trade'
             sensory_organ: FIXSensoryOrgan instance for market data processing
+            broker_interface: FIXBrokerInterface instance for trade execution
         """
         self.session_config = session_config
         self.session_type = session_type
         self.sensory_organ = sensory_organ
+        self.broker_interface = broker_interface
         self.session_id = None
         self.connected = False
         self.message_sequence = 1
@@ -48,6 +50,7 @@ class EnhancedFIXApplication:
         self.on_market_data_snapshot: Optional[Callable] = None
         self.on_market_data_incremental: Optional[Callable] = None
         self.on_market_data_reject: Optional[Callable] = None
+        self.on_execution_report: Optional[Callable] = None
         
         # For simplefix implementation
         self.parser = simplefix.FixParser()

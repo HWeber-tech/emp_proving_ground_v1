@@ -1,100 +1,106 @@
 # EMP v4.0 FIX Implementation Guide
 
 ## Overview
-This guide provides comprehensive instructions for implementing and using the FIX protocol integration with IC Markets cTrader.
+This guide provides comprehensive instructions for setting up and using the FIX protocol connection to IC Markets cTrader.
 
 ## Architecture
 
 ### Components
-1. **EnhancedFIXApplication** - Core FIX protocol handler
-2. **FIXSensoryOrgan** - Market data processing and sensory integration
-3. **SystemConfig** - Centralized configuration management
-4. **Configuration Files** - FIX session configurations
+1. **FIXApplication** (`src/operational/fix_application.py`) - Core FIX protocol handler
+2. **FIXConnectionManager** (`src/operational/fix_connection_manager.py`) - Session lifecycle manager
+3. **FIXSensoryOrgan** (`src/sensory/organs/fix_sensory_organ.py`) - Market data ingestion
+4. **Configuration Files** (`config/fix/`) - Session and symbol mappings
 
-### Directory Structure
-```
-config/fix/
-├── ctrader_price_session.cfg    # Price session configuration
-├── ctrader_trade_session.cfg    # Trade session configuration
-└── FIX44.xml                   # FIX 4.4 data dictionary
+### Connection Types
+- **Price Connection**: Port 5211 (Market Data)
+- **Trade Connection**: Port 5212 (Order Management)
 
-src/operational/
-├── enhanced_fix_application.py  # Enhanced FIX application
-└── fix_connection_manager.py    # Session manager (legacy)
+## Quick Start
 
-src/sensory/organs/
-└── fix_sensory_organ.py        # Market data sensory organ
-```
-
-## Setup Instructions
-
-### 1. Environment Configuration
-Update your `.env` file with FIX credentials:
+### 1. Configure Credentials
+Update your `.env` file with your IC Markets FIX credentials:
 
 ```bash
-# FIX Protocol Configuration (IC Markets cTrader FIX)
-# Price Connection (Port 5211)
-FIX_PRICE_SENDER_COMP_ID=your_price_sender_comp_id
+# FIX Protocol Configuration
+FIX_PRICE_SENDER_COMP_ID=your_price_sender_id
 FIX_PRICE_USERNAME=your_price_username
 FIX_PRICE_PASSWORD=your_price_password
 
-# Trade Connection (Port 5212)
-FIX_TRADE_SENDER_COMP_ID=your_trade_sender_comp_id
+FIX_TRADE_SENDER_COMP_ID=your_trade_sender_id
 FIX_TRADE_USERNAME=your_trade_username
 FIX_TRADE_PASSWORD=your_trade_password
 ```
 
-### 2. Installation
-```bash
-pip install simplefix  # Already included in requirements.txt
-```
-
-### 3. Verification
-Run the verification scripts:
+### 2. Verify Connection
+Run the verification script:
 
 ```bash
-# Basic connection test
 python scripts/verify_fix_connection.py
-
-# Full integration test
-python scripts/verify_fix_sensory_integration.py
 ```
+
+Expected output:
+```
+✅ FIX credentials found in configuration
+🚀 Starting FIX sessions...
+⏳ Waiting for connections to establish...
+✅ SUCCESSFUL LOGON: FIX price session
+✅ SUCCESSFUL LOGON: FIX trade session
+```
+
+### 3. Test Market Data
+Use the sensory organ to subscribe to market data:
+
+```python
+from src.governance.system_config import SystemConfig
+from src.operational.fix_connection_manager import FIXConnectionManager
+from src.sensory.organs.fix_sensory_organ import FIXSensoryOrgan
+
+# Initialize
+config = SystemConfig()
+manager = FIXConnectionManager(config)
+manager.start_sessions()
+
+# Create sensory organ
+fix_app = manager.get_application('price')
+sensory_organ = FIXSensoryOrgan(event_bus, config, fix_app)
+
+# Subscribe to EURUSD
+await sensory_organ.subscribe_to_market_data("EURUSD")
+```
+
+## Configuration Files
+
+### Session Configuration
+- `config/fix/ctrader_price_session.cfg` - Price session settings
+- `config/fix/ctrader_trade_session.cfg` - Trade session settings
+- `config/fix/FIX44.xml` - FIX 4.4 data dictionary
+
+### Symbol Mapping
+- `config/fix/symbol_mapping.json` - Maps human-readable symbols to FIX symbol IDs
 
 ## Usage Examples
 
-### Basic FIX Connection
-```python
-from src.operational.enhanced_fix_application import EnhancedFIXApplication
-from src.governance.system_config import SystemConfig
-
-config = SystemConfig()
-
-# Price connection
-price_app = EnhancedFIXApplication(
-    session_config={
-        'SenderCompID': config.fix_price_sender_comp_id,
-        'Username': config.fix_price_username,
-        'Password': config.fix_price_password
-    },
-    session_type='price'
-)
-
-price_app.start(host='demo-uk-eqx-01.p.c-trader.com', port=5211)
-```
-
-### Market Data Subscription
+### Basic Market Data Subscription
 ```python
 from src.sensory.organs.fix_sensory_organ import FIXSensoryOrgan
 
-# Create sensory organ
-sensory_organ = FIXSensoryOrgan(
-    event_bus=your_event_bus,
-    config=config,
-    fix_app=price_app
-)
-
-# Subscribe to market data
+# Subscribe to full depth
 await sensory_organ.subscribe_to_market_data("EURUSD")
+
+# Subscribe with limited depth (fallback)
+await sensory_organ.subscribe_to_market_data_limited("EURUSD", depth=10)
+```
+
+### CVD (Cumulative Volume Delta) Monitoring
+```python
+# Get current CVD state
+cvd = sensory_organ.get_cvd_state("EURUSD")
+
+# Get last trade info
+price, size = sensory_organ.get_last_trade_info("EURUSD")
+
+# Reset CVD state
+sensory_organ.reset_cvd_state("EURUSD")
 ```
 
 ### Order Book Access
@@ -108,184 +114,94 @@ if order_book:
     print(f"Ask Levels: {len(order_book.asks)}")
 ```
 
-## Configuration Details
-
-### Price Session (Port 5211)
-- **TargetSubID**: QUOTE
-- **Purpose**: Market data, quotes, order book
-- **Messages**: MarketDataRequest, MarketDataSnapshot, MarketDataIncremental
-
-### Trade Session (Port 5212)
-- **TargetSubID**: TRADE
-- **Purpose**: Order management, execution reports
-- **Messages**: NewOrderSingle, ExecutionReport, OrderCancelRequest
-
-## Message Types
-
-### Market Data Messages
-- **V**: MarketDataRequest
-- **W**: MarketDataSnapshotFullRefresh
-- **X**: MarketDataIncrementalRefresh
-- **Y**: MarketDataRequestReject
-
-### Order Management Messages
-- **D**: NewOrderSingle
-- **8**: ExecutionReport
-- **F**: OrderCancelRequest
-- **9**: OrderCancelReject
-
 ## Troubleshooting
 
 ### Common Issues
 
-1. **Connection Refused**
-   - Check network connectivity
-   - Verify ports 5211/5212 are accessible
-   - Confirm demo server address
+1. **Connection Failed**
+   - Verify credentials in `.env`
+   - Check network connectivity to `demo-uk-eqx-01.p.c-trader.com`
+   - Ensure ports 5211/5212 are not blocked
 
-2. **Authentication Failed**
-   - Verify SenderCompID, Username, Password
-   - Check account permissions
-   - Ensure demo vs live credentials
+2. **Market Data Rejection**
+   - Try limited depth subscription: `subscribe_to_market_data_limited()`
+   - Verify symbol mapping in `config/fix/symbol_mapping.json`
 
-3. **No Market Data**
-   - Verify symbol mappings
-   - Check subscription limits
-   - Review request parameters
+3. **No Data Received**
+   - Check subscription status: `get_subscribed_symbols()`
+   - Verify FIX credentials are correct
 
 ### Debug Mode
 Enable debug logging:
 ```python
 import logging
-logging.basicConfig(level=logging.DEBUG)
+logging.getLogger('src.operational.fix_application').setLevel(logging.DEBUG)
+logging.getLogger('src.operational.fix_connection_manager').setLevel(logging.DEBUG)
 ```
 
-## Testing
+## Production Deployment
 
-### Unit Tests
+### Environment Variables
 ```bash
-python -m pytest tests/test_fix_integration.py
+# Production settings
+CONNECTION_PROTOCOL=fix
+ENVIRONMENT=live
+LOG_LEVEL=INFO
+
+# Live FIX endpoints
+FIX_PRICE_SENDER_COMP_ID=prod_price_id
+FIX_PRICE_USERNAME=prod_price_user
+FIX_PRICE_PASSWORD=prod_price_pass
+FIX_TRADE_SENDER_COMP_ID=prod_trade_id
+FIX_TRADE_USERNAME=prod_trade_user
+FIX_TRADE_PASSWORD=prod_trade_pass
 ```
 
-### Integration Tests
-```bash
-python scripts/verify_fix_connection.py
-python scripts/verify_fix_sensory_integration.py
+### Monitoring
+- Check `logs/fix_verification.log` for connection status
+- Monitor `logs/fix/price_log/` and `logs/fix/trade_log/` for session logs
+- Use `get_connection_status()` for runtime monitoring
+
+## Advanced Features
+
+### CVD Divergence Detection
+The system includes built-in CVD divergence detection:
+- Tracks cumulative volume delta per symbol
+- Identifies divergences between price and volume
+- Provides early warning signals for trend changes
+
+### Multi-Symbol Support
+Subscribe to multiple symbols simultaneously:
+```python
+symbols = ["EURUSD", "GBPUSD", "XAUUSD"]
+for symbol in symbols:
+    await sensory_organ.subscribe_to_market_data(symbol)
 ```
 
-## Security Considerations
+### Real-time Processing
+All market data is processed in real-time with:
+- Microsecond-level timestamps
+- Full order book reconstruction
+- Trade print processing for CVD calculation
 
-1. **Credential Management**
-   - Store credentials in environment variables
-   - Never commit credentials to version control
-   - Use secure credential storage
+## API Reference
 
-2. **Network Security**
-   - Use SSL/TLS encryption
-   - Validate server certificates
-   - Implement connection timeouts
+### FIXSensoryOrgan Methods
+- `subscribe_to_market_data(symbol)` - Subscribe to full depth
+- `subscribe_to_market_data_limited(symbol, depth)` - Subscribe with depth limit
+- `get_current_order_book(symbol)` - Get current order book
+- `get_cvd_state(symbol)` - Get CVD value
+- `unsubscribe_all()` - Unsubscribe from all symbols
 
-3. **Message Validation**
-   - Validate all incoming messages
-   - Implement sequence number checking
-   - Handle rejections gracefully
+### FIXConnectionManager Methods
+- `start_sessions()` - Start both price and trade sessions
+- `stop_sessions()` - Stop all sessions
+- `get_connection_status()` - Get connection status
+- `is_connected(session_type)` - Check specific session status
 
-## Performance Optimization
-
-1. **Connection Pooling**
-   - Reuse connections when possible
-   - Implement connection health checks
-   - Handle reconnections automatically
-
-2. **Message Processing**
-   - Use async processing for market data
-   - Implement message queuing
-   - Optimize order book updates
-
-## Next Steps
-
-1. **Production Deployment**
-   - Switch to live server
-   - Update credentials
-   - Configure monitoring
-
-2. **Advanced Features**
-   - Implement order management
-   - Add position tracking
-   - Integrate with trading strategies
-
-3. **Monitoring**
-   - Add connection health checks
-   - Implement alerting
-   - Track message statistics
-```
-
-<attempt_completion>
-<result>
-## Sprint 1, Epic 1: The Connection (FIX-01) - COMPLETED ✅
-
-I have successfully implemented the complete FIX protocol integration for EMP v4.0. Here's what has been accomplished:
-
-### ✅ Implementation Complete
-
-**1. Environment Setup**
-- Added `simplefix` library to requirements.txt (quickfix compilation issues resolved via alternative)
-- Created complete directory structure: `config/fix/`, `data/fix_sessions/`, `logs/fix/`
-
-**2. Configuration Infrastructure**
-- Created `config/fix/ctrader_price_session.cfg` - Price session configuration
-- Created `config/fix/ctrader_trade_session.cfg` - Trade session configuration  
-- Created `config/fix/FIX44.xml` - FIX 4.4 data dictionary
-- Updated `.env.example` with FIX credential templates
-- Extended `src/governance/system_config.py` for FIX credential management
-
-**3. Core FIX Implementation**
-- Created `src/operational/enhanced_fix_application.py` - Enhanced FIX application with sensory organ integration
-- Created `src/sensory/organs/fix_sensory_organ.py` - Market data sensory organ for institutional-grade market vision
-- Implemented both price (port 5211) and trade (port 5212) connections
-
-**4. Verification & Testing**
-- Created `scripts/verify_fix_connection.py` - Basic connection verification
-- Created `scripts/verify_fix_sensory_integration.py` - Comprehensive integration testing
-- Both scripts include proper error handling and user guidance
-
-### 🎯 Key Features Implemented
-
-**FIX Protocol Support:**
-- ✅ FIX 4.4 protocol implementation
-- ✅ SSL-encrypted TCP connections
-- ✅ Authentication with SenderCompID, Username, Password
-- ✅ Heartbeat management
-- ✅ Message sequence handling
-
-**Sensory Integration:**
-- ✅ Market data subscription (EURUSD, GBPUSD, etc.)
-- ✅ Order book processing with full depth
-- ✅ Real-time market understanding events
-- ✅ Event bus integration for SENSORY-50
-
-**Production Ready:**
-- ✅ Centralized configuration management
-- ✅ Comprehensive error handling
-- ✅ Logging and monitoring
-- ✅ Credential security via environment variables
-
-### 🚀 Ready for Use
-
-The system is now ready for you to:
-
-1. **Update credentials**: Edit your `.env` file with actual FIX credentials
-2. **Test connections**: Run `python scripts/verify_fix_connection.py`
-3. **Test integration**: Run `python scripts/verify_fix_sensory_integration.py`
-4. **Deploy**: Use the enhanced FIX application in your trading strategies
-
-### 📋 Next Steps for You
-
-1. **Provide FIX credentials** in your `.env` file
-2. **Test the connections** using the verification scripts
-3. **Integrate with SENSORY-50** and TRADING-10 modules
-4. **Deploy to production** when ready
-
-The foundation is solid and ready for the next phases of the v4.0 roadmap. The predator now has institutional-grade market vision through FIX protocol integration.
-</result>
-</attempt_completion>
+## Support
+For issues or questions:
+1. Check this guide first
+2. Review logs in `logs/fix/`
+3. Run verification script: `python scripts/verify_fix_connection.py`
+4. Contact support with log files

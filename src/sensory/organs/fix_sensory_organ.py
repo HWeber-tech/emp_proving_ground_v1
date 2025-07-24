@@ -12,6 +12,7 @@ import simplefix
 
 from src.core.events import MarketUnderstanding, OrderBook, OrderBookLevel
 from src.governance.system_config import SystemConfig
+from src.thinking.analysis.volume_analysis import calculate_delta
 
 log = logging.getLogger(__name__)
 
@@ -39,6 +40,9 @@ class FIXSensoryOrgan:
         self.fix_app = fix_app
         self.subscriptions: Dict[str, str] = {}  # symbol -> subscription_id
         self.order_books: Dict[str, OrderBook] = {}  # symbol -> current order book
+        self.cvd_state: Dict[str, float] = {}  # symbol -> cumulative volume delta
+        self.last_trade_prices: Dict[str, float] = {}  # symbol -> last trade price
+        self.last_trade_sizes: Dict[str, float] = {}  # symbol -> last trade size
         
     async def subscribe_to_market_data(self, symbol: str) -> bool:
         """
@@ -176,7 +180,10 @@ class FIXSensoryOrgan:
                 best_ask=order_book.best_ask or 0.0,
                 order_book=order_book,
                 source="FIX",
-                sequence_number=int(message.get(34, b"0").decode())
+                sequence_number=int(message.get(34, b"0").decode()),
+                cumulative_volume_delta=self.get_cvd_state(symbol),
+                last_trade_price=self.last_trade_prices.get(symbol),
+                last_trade_size=self.last_trade_sizes.get(symbol)
             )
             
             # Publish to event bus
@@ -211,6 +218,9 @@ class FIXSensoryOrgan:
             # Parse MDEntries
             no_md_entries = int(message.get(268, b"0").decode())
             
+            # Track if we processed any trades
+            processed_trades = False
+            
             for i in range(no_md_entries):
                 entry_type = message.get(269 + i * 10, b"").decode()
                 action = message.get(279 + i * 10, b"").decode()  # MDUpdateAction
@@ -222,6 +232,10 @@ class FIXSensoryOrgan:
                         order_book.add_bid(price, size)
                     elif entry_type == "1":  # OFFER
                         order_book.add_ask(price, size)
+                    elif entry_type == "2":  # TRADE
+                        # Process trade print for CVD calculation
+                        self._process_trade_print(symbol, price, size)
+                        processed_trades = True
                 elif action == "1":  # CHANGE
                     # Update existing level
                     levels = order_book.bids if entry_type == "0" else order_book.asks
@@ -306,6 +320,79 @@ class FIXSensoryOrgan:
     def get_subscribed_symbols(self) -> List[str]:
         """Get list of currently subscribed symbols."""
         return list(self.subscriptions.keys())
+    
+    def _process_trade_print(self, symbol: str, trade_price: float, trade_size: float):
+        """
+        Process trade prints for CVD calculation.
+        
+        Args:
+            symbol: The symbol being traded
+            trade_price: The price of the trade
+            trade_size: The size/volume of the trade
+        """
+        try:
+            # Get current order book for bid/ask reference
+            order_book = self.order_books.get(symbol)
+            if not order_book:
+                log.warning(f"No order book available for {symbol}, skipping CVD calculation")
+                return
+            
+            best_bid = order_book.best_bid
+            best_ask = order_book.best_ask
+            
+            if best_bid is None or best_ask is None:
+                log.warning(f"Incomplete order book for {symbol}, skipping CVD calculation")
+                return
+            
+            # Calculate delta for this trade
+            delta = calculate_delta(trade_price, trade_size, best_bid, best_ask)
+            
+            # Update cumulative volume delta
+            current_cvd = self.cvd_state.get(symbol, 0.0)
+            new_cvd = current_cvd + delta
+            self.cvd_state[symbol] = new_cvd
+            
+            # Update last trade info
+            self.last_trade_prices[symbol] = trade_price
+            self.last_trade_sizes[symbol] = trade_size
+            
+            log.debug(f"Trade processed for {symbol}: price={trade_price}, size={trade_size}, delta={delta}, cvd={new_cvd}")
+            
+        except Exception as e:
+            log.error(f"Error processing trade print for {symbol}: {e}")
+    
+    def get_cvd_state(self, symbol: str) -> float:
+        """
+        Get the current CVD state for a symbol.
+        
+        Args:
+            symbol: The symbol to query
+            
+        Returns:
+            Current CVD value or 0.0 if not available
+        """
+        return self.cvd_state.get(symbol, 0.0)
+    
+    def get_last_trade_info(self, symbol: str) -> tuple[float, float]:
+        """
+        Get the last trade information for a symbol.
+        
+        Args:
+            symbol: The symbol to query
+            
+        Returns:
+            Tuple of (last_trade_price, last_trade_size) or (0.0, 0.0) if not available
+        """
+        return (
+            self.last_trade_prices.get(symbol, 0.0),
+            self.last_trade_sizes.get(symbol, 0.0)
+        )
+    
+    def reset_cvd_state(self, symbol: str):
+        """Reset the CVD state for a symbol."""
+        if symbol in self.cvd_state:
+            self.cvd_state[symbol] = 0.0
+            log.info(f"Reset CVD state for {symbol}")
     
     async def unsubscribe_all(self):
         """Unsubscribe from all market data."""

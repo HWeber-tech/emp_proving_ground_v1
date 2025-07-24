@@ -76,6 +76,10 @@ class MarketUnderstanding(BaseModel):
     spread: Optional[float] = None
     mid_price: Optional[float] = None
     
+    # CVD Analysis
+    cumulative_volume_delta: Optional[float] = None
+    last_trade_size: Optional[float] = None
+    
     def __post_init__(self):
         """Calculate derived metrics after initialization."""
         if self.order_book:

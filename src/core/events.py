@@ -152,6 +152,8 @@ class TradeIntent(BaseModel):
     time_in_force: str = "0"  # 0=Day, 1=GTC, 3=IOC, 4=FOK
     account: Optional[str] = None
     strategy_id: Optional[str] = None
+    liquidity_confidence_score: Optional[float] = None  # Added for liquidity validation
+    event_id: Optional[str] = None  # Unique identifier for tracking
     metadata: Dict[str, Any] = Field(default_factory=dict)
     
     def __str__(self):

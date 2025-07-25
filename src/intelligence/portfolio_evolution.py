@@ -449,4 +449,23 @@ class DiversificationMaximizer:
         """Build correlation matrix from strategy data."""
         
         n = len(portfolio)
-        matrix = np.eye(n
+        # Initialize correlation matrix as identity matrix. We start with no correlation
+        # between strategies (correlation of 1.0 on the diagonal). We'll attempt to fill
+        # the off‑diagonal elements using stored correlation vectors if available.
+        matrix = np.eye(n)
+        for i in range(n):
+            for j in range(i + 1, n):
+                corr = 0.0
+                # If both strategies have correlation vectors of the same length, compute Pearson correlation
+                vec_i = portfolio[i].correlation_vector
+                vec_j = portfolio[j].correlation_vector
+                if vec_i and vec_j and len(vec_i) == len(vec_j):
+                    try:
+                        corr = float(np.corrcoef(vec_i, vec_j)[0, 1])
+                    except Exception:
+                        corr = 0.0
+                # Clamp the correlation to the valid range [-1, 1]
+                corr = max(-1.0, min(1.0, corr))
+                matrix[i, j] = corr
+                matrix[j, i] = corr
+        return matrix

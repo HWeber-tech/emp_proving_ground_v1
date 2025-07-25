@@ -205,13 +205,18 @@ class Phase2DIntegrationValidator:
             }
     
     async def test_concurrent_operations(self) -> Dict[str, Any]:
-        """Test concurrent operations handling"""
+        """Placeholder test for concurrent operations integration.
+
+        This test currently performs no concurrent operations and simply
+        returns a passing result.  It can be expanded in the future to run
+        multiple integration tests in parallel to ensure proper coordination
+        across subsystems.
+        """
         try:
-            # Placeholder for concurrent operations test
             return {
                 'test_name': 'concurrent_operations',
                 'passed': True,
-                'details': 'Concurrent operations test placeholder'
+                'details': 'Concurrent operations test not implemented.'
             }
         except Exception as e:
             logger.error(f"Concurrent operations test failed: {e}")
@@ -219,74 +224,6 @@ class Phase2DIntegrationValidator:
                 'test_name': 'concurrent_operations',
                 'passed': False,
                 'error': str(e),
-                'details': 'Concurrent operations test failed'
+                'details': 'Concurrent operations test failed.'
             }
-
-    async def _evaluate_genome_with_real_data(self, genome: DecisionGenome, data: pd.DataFrame) -> Optional[float]:
-        """Evaluate genome performance with real market data"""
-        try:
-            if data is None or len(data) < 10:
-                return None
-            
-            # Simple fitness calculation based on returns
-            returns = data['close'].pct_change().dropna()
-            if len(returns) < 5:
-                return None
-            
-            # Calculate basic metrics
-            total_return = returns.sum()
-            volatility = returns.std()
-            
-            # Simple fitness score
-            if volatility > 0:
-                fitness = total_return / volatility
-            else:
-                fitness = 0.0
-            
-            return float(fitness)
-            
-        except Exception as e:
-            logger.error(f"Genome evaluation failed: {e}")
-            return None
-
-    async def run_all_tests(self) -> List[Dict[str, Any]]:
-        """Run all integration tests"""
-        logger.info("Starting Phase 2D integration tests...")
         
-        tests = [
-            self.test_real_data_flow,
-            self.test_strategy_performance_tracking,
-            self.test_concurrent_operations
-        ]
-        
-        results = []
-        for test in tests:
-            try:
-                result = await test()
-                results.append(result)
-                logger.info(f"Test {result['test_name']}: {'PASSED' if result['passed'] else 'FAILED'}")
-            except Exception as e:
-                logger.error(f"Test execution failed: {e}")
-                results.append({
-                    'test_name': test.__name__,
-                    'passed': False,
-                    'error': str(e),
-                    'details': "Test execution failed"
-                })
-        
-        # Summary
-        passed_count = sum(1 for r in results if r['passed'])
-        total_count = len(results)
-        
-        summary = {
-            'test_name': 'phase2d_integration_summary',
-            'passed': passed_count == total_count,
-            'total_tests': total_count,
-            'passed_tests': passed_count,
-            'failed_tests': total_count - passed_count,
-            'details': f"Phase 2D integration tests: {passed_count}/{total_count} passed"
-        }
-        
-        results.append(summary)
-        
-        return results

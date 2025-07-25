@@ -30,6 +30,30 @@ class MarketForecast(BaseModel):
     model_version: str  # The MLflow run ID
     timestamp: str
 
+class PerformanceMetrics(BaseModel):
+    """Performance metrics for trading and system evaluation."""
+    total_return: float
+    sharpe_ratio: float
+    max_drawdown: float
+    win_rate: float
+    profit_factor: float
+    total_trades: int
+    winning_trades: int
+    losing_trades: int
+    timestamp: str
+
+class RiskMetrics(BaseModel):
+    """Risk metrics for portfolio and position management."""
+    portfolio_value: float
+    exposure: float
+    var_95: float  # Value at Risk 95%
+    var_99: float  # Value at Risk 99%
+    expected_shortfall: float
+    beta: float
+    volatility: float
+    correlation: float
+    timestamp: str
+
 class ContextPacket(BaseModel):
     """Enhanced context packet with market forecast."""
     # Existing fields

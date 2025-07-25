@@ -34,6 +34,17 @@ _EXPOSED_MODULES = [
     # modules import it via ``src.genome``, so expose it here to avoid
     # import errors when ``src`` is on ``sys.path``.
     'genome',
+
+    # Additional top-level packages referenced via ``src.`` in various modules.
+    # Exposing these names ensures that imports like ``src.domain.models`` or
+    # ``src.governance.token_manager`` resolve correctly when ``src`` is on
+    # ``sys.path``.  Without listing them here, attempting to import them
+    # through the ``src`` namespace would result in a ModuleNotFoundError.
+    'domain',
+    'ecosystem',
+    'governance',
+    'operational',
+    'thinking',
 ]
 
 for _mod_name in _EXPOSED_MODULES:

@@ -123,11 +123,16 @@ class FIXApplication:
         """Check if the session is connected."""
         return self.connected
         
+    def set_message_queue(self, queue):
+        """Set the external message queue for thread-safe communication."""
+        self.message_queue = queue
+        log.info(f"Message queue set for {self.connection_type} connection")
+        
     def get_connection_status(self) -> Dict[str, Any]:
         """Get current connection status."""
         return {
             'connected': self.connected,
             'connection_type': self.connection_type,
             'last_heartbeat': self.last_heartbeat.isoformat() if self.last_heartbeat else None,
-            'message_queue_size': len(self.message_queue)
+            'message_queue_size': len(self.message_queue) if hasattr(self, 'message_queue') else 0
         }

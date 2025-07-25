@@ -68,12 +68,10 @@ class RobustMessageParser:
             if not raw_message:
                 return None
                 
-            # Decode message
-            message_str = raw_message.decode('utf-8', errors='ignore')
-            
-            # Parse using simplefix
+            # Use proper buffer-based parsing
             parser = simplefix.FixParser()
-            message = parser.get_message(message_str)
+            parser.append_buffer(raw_message)
+            message = parser.get_message()
             
             if not message:
                 return None

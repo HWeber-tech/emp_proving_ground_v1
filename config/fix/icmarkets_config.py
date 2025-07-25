@@ -11,8 +11,8 @@ class ICMarketsConfig:
     
     def __init__(self, environment: str = "demo", account_number: str = None):
         self.environment = environment
-        self.account_number = account_number or os.getenv("ICMARKETS_ACCOUNT")
-        self.password = os.getenv("ICMARKETS_PASSWORD")
+        self.account_number = account_number or os.getenv("ICMARKETS_ACCOUNT", "9533708")
+        self.password = os.getenv("ICMARKETS_PASSWORD", "WNSE5822")
         
     def get_price_session_config(self) -> Dict[str, Any]:
         """Get configuration for price data session."""

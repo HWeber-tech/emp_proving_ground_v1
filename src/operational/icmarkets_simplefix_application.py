@@ -139,8 +139,11 @@ class ICMarketsSimpleFIXConnection:
             # Receive response
             response = sock.recv(1024)
             if response:
-                response_msg = simplefix.FixParser().get_message(response.decode())
-                if response_msg.get(35) == b'A':  # Logon response
+                # Use proper SimpleFIX buffer-based parsing
+                parser = simplefix.FixParser()
+                parser.append_buffer(response)
+                response_msg = parser.get_message()
+                if response_msg and response_msg.get(35) == b'A':  # Logon response
                     self.sequence_number += 1
                     return True
                     
@@ -223,17 +226,23 @@ class ICMarketsSimpleFIXConnection:
             
     def _receive_market_data(self):
         """Receive and process market data."""
+        parser = simplefix.FixParser()
         while self.price_connected:
             try:
                 data = self.price_socket.recv(4096)
                 if data:
-                    parser = simplefix.FixParser()
-                    msg = parser.get_message(data.decode())
+                    # Use proper buffer-based parsing
+                    parser.append_buffer(data)
+                    msg = parser.get_message()
                     
-                    if msg.get(35) == b"W":  # MarketDataSnapshotFullRefresh
-                        self._process_market_data_snapshot(msg)
-                    elif msg.get(35) == b"X":  # MarketDataIncrementalRefresh
-                        self._process_market_data_incremental(msg)
+                    while msg:
+                        if msg.get(35) == b"W":  # MarketDataSnapshotFullRefresh
+                            self._process_market_data_snapshot(msg)
+                        elif msg.get(35) == b"X":  # MarketDataIncrementalRefresh
+                            self._process_market_data_incremental(msg)
+                        
+                        # Get next message if available
+                        msg = parser.get_message()
                         
             except Exception as e:
                 logger.error(f"Error receiving market data: {e}")

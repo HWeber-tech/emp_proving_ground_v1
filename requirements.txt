@@ -45,6 +45,9 @@ asyncio-mqtt>=0.11.0
 yfinance>=0.1.70  # Yahoo Finance
 asyncio-throttle>=1.0.0  # Rate limiting
 
+# YAML parsing
+pyyaml>=5.4.1
+
 # Testing
 pytest>=6.2.0
 pytest-asyncio>=0.16.0

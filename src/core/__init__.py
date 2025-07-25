@@ -20,8 +20,8 @@ from .exceptions import *
 from .configuration import Configuration
 
 # Import domain models
-from ..domain.models import RiskConfig, Instrument, InstrumentProvider, CurrencyConverter
+from src.domain.models import RiskConfig, Instrument, InstrumentProvider, CurrencyConverter
 
 __version__ = "1.1.0"
 __author__ = "EMP System"
-__description__ = "Core Layer - Cross-cutting Concerns and Interfaces" 
+__description__ = "Core Layer - Cross-cutting Concerns and Interfaces"

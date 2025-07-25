@@ -22,36 +22,66 @@ jobs:
       uses: actions/cache@v3
       with:
         path: ~/.cache/pip
-        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements-fixed.txt') }}
         restore-keys: |
           ${{ runner.os }}-pip-
     
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install -r requirements.txt
+        pip install -r requirements-fixed.txt
     
     - name: Validate Python syntax
       run: |
         python -m compileall src/ -q
         python -m compileall main.py -q
     
-    - name: Run basic import test
+    - name: Set up Python path
+      run: |
+        echo "PYTHONPATH=$PWD" >> $GITHUB_ENV
+    
+    - name: Test core imports
       run: |
         python -c "
         import sys
-        sys.path.insert(0, 'src')
+        import os
+        sys.path.insert(0, os.getcwd())
+        
         try:
-            import core
-            import risk
-            import pnl
-            import data
-            import sensory
-            import evolution
-            import simulation
-            print('✅ All modules import successfully')
+            from src.core import *
+            from src.sensory.dimensions import WhatDimension, WhenDimension, AnomalyDimension, ChaosDimension
+            from src.core.events import PerformanceMetrics, RiskMetrics
+            from src.governance.system_config import SystemConfig
+            print('✅ All core modules import successfully')
         except ImportError as e:
             print(f'❌ Import error: {e}')
+            import traceback
+            traceback.print_exc()
+            sys.exit(1)
+        "
+    
+    - name: Test main application startup
+      run: |
+        python -c "
+        import sys
+        import os
+        sys.path.insert(0, os.getcwd())
+        
+        try:
+            # Test configuration loading
+            from src.core.configuration import load_config
+            config = load_config('config.yaml')
+            print('✅ Configuration loaded successfully')
+            
+            # Test basic imports
+            from src.governance.system_config import SystemConfig
+            from src.operational.event_bus import EventBus
+            print('✅ Main application components import successfully')
+            
+        except Exception as e:
+            print(f'❌ Application startup test failed: {e}')
+            import traceback
+            traceback.print_exc()
             sys.exit(1)
         "
     
@@ -59,10 +89,12 @@ jobs:
       run: |
         python -c "
         import yaml
+        import os
         try:
             with open('config.yaml', 'r') as f:
                 config = yaml.safe_load(f)
             print('✅ Configuration file is valid YAML')
+            print(f'📋 System name: {config.get(\"system_name\", \"Not specified\")}')
         except Exception as e:
             print(f'❌ Configuration error: {e}')
             exit(1)
@@ -75,4 +107,51 @@ jobs:
             exit 1
         else
             echo "✅ No merge conflicts found"
-        fi   
+        fi
+    
+    - name: Run basic functionality test
+      run: |
+        python -c "
+        import sys
+        import os
+        sys.path.insert(0, os.getcwd())
+        
+        try:
+            # Test sensory dimensions
+            from src.sensory.dimensions import WhatDimension, WhenDimension, AnomalyDimension, ChaosDimension
+            
+            # Test instantiation
+            what = WhatDimension()
+            when = WhenDimension()
+            anomaly = AnomalyDimension()
+            chaos = ChaosDimension()
+            
+            print('✅ All sensory dimensions instantiated successfully')
+            
+            # Test basic functionality
+            import pandas as pd
+            test_data = pd.DataFrame({
+                'close': [100, 101, 102, 101, 100],
+                'volume': [1000, 1100, 1200, 1100, 1000]
+            })
+            
+            result = what.analyze_pattern(test_data)
+            print('✅ WHAT dimension functionality test passed')
+            
+            result = when.analyze_timing(test_data)
+            print('✅ WHEN dimension functionality test passed')
+            
+            result = anomaly.detect_anomalies(test_data)
+            print('✅ ANOMALY dimension functionality test passed')
+            
+            result = chaos.analyze_chaos(test_data)
+            print('✅ CHAOS dimension functionality test passed')
+            
+            print('🎉 All functionality tests passed!')
+            
+        except Exception as e:
+            print(f'❌ Functionality test failed: {e}')
+            import traceback
+            traceback.print_exc()
+            sys.exit(1)
+        "

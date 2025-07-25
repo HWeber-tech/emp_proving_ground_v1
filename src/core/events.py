@@ -5,7 +5,7 @@ Pydantic models for events including the new MarketForecast integration.
 """
 
 from pydantic import BaseModel
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from datetime import datetime
 from enum import Enum
 
@@ -15,6 +15,11 @@ class EventType(str, Enum):
     CONTEXT_UPDATE = "context_update"
     DECISION_MADE = "decision_made"
     TRADE_EXECUTED = "trade_executed"
+    TRADE_INTENT = "trade_intent"
+    EXECUTION_REPORT = "execution_report"
+    FITNESS_REPORT = "fitness_report"
+    GENOME_UPDATE = "genome_update"
+    TELEMETRY = "telemetry"
 
 class BaseEvent(BaseModel):
     """Base event class."""
@@ -67,3 +72,119 @@ class ContextPacket(BaseModel):
     # Additional metadata
     sequence_id: str
     source: str = "thinking_manager"
+
+class MarketUnderstanding(BaseModel):
+    """Market understanding event."""
+    timestamp: str
+    market_state: str
+    confidence: float
+    reasoning: str
+
+class TradeIntent(BaseModel):
+    """Trade intent event."""
+    timestamp: str
+    symbol: str
+    action: str  # BUY, SELL, HOLD
+    quantity: float
+    price: float
+    confidence: float
+
+class ExecutionReport(BaseModel):
+    """Execution report event."""
+    timestamp: str
+    order_id: str
+    symbol: str
+    action: str
+    quantity: float
+    price: float
+    status: str  # FILLED, PARTIAL, REJECTED, CANCELLED
+
+class FitnessReport(BaseModel):
+    """Fitness report event."""
+    timestamp: str
+    strategy_id: str
+    fitness_score: float
+    metrics: Dict[str, float]
+
+class GenomeUpdate(BaseModel):
+    """Genome update event."""
+    timestamp: str
+    genome_id: str
+    changes: Dict[str, Any]
+    reason: str
+
+class Telemetry(BaseModel):
+    """Telemetry event."""
+    timestamp: str
+    component: str
+    metric: str
+    value: float
+    metadata: Dict[str, Any] = {}
+
+class OrderBookLevel(BaseModel):
+    """Order book level."""
+    price: float
+    size: float
+    count: int = 1
+
+class OrderBook(BaseModel):
+    """Order book representation."""
+    symbol: str
+    timestamp: str
+    bids: List[OrderBookLevel]
+    asks: List[OrderBookLevel]
+    spread: float
+    mid_price: float
+
+
+class MarketData(BaseModel):
+    """Market data representation."""
+    symbol: str
+    timestamp: str
+    open: float
+    high: float
+    low: float
+    close: float
+    volume: float
+    bid: float
+    ask: float
+    spread: float
+    mid_price: float
+
+
+class AnalysisResult(BaseModel):
+    """Analysis result from market analysis."""
+    analysis_id: str
+    symbol: str
+    timestamp: str
+    regime: str
+    confidence: float
+    metrics: Dict[str, float]
+    signals: List[Dict[str, Any]]
+    metadata: Dict[str, Any] = {}
+
+class EventBus:
+    """Simple event bus for system communication."""
+    def __init__(self):
+        self.handlers = {}
+    
+    def subscribe(self, event_type, handler):
+        """Subscribe to events of a specific type."""
+        if event_type not in self.handlers:
+            self.handlers[event_type] = []
+        self.handlers[event_type].append(handler)
+    
+    def publish(self, event):
+        """Publish an event to all subscribers."""
+        event_type = event.event_type
+        if event_type in self.handlers:
+            for handler in self.handlers[event_type]:
+                handler(event)
+    
+    async def start(self):
+        """Start the event bus."""
+        pass
+    
+    async def stop(self):
+        """Stop the event bus."""
+        pass

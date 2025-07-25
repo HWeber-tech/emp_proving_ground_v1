@@ -311,3 +311,34 @@ class EventType:
     REGIME_CHANGE = "regime_change"
     STRATEGY_ALERT = "strategy_alert"
     COORDINATION_REQUEST = "coordination_request"
+
+
+# Additional classes for thinking patterns
+class ThinkingPattern(BaseModel):
+    """Represents a thinking pattern for market analysis."""
+    pattern_id: str
+    pattern_type: str
+    confidence: float
+    parameters: Dict[str, Any]
+    timestamp: datetime = Field(default_factory=datetime.now)
+
+
+class SensorySignal(BaseModel):
+    """Represents a signal from sensory analysis."""
+    signal_type: str
+    strength: float
+    confidence: float
+    source: str
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+    timestamp: datetime = Field(default_factory=datetime.now)
+
+
+class AnalysisResult(BaseModel):
+    """Represents the result of market analysis."""
+    analysis_id: str
+    analysis_type: str
+    symbol: str
+    confidence: float
+    results: Dict[str, Any]
+    signals: List[SensorySignal] = Field(default_factory=list)
+    timestamp: datetime = Field(default_factory=datetime.now)

@@ -14,10 +14,10 @@ Dimensions:
 - CHAOS: Antifragile Adaptation
 """
 
-from .what_dimension import WhatDimension
-from .when_dimension import WhenDimension
-from .anomaly_dimension import AnomalyDimension
-from .chaos_dimension import ChaosDimension
+from ..organs.dimensions.what_organ import WhatEngine as WhatDimension
+from ..organs.dimensions.when_organ import WhenEngine as WhenDimension
+from ..organs.dimensions.anomaly_dimension import AnomalyDimension
+from ..organs.dimensions.chaos_dimension import ChaosDimension
 
 __all__ = [
     'WhatDimension',

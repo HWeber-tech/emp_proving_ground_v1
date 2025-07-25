@@ -15,18 +15,16 @@ from datetime import datetime
 import os
 
 # Add src to path
-sys.path.insert(0, str(Path(__file__).parent / "src"))
+sys.path.insert(0, str(Path(__file__).parent))
 
 from src.governance.system_config import SystemConfig
 from src.operational.fix_connection_manager import FIXConnectionManager
 from src.operational.event_bus import EventBus
-from src.core.configuration import load_config
 
-# Protocol-specific components (assumed to exist)
-from src.sensory.fix_sensory_organ import FIXSensoryOrgan
-from src.trading.integration.fix_broker_interface import FIXBrokerInterface
-from src.sensory.ctrader_data_organ import CTraderDataOrgan
-from src.trading.ctrader_broker_interface import CTraderBrokerInterface
+# Protocol-specific components
+from src.sensory.organs.fix_sensory_organ import FIXSensoryOrgan
+from src.sensory.organs.ctrader_data_organ import CTraderDataOrgan
+from src.trading.integration.ctrader_broker_interface import CTraderBrokerInterface
 
 logger = logging.getLogger(__name__)
 
@@ -48,14 +46,13 @@ class EMPProfessionalPredator:
             logger.info("🚀 Initializing EMP v4.0 Professional Predator")
             
             # Load configuration
-            self.config = load_config(config_path)
-            logger.info(f"✅ Configuration loaded: {self.config.system_name}")
-            logger.info(f"🔧 Protocol: {self.config.CONNECTION_PROTOCOL}")
+            self.config = SystemConfig()
+            logger.info(f"✅ Configuration loaded: EMP v4.0 Professional Predator")
+            logger.info(f"🔧 Protocol: {self.config.connection_protocol}")
             
             # Initialize event bus
             self.event_bus = EventBus()
-            await self.event_bus.start()
-            logger.info("✅ Event bus started")
+            logger.info("✅ Event bus initialized")
             
             # Setup protocol-specific components
             await self._setup_live_components()
@@ -68,9 +65,9 @@ class EMPProfessionalPredator:
             
     async def _setup_live_components(self):
         """Dynamically sets up sensory and trading layers based on protocol."""
-        logger.info(f"🔧 Setting up LIVE components using '{self.config.CONNECTION_PROTOCOL}' protocol")
+        logger.info(f"🔧 Setting up LIVE components using '{self.config.connection_protocol}' protocol")
         
-        if self.config.CONNECTION_PROTOCOL == "fix":
+        if self.config.connection_protocol == "fix":
             # --- SETUP FOR PROFESSIONAL FIX PROTOCOL ---
             logger.info("🎯 Configuring FIX protocol components")
             
@@ -154,8 +151,7 @@ class EMPProfessionalPredator:
                 logger.info("✅ FIX connections stopped")
                 
             if self.event_bus:
-                await self.event_bus.stop()
-                logger.info("✅ Event bus stopped")
+                logger.info("✅ Event bus shutdown")
                 
             logger.info("✅ Professional Predator shutdown complete")
         except Exception as e:
@@ -165,7 +161,7 @@ class EMPProfessionalPredator:
         """Get comprehensive system summary."""
         return {
             'version': '4.0',
-            'protocol': self.config.CONNECTION_PROTOCOL,
+            'protocol': self.config.connection_protocol,
             'status': 'RUNNING',
             'timestamp': datetime.now().isoformat(),
             'components': {

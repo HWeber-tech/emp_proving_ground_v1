@@ -1,0 +1,7 @@
+# Windows-compatible FIX Protocol Dependencies
+# Replaces QuickFIX with simplefix for Windows compatibility
+
+simplefix>=1.6.0
+cryptography>=3.4.8
+pyyaml>=6.0
+python-dateutil>=2.8.2

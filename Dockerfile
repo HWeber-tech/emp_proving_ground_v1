@@ -30,9 +30,13 @@ RUN python -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
 # Copy requirements and install dependencies
-COPY requirements.txt .
+# Use the pinned requirements file instead of the main requirements to avoid
+# installing unavailable or incompatible packages (e.g. the cTrader API).  The
+# requirements-fixed.txt file contains version constraints tested for Python
+# 3.8+ and does not include optional packages that require manual installation.
+COPY requirements-fixed.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
+    pip install --no-cache-dir -r requirements-fixed.txt
 
 # Stage 2: Production stage
 FROM python:3.11-slim as production
@@ -78,4 +82,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 EXPOSE 8000
 
 # Default command
-CMD ["python", "main.py"] 
+CMD ["python", "main.py"]

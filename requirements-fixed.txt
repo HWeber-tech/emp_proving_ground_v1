@@ -29,6 +29,10 @@ pydantic>=1.8.0,<3.0.0
 
 # FIX Protocol
 simplefix>=1.0.17
+
+# cTrader Open API
+# Pin to the latest available version on PyPI (0.9.2 as of July 2025).
+ctrader-open-api==0.9.2
 # quickfix>=1.15.1  # Uncomment when Windows compilation issues resolved
 
 # Utilities

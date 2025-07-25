@@ -177,14 +177,35 @@ class AdvancedDataFeeds:
             return self._generate_realistic_news_sentiment(symbol)
     
     def _parse_dark_pool_data(self, data: Dict) -> List[DarkPoolData]:
-        """Parse dark pool data from API response"""
-        parsed = []
-        for record in data.get('data', []):
-            parsed.append(DarkPoolData(
-                timestamp=datetime.fromisoformat(record['timestamp']),
-                symbol=record['symbol'],
-                volume=float(record['volume']),
-                price=float(record['price']),
-                venue=record['venue'],
-                side=record['side'],
-                size_category=self._
+        """Parse dark pool data from API response.
+
+        This helper converts the raw API response into a list of DarkPoolData instances.
+        It determines the size category based on the trade volume.  If an error
+        occurs during parsing the function logs a warning and returns an empty list.
+        """
+        parsed: List[DarkPoolData] = []
+        try:
+            for record in data.get('data', []):
+                # Extract and convert fields with sensible defaults
+                volume = float(record.get('volume', 0))
+                price = float(record.get('price', 0))
+                # Determine size category based on volume thresholds
+                if volume > 1_000_000:
+                    size_category = 'LARGE'
+                elif volume > 100_000:
+                    size_category = 'MEDIUM'
+                else:
+                    size_category = 'SMALL'
+                parsed.append(DarkPoolData(
+                    timestamp=datetime.fromisoformat(record['timestamp']),
+                    symbol=record['symbol'],
+                    volume=volume,
+                    price=price,
+                    venue=record.get('venue', ''),
+                    side=record.get('side', ''),
+                    size_category=size_category
+                ))
+            return parsed
+        except Exception as e:
+            logger.warning(f"Error parsing dark pool data: {e}")
+            return []

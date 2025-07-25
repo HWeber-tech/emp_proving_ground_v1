@@ -122,7 +122,7 @@ class ICMarketsSimpleFIXConnection:
             msg = simplefix.FixMessage()
             msg.append_pair(8, "FIX.4.4")  # BeginString
             msg.append_pair(35, "A")  # MsgType = Logon
-            msg.append_pair(49, f"demo.icmarkets.{self.config.account_number}")  # SenderCompID
+            msg.append_pair(49, f"icmarkets.{self.config.account_number}")  # SenderCompID
             msg.append_pair(56, "cServer")  # TargetCompID
             msg.append_pair(57, target_sub_id)  # TargetSubID
             msg.append_pair(34, self.sequence_number)  # MsgSeqNum
@@ -133,8 +133,8 @@ class ICMarketsSimpleFIXConnection:
             msg.append_pair(554, self.config.password)  # Password
             
             # Send message
-            message_bytes = msg.encode()
-            sock.send(message_bytes)
+            message_str = msg.encode()
+            sock.send(message_str.encode())
             
             # Receive response
             response = sock.recv(1024)
@@ -162,7 +162,7 @@ class ICMarketsSimpleFIXConnection:
             msg = simplefix.FixMessage()
             msg.append_pair(8, "FIX.4.4")
             msg.append_pair(35, "V")  # MarketDataRequest
-            msg.append_pair(49, f"demo.icmarkets.{self.config.account_number}")
+            msg.append_pair(49, f"icmarkets.{self.config.account_number}")
             msg.append_pair(56, "cServer")
             msg.append_pair(57, "QUOTE")
             msg.append_pair(34, self.sequence_number)
@@ -177,8 +177,8 @@ class ICMarketsSimpleFIXConnection:
                 msg.append_pair(55, symbol)  # Symbol
                 
             # Send message
-            message_bytes = msg.encode()
-            self.price_socket.send(message_bytes)
+            message_str = msg.encode()
+            self.price_socket.send(message_str.encode())
             self.sequence_number += 1
             
             # Start receiving market data
@@ -201,7 +201,7 @@ class ICMarketsSimpleFIXConnection:
             msg = simplefix.FixMessage()
             msg.append_pair(8, "FIX.4.4")
             msg.append_pair(35, "D")  # NewOrderSingle
-            msg.append_pair(49, f"demo.icmarkets.{self.config.account_number}")
+            msg.append_pair(49, f"icmarkets.{self.config.account_number}")
             msg.append_pair(56, "cServer")
             msg.append_pair(57, "TRADE")
             msg.append_pair(34, self.sequence_number)
@@ -214,8 +214,8 @@ class ICMarketsSimpleFIXConnection:
             msg.append_pair(60, datetime.utcnow().strftime("%Y%m%d-%H:%M:%S.%f")[:-3])  # TransactTime
             
             # Send message
-            message_bytes = msg.encode()
-            self.trade_socket.send(message_bytes)
+            message_str = msg.encode()
+            self.trade_socket.send(message_str.encode())
             self.sequence_number += 1
             
             return cl_ord_id

@@ -8,7 +8,7 @@ import logging
 from typing import Dict, Optional, Any, TYPE_CHECKING
 from decimal import Decimal
 
-from src.governance.system_config import config
+from src.governance.system_config import SystemConfig
 
 if TYPE_CHECKING:
     from ctrader_open_api import Client, Protobuf, Messages

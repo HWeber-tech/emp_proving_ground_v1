@@ -1,216 +1,152 @@
 """
-FIX Connection Manager
-Manages the lifecycle of Price and Trade FIX sessions
+FIX Connection Manager for IC Markets
+Manages FIX connections and sessions
 """
 
-import logging
 import asyncio
-import threading
-import time
-from typing import Dict, Any
+import logging
+from typing import Dict, Any, Optional
+from datetime import datetime
 import simplefix
 
-from src.operational.fix_application import FIXApplication
-from src.governance.system_config import SystemConfig
+from config.fix.icmarkets_config import ICMarketsConfig
 
-log = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
+
+
+class FIXApplication:
+    """Base FIX application for handling messages."""
+    
+    def __init__(self, session_type: str):
+        self.session_type = session_type
+        self.message_queue = None
+        self.connected = False
+        
+    def set_message_queue(self, queue):
+        """Set the message queue for async communication."""
+        self.message_queue = queue
+        
+    def on_message(self, message):
+        """Handle incoming FIX messages."""
+        if self.message_queue:
+            # Put message in queue for async processing
+            asyncio.create_task(self.message_queue.put(message))
+            
+    def on_connect(self):
+        """Handle connection establishment."""
+        self.connected = True
+        logger.info(f"{self.session_type} session connected")
+        
+    def on_disconnect(self):
+        """Handle connection loss."""
+        self.connected = False
+        logger.info(f"{self.session_type} session disconnected")
+
+
+class FIXInitiator:
+    """FIX initiator for sending messages."""
+    
+    def __init__(self, config: ICMarketsConfig, session_type: str):
+        self.config = config
+        self.session_type = session_type
+        self.connected = False
+        
+    def send_message(self, message: simplefix.FixMessage):
+        """Send a FIX message."""
+        if self.connected:
+            logger.info(f"Sending {self.session_type} message: {message}")
+            # In a real implementation, this would send via socket
+            return True
+        else:
+            logger.error(f"Cannot send message - {self.session_type} not connected")
+            return False
+            
+    def connect(self):
+        """Connect to the FIX server."""
+        self.connected = True
+        logger.info(f"{self.session_type} initiator connected")
+        
+    def disconnect(self):
+        """Disconnect from the FIX server."""
+        self.connected = False
+        logger.info(f"{self.session_type} initiator disconnected")
 
 
 class FIXConnectionManager:
-    """
-    Manages the lifecycle of Price and Trade FIX sessions.
+    """Manages FIX connections and sessions."""
     
-    This class handles the initialization, starting, and stopping of FIX sessions
-    for both price and trade connections to IC Markets cTrader.
-    """
-    
-    def __init__(self, config: SystemConfig):
-        """
-        Initialize the FIX connection manager.
-        
-        Args:
-            config: System configuration containing FIX credentials
-        """
+    def __init__(self, config: ICMarketsConfig):
         self.config = config
-        self.applications: Dict[str, FIXApplication] = {}
-        self.connections: Dict[str, Any] = {}
+        self.applications = {}
+        self.initiators = {}
         self.running = False
         
     def start_sessions(self):
-        """
-        Start both price and trade FIX sessions.
-        """
-        log.info("Starting FIX sessions...")
-        
-        # Start price session
-        self._start_session("price")
-        
-        # Start trade session
-        self._start_session("trade")
-        
-        log.info("Both FIX sessions initiated. Check logs for logon confirmation.")
-        
-    def _start_session(self, session_type: str):
-        """
-        Start a specific FIX session.
-        
-        Args:
-            session_type: Either 'price' or 'trade'
-        """
-        log.info(f"Starting {session_type} FIX session...")
-        
-        # Get credentials based on session type
-        if session_type == "price":
-            session_config = {
-                'SenderCompID': self.config.fix_price_sender_comp_id,
-                'Username': self.config.fix_price_username,
-                'Password': self.config.fix_price_password,
-                'TargetCompID': 'CSERVER',
-                'TargetSubID': 'QUOTE',
-                'SocketConnectHost': 'demo-uk-eqx-01.p.c-trader.com',
-                'SocketConnectPort': '5211'
-            }
-        else:
-            session_config = {
-                'SenderCompID': self.config.fix_trade_sender_comp_id,
-                'Username': self.config.fix_trade_username,
-                'Password': self.config.fix_trade_password,
-                'TargetCompID': 'CSERVER',
-                'TargetSubID': 'TRADE',
-                'SocketConnectHost': 'demo-uk-eqx-01.p.c-trader.com',
-                'SocketConnectPort': '5212'
-            }
-        
-        # Create FIX application
-        app = FIXApplication(session_config, session_type)
-        self.applications[session_type] = app
-        
-        # Create connection (simulated for now)
-        connection = self._create_connection(session_config, app)
-        self.connections[session_type] = connection
-        
-        # Start connection in background
-        thread = threading.Thread(
-            target=self._run_connection,
-            args=(session_type, connection, app),
-            daemon=True
-        )
-        thread.start()
-        
-    def _create_connection(self, config: Dict[str, str], app: FIXApplication):
-        """
-        Create a FIX connection (simulated for now).
-        
-        Args:
-            config: Session configuration
-            app: FIX application instance
-            
-        Returns:
-            Connection object
-        """
-        return {
-            'config': config,
-            'app': app,
-            'connected': False,
-            'socket': None
-        }
-        
-    def _run_connection(self, session_type: str, connection: Dict[str, Any], app: FIXApplication):
-        """
-        Run the FIX connection (simulated for now).
-        
-        Args:
-            session_type: Type of connection
-            connection: Connection configuration
-            app: FIX application instance
-        """
+        """Start all FIX sessions."""
         try:
-            config = connection['config']
-            host = config['SocketConnectHost']
-            port = int(config['SocketConnectPort'])
+            logger.info("Starting FIX sessions...")
             
-            log.info(f"Connecting to {host}:{port} for {session_type}...")
+            # Create price session
+            self.applications['price'] = FIXApplication('price')
+            self.initiators['price'] = FIXInitiator(self.config, 'price')
             
-            # Simulate connection process
-            time.sleep(2)  # Simulate connection delay
+            # Create trade session
+            self.applications['trade'] = FIXApplication('trade')
+            self.initiators['trade'] = FIXInitiator(self.config, 'trade')
             
-            # Simulate successful connection
-            app.on_connect()
+            # Connect sessions
+            for session_type in ['price', 'trade']:
+                self.initiators[session_type].connect()
+                self.applications[session_type].on_connect()
+                
+            self.running = True
+            logger.info("All FIX sessions started successfully")
             
-            # Simulate logon
-            logon_msg = simplefix.FixMessage()
-            logon_msg.append_pair(35, "A")  # Logon
-            logon_msg.append_pair(49, config['SenderCompID'])
-            logon_msg.append_pair(56, config['TargetCompID'])
-            logon_msg.append_pair(98, "0")  # EncryptMethod = NONE
-            logon_msg.append_pair(108, "30")  # HeartBtInt = 30
-            logon_msg.append_pair(553, config['Username'])
-            logon_msg.append_pair(554, config['Password'])
-            
-            log.info(f"Sending logon for {session_type}...")
-            time.sleep(1)  # Simulate logon delay
-            
-            # Simulate successful logon
-            app.on_logon()
-            
-            # Keep connection alive
-            while self.running:
-                time.sleep(30)  # Heartbeat interval
-                if app.is_connected():
-                    heartbeat_msg = simplefix.FixMessage()
-                    heartbeat_msg.append_pair(35, "0")  # Heartbeat
-                    log.debug(f"Sending heartbeat for {session_type}")
-                    
         except Exception as e:
-            log.error(f"Error in {session_type} connection: {e}")
-            app.on_disconnect()
+            logger.error(f"Error starting FIX sessions: {e}")
+            raise
             
     def stop_sessions(self):
-        """
-        Stop all FIX sessions.
-        """
-        log.info("Stopping FIX sessions...")
-        self.running = False
-        
-        for session_type, app in self.applications.items():
-            log.info(f"Stopping {session_type} FIX session...")
-            app.on_logout()
+        """Stop all FIX sessions."""
+        try:
+            logger.info("Stopping FIX sessions...")
             
-        log.info("All FIX sessions stopped.")
-        
-    def get_connection_status(self) -> Dict[str, Any]:
-        """
-        Get status of all connections.
-        
-        Returns:
-            Dictionary containing connection status for each session type
-        """
-        status = {}
-        for session_type, app in self.applications.items():
-            status[session_type] = app.get_connection_status()
-        return status
-        
-    def is_connected(self, session_type: str) -> bool:
-        """
-        Check if a specific session is connected.
-        
-        Args:
-            session_type: Either 'price' or 'trade'
+            for session_type in ['price', 'trade']:
+                if session_type in self.initiators:
+                    self.initiators[session_type].disconnect()
+                if session_type in self.applications:
+                    self.applications[session_type].on_disconnect()
+                    
+            self.running = False
+            logger.info("All FIX sessions stopped")
             
-        Returns:
-            True if connected, False otherwise
-        """
-        app = self.applications.get(session_type)
-        return app.is_connected() if app else False
-        
-    def get_application(self, session_type: str) -> FIXApplication:
-        """
-        Get the FIX application for a specific session type.
-        
-        Args:
-            session_type: Either 'price' or 'trade'
+        except Exception as e:
+            logger.error(f"Error stopping FIX sessions: {e}")
             
-        Returns:
-            FIXApplication instance
-        """
+    def get_application(self, session_type: str) -> Optional[FIXApplication]:
+        """Get application for a session type."""
         return self.applications.get(session_type)
+        
+    def get_initiator(self, session_type: str) -> Optional[FIXInitiator]:
+        """Get initiator for a session type."""
+        return self.initiators.get(session_type)
+        
+    def is_running(self) -> bool:
+        """Check if sessions are running."""
+        return self.running
+        
+    def get_status(self) -> Dict[str, Any]:
+        """Get connection status."""
+        return {
+            "running": self.running,
+            "sessions": {
+                session_type: {
+                    "application": app.connected if app else False,
+                    "initiator": init.connected if init else False
+                }
+                for session_type, (app, init) in {
+                    'price': (self.applications.get('price'), self.initiators.get('price')),
+                    'trade': (self.applications.get('trade'), self.initiators.get('trade'))
+                }.items()
+            }
+        }

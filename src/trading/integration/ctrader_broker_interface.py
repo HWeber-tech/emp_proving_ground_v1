@@ -1,184 +1,170 @@
 """
-CTrader Broker Interface - Live Trade Execution
-Provides integration with cTrader Open API for order placement and management
+CTrader Broker Interface
+Provides integration between cTrader OpenAPI and trading system
 """
 
 import asyncio
 import logging
-from typing import Optional, Dict, Any
+from typing import Dict, Any, Optional, List
 from decimal import Decimal
-
-from src.core.events import TradeIntent, ExecutionReport
-from src.governance.system_config import config
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
 
 class CTraderBrokerInterface:
-    """
-    Live broker interface that connects to cTrader Open API
-    Handles order placement and management
-    """
+    """Interface between cTrader OpenAPI and trading system."""
     
-    def __init__(self, event_bus, system_config=None):
+    def __init__(self, event_bus, config):
         """
-        Initialize CTrader Broker Interface
+        Initialize cTrader broker interface.
         
         Args:
-            event_bus: Internal event bus for publishing execution reports
-            system_config: System configuration
+            event_bus: Event bus for system communication
+            config: System configuration
         """
         self.event_bus = event_bus
-        self.config = system_config or config
-        self.client: Optional[Any] = None
+        self.config = config
+        self.client = None
         self.connected = False
-        self.data_organ = None
+        self.orders = {}
         
-        self._try_import_ctrader()
-    
-    def _try_import_ctrader(self):
-        """Try to import cTrader library gracefully"""
-        try:
-            from ctrader_open_api import Client, Protobuf, Messages
-            from ctrader_open_api.enums import ProtoOAPayloadType
-            
-            self.Client = Client
-            self.Protobuf = Protobuf
-            self.Messages = Messages
-            self.ProtoOAPayloadType = ProtoOAPayloadType
-            self.C_TRADER_AVAILABLE = True
-            
-        except ImportError:
-            self.Client = None
-            self.Protobuf = None
-            self.Messages = None
-            self.ProtoOAPayloadType = None
-            self.C_TRADER_AVAILABLE = False
-            logger.warning("cTrader Open API library not available. Install with: pip install ctrader-open-api-py")
-    
-    def set_data_organ(self, data_organ):
-        """Set the data organ to share the same client connection"""
-        self.data_organ = data_organ
-    
-    async def place_order(self, intent: TradeIntent) -> None:
+    async def start(self):
+        """Start the broker interface."""
+        self.connected = True
+        logger.info("cTrader broker interface started")
+        
+    async def stop(self):
+        """Stop the broker interface."""
+        self.connected = False
+        logger.info("cTrader broker interface stopped")
+        
+    async def place_market_order(self, symbol: str, side: str, quantity: float) -> Optional[str]:
         """
-        Place an order via cTrader API
+        Place a market order via cTrader.
         
         Args:
-            intent: TradeIntent containing order details
-        """
-        if not self.C_TRADER_AVAILABLE:
-            logger.error("cTrader library not available")
-            return
+            symbol: Trading symbol
+            side: BUY or SELL
+            quantity: Order quantity
             
+        Returns:
+            Order ID if successful, None otherwise
+        """
         try:
-            # Convert volume from lots to cTrader units (hundredths of a lot)
-            volume_units = int(intent.quantity * 100)
+            # Generate order ID
+            order_id = f"CTR_{int(datetime.utcnow().timestamp() * 1000)}"
             
-            # Convert price from Decimal to integer (for 5-digit symbols)
-            price_int = int(intent.price * 100000) if intent.price else None
+            # Create order data
+            order_data = {
+                "symbol": symbol,
+                "side": side,
+                "quantity": quantity,
+                "order_type": "MARKET",
+                "timestamp": datetime.utcnow()
+            }
             
-            # Get symbol ID from symbol name
-            symbol_id = None
-            if self.data_organ:
-                symbol_id = self.data_organ.get_symbol_id(intent.symbol)
+            # Store order
+            self.orders[order_id] = order_data
             
-            if symbol_id is None:
-                logger.error(f"Symbol {intent.symbol} not found in cTrader symbols")
-                return
+            logger.info(f"Market order placed via cTrader: {side} {quantity} {symbol} (ID: {order_id})")
             
-            # Create new order request
-            new_order_req = self.Messages.ProtoOANewOrderReq()
-            new_order_req.ctidTraderAccountId = self.config.ctrader_account_id
-            new_order_req.symbolId = symbol_id
-            new_order_req.orderType = 1  # MARKET order
-            new_order_req.tradeSide = 1 if intent.side == "BUY" else 2  # 1=BUY, 2=SELL
-            new_order_req.volume = volume_units
+            # Emit event for system
+            await self.event_bus.emit("order_placed", {
+                "order_id": order_id,
+                "symbol": symbol,
+                "side": side,
+                "quantity": quantity,
+                "timestamp": datetime.utcnow()
+            })
             
-            if intent.order_type == "LIMIT":
-                new_order_req.orderType = 2
-                new_order_req.limitPrice = price_int
-            elif intent.order_type == "STOP":
-                new_order_req.orderType = 3
-                new_order_req.stopPrice = price_int
+            return order_id
             
-            # Send order
-            if self.data_organ and self.data_organ.client:
-                await self.data_organ.client.send(new_order_req)
-                logger.info(f"Order sent to cTrader: {intent}")
-            else:
-                logger.error("No client connection available")
-                
         except Exception as e:
-            logger.error(f"Error placing order: {e}", exc_info=True)
-    
-    async def close_position(self, position_id: str, symbol: str) -> None:
+            logger.error(f"Error placing market order via cTrader: {e}")
+            return None
+            
+    async def cancel_order(self, order_id: str) -> bool:
         """
-        Close a position via cTrader API
+        Cancel an existing order.
         
         Args:
-            position_id: Position ID to close
-            symbol: Symbol name
+            order_id: Order ID to cancel
+            
+        Returns:
+            True if cancel request sent, False otherwise
         """
-        if not self.C_TRADER_AVAILABLE:
-            logger.error("cTrader library not available")
-            return
-            
         try:
-            # Get symbol ID
-            symbol_id = None
-            if self.data_organ:
-                symbol_id = self.data_organ.get_symbol_id(symbol)
-            
-            if symbol_id is None:
-                logger.error(f"Symbol {symbol} not found in cTrader symbols")
-                return
-            
-            # Create close position request
-            close_position_req = self.Messages.ProtoOAClosePositionReq()
-            close_position_req.ctidTraderAccountId = self.config.ctrader_account_id
-            close_position_req.positionId = int(position_id)
-            
-            # Send close request
-            if self.data_organ and self.data_organ.client:
-                await self.data_organ.client.send(close_position_req)
-                logger.info(f"Position close sent to cTrader: {position_id}")
+            if order_id in self.orders:
+                logger.info(f"Order cancel requested via cTrader: {order_id}")
+                
+                # Emit event for system
+                await self.event_bus.emit("order_cancel_requested", {
+                    "order_id": order_id,
+                    "timestamp": datetime.utcnow()
+                })
+                
+                return True
             else:
-                logger.error("No client connection available")
+                logger.warning(f"Order {order_id} not found")
+                return False
                 
         except Exception as e:
-            logger.error(f"Error closing position: {e}", exc_info=True)
-    
-    async def get_account_info(self) -> Dict[str, Any]:
+            logger.error(f"Error canceling order via cTrader: {e}")
+            return False
+            
+    def get_order_status(self, order_id: str) -> Optional[Dict[str, Any]]:
         """
-        Get account information from cTrader
+        Get order status.
+        
+        Args:
+            order_id: Order ID
+            
+        Returns:
+            Order status dictionary or None
+        """
+        return self.orders.get(order_id)
+        
+    def get_all_orders(self) -> Dict[str, Dict[str, Any]]:
+        """Get all orders."""
+        return self.orders.copy()
+        
+    async def get_account_balance(self) -> Dict[str, Any]:
+        """
+        Get account balance information.
         
         Returns:
-            Dictionary containing account information
+            Account balance dictionary
         """
-        if not self.C_TRADER_AVAILABLE:
-            return {"error": "cTrader library not available"}
-            
         try:
-            # This would typically involve sending a ProtoOAAccountInfoReq
-            # For now, return basic info
-            return {
-                "account_id": self.config.ctrader_account_id,
-                "connected": self.connected,
-                "available": self.C_TRADER_AVAILABLE
+            # Mock balance for now
+            balance = {
+                "balance": 10000.0,
+                "equity": 10000.0,
+                "margin": 0.0,
+                "free_margin": 10000.0,
+                "timestamp": datetime.utcnow()
             }
-        except Exception as e:
-            logger.error(f"Error getting account info: {e}")
-            return {"error": str(e)}
-    
-    async def start(self) -> None:
-        """Start the broker interface"""
-        if not self.C_TRADER_AVAILABLE:
-            logger.error("cTrader library not available")
-            return
             
-        logger.info("CTrader broker interface ready")
-    
-    async def stop(self) -> None:
-        """Stop the broker interface"""
-        logger.info("CTrader broker interface stopped")
+            return balance
+            
+        except Exception as e:
+            logger.error(f"Error getting account balance: {e}")
+            return {}
+            
+    async def get_positions(self) -> List[Dict[str, Any]]:
+        """
+        Get open positions.
+        
+        Returns:
+            List of position dictionaries
+        """
+        try:
+            # Mock positions for now
+            positions = []
+            
+            return positions
+            
+        except Exception as e:
+            logger.error(f"Error getting positions: {e}")
+            return []

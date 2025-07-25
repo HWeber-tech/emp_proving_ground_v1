@@ -25,6 +25,7 @@ from src.operational.event_bus import EventBus
 from src.sensory.organs.fix_sensory_organ import FIXSensoryOrgan
 from src.sensory.organs.ctrader_data_organ import CTraderDataOrgan
 from src.trading.integration.ctrader_broker_interface import CTraderBrokerInterface
+from src.trading.integration.fix_broker_interface import FIXBrokerInterface
 
 logger = logging.getLogger(__name__)
 

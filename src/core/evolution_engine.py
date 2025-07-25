@@ -15,7 +15,14 @@ import uuid
 from concurrent.futures import ProcessPoolExecutor
 import hashlib
 
-from src.genome.models.genome import DecisionGenome
+# Import DecisionGenome from the top-level genome package rather than via the
+# ``src`` namespace. When ``src`` is added to ``sys.path`` (as in the CI
+# import test), attempting to import via ``src.genome`` will resolve to
+# ``src/src/genome``, which does not exist and can trigger
+# "attempted relative import beyond top-level package" errors.  Importing
+# directly from the ``genome`` package avoids this issue and still points to
+# the same module because ``genome`` is a top-level package within ``src``.
+from genome.models.genome import DecisionGenome
 from ..config.evolution_config import EvolutionConfig
 
 logger = logging.getLogger(__name__)

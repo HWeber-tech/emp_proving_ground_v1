@@ -7,10 +7,17 @@ from typing import Dict, Any, Optional
 class SystemConfig:
     """Manages system configuration for the EMP Professional Predator."""
     
-    def __init__(self, config_path: Optional[str] = None):
+    def __init__(self, config_path: Optional[str] = None, CONNECTION_PROTOCOL: Optional[str] = None):
         """Initialize system configuration."""
         self.config_path = config_path
-        self.connection_protocol = "fix"  # Default to FIX protocol
+        
+        # Handle both parameter and environment variable for protocol
+        protocol_from_env = os.getenv("CONNECTION_PROTOCOL", "fix")
+        self.connection_protocol = CONNECTION_PROTOCOL or protocol_from_env
+        
+        # Add uppercase property for backward compatibility
+        self.CONNECTION_PROTOCOL = self.connection_protocol
+        
         self.environment = "demo"
         self.account_number = os.getenv("ICMARKETS_ACCOUNT", "9533708")
         self.password = os.getenv("ICMARKETS_PASSWORD", "WNSE5822")

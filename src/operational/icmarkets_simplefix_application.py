@@ -4,6 +4,7 @@ Windows-compatible FIX 4.4 implementation using simplefix
 """
 
 import socket
+import ssl
 import threading
 import time
 import logging
@@ -72,9 +73,20 @@ class ICMarketsSimpleFIXConnection:
         try:
             self.config.validate_config()
             
+            # Create SSL context
+            context = ssl.create_default_context()
+            context.check_hostname = False
+            context.verify_mode = ssl.CERT_NONE
+            
             # Create socket connection
             self.price_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self.price_socket.settimeout(10)
+            
+            # Wrap with SSL
+            self.price_socket = context.wrap_socket(
+                self.price_socket,
+                server_hostname=self.config._get_host()
+            )
             
             # Connect to IC Markets price server
             host = self.config._get_host()
@@ -96,9 +108,20 @@ class ICMarketsSimpleFIXConnection:
         try:
             self.config.validate_config()
             
+            # Create SSL context
+            context = ssl.create_default_context()
+            context.check_hostname = False
+            context.verify_mode = ssl.CERT_NONE
+            
             # Create socket connection
             self.trade_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self.trade_socket.settimeout(10)
+            
+            # Wrap with SSL
+            self.trade_socket = context.wrap_socket(
+                self.trade_socket,
+                server_hostname=self.config._get_host()
+            )
             
             # Connect to IC Markets trade server
             host = self.config._get_host()

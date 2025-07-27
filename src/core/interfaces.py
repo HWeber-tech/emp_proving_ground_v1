@@ -8,7 +8,7 @@ contract between different components of the EMP system.
 """
 
 from abc import ABC, abstractmethod
-from typing import Dict, List, Optional, Any, Tuple
+from typing import Dict, List, Optional, Any, Tuple, Callable
 from dataclasses import dataclass
 from datetime import datetime
 import numpy as np
@@ -342,3 +342,131 @@ class AnalysisResult(BaseModel):
     results: Dict[str, Any]
     signals: List[SensorySignal] = Field(default_factory=list)
     timestamp: datetime = Field(default_factory=datetime.now)
+
+
+# Evolution Engine Interfaces
+class IPopulationManager(ABC):
+    """Interface for managing populations in genetic algorithms."""
+    
+    @abstractmethod
+    def initialize_population(self, genome_factory: Callable) -> None:
+        """Initialize the population with new genomes."""
+        pass
+    
+    @abstractmethod
+    def get_population(self) -> List[Any]:
+        """Get the current population."""
+        pass
+    
+    @abstractmethod
+    def get_best_genomes(self, count: int) -> List[Any]:
+        """Get the top N genomes by fitness."""
+        pass
+    
+    @abstractmethod
+    def update_population(self, new_population: List[Any]) -> None:
+        """Replace the current population with a new one."""
+        pass
+    
+    @abstractmethod
+    def get_population_statistics(self) -> Dict[str, Any]:
+        """Get statistics about the current population."""
+        pass
+    
+    @abstractmethod
+    def advance_generation(self) -> None:
+        """Increment the generation counter."""
+        pass
+    
+    @abstractmethod
+    def reset(self) -> None:
+        """Reset the population manager to initial state."""
+        pass
+
+
+class ISelectionStrategy(ABC):
+    """Interface for selection strategies in genetic algorithms."""
+    
+    @abstractmethod
+    def select(self, population: List[Any], fitness_scores: List[float]) -> Any:
+        """Select a genome from the population based on fitness."""
+        pass
+
+
+class ICrossoverStrategy(ABC):
+    """Interface for crossover strategies in genetic algorithms."""
+    
+    @abstractmethod
+    def crossover(self, parent1: Any, parent2: Any) -> tuple[Any, Any]:
+        """Perform crossover between two parent genomes."""
+        pass
+
+
+class IMutationStrategy(ABC):
+    """Interface for mutation strategies in genetic algorithms."""
+    
+    @abstractmethod
+    def mutate(self, genome: Any, mutation_rate: float) -> Any:
+        """Apply mutation to a genome."""
+        pass
+
+
+class IFitnessEvaluator(ABC):
+    """Interface for fitness evaluators used by the evolution engine."""
+    
+    @abstractmethod
+    def evaluate(self, genome: Any, market_data: Any) -> float:
+        """Evaluate the fitness of a genome based on market data."""
+        pass
+
+
+class IGenomeFactory(ABC):
+    """Interface for creating new genomes."""
+    
+    @abstractmethod
+    def create_genome(self) -> Any:
+        """Create a new genome."""
+        pass
+
+
+class IEvolutionLogger(ABC):
+    """Interface for logging evolution progress."""
+    
+    @abstractmethod
+    def log_generation(self, generation: int, statistics: Dict[str, Any]) -> None:
+        """Log generation statistics."""
+        pass
+    
+    @abstractmethod
+    def log_best_genome(self, genome: Any, fitness: float) -> None:
+        """Log the best genome found."""
+        pass
+
+
+class IStrategyEngine(ABC):
+    """Interface for strategy engine functionality."""
+    
+    @abstractmethod
+    def register_strategy(self, strategy: IStrategy) -> bool:
+        """Register a new strategy with the engine."""
+        pass
+    
+    @abstractmethod
+    def unregister_strategy(self, strategy_id: str) -> bool:
+        """Unregister a strategy from the engine."""
+        pass
+    
+    @abstractmethod
+    def start_strategy(self, strategy_id: str) -> bool:
+        """Start strategy execution."""
+        pass
+    
+    @abstractmethod
+    def stop_strategy(self, strategy_id: str) -> bool:
+        """Stop strategy execution."""
+        pass
+    
+    @abstractmethod
+    def pause_strategy(self, strategy_id: str) -> bool:
+        """Pause strategy execution."""
+        pass

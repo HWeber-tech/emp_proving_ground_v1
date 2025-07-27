@@ -15,7 +15,7 @@ from typing import Dict, List, Optional, Any
 from datetime import datetime
 
 from src.sensory.core.base import MarketData
-from src.sensory.dimensions.how.indicators import TechnicalIndicators
+from src.sensory.dimensions.indicators import TechnicalIndicators
 from src.trading.strategy_engine.base_strategy import BaseStrategy, StrategyType, StrategySignal, SignalType
 
 logger = logging.getLogger(__name__)
@@ -363,4 +363,4 @@ class MomentumStrategy(BaseStrategy):
                 if roc > 0 or rsi < 30 or macd_line > macd_signal:
                     return True
         
-        return False 
+        return False

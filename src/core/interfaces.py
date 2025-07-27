@@ -1,371 +1,64 @@
-#!/usr/bin/env python3
 """
-Core Interfaces for the EMP Trading System
-==========================================
+Core Interfaces
+===============
 
-This module defines the abstract base classes and interfaces that form the
-contract between different components of the EMP system.
+Interface definitions for the EMP trading system.
+Provides abstract base classes for all system components.
 """
 
 from abc import ABC, abstractmethod
-from typing import Dict, List, Optional, Any, Tuple, Callable
+from typing import Dict, List, Any, Optional, Callable
 from dataclasses import dataclass
-from datetime import datetime
-import numpy as np
-from pydantic import BaseModel, Field
-import uuid
 
 
-class IStrategy(ABC):
-    """Interface for trading strategies."""
+@dataclass
+class DecisionGenome:
+    """Represents a decision genome in the genetic algorithm."""
+    id: str
+    fitness: float = 0.0
+    species_type: str = 'generic'
+    parameters: Dict[str, Any] = None
     
-    @abstractmethod
-    async def analyze(self, market_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Analyze market data and return trading signals."""
-        pass
-    
-    @abstractmethod
-    async def generate_signal(self, context: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        """Generate trading signal based on current context."""
-        pass
-    
-    @abstractmethod
-    def get_parameters(self) -> Dict[str, Any]:
-        """Get current strategy parameters."""
-        pass
-    
-    @abstractmethod
-    def set_parameters(self, parameters: Dict[str, Any]) -> None:
-        """Set strategy parameters."""
-        pass
+    def __post_init__(self):
+        if self.parameters is None:
+            self.parameters = {}
 
 
-class IDataSource(ABC):
-    """Interface for market data sources."""
-    
-    @abstractmethod
-    async def get_data(self, symbol: str, start: datetime, end: datetime) -> Dict[str, Any]:
-        """Retrieve market data for given symbol and time range."""
-        pass
-    
-    @abstractmethod
-    async def get_latest(self, symbol: str) -> Dict[str, Any]:
-        """Get latest market data for symbol."""
-        pass
-
-
-class IRiskManager(ABC):
-    """Interface for risk management."""
-    
-    @abstractmethod
-    async def validate_position(self, position: Dict[str, Any]) -> bool:
-        """Validate if position meets risk criteria."""
-        pass
-    
-    @abstractmethod
-    async def calculate_position_size(self, signal: Dict[str, Any]) -> float:
-        """Calculate appropriate position size for signal."""
-        pass
-
-
-class IEvolutionEngine(ABC):
-    """Interface for genetic evolution engines."""
-    
-    @abstractmethod
-    async def evolve(self, population: List[Any], fitness_function) -> List[Any]:
-        """Evolve population using genetic algorithms."""
-        pass
-    
-    @abstractmethod
-    async def evaluate_fitness(self, individual: Any) -> float:
-        """Evaluate fitness of an individual."""
-        pass
-
-
-class IPortfolioManager(ABC):
-    """Interface for portfolio management."""
-    
-    @abstractmethod
-    async def add_strategy(self, strategy: IStrategy) -> None:
-        """Add strategy to portfolio."""
-        pass
-    
-    @abstractmethod
-    async def remove_strategy(self, strategy_id: str) -> None:
-        """Remove strategy from portfolio."""
-        pass
-    
-    @abstractmethod
-    async def rebalance(self) -> None:
-        """Rebalance portfolio allocations."""
-        pass
-
-
-class IMarketAnalyzer(ABC):
-    """Interface for market analysis."""
-    
-    @abstractmethod
-    async def analyze_regime(self, market_data: Dict[str, Any]) -> str:
-        """Determine current market regime."""
-        pass
-    
-    @abstractmethod
-    async def calculate_volatility(self, market_data: Dict[str, Any]) -> float:
-        """Calculate market volatility."""
-        pass
-    
-    @abstractmethod
-    async def detect_trend(self, market_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Detect market trend characteristics."""
-        pass
-
-
-class IPatternMemory(ABC):
-    """Interface for pattern memory systems."""
-    
-    @abstractmethod
-    async def store_pattern(self, pattern: Dict[str, Any], outcome: Dict[str, Any]) -> None:
-        """Store pattern with associated outcome."""
-        pass
-    
-    @abstractmethod
-    async def find_similar(self, pattern: Dict[str, Any], limit: int = 5) -> List[Dict[str, Any]]:
-        """Find similar patterns in memory."""
-        pass
-
-
-class IPredatorStrategy(ABC):
-    """Interface for specialized predator strategies."""
-    
-    @abstractmethod
-    def get_species_type(self) -> str:
-        """Return the species type of this predator."""
-        pass
-    
-    @abstractmethod
-    def get_preferred_regimes(self) -> List[str]:
-        """Return list of market regimes this predator prefers."""
-        pass
-    
-    @abstractmethod
-    async def hunt(self, market_data: Dict[str, Any], regime: str) -> Optional[Dict[str, Any]]:
-        """Hunt for opportunities in given regime."""
-        pass
-
-
-class ISpecialistGenomeFactory(ABC):
-    """Factory interface for creating specialist genomes with species-specific biases."""
-    
-    @abstractmethod
-    def create_genome(self) -> 'DecisionGenome':
-        """Create a genome with bias towards specific strategy type."""
-        pass
-    
-    @abstractmethod
-    def get_species_name(self) -> str:
-        """Return the species name this factory creates."""
-        pass
-    
-    @abstractmethod
-    def get_parameter_ranges(self) -> Dict[str, Tuple[float, float]]:
-        """Return parameter ranges specific to this species."""
-        pass
-
-
-class ICoordinationEngine(ABC):
-    """Interface for coordinating multiple predator strategies."""
-    
-    @abstractmethod
-    async def resolve_intents(self, intents: List[Dict[str, Any]], market_context: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """Resolve conflicting intents from multiple strategies."""
-        pass
-    
-    @abstractmethod
-    async def prioritize_strategies(self, strategies: List[IPredatorStrategy], regime: str) -> List[IPredatorStrategy]:
-        """Prioritize strategies based on current market regime."""
-        pass
-
-
-class INicheDetector(ABC):
-    """Interface for detecting market niches and regimes."""
-    
-    @abstractmethod
-    async def detect_niches(self, market_data: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
-        """Detect and segment market into different niches."""
-        pass
-    
-    @abstractmethod
-    async def classify_regime(self, market_data: Dict[str, Any]) -> str:
-        """Classify current market regime."""
-        pass
-
-
-class IPortfolioFitnessEvaluator(ABC):
-    """Interface for evaluating portfolio-level fitness."""
-    
-    @abstractmethod
-    async def evaluate_portfolio(self, portfolio: 'PortfolioGenome', niche_data: Dict[str, Any]) -> float:
-        """Evaluate fitness of entire portfolio across niches."""
-        pass
-    
-    @abstractmethod
-    async def calculate_correlation_score(self, portfolio: 'PortfolioGenome') -> float:
-        """Calculate diversification score for portfolio."""
-        pass
-
-
-# Data Models
-class DecisionGenome(BaseModel):
-    """Represents a trading strategy genome."""
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    parameters: Dict[str, Any] = Field(default_factory=dict)
-    indicators: List[str] = Field(default_factory=list)
-    rules: Dict[str, Any] = Field(default_factory=dict)
-    risk_profile: Dict[str, float] = Field(default_factory=dict)
-    species_type: str = Field(default="generic")
-    generation: int = Field(default=0)
-    parent_ids: List[str] = Field(default_factory=list)
-    
-    def mutate(self, mutation_rate: float = 0.1) -> 'DecisionGenome':
-        """Apply mutation to genome."""
-        import random
-        mutated = self.model_copy()
-        
-        # Mutate parameters
-        for key, value in mutated.parameters.items():
-            if random.random() < mutation_rate:
-                if isinstance(value, (int, float)):
-                    mutated.parameters[key] = value * (1 + random.uniform(-0.2, 0.2))
-        
-        return mutated
-    
-    def crossover(self, other: 'DecisionGenome') -> 'DecisionGenome':
-        """Perform crossover with another genome."""
-        import random
-        child = self.model_copy()
-        child.id = str(uuid.uuid4())
-        child.parent_ids = [self.id, other.id]
-        child.generation = max(self.generation, other.generation) + 1
-        
-        # Crossover parameters
-        for key in child.parameters:
-            if key in other.parameters and random.random() < 0.5:
-                child.parameters[key] = other.parameters[key]
-        
-        return child
-
-
-class PortfolioGenome(BaseModel):
-    """Represents a portfolio of specialized predator strategies."""
-    id: str = Field(default_factory=lambda: f"port_{uuid.uuid4().hex[:8]}")
-    species: Dict[str, DecisionGenome] = Field(default_factory=dict)
-    fitness: float = Field(default=0.0)
-    correlation_score: float = Field(default=0.0)
-    diversification_score: float = Field(default=0.0)
-    created_at: datetime = Field(default_factory=datetime.now)
-    generation: int = Field(default=0)
-    
-    def add_species(self, species_type: str, genome: DecisionGenome) -> None:
-        """Add a specialist species to the portfolio."""
-        self.species[species_type] = genome
-    
-    def remove_species(self, species_type: str) -> None:
-        """Remove a specialist species from the portfolio."""
-        if species_type in self.species:
-            del self.species[species_type]
-    
-    def get_species_list(self) -> List[str]:
-        """Get list of species in portfolio."""
-        return list(self.species.keys())
-
-
-class TradeIntent(BaseModel):
-    """Represents a trading intent from a predator strategy."""
-    strategy_id: str
-    species_type: str
-    symbol: str
-    direction: str  # BUY, SELL, HOLD
-    confidence: float
-    size: float
-    timestamp: datetime = Field(default_factory=datetime.now)
-    regime: str
-    priority: int = Field(default=5)  # 1-10 scale
-
-
-class MarketContext(BaseModel):
-    """Represents current market context for coordination."""
-    symbol: str
-    regime: str
-    volatility: float
-    trend_strength: float
-    volume_anomaly: float
-    timestamp: datetime = Field(default_factory=datetime.now)
-
-
-# Event Types
-class EventType:
-    """Event types for the EMP system."""
-    MARKET_DATA = "market_data"
-    TRADE_SIGNAL = "trade_signal"
-    PORTFOLIO_UPDATE = "portfolio_update"
-    REGIME_CHANGE = "regime_change"
-    STRATEGY_ALERT = "strategy_alert"
-    COORDINATION_REQUEST = "coordination_request"
-
-
-# Additional classes for thinking patterns
-class ThinkingPattern(BaseModel):
-    """Represents a thinking pattern for market analysis."""
-    pattern_id: str
-    pattern_type: str
-    confidence: float
-    parameters: Dict[str, Any]
-    timestamp: datetime = Field(default_factory=datetime.now)
-
-
-class SensorySignal(BaseModel):
-    """Represents a signal from sensory analysis."""
+@dataclass
+class SensorySignal:
+    """Represents a signal from a sensory organ."""
     signal_type: str
     strength: float
     confidence: float
     source: str
-    metadata: Dict[str, Any] = Field(default_factory=dict)
-    timestamp: datetime = Field(default_factory=datetime.now)
+    metadata: Dict[str, Any] = None
+    
+    def __post_init__(self):
+        if self.metadata is None:
+            self.metadata = {}
 
 
-class AnalysisResult(BaseModel):
-    """Represents the result of market analysis."""
-    analysis_id: str
-    analysis_type: str
-    symbol: str
-    confidence: float
-    results: Dict[str, Any]
-    signals: List[SensorySignal] = Field(default_factory=list)
-    timestamp: datetime = Field(default_factory=datetime.now)
-
-
-# Evolution Engine Interfaces
 class IPopulationManager(ABC):
-    """Interface for managing populations in genetic algorithms."""
+    """Interface for population management in genetic algorithms."""
     
     @abstractmethod
     def initialize_population(self, genome_factory: Callable) -> None:
-        """Initialize the population with new genomes."""
+        """Initialize population with new genomes."""
         pass
     
     @abstractmethod
-    def get_population(self) -> List[Any]:
-        """Get the current population."""
+    def get_population(self) -> List[DecisionGenome]:
+        """Get current population."""
         pass
     
     @abstractmethod
-    def get_best_genomes(self, count: int) -> List[Any]:
-        """Get the top N genomes by fitness."""
+    def get_best_genomes(self, count: int) -> List[DecisionGenome]:
+        """Get top N genomes by fitness."""
         pass
     
     @abstractmethod
-    def update_population(self, new_population: List[Any]) -> None:
-        """Replace the current population with a new one."""
+    def update_population(self, new_population: List[DecisionGenome]) -> None:
+        """Replace current population with new one."""
         pass
     
     @abstractmethod
@@ -384,12 +77,243 @@ class IPopulationManager(ABC):
         pass
 
 
+class ISensoryOrgan(ABC):
+    """Interface for sensory organs in the 4D+1 sensory cortex."""
+    
+    @abstractmethod
+    async def process_market_data(self, market_data: Dict[str, Any]) -> List[SensorySignal]:
+        """Process market data and return sensory signals."""
+        pass
+    
+    @abstractmethod
+    def get_organ_type(self) -> str:
+        """Get the type of sensory organ."""
+        pass
+    
+    @abstractmethod
+    def get_performance_metrics(self) -> Dict[str, Any]:
+        """Get performance metrics for the organ."""
+        pass
+
+
+class IRiskManager(ABC):
+    """Interface for risk management."""
+    
+    @abstractmethod
+    async def validate_position(self, position: Dict[str, Any]) -> bool:
+        """Validate if position meets risk criteria."""
+        pass
+    
+    @abstractmethod
+    async def calculate_position_size(self, signal: Dict[str, Any]) -> float:
+        """Calculate appropriate position size for signal."""
+        pass
+    
+    @abstractmethod
+    async def calculate_risk_metrics(self, portfolio: Dict[str, Any]) -> Dict[str, float]:
+        """Calculate comprehensive risk metrics."""
+        pass
+    
+    @abstractmethod
+    async def validate_order(self, order: Dict[str, Any]) -> bool:
+        """Validate order parameters."""
+        pass
+    
+    @abstractmethod
+    async def get_risk_limits(self) -> Dict[str, float]:
+        """Get current risk limits."""
+        pass
+    
+    @abstractmethod
+    async def update_risk_limits(self, limits: Dict[str, float]) -> bool:
+        """Update risk limits."""
+        pass
+    
+    @abstractmethod
+    def get_performance_metrics(self) -> Dict[str, Any]:
+        """Get performance metrics for the risk manager."""
+        pass
+
+
+class IStrategy(ABC):
+    """Interface for trading strategies."""
+    
+    @abstractmethod
+    async def analyze(self, market_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Analyze market data and return trading signals."""
+        pass
+    
+    @abstractmethod
+    async def generate_signals(self, analysis: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Generate trading signals from analysis."""
+        pass
+    
+    @abstractmethod
+    def get_strategy_name(self) -> str:
+        """Get the name of the strategy."""
+        pass
+    
+    @abstractmethod
+    def get_parameters(self) -> Dict[str, Any]:
+        """Get strategy parameters."""
+        pass
+
+
+class IComponentIntegrator(ABC):
+    """Interface for component integration and management."""
+    
+    @abstractmethod
+    async def initialize_components(self) -> bool:
+        """Initialize all system components."""
+        pass
+    
+    @abstractmethod
+    async def shutdown_components(self) -> bool:
+        """Shutdown all system components."""
+        pass
+    
+    @abstractmethod
+    async def get_component_status(self, component_name: str) -> Optional[str]:
+        """Get status of a specific component."""
+        pass
+    
+    @abstractmethod
+    async def restart_component(self, component_name: str) -> bool:
+        """Restart a specific component."""
+        pass
+    
+    @abstractmethod
+    def get_all_components(self) -> Dict[str, Any]:
+        """Get all registered components."""
+        pass
+    
+    @abstractmethod
+    async def health_check(self) -> Dict[str, Any]:
+        """Perform comprehensive health check."""
+        pass
+
+
+class IDataSource(ABC):
+    """Interface for market data sources."""
+    
+    @abstractmethod
+    async def connect(self) -> bool:
+        """Connect to the data source."""
+        pass
+    
+    @abstractmethod
+    async def disconnect(self) -> bool:
+        """Disconnect from the data source."""
+        pass
+    
+    @abstractmethod
+    async def get_market_data(self, symbol: str, timeframe: str) -> Dict[str, Any]:
+        """Get market data for a symbol."""
+        pass
+    
+    @abstractmethod
+    async def subscribe_to_market_data(self, symbols: List[str], callback: Callable) -> bool:
+        """Subscribe to real-time market data."""
+        pass
+
+
+class IStrategyEngine(ABC):
+    """Interface for strategy engine."""
+    
+    @abstractmethod
+    async def register_strategy(self, strategy: IStrategy) -> bool:
+        """Register a new strategy."""
+        pass
+    
+    @abstractmethod
+    async def unregister_strategy(self, strategy_name: str) -> bool:
+        """Unregister a strategy."""
+        pass
+    
+    @abstractmethod
+    async def execute_strategy(self, strategy_name: str, market_data: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Execute a specific strategy."""
+        pass
+    
+    @abstractmethod
+    def get_active_strategies(self) -> List[str]:
+        """Get list of active strategies."""
+        pass
+
+
+class IPortfolioManager(ABC):
+    """Interface for portfolio management."""
+    
+    @abstractmethod
+    async def add_position(self, position: Dict[str, Any]) -> bool:
+        """Add a new position to the portfolio."""
+        pass
+    
+    @abstractmethod
+    async def remove_position(self, position_id: str) -> bool:
+        """Remove a position from the portfolio."""
+        pass
+    
+    @abstractmethod
+    async def update_position(self, position_id: str, updates: Dict[str, Any]) -> bool:
+        """Update an existing position."""
+        pass
+    
+    @abstractmethod
+    def get_portfolio_summary(self) -> Dict[str, Any]:
+        """Get summary of the current portfolio."""
+        pass
+    
+    @abstractmethod
+    def get_positions(self) -> List[Dict[str, Any]]:
+        """Get all current positions."""
+        pass
+
+
+class IMarketAnalyzer(ABC):
+    """Interface for market analysis."""
+    
+    @abstractmethod
+    async def analyze_market(self, market_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Analyze market data and return analysis."""
+        pass
+    
+    @abstractmethod
+    def get_analysis_type(self) -> str:
+        """Get the type of analysis performed."""
+        pass
+
+
+class IEvolutionEngine(ABC):
+    """Interface for evolution engine."""
+    
+    @abstractmethod
+    async def evolve_population(self, population: List[DecisionGenome]) -> List[DecisionGenome]:
+        """Evolve the population using genetic algorithms."""
+        pass
+    
+    @abstractmethod
+    def get_evolution_parameters(self) -> Dict[str, Any]:
+        """Get current evolution parameters."""
+        pass
+    
+    @abstractmethod
+    def update_evolution_parameters(self, parameters: Dict[str, Any]) -> bool:
+        """Update evolution parameters."""
+        pass
+
+
 class ISelectionStrategy(ABC):
     """Interface for selection strategies in genetic algorithms."""
     
     @abstractmethod
-    def select(self, population: List[Any], fitness_scores: List[float]) -> Any:
-        """Select a genome from the population based on fitness."""
+    def select(self, population: List[DecisionGenome], count: int) -> List[DecisionGenome]:
+        """Select genomes for reproduction."""
+        pass
+    
+    @abstractmethod
+    def get_name(self) -> str:
+        """Get the name of the selection strategy."""
         pass
 
 
@@ -397,8 +321,13 @@ class ICrossoverStrategy(ABC):
     """Interface for crossover strategies in genetic algorithms."""
     
     @abstractmethod
-    def crossover(self, parent1: Any, parent2: Any) -> tuple[Any, Any]:
-        """Perform crossover between two parent genomes."""
+    def crossover(self, parent1: DecisionGenome, parent2: DecisionGenome) -> DecisionGenome:
+        """Perform crossover between two parents."""
+        pass
+    
+    @abstractmethod
+    def get_name(self) -> str:
+        """Get the name of the crossover strategy."""
         pass
 
 
@@ -406,67 +335,77 @@ class IMutationStrategy(ABC):
     """Interface for mutation strategies in genetic algorithms."""
     
     @abstractmethod
-    def mutate(self, genome: Any, mutation_rate: float) -> Any:
+    def mutate(self, genome: DecisionGenome) -> DecisionGenome:
         """Apply mutation to a genome."""
+        pass
+    
+    @abstractmethod
+    def get_name(self) -> str:
+        """Get the name of the mutation strategy."""
+        pass
+
+
+class IFitnessFunction(ABC):
+    """Interface for fitness functions in genetic algorithms."""
+    
+    @abstractmethod
+    def calculate_fitness(self, genome: DecisionGenome) -> float:
+        """Calculate fitness score for a genome."""
+        pass
+    
+    @abstractmethod
+    def get_name(self) -> str:
+        """Get the name of the fitness function."""
         pass
 
 
 class IFitnessEvaluator(ABC):
-    """Interface for fitness evaluators used by the evolution engine."""
+    """Interface for fitness evaluation in genetic algorithms."""
     
     @abstractmethod
-    def evaluate(self, genome: Any, market_data: Any) -> float:
-        """Evaluate the fitness of a genome based on market data."""
+    def evaluate(self, genome: DecisionGenome) -> float:
+        """Evaluate fitness of a genome."""
+        pass
+    
+    @abstractmethod
+    def get_evaluation_metrics(self) -> Dict[str, Any]:
+        """Get evaluation metrics."""
         pass
 
 
 class IGenomeFactory(ABC):
-    """Interface for creating new genomes."""
+    """Interface for genome factory in genetic algorithms."""
     
     @abstractmethod
-    def create_genome(self) -> Any:
+    def create_genome(self) -> DecisionGenome:
         """Create a new genome."""
+        pass
+    
+    @abstractmethod
+    def create_random_genome(self) -> DecisionGenome:
+        """Create a random genome."""
+        pass
+    
+    @abstractmethod
+    def create_genome_from_parents(self, parent1: DecisionGenome, parent2: DecisionGenome) -> DecisionGenome:
+        """Create a genome from two parents."""
         pass
 
 
 class IEvolutionLogger(ABC):
-    """Interface for logging evolution progress."""
+    """Interface for evolution logging."""
     
     @abstractmethod
-    def log_generation(self, generation: int, statistics: Dict[str, Any]) -> None:
-        """Log generation statistics."""
+    def log_generation(self, generation: int, population: List[DecisionGenome]) -> None:
+        """Log generation information."""
         pass
     
     @abstractmethod
-    def log_best_genome(self, genome: Any, fitness: float) -> None:
-        """Log the best genome found."""
-        pass
-
-
-class IStrategyEngine(ABC):
-    """Interface for strategy engine functionality."""
-    
-    @abstractmethod
-    def register_strategy(self, strategy: IStrategy) -> bool:
-        """Register a new strategy with the engine."""
+    def log_fitness(self, genome: DecisionGenome, fitness: float) -> None:
+        """Log fitness information."""
         pass
     
     @abstractmethod
-    def unregister_strategy(self, strategy_id: str) -> bool:
-        """Unregister a strategy from the engine."""
-        pass
-    
-    @abstractmethod
-    def start_strategy(self, strategy_id: str) -> bool:
-        """Start strategy execution."""
-        pass
-    
-    @abstractmethod
-    def stop_strategy(self, strategy_id: str) -> bool:
-        """Stop strategy execution."""
-        pass
-    
-    @abstractmethod
-    def pause_strategy(self, strategy_id: str) -> bool:
-        """Pause strategy execution."""
+    def log_statistics(self, statistics: Dict[str, Any]) -> None:
+        """Log evolution statistics."""
         pass

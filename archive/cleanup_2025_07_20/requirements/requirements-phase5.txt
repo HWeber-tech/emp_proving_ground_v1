@@ -1,4 +1,0 @@
-# Phase 5 Dependencies
-redis>=5.0.0
-faiss-cpu>=1.7.4
-numpy>=1.24.0

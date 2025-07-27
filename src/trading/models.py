@@ -1,5 +1,6 @@
 """
 Trading Models
+from src.core.market_data import MarketData
 Core trading models for positions, signals, and market data
 """
 
@@ -8,7 +9,6 @@ from datetime import datetime
 from typing import Optional, List
 from enum import Enum
 
-
 class SignalType(Enum):
     """Types of trading signals"""
     BUY = "buy"
@@ -16,13 +16,11 @@ class SignalType(Enum):
     HOLD = "hold"
     CLOSE = "close"
 
-
 class PositionStatus(Enum):
     """Position status"""
     OPEN = "open"
     CLOSED = "closed"
     PENDING = "pending"
-
 
 @dataclass
 class TradingSignal:
@@ -39,7 +37,6 @@ class TradingSignal:
     def __post_init__(self):
         if self.timestamp is None:
             self.timestamp = datetime.now()
-
 
 @dataclass
 class Position:
@@ -84,7 +81,6 @@ class Position:
         self.unrealized_pnl = 0.0
         self.status = PositionStatus.CLOSED
 
-
 @dataclass
 class MarketData:
     """Market data snapshot"""
@@ -102,7 +98,6 @@ class MarketData:
     def __post_init__(self):
         if self.spread is None and self.bid and self.ask:
             self.spread = self.ask - self.bid
-
 
 @dataclass
 class PortfolioSnapshot:

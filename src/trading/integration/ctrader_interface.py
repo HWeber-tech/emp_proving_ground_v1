@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
 IC Markets cTrader OpenAPI Trading Interface
+from src.core.market_data import MarketData
 
 This module implements a complete trading interface for IC Markets cTrader
 using the official OpenAPI with proper authentication, connection management,
@@ -21,12 +22,10 @@ from ctrader_open_api.enums import ProtoOAPayloadType
 
 logger = logging.getLogger(__name__)
 
-
 class TradingMode(Enum):
     """Trading mode enumeration."""
     DEMO = "demo"
     LIVE = "live"
-
 
 class OrderType(Enum):
     """Order type enumeration."""
@@ -35,12 +34,10 @@ class OrderType(Enum):
     STOP = "stop"
     STOP_LIMIT = "stop_limit"
 
-
 class OrderSide(Enum):
     """Order side enumeration."""
     BUY = "buy"
     SELL = "sell"
-
 
 @dataclass
 class TradingConfig:
@@ -56,72 +53,6 @@ class TradingConfig:
     max_retries: int = 3
     heartbeat_interval: int = 10
 
-
-@dataclass
-class MarketData:
-    """Market data structure."""
-    symbol_id: int
-    symbol_name: str
-    bid: float
-    ask: float
-    timestamp: datetime
-    digits: int = 5
-
-
-@dataclass
-class Order:
-    """Order structure."""
-    order_id: str
-    symbol_id: int
-    order_type: OrderType
-    side: OrderSide
-    volume: float
-    price: Optional[float] = None
-    stop_loss: Optional[float] = None
-    take_profit: Optional[float] = None
-    status: str = "pending"
-    timestamp: datetime = None
-
-
-@dataclass
-class Position:
-    """Position structure."""
-    position_id: str
-    symbol_id: int
-    side: OrderSide
-    volume: float
-    entry_price: float
-    current_price: float
-    profit_loss: float
-    stop_loss: Optional[float] = None
-    take_profit: Optional[float] = None
-    timestamp: datetime = None
-
-
-class CTraderInterface:
-    """
-    IC Markets cTrader OpenAPI Trading Interface.
-    
-    This class handles all trading operations including:
-    - Authentication and connection management
-    - Market data subscription
-    - Order placement and management
-    - Position tracking
-    - Real-time updates
-    """
-    
-    def __init__(self, config: TradingConfig):
-        """
-        Initialize the cTrader interface.
-        
-        Args:
-            config: Trading configuration
-        """
-        self.config = config
-        self.client = None
-        self.connected = False
-        self.authenticated = False
-        self.symbols_cache = {}
         self.market_data = {}
         self.orders = {}
         self.positions = {}
@@ -598,7 +529,6 @@ class CTraderInterface:
         }
         return mapping.get(side, 1)
 
-
 class TokenManager:
     """Manages OAuth tokens for cTrader API."""
     
@@ -676,7 +606,6 @@ class TokenManager:
             logger.error(f"Get trading accounts error: {e}")
             return None
 
-
 def main():
     """Test the cTrader interface."""
     import argparse
@@ -715,7 +644,6 @@ def main():
         await interface.disconnect()
     
     asyncio.run(test())
-
 
 if __name__ == "__main__":
     main() 

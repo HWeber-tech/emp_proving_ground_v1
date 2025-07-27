@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
 Mock cTrader Interface for Testing
+from src.core.market_data import MarketData
 
 This module provides a mock implementation of the cTrader OpenAPI
 for testing purposes when the real library is not available.
@@ -18,12 +19,10 @@ import requests
 
 logger = logging.getLogger(__name__)
 
-
 class TradingMode(Enum):
     """Trading mode enumeration."""
     DEMO = "demo"
     LIVE = "live"
-
 
 class OrderType(Enum):
     """Order type enumeration."""
@@ -32,12 +31,10 @@ class OrderType(Enum):
     STOP = "stop"
     STOP_LIMIT = "stop_limit"
 
-
 class OrderSide(Enum):
     """Order side enumeration."""
     BUY = "buy"
     SELL = "sell"
-
 
 @dataclass
 class TradingConfig:
@@ -53,63 +50,7 @@ class TradingConfig:
     max_retries: int = 3
     heartbeat_interval: int = 10
 
-
-@dataclass
-class MarketData:
-    """Market data structure."""
-    symbol_id: int
-    symbol_name: str
-    bid: float
-    ask: float
-    timestamp: datetime
-    digits: int = 5
-
-
-@dataclass
-class Order:
-    """Order structure."""
-    order_id: str
-    symbol_id: int
-    order_type: OrderType
-    side: OrderSide
-    volume: float
-    price: Optional[float] = None
-    stop_loss: Optional[float] = None
-    take_profit: Optional[float] = None
-    status: str = "pending"
-    timestamp: Optional[datetime] = None
-
-
-@dataclass
-class Position:
-    """Position structure."""
-    position_id: str
-    symbol_id: int
-    side: OrderSide
-    volume: float
-    entry_price: float
-    current_price: float
-    profit_loss: float
-    stop_loss: Optional[float] = None
-    take_profit: Optional[float] = None
-    timestamp: Optional[datetime] = None
-
-
-class MockCTraderClient:
-    """Mock cTrader client for testing."""
-    
-    def __init__(self, host: str, port: int, on_message: Callable):
-        self.host = host
-        self.port = port
-        self.on_message = on_message
-        self.connected = False
-        self.running = False
-    
-    async def start(self):
-        """Start the mock client."""
-        self.connected = True
-        self.running = True
-        logger.info(f"Mock cTrader client connected to {self.host}:{self.port}")
+:{self.port}")
     
     async def stop(self):
         """Stop the mock client."""
@@ -146,7 +87,6 @@ class MockCTraderClient:
         # Simulate message received
         if self.on_message:
             await self.on_message(mock_response)
-
 
 class MockCTraderInterface:
     """
@@ -482,7 +422,6 @@ class MockCTraderInterface:
             except Exception as e:
                 logger.error(f"Position update callback error: {e}")
 
-
 class TokenManager:
     """Manages OAuth tokens for cTrader API."""
     
@@ -551,10 +490,8 @@ class TokenManager:
             logger.error(f"Get trading accounts error: {e}")
             return None
 
-
 # Alias for compatibility
 CTraderInterface = MockCTraderInterface
-
 
 def main():
     """Test the mock cTrader interface."""
@@ -594,7 +531,6 @@ def main():
         await interface.disconnect()
     
     asyncio.run(test())
-
 
 if __name__ == "__main__":
     main() 

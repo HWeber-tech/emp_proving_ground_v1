@@ -136,33 +136,6 @@ class OrderBook(BaseModel):
     spread: float
     mid_price: float
 
-
-class MarketData(BaseModel):
-    """Market data representation."""
-    symbol: str
-    timestamp: str
-    open: float
-    high: float
-    low: float
-    close: float
-    volume: float
-    bid: float
-    ask: float
-    spread: float
-    mid_price: float
-
-
-class AnalysisResult(BaseModel):
-    """Analysis result from market analysis."""
-    analysis_id: str
-    symbol: str
-    timestamp: str
-    regime: str
-    confidence: float
-    metrics: Dict[str, float]
-    signals: List[Dict[str, Any]]
-    metadata: Dict[str, Any] = {}
-
 class EventBus:
     """Simple event bus for system communication."""
     def __init__(self):

@@ -1,0 +1,19 @@
+{
+  "backup_timestamp": "20250727_172910",
+  "fix_api_status": "WORKING",
+  "backup_contents": {
+    "config_files": [
+      "config\\fix\\ctrader_price_session.cfg",
+      "config\\fix\\ctrader_trade_session.cfg",
+      "config\\fix\\FIX44.xml",
+      "config\\fix\\icmarkets_config.py",
+      "config\\fix\\symbol_mapping.json"
+    ],
+    "operational_files": [
+      "src/operational/icmarkets_simplefix_application.py",
+      "src/operational/ctrader_interface.py",
+      "src/operational/market_data_processor.py"
+    ]
+  },
+  "verification_command": "python scripts/test_simplefix.py"
+}

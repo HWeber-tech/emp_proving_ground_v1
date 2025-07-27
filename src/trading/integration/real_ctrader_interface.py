@@ -1,5 +1,6 @@
 """
 Real IC Markets cTrader OpenAPI Trading Interface
+from src.core.market_data import MarketData
 
 This module provides a real implementation of the cTrader OpenAPI
 for live trading with IC Markets.
@@ -26,7 +27,6 @@ from urllib.parse import urlencode
 
 logger = logging.getLogger(__name__)
 
-
 class OrderType(Enum):
     """Order types supported by cTrader."""
     MARKET = "Market"
@@ -34,12 +34,10 @@ class OrderType(Enum):
     STOP = "Stop"
     STOP_LIMIT = "StopLimit"
 
-
 class OrderSide(Enum):
     """Order sides."""
     BUY = "Buy"
     SELL = "Sell"
-
 
 class OrderStatus(Enum):
     """Order status."""
@@ -48,7 +46,6 @@ class OrderStatus(Enum):
     PARTIALLY_FILLED = "PartiallyFilled"
     CANCELLED = "Cancelled"
     REJECTED = "Rejected"
-
 
 @dataclass
 class TradingConfig:
@@ -63,68 +60,7 @@ class TradingConfig:
     port: int = 443
     timeout: int = 30
 
-
-@dataclass
-class MarketData:
-    """Real-time market data."""
-    symbol_name: str
-    symbol_id: int
-    bid: float
-    ask: float
-    bid_volume: float
-    ask_volume: float
-    timestamp: datetime
-    spread: float = field(init=False)
-    
-    def __post_init__(self):
-        self.spread = self.ask - self.bid
-
-
-@dataclass
-class Order:
-    """Order information."""
-    order_id: str
-    symbol_name: str
-    symbol_id: int
-    order_type: OrderType
-    side: OrderSide
-    volume: float
-    price: Optional[float] = None
-    stop_loss: Optional[float] = None
-    take_profit: Optional[float] = None
-    status: OrderStatus = OrderStatus.PENDING
-    filled_volume: float = 0.0
-    average_price: Optional[float] = None
-    timestamp: datetime = field(default_factory=datetime.now)
-
-
-@dataclass
-class Position:
-    """Position information."""
-    position_id: str
-    symbol_name: str
-    symbol_id: int
-    side: OrderSide
-    volume: float
-    entry_price: float
-    current_price: float
-    stop_loss: Optional[float] = None
-    take_profit: Optional[float] = None
-    profit_loss: float = 0.0
-    swap: float = 0.0
-    commission: float = 0.0
-    timestamp: datetime = field(default_factory=datetime.now)
-
-
-class TokenManager:
-    """Manages OAuth 2.0 tokens for cTrader API."""
-    
-    def __init__(self, config: TradingConfig):
-        self.config = config
-        self.access_token = config.access_token
-        self.refresh_token = config.refresh_token
-        self.token_expiry = None
-        self.base_url = f"https://{config.host}"
+"
     
     async def get_access_token(self) -> str:
         """Get a valid access token, refreshing if necessary."""
@@ -184,7 +120,6 @@ class TokenManager:
                     return token_data
                 else:
                     raise Exception(f"Failed to exchange code for token: {response.status}")
-
 
 class RealCTraderInterface:
     """
@@ -583,7 +518,6 @@ class RealCTraderInterface:
         """Get account information."""
         return self.account_info
 
-
 # Convenience function to create demo config
 def create_demo_config(client_id: str, client_secret: str) -> TradingConfig:
     """Create a demo trading configuration."""
@@ -593,7 +527,6 @@ def create_demo_config(client_id: str, client_secret: str) -> TradingConfig:
         demo_account=True,
         host="demo.ctrader.com"
     )
-
 
 # Convenience function to create live config
 def create_live_config(client_id: str, client_secret: str) -> TradingConfig:

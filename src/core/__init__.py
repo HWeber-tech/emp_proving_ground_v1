@@ -1,27 +1,40 @@
 """
-EMP Core Layer v1.1
+Core Module
+===========
 
-The Core Layer provides cross-cutting concerns, interfaces, and foundational
-components used throughout the EMP system. It defines the contracts and
-abstractions that enable layer communication and system integration.
-
-Architecture:
-- events.py: Event definitions and types
-- event_bus.py: Core event bus interface
-- interfaces.py: Layer interfaces and contracts
-- exceptions.py: System-wide exception types
-- configuration.py: Configuration management
+Core implementations for the EMP trading system.
+Provides concrete implementations of all critical interfaces.
 """
 
-from .events import *
-from .event_bus import EventBus
-from .interfaces import *
-from .exceptions import *
-from .configuration import Configuration
+from .population_manager import PopulationManager
+from .sensory_organ import SensoryOrgan, create_sensory_organ, WHAT_ORGAN, WHEN_ORGAN, ANOMALY_ORGAN, CHAOS_ORGAN
+from .risk_manager import RiskManager, get_global_risk_manager as get_risk_manager
+from .instrument import Instrument, get_instrument, get_all_instruments
 
-# Import domain models
-from src.domain.models import RiskConfig, Instrument, InstrumentProvider, CurrencyConverter
+__all__ = [
+    # Population Manager
+    'PopulationManager',
+    
+    # Sensory Organs
+    'SensoryOrgan',
+    'create_sensory_organ',
+    'WHAT_ORGAN',
+    'WHEN_ORGAN',
+    'ANOMALY_ORGAN',
+    'CHAOS_ORGAN',
+    
+    # Risk Manager
+    'RiskManager',
+    'get_risk_manager',
+    
+    # Instrument
+    'Instrument',
+    'get_instrument',
+    'get_all_instruments',
+]
 
-__version__ = "1.1.0"
-__author__ = "EMP System"
-__description__ = "Core Layer - Cross-cutting Concerns and Interfaces"
+# Re-export for convenience
+from .population_manager import PopulationManager
+from .sensory_organ import SensoryOrgan, create_sensory_organ, WHAT_ORGAN, WHEN_ORGAN, ANOMALY_ORGAN, CHAOS_ORGAN
+from .risk_manager import RiskManager, get_global_risk_manager as get_risk_manager
+from .instrument import Instrument, get_instrument, get_all_instruments

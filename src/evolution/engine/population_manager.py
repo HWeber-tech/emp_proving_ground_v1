@@ -9,6 +9,7 @@ populations in genetic algorithms.
 import asyncio
 import logging
 import json
+import numpy as np
 from typing import List, Dict, Any, Callable, Optional
 from datetime import datetime
 from pathlib import Path

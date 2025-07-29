@@ -325,9 +325,6 @@ class RealRiskManager:
                 account_balance,
                 assessment.portfolio_heat,
                 assessment.max_drawdown_risk,
-                1.5,  # Placeholder Sharpe ratio
-                0.02,  # Placeholder VaR 95
-                0.05   # Placeholder VaR 99
             ))
             
             conn.commit()

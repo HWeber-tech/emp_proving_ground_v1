@@ -109,7 +109,6 @@ class DukascopyIngestor:
                         logger.warning(f"No data available for {symbol} on {current_date}")
                     
                     # Rate limiting
-                    time.sleep(0.1)
                     
                 except Exception as e:
                     logger.error(f"Error downloading {symbol} for {current_date}: {e}")

@@ -18,10 +18,20 @@ class DecisionGenome:
     fitness: float = 0.0
     species_type: str = 'generic'
     parameters: Dict[str, Any] = None
+    generation: int = 0
+    parent_ids: List[str] = None
+    mutation_history: List[Dict[str, Any]] = None
+    performance_metrics: Dict[str, Any] = None
     
     def __post_init__(self):
         if self.parameters is None:
             self.parameters = {}
+        if self.parent_ids is None:
+            self.parent_ids = []
+        if self.mutation_history is None:
+            self.mutation_history = []
+        if self.performance_metrics is None:
+            self.performance_metrics = {}
 
 
 @dataclass

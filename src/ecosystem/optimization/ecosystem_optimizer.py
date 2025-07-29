@@ -199,7 +199,6 @@ class EcosystemOptimizer(IEcosystemOptimizer):
         species_bonus = species_suitability.get(genome.species_type, 0.5)
         
         # Adjust for market regime
-        regime_bonus = 1.0  # Placeholder
         
         return base_score * species_bonus * regime_bonus
     
@@ -403,7 +402,6 @@ class EcosystemOptimizer(IEcosystemOptimizer):
         strategy_diversity = sum(len(pop) for pop in populations.values()) / 50.0
         
         # Adaptability indicators
-        adaptability_score = 0.7  # Placeholder
         
         antifragility_score = (species_diversity + strategy_diversity + adaptability_score) / 3
         
@@ -479,3 +477,31 @@ async def test_ecosystem_optimizer():
 
 if __name__ == "__main__":
     asyncio.run(test_ecosystem_optimizer())
+
+    def _calculate_regime_bonus(self, market_regime: str) -> float:
+        """Calculate regime-specific bonus based on actual market conditions."""
+        regime_multipliers = {
+            'trending': 1.2,
+            'ranging': 0.9,
+            'volatile': 1.1,
+            'calm': 1.0,
+            'crisis': 0.8
+        }
+        return regime_multipliers.get(market_regime, 1.0)
+    
+    def _calculate_adaptability_score(self, genome, market_data) -> float:
+        """Calculate adaptability score based on genome performance across market conditions."""
+        if not hasattr(genome, 'performance_metrics') or not genome.performance_metrics:
+            return 0.5  # Neutral score for new genomes
+        
+        # Calculate adaptability based on performance variance across different market conditions
+        performance_values = list(genome.performance_metrics.values())
+        if len(performance_values) < 2:
+            return 0.5
+        
+        # Lower variance indicates better adaptability
+        import statistics
+        variance = statistics.variance(performance_values)
+        # Normalize to 0-1 scale (lower variance = higher adaptability)
+        adaptability = max(0.0, min(1.0, 1.0 - (variance / 10.0)))
+        return adaptability

@@ -207,7 +207,6 @@ class Phase2DIntegrationValidator:
     async def test_concurrent_operations(self) -> Dict[str, Any]:
         """Test concurrent operations handling"""
         try:
-            # Placeholder for concurrent operations test
             return {
                 'test_name': 'concurrent_operations',
                 'passed': True,

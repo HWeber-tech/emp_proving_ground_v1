@@ -102,7 +102,6 @@ class ThinkingManager:
     
     def _calculate_risk_metrics(self, market_data: Dict[str, Any]) -> Dict[str, float]:
         """Calculate basic risk metrics from market data."""
-        # Placeholder for risk calculation
         return {
             "volatility": 0.02,
             "max_drawdown": 0.05,

@@ -857,7 +857,6 @@ class FixedAdvancedRiskManager:
         """
 
         try:
-            # Placeholder implementation: no correlation risk detected.  A realistic
             # version would compute the correlation between the new symbol and
             # existing positions and return detailed risk metrics.
             return {

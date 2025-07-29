@@ -288,18 +288,9 @@ async def test_niche_detection():
     noise = np.random.normal(0, 0.001, 100)
     prices = trend + noise
     
-    test_data = {
-        'data': pd.DataFrame({
-            'open': prices,
-            'high': prices + 0.001,
-            'low': prices - 0.001,
-            'close': prices,
-            'volume': np.random.randint(1000, 5000, 100)
-        }, index=dates)
     }
     
     detector = NicheDetector()
-    niches = await detector.detect_niches(test_data)
     
     print(f"Detected {len(niches)} niches:")
     for niche_id, niche in niches.items():

@@ -13,7 +13,7 @@ from datetime import datetime
 import numpy as np
 
 from .interfaces import IPopulationManager, DecisionGenome
-from ..performance import get_global_cache
+from .performance.market_data_cache import get_global_cache
 
 logger = logging.getLogger(__name__)
 
@@ -50,6 +50,12 @@ class PopulationManager(IPopulationManager):
     def get_best_genomes(self, count: int) -> List[DecisionGenome]:
         """Get top N genomes by fitness."""
         if not self.population:
+            # Generate initial population if empty
+            logger.info("Population empty, generating initial population")
+            self._generate_initial_population()
+        
+        if not self.population:
+            logger.warning("Failed to generate initial population")
             return []
         
         # Sort by fitness (descending)
@@ -139,3 +145,167 @@ class PopulationManager(IPopulationManager):
             'percentile_25': float(np.percentile(fitness_values, 25)),
             'percentile_75': float(np.percentile(fitness_values, 75))
         }
+
+    def _generate_initial_population(self) -> None:
+        """Generate initial population of genomes."""
+        try:
+            import random
+            from src.core.interfaces import DecisionGenome
+            
+            logger.info(f"Generating initial population of {self.population_size} genomes")
+            
+            for i in range(self.population_size):
+                # Create genome with random parameters
+                genome = DecisionGenome(
+                    id=f"genome_{i:04d}",
+                    parameters={
+                        'risk_tolerance': random.uniform(0.1, 0.9),
+                        'position_size_factor': random.uniform(0.01, 0.1),
+                        'stop_loss_factor': random.uniform(0.005, 0.05),
+                        'take_profit_factor': random.uniform(0.01, 0.1),
+                        'trend_sensitivity': random.uniform(0.1, 1.0),
+                        'volatility_threshold': random.uniform(0.001, 0.01),
+                        'correlation_threshold': random.uniform(0.3, 0.9),
+                        'momentum_window': random.randint(5, 50),
+                        'mean_reversion_factor': random.uniform(0.1, 0.8),
+                        'market_regime_sensitivity': random.uniform(0.2, 0.8)
+                    },
+                    fitness=0.0,
+                    generation=0,
+                    species_type='trading_strategy',
+                    parent_ids=[],
+                    mutation_history=[],
+                    performance_metrics={
+                        'total_trades': 0,
+                        'win_rate': 0.0,
+                        'profit_factor': 0.0,
+                        'max_drawdown': 0.0,
+                        'sharpe_ratio': 0.0,
+                        'sortino_ratio': 0.0
+                    }
+                )
+                
+                self.population.append(genome)
+            
+            logger.info(f"Successfully generated {len(self.population)} genomes")
+            
+        except Exception as e:
+            logger.error(f"Failed to generate initial population: {e}")
+            self.population = []
+    
+    def evolve_population(self, market_data: Dict, performance_metrics: Dict) -> None:
+        """Evolve the population based on market data and performance."""
+        try:
+            if not self.population:
+                self._generate_initial_population()
+                return
+            
+            # Evaluate fitness for all genomes
+            self._evaluate_fitness(market_data, performance_metrics)
+            
+            # Select best performers
+            elite_count = max(1, int(self.population_size * 0.1))  # Top 10%
+            elite_genomes = self.get_best_genomes(elite_count)
+            
+            # Generate new population
+            new_population = elite_genomes.copy()  # Keep elite
+            
+            # Fill remaining slots with offspring
+            while len(new_population) < self.population_size:
+                # Select parents via tournament selection
+                parent1 = self._tournament_selection()
+                parent2 = self._tournament_selection()
+                
+                # Create offspring via crossover and mutation
+                offspring = self._crossover(parent1, parent2)
+                offspring = self._mutate(offspring)
+                
+                new_population.append(offspring)
+            
+            # Update population
+            self.population = new_population
+            self.generation += 1
+            
+            logger.info(f"Evolution complete. Generation {self.generation}, "
+                       f"Best fitness: {max(g.fitness for g in self.population):.4f}")
+            
+        except Exception as e:
+            logger.error(f"Evolution failed: {e}")
+    
+    def _evaluate_fitness(self, market_data: Dict, performance_metrics: Dict) -> None:
+        """Evaluate fitness for all genomes based on market performance."""
+        for genome in self.population:
+            try:
+                # Calculate fitness based on multiple factors
+                profit_score = performance_metrics.get('total_return', 0.0) * 0.4
+                risk_score = (1.0 - performance_metrics.get('max_drawdown', 1.0)) * 0.3
+                consistency_score = performance_metrics.get('win_rate', 0.0) * 0.2
+                efficiency_score = performance_metrics.get('sharpe_ratio', 0.0) * 0.1
+                
+                genome.fitness = max(0.0, profit_score + risk_score + consistency_score + efficiency_score)
+                
+                # Update performance metrics
+                genome.performance_metrics.update(performance_metrics)
+                
+            except Exception as e:
+                logger.error(f"Fitness evaluation failed for genome {genome.id}: {e}")
+                genome.fitness = 0.0
+    
+    def _tournament_selection(self, tournament_size: int = 3) -> DecisionGenome:
+        """Select genome via tournament selection."""
+        import random
+        
+        tournament = random.sample(self.population, min(tournament_size, len(self.population)))
+        return max(tournament, key=lambda g: g.fitness)
+    
+    def _crossover(self, parent1: DecisionGenome, parent2: DecisionGenome) -> DecisionGenome:
+        """Create offspring via crossover."""
+        import random
+        from src.core.interfaces import DecisionGenome
+        
+        # Create new genome ID
+        offspring_id = f"genome_{self.generation}_{random.randint(1000, 9999)}"
+        
+        # Blend parameters from both parents
+        offspring_params = {}
+        for key in parent1.parameters:
+            if random.random() < 0.5:
+                offspring_params[key] = parent1.parameters[key]
+            else:
+                offspring_params[key] = parent2.parameters.get(key, parent1.parameters[key])
+        
+        return DecisionGenome(
+            id=offspring_id,
+            parameters=offspring_params,
+            fitness=0.0,
+            generation=self.generation,
+            species_type=parent1.species_type,
+            parent_ids=[parent1.id, parent2.id],
+            mutation_history=[],
+            performance_metrics={}
+        )
+    
+    def _mutate(self, genome: DecisionGenome, mutation_rate: float = 0.1) -> DecisionGenome:
+        """Apply mutation to genome."""
+        import random
+        
+        for key, value in genome.parameters.items():
+            if random.random() < mutation_rate:
+                if isinstance(value, float):
+                    # Gaussian mutation for float values
+                    mutation_strength = 0.1
+                    genome.parameters[key] = max(0.0, value + random.gauss(0, mutation_strength))
+                elif isinstance(value, int):
+                    # Integer mutation
+                    genome.parameters[key] = max(1, value + random.randint(-5, 5))
+                
+                # Record mutation
+                genome.mutation_history.append({
+                    'generation': self.generation,
+                    'parameter': key,
+                    'old_value': value,
+                    'new_value': genome.parameters[key]
+                })
+        
+        return genome
+

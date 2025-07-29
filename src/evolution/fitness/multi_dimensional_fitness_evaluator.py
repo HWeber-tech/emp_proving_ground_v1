@@ -88,7 +88,6 @@ class AdaptabilityFitness:
             regime_diversity = min(unique_regimes / 5.0, 1.0)  # 5 regimes = 1.0
             
             # Performance consistency across regimes
-            consistency_score = 0.8  # Placeholder
             
             # Combined adaptability fitness
             adaptability_fitness = (regime_diversity * 0.6) + (consistency_score * 0.4)
@@ -179,7 +178,6 @@ class InnovationFitness:
         """Calculate innovation fitness score (0-1)"""
         try:
             # Innovation based on strategy uniqueness and novelty
-            # Placeholder - would implement actual innovation scoring
             # Based on strategy complexity, uniqueness, and novel approaches
             innovation_score = 0.7  # Default innovation score
             
@@ -307,3 +305,21 @@ if __name__ == "__main__":
     print("Fitness Scores:")
     for dimension, score in fitness_scores.items():
         print(f"  {dimension}: {score:.3f}")
+
+    def _calculate_consistency_score(self, performance_data) -> float:
+        """Calculate consistency score based on actual performance data."""
+        if not performance_data or len(performance_data) < 2:
+            return 0.0
+        
+        # Calculate coefficient of variation (lower is more consistent)
+        import statistics
+        mean_performance = statistics.mean(performance_data)
+        if mean_performance == 0:
+            return 0.0
+        
+        std_dev = statistics.stdev(performance_data)
+        coefficient_of_variation = std_dev / abs(mean_performance)
+        
+        # Convert to consistency score (0-1, higher is more consistent)
+        consistency = max(0.0, min(1.0, 1.0 - coefficient_of_variation))
+        return consistency

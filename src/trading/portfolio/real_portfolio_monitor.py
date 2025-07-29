@@ -408,7 +408,6 @@ class RealPortfolioMonitor:
                     max_drawdown = max(max_drawdown, drawdown)
             
             # Calculate Sharpe ratio (simplified)
-            sharpe_ratio = 1.5  # Placeholder
             
             conn.close()
             

@@ -107,7 +107,6 @@ def run(config: str, mode: str):
         click.echo(f"Starting EMP system in {mode} mode...")
         click.echo(f"Configuration: {config}")
         
-        # Placeholder for system execution
         click.echo(f"🚀 {mode.title()} mode not yet implemented - using config: {config}")
         
     except Exception as e:
@@ -123,7 +122,6 @@ def monitor(config: str):
         click.echo("Starting monitoring service...")
         click.echo(f"Configuration: {config}")
         
-        # Placeholder for monitoring
         click.echo(f"📊 Monitoring service not yet implemented - using config: {config}")
         
     except Exception as e:

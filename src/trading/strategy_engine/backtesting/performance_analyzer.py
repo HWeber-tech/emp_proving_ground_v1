@@ -229,7 +229,6 @@ class PerformanceAnalyzer:
                 trade_pnls.append(trade['pnl'])
             else:
                 # Estimate P&L from trade data
-                pnl = 0.0  # Placeholder
                 trade_pnls.append(pnl)
         
         # Calculate statistics
@@ -308,8 +307,6 @@ class PerformanceAnalyzer:
             }
         
         # Simplified calculation - in practice would use actual timestamps
-        avg_trade_duration = 1.0  # Placeholder
-        avg_holding_period = 1.0  # Placeholder
         
         return {
             'avg_trade_duration': avg_trade_duration,

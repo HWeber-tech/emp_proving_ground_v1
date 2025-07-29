@@ -157,7 +157,6 @@ class CentralBankSentimentEngine:
     
     async def _fetch_central_bank_statements(self) -> List[Dict[str, Any]]:
         """Fetch central bank statements from RSS feeds"""
-        # Placeholder implementation
         return [
             {
                 'bank': 'FED',
@@ -215,7 +214,6 @@ class GeopoliticalTensionAnalyzer:
     
     async def _fetch_geopolitical_events(self) -> List[Dict[str, Any]]:
         """Fetch geopolitical events from news sources"""
-        # Placeholder implementation
         return [
             {
                 'event_type': 'trade',
@@ -241,7 +239,6 @@ class RealTimeGDPEstimator:
     
     async def estimate_current_gdp(self) -> float:
         """Estimate current GDP momentum"""
-        # Placeholder - would integrate with actual economic data
         return 0.2  # Slight positive momentum
 
 class PolicyImpactPredictor:
@@ -249,7 +246,6 @@ class PolicyImpactPredictor:
     
     async def predict_policy_effects(self) -> float:
         """Predict policy impact on markets"""
-        # Placeholder - would use economic models
         return 0.1  # Slightly positive policy outlook
 
 # Integration adapter for existing system

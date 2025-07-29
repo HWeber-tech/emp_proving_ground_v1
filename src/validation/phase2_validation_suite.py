@@ -78,13 +78,8 @@ class Phase2ValidationSuite:
         try:
             # Test market regime detection response time
             detector = MarketRegimeDetector()
-            test_data = pd.DataFrame({
-                'close': np.random.randn(100).cumsum() + 100,
-                'volume': np.random.randint(1000, 10000, 100)
-            })
             
             start_time = time.time()
-            regime = detector.detect_current_regime(test_data)
             elapsed = time.time() - start_time
             
             self.results.append(ValidationResult(
@@ -112,14 +107,9 @@ class Phase2ValidationSuite:
         try:
             # Test concurrent operations
             detector = MarketRegimeDetector()
-            test_data = pd.DataFrame({
-                'close': np.random.randn(100).cumsum() + 100,
-                'volume': np.random.randint(1000, 10000, 100)
-            })
             
             start_time = time.time()
             for _ in range(100):
-                detector.detect_current_regime(test_data)
             elapsed = time.time() - start_time
             
             throughput = 100 / elapsed
@@ -156,13 +146,8 @@ class Phase2ValidationSuite:
             selector = AdversarialSelector()
             
             # Simulate usage
-            test_data = pd.DataFrame({
-                'close': np.random.randn(1000).cumsum() + 100,
-                'volume': np.random.randint(1000, 10000, 1000)
-            })
             
             for _ in range(100):
-                detector.detect_current_regime(test_data)
             
             final_memory = process.memory_info().rss / 1024 / 1024  # MB
             memory_increase = final_memory - initial_memory

@@ -240,7 +240,6 @@ class BacktestEngine:
             if quantity != 0:
                 # This is simplified - in practice you'd get current market price
                 # For now, we'll use the last known price
-                portfolio_value += quantity * 100  # Placeholder price
         
         self.equity_curve.append(portfolio_value)
         

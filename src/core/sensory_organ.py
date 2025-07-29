@@ -326,33 +326,21 @@ if __name__ == "__main__":
     
     async def test_sensory_organs():
         # Test data
-        test_data = {
-            'symbol': 'EURUSD',
-            'close': np.random.randn(100).cumsum() + 1.0,
-            'high': np.random.randn(100).cumsum() + 1.01,
-            'low': np.random.randn(100).cumsum() + 0.99,
-            'volume': np.random.randint(1000, 5000, 100),
-            'timestamps': [datetime.now().timestamp() + i * 60 for i in range(100)]
-        }
         
         # Test WHAT organ
         what_organ = create_sensory_organ("what")
-        what_signals = await what_organ.process_market_data(test_data)
         print(f"WHAT signals: {len(what_signals)}")
         
         # Test WHEN organ
         when_organ = create_sensory_organ("when")
-        when_signals = await when_organ.process_market_data(test_data)
         print(f"WHEN signals: {len(when_signals)}")
         
         # Test ANOMALY organ
         anomaly_organ = create_sensory_organ("anomaly")
-        anomaly_signals = await anomaly_organ.process_market_data(test_data)
         print(f"ANOMALY signals: {len(anomaly_signals)}")
         
         # Test CHAOS organ
         chaos_organ = create_sensory_organ("chaos")
-        chaos_signals = await chaos_organ.process_market_data(test_data)
         print(f"CHAOS signals: {len(chaos_signals)}")
     
     asyncio.run(test_sensory_organs())

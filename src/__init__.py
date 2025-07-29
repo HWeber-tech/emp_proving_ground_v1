@@ -1,55 +1,40 @@
 """
-EMP Proving Ground - Evolutionary Market Prediction System
+EMP Proving Ground - World-Class Trading System
 
-A comprehensive trading system that combines:
-- Risk Management Core
-- PnL Engine  
-- 5D Sensory Cortex
-- Evolutionary Decision Trees
-- Adversarial Market Simulation
+A production-ready algorithmic trading system featuring:
+- Real FIX API Integration
+- Genetic Evolution Engine
+- Multi-Dimensional Fitness Evaluation
+- Enterprise Exception Handling
+- Comprehensive Validation Framework
 """
 
 __version__ = "2.0.0"
 __author__ = "EMP Team"
 
 from .core import *
-from .risk import *
-from .pnl import *
+from .trading import *
 from .evolution import *
-from .simulation import *
-# Import from main data.py file specifically
-# from .data import DataManager, DataConfig, MockDataGenerator, DataProvider
+from .operational import *
 
 __all__ = [
     # Core components
-    "RiskConfig",
-    "Instrument", 
-    "InstrumentProvider",
-    "CurrencyConverter",
+    "PopulationManager",
+    "DecisionGenome",
+    "EMPException",
+    "TradingException",
+    "ValidationManager",
     
-    # Risk management
+    # Trading components
+    "OrderExecutionEngine",
     "RiskManager",
-    "ValidationResult",
-    
-    # PnL engine
-    "EnhancedPosition",
-    "TradeRecord",
+    "PositionSizer",
     
     # Evolution engine
-    "EvolutionEngine",
-    "DecisionGenome",
     "FitnessEvaluator",
+    "GeneticOperator",
     
-    # Market simulation
-    "MarketSimulator",
-    "AdversarialEngine",
-    
-    # Data pipeline
-    "DataManager",
-    "DataConfig", 
-    "MockDataGenerator",
-    "DataProvider",
-    "TickDataStorage",
-    "TickDataCleaner",
-    "DukascopyIngestor",
+    # Operational components
+    "ICMarketsAPI",
+    "ICMarketsConfig",
 ] 

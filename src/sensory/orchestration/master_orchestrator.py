@@ -170,14 +170,6 @@ if __name__ == "__main__":
     async def test_master_orchestrator():
         """Test the master orchestrator."""
         # Create test data
-        test_data = {
-            'price_data': pd.DataFrame({
-                'open': [1.1000, 1.1005, 1.1010],
-                'high': [1.1005, 1.1010, 1.1015],
-                'low': [1.0995, 1.1000, 1.1005],
-                'close': [1.1002, 1.1007, 1.1012],
-                'volume': [1000, 1200, 1100]
-            }),
             'symbol': 'EURUSD'
         }
         
@@ -194,7 +186,6 @@ if __name__ == "__main__":
         )
         
         orchestrator = MasterOrchestrator(instrument_meta)
-        result = await orchestrator.analyze_market_conditions(test_data)
         
         print("Test Results:")
         for key, value in result.items():

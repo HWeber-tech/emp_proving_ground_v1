@@ -442,108 +442,6 @@ class RealDataIngestor:
             logger.warning(f"No valid data found for {symbol}")
             return None
     
-    def create_test_data_from_real_patterns(self, symbol: str, days: int = 30) -> pd.DataFrame:
-        """
-        Create realistic test data based on real market patterns.
-        
-        Args:
-            symbol: Trading symbol
-            days: Number of days to generate
-            
-        Returns:
-            DataFrame with realistic test data
-        """
-        logger.info(f"Creating realistic test data for {symbol} ({days} days)")
-        
-        # Try to get some real data first to base patterns on
-        end_date = datetime.now()
-        start_date = end_date - timedelta(days=days)
-        
-        real_data = self.download_symbol_data(symbol, start_date, end_date, 'yahoo')
-        
-        if real_data:
-            # Use real data if available
-            loaded_data = self.load_symbol_data(symbol, start_date, end_date)
-            if loaded_data is not None:
-                return loaded_data
-        
-        # Create realistic synthetic data based on typical forex patterns
-        return self._generate_realistic_synthetic_data(symbol, days)
-    
-    def _generate_realistic_synthetic_data(self, symbol: str, days: int) -> pd.DataFrame:
-        """
-        Generate realistic synthetic data based on typical forex patterns.
-        
-        Args:
-            symbol: Trading symbol
-            days: Number of days
-            
-        Returns:
-            DataFrame with realistic synthetic data
-        """
-        import numpy as np
-        
-        # Base prices for different pairs
-        base_prices = {
-            'EURUSD': 1.1000,
-            'GBPUSD': 1.2500,
-            'USDJPY': 110.00,
-            'USDCHF': 0.9200,
-            'AUDUSD': 0.6500,
-            'USDCAD': 1.3500,
-            'NZDUSD': 0.6000
-        }
-        
-        base_price = base_prices.get(symbol.upper(), 1.0000)
-        
-        # Generate realistic price movements
-        np.random.seed(42)  # For reproducibility
-        
-        # Create hourly timestamps
-        end_time = datetime.now()
-        start_time = end_time - timedelta(days=days)
-        
-        timestamps = pd.date_range(start=start_time, end=end_time, freq='H')
-        
-        # Generate realistic price movements
-        prices = [base_price]
-        
-        for i in range(len(timestamps) - 1):
-            # Realistic forex volatility (0.1% to 0.3% per hour)
-            volatility = float(np.random.uniform(0.001, 0.003))
-            
-            # Add some trending behavior
-            trend = float(np.random.uniform(-0.0005, 0.0005))
-            
-            # Generate price change
-            change = float(np.random.normal(trend, volatility))
-            new_price = prices[-1] * (1 + change)
-            
-            # Ensure reasonable bounds
-            new_price = max(base_price * 0.8, min(base_price * 1.2, new_price))
-            prices.append(new_price)
-        
-        # Create OHLCV data
-        data = []
-        for i in range(0, len(prices), 24):  # Daily bars
-            if i + 24 <= len(prices):
-                day_prices = prices[i:i+24]
-                
-                data.append({
-                    'open': day_prices[0],
-                    'high': max(day_prices),
-                    'low': min(day_prices),
-                    'close': day_prices[-1],
-                    'volume': float(np.random.uniform(1000000, 5000000)),
-                    'symbol': symbol
-                })
-        
-        df = pd.DataFrame(data)
-        df.index = pd.date_range(start=start_time, end=end_time, freq='D')[:len(df)]
-        
-        logger.info(f"Generated {len(df)} realistic synthetic records for {symbol}")
-        return df
-
 
 def main():
     """Test the real data ingestor."""
@@ -580,10 +478,6 @@ def main():
         print(f"❌ Failed to download {args.symbol} data")
         print("Trying to create realistic test data...")
         
-        test_data = ingestor.create_test_data_from_real_patterns(args.symbol, 30)
-        if test_data is not None:
-            print(f"✅ Created realistic test data: {len(test_data)} records")
-            print(test_data.head())
 
 
 if __name__ == "__main__":

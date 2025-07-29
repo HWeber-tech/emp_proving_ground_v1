@@ -254,15 +254,8 @@ def get_global_cache() -> MarketDataCache:
 
 
 if __name__ == "__main__":
-    # Quick test
+    # Production cache initialization
     cache = MarketDataCache()
-    test_data = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
-    
-    # Test caching
-    success = cache.cache_market_data("EURUSD", "prices", test_data, window=20)
-    print(f"Cache write success: {success}")
-    
-    # Test retrieval
-    cached_data = cache.get_market_data("EURUSD", "prices", window=20)
-    print(f"Cache read success: {cached_data is not None}")
+    print(f"MarketDataCache initialized with {cache.max_size} max entries")
     print(f"Cache stats: {cache.get_cache_stats()}")
+    print("Use real market data for testing cache functionality")

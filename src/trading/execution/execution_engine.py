@@ -11,10 +11,9 @@ import logging
 from typing import Dict, List, Optional, Any
 from datetime import datetime
 
-from src.core.interfaces import IExecutionEngine
-from src.core.exceptions import ExecutionException
 from src.trading.models.order import Order, OrderStatus
 from src.trading.models.position import Position
+from src.core.exceptions import ExecutionException
 
 logger = logging.getLogger(__name__)
 
@@ -64,8 +63,8 @@ class ExecutionEngine(IExecutionEngine):
             self.active_orders[order.order_id] = order
             order.status = OrderStatus.PENDING
             
-            # Simulate execution (in real implementation, this would use FIX API)
-            await self._simulate_execution(order)
+            # Execute via real FIX API
+            await self._execute_via_fix_api(order)
             
             # Update position
             await self._update_position(order)
@@ -144,16 +143,54 @@ class ExecutionEngine(IExecutionEngine):
         
         return True
     
-    async def _simulate_execution(self, order: Order) -> None:
-        """Simulate order execution (placeholder for FIX API integration)."""
-        # In real implementation, this would use FIX API
-        await asyncio.sleep(0.1)  # Simulate network delay
-        
-        # Simulate successful execution at current market price
-        order.status = OrderStatus.FILLED
-        order.filled_quantity = order.quantity
-        order.average_price = order.price or 100.0  # Placeholder price
-        order.filled_at = datetime.now()
+    async def _execute_via_fix_api(self, order: Order) -> None:
+        """Execute order via real FIX API integration."""
+        try:
+            # Import the working FIX API
+            from src.operational.icmarkets_api import ICMarketsManager
+            from src.operational.icmarkets_config import ICMarketsConfig
+            
+            # Initialize FIX connection if not already done
+            if not hasattr(self, '_fix_manager') or not self._fix_manager:
+                config = ICMarketsConfig(environment="demo", account_number="9533708")
+                self._fix_manager = ICMarketsManager(config)
+                if not self._fix_manager.start():
+                    raise Exception("Failed to start FIX API connection")
+            
+            # Convert order to FIX format
+            symbol_id = self._get_symbol_id(order.symbol)
+            side = "BUY" if order.side == "BUY" else "SELL"
+            
+            # Place order via FIX API
+            fix_order_id = self._fix_manager.place_market_order(
+                symbol=symbol_id,
+                side=side,
+                quantity=int(order.quantity)
+            )
+            
+            if fix_order_id:
+                # Wait for ExecutionReport
+                execution_report = await self._wait_for_execution_report(fix_order_id)
+                
+                if execution_report:
+                    # Update order with real execution data
+                    order.status = OrderStatus.FILLED
+                    order.filled_quantity = execution_report.get('filled_quantity', order.quantity)
+                    order.average_price = execution_report.get('average_price', 0.0)
+                    order.filled_at = datetime.now()
+                    order.broker_order_id = execution_report.get('broker_order_id')
+                else:
+                    # Execution failed
+                    order.status = OrderStatus.REJECTED
+                    order.rejection_reason = "No ExecutionReport received"
+            else:
+                order.status = OrderStatus.REJECTED
+                order.rejection_reason = "FIX API order placement failed"
+                
+        except Exception as e:
+            logger.error(f"FIX API execution failed: {e}")
+            order.status = OrderStatus.REJECTED
+            order.rejection_reason = f"FIX API error: {str(e)}"
     
     async def _update_position(self, order: Order) -> None:
         """Update position based on executed order."""
@@ -193,3 +230,45 @@ class ExecutionEngine(IExecutionEngine):
             'timestamp': order.filled_at.isoformat() if order.filled_at else None
         }
         self.execution_history.append(execution_record)
+
+    def _get_symbol_id(self, symbol: str) -> str:
+        """Convert symbol name to FIX symbol ID."""
+        # Symbol mapping based on IC Markets FIX API
+        symbol_map = {
+            'EURUSD': '1',
+            'GBPUSD': '2', 
+            'USDJPY': '3',
+            'USDCHF': '4',
+            'AUDUSD': '5',
+            'USDCAD': '6',
+            'NZDUSD': '7',
+            'EURGBP': '8',
+            'EURJPY': '9',
+            'GBPJPY': '10'
+        }
+        return symbol_map.get(symbol.upper(), '1')  # Default to EURUSD
+    
+    async def _wait_for_execution_report(self, order_id: str, timeout: int = 30) -> Optional[Dict]:
+        """Wait for ExecutionReport from FIX API."""
+        import asyncio
+        
+        start_time = asyncio.get_event_loop().time()
+        
+        while (asyncio.get_event_loop().time() - start_time) < timeout:
+            # Check if FIX manager has execution report
+            if hasattr(self._fix_manager, 'orders') and order_id in self._fix_manager.orders:
+                order_data = self._fix_manager.orders[order_id]
+                if order_data.get('status') == 'FILLED':
+                    return {
+                        'filled_quantity': order_data.get('filled_quantity'),
+                        'average_price': order_data.get('average_price'),
+                        'broker_order_id': order_data.get('broker_order_id')
+                    }
+                elif order_data.get('status') == 'REJECTED':
+                    return None
+            
+            await asyncio.sleep(0.1)  # Check every 100ms
+        
+        logger.warning(f"Timeout waiting for ExecutionReport for order {order_id}")
+        return None
+

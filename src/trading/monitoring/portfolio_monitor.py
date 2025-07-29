@@ -116,8 +116,6 @@ class PortfolioMonitor:
         """Update P&L calculations"""
         # This is a simplified P&L calculation
         # In a real system, this would use current market prices
-        self.portfolio['daily_pnl'] = 0.0  # Placeholder
-        self.portfolio['total_pnl'] = 0.0  # Placeholder
     
     def get_portfolio(self) -> Dict[str, Any]:
         """Get current portfolio state"""

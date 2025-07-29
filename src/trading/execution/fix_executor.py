@@ -164,7 +164,6 @@ class FIXExecutor(IExecutionEngine):
         # Simulate successful execution
         order.status = OrderStatus.FILLED
         order.filled_quantity = order.quantity
-        order.average_price = order.price or 100.0  # Placeholder
         order.filled_at = datetime.now()
     
     async def _update_position(self, order: Order) -> None:

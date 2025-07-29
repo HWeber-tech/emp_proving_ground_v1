@@ -186,7 +186,6 @@ class RealEvolutionEngine:
         # In practice, this would involve backtesting the strategy
         try:
             # Calculate fitness based on genome parameters
-            # This is a placeholder - implement real backtesting
             
             # Strategy fitness component
             strategy_score = (

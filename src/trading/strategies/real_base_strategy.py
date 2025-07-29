@@ -12,7 +12,7 @@ from typing import Dict, Any
 import pandas as pd
 import numpy as np
 
-from src.data import MarketData
+from src.core.market_data import MarketData
 
 logger = logging.getLogger(__name__)
 

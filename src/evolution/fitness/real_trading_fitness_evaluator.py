@@ -13,7 +13,7 @@ from typing import Dict, Any, List
 from datetime import datetime, timedelta
 
 from src.core.interfaces import IFitnessEvaluator
-from src.genome.models.genome import DecisionGenome
+from src.core.interfaces import DecisionGenome
 from src.sensory.orchestration.master_orchestrator import MasterOrchestrator
 from src.sensory.core.base import InstrumentMeta
 

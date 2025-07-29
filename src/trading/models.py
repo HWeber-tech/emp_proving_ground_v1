@@ -82,24 +82,6 @@ class Position:
         self.status = PositionStatus.CLOSED
 
 @dataclass
-class MarketData:
-    """Market data snapshot"""
-    symbol: str
-    timestamp: datetime
-    open: float
-    high: float
-    low: float
-    close: float
-    volume: int
-    bid: Optional[float] = None
-    ask: Optional[float] = None
-    spread: Optional[float] = None
-    
-    def __post_init__(self):
-        if self.spread is None and self.bid and self.ask:
-            self.spread = self.ask - self.bid
-
-@dataclass
 class PortfolioSnapshot:
     """Portfolio snapshot"""
     total_value: float

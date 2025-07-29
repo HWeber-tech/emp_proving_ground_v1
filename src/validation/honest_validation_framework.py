@@ -21,7 +21,7 @@ from src.sensory.organs.yahoo_finance_organ import YahooFinanceOrgan
 from src.trading.risk.market_regime_detector import MarketRegimeDetector
 from src.trading.strategies.strategy_manager import StrategyManager
 from src.data_integration.real_data_integration import RealDataManager
-from src.decision_genome import DecisionGenome
+from src.core.interfaces import DecisionGenome
 
 logger = logging.getLogger(__name__)
 

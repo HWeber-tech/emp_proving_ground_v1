@@ -19,7 +19,7 @@ from src.risk.real_risk_manager import RealRiskManager, RealRiskConfig
 from src.portfolio.real_portfolio_monitor import RealPortfolioMonitor
 from src.sensory.real_sensory_organ import RealSensoryOrgan
 from src.trading.strategies.real_base_strategy import RealBaseStrategy
-from src.data import MarketData
+from src.core.market_data import MarketData
 from src.core import Instrument
 
 

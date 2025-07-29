@@ -115,7 +115,14 @@ class PositionSizer:
         equity: float
     ) -> int:
         """
-        Placeholder for Kelly Criterion position sizing.
+        Calculate position size using Kelly Criterion.
+        
+        Kelly Formula: f = (bp - q) / b
+        Where:
+        - f = fraction of capital to wager
+        - b = odds received on the wager (win_loss_ratio)
+        - p = probability of winning (win_probability)
+        - q = probability of losing (1 - win_probability)
         
         Args:
             win_probability: Probability of winning (0-1)
@@ -123,15 +130,57 @@ class PositionSizer:
             equity: Current account equity
             
         Returns:
-            Not implemented - raises NotImplementedError
+            Calculated position size as integer number of units
             
         Raises:
-            NotImplementedError: Kelly Criterion not implemented in v1.0
+            ValueError: If inputs are invalid
         """
-        raise NotImplementedError(
-            "Kelly Criterion position sizing is not implemented in v1.0. "
-            "Use calculate_size_fixed_fractional() instead."
-        )
+        try:
+            # Convert inputs to Decimal for precision
+            p = Decimal(str(win_probability))
+            b = Decimal(str(win_loss_ratio))
+            equity_decimal = Decimal(str(equity))
+            
+            # Validate inputs
+            if not 0 < p < 1:
+                raise ValueError("Win probability must be between 0 and 1")
+            if b <= 0:
+                raise ValueError("Win/loss ratio must be positive")
+            if equity_decimal <= 0:
+                raise ValueError("Equity must be positive")
+            
+            # Calculate Kelly fraction
+            q = Decimal('1') - p  # probability of losing
+            kelly_fraction = (b * p - q) / b
+            
+            # Cap Kelly fraction at 25% for safety (Kelly can be aggressive)
+            max_kelly = Decimal('0.25')
+            kelly_fraction = min(kelly_fraction, max_kelly)
+            
+            # Ensure positive fraction (don't bet if Kelly is negative)
+            kelly_fraction = max(kelly_fraction, Decimal('0'))
+            
+            # Calculate position size (simplified: assume 1 unit = 1% of equity)
+            # In practice, this would need pip values and stop loss distances
+            position_size = equity_decimal * kelly_fraction / Decimal('100')
+            
+            # Round to nearest integer
+            final_size = int(position_size.quantize(Decimal('1')))
+            
+            # Ensure minimum size of 1 unit if Kelly suggests betting
+            final_size = max(1, final_size) if kelly_fraction > 0 else 0
+            
+            logger.debug(
+                f"Kelly position size: {final_size} units "
+                f"(win_prob={win_probability}, win_loss_ratio={win_loss_ratio}, "
+                f"kelly_fraction={kelly_fraction})"
+            )
+            
+            return final_size
+            
+        except Exception as e:
+            logger.error(f"Error calculating Kelly position size: {e}")
+            raise ValueError(f"Invalid Kelly parameters: {e}")
     
     def get_risk_parameters(self) -> dict:
         """
@@ -142,6 +191,7 @@ class PositionSizer:
         """
         return {
             "default_risk_per_trade": float(self.default_risk_per_trade),
-            "method": "fixed_fractional",
-            "kelly_implementation": "not_implemented"
+            "methods_available": ["fixed_fractional", "kelly_criterion"],
+            "kelly_implementation": "implemented",
+            "kelly_max_fraction": 0.25
         }

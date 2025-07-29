@@ -84,7 +84,7 @@ class ComponentIntegratorImpl(ComponentIntegrator):
     async def _initialize_evolution_system(self) -> None:
         """Initialize evolution system components."""
         try:
-            from src.evolution.engine.population_manager import PopulationManager
+            from src.core.population_manager import PopulationManager
             from src.evolution.fitness.real_trading_fitness_evaluator import RealTradingFitnessEvaluator
             
             self.components['population_manager'] = PopulationManager()

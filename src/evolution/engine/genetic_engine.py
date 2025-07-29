@@ -20,7 +20,7 @@ from src.core.interfaces import (
     IGenomeFactory,
     IEvolutionLogger
 )
-from src.genome.models.genome import DecisionGenome
+from src.core.interfaces import DecisionGenome
 
 logger = logging.getLogger(__name__)
 

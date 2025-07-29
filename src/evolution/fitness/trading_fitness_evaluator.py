@@ -12,7 +12,7 @@ from typing import Dict, Any, Optional
 from datetime import datetime, timedelta
 
 from src.core.interfaces import IFitnessEvaluator
-from src.genome.models.genome import DecisionGenome
+from src.core.interfaces import DecisionGenome
 
 logger = logging.getLogger(__name__)
 

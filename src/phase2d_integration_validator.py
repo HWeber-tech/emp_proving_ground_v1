@@ -24,7 +24,7 @@ from src.sensory.enhanced.anomaly.manipulation_detection import ManipulationDete
 from src.trading.risk.market_regime_detector import MarketRegimeDetector
 from src.trading.strategies.strategy_manager import StrategyManager
 from src.data_integration.real_data_integration import RealDataManager
-from src.decision_genome import DecisionGenome
+from src.core.interfaces import DecisionGenome
 from src.core import Instrument, InstrumentProvider
 from src.risk import RiskManager, RiskConfig
 from src.pnl import EnhancedPosition

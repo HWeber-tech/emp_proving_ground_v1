@@ -19,7 +19,7 @@ from decimal import Decimal
 from src.sensory.organs.yahoo_finance_organ import YahooFinanceOrgan
 from src.sensory.enhanced.anomaly.manipulation_detection import ManipulationDetectionSystem
 from src.trading.risk.market_regime_detector import MarketRegimeDetector
-from src.decision_genome import DecisionGenome
+from src.core.interfaces import DecisionGenome
 from src.core import Instrument, InstrumentProvider
 from src.risk import RiskManager, RiskConfig
 

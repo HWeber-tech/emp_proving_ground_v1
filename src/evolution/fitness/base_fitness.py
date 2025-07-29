@@ -7,8 +7,8 @@ Provides the interface that fitness evaluators must implement.
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Dict, Any
-from src.decision_genome import DecisionGenome
-from src.data import MarketData
+from src.core.interfaces import DecisionGenome
+from src.core.market_data import MarketData
 
 
 @dataclass

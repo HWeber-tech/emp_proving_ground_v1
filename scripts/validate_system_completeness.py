@@ -61,7 +61,7 @@ class SystemValidator:
             
         # Test population manager
         try:
-            from src.evolution.engine.population_manager import PopulationManager
+            from src.core.population_manager import PopulationManager
             results['evolution.engine.population_manager'] = True
             logger.info("✅ Population manager imported successfully")
         except ImportError as e:

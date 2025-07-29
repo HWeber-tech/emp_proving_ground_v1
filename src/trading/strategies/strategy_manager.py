@@ -16,7 +16,7 @@ from dataclasses import dataclass, field
 import pandas as pd
 import numpy as np
 
-from src.decision_genome import DecisionGenome
+from src.core.interfaces import DecisionGenome
 from src.sensory.orchestration.master_orchestrator import MasterOrchestrator
 
 logger = logging.getLogger(__name__)

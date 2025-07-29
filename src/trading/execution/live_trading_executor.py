@@ -26,7 +26,7 @@ from .strategy_manager import StrategyManager, StrategySignal
 from .advanced_risk_manager import AdvancedRiskManager, RiskLimits
 from .performance_tracker import PerformanceTracker
 from .order_book_analyzer import OrderBookAnalyzer
-from src.decision_genome import DecisionGenome
+from src.core.interfaces import DecisionGenome
 
 logger = logging.getLogger(__name__)
 

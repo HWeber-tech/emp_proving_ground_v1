@@ -464,7 +464,7 @@ class AdvancedRiskManagementTester:
             )
             
             # Convert to genome and add to strategy manager
-            from src.decision_genome import DecisionGenome
+            from src.core.interfaces import DecisionGenome
             
             genome = DecisionGenome(
                 genome_id=strategy.id,

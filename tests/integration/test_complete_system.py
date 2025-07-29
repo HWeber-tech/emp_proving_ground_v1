@@ -17,12 +17,12 @@ from typing import List, Dict, Any
 
 # Import all components
 from src.evolution.engine.genetic_engine import GeneticEngine, EvolutionConfig
-from src.evolution.engine.population_manager import PopulationManager
+from src.core.population_manager import PopulationManager
 from src.evolution.fitness.real_trading_fitness_evaluator import RealTradingFitnessEvaluator
 from src.risk.risk_manager_impl import RiskManagerImpl, create_risk_manager
 from src.trading.strategy_engine.strategy_engine_impl import StrategyEngineImpl, create_strategy_engine
 from src.trading.strategy_engine.templates.moving_average_strategy import create_moving_average_strategy
-from src.genome.models.genome import DecisionGenome
+from src.core.interfaces import DecisionGenome
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)

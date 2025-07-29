@@ -10,7 +10,7 @@ import random
 from typing import Dict, Any
 
 from src.core.interfaces import IMutationStrategy
-from src.genome.models.genome import DecisionGenome
+from src.core.interfaces import DecisionGenome
 
 logger = logging.getLogger(__name__)
 

@@ -19,7 +19,7 @@ sys.path.insert(0, str(Path(__file__).parent / "src"))
 from src.trading.strategy_manager import StrategyManager, StrategySignal
 from src.trading.live_trading_executor import LiveTradingExecutor, TradingSignal
 from src.evolution.real_genetic_engine import RealGeneticEngine, TradingStrategy
-from src.decision_genome import DecisionGenome
+from src.core.interfaces import DecisionGenome
 from src.trading.mock_ctrader_interface import TradingConfig, TradingMode
 
 # Setup logging

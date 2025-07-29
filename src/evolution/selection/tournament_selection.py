@@ -11,7 +11,7 @@ from typing import List, Optional
 from dataclasses import dataclass
 
 from src.core.interfaces import ISelectionStrategy
-from src.genome.models.genome import DecisionGenome
+from src.core.interfaces import DecisionGenome
 
 logger = logging.getLogger(__name__)
 

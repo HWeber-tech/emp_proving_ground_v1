@@ -21,7 +21,7 @@ from typing import Dict, List, Any
 from src.risk.risk_manager_impl import create_risk_manager
 from src.trading.strategy_engine.strategy_engine_impl import create_strategy_engine
 from src.trading.strategy_engine.templates.moving_average_strategy import create_moving_average_strategy
-from src.evolution.engine.population_manager import PopulationManager
+from src.core.population_manager import PopulationManager
 from src.evolution.fitness.real_trading_fitness_evaluator import RealTradingFitnessEvaluator
 
 # Configure logging

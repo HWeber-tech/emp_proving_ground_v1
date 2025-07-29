@@ -14,8 +14,8 @@ from dataclasses import dataclass
 import numpy as np
 from decimal import Decimal
 
-from src.decision_genome import DecisionGenome
-from src.data import MarketData
+from src.core.interfaces import DecisionGenome
+from src.core.market_data import MarketData
 from src.evolution.fitness.base_fitness import IFitnessEvaluator
 
 logger = logging.getLogger(__name__)

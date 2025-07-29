@@ -15,8 +15,7 @@ import os
 sys.path.insert(0, str(Path(__file__).parent))
 
 from src.governance.system_config import SystemConfig
-from src.operational.icmarkets_simplefix_application import ICMarketsSimpleFIXManager
-from src.operational.event_bus import EventBus
+from src.operational.icmarkets_api import FinalFIXTester
 from src.operational.icmarkets_config import ICMarketsConfig
 
 # Configure logging

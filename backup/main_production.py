@@ -17,8 +17,8 @@ import json
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent))
 
-from src.operational.icmarkets_api import FinalFIXTester
-from src.operational.icmarkets_config import ICMarketsConfig
+from src.operational.icmarkets_robust_application import ICMarketsRobustManager
+from config.fix.icmarkets_config import ICMarketsConfig
 
 # Configure logging
 logging.basicConfig(

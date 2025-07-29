@@ -186,6 +186,26 @@ class TestMarketData:
         assert str(data.bid) == "1.095012345"
         assert str(data.volume) == "1000000.123"
 
+    def test_zero_bid_ask_calculations(self):
+        """Ensure spread and mid_price are calculated when prices include zeros."""
+        timestamp = datetime.now()
+
+        data = MarketData(
+            symbol="ZERO",
+            timestamp=timestamp,
+            bid=Decimal("0"),
+            ask=Decimal("1"),
+            last=Decimal("0.5"),
+            high=Decimal("1"),
+            low=Decimal("0"),
+            open=Decimal("0"),
+            close=Decimal("1"),
+            volume=Decimal("100")
+        )
+
+        assert data.spread == Decimal("1")
+        assert data.mid_price == Decimal("0.5")
+
 
 if __name__ == "__main__":
     pytest.main([__file__])

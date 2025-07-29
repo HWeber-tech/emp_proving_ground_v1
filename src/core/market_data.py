@@ -58,10 +58,10 @@ class MarketData:
     
     def __post_init__(self):
         """Calculate derived values after initialization"""
-        if self.spread is None and self.bid and self.ask:
+        if self.spread is None and self.bid is not None and self.ask is not None:
             self.spread = self.ask - self.bid
-            
-        if self.mid_price is None and self.bid and self.ask:
+
+        if self.mid_price is None and self.bid is not None and self.ask is not None:
             self.mid_price = (self.bid + self.ask) / 2
     
     @property

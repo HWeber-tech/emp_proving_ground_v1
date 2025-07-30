@@ -1,6 +1,6 @@
 """
 Yahoo Finance Organ - Ticket DATA-01
-Real historical data organ using yfinance for production-ready simulations
+Real historical data organ using yfinance for development simulations
 """
 
 import yfinance as yf

@@ -108,6 +108,10 @@ jobs:
         else
             echo "✅ No merge conflicts found"
         fi
+
+    - name: Run stub detector
+      run: |
+        python tools/truth_validator.py --validate
     
     - name: Run basic functionality test
       run: |

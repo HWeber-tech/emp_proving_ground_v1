@@ -11,8 +11,17 @@ class ICMarketsConfig:
     
     def __init__(self, environment: str = "demo", account_number: str = None):
         self.environment = environment
-        self.account_number = account_number or os.getenv("ICMARKETS_ACCOUNT", "9533708")
-        self.password = os.getenv("ICMARKETS_PASSWORD", "WNSE5822")
+        self.account_number = account_number or os.getenv("ICMARKETS_ACCOUNT")
+        self.password = os.getenv("ICMARKETS_PASSWORD")
+
+        self._validate_credentials()
+
+    def _validate_credentials(self):
+        placeholders = {None, "9533708", "WNSE5822", "your_account_id_here", "your_trade_password"}
+        if self.account_number in placeholders or self.password in placeholders:
+            raise ValueError(
+                "IC Markets credentials must be provided via environment variables"
+            )
         
     def get_price_session_config(self) -> Dict[str, Any]:
         """Get configuration for price data session."""

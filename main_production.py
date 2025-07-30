@@ -43,8 +43,10 @@ class ICMarketsProductionSystem:
             logger.info("🚀 Initializing IC Markets Production System")
             
             # Load configuration
-            account = account or os.getenv("ICMARKETS_ACCOUNT", "9533708")
-            password = os.getenv("ICMARKETS_PASSWORD", "WNSE5822")
+            account = account or os.getenv("ICMARKETS_ACCOUNT")
+            password = os.getenv("ICMARKETS_PASSWORD")
+            if account in (None, "9533708") or password in (None, "WNSE5822"):
+                raise ValueError("IC Markets credentials must be provided via environment variables")
             
             self.config = ICMarketsConfig(
                 environment=environment,

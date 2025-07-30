@@ -1,7 +1,7 @@
 """
-EMP Proving Ground - World-Class Trading System
+EMP Proving Ground - Development Trading System
 
-A production-ready algorithmic trading system featuring:
+An experimental algorithmic trading framework featuring:
 - Real FIX API Integration
 - Genetic Evolution Engine
 - Multi-Dimensional Fitness Evaluation

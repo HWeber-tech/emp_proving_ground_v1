@@ -20,6 +20,10 @@ An algorithmic trading system framework in active development.
 # Install dependencies
 pip install -r requirements.txt
 
+# Set up environment variables
+cp .env.example .env
+# Edit .env and provide real credentials before running anything live
+
 # Configure development parameters
 cp config/trading/icmarkets_config.py.example config/trading/icmarkets_config.py
 

@@ -13,7 +13,7 @@ from dataclasses import dataclass
 import logging
 
 from src.sensory.core.base import SensoryOrgan, MarketData
-from src.sensory.core.sensory_signal import SensorySignal  # legacy import
+from src.sensory.signals import SensorSignal as SensorySignal
 from src.core.exceptions import SensoryException
 
 logger = logging.getLogger(__name__)

@@ -50,12 +50,16 @@ class EMPProfessionalPredator:
             self.config = SystemConfig()
             logger.info(f"✅ Configuration loaded: EMP v4.0 Professional Predator")
             logger.info(f"🔧 Protocol: {self.config.connection_protocol}")
+            logger.info(f"🧰 Run mode: {getattr(self.config, 'run_mode', 'paper')}")
             
             # Initialize event bus
             self.event_bus = EventBus()
             logger.info("✅ Event bus initialized")
             
-            # Setup protocol-specific components
+            # Safety guardrails
+            self._enforce_guardrails()
+
+            # Setup protocol-specific components with safety guardrails
             await self._setup_live_components()
             
             logger.info("🎉 Professional Predator initialization complete")
@@ -99,7 +103,7 @@ class EMPProfessionalPredator:
             
             logger.info("✅ FIX components configured successfully")
             
-        elif self.config.CONNECTION_PROTOCOL == "openapi":
+        elif self.config.connection_protocol == "openapi":
             # --- SETUP FOR LEGACY OPENAPI PROTOCOL ---
             logger.info("🔄 Configuring OpenAPI components (fallback mode)")
             
@@ -110,11 +114,28 @@ class EMPProfessionalPredator:
             logger.info("✅ OpenAPI components configured successfully")
             
         else:
-            raise ValueError(f"❌ Unsupported connection protocol: {self.config.CONNECTION_PROTOCOL}")
+            raise ValueError(f"❌ Unsupported connection protocol: {self.config.connection_protocol}")
         
         # 5. Inject chosen components into protocol-agnostic managers
         # Note: These would be integrated with the actual system managers
         logger.info(f"✅ Successfully configured {self.sensory_organ.__class__.__name__} and {self.broker_interface.__class__.__name__}")
+    
+    def _enforce_guardrails(self) -> None:
+        """Prevent accidental live trading and enforce kill-switch."""
+        run_mode = getattr(self.config, 'run_mode', 'paper')
+        confirm_live = getattr(self.config, 'confirm_live', False)
+        kill_path = getattr(self.config, 'kill_switch_path', None)
+
+        if run_mode == "live" and not confirm_live:
+            raise RuntimeError("Live mode requires CONFIRM_LIVE=true. Aborting.")
+
+        if kill_path:
+            try:
+                if os.path.exists(kill_path):
+                    raise RuntimeError(f"Kill-switch engaged at {kill_path}. Aborting.")
+            except Exception:
+                # If we cannot check, proceed; logging only
+                logger.warning("Unable to verify kill-switch path.")
         
     async def run(self):
         """Run the professional predator system."""

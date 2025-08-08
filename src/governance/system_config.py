@@ -18,7 +18,11 @@ class SystemConfig:
         # Add uppercase property for backward compatibility
         self.CONNECTION_PROTOCOL = self.connection_protocol
         
-        self.environment = "demo"
+        # Runtime mode and environment
+        self.environment = os.getenv("EMP_ENVIRONMENT", "demo")
+        self.run_mode = os.getenv("RUN_MODE", "paper")  # mock|paper|live
+        self.confirm_live = os.getenv("CONFIRM_LIVE", "false").lower() == "true"
+        self.kill_switch_path = os.getenv("EMP_KILL_SWITCH", os.path.join(os.getenv("TMP", "/tmp"), "emp_pg.KILL"))
         self.account_number = os.getenv("ICMARKETS_ACCOUNT")
         self.password = os.getenv("ICMARKETS_PASSWORD")
 

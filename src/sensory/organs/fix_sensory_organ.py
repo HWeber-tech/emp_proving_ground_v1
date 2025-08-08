@@ -114,30 +114,56 @@ class FIXSensoryOrgan:
             
     def _extract_market_data(self, message) -> Dict[str, Any]:
         """Extract market data from FIX message."""
-        data = {}
-        
+        data: Dict[str, Any] = {}
+
         try:
-            # Extract bid/ask prices
-            if message.get(270):
-                # This is a simplified extraction
-                # Real implementation would parse MDEntry groups
-                bid_price = None
-                ask_price = None
+            # Preferred path: adapter supplies parsed entries as b"entries"
+            entries = message.get(b"entries")
+            if entries:
+                best_bid = None
+                best_ask = None
                 bid_size = None
                 ask_size = None
-                
-                # For now, extract basic fields
-                data = {
-                    "bid": bid_price,
-                    "ask": ask_price,
-                    "bid_size": bid_size,
-                    "ask_size": ask_size,
-                    "timestamp": datetime.utcnow()
-                }
-                
+
+                for entry in entries:
+                    et = entry.get("type")
+                    px = entry.get("px")
+                    sz = entry.get("size")
+                    if et == b"0":  # Bid
+                        if best_bid is None or px > best_bid:
+                            best_bid = px
+                            bid_size = sz
+                    elif et == b"1":  # Ask
+                        if best_ask is None or px < best_ask:
+                            best_ask = px
+                            ask_size = sz
+
+                if best_bid is not None or best_ask is not None:
+                    data = {
+                        "bid": best_bid,
+                        "ask": best_ask,
+                        "bid_size": bid_size,
+                        "ask_size": ask_size,
+                        "timestamp": datetime.utcnow(),
+                    }
+                    return data
+
+            # Fallback: extremely simplified single-entry parsing
+            if message.get(270):
+                entry_type = message.get(269)
+                entry_px = message.get(270)
+                entry_sz = message.get(271)
+                if entry_type == b"0":
+                    data["bid"] = float(entry_px)
+                    data["bid_size"] = float(entry_sz) if entry_sz else None
+                elif entry_type == b"1":
+                    data["ask"] = float(entry_px)
+                    data["ask_size"] = float(entry_sz) if entry_sz else None
+                data["timestamp"] = datetime.utcnow()
+
         except Exception as e:
             logger.error(f"Error extracting market data: {e}")
-            
+
         return data
         
     def subscribe_to_symbols(self, symbols: List[str]):

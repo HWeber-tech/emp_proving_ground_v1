@@ -40,6 +40,7 @@ class RealRiskManager:
         self.config = config
         self.positions: Dict[str, Dict[str, Any]] = {}
         self.account_balance = Decimal('10000')
+        self.event_bus = None  # Optional event bus for emitting risk events
         logger.info("RealRiskManager initialized")
         
     def calculate_kelly_criterion(self, win_rate: float, avg_win: float, avg_loss: float) -> float:
@@ -128,6 +129,19 @@ class RealRiskManager:
         var = abs(float(metrics.get('var_95', 0.0)))
         es = abs(float(metrics.get('es_95', 0.0)))
         if var > float(self.config.max_var_pct) or es > float(self.config.max_es_pct):
+            # Emit risk event if bus is available
+            try:
+                if self.event_bus and hasattr(self.event_bus, 'publish_sync'):
+                    self.event_bus.publish_sync('risk_threshold_exceeded', {
+                        'var_95': var,
+                        'es_95': es,
+                        'limits': {
+                            'max_var_pct': float(self.config.max_var_pct),
+                            'max_es_pct': float(self.config.max_es_pct),
+                        }
+                    }, source='risk_manager')
+            except Exception:
+                pass
             return False
         return True
         

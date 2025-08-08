@@ -6,7 +6,7 @@ This script tests the real cTrader OpenAPI integration to ensure
 it can connect, authenticate, and perform basic operations.
 
 Usage:
-    python test_real_ctrader_integration.py --config configs/ctrader_config.yaml
+    python test_real_ctrader_integration.py --config config/ctrader_config.yaml
 
 Requirements:
     - Valid cTrader OAuth credentials
@@ -241,7 +241,7 @@ async def test_mock_ctrader_fallback():
 async def main():
     """Main test function."""
     parser = argparse.ArgumentParser(description="Test cTrader integration")
-    parser.add_argument("--config", default="configs/trading/ctrader_config.yaml",
+    parser.add_argument("--config", default="config/trading/ctrader_config.yaml",
                        help="Path to cTrader config file")
     parser.add_argument("--test-mock", action="store_true", 
                        help="Test mock interface only")

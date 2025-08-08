@@ -60,6 +60,9 @@ class EMPProfessionalPredator:
             # Safety guardrails
             SafetyManager.from_config(self.config).enforce()
 
+            # Tier selection log
+            logger.info(f"🏷️ Tier selected: {getattr(self.config, 'emp_tier', 'tier_0')}")
+
             # Setup protocol-specific components with safety guardrails
             await self._setup_live_components()
             

@@ -127,7 +127,7 @@ def test_alpha_vantage_integration():
         # Check for API key
         api_key = None
         try:
-            with open('configs/trading/ctrader_config.yaml', 'r') as f:
+            with open('config/trading/ctrader_config.yaml', 'r') as f:
                 config = yaml.safe_load(f)
                 api_key = config.get('alpha_vantage', {}).get('api_key')
         except:

@@ -67,7 +67,7 @@ class Instrument:
 class InstrumentProvider:
     """Manages instrument metadata and provides access to instrument data"""
     
-    def __init__(self, instruments_file: str = "configs/system/instruments.json"):
+    def __init__(self, instruments_file: str = "config/system/instruments.json"):
         self.instruments_file = Path(instruments_file)
         self.instruments: Dict[str, Instrument] = {}
         self._load_instruments()
@@ -172,7 +172,7 @@ class InstrumentProvider:
 class CurrencyConverter:
     """Handles currency conversion and pip value calculations"""
     
-    def __init__(self, rates_file: str = "configs/system/exchange_rates.json"):
+    def __init__(self, rates_file: str = "config/system/exchange_rates.json"):
         self.rates_file = Path(rates_file)
         self.rates: Dict[str, Dict[str, float]] = {}
         self._load_rates()

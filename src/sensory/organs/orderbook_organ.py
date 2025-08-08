@@ -11,7 +11,7 @@ from datetime import datetime
 from dataclasses import dataclass
 
 from src.sensory.core.base import SensoryOrgan, MarketData
-from src.sensory.core.sensory_signal import SensorySignal
+from src.sensory.signals import SensorSignal as SensorySignal
 from src.core.exceptions import SensoryException
 import logging
 

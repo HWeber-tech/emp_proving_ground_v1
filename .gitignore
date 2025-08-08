@@ -55,6 +55,7 @@ celerybeat-schedule
 
 # Environments
 .env
+!env_templates/.env.example
 .venv
 env/
 venv/

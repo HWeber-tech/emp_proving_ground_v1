@@ -21,6 +21,7 @@ class SystemConfig:
         # Runtime mode and environment
         self.environment = os.getenv("EMP_ENVIRONMENT", "demo")
         self.run_mode = os.getenv("RUN_MODE", "paper")  # mock|paper|live
+        self.emp_tier = os.getenv("EMP_TIER", "tier_0")  # tier_0|tier_1|tier_2
         self.confirm_live = os.getenv("CONFIRM_LIVE", "false").lower() == "true"
         self.kill_switch_path = os.getenv("EMP_KILL_SWITCH", os.path.join(os.getenv("TMP", "/tmp"), "emp_pg.KILL"))
         self.account_number = os.getenv("ICMARKETS_ACCOUNT")

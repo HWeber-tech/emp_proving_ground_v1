@@ -18,6 +18,7 @@ import os
 sys.path.insert(0, str(Path(__file__).parent))
 
 from src.governance.system_config import SystemConfig
+from src.governance.safety_manager import SafetyManager
 from src.operational.fix_connection_manager import FIXConnectionManager
 from src.operational.event_bus import EventBus
 
@@ -57,7 +58,7 @@ class EMPProfessionalPredator:
             logger.info("✅ Event bus initialized")
             
             # Safety guardrails
-            self._enforce_guardrails()
+            SafetyManager.from_config(self.config).enforce()
 
             # Setup protocol-specific components with safety guardrails
             await self._setup_live_components()
@@ -121,21 +122,8 @@ class EMPProfessionalPredator:
         logger.info(f"✅ Successfully configured {self.sensory_organ.__class__.__name__} and {self.broker_interface.__class__.__name__}")
     
     def _enforce_guardrails(self) -> None:
-        """Prevent accidental live trading and enforce kill-switch."""
-        run_mode = getattr(self.config, 'run_mode', 'paper')
-        confirm_live = getattr(self.config, 'confirm_live', False)
-        kill_path = getattr(self.config, 'kill_switch_path', None)
-
-        if run_mode == "live" and not confirm_live:
-            raise RuntimeError("Live mode requires CONFIRM_LIVE=true. Aborting.")
-
-        if kill_path:
-            try:
-                if os.path.exists(kill_path):
-                    raise RuntimeError(f"Kill-switch engaged at {kill_path}. Aborting.")
-            except Exception:
-                # If we cannot check, proceed; logging only
-                logger.warning("Unable to verify kill-switch path.")
+        # Deprecated: guardrails moved to SafetyManager
+        SafetyManager.from_config(self.config).enforce()
         
     async def run(self):
         """Run the professional predator system."""

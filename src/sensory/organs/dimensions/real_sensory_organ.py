@@ -31,40 +31,7 @@ class MarketContext:
     volume_data: pd.DataFrame
     timestamp: datetime
 
-class RealSensoryOrgan:
-    """
-    Real implementation of sensory processing
-    Replaces the stub with functional technical analysis
-    """
-    
-    def __init__(self, config: SensoryConfig):
-        self.config = config
-        self.symbol = config.symbol
-        self.timeframes = config.timeframes
-        self.max_buffer_size = config.max_buffer_size
-        
-        # Initialize indicators
-        self.indicators = {
-            'rsi': RSIIndicator(period=config.rsi_period),
-            'macd': MACDIndicator(),
-            'bollinger': BollingerBandsIndicator(period=config.bb_period),
-            'volume': VolumeIndicator(),
-            'momentum': MomentumIndicator(period=config.momentum_period),
-            'support_resistance': SupportResistanceIndicator()
-        }
-        
-        # Data buffers
-        self.price_buffers: Dict[str, pd.DataFrame] = {}
-        self.volume_buffers: Dict[str, pd.DataFrame] = {}
-        
-        # Calibration data
-        self.calibration_data = {}
-        
-        # Database
-        self.db_path = config.database_path
-        self._init_database()
-        
-        logger.info(f"RealSensoryOrgan initialized for {self.symbol}")
+from src.sensory.real_sensory_organ import RealSensoryOrgan  # re-export canonical implementation
     
     def _init_database(self) -> None:
         """Initialize sensory database"""

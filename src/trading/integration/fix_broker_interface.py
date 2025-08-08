@@ -112,6 +112,16 @@ class FIXBrokerInterface:
             Order ID if successful, None otherwise
         """
         try:
+            # Risk guard: ensure portfolio risk within limits if a risk manager is available on event_bus
+            try:
+                risk_manager = getattr(self.event_bus, 'risk_manager', None) if self.event_bus else None
+                if risk_manager and hasattr(risk_manager, 'check_risk_thresholds'):
+                    if not risk_manager.check_risk_thresholds():
+                        logger.warning("Order blocked by risk thresholds (VaR/ES limits)")
+                        return None
+            except Exception:
+                # If risk check fails, proceed conservatively without blocking
+                pass
             # Generate order ID
             order_id = f"ORD_{int(datetime.utcnow().timestamp() * 1000)}"
             

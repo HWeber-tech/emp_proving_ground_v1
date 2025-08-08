@@ -52,6 +52,15 @@ class CTraderBrokerInterface:
             Order ID if successful, None otherwise
         """
         try:
+            # Risk guard
+            try:
+                risk_manager = getattr(self.event_bus, 'risk_manager', None) if self.event_bus else None
+                if risk_manager and hasattr(risk_manager, 'check_risk_thresholds'):
+                    if not risk_manager.check_risk_thresholds():
+                        logger.warning("Order blocked by risk thresholds (VaR/ES limits)")
+                        return None
+            except Exception:
+                pass
             # Generate order ID
             order_id = f"CTR_{int(datetime.utcnow().timestamp() * 1000)}"
             

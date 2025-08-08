@@ -37,9 +37,9 @@ jobs:
         run: |
           mypy src
 
-      - name: Run tests
+      - name: Run tests with coverage
         run: |
-          python -m pytest -q
+          python -m pytest --cov=src --cov-report=term-missing --cov-fail-under=70 -q
 
 name: CI Gate
 

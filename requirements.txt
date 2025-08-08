@@ -55,5 +55,5 @@ pytest-cov>=3.0.0
 
 # Development
 black>=21.9b0
-flake8>=4.0.0
 mypy>=0.910
+ruff>=0.5.4

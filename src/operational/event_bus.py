@@ -27,6 +27,8 @@ class EventBus:
     
     def __init__(self):
         self.subscribers: Dict[str, List[Callable]] = {}
+        # Optional risk manager attached at runtime for global checks
+        self.risk_manager = None
         
     def subscribe(self, event_type: str, callback: Callable):
         """Subscribe to events of a specific type."""

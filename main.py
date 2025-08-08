@@ -56,6 +56,13 @@ class EMPProfessionalPredator:
             
             # Initialize event bus
             self.event_bus = EventBus()
+            # Attach a risk manager instance for global checks (lazy/placeholder)
+            try:
+                from src.risk.real_risk_manager import RealRiskManager, RealRiskConfig
+                self.event_bus.risk_manager = RealRiskManager(RealRiskConfig())
+                logger.info("✅ Risk manager attached to event bus")
+            except Exception as _:
+                logger.warning("⚠️ Failed to attach risk manager; proceeding without")
             logger.info("✅ Event bus initialized")
             
             # Safety guardrails

@@ -58,8 +58,8 @@ def main():
         "pytest>=6.2.0,<8.0.0",
         "pytest-asyncio>=0.16.0,<1.0.0",
         "black>=21.9b0,<25.0.0",
-        "flake8>=4.0.0,<8.0.0",
         "mypy>=0.910,<2.0.0",
+        "ruff>=0.5.4,<1.0.0",
     ]
     
     all_deps = core_deps + mlops_deps + other_deps

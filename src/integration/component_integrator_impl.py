@@ -52,15 +52,14 @@ class ComponentIntegratorImpl(ComponentIntegrator):
     async def _initialize_sensory_system(self) -> None:
         """Initialize sensory system components."""
         try:
-            from src.sensory.organs.dimensions.what_organ import WhatEngine
-            from src.sensory.organs.dimensions.when_organ import WhenEngine
-            from src.sensory.organs.dimensions.anomaly_dimension import AnomalyDimension
-            from src.sensory.organs.dimensions.chaos_dimension import ChaosDimension
+            # New 4D+1 scaffolding (what/when/anomaly via simple sensors)
+            from src.sensory.what.what_sensor import WhatSensor
+            from src.sensory.when.when_sensor import WhenSensor
+            from src.sensory.anomaly.anomaly_sensor import AnomalySensor
             
-            self.components['what_organ'] = WhatEngine()
-            self.components['when_organ'] = WhenEngine()
-            self.components['anomaly_organ'] = AnomalyDimension()
-            self.components['chaos_organ'] = ChaosDimension()
+            self.components['what_sensor'] = WhatSensor()
+            self.components['when_sensor'] = WhenSensor()
+            self.components['anomaly_sensor'] = AnomalySensor()
             
             logger.info("Sensory system components initialized")
             

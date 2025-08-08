@@ -28,6 +28,12 @@ from src.sensory.organs.fix_sensory_organ import FIXSensoryOrgan
 from src.sensory.organs.ctrader_data_organ import CTraderDataOrgan
 from src.trading.integration.ctrader_broker_interface import CTraderBrokerInterface
 from src.trading.integration.fix_broker_interface import FIXBrokerInterface
+from src.sensory.why.why_sensor import WhySensor
+from src.sensory.how.how_sensor import HowSensor
+from src.sensory.what.what_sensor import WhatSensor
+from src.sensory.when.when_sensor import WhenSensor
+from src.sensory.anomaly.anomaly_sensor import AnomalySensor
+from src.sensory.integrate.bayesian_integrator import BayesianSignalIntegrator
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +48,13 @@ class EMPProfessionalPredator:
         self.sensory_organ = None
         self.broker_interface = None
         self.running = False
+        # 4D+1 sensors and integrator
+        self.why_sensor = None
+        self.how_sensor = None
+        self.what_sensor = None
+        self.when_sensor = None
+        self.anomaly_sensor = None
+        self.signal_integrator = None
         
     async def initialize(self, config_path: str = None):
         """Initialize the professional predator system."""
@@ -66,6 +79,21 @@ class EMPProfessionalPredator:
             except Exception as _:
                 logger.warning("⚠️ Failed to attach risk manager; proceeding without")
             logger.info("✅ Event bus initialized")
+
+            # Initialize 4D+1 sensors and integrator
+            self.why_sensor = WhySensor()
+            self.how_sensor = HowSensor()
+            self.what_sensor = WhatSensor()
+            self.when_sensor = WhenSensor()
+            self.anomaly_sensor = AnomalySensor()
+            self.signal_integrator = BayesianSignalIntegrator()
+            # Expose on event bus if needed elsewhere
+            self.event_bus.why_sensor = self.why_sensor
+            self.event_bus.how_sensor = self.how_sensor
+            self.event_bus.what_sensor = self.what_sensor
+            self.event_bus.when_sensor = self.when_sensor
+            self.event_bus.anomaly_sensor = self.anomaly_sensor
+            self.event_bus.signal_integrator = self.signal_integrator
             
             # Safety guardrails
             SafetyManager.from_config(self.config).enforce()
@@ -229,6 +257,16 @@ async def main():
                 if not df.empty:
                     store_duckdb(df, Path(args.db))
                     logger.info(f"✅ Stored {len(df)} rows to {args.db}")
+                    # Run 4D+1 sensors and integrate
+                    try:
+                        signals = []
+                        for sensor in [system.why_sensor, system.how_sensor, system.what_sensor, system.when_sensor, system.anomaly_sensor]:
+                            if sensor:
+                                signals.extend(sensor.process(df))
+                        integrated = await system.signal_integrator.integrate(signals)
+                        logger.info(f"🧠 IntegratedSignal: dir={integrated.direction} strength={integrated.strength:.3f} conf={integrated.confidence:.2f} from={integrated.contributing}")
+                    except Exception as e:
+                        logger.warning(f"Sensor integration failed: {e}")
             except Exception as e:
                 logger.warning(f"Tier-0 ingest failed (continuing): {e}")
         elif emp_tier == 'tier_1':

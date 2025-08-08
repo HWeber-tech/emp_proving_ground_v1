@@ -265,6 +265,18 @@ async def main():
                                 signals.extend(sensor.process(df))
                         integrated = await system.signal_integrator.integrate(signals)
                         logger.info(f"🧠 IntegratedSignal: dir={integrated.direction} strength={integrated.strength:.3f} conf={integrated.confidence:.2f} from={integrated.contributing}")
+                        # Emit on event bus for monitoring/consumers
+                        try:
+                            system.event_bus.publish_sync('integrated_signal', {
+                                'direction': integrated.direction,
+                                'strength': integrated.strength,
+                                'confidence': integrated.confidence,
+                                'contributing': integrated.contributing,
+                                'symbols': symbols,
+                                'db_path': str(Path(args.db))
+                            }, source='sensory_integrator')
+                        except Exception:
+                            pass
                     except Exception as e:
                         logger.warning(f"Sensor integration failed: {e}")
             except Exception as e:

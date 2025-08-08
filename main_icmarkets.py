@@ -15,6 +15,8 @@ import os
 sys.path.insert(0, str(Path(__file__).parent))
 
 from src.governance.system_config import SystemConfig
+from src.governance.safety_manager import SafetyManager
+from src.operational.event_bus import EventBus
 from src.operational.icmarkets_api import FinalFIXTester
 from src.operational.icmarkets_config import ICMarketsConfig
 
@@ -44,6 +46,10 @@ class EMPProfessionalPredatorICMarkets:
             self.config = SystemConfig()
             logger.info(f"✅ Configuration loaded: EMP v4.0 IC Markets Professional Predator")
             logger.info(f"🔧 Protocol: {self.config.connection_protocol}")
+            logger.info(f"🧰 Run mode: {getattr(self.config, 'run_mode', 'paper')}")
+
+            # Enforce guardrails before wiring anything that could trade
+            SafetyManager.from_config(self.config).enforce()
             
             # Initialize event bus
             self.event_bus = EventBus()

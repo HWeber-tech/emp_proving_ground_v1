@@ -17,6 +17,8 @@ import json
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent))
 
+from src.governance.safety_manager import SafetyManager
+from src.governance.system_config import SystemConfig
 from src.operational.icmarkets_api import FinalFIXTester
 from src.operational.icmarkets_config import ICMarketsConfig
 
@@ -42,6 +44,10 @@ class ICMarketsProductionSystem:
         try:
             logger.info("🚀 Initializing IC Markets Production System")
             
+            # Enforce guardrails up-front based on environment variables
+            _cfg = SystemConfig()
+            SafetyManager.from_config(_cfg).enforce()
+
             # Load configuration
             account = account or os.getenv("ICMARKETS_ACCOUNT")
             password = os.getenv("ICMARKETS_PASSWORD")

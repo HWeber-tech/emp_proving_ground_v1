@@ -10,6 +10,7 @@ import sys
 from pathlib import Path
 from datetime import datetime
 import os
+import argparse
 
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent))
@@ -47,6 +48,7 @@ class EMPProfessionalPredatorICMarkets:
             logger.info(f"✅ Configuration loaded: EMP v4.0 IC Markets Professional Predator")
             logger.info(f"🔧 Protocol: {self.config.connection_protocol}")
             logger.info(f"🧰 Run mode: {getattr(self.config, 'run_mode', 'paper')}")
+            logger.info(f"🏷️ Tier selected: {getattr(self.config, 'emp_tier', 'tier_0')}")
 
             # Enforce guardrails before wiring anything that could trade
             SafetyManager.from_config(self.config).enforce()
@@ -179,11 +181,22 @@ async def main():
     )
     
     # Create and run IC Markets Professional Predator
+    parser = argparse.ArgumentParser(description='IC Markets Professional Predator')
+    parser.add_argument('--skip-ingest', action='store_true')
+    args, _ = parser.parse_known_args()
+
     system = EMPProfessionalPredatorICMarkets()
     
     try:
         await system.initialize()
         
+        # Tier behavior logging
+        tier = getattr(system.config, 'emp_tier', 'tier_0')
+        if tier == 'tier_1':
+            logger.info("🧩 Tier-1 (Timescale/Redis) not implemented yet")
+        elif tier == 'tier_2':
+            raise NotImplementedError("Tier-2 evolutionary mode is not yet supported")
+
         # Test trading functionality
         await system.test_trading()
         

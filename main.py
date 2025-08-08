@@ -13,6 +13,7 @@ from pathlib import Path
 from decimal import Decimal
 from datetime import datetime
 import os
+import argparse
 
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent))
@@ -193,11 +194,39 @@ async def main():
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
     )
     
+    # CLI
+    parser = argparse.ArgumentParser(description='EMP Professional Predator')
+    parser.add_argument('--skip-ingest', action='store_true', help='Skip Tier-0 data ingestion at startup')
+    parser.add_argument('--symbols', type=str, default='EURUSD,GBPUSD', help='Comma-separated symbols for Tier-0 ingest')
+    parser.add_argument('--db', type=str, default='data/tier0.duckdb', help='DuckDB path for Tier-0 ingest')
+    args, _ = parser.parse_known_args()
+
     # Create and run Professional Predator
     system = EMPProfessionalPredator()
     
     try:
         await system.initialize()
+
+        # Branch on tier
+        emp_tier = getattr(system.config, 'emp_tier', 'tier_0')
+        logger.info(f"Tier behavior: {emp_tier}")
+        if emp_tier == 'tier_0' and not args.skip_ingest:
+            try:
+                from src.data_foundation.ingest.yahoo_ingest import fetch_daily_bars, store_duckdb
+                from pathlib import Path
+                symbols = [s.strip() for s in args.symbols.split(',') if s.strip()]
+                logger.info(f"📥 Tier-0 ingest for {symbols}")
+                df = fetch_daily_bars(symbols)
+                if not df.empty:
+                    store_duckdb(df, Path(args.db))
+                    logger.info(f"✅ Stored {len(df)} rows to {args.db}")
+            except Exception as e:
+                logger.warning(f"Tier-0 ingest failed (continuing): {e}")
+        elif emp_tier == 'tier_1':
+            logger.info("🧩 Tier-1 (Timescale/Redis) not implemented yet")
+        elif emp_tier == 'tier_2':
+            raise NotImplementedError("Tier-2 evolutionary mode is not yet supported")
+
         await system.run()
     except Exception as e:
         logger.error(f"❌ Professional Predator failed: {e}")

@@ -29,6 +29,8 @@ class RealRiskConfig:
     min_position_size: Decimal = Decimal('1000')
     max_position_size: Decimal = Decimal('1000000')
     kelly_fraction: Decimal = Decimal('0.25')
+    max_var_pct: Decimal = Decimal('0.05')  # 5% daily VaR threshold
+    max_es_pct: Decimal = Decimal('0.07')   # 7% daily ES threshold
 
 
 class RealRiskManager:
@@ -93,24 +95,41 @@ class RealRiskManager:
     def calculate_portfolio_risk(self) -> Dict[str, float]:
         """Calculate current portfolio risk metrics."""
         if not self.positions:
-            return {'total_exposure': 0.0, 'max_drawdown': 0.0, 'var': 0.0}
+            return {'total_exposure': 0.0, 'max_drawdown': 0.0, 'var': 0.0, 'es': 0.0}
             
         total_exposure = float(sum(pos['size'] for pos in self.positions.values()))
         total_value = float(sum(pos['value'] for pos in self.positions.values()))
         
         # Calculate Value at Risk (simplified)
         returns = [pos.get('return', 0.0) for pos in self.positions.values()]
+        var_95 = np.percentile(returns, 5) if returns else 0.0
+        # Expected Shortfall (ES) as mean of worst 5%
         if returns:
-            var_95 = np.percentile(returns, 5)
+            cutoff = np.percentile(returns, 5)
+            tail = [r for r in returns if r <= cutoff]
+            es_95 = float(np.mean(tail)) if tail else 0.0
         else:
-            var_95 = 0.0
+            es_95 = 0.0
             
         return {
             'total_exposure': total_exposure,
             'total_value': total_value,
             'exposure_pct': total_exposure / float(self.account_balance),
-            'var_95': var_95
+            'var_95': var_95,
+            'es_95': es_95,
         }
+
+    def check_risk_thresholds(self) -> bool:
+        """Check portfolio VaR/ES against configured thresholds.
+
+        Returns True if within limits, False otherwise.
+        """
+        metrics = self.calculate_portfolio_risk()
+        var = abs(float(metrics.get('var_95', 0.0)))
+        es = abs(float(metrics.get('es_95', 0.0)))
+        if var > float(self.config.max_var_pct) or es > float(self.config.max_es_pct):
+            return False
+        return True
         
     def update_account_balance(self, new_balance: Decimal):
         """Update the account balance."""

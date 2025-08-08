@@ -88,11 +88,11 @@ class ValidationFramework:
                 
             # Test market analyzer
             try:
-                from src.sensory.organs.dimensions.what_organ import WhatEngine
-                analyzer = WhatEngine()
-                components.append('WhatEngine')
+                from src.sensory.what.what_sensor import WhatSensor
+                analyzer = WhatSensor()
+                components.append('WhatSensor')
             except ImportError as e:
-                print(f"WhatEngine import failed: {e}")
+                print(f"WhatSensor import failed: {e}")
                 pass
                 
             # Calculate integration score

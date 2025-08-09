@@ -6,7 +6,7 @@ import logging
 import os
 from datetime import datetime
 
-from src.operational.md_capture import MarketDataReplayer
+from src.data_foundation.replay.multidim_replayer import MultiDimReplayer
 from src.sensory.dimensions.microstructure import RollingMicrostructure
 from src.data_foundation.persist.parquet_writer import write_events_parquet
 
@@ -15,6 +15,7 @@ def parse_args():
     p = argparse.ArgumentParser(description="Offline backtest report generator")
     p.add_argument("--file", required=True)
     p.add_argument("--symbol", default="EURUSD")
+    p.add_argument("--macro-file", default="", help="Optional macro JSONL file to merge")
     p.add_argument("--speed", type=float, default=100.0)
     p.add_argument("--limit", type=int, default=5000)
     p.add_argument("--out-dir", default="reports/backtests")
@@ -34,14 +35,29 @@ def main() -> int:
     peak = 0.0
     max_dd = 0.0
     feats = []
+    # Macro tracking
+    last_macro_ts = None
+    next_macros = []
+    currencies = {args.symbol[:3], args.symbol[3:6]} if len(args.symbol) >= 6 else set()
 
-    def on_event(sym, ob):
+    def on_md_event(e: dict):
         nonlocal pos, pnl, peak, max_dd
+        ob = {"bids": e.get("bids", []), "asks": e.get("asks", [])}
         bids = ob.get("bids", [])
         asks = ob.get("asks", [])
         f = r.update(bids, asks)
-        f["timestamp"] = datetime.utcnow().isoformat()
-        f["symbol"] = sym
+        f["timestamp"] = e.get("timestamp", datetime.utcnow().isoformat())
+        f["symbol"] = e.get("symbol", args.symbol)
+        # Macro proximity
+        if last_macro_ts:
+            try:
+                md_ts = datetime.fromisoformat(f["timestamp"]).timestamp()
+                f["mins_since_macro"] = (md_ts - last_macro_ts) / 60.0
+            except Exception:
+                f["mins_since_macro"] = None
+        else:
+            f["mins_since_macro"] = None
+        f["next_macro_count"] = len(next_macros)
         # Simple paper PnL accounting using mid
         mid = f.get("mid", 0.0)
         micro = f.get("microprice", 0.0)
@@ -58,7 +74,27 @@ def main() -> int:
             f["pnl"] = pnl
         feats.append(f)
 
-    emitted = MarketDataReplayer(args.file, speed=args.speed).replay(on_event, max_events=args.limit)
+    def on_macro_event(e: dict):
+        nonlocal last_macro_ts, next_macros
+        try:
+            cur = str(e.get("currency") or "").upper()
+            if currencies and cur and cur not in currencies:
+                return
+            ts = datetime.fromisoformat(e.get("timestamp")).timestamp()
+            last_macro_ts = ts
+            # keep a short-term queue of upcoming macro events (count only)
+            now = datetime.utcnow().timestamp()
+            # purge stale
+            next_macros = [x for x in next_macros if x > now]
+            # add if in future
+            if ts > now:
+                next_macros.append(ts)
+        except Exception:
+            return
+
+    emitted = MultiDimReplayer(md_path=args.file, macro_path=args.macro_file or None).replay(
+        on_md=on_md_event, on_macro=on_macro_event, limit=args.limit
+    )
     os.makedirs(args.out_dir, exist_ok=True)
     report = {
         "file": args.file,

@@ -1092,6 +1092,11 @@ class GenuineFIXManager:
                 # Start reconnection supervisor
                 self._supervisor_thread = threading.Thread(target=self._supervise_sessions, daemon=True)
                 self._supervisor_thread.start()
+                # Kick off state reconciliation for any persisted working orders
+                try:
+                    self._reconcile_orders_on_start()
+                except Exception as e:
+                    logger.error(f"Order reconciliation on start failed: {e}")
                 logger.info("✅ Genuine FIX Manager started successfully")
                 return True
             else:
@@ -1836,6 +1841,29 @@ class GenuineFIXManager:
             pass
 
         logger.info("✅ Genuine FIX Manager stopped")
+
+    def _reconcile_orders_on_start(self, wait_timeout: float = 3.0) -> None:
+        """On startup, probe status for any non-terminal orders to reconcile state after crash/restart."""
+        working = [o for o in self.orders.values() if o.status in (
+            OrderStatus.NEW,
+            OrderStatus.PARTIALLY_FILLED,
+            OrderStatus.PENDING_NEW,
+            OrderStatus.PENDING_REPLACE,
+            OrderStatus.PENDING_CANCEL,
+        )]
+        if not working:
+            return
+        logger.info(f"🔎 Reconciling {len(working)} orders on startup via Order Status Request")
+        for o in working:
+            try:
+                side_hint = o.side if o.side in ("1","2") else None
+                self.send_order_status_request(o.cl_ord_id, side_hint=side_hint)
+            except Exception:
+                continue
+        # Allow brief time for ERs to flow
+        t0 = time.time()
+        while time.time() - t0 < wait_timeout:
+            time.sleep(0.05)
 
     def _is_session_connected(self, session: str) -> bool:
         if session == 'quote' and self.price_connection:

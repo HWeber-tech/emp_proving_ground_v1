@@ -1,4 +1,4 @@
-name: ci
+name: CI
 
 on:
   push:
@@ -8,6 +8,7 @@ on:
 
 jobs:
   test:
+    name: Unit tests (Ubuntu, Python 3.11)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -21,6 +22,7 @@ jobs:
       - name: Run tests (current scope)
         env:
           EMP_USE_MOCK_FIX: '1'
+          PYTHONPATH: ${{ github.workspace }}
         run: |
           python -m pytest -q
 name: CI
@@ -100,7 +102,7 @@ jobs:
         run: pytest --cov=src --cov-report=term --cov-fail-under=70 -q
 
   backtest:
-    name: Offline Backtest Smoke
+    name: Offline Backtest Smoke (Ubuntu)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -112,19 +114,20 @@ jobs:
       - name: Install deps
         run: |
           python -m pip install --upgrade pip
-          pip install pytest pandas pyarrow
+          pip install -r requirements.txt
       - name: Prepare fixtures
         run: |
-          mkdir -p data/md_capture data/macro
-          printf '{"symbol":"EURUSD","t":"2025-01-01T00:00:00Z","bids":[[1.1,1000000]],"asks":[[1.1002,1200000]]}\n' > data/md_capture/capture.jsonl
+          mkdir -p data/md_capture data/macro docs/reports/backtests
+          printf '{"symbol":"EURUSD","timestamp":"2025-01-01T00:00:00","bids":[[1.1,1000000]],"asks":[[1.1002,1200000]]}\n' > data/md_capture/capture.jsonl
           printf '{"timestamp":"2025-01-01T00:30:00","event":"CPI","currency":"EUR"}\n' > data/macro/calendar.jsonl
       - name: Run backtest
         env:
           PYTHONPATH: ${{ github.workspace }}
         run: |
-          python scripts/backtest_report.py --file data/md_capture/capture.jsonl --macro-file data/macro/calendar.jsonl --out-dir reports/backtests
+          python scripts/backtest_report.py --file data/md_capture/capture.jsonl --macro-file data/macro/calendar.jsonl --out-dir docs/reports/backtests
+          python scripts/generate_html_report.py --csv docs/reports/backtests/why_features.csv --out docs/reports/backtests/WHY_FEATURES.html
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: backtest-report
-          path: reports/backtests
+          path: docs/reports/backtests

@@ -20,6 +20,33 @@ class _MockTradeConnection:
         self._order_cbs = order_cbs
 
     def send_message_and_track(self, msg: Any) -> bool:
+        # Respect optional flags on msg for reject/cancel flows
+        if getattr(msg, "reject", False):
+            def _emit_reject():
+                info = type("OrderInfo", (), {})()
+                info.cl_ord_id = str(getattr(msg, "cl_ord_id", "TEST"))
+                info.executions = [{"exec_type": "8"}]  # Reject
+                for cb in self._order_cbs:
+                    try:
+                        cb(info)
+                    except Exception:
+                        pass
+            threading.Thread(target=_emit_reject, daemon=True).start()
+            return True
+
+        if getattr(msg, "cancel", False):
+            def _emit_cancel():
+                info = type("OrderInfo", (), {})()
+                info.cl_ord_id = str(getattr(msg, "cl_ord_id", "TEST"))
+                info.executions = [{"exec_type": "4"}]  # Canceled
+                for cb in self._order_cbs:
+                    try:
+                        cb(info)
+                    except Exception:
+                        pass
+            threading.Thread(target=_emit_cancel, daemon=True).start()
+            return True
+
         # Emit a New then a Fill execution on background threads
         def _emit_new():
             info = type("OrderInfo", (), {})()

@@ -97,7 +97,7 @@ def main() -> int:
     last_mid = None
 
     def on_md_event(e: dict):
-        nonlocal pos, pnl, peak, max_dd, last_macro_minutes, next_macro_minutes, last_mid, total_cost
+        nonlocal pos, pnl, peak, max_dd, last_macro_minutes, next_macro_minutes, last_mid, total_cost, total_abs_exposure, total_usd_beta
         ob = {"bids": e.get("bids", []), "asks": e.get("asks", [])}
         bids = ob.get("bids", [])
         asks = ob.get("asks", [])

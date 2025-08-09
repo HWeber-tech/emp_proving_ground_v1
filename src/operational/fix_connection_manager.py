@@ -16,6 +16,7 @@ Responsibilities:
 from __future__ import annotations
 
 import asyncio
+import os
 import logging
 from typing import Optional, Any, Dict, Callable, List
 
@@ -119,9 +120,19 @@ class FIXConnectionManager:
 
                     # Schedule put without blocking the FIX threads
                     if self._price_app._queue is not None:
-                        asyncio.get_event_loop().call_soon_threadsafe(
-                            lambda: asyncio.create_task(self._price_app._put(msg))
-                        )
+                        try:
+                            loop = asyncio.get_running_loop()
+                        except RuntimeError:
+                            loop = None
+                        if loop and loop.is_running():
+                            loop.call_soon_threadsafe(lambda: asyncio.create_task(self._price_app._put(msg)))
+                        else:
+                            # Fallback: create a temporary loop to enqueue
+                            _loop = asyncio.new_event_loop()
+                            try:
+                                _loop.run_until_complete(self._price_app._put(msg))
+                            finally:
+                                _loop.close()
                 except Exception as e:
                     logger.error(f"Error bridging market data: {e}")
 
@@ -140,9 +151,18 @@ class FIXConnectionManager:
                         msg[150] = exec_type.encode("utf-8") if isinstance(exec_type, str) else exec_type
 
                     if self._trade_app._queue is not None:
-                        asyncio.get_event_loop().call_soon_threadsafe(
-                            lambda: asyncio.create_task(self._trade_app._put(msg))
-                        )
+                        try:
+                            loop = asyncio.get_running_loop()
+                        except RuntimeError:
+                            loop = None
+                        if loop and loop.is_running():
+                            loop.call_soon_threadsafe(lambda: asyncio.create_task(self._trade_app._put(msg)))
+                        else:
+                            _loop = asyncio.new_event_loop()
+                            try:
+                                _loop.run_until_complete(self._trade_app._put(msg))
+                            finally:
+                                _loop.close()
                 except Exception as e:
                     logger.error(f"Error bridging order update: {e}")
 

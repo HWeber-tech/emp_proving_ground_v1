@@ -28,6 +28,11 @@ def parse_args():
     p.add_argument("--symbol", default="EURUSD")
     p.add_argument("--macro-file", default="", help="Optional macro JSONL file to merge")
     p.add_argument("--yields-file", default="", help="Optional yields JSONL file to merge (for slope)")
+    # WHY overrides
+    p.add_argument("--why-weight-macro", type=float, default=None, help="Override WHY macro weight")
+    p.add_argument("--why-weight-yields", type=float, default=None, help="Override WHY yields weight")
+    p.add_argument("--disable-why-macro", action="store_true", help="Disable macro proximity in WHY")
+    p.add_argument("--disable-why-yields", action="store_true", help="Disable yield features in WHY")
     p.add_argument("--speed", type=float, default=100.0)
     p.add_argument("--limit", type=int, default=5000)
     p.add_argument("--out-dir", default="docs/reports/backtests")
@@ -57,6 +62,21 @@ def main() -> int:
     # Volatility and WHY config
     vol_cfg = load_vol_config()
     why_cfg = load_why_config()
+    # CLI overrides for WHY config
+    if args.why_weight_macro is not None:
+        try:
+            why_cfg.weight_macro = float(args.why_weight_macro)
+        except Exception:
+            pass
+    if args.why_weight_yields is not None:
+        try:
+            why_cfg.weight_yields = float(args.why_weight_yields)
+        except Exception:
+            pass
+    if args.disable_why_macro:
+        why_cfg.enable_macro_proximity = False
+    if args.disable_why_yields:
+        why_cfg.enable_yields = False
     daily_returns = []
     rv_window = []
     last_mid = None
@@ -228,6 +248,22 @@ def main() -> int:
     md.append(f"- **PnL**: {pnl:.6f}\n")
     md.append(f"- **Max DD**: {max_dd:.6f}\n")
     md.append(f"- **Regimes**: calm={regimes['calm']}, normal={regimes['normal']}, storm={regimes['storm']}\n")
+    # WHY feature summary
+    if feats:
+        def mean_key(k: str):
+            vals = [f[k] for f in feats if f.get(k) is not None]
+            return (sum(vals) / len(vals)) if vals else None
+        why_avg = mean_key("why_composite_signal")
+        s21 = mean_key("why_yield_slope_2s10s")
+        s530 = mean_key("why_yield_slope_5s30s")
+        curv = mean_key("why_yield_curvature_2_10_30")
+        pshift = mean_key("why_yield_parallel_shift")
+        md.append("\n## WHY Features\n\n")
+        md.append(f"- **WHY composite (avg)**: {why_avg:.6f}\n" if why_avg is not None else "")
+        md.append(f"- **2s10s slope (avg)**: {s21:.6f}\n" if s21 is not None else "")
+        md.append(f"- **5s30s slope (avg)**: {s530:.6f}\n" if s530 is not None else "")
+        md.append(f"- **2-10-30 curvature (avg)**: {curv:.6f}\n" if curv is not None else "")
+        md.append(f"- **Parallel shift proxy (avg)**: {pshift:.6f}\n" if pshift is not None else "")
     with open(os.path.join(args.out_dir, "BACKTEST_SUMMARY.md"), "w", encoding="utf-8") as fh:
         fh.write("".join(md))
     log.info(json.dumps(report))

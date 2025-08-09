@@ -8,6 +8,7 @@ coupling to operational types.
 from __future__ import annotations
 
 from typing import List, Tuple, Dict
+from collections import deque
 
 
 def _best(book_side: List[Tuple[float, float]], reverse: bool) -> Tuple[float, float]:
@@ -121,5 +122,31 @@ def compute_volatility_seeds(mid_prices: List[float]) -> Dict[str, float]:
         "std20": float(rolling_std(20)),
         "mean_abs_change": float(mean_abs_change()),
     }
+
+
+class RollingMicrostructure:
+    """Maintains rolling windows over mid price and OBI for offline replay analysis."""
+
+    def __init__(self, window: int = 20):
+        self.window = window
+        self.mids: deque = deque(maxlen=window)
+        self.obi: deque = deque(maxlen=window)
+
+    def update(self, bids: List[Tuple[float, float]], asks: List[Tuple[float, float]]) -> Dict[str, float]:
+        f = compute_features(bids, asks)
+        self.mids.append(f["mid"]) if f["mid"] else None
+        # Order book imbalance (top)
+        self.obi.append(f.get("top_imbalance", 0.0))
+        # Volatility seeds from mids
+        vol = compute_volatility_seeds(list(self.mids))
+        # Mean OBI
+        mean_obi = sum(self.obi) / len(self.obi) if self.obi else 0.0
+        # Simple mid reversion seed: mid - mean(mid)
+        rev = 0.0
+        if self.mids:
+            m = list(self.mids)
+            rev = (m[-1] - (sum(m) / len(m)))
+        out = {**f, **vol, "mean_obi": float(mean_obi), "mid_reversion": float(rev)}
+        return out
 
 

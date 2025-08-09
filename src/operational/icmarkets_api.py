@@ -38,6 +38,7 @@ from src.operational.venue_constraints import (
     align_price,
     normalize_tif,
 )
+from src.operational.md_capture import MarketDataRecorder
 
 # Configure logging
 logging.basicConfig(
@@ -350,11 +351,11 @@ class GenuineFIXConnection:
                         pass
             except Exception:
                 # Fallback to naive copy if parsing fails
-            for tag in range(1, 1000):
+                for tag in range(1, 1000):
                     if tag not in [8, 34, 35, 49, 50, 52, 56, 57]:
-                    value = message.get(tag)
-                    if value is not None:
-                        ordered_msg.append_pair(tag, value)
+                        value = message.get(tag)
+                        if value is not None:
+                            ordered_msg.append_pair(tag, value)
             
             message_str = ordered_msg.encode()
             self.ssl_socket.send(message_str)
@@ -634,14 +635,14 @@ class GenuineFIXConnection:
                 # Send logout message
                 try:
                     if self.connected and self.authenticated:
-                msg = simplefix.FixMessage()
-                msg.append_pair(8, "FIX.4.4")
-                msg.append_pair(35, "5")  # Logout
-                msg.append_pair(49, f"demo.icmarkets.{self.config.account_number}")
-                msg.append_pair(56, "cServer")
-                msg.append_pair(57, self.session_type.upper())
-                msg.append_pair(50, self.session_type.upper())
-                self.send_message_and_track(msg)
+                        msg = simplefix.FixMessage()
+                        msg.append_pair(8, "FIX.4.4")
+                        msg.append_pair(35, "5")  # Logout
+                        msg.append_pair(49, f"demo.icmarkets.{self.config.account_number}")
+                        msg.append_pair(56, "cServer")
+                        msg.append_pair(57, self.session_type.upper())
+                        msg.append_pair(50, self.session_type.upper())
+                        self.send_message_and_track(msg)
                 except Exception:
                     pass
                 time.sleep(1)  # Give time for logout to be processed
@@ -709,6 +710,8 @@ class GenuineFIXManager:
             self._store = RedisStateStore(redis_host, redis_port, redis_db, redis_pwd)
         except Exception:
             self._store = JSONStateStore()
+        # Optional MD recorder
+        self._md_recorder: Optional[MarketDataRecorder] = None
         
     def _send_md_request(self, symbol: str, req_id: str) -> bool:
         """Build and send MarketDataRequest standardized for venue: numeric 55, 267/269 present."""
@@ -1017,7 +1020,7 @@ class GenuineFIXManager:
                     continue
                 price = float(px)
                 size = float(sz) if sz else 0.0
-                    entry = MarketDataEntry(
+                entry = MarketDataEntry(
                     symbol=mapped_symbol,
                     entry_type=side,
                     price=price,
@@ -1026,11 +1029,11 @@ class GenuineFIXManager:
                     position_no=int(position_no) if position_no and position_no.isdigit() else None,
                 )
                 if side == '0':
-                        order_book.bids.append(entry)
+                    order_book.bids.append(entry)
                 elif side == '1':
-                        order_book.asks.append(entry)
+                    order_book.asks.append(entry)
                 elif side == '2':
-                        order_book.last_trade = entry
+                    order_book.last_trade = entry
                         
             # Sort the books
             order_book.bids.sort(key=lambda x: x.price, reverse=True)
@@ -1119,6 +1122,15 @@ class GenuineFIXManager:
                     self._reconcile_orders_on_start()
                 except Exception as e:
                     logger.error(f"Order reconciliation on start failed: {e}")
+                # Optionally start MD capture
+                try:
+                    if str(os.environ.get("EMP_MD_CAPTURE", "false")).lower() in ("1", "true", "yes"): 
+                        out_path = os.environ.get("EMP_MD_CAPTURE_PATH", "data/md_capture/capture.jsonl")
+                        self._md_recorder = MarketDataRecorder(out_path)
+                        self._md_recorder.attach_to_manager(self)
+                        logger.info(f"MD capture enabled to {out_path}")
+                except Exception as e:
+                    logger.error(f"Failed to start MD capture: {e}")
                 logger.info("✅ Genuine FIX Manager started successfully")
                 return True
             else:
@@ -1303,7 +1315,7 @@ class GenuineFIXManager:
             for symbol in symbols:
                 ok = self.subscribe_symbol(symbol, timeout=timeout)
                 if ok:
-                            logger.info(f"✅ Market data subscription confirmed for {symbol}")
+                    logger.info(f"✅ Market data subscription confirmed for {symbol}")
                     results[symbol] = True
                 else:
                     logger.error(f"⏰ Timeout waiting for market data confirmation for {symbol}")
@@ -1863,14 +1875,14 @@ class GenuineFIXManager:
             pass
 
         try:
-        if self.price_connection:
-            self.price_connection.disconnect()
+            if self.price_connection:
+                self.price_connection.disconnect()
         except Exception:
             pass
             
         try:
-        if self.trade_connection:
-            self.trade_connection.disconnect()
+            if self.trade_connection:
+                self.trade_connection.disconnect()
         except Exception:
             pass
             
@@ -1887,6 +1899,13 @@ class GenuineFIXManager:
                 })
             # Save orders map
             self._store.save_orders(self.orders)
+        except Exception:
+            pass
+        # Close recorder
+        try:
+            if self._md_recorder:
+                self._md_recorder.close()
+                self._md_recorder = None
         except Exception:
             pass
             

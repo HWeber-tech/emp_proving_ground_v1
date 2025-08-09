@@ -41,3 +41,15 @@ class SessionEvent(BaseModel):
     source: str = Field(default="derived")
 
 
+class VolSignal(BaseModel):
+    """Canonical volatility signal for sizing and regime selection."""
+    symbol: str
+    t: datetime
+    sigma_ann: float
+    var95_1d: float
+    regime: str
+    sizing_multiplier: float
+    stop_mult: float
+    quality: float
+
+

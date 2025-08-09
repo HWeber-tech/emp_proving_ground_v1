@@ -213,3 +213,18 @@ def inc_missed_heartbeat(session: str) -> None:
         pass
 
 
+# Pre-trade risk denials
+fix_pretrade_denials_total = Counter(
+    "fix_pretrade_denials_total",
+    "Total pre-trade risk denials",
+    ["symbol", "reason"],
+)
+
+
+def inc_pretrade_denial(symbol: str, reason: str) -> None:
+    try:
+        fix_pretrade_denials_total.labels(symbol=symbol, reason=reason).inc()
+    except Exception:
+        pass
+
+

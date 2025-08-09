@@ -23,6 +23,7 @@ from src.sensory.core.utils import (
     EMA, WelfordVar, compute_confidence, normalize_signal,
     calculate_momentum, PerformanceTracker
 )
+from src.sensory.dimensions.microstructure import compute_features as ms_compute_features, compute_liquidity_pockets as ms_compute_pockets
 # Import new refactored engines
 from src.sensory.dimensions.why.why_engine import WhyEngine as WHYEngine
 from src.sensory.dimensions.how.how_engine import HowEngine as HOWEngine
@@ -517,6 +518,8 @@ class MasterOrchestrator:
         self.consensus_threshold = 0.6
         
         logger.info(f"Master Orchestrator initialized for {instrument_meta.symbol}")
+        # Microstructure aggregator settings
+        self._ms_levels = 5
     
     async def update(
         self,
@@ -538,6 +541,18 @@ class MasterOrchestrator:
         try:
             # Update all dimensional engines in parallel
             dimensional_readings = await self._update_dimensional_engines(market_data, order_book)
+
+            # If order_book provided, compute microstructure features and attach to WHAT reading context
+            try:
+                if order_book and 'WHAT' in dimensional_readings:
+                    bids = [(float(p), float(s)) for p, s in order_book.bids[:10]] if hasattr(order_book, 'bids') else []
+                    asks = [(float(p), float(s)) for p, s in order_book.asks[:10]] if hasattr(order_book, 'asks') else []
+                    ms_base = ms_compute_features(bids, asks, levels=self._ms_levels)
+                    ms_pockets = ms_compute_pockets(bids, asks, levels=self._ms_levels)
+                    ctx = dimensional_readings['WHAT'].context
+                    ctx.update({f"ms_{k}": v for k, v in {**ms_base, **ms_pockets}.items()})
+            except Exception as e:
+                logger.error(f"Microstructure feature computation failed: {e}")
             
             # Update dimensional states
             self._update_dimensional_states(dimensional_readings)

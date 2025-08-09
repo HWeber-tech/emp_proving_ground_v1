@@ -20,7 +20,7 @@ Legend: [P0]=critical, [P1]=high, [P2]=normal, [P3]=nice-to-have
 
 - [ ] [P1] FIX-004: Persistent session + order state
   - [x] Write-through cache to disk for `self.orders` and seq state (JSON store)
-  - [ ] Redis adapter parity (optional)
+  - [x] Redis adapter parity (optional)
   - [x] Crash-safe restart; idempotent replays (status probe on start)
   - Acceptance: Kill/restart during active order; state reconciled
 

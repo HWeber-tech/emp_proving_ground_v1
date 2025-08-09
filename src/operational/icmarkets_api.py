@@ -28,7 +28,7 @@ from src.operational.metrics import (
     observe_cancel_latency,
     set_md_staleness,
 )
-from src.operational.persistence import JSONStateStore
+from src.operational.persistence import JSONStateStore, RedisStateStore
 from src.operational.venue_constraints import (
     align_quantity,
     align_price,
@@ -650,8 +650,15 @@ class GenuineFIXManager:
             'trade': {'delay': 1.0, 'next': 0.0},
         }
         self._supervisor_thread: Optional[threading.Thread] = None
-        # Persistence store
-        self._store = JSONStateStore()
+        # Persistence store (prefer Redis if available via env/config)
+        try:
+            redis_host = os.environ.get("REDIS_HOST", "localhost")
+            redis_port = int(os.environ.get("REDIS_PORT", "6379"))
+            redis_db = int(os.environ.get("REDIS_DB", "0"))
+            redis_pwd = os.environ.get("REDIS_PASSWORD", None)
+            self._store = RedisStateStore(redis_host, redis_port, redis_db, redis_pwd)
+        except Exception:
+            self._store = JSONStateStore()
         
     def _send_md_request(self, symbol: str, req_id: str, use_security_id: bool = False, include_idsource: bool = False) -> bool:
         """Build and send MarketDataRequest using 55 or 48 identification.

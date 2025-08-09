@@ -43,7 +43,7 @@ Legend: [P0]=critical, [P1]=high, [P2]=normal, [P3]=nice-to-have
 ### Section C — Order Lifecycle & Risk
 - [ ] [P0] ORD-001: NOS/Cancel/Replace completeness
   - [x] Replace (35=G) support with validations
-  - [ ] TIF variants; price/qty checks vs venue constraints
+  - [x] TIF normalization; price/qty alignment to venue constraints
   - Acceptance: Integration tests for New/Cancel/Replace/Reject
 
 - [ ] [P0] ORD-002: Cancel gate + status probe (done; extend tests)

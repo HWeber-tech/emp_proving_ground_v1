@@ -29,6 +29,11 @@ from src.operational.metrics import (
     set_md_staleness,
 )
 from src.operational.persistence import JSONStateStore
+from src.operational.venue_constraints import (
+    align_quantity,
+    align_price,
+    normalize_tif,
+)
 
 # Configure logging
 logging.basicConfig(
@@ -1124,7 +1129,7 @@ class GenuineFIXManager:
                 cl_ord_id=cl_ord_id,
                 symbol=symbol,
                 side=side,
-                order_qty=quantity,
+                order_qty=align_quantity(symbol, quantity),
                 ord_type="1",  # Market order
                 status=OrderStatus.PENDING_NEW
             )
@@ -1152,9 +1157,9 @@ class GenuineFIXManager:
             except Exception:
                 msg.append_pair(55, str(symbol))
             msg.append_pair(54, "1" if side.upper() == "BUY" else "2")  # Side
-            msg.append_pair(38, str(quantity))  # OrderQty
+            msg.append_pair(38, str(order_info.order_qty))  # OrderQty
             msg.append_pair(40, "1")  # OrdType = Market
-            msg.append_pair(59, "0")  # TimeInForce = Day
+            msg.append_pair(59, normalize_tif("0"))  # TimeInForce normalized
             msg.append_pair(60, datetime.utcnow().strftime("%Y%m%d-%H:%M:%S.%f")[:-3])  # TransactTime
             
             # Send message and track
@@ -1505,13 +1510,13 @@ class GenuineFIXManager:
             # Side is required for many venues
             side_val = ord_obj.side if ord_obj.side in ("1", "2") else ("1" if str(ord_obj.side).upper() == "BUY" else "2")
             msg.append_pair(54, side_val)
-            # New price
-            msg.append_pair(44, str(new_price))
+            # New price (aligned to tick)
+            msg.append_pair(44, str(align_price(ord_obj.symbol, float(new_price))))
             # Optional new quantity
             if new_quantity is not None:
-                msg.append_pair(38, str(int(new_quantity)))
+                msg.append_pair(38, str(align_quantity(ord_obj.symbol, float(new_quantity))))
             # TIF and TransactTime
-            msg.append_pair(59, ord_obj.time_in_force or "0")
+            msg.append_pair(59, normalize_tif(ord_obj.time_in_force or "0"))
             msg.append_pair(60, datetime.utcnow().strftime("%Y%m%d-%H:%M:%S.%f")[:-3])
 
             ok = self.trade_connection.send_message_and_track(msg, new_id)

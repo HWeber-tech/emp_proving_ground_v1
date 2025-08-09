@@ -49,19 +49,20 @@ class MockFIXManager:
 
     def start(self) -> bool:
         self._running = True
-        # Emit a tiny market data tick in background
-        def _emit_md():
-            if not self._running:
-                return
-            book = type("Book", (), {})()
-            book.bids = [type("L", (), {"price": 1.1, "size": 1000})()]
-            book.asks = [type("L", (), {"price": 1.1002, "size": 1000})()]
-            for cb in self._md_cbs:
-                try:
-                    cb("EURUSD", book)
-                except Exception:
-                    pass
-        threading.Thread(target=_emit_md, daemon=True).start()
+        # Emit a tiny market data tick in background repeatedly for a short period
+        def _emit_md_loop():
+            t0 = time.time()
+            while self._running and (time.time() - t0) < 2.0:
+                book = type("Book", (), {})()
+                book.bids = [type("L", (), {"price": 1.1, "size": 1000})()]
+                book.asks = [type("L", (), {"price": 1.1002, "size": 1000})()]
+                for cb in self._md_cbs:
+                    try:
+                        cb("EURUSD", book)
+                    except Exception:
+                        pass
+                time.sleep(0.05)
+        threading.Thread(target=_emit_md_loop, daemon=True).start()
         return True
 
     def stop(self) -> None:

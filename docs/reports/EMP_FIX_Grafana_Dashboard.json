@@ -100,6 +100,33 @@
           "expr": "sum by (ref_msg_type) (increase(fix_business_rejects_total[1h]))"
         }
       ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Volatility (sigma_ann)",
+      "gridPos": {"h": 6, "w": 24, "x": 0, "y": 34},
+      "options": {"legend": {"showLegend": true, "placement": "bottom"}},
+      "targets": [
+        {"refId": "A", "expr": "vol_sigma_ann"}
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "RV–GARCH Divergence",
+      "gridPos": {"h": 6, "w": 24, "x": 0, "y": 40},
+      "options": {"legend": {"showLegend": true, "placement": "bottom"}},
+      "targets": [
+        {"refId": "A", "expr": "vol_rv_garch_divergence"}
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Regime Counts (calm/normal/storm)",
+      "gridPos": {"h": 6, "w": 24, "x": 0, "y": 46},
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "orientation": "horizontal"},
+      "targets": [
+        {"refId": "A", "expr": "sum by (regime) (increase(vol_regime_total[1h]))"}
+      ]
     }
   ],
   "refresh": "10s",

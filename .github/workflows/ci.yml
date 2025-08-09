@@ -73,3 +73,33 @@ jobs:
         env:
           PYTHONPATH: ${{ github.workspace }}
         run: pytest --cov=src --cov-report=term --cov-fail-under=70 -q
+
+  backtest:
+    name: Offline Backtest Smoke
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest pandas pyarrow
+      - name: Prepare fixtures
+        run: |
+          mkdir -p data/md_capture data/macro
+          printf '{"symbol":"EURUSD","t":"2025-01-01T00:00:00Z","bids":[[1.1,1000000]],"asks":[[1.1002,1200000]]}\n' > data/md_capture/capture.jsonl
+          printf '{"timestamp":"2025-01-01T00:30:00","event":"CPI","currency":"EUR"}\n' > data/macro/calendar.jsonl
+      - name: Run backtest
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: |
+          python scripts/backtest_report.py --file data/md_capture/capture.jsonl --macro-file data/macro/calendar.jsonl --out-dir reports/backtests
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: backtest-report
+          path: reports/backtests

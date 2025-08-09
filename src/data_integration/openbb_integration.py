@@ -13,7 +13,7 @@ try:
 except Exception:  # pragma: no cover
     obb = None
 
-from src.data_foundation.schemas import MacroEvent
+from src.data_foundation.schemas import MacroEvent, YieldEvent
 
 
 def fetch_calendar(start: str, end: str, importance: Optional[str] = None) -> List[MacroEvent]:
@@ -52,5 +52,26 @@ def _to_float(x) -> Optional[float]:
         return float(x)
     except Exception:
         return None
+
+
+def fetch_yields(curve: str = "UST") -> list[YieldEvent]:
+    """Fetch yield curve points via OpenBB; returns canonical YieldEvent list."""
+    if obb is None:
+        return []
+    events: list[YieldEvent] = []
+    try:
+        df = obb.fixedincome.yield_curve(curve=curve)  # type: ignore[attr-defined]
+        ts = datetime.utcnow()
+        for col in df.columns:
+            try:
+                val = _to_float(df[col].iloc[-1])
+                if val is None:
+                    continue
+                events.append(YieldEvent(timestamp=ts, curve=curve, tenor=str(col), value=val, source="openbb"))
+            except Exception:
+                continue
+    except Exception:
+        return []
+    return events
 
 

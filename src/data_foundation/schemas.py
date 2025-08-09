@@ -53,3 +53,12 @@ class VolSignal(BaseModel):
     quality: float
 
 
+class YieldEvent(BaseModel):
+    """Yield curve point for WHY signals."""
+    timestamp: datetime
+    curve: str = Field(default="UST")
+    tenor: str
+    value: float
+    source: str = Field(default="openbb")
+
+

@@ -19,7 +19,8 @@ Legend: [P0]=critical, [P1]=high, [P2]=normal, [P3]=nice-to-have
   - Acceptance: Alerts/logs on heartbeat delay; metrics exposed
 
 - [ ] [P1] FIX-004: Persistent session + order state
-  - [ ] Write-through cache to disk/Redis for `self.orders` and seq state
+  - [x] Write-through cache to disk for `self.orders` and seq state (JSON store)
+  - [ ] Redis adapter parity (optional)
   - [ ] Crash-safe restart; idempotent replays
   - Acceptance: Kill/restart during active order; state reconciled
 

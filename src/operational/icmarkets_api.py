@@ -28,6 +28,7 @@ from src.operational.metrics import (
     observe_cancel_latency,
     set_md_staleness,
 )
+from src.operational.persistence import JSONStateStore
 
 # Configure logging
 logging.basicConfig(
@@ -644,6 +645,8 @@ class GenuineFIXManager:
             'trade': {'delay': 1.0, 'next': 0.0},
         }
         self._supervisor_thread: Optional[threading.Thread] = None
+        # Persistence store
+        self._store = JSONStateStore()
         
     def _send_md_request(self, symbol: str, req_id: str, use_security_id: bool = False, include_idsource: bool = False) -> bool:
         """Build and send MarketDataRequest using 55 or 48 identification.
@@ -1042,6 +1045,35 @@ class GenuineFIXManager:
             # Create connections with message handler
             self.price_connection = GenuineFIXConnection(self.config, "quote", self._handle_message)
             self.trade_connection = GenuineFIXConnection(self.config, "trade", self._handle_message)
+
+            # Attempt to load previous session state
+            try:
+                s_quote = self._store.load_session_state('quote')
+                s_trade = self._store.load_session_state('trade')
+                if s_quote.get('expected_seq_num'):
+                    self.price_connection.expected_seq_num = int(s_quote['expected_seq_num'])
+                if s_trade.get('expected_seq_num'):
+                    self.trade_connection.expected_seq_num = int(s_trade['expected_seq_num'])
+                # Load orders (best-effort)
+                persisted_orders = self._store.load_orders()
+                # Shallow load: restore map keys to create placeholders
+                for cl_id, data in persisted_orders.items():
+                    if cl_id not in self.orders:
+                        try:
+                            self.orders[cl_id] = OrderInfo(
+                                cl_ord_id=cl_id,
+                                order_id=data.get('order_id'),
+                                symbol=data.get('symbol', ''),
+                                side=data.get('side', ''),
+                                order_qty=float(data.get('order_qty', 0.0) or 0.0),
+                                ord_type=data.get('ord_type', ''),
+                                price=float(data.get('price')) if data.get('price') is not None else None,
+                                time_in_force=data.get('time_in_force', '0'),
+                            )
+                        except Exception:
+                            pass
+            except Exception:
+                pass
             
             # Connect price session
             price_success = self.price_connection.connect()
@@ -1705,6 +1737,22 @@ class GenuineFIXManager:
         except Exception:
             pass
             
+        # Persist state on shutdown (best-effort)
+        try:
+            # Save session expected seq nums
+            if self.price_connection:
+                self._store.save_session_state('quote', {
+                    'expected_seq_num': self.price_connection.expected_seq_num
+                })
+            if self.trade_connection:
+                self._store.save_session_state('trade', {
+                    'expected_seq_num': self.trade_connection.expected_seq_num
+                })
+            # Save orders map
+            self._store.save_orders(self.orders)
+        except Exception:
+            pass
+
         logger.info("✅ Genuine FIX Manager stopped")
 
     def _is_session_connected(self, session: str) -> bool:

@@ -7,6 +7,9 @@ from datetime import datetime
 
 from src.operational.md_capture import MarketDataReplayer
 from src.sensory.dimensions.microstructure import RollingMicrostructure
+from src.sensory.dimensions.why.macro_signal import macro_proximity_signal
+from src.sensory.dimensions.what.volatility_engine import vol_signal
+from src.data_foundation.config.vol_config import load_vol_config
 
 
 def parse_args():
@@ -34,6 +37,15 @@ def main() -> int:
     trades = 0
     peak = 0.0
     max_dd = 0.0
+    # Macro and vol state
+    last_macro_ts = None
+    next_macros = []
+    last_macro_minutes = None
+    next_macro_minutes = None
+    vol_cfg = load_vol_config()
+    daily_returns = []
+    rv_window = []
+    last_mid = None
     csv_fh = None
     if args.csv:
         import os
@@ -52,15 +64,54 @@ def main() -> int:
         micro = feat.get("microprice", 0.0)
         if not mid or not micro:
             return
+        # Update return windows for vol estimation
+        nonlocal last_mid
+        if last_mid:
+            r_ret = (mid - last_mid) / last_mid
+            daily_returns.append(r_ret)
+            rv_window.append(r_ret)
+            if len(rv_window) > max(1, int(60 / max(1, vol_cfg.bar_interval_minutes))):
+                rv_window.pop(0)
+        last_mid = mid
+        # Compute macro proximity and gate trading if inside window
+        mins_since = None
+        mins_to_next = None
+        if last_macro_ts:
+            try:
+                now_ts = datetime.utcnow().timestamp()
+                mins_since = (now_ts - last_macro_ts) / 60.0
+                future = [x for x in next_macros if x >= now_ts]
+                mins_to_next = ((future[0] - now_ts) / 60.0) if future else None
+            except Exception:
+                pass
+        why_sig, why_conf = macro_proximity_signal(mins_since, mins_to_next)
+        macro_avoid = (why_conf <= 0.3)  # avoid trading near macro
+        # Vol regime
+        try:
+            vs = vol_signal(sym, datetime.utcnow().isoformat(), rv_window[-12:] if len(rv_window) >= 12 else rv_window, daily_returns[-500:])
+            regime = vs.regime
+        except Exception:
+            regime = "normal"
         mean_obi = feat.get("mean_obi", 0.0)
         rev = feat.get("mid_reversion", 0.0)
         micro_diff = micro - mid
-        # Rules: combine order-imbalance and microprice divergence, and consider reversion
+        # Regime-based rules
         target = 0
-        if mean_obi > args.obi_thresh and micro_diff > args.micro_diff_thresh:
-            target = 1
-        elif mean_obi < -args.obi_thresh and micro_diff < -args.micro_diff_thresh:
-            target = -1
+        if not macro_avoid:
+            if regime == "calm":
+                # Reversion: fade micro diff if small OBI
+                if abs(micro_diff) > args.micro_diff_thresh and abs(mean_obi) < args.obi_thresh:
+                    target = -1 if micro_diff > 0 else 1
+            elif regime == "storm":
+                # Breakout: follow diff with strong OBI
+                if abs(mean_obi) > args.obi_thresh:
+                    target = 1 if micro_diff > 0 else -1
+            else:
+                # Normal: combined rule from before
+                if mean_obi > args.obi_thresh and micro_diff > args.micro_diff_thresh:
+                    target = 1
+                elif mean_obi < -args.obi_thresh and micro_diff < -args.micro_diff_thresh:
+                    target = -1
         # Reversion override: if strong opposite reversion signal, flatten
         if abs(rev) > args.rev_thresh and target != 0 and ((target == 1 and rev < 0) or (target == -1 and rev > 0)):
             target = 0

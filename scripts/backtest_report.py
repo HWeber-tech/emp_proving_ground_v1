@@ -24,6 +24,7 @@ from src.data_foundation.config.why_config import load_why_config
 from src.data_foundation.config.execution_config import load_execution_config
 from src.trading.execution.execution_model import ExecContext, estimate_slippage_bps, estimate_commission_bps
 from src.data_foundation.config.risk_portfolio_config import load_portfolio_risk_config
+from src.trading.risk.portfolio_caps import apply_aggregate_cap, usd_beta_sign
 
 
 def parse_args():
@@ -62,6 +63,9 @@ def main() -> int:
     max_dd = 0.0
     feats = []
     total_cost = 0.0
+    # Portfolio exposure trackers (toy, single-symbol replay still supported)
+    total_abs_exposure = 0.0
+    total_usd_beta = 0.0
     # Macro tracking
     last_macro_ts = None
     next_macros = []
@@ -189,19 +193,31 @@ def main() -> int:
                 pass
         # Convert composite into tentative exposure [-1,1]
         tentative_exposure = comp
-        # Portfolio caps: per-asset and VaR check
+        # Portfolio caps: per-asset, VaR check, and aggregate caps
         var_ok = True
         try:
             var95 = float(f.get("var95_1d", 0.0) or 0.0)
             var_ok = (var95 <= float(prisk_cfg.var95_cap)) if prisk_cfg else True
         except Exception:
             var_ok = True
-        # Attenuate exposure if exceeding caps
+        # Attenuate exposure if exceeding per-asset cap
         exposure = tentative_exposure
         if prisk_cfg:
             exposure = max(-prisk_cfg.per_asset_cap, min(prisk_cfg.per_asset_cap, exposure))
             if not var_ok:
                 exposure *= 0.5
+            # Aggregate cap (abs exposure sum)
+            desired_abs = abs(exposure)
+            allowed_abs = apply_aggregate_cap(total_abs_exposure, prisk_cfg.aggregate_cap, desired_abs)
+            if allowed_abs < desired_abs - 1e-12:
+                exposure = (exposure / (desired_abs or 1.0)) * allowed_abs
+            # USD beta cap
+            beta = usd_beta_sign(args.symbol, exposure)
+            if abs(total_usd_beta + beta) > prisk_cfg.usd_beta_cap:
+                # scale down to fit cap
+                remaining = max(0.0, prisk_cfg.usd_beta_cap - abs(total_usd_beta))
+                scale = (remaining / (abs(beta) or 1.0)) if beta != 0 else 1.0
+                exposure *= max(0.0, min(1.0, scale))
         f["composite_signal"] = comp
         f["target_exposure"] = exposure
         # Simple paper PnL accounting using mid with regime gate option
@@ -244,6 +260,10 @@ def main() -> int:
             f["pos"] = float(pos)
             f["pnl"] = pnl
             f["cum_cost"] = total_cost
+            # Update portfolio trackers
+            total_abs_exposure = min(prisk_cfg.aggregate_cap if prisk_cfg else 999.0,
+                                     max(0.0, total_abs_exposure - abs(pos) + abs(target)))
+            total_usd_beta = total_usd_beta - usd_beta_sign(args.symbol, pos) + usd_beta_sign(args.symbol, target)
         feats.append(f)
 
     def on_macro_event(e: dict):

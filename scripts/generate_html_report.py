@@ -29,6 +29,10 @@ HTML_TMPL = """
       {rows}
     </tbody>
   </table>
+  <h1>Summary</h1>
+  <ul>
+    <li>Total rows: {rowcount}</li>
+  </ul>
 </body>
 </html>
 """
@@ -52,7 +56,7 @@ def main() -> int:
                 headers = [f"<th>{h}</th>" for h in row]
             else:
                 rows.append("<tr>" + "".join(f"<td>{c}</td>" for c in row) + "</tr>")
-    html = HTML_TMPL.format(headers="".join(headers), rows="\n".join(rows))
+    html = HTML_TMPL.format(headers="".join(headers), rows="\n".join(rows), rowcount=len(rows))
     os.makedirs(os.path.dirname(args.out), exist_ok=True)
     with open(args.out, "w", encoding="utf-8") as fh:
         fh.write(html)

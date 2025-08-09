@@ -10,6 +10,8 @@ from src.data_foundation.replay.multidim_replayer import MultiDimReplayer
 from src.sensory.dimensions.microstructure import RollingMicrostructure
 from src.data_foundation.persist.parquet_writer import write_events_parquet
 from src.sensory.dimensions.why.macro_signal import macro_proximity_signal
+from src.sensory.dimensions.what.volatility_engine import vol_signal
+from src.data_foundation.config.vol_config import load_vol_config
 
 
 def parse_args():
@@ -42,6 +44,11 @@ def main() -> int:
     last_macro_minutes = None
     next_macro_minutes = None
     currencies = {args.symbol[:3], args.symbol[3:6]} if len(args.symbol) >= 6 else set()
+    # Volatility config and state
+    vol_cfg = load_vol_config()
+    daily_returns = []
+    rv_window = []
+    last_mid = None
 
     def on_md_event(e: dict):
         nonlocal pos, pnl, peak, max_dd
@@ -75,6 +82,17 @@ def main() -> int:
         # WHAT microstructure signal (simple heuristic)
         what_sig = 0.0
         what_conf = 0.5
+        mid = f.get("mid", 0.0)
+        micro = f.get("microprice", 0.0)
+        if last_mid and mid:
+            r_ret = (mid - last_mid) / last_mid
+            daily_returns.append(r_ret)
+            rv_window.append(r_ret)
+            # keep ~60m window for 5m bars
+            max_rv_len = max(1, int(60 / max(1, vol_cfg.bar_interval_minutes) * (vol_cfg.bar_interval_minutes / vol_cfg.bar_interval_minutes)))
+            if len(rv_window) > max_rv_len:
+                rv_window.pop(0)
+        last_mid = mid if mid else last_mid
         if mid and micro:
             diff = micro - mid
             what_sig = 1.0 if diff > 0 else -1.0
@@ -82,13 +100,21 @@ def main() -> int:
             what_conf = min(1.0, max(0.1, abs(diff) * 1e5 + abs(f.get("top_imbalance", 0.0))))
         f["what_signal"] = what_sig
         f["what_confidence"] = what_conf
+        # Volatility signal (Tier-0)
+        try:
+            vs = vol_signal(args.symbol, f["timestamp"], rv_window[-12:] if len(rv_window) >= 12 else rv_window, daily_returns[-500:])
+            f["sigma_ann"] = vs.sigma_ann
+            f["regime"] = vs.regime
+            f["sizing_multiplier"] = vs.sizing_multiplier
+        except Exception:
+            f["sigma_ann"] = None
+            f["regime"] = "unknown"
+            f["sizing_multiplier"] = 0.5
         # Composite signal (confidence-weighted)
         total_w = what_conf + why_conf
         comp = (what_sig * what_conf + why_sig * why_conf) / total_w if total_w > 0 else 0.0
         f["composite_signal"] = comp
         # Simple paper PnL accounting using mid
-        mid = f.get("mid", 0.0)
-        micro = f.get("microprice", 0.0)
         if mid and micro:
             # naive rule: if micro > mid → long, else short
             target = 1 if (micro - mid) > 0 else -1
@@ -124,6 +150,12 @@ def main() -> int:
         on_md=on_md_event, on_macro=on_macro_event, limit=args.limit
     )
     os.makedirs(args.out_dir, exist_ok=True)
+    # Aggregate simple stats
+    regimes = {"calm": 0, "normal": 0, "storm": 0}
+    for f in feats:
+        reg = f.get("regime")
+        if reg in regimes:
+            regimes[reg] += 1
     report = {
         "file": args.file,
         "symbol": args.symbol,
@@ -131,11 +163,22 @@ def main() -> int:
         "pnl": pnl,
         "max_dd": max_dd,
         "timestamp": datetime.utcnow().isoformat(),
+        "regimes": regimes,
     }
     with open(os.path.join(args.out_dir, "report.json"), "w", encoding="utf-8") as fh:
         json.dump(report, fh, indent=2)
     if args.parquet and feats:
         write_events_parquet(feats, os.path.join(args.out_dir, "features"), partition=args.symbol)
+    # Write Markdown summary
+    md = []
+    md.append(f"# Backtest Summary\n\n")
+    md.append(f"- **Symbol**: {args.symbol}\n")
+    md.append(f"- **Events**: {emitted}\n")
+    md.append(f"- **PnL**: {pnl:.6f}\n")
+    md.append(f"- **Max DD**: {max_dd:.6f}\n")
+    md.append(f"- **Regimes**: calm={regimes['calm']}, normal={regimes['normal']}, storm={regimes['storm']}\n")
+    with open(os.path.join(args.out_dir, "BACKTEST_SUMMARY.md"), "w", encoding="utf-8") as fh:
+        fh.write("".join(md))
     log.info(json.dumps(report))
     return 0
 

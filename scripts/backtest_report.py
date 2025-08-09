@@ -4,7 +4,13 @@ import argparse
 import json
 import logging
 import os
+import sys
 from datetime import datetime
+
+# Ensure project root on path when executed as a script
+ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir))
+if ROOT not in sys.path:
+    sys.path.insert(0, ROOT)
 
 from src.data_foundation.replay.multidim_replayer import MultiDimReplayer
 from src.sensory.dimensions.microstructure import RollingMicrostructure

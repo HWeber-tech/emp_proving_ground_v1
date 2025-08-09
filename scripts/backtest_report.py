@@ -28,6 +28,7 @@ def parse_args():
     p.add_argument("--symbol", default="EURUSD")
     p.add_argument("--macro-file", default="", help="Optional macro JSONL file to merge")
     p.add_argument("--yields-file", default="", help="Optional yields JSONL file to merge (for slope)")
+    p.add_argument("--force-regime", default="", help="Force regime label for gating tests (e.g., storm)")
     # WHY overrides
     p.add_argument("--why-weight-macro", type=float, default=None, help="Override WHY macro weight")
     p.add_argument("--why-weight-yields", type=float, default=None, help="Override WHY yields weight")
@@ -48,7 +49,7 @@ def main() -> int:
     log = logging.getLogger("backtest")
     r = RollingMicrostructure(window=50)
     ytracker = YieldSlopeTracker()
-    pos = 0
+    pos = 0.0
     pnl = 0.0
     peak = 0.0
     max_dd = 0.0
@@ -153,6 +154,9 @@ def main() -> int:
             f["sigma_ann"] = None
             f["regime"] = "unknown"
             f["sizing_multiplier"] = 0.5
+        # Optional force regime for testing
+        if args.force_regime:
+            f["regime"] = args.force_regime
         # Composite signal (confidence-weighted)
         # WHY composite with weights
         why_w_total = (why_cfg.weight_macro if macro_conf > 0 else 0.0) + (why_cfg.weight_yields if y_conf > 0 else 0.0)
@@ -171,24 +175,26 @@ def main() -> int:
         # Simple paper PnL accounting using mid with regime gate option
         if mid and micro:
             # naive rule: if micro > mid → long, else short
-            target = 1 if (micro - mid) > 0 else -1
+            target = 1.0 if (micro - mid) > 0 else -1.0
             # Apply regime gate: block entries in blocked regime
             try:
                 if vol_cfg.use_regime_gate and f.get("regime") == getattr(vol_cfg, "block_regime", "storm"):
                     if getattr(vol_cfg, "gate_mode", "block") == "attenuate":
                         # reduce exposure instead of blocking: mark as fractional pos in features
-                        f["pos_attenuation"] = float(getattr(vol_cfg, "attenuation_factor", 0.3))
+                        att = float(getattr(vol_cfg, "attenuation_factor", 0.3))
+                        f["pos_attenuation"] = att
+                        target = target * att
                     else:
                         target = 0
             except Exception:
                 pass
-            if target != pos:
+            if abs(target - pos) > 1e-12:
                 pnl += pos * mid
                 pos = target
                 pnl -= pos * mid
                 peak = max(peak, pnl)
                 max_dd = min(max_dd, pnl - peak)
-            f["pos"] = pos
+            f["pos"] = float(pos)
             f["pnl"] = pnl
         feats.append(f)
 

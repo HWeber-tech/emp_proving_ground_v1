@@ -1,0 +1,43 @@
+from __future__ import annotations
+
+from typing import List, Optional
+from pydantic import BaseModel, Field
+from datetime import datetime
+
+
+class MarketDataEvent(BaseModel):
+    """Canonical market data event for WHAT dimension (L1/L2 snapshot)."""
+    symbol: str
+    timestamp: datetime
+    # Best levels
+    bid: float = 0.0
+    ask: float = 0.0
+    # Up to N levels for storage (optional)
+    bids_px: Optional[List[float]] = None
+    bids_sz: Optional[List[float]] = None
+    asks_px: Optional[List[float]] = None
+    asks_sz: Optional[List[float]] = None
+    source: str = Field(default="unknown")
+
+
+class MacroEvent(BaseModel):
+    """Canonical macro/economic event for WHY dimension."""
+    timestamp: datetime
+    calendar: str
+    event: str
+    currency: Optional[str] = None
+    actual: Optional[float] = None
+    forecast: Optional[float] = None
+    previous: Optional[float] = None
+    importance: Optional[str] = None
+    source: str = Field(default="unknown")
+
+
+class SessionEvent(BaseModel):
+    """Session markers for WHEN dimension (e.g., London open/close)."""
+    timestamp: datetime
+    session: str
+    action: str  # open/close
+    source: str = Field(default="derived")
+
+

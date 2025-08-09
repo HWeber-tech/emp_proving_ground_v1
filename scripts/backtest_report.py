@@ -9,6 +9,7 @@ from datetime import datetime
 from src.data_foundation.replay.multidim_replayer import MultiDimReplayer
 from src.sensory.dimensions.microstructure import RollingMicrostructure
 from src.data_foundation.persist.parquet_writer import write_events_parquet
+from src.sensory.dimensions.why.macro_signal import macro_proximity_signal
 
 
 def parse_args():
@@ -38,6 +39,8 @@ def main() -> int:
     # Macro tracking
     last_macro_ts = None
     next_macros = []
+    last_macro_minutes = None
+    next_macro_minutes = None
     currencies = {args.symbol[:3], args.symbol[3:6]} if len(args.symbol) >= 6 else set()
 
     def on_md_event(e: dict):
@@ -52,12 +55,23 @@ def main() -> int:
         if last_macro_ts:
             try:
                 md_ts = datetime.fromisoformat(f["timestamp"]).timestamp()
-                f["mins_since_macro"] = (md_ts - last_macro_ts) / 60.0
+                last_macro_minutes = (md_ts - last_macro_ts) / 60.0
+                f["mins_since_macro"] = last_macro_minutes
+                # minutes to next
+                upcoming = [x for x in next_macros if x >= md_ts]
+                next_macro_minutes = ((upcoming[0] - md_ts) / 60.0) if upcoming else None
+                f["mins_to_next_macro"] = next_macro_minutes
             except Exception:
                 f["mins_since_macro"] = None
+                f["mins_to_next_macro"] = None
         else:
             f["mins_since_macro"] = None
+            f["mins_to_next_macro"] = None
         f["next_macro_count"] = len(next_macros)
+        # WHY macro proximity signal
+        why_sig, why_conf = macro_proximity_signal(last_macro_minutes, next_macro_minutes)
+        f["why_macro_signal"] = why_sig
+        f["why_macro_confidence"] = why_conf
         # Simple paper PnL accounting using mid
         mid = f.get("mid", 0.0)
         micro = f.get("microprice", 0.0)

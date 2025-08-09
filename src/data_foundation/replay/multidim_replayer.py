@@ -22,13 +22,15 @@ def _parse_jsonl(path: str):
 
 
 class MultiDimReplayer:
-    def __init__(self, md_path: Optional[str] = None, macro_path: Optional[str] = None):
+    def __init__(self, md_path: Optional[str] = None, macro_path: Optional[str] = None, yields_path: Optional[str] = None):
         self.md_path = md_path
         self.macro_path = macro_path
+        self.yields_path = yields_path
 
     def replay(self,
                on_md: Optional[Callable[[dict], None]] = None,
                on_macro: Optional[Callable[[dict], None]] = None,
+               on_yield: Optional[Callable[[dict], None]] = None,
                limit: Optional[int] = None) -> int:
         """Simple merge by timestamp ISO; no sleeping to keep offline fast."""
         events = []
@@ -39,6 +41,10 @@ class MultiDimReplayer:
         if self.macro_path:
             for e in _parse_jsonl(self.macro_path):
                 e["_kind"] = "macro"
+                events.append(e)
+        if self.yields_path:
+            for e in _parse_jsonl(self.yields_path):
+                e["_kind"] = "yield"
                 events.append(e)
         def ts(e):
             try:
@@ -55,6 +61,8 @@ class MultiDimReplayer:
                 emitted += 1
             elif e.get("_kind") == "macro" and on_macro:
                 on_macro(e)
+            elif e.get("_kind") == "yield" and on_yield:
+                on_yield(e)
         return emitted
 
 

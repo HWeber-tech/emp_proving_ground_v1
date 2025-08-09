@@ -12,6 +12,7 @@ from src.data_foundation.persist.parquet_writer import write_events_parquet
 from src.sensory.dimensions.why.macro_signal import macro_proximity_signal
 from src.sensory.dimensions.what.volatility_engine import vol_signal
 from src.data_foundation.config.vol_config import load_vol_config
+from src.sensory.dimensions.why.yield_signal import YieldSlopeTracker
 
 
 def parse_args():
@@ -19,6 +20,7 @@ def parse_args():
     p.add_argument("--file", required=True)
     p.add_argument("--symbol", default="EURUSD")
     p.add_argument("--macro-file", default="", help="Optional macro JSONL file to merge")
+    p.add_argument("--yields-file", default="", help="Optional yields JSONL file to merge (for slope)")
     p.add_argument("--speed", type=float, default=100.0)
     p.add_argument("--limit", type=int, default=5000)
     p.add_argument("--out-dir", default="reports/backtests")
@@ -33,6 +35,7 @@ def main() -> int:
                         format="%(asctime)s %(levelname)s %(message)s")
     log = logging.getLogger("backtest")
     r = RollingMicrostructure(window=50)
+    ytracker = YieldSlopeTracker()
     pos = 0
     pnl = 0.0
     peak = 0.0
@@ -79,6 +82,11 @@ def main() -> int:
         why_sig, why_conf = macro_proximity_signal(last_macro_minutes, next_macro_minutes)
         f["why_macro_signal"] = why_sig
         f["why_macro_confidence"] = why_conf
+        # WHY yield-curve slope (2s10s) signal
+        y_sig, y_conf = ytracker.signal()
+        f["why_yield_slope"] = ytracker.slope()
+        f["why_yield_signal"] = y_sig
+        f["why_yield_confidence"] = y_conf
         # WHAT microstructure signal (simple heuristic)
         what_sig = 0.0
         what_conf = 0.5
@@ -111,8 +119,9 @@ def main() -> int:
             f["regime"] = "unknown"
             f["sizing_multiplier"] = 0.5
         # Composite signal (confidence-weighted)
-        total_w = what_conf + why_conf
-        comp = (what_sig * what_conf + why_sig * why_conf) / total_w if total_w > 0 else 0.0
+        total_w = what_conf + why_conf + y_conf
+        comp_num = (what_sig * what_conf) + (why_sig * why_conf) + (y_sig * y_conf)
+        comp = (comp_num / total_w) if total_w > 0 else 0.0
         f["composite_signal"] = comp
         # Simple paper PnL accounting using mid
         if mid and micro:
@@ -146,8 +155,19 @@ def main() -> int:
         except Exception:
             return
 
-    emitted = MultiDimReplayer(md_path=args.file, macro_path=args.macro_file or None).replay(
-        on_md=on_md_event, on_macro=on_macro_event, limit=args.limit
+    def on_yield_event(e: dict):
+        tenor = str(e.get("tenor") or "").upper()
+        val = e.get("value")
+        if not tenor or val is None:
+            return
+        try:
+            ytracker.update(tenor, float(val))
+        except Exception:
+            return
+
+    ypath = args.yields_file or None
+    emitted = MultiDimReplayer(md_path=args.file, macro_path=args.macro_file or None, yields_path=ypath).replay(
+        on_md=on_md_event, on_macro=on_macro_event, on_yield=on_yield_event, limit=args.limit
     )
     os.makedirs(args.out_dir, exist_ok=True)
     # Aggregate simple stats

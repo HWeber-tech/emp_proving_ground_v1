@@ -258,6 +258,13 @@ def main() -> int:
     md.append(f"- **PnL**: {pnl:.6f}\n")
     md.append(f"- **Max DD**: {max_dd:.6f}\n")
     md.append(f"- **Regimes**: calm={regimes['calm']}, normal={regimes['normal']}, storm={regimes['storm']}\n")
+    # Attenuation summary
+    if feats:
+        atten_vals = [f.get("pos_attenuation") for f in feats if f.get("pos_attenuation") is not None]
+        if atten_vals:
+            atten_pct = 100.0 * len(atten_vals) / len(feats)
+            atten_avg = sum(atten_vals) / len(atten_vals)
+            md.append(f"- **Attenuated samples**: {atten_pct:.2f}% (avg factor {atten_avg:.3f})\n")
     # WHY feature summary
     if feats:
         def mean_key(k: str):

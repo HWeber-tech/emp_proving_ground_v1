@@ -47,11 +47,21 @@ class _MockTradeConnection:
             threading.Thread(target=_emit_cancel, daemon=True).start()
             return True
 
-        # Emit a New then a Fill execution on background threads
+        # Emit a New, Partial, then Fill execution on background threads
         def _emit_new():
             info = type("OrderInfo", (), {})()
             info.cl_ord_id = str(getattr(msg, "cl_ord_id", "TEST"))
             info.executions = [{"exec_type": "0"}]  # New
+            for cb in self._order_cbs:
+                try:
+                    cb(info)
+                except Exception:
+                    pass
+        def _emit_partial():
+            time.sleep(0.05)
+            info = type("OrderInfo", (), {})()
+            info.cl_ord_id = str(getattr(msg, "cl_ord_id", "TEST"))
+            info.executions = [{"exec_type": "1"}]  # Partial Fill
             for cb in self._order_cbs:
                 try:
                     cb(info)
@@ -68,6 +78,7 @@ class _MockTradeConnection:
                 except Exception:
                     pass
         threading.Thread(target=_emit_new, daemon=True).start()
+        threading.Thread(target=_emit_partial, daemon=True).start()
         threading.Thread(target=_emit_fill, daemon=True).start()
         return True
 

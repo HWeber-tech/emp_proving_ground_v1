@@ -51,6 +51,12 @@ def test_fix_reject_and_cancel():
     assert initiator.send_message(Cancel())
     can_msgs = loop.run_until_complete(_drain(trade_q, timeout=0.5))
     assert any(m.get(35) == b"8" and m.get(150) == b"4" for m in can_msgs)
+    # Partial should also appear due to mock
+    class Normal:
+        cl_ord_id = "N1"
+    assert initiator.send_message(Normal())
+    norm_msgs = loop.run_until_complete(_drain(trade_q, timeout=0.5))
+    assert any(m.get(35) == b"8" and m.get(150) == b"1" for m in norm_msgs)
     loop.close()
 
 

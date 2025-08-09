@@ -6,7 +6,7 @@ Legend: [P0]=critical, [P1]=high, [P2]=normal, [P3]=nice-to-have
 - [ ] [P0] FIX-001: Reconnect & session lifecycle
   - [x] Reconnect on disconnect; exponential backoff
   - [x] Clean shutdown without socket errors
-  - [ ] Burn-in test: 100 cycles w/o leaked threads or 10038 errors
+  - [x] Burn-in script `scripts/fix_burn_in.py`; target: 100 cycles w/o leaked threads or 10038 errors
 
 - [ ] [P0] FIX-002: Sequence number recovery
   - [ ] Implement ResendRequest (35=2) handling and GapFill (35=4)

@@ -443,12 +443,12 @@ class GenuineFIXConnection:
                     try:
                         parsed = self._parse_complete_message(message_data)
                         if parsed:
-                    # Metrics: count by type early
-                    try:
-                        mt = parsed.get('35', '??')
-                        inc_message(self.session_type, mt)
-                    except Exception:
-                        pass
+                            # Metrics: count by type early
+                            try:
+                                mt = parsed.get('35', '??')
+                                inc_message(self.session_type, mt)
+                            except Exception:
+                                pass
                             # Session-level sequence handling
                             try:
                                 msg_type = parsed.get('35')
@@ -1446,6 +1446,88 @@ class GenuineFIXManager:
                 # small pacing between cancels
                 time.sleep(per_order_delay)
         return results
+
+    def replace_order_price(self,
+                            orig_cl_ord_id: str,
+                            new_price: float,
+                            new_cl_ord_id: Optional[str] = None,
+                            new_quantity: Optional[float] = None,
+                            wait_timeout: float = 5.0) -> bool:
+        """Submit OrderCancelReplaceRequest (35=G) to modify price (and optionally qty) for a resting limit order.
+        Requirements (venue typical): order must be working; provide 11(new), 41(orig), 55(numeric), 54, 44(new price), optional 38.
+        """
+        if not self.trade_connection or not self.trade_connection.is_connected():
+            logger.error("❌ Trade connection not available for replace")
+            return False
+
+        try:
+            ord_obj = self.orders.get(orig_cl_ord_id)
+            if not ord_obj:
+                logger.error(f"❌ Unknown order {orig_cl_ord_id} for replace")
+                return False
+            if ord_obj.ord_type != '2':  # Limit
+                logger.error(f"❌ Replace only supported for limit orders (40=2); got {ord_obj.ord_type}")
+                return False
+            if ord_obj.status not in (OrderStatus.NEW, OrderStatus.PARTIALLY_FILLED, OrderStatus.PENDING_REPLACE):
+                logger.error(f"❌ Order {orig_cl_ord_id} not in replaceable state: {ord_obj.status.value}")
+                return False
+
+            new_id = new_cl_ord_id or f"REPL_{orig_cl_ord_id}_{uuid.uuid4().hex[:6]}"
+
+            msg = simplefix.FixMessage()
+            msg.append_pair(8, "FIX.4.4")
+            msg.append_pair(35, "G")  # OrderCancelReplaceRequest
+            msg.append_pair(49, f"demo.icmarkets.{self.config.account_number}")
+            msg.append_pair(56, "cServer")
+            msg.append_pair(57, "TRADE")
+            msg.append_pair(50, "TRADE")
+            msg.append_pair(11, new_id)
+            msg.append_pair(41, orig_cl_ord_id)
+            if ord_obj.order_id:
+                msg.append_pair(37, ord_obj.order_id)
+            # Symbol mapping to numeric
+            try:
+                from src.operational.icmarkets_config import get_symbol_id
+                _sym = str(ord_obj.symbol)
+                if not _sym.isdigit():
+                    _id = get_symbol_id(_sym)
+                    if _id is not None:
+                        _sym = str(_id)
+                        logger.info(f"Mapped symbol {ord_obj.symbol} -> {_sym} for FIX tag 55 (Replace)")
+                msg.append_pair(55, _sym)
+            except Exception:
+                msg.append_pair(55, str(ord_obj.symbol))
+            # Side is required for many venues
+            side_val = ord_obj.side if ord_obj.side in ("1", "2") else ("1" if str(ord_obj.side).upper() == "BUY" else "2")
+            msg.append_pair(54, side_val)
+            # New price
+            msg.append_pair(44, str(new_price))
+            # Optional new quantity
+            if new_quantity is not None:
+                msg.append_pair(38, str(int(new_quantity)))
+            # TIF and TransactTime
+            msg.append_pair(59, ord_obj.time_in_force or "0")
+            msg.append_pair(60, datetime.utcnow().strftime("%Y%m%d-%H:%M:%S.%f")[:-3])
+
+            ok = self.trade_connection.send_message_and_track(msg, new_id)
+            if not ok:
+                logger.error(f"❌ Failed to send replace for {orig_cl_ord_id}")
+                return False
+
+            logger.info(f"📤 Replace request sent for {orig_cl_ord_id} -> {new_id}; waiting for confirmation")
+            t0 = time.time()
+            while time.time() - t0 < wait_timeout:
+                o = self.orders.get(orig_cl_ord_id) or self.orders.get(new_id)
+                if o and o.status in (OrderStatus.REPLACED, OrderStatus.PENDING_REPLACE, OrderStatus.NEW):
+                    # Consider success when we observe any update that indicates acceptance path
+                    return True
+                time.sleep(0.1)
+            logger.error(f"⏰ Timeout waiting for replace confirmation for {orig_cl_ord_id}")
+            return False
+
+        except Exception as e:
+            logger.error(f"Error during replace for {orig_cl_ord_id}: {e}")
+            return False
 
     def _handle_order_cancel_reject(self, message: Dict[str, str]):
         """Handle OrderCancelReject messages."""

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Optional
 import os
 
@@ -26,8 +26,8 @@ class FeeModel:
 
 @dataclass
 class ExecutionConfig:
-    slippage: SlippageModel = SlippageModel()
-    fees: FeeModel = FeeModel()
+    slippage: SlippageModel = field(default_factory=SlippageModel)
+    fees: FeeModel = field(default_factory=FeeModel)
 
 
 def load_execution_config(path: Optional[str] = None) -> ExecutionConfig:

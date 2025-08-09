@@ -72,6 +72,20 @@ def main() -> int:
         why_sig, why_conf = macro_proximity_signal(last_macro_minutes, next_macro_minutes)
         f["why_macro_signal"] = why_sig
         f["why_macro_confidence"] = why_conf
+        # WHAT microstructure signal (simple heuristic)
+        what_sig = 0.0
+        what_conf = 0.5
+        if mid and micro:
+            diff = micro - mid
+            what_sig = 1.0 if diff > 0 else -1.0
+            # confidence scales with absolute diff and imbalance
+            what_conf = min(1.0, max(0.1, abs(diff) * 1e5 + abs(f.get("top_imbalance", 0.0))))
+        f["what_signal"] = what_sig
+        f["what_confidence"] = what_conf
+        # Composite signal (confidence-weighted)
+        total_w = what_conf + why_conf
+        comp = (what_sig * what_conf + why_sig * why_conf) / total_w if total_w > 0 else 0.0
+        f["composite_signal"] = comp
         # Simple paper PnL accounting using mid
         mid = f.get("mid", 0.0)
         micro = f.get("microprice", 0.0)

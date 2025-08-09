@@ -928,8 +928,17 @@ class GenuineFIXManager:
                 logger.info(f"✅ Order {cl_ord_id} accepted by broker (OrderID: {order_id})")
             elif exec_type == ExecType.FILL.value:
                 logger.info(f"✅ Order {cl_ord_id} filled: {order.last_qty} @ {order.last_px}")
+                # Emit simple event hook for portfolio update
+                try:
+                    self._emit_fill_event(order)
+                except Exception:
+                    pass
             elif exec_type == ExecType.PARTIAL_FILL.value:
                 logger.info(f"✅ Order {cl_ord_id} partially filled: {order.last_qty} @ {order.last_px} (Total: {order.cum_qty})")
+                try:
+                    self._emit_fill_event(order)
+                except Exception:
+                    pass
             elif exec_type == ExecType.CANCELED.value:
                 logger.info(f"✅ Order {cl_ord_id} canceled")
             elif exec_type == ExecType.REJECTED.value:
@@ -944,6 +953,25 @@ class GenuineFIXManager:
                     
         except Exception as e:
             logger.error(f"Error handling ExecutionReport: {e}")
+
+    def _emit_fill_event(self, order: OrderInfo) -> None:
+        """Hook to integrate with portfolio/OMS. Currently logs JSON for downstream ingestion."""
+        try:
+            event = {
+                "type": "execution_fill",
+                "cl_ord_id": order.cl_ord_id,
+                "order_id": order.order_id,
+                "symbol": order.symbol,
+                "side": order.side,
+                "last_qty": order.last_qty,
+                "last_px": order.last_px,
+                "cum_qty": order.cum_qty,
+                "avg_px": order.avg_px,
+                "timestamp": datetime.utcnow().isoformat(),
+            }
+            logger.info(f"ER_EVENT {json.dumps(event)}")
+        except Exception:
+            pass
             
     def _handle_market_data_snapshot(self, message: Dict[str, str]):
         """Handle Market Data Snapshot messages - parse repeating groups and populate book."""

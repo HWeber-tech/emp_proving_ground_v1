@@ -87,7 +87,8 @@ Legend: [P0]=critical, [P1]=high, [P2]=normal, [P3]=nice-to-have
   - [ ] Define inputs/outputs; guardrails (drawdown caps)
 
 - [ ] [P1] OMS-001: Post-trade audits & PnL attribution
-  - [ ] Portfolio update on ER; broker parity checks
+  - [x] ER fill event hook for portfolio updates
+  - [ ] Portfolio update with PnL attribution; broker parity checks
 
 ### Section G — Backtesting, Simulation, Validation
 - [ ] [P1] SIM-001: Backtest harness w/ replay

@@ -2,6 +2,7 @@
 
 import argparse
 import json
+import csv
 import logging
 import os
 import sys
@@ -231,6 +232,26 @@ def main() -> int:
         on_md=on_md_event, on_macro=on_macro_event, on_yield=on_yield_event, limit=args.limit
     )
     os.makedirs(args.out_dir, exist_ok=True)
+    # Write WHY/feature artifacts (CSV + JSONL)
+    if feats:
+        csv_path = os.path.join(args.out_dir, "why_features.csv")
+        jsonl_path = os.path.join(args.out_dir, "why_features.jsonl")
+        fields = [
+            "timestamp", "symbol", "composite_signal", "why_composite_signal", "what_signal",
+            "why_macro_signal", "why_yield_signal", "why_yield_slope_2s10s", "why_yield_slope_5s30s",
+            "why_yield_curvature_2_10_30", "why_yield_parallel_shift", "regime", "pos_attenuation"
+        ]
+        try:
+            with open(csv_path, "w", newline="", encoding="utf-8") as fh:
+                w = csv.DictWriter(fh, fieldnames=fields, extrasaction="ignore")
+                w.writeheader()
+                for f in feats:
+                    w.writerow(f)
+            with open(jsonl_path, "w", encoding="utf-8") as fh:
+                for f in feats:
+                    fh.write(json.dumps({k: f.get(k) for k in fields}) + "\n")
+        except Exception:
+            pass
     # Aggregate simple stats
     regimes = {"calm": 0, "normal": 0, "storm": 0}
     for f in feats:

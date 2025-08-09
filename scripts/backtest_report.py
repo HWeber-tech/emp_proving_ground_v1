@@ -123,10 +123,16 @@ def main() -> int:
         comp_num = (what_sig * what_conf) + (why_sig * why_conf) + (y_sig * y_conf)
         comp = (comp_num / total_w) if total_w > 0 else 0.0
         f["composite_signal"] = comp
-        # Simple paper PnL accounting using mid
+        # Simple paper PnL accounting using mid with regime gate option
         if mid and micro:
             # naive rule: if micro > mid → long, else short
             target = 1 if (micro - mid) > 0 else -1
+            # Apply regime gate: block entries in blocked regime
+            try:
+                if vol_cfg.use_regime_gate and f.get("regime") == getattr(vol_cfg, "block_regime", "storm"):
+                    target = 0
+            except Exception:
+                pass
             if target != pos:
                 pnl += pos * mid
                 pos = target

@@ -34,6 +34,8 @@ def load_vol_config(path: Optional[str] = None) -> VolConfig:
             k_stop=float(ve.get("sizing", {}).get("k_stop", 1.3)),
             var_confidence=float(ve.get("var", {}).get("confidence", 0.95)),
             ewma_lambda=float(ve.get("fallbacks", {}).get("ewma_lambda", 0.94)),
+            use_regime_gate=bool(ve.get("regime_gate", {}).get("enabled", False)),
+            block_regime=str(ve.get("regime_gate", {}).get("block", "storm")),
         )
     except Exception:
         return VolConfig()

@@ -1,0 +1,19 @@
+vol_engine:
+  bar_interval: "5m"
+  daily_fit_lookback: "500d"
+  rv_window: "60m"
+  blend_weight: 0.7
+  regime_thresholds:
+    calm: 0.08
+    storm: 0.18
+  sizing:
+    risk_budget_per_trade: 0.003
+    k_stop: 1.3
+  var:
+    confidence: 0.95
+  fallbacks:
+    ewma_lambda: 0.94
+  regime_gate:
+    enabled: true
+    block: "storm"
+

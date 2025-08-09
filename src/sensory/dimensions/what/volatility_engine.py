@@ -20,6 +20,9 @@ class VolConfig:
     k_stop: float = 1.3
     var_confidence: float = 0.95
     ewma_lambda: float = 0.94
+    # Regime gating
+    use_regime_gate: bool = False
+    block_regime: str = "storm"
 
 
 class Garch11:

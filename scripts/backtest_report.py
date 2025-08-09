@@ -23,6 +23,7 @@ from src.sensory.dimensions.why.yield_signal import YieldSlopeTracker
 from src.data_foundation.config.why_config import load_why_config
 from src.data_foundation.config.execution_config import load_execution_config
 from src.trading.execution.execution_model import ExecContext, estimate_slippage_bps, estimate_commission_bps
+from src.data_foundation.config.risk_portfolio_config import load_portfolio_risk_config
 
 
 def parse_args():
@@ -71,6 +72,7 @@ def main() -> int:
     vol_cfg = load_vol_config()
     why_cfg = load_why_config()
     exec_cfg = load_execution_config()
+    prisk_cfg = load_portfolio_risk_config()
     # CLI overrides for WHY config
     if args.why_weight_macro is not None:
         try:
@@ -185,11 +187,28 @@ def main() -> int:
                 comp *= float(getattr(vol_cfg, "brake_scale", 0.7))
             except Exception:
                 pass
+        # Convert composite into tentative exposure [-1,1]
+        tentative_exposure = comp
+        # Portfolio caps: per-asset and VaR check
+        var_ok = True
+        try:
+            var95 = float(f.get("var95_1d", 0.0) or 0.0)
+            var_ok = (var95 <= float(prisk_cfg.var95_cap)) if prisk_cfg else True
+        except Exception:
+            var_ok = True
+        # Attenuate exposure if exceeding caps
+        exposure = tentative_exposure
+        if prisk_cfg:
+            exposure = max(-prisk_cfg.per_asset_cap, min(prisk_cfg.per_asset_cap, exposure))
+            if not var_ok:
+                exposure *= 0.5
         f["composite_signal"] = comp
+        f["target_exposure"] = exposure
         # Simple paper PnL accounting using mid with regime gate option
         if mid and micro:
-            # naive rule: if micro > mid → long, else short
-            target = 1.0 if (micro - mid) > 0 else -1.0
+            # naive rule adjusted by exposure sign
+            base_dir = 1.0 if (micro - mid) > 0 else -1.0
+            target = base_dir * (abs(f.get("target_exposure", comp)) or 1.0)
             # Apply regime gate: block entries in blocked regime
             try:
                 if vol_cfg.use_regime_gate and f.get("regime") == getattr(vol_cfg, "block_regime", "storm"):

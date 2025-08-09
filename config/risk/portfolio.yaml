@@ -1,0 +1,6 @@
+portfolio_risk:
+  per_asset_cap: 1.0
+  aggregate_cap: 2.0
+  usd_beta_cap: 1.5
+  var95_cap: 0.02
+

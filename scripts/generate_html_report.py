@@ -33,6 +33,7 @@ HTML_TMPL = """
   <ul>
     <li>Total rows: {rowcount}</li>
   </ul>
+  <p>Generated at {now}</p>
 </body>
 </html>
 """
@@ -56,7 +57,8 @@ def main() -> int:
                 headers = [f"<th>{h}</th>" for h in row]
             else:
                 rows.append("<tr>" + "".join(f"<td>{c}</td>" for c in row) + "</tr>")
-    html = HTML_TMPL.format(headers="".join(headers), rows="\n".join(rows), rowcount=len(rows))
+    from datetime import datetime
+    html = HTML_TMPL.format(headers="".join(headers), rows="\n".join(rows), rowcount=len(rows), now=datetime.utcnow().isoformat())
     os.makedirs(os.path.dirname(args.out), exist_ok=True)
     with open(args.out, "w", encoding="utf-8") as fh:
         fh.write(html)

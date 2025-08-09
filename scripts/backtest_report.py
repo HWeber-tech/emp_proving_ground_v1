@@ -25,6 +25,7 @@ from src.data_foundation.config.execution_config import load_execution_config
 from src.trading.execution.execution_model import ExecContext, estimate_slippage_bps, estimate_commission_bps
 from src.data_foundation.config.risk_portfolio_config import load_portfolio_risk_config
 from src.trading.risk.portfolio_caps import apply_aggregate_cap, usd_beta_sign
+from src.data_foundation.config.sizing_config import load_sizing_config
 
 
 def parse_args():
@@ -77,6 +78,7 @@ def main() -> int:
     why_cfg = load_why_config()
     exec_cfg = load_execution_config()
     prisk_cfg = load_portfolio_risk_config()
+    size_cfg = load_sizing_config()
     # CLI overrides for WHY config
     if args.why_weight_macro is not None:
         try:
@@ -193,6 +195,25 @@ def main() -> int:
                 pass
         # Convert composite into tentative exposure [-1,1]
         tentative_exposure = comp
+        # Regime/confidence-aware sizing curve
+        try:
+            sigma = float(f.get("sigma_ann", 0.0) or 0.0)
+            # scale with confidence of WHAT and WHY
+            conf_scale = max(0.1, min(1.0, (what_conf + macro_conf + y_conf) / 3.0))
+            # sigma scaling
+            if sigma <= size_cfg.sigma_floor:
+                sigma_scale = 1.0
+            elif sigma >= size_cfg.sigma_ceiling:
+                sigma_scale = 0.4
+            else:
+                # linear between floor and ceiling
+                rng = size_cfg.sigma_ceiling - size_cfg.sigma_floor
+                sigma_scale = max(0.4, 1.0 - (sigma - size_cfg.sigma_floor) / (rng or 1.0) * 0.6)
+            reg = f.get("regime", "normal")
+            reg_mult = size_cfg.regime_multipliers.get(str(reg), size_cfg.regime_multipliers.get("normal", 0.8)) if size_cfg.regime_multipliers else 0.8
+            tentative_exposure = comp * size_cfg.k_exposure * conf_scale * sigma_scale * reg_mult
+        except Exception:
+            pass
         # Portfolio caps: per-asset, VaR check, and aggregate caps
         var_ok = True
         try:

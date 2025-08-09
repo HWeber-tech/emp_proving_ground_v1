@@ -1,0 +1,9 @@
+sizing:
+  k_exposure: 0.8
+  sigma_floor: 0.05
+  sigma_ceiling: 0.30
+  regime_multipliers:
+    calm: 1.0
+    normal: 0.8
+    storm: 0.5
+

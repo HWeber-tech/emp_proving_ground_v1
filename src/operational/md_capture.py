@@ -52,7 +52,8 @@ class MarketDataReplayer:
         self.in_path = in_path
         self.speed = max(0.0, speed)
 
-    def replay(self, callback: Callable[[str, Dict[str, Any]], None], max_events: Optional[int] = None) -> int:
+    def replay(self, callback: Callable[[str, Dict[str, Any]], None], max_events: Optional[int] = None,
+               feature_writer: Optional[Callable[[str, Dict[str, Any]], None]] = None) -> int:
         """Replay captured MD to callback(symbol, order_book_like_dict).
 
         Returns number of events emitted.
@@ -81,6 +82,11 @@ class MarketDataReplayer:
                         "last_update": rec.get("t"),
                     }
                     callback(symbol, ob)
+                    if feature_writer:
+                        try:
+                            feature_writer(symbol, ob)
+                        except Exception:
+                            pass
                     emitted += 1
                     if max_events and emitted >= max_events:
                         break

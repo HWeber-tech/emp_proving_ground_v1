@@ -81,6 +81,17 @@ class PortfolioTracker:
         except Exception as e:
             logger.warning(f"Failed to persist portfolio: {e}")
 
+    def daily_rollup(self) -> Dict[str, float]:
+        """Return simple daily rollup metrics for offline reports."""
+        gross = sum(abs(p.quantity) for p in self.positions.values())
+        symbols = len(self.positions)
+        return {
+            "cash": float(self.cash),
+            "symbols": float(symbols),
+            "gross_exposure": float(gross),
+            "timestamp": 0.0,
+        }
+
     def attach_to_manager(self, fix_manager) -> None:
         # Subscribe to order updates
         def _on_order(order_info):

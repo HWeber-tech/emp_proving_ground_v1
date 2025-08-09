@@ -41,6 +41,32 @@ class ParityChecker:
         logger.info(f"Order parity mismatches: {mismatches}")
         return mismatches
 
+    def compare_order_fields(self, local_order: Any, broker_order: Dict[str, Any]) -> Dict[str, Any]:
+        """Return a dict of mismatched fields between local OrderInfo and broker snapshot.
+        Compares: status, leaves_qty, cum_qty, avg_px, order_id.
+        """
+        diffs: Dict[str, Any] = {}
+        try:
+            def norm(v):
+                return float(v) if isinstance(v, (int, float, str)) and str(v).replace('.', '', 1).isdigit() else v
+            fields = (
+                ("status", getattr(local_order.status, "value", local_order.status), broker_order.get("status")),
+                ("leaves_qty", getattr(local_order, "leaves_qty", None), broker_order.get("leaves_qty")),
+                ("cum_qty", getattr(local_order, "cum_qty", None), broker_order.get("cum_qty")),
+                ("avg_px", getattr(local_order, "avg_px", None), broker_order.get("avg_px")),
+                ("order_id", getattr(local_order, "order_id", None), broker_order.get("order_id")),
+            )
+            for name, lv, bv in fields:
+                lvv = norm(lv)
+                bvv = norm(bv)
+                if lvv is None and bvv is None:
+                    continue
+                if str(lvv) != str(bvv):
+                    diffs[name] = {"local": lv, "broker": bv}
+        except Exception:
+            diffs["error"] = "compare_failed"
+        return diffs
+
     def check_positions(self, broker_positions: Dict[str, Any]) -> int:
         """broker_positions: map symbol -> quantity/avg_price."""
         mismatches = 0

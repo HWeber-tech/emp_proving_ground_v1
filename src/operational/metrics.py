@@ -80,6 +80,16 @@ fix_md_staleness_seconds = Gauge(
     ["symbol"],
 )
 
+fix_parity_mismatched_orders = Gauge(
+    "fix_parity_mismatched_orders",
+    "Count of orders with suspected parity mismatch",
+)
+
+fix_parity_mismatched_positions = Gauge(
+    "fix_parity_mismatched_positions",
+    "Count of symbols with suspected position parity mismatch",
+)
+
 
 def start_metrics_server(port: Optional[int] = None) -> None:
     global _started

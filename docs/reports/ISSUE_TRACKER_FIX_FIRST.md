@@ -89,7 +89,7 @@ Legend: [P0]=critical, [P1]=high, [P2]=normal, [P3]=nice-to-have
 - [ ] [P1] OMS-001: Post-trade audits & PnL attribution
   - [x] ER fill event hook for portfolio updates
   - [x] Portfolio tracker consuming order callbacks; basic PnL
-  - [ ] Broker parity checks
+  - [x] Broker parity checks (framework + metrics)
 
 ### Section G — Backtesting, Simulation, Validation
 - [ ] [P1] SIM-001: Backtest harness w/ replay

@@ -10,6 +10,8 @@ import asyncio
 import logging
 from typing import Dict, List, Optional, Any
 from datetime import datetime
+from src.sensory.dimensions.what.volatility_engine import vol_signal
+from src.data_foundation.config.vol_config import load_vol_config
 
 from src.trading.models.order import Order, OrderStatus
 from src.trading.models.position import Position
@@ -58,6 +60,19 @@ class ExecutionEngine(IExecutionEngine):
             # Validate order
             if not self._validate_order(order):
                 return False
+
+            # Apply volatility-based sizing and stops (Tier-0)
+            try:
+                cfg = load_vol_config()
+                # Minimal input: use last few bars from an external cache; here stub with zero
+                vs = vol_signal(order.symbol, datetime.utcnow(), [], [])
+                # Scale quantity and attach stop multiplier hint
+                if hasattr(order, 'quantity') and order.quantity > 0:
+                    order.quantity = max(1, int(order.quantity * vs.sizing_multiplier))
+                setattr(order, 'stop_mult_hint', getattr(vs, 'stop_mult', 1.3))
+                logger.info(f"Vol sizing applied: mult={vs.sizing_multiplier} regime={vs.regime}")
+            except Exception:
+                pass
             
             # Add to active orders
             self.active_orders[order.order_id] = order

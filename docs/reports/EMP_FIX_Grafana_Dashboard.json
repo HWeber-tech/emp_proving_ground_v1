@@ -1,0 +1,118 @@
+{
+  "annotations": {"list": []},
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "iteration": 1720500000000,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "type": "timeseries",
+      "title": "FIX Messages Rate by Type and Session",
+      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 0},
+      "options": {"legend": {"showLegend": true, "placement": "bottom"}},
+      "fieldConfig": {"defaults": {"unit": "ops"}, "overrides": []},
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (session, msg_type) (rate(fix_messages_total[1m]))"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Session Connectivity",
+      "gridPos": {"h": 6, "w": 12, "x": 0, "y": 8},
+      "options": {"legend": {"showLegend": true, "placement": "bottom"}},
+      "fieldConfig": {"defaults": {"min": 0, "max": 1}, "overrides": []},
+      "targets": [
+        {"refId": "A", "expr": "fix_session_connected{session=\"quote\"}"},
+        {"refId": "B", "expr": "fix_session_connected{session=\"trade\"}"}
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Reconnect Attempts (success/failure)",
+      "gridPos": {"h": 6, "w": 12, "x": 12, "y": 8},
+      "options": {"legend": {"showLegend": true, "placement": "bottom"}},
+      "fieldConfig": {"defaults": {"unit": "ops"}, "overrides": []},
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (session, outcome) (rate(fix_reconnect_attempts_total[5m]))"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Exec Report Latency p50/p95 (s)",
+      "gridPos": {"h": 6, "w": 12, "x": 0, "y": 14},
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "orientation": "horizontal"},
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.50, sum by (le) (rate(fix_exec_report_latency_seconds_bucket[5m])))"
+        },
+        {
+          "refId": "B",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(fix_exec_report_latency_seconds_bucket[5m])))"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Cancel Latency p50/p95 (s)",
+      "gridPos": {"h": 6, "w": 12, "x": 12, "y": 14},
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "orientation": "horizontal"},
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.50, sum by (le) (rate(fix_cancel_latency_seconds_bucket[5m])))"
+        },
+        {
+          "refId": "B",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(fix_cancel_latency_seconds_bucket[5m])))"
+        }
+      ]
+    },
+    {
+      "type": "table",
+      "title": "Market Data Staleness by Symbol (s)",
+      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 20},
+      "options": {"showHeader": true},
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "fix_md_staleness_seconds"
+        }
+      ]
+    },
+    {
+      "type": "bargauge",
+      "title": "Business Rejects by Ref MsgType",
+      "gridPos": {"h": 6, "w": 24, "x": 0, "y": 28},
+      "options": {"displayMode": "basic"},
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (ref_msg_type) (increase(fix_business_rejects_total[1h]))"
+        }
+      ]
+    }
+  ],
+  "refresh": "10s",
+  "schemaVersion": 36,
+  "style": "dark",
+  "tags": ["EMP", "FIX"],
+  "templating": {"list": []},
+  "time": {"from": "now-6h", "to": "now"},
+  "timepicker": {},
+  "timezone": "",
+  "title": "EMP FIX Observability",
+  "uid": "emp-fix-obs",
+  "version": 1
+}
+
+

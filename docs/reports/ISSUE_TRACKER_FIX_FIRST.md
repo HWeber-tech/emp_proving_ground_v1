@@ -65,7 +65,7 @@ Legend: [P0]=critical, [P1]=high, [P2]=normal, [P3]=nice-to-have
   - [x] Histograms: ER latency, cancel latency
   - [x] Gauges: MD staleness, session connectivity
   - [x] HTTP `/metrics` endpoint
-  - [ ] Grafana dashboard JSON committed under docs/reports
+  - [x] Grafana dashboard JSON committed under docs/reports
 
 - [ ] [P2] OBS-003: Health/status endpoints
   - [ ] Internal HTTP with session/queue stats

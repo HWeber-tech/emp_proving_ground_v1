@@ -94,6 +94,7 @@ Legend: [P0]=critical, [P1]=high, [P2]=normal, [P3]=nice-to-have
 
 ### Section G — Backtesting, Simulation, Validation
 - [ ] [P1] SIM-001: Backtest harness w/ replay
+  - [x] MD capture/replay utilities
   - [ ] Deterministic runs from captured MD; CI jobs
 
 - [ ] [P1] VAL-001: Honest validation framework

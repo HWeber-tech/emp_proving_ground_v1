@@ -1,17 +1,8 @@
 """
-Real IC Markets cTrader OpenAPI Trading Interface
-from src.core.market_data import MarketData
-
-This module provides a real implementation of the cTrader OpenAPI
-for live trading with IC Markets.
-
-Features:
-- OAuth 2.0 authentication
-- Real market data subscription
-- Live order placement and execution
-- Real position tracking and P&L calculation
-- WebSocket connection for real-time updates
+Real IC Markets cTrader OpenAPI Trading Interface - disabled in FIX-only build.
 """
+
+raise ImportError("cTrader OpenAPI is disabled. Use FIX connectivity.")
 
 import asyncio
 import json

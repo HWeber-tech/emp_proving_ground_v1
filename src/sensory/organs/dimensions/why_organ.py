@@ -16,6 +16,9 @@ import pandas as pd
 import numpy as np
 
 from src.sensory.core.base import MarketData, DimensionalReading, MarketRegime
+from src.data_foundation.config.why_config import load_why_config
+from src.sensory.dimensions.why.yield_signal import YieldSlopeTracker
+from src.operational.metrics import set_why_signal, set_why_conf, set_why_feature
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +34,11 @@ class WhyEngine:
     def __init__(self, config: Optional[Dict[str, Any]] = None):
         """Initialize the why engine with configuration"""
         self.config = config or {}
+        try:
+            self.why_cfg = load_why_config()
+        except Exception:
+            self.why_cfg = None
+        self._ytracker = YieldSlopeTracker()
         
         # Initialize sub-modules
         try:
@@ -132,9 +140,16 @@ class WhyEngine:
         """
         analysis = self.analyze_market_data(market_data, symbol)
         
-        # Calculate signal strength based on analysis
+        # Calculate signal strength based on analysis and yield tracker if enabled
         signal_strength = self._calculate_signal_strength(analysis)
         confidence = self._calculate_confidence(analysis)
+        try:
+            set_why_signal(symbol, signal_strength)
+            set_why_conf(symbol, confidence)
+            set_why_feature("yields", self.why_cfg.enable_yields if self.why_cfg else True)
+            set_why_feature("macro", self.why_cfg.enable_macro_proximity if self.why_cfg else True)
+        except Exception:
+            pass
         
         return DimensionalReading(
             dimension="WHY",
@@ -333,13 +348,22 @@ class WhyEngine:
             economic_momentum = analysis.get('fundamental_analysis', {}).get('economic_momentum', {}).get('momentum_score', 0.0)
             risk_sentiment = analysis.get('fundamental_analysis', {}).get('risk_sentiment', {}).get('risk_sentiment', 0.0)
             sentiment_score = analysis.get('sentiment_analysis', {}).get('sentiment_score', 0.5)
-            
-            # Calculate weighted signal strength
-            signal_strength = (
-                economic_momentum * 0.4 + 
-                (1 - risk_sentiment) * 0.3 + 
+            # Yield signal
+            y_sig, y_conf = (0.0, 0.0)
+            if self.why_cfg is None or self.why_cfg.enable_yields:
+                # Use tracker last known slope direction as signal proxy
+                y_sig, y_conf = self._ytracker.signal()
+            # Macro proximity is not available in live engine here; keep neutral
+            w_macro = (self.why_cfg.weight_macro if self.why_cfg else 0.4)
+            w_yield = (self.why_cfg.weight_yields if self.why_cfg else 0.6)
+            # Calculate weighted signal strength (macro prox -> neutral 0)
+            base = (
+                economic_momentum * 0.4 +
+                (1 - risk_sentiment) * 0.3 +
                 sentiment_score * 0.3
             )
+            why_weighted = (0.0 * w_macro) + (y_sig * y_conf * w_yield)
+            signal_strength = float(max(-1.0, min(1.0, base * 0.5 + why_weighted)))
             return min(max(signal_strength, -1.0), 1.0)
             
         except Exception as e:

@@ -269,3 +269,43 @@ def set_vol_divergence(symbol: str, divergence: float) -> None:
         pass
 
 
+# WHY metrics
+why_composite_signal = Gauge(
+    "why_composite_signal",
+    "WHY composite signal strength",
+    ["symbol"],
+)
+
+why_confidence = Gauge(
+    "why_confidence",
+    "WHY confidence",
+    ["symbol"],
+)
+
+why_feature_available = Gauge(
+    "why_feature_available",
+    "Availability (1/0) of WHY features (e.g., yields, macro)",
+    ["feature"],
+)
+
+
+def set_why_signal(symbol: str, value: float) -> None:
+    try:
+        why_composite_signal.labels(symbol=symbol).set(float(value))
+    except Exception:
+        pass
+
+
+def set_why_conf(symbol: str, value: float) -> None:
+    try:
+        why_confidence.labels(symbol=symbol).set(max(0.0, min(1.0, float(value))))
+    except Exception:
+        pass
+
+
+def set_why_feature(name: str, available: bool) -> None:
+    try:
+        why_feature_available.labels(feature=str(name)).set(1 if available else 0)
+    except Exception:
+        pass
+

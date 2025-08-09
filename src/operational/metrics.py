@@ -90,6 +90,19 @@ fix_parity_mismatched_positions = Gauge(
     "Count of symbols with suspected position parity mismatch",
 )
 
+fix_md_rejects_total = Counter(
+    "fix_md_rejects_total",
+    "Total Market Data Request rejects",
+    ["reason"],
+)
+
+
+def inc_md_reject(reason: str) -> None:
+    try:
+        fix_md_rejects_total.labels(reason=str(reason or "?")).inc()
+    except Exception:
+        pass
+
 
 def start_metrics_server(port: Optional[int] = None) -> None:
     global _started

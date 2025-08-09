@@ -27,6 +27,7 @@ from src.operational.metrics import (
     observe_exec_latency,
     observe_cancel_latency,
     set_md_staleness,
+    inc_md_reject,
 )
 from src.operational.persistence import JSONStateStore, RedisStateStore
 from src.operational.venue_constraints import (
@@ -586,23 +587,27 @@ class GenuineFIXConnection:
         """Disconnect gracefully."""
         try:
             self.running = False
-            self.authenticated = False
+            # Keep authenticated flag until logout attempt to avoid send errors
             
             if self.ssl_socket:
                 # Send logout message
-                msg = simplefix.FixMessage()
-                msg.append_pair(8, "FIX.4.4")
-                msg.append_pair(35, "5")  # Logout
-                msg.append_pair(49, f"demo.icmarkets.{self.config.account_number}")
-                msg.append_pair(56, "cServer")
-                msg.append_pair(57, self.session_type.upper())
-                msg.append_pair(50, self.session_type.upper())
-                
-                self.send_message_and_track(msg)
+                try:
+                    if self.connected and self.authenticated:
+                        msg = simplefix.FixMessage()
+                        msg.append_pair(8, "FIX.4.4")
+                        msg.append_pair(35, "5")  # Logout
+                        msg.append_pair(49, f"demo.icmarkets.{self.config.account_number}")
+                        msg.append_pair(56, "cServer")
+                        msg.append_pair(57, self.session_type.upper())
+                        msg.append_pair(50, self.session_type.upper())
+                        self.send_message_and_track(msg)
+                except Exception:
+                    pass
                 time.sleep(1)  # Give time for logout to be processed
                 self.ssl_socket.close()
                 
             self.connected = False
+            self.authenticated = False
             try:
                 set_session_connected(self.session_type, False)
             except Exception:
@@ -660,10 +665,8 @@ class GenuineFIXManager:
         except Exception:
             self._store = JSONStateStore()
         
-    def _send_md_request(self, symbol: str, req_id: str, use_security_id: bool = False, include_idsource: bool = False) -> bool:
-        """Build and send MarketDataRequest using 55 or 48 identification.
-        When use_security_id is True, sends 48, and includes 22 only if include_idsource is True.
-        """
+    def _send_md_request(self, symbol: str, req_id: str) -> bool:
+        """Build and send MarketDataRequest standardized for venue: numeric 55, 267/269 present."""
         try:
             msg = simplefix.FixMessage()
             msg.append_pair(8, "FIX.4.4")
@@ -675,37 +678,20 @@ class GenuineFIXManager:
             msg.append_pair(262, req_id)  # MDReqID
             msg.append_pair(263, "1")     # Snapshot + Updates
             msg.append_pair(264, "0")     # Full Book
-            # Related symbol group first (Mode A)
+            # Related symbol group
             msg.append_pair(146, "1")
-            if use_security_id:
-                try:
-                    from src.operational.icmarkets_config import get_symbol_id
-                    _sym = str(symbol)
-                    if not _sym.isdigit():
-                        _id = get_symbol_id(_sym)
-                        if _id is not None:
-                            _sym = str(_id)
-                            logger.info(f"Mapped symbol {symbol} -> {_sym} for FIX tag 48 (MD)")
-                    msg.append_pair(48, _sym)  # SecurityID
-                    if include_idsource:
-                        msg.append_pair(22, "8")  # Optional IDSource
-                except Exception:
-                    msg.append_pair(48, str(symbol))
-                    if include_idsource:
-                        msg.append_pair(22, "8")
-            else:
-                try:
-                    from src.operational.icmarkets_config import get_symbol_id
-                    _sym = str(symbol)
-                    if not _sym.isdigit():
-                        _id = get_symbol_id(_sym)
-                        if _id is not None:
-                            _sym = str(_id)
-                            logger.info(f"Mapped symbol {symbol} -> {_sym} for FIX tag 55 (MD)")
-                    msg.append_pair(55, _sym)  # Symbol numeric
-                except Exception:
-                    msg.append_pair(55, str(symbol))
-            # Entry types
+            try:
+                from src.operational.icmarkets_config import get_symbol_id
+                _sym = str(symbol)
+                if not _sym.isdigit():
+                    _id = get_symbol_id(_sym)
+                    if _id is not None:
+                        _sym = str(_id)
+                        logger.info(f"Mapped symbol {symbol} -> {_sym} for FIX tag 55 (MD)")
+                msg.append_pair(55, _sym)  # Symbol numeric
+            except Exception:
+                msg.append_pair(55, str(symbol))
+            # Entry types (required)
             msg.append_pair(267, "2")
             msg.append_pair(269, "0")
             msg.append_pair(269, "1")
@@ -714,94 +700,8 @@ class GenuineFIXManager:
             logger.error(f"Error building/sending MDReq: {e}")
             return False
 
-    def _send_md_request_mode_b(self, symbol: str, req_id: str, use_security_id: bool = False) -> bool:
-        """Alternative MDReq ordering (Mode B): entry types before related symbols."""
-        try:
-            msg = simplefix.FixMessage()
-            msg.append_pair(8, "FIX.4.4")
-            msg.append_pair(35, "V")
-            msg.append_pair(49, f"demo.icmarkets.{self.config.account_number}")
-            msg.append_pair(56, "cServer")
-            msg.append_pair(57, "QUOTE")
-            msg.append_pair(50, "QUOTE")
-            msg.append_pair(262, req_id)
-            msg.append_pair(263, "1")
-            msg.append_pair(264, "0")
-            # Entry types first
-            msg.append_pair(267, "2")
-            msg.append_pair(269, "0")
-            msg.append_pair(269, "1")
-            # Then related symbols
-            msg.append_pair(146, "1")
-            if use_security_id:
-                try:
-                    from src.operational.icmarkets_config import get_symbol_id
-                    _sym = str(symbol)
-                    if not _sym.isdigit():
-                        _id = get_symbol_id(_sym)
-                        if _id is not None:
-                            _sym = str(_id)
-                            logger.info(f"Mapped symbol {symbol} -> {_sym} for 48 (MD, mode B)")
-                    msg.append_pair(48, _sym)
-                except Exception:
-                    msg.append_pair(48, str(symbol))
-            else:
-                try:
-                    from src.operational.icmarkets_config import get_symbol_id
-                    _sym = str(symbol)
-                    if not _sym.isdigit():
-                        _id = get_symbol_id(_sym)
-                        if _id is not None:
-                            _sym = str(_id)
-                            logger.info(f"Mapped symbol {symbol} -> {_sym} for 55 (MD, mode B)")
-                    msg.append_pair(55, _sym)
-                except Exception:
-                    msg.append_pair(55, str(symbol))
-            return self.price_connection.send_message_and_track(msg, req_id)
-        except Exception as e:
-            logger.error(f"Error building/sending MDReq (mode B): {e}")
-            return False
+    # Remove mode B/C fallbacks for venue hygiene
 
-    def _send_md_request_mode_c(self, symbol: str, req_id: str, use_security_id: bool = False) -> bool:
-        """Minimal MDReq (Mode C): omit 265/267/269 to test venue-specific requirements."""
-        try:
-            msg = simplefix.FixMessage()
-            msg.append_pair(8, "FIX.4.4")
-            msg.append_pair(35, "V")
-            msg.append_pair(49, f"demo.icmarkets.{self.config.account_number}")
-            msg.append_pair(56, "cServer")
-            msg.append_pair(57, "QUOTE")
-            msg.append_pair(50, "QUOTE")
-            msg.append_pair(262, req_id)
-            msg.append_pair(263, "1")
-            msg.append_pair(264, "0")
-            msg.append_pair(146, "1")
-            if use_security_id:
-                try:
-                    from src.operational.icmarkets_config import get_symbol_id
-                    _sym = str(symbol)
-                    if not _sym.isdigit():
-                        _id = get_symbol_id(_sym)
-                        if _id is not None:
-                            _sym = str(_id)
-                    msg.append_pair(48, _sym)
-                except Exception:
-                    msg.append_pair(48, str(symbol))
-            else:
-                try:
-                    from src.operational.icmarkets_config import get_symbol_id
-                    _sym = str(symbol)
-                    if not _sym.isdigit():
-                        _id = get_symbol_id(_sym)
-                        if _id is not None:
-                            _sym = str(_id)
-                    msg.append_pair(55, _sym)
-                except Exception:
-                    msg.append_pair(55, str(symbol))
-            return self.price_connection.send_message_and_track(msg, req_id)
-        except Exception as e:
-            logger.error(f"Error building/sending MDReq (mode C): {e}")
-            return False
     def add_order_callback(self, callback: Callable[[OrderInfo], None]):
         """Add callback for order updates."""
         self.order_callbacks.append(callback)
@@ -1244,8 +1144,8 @@ class GenuineFIXManager:
         try:
             for symbol in symbols:
                 req_id = f"MD_{symbol}_{int(time.time())}_{uuid.uuid4().hex[:8]}"
-                # Attempt Mode A with 55
-                success = self._send_md_request(symbol, req_id, use_security_id=False)
+                # Standardized MDReq
+                success = self._send_md_request(symbol, req_id)
                 if not success:
                     logger.error(f"❌ Failed to send market data request for {symbol}")
                     results[symbol] = False
@@ -1268,50 +1168,6 @@ class GenuineFIXManager:
                             break
                             
                     time.sleep(0.1)  # Small delay to avoid busy waiting
-                # Fallback to SecurityID path (48 only, no 22)
-                if not subscription_confirmed:
-                    logger.info(f"Fallback MDReq (SecurityID) for {symbol}")
-                    req_id2 = f"MD2_{symbol}_{int(time.time())}_{uuid.uuid4().hex[:8]}"
-                    alt_ok = self._send_md_request(symbol, req_id2, use_security_id=True, include_idsource=False)
-                    if alt_ok:
-                        t2 = time.time()
-                        while time.time() - t2 < timeout / 3:
-                            if symbol in self.order_books:
-                                order_book = self.order_books[symbol]
-                                if (datetime.utcnow() - order_book.last_update).total_seconds() < timeout:
-                                    logger.info(f"✅ Market data subscription confirmed (SecurityID) for {symbol}")
-                                    subscription_confirmed = True
-                                    break
-                            time.sleep(0.1)
-                # Final fallbacks
-                if not subscription_confirmed:
-                    logger.info(f"Final fallback MDReq (mode B, 55) for {symbol}")
-                    req_id3 = f"MD3_{symbol}_{int(time.time())}_{uuid.uuid4().hex[:8]}"
-                    alt2 = self._send_md_request_mode_b(symbol, req_id3, use_security_id=False)
-                    if alt2:
-                        t3 = time.time()
-                        while time.time() - t3 < timeout / 3:
-                            if symbol in self.order_books:
-                                order_book = self.order_books[symbol]
-                                if (datetime.utcnow() - order_book.last_update).total_seconds() < timeout:
-                                    logger.info(f"✅ Market data subscription confirmed (mode B) for {symbol}")
-                                    subscription_confirmed = True
-                                    break
-                            time.sleep(0.1)
-                if not subscription_confirmed:
-                    logger.info(f"Final fallback MDReq (mode C, minimal) for {symbol}")
-                    req_id4 = f"MD4_{symbol}_{int(time.time())}_{uuid.uuid4().hex[:8]}"
-                    alt3 = self._send_md_request_mode_c(symbol, req_id4, use_security_id=False)
-                    if alt3:
-                        t4 = time.time()
-                        while time.time() - t4 < timeout / 3:
-                            if symbol in self.order_books:
-                                order_book = self.order_books[symbol]
-                                if (datetime.utcnow() - order_book.last_update).total_seconds() < timeout:
-                                    logger.info(f"✅ Market data subscription confirmed (mode C) for {symbol}")
-                                    subscription_confirmed = True
-                                    break
-                            time.sleep(0.1)
                 if subscription_confirmed:
                     results[symbol] = True
                 else:
@@ -1784,6 +1640,10 @@ class GenuineFIXManager:
             md_req_id = message.get('262')
             text = message.get('58', 'No reason provided')
             logger.error(f"❌ Market data request rejected for {md_req_id}: {text}")
+            try:
+                inc_md_reject(text)
+            except Exception:
+                pass
         except Exception as e:
             logger.error(f"Error handling MarketDataRequestReject: {e}")
             

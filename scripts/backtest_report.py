@@ -175,7 +175,11 @@ def main() -> int:
             # Apply regime gate: block entries in blocked regime
             try:
                 if vol_cfg.use_regime_gate and f.get("regime") == getattr(vol_cfg, "block_regime", "storm"):
-                    target = 0
+                    if getattr(vol_cfg, "gate_mode", "block") == "attenuate":
+                        # reduce exposure instead of blocking: mark as fractional pos in features
+                        f["pos_attenuation"] = float(getattr(vol_cfg, "attenuation_factor", 0.3))
+                    else:
+                        target = 0
             except Exception:
                 pass
             if target != pos:

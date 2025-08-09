@@ -16,4 +16,6 @@ vol_engine:
   regime_gate:
     enabled: true
     block: "storm"
+    mode: "attenuate"
+    attenuation_factor: 0.3
 

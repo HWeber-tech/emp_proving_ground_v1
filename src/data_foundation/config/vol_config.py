@@ -36,6 +36,8 @@ def load_vol_config(path: Optional[str] = None) -> VolConfig:
             ewma_lambda=float(ve.get("fallbacks", {}).get("ewma_lambda", 0.94)),
             use_regime_gate=bool(ve.get("regime_gate", {}).get("enabled", False)),
             block_regime=str(ve.get("regime_gate", {}).get("block", "storm")),
+            gate_mode=str(ve.get("regime_gate", {}).get("mode", "block")),
+            attenuation_factor=float(ve.get("regime_gate", {}).get("attenuation_factor", 0.3)),
         )
     except Exception:
         return VolConfig()

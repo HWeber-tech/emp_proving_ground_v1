@@ -23,6 +23,8 @@ class VolConfig:
     # Regime gating
     use_regime_gate: bool = False
     block_regime: str = "storm"
+    gate_mode: str = "block"  # "block" | "attenuate"
+    attenuation_factor: float = 0.3
 
 
 class Garch11:

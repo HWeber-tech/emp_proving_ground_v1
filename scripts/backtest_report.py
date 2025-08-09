@@ -30,6 +30,9 @@ def parse_args():
     p.add_argument("--macro-file", default="", help="Optional macro JSONL file to merge")
     p.add_argument("--yields-file", default="", help="Optional yields JSONL file to merge (for slope)")
     p.add_argument("--force-regime", default="", help="Force regime label for gating tests (e.g., storm)")
+    # Execution calibration
+    p.add_argument("--slippage-bps", type=float, default=0.5, help="Per-trade slippage in basis points")
+    p.add_argument("--fee-bps", type=float, default=0.1, help="Per-trade transaction cost in basis points")
     # WHY overrides
     p.add_argument("--why-weight-macro", type=float, default=None, help="Override WHY macro weight")
     p.add_argument("--why-weight-yields", type=float, default=None, help="Override WHY yields weight")
@@ -55,6 +58,7 @@ def main() -> int:
     peak = 0.0
     max_dd = 0.0
     feats = []
+    total_cost = 0.0
     # Macro tracking
     last_macro_ts = None
     next_macros = []
@@ -197,12 +201,21 @@ def main() -> int:
                 pass
             if abs(target - pos) > 1e-12:
                 pnl += pos * mid
+                # Apply execution costs on position change
+                try:
+                    trade_bps = max(0.0, float(args.slippage_bps) + float(args.fee_bps))
+                except Exception:
+                    trade_bps = 0.0
+                trade_cost = abs(target - pos) * mid * (trade_bps / 1e4)
+                total_cost += trade_cost
+                pnl -= trade_cost
                 pos = target
                 pnl -= pos * mid
                 peak = max(peak, pnl)
                 max_dd = min(max_dd, pnl - peak)
             f["pos"] = float(pos)
             f["pnl"] = pnl
+            f["cum_cost"] = total_cost
         feats.append(f)
 
     def on_macro_event(e: dict):
@@ -269,6 +282,7 @@ def main() -> int:
         "symbol": args.symbol,
         "events": emitted,
         "pnl": pnl,
+        "total_cost": total_cost,
         "max_dd": max_dd,
         "timestamp": datetime.utcnow().isoformat(),
         "regimes": regimes,

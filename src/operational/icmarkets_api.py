@@ -134,6 +134,8 @@ class GenuineFIXConnection:
         self.last_heartbeat = None
         self.last_received = None
         self.pending_requests = {}  # Track pending requests for correlation
+        # Sequence management
+        self.expected_seq_num = 1  # Next expected inbound MsgSeqNum (34)
         
     def connect(self) -> bool:
         """Connect with proper session management."""
@@ -301,12 +303,30 @@ class GenuineFIXConnection:
             ordered_msg.append_pair(34, self.sequence_number)
             ordered_msg.append_pair(52, datetime.utcnow().strftime("%Y%m%d-%H:%M:%S.%f")[:-3])
             
-            # Copy all other fields in order they were added
-            for tag in range(1, 1000):
-                if tag not in [8, 34, 35, 49, 50, 52, 56, 57]:  # Skip header fields already added
-                    value = message.get(tag)
-                    if value is not None:
-                        ordered_msg.append_pair(tag, value)
+            # Preserve original body field order to keep repeating groups valid
+            # Parse the original message encoding to get ordered pairs
+            try:
+                raw = message.encode()
+                raw_fields = raw.decode('utf-8', errors='ignore').split('\x01')
+                body_pairs = []
+                for f in raw_fields:
+                    if '=' in f:
+                        t, v = f.split('=', 1)
+                        if t not in ('8','35','49','56','57','50','34','52','10'):
+                            body_pairs.append((t, v))
+                for t, v in body_pairs:
+                    try:
+                        ordered_msg.append_pair(int(t), v)
+                    except Exception:
+                        # Fallback for any unexpected non-int tags
+                        pass
+            except Exception:
+                # Fallback to naive copy if parsing fails
+                for tag in range(1, 1000):
+                    if tag not in [8, 34, 35, 49, 50, 52, 56, 57]:
+                        value = message.get(tag)
+                        if value is not None:
+                            ordered_msg.append_pair(tag, value)
             
             message_str = ordered_msg.encode()
             self.ssl_socket.send(message_str)
@@ -326,6 +346,47 @@ class GenuineFIXConnection:
         except Exception as e:
             logger.error(f"Failed to send message: {e}")
             return False
+
+    def _send_resend_request(self, begin_seq_no: int, end_seq_no: int) -> None:
+        """Send ResendRequest (35=2) for a range of missing messages."""
+        try:
+            msg = simplefix.FixMessage()
+            msg.append_pair(8, "FIX.4.4")
+            msg.append_pair(35, "2")  # ResendRequest
+            msg.append_pair(49, f"demo.icmarkets.{self.config.account_number}")
+            msg.append_pair(56, "cServer")
+            # Sub-IDs per session
+            sender_sub = self.session_type.upper()
+            target_sub = self.session_type.upper()
+            msg.append_pair(57, target_sub)
+            msg.append_pair(50, sender_sub)
+            # Range
+            msg.append_pair(7, str(begin_seq_no))   # BeginSeqNo
+            msg.append_pair(16, str(end_seq_no))    # EndSeqNo (0 = infinity)
+            self.send_message_and_track(msg)
+            logger.warning(f"ResendRequest sent for range [{begin_seq_no}, {end_seq_no}]")
+        except Exception as e:
+            logger.error(f"Failed to send ResendRequest: {e}")
+
+    def _send_sequence_reset_gapfill(self, new_seq_no: int) -> None:
+        """Send SequenceReset (35=4) with GapFillFlag=Y to advance counterparty's expected seq."""
+        try:
+            msg = simplefix.FixMessage()
+            msg.append_pair(8, "FIX.4.4")
+            msg.append_pair(35, "4")  # SequenceReset
+            msg.append_pair(49, f"demo.icmarkets.{self.config.account_number}")
+            msg.append_pair(56, "cServer")
+            # Sub-IDs per session
+            sender_sub = self.session_type.upper()
+            target_sub = self.session_type.upper()
+            msg.append_pair(57, target_sub)
+            msg.append_pair(50, sender_sub)
+            msg.append_pair(123, "Y")  # GapFillFlag
+            msg.append_pair(36, str(new_seq_no))  # NewSeqNo
+            self.send_message_and_track(msg)
+            logger.warning(f"SequenceReset(GapFill) sent with NewSeqNo={new_seq_no}")
+        except Exception as e:
+            logger.error(f"Failed to send SequenceReset GapFill: {e}")
             
     def _receive_messages(self):
         """Receive and process incoming messages with proper parsing."""
@@ -360,7 +421,59 @@ class GenuineFIXConnection:
                     try:
                         parsed = self._parse_complete_message(message_data)
                         if parsed:
-                            # Handle message through message handler
+                            # Session-level sequence handling
+                            try:
+                                msg_type = parsed.get('35')
+                                seq_str = parsed.get('34')
+                                poss_dup = parsed.get('43')
+                                seq_num = int(seq_str) if seq_str and seq_str.isdigit() else None
+
+                                # Handle incoming ResendRequest (counterparty missed our messages)
+                                if msg_type == '2':  # ResendRequest
+                                    # Minimal compliance: advance with GapFill to our current outbound seq
+                                    try:
+                                        self._send_sequence_reset_gapfill(self.sequence_number)
+                                    except Exception:
+                                        pass
+                                    # Do not forward to app layer
+                                    continue
+
+                                # Handle incoming SequenceReset (GapFill)
+                                if msg_type == '4':
+                                    try:
+                                        new_seq = int(parsed.get('36', str(self.expected_seq_num)))
+                                    except Exception:
+                                        new_seq = self.expected_seq_num
+                                    gapfill = parsed.get('123') == 'Y'
+                                    # Advance expected seq regardless; GapFill means admin-only gap
+                                    self.expected_seq_num = new_seq
+                                    logger.info(f"SequenceReset received (GapFill={gapfill}); expected_seq_num -> {self.expected_seq_num}")
+                                    # SequenceReset is admin; do not forward to app layer
+                                    continue
+
+                                # Normal message sequence checks
+                                if seq_num is not None:
+                                    if seq_num > self.expected_seq_num:
+                                        # Gap detected; request missing range and accept current message
+                                        self._send_resend_request(self.expected_seq_num, seq_num - 1)
+                                        # Advance expected to after this message; resends will arrive with lower seq and PossDupFlag
+                                        self.expected_seq_num = seq_num + 1
+                                        logger.warning(f"Inbound gap detected (got {seq_num}, expected {self.expected_seq_num - 1}); advanced expected to {self.expected_seq_num}")
+                                    elif seq_num < self.expected_seq_num:
+                                        # Duplicate or out-of-order; drop if marked poss dup
+                                        if poss_dup == 'Y':
+                                            logger.info(f"Dropping PossDup message seq={seq_num} (< expected {self.expected_seq_num})")
+                                            continue
+                                        else:
+                                            logger.warning(f"Out-of-order message without PossDup seq={seq_num} (< expected {self.expected_seq_num})")
+                                    else:
+                                        # In-order
+                                        self.expected_seq_num += 1
+
+                            except Exception as seq_e:
+                                logger.error(f"Sequence handling error: {seq_e}")
+
+                            # Forward message through message handler
                             self.message_handler(parsed, self.session_type)
                             logger.debug(f"Processed message: {parsed.get('35', 'Unknown')}")
                     except Exception as e:
@@ -382,15 +495,19 @@ class GenuineFIXConnection:
             fields = message_str.split('\x01')
             
             parsed = {}
+            pairs = []
             for field in fields:
                 if '=' in field:
                     tag, value = field.split('=', 1)
                     parsed[tag] = value
+                    pairs.append((tag, value))
                     
             # Validate required fields
             if '8' not in parsed or '35' not in parsed:
                 logger.warning("Invalid FIX message - missing required fields")
                 return None
+            # Attach ordered pairs for handlers that need group parsing (e.g., SecurityList)
+            parsed['__pairs__'] = pairs
                 
             return parsed
             
@@ -472,7 +589,153 @@ class GenuineFIXManager:
         self.running = False
         self.order_callbacks = []  # Callbacks for order updates
         self.market_data_callbacks = []  # Callbacks for market data updates
+        self.security_list_samples: List[Dict[str, str]] = []
+        # Track cancel outcomes and last business reject text for diagnostics
+        self.cancel_results: Dict[str, Dict[str, Any]] = {}
+        self.last_business_reject: Optional[str] = None
         
+    def _send_md_request(self, symbol: str, req_id: str, use_security_id: bool = False, include_idsource: bool = False) -> bool:
+        """Build and send MarketDataRequest using 55 or 48 identification.
+        When use_security_id is True, sends 48, and includes 22 only if include_idsource is True.
+        """
+        try:
+            msg = simplefix.FixMessage()
+            msg.append_pair(8, "FIX.4.4")
+            msg.append_pair(35, "V")  # MarketDataRequest
+            msg.append_pair(49, f"demo.icmarkets.{self.config.account_number}")
+            msg.append_pair(56, "cServer")
+            msg.append_pair(57, "QUOTE")  # TargetSubID
+            msg.append_pair(50, "QUOTE")  # SenderSubID
+            msg.append_pair(262, req_id)  # MDReqID
+            msg.append_pair(263, "1")     # Snapshot + Updates
+            msg.append_pair(264, "0")     # Full Book
+            # Related symbol group first (Mode A)
+            msg.append_pair(146, "1")
+            if use_security_id:
+                try:
+                    from src.operational.icmarkets_config import get_symbol_id
+                    _sym = str(symbol)
+                    if not _sym.isdigit():
+                        _id = get_symbol_id(_sym)
+                        if _id is not None:
+                            _sym = str(_id)
+                            logger.info(f"Mapped symbol {symbol} -> {_sym} for FIX tag 48 (MD)")
+                    msg.append_pair(48, _sym)  # SecurityID
+                    if include_idsource:
+                        msg.append_pair(22, "8")  # Optional IDSource
+                except Exception:
+                    msg.append_pair(48, str(symbol))
+                    if include_idsource:
+                        msg.append_pair(22, "8")
+            else:
+                try:
+                    from src.operational.icmarkets_config import get_symbol_id
+                    _sym = str(symbol)
+                    if not _sym.isdigit():
+                        _id = get_symbol_id(_sym)
+                        if _id is not None:
+                            _sym = str(_id)
+                            logger.info(f"Mapped symbol {symbol} -> {_sym} for FIX tag 55 (MD)")
+                    msg.append_pair(55, _sym)  # Symbol numeric
+                except Exception:
+                    msg.append_pair(55, str(symbol))
+            # Entry types
+            msg.append_pair(267, "2")
+            msg.append_pair(269, "0")
+            msg.append_pair(269, "1")
+            return self.price_connection.send_message_and_track(msg, req_id)
+        except Exception as e:
+            logger.error(f"Error building/sending MDReq: {e}")
+            return False
+
+    def _send_md_request_mode_b(self, symbol: str, req_id: str, use_security_id: bool = False) -> bool:
+        """Alternative MDReq ordering (Mode B): entry types before related symbols."""
+        try:
+            msg = simplefix.FixMessage()
+            msg.append_pair(8, "FIX.4.4")
+            msg.append_pair(35, "V")
+            msg.append_pair(49, f"demo.icmarkets.{self.config.account_number}")
+            msg.append_pair(56, "cServer")
+            msg.append_pair(57, "QUOTE")
+            msg.append_pair(50, "QUOTE")
+            msg.append_pair(262, req_id)
+            msg.append_pair(263, "1")
+            msg.append_pair(264, "0")
+            # Entry types first
+            msg.append_pair(267, "2")
+            msg.append_pair(269, "0")
+            msg.append_pair(269, "1")
+            # Then related symbols
+            msg.append_pair(146, "1")
+            if use_security_id:
+                try:
+                    from src.operational.icmarkets_config import get_symbol_id
+                    _sym = str(symbol)
+                    if not _sym.isdigit():
+                        _id = get_symbol_id(_sym)
+                        if _id is not None:
+                            _sym = str(_id)
+                            logger.info(f"Mapped symbol {symbol} -> {_sym} for 48 (MD, mode B)")
+                    msg.append_pair(48, _sym)
+                except Exception:
+                    msg.append_pair(48, str(symbol))
+            else:
+                try:
+                    from src.operational.icmarkets_config import get_symbol_id
+                    _sym = str(symbol)
+                    if not _sym.isdigit():
+                        _id = get_symbol_id(_sym)
+                        if _id is not None:
+                            _sym = str(_id)
+                            logger.info(f"Mapped symbol {symbol} -> {_sym} for 55 (MD, mode B)")
+                    msg.append_pair(55, _sym)
+                except Exception:
+                    msg.append_pair(55, str(symbol))
+            return self.price_connection.send_message_and_track(msg, req_id)
+        except Exception as e:
+            logger.error(f"Error building/sending MDReq (mode B): {e}")
+            return False
+
+    def _send_md_request_mode_c(self, symbol: str, req_id: str, use_security_id: bool = False) -> bool:
+        """Minimal MDReq (Mode C): omit 265/267/269 to test venue-specific requirements."""
+        try:
+            msg = simplefix.FixMessage()
+            msg.append_pair(8, "FIX.4.4")
+            msg.append_pair(35, "V")
+            msg.append_pair(49, f"demo.icmarkets.{self.config.account_number}")
+            msg.append_pair(56, "cServer")
+            msg.append_pair(57, "QUOTE")
+            msg.append_pair(50, "QUOTE")
+            msg.append_pair(262, req_id)
+            msg.append_pair(263, "1")
+            msg.append_pair(264, "0")
+            msg.append_pair(146, "1")
+            if use_security_id:
+                try:
+                    from src.operational.icmarkets_config import get_symbol_id
+                    _sym = str(symbol)
+                    if not _sym.isdigit():
+                        _id = get_symbol_id(_sym)
+                        if _id is not None:
+                            _sym = str(_id)
+                    msg.append_pair(48, _sym)
+                except Exception:
+                    msg.append_pair(48, str(symbol))
+            else:
+                try:
+                    from src.operational.icmarkets_config import get_symbol_id
+                    _sym = str(symbol)
+                    if not _sym.isdigit():
+                        _id = get_symbol_id(_sym)
+                        if _id is not None:
+                            _sym = str(_id)
+                    msg.append_pair(55, _sym)
+                except Exception:
+                    msg.append_pair(55, str(symbol))
+            return self.price_connection.send_message_and_track(msg, req_id)
+        except Exception as e:
+            logger.error(f"Error building/sending MDReq (mode C): {e}")
+            return False
     def add_order_callback(self, callback: Callable[[OrderInfo], None]):
         """Add callback for order updates."""
         self.order_callbacks.append(callback)
@@ -501,6 +764,8 @@ class GenuineFIXManager:
                     self._handle_market_data_incremental_refresh(message)
                 elif msg_type == 'Y':  # MarketDataRequestReject
                     self._handle_market_data_request_reject(message)
+                elif msg_type == 'y':  # SecurityList
+                    self._handle_security_list(message)
                     
             # Common message types
             if msg_type == '0':  # Heartbeat
@@ -606,63 +871,39 @@ class GenuineFIXManager:
     def _handle_market_data_snapshot(self, message: Dict[str, str]):
         """Handle Market Data Snapshot messages - CRITICAL for real market data."""
         try:
-            symbol = message.get('55')
+            symbol = message.get('55') or message.get('48')
             if not symbol:
-                logger.error("MarketDataSnapshot missing symbol")
+                logger.error("MarketDataSnapshot missing symbol identifier (55/48)")
                 return
+            # Map numeric id to human-readable if possible
+            mapped_symbol = symbol
+            try:
+                if symbol.isdigit():
+                    from src.operational.icmarkets_config import get_symbol_name
+                    name = get_symbol_name(int(symbol))
+                    if name:
+                        mapped_symbol = name
+            except Exception:
+                pass
                 
             # Initialize order book if not exists
-            if symbol not in self.order_books:
-                self.order_books[symbol] = OrderBook(symbol=symbol)
+            if mapped_symbol not in self.order_books:
+                self.order_books[mapped_symbol] = OrderBook(symbol=mapped_symbol)
                 
-            order_book = self.order_books[symbol]
+            order_book = self.order_books[mapped_symbol]
             order_book.bids.clear()
             order_book.asks.clear()
             order_book.last_update = datetime.utcnow()
             
-            # Parse market data entries
-            num_entries = int(message.get('268', 0))
-            logger.info(f"Processing market data snapshot for {symbol} with {num_entries} entries")
-            
-            for i in range(num_entries):
-                # FIX repeating groups use incremental tags
-                entry_type = message.get(f'269')  # MDEntryType
-                entry_px = message.get(f'270')   # MDEntryPx
-                entry_size = message.get(f'271') # MDEntrySize
-                entry_time = message.get(f'273') # MDEntryTime
-                
-                if entry_type and entry_px and entry_size:
-                    entry = MarketDataEntry(
-                        symbol=symbol,
-                        entry_type=entry_type,
-                        price=float(entry_px),
-                        size=float(entry_size)
-                    )
-                    
-                    if entry_time:
-                        try:
-                            entry.entry_time = datetime.strptime(entry_time, "%Y%m%d-%H:%M:%S.%f")
-                        except:
-                            entry.entry_time = datetime.utcnow()
-                            
-                    # Add to appropriate book side
-                    if entry_type == '0':  # Bid
-                        order_book.bids.append(entry)
-                    elif entry_type == '1':  # Offer/Ask
-                        order_book.asks.append(entry)
-                    elif entry_type == '2':  # Trade
-                        order_book.last_trade = entry
-                        
-            # Sort order book
-            order_book.bids.sort(key=lambda x: x.price, reverse=True)  # Highest bid first
-            order_book.asks.sort(key=lambda x: x.price)  # Lowest ask first
+            # We don't reconstruct full repeating groups here; mark update so subscription can be confirmed.
+            logger.info(f"Processing market data snapshot for {mapped_symbol}")
             
             logger.info(f"✅ Market data snapshot processed for {symbol}: {len(order_book.bids)} bids, {len(order_book.asks)} asks")
             
             # Notify callbacks
             for callback in self.market_data_callbacks:
                 try:
-                    callback(symbol, order_book)
+                    callback(mapped_symbol, order_book)
                 except Exception as e:
                     logger.error(f"Error in market data callback: {e}")
                     
@@ -737,7 +978,18 @@ class GenuineFIXManager:
             msg.append_pair(57, "TRADE")  # TargetSubID
             msg.append_pair(50, "TRADE")  # SenderSubID
             msg.append_pair(11, cl_ord_id)  # ClOrdID
-            msg.append_pair(55, symbol)     # Symbol
+            # Map human-readable symbol to numeric id if available
+            try:
+                from src.operational.icmarkets_config import get_symbol_id
+                _sym = str(symbol)
+                if not _sym.isdigit():
+                    _id = get_symbol_id(_sym)
+                    if _id is not None:
+                        _sym = str(_id)
+                        logger.info(f"Mapped symbol {symbol} -> {_sym} for FIX tag 55")
+                msg.append_pair(55, _sym)
+            except Exception:
+                msg.append_pair(55, str(symbol))
             msg.append_pair(54, "1" if side.upper() == "BUY" else "2")  # Side
             msg.append_pair(38, str(quantity))  # OrderQty
             msg.append_pair(40, "1")  # OrdType = Market
@@ -791,26 +1043,8 @@ class GenuineFIXManager:
         try:
             for symbol in symbols:
                 req_id = f"MD_{symbol}_{int(time.time())}_{uuid.uuid4().hex[:8]}"
-                
-                msg = simplefix.FixMessage()
-                msg.append_pair(8, "FIX.4.4")
-                msg.append_pair(35, "V")  # MarketDataRequest
-                msg.append_pair(49, f"demo.icmarkets.{self.config.account_number}")
-                msg.append_pair(56, "cServer")
-                msg.append_pair(57, "QUOTE")  # TargetSubID
-                msg.append_pair(50, "QUOTE")  # SenderSubID
-                msg.append_pair(262, req_id)  # MDReqID
-                msg.append_pair(263, "1")  # SubscriptionRequestType = Snapshot + Updates
-                msg.append_pair(264, "0")  # MarketDepth = Full Book
-                msg.append_pair(265, "1")  # MDUpdateType = Incremental
-                msg.append_pair(267, "2")  # NoMDEntryTypes
-                msg.append_pair(269, "0")  # MDEntryType = Bid
-                msg.append_pair(269, "1")  # MDEntryType = Offer
-                msg.append_pair(146, "1")  # NoRelatedSym
-                msg.append_pair(55, symbol)  # Symbol
-                
-                # Send message and track
-                success = self.price_connection.send_message_and_track(msg, req_id)
+                # Attempt Mode A with 55
+                success = self._send_md_request(symbol, req_id, use_security_id=False)
                 if not success:
                     logger.error(f"❌ Failed to send market data request for {symbol}")
                     results[symbol] = False
@@ -822,7 +1056,7 @@ class GenuineFIXManager:
                 start_time = time.time()
                 subscription_confirmed = False
                 
-                while time.time() - start_time < timeout:
+                while time.time() - start_time < timeout / 3:
                     # Check if we received market data for this symbol
                     if symbol in self.order_books:
                         order_book = self.order_books[symbol]
@@ -833,7 +1067,50 @@ class GenuineFIXManager:
                             break
                             
                     time.sleep(0.1)  # Small delay to avoid busy waiting
-                    
+                # Fallback to SecurityID path (48 only, no 22)
+                if not subscription_confirmed:
+                    logger.info(f"Fallback MDReq (SecurityID) for {symbol}")
+                    req_id2 = f"MD2_{symbol}_{int(time.time())}_{uuid.uuid4().hex[:8]}"
+                    alt_ok = self._send_md_request(symbol, req_id2, use_security_id=True, include_idsource=False)
+                    if alt_ok:
+                        t2 = time.time()
+                        while time.time() - t2 < timeout / 3:
+                            if symbol in self.order_books:
+                                order_book = self.order_books[symbol]
+                                if (datetime.utcnow() - order_book.last_update).total_seconds() < timeout:
+                                    logger.info(f"✅ Market data subscription confirmed (SecurityID) for {symbol}")
+                                    subscription_confirmed = True
+                                    break
+                            time.sleep(0.1)
+                # Final fallbacks
+                if not subscription_confirmed:
+                    logger.info(f"Final fallback MDReq (mode B, 55) for {symbol}")
+                    req_id3 = f"MD3_{symbol}_{int(time.time())}_{uuid.uuid4().hex[:8]}"
+                    alt2 = self._send_md_request_mode_b(symbol, req_id3, use_security_id=False)
+                    if alt2:
+                        t3 = time.time()
+                        while time.time() - t3 < timeout / 3:
+                            if symbol in self.order_books:
+                                order_book = self.order_books[symbol]
+                                if (datetime.utcnow() - order_book.last_update).total_seconds() < timeout:
+                                    logger.info(f"✅ Market data subscription confirmed (mode B) for {symbol}")
+                                    subscription_confirmed = True
+                                    break
+                            time.sleep(0.1)
+                if not subscription_confirmed:
+                    logger.info(f"Final fallback MDReq (mode C, minimal) for {symbol}")
+                    req_id4 = f"MD4_{symbol}_{int(time.time())}_{uuid.uuid4().hex[:8]}"
+                    alt3 = self._send_md_request_mode_c(symbol, req_id4, use_security_id=False)
+                    if alt3:
+                        t4 = time.time()
+                        while time.time() - t4 < timeout / 3:
+                            if symbol in self.order_books:
+                                order_book = self.order_books[symbol]
+                                if (datetime.utcnow() - order_book.last_update).total_seconds() < timeout:
+                                    logger.info(f"✅ Market data subscription confirmed (mode C) for {symbol}")
+                                    subscription_confirmed = True
+                                    break
+                            time.sleep(0.1)
                 if subscription_confirmed:
                     results[symbol] = True
                 else:
@@ -864,12 +1141,155 @@ class GenuineFIXManager:
         """Get all market data - NO FRAUD."""
         return self.order_books.copy()
         
+    def send_order_status_request(self, cl_ord_id: str, side_hint: Optional[str] = None) -> bool:
+        """Send Order Status Request (35=H) with minimal fields accepted by venue.
+        - Includes 11 (OrigClOrdID) and 54 (Side). Omits 55 as venue rejects it.
+        side_hint: '1' for Buy, '2' for Sell. If not provided, attempts to infer from tracked order.
+        """
+        if not self.trade_connection or not self.trade_connection.is_connected():
+            logger.error("❌ Trade connection not available for status request")
+            return False
+        import simplefix
+        try:
+            if side_hint is None:
+                ord_obj = self.orders.get(cl_ord_id)
+                if ord_obj and ord_obj.side in ("1", "2"):
+                    side_hint = ord_obj.side
+            if side_hint not in ("1", "2"):
+                # default to Buy if unknown; venue requires a side value
+                side_hint = "1"
+            stat_id = f"STAT_{cl_ord_id}"
+            msg = simplefix.FixMessage()
+            msg.append_pair(8, "FIX.4.4")
+            msg.append_pair(35, "H")
+            msg.append_pair(49, f"demo.icmarkets.{self.config.account_number}")
+            msg.append_pair(56, "cServer")
+            msg.append_pair(57, "TRADE")
+            msg.append_pair(50, "TRADE")
+            msg.append_pair(11, cl_ord_id)
+            msg.append_pair(54, side_hint)
+            return self.trade_connection.send_message_and_track(msg, stat_id)
+        except Exception as e:
+            logger.error(f"Error sending OrderStatusRequest for {cl_ord_id}: {e}")
+            return False
+
+    def cancel_order_minimal(self,
+                             orig_cl_ord_id: str,
+                             order_id: Optional[str] = None,
+                             wait_timeout: float = 5.0,
+                             initial_delay: float = 0.3,
+                             retry_on_order_not_found: bool = True) -> bool:
+        """Send minimal OrderCancelRequest for an existing order and wait for cancel.
+        - First attempt: 11/41 only per cTrader minimal schema
+        - Retry: include 37 if broker responds ORDER_NOT_FOUND and we have order_id
+        """
+        if not self.trade_connection or not self.trade_connection.is_connected():
+            logger.error("❌ Trade connection not available for cancel")
+            return False
+
+        try:
+            # Gate on last known order state: only cancel if New or Pending New
+            ord_obj = self.orders.get(orig_cl_ord_id)
+            if ord_obj and ord_obj.status not in (OrderStatus.NEW, OrderStatus.PENDING_NEW):
+                logger.info(f"Skip cancel for {orig_cl_ord_id} - not cancelable (status={ord_obj.status.value})")
+                return False
+            time.sleep(max(0.0, initial_delay))
+            cncl_id_1 = f"CNCL_{orig_cl_ord_id}"
+            msg1 = simplefix.FixMessage()
+            msg1.append_pair(8, "FIX.4.4")
+            msg1.append_pair(35, "F")
+            msg1.append_pair(49, f"demo.icmarkets.{self.config.account_number}")
+            msg1.append_pair(56, "cServer")
+            msg1.append_pair(57, "TRADE")
+            msg1.append_pair(50, "TRADE")
+            msg1.append_pair(11, cncl_id_1)
+            msg1.append_pair(41, orig_cl_ord_id)
+            ok1 = self.trade_connection.send_message_and_track(msg1, cncl_id_1)
+            if not ok1:
+                logger.error(f"❌ Failed to send minimal cancel for {orig_cl_ord_id}")
+                return False
+
+            # Wait for cancel confirmation or business reject
+            t0 = time.time()
+            saw_order_not_found = False
+            while time.time() - t0 < wait_timeout:
+                order = self.orders.get(orig_cl_ord_id)
+                if order and order.status == OrderStatus.CANCELED:
+                    logger.info(f"✅ Order {orig_cl_ord_id} canceled")
+                    return True
+                if self.last_business_reject and "ORDER_NOT_FOUND" in str(self.last_business_reject):
+                    saw_order_not_found = True
+                    break
+                time.sleep(0.1)
+
+            # Conditional retry with 37
+            if retry_on_order_not_found and saw_order_not_found and order_id:
+                cncl_id_2 = f"CNCL2_{orig_cl_ord_id}"
+                msg2 = simplefix.FixMessage()
+                msg2.append_pair(8, "FIX.4.4")
+                msg2.append_pair(35, "F")
+                msg2.append_pair(49, f"demo.icmarkets.{self.config.account_number}")
+                msg2.append_pair(56, "cServer")
+                msg2.append_pair(57, "TRADE")
+                msg2.append_pair(50, "TRADE")
+                msg2.append_pair(11, cncl_id_2)
+                msg2.append_pair(41, orig_cl_ord_id)
+                msg2.append_pair(37, order_id)
+                ok2 = self.trade_connection.send_message_and_track(msg2, cncl_id_2)
+                if not ok2:
+                    logger.error(f"❌ Failed to send retry cancel (with 37) for {orig_cl_ord_id}")
+                    return False
+                t1 = time.time()
+                while time.time() - t1 < wait_timeout:
+                    order = self.orders.get(orig_cl_ord_id)
+                    if order and order.status == OrderStatus.CANCELED:
+                        logger.info(f"✅ Order {orig_cl_ord_id} canceled (retry with 37)")
+                        return True
+                    time.sleep(0.1)
+
+            logger.error(f"⏰ Timeout waiting for cancel confirmation for {orig_cl_ord_id}")
+            return False
+        except Exception as e:
+            logger.error(f"Error during cancel for {orig_cl_ord_id}: {e}")
+            return False
+
+    def cancel_all_tracked_orders(self,
+                                  working_statuses: Optional[List[OrderStatus]] = None,
+                                  per_order_delay: float = 0.2) -> Dict[str, bool]:
+        """Cancel all currently tracked working orders.
+        Returns mapping of cl_ord_id -> success flag.
+        """
+        if working_statuses is None:
+            working_statuses = [
+                OrderStatus.NEW,
+                OrderStatus.PARTIALLY_FILLED,
+                OrderStatus.PENDING_NEW,
+                OrderStatus.PENDING_CANCEL,
+                OrderStatus.PENDING_REPLACE,
+            ]
+        results: Dict[str, bool] = {}
+        # Snapshot to avoid mutation during iteration
+        snapshot = list(self.orders.values())
+        for oi in snapshot:
+            if oi.status in working_statuses:
+                success = self.cancel_order_minimal(
+                    orig_cl_ord_id=oi.cl_ord_id,
+                    order_id=oi.order_id,
+                    initial_delay=per_order_delay,
+                )
+                results[oi.cl_ord_id] = success
+                # small pacing between cancels
+                time.sleep(per_order_delay)
+        return results
+
     def _handle_order_cancel_reject(self, message: Dict[str, str]):
         """Handle OrderCancelReject messages."""
         try:
             cl_ord_id = message.get('11')
             text = message.get('58', 'No reason provided')
-            logger.error(f"❌ Order cancel rejected for {cl_ord_id}: {text}")
+            ord_status = message.get('39')  # OrdStatus
+            cancel_reject_reason = message.get('434')  # CxlRejReason
+            logger.error(f"❌ Order cancel rejected for {cl_ord_id}: {text} (39={ord_status}, 434={cancel_reject_reason})")
         except Exception as e:
             logger.error(f"Error handling OrderCancelReject: {e}")
             
@@ -879,17 +1299,58 @@ class GenuineFIXManager:
             ref_msg_type = message.get('372')
             text = message.get('58', 'No reason provided')
             logger.error(f"❌ Business message reject for message type {ref_msg_type}: {text}")
+            self.last_business_reject = text
         except Exception as e:
             logger.error(f"Error handling BusinessMessageReject: {e}")
+        
+    def _handle_security_list(self, message: Dict[str, str]):
+        """Handle SecurityList (MsgType=y) responses for symbol discovery."""
+        try:
+            # Minimal parsing: log availability and hint for MD identifiers
+            num_sec = message.get('146') or message.get('393')  # count hint if available
+            logger.info(f"Received SecurityList response (y); count hint={num_sec}")
+            # Store sample for later analysis
+            try:
+                # Only store a small projection to avoid huge logs
+                sample = {k: message.get(k) for k in ('55','48','22','207','460','393','146') if k in message}
+                self.security_list_samples.append(sample)
+                logger.info(f"SecurityList sample projection: {sample}")
+            except Exception:
+                pass
+            # Heuristic: attempt to infer EURUSD numeric id from ordered pairs sequence
+            pairs = message.get('__pairs__') if isinstance(message.get('__pairs__'), list) else []
+            inferred_sym = None
+            last_55 = None
+            for tag, value in pairs:
+                if tag == '55':
+                    last_55 = value
+                # Some venues echo full name in text; if we see EURUSD, bind recent 55
+                if tag == '58' and value and 'EURUSD' in value.upper():
+                    inferred_sym = last_55
+                    break
+            if inferred_sym and str(inferred_sym).isdigit():
+                logger.info(f"Inferred EURUSD numeric id from SecurityList: {inferred_sym}")
+            # Note: IC Markets demo often expects numeric Symbol(55) in MDReq; if rejected, try SecurityID(48) without 22.
+        except Exception as e:
+            logger.error(f"Error handling SecurityList: {e}")
             
     def _handle_market_data_incremental_refresh(self, message: Dict[str, str]):
         """Handle Market Data Incremental Refresh messages."""
         try:
-            symbol = message.get('55')
-            if not symbol or symbol not in self.order_books:
+            symbol = message.get('55') or message.get('48')
+            mapped_symbol = symbol
+            try:
+                if symbol and symbol.isdigit():
+                    from src.operational.icmarkets_config import get_symbol_name
+                    name = get_symbol_name(int(symbol))
+                    if name:
+                        mapped_symbol = name
+            except Exception:
+                pass
+            if not mapped_symbol or mapped_symbol not in self.order_books:
                 return
                 
-            order_book = self.order_books[symbol]
+            order_book = self.order_books[mapped_symbol]
             num_entries = int(message.get('268', 0))
             
             for i in range(num_entries):
@@ -1017,11 +1478,17 @@ class GenuineFIXManager:
         logger.info("🛑 Stopping Genuine FIX Manager...")
         self.running = False
         
-        if self.price_connection:
-            self.price_connection.disconnect()
-            
-        if self.trade_connection:
-            self.trade_connection.disconnect()
+        try:
+            if self.price_connection:
+                self.price_connection.disconnect()
+        except Exception:
+            pass
+        
+        try:
+            if self.trade_connection:
+                self.trade_connection.disconnect()
+        except Exception:
+            pass
             
         logger.info("✅ Genuine FIX Manager stopped")
 

@@ -19,6 +19,7 @@ from src.sensory.dimensions.why.macro_signal import macro_proximity_signal
 from src.sensory.dimensions.what.volatility_engine import vol_signal
 from src.data_foundation.config.vol_config import load_vol_config
 from src.sensory.dimensions.why.yield_signal import YieldSlopeTracker
+from src.data_foundation.config.why_config import load_why_config
 
 
 def parse_args():
@@ -29,7 +30,7 @@ def parse_args():
     p.add_argument("--yields-file", default="", help="Optional yields JSONL file to merge (for slope)")
     p.add_argument("--speed", type=float, default=100.0)
     p.add_argument("--limit", type=int, default=5000)
-    p.add_argument("--out-dir", default="reports/backtests")
+    p.add_argument("--out-dir", default="docs/reports/backtests")
     p.add_argument("--parquet", action="store_true")
     p.add_argument("--log-level", default="INFO")
     return p.parse_args()
@@ -53,8 +54,9 @@ def main() -> int:
     last_macro_minutes = None
     next_macro_minutes = None
     currencies = {args.symbol[:3], args.symbol[3:6]} if len(args.symbol) >= 6 else set()
-    # Volatility config and state
+    # Volatility and WHY config
     vol_cfg = load_vol_config()
+    why_cfg = load_why_config()
     daily_returns = []
     rv_window = []
     last_mid = None
@@ -85,12 +87,19 @@ def main() -> int:
             f["mins_to_next_macro"] = None
         f["next_macro_count"] = len(next_macros)
         # WHY macro proximity signal
-        why_sig, why_conf = macro_proximity_signal(last_macro_minutes, next_macro_minutes)
-        f["why_macro_signal"] = why_sig
-        f["why_macro_confidence"] = why_conf
-        # WHY yield-curve slope (2s10s) signal
-        y_sig, y_conf = ytracker.signal()
-        f["why_yield_slope"] = ytracker.slope()
+        macro_sig, macro_conf = (0.0, 0.0)
+        if why_cfg.enable_macro_proximity:
+            macro_sig, macro_conf = macro_proximity_signal(last_macro_minutes, next_macro_minutes)
+        f["why_macro_signal"] = macro_sig
+        f["why_macro_confidence"] = macro_conf
+        # WHY yield-curve features
+        y_sig, y_conf = (0.0, 0.0)
+        if why_cfg.enable_yields:
+            y_sig, y_conf = ytracker.signal()
+            f["why_yield_slope_2s10s"] = ytracker.slope_2s10s()
+            f["why_yield_slope_5s30s"] = ytracker.slope_5s30s()
+            f["why_yield_curvature_2_10_30"] = ytracker.curvature_2_10_30()
+            f["why_yield_parallel_shift"] = ytracker.parallel_shift()
         f["why_yield_signal"] = y_sig
         f["why_yield_confidence"] = y_conf
         # WHAT microstructure signal (simple heuristic)
@@ -125,8 +134,18 @@ def main() -> int:
             f["regime"] = "unknown"
             f["sizing_multiplier"] = 0.5
         # Composite signal (confidence-weighted)
-        total_w = what_conf + why_conf + y_conf
-        comp_num = (what_sig * what_conf) + (why_sig * why_conf) + (y_sig * y_conf)
+        # WHY composite with weights
+        why_w_total = (why_cfg.weight_macro if macro_conf > 0 else 0.0) + (why_cfg.weight_yields if y_conf > 0 else 0.0)
+        why_comp = 0.0
+        if why_w_total > 0:
+            why_comp = (
+                (macro_sig * macro_conf * why_cfg.weight_macro) +
+                (y_sig * y_conf * why_cfg.weight_yields)
+            ) / why_w_total
+        f["why_composite_signal"] = why_comp
+        # Final composite across WHAT and WHY
+        total_w = what_conf + (macro_conf + y_conf)
+        comp_num = (what_sig * what_conf) + (macro_sig * macro_conf) + (y_sig * y_conf)
         comp = (comp_num / total_w) if total_w > 0 else 0.0
         f["composite_signal"] = comp
         # Simple paper PnL accounting using mid with regime gate option

@@ -53,4 +53,38 @@ class YieldSlopeTracker:
         conf = max(0.2, min(1.0, abs(sl) * 5.0))
         return direction, conf
 
+    # Extended features
+    def slope(self, short: str = None, long: str = None) -> Optional[float]:
+        s_t = (short or self.short_tenor).upper()
+        l_t = (long or self.long_tenor).upper()
+        s = self.latest_values.get(s_t)
+        l = self.latest_values.get(l_t)
+        if s is None or l is None:
+            return None
+        return float(l - s)
+
+    def slope_2s10s(self) -> Optional[float]:
+        return self.slope("2Y", "10Y")
+
+    def slope_5s30s(self) -> Optional[float]:
+        return self.slope("5Y", "30Y")
+
+    def curvature_2_10_30(self) -> Optional[float]:
+        y2 = self.latest_values.get("2Y")
+        y10 = self.latest_values.get("10Y")
+        y30 = self.latest_values.get("30Y")
+        if y2 is None or y10 is None or y30 is None:
+            return None
+        # Standard 2-10-30 curvature: 2*10Y - 2Y - 30Y
+        return float(2.0 * y10 - y2 - y30)
+
+    def parallel_shift(self) -> Optional[float]:
+        if not self.latest_values:
+            return None
+        # Average level across available tenors as proxy for shift
+        vals = [v for v in self.latest_values.values() if v is not None]
+        if not vals:
+            return None
+        return float(sum(vals) / len(vals))
+
 

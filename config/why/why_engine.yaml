@@ -1,0 +1,12 @@
+why_engine:
+  enable_macro_proximity: true
+  enable_yields: true
+  weights:
+    macro: 0.4
+    yields: 0.6
+  yield_features:
+    slope_2s10s: true
+    slope_5s30s: true
+    curvature_2_10_30: true
+    parallel_shift: true
+

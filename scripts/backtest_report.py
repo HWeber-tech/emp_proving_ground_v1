@@ -21,6 +21,8 @@ from src.sensory.dimensions.what.volatility_engine import vol_signal
 from src.data_foundation.config.vol_config import load_vol_config
 from src.sensory.dimensions.why.yield_signal import YieldSlopeTracker
 from src.data_foundation.config.why_config import load_why_config
+from src.data_foundation.config.execution_config import load_execution_config
+from src.trading.execution.execution_model import ExecContext, estimate_slippage_bps, estimate_commission_bps
 
 
 def parse_args():
@@ -65,9 +67,10 @@ def main() -> int:
     last_macro_minutes = None
     next_macro_minutes = None
     currencies = {args.symbol[:3], args.symbol[3:6]} if len(args.symbol) >= 6 else set()
-    # Volatility and WHY config
+    # Volatility, WHY, and execution config
     vol_cfg = load_vol_config()
     why_cfg = load_why_config()
+    exec_cfg = load_execution_config()
     # CLI overrides for WHY config
     if args.why_weight_macro is not None:
         try:
@@ -201,9 +204,15 @@ def main() -> int:
                 pass
             if abs(target - pos) > 1e-12:
                 pnl += pos * mid
-                # Apply execution costs on position change
+                # Apply execution costs on position change (model-based)
                 try:
-                    trade_bps = max(0.0, float(args.slippage_bps) + float(args.fee_bps))
+                    ctx = ExecContext(
+                        spread=float(f.get("spread", 0.0)),
+                        top_imbalance=float(f.get("top_imbalance", 0.0)),
+                        sigma_ann=float(f.get("sigma_ann", 0.0) or 0.0),
+                        size_ratio=min(1.0, abs(target - pos))
+                    )
+                    trade_bps = estimate_slippage_bps(ctx, exec_cfg) + estimate_commission_bps(exec_cfg)
                 except Exception:
                     trade_bps = 0.0
                 trade_cost = abs(target - pos) * mid * (trade_bps / 1e4)

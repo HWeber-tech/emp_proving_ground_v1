@@ -1,0 +1,10 @@
+execution:
+  slippage:
+    base_bps: 0.2
+    spread_coef: 50.0
+    imbalance_coef: 2.0
+    sigma_coef: 50.0
+    size_coef: 5.0
+  fees:
+    commission_bps: 0.1
+

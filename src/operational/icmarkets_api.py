@@ -397,6 +397,9 @@ class GenuineFIXConnection:
                 data = self.ssl_socket.recv(4096)
                 if not data:
                     logger.warning("No data received - connection may be closed")
+                    # Mark as disconnected to trigger supervisor
+                    self.connected = False
+                    self.authenticated = False
                     break
                     
                 buffer += data
@@ -483,6 +486,9 @@ class GenuineFIXConnection:
                 continue
             except Exception as e:
                 logger.error(f"Receive error: {e}")
+                # Mark as disconnected to trigger supervisor
+                self.connected = False
+                self.authenticated = False
                 break
                 
         logger.info(f"{self.session_type} receiver thread stopped")
@@ -568,6 +574,17 @@ class GenuineFIXConnection:
                 
             self.connected = False
             logger.info(f"{self.session_type} session disconnected")
+            # Join threads to avoid leaks
+            try:
+                if self.receiver_thread and self.receiver_thread.is_alive():
+                    self.receiver_thread.join(timeout=2.0)
+            except Exception:
+                pass
+            try:
+                if self.heartbeat_thread and self.heartbeat_thread.is_alive():
+                    self.heartbeat_thread.join(timeout=2.0)
+            except Exception:
+                pass
             
         except Exception as e:
             logger.error(f"Disconnect error: {e}")
@@ -593,6 +610,12 @@ class GenuineFIXManager:
         # Track cancel outcomes and last business reject text for diagnostics
         self.cancel_results: Dict[str, Dict[str, Any]] = {}
         self.last_business_reject: Optional[str] = None
+        # Reconnection supervisor state
+        self._reconnect_state: Dict[str, Dict[str, Any]] = {
+            'quote': {'delay': 1.0, 'next': 0.0},
+            'trade': {'delay': 1.0, 'next': 0.0},
+        }
+        self._supervisor_thread: Optional[threading.Thread] = None
         
     def _send_md_request(self, symbol: str, req_id: str, use_security_id: bool = False, include_idsource: bool = False) -> bool:
         """Build and send MarketDataRequest using 55 or 48 identification.
@@ -990,6 +1013,9 @@ class GenuineFIXManager:
                 
             if price_success and trade_success:
                 self.running = True
+                # Start reconnection supervisor
+                self._supervisor_thread = threading.Thread(target=self._supervise_sessions, daemon=True)
+                self._supervisor_thread.start()
                 logger.info("✅ Genuine FIX Manager started successfully")
                 return True
             else:
@@ -1599,6 +1625,13 @@ class GenuineFIXManager:
         logger.info("🛑 Stopping Genuine FIX Manager...")
         self.running = False
         
+        # Stop supervisor thread
+        try:
+            if self._supervisor_thread and self._supervisor_thread.is_alive():
+                self._supervisor_thread.join(timeout=3.0)
+        except Exception:
+            pass
+
         try:
             if self.price_connection:
                 self.price_connection.disconnect()
@@ -1612,4 +1645,59 @@ class GenuineFIXManager:
             pass
             
         logger.info("✅ Genuine FIX Manager stopped")
+
+    def _is_session_connected(self, session: str) -> bool:
+        if session == 'quote' and self.price_connection:
+            return self.price_connection.is_connected()
+        if session == 'trade' and self.trade_connection:
+            return self.trade_connection.is_connected()
+        return False
+
+    def _attempt_reconnect(self, session: str) -> bool:
+        try:
+            if session == 'quote' and self.price_connection:
+                ok = self.price_connection.connect()
+            elif session == 'trade' and self.trade_connection:
+                ok = self.trade_connection.connect()
+            else:
+                return False
+            if ok:
+                # Reset backoff on success
+                self._reconnect_state[session]['delay'] = 1.0
+                self._reconnect_state[session]['next'] = 0.0
+                logger.info(f"🔁 Reconnected {session} session successfully")
+                return True
+            return False
+        except Exception as e:
+            logger.error(f"Reconnect attempt for {session} failed: {e}")
+            return False
+
+    def _supervisor_step(self) -> None:
+        now = time.time()
+        for session in ('quote', 'trade'):
+            if not self.running:
+                break
+            if self._is_session_connected(session):
+                continue
+            state = self._reconnect_state[session]
+            if now < state['next']:
+                continue
+            ok = self._attempt_reconnect(session)
+            if not ok:
+                # Exponential backoff up to 60s
+                state['delay'] = min(60.0, state['delay'] * 2.0 if state['delay'] > 0 else 1.0)
+                state['next'] = now + state['delay']
+            else:
+                state['delay'] = 1.0
+                state['next'] = 0.0
+
+    def _supervise_sessions(self) -> None:
+        """Background loop to maintain sessions with exponential backoff reconnects."""
+        while self.running:
+            try:
+                self._supervisor_step()
+                time.sleep(1.0)
+            except Exception as e:
+                logger.error(f"Supervisor error: {e}")
+                time.sleep(2.0)
 

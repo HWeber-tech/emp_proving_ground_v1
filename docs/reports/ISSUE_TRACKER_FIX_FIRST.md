@@ -4,9 +4,9 @@ Legend: [P0]=critical, [P1]=high, [P2]=normal, [P3]=nice-to-have
 
 ### Section A — FIX Core and Session Management
 - [ ] [P0] FIX-001: Reconnect & session lifecycle
-  - [ ] Reconnect on disconnect; exponential backoff
-  - [ ] Clean shutdown without socket errors
-  - Acceptance: 100 cycles w/o leaked threads or 10038 errors
+  - [x] Reconnect on disconnect; exponential backoff
+  - [x] Clean shutdown without socket errors
+  - [ ] Burn-in test: 100 cycles w/o leaked threads or 10038 errors
 
 - [ ] [P0] FIX-002: Sequence number recovery
   - [ ] Implement ResendRequest (35=2) handling and GapFill (35=4)

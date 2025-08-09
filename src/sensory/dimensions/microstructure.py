@@ -64,3 +64,62 @@ def compute_features(
     }
 
 
+def compute_liquidity_pockets(
+    bids: List[Tuple[float, float]],
+    asks: List[Tuple[float, float]],
+    levels: int = 10,
+    pocket_factor: float = 1.5,
+) -> Dict[str, float]:
+    """Detect liquidity pockets as sizes exceeding pocket_factor * mean(size) in top N levels.
+
+    Returns counts and maximum pocket strength (ratio to mean) for each side.
+    """
+    def side_stats(side):
+        s = sorted([(p, s) for p, s in side if s > 0], key=lambda x: x[0], reverse=(side is bids))[:levels]
+        sizes = [sz for _, sz in s]
+        if not sizes:
+            return 0, 0.0
+        mean_sz = sum(sizes) / len(sizes)
+        if mean_sz <= 0:
+            return 0, 0.0
+        strengths = [sz / mean_sz for sz in sizes if sz / mean_sz >= pocket_factor]
+        return len(strengths), (max(strengths) if strengths else 0.0)
+
+    bid_count, bid_strength = side_stats(bids)
+    ask_count, ask_strength = side_stats(asks)
+    return {
+        "bid_pocket_count_l{}".format(levels): float(bid_count),
+        "ask_pocket_count_l{}".format(levels): float(ask_count),
+        "bid_pocket_strength": float(bid_strength),
+        "ask_pocket_strength": float(ask_strength),
+    }
+
+
+def compute_volatility_seeds(mid_prices: List[float]) -> Dict[str, float]:
+    """Compute short-horizon volatility seeds from mid price series.
+
+    Returns rolling std devs over 5/10/20 samples and mean absolute change.
+    """
+    if not mid_prices:
+        return {"std5": 0.0, "std10": 0.0, "std20": 0.0, "mean_abs_change": 0.0}
+    def rolling_std(window: int) -> float:
+        if len(mid_prices) < 2:
+            return 0.0
+        arr = mid_prices[-window:]
+        n = len(arr)
+        mean = sum(arr) / n
+        var = sum((x - mean) ** 2 for x in arr) / max(1, n - 1)
+        return var ** 0.5
+    def mean_abs_change() -> float:
+        if len(mid_prices) < 2:
+            return 0.0
+        diffs = [abs(b - a) for a, b in zip(mid_prices[:-1], mid_prices[1:])]
+        return sum(diffs) / len(diffs)
+    return {
+        "std5": float(rolling_std(5)),
+        "std10": float(rolling_std(10)),
+        "std20": float(rolling_std(20)),
+        "mean_abs_change": float(mean_abs_change()),
+    }
+
+

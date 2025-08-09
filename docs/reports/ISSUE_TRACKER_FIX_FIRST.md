@@ -78,7 +78,7 @@ Legend: [P0]=critical, [P1]=high, [P2]=normal, [P3]=nice-to-have
 
 - [ ] [P1] SNS-002: WHAT sense features
   - [x] L2: spread, microprice, depth/imbalance features
-  - [ ] L1: liquidity pockets, volatility seeds
+  - [x] L1: liquidity pockets, volatility seeds
 
 - [ ] [P2] SNS-003: WHEN/HOW/WHY/ANOMALY scaffolding
   - [ ] Regime timing, microstructure flow, macro hooks, anomaly detectors

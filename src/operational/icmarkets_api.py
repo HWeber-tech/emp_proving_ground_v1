@@ -1215,6 +1215,82 @@ class GenuineFIXManager:
                 del self.orders[cl_ord_id]
             return None
             
+    def place_limit_order_genuine(self, symbol: str, side: str, quantity: float,
+                                  limit_price: float,
+                                  tif: str = "0",
+                                  timeout: float = 10.0) -> Optional[OrderInfo]:
+        """Place limit order with venue-constrained price/qty and wait for broker confirmation."""
+        if not self.trade_connection or not self.trade_connection.is_connected():
+            logger.error("❌ Trade connection not available for order placement")
+            return None
+        try:
+            cl_ord_id = f"ORDER_{int(time.time() * 1000)}_{uuid.uuid4().hex[:8]}"
+            aligned_qty = align_quantity(symbol, quantity)
+            aligned_px = align_price(symbol, float(limit_price))
+            norm_tif = normalize_tif(tif)
+
+            order_info = OrderInfo(
+                cl_ord_id=cl_ord_id,
+                symbol=symbol,
+                side=side,
+                order_qty=aligned_qty,
+                ord_type="2",  # Limit
+                price=aligned_px,
+                time_in_force=norm_tif,
+                status=OrderStatus.PENDING_NEW,
+            )
+            self.orders[cl_ord_id] = order_info
+
+            msg = simplefix.FixMessage()
+            msg.append_pair(8, "FIX.4.4")
+            msg.append_pair(35, "D")  # NewOrderSingle
+            msg.append_pair(49, f"demo.icmarkets.{self.config.account_number}")
+            msg.append_pair(56, "cServer")
+            msg.append_pair(57, "TRADE")
+            msg.append_pair(50, "TRADE")
+            msg.append_pair(11, cl_ord_id)
+            try:
+                from src.operational.icmarkets_config import get_symbol_id
+                _sym = str(symbol)
+                if not _sym.isdigit():
+                    _id = get_symbol_id(_sym)
+                    if _id is not None:
+                        _sym = str(_id)
+                        logger.info(f"Mapped symbol {symbol} -> {_sym} for FIX tag 55 (Limit)")
+                msg.append_pair(55, _sym)
+            except Exception:
+                msg.append_pair(55, str(symbol))
+            msg.append_pair(54, "1" if side.upper() == "BUY" else "2")
+            msg.append_pair(38, str(aligned_qty))
+            msg.append_pair(40, "2")  # Limit
+            msg.append_pair(44, str(aligned_px))
+            msg.append_pair(59, norm_tif)
+            msg.append_pair(60, datetime.utcnow().strftime("%Y%m%d-%H:%M:%S.%f")[:-3])
+
+            if not self.trade_connection.send_message_and_track(msg, cl_ord_id):
+                logger.error(f"❌ Failed to send limit order message for {cl_ord_id}")
+                del self.orders[cl_ord_id]
+                return None
+
+            logger.info(f"📤 Limit order sent for {cl_ord_id}, waiting for broker confirmation...")
+            start_time = time.time()
+            while time.time() - start_time < timeout:
+                current_order = self.orders.get(cl_ord_id)
+                if current_order and current_order.status != OrderStatus.PENDING_NEW:
+                    if current_order.status == OrderStatus.REJECTED:
+                        logger.error(f"❌ Order {cl_ord_id} rejected by broker: {current_order.text}")
+                        return current_order
+                    else:
+                        logger.info(f"✅ Order {cl_ord_id} confirmed by broker with status: {current_order.status.value}")
+                        return current_order
+                time.sleep(0.1)
+            logger.error(f"⏰ Timeout waiting for order confirmation for {cl_ord_id}")
+            order_info.text = "Timeout waiting for broker confirmation"
+            return order_info
+        except Exception as e:
+            logger.error(f"❌ Failed to place limit order: {e}")
+            return None
+
     def subscribe_market_data_genuine(self, symbols: List[str], timeout: float = 10.0) -> Dict[str, bool]:
         """Subscribe to market data with GENUINE broker confirmation - NO FRAUD."""
         if not self.price_connection or not self.price_connection.is_connected():

@@ -170,3 +170,46 @@ def set_md_staleness(symbol: str, seconds: float) -> None:
         pass
 
 
+# Heartbeat/TestRequest metrics
+fix_heartbeat_interval_seconds = Histogram(
+    "fix_heartbeat_interval_seconds",
+    "Observed interval between incoming heartbeats",
+    buckets=(1, 5, 10, 20, 30, 45, 60, 90, 120),
+    labelnames=["session"],
+)
+
+fix_test_requests_total = Counter(
+    "fix_test_requests_total",
+    "Total TestRequests sent due to heartbeat delays",
+    ["session"],
+)
+
+fix_missed_heartbeats_total = Counter(
+    "fix_missed_heartbeats_total",
+    "Total missed-heartbeat disconnects",
+    ["session"],
+)
+
+
+def observe_heartbeat_interval(session: str, seconds: float) -> None:
+    try:
+        if seconds >= 0:
+            fix_heartbeat_interval_seconds.labels(session=session).observe(seconds)
+    except Exception:
+        pass
+
+
+def inc_test_request(session: str) -> None:
+    try:
+        fix_test_requests_total.labels(session=session).inc()
+    except Exception:
+        pass
+
+
+def inc_missed_heartbeat(session: str) -> None:
+    try:
+        fix_missed_heartbeats_total.labels(session=session).inc()
+    except Exception:
+        pass
+
+

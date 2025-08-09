@@ -28,6 +28,9 @@ from src.operational.metrics import (
     observe_cancel_latency,
     set_md_staleness,
     inc_md_reject,
+    observe_heartbeat_interval,
+    inc_test_request,
+    inc_missed_heartbeat,
 )
 from src.operational.persistence import JSONStateStore, RedisStateStore
 from src.operational.venue_constraints import (
@@ -347,11 +350,11 @@ class GenuineFIXConnection:
                         pass
             except Exception:
                 # Fallback to naive copy if parsing fails
-                for tag in range(1, 1000):
+            for tag in range(1, 1000):
                     if tag not in [8, 34, 35, 49, 50, 52, 56, 57]:
-                        value = message.get(tag)
-                        if value is not None:
-                            ordered_msg.append_pair(tag, value)
+                    value = message.get(tag)
+                    if value is not None:
+                        ordered_msg.append_pair(tag, value)
             
             message_str = ordered_msg.encode()
             self.ssl_socket.send(message_str)
@@ -574,10 +577,48 @@ class GenuineFIXConnection:
             
     def _heartbeat_loop(self):
         """Send periodic heartbeats."""
+        miss_threshold = 2  # missed periods before forcing disconnect
+        missed = 0
+        hb_seconds = 30
         while self.running and self.connected and self.authenticated:
             try:
-                time.sleep(30)  # 30-second heartbeat interval
+                time.sleep(hb_seconds)
                 if self.connected and self.authenticated:
+                    # Check incoming heartbeat interval
+                    if self.last_received:
+                        delta = (datetime.utcnow() - self.last_received).total_seconds()
+                        try:
+                            observe_heartbeat_interval(self.session_type, delta)
+                        except Exception:
+                            pass
+                        if delta > hb_seconds * (missed + 1):
+                            # Send TestRequest
+                            tr = simplefix.FixMessage()
+                            tr.append_pair(8, "FIX.4.4")
+                            tr.append_pair(35, "1")
+                            tr.append_pair(49, f"demo.icmarkets.{self.config.account_number}")
+                            tr.append_pair(56, "cServer")
+                            tr.append_pair(57, self.session_type.upper())
+                            tr.append_pair(50, self.session_type.upper())
+                            tr.append_pair(112, f"TEST_{int(time.time())}")
+                            self.send_message_and_track(tr)
+                            try:
+                                inc_test_request(self.session_type)
+                            except Exception:
+                                pass
+                            missed += 1
+                            if missed >= miss_threshold:
+                                try:
+                                    inc_missed_heartbeat(self.session_type)
+                                except Exception:
+                                    pass
+                                # Force disconnect to trigger supervisor
+                                self.connected = False
+                                self.authenticated = False
+                                break
+                        else:
+                            missed = 0
+                    # Send our heartbeat
                     self._send_heartbeat()
             except Exception as e:
                 logger.error(f"Heartbeat loop error: {e}")
@@ -593,14 +634,14 @@ class GenuineFIXConnection:
                 # Send logout message
                 try:
                     if self.connected and self.authenticated:
-                        msg = simplefix.FixMessage()
-                        msg.append_pair(8, "FIX.4.4")
-                        msg.append_pair(35, "5")  # Logout
-                        msg.append_pair(49, f"demo.icmarkets.{self.config.account_number}")
-                        msg.append_pair(56, "cServer")
-                        msg.append_pair(57, self.session_type.upper())
-                        msg.append_pair(50, self.session_type.upper())
-                        self.send_message_and_track(msg)
+                msg = simplefix.FixMessage()
+                msg.append_pair(8, "FIX.4.4")
+                msg.append_pair(35, "5")  # Logout
+                msg.append_pair(49, f"demo.icmarkets.{self.config.account_number}")
+                msg.append_pair(56, "cServer")
+                msg.append_pair(57, self.session_type.upper())
+                msg.append_pair(50, self.session_type.upper())
+                self.send_message_and_track(msg)
                 except Exception:
                     pass
                 time.sleep(1)  # Give time for logout to be processed
@@ -739,7 +780,7 @@ class GenuineFIXManager:
         return False
 
     # Remove mode B/C fallbacks for venue hygiene
-
+        
     def add_order_callback(self, callback: Callable[[OrderInfo], None]):
         """Add callback for order updates."""
         self.order_callbacks.append(callback)
@@ -918,7 +959,7 @@ class GenuineFIXManager:
             if not raw_symbol:
                 logger.error("MarketDataSnapshot missing symbol identifier (55/48)")
                 return
-
+                
             mapped_symbol = raw_symbol
             try:
                 if raw_symbol.isdigit():
@@ -976,7 +1017,7 @@ class GenuineFIXManager:
                     continue
                 price = float(px)
                 size = float(sz) if sz else 0.0
-                entry = MarketDataEntry(
+                    entry = MarketDataEntry(
                     symbol=mapped_symbol,
                     entry_type=side,
                     price=price,
@@ -985,12 +1026,12 @@ class GenuineFIXManager:
                     position_no=int(position_no) if position_no and position_no.isdigit() else None,
                 )
                 if side == '0':
-                    order_book.bids.append(entry)
+                        order_book.bids.append(entry)
                 elif side == '1':
-                    order_book.asks.append(entry)
+                        order_book.asks.append(entry)
                 elif side == '2':
-                    order_book.last_trade = entry
-
+                        order_book.last_trade = entry
+                        
             # Sort the books
             order_book.bids.sort(key=lambda x: x.price, reverse=True)
             order_book.asks.sort(key=lambda x: x.price)
@@ -1003,7 +1044,7 @@ class GenuineFIXManager:
                     callback(mapped_symbol, order_book)
                 except Exception as e:
                     logger.error(f"Error in market data callback: {e}")
-
+                    
         except Exception as e:
             logger.error(f"Error handling MarketDataSnapshot: {e}")
             
@@ -1186,7 +1227,7 @@ class GenuineFIXManager:
             for symbol in symbols:
                 ok = self.subscribe_symbol(symbol, timeout=timeout)
                 if ok:
-                    logger.info(f"✅ Market data subscription confirmed for {symbol}")
+                            logger.info(f"✅ Market data subscription confirmed for {symbol}")
                     results[symbol] = True
                 else:
                     logger.error(f"⏰ Timeout waiting for market data confirmation for {symbol}")
@@ -1447,7 +1488,7 @@ class GenuineFIXManager:
         except Exception as e:
             logger.error(f"Error during replace for {orig_cl_ord_id}: {e}")
             return False
-
+        
     def _handle_order_cancel_reject(self, message: Dict[str, str]):
         """Handle OrderCancelReject messages."""
         try:
@@ -1609,16 +1650,16 @@ class GenuineFIXManager:
                 ob = self.order_books.get(sym)
                 if not ob:
                     continue
-                for callback in self.market_data_callbacks:
-                    try:
+            for callback in self.market_data_callbacks:
+                try:
                         callback(sym, ob)
-                    except Exception as e:
-                        logger.error(f"Error in market data callback: {e}")
-
+                except Exception as e:
+                    logger.error(f"Error in market data callback: {e}")
+                    
         except Exception as e:
             logger.error(f"Error handling MarketDataIncrementalRefresh: {e}")
             
-    def _update_order_book_side(self, book_side: List[MarketDataEntry], update_action: str,
+    def _update_order_book_side(self, book_side: List[MarketDataEntry], update_action: str, 
                                 price: float, size: float, symbol: str, entry_type: str,
                                 entry_id: Optional[str] = None):
         """Update order book side based on update action. Prefer entry_id matching, fallback to price."""
@@ -1632,7 +1673,7 @@ class GenuineFIXManager:
                     for e in book_side:
                         if e.entry_id == entry_id:
                             target = e
-                            break
+                        break
                 if target is None:
                     for e in book_side:
                         if e.price == price:
@@ -1746,14 +1787,14 @@ class GenuineFIXManager:
             pass
 
         try:
-            if self.price_connection:
-                self.price_connection.disconnect()
+        if self.price_connection:
+            self.price_connection.disconnect()
         except Exception:
             pass
-        
+            
         try:
-            if self.trade_connection:
-                self.trade_connection.disconnect()
+        if self.trade_connection:
+            self.trade_connection.disconnect()
         except Exception:
             pass
             
@@ -1772,7 +1813,7 @@ class GenuineFIXManager:
             self._store.save_orders(self.orders)
         except Exception:
             pass
-
+            
         logger.info("✅ Genuine FIX Manager stopped")
 
     def _md_watchdog_loop(self) -> None:

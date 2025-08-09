@@ -649,6 +649,10 @@ class GenuineFIXManager:
         # Track cancel outcomes and last business reject text for diagnostics
         self.cancel_results: Dict[str, Dict[str, Any]] = {}
         self.last_business_reject: Optional[str] = None
+        # Market data subscription tracking and watchdog
+        self.md_subscriptions: Dict[str, str] = {}
+        self._md_stale_seconds: float = 30.0
+        self._md_watchdog_thread: Optional[threading.Thread] = None
         # Reconnection supervisor state
         self._reconnect_state: Dict[str, Dict[str, Any]] = {
             'quote': {'delay': 1.0, 'next': 0.0},
@@ -699,6 +703,40 @@ class GenuineFIXManager:
         except Exception as e:
             logger.error(f"Error building/sending MDReq: {e}")
             return False
+
+    def _send_md_unsubscribe(self, req_id: str) -> bool:
+        """Send MarketDataRequest disable (unsubscribe) for given MDReqID."""
+        try:
+            msg = simplefix.FixMessage()
+            msg.append_pair(8, "FIX.4.4")
+            msg.append_pair(35, "V")
+            msg.append_pair(49, f"demo.icmarkets.{self.config.account_number}")
+            msg.append_pair(56, "cServer")
+            msg.append_pair(57, "QUOTE")
+            msg.append_pair(50, "QUOTE")
+            msg.append_pair(262, req_id)
+            msg.append_pair(263, "2")  # Disable previous snapshot + updates
+            return self.price_connection.send_message_and_track(msg, req_id + "_UNSUB")
+        except Exception as e:
+            logger.error(f"Error sending MD unsubscribe for {req_id}: {e}")
+            return False
+
+    def subscribe_symbol(self, symbol: str, timeout: float = 10.0) -> bool:
+        """Subscribe to MD for one symbol and wait for confirmation."""
+        if not self.price_connection or not self.price_connection.is_connected():
+            logger.error("❌ Price connection not available for market data subscription")
+            return False
+        req_id = f"MD_{symbol}_{int(time.time())}_{uuid.uuid4().hex[:8]}"
+        if not self._send_md_request(symbol, req_id):
+            return False
+        self.md_subscriptions[symbol] = req_id
+        start = time.time()
+        while time.time() - start < timeout:
+            ob = self.order_books.get(symbol)
+            if ob and (datetime.utcnow() - ob.last_update).total_seconds() < timeout:
+                return True
+            time.sleep(0.1)
+        return False
 
     # Remove mode B/C fallbacks for venue hygiene
 
@@ -1032,6 +1070,9 @@ class GenuineFIXManager:
                 # Start reconnection supervisor
                 self._supervisor_thread = threading.Thread(target=self._supervise_sessions, daemon=True)
                 self._supervisor_thread.start()
+                # Start MD watchdog
+                self._md_watchdog_thread = threading.Thread(target=self._md_watchdog_loop, daemon=True)
+                self._md_watchdog_thread.start()
                 # Kick off state reconciliation for any persisted working orders
                 try:
                     self._reconcile_orders_on_start()
@@ -1143,32 +1184,9 @@ class GenuineFIXManager:
         
         try:
             for symbol in symbols:
-                req_id = f"MD_{symbol}_{int(time.time())}_{uuid.uuid4().hex[:8]}"
-                # Standardized MDReq
-                success = self._send_md_request(symbol, req_id)
-                if not success:
-                    logger.error(f"❌ Failed to send market data request for {symbol}")
-                    results[symbol] = False
-                    continue
-                    
-                logger.info(f"📤 Market data request sent for {symbol}, waiting for broker response...")
-                
-                # CRITICAL: Wait for Market Data Snapshot or Reject
-                start_time = time.time()
-                subscription_confirmed = False
-                
-                while time.time() - start_time < timeout / 3:
-                    # Check if we received market data for this symbol
-                    if symbol in self.order_books:
-                        order_book = self.order_books[symbol]
-                        # Check if we have recent data
-                        if (datetime.utcnow() - order_book.last_update).total_seconds() < timeout:
-                            logger.info(f"✅ Market data subscription confirmed for {symbol}")
-                            subscription_confirmed = True
-                            break
-                            
-                    time.sleep(0.1)  # Small delay to avoid busy waiting
-                if subscription_confirmed:
+                ok = self.subscribe_symbol(symbol, timeout=timeout)
+                if ok:
+                    logger.info(f"✅ Market data subscription confirmed for {symbol}")
                     results[symbol] = True
                 else:
                     logger.error(f"⏰ Timeout waiting for market data confirmation for {symbol}")
@@ -1644,6 +1662,14 @@ class GenuineFIXManager:
                 inc_md_reject(text)
             except Exception:
                 pass
+            # If rejection corresponds to a tracked subscription, remove it to allow re-subscribe
+            try:
+                for sym, rid in list(self.md_subscriptions.items()):
+                    if rid == md_req_id:
+                        del self.md_subscriptions[sym]
+                        break
+            except Exception:
+                pass
         except Exception as e:
             logger.error(f"Error handling MarketDataRequestReject: {e}")
             
@@ -1712,6 +1738,13 @@ class GenuineFIXManager:
         except Exception:
             pass
 
+        # Stop MD watchdog
+        try:
+            if self._md_watchdog_thread and self._md_watchdog_thread.is_alive():
+                self._md_watchdog_thread.join(timeout=3.0)
+        except Exception:
+            pass
+
         try:
             if self.price_connection:
                 self.price_connection.disconnect()
@@ -1741,6 +1774,32 @@ class GenuineFIXManager:
             pass
 
         logger.info("✅ Genuine FIX Manager stopped")
+
+    def _md_watchdog_loop(self) -> None:
+        """Per-symbol MD health checker that auto-resubscribes on staleness."""
+        while self.running:
+            try:
+                now = datetime.utcnow()
+                for symbol, req_id in list(self.md_subscriptions.items()):
+                    ob = self.order_books.get(symbol)
+                    staleness = None
+                    if ob:
+                        staleness = (now - ob.last_update).total_seconds()
+                        try:
+                            set_md_staleness(symbol, staleness)
+                        except Exception:
+                            pass
+                    if staleness is None or staleness > self._md_stale_seconds:
+                        logger.warning(f"MD stale for {symbol} (age={staleness}); resubscribing")
+                        try:
+                            self._send_md_unsubscribe(req_id)
+                        except Exception:
+                            pass
+                        self.subscribe_symbol(symbol, timeout=5.0)
+                time.sleep(5.0)
+            except Exception as e:
+                logger.error(f"MD watchdog error: {e}")
+                time.sleep(5.0)
 
     def _reconcile_orders_on_start(self, wait_timeout: float = 3.0) -> None:
         """On startup, probe status for any non-terminal orders to reconcile state after crash/restart."""

@@ -60,7 +60,7 @@ def main() -> int:
     last_mid = None
 
     def on_md_event(e: dict):
-        nonlocal pos, pnl, peak, max_dd, last_macro_minutes, next_macro_minutes
+        nonlocal pos, pnl, peak, max_dd, last_macro_minutes, next_macro_minutes, last_mid
         ob = {"bids": e.get("bids", []), "asks": e.get("asks", [])}
         bids = ob.get("bids", [])
         asks = ob.get("asks", [])

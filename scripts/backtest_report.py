@@ -325,9 +325,12 @@ def main() -> int:
         csv_path = os.path.join(args.out_dir, "why_features.csv")
         jsonl_path = os.path.join(args.out_dir, "why_features.jsonl")
         fields = [
-            "timestamp", "symbol", "composite_signal", "why_composite_signal", "what_signal",
+            "timestamp", "symbol",
+            "composite_signal", "why_composite_signal", "what_signal",
             "why_macro_signal", "why_yield_signal", "why_yield_slope_2s10s", "why_yield_slope_5s30s",
-            "why_yield_curvature_2_10_30", "why_yield_parallel_shift", "regime", "pos_attenuation"
+            "why_yield_curvature_2_10_30", "why_yield_parallel_shift",
+            "sigma_ann", "regime", "pos_attenuation",
+            "pnl", "cum_cost"
         ]
         try:
             with open(csv_path, "w", newline="", encoding="utf-8") as fh:

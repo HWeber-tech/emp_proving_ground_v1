@@ -34,6 +34,13 @@ HTML_TMPL = """
     <li>Total rows: {rowcount}</li>
   </ul>
   <p>Generated at {now}</p>
+  <h1>PnL vs Costs (last 100 rows)</h1>
+  <table>
+    <thead><tr><th>timestamp</th><th>pnl</th><th>cum_cost</th><th>regime</th></tr></thead>
+    <tbody>
+      {pnltable}
+    </tbody>
+  </table>
 </body>
 </html>
 """
@@ -57,8 +64,19 @@ def main() -> int:
                 headers = [f"<th>{h}</th>" for h in row]
             else:
                 rows.append("<tr>" + "".join(f"<td>{c}</td>" for c in row) + "</tr>")
+    # Build a simple PnL vs cost table using last 100 rows
+    pnltable = []
+    try:
+        with open(args.csv, "r", encoding="utf-8") as fh:
+            rr = list(csv.DictReader(fh))[-100:]
+            for d in rr:
+                pnltable.append("<tr><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>".format(
+                    d.get("timestamp", ""), d.get("pnl", ""), d.get("cum_cost", ""), d.get("regime", "")
+                ))
+    except Exception:
+        pass
     from datetime import datetime
-    html = HTML_TMPL.format(headers="".join(headers), rows="\n".join(rows), rowcount=len(rows), now=datetime.utcnow().isoformat())
+    html = HTML_TMPL.format(headers="".join(headers), rows="\n".join(rows), rowcount=len(rows), now=datetime.utcnow().isoformat(), pnltable="\n".join(pnltable))
     os.makedirs(os.path.dirname(args.out), exist_ok=True)
     with open(args.out, "w", encoding="utf-8") as fh:
         fh.write(html)

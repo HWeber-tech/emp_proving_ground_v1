@@ -38,6 +38,7 @@ def load_vol_config(path: Optional[str] = None) -> VolConfig:
             block_regime=str(ve.get("regime_gate", {}).get("block", "storm")),
             gate_mode=str(ve.get("regime_gate", {}).get("mode", "block")),
             attenuation_factor=float(ve.get("regime_gate", {}).get("attenuation_factor", 0.3)),
+            brake_scale=float(ve.get("risk_controls", {}).get("brake_scale", 0.7)),
         )
     except Exception:
         return VolConfig()

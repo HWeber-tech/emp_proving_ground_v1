@@ -172,6 +172,12 @@ def main() -> int:
         total_w = what_conf + (macro_conf + y_conf)
         comp_num = (what_sig * what_conf) + (macro_sig * macro_conf) + (y_sig * y_conf)
         comp = (comp_num / total_w) if total_w > 0 else 0.0
+        # Apply braking in storm regime by scaling composite
+        if f.get("regime") == "storm":
+            try:
+                comp *= float(getattr(vol_cfg, "brake_scale", 0.7))
+            except Exception:
+                pass
         f["composite_signal"] = comp
         # Simple paper PnL accounting using mid with regime gate option
         if mid and micro:

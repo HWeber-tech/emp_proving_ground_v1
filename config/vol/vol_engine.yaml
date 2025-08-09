@@ -18,4 +18,6 @@ vol_engine:
     block: "storm"
     mode: "attenuate"
     attenuation_factor: 0.3
+  risk_controls:
+    brake_scale: 0.7
 

@@ -25,6 +25,8 @@ class VolConfig:
     block_regime: str = "storm"
     gate_mode: str = "block"  # "block" | "attenuate"
     attenuation_factor: float = 0.3
+    # Braking in high-risk regimes
+    brake_scale: float = 0.7
 
 
 class Garch11:

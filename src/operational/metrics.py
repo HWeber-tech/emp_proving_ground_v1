@@ -228,3 +228,44 @@ def inc_pretrade_denial(symbol: str, reason: str) -> None:
         pass
 
 
+# Volatility engine metrics
+vol_sigma_ann = Gauge(
+    "vol_sigma_ann",
+    "Annualized volatility estimate (per symbol)",
+    ["symbol"],
+)
+
+vol_regime_total = Counter(
+    "vol_regime_total",
+    "Volatility regime observations",
+    ["symbol", "regime"],
+)
+
+vol_rv_garch_divergence = Gauge(
+    "vol_rv_garch_divergence",
+    "Absolute divergence between RV and GARCH-ann vol",
+    ["symbol"],
+)
+
+
+def set_vol_sigma(symbol: str, sigma_ann: float) -> None:
+    try:
+        vol_sigma_ann.labels(symbol=symbol).set(max(0.0, sigma_ann))
+    except Exception:
+        pass
+
+
+def inc_vol_regime(symbol: str, regime: str) -> None:
+    try:
+        vol_regime_total.labels(symbol=symbol, regime=str(regime)).inc()
+    except Exception:
+        pass
+
+
+def set_vol_divergence(symbol: str, divergence: float) -> None:
+    try:
+        vol_rv_garch_divergence.labels(symbol=symbol).set(max(0.0, divergence))
+    except Exception:
+        pass
+
+

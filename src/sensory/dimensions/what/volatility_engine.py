@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from typing import Optional, Tuple
 
 from src.data_foundation.schemas import VolSignal
+from src.operational.metrics import set_vol_sigma, inc_vol_regime, set_vol_divergence
 
 
 @dataclass
@@ -113,6 +114,14 @@ def vol_signal(symbol: str,
     reg = classify_regime(sigma_ann, cfg.calm_thr, cfg.storm_thr)
     s_mult = sizing_multiplier(reg, sigma_ann)
     v95 = compute_var95_1d(sigma_ann, exposure=1.0, bar_minutes=cfg.bar_interval_minutes)
+    try:
+        set_vol_sigma(symbol, sigma_ann)
+        # crude divergence: absolute diff of annualized vols
+        div = abs(annualize_sigma2(rv, cfg.bar_interval_minutes) - annualize_sigma2(sigma2_daily, cfg.bar_interval_minutes))
+        set_vol_divergence(symbol, div)
+        inc_vol_regime(symbol, reg)
+    except Exception:
+        pass
     return VolSignal(
         symbol=symbol,
         t=t,

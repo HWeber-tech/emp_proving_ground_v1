@@ -61,9 +61,11 @@ Legend: [P0]=critical, [P1]=high, [P2]=normal, [P3]=nice-to-have
   - [ ] Redact credentials in logs
 
 - [ ] [P1] OBS-002: Prometheus metrics
-  - [ ] Counters: messages by type, rejects, reconnects
-  - [ ] Histograms: ER latency, cancel latency, MD staleness
-  - Acceptance: Grafana dashboard with SLO panels
+  - [x] Counters: messages by type, rejects, reconnects
+  - [x] Histograms: ER latency, cancel latency
+  - [x] Gauges: MD staleness, session connectivity
+  - [x] HTTP `/metrics` endpoint
+  - [ ] Grafana dashboard JSON committed under docs/reports
 
 - [ ] [P2] OBS-003: Health/status endpoints
   - [ ] Internal HTTP with session/queue stats

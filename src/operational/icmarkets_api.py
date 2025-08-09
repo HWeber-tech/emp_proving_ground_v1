@@ -18,6 +18,16 @@ import os
 from concurrent.futures import ThreadPoolExecutor
 import queue
 import uuid
+from src.operational.metrics import (
+    start_metrics_server,
+    inc_message,
+    set_session_connected,
+    inc_reconnect,
+    inc_business_reject,
+    observe_exec_latency,
+    observe_cancel_latency,
+    set_md_staleness,
+)
 
 # Configure logging
 logging.basicConfig(
@@ -164,6 +174,10 @@ class GenuineFIXConnection:
             
             self.ssl_socket.connect((host, port))
             self.connected = True
+            try:
+                set_session_connected(self.session_type, True)
+            except Exception:
+                pass
             
             # Send logon message and wait for response
             if self._send_logon_and_wait():
@@ -188,6 +202,10 @@ class GenuineFIXConnection:
             logger.error(f"❌ Connection failed: {e}")
             self.connected = False
             self.authenticated = False
+            try:
+                set_session_connected(self.session_type, False)
+            except Exception:
+                pass
             return False
             
     def _send_logon_and_wait(self) -> bool:
@@ -424,6 +442,12 @@ class GenuineFIXConnection:
                     try:
                         parsed = self._parse_complete_message(message_data)
                         if parsed:
+                    # Metrics: count by type early
+                    try:
+                        mt = parsed.get('35', '??')
+                        inc_message(self.session_type, mt)
+                    except Exception:
+                        pass
                             # Session-level sequence handling
                             try:
                                 msg_type = parsed.get('35')
@@ -573,6 +597,10 @@ class GenuineFIXConnection:
                 self.ssl_socket.close()
                 
             self.connected = False
+            try:
+                set_session_connected(self.session_type, False)
+            except Exception:
+                pass
             logger.info(f"{self.session_type} session disconnected")
             # Join threads to avoid leaks
             try:
@@ -806,6 +834,17 @@ class GenuineFIXManager:
     def _handle_execution_report(self, message: Dict[str, str]):
         """Handle ExecutionReport messages - CRITICAL for real order tracking."""
         try:
+            # Observe latency from send to first ER if possible via pending_requests
+            try:
+                cl_id = message.get('11')
+                if cl_id and cl_id in self.trade_connection.pending_requests:
+                    sent_time = self.trade_connection.pending_requests[cl_id]['sent_time']
+                    if sent_time:
+                        delta = (datetime.utcnow() - sent_time).total_seconds()
+                        observe_exec_latency(delta)
+                        # Keep record; do not delete to allow further metrics
+            except Exception:
+                pass
             cl_ord_id = message.get('11')
             order_id = message.get('37')
             exec_type = message.get('150')
@@ -991,6 +1030,11 @@ class GenuineFIXManager:
         """Start FIX connections with proper message handling."""
         try:
             logger.info("🚀 Starting Genuine FIX Manager...")
+            # Start metrics endpoint
+            try:
+                start_metrics_server()
+            except Exception:
+                pass
             
             # Validate configuration
             self.config.validate_config()
@@ -1285,6 +1329,7 @@ class GenuineFIXManager:
             msg1.append_pair(11, cncl_id_1)
             msg1.append_pair(41, orig_cl_ord_id)
             ok1 = self.trade_connection.send_message_and_track(msg1, cncl_id_1)
+            t_send_cancel = datetime.utcnow()
             if not ok1:
                 logger.error(f"❌ Failed to send minimal cancel for {orig_cl_ord_id}")
                 return False
@@ -1295,6 +1340,10 @@ class GenuineFIXManager:
             while time.time() - t0 < wait_timeout:
                 order = self.orders.get(orig_cl_ord_id)
                 if order and order.status == OrderStatus.CANCELED:
+                    try:
+                        observe_cancel_latency((datetime.utcnow() - t_send_cancel).total_seconds())
+                    except Exception:
+                        pass
                     logger.info(f"✅ Order {orig_cl_ord_id} canceled")
                     return True
                 if self.last_business_reject and "ORDER_NOT_FOUND" in str(self.last_business_reject):
@@ -1323,6 +1372,10 @@ class GenuineFIXManager:
                 while time.time() - t1 < wait_timeout:
                     order = self.orders.get(orig_cl_ord_id)
                     if order and order.status == OrderStatus.CANCELED:
+                        try:
+                            observe_cancel_latency((datetime.utcnow() - t_send_cancel).total_seconds())
+                        except Exception:
+                            pass
                         logger.info(f"✅ Order {orig_cl_ord_id} canceled (retry with 37)")
                         return True
                     time.sleep(0.1)
@@ -1380,6 +1433,10 @@ class GenuineFIXManager:
             text = message.get('58', 'No reason provided')
             logger.error(f"❌ Business message reject for message type {ref_msg_type}: {text}")
             self.last_business_reject = text
+            try:
+                inc_business_reject(ref_msg_type)
+            except Exception:
+                pass
         except Exception as e:
             logger.error(f"Error handling BusinessMessageReject: {e}")
         
@@ -1506,6 +1563,10 @@ class GenuineFIXManager:
             # Update timestamps and sort
             for ob in symbol_to_book.values():
                 ob.last_update = datetime.utcnow()
+                try:
+                    set_md_staleness(ob.symbol, 0.0)
+                except Exception:
+                    pass
                 ob.bids.sort(key=lambda x: x.price, reverse=True)
                 ob.asks.sort(key=lambda x: x.price)
 
@@ -1666,10 +1727,20 @@ class GenuineFIXManager:
                 self._reconnect_state[session]['delay'] = 1.0
                 self._reconnect_state[session]['next'] = 0.0
                 logger.info(f"🔁 Reconnected {session} session successfully")
+                try:
+                    inc_reconnect(session, "success")
+                    set_session_connected(session, True)
+                except Exception:
+                    pass
                 return True
             return False
         except Exception as e:
             logger.error(f"Reconnect attempt for {session} failed: {e}")
+            try:
+                inc_reconnect(session, "failure")
+                set_session_connected(session, False)
+            except Exception:
+                pass
             return False
 
     def _supervisor_step(self) -> None:

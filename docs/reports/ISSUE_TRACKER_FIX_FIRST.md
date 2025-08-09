@@ -25,8 +25,9 @@ Legend: [P0]=critical, [P1]=high, [P2]=normal, [P3]=nice-to-have
 
 ### Section B — Market Data (MD) Parsing and Integrity
 - [ ] [P0] MD-001: Full incremental parser (W/X)
-  - [ ] Properly parse 268 repeating groups with 279/269/270/271
-  - [ ] Maintain depth correctly; side-aware updates
+  - [x] Properly parse 268 repeating groups with 279/269/270/271
+  - [x] Maintain depth correctly; side-aware updates
+  - [x] Entry-ID aware updates/deletes; price fallback
   - Acceptance: Deterministic book after scripted deltas
 
 - [ ] [P1] MD-002: Subscription lifecycle & recovery
@@ -112,5 +113,6 @@ Legend: [P0]=critical, [P1]=high, [P2]=normal, [P3]=nice-to-have
 - Tests: expand `tests/integration` and `tests/unit` for FIX flows, MD integrity, risk gates
 - Metrics: publish Prometheus exporter; dashboard JSON committed under `docs/reports/`
 - Docs: keep `docs/reports/ROADMAP_FIX_FIRST.md` as the narrative; this file as the actionable checklist
+
 
 

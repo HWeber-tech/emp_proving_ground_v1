@@ -869,44 +869,98 @@ class GenuineFIXManager:
             logger.error(f"Error handling ExecutionReport: {e}")
             
     def _handle_market_data_snapshot(self, message: Dict[str, str]):
-        """Handle Market Data Snapshot messages - CRITICAL for real market data."""
+        """Handle Market Data Snapshot messages - parse repeating groups and populate book."""
         try:
-            symbol = message.get('55') or message.get('48')
-            if not symbol:
+            raw_symbol = message.get('55') or message.get('48')
+            if not raw_symbol:
                 logger.error("MarketDataSnapshot missing symbol identifier (55/48)")
                 return
-            # Map numeric id to human-readable if possible
-            mapped_symbol = symbol
+
+            mapped_symbol = raw_symbol
             try:
-                if symbol.isdigit():
+                if raw_symbol.isdigit():
                     from src.operational.icmarkets_config import get_symbol_name
-                    name = get_symbol_name(int(symbol))
+                    name = get_symbol_name(int(raw_symbol))
                     if name:
                         mapped_symbol = name
             except Exception:
                 pass
-                
-            # Initialize order book if not exists
+
             if mapped_symbol not in self.order_books:
                 self.order_books[mapped_symbol] = OrderBook(symbol=mapped_symbol)
-                
+
             order_book = self.order_books[mapped_symbol]
             order_book.bids.clear()
             order_book.asks.clear()
+
+            pairs = message.get('__pairs__') if isinstance(message.get('__pairs__'), list) else []
+            entries: List[Dict[str, str]] = []
+            current: Dict[str, str] = {}
+            in_groups = False
+            remaining = None
+            for tag, value in pairs:
+                if tag == '268':
+                    try:
+                        remaining = int(value)
+                        in_groups = True
+                        # reset any current
+                        current = {}
+                        continue
+                    except Exception:
+                        pass
+                if not in_groups:
+                    continue
+                # Start a new group when a new 269 appears and current already has data
+                if tag == '269' and current.get('269') is not None:
+                    entries.append(current)
+                    current = {}
+                    if remaining is not None:
+                        remaining -= 1
+                # Collect known fields
+                if tag in ('269','270','271','278','290','55','48'):
+                    current[tag] = value
+            # Push last
+            if in_groups and current:
+                entries.append(current)
+
+            for e in entries:
+                side = e.get('269')  # 0=bid,1=ask,2=trade
+                px = e.get('270')
+                sz = e.get('271')
+                entry_id = e.get('278')
+                position_no = e.get('290')
+                if not side or not px:
+                    continue
+                price = float(px)
+                size = float(sz) if sz else 0.0
+                entry = MarketDataEntry(
+                    symbol=mapped_symbol,
+                    entry_type=side,
+                    price=price,
+                    size=size,
+                    entry_id=entry_id,
+                    position_no=int(position_no) if position_no and position_no.isdigit() else None,
+                )
+                if side == '0':
+                    order_book.bids.append(entry)
+                elif side == '1':
+                    order_book.asks.append(entry)
+                elif side == '2':
+                    order_book.last_trade = entry
+
+            # Sort the books
+            order_book.bids.sort(key=lambda x: x.price, reverse=True)
+            order_book.asks.sort(key=lambda x: x.price)
             order_book.last_update = datetime.utcnow()
-            
-            # We don't reconstruct full repeating groups here; mark update so subscription can be confirmed.
-            logger.info(f"Processing market data snapshot for {mapped_symbol}")
-            
-            logger.info(f"✅ Market data snapshot processed for {symbol}: {len(order_book.bids)} bids, {len(order_book.asks)} asks")
-            
-            # Notify callbacks
+
+            logger.info(f"✅ Market data snapshot processed for {mapped_symbol}: {len(order_book.bids)} bids, {len(order_book.asks)} asks")
+
             for callback in self.market_data_callbacks:
                 try:
                     callback(mapped_symbol, order_book)
                 except Exception as e:
                     logger.error(f"Error in market data callback: {e}")
-                    
+
         except Exception as e:
             logger.error(f"Error handling MarketDataSnapshot: {e}")
             
@@ -1335,79 +1389,146 @@ class GenuineFIXManager:
             logger.error(f"Error handling SecurityList: {e}")
             
     def _handle_market_data_incremental_refresh(self, message: Dict[str, str]):
-        """Handle Market Data Incremental Refresh messages."""
+        """Handle Market Data Incremental Refresh (35=X) with proper group parsing and updates."""
         try:
-            symbol = message.get('55') or message.get('48')
-            mapped_symbol = symbol
+            msg_level_symbol = message.get('55') or message.get('48')
+            mapped_symbol_level = msg_level_symbol
             try:
-                if symbol and symbol.isdigit():
+                if msg_level_symbol and msg_level_symbol.isdigit():
                     from src.operational.icmarkets_config import get_symbol_name
-                    name = get_symbol_name(int(symbol))
+                    name = get_symbol_name(int(msg_level_symbol))
                     if name:
-                        mapped_symbol = name
+                        mapped_symbol_level = name
             except Exception:
                 pass
-            if not mapped_symbol or mapped_symbol not in self.order_books:
-                return
-                
-            order_book = self.order_books[mapped_symbol]
-            num_entries = int(message.get('268', 0))
-            
-            for i in range(num_entries):
-                update_action = message.get('279')  # MDUpdateAction
-                entry_type = message.get('269')     # MDEntryType
-                entry_px = message.get('270')       # MDEntryPx
-                entry_size = message.get('271')     # MDEntrySize
-                
-                if entry_type and entry_px:
-                    price = float(entry_px)
-                    size = float(entry_size) if entry_size else 0.0
-                    
-                    if entry_type == '0':  # Bid
-                        self._update_order_book_side(order_book.bids, update_action, price, size, symbol, entry_type)
-                    elif entry_type == '1':  # Offer
-                        self._update_order_book_side(order_book.asks, update_action, price, size, symbol, entry_type)
-                    elif entry_type == '2':  # Trade
-                        order_book.last_trade = MarketDataEntry(
-                            symbol=symbol,
-                            entry_type=entry_type,
-                            price=price,
-                            size=size
-                        )
-                        
-            order_book.last_update = datetime.utcnow()
-            
-            # Notify callbacks
-            for callback in self.market_data_callbacks:
+
+            pairs = message.get('__pairs__') if isinstance(message.get('__pairs__'), list) else []
+            entries: List[Dict[str, str]] = []
+            current: Dict[str, str] = {}
+            in_groups = False
+            for tag, value in pairs:
+                if tag == '268':
+                    in_groups = True
+                    current = {}
+                    continue
+                if not in_groups:
+                    continue
+                # New group on 279 (preferred) or 269 when 279 missing
+                if (tag in ('279', '269')) and (current.get('279') is not None or current.get('269') is not None):
+                    entries.append(current)
+                    current = {}
+                if tag in ('279','269','270','271','278','290','55','48'):
+                    current[tag] = value
+            if in_groups and current:
+                entries.append(current)
+
+            # Ensure order book exists when any entry resolves to a symbol
+            def resolve_symbol(entry: Dict[str,str]) -> Optional[str]:
+                s = entry.get('55') or entry.get('48') or mapped_symbol_level
+                if not s:
+                    return None
                 try:
-                    callback(symbol, order_book)
-                except Exception as e:
-                    logger.error(f"Error in market data callback: {e}")
-                    
+                    if s.isdigit():
+                        from src.operational.icmarkets_config import get_symbol_name
+                        name = get_symbol_name(int(s))
+                        return name or s
+                except Exception:
+                    pass
+                return s
+
+            # Group-by symbol: IC Markets tends to send message-level symbol for X, but be robust
+            symbol_to_book: Dict[str, OrderBook] = {}
+            for e in entries:
+                sym = resolve_symbol(e)
+                if not sym:
+                    # Skip entries without symbol context
+                    continue
+                if sym not in self.order_books:
+                    self.order_books[sym] = OrderBook(symbol=sym)
+                symbol_to_book[sym] = self.order_books[sym]
+
+            for e in entries:
+                sym = resolve_symbol(e)
+                if not sym:
+                    continue
+                order_book = symbol_to_book[sym]
+                action = e.get('279', '0')  # default New
+                side = e.get('269')
+                px = e.get('270')
+                sz = e.get('271')
+                entry_id = e.get('278')
+                if side == '2':
+                    # Trade
+                    if px:
+                        order_book.last_trade = MarketDataEntry(
+                            symbol=sym,
+                            entry_type=side,
+                            price=float(px),
+                            size=float(sz) if sz else 0.0,
+                            entry_id=entry_id,
+                        )
+                    continue
+                if not side or not px:
+                    continue
+                price = float(px)
+                size = float(sz) if sz else 0.0
+                if side == '0':
+                    self._update_order_book_side(order_book.bids, action, price, size, sym, side, entry_id)
+                elif side == '1':
+                    self._update_order_book_side(order_book.asks, action, price, size, sym, side, entry_id)
+
+            # Update timestamps and sort
+            for ob in symbol_to_book.values():
+                ob.last_update = datetime.utcnow()
+                ob.bids.sort(key=lambda x: x.price, reverse=True)
+                ob.asks.sort(key=lambda x: x.price)
+
+            # Notify callbacks per message-level symbol if available, else per updated symbol
+            notify_symbols = list(symbol_to_book.keys()) or ([mapped_symbol_level] if mapped_symbol_level else [])
+            for sym in notify_symbols:
+                ob = self.order_books.get(sym)
+                if not ob:
+                    continue
+                for callback in self.market_data_callbacks:
+                    try:
+                        callback(sym, ob)
+                    except Exception as e:
+                        logger.error(f"Error in market data callback: {e}")
+
         except Exception as e:
             logger.error(f"Error handling MarketDataIncrementalRefresh: {e}")
             
-    def _update_order_book_side(self, book_side: List[MarketDataEntry], update_action: str, 
-                               price: float, size: float, symbol: str, entry_type: str):
-        """Update order book side based on update action."""
+    def _update_order_book_side(self, book_side: List[MarketDataEntry], update_action: str,
+                                price: float, size: float, symbol: str, entry_type: str,
+                                entry_id: Optional[str] = None):
+        """Update order book side based on update action. Prefer entry_id matching, fallback to price."""
         try:
             if update_action == '0':  # New
-                entry = MarketDataEntry(symbol=symbol, entry_type=entry_type, price=price, size=size)
+                entry = MarketDataEntry(symbol=symbol, entry_type=entry_type, price=price, size=size, entry_id=entry_id)
                 book_side.append(entry)
-                # Re-sort
-                if entry_type == '0':  # Bid
-                    book_side.sort(key=lambda x: x.price, reverse=True)
-                else:  # Ask
-                    book_side.sort(key=lambda x: x.price)
             elif update_action == '1':  # Change
-                for entry in book_side:
-                    if entry.price == price:
-                        entry.size = size
-                        entry.entry_time = datetime.utcnow()
-                        break
+                target = None
+                if entry_id:
+                    for e in book_side:
+                        if e.entry_id == entry_id:
+                            target = e
+                            break
+                if target is None:
+                    for e in book_side:
+                        if e.price == price:
+                            target = e
+                            break
+                if target is not None:
+                    target.size = size
+                    target.entry_time = datetime.utcnow()
+                else:
+                    # If we cannot find it, treat as New to avoid losing state
+                    book_side.append(MarketDataEntry(symbol=symbol, entry_type=entry_type, price=price, size=size, entry_id=entry_id))
             elif update_action == '2':  # Delete
-                book_side[:] = [entry for entry in book_side if entry.price != price]
-                
+                if entry_id:
+                    book_side[:] = [e for e in book_side if e.entry_id != entry_id]
+                else:
+                    book_side[:] = [e for e in book_side if e.price != price]
         except Exception as e:
             logger.error(f"Error updating order book side: {e}")
             

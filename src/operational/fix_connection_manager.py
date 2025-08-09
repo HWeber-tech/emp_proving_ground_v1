@@ -17,14 +17,20 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Optional, Any, Dict
+from typing import Optional, Any, Dict, Callable, List
 
 try:
-    # Genuine FIX Manager implementation
-    from src.operational.icmarkets_api import GenuineFIXManager
-    from src.operational.icmarkets_config import ICMarketsConfig
-except Exception as import_error:  # pragma: no cover - defensive
-    raise
+    # Genuine FIX Manager implementation (optional)
+    from src.operational.icmarkets_api import GenuineFIXManager  # type: ignore
+    from src.operational.icmarkets_config import ICMarketsConfig  # type: ignore
+except Exception:
+    GenuineFIXManager = None  # type: ignore
+    ICMarketsConfig = None  # type: ignore
+
+try:
+    from src.operational.mock_fix import MockFIXManager  # type: ignore
+except Exception:
+    MockFIXManager = None  # type: ignore
 
 
 logger = logging.getLogger(__name__)
@@ -48,7 +54,7 @@ class _FIXApplicationAdapter:
 class _FIXInitiatorAdapter:
     """Adapter exposing a `send_message` API to send trade messages."""
 
-    def __init__(self, manager: GenuineFIXManager):
+    def __init__(self, manager: Any):
         self._manager = manager
 
     def send_message(self, msg: Any) -> bool:
@@ -72,14 +78,28 @@ class FIXConnectionManager:
     def start_sessions(self) -> bool:
         """Create and start genuine FIX sessions."""
         try:
-            ic_cfg = ICMarketsConfig(
-                environment=self._system_config.environment,
-                account_number=self._system_config.account_number,
+            use_mock = bool(
+                (GenuineFIXManager is None) or
+                (getattr(self._system_config, "use_mock_fix", False)) or
+                (os.environ.get("EMP_USE_MOCK_FIX", "0") in ("1", "true", "True"))
             )
-            # Inject password if present
-            ic_cfg.password = self._system_config.password
 
-            manager = GenuineFIXManager(ic_cfg)
+            if use_mock:
+                if MockFIXManager is None:
+                    logger.error("MockFIXManager not available")
+                    return False
+                manager = MockFIXManager()
+            else:
+                if ICMarketsConfig is None or GenuineFIXManager is None:
+                    logger.error("Genuine FIX components not available")
+                    return False
+                ic_cfg = ICMarketsConfig(
+                    environment=self._system_config.environment,
+                    account_number=self._system_config.account_number,
+                )
+                # Inject password if present
+                ic_cfg.password = self._system_config.password
+                manager = GenuineFIXManager(ic_cfg)
 
             # Bridge market data: convert order book updates to queue-friendly messages
             def on_market_data(symbol: str, order_book) -> None:

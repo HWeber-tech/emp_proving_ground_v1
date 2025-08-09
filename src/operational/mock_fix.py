@@ -20,8 +20,8 @@ class _MockTradeConnection:
         self._order_cbs = order_cbs
 
     def send_message_and_track(self, msg: Any) -> bool:
-        # Immediately echo an execution report callback on another thread
-        def _emit():
+        # Emit a New then a Fill execution on background threads
+        def _emit_new():
             info = type("OrderInfo", (), {})()
             info.cl_ord_id = str(getattr(msg, "cl_ord_id", "TEST"))
             info.executions = [{"exec_type": "0"}]  # New
@@ -30,7 +30,18 @@ class _MockTradeConnection:
                     cb(info)
                 except Exception:
                     pass
-        threading.Thread(target=_emit, daemon=True).start()
+        def _emit_fill():
+            time.sleep(0.1)
+            info = type("OrderInfo", (), {})()
+            info.cl_ord_id = str(getattr(msg, "cl_ord_id", "TEST"))
+            info.executions = [{"exec_type": "F"}]  # Fill
+            for cb in self._order_cbs:
+                try:
+                    cb(info)
+                except Exception:
+                    pass
+        threading.Thread(target=_emit_new, daemon=True).start()
+        threading.Thread(target=_emit_fill, daemon=True).start()
         return True
 
 

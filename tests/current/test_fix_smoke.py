@@ -42,11 +42,13 @@ def test_fix_mock_roundtrip(monkeypatch):
     # Drain a bit
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
-    price_msgs = loop.run_until_complete(_drain(price_q, timeout=0.5))
-    trade_msgs = loop.run_until_complete(_drain(trade_q, timeout=0.5))
+    price_msgs = loop.run_until_complete(_drain(price_q, timeout=1.0))
+    trade_msgs = loop.run_until_complete(_drain(trade_q, timeout=1.0))
     loop.close()
 
     assert any(m.get(35) == b"W" for m in price_msgs)
-    assert any(m.get(35) == b"8" for m in trade_msgs)
+    # Expect both New (150='0') and Fill (150='F') across messages
+    exec_types = {m.get(150) for m in trade_msgs if m.get(35) == b"8"}
+    assert b"0" in exec_types and b"F" in exec_types
 
 

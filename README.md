@@ -89,6 +89,7 @@ tests/current/          # Canonical test suite
 - [Architecture Reality](docs/ARCHITECTURE_REALITY.md)
 - [Roadmap (FIX‑first)](docs/reports/ROADMAP_FIX_FIRST.md)
 - [Roadmap (Authoritative)](docs/ROADMAP.md)
+- [Roadmap (Comprehensive, budget‑tiered)](docs/reports/ROADMAP_COMPREHENSIVE.md)
 - [Cleanup Report](docs/reports/CLEANUP_REPORT.md)
 
 ### Transparency Metrics

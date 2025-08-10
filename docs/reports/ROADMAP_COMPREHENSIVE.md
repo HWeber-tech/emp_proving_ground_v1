@@ -21,21 +21,26 @@ Artifacts: `docs/reports/CLEANUP_REPORT.md`, README quick start, tests under `te
 
 ## Budget tiers (platform scope and costs grow with tiers)
 
+Funding model: lower tiers fund the next tier’s build‑out. Each tier must produce measurable value (reports, research outputs, or paper performance) that justifies moving up. Promotion requires meeting KPIs and securing budget from demonstrated outcomes.
+
 - **Tier Bronze (Low budget, OpenBB/Yahoo data; no paid infra)**
   - Goal: Prove signal pipeline, risk controls, and execution model offline
   - Data: OpenBB (macro/yields/equities), Yahoo as fallback; local parquet/duckdb storage
   - Infra: Local dev + optional free cloud storage; no managed services
   - Broker: FIX paper/demo sessions (default); mock only for CI/unit tests
+  - Funding output: publish backtest reports and feature studies; baseline paper performance to unlock Silver
 - **Tier Silver (Moderate budget)**
   - Goal: Real‑time research pipeline, stateful backtests, and FIX price/trade dry‑runs
   - Data: Same as Bronze + optional premium endpoints where needed
   - Infra: Redis + TimescaleDB (or Postgres) for real‑time/state; basic dashboards
   - Broker: FIX sessions established but restricted to paper/demo
+  - Funding output: real‑time dashboards and reproducible stateful backtests; reliability KPIs to unlock Gold
 - **Tier Gold (High budget)**
   - Goal: Robustization (HA, observability, secrets, audit), multi‑asset scaling, nightly research
   - Data: Premium feeds as needed, scheduled ingest; model registry
   - Infra: Managed DBs, metrics/alerts, job scheduler, artifacts storage
   - Broker: Gradual live ramp with strict guardrails
+  - Funding output: nightly research pipeline, audited experiments, improved paper metrics; SLOs to justify live pilot (Platinum)
 - **Tier Platinum (Very high budget / production)**
   - Goal: Production operations with SLOs, DR, compliance, and on‑call
   - Data: Full vendor contracts and redundancy

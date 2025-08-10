@@ -103,7 +103,7 @@ class SystemValidator:
         
         # Test population manager
         try:
-            from src.evolution.engine.population_manager import create_population_manager
+            from src.core.population_manager import create_population_manager
             from src.core.interfaces import DecisionGenome
             
             manager = create_population_manager(population_size=5)

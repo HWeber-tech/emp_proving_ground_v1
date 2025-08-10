@@ -19,7 +19,7 @@ from typing import Dict, List, Any
 
 # Import all components
 from src.risk.risk_manager_impl import create_risk_manager
-from src.trading.strategy_engine.strategy_engine import create_strategy_engine
+from src.core.strategy.engine import StrategyEngine
 from src.core.strategy.templates.moving_average import MovingAverageStrategy as CoreMovingAverageStrategy
 from src.core.population_manager import PopulationManager
 from src.evolution.fitness.real_trading_fitness_evaluator import RealTradingFitnessEvaluator
@@ -98,16 +98,16 @@ class SystemVerifier:
             
             # Create strategy engine
             risk_manager = create_risk_manager(10000.0)
-            strategy_engine = create_strategy_engine(risk_manager)
+            engine = StrategyEngine()
             
             # Test strategy registration
             strategy = CoreMovingAverageStrategy("test_engine", ["EURUSD"], {"fast_period": 5, "slow_period": 10})
             
-            success = strategy_engine.register_strategy(strategy)
+            success = engine.register_strategy(strategy)
             assert success is True
             
             # Test strategy start
-            started = strategy_engine.start_strategy("test_engine")
+            started = engine.start_strategy("test_engine")
             assert started is True
             
             # Test strategy execution
@@ -118,11 +118,11 @@ class SystemVerifier:
                 'timestamp': datetime.now()
             }
             
-            result = await strategy_engine.execute_strategy("test_engine", market_data)
+            result = await engine.execute_strategy("test_engine", market_data)
             assert result is not None
             
             # Test strategy management
-            strategies = strategy_engine.get_all_strategies()
+            strategies = engine.get_all_strategies()
             assert "test_engine" in strategies
             
             logger.info("✅ Strategy Engine verified successfully")
@@ -175,7 +175,7 @@ class SystemVerifier:
             
             # Test fitness evaluator
             risk_manager = create_risk_manager(10000.0)
-            strategy_engine = create_strategy_engine(risk_manager)
+            engine = StrategyEngine()
             fitness_evaluator = RealTradingFitnessEvaluator(
                 symbol="EURUSD",
                 lookback_days=30,
@@ -200,13 +200,13 @@ class SystemVerifier:
             
             # Create complete system
             risk_manager = create_risk_manager(10000.0)
-            strategy_engine = create_strategy_engine(risk_manager)
+            engine = StrategyEngine()
             
             # Register strategy
             strategy = CoreMovingAverageStrategy("integration_test", ["EURUSD"], {"fast_period": 5, "slow_period": 10})
             
-            strategy_engine.register_strategy(strategy)
-            strategy_engine.start_strategy("integration_test")
+            engine.register_strategy(strategy)
+            engine.start_strategy("integration_test")
             
             # Test complete flow
             market_data = {
@@ -217,7 +217,7 @@ class SystemVerifier:
             }
             
             # Execute strategy
-            result = await strategy_engine.execute_strategy("integration_test", market_data)
+            result = await engine.execute_strategy("integration_test", market_data)
             assert result is not None
             
             # Test risk validation

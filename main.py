@@ -69,8 +69,8 @@ class EMPProfessionalPredator:
             self.event_bus = EventBus()
             # Attach a risk manager instance for global checks (lazy/placeholder)
             try:
-                from src.risk.real_risk_manager import RealRiskManager, RealRiskConfig
-                self.event_bus.risk_manager = RealRiskManager(RealRiskConfig())
+                from src.core.risk.manager import RiskManager, RiskConfig
+                self.event_bus.risk_manager = RiskManager(RiskConfig())
                 # back-reference for event emission
                 self.event_bus.risk_manager.event_bus = self.event_bus
                 logger.info("✅ Risk manager attached to event bus")

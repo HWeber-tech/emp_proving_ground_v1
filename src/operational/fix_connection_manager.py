@@ -20,11 +20,14 @@ import os
 import logging
 from typing import Optional, Any, Dict, Callable, List
 
+"""If genuine manager is available in the environment (installed as plugin or present
+in the source tree), import it lazily. Otherwise, we will fall back to mock when
+explicitly requested or when credentials are missing.
+"""
 try:
-    # Genuine FIX Manager implementation (optional)
     from src.operational.icmarkets_api import GenuineFIXManager  # type: ignore
     from src.operational.icmarkets_config import ICMarketsConfig  # type: ignore
-except Exception:
+except Exception:  # pragma: no cover
     GenuineFIXManager = None  # type: ignore
     ICMarketsConfig = None  # type: ignore
 
@@ -79,10 +82,24 @@ class FIXConnectionManager:
     def start_sessions(self) -> bool:
         """Create and start genuine FIX sessions."""
         try:
+            # Prefer real FIX if credentials exist and genuine manager is available,
+            # unless explicitly forced to mock via env.
+            force_mock = os.environ.get("EMP_USE_MOCK_FIX", "0") in ("1", "true", "True")
+            creds_present = all(
+                bool(os.environ.get(k) or getattr(self._system_config, k.lower(), None))
+                for k in (
+                    "FIX_PRICE_SENDER_COMP_ID",
+                    "FIX_PRICE_USERNAME",
+                    "FIX_PRICE_PASSWORD",
+                    "FIX_TRADE_SENDER_COMP_ID",
+                    "FIX_TRADE_USERNAME",
+                    "FIX_TRADE_PASSWORD",
+                )
+            )
             use_mock = bool(
+                force_mock or
                 (GenuineFIXManager is None) or
-                (getattr(self._system_config, "use_mock_fix", False)) or
-                (os.environ.get("EMP_USE_MOCK_FIX", "0") in ("1", "true", "True"))
+                (not creds_present)
             )
 
             if use_mock:

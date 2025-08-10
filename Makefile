@@ -12,8 +12,6 @@ backtest:
 fix-dry-run:
 	EMP_USE_MOCK_FIX=1 $(PY) scripts/fix_dry_run.py
 
-.PHONY: sensory-snapshot
-sensory-snapshot:
-	$(PY) scripts/sensory_live_snapshot.py --metrics --steps 60 --interval 0.5
+# Deprecated targets removed in cleanup
 
 

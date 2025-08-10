@@ -11,8 +11,15 @@ Architecture:
 - models/: Genome data models and structures
 """
 
-from .encoders import *
-from .decoders import *
+# Legacy subpackages removed in cleanup; keep guards for compatibility
+try:
+    from .encoders import *  # type: ignore
+except Exception:
+    pass
+try:
+    from .decoders import *  # type: ignore
+except Exception:
+    pass
 from .models import *
 
 __version__ = "1.1.0"

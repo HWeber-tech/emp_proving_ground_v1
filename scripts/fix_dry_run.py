@@ -10,7 +10,7 @@ from src.operational.metrics import start_metrics_server
 
 
 async def main() -> int:
-    os.environ.setdefault("EMP_USE_MOCK_FIX", "1")
+    # Prefer real FIX by default; set EMP_USE_MOCK_FIX=1 to force the simulator
     start_metrics_server()
 
     class Cfg:

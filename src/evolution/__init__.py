@@ -13,12 +13,19 @@ Architecture:
 - meta/: Meta-evolution for self-improving evolution
 """
 
-from .engine import *
-from .selection import *
-from .variation import *
-from .evaluation import *
-from .meta import *
+# Legacy facade: re-export core evolution interfaces
+from src.core.evolution.engine import EvolutionEngine, EvolutionConfig  # type: ignore
+from src.core.evolution.fitness import FitnessEvaluator  # type: ignore
+from src.core.evolution.operators import *  # noqa: F401,F403
+from src.core.evolution.population import Population  # type: ignore
 
 __version__ = "1.1.0"
 __author__ = "EMP System"
-__description__ = "Evolution Layer - Genetic Programming and Evolution" 
+__description__ = "Evolution Layer - Genetic Programming and Evolution (core-consolidated)" 
+
+__all__ = [
+    'EvolutionEngine',
+    'EvolutionConfig',
+    'FitnessEvaluator',
+    'Population',
+]

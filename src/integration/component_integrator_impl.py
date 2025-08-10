@@ -86,19 +86,8 @@ class ComponentIntegratorImpl(ComponentIntegrator):
     async def _initialize_evolution_system(self) -> None:
         """Initialize evolution system components."""
         try:
-            try:
-                from src.core.population_manager import PopulationManager  # legacy
-            except Exception:  # pragma: no cover
-                class PopulationManager:  # type: ignore
-                    pass
-            try:
-                from src.evolution.fitness.real_trading_fitness_evaluator import RealTradingFitnessEvaluator  # deprecated
-            except Exception:  # pragma: no cover
-                class RealTradingFitnessEvaluator:  # type: ignore
-                    pass
-            
-            self.components['population_manager'] = PopulationManager()
-            self.components['fitness_evaluator'] = RealTradingFitnessEvaluator()
+            from src.core.evolution.engine import EvolutionEngine, EvolutionConfig
+            self.components['evolution_engine'] = EvolutionEngine(EvolutionConfig())
             
             logger.info("Evolution system components initialized")
             

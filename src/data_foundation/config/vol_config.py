@@ -8,7 +8,27 @@ try:
 except Exception:  # pragma: no cover
     yaml = None
 
-from src.sensory.dimensions.what.volatility_engine import VolConfig
+try:
+    from src.sensory.dimensions.what.volatility_engine import VolConfig  # legacy
+except Exception:  # pragma: no cover
+    from dataclasses import dataclass
+    @dataclass
+    class VolConfig:  # type: ignore
+        bar_interval_minutes: int = 5
+        daily_fit_lookback_days: int = 500
+        rv_window_minutes: int = 60
+        blend_weight: float = 0.7
+        calm_thr: float = 0.08
+        storm_thr: float = 0.18
+        risk_budget_per_trade: float = 0.003
+        k_stop: float = 1.3
+        var_confidence: float = 0.95
+        ewma_lambda: float = 0.94
+        use_regime_gate: bool = False
+        block_regime: str = "storm"
+        gate_mode: str = "block"
+        attenuation_factor: float = 0.3
+        brake_scale: float = 0.7
 
 
 def load_vol_config(path: Optional[str] = None) -> VolConfig:

@@ -1,45 +1,44 @@
-# EMP Proving Ground v1
+# EMP Proving Ground (FIX‑First)
 
-An algorithmic trading system framework in active development.
+A lean, FIX‑only algorithmic trading platform for research, simulation, and controlled execution. The repository reflects a consolidated, production‑lean layout with clear entry points, safe defaults, and an emphasis on risk‑aware design.
 
-## Current Status
+## What this project is
 
-⚠️ This repository is a development framework, not production-ready. Most components are scaffolding or mocks; live trading is not enabled by default. Broker connectivity is FIX-only.
+- A FIX‑first trading system focused on robust connectivity, clean separation of concerns, and reproducible research.
+- A pragmatic codebase for building and validating signal pipelines, risk controls, and execution models offline before any live activity.
+- An evolving foundation for professional workflows: generate features, size positions, enforce portfolio caps, and measure outcomes.
 
-### Snapshot
-- **Broker Connectivity**: FIX-only (IC Markets) – authentication and session scaffolding in place
-- **Sensory Cortex**: 4D+1 framework present; calculations live in the sensory layer
-- **Execution/Risk**: Frameworks wired; real execution via FIX interfaces under active development
-- **Data**: Ingest pipelines and feature scaffolding; production feeds not fully integrated
+Policy note: OpenAPI/FastAPI code is removed by design; the platform operates exclusively with FIX.
 
-See also: `docs/ARCHITECTURE_REALITY.md` and `docs/reports/ROADMAP_FIX_FIRST.md`.
+## Core capabilities
 
-## Architecture Components
+- FIX connectivity with a compatibility manager in `src/operational/fix_connection_manager.py` (mockable for local runs)
+- Strategy and risk consolidation in `src/core/*` with minimal surface area
+- Offline backtesting utilities and feature generation
+- Portfolio caps and USD beta constraints (`src/trading/risk/portfolio_caps.py`)
+- Clean test suite under `tests/current/` (11/11 passing)
 
-- **FIX API Integration**: Basic connectivity framework (authentication working)
-- **Genetic Evolution Engine**: Framework with abstract interfaces
-- **Core Architecture**: Exception handling and validation frameworks
-- **Risk Management**: Interface definitions and basic implementations
-- **Data Processing**: Market data handling framework
-
-## Development Setup
+## Quick start
 
 ```bash
-# Install dependencies
-pip install -r requirements.txt
+# Install
+python -m pip install -r requirements.txt
 
 # Set up environment variables (copy template and edit values)
 cp env_templates/.env.example .env
 # Edit .env and provide real credentials before running anything live
 
-# Configure development parameters
-cp config/trading/icmarkets_config.py.example config/trading/icmarkets_config.py
+# (Optional) Configure venue specifics
+# cp config/trading/icmarkets_config.py.example config/trading/icmarkets_config.py
 
-# Run development tests
-python -m pytest tests/
+# Run tests (current suite)
+make test
 
-# Note: Main production entry point is for development testing only
-python main_production.py
+# Backtest report (offline example)
+python scripts/backtest_report.py --file data/mock/md.jsonl --macro-file data/macro/calendar.jsonl --yields-file data/macro/yields.jsonl --parquet || true
+
+# Run main in mock FIX mode (safe)
+EMP_USE_MOCK_FIX=1 python main.py
 ```
 
 ## Configuration
@@ -58,31 +57,39 @@ cp env_templates/.env.example .env
 - `CONFIRM_LIVE` (must be `true` to enable live)
 - `EMP_KILL_SWITCH` (path to kill-switch file)
 - `EMP_ENVIRONMENT` (`demo` or `production`)
-- `CONNECTION_PROTOCOL` (`fix` only)
+- `CONNECTION_PROTOCOL` (must be `fix`; OpenAPI disabled by policy)
 - `EMP_TIER` (`tier_0`, `tier_1`, `tier_2`)
 - `ICMARKETS_ACCOUNT`, `ICMARKETS_PASSWORD`
 
-3) Tier-0 ingest flags in `main.py`:
+3) Tier‑0 ingest flags in `main.py`:
 
 - `--symbols` Comma-separated symbols for ingest (default: `EURUSD,GBPUSD`)
 - `--db` DuckDB path (default: `data/tier0.duckdb`)
 - `--skip-ingest` Skip Tier-0 ingest at startup
 
-## Roadmap
+## Repository layout (high‑level)
 
-- Phase 1: Foundations (frameworks, configuration, sensory cortex scaffolding)
-- Phase 2: Trading integration (FIX execution path, sizing, risk controls)
-- Phase 3: Strategy evolution and validation
-
-Current phase: Foundations/framework development. For details, see `docs/ARCHITECTURE_REALITY.md` and `docs/reports/ROADMAP_FIX_FIRST.md`.
+```text
+config/                 # Canonical configuration (FIX, execution, vol, why, etc.)
+docs/                   # Architecture, FIX guides, and cleanup reports
+scripts/                # Utilities (cleanup report, backtest report, etc.)
+src/
+  core/                # Consolidated strategy/evolution/risk surfaces
+  trading/             # Execution model, monitoring, portfolio risk utilities
+  operational/         # FIX connection manager and metrics
+  governance/          # SystemConfig and controls
+  data_foundation/     # Config loaders, replay/persist utilities
+  sensory/             # Minimal WHY utilities and shims
+tests/current/          # Canonical test suite
+```
 
 ## Documentation
 
 - [FIX API Development Guide](docs/fix_api/FIX_API_MASTER_GUIDE.md)
 - [Architecture Reality](docs/ARCHITECTURE_REALITY.md)
-- [Roadmap (FIX-first)](docs/reports/ROADMAP_FIX_FIRST.md)
+- [Roadmap (FIX‑first)](docs/reports/ROADMAP_FIX_FIRST.md)
 - [Roadmap (Authoritative)](docs/ROADMAP.md)
-- [Development API Reference](docs/api/)
+- [Cleanup Report](docs/reports/CLEANUP_REPORT.md)
 
 ### Transparency Metrics
 Run quick status metrics:
@@ -91,10 +98,16 @@ python scripts/status_metrics.py
 python scripts/cleanup/generate_cleanup_report.py
 ```
 
-## Development Notes
+## Safety & production notes
 
-This is an active development project. The system architecture is designed for algorithmic trading but most components are currently framework implementations rather than production-ready trading systems.
+- FIX‑only policy is enforced at config and runtime.
+- Use mock FIX (`EMP_USE_MOCK_FIX=1`) unless you explicitly intend to connect.
+- Portfolio and USD beta caps are applied in offline simulations.
+
+## Deeper reference
+
+- Root encyclopaedia: `EMP_ENCYCLOPEDIA_v2.3_CANONICAL.md` (kept for forthcoming consolidation)
 
 ## License
 
-Proprietary - All rights reserved
+Proprietary — All rights reserved

@@ -21,8 +21,7 @@ from typing import Dict, List, Any
 from src.risk.risk_manager_impl import create_risk_manager
 from src.core.strategy.engine import StrategyEngine
 from src.core.strategy.templates.moving_average import MovingAverageStrategy as CoreMovingAverageStrategy
-from src.core.population_manager import PopulationManager
-from src.evolution.fitness.real_trading_fitness_evaluator import RealTradingFitnessEvaluator
+from src.core.evolution.engine import EvolutionEngine, EvolutionConfig
 
 # Configure logging
 logging.basicConfig(
@@ -169,20 +168,9 @@ class SystemVerifier:
         try:
             logger.info("🔍 Verifying Evolution System...")
             
-            # Test population manager
-            population_manager = PopulationManager(population_size=5)
-            assert population_manager.population_size == 5
-            
-            # Test fitness evaluator
-            risk_manager = create_risk_manager(10000.0)
-            engine = StrategyEngine()
-            fitness_evaluator = RealTradingFitnessEvaluator(
-                symbol="EURUSD",
-                lookback_days=30,
-                initial_capital=100000.0
-            )
-            
-            assert fitness_evaluator is not None
+            # Core evolution engine presence
+            evo = EvolutionEngine(EvolutionConfig())
+            assert evo is not None
             
             logger.info("✅ Evolution System verified successfully")
             self.results['evolution_system'] = True

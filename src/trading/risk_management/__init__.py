@@ -4,24 +4,29 @@ Risk Management Package
 Dynamic risk assessment, position sizing, drawdown protection, and risk analytics.
 """
 
-from .assessment.dynamic_risk import DynamicRiskAssessor
-from .assessment.portfolio_risk import PortfolioRiskManager
-from .position_sizing.kelly_criterion import KellyCriterion
-from .position_sizing.risk_parity import RiskParity
-from .position_sizing.volatility_based import VolatilityBasedSizing
-from .drawdown_protection.stop_loss_manager import StopLossManager
-from .drawdown_protection.emergency_procedures import EmergencyProcedures
-from .analytics.var_calculator import VaRCalculator
-from .analytics.stress_testing import StressTester
+"""Legacy risk_management facade retained for compatibility.
+
+Redirects to consolidated `src.core.risk` implementations where applicable.
+"""
+
+try:
+    from src.core.risk.manager import RiskManager  # type: ignore
+    from src.core.risk.position_sizing import kelly_fraction as KellyCriterion  # alias
+    from src.core.risk.var_calculator import VarCalculator as VaRCalculator  # type: ignore
+    from src.core.risk.stress_testing import StressTester  # type: ignore
+except Exception:  # pragma: no cover
+    # Fallbacks if consolidation modules are not present
+    RiskManager = object  # type: ignore
+    def KellyCriterion(*args, **kwargs):  # type: ignore
+        return 0.0
+    class VaRCalculator:  # type: ignore
+        pass
+    class StressTester:  # type: ignore
+        pass
 
 __all__ = [
-    'DynamicRiskAssessor',
-    'PortfolioRiskManager',
+    'RiskManager',
     'KellyCriterion',
-    'RiskParity',
-    'VolatilityBasedSizing',
-    'StopLossManager',
-    'EmergencyProcedures',
     'VaRCalculator',
     'StressTester'
 ] 

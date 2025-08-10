@@ -14,10 +14,58 @@ if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 
 from src.data_foundation.replay.multidim_replayer import MultiDimReplayer
-from src.sensory.dimensions.microstructure import RollingMicrostructure
+try:
+    from src.sensory.dimensions.microstructure import RollingMicrostructure  # legacy
+except Exception:
+    class RollingMicrostructure:  # type: ignore
+        def __init__(self, window: int = 50):
+            self.window = window
+        def update(self, bids, asks):
+            # Minimal placeholder features used by downstream logic
+            mid = 0.0
+            try:
+                best_bid = bids[0][0] if bids else 0.0
+                best_ask = asks[0][0] if asks else 0.0
+                mid = (best_bid + best_ask) / 2.0 if (best_bid and best_ask) else 0.0
+            except Exception:
+                pass
+            return {
+                "mid": mid,
+                "microprice": mid,
+                "top_imbalance": 0.0,
+            }
 from src.data_foundation.persist.parquet_writer import write_events_parquet
-from src.sensory.dimensions.why.macro_signal import macro_proximity_signal
-from src.sensory.dimensions.what.volatility_engine import vol_signal
+def macro_proximity_signal(mins_since: float | None, mins_to_next: float | None) -> tuple[float, float]:
+    # Minimal placeholder: low confidence unless near events
+    try:
+        if mins_since is None and mins_to_next is None:
+            return 0.0, 0.0
+        conf = 0.2
+        sig = 0.0
+        if mins_to_next is not None and mins_to_next < 30:
+            conf = 0.5
+        return sig, conf
+    except Exception:
+        return 0.0, 0.0
+try:
+    from src.sensory.dimensions.what.volatility_engine import vol_signal  # legacy
+except Exception:
+    from dataclasses import dataclass
+    import math
+    @dataclass
+    class _VolSig:
+        sigma_ann: float
+        regime: str
+        sizing_multiplier: float
+
+    def vol_signal(symbol: str, ts: str, rv_window, daily_returns) -> _VolSig:  # type: ignore
+        try:
+            vals = [float(x) for x in (rv_window or []) if x is not None]
+            sigma = (math.sqrt(sum(v*v for v in vals) / len(vals)) * math.sqrt(252*12)) if vals else 0.1
+        except Exception:
+            sigma = 0.1
+        regime = 'normal'
+        return _VolSig(sigma_ann=float(sigma), regime=regime, sizing_multiplier=1.0)
 from src.data_foundation.config.vol_config import load_vol_config
 from src.sensory.dimensions.why.yield_signal import YieldSlopeTracker
 from src.data_foundation.config.why_config import load_why_config

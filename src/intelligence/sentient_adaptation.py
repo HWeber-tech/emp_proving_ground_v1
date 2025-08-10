@@ -23,7 +23,11 @@ import torch.nn as nn
 from sklearn.preprocessing import StandardScaler
 import faiss
 
-from src.evolution.episodic_memory_system import EpisodicMemorySystem
+try:
+    from src.evolution.episodic_memory_system import EpisodicMemorySystem  # legacy
+except Exception:  # pragma: no cover
+    class EpisodicMemorySystem:  # type: ignore
+        pass
 from src.thinking.memory.pattern_memory import PatternMemory
 
 logger = logging.getLogger(__name__)

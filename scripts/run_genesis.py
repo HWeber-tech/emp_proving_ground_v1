@@ -33,7 +33,7 @@ from src.pnl import EnhancedPosition, TradeRecord
 from src.data import TickDataStorage, TickDataCleaner, DukascopyIngestor
 from src.sensory.orchestration.master_orchestrator import MasterOrchestrator
 from src.sensory.core.base import InstrumentMeta, MarketData
-from src.evolution import EvolutionEngine, DecisionGenome, EvolutionConfig, FitnessEvaluator
+from src.evolution import EvolutionEngine, EvolutionConfig, FitnessEvaluator
 from src.simulation import MarketSimulator, AdversarialEngine
 
 # Configure logging

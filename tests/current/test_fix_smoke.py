@@ -15,14 +15,15 @@ async def _drain(q: asyncio.Queue, timeout=1.0):
 
 
 def test_fix_mock_roundtrip(monkeypatch):
-    os.environ["EMP_USE_MOCK_FIX"] = "1"
+    # Prefer real FIX; set to '1' if you explicitly want the simulator
+    os.environ.setdefault("EMP_USE_MOCK_FIX", "0")
     from src.operational.fix_connection_manager import FIXConnectionManager
 
     class Cfg:
         environment = "test"
         account_number = "000"
         password = "x"
-        use_mock_fix = True
+        use_mock_fix = os.environ.get("EMP_USE_MOCK_FIX") == "1"
 
     mgr = FIXConnectionManager(Cfg())
     assert mgr.start_sessions()

@@ -43,8 +43,9 @@ def main():
     
     # Install other dependencies
     other_deps = [
-        "fastapi>=0.70.0,<1.0.0",
-        "uvicorn>=0.15.0,<1.0.0",
+        # OpenAPI/FastAPI removed per FIX-only policy
+        # "fastapi>=0.70.0,<1.0.0",
+        # "uvicorn>=0.15.0,<1.0.0",
         "pydantic>=1.8.0,<3.0.0",
         "sqlalchemy>=1.4.0,<3.0.0",
         "alembic>=1.7.0,<2.0.0",

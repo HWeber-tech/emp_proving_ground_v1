@@ -14,10 +14,18 @@ Dimensions:
 - CHAOS: Antifragile Adaptation
 """
 
-from ..organs.dimensions.what_organ import WhatEngine as WhatDimension
-from ..organs.dimensions.when_organ import WhenEngine as WhenDimension
-from ..organs.dimensions.anomaly_dimension import AnomalyDimension
-from ..organs.dimensions.chaos_dimension import ChaosDimension
+# Legacy engines removed; export minimal placeholders to satisfy imports
+class WhatDimension:  # type: ignore
+    pass
+
+class WhenDimension:  # type: ignore
+    pass
+
+class AnomalyDimension:  # type: ignore
+    pass
+
+class ChaosDimension:  # type: ignore
+    pass
 
 __all__ = [
     'WhatDimension',

@@ -6,7 +6,7 @@ import sys
 
 
 def main() -> int:
-    os.environ.setdefault("EMP_USE_MOCK_FIX", "1")
+    # Tests run offline by default; individual tests can set EMP_USE_MOCK_FIX=1 when needed
     cmd = [sys.executable, "-m", "pytest", "-q"]
     proc = subprocess.run(cmd)
     return proc.returncode

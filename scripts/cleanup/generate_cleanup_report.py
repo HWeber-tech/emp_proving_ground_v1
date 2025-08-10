@@ -30,9 +30,19 @@ def main() -> int:
 
     report = "\n".join(sections)
     print(report)
+    # Write to docs for human-readable docs site
     with open("docs/reports/CLEANUP_REPORT.md", "w", encoding="utf-8") as fh:
         fh.write(report)
     print("\nWrote docs/reports/CLEANUP_REPORT.md")
+    # Also write to root reports directory per project policy
+    try:
+        import os
+        os.makedirs("reports", exist_ok=True)
+        with open("reports/CLEANUP_REPORT.md", "w", encoding="utf-8") as fh2:
+            fh2.write(report)
+        print("Wrote reports/CLEANUP_REPORT.md")
+    except Exception:
+        pass
     return 0
 
 

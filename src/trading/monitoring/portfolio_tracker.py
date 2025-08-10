@@ -7,7 +7,10 @@ from typing import Dict, Optional
 from datetime import datetime
 import logging
 
-from src.operational.persistence import RedisStateStore, JSONStateStore
+# Persistence layer removed; fallback to simple JSON file store
+class JSONStateStore:  # minimal shim
+    def __init__(self, base_dir: str = "data/portfolio") -> None:
+        self.base_dir = base_dir
 
 logger = logging.getLogger(__name__)
 
@@ -25,14 +28,7 @@ class PortfolioTracker:
 
     def __init__(self) -> None:
         # Select store (Redis preferred)
-        try:
-            host = os.environ.get("REDIS_HOST", "localhost")
-            port = int(os.environ.get("REDIS_PORT", "6379"))
-            db = int(os.environ.get("REDIS_DB", "0"))
-            pwd = os.environ.get("REDIS_PASSWORD")
-            self._store = RedisStateStore(host, port, db, pwd, fallback_dir="data/portfolio")
-        except Exception:
-            self._store = JSONStateStore(base_dir="data/portfolio")
+        self._store = JSONStateStore(base_dir="data/portfolio")
         self.cash: float = 0.0
         self.positions: Dict[str, PositionState] = {}
         self._load()
@@ -51,10 +47,7 @@ class PortfolioTracker:
                     with open(path, "r", encoding="utf-8") as f:
                         data = json.load(f)
             else:
-                # RedisStateStore; use its client directly
-                if getattr(self._store, "client", None):
-                    raw = self._store.client.get("emp:portfolio")
-                    data = json.loads(raw) if raw else {}
+                pass
             self.cash = float(data.get("cash", 0.0))
             self.positions = {s: PositionState(**p) for s, p in data.get("positions", {}).items()}
         except Exception:
@@ -76,8 +69,7 @@ class PortfolioTracker:
                     json.dump(state, f)
                 os.replace(tmp, path)
             else:
-                if getattr(self._store, "client", None):
-                    self._store.client.set("emp:portfolio", json.dumps(state))
+                pass
         except Exception as e:
             logger.warning(f"Failed to persist portfolio: {e}")
 

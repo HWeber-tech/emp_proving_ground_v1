@@ -13,6 +13,14 @@ from typing import Dict, List, Set, Tuple
 
 ROOT = "src"
 
+# Exclude legacy/compat shims from orphan detection counts to reduce noise
+EXCLUDE_PREFIXES = {
+    "src.trading.strategy_engine",
+    "src.trading.risk_management",
+    "src.trading.risk",
+    "src.evolution.engine",
+}
+
 
 def list_python_files(root: str) -> List[str]:
     files: List[str] = []
@@ -98,7 +106,15 @@ def find_orphans(graph: Dict[str, Set[str]]) -> Set[str]:
     all_nodes = set(graph.keys()) | referenced
     orphans = {n for n in all_nodes if all(n not in outs for outs in graph.values())}
     # Keep top-level packages
-    return {o for o in orphans if not o.endswith("__init__")}
+    filtered = {o for o in orphans if not o.endswith("__init__")}
+    # Filter legacy shims
+    def _excluded(name: string) -> bool:  # type: ignore[name-defined]
+        try:
+            n = name if name.startswith("src.") else f"src.{name}"
+            return any(n.startswith(prefix) for prefix in EXCLUDE_PREFIXES)
+        except Exception:
+            return False
+    return {o for o in filtered if not _excluded(o)}
 
 
 def main() -> int:

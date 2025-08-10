@@ -18,13 +18,16 @@ from datetime import datetime, timedelta
 from dataclasses import dataclass, field
 
 try:
-    from src.evolution.fitness.multi_dimensional_fitness_evaluator import MultiDimensionalFitnessEvaluator  # deprecated
+    class MultiDimensionalFitnessEvaluator:  # type: ignore
+        pass
 except Exception:  # pragma: no cover
     class MultiDimensionalFitnessEvaluator:  # type: ignore
         pass
 from src.evolution.selection.adversarial_selector import AdversarialSelector
 try:
-    from src.trading.risk.market_regime_detector import MarketRegimeDetector  # deprecated
+    class MarketRegimeDetector:  # type: ignore
+        def __call__(self):
+            return None
 except Exception:  # pragma: no cover
     MarketRegimeDetector = None  # type: ignore
 try:

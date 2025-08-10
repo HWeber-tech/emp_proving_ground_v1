@@ -115,7 +115,7 @@ Not available in FIX-only build. OpenAPI is disabled.
    ```
    ValueError: Unsupported connection protocol: invalid
    ```
-   **Solution**: Use only "fix" or "openapi" values
+   **Solution**: Use only "fix" (OpenAPI is disabled by policy)
 
 2. **Missing Components**
    ```

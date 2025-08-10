@@ -1,0 +1,34 @@
+Duplicate Definitions Summary
+- classes:
+  - evolution: 15
+  - other: 72
+  - risk: 3
+  - strategy: 10
+- functions:
+  - evolution: 5
+  - fitness: 8
+  - other: 216
+  - risk: 10
+  - strategy: 7
+
+Top duplicates (classes):
+- currencyconverter: 2 files
+- riskconfig: 4 files
+- instrumentprovider: 2 files
+- instrument: 3 files
+- phase2dintegrationvalidator: 2 files
+- validationresult: 3 files
+- riskmanager: 2 files
+- strategyregistry: 3 files
+- systemconfig: 2 files
+- config: 2 files
+- learningsignal: 2 files
+- realtimelearningengine: 3 files
+- adaptationcontroller: 2 files
+- faisspatternmemory: 3 files
+- memoryentry: 3 files
+- position: 2 files
+- performancetracker: 3 files
+- performancemetrics: 2 files
+- order: 2 files
+- orderstatus: 4 files

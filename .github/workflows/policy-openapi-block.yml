@@ -1,0 +1,25 @@
+name: Policy - Block OpenAPI/cTrader
+
+on:
+  pull_request:
+  push:
+    branches: [ main, cleanup-phase-0 ]
+
+jobs:
+  block-openapi:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Fail on OpenAPI/cTrader references
+        run: |
+          set -euo pipefail
+          echo "Scanning for forbidden keywords..."
+          FORBIDDEN_REGEX='(openapi|swagger|ctrader|spotware|real_ctrader_interface)'
+          MATCHES=$(grep -RniE "$FORBIDDEN_REGEX" -- src tests/current || true)
+          if [ -n "$MATCHES" ]; then
+            echo "Forbidden references detected:\n$MATCHES"
+            exit 1
+          fi
+          echo "No forbidden references found."

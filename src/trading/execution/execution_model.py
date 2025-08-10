@@ -25,12 +25,7 @@ def estimate_slippage_bps(ctx: ExecContext, cfg) -> float:
     return float(base + spread_coef * s + imbalance_coef * imb + sigma_coef * sig + size_coef * sz)
 
 
-<<<<<<< Current (Your changes)
+from src.data_foundation.config.execution_config import ExecutionConfig
+
 def estimate_commission_bps(cfg: ExecutionConfig) -> float:
     return max(0.0, cfg.fees.commission_bps)
-
-
-=======
-def estimate_commission_bps(cfg) -> float:
-    return float(getattr(cfg.fees, "commission_bps", 0.0))
->>>>>>> Incoming (Background Agent changes)

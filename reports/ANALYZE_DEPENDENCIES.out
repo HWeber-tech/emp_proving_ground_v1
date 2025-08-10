@@ -1,0 +1,24 @@
+Dependency Analysis
+- modules: 92
+- circulars: 0
+- orphans: 91 (first 20)
+  *  phase2d_integration_validator
+  *  operational.structured_logging
+  *  thinking.prediction.predictive_market_modeler
+  *  validation.phase2c_validation_suite
+  *  data_integration.data_fusion
+  *  sensory.integration.sensory_cortex
+  *  operational.health_monitor
+  *  evolution.fitness.real_trading_fitness_evaluator
+  *  core.population_manager
+  *  sensory.what.what_sensor
+  *  operational.metrics_collector
+  *  sensory.real_sensory_organ
+  *  data_foundation.config.vol_config
+  *  thinking.analysis.market_analyzer
+  *  data_integration.real_time_streaming
+  *  trading.execution.liquidity_prober
+  *  validation.phase2d_integration_validator
+  *  thinking.analysis.volume_analysis
+  *  thinking.ecosystem.specialized_predator_evolution
+  *  evolution.fitness.trading_fitness_evaluator

@@ -173,3 +173,6 @@ Dead code candidates (first 100):
 -  src/operational/state_store.py
 -  src/operational/md_capture.py
 Total candidates: 225
+
+
+Wrote docs/reports/CLEANUP_REPORT.md

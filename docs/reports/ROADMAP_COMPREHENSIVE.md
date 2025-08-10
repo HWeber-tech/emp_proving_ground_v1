@@ -10,6 +10,26 @@ A comprehensive, practical plan to move from today’s consolidated FIX‑first 
 - Safety first: deterministic offline workflows precede any live activity.
 - Every milestone has measurable exit criteria and rollback paths.
 
+## Capital & funding via live profits
+
+We start with a minimal initial investment and let the bot fund higher tiers from real trading profits. Profits are allocated each epoch (weekly):
+
+- 60% reinvested into infrastructure/data (fund next tier)
+- 30% risk buffer (drawdown reserve; auto top‑up on losses)
+- 10% ops/development (tools, monitoring)
+
+Capital escalation ladder (promotion requires meeting KPIs for N consecutive weeks):
+
+- L1 (micro): capital $500–$2k, risk per trade ≤ 0.05%, daily DD ≤ 0.2%, weekly DD ≤ 0.5%
+- L2 (small): capital $2k–$10k, risk per trade ≤ 0.10%, daily DD ≤ 0.5%, weekly DD ≤ 1.0%
+- L3 (medium): capital $10k–$50k, risk per trade ≤ 0.20%, daily DD ≤ 1.0%, weekly DD ≤ 2.0%
+
+Promotion gate (all must hold for 3 consecutive weeks):
+
+- Positive expectancy and net PnL > 0
+- Max DD within ladder limits; no kill‑switch triggers
+- Operational KPIs green (latency, error rates)
+
 ## Where we are now (Baseline)
 
 - Clean, FIX‑only codebase; legacy modules removed or shimmed
@@ -33,7 +53,7 @@ Funding model: lower tiers fund the next tier’s build‑out. Each tier must pr
   - Goal: Real‑time research pipeline, stateful backtests, and FIX price/trade dry‑runs
   - Data: Same as Bronze + optional premium endpoints where needed
   - Infra: Redis + TimescaleDB (or Postgres) for real‑time/state; basic dashboards
-  - Broker: FIX sessions established but restricted to paper/demo
+  - Broker: FIX sessions established; paper/demo by default, micro‑live allowed post‑Bronze KPIs
   - Funding output: real‑time dashboards and reproducible stateful backtests; reliability KPIs to unlock Gold
 - **Tier Gold (High budget)**
   - Goal: Robustization (HA, observability, secrets, audit), multi‑asset scaling, nightly research
@@ -65,6 +85,25 @@ Funding model: lower tiers fund the next tier’s build‑out. Each tier must pr
 - ≥3 WHY/WHAT feature families integrated and unit‑tested
 - CI green on merge with generated reports uploaded
 
+#### Bronze — Micro live pilot (2–4 weeks)
+
+Objectives
+
+- Validate real FIX order lifecycle with micro capital at L1 ladder settings
+- Establish profit allocation loop to fund Silver
+
+Scope & guardrails
+
+- Starting capital: $500–$2k; risk per trade ≤ 0.05%; daily DD ≤ 0.2%; weekly DD ≤ 0.5%
+- Circuit breakers: kill‑switch on daily DD breach; auto cool‑down 24h
+- Only limit orders, smallest venue size, one symbol (e.g., EURUSD) to start
+
+Exit criteria / KPIs (3 consecutive weeks)
+
+- Net PnL > 0; positive expectancy; no kill‑switch triggers
+- Operational KPIs green (latency/error rates)
+- Bronze profits ≥ Silver activation budget threshold (documented per vendor costs)
+
 ### Phase 2 — Silver: Real‑time research loop (6–8 weeks)
 **Objectives**
 - Introduce stateful, real‑time pipeline with minimal managed services
@@ -80,6 +119,7 @@ Funding model: lower tiers fund the next tier’s build‑out. Each tier must pr
 - Stable real‑time signal computation < 1s latency at 1–5Hz
 - Stateful backtest reproducibility from DB snapshots
 - FIX sessions connect reliably; order flow dry‑run completes without errors
+ - Paper/live (micro) profits cover incremental infra costs for Silver
 
 ### Phase 3 — Gold: Robustization & scale (8–12 weeks)
 **Objectives**

@@ -22,7 +22,6 @@ try:
     from src.trading.risk.market_regime_detector import MarketRegimeDetector  # deprecated
 except Exception:  # pragma: no cover
     MarketRegimeDetector = None  # type: ignore
-from src.trading.strategies.strategy_manager import StrategyManager
 from src.data_integration.real_data_integration import RealDataManager
 try:
     from src.core.interfaces import DecisionGenome  # legacy
@@ -67,7 +66,7 @@ class HonestValidationFramework:
         self.results: List[HonestValidationResult] = []
         self.yahoo_organ = YahooFinanceOrgan()
         self.regime_detector = MarketRegimeDetector()
-        self.strategy_manager = StrategyManager()
+        self.strategy_manager = None # Placeholder for StrategyManager
         self.real_data_manager = RealDataManager({'fallback_to_mock': False})
         
     async def validate_data_integrity(self) -> HonestValidationResult:

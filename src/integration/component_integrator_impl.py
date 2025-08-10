@@ -72,7 +72,7 @@ class ComponentIntegratorImpl(ComponentIntegrator):
     async def _initialize_trading_system(self) -> None:
         """Initialize trading system components."""
         try:
-            from src.trading.strategy_engine.strategy_engine import StrategyEngine as StrategyEngineImpl
+            from src.core.strategy.engine import StrategyEngine as StrategyEngineImpl
             from src.trading.execution.execution_engine import ExecutionEngine
             
             self.components['strategy_engine'] = StrategyEngineImpl()

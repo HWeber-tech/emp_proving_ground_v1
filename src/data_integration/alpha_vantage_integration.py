@@ -170,7 +170,7 @@ class AlphaVantageProvider:
         
         return None
     
-    async def get_technical_indicator(self, symbol: str, indicator: str = "RSI", 
+    async def get_technical_indicator(self, symbol: str, indicator: str = "GENERIC", 
                                      interval: str = "daily", time_period: int = 14) -> Optional[Dict[str, Any]]:
         """Get provider-computed indicator (treated as external feature)."""
         params = {
@@ -198,7 +198,7 @@ class AlphaVantageProvider:
             for timestamp, values in analysis.items():
                 result['data'][timestamp] = float(values[f'{indicator}'])
             
-            logger.info(f"Retrieved {indicator} data for {symbol}")
+            logger.info(f"Retrieved external indicator data for {symbol}")
             return result
         
         return None
@@ -272,11 +272,11 @@ async def test_alpha_vantage_integration():
     
     # Test technical indicator
     print("\nTesting technical indicator...")
-    rsi = await provider.get_technical_indicator("AAPL", "RSI")
-    if rsi:
-        print(f"✅ RSI data retrieved: {len(rsi['data'])} data points")
+    indicator_data = await provider.get_technical_indicator("AAPL", "GENERIC")
+    if indicator_data:
+        print(f"✅ External indicator data retrieved: {len(indicator_data['data'])} data points")
     else:
-        print("❌ RSI data failed")
+        print("❌ External indicator retrieval failed")
     
     # Test fundamental data
     print("\nTesting fundamental data...")

@@ -25,7 +25,6 @@ try:
     from src.trading.risk.market_regime_detector import MarketRegimeDetector  # deprecated
 except Exception:  # pragma: no cover
     MarketRegimeDetector = None  # type: ignore
-from src.trading.strategies.strategy_manager import StrategyManager
 from src.data_integration.real_data_integration import RealDataManager
 try:
     from src.core.interfaces import DecisionGenome  # legacy
@@ -49,7 +48,7 @@ class Phase2DIntegrationValidator:
         self.yahoo_organ = YahooFinanceOrgan()
         self.manipulation_detector = ManipulationDetectionSystem()
         self.regime_detector = MarketRegimeDetector()
-        self.strategy_manager = StrategyManager()
+        self.strategy_manager = None
         self.real_data_manager = RealDataManager({'fallback_to_mock': False})
         
     async def test_real_data_flow(self) -> Dict[str, Any]:

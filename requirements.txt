@@ -23,8 +23,6 @@ psycopg2-binary>=2.9.0  # PostgreSQL driver
 redis>=4.0.0  # Redis client
 
 # API
-fastapi>=0.70.0
-uvicorn>=0.15.0
 pydantic>=1.8.0
 
 # cTrader OpenAPI intentionally disabled for FIX-only build

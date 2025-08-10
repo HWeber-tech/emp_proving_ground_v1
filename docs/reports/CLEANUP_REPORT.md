@@ -6,66 +6,66 @@
 Duplicate Definitions Summary
 - classes:
   - evolution: 15
-  - other: 83
-  - risk: 7
-  - strategy: 23
+  - other: 72
+  - risk: 3
+  - strategy: 10
 - functions:
-  - evolution: 8
+  - evolution: 5
   - fitness: 8
-  - other: 265
-  - risk: 12
-  - strategy: 14
+  - other: 216
+  - risk: 10
+  - strategy: 7
 
 Top duplicates (classes):
+- instrument: 3 files
+- currencyconverter: 2 files
 - riskconfig: 4 files
 - instrumentprovider: 2 files
-- currencyconverter: 2 files
-- instrument: 3 files
 - phase2dintegrationvalidator: 2 files
-- riskmanager: 4 files
-- validationresult: 4 files
-- evolutionconfig: 3 files
-- contextpacket: 3 files
-- eventbus: 4 files
-- orderbook: 2 files
-- executionreport: 2 files
-- orderbooklevel: 4 files
-- performancemetrics: 4 files
-- riskmetrics: 3 files
-- evolutionstats: 3 files
-- realevolutionengine: 2 files
-- marketdata: 3 files
-- strategymodel: 2 files
-- instrumentmeta: 3 files
+- validationresult: 3 files
+- riskmanager: 2 files
+- evolutionconfig: 2 files
+- eventbus: 9 files
+- populationmanager: 3 files
+- config: 2 files
+- coordinationengine: 3 files
+- ecosystemoptimizer: 3 files
+- multidimensionalfitnessevaluator: 2 files
+- uniformcrossover: 2 files
+- adaptabilityfitness: 2 files
+- antifragilityfitness: 2 files
+- profitfitness: 3 files
+- efficiencyfitness: 2 files
+- innovationfitness: 2 files
 
 
 ## Dependencies
 
 
 Dependency Analysis
-- modules: 114
+- modules: 94
 - circulars: 0
-- orphans: 113 (first 20)
-  *  sensory.integrate.bayesian_integrator
-  *  evolution.engine.genetic_engine
-  *  evolution.real_genetic_engine
-  *  sensory.organs.dimensions.macro_intelligence
-  *  trading.execution.execution_model
-  *  validation.honest_validation_framework
-  *  sensory.how.how_sensor
-  *  governance.token_manager
-  *  trading.strategies.strategy_manager
-  *  thinking.sentient_adaptation_engine
-  *  validation.phase2c_validation_suite
+- orphans: 93 (first 20)
+  *  operational.metrics_collector
+  *  sensory.when.when_sensor
+  *  sensory.dimensions.what.volatility_engine
+  *  sensory.organs.dimensions.when_organ
+  *  trading.monitoring.portfolio_tracker
+  *  thinking.analysis.market_analyzer
+  *  thinking.adaptation.tactical_adaptation_engine
   *  sensory.organs.price_organ
-  *  sensory.anomaly.anomaly_sensor
-  *  core.interfaces_complete
-  *  sensory.organs.dimensions.why_organ
-  *  data_integration.alpha_vantage_integration
-  *  sensory.organs.dimensions.sensory_signal
-  *  validation.phase2d_simple_integration
-  *  thinking.analysis.correlation_analyzer
-  *  sensory.why.why_sensor
+  *  sensory.organs.dimensions.institutional_tracker
+  *  data_integration.data_fusion
+  *  sensory.integration.sensory_cortex
+  *  validation.phase2c_validation_suite
+  *  thinking.competitive.competitive_intelligence_system
+  *  trading.execution.fix_executor
+  *  ecosystem.coordination.coordination_engine
+  *  sensory.organs.orderbook_organ
+  *  validation.phase2d_integration_validator
+  *  sensory.core.sensory_signal
+  *  thinking.patterns.trend_detector
+  *  thinking.memory.faiss_memory
 
 
 ## Dead Code
@@ -83,25 +83,16 @@ Dead code candidates (first 100):
 -  src\config\sensory_config.py
 -  src\core\configuration.py
 -  src\core\context_packet.py
--  src\core\events.py
 -  src\core\event_bus.py
--  src\core\evolution_engine.py
 -  src\core\exceptions.py
 -  src\core\instrument.py
 -  src\core\interfaces.py
--  src\core\interfaces_complete.py
--  src\core\market_data.py
--  src\core\models.py
 -  src\core\population_manager.py
--  src\core\risk_manager.py
--  src\core\sensory_organ.py
--  src\core\validation.py
 -  src\core\evolution\engine.py
 -  src\core\evolution\fitness.py
 -  src\core\evolution\operators.py
 -  src\core\evolution\population.py
 -  src\core\performance\market_data_cache.py
--  src\core\performance\vectorized_indicators.py
 -  src\core\risk\manager.py
 -  src\core\risk\position_sizing.py
 -  src\core\risk\stress_testing.py
@@ -138,17 +129,12 @@ Dead code candidates (first 100):
 -  src\ecosystem\species\factories.py
 -  src\evolution\advanced_evolution_engine.py
 -  src\evolution\episodic_memory_system.py
--  src\evolution\real_genetic_engine.py
 -  src\evolution\ambusher\ambusher_fitness.py
 -  src\evolution\ambusher\ambusher_orchestrator.py
--  src\evolution\ambusher\genetic_engine.py
 -  src\evolution\crossover\uniform_crossover.py
--  src\evolution\engine\genetic_engine.py
--  src\evolution\engine\real_evolution_engine.py
 -  src\evolution\fitness\adaptability_fitness.py
 -  src\evolution\fitness\antifragility_fitness.py
 -  src\evolution\fitness\base_fitness.py
--  src\evolution\fitness\base_fitness_broken.py
 -  src\evolution\fitness\efficiency_fitness.py
 -  src\evolution\fitness\innovation_fitness.py
 -  src\evolution\fitness\multi_dimensional_fitness_evaluator.py
@@ -172,4 +158,18 @@ Dead code candidates (first 100):
 -  src\governance\strategy_registry.py
 -  src\governance\system_config.py
 -  src\governance\token_manager.py
-Total candidates: 274
+-  src\integration\component_integrator.py
+-  src\integration\component_integrator_impl.py
+-  src\intelligence\adversarial_training.py
+-  src\intelligence\competitive_intelligence.py
+-  src\intelligence\portfolio_evolution.py
+-  src\intelligence\predictive_modeling.py
+-  src\intelligence\red_team_ai.py
+-  src\intelligence\sentient_adaptation.py
+-  src\intelligence\specialized_predators.py
+-  src\operational\event_bus.py
+-  src\operational\fix_connection_manager.py
+-  src\operational\health_monitor.py
+-  src\operational\icmarkets_api.py
+-  src\operational\icmarkets_config.py
+Total candidates: 230

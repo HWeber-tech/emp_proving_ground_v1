@@ -1,7 +1,7 @@
 {
   "timestamp": "2025-07-25T19:46:29.895555+00:00",
   "account_id": 43939234,
-  "protocol": "cTrader OpenAPI JSON over WebSocket",
+  "protocol": "LEGACY_OPENAPI",
   "host": "demo.ctraderapi.com:5036",
   "application_auth": true,
   "account_auth": true,

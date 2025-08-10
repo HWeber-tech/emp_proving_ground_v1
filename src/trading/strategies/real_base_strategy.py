@@ -12,7 +12,10 @@ from typing import Dict, Any
 import pandas as pd
 import numpy as np
 
-from src.core.market_data import MarketData
+try:
+    from src.core.market_data import MarketData  # legacy
+except Exception:  # pragma: no cover
+    MarketData = object  # type: ignore
 
 logger = logging.getLogger(__name__)
 

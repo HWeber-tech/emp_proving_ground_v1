@@ -6,7 +6,10 @@ import numpy as np
 import pandas as pd
 
 from src.trading.strategies.real_base_strategy import RealBaseStrategy
-from src.core.market_data import MarketData
+try:
+    from src.core.market_data import MarketData  # legacy
+except Exception:  # pragma: no cover
+    MarketData = None  # type: ignore
 
 
 def _mk_market_data_from_series(series: np.ndarray) -> MarketData:

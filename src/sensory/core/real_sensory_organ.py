@@ -1,6 +1,6 @@
 """
-Real Sensory Organ Implementation
-Replaces the stub with functional multi-timeframe technical analysis
+Mock/Example: RealSensoryOrgan. Consolidated under `src/sensory/organs/dimensions/`.
+Use sensory cortex components for production paths. This module remains for legacy tests.
 """
 
 import asyncio

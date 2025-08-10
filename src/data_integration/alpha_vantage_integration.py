@@ -171,8 +171,8 @@ class AlphaVantageProvider:
         return None
     
     async def get_technical_indicator(self, symbol: str, indicator: str = "RSI", 
-                                    interval: str = "daily", time_period: int = 14) -> Optional[Dict[str, Any]]:
-        """Get technical indicators from Alpha Vantage"""
+                                     interval: str = "daily", time_period: int = 14) -> Optional[Dict[str, Any]]:
+        """Get provider-computed indicator (treated as external feature)."""
         params = {
             'function': indicator,
             'symbol': symbol,

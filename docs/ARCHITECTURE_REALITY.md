@@ -1,8 +1,13 @@
-# EMP Proving Ground v1 - Architecture Reality
+# EMP Proving Ground v1 - Architecture Reality (Authoritative)
 
 ## Architecture Overview
 
-This document provides an honest assessment of the current architectural state and implementation reality of the EMP Proving Ground system.
+This document provides an honest assessment of the current architectural state and implementation reality of the EMP Proving Ground system and is the canonical truth for current status.
+
+Key policies:
+- FIX-only broker connectivity. OpenAPI is disabled across code and CI.
+- All calculations belong in the sensory layer; integration through the sensory cortex.
+- Reports are written under `docs/reports/`.
 
 ## Current Architecture Status
 

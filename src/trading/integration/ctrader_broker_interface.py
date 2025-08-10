@@ -1,6 +1,5 @@
 """
-CTrader Broker Interface
-Provides integration between cTrader OpenAPI and trading system
+Legacy: cTrader Broker Interface (OpenAPI) - Disabled in FIX-only build
 """
 
 import asyncio
@@ -13,31 +12,16 @@ logger = logging.getLogger(__name__)
 
 
 class CTraderBrokerInterface:
-    """Interface between cTrader OpenAPI and trading system."""
-    
+    """Disabled. Use FIXBrokerInterface instead."""
+
     def __init__(self, event_bus, config):
-        """
-        Initialize cTrader broker interface.
-        
-        Args:
-            event_bus: Event bus for system communication
-            config: System configuration
-        """
-        self.event_bus = event_bus
-        self.config = config
-        self.client = None
-        self.connected = False
-        self.orders = {}
+        raise ImportError("CTrader OpenAPI is disabled. Use FIXBrokerInterface.")
         
     async def start(self):
-        """Start the broker interface."""
-        self.connected = True
-        logger.info("cTrader broker interface started")
+        return False
         
     async def stop(self):
-        """Stop the broker interface."""
-        self.connected = False
-        logger.info("cTrader broker interface stopped")
+        return None
         
     async def place_market_order(self, symbol: str, side: str, quantity: float) -> Optional[str]:
         """
@@ -51,47 +35,7 @@ class CTraderBrokerInterface:
         Returns:
             Order ID if successful, None otherwise
         """
-        try:
-            # Risk guard
-            try:
-                risk_manager = getattr(self.event_bus, 'risk_manager', None) if self.event_bus else None
-                if risk_manager and hasattr(risk_manager, 'check_risk_thresholds'):
-                    if not risk_manager.check_risk_thresholds():
-                        logger.warning("Order blocked by risk thresholds (VaR/ES limits)")
-                        return None
-            except Exception:
-                pass
-            # Generate order ID
-            order_id = f"CTR_{int(datetime.utcnow().timestamp() * 1000)}"
-            
-            # Create order data
-            order_data = {
-                "symbol": symbol,
-                "side": side,
-                "quantity": quantity,
-                "order_type": "MARKET",
-                "timestamp": datetime.utcnow()
-            }
-            
-            # Store order
-            self.orders[order_id] = order_data
-            
-            logger.info(f"Market order placed via cTrader: {side} {quantity} {symbol} (ID: {order_id})")
-            
-            # Emit event for system
-            await self.event_bus.emit("order_placed", {
-                "order_id": order_id,
-                "symbol": symbol,
-                "side": side,
-                "quantity": quantity,
-                "timestamp": datetime.utcnow()
-            })
-            
-            return order_id
-            
-        except Exception as e:
-            logger.error(f"Error placing market order via cTrader: {e}")
-            return None
+        return None
             
     async def cancel_order(self, order_id: str) -> bool:
         """
@@ -103,24 +47,7 @@ class CTraderBrokerInterface:
         Returns:
             True if cancel request sent, False otherwise
         """
-        try:
-            if order_id in self.orders:
-                logger.info(f"Order cancel requested via cTrader: {order_id}")
-                
-                # Emit event for system
-                await self.event_bus.emit("order_cancel_requested", {
-                    "order_id": order_id,
-                    "timestamp": datetime.utcnow()
-                })
-                
-                return True
-            else:
-                logger.warning(f"Order {order_id} not found")
-                return False
-                
-        except Exception as e:
-            logger.error(f"Error canceling order via cTrader: {e}")
-            return False
+        return False
             
     def get_order_status(self, order_id: str) -> Optional[Dict[str, Any]]:
         """
@@ -132,11 +59,10 @@ class CTraderBrokerInterface:
         Returns:
             Order status dictionary or None
         """
-        return self.orders.get(order_id)
+        return None
         
     def get_all_orders(self) -> Dict[str, Dict[str, Any]]:
-        """Get all orders."""
-        return self.orders.copy()
+        return {}
         
     async def get_account_balance(self) -> Dict[str, Any]:
         """
@@ -145,21 +71,7 @@ class CTraderBrokerInterface:
         Returns:
             Account balance dictionary
         """
-        try:
-            # Mock balance for now
-            balance = {
-                "balance": 10000.0,
-                "equity": 10000.0,
-                "margin": 0.0,
-                "free_margin": 10000.0,
-                "timestamp": datetime.utcnow()
-            }
-            
-            return balance
-            
-        except Exception as e:
-            logger.error(f"Error getting account balance: {e}")
-            return {}
+        return {}
             
     async def get_positions(self) -> List[Dict[str, Any]]:
         """
@@ -168,12 +80,4 @@ class CTraderBrokerInterface:
         Returns:
             List of position dictionaries
         """
-        try:
-            # Mock positions for now
-            positions = []
-            
-            return positions
-            
-        except Exception as e:
-            logger.error(f"Error getting positions: {e}")
-            return []
+        return []

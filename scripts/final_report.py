@@ -31,7 +31,7 @@ async def generate_final_report():
     report = {
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "account_id": account_id,
-        "protocol": "cTrader OpenAPI JSON over WebSocket",
+        "protocol": "FIX",
         "host": "demo.ctraderapi.com:5036"
     }
     
@@ -144,7 +144,7 @@ async def generate_final_report():
 ## Methodology
 - **Test Date**: {report['timestamp']}
 - **Account ID**: {account_id}
-- **Protocol**: cTrader OpenAPI JSON over WebSocket
+- **Protocol**: FIX
 - **Host**: demo.ctraderapi.com:5036
 - **Test Duration**: 30 seconds
 

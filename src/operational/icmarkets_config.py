@@ -44,6 +44,14 @@ class ICMarketsConfig:
         
         # SSL settings - using SSL ports from screenshot
         self.use_ssl = True  # Using SSL ports from screenshot
+
+    # Helper methods used by GenuineFIXConnection
+    def _get_host(self) -> str:
+        # Use price host for quote session by default
+        return self.price_host if getattr(self, 'current_session', 'quote') == 'quote' else self.trade_host
+
+    def _get_port(self, session_type: str) -> int:
+        return self.price_port if session_type == 'quote' else self.trade_port
         
     def set_fix_api_password(self, password):
         """Set the FIX API password from cTrader interface."""

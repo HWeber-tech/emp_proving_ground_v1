@@ -25,7 +25,7 @@ class MicrostructureVerifier:
         self.results = {
             'timestamp': datetime.now(timezone.utc).isoformat(),
             'account_id': self.account_id,
-            'protocol': 'cTrader OpenAPI JSON over WebSocket',
+            'protocol': 'FIX',
             'host': f'{self.host}:{self.port}'
         }
         

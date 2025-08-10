@@ -14,12 +14,18 @@ from decimal import Decimal
 from datetime import datetime, timedelta
 import pandas as pd
 
-from src.evolution.engine.real_evolution_engine import RealEvolutionEngine
+try:
+    from src.evolution.engine.real_evolution_engine import RealEvolutionEngine  # deprecated
+except Exception:  # pragma: no cover
+    RealEvolutionEngine = None  # type: ignore
 from src.risk.real_risk_manager import RealRiskManager, RealRiskConfig
 from src.portfolio.real_portfolio_monitor import RealPortfolioMonitor
 from src.sensory.real_sensory_organ import RealSensoryOrgan
 from src.trading.strategies.real_base_strategy import RealBaseStrategy
-from src.core.market_data import MarketData
+try:
+    from src.core.market_data import MarketData  # legacy
+except Exception:  # pragma: no cover
+    MarketData = None  # type: ignore
 from src.core import Instrument
 
 

@@ -10,7 +10,10 @@ from decimal import Decimal
 from typing import Dict, List, Optional, Any
 import uuid
 
-from src.core.events import LearningSignal, TacticalAdaptation, ContextPacket
+try:
+    from src.core.events import LearningSignal, TacticalAdaptation, ContextPacket  # legacy
+except Exception:  # pragma: no cover
+    LearningSignal = TacticalAdaptation = ContextPacket = object  # type: ignore
 from src.thinking.memory.faiss_memory import FAISSPatternMemory
 from src.operational.state_store import StateStore
 

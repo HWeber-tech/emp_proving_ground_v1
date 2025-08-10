@@ -10,7 +10,10 @@ from decimal import Decimal
 from typing import Dict, Optional, Any
 import uuid
 
-from src.core.events import LearningSignal, ContextPacket, ExecutionReport
+try:
+    from src.core.events import LearningSignal, ContextPacket, ExecutionReport  # legacy
+except Exception:  # pragma: no cover
+    LearningSignal = ContextPacket = ExecutionReport = object  # type: ignore
 from src.operational.state_store import StateStore
 
 logger = logging.getLogger(__name__)

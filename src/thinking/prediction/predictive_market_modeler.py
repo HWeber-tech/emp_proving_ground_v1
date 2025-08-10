@@ -11,7 +11,10 @@ from decimal import Decimal
 from typing import Dict, List, Optional, Any, Tuple
 import uuid
 
-from src.core.events import ContextPacket, MarketScenario, PredictionResult
+try:
+    from src.core.events import ContextPacket, MarketScenario, PredictionResult  # legacy
+except Exception:  # pragma: no cover
+    ContextPacket = MarketScenario = PredictionResult = object  # type: ignore
 from src.thinking.memory.faiss_memory import FAISSPatternMemory
 from src.operational.state_store import StateStore
 

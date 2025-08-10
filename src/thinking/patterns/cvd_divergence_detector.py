@@ -8,7 +8,10 @@ from collections import deque
 from typing import Optional, Literal, List
 from datetime import datetime
 
-from src.core.context_packet import ContextPacket
+try:
+    from src.core.context_packet import ContextPacket  # legacy
+except Exception:  # pragma: no cover
+    ContextPacket = object  # type: ignore
 from src.governance.system_config import config
 
 logger = logging.getLogger(__name__)

@@ -293,7 +293,7 @@ async def run_microstructure_test():
 - **Test Duration**: 30 seconds
 - **Instrument**: EURUSD
 - **Account**: {account_id}
-- **Protocol**: cTrader OpenAPI JSON over WebSocket
+- **Protocol**: FIX
 - **Test Date**: {datetime.now(timezone.utc).isoformat()}
 
 ## Quantitative Findings

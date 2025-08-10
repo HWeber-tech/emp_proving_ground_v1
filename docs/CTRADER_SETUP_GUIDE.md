@@ -1,6 +1,6 @@
-# IC Markets cTrader API Setup Guide
+# [Legacy] IC Markets cTrader API Setup Guide (OpenAPI)
 
-This guide provides step-by-step instructions for setting up cTrader API credentials for the microstructure verification tool.
+Deprecated in FIX-only builds. For current connectivity, use FIX per `docs/fix_api/`.
 
 ## Prerequisites
 

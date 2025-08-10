@@ -10,9 +10,15 @@ import redis
 from typing import Optional
 from datetime import datetime
 
-from src.core.events import TradeIntent, TradeRejected
-from src.trading.risk.position_sizer import PositionSizer
-from src.trading.risk.risk_gateway import RiskGateway
+try:
+    from src.core.events import TradeIntent, TradeRejected  # legacy
+except Exception:  # pragma: no cover
+    TradeIntent = TradeRejected = object  # type: ignore
+try:
+    from src.core.risk.position_sizing import position_size as PositionSizer  # canonical
+except Exception:  # pragma: no cover
+    PositionSizer = None  # type: ignore
+RiskGateway = None  # deprecated path removed; use core risk flows directly
 from src.trading.monitoring.portfolio_monitor import PortfolioMonitor
 
 logger = logging.getLogger(__name__)

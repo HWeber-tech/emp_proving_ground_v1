@@ -513,17 +513,17 @@ class RealDataManager:
             logger.error(f"Error getting market data for {symbol}: {e}")
             return None
     
-    async def get_technical_indicators(self, symbol: str, indicator: str = "RSI", source: str = "alpha_vantage") -> Optional[Dict[str, Any]]:
-        """Get technical indicators from specified source"""
+    async def get_external_features(self, symbol: str, feature: str = "RSI", source: str = "alpha_vantage") -> Optional[Dict[str, Any]]:
+        """Get external provider-computed features (no analysis here)."""
         if source in self.providers:
             provider = self.providers[source]
             
             if isinstance(provider, AlphaVantageDataProvider):
-                return await provider.get_technical_indicators(symbol, indicator)
+                return await provider.get_technical_indicators(symbol, feature)
             elif ADVANCED_PROVIDERS_AVAILABLE and isinstance(provider, AlphaVantageProvider):
-                return await provider.get_technical_indicator(symbol, indicator)
+                return await provider.get_technical_indicator(symbol, feature)
         
-        logger.warning(f"Technical indicators not available from {source}")
+        logger.warning(f"External features not available from {source}")
         return None
     
     async def get_economic_data(self, indicator: str = "GDP", source: str = "fred") -> Optional[pd.DataFrame]:
@@ -575,11 +575,11 @@ class RealDataManager:
     async def get_advanced_data(self, data_type: str, **kwargs) -> Optional[Any]:
         """Get advanced data from appropriate provider"""
         try:
-            if data_type == "technical_indicators":
+            if data_type == "external_features":
                 symbol = kwargs.get('symbol', 'AAPL')
-                indicator = kwargs.get('indicator', 'RSI')
+                feature = kwargs.get('feature', 'RSI')
                 source = kwargs.get('source', 'alpha_vantage')
-                return await self.get_technical_indicators(symbol, indicator, source)
+                return await self.get_external_features(symbol, feature, source)
             
             elif data_type == "economic_dashboard":
                 source = kwargs.get('source', 'fred')

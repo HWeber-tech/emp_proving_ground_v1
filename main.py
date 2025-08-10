@@ -23,10 +23,8 @@ from src.governance.safety_manager import SafetyManager
 from src.operational.fix_connection_manager import FIXConnectionManager
 from src.operational.event_bus import EventBus
 
-# Protocol-specific components
+# Protocol-specific components (FIX-only)
 from src.sensory.organs.fix_sensory_organ import FIXSensoryOrgan
-from src.sensory.organs.ctrader_data_organ import CTraderDataOrgan
-from src.trading.integration.ctrader_broker_interface import CTraderBrokerInterface
 from src.trading.integration.fix_broker_interface import FIXBrokerInterface
 from src.sensory.why.why_sensor import WhySensor
 from src.sensory.how.how_sensor import HowSensor
@@ -146,14 +144,10 @@ class EMPProfessionalPredator:
             logger.info("✅ FIX components configured successfully")
             
         elif self.config.connection_protocol == "openapi":
-            # --- SETUP FOR LEGACY OPENAPI PROTOCOL ---
-            logger.info("🔄 Configuring OpenAPI components (fallback mode)")
-            
-            # Instantiate OpenAPI components
-            self.sensory_organ = CTraderDataOrgan(self.event_bus, self.config)
-            self.broker_interface = CTraderBrokerInterface(self.event_bus, self.config)
-            
-            logger.info("✅ OpenAPI components configured successfully")
+            # OpenAPI has been removed per project policy. Use FIX exclusively.
+            raise ValueError(
+                "OpenAPI connectivity is disabled. Set CONNECTION_PROTOCOL=fix and follow docs/fix_api guides."
+            )
             
         else:
             raise ValueError(f"❌ Unsupported connection protocol: {self.config.connection_protocol}")

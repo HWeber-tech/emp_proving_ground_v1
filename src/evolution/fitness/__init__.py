@@ -1,3 +1,4 @@
+"""Deprecated fitness package pending consolidation into src/core/evolution."""
 """
 Multi-dimensional fitness evaluation system for advanced evolution engine.
 

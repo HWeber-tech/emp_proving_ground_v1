@@ -24,7 +24,7 @@ jobs:
           EMP_USE_MOCK_FIX: '1'
           PYTHONPATH: ${{ github.workspace }}
         run: |
-          python -m pytest -q
+          python -m pytest tests/current -q
 
   quality:
     name: Lint/Type/Coverage (Ubuntu)
@@ -51,7 +51,12 @@ jobs:
           pip install ruff mypy pytest pytest-cov simplefix prometheus_client
 
       - name: Lint with ruff
-        run: ruff check .
+        run: |
+          ruff check .
+          # Deny OpenAPI references in FIX-only build
+          if rg -n -g '!docs/legacy/**' "(ctrader_open_api|CONNECTION_PROTOCOL=openapi|OpenAPI)" -- docs scripts src config || true; then
+            echo "OpenAPI references found in FIX-only build. Please remove them." && exit 1
+          fi
 
       - name: Type check with mypy
         run: mypy --ignore-missing-imports src
@@ -59,7 +64,7 @@ jobs:
       - name: Run tests with coverage
         env:
           PYTHONPATH: ${{ github.workspace }}
-        run: pytest --cov=src --cov-report=term --cov-fail-under=70 -q
+        run: pytest tests/current --cov=src --cov-report=term --cov-fail-under=70 -q
 
   backtest:
     name: Offline Backtest Smoke (Ubuntu)

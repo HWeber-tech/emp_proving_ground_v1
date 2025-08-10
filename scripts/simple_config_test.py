@@ -17,7 +17,7 @@ def test_master_switch():
     print("\n✅ Phase 1: Configuration Switch")
     print("   - Added CONNECTION_PROTOCOL to SystemConfig")
     print("   - Default: 'fix' (professional mode)")
-    print("   - Options: 'fix', 'openapi'")
+    print("   - Option: 'fix' (FIX-only build)")
     
     print("\n✅ Phase 2: Orchestrator Refactor")
     print("   - Created _setup_live_components() method")
@@ -27,12 +27,11 @@ def test_master_switch():
     print("\n✅ Phase 3: Component Integration")
     print("   - FIXSensoryOrgan integration")
     print("   - FIXBrokerInterface integration")
-    print("   - CTraderDataOrgan fallback")
-    print("   - CTraderBrokerInterface fallback")
+    print("   - FIX-only components active")
     
     print("\n✅ Phase 4: Testing Infrastructure")
     print("   - test_fix.env configuration")
-    print("   - test_openapi.env configuration")
+    print("   - test_fix.env configuration")
     print("   - Comprehensive documentation")
     
     print("\n" + "=" * 60)
@@ -41,9 +40,8 @@ def test_master_switch():
     
     print("\nUsage Instructions:")
     print("1. Set CONNECTION_PROTOCOL=fix in .env for FIX mode")
-    print("2. Set CONNECTION_PROTOCOL=openapi in .env for OpenAPI mode")
-    print("3. Run: python main.py")
-    print("4. Monitor logs for protocol selection confirmation")
+    print("2. Run: python main.py")
+    print("3. Monitor logs for protocol selection confirmation")
     
     return True
 

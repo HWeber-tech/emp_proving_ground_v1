@@ -12,7 +12,11 @@ from typing import Dict, List, Any, Optional
 import uuid
 
 from src.operational.state_store import StateStore
-from src.core.events import EventBus
+try:
+    from src.core.events import EventBus  # legacy
+except Exception:  # pragma: no cover
+    class EventBus:  # type: ignore
+        pass
 
 logger = logging.getLogger(__name__)
 

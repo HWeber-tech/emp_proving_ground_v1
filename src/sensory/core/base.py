@@ -5,7 +5,10 @@ Canonical dataclasses that serve as the common language for the entire sensory s
 These provide type safety, clear data contracts, and eliminate the need for ad-hoc data structures.
 """
 
-from src.core.market_data import MarketData
+try:
+    from src.core.market_data import MarketData  # legacy
+except Exception:  # pragma: no cover
+    MarketData = object  # type: ignore
 
 import logging
 from abc import ABC, abstractmethod

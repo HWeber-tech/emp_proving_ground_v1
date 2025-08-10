@@ -24,7 +24,10 @@ from src.trading.strategies.strategy_manager import StrategyManager
 from src.trading.risk.market_regime_detector import MarketRegimeDetector, MarketRegime
 from src.data_integration.real_data_integration import RealDataManager
 from src.sensory.organs.yahoo_finance_organ import YahooFinanceOrgan
-from src.core.interfaces import DecisionGenome
+try:
+    from src.core.interfaces import DecisionGenome  # legacy
+except Exception:  # pragma: no cover
+    DecisionGenome = None  # type: ignore
 
 logger = logging.getLogger(__name__)
 

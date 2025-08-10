@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-Live Trading Executor - Evolutionary Strategy Execution
-
-This module integrates the evolutionary trading strategies with live trading
-execution through IC Markets cTrader OpenAPI.
+Legacy: Live Trading Executor (OpenAPI/Mock-oriented) - Disabled in FIX-only build.
+This module references cTrader interfaces not used in the FIX-only architecture.
 """
+
+raise ImportError("LiveTradingExecutor is deprecated and disabled in FIX-only builds.")
 
 import asyncio
 import logging
@@ -23,10 +23,18 @@ from src.evolution.real_genetic_engine import RealGeneticEngine
 from src.sensory.dimensions.enhanced_when_dimension import TemporalAnalyzer
 from src.sensory.dimensions.enhanced_anomaly_dimension import PatternRecognitionDetector
 from .strategy_manager import StrategyManager, StrategySignal
-from .advanced_risk_manager import AdvancedRiskManager, RiskLimits
+try:
+    from .advanced_risk_manager import AdvancedRiskManager, RiskLimits  # deprecated
+except Exception:  # pragma: no cover
+    AdvancedRiskManager = None  # type: ignore
+    class RiskLimits:  # type: ignore
+        pass
 from .performance_tracker import PerformanceTracker
 from .order_book_analyzer import OrderBookAnalyzer
-from src.core.interfaces import DecisionGenome
+try:
+    from src.core.interfaces import DecisionGenome  # legacy
+except Exception:  # pragma: no cover
+    DecisionGenome = object  # type: ignore
 
 logger = logging.getLogger(__name__)
 
@@ -96,7 +104,7 @@ class LiveTradingExecutor:
         
         # Advanced risk management
         risk_limits = RiskLimits()
-        self.advanced_risk_manager = AdvancedRiskManager(risk_limits, self.strategy_manager)
+        self.advanced_risk_manager = AdvancedRiskManager(risk_limits, self.strategy_manager) if AdvancedRiskManager else None
         
         # Performance tracking
         self.performance_tracker = PerformanceTracker(initial_balance=100000.0)  # Default balance
@@ -475,7 +483,7 @@ class LiveTradingExecutor:
         )
         
         # Advanced risk validation
-        is_valid, reason, risk_metadata = self.advanced_risk_manager.validate_signal(
+        is_valid, reason, risk_metadata = (True, "", {}) if not self.advanced_risk_manager else self.advanced_risk_manager.validate_signal(
             strategy_signal, self.market_data
         )
         
@@ -659,18 +667,20 @@ class LiveTradingExecutor:
             margin = sum(abs(p.volume * p.entry_price) for p in positions)
             
             # Update portfolio state
-            self.advanced_risk_manager.update_portfolio_state(
+            if self.advanced_risk_manager:
+                self.advanced_risk_manager.update_portfolio_state(
                 positions=positions,
                 equity=equity,
                 margin=margin,
                 orders=orders
-            )
+                )
             
             # Update risk metrics
-            self.advanced_risk_manager.update_risk_metrics(positions, self.market_data)
+            if self.advanced_risk_manager:
+                self.advanced_risk_manager.update_risk_metrics(positions, self.market_data)
             
             # Log risk alerts
-            risk_report = self.advanced_risk_manager.get_risk_report()
+            risk_report = self.advanced_risk_manager.get_risk_report() if self.advanced_risk_manager else {"alerts": []}
             if risk_report['alerts']:
                 for alert in risk_report['alerts']:
                     logger.warning(f"Risk Alert: {alert}")

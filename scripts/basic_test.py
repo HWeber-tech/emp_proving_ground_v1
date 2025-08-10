@@ -25,8 +25,7 @@ ACCESS_TOKEN = os.getenv('CTRADER_ACCESS_TOKEN')
 ACCOUNT_ID = int(os.getenv('CTRADER_ACCOUNT_ID', 0))
 
 # --- Import cTrader components ---
-from ctrader_open_api import Client, messages
-from ctrader_open_api.client import TcpProtocol
+raise SystemExit("This script used legacy cTrader API and is disabled in FIX-only builds.")
 
 async def main():
     """Main connection and authentication logic."""

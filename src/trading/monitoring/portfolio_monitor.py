@@ -10,7 +10,10 @@ from typing import Dict, Any, Optional
 from datetime import datetime
 import logging
 
-from src.core.events import ExecutionReport
+try:
+    from src.core.events import ExecutionReport  # legacy
+except Exception:  # pragma: no cover
+    ExecutionReport = object  # type: ignore
 from src.core.event_bus import EventBus
 
 logger = logging.getLogger(__name__)

@@ -5,7 +5,7 @@
 **Test Duration:** Single verification session  
 **Test Symbol:** EURUSD  
 **Environment:** IC Markets Demo Account (Account ID: 43939234)  
-**Protocol:** cTrader OpenAPI JSON over WebSocket (Port 5036)
+> Legacy (OpenAPI). For current FIX-only policy, see `docs/fix_api/`.
 
 ---
 

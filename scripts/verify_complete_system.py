@@ -19,8 +19,8 @@ from typing import Dict, List, Any
 
 # Import all components
 from src.risk.risk_manager_impl import create_risk_manager
-from src.trading.strategy_engine.strategy_engine_impl import create_strategy_engine
-from src.trading.strategy_engine.templates.moving_average_strategy import create_moving_average_strategy
+from src.trading.strategy_engine.strategy_engine import create_strategy_engine
+from src.core.strategy.templates.moving_average import MovingAverageStrategy as CoreMovingAverageStrategy
 from src.core.population_manager import PopulationManager
 from src.evolution.fitness.real_trading_fitness_evaluator import RealTradingFitnessEvaluator
 
@@ -101,11 +101,7 @@ class SystemVerifier:
             strategy_engine = create_strategy_engine(risk_manager)
             
             # Test strategy registration
-            strategy = create_moving_average_strategy(
-                strategy_id="test_engine",
-                symbols=["EURUSD"],
-                parameters={'fast_period': 5, 'slow_period': 10}
-            )
+            strategy = CoreMovingAverageStrategy("test_engine", ["EURUSD"], {"fast_period": 5, "slow_period": 10})
             
             success = strategy_engine.register_strategy(strategy)
             assert success is True
@@ -144,11 +140,7 @@ class SystemVerifier:
             logger.info("🔍 Verifying Strategy Templates...")
             
             # Test moving average strategy
-            strategy = create_moving_average_strategy(
-                strategy_id="template_test",
-                symbols=["EURUSD", "GBPUSD"],
-                parameters={'fast_period': 10, 'slow_period': 20}
-            )
+            strategy = CoreMovingAverageStrategy("template_test", ["EURUSD", "GBPUSD"], {"fast_period": 10, "slow_period": 20})
             
             # Test strategy info
             info = strategy.get_strategy_info()
@@ -211,11 +203,7 @@ class SystemVerifier:
             strategy_engine = create_strategy_engine(risk_manager)
             
             # Register strategy
-            strategy = create_moving_average_strategy(
-                strategy_id="integration_test",
-                symbols=["EURUSD"],
-                parameters={'fast_period': 5, 'slow_period': 10}
-            )
+            strategy = CoreMovingAverageStrategy("integration_test", ["EURUSD"], {"fast_period": 5, "slow_period": 10})
             
             strategy_engine.register_strategy(strategy)
             strategy_engine.start_strategy("integration_test")

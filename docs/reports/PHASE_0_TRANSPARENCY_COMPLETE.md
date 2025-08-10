@@ -1,4 +1,4 @@
-# Phase 0: Transparency - COMPLETED
+# [Legacy] Phase 0: Transparency - COMPLETED (kept for history)
 
 **Date:** July 18, 2024  
 **Status:** ✅ COMPLETED  

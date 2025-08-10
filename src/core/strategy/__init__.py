@@ -1,0 +1,2 @@
+# Core strategy package (authoritative)
+

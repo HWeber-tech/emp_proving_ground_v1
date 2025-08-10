@@ -1,3 +1,4 @@
+# Import directly from module to avoid pulling heavy execution package
 from src.trading.execution.execution_model import ExecContext, estimate_slippage_bps, estimate_commission_bps
 from src.data_foundation.config.execution_config import ExecutionConfig, SlippageModel, FeeModel
 

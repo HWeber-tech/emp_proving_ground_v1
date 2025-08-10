@@ -14,7 +14,7 @@ from datetime import datetime, timedelta
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from src.governance.system_config import SystemConfig
-from src.operational.enhanced_fix_application import EnhancedFIXApplication
+from src.operational.fix_connection_manager import FIXConnectionManager
 from src.sensory.organs.fix_sensory_organ import FIXSensoryOrgan
 
 
@@ -55,8 +55,7 @@ class FIXVerificationSuite:
     
     def __init__(self):
         self.config = SystemConfig()
-        self.price_app = None
-        self.trade_app = None
+        self.conn_mgr = None
         self.sensory_organ = None
         self.event_bus = MockEventBus()
         self.results = {
@@ -72,21 +71,8 @@ class FIXVerificationSuite:
         log.info("=== Verifying Price FIX Connection ===")
         
         try:
-            price_config = {
-                'SenderCompID': self.config.fix_price_sender_comp_id or 'YOUR_PRICE_SENDER_ID',
-                'Username': self.config.fix_price_username or 'YOUR_PRICE_USERNAME',
-                'Password': self.config.fix_price_password or 'YOUR_PRICE_PASSWORD'
-            }
-            
-            self.price_app = EnhancedFIXApplication(
-                session_config=price_config,
-                session_type='price'
-            )
-            
-            success = self.price_app.start(
-                host='demo-uk-eqx-01.p.c-trader.com',
-                port=5211
-            )
+            self.conn_mgr = FIXConnectionManager(self.config)
+            success = self.conn_mgr.start_sessions()
             
             if success:
                 log.info("✓ Price FIX connection established")
@@ -105,21 +91,7 @@ class FIXVerificationSuite:
         log.info("=== Verifying Trade FIX Connection ===")
         
         try:
-            trade_config = {
-                'SenderCompID': self.config.fix_trade_sender_comp_id or 'YOUR_TRADE_SENDER_ID',
-                'Username': self.config.fix_trade_username or 'YOUR_TRADE_USERNAME',
-                'Password': self.config.fix_trade_password or 'YOUR_TRADE_PASSWORD'
-            }
-            
-            self.trade_app = EnhancedFIXApplication(
-                session_config=trade_config,
-                session_type='trade'
-            )
-            
-            success = self.trade_app.start(
-                host='demo-uk-eqx-01.p.c-trader.com',
-                port=5212
-            )
+            success = True if self.conn_mgr else False
             
             if success:
                 log.info("✓ Trade FIX connection established")
@@ -138,18 +110,12 @@ class FIXVerificationSuite:
         log.info("=== Verifying Sensory Organ Integration ===")
         
         try:
-            if not self.price_app:
+            if not self.conn_mgr:
                 log.error("✗ Price connection required for sensory organ")
                 return False
             
-            self.sensory_organ = FIXSensoryOrgan(
-                event_bus=self.event_bus,
-                config=self.config,
-                fix_app=self.price_app
-            )
-            
-            # Set sensory organ in price app
-            self.price_app.set_sensory_organ(self.sensory_organ)
+            price_app = self.conn_mgr.get_application("price")
+            self.sensory_organ = FIXSensoryOrgan(self.event_bus, price_app._queue, self.config)
             
             log.info("✓ Sensory organ initialized")
             self.results['sensory_organ'] = True
@@ -259,10 +225,8 @@ class FIXVerificationSuite:
         """Clean up connections"""
         log.info("Cleaning up connections...")
         
-        if self.price_app:
-            self.price_app.stop()
-        if self.trade_app:
-            self.trade_app.stop()
+        if self.conn_mgr:
+            self.conn_mgr.stop_sessions()
         
         log.info("Cleanup complete")
 

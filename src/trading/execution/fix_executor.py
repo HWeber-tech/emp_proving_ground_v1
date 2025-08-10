@@ -10,7 +10,11 @@ import logging
 from typing import Dict, List, Optional, Any
 from datetime import datetime
 
-from src.core.interfaces import IExecutionEngine
+try:
+    from src.core.interfaces import IExecutionEngine  # legacy
+except Exception:  # pragma: no cover
+    class IExecutionEngine:  # type: ignore
+        pass
 from src.core.exceptions import ExecutionException
 from src.trading.models.order import Order, OrderStatus
 from src.trading.models.position import Position

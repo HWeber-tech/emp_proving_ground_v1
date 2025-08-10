@@ -1,4 +1,4 @@
-# EMP v4.0 Master Switch Guide
+# EMP v4.0 Master Switch Guide (FIX-Only)
 
 ## Overview
 The Master Switch is the final integration component of Sprint 1: The Professional Upgrade. It provides a single, authoritative configuration setting that controls the entire operational mode of the EMP v4.0 Professional Predator.
@@ -7,36 +7,29 @@ The Master Switch is the final integration component of Sprint 1: The Profession
 - **Protocol Selection**: Single configuration field controls all components
 - **Protocol-Agnostic Core**: Upper layers remain unchanged regardless of protocol
 - **Clean Integration**: Protocol-specific setup encapsulated in dedicated methods
-- **Backward Compatibility**: OpenAPI remains fully functional as fallback
+- **Policy**: OpenAPI is disabled. The system operates with FIX exclusively.
 
 ## Configuration
 
 ### Master Switch Setting
 ```bash
 # In .env file or environment variable
-CONNECTION_PROTOCOL=fix        # Professional FIX protocol (default)
-CONNECTION_PROTOCOL=openapi    # Legacy OpenAPI protocol (fallback)
+CONNECTION_PROTOCOL=fix        # Professional FIX protocol (required)
 ```
 
 ### Configuration Files
 - **Default**: `.env` (uses FIX protocol by default)
 - **FIX Test**: `config/test_fix.env`
-- **OpenAPI Test**: `config/test_openapi.env`
+  (OpenAPI test file removed; FIX-only build)
 
 ## Usage
 
 ### Quick Start
 ```bash
-# 1. Test the master switch
-python scripts/test_master_switch.py
-
-# 2. Run with FIX protocol (default)
+# 1. Run with FIX protocol (default)
 python main.py
 
-# 3. Run with OpenAPI protocol
-CONNECTION_PROTOCOL=openapi python main.py
-
-# 4. Use configuration file
+# 2. Use configuration file
 cp config/test_fix.env .env
 python main.py
 ```
@@ -52,11 +45,7 @@ When `CONNECTION_PROTOCOL=fix`:
 - ✅ Professional-grade SSL-encrypted connections
 
 #### OpenAPI Protocol Mode
-When `CONNECTION_PROTOCOL=openapi`:
-- ✅ Uses `CTraderDataOrgan` for market data
-- ✅ Uses `CTraderBrokerInterface` for trade execution
-- ✅ Connects via cTrader OpenAPI
-- ✅ Full backward compatibility maintained
+Disabled. Set `CONNECTION_PROTOCOL=fix` and use IC Markets FIX per `docs/fix_api/`.
 
 ## Testing
 
@@ -70,9 +59,6 @@ python scripts/test_master_switch.py
 ```bash
 # Test FIX mode
 CONNECTION_PROTOCOL=fix python main.py
-
-# Test OpenAPI mode
-CONNECTION_PROTOCOL=openapi python main.py
 ```
 
 ### Expected Output
@@ -92,10 +78,7 @@ CONNECTION_PROTOCOL=openapi python main.py
 main.py                          # Main application with master switch
 src/governance/system_config.py  # Configuration with CONNECTION_PROTOCOL
 config/
-├── test_fix.env                # FIX protocol test configuration
-├── test_openapi.env            # OpenAPI protocol test configuration
-scripts/
-├── test_master_switch.py       # Comprehensive testing script
+└── test_fix.env                # FIX protocol test configuration
 docs/
 └── MASTER_SWITCH_GUIDE.md      # This documentation
 ```
@@ -104,11 +87,9 @@ docs/
 
 ### Sensory Layer
 - **FIXSensoryOrgan**: Professional market data via FIX
-- **CTraderDataOrgan**: Legacy market data via OpenAPI
 
 ### Trading Layer
 - **FIXBrokerInterface**: Professional trade execution via FIX
-- **CTraderBrokerInterface**: Legacy trade execution via OpenAPI
 
 ### Configuration Layer
 - **SystemConfig**: Centralized configuration management
@@ -124,9 +105,7 @@ docs/
 5. **Deploy**: Use new main.py with master switch
 
 ### Rollback Procedure
-1. **Switch**: Set `CONNECTION_PROTOCOL=openapi`
-2. **Verify**: Test with existing OpenAPI credentials
-3. **Deploy**: Use same main.py with different configuration
+Not available in FIX-only build. OpenAPI is disabled.
 
 ## Troubleshooting
 
@@ -162,7 +141,7 @@ After successful master switch integration:
 1. **Add FIX credentials** to .env file
 2. **Test connections** with real credentials
 3. **Monitor performance** of both protocols
-4. **Gradual migration** from OpenAPI to FIX
+4. FIX-only operations
 5. **Production deployment** with FIX as default
 
 ## Support

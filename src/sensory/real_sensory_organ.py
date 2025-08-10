@@ -1,10 +1,6 @@
 #!/usr/bin/env python3
 """
-Real Sensory Organ Implementation
-=================================
-
-Complete functional sensory processing with actual technical indicators.
-Replaces all mock implementations with genuine indicator calculations.
+Legacy duplicate. Use `src/sensory/organs/dimensions/real_sensory_organ.py`.
 """
 
 import logging
@@ -12,13 +8,16 @@ from typing import Dict, Any
 import pandas as pd
 import numpy as np
 
-from src.core.market_data import MarketData
+try:
+    from src.core.market_data import MarketData  # legacy
+except Exception:  # pragma: no cover
+    MarketData = object  # type: ignore
 
 logger = logging.getLogger(__name__)
 
 
 class RealSensoryOrgan:
-    """Real sensory organ with actual indicator calculations."""
+    """Legacy placeholder; consolidated implementation lives under organs/dimensions."""
     
     def __init__(self):
         logger.info("RealSensoryOrgan initialized")

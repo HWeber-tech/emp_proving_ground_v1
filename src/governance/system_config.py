@@ -6,7 +6,22 @@ import os
 from pathlib import Path
 from typing import Dict, Any, Optional, Literal
 
-from pydantic import BaseSettings, Field
+import os as _os
+
+try:
+    # Prefer Pydantic v2 + pydantic-settings if available
+    from pydantic_settings import BaseSettings  # type: ignore
+    from pydantic import Field  # type: ignore
+    _HAS_SETTINGS = True
+except Exception:  # No pydantic-settings available
+    _HAS_SETTINGS = False
+
+    class BaseSettings:  # minimal shim
+        def __init__(self, *args, **kwargs) -> None:
+            pass
+
+    def Field(default=None, env: str | None = None, default_factory=None):  # type: ignore
+        return default
 
 
 def _default_kill_switch() -> Path:
@@ -23,8 +38,8 @@ class SystemConfig(BaseSettings):
     emp_tier: Literal["tier_0", "tier_1", "tier_2"] = Field("tier_0", env="EMP_TIER")
     confirm_live: bool = Field(False, env="CONFIRM_LIVE")
 
-    # Protocol
-    connection_protocol: Literal["fix", "openapi"] = Field("fix", env="CONNECTION_PROTOCOL")
+    # Protocol (FIX only)
+    connection_protocol: Literal["fix"] = Field("fix", env="CONNECTION_PROTOCOL")
 
     # Credentials
     account_number: Optional[str] = Field(default=None, env="ICMARKETS_ACCOUNT")
@@ -47,6 +62,9 @@ class SystemConfig(BaseSettings):
         placeholders = {None, "9533708", "WNSE5822", "your_account_id_here", "your_trade_password"}
         if self.account_number in placeholders or self.password in placeholders:
             raise ValueError("IC Markets credentials must be provided via environment variables")
+        # FIX-only enforcement (defense-in-depth)
+        if self.connection_protocol != "fix":
+            raise ValueError("OpenAPI is disabled. Set CONNECTION_PROTOCOL=fix.")
         return True
 
     def get_config(self) -> Dict[str, Any]:
@@ -68,3 +86,16 @@ class SystemConfig(BaseSettings):
             "price_port": 5211,
             "trade_port": 5212,
         }
+
+    # Minimal env loading if pydantic-settings is unavailable
+    def __init__(self, *args, **kwargs) -> None:  # type: ignore[override]
+        super().__init__(*args, **kwargs)
+        if not _HAS_SETTINGS:
+            # Populate from environment when pydantic-settings is not installed
+            self.run_mode = _os.getenv("RUN_MODE", str(self.run_mode))
+            self.environment = _os.getenv("EMP_ENVIRONMENT", str(self.environment))
+            self.emp_tier = _os.getenv("EMP_TIER", str(self.emp_tier))
+            cp = _os.getenv("CONNECTION_PROTOCOL", str(self.connection_protocol))
+            self.connection_protocol = "fix" if cp != "fix" else cp  # force fix
+            self.account_number = _os.getenv("ICMARKETS_ACCOUNT", self.account_number)
+            self.password = _os.getenv("ICMARKETS_PASSWORD", self.password)

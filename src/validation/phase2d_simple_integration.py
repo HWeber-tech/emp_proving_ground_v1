@@ -18,8 +18,14 @@ from decimal import Decimal
 
 from src.sensory.organs.yahoo_finance_organ import YahooFinanceOrgan
 from src.sensory.enhanced.anomaly.manipulation_detection import ManipulationDetectionSystem
-from src.trading.risk.market_regime_detector import MarketRegimeDetector
-from src.core.interfaces import DecisionGenome
+try:
+    from src.trading.risk.market_regime_detector import MarketRegimeDetector  # deprecated
+except Exception:  # pragma: no cover
+    MarketRegimeDetector = None  # type: ignore
+try:
+    from src.core.interfaces import DecisionGenome  # legacy
+except Exception:  # pragma: no cover
+    DecisionGenome = object  # type: ignore
 from src.core import Instrument, InstrumentProvider
 from src.risk import RiskManager, RiskConfig
 

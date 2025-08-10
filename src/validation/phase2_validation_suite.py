@@ -17,11 +17,21 @@ from typing import Dict, List, Any, Optional
 from datetime import datetime, timedelta
 from dataclasses import dataclass, field
 
-from src.evolution.fitness.multi_dimensional_fitness_evaluator import MultiDimensionalFitnessEvaluator
+try:
+    from src.evolution.fitness.multi_dimensional_fitness_evaluator import MultiDimensionalFitnessEvaluator  # deprecated
+except Exception:  # pragma: no cover
+    class MultiDimensionalFitnessEvaluator:  # type: ignore
+        pass
 from src.evolution.selection.adversarial_selector import AdversarialSelector
 from src.trading.strategies.strategy_manager import StrategyManager
-from src.trading.risk.market_regime_detector import MarketRegimeDetector
-from src.trading.risk.advanced_risk_manager import AdvancedRiskManager
+try:
+    from src.trading.risk.market_regime_detector import MarketRegimeDetector  # deprecated
+except Exception:  # pragma: no cover
+    MarketRegimeDetector = None  # type: ignore
+try:
+    from src.trading.risk.advanced_risk_manager import AdvancedRiskManager  # deprecated
+except Exception:  # pragma: no cover
+    AdvancedRiskManager = None  # type: ignore
 
 logger = logging.getLogger(__name__)
 

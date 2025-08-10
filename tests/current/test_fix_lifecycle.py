@@ -1,3 +1,7 @@
+def test_fix_only_protocol_enforced():
+    from src.governance.system_config import SystemConfig
+    cfg = SystemConfig()
+    assert cfg.connection_protocol == "fix"
 import asyncio
 import os
 

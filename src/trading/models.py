@@ -1,6 +1,9 @@
 """
 Trading Models
-from src.core.market_data import MarketData
+try:
+    from src.core.market_data import MarketData  # legacy
+except Exception:  # pragma: no cover
+    MarketData = object  # type: ignore
 Core trading models for positions, signals, and market data
 """
 

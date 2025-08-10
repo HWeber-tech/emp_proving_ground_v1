@@ -16,12 +16,16 @@ from datetime import datetime
 from typing import List, Dict, Any
 
 # Import all components
-from src.evolution.engine.genetic_engine import GeneticEngine, EvolutionConfig
+try:
+    from src.evolution.engine.genetic_engine import GeneticEngine, EvolutionConfig  # deprecated
+except Exception:  # pragma: no cover
+    GeneticEngine = None  # type: ignore
+    EvolutionConfig = None  # type: ignore
 from src.core.population_manager import PopulationManager
 from src.evolution.fitness.real_trading_fitness_evaluator import RealTradingFitnessEvaluator
 from src.risk.risk_manager_impl import RiskManagerImpl, create_risk_manager
-from src.trading.strategy_engine.strategy_engine_impl import StrategyEngineImpl, create_strategy_engine
-from src.trading.strategy_engine.templates.moving_average_strategy import create_moving_average_strategy
+from src.trading.strategy_engine.strategy_engine import StrategyEngine as StrategyEngineImpl, create_strategy_engine
+from src.core.strategy.templates.moving_average import MovingAverageStrategy as CoreMovingAverageStrategy
 from src.core.interfaces import DecisionGenome
 
 # Configure logging
@@ -81,11 +85,7 @@ class TestCompleteSystem:
     @pytest.mark.asyncio
     async def test_strategy_registration(self):
         """Test strategy registration."""
-        strategy = create_moving_average_strategy(
-            strategy_id="test_strategy",
-            symbols=["EURUSD"],
-            parameters={'fast_period': 10, 'slow_period': 20}
-        )
+        strategy = CoreMovingAverageStrategy("test_strategy", ["EURUSD"], {"fast_period": 10, "slow_period": 20})
         
         success = self.strategy_engine.register_strategy(strategy)
         assert success is True
@@ -97,11 +97,7 @@ class TestCompleteSystem:
     async def test_strategy_execution(self):
         """Test strategy execution."""
         # Register strategy
-        strategy = create_moving_average_strategy(
-            strategy_id="test_execution",
-            symbols=["EURUSD"],
-            parameters={'fast_period': 5, 'slow_period': 10}
-        )
+        strategy = CoreMovingAverageStrategy("test_execution", ["EURUSD"], {"fast_period": 5, "slow_period": 10})
         
         self.strategy_engine.register_strategy(strategy)
         self.strategy_engine.start_strategy("test_execution")

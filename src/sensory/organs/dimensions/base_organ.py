@@ -1,6 +1,9 @@
 """
 Sensory Cortex v2.2 - Core Base Classes
-from src.core.market_data import MarketData
+try:
+    from src.core.market_data import MarketData  # legacy
+except Exception:  # pragma: no cover
+    MarketData = object  # type: ignore
 
 Canonical dataclasses that serve as the common language for the entire sensory system.
 These provide type safety, clear data contracts, and eliminate the need for ad-hoc data structures.

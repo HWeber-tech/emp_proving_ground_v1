@@ -18,10 +18,16 @@ import pandas as pd
 import numpy as np
 
 from src.sensory.organs.yahoo_finance_organ import YahooFinanceOrgan
-from src.trading.risk.market_regime_detector import MarketRegimeDetector
+try:
+    from src.trading.risk.market_regime_detector import MarketRegimeDetector  # deprecated
+except Exception:  # pragma: no cover
+    MarketRegimeDetector = None  # type: ignore
 from src.trading.strategies.strategy_manager import StrategyManager
 from src.data_integration.real_data_integration import RealDataManager
-from src.core.interfaces import DecisionGenome
+try:
+    from src.core.interfaces import DecisionGenome  # legacy
+except Exception:  # pragma: no cover
+    DecisionGenome = object  # type: ignore
 
 logger = logging.getLogger(__name__)
 

@@ -11,7 +11,10 @@ from decimal import Decimal
 from typing import Dict, List, Optional, Any, Tuple
 import uuid
 
-from src.core.events import AlgorithmSignature, CompetitorBehavior, CounterStrategy
+try:
+    from src.core.events import AlgorithmSignature, CompetitorBehavior, CounterStrategy  # legacy
+except Exception:  # pragma: no cover
+    AlgorithmSignature = CompetitorBehavior = CounterStrategy = object  # type: ignore
 from src.operational.state_store import StateStore
 
 logger = logging.getLogger(__name__)

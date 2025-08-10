@@ -11,7 +11,10 @@ from typing import Dict, List, Any, Optional
 from datetime import datetime
 from dataclasses import dataclass
 
-from src.core.interfaces import ThinkingPattern, SensorySignal, AnalysisResult
+try:
+    from src.core.interfaces import ThinkingPattern, SensorySignal, AnalysisResult  # legacy
+except Exception:  # pragma: no cover
+    ThinkingPattern = SensorySignal = AnalysisResult = object  # type: ignore
 from src.core.exceptions import ThinkingException
 
 logger = logging.getLogger(__name__)

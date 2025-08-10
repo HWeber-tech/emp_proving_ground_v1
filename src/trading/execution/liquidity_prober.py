@@ -13,7 +13,10 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 import uuid
 
-from src.core.events import TradeIntent, ExecutionReportEvent, OrderStatus
+try:
+    from src.core.events import TradeIntent, ExecutionReportEvent, OrderStatus  # legacy
+except Exception:  # pragma: no cover
+    TradeIntent = ExecutionReportEvent = OrderStatus = object  # type: ignore
 from src.trading.integration.mock_ctrader_interface import CTraderInterface, OrderType, OrderSide
 
 logger = logging.getLogger(__name__)

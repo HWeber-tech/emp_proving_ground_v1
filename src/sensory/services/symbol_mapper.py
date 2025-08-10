@@ -12,7 +12,11 @@ from typing import Dict, Optional, List
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
-from src.core.events import EventBus
+try:
+    from src.core.events import EventBus  # legacy
+except Exception:  # pragma: no cover
+    class EventBus:  # type: ignore
+        pass
 from src.operational.state_store import StateStore
 
 logger = logging.getLogger(__name__)

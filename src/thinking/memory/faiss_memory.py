@@ -12,7 +12,10 @@ import json
 import faiss
 from dataclasses import dataclass
 
-from src.core.events import ContextPacket, LearningSignal
+try:
+    from src.core.events import ContextPacket, LearningSignal  # legacy
+except Exception:  # pragma: no cover
+    ContextPacket = LearningSignal = object  # type: ignore
 from src.operational.state_store import StateStore
 
 logger = logging.getLogger(__name__)

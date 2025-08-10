@@ -11,8 +11,12 @@ from typing import Dict, Any, Optional
 from decimal import Decimal
 from datetime import datetime
 
-from src.core.interfaces import IRiskManager
-from src.risk.real_risk_manager import RealRiskManager, RealRiskConfig
+try:
+    from src.core.interfaces import IRiskManager  # legacy
+except Exception:  # pragma: no cover
+    class IRiskManager:  # type: ignore
+        pass
+from src.core.risk.manager import RiskManager as RealRiskManager, RiskConfig as RealRiskConfig
 
 logger = logging.getLogger(__name__)
 

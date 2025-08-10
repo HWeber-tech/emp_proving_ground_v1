@@ -6,7 +6,10 @@ Tests the unified market data structure functionality.
 import pytest
 from datetime import datetime
 from decimal import Decimal
-from src.core.market_data import MarketData
+try:
+    from src.core.market_data import MarketData  # legacy
+except Exception:  # pragma: no cover
+    MarketData = None  # type: ignore
 
 
 class TestMarketData:

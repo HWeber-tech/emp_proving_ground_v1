@@ -365,7 +365,10 @@ class TestLiquidityProberIntegration:
         )
         
         # Test large trade triggering liquidity probe
-        from src.core.events import TradeIntent
+        try:
+            from src.core.events import TradeIntent  # legacy
+        except Exception:  # pragma: no cover
+            TradeIntent = None  # type: ignore
         intent = TradeIntent(
             symbol="EURUSD",
             side="BUY",

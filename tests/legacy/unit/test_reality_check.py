@@ -1,14 +1,5 @@
 """
-Reality Check Test - Validates Current Mock Status
-
-This test is designed to FAIL until real integrations are implemented.
-It serves as a progress tracking tool and transparency mechanism.
-
-Expected Behavior:
-- Currently: All tests should FAIL (confirming mock status)
-- Phase 1: Data source tests should PASS
-- Phase 2: Broker tests should PASS
-- Phase 3: All tests should PASS (production ready)
+Legacy test; superseded by current status metrics and policy tests.
 """
 
 import pytest

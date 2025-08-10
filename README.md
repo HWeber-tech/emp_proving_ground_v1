@@ -2,9 +2,17 @@
 
 An algorithmic trading system framework in active development.
 
-## Current Status: Development Phase
+## Current Status
 
-⚠️ **This system is currently in development and contains primarily mock implementations.**
+⚠️ This repository is a development framework, not production-ready. Most components are scaffolding or mocks; live trading is not enabled by default. Broker connectivity is FIX-only.
+
+### Snapshot
+- **Broker Connectivity**: FIX-only (IC Markets) – authentication and session scaffolding in place
+- **Sensory Cortex**: 4D+1 framework present; calculations live in the sensory layer
+- **Execution/Risk**: Frameworks wired; real execution via FIX interfaces under active development
+- **Data**: Ingest pipelines and feature scaffolding; production feeds not fully integrated
+
+See also: `docs/ARCHITECTURE_REALITY.md` and `docs/reports/ROADMAP_FIX_FIRST.md`.
 
 ## Architecture Components
 
@@ -50,7 +58,7 @@ cp env_templates/.env.example .env
 - `CONFIRM_LIVE` (must be `true` to enable live)
 - `EMP_KILL_SWITCH` (path to kill-switch file)
 - `EMP_ENVIRONMENT` (`demo` or `production`)
-- `CONNECTION_PROTOCOL` (`fix` or `openapi`)
+- `CONNECTION_PROTOCOL` (`fix` only)
 - `EMP_TIER` (`tier_0`, `tier_1`, `tier_2`)
 - `ICMARKETS_ACCOUNT`, `ICMARKETS_PASSWORD`
 
@@ -60,25 +68,28 @@ cp env_templates/.env.example .env
 - `--db` DuckDB path (default: `data/tier0.duckdb`)
 - `--skip-ingest` Skip Tier-0 ingest at startup
 
-## Development Status
+## Roadmap
 
-### Working Components
-- FIX API authentication with IC Markets
-- Basic market data connectivity
-- Exception handling framework
-- Abstract interface definitions
+- Phase 1: Foundations (frameworks, configuration, sensory cortex scaffolding)
+- Phase 2: Trading integration (FIX execution path, sizing, risk controls)
+- Phase 3: Strategy evolution and validation
 
-### In Development
-- Genetic algorithm implementations
-- Real trading strategy execution
-- Risk management systems
-- Production data integration
+Current phase: Foundations/framework development. For details, see `docs/ARCHITECTURE_REALITY.md` and `docs/reports/ROADMAP_FIX_FIRST.md`.
 
 ## Documentation
 
 - [FIX API Development Guide](docs/fix_api/FIX_API_MASTER_GUIDE.md)
-- [Architecture Framework](docs/architecture/)
+- [Architecture Reality](docs/ARCHITECTURE_REALITY.md)
+- [Roadmap (FIX-first)](docs/reports/ROADMAP_FIX_FIRST.md)
+- [Roadmap (Authoritative)](docs/ROADMAP.md)
 - [Development API Reference](docs/api/)
+
+### Transparency Metrics
+Run quick status metrics:
+```bash
+python scripts/status_metrics.py
+python scripts/cleanup/generate_cleanup_report.py
+```
 
 ## Development Notes
 

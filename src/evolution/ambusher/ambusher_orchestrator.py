@@ -11,7 +11,11 @@ import logging
 import json
 from pathlib import Path
 
-from evolution.ambusher.genetic_engine import GeneticEngine, AmbusherGenome
+try:
+    from evolution.ambusher.genetic_engine import GeneticEngine, AmbusherGenome  # deprecated path
+except Exception:  # pragma: no cover
+    GeneticEngine = None  # type: ignore
+    AmbusherGenome = None  # type: ignore
 from evolution.ambusher.ambusher_fitness import AmbusherFitnessFunction
 
 logger = logging.getLogger(__name__)

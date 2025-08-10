@@ -16,7 +16,10 @@ from dataclasses import dataclass, field
 import pandas as pd
 import numpy as np
 
-from src.core.interfaces import DecisionGenome
+try:
+    from src.core.interfaces import DecisionGenome  # legacy
+except Exception:  # pragma: no cover
+    DecisionGenome = object  # type: ignore
 from src.sensory.orchestration.master_orchestrator import MasterOrchestrator
 
 logger = logging.getLogger(__name__)

@@ -1,64 +1,24 @@
 """
-CTrader Data Organ - Live Market Data Integration
-Provides real-time market data from cTrader Open API
+Legacy: cTrader Data Organ (legacy cTrader API) - Disabled in FIX-only build
 """
 
 import asyncio
 import logging
-from typing import Dict, Optional, Any, TYPE_CHECKING
+from typing import Dict, Optional, Any
 from decimal import Decimal
 
 from src.governance.system_config import SystemConfig
-
-if TYPE_CHECKING:
-    from ctrader_open_api import Client, Protobuf, Messages
-    from ctrader_open_api.enums import ProtoOAPayloadType
 
 logger = logging.getLogger(__name__)
 
 
 class CTraderDataOrgan:
-    """
-    Live market data organ that connects to cTrader Open API
-    Provides real-time price feeds and execution reports
-    """
-    
+    """Disabled. Use FIX-based sensory organ instead."""
+
     def __init__(self, event_bus, system_config=None):
-        """
-        Initialize CTrader Data Organ
-        
-        Args:
-            event_bus: Internal event bus for publishing market data
-            system_config: System configuration
-        """
-        self.event_bus = event_bus
-        self.config = system_config or config
-        self.client: Optional['Client'] = None
-        self.connected = False
-        self.symbol_mapping: Dict[str, int] = {}  # Maps symbol names to symbol IDs
-        self.reverse_mapping: Dict[int, str] = {}  # Maps symbol IDs to symbol names
-        
-        self._try_import_ctrader()
+        raise ImportError("Legacy cTrader API path is disabled. Use FIXSensoryOrgan.")
     
-    def _try_import_ctrader(self):
-        """Try to import cTrader library gracefully"""
-        try:
-            from ctrader_open_api import Client, Protobuf, Messages
-            from ctrader_open_api.enums import ProtoOAPayloadType
-            
-            self.Client = Client
-            self.Protobuf = Protobuf
-            self.Messages = Messages
-            self.ProtoOAPayloadType = ProtoOAPayloadType
-            self.C_TRADER_AVAILABLE = True
-            
-        except ImportError:
-            self.Client = None
-            self.Protobuf = None
-            self.Messages = None
-            self.ProtoOAPayloadType = None
-            self.C_TRADER_AVAILABLE = False
-            logger.warning("cTrader Open API library not available. Install with: pip install ctrader-open-api-py")
+    # All remaining methods are intentionally unreachable in FIX-only build
     
     def on_message_received(self, message: Any) -> None:
         """Handle incoming messages from cTrader server"""
@@ -112,7 +72,10 @@ class CTraderDataOrgan:
                 ask_price = Decimal(str(spot_event.ask)) / Decimal('100000')
             
             # Create market understanding event
-            from src.core.events import MarketUnderstanding
+            try:
+                from src.core.events import MarketUnderstanding  # legacy
+            except Exception:  # pragma: no cover
+                MarketUnderstanding = object  # type: ignore
             market_data = MarketUnderstanding(
                 symbol=symbol,
                 bid=bid_price,
@@ -139,7 +102,10 @@ class CTraderDataOrgan:
             execution_event.ParseFromString(message.payload)
             
             # Create execution report
-            from src.core.events import ExecutionReport
+            try:
+                from src.core.events import ExecutionReport  # legacy
+            except Exception:  # pragma: no cover
+                ExecutionReport = object  # type: ignore
             execution_report = ExecutionReport(
                 order_id=str(execution_event.order.orderId),
                 symbol=self.reverse_mapping.get(execution_event.order.symbolName, execution_event.order.symbolName),

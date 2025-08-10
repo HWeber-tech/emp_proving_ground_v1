@@ -167,14 +167,14 @@ class FIXBrokerInterface:
             True if cancel request sent, False otherwise
         """
         try:
-            # Create cancel message
+            # Minimal cTrader schema: 11/41 only
             msg = simplefix.FixMessage()
             msg.append_pair(8, "FIX.4.4")
             msg.append_pair(35, "F")  # OrderCancelRequest
-            msg.append_pair(11, f"CNCL_{order_id}")  # ClOrdID
-            msg.append_pair(41, order_id)  # OrigClOrdID
+            cncl_id = f"CNCL_{order_id}"
+            msg.append_pair(11, cncl_id)
+            msg.append_pair(41, order_id)
             
-            # Send cancel
             if self.fix_initiator:
                 self.fix_initiator.send_message(msg)
                 logger.info(f"Order cancel requested: {order_id}")

@@ -1,3 +1,4 @@
+"""Deprecated package. Use `src/trading/strategy_engine/` instead."""
 """
 Trading strategies package.
 """

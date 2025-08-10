@@ -1,5 +1,8 @@
-# 🎯 WORKING DEMONSTRATION - MICROSTRUCTURE VERIFICATION
+# 🎯 LEGACY DEMONSTRATION (OpenAPI) — Deprecated
 
+This document described cTrader OpenAPI verification tools. The project is now FIX-only. Use `docs/fix_api/` for current guidance.
+
+## [Deprecated Content Below]
 ## ✅ PROVEN WORKING COMPONENTS
 
 ### 1. ✅ WebSocket Connection

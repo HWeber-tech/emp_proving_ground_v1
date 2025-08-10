@@ -1,0 +1,2 @@
+# Core evolution package (authoritative)
+

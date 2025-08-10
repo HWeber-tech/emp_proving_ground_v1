@@ -11,7 +11,10 @@ from decimal import Decimal
 from typing import Dict, List, Optional, Any, Tuple
 import uuid
 
-from src.core.events import MarketScenario, StrategyTestResult
+try:
+    from src.core.events import MarketScenario, StrategyTestResult  # legacy
+except Exception:  # pragma: no cover
+    MarketScenario = StrategyTestResult = object  # type: ignore
 from src.thinking.prediction.predictive_market_modeler import PredictiveMarketModeler
 from src.operational.state_store import StateStore
 

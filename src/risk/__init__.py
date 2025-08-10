@@ -1,10 +1,9 @@
 """
 Risk management module for EMP system.
 
-Provides real risk management implementations including Kelly Criterion
-position sizing and portfolio risk metrics.
+Provides risk management facade implementation.
 """
 
-from .real_risk_manager import RealRiskManager, RealRiskConfig
+from .risk_manager_impl import RiskManagerImpl, create_risk_manager
 
-__all__ = ['RealRiskManager', 'RealRiskConfig']
+__all__ = ["RiskManagerImpl", "create_risk_manager"]

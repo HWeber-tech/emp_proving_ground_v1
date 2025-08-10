@@ -2,7 +2,7 @@
 """
 EMP v4.0 Professional Predator - Master Switch Integration
 
-Complete system with configurable protocol selection (FIX vs OpenAPI)
+Complete system with master switch (FIX-only)
 This is the final integration of Sprint 1: The Professional Upgrade
 """
 
@@ -69,11 +69,10 @@ class EMPProfessionalPredator:
             self.event_bus = EventBus()
             # Attach a risk manager instance for global checks (lazy/placeholder)
             try:
-                from src.risk.real_risk_manager import RealRiskManager, RealRiskConfig
-                self.event_bus.risk_manager = RealRiskManager(RealRiskConfig())
-                # back-reference for event emission
+                from src.risk.risk_manager_impl import RiskManagerImpl
+                self.event_bus.risk_manager = RiskManagerImpl()
                 self.event_bus.risk_manager.event_bus = self.event_bus
-                logger.info("✅ Risk manager attached to event bus")
+                logger.info("✅ Risk manager attached to event bus (RiskManagerImpl)")
             except Exception as _:
                 logger.warning("⚠️ Failed to attach risk manager; proceeding without")
             logger.info("✅ Event bus initialized")
@@ -144,9 +143,9 @@ class EMPProfessionalPredator:
             logger.info("✅ FIX components configured successfully")
             
         elif self.config.connection_protocol == "openapi":
-            # OpenAPI has been removed per project policy. Use FIX exclusively.
+            # Only FIX is supported in this build
             raise ValueError(
-                "OpenAPI connectivity is disabled. Set CONNECTION_PROTOCOL=fix and follow docs/fix_api guides."
+                "Only FIX is supported. Set CONNECTION_PROTOCOL=fix and follow docs/fix_api guides."
             )
             
         else:

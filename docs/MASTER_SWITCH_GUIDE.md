@@ -7,7 +7,7 @@ The Master Switch is the final integration component of Sprint 1: The Profession
 - **Protocol Selection**: Single configuration field controls all components
 - **Protocol-Agnostic Core**: Upper layers remain unchanged regardless of protocol
 - **Clean Integration**: Protocol-specific setup encapsulated in dedicated methods
-- **Policy**: OpenAPI is disabled. The system operates with FIX exclusively.
+- **Policy**: The system operates with FIX exclusively; other protocols are disabled.
 
 ## Configuration
 
@@ -20,7 +20,7 @@ CONNECTION_PROTOCOL=fix        # Professional FIX protocol (required)
 ### Configuration Files
 - **Default**: `.env` (uses FIX protocol by default)
 - **FIX Test**: `config/test_fix.env`
-  (OpenAPI test file removed; FIX-only build)
+  (alternate protocol test file removed; FIX-only build)
 
 ## Usage
 
@@ -44,8 +44,8 @@ When `CONNECTION_PROTOCOL=fix`:
 - ✅ Connects to IC Markets cTrader FIX gateways
 - ✅ Professional-grade SSL-encrypted connections
 
-#### OpenAPI Protocol Mode
-Disabled. Set `CONNECTION_PROTOCOL=fix` and use IC Markets FIX per `docs/fix_api/`.
+#### Alternate Protocol Modes
+Disabled in this build. Set `CONNECTION_PROTOCOL=fix` and use IC Markets FIX per `docs/fix_api/`.
 
 ## Testing
 
@@ -105,7 +105,7 @@ docs/
 5. **Deploy**: Use new main.py with master switch
 
 ### Rollback Procedure
-Not available in FIX-only build. OpenAPI is disabled.
+Not available in FIX-only build. Alternate protocols are disabled.
 
 ## Troubleshooting
 

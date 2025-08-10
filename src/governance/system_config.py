@@ -64,7 +64,7 @@ class SystemConfig(BaseSettings):
             raise ValueError("IC Markets credentials must be provided via environment variables")
         # FIX-only enforcement (defense-in-depth)
         if self.connection_protocol != "fix":
-            raise ValueError("OpenAPI is disabled. Set CONNECTION_PROTOCOL=fix.")
+            raise ValueError("Only FIX is supported in this build. Set CONNECTION_PROTOCOL=fix.")
         return True
 
     def get_config(self) -> Dict[str, Any]:

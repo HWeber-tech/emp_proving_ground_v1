@@ -1,7 +1,7 @@
 ## EMP FIX-First Implementation Roadmap
 
 ### Current Status (snapshot)
-- FIX is the exclusive broker pathway; OpenAPI disabled at entry points, config, and CI checks.
+- FIX is the exclusive broker pathway; alternate protocols disabled at entry points, config, and CI checks.
 - Demo FIX flows green end-to-end:
   - Logon/auth for price and trade sessions.
   - Market Data Request (35=V) confirmed; snapshot arrives; incremental handler present.

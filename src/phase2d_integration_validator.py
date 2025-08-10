@@ -49,7 +49,7 @@ class Phase2DIntegrationValidator:
         self.yahoo_organ = YahooFinanceOrgan()
         self.manipulation_detector = ManipulationDetectionSystem()
         self.regime_detector = MarketRegimeDetector()
-        self.strategy_manager = StrategyManager()
+        self.strategy_manager = None
         self.real_data_manager = RealDataManager({'fallback_to_mock': False})
         
     async def test_real_data_flow(self) -> Dict[str, Any]:

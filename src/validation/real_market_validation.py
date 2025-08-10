@@ -26,7 +26,6 @@ try:
     from src.trading.risk.market_regime_detector import MarketRegimeDetector  # deprecated
 except Exception:  # pragma: no cover
     MarketRegimeDetector = None  # type: ignore
-from src.trading.strategies.strategy_manager import StrategyManager
 from src.data_integration.real_data_integration import RealDataManager
 try:
     from src.core.interfaces import DecisionGenome  # legacy

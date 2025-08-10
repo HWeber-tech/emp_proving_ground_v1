@@ -23,7 +23,6 @@ except Exception:  # pragma: no cover
     class MultiDimensionalFitnessEvaluator:  # type: ignore
         pass
 from src.evolution.selection.adversarial_selector import AdversarialSelector
-from src.trading.strategies.strategy_manager import StrategyManager
 try:
     from src.trading.risk.market_regime_detector import MarketRegimeDetector  # deprecated
 except Exception:  # pragma: no cover

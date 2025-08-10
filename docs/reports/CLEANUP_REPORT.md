@@ -6,170 +6,170 @@
 Duplicate Definitions Summary
 - classes:
   - evolution: 15
-  - other: 83
-  - risk: 7
-  - strategy: 23
-- functions:
-  - evolution: 8
-  - fitness: 8
-  - other: 265
-  - risk: 12
+  - other: 76
+  - risk: 3
   - strategy: 14
+- functions:
+  - evolution: 3
+  - fitness: 8
+  - other: 229
+  - risk: 10
+  - strategy: 8
 
 Top duplicates (classes):
-- riskconfig: 4 files
-- instrumentprovider: 2 files
-- currencyconverter: 2 files
 - instrument: 3 files
+- currencyconverter: 2 files
+- instrumentprovider: 2 files
+- riskconfig: 4 files
 - phase2dintegrationvalidator: 2 files
-- riskmanager: 4 files
-- validationresult: 4 files
-- evolutionconfig: 3 files
-- contextpacket: 3 files
-- eventbus: 4 files
-- orderbook: 2 files
-- executionreport: 2 files
-- orderbooklevel: 4 files
-- performancemetrics: 4 files
-- riskmetrics: 3 files
-- evolutionstats: 3 files
-- realevolutionengine: 2 files
-- marketdata: 3 files
-- strategymodel: 2 files
-- instrumentmeta: 3 files
+- validationresult: 3 files
+- riskmanager: 2 files
+- strategyregistry: 3 files
+- systemconfig: 2 files
+- config: 2 files
+- learningsignal: 2 files
+- realtimelearningengine: 3 files
+- adaptationcontroller: 2 files
+- faisspatternmemory: 3 files
+- memoryentry: 3 files
+- signaltype: 2 files
+- tradingsignal: 2 files
+- position: 2 files
+- performancetracker: 3 files
+- performancemetrics: 3 files
 
 
 ## Dependencies
 
 
 Dependency Analysis
-- modules: 114
+- modules: 100
 - circulars: 0
-- orphans: 113 (first 20)
-  *  sensory.integrate.bayesian_integrator
-  *  evolution.engine.genetic_engine
-  *  evolution.real_genetic_engine
+- orphans: 99 (first 20)
+  *  thinking.analysis.market_analyzer
+  *  sensory.core.base
   *  sensory.organs.dimensions.macro_intelligence
-  *  trading.execution.execution_model
-  *  validation.honest_validation_framework
-  *  sensory.how.how_sensor
-  *  governance.token_manager
-  *  trading.strategies.strategy_manager
-  *  thinking.sentient_adaptation_engine
-  *  validation.phase2c_validation_suite
-  *  sensory.organs.price_organ
-  *  sensory.anomaly.anomaly_sensor
-  *  core.interfaces_complete
-  *  sensory.organs.dimensions.why_organ
-  *  data_integration.alpha_vantage_integration
-  *  sensory.organs.dimensions.sensory_signal
+  *  data_integration.real_data_integration
+  *  data_integration.data_validation
+  *  core.strategy.templates.mean_reversion
+  *  ecosystem.coordination.coordination_engine
+  *  operational.health_monitor
   *  validation.phase2d_simple_integration
-  *  thinking.analysis.correlation_analyzer
-  *  sensory.why.why_sensor
+  *  thinking.memory.pattern_memory
+  *  thinking.competitive.competitive_intelligence_system
+  *  trading.execution.execution_engine
+  *  evolution.selection.tournament_selection
+  *  sensory.anomaly.anomaly_sensor
+  *  sensory.organs.dimensions.when_organ
+  *  trading.monitoring.portfolio_monitor
+  *  thinking.patterns.trend_detector
+  *  operational.icmarkets_api
+  *  risk
+  *  thinking.phase3_orchestrator
 
 
 ## Dead Code
 
 
 Dead code candidates (first 100):
--  src\core.py
--  src\phase2d_integration_validator.py
--  src\phase3_integration.py
--  src\pnl.py
--  src\risk.py
--  src\config\evolution_config.py
--  src\config\portfolio_config.py
--  src\config\risk_config.py
--  src\config\sensory_config.py
--  src\core\configuration.py
--  src\core\context_packet.py
--  src\core\events.py
--  src\core\event_bus.py
--  src\core\evolution_engine.py
--  src\core\exceptions.py
--  src\core\instrument.py
--  src\core\interfaces.py
--  src\core\interfaces_complete.py
--  src\core\market_data.py
--  src\core\models.py
--  src\core\population_manager.py
--  src\core\risk_manager.py
--  src\core\sensory_organ.py
--  src\core\validation.py
--  src\core\evolution\engine.py
--  src\core\evolution\fitness.py
--  src\core\evolution\operators.py
--  src\core\evolution\population.py
--  src\core\performance\market_data_cache.py
--  src\core\performance\vectorized_indicators.py
--  src\core\risk\manager.py
--  src\core\risk\position_sizing.py
--  src\core\risk\stress_testing.py
--  src\core\risk\var_calculator.py
--  src\core\strategy\engine.py
--  src\core\strategy\templates\mean_reversion.py
--  src\core\strategy\templates\moving_average.py
--  src\core\strategy\templates\trend_strategies.py
--  src\data_foundation\schemas.py
--  src\data_foundation\config\execution_config.py
--  src\data_foundation\config\risk_portfolio_config.py
--  src\data_foundation\config\sizing_config.py
--  src\data_foundation\config\vol_config.py
--  src\data_foundation\config\why_config.py
--  src\data_foundation\ingest\fred_calendar.py
--  src\data_foundation\ingest\yahoo_ingest.py
--  src\data_foundation\persist\jsonl_writer.py
--  src\data_foundation\persist\parquet_writer.py
--  src\data_foundation\replay\multidim_replayer.py
--  src\data_integration\alpha_vantage_integration.py
--  src\data_integration\data_fusion.py
--  src\data_integration\data_validation.py
--  src\data_integration\dukascopy_ingestor.py
--  src\data_integration\fred_integration.py
--  src\data_integration\newsapi_integration.py
--  src\data_integration\openbb_integration.py
--  src\data_integration\real_data_ingestor.py
--  src\data_integration\real_data_integration.py
--  src\data_integration\real_time_streaming.py
--  src\domain\models.py
--  src\ecosystem\coordination\coordination_engine.py
--  src\ecosystem\evaluation\niche_detector.py
--  src\ecosystem\optimization\ecosystem_optimizer.py
--  src\ecosystem\species\factories.py
--  src\evolution\advanced_evolution_engine.py
--  src\evolution\episodic_memory_system.py
--  src\evolution\real_genetic_engine.py
--  src\evolution\ambusher\ambusher_fitness.py
--  src\evolution\ambusher\ambusher_orchestrator.py
--  src\evolution\ambusher\genetic_engine.py
--  src\evolution\crossover\uniform_crossover.py
--  src\evolution\engine\genetic_engine.py
--  src\evolution\engine\real_evolution_engine.py
--  src\evolution\fitness\adaptability_fitness.py
--  src\evolution\fitness\antifragility_fitness.py
--  src\evolution\fitness\base_fitness.py
--  src\evolution\fitness\base_fitness_broken.py
--  src\evolution\fitness\efficiency_fitness.py
--  src\evolution\fitness\innovation_fitness.py
--  src\evolution\fitness\multi_dimensional_fitness_evaluator.py
--  src\evolution\fitness\profit_fitness.py
--  src\evolution\fitness\real_trading_fitness_evaluator.py
--  src\evolution\fitness\robustness_fitness.py
--  src\evolution\fitness\survival_fitness.py
--  src\evolution\fitness\trading_fitness_evaluator.py
--  src\evolution\mutation\gaussian_mutation.py
--  src\evolution\selection\adversarial_selector.py
--  src\evolution\selection\selection_strategies.py
--  src\evolution\selection\tournament_selection.py
--  src\evolution\variation\variation_strategies.py
--  src\genome\models\genome.py
--  src\governance\audit_logger.py
--  src\governance\config_vault.py
--  src\governance\fitness_store.py
--  src\governance\human_gateway.py
--  src\governance\models.py
--  src\governance\safety_manager.py
--  src\governance\strategy_registry.py
--  src\governance\system_config.py
--  src\governance\token_manager.py
-Total candidates: 274
+-  src/core.py
+-  src/phase2d_integration_validator.py
+-  src/pnl.py
+-  src/risk.py
+-  src/phase3_integration.py
+-  src/governance/strategy_registry.py
+-  src/governance/token_manager.py
+-  src/governance/human_gateway.py
+-  src/governance/config_vault.py
+-  src/governance/fitness_store.py
+-  src/governance/models.py
+-  src/governance/system_config.py
+-  src/governance/safety_manager.py
+-  src/governance/audit_logger.py
+-  src/sentient/sentient_predator.py
+-  src/sentient/learning/real_time_learning_engine.py
+-  src/sentient/adaptation/adaptation_controller.py
+-  src/sentient/memory/faiss_pattern_memory.py
+-  src/domain/models.py
+-  src/trading/trading_manager.py
+-  src/trading/models.py
+-  src/trading/monitoring/portfolio_monitor.py
+-  src/trading/monitoring/parity_checker.py
+-  src/trading/monitoring/performance_tracker.py
+-  src/trading/monitoring/portfolio_tracker.py
+-  src/trading/models/position.py
+-  src/trading/models/order.py
+-  src/trading/models/trade.py
+-  src/trading/strategies/order_book_analyzer.py
+-  src/trading/strategies/strategy_registry.py
+-  src/trading/strategies/base_strategy.py
+-  src/trading/strategies/real_base_strategy.py
+-  src/trading/strategies/strategy_manager.py
+-  src/trading/risk_management/assessment/dynamic_risk.py
+-  src/trading/risk_management/position_sizing/kelly_criterion.py
+-  src/trading/execution/liquidity_prober.py
+-  src/trading/execution/execution_engine.py
+-  src/trading/execution/fix_executor.py
+-  src/trading/execution/execution_model.py
+-  src/trading/execution/live_trading_executor.py
+-  src/trading/strategy_engine/base_strategy.py
+-  src/trading/strategy_engine/strategy_engine.py
+-  src/trading/strategy_engine/backtesting/performance_analyzer.py
+-  src/trading/strategy_engine/backtesting/backtest_engine.py
+-  src/trading/strategy_engine/live_management/dynamic_adjustment.py
+-  src/trading/strategy_engine/live_management/strategy_monitor.py
+-  src/trading/strategy_engine/optimization/parameter_tuning.py
+-  src/trading/strategy_engine/optimization/genetic_optimizer.py
+-  src/trading/integration/fix_broker_interface.py
+-  src/trading/integration/ctrader_broker_interface.py
+-  src/trading/portfolio/real_portfolio_monitor.py
+-  src/sensory/advanced_data_feeds.py
+-  src/sensory/models.py
+-  src/sensory/indicators.py
+-  src/sensory/real_sensory_organ.py
+-  src/sensory/signals.py
+-  src/sensory/advanced_data_feeds_complete.py
+-  src/sensory/orchestration/master_orchestrator.py
+-  src/sensory/how/how_sensor.py
+-  src/sensory/anomaly/anomaly_sensor.py
+-  src/sensory/organs/ctrader_data_organ.py
+-  src/sensory/organs/volume_organ.py
+-  src/sensory/organs/sentiment_organ.py
+-  src/sensory/organs/yahoo_finance_organ.py
+-  src/sensory/organs/economic_organ.py
+-  src/sensory/organs/price_organ.py
+-  src/sensory/organs/orderbook_organ.py
+-  src/sensory/organs/fix_sensory_organ.py
+-  src/sensory/organs/news_organ.py
+-  src/sensory/organs/analyzers/anomaly_organ.py
+-  src/sensory/organs/dimensions/anomaly_dimension.py
+-  src/sensory/organs/dimensions/pattern_engine.py
+-  src/sensory/organs/dimensions/integration_orchestrator.py
+-  src/sensory/organs/dimensions/when_organ.py
+-  src/sensory/organs/dimensions/sensory_signal.py
+-  src/sensory/organs/dimensions/how_organ.py
+-  src/sensory/organs/dimensions/real_sensory_organ.py
+-  src/sensory/organs/dimensions/anomaly_detection.py
+-  src/sensory/organs/dimensions/temporal_system.py
+-  src/sensory/organs/dimensions/chaos_adaptation.py
+-  src/sensory/organs/dimensions/why_organ.py
+-  src/sensory/organs/dimensions/macro_intelligence.py
+-  src/sensory/organs/dimensions/chaos_dimension.py
+-  src/sensory/organs/dimensions/institutional_tracker.py
+-  src/sensory/organs/dimensions/what_organ.py
+-  src/sensory/organs/dimensions/base_organ.py
+-  src/sensory/organs/dimensions/utils.py
+-  src/sensory/organs/dimensions/data_integration.py
+-  src/sensory/what/what_sensor.py
+-  src/sensory/why/why_sensor.py
+-  src/sensory/tests/test_integration.py
+-  src/sensory/integration/cross_modal.py
+-  src/sensory/integration/sensory_cortex.py
+-  src/sensory/when/when_sensor.py
+-  src/sensory/examples/complete_demo.py
+-  src/sensory/dimensions/indicators.py
+-  src/sensory/dimensions/microstructure.py
+-  src/sensory/dimensions/what/volatility_engine.py
+-  src/sensory/dimensions/why/yield_signal.py
+-  src/sensory/dimensions/why/macro_signal.py
+Total candidates: 241

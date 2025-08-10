@@ -7,6 +7,7 @@ Aggregate cleanup signals into a single report:
 """
 
 import subprocess
+import sys
 
 
 def run(cmd: str) -> str:
@@ -21,11 +22,11 @@ def main() -> int:
     sections = []
     sections.append("# Cleanup Report\n")
     sections.append("## Duplicates\n\n")
-    sections.append(run("python scripts/cleanup/audit_duplicates.py"))
+    sections.append(run(f"{sys.executable} scripts/cleanup/audit_duplicates.py"))
     sections.append("\n## Dependencies\n\n")
-    sections.append(run("python scripts/cleanup/analyze_dependencies.py"))
+    sections.append(run(f"{sys.executable} scripts/cleanup/analyze_dependencies.py"))
     sections.append("\n## Dead Code\n\n")
-    sections.append(run("python scripts/cleanup/identify_dead_code.py"))
+    sections.append(run(f"{sys.executable} scripts/cleanup/identify_dead_code.py"))
 
     report = "\n".join(sections)
     print(report)

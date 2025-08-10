@@ -184,7 +184,7 @@ class AlphaVantageDataProvider:
             logger.error(f"Error fetching Alpha Vantage data for {symbol}: {e}")
             return None
     
-    async def get_technical_indicators(self, symbol: str, indicator: str = "RSI") -> Optional[Dict[str, Any]]:
+    async def get_technical_indicators(self, symbol: str, indicator: str = "GENERIC") -> Optional[Dict[str, Any]]:
         """Get technical indicators from Alpha Vantage"""
         if not self.api_key:
             return None
@@ -204,7 +204,7 @@ class AlphaVantageDataProvider:
                     async with session.get(self.base_url, params=params) as response:
                         if response.status == 200:
                             data = await response.json()
-                            logger.info(f"Retrieved {indicator} data for {symbol}")
+                            logger.info(f"Retrieved external indicator data for {symbol}")
                             return data
                         
                         return None
@@ -513,7 +513,7 @@ class RealDataManager:
             logger.error(f"Error getting market data for {symbol}: {e}")
             return None
     
-    async def get_external_features(self, symbol: str, feature: str = "RSI", source: str = "alpha_vantage") -> Optional[Dict[str, Any]]:
+    async def get_external_features(self, symbol: str, feature: str = "GENERIC", source: str = "alpha_vantage") -> Optional[Dict[str, Any]]:
         """Get external provider-computed features (no analysis here)."""
         if source in self.providers:
             provider = self.providers[source]
@@ -577,7 +577,7 @@ class RealDataManager:
         try:
             if data_type == "external_features":
                 symbol = kwargs.get('symbol', 'AAPL')
-                feature = kwargs.get('feature', 'RSI')
+                feature = kwargs.get('feature', 'GENERIC')
                 source = kwargs.get('source', 'alpha_vantage')
                 return await self.get_external_features(symbol, feature, source)
             

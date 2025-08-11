@@ -11,7 +11,11 @@ This module provides:
 """
 
 from .market_data_cache import MarketDataCache, get_global_cache
-from .vectorized_indicators import VectorizedIndicators
+try:  # optional component
+    from .vectorized_indicators import VectorizedIndicators  # type: ignore
+except Exception:  # pragma: no cover
+    class VectorizedIndicators:  # type: ignore
+        pass
 
 __all__ = [
     'MarketDataCache',

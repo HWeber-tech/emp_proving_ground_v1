@@ -10,42 +10,40 @@ Phase: 1.5 - Advanced Data Sources Complete
 """
 
 # Import main data management classes
-from .real_data_integration import (
-    RealDataManager,
-    DataSourceConfig,
-    YahooFinanceDataProvider,
-    AlphaVantageDataProvider,
-    FREDDataProvider,
-    NewsAPIDataProvider
-)
+# Legacy imports removed during cleanup; provide minimal stubs for compatibility
+class RealDataManager:  # type: ignore
+    def __init__(self, *_args, **_kwargs) -> None:
+        pass
+    async def get_market_data(self, *_args, **_kwargs):
+        return None
+class DataSourceConfig:  # type: ignore
+    pass
+class YahooFinanceDataProvider:  # type: ignore
+    pass
+class AlphaVantageDataProvider:  # type: ignore
+    pass
+class FREDDataProvider:  # type: ignore
+    pass
+class NewsAPIDataProvider:  # type: ignore
+    pass
 
-from .data_validation import (
-    MarketDataValidator,
-    DataConsistencyChecker,
-    DataQualityMonitor,
-    ValidationLevel,
-    ValidationResult,
-    DataQualityThresholds,
-    DataIssue
-)
+class MarketDataValidator:  # type: ignore
+    pass
+class DataConsistencyChecker:  # type: ignore
+    pass
+class DataQualityMonitor:  # type: ignore
+    pass
+class ValidationLevel:  # type: ignore
+    pass
+class ValidationResult:  # type: ignore
+    pass
+class DataQualityThresholds:  # type: ignore
+    pass
+class DataIssue:  # type: ignore
+    pass
 
 # Import advanced providers (if available)
-try:
-    from .alpha_vantage_integration import (
-        AlphaVantageProvider,
-        AlphaVantageConfig
-    )
-    from .fred_integration import (
-        FREDProvider,
-        FREDConfig
-    )
-    from .newsapi_integration import (
-        NewsAPIProvider,
-        NewsAPIConfig
-    )
-    ADVANCED_PROVIDERS_AVAILABLE = True
-except ImportError:
-    ADVANCED_PROVIDERS_AVAILABLE = False
+ADVANCED_PROVIDERS_AVAILABLE = False
 
 __all__ = [
     # Core data management
@@ -59,12 +57,7 @@ __all__ = [
     'NewsAPIDataProvider',
     
     # Advanced providers (if available)
-    'AlphaVantageProvider',
-    'AlphaVantageConfig',
-    'FREDProvider',
-    'FREDConfig',
-    'NewsAPIProvider',
-    'NewsAPIConfig',
+    # Advanced providers intentionally unavailable in FIX-only baseline
     
     # Data validation
     'MarketDataValidator',

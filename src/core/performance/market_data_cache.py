@@ -28,3 +28,6 @@ def get_global_cache() -> _InMemoryCache:
     if _global_cache is None:
         _global_cache = _InMemoryCache()
     return _global_cache
+
+# Backward compatibility alias expected by some modules
+MarketDataCache = _InMemoryCache  # type: ignore

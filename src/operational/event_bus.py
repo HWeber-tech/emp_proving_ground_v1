@@ -62,3 +62,7 @@ class EventBus:
         """Publish an asynchronous event."""
         event = Event(type=event_type, data=data, source=source)
         self.publish(event)
+
+    async def emit(self, event_type: str, data: Any, source: str = None):
+        """Compatibility: forward `.emit(...)` to asynchronous publish."""
+        await self.publish_async(event_type, data, source)

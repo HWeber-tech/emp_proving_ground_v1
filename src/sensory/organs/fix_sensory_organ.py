@@ -7,7 +7,21 @@ import asyncio
 import logging
 from typing import Dict, Any, List
 from datetime import datetime
-import simplefix
+try:
+    import simplefix  # type: ignore
+except Exception:  # pragma: no cover
+    class _FixMessageStub:
+        def __init__(self):
+            self._pairs = []
+        def append_pair(self, tag, value):
+            self._pairs.append((tag, value))
+        def to_dict(self):
+            return dict(self._pairs)
+        def __repr__(self):
+            return f"FixMessageStub({self._pairs!r})"
+    class _SimpleFixNamespace:
+        FixMessage = _FixMessageStub
+    simplefix = _SimpleFixNamespace()  # type: ignore
 
 logger = logging.getLogger(__name__)
 

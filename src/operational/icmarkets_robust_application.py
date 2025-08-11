@@ -16,6 +16,7 @@ import json
 import os
 from concurrent.futures import ThreadPoolExecutor
 import queue
+from trading.models.order import OrderStatus as TradingOrderStatus
 
 # Configure logging
 logging.basicConfig(
@@ -41,7 +42,7 @@ class MarketDataEntry:
 
 
 @dataclass
-class OrderStatus:
+class OrderStatusUpdate:
     """Represents an order status update."""
     cl_ord_id: str
     order_id: str
@@ -52,7 +53,7 @@ class OrderStatus:
     avg_px: float
     status: str
     timestamp: datetime = None
-    
+
     def __post_init__(self):
         if self.timestamp is None:
             self.timestamp = datetime.utcnow()
@@ -333,7 +334,7 @@ class ICMarketsRobustManager:
         self.price_connection = None
         self.trade_connection = None
         self.market_data: Dict[str, MarketDataEntry] = {}
-        self.orders: Dict[str, OrderStatus] = {}
+        self.orders: Dict[str, OrderStatusUpdate] = {}
         self.running = False
         
     def start(self) -> bool:

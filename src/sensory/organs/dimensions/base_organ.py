@@ -253,50 +253,11 @@ class EconomicEvent(BaseModel):
         0.0, description="Hours until event (negative if past)"
     )
 
-class OrderBookLevel(BaseModel):
-    """
-    Order book level for institutional flow analysis (HOW dimension).
-    """
-
-    price: float
-    volume: float
-    order_count: int = 1
-
-class OrderBookSnapshot(BaseModel):
-    """
-    Complete order book snapshot for Level 2 analysis.
-    """
-
-    symbol: str
-    timestamp: datetime
-
-    bids: List[OrderBookLevel] = Field(
-        ..., description="Bid levels (highest to lowest)"
-    )
-    asks: List[OrderBookLevel] = Field(
-        ..., description="Ask levels (lowest to highest)"
-    )
-
-    # Derived metrics
-    spread: float = Field(default=0.0)
-    mid_price: float = Field(default=0.0)
-    total_bid_volume: float = Field(default=0.0)
-    total_ask_volume: float = Field(default=0.0)
-
-    @model_validator(mode="after")
-    def calculate_derived_fields(self):
-        """Calculate derived fields after validation."""
-        if self.bids and self.asks:
-            self.spread = self.asks[0].price - self.bids[0].price
-            self.mid_price = (self.bids[0].price + self.asks[0].price) / 2.0
-            self.total_bid_volume = sum(level.volume for level in self.bids)
-            self.total_ask_volume = sum(level.volume for level in self.asks)
-        else:
-            self.spread = 0.0
-            self.mid_price = 0.0
-            self.total_bid_volume = 0.0
-            self.total_ask_volume = 0.0
-        return self
+# Legacy shim: re-export canonical trading order book types
+from trading.order_management.order_book.snapshot import (
+    OrderBookLevel as OrderBookLevel,
+    OrderBookSnapshot as OrderBookSnapshot,
+)
 
 class DimensionalSensor(ABC):
     """

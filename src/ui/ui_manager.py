@@ -14,7 +14,7 @@ from typing import Dict, List, Any, Optional
 from datetime import datetime
 
 try:
-    from src.core.events import EventBus
+    from src.core.event_bus import EventBus
     from src.governance.strategy_registry import StrategyRegistry, StrategyStatus
     from src.domain.models import StrategyConfig
 except ImportError:

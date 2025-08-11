@@ -26,6 +26,14 @@ import torch.nn as nn
 
 logger = logging.getLogger(__name__)
 
+from src.thinking.competitive.competitive_intelligence_system import (
+    AlgorithmFingerprinter as AlgorithmFingerprinter,
+    BehaviorAnalyzer as BehaviorAnalyzer,
+    CounterStrategyDeveloper as CounterStrategyDeveloper,
+    CompetitiveIntelligenceSystem as CompetitiveIntelligenceSystem,
+    MarketShareTracker as MarketShareTracker,
+)
+
 
 @dataclass
 class AlgorithmSignature:
@@ -72,8 +80,8 @@ class MarketShareAnalysis:
     competitive_pressure: float
 
 
-class AlgorithmFingerprinter:
-    """Identifies algorithmic patterns in market data."""
+class AlgorithmFingerprinterLegacy:
+    """Identifies algorithmic patterns in market data (legacy, replaced by canonical import)."""
     
     def __init__(self):
         self.pattern_detector = DBSCAN(eps=0.3, min_samples=5)
@@ -255,8 +263,8 @@ class AlgorithmFingerprinter:
         return []
 
 
-class BehaviorAnalyzer:
-    """Analyzes competitor behavior patterns."""
+class BehaviorAnalyzerLegacy:
+    """Analyzes competitor behavior patterns (legacy, replaced by canonical import)."""
     
     def __init__(self):
         self.behavior_models = {}
@@ -374,8 +382,8 @@ class BehaviorAnalyzer:
         return min(0.3, base_share)
 
 
-class CounterStrategyDeveloper:
-    """Develops counter-strategies against competitors."""
+class CounterStrategyDeveloperLegacy:
+    """Develops counter-strategies against competitors (legacy, replaced by canonical import)."""
     
     def __init__(self):
         self.strategy_templates = self._load_strategy_templates()
@@ -501,69 +509,15 @@ class CounterStrategyDeveloper:
         }
 
 
-class MarketShareTracker:
-    """Tracks market share changes and competitive dynamics."""
-    
+class MarketShareTrackerLegacy:
+    """Legacy tracker retained for backward compatibility. Use canonical MarketShareTracker from thinking.*"""
     def __init__(self):
         self.share_history = []
         self.dominance_index = 0.5
-        
-    async def analyze_share_changes(self, competitor_behaviors: List[CompetitorBehavior], 
-                                  our_performance: Dict[str, float]) -> MarketShareAnalysis:
-        """Analyze market share changes."""
-        
-        # Calculate total market volume
-        total_volume = sum(cb.market_share for cb in competitor_behaviors) + our_performance.get('market_share', 0.2)
-        
-        # Calculate our market share
-        our_share = our_performance.get('market_share', 0.2)
-        
-        # Calculate competitor shares
-        competitor_shares = {cb.competitor_id: cb.market_share for cb in competitor_behaviors}
-        
-        # Calculate market dominance index
-        dominance_index = self._calculate_dominance_index(competitor_shares, our_share)
-        
-        # Calculate competitive pressure
-        competitive_pressure = self._calculate_competitive_pressure(competitor_behaviors)
-        
-        return MarketShareAnalysis(
-            total_market_volume=total_volume,
-            our_market_share=our_share,
-            competitor_shares=competitor_shares,
-            market_dominance_index=dominance_index,
-            competitive_pressure=competitive_pressure
-        )
-    
-    def _calculate_dominance_index(self, competitor_shares: Dict[str, float], 
-                                 our_share: float) -> float:
-        """Calculate market dominance index."""
-        
-        all_shares = list(competitor_shares.values()) + [our_share]
-        
-        # Herfindahl-Hirschman Index
-        hhi = sum(share ** 2 for share in all_shares)
-        
-        # Normalize to 0-1
-        return hhi
-    
-    def _calculate_competitive_pressure(self, behaviors: List[CompetitorBehavior]) -> float:
-        """Calculate competitive pressure from behaviors."""
-        
-        if not behaviors:
-            return 0.0
-        
-        # Weight by performance and market share
-        total_pressure = sum(
-            b.performance_metrics.get('win_rate', 0) * b.market_share 
-            for b in behaviors
-        )
-        
-        return min(1.0, total_pressure)
 
 
-class CompetitiveIntelligenceSystem:
-    """Main competitive intelligence system."""
+class CompetitiveIntelligenceSystemLegacy:
+    """Main competitive intelligence system (legacy, replaced by canonical import)."""
     
     def __init__(self):
         self.fingerprinter = AlgorithmFingerprinter()

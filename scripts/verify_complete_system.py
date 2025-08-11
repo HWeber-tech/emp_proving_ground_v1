@@ -17,8 +17,8 @@ import sys
 from datetime import datetime
 from typing import Dict, List, Any
 
-# Import all components
-from src.risk.risk_manager_impl import create_risk_manager
+# Import consolidated components
+from src.core.risk.manager import RiskManager, RiskConfig
 from src.core.strategy.engine import StrategyEngine
 from src.core.strategy.templates.moving_average import MovingAverageStrategy as CoreMovingAverageStrategy
 from src.core.evolution.engine import EvolutionEngine, EvolutionConfig
@@ -52,7 +52,7 @@ class SystemVerifier:
             logger.info("🔍 Verifying Risk Manager...")
             
             # Create risk manager
-            risk_manager = create_risk_manager(initial_balance=10000.0)
+            risk_manager = RiskManager(RiskConfig())
             
             # Test basic functionality
             assert risk_manager.account_balance == 10000.0
@@ -96,7 +96,7 @@ class SystemVerifier:
             logger.info("🔍 Verifying Strategy Engine...")
             
             # Create strategy engine
-            risk_manager = create_risk_manager(10000.0)
+            risk_manager = RiskManager(RiskConfig())
             engine = StrategyEngine()
             
             # Test strategy registration
@@ -187,7 +187,7 @@ class SystemVerifier:
             logger.info("🔍 Verifying System Integration...")
             
             # Create complete system
-            risk_manager = create_risk_manager(10000.0)
+            risk_manager = RiskManager(RiskConfig())
             engine = StrategyEngine()
             
             # Register strategy

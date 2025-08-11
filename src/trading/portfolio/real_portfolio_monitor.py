@@ -15,18 +15,8 @@ from ...config.portfolio_config import PortfolioConfig
 
 logger = logging.getLogger(__name__)
 
-@dataclass
-class PerformanceMetrics:
-    """Performance metrics for the portfolio"""
-    total_return: float
-    annualized_return: float
-    sharpe_ratio: float
-    max_drawdown: float
-    win_rate: float
-    profit_factor: float
-    total_trades: int
-    winning_trades: int
-    losing_trades: int
+from ..monitoring.performance_tracker import PerformanceMetrics as PerformanceMetrics
+
 
 class RealPortfolioMonitor:
     """
@@ -408,6 +398,24 @@ class RealPortfolioMonitor:
                     max_drawdown = max(max_drawdown, drawdown)
             
             # Calculate Sharpe ratio (simplified)
+            # Derive daily returns from snapshots (ordered oldest -> newest)
+            try:
+                values = [row[2] for row in reversed(snapshots) if row and len(row) > 2 and row[2] is not None]
+                returns: List[float] = []
+                for i in range(1, len(values)):
+                    prev = values[i - 1]
+                    curr = values[i]
+                    if prev and prev != 0:
+                        returns.append((curr - prev) / prev)
+                if len(returns) > 1:
+                    mu = sum(returns) / len(returns)
+                    var = sum((r - mu) ** 2 for r in returns) / (len(returns) - 1)
+                    sigma = var ** 0.5
+                    sharpe_ratio = (mu / sigma) * (252 ** 0.5) if sigma > 0 else 0.0
+                else:
+                    sharpe_ratio = 0.0
+            except Exception:
+                sharpe_ratio = 0.0
             
             conn.close()
             

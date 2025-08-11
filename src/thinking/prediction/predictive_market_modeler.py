@@ -10,15 +10,29 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 from typing import Dict, List, Optional, Any, Tuple
 import uuid
+from dataclasses import dataclass
 
 try:
-    from src.core.events import ContextPacket, MarketScenario, PredictionResult  # legacy
+    from src.core.events import ContextPacket, PredictionResult  # legacy
 except Exception:  # pragma: no cover
-    ContextPacket = MarketScenario = PredictionResult = object  # type: ignore
+    ContextPacket = PredictionResult = object  # type: ignore
 from src.thinking.memory.faiss_memory import FAISSPatternMemory
 from src.operational.state_store import StateStore
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class MarketScenario:
+    """Represents a probable market scenario (canonical)."""
+    scenario_id: str
+    timestamp: datetime
+    scenario_type: str
+    probability: float
+    price_path: List[float]
+    volatility: float
+    direction_bias: float
+    confidence: Decimal
 
 
 class MarketScenarioGenerator:

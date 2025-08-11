@@ -14,22 +14,30 @@ Dimensions:
 - CHAOS: Antifragile Adaptation
 """
 
-# Legacy engines removed; export minimal placeholders to satisfy imports
-class WhatDimension:  # type: ignore
-    pass
+# Re-export canonical dimension implementations (no in-file class definitions)
 
-class WhenDimension:  # type: ignore
-    pass
+# WhatDimension is implemented in organs layer; re-export
+try:
+    from src.sensory.organs.dimensions.pattern_engine import WhatDimension as WhatDimension  # type: ignore
+except Exception:
+    # Optional shim if organs layer is not present in current runtime
+    class WhatDimension:  # type: ignore
+        pass
 
-class AnomalyDimension:  # type: ignore
-    pass
+# WhenDimension may be defined in organs layer; re-export if available, else provide a shim
+try:
+    from src.sensory.organs.dimensions.when_dimension import WhenDimension as WhenDimension  # type: ignore
+except Exception:
+    class WhenDimension:  # type: ignore
+        pass
 
-class ChaosDimension:  # type: ignore
-    pass
+# Re-export concrete anomaly/chaos dimensions from organs
+from src.sensory.organs.dimensions.anomaly_dimension import AnomalyDimension as AnomalyDimension  # type: ignore
+from src.sensory.organs.dimensions.chaos_dimension import ChaosDimension as ChaosDimension  # type: ignore
 
 __all__ = [
     'WhatDimension',
-    'WhenDimension', 
+    'WhenDimension',
     'AnomalyDimension',
-    'ChaosDimension'
+    'ChaosDimension',
 ]

@@ -26,11 +26,7 @@ from src.thinking.adversarial.red_team_ai import RedTeamAI
 from src.thinking.ecosystem.specialized_predator_evolution import SpecializedPredatorEvolution
 from src.thinking.competitive.competitive_intelligence_system import CompetitiveIntelligenceSystem
 from src.operational.state_store import StateStore
-try:
-    from src.core.events import EventBus  # legacy
-except Exception:  # pragma: no cover
-    class EventBus:  # type: ignore
-        pass
+from src.core.event_bus import EventBus
 
 logger = logging.getLogger(__name__)
 

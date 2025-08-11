@@ -26,6 +26,21 @@ import torch.nn as nn
 
 logger = logging.getLogger(__name__)
 
+# Canonical re-exports to avoid duplicate class definitions in this module
+from src.thinking.adversarial.red_team_ai import StrategyAnalyzer as StrategyAnalyzer
+from src.thinking.adversarial.red_team_ai import WeaknessDetector as WeaknessDetector
+from src.thinking.adversarial.red_team_ai import AttackGenerator as AttackGenerator
+from src.thinking.adversarial.red_team_ai import ExploitDeveloper as ExploitDeveloper
+from src.thinking.adversarial.red_team_ai import RedTeamAI as RedTeamAI
+
+__all__ = [
+    "StrategyAnalyzer",
+    "WeaknessDetector",
+    "AttackGenerator",
+    "ExploitDeveloper",
+    "RedTeamAI",
+]
+
 
 @dataclass
 class StrategyBehavior:
@@ -72,7 +87,7 @@ class AttackReport:
     recommendations: List[str]
 
 
-class StrategyAnalyzer:
+class StrategyAnalyzerLegacy:
     """Deep analysis of strategy behavior patterns."""
     
     def __init__(self):
@@ -247,7 +262,7 @@ class StrategyAnalyzer:
         }
 
 
-class WeaknessDetector:
+class WeaknessDetectorLegacy:
     """Detects potential weaknesses in strategies."""
     
     def __init__(self):
@@ -371,7 +386,7 @@ class WeaknessDetector:
         return anomalies
 
 
-class AttackGenerator:
+class AttackGeneratorLegacy:
     """Generates targeted attacks against strategy weaknesses."""
     
     def __init__(self):
@@ -467,7 +482,7 @@ class AttackGenerator:
         }
 
 
-class ExploitDeveloper:
+class ExploitDeveloperLegacy:
     """Develops exploits for discovered weaknesses."""
     
     def __init__(self):
@@ -562,7 +577,7 @@ class ExploitDeveloper:
         ]
 
 
-class RedTeamAI:
+class RedTeamAILegacy:
     """Main Red Team AI system."""
     
     def __init__(self):

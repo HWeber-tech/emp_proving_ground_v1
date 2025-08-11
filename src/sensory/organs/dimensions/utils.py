@@ -11,7 +11,7 @@ from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 
-from .base import MarketRegime
+from .base_organ import MarketRegime
 
 logger = logging.getLogger(__name__)
 
@@ -449,105 +449,10 @@ def calculate_divergence(
         return abs(price_trend + indicator_trend) / 2
 
 
-class PerformanceTracker:
-    """
-    Track performance metrics for confidence adjustment.
-    """
-
-    def __init__(self, window_size: int = 100):
-        """
-        Initialize performance tracker.
-
-        Args:
-            window_size: Number of recent predictions to track
-        """
-        self.window_size = window_size
-        # (signal, confidence, correct)
-        self.predictions: List[Tuple[float, float, bool]] = []
-
-    def add_prediction(
-        self, signal: float, confidence: float, actual_outcome: bool
-    ) -> None:
-        """
-        Add a prediction result for tracking.
-
-        Args:
-            signal: Signal strength that was predicted
-            confidence: Confidence level of prediction
-            actual_outcome: Whether prediction was correct
-        """
-        self.predictions.append((signal, confidence, actual_outcome))
-
-        # Maintain window size
-        if len(self.predictions) > self.window_size:
-            self.predictions.pop(0)
-
-    def get_accuracy(self, min_confidence: float = 0.0) -> float:
-        """
-        Get accuracy for predictions above minimum confidence.
-
-        Args:
-            min_confidence: Minimum confidence threshold
-
-        Returns:
-            Accuracy rate (0-1)
-        """
-        if not self.predictions:
-            return 0.5  # Neutral when no data
-
-        filtered_predictions = [
-            (signal, conf, correct)
-            for signal, conf, correct in self.predictions
-            if conf >= min_confidence
-        ]
-
-        if not filtered_predictions:
-            return 0.5
-
-        correct_count = sum(1 for _, _, correct in filtered_predictions if correct)
-        return correct_count / len(filtered_predictions)
-
-    def get_confidence_calibration(self) -> float:
-        """
-        Get confidence calibration score.
-        Well-calibrated confidence means actual accuracy matches predicted confidence.
-
-        Returns:
-            Calibration score (0-1, higher is better)
-        """
-        if len(self.predictions) < 10:
-            return 0.5
-
-        # Group predictions by confidence bins
-        bins = np.linspace(0, 1, 11)  # 10 bins
-        bin_accuracies = []
-        bin_confidences = []
-
-        for i in range(len(bins) - 1):
-            bin_min, bin_max = bins[i], bins[i + 1]
-            bin_predictions = [
-                (signal, conf, correct)
-                for signal, conf, correct in self.predictions
-                if bin_min <= conf < bin_max
-            ]
-
-            if bin_predictions:
-                avg_confidence = np.mean([conf for _, conf, _ in bin_predictions])
-                accuracy = np.mean([correct for _, _, correct in bin_predictions])
-
-                bin_confidences.append(avg_confidence)
-                bin_accuracies.append(accuracy)
-
-        if not bin_accuracies:
-            return 0.5
-
-        # Calculate calibration error (lower is better)
-        calibration_error = np.mean(
-            [abs(conf - acc) for conf, acc in zip(bin_confidences, bin_accuracies)]
-        )
-
-        # Convert to score (higher is better)
-        return max(0.0, 1.0 - calibration_error)
+# Re-export canonical PerformanceTracker to avoid duplicate class definitions
+from src.trading.monitoring.performance_tracker import (
+    PerformanceTracker as PerformanceTracker,
+)
 
 
 # Utility constants

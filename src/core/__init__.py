@@ -16,7 +16,7 @@ except Exception:  # pragma: no cover
     def create_sensory_organ(*_args, **_kwargs):  # type: ignore
         return None
     WHAT_ORGAN = WHEN_ORGAN = ANOMALY_ORGAN = CHAOS_ORGAN = None  # type: ignore
-from .risk_manager import RiskManager, get_global_risk_manager as get_risk_manager
+from .risk.manager import RiskManager  # consolidated SoT
 from .instrument import Instrument, get_instrument, get_all_instruments
 
 __all__ = [
@@ -47,5 +47,5 @@ try:
     from .sensory_organ import SensoryOrgan, create_sensory_organ, WHAT_ORGAN, WHEN_ORGAN, ANOMALY_ORGAN, CHAOS_ORGAN  # type: ignore
 except Exception:  # pragma: no cover
     pass
-from .risk_manager import RiskManager, get_global_risk_manager as get_risk_manager
+from .risk.manager import RiskManager
 from .instrument import Instrument, get_instrument, get_all_instruments

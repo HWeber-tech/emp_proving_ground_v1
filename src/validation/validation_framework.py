@@ -22,32 +22,7 @@ except Exception:  # pragma: no cover
 logger = logging.getLogger(__name__)
 
 
-class ValidationResult:
-    """Result from a validation test."""
-    
-    def __init__(self, test_name: str, passed: bool, value: float, 
-                 threshold: float, unit: str, details: str = "",
-                 metadata: Dict[str, Any] = None):
-        self.test_name = test_name
-        self.passed = passed
-        self.value = value
-        self.threshold = threshold
-        self.unit = unit
-        self.details = details
-        self.metadata = metadata or {}
-        self.timestamp = datetime.now()
-    
-    def to_dict(self) -> Dict[str, Any]:
-        return {
-            'test_name': self.test_name,
-            'passed': self.passed,
-            'value': self.value,
-            'threshold': self.threshold,
-            'unit': self.unit,
-            'details': self.details,
-            'metadata': self.metadata,
-            'timestamp': self.timestamp.isoformat()
-        }
+from src.validation.models import ValidationResult
 
 
 class ValidationFramework:

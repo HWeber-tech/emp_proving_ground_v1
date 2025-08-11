@@ -13,24 +13,23 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 import json
 
-try:
-    from src.core.events import EventBus  # legacy
-except Exception:  # pragma: no cover
-    class EventBus:  # type: ignore
-        pass
+from src.core.event_bus import EventBus
 from src.operational.state_store import StateStore
 
 logger = logging.getLogger(__name__)
 
 
 @dataclass
-class MemoryEntry:
+class PatternMemoryEntry:
     """A single memory entry with context and outcome."""
     timestamp: datetime
     latent_vector: np.ndarray
     market_context: Dict[str, Any]
     trading_outcome: Dict[str, Any]
     metadata: Dict[str, Any]
+
+# Backward-compat alias to preserve legacy import name without duplicate ClassDef
+MemoryEntry = PatternMemoryEntry
 
 
 class PatternMemory:
@@ -50,7 +49,7 @@ class PatternMemory:
         self._memory_key = "emp:pattern_memory"
         self._max_memory_size = 10000
         self._similarity_threshold = 0.7
-        self._memory: List[MemoryEntry] = []
+        self._memory: List[PatternMemoryEntry] = []
         
     async def initialize(self) -> None:
         """Initialize pattern memory from storage."""
@@ -88,7 +87,7 @@ class PatternMemory:
         query_vector: np.ndarray,
         max_results: int = 5,
         time_window: Optional[timedelta] = None
-    ) -> List[Tuple[float, MemoryEntry]]:
+    ) -> List[Tuple[float, PatternMemoryEntry]]:
         """
         Find similar historical contexts.
         
@@ -172,7 +171,7 @@ class PatternMemory:
                 self._memory = []
                 
                 for entry_data in memory_data:
-                    entry = MemoryEntry(
+                    entry = PatternMemoryEntry(
                         timestamp=datetime.fromisoformat(entry_data['timestamp']),
                         latent_vector=np.array(entry_data['latent_vector']),
                         market_context=entry_data['market_context'],

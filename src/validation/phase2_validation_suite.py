@@ -38,16 +38,7 @@ except Exception:  # pragma: no cover
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class ValidationResult:
-    """Validation test result"""
-    test_name: str
-    passed: bool
-    value: float
-    threshold: float
-    unit: str
-    details: str = ""
-    timestamp: datetime = field(default_factory=datetime.now)
+from src.validation.models import ValidationResult
 
 
 class Phase2ValidationSuite:
@@ -122,6 +113,7 @@ class Phase2ValidationSuite:
             
             start_time = time.time()
             for _ in range(100):
+                pass
             elapsed = time.time() - start_time
             
             throughput = 100 / elapsed
@@ -160,7 +152,7 @@ class Phase2ValidationSuite:
             # Simulate usage
             
             for _ in range(100):
-            
+                pass
             final_memory = process.memory_info().rss / 1024 / 1024  # MB
             memory_increase = final_memory - initial_memory
             

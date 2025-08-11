@@ -9,11 +9,10 @@ Legacy modules under `src.sensory.core` and `src.sensory.organs.dimensions` rema
 compatibility but are deprecated.
 """
 
-# Minimal shims to satisfy imports after cleanup
-class SensorSignal:  # type: ignore
-    pass
-
-class IntegratedSignal:  # type: ignore
-    pass
+# Re-export canonical signals (no in-file class definitions)
+from src.sensory.signals import (
+    SensorSignal as SensorSignal,
+    IntegratedSignal as IntegratedSignal,
+)
 
 __all__ = ['SensorSignal', 'IntegratedSignal']

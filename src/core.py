@@ -20,48 +20,12 @@ from pydantic import BaseModel, Field, validator
 logger = logging.getLogger(__name__)
 
 
-class RiskConfig(BaseModel):
-    """Configuration for risk management"""
-    max_risk_per_trade_pct: Decimal = Field(default=Decimal('0.02'), description="Maximum risk per trade as percentage of equity")
-    max_leverage: Decimal = Field(default=Decimal('10.0'), description="Maximum allowed leverage")
-    max_total_exposure_pct: Decimal = Field(default=Decimal('0.5'), description="Maximum total exposure as percentage of equity")
-    max_drawdown_pct: Decimal = Field(default=Decimal('0.25'), description="Maximum drawdown before stopping")
-    min_position_size: int = Field(default=1000, description="Minimum position size in units")
-    max_position_size: int = Field(default=1000000, description="Maximum position size in units")
-    mandatory_stop_loss: bool = Field(default=True, description="Whether stop loss is mandatory")
-    research_mode: bool = Field(default=False, description="Research mode disables some safety checks")
-    
-    @validator('max_risk_per_trade_pct', 'max_total_exposure_pct', 'max_drawdown_pct')
-    def validate_percentages(cls, v):
-        if v <= 0 or v > 1:
-            raise ValueError("Percentage values must be between 0 and 1")
-        return v
-    
-    @validator('max_leverage')
-    def validate_leverage(cls, v):
-        if v <= 0:
-            raise ValueError("Leverage must be positive")
-        return v
+# Canonical RiskConfig is defined in src.config.risk.risk_config
+from src.config.risk.risk_config import RiskConfig  # re-export for backward compatibility
 
 
-class Instrument:
-    """Instrument metadata for financial calculations"""
-    
-    def __init__(self, symbol: str, pip_decimal_places: int, contract_size: Decimal,
-                 long_swap_rate: Decimal, short_swap_rate: Decimal, margin_currency: str,
-                 swap_time: str = "22:00"):
-        self.symbol = symbol
-        self.pip_decimal_places = pip_decimal_places
-        self.contract_size = contract_size
-        self.long_swap_rate = long_swap_rate
-        self.short_swap_rate = short_swap_rate
-        self.margin_currency = margin_currency
-        self.swap_time = swap_time
-        
-        if self.pip_decimal_places < 0:
-            raise ValueError("pip_decimal_places must be non-negative")
-        if self.contract_size <= 0:
-            raise ValueError("contract_size must be positive")
+# Re-export canonical Instrument implementation to avoid duplicate class definitions
+from src.core.instrument import Instrument as Instrument
 
 
 class InstrumentProvider:

@@ -41,48 +41,7 @@ class TradingSignal:
         if self.timestamp is None:
             self.timestamp = datetime.now()
 
-@dataclass
-class Position:
-    """Trading position"""
-    position_id: str
-    symbol: str
-    size: float  # Positive for long, negative for short
-    entry_price: float
-    current_price: float
-    status: PositionStatus = PositionStatus.OPEN
-    stop_loss: Optional[float] = None
-    take_profit: Optional[float] = None
-    entry_time: datetime = None
-    exit_time: Optional[datetime] = None
-    realized_pnl: float = 0.0
-    unrealized_pnl: float = 0.0
-    
-    def __post_init__(self):
-        if self.entry_time is None:
-            self.entry_time = datetime.now()
-    
-    @property
-    def value(self) -> float:
-        """Current position value"""
-        return abs(self.size * self.current_price)
-    
-    @property
-    def pnl(self) -> float:
-        """Total P&L (realized + unrealized)"""
-        return self.realized_pnl + self.unrealized_pnl
-    
-    def update_price(self, new_price: float) -> None:
-        """Update current price and unrealized P&L"""
-        self.current_price = new_price
-        self.unrealized_pnl = (new_price - self.entry_price) * self.size
-    
-    def close(self, exit_price: float, exit_time: Optional[datetime] = None) -> None:
-        """Close the position"""
-        self.current_price = exit_price
-        self.exit_time = exit_time or datetime.now()
-        self.realized_pnl = (exit_price - self.entry_price) * self.size
-        self.unrealized_pnl = 0.0
-        self.status = PositionStatus.CLOSED
+from trading.models.position import Position as Position
 
 @dataclass
 class PortfolioSnapshot:

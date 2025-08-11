@@ -97,11 +97,10 @@ class ComponentIntegratorImpl(ComponentIntegrator):
     async def _initialize_risk_system(self) -> None:
         """Initialize risk management components."""
         try:
-            from src.risk.risk_manager_impl import RiskManagerImpl
-            
-            self.components['risk_manager'] = RiskManagerImpl()
-            logger.info("Risk system components initialized")
-            
+            # Consolidated risk manager (single source of truth)
+            from src.core.risk.manager import RiskManager, RiskConfig
+            self.components['risk_manager'] = RiskManager(RiskConfig())
+            logger.info("Risk system components initialized (core.risk.manager)")
         except Exception as e:
             logger.warning(f"Failed to initialize risk system: {e}")
             

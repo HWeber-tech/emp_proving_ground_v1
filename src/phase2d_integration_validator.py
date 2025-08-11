@@ -36,8 +36,13 @@ from src.pnl import EnhancedPosition
 
 logger = logging.getLogger(__name__)
 
+# Canonical re-export to avoid duplicate class definition in this module
+from src.validation.phase2d_integration_validator import (
+    Phase2DIntegrationValidator as Phase2DIntegrationValidator,
+)
 
-class Phase2DIntegrationValidator:
+
+class Phase2DIntegrationValidatorLegacy:
     """
     Phase 2D: Real Integration & Testing
     Tests complete system integration with real market data

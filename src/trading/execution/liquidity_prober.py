@@ -13,11 +13,7 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 import uuid
 
-try:
-    from src.core.events import TradeIntent, ExecutionReportEvent, OrderStatus  # legacy
-except Exception:  # pragma: no cover
-    TradeIntent = ExecutionReportEvent = OrderStatus = object  # type: ignore
-from src.trading.integration.mock_ctrader_interface import CTraderInterface, OrderType, OrderSide
+from src.trading.integration.fix_broker_interface import FIXBrokerInterface
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +27,7 @@ class LiquidityProber:
     liquidity and iceberg orders.
     """
     
-    def __init__(self, broker_interface: CTraderInterface, config: Optional[Dict[str, Any]] = None):
+    def __init__(self, broker_interface: FIXBrokerInterface, config: Optional[Dict[str, Any]] = None):
         """
         Initialize the LiquidityProber with broker interface and configuration.
         
@@ -156,15 +152,11 @@ class LiquidityProber:
                 probe_id = f"probe_{uuid.uuid4().hex[:8]}"
                 
                 # Determine order side based on probe direction
-                order_side = OrderSide.BUY if side == "buy" else OrderSide.SELL
-                
-                # Create IOC order
-                order_id = await self.broker.place_order(
-                    symbol_name=symbol,
-                    order_type=OrderType.MARKET,  # Using market orders for immediate execution
-                    side=order_side,
-                    volume=float(self.probe_size),
-                    price=price if side == "buy" else None  # Price for limit orders
+                # For FIXBrokerInterface, issue a small market order as probe
+                order_id = await self.broker.place_market_order(
+                    symbol=symbol,
+                    side="BUY" if side == "buy" else "SELL",
+                    quantity=float(self.probe_size)
                 )
                 
                 if not order_id:
@@ -173,9 +165,6 @@ class LiquidityProber:
                 
                 # Wait for execution report with timeout
                 filled_volume = await self._wait_for_execution(order_id, timeout=self.timeout_seconds)
-                
-                # Cancel any remaining order (IOC behavior)
-                await self.broker.cancel_order(order_id)
                 
                 # Log probe result
                 logger.debug(
@@ -204,11 +193,10 @@ class LiquidityProber:
         
         while (datetime.now() - start_time).total_seconds() < timeout:
             # Check order status
-            orders = self.broker.get_orders()
-            order = next((o for o in orders if o.order_id == order_id), None)
-            
-            if order and order.status == "filled":
-                return float(order.volume)
+            # Read in-memory order state from FIXBrokerInterface
+            status = self.broker.get_order_status(order_id)
+            if status and status.get("status") in ("FILLED", "PARTIALLY_FILLED"):
+                return float(status.get("filled_qty") or 0.0)
             
             # Small delay to prevent busy waiting
             await asyncio.sleep(0.1)

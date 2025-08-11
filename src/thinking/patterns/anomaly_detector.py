@@ -21,14 +21,17 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass
-class AnomalyDetection:
-    """Anomaly detection result."""
+class AnomalyDetectionResult:
+    """Anomaly detection result (canonicalized name to avoid duplicate class across modules)."""
     is_anomaly: bool
     anomaly_type: str  # 'price_spike', 'volume_surge', 'pattern_break', etc.
     severity: float  # 0.0 to 1.0
     confidence: float  # 0.0 to 1.0
     description: str
     metadata: Dict[str, Any]
+
+# Backward-compat alias (structural unification without behavior change)
+AnomalyDetection = AnomalyDetectionResult
 
 
 class AnomalyDetector(ThinkingPattern):

@@ -278,25 +278,39 @@ class NicheDetector:
 async def test_niche_detection():
     """Test the niche detection system."""
     import numpy as np
-    
+
     # Generate test market data
     dates = pd.date_range(start='2024-01-01', periods=100, freq='H')
     np.random.seed(42)
-    
+
     # Create trending market
     trend = np.linspace(1.0, 1.1, 100)
     noise = np.random.normal(0, 0.001, 100)
     prices = trend + noise
-    
-    }
-    
+
+    # Build synthetic OHLCV records for the detector
+    records = []
+    for i in range(100):
+        close = float(prices[i])
+        high = float(close + 0.001)
+        low = float(close - 0.001)
+        volume = int(1000 + np.random.randint(0, 500))
+        records.append({
+            'close': close,
+            'high': high,
+            'low': low,
+            'volume': volume
+        })
+
+    market_data = {'data': records}
+
     detector = NicheDetector()
-    
+    niches = await detector.detect_niches(market_data)
+
     print(f"Detected {len(niches)} niches:")
     for niche_id, niche in niches.items():
         print(f"  {niche.regime_type}: score={niche.opportunity_score:.2f}, "
               f"species={niche.preferred_species}")
-
 
 if __name__ == "__main__":
     asyncio.run(test_niche_detection())

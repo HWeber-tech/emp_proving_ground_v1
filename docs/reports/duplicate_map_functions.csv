@@ -1,0 +1,2 @@
+name,count,domains,files,lines
+main,7,data_foundation;data_integration;phase3_integration.py;validation,src/phase3_integration.py;src/data_integration/dukascopy_ingestor.py;src/validation/honest_validation_framework.py;src/validation/phase2c_validation_suite.py;src/validation/real_market_validation.py;src/validation/validation_framework.py;src/data_foundation/ingest/yahoo_ingest.py,223;344;416;183;629;421;70

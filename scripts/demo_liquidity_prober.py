@@ -12,10 +12,10 @@ from decimal import Decimal
 from datetime import datetime
 
 from src.trading.execution.liquidity_prober import LiquidityProber
-from src.trading.integration.mock_ctrader_interface import CTraderInterface, TradingConfig
+from src.trading.integration.fix_broker_interface import FIXBrokerInterface
 from src.trading.risk.risk_gateway import RiskGateway
 from src.trading.risk.position_sizer import PositionSizer
-from src.core.events import TradeIntent
+# from src.core.events import TradeIntent  # legacy, avoid for FIX-only demo
 
 # Configure logging
 logging.basicConfig(
@@ -25,43 +25,17 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-class MockCTraderInterface(CTraderInterface):
-    """Mock cTrader interface for demonstration"""
-    
+class DummyEventBus:
+    async def emit(self, event_name: str, payload):
+        logger.info(f"Event emitted: {event_name} -> {payload}")
+
+
+class DummyInitiator:
     def __init__(self):
-        super().__init__(TradingConfig())
-        self.orders = {}
-        self.order_counter = 0
-    
-    async def place_order(self, symbol_name, order_type, side, volume, price=None, stop_loss=None, take_profit=None):
-        """Mock order placement"""
-        self.order_counter += 1
-        order_id = f"mock_order_{self.order_counter}"
-        
-        # Simulate different fill rates based on price level
-        fill_rate = 0.8 if price and price > 1.1000 else 0.3
-        
-        self.orders[order_id] = {
-            'order_id': order_id,
-            'symbol': symbol_name,
-            'side': side,
-            'volume': volume,
-            'filled_volume': volume * fill_rate,
-            'status': 'filled',
-            'price': price
-        }
-        
-        logger.info(f"Mock order placed: {order_id} - {side} {volume} {symbol_name} @ {price}")
-        return order_id
-    
-    async def cancel_order(self, order_id):
-        """Mock order cancellation"""
-        if order_id in self.orders:
-            logger.info(f"Mock order cancelled: {order_id}")
-    
-    def get_orders(self):
-        """Get mock orders"""
-        return list(self.orders.values())
+        self.sent_messages = []
+    def send_message(self, msg) -> bool:
+        self.sent_messages.append(msg)
+        return True
 
 
 async def demonstrate_liquidity_probing():
@@ -70,9 +44,11 @@ async def demonstrate_liquidity_probing():
     print("🦈 PREDATOR'S SONAR DEMONSTRATION")
     print("="*60)
     
-    # Create mock broker and liquidity prober
-    mock_broker = MockCTraderInterface()
-    liquidity_prober = LiquidityProber(mock_broker, config={
+    # Create broker and liquidity prober (paper via DummyInitiator)
+    trade_queue = asyncio.Queue()
+    broker = FIXBrokerInterface(DummyEventBus(), trade_queue, DummyInitiator())
+    await broker.start()
+    liquidity_prober = LiquidityProber(broker, config={
         'probe_size': 0.001,
         'timeout_seconds': 2.0,
         'max_concurrent_probes': 5
@@ -143,8 +119,10 @@ async def demonstrate_risk_gateway_integration():
     print("="*60)
     
     # Create components
-    mock_broker = MockCTraderInterface()
-    liquidity_prober = LiquidityProber(mock_broker, config={
+    trade_queue = asyncio.Queue()
+    broker = FIXBrokerInterface(DummyEventBus(), trade_queue, DummyInitiator())
+    await broker.start()
+    liquidity_prober = LiquidityProber(broker, config={
         'probe_size': 0.001,
         'timeout_seconds': 2.0,
         'max_concurrent_probes': 3
@@ -225,33 +203,28 @@ async def demonstrate_iceberg_detection():
     print("="*60)
     
     # Create mock broker with iceberg simulation
-    class IcebergMockBroker(MockCTraderInterface):
+    class IcebergMockBroker:
         def __init__(self):
-            super().__init__()
             self.iceberg_levels = {1.1002: 0.1}  # Hidden liquidity at 1.1002
+            self.orders = {}
+            self.order_counter = 0
         
-        async def place_order(self, symbol_name, order_type, side, volume, price=None, **kwargs):
+        async def place_market_order(self, symbol: str, side: str, quantity: float):
             self.order_counter += 1
             order_id = f"iceberg_order_{self.order_counter}"
-            
-            # Simulate iceberg behavior
-            if price and abs(price - 1.1002) < 0.0001:
-                # Hidden liquidity - only partial fill visible
-                visible_fill = min(volume * 0.3, 0.001)  # Small visible portion
+            price = 1.1002
+            if abs(price - 1.1002) < 0.0001:
+                visible_fill = min(quantity * 0.3, 0.001)
             else:
-                # Normal liquidity
-                visible_fill = volume * 0.8
-            
+                visible_fill = quantity * 0.8
             self.orders[order_id] = {
-                'order_id': order_id,
-                'symbol': symbol_name,
+                'symbol': symbol,
                 'side': side,
-                'volume': volume,
-                'filled_volume': visible_fill,
-                'status': 'filled',
-                'price': price
+                'quantity': quantity,
+                'status': 'FILLED',
+                'filled_qty': visible_fill,
+                'avg_px': price,
             }
-            
             return order_id
     
     iceberg_broker = IcebergMockBroker()

@@ -2,12 +2,15 @@ from __future__ import annotations
 
 from typing import Any, Dict
 
+# Re-export canonical SensoryOrgan base to avoid duplicate class definitions
+from src.sensory.organs.dimensions.base_organ import SensoryOrgan as SensoryOrgan
 
-class SensoryOrgan:
-    """Minimal sensory organ abstraction.
 
-    Consolidated baseline to satisfy imports after cleanup; real implementations
-    can extend this class and override `process`.
+class CoreSensoryOrgan:
+    """Minimal sensory organ abstraction (legacy shim).
+
+    This shim preserves runtime behavior for legacy factory usage while the name
+    `SensoryOrgan` is re-exported from the canonical sensory base module.
     """
 
     def __init__(self, organ_type: str) -> None:
@@ -17,8 +20,8 @@ class SensoryOrgan:
         return {"processed": True, "organ": self.organ_type, "data": data}
 
 
-def create_sensory_organ(organ_type: str) -> SensoryOrgan:
-    return SensoryOrgan(organ_type)
+def create_sensory_organ(organ_type: str) -> CoreSensoryOrgan:
+    return CoreSensoryOrgan(organ_type)
 
 
 # Predefined organ instances for compatibility

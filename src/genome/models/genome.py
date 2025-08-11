@@ -90,3 +90,11 @@ class ThinkingGenome:
 
 
 @dataclass
+class Genome:
+    """Composite genome container (placeholder to fix parser error)."""
+    strategy: Optional[StrategyGenome] = None
+    risk: Optional[RiskGenome] = None
+    timing: Optional[TimingGenome] = None
+    sensory: Optional[SensoryGenome] = None
+    thinking: Optional[ThinkingGenome] = None
+    metadata: Dict[str, Any] = field(default_factory=dict)

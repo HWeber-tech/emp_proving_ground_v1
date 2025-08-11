@@ -1,0 +1,75 @@
+{
+  "generated_at": "2025-08-11T20:28:34.962434Z",
+  "root": "src",
+  "min_count": 2,
+  "summary": {
+    "classes": {
+      "total_duplicate_groups": 0,
+      "groups": 0,
+      "by_domain": {},
+      "top": []
+    },
+    "functions": {
+      "total_duplicate_groups": 1,
+      "groups": 1,
+      "by_domain": {
+        "validation": 1
+      },
+      "top": [
+        {
+          "name": "main",
+          "count": 7
+        }
+      ]
+    }
+  },
+  "classes": {},
+  "functions": {
+    "main": {
+      "count": 7,
+      "domains": [
+        "data_foundation",
+        "data_integration",
+        "phase3_integration.py",
+        "validation"
+      ],
+      "occurrences": [
+        {
+          "path": "src/phase3_integration.py",
+          "line": 223,
+          "domain": "phase3_integration.py"
+        },
+        {
+          "path": "src/data_integration/dukascopy_ingestor.py",
+          "line": 344,
+          "domain": "data_integration"
+        },
+        {
+          "path": "src/validation/honest_validation_framework.py",
+          "line": 416,
+          "domain": "validation"
+        },
+        {
+          "path": "src/validation/phase2c_validation_suite.py",
+          "line": 183,
+          "domain": "validation"
+        },
+        {
+          "path": "src/validation/real_market_validation.py",
+          "line": 629,
+          "domain": "validation"
+        },
+        {
+          "path": "src/validation/validation_framework.py",
+          "line": 421,
+          "domain": "validation"
+        },
+        {
+          "path": "src/data_foundation/ingest/yahoo_ingest.py",
+          "line": 70,
+          "domain": "data_foundation"
+        }
+      ]
+    }
+  }
+}

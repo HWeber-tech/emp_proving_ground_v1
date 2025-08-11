@@ -1,8 +1,10 @@
 """
-FIX Executor
-============
+DEPRECATED: FIXExecutor
+=======================
 
-FIX protocol-based order executor for the EMP Proving Ground trading system.
+This module is superseded by the consolidated `FIXBrokerInterface` and
+high-level order lifecycle/position tracking. It remains as a stub for
+backward compatibility and will be removed after migration.
 """
 
 import asyncio
@@ -15,9 +17,20 @@ try:
 except Exception:  # pragma: no cover
     class IExecutionEngine:  # type: ignore
         pass
-from src.core.exceptions import ExecutionException
-from src.trading.models.order import Order, OrderStatus
-from src.trading.models.position import Position
+try:
+    from src.core.exceptions import ExecutionException
+except Exception:  # pragma: no cover
+    class ExecutionException(Exception):  # type: ignore
+        pass
+try:
+    from src.trading.models.order import Order, OrderStatus
+    from src.trading.models.position import Position
+except Exception:  # pragma: no cover
+    Order = Position = object  # type: ignore
+    class OrderStatus:  # type: ignore
+        PENDING = type("EnumVal", (), {"value": "PENDING"})()
+        FILLED = type("EnumVal", (), {"value": "FILLED"})()
+        CANCELLED = type("EnumVal", (), {"value": "CANCELLED"})()
 
 logger = logging.getLogger(__name__)
 
@@ -38,13 +51,13 @@ class FIXExecutor(IExecutionEngine):
     async def initialize(self) -> bool:
         """Initialize the FIX executor."""
         try:
-            logger.info("Initializing FIX executor...")
+            logger.info("Initializing FIX executor (deprecated stub)...")
             
             # Initialize FIX connection
             # In real implementation, this would establish FIX session
             self.is_initialized = True
             
-            logger.info("FIX executor initialized successfully")
+            logger.info("FIX executor initialized successfully (deprecated)")
             return True
         except Exception as e:
             logger.error(f"Failed to initialize FIX executor: {e}")

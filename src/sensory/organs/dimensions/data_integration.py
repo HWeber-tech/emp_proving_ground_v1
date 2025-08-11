@@ -6,7 +6,7 @@ import numpy as np
 
 
 @dataclass
-class OrderBookSnapshot:
+class DataOrderBookSnapshot:
     timestamp: datetime
     bids: List[float] = field(default_factory=list)  # Sorted descending
     asks: List[float] = field(default_factory=list)  # Sorted ascending
@@ -40,9 +40,9 @@ class OrderFlowDataProvider:
 
     def __init__(self, levels: int = 10):
         self.levels = levels
-        self.last_snapshot: OrderBookSnapshot = self._generate_snapshot()
+        self.last_snapshot: DataOrderBookSnapshot = self._generate_snapshot()
 
-    def _generate_snapshot(self) -> OrderBookSnapshot:
+    def _generate_snapshot(self) -> DataOrderBookSnapshot:
         timestamp = datetime.now()
         mid = 1.1000 + np.random.normal(0, 0.001)
         spread = 0.0002 + abs(np.random.normal(0, 0.00005))
@@ -50,7 +50,7 @@ class OrderFlowDataProvider:
         asks = [mid + spread / 2 + i * 0.0001 for i in range(self.levels)]
         bid_volumes = np.abs(np.random.normal(5, 2, self.levels)).tolist()
         ask_volumes = np.abs(np.random.normal(5, 2, self.levels)).tolist()
-        return OrderBookSnapshot(
+        return DataOrderBookSnapshot(
             timestamp=timestamp,
             bids=bids,
             asks=asks,
@@ -58,7 +58,7 @@ class OrderFlowDataProvider:
             ask_volumes=ask_volumes,
         )
 
-    def get_latest_snapshot(self) -> OrderBookSnapshot:
+    def get_latest_snapshot(self) -> DataOrderBookSnapshot:
         # In production, fetch from live feed; here, simulate
         self.last_snapshot = self._generate_snapshot()
         return self.last_snapshot

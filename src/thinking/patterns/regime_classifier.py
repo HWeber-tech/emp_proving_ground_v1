@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """
 EMP Regime Classifier v1.1
 
@@ -13,22 +14,12 @@ from enum import Enum
 import logging
 
 from ...core.events import MarketData, AnalysisResult
+from src.sensory.organs.dimensions.base_organ import MarketRegime
 
 logger = logging.getLogger(__name__)
 
 
-class MarketRegime(Enum):
-    """Market regime classifications."""
-    BULL_MARKET = "bull_market"
-    BEAR_MARKET = "bear_market"
-    SIDEWAYS_MARKET = "sideways_market"
-    HIGH_VOLATILITY = "high_volatility"
-    LOW_VOLATILITY = "low_volatility"
-    TRENDING_UP = "trending_up"
-    TRENDING_DOWN = "trending_down"
-    CONSOLIDATION = "consolidation"
-    BREAKOUT = "breakout"
-    BREAKDOWN = "breakdown"
+# MarketRegime is imported from canonical sensory base_organ (see import above)
 
 
 class RegimeClassifier:

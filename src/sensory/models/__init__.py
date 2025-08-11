@@ -46,20 +46,8 @@ class TechnicalSignal:
             self.timestamp = datetime.now()
 
 
-@dataclass
-class SensoryReading:
-    """Complete sensory reading"""
-    symbol: str
-    timeframe: str
-    timestamp: datetime
-    overall_sentiment: str
-    confidence_score: float
-    technical_signals: List[TechnicalSignal]
-    market_context: Dict
-    
-    def __post_init__(self):
-        if self.timestamp is None:
-            self.timestamp = datetime.now()
+# Re-export canonical SensoryReading to avoid duplicate class definitions
+from src.sensory.organs.dimensions.base_organ import SensoryReading as SensoryReading  # type: ignore
 
 
 @dataclass

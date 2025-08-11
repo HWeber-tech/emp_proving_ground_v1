@@ -35,8 +35,7 @@ class DataQualityMonitor:  # type: ignore
     pass
 class ValidationLevel:  # type: ignore
     pass
-class ValidationResult:  # type: ignore
-    pass
+from src.validation.models import ValidationResult as ValidationResult
 class DataQualityThresholds:  # type: ignore
     pass
 class DataIssue:  # type: ignore

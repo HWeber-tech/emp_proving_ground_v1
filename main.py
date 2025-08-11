@@ -21,7 +21,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 from src.governance.system_config import SystemConfig
 from src.governance.safety_manager import SafetyManager
 from src.operational.fix_connection_manager import FIXConnectionManager
-from src.operational.event_bus import EventBus
+from src.core.event_bus import EventBus
 
 # Protocol-specific components (FIX-only)
 from src.sensory.organs.fix_sensory_organ import FIXSensoryOrgan

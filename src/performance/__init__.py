@@ -135,12 +135,8 @@ class VectorizedIndicators:
 _global_cache = None
 
 
-def get_global_cache() -> GlobalCache:
-    """Get global cache instance."""
-    global _global_cache
-    if _global_cache is None:
-        _global_cache = GlobalCache()
-    return _global_cache
+# Re-export canonical global cache accessor (deprecated local GlobalCache)
+from core.performance.market_data_cache import get_global_cache as get_global_cache  # type: ignore
 
 
 # Re-export for convenience

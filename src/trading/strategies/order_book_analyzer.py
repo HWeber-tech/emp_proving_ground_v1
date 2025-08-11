@@ -20,25 +20,7 @@ class OrderBookSide(Enum):
     BID = "bid"
     ASK = "ask"
 
-@dataclass
-class OrderBookLevel:
-    """Single level in the order book."""
-    price: float
-    volume: float
-    orders: int
-    timestamp: datetime
-
-@dataclass
-class OrderBookSnapshot:
-    """Complete order book snapshot."""
-    symbol: str
-    timestamp: datetime
-    bids: List[OrderBookLevel]
-    asks: List[OrderBookLevel]
-    spread: float
-    mid_price: float
-    best_bid: float
-    best_ask: float
+from trading.order_management.order_book.snapshot import OrderBookLevel, OrderBookSnapshot
 
 @dataclass
 class MarketMicrostructure:

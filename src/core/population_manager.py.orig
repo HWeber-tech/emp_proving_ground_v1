@@ -13,7 +13,7 @@ from datetime import datetime
 import numpy as np
 
 from .interfaces import IPopulationManager, DecisionGenome
-from src.core.performance.market_data_cache import get_global_cache
+from .performance.market_data_cache import get_global_cache
 
 logger = logging.getLogger(__name__)
 

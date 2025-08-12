@@ -1,0 +1,69 @@
+{
+  "version": 1,
+  "canonical_style": "src",
+  "mappings": [
+    {
+      "sources": ["operational.event_bus", "src.operational.event_bus"],
+      "target_module": "src.core.event_bus",
+      "symbols": ["*"]
+    },
+    {
+      "sources": ["performance", "src.performance"],
+      "target_module": "src.core.performance.market_data_cache",
+      "symbols": ["get_global_cache"]
+    },
+    {
+      "sources": ["performance", "src.performance"],
+      "target_module": "src.core.performance.market_data_cache",
+      "symbols": ["GlobalCache"],
+      "rename": {"GlobalCache": "MarketDataCache"}
+    },
+    {
+      "sources": ["performance.market_data_cache", "src.performance.market_data_cache"],
+      "target_module": "src.core.performance.market_data_cache",
+      "symbols": ["*"]
+    },
+    {
+      "sources": ["trading.models", "src.trading.models"],
+      "target_module": "src.trading.models.position",
+      "symbols": ["Position"]
+    },
+    {
+      "sources": ["trading.models.order", "src.trading.models.order"],
+      "target_module": "src.trading.models.order",
+      "symbols": ["*"]
+    },
+    {
+      "sources": ["sensory.models", "src.sensory.models"],
+      "target_module": "src.sensory.organs.dimensions.base_organ",
+      "symbols": ["SensoryReading"]
+    },
+    {
+      "sources": ["core.sensory_organ", "src.core.sensory_organ"],
+      "target_module": "src.sensory.organs.dimensions.base_organ",
+      "symbols": ["SensoryOrgan"]
+    },
+    {
+      "sources": ["intelligence.red_team_ai", "src.intelligence.red_team_ai"],
+      "target_module": "src.thinking.adversarial.red_team_ai",
+      "symbols": ["StrategyAnalyzer","WeaknessDetector","AttackGenerator","ExploitDeveloper","RedTeamAI"]
+    },
+    {
+      "sources": ["phase2d_integration_validator", "src.phase2d_integration_validator"],
+      "target_module": "src.validation.phase2d_integration_validator",
+      "symbols": ["Phase2DIntegrationValidator"]
+    },
+    {
+      "sources": ["thinking.sentient_adaptation_engine", "src.thinking.sentient_adaptation_engine"],
+      "target_module": "src.intelligence.sentient_adaptation",
+      "symbols": ["SentientAdaptationEngine"]
+    },
+    {
+      "sources": ["src.thinking.memory.pattern_memory"],
+      "target_module": "src.thinking.memory.pattern_memory",
+      "symbols": ["MemoryEntry"],
+      "rename": {"MemoryEntry": "PatternMemoryEntry"},
+      "preserve_alias": true
+    }
+  ]
+}

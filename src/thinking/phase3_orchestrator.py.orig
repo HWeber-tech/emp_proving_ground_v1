@@ -19,7 +19,7 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Any, Optional
 import uuid
 
-from src.intelligence.sentient_adaptation import SentientAdaptationEngine
+from src.thinking.sentient_adaptation_engine import SentientAdaptationEngine
 from src.thinking.prediction.predictive_market_modeler import PredictiveMarketModeler
 from src.thinking.adversarial.market_gan import MarketGAN
 from src.thinking.adversarial.red_team_ai import RedTeamAI

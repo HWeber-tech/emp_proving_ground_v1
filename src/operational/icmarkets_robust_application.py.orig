@@ -16,7 +16,7 @@ import json
 import os
 from concurrent.futures import ThreadPoolExecutor
 import queue
-from src.trading.models.order import OrderStatus as TradingOrderStatus
+from trading.models.order import OrderStatus as TradingOrderStatus
 
 # Configure logging
 logging.basicConfig(

@@ -13,7 +13,7 @@ from datetime import datetime
 
 from ..core.interfaces import IComponentIntegrator
 from ..core import PopulationManager, SensoryOrgan, RiskManager
-from src.core.performance.market_data_cache import get_global_cache
+from ..performance import get_global_cache
 
 logger = logging.getLogger(__name__)
 

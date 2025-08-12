@@ -5,7 +5,7 @@ import os
 from datetime import datetime
 
 try:
-    import pandas as pd
+    import pandas as pd  # type: ignore
 except Exception:  # pragma: no cover
     pd = None
 

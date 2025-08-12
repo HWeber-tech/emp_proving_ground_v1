@@ -39,7 +39,7 @@ def fetch_daily_bars(symbols: List[str], days: int = 60) -> pd.DataFrame:
 
 def store_duckdb(df: pd.DataFrame, db_path: Path, table: str = "daily_bars") -> None:
     try:
-        import duckdb
+        import duckdb  # type: ignore
     except Exception:
         # Fallback to CSV if duckdb not available
         csv_path = db_path.with_suffix(".csv")

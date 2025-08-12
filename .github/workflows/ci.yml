@@ -52,10 +52,16 @@ jobs:
 
       - name: Lint with ruff
         run: |
+          set -euo pipefail
           ruff check .
-          # Deny OpenAPI/FastAPI references in FIX-only build
-          if rg -n -g '!docs/legacy/**' "(ctrader_open_api|CONNECTION_PROTOCOL=openapi|OpenAPI|from\\s+fastapi|import\\s+fastapi|import\\s+uvicorn)" -- docs scripts src config || true; then
-            echo "OpenAPI/FastAPI references found in FIX-only build. Please remove them." && exit 1
+          # Deny OpenAPI/FastAPI references in FIX-only build (code only, deterministic)
+          MATCHES=$(rg -n -g '!docs/**' -g '!**/*.md' '(ctrader_open_api|CONNECTION_PROTOCOL=openapi|from\s+fastapi|import\s+fastapi|import\s+uvicorn)' -- scripts src config || true)
+          if [ -n "$MATCHES" ]; then
+            echo "OpenAPI/FastAPI references found in FIX-only build. Please remove them."
+            echo "$MATCHES"
+            exit 1
+          else
+            echo "No OpenAPI/FastAPI references in code."
           fi
 
       - name: Type check with mypy

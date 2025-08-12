@@ -12,11 +12,11 @@ HTML_TMPL = """
   <meta charset="utf-8"/>
   <title>WHY Features Report</title>
   <style>
-    body { font-family: Arial, sans-serif; margin: 24px; }
-    table { border-collapse: collapse; width: 100%; }
-    th, td { border: 1px solid #ddd; padding: 8px; font-size: 13px; }
-    th { background: #f4f4f4; text-align: left; }
-    tr:nth-child(even) { background: #fafafa; }
+    body {{ font-family: Arial, sans-serif; margin: 24px; }}
+    table {{ border-collapse: collapse; width: 100%; }}
+    th, td {{ border: 1px solid #ddd; padding: 8px; font-size: 13px; }}
+    th {{ background: #f4f4f4; text-align: left; }}
+    tr:nth-child(even) {{ background: #fafafa; }}
   </style>
   </head>
 <body>

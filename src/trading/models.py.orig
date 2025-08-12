@@ -41,7 +41,7 @@ class TradingSignal:
         if self.timestamp is None:
             self.timestamp = datetime.now()
 
-from src.trading.models.position import Position as Position
+from trading.models.position import Position as Position
 
 @dataclass
 class PortfolioSnapshot:

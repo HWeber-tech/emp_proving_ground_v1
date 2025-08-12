@@ -136,7 +136,7 @@ _global_cache = None
 
 
 # Re-export canonical global cache accessor (deprecated local GlobalCache)
-from src.core.performance.market_data_cache import get_global_cache as get_global_cache
+from core.performance.market_data_cache import get_global_cache as get_global_cache  # type: ignore
 
 
 # Re-export for convenience

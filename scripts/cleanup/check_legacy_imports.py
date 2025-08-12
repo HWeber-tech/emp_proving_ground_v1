@@ -49,8 +49,6 @@ DEFAULT_ALLOWED_FILES = [
     "src/core/sensory_organ.py",
     "src/phase2d_integration_validator.py",
     "src/intelligence/red_team_ai.py",
-    "src/performance/__init__.py",
-    "src/trading/models.py",
     "src/sensory/models/__init__.py",
 ]
 

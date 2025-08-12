@@ -64,6 +64,16 @@
       "symbols": ["MemoryEntry"],
       "rename": {"MemoryEntry": "PatternMemoryEntry"},
       "preserve_alias": true
+    },
+    {
+      "sources": ["core.performance.market_data_cache", "src.core.performance.market_data_cache"],
+      "target_module": "src.core.performance.market_data_cache",
+      "symbols": ["*"]
+    },
+    {
+      "sources": ["trading.models.position", "src.trading.models.position"],
+      "target_module": "src.trading.models.position",
+      "symbols": ["*"]
     }
   ]
 }

@@ -291,6 +291,18 @@ def write_json(
             for name, occs in functions_dup.items()
         },
     }
+    # Avoid file churn: if only the timestamp differs, do not rewrite the file
+    try:
+        if path.exists():
+            existing = json.loads(path.read_text(encoding="utf-8"))
+            comparable = dict(payload)
+            comparable["generated_at"] = existing.get("generated_at", comparable["generated_at"])
+            if comparable == existing:
+                # Content equal (ignoring timestamp) -> keep existing file unchanged
+                return
+    except Exception:
+        # If we can't read/parse the existing file, proceed to write a fresh one
+        pass
     with path.open("w", encoding="utf-8") as f:
         json.dump(payload, f, indent=2, ensure_ascii=False)
 

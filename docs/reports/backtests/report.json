@@ -1,0 +1,14 @@
+{
+  "file": "data/md_capture/capture.jsonl",
+  "symbol": "EURUSD",
+  "events": 1,
+  "pnl": 0.061923049728122896,
+  "total_cost": 3.4582271877120015e-05,
+  "max_dd": 0.0,
+  "timestamp": "2025-08-12T21:13:36.164443",
+  "regimes": {
+    "calm": 0,
+    "normal": 1,
+    "storm": 0
+  }
+}

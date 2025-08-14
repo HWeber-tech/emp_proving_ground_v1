@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
+# ruff: noqa: I001
 
 import argparse
 import json
 import logging
 from datetime import datetime
-from typing import List
 
 from src.operational.md_capture import MarketDataReplayer
-from src.sensory.integration.sensory_cortex import MasterOrchestrator
 from src.sensory.core.base import InstrumentMeta, MarketData, OrderBookLevel, OrderBookSnapshot
+from src.sensory.integration.sensory_cortex import MasterOrchestrator
 
 
 def parse_args() -> argparse.Namespace:

@@ -2,13 +2,13 @@
 Create synthetic test data for EMP Proving Ground.
 This script generates realistic EURUSD tick data for testing when real data is unavailable.
 """
+import logging
 import sys
-import os
-import pandas as pd
-import numpy as np
 from datetime import datetime, timedelta
 from pathlib import Path
-import logging
+
+import numpy as np
+import pandas as pd
 
 # Configure logging
 logging.basicConfig(

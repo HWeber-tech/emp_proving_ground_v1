@@ -13,7 +13,7 @@ from typing import Dict, List, Optional, Any
 from datetime import datetime
 
 try:
-    from src.core.interfaces import IExecutionEngine  # legacy
+    from src.core.interfaces import IExecutionEngine
 except Exception:  # pragma: no cover
     class IExecutionEngine:  # type: ignore
         pass

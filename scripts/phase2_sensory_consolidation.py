@@ -4,11 +4,10 @@ Phase 2: Sensory Structure Consolidation
 Consolidates 3 redundant sensory folder hierarchies into 1 clean structure
 """
 
-import os
 import shutil
-import json
-from pathlib import Path
 from datetime import datetime
+from pathlib import Path
+
 
 class SensoryStructureConsolidator:
     def __init__(self):

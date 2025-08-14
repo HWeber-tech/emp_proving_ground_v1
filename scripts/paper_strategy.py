@@ -5,11 +5,11 @@ import json
 import logging
 from datetime import datetime
 
+from src.data_foundation.config.vol_config import load_vol_config
 from src.operational.md_capture import MarketDataReplayer
 from src.sensory.dimensions.microstructure import RollingMicrostructure
-from src.sensory.dimensions.why.macro_signal import macro_proximity_signal
 from src.sensory.dimensions.what.volatility_engine import vol_signal
-from src.data_foundation.config.vol_config import load_vol_config
+from src.sensory.dimensions.why.macro_signal import macro_proximity_signal
 
 
 def parse_args():

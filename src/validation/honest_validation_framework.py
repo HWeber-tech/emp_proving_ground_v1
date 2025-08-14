@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# ruff: noqa: I001
 """
 Honest Validation Framework - Phase 2A
 ======================================
@@ -8,23 +9,22 @@ Replaces the fraudulent validation scripts with honest, transparent validation.
 """
 
 import asyncio
-import logging
 import json
+import logging
 import time
 from datetime import datetime
-from typing import Dict, List, Any, Optional
-from pathlib import Path
-import pandas as pd
-import numpy as np
+from typing import Any, Dict, List
 
 from src.sensory.organs.yahoo_finance_organ import YahooFinanceOrgan
+
 try:
     from src.trading.risk.market_regime_detector import MarketRegimeDetector  # deprecated
 except Exception:  # pragma: no cover
     MarketRegimeDetector = None  # type: ignore
 from src.data_integration.real_data_integration import RealDataManager
+
 try:
-    from src.core.interfaces import DecisionGenome  # legacy
+    from src.core.interfaces import DecisionGenome
 except Exception:  # pragma: no cover
     DecisionGenome = object  # type: ignore
 

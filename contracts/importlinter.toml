@@ -1,0 +1,50 @@
+# Import Linter contracts (TOML)
+# If your Import Linter version doesn't support TOML, use contracts/importlinter.ini (same semantics).
+
+[importlinter]
+root_package = "src"
+include_external_packages = false
+
+[[contract]]
+name = "layered-architecture"
+type = "layers"
+layers = [
+  "src.ui",
+  "src.operational",
+  "src.integration",
+  "src.data_integration",
+  "src.simulation",
+  "src.domain",
+  "src.trading",
+  "src.sensory",
+  "src.ecosystem",
+  "src.validation",
+  "src.genome",
+  "src.thinking",
+  "src.intelligence",
+  "src.portfolio",
+  "src.governance",
+  "src.risk",
+  "src.data_foundation",
+  "src.config",
+  "src.core"
+]
+
+[[contract]]
+name = "domain-independence"
+type = "independence"
+modules = [
+  "src.trading",
+  "src.sensory",
+  "src.ecosystem",
+  "src.thinking",
+  "src.validation",
+  "src.genome",
+  "src.intelligence",
+  "src.portfolio",
+  "src.governance",
+  "src.risk"
+]
+
+# Placeholder for package-specific cycle checks. Import Linter doesn't have a generic "no-cycles" contract;
+# enforce via finer-grained layers within large packages (added in later phases) or use additional tooling.

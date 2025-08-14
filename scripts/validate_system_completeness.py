@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# ruff: noqa: I001,F401
 """
 System Completeness Validation Script
 ====================================
@@ -9,12 +10,12 @@ the missing core components.
 """
 
 import asyncio
-import logging
 import json
+import logging
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Any
+from typing import Any, Dict
 
 # Configure logging
 logging.basicConfig(
@@ -52,7 +53,7 @@ class SystemValidator:
             
         # Test core interfaces
         try:
-            from src.core.interfaces import IPopulationManager, DecisionGenome
+            from src.core.interfaces import DecisionGenome, IPopulationManager
             results['core.interfaces'] = True
             logger.info("✅ Core interfaces imported successfully")
         except ImportError as e:
@@ -103,8 +104,8 @@ class SystemValidator:
         
         # Test population manager
         try:
-            from src.core.population_manager import create_population_manager
             from src.core.interfaces import DecisionGenome
+            from src.core.population_manager import create_population_manager
             
             manager = create_population_manager(population_size=5)
             

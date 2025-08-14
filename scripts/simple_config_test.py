@@ -5,8 +5,8 @@ Simple Master Switch Test - Standalone
 Tests the master switch configuration without complex imports.
 """
 
-import os
 import sys
+
 
 def test_master_switch():
     """Test the master switch configuration."""

@@ -8,8 +8,8 @@ import asyncio
 import json
 import os
 import uuid
+
 import websockets
-from datetime import datetime, timezone
 from dotenv import load_dotenv
 
 load_dotenv()

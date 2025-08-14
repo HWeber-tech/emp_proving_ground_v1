@@ -6,9 +6,8 @@ Safe paper-trade dry run via FIXBrokerInterface without sending real FIX message
 """
 
 import asyncio
-import sys
 import os
-from datetime import datetime
+import sys
 
 # Add src to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))

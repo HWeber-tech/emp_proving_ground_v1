@@ -1,11 +1,11 @@
 """
 Script to identify market regimes from historical data and output regimes.json.
 """
-import sys
-import os
-import yaml
 import logging
-from datetime import datetime
+import os
+import sys
+
+import yaml
 
 # Add the parent directory to the path so we can import emp modules
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))

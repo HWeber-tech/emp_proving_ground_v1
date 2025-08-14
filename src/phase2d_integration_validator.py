@@ -27,7 +27,7 @@ except Exception:  # pragma: no cover
     MarketRegimeDetector = None  # type: ignore
 from src.data_integration.real_data_integration import RealDataManager
 try:
-    from src.core.interfaces import DecisionGenome  # legacy
+    from src.core.interfaces import DecisionGenome
 except Exception:  # pragma: no cover
     DecisionGenome = object  # type: ignore
 from src.core import Instrument, InstrumentProvider

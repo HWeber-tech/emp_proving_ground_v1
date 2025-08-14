@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# ruff: noqa
 """
 The most basic cTrader API connection and authentication test.
 """

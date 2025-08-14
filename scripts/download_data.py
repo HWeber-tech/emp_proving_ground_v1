@@ -1,17 +1,18 @@
 """
 Script to download and process historical tick data using DukascopyIngestor.
 """
-import sys
-import os
-import yaml
-from datetime import datetime
 import logging
+import os
+import sys
+from datetime import datetime
+
+import yaml
 
 # Add the parent directory to the path so we can import emp modules
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from emp.data_pipeline.ingestor import DukascopyIngestor
 from emp.data_pipeline.cleaner import TickDataCleaner
+from emp.data_pipeline.ingestor import DukascopyIngestor
 from emp.data_pipeline.storage import TickDataStorage
 
 # Configure logging

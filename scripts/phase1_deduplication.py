@@ -4,11 +4,11 @@ Phase 1: MarketData Deduplication Script
 Systematically replaces all duplicate MarketData classes with the unified version
 """
 
-import os
-import shutil
 import re
-from pathlib import Path
+import shutil
 from datetime import datetime
+from pathlib import Path
+
 
 class MarketDataDeduplicator:
     def __init__(self):

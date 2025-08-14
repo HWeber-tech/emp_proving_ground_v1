@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# ruff: noqa: I001
 """
 Real Market Validation Framework - Phase 2C
 ==========================================
@@ -8,27 +9,26 @@ Tests actual anomaly detection, regime classification, and trading performance w
 """
 
 import asyncio
-import logging
 import json
+import logging
 import time
-import sqlite3
 from datetime import datetime, timedelta
-from typing import Dict, List, Any, Optional, Tuple
-from pathlib import Path
-import pandas as pd
-import numpy as np
-from sklearn.metrics import precision_score, recall_score, f1_score
-import yfinance as yf
+from typing import Any, Dict, List
 
-from src.sensory.organs.yahoo_finance_organ import YahooFinanceOrgan
+import numpy as np
+import pandas as pd
+
 from src.sensory.enhanced.anomaly.manipulation_detection import ManipulationDetectionSystem
+from src.sensory.organs.yahoo_finance_organ import YahooFinanceOrgan
+
 try:
-    from src.trading.risk.market_regime_detector import MarketRegimeDetector  # deprecated
+    from src.trading.risk.market_regime_detector import MarketRegimeDetector  # deprecated  # noqa: I001
 except Exception:  # pragma: no cover
     MarketRegimeDetector = None  # type: ignore
 from src.data_integration.real_data_integration import RealDataManager
+
 try:
-    from src.core.interfaces import DecisionGenome  # legacy
+    from src.core.interfaces import DecisionGenome
 except Exception:  # pragma: no cover
     DecisionGenome = object  # type: ignore
 
@@ -72,9 +72,8 @@ class RealMarketValidationFramework:
     def __init__(self):
         self.results: List[RealMarketValidationResult] = []
         self.yahoo_organ = YahooFinanceOrgan()
-        self.manipulation_detector = ManipulationDetector()
+        self.manipulation_detector = ManipulationDetectionSystem()
         self.regime_detector = MarketRegimeDetector()
-        self.strategy_manager = StrategyManager()
         self.real_data_manager = RealDataManager({'fallback_to_mock': False})
         
         # Historical market events for validation

@@ -6,10 +6,9 @@ Heuristic: files not imported by any other module and not entry points.
 
 from __future__ import annotations
 
-import os
 import ast
-from typing import Dict, List, Set
-
+import os
+from typing import List, Set
 
 ROOT = "src"
 

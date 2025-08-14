@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 
 import argparse
-from src.data_integration.openbb_integration import fetch_yields
+
 from src.data_foundation.persist.jsonl_writer import write_events_jsonl
+from src.data_integration.openbb_integration import fetch_yields
 
 
 def parse_args():

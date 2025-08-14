@@ -8,8 +8,9 @@ import json
 import logging
 import os
 import uuid
-from dotenv import load_dotenv
+
 import websockets
+from dotenv import load_dotenv
 
 # Configure logging
 logging.basicConfig(

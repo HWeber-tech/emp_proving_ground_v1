@@ -3,9 +3,10 @@
 Send OrderMassCancelRequest (q) to cancel all open orders on demo (paper) via FIX.
 """
 
+import asyncio
 import os
 import sys
-import asyncio
+
 from dotenv import load_dotenv
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))

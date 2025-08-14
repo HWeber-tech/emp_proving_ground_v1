@@ -1,6 +1,33 @@
-from typing import List, Dict, Any, Callable
+from typing import Any, Callable, Dict, List, Mapping, Optional, Protocol, runtime_checkable
 
 
+@runtime_checkable
+class Cache(Protocol):
+    """Minimal cache facade used as a stable import target.
+
+    Framework-agnostic. Implementations may be backed by dict, Redis, etc.
+    """
+    def get(self, key: str) -> Optional[Any]:
+        ...
+
+    def set(self, key: str, value: Any) -> None:
+        ...
+
+
+@runtime_checkable
+class EventBus(Protocol):
+    """Minimal event bus facade for fire-and-forget events."""
+    def publish(self, event: str, payload: Mapping[str, Any] | None = None) -> None:
+        ...
+
+
+@runtime_checkable
+class Logger(Protocol):
+    """Minimal logging facade with conventional methods."""
+    def info(self, msg: str, /, **kwargs: Any) -> None: ...
+    def debug(self, msg: str, /, **kwargs: Any) -> None: ...
+    def warning(self, msg: str, /, **kwargs: Any) -> None: ...
+    def error(self, msg: str, /, **kwargs: Any) -> None: ...
 class DecisionGenome:
     """Minimal DecisionGenome placeholder used for typing and population management.
     Real implementations should extend this class and provide fields like

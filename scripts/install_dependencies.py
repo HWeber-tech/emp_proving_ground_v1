@@ -5,7 +5,7 @@ Dependency installation script with compatibility fixes.
 
 import subprocess
 import sys
-import os
+
 
 def run_command(cmd):
     """Run a command and return success status."""

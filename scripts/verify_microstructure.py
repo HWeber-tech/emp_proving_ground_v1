@@ -7,8 +7,9 @@ Comprehensive diagnostic for cTrader Level 2 Depth of Book data
 import asyncio
 import json
 import os
-import websockets
 from datetime import datetime, timezone
+
+import websockets
 from dotenv import load_dotenv
 
 load_dotenv()

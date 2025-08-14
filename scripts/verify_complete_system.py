@@ -15,13 +15,15 @@ import asyncio
 import logging
 import sys
 from datetime import datetime
-from typing import Dict, List, Any
+
+from src.core.evolution.engine import EvolutionConfig, EvolutionEngine
 
 # Import consolidated components
-from src.core.risk.manager import RiskManager, RiskConfig
+from src.core.risk.manager import RiskConfig, RiskManager
 from src.core.strategy.engine import StrategyEngine
-from src.core.strategy.templates.moving_average import MovingAverageStrategy as CoreMovingAverageStrategy
-from src.core.evolution.engine import EvolutionEngine, EvolutionConfig
+from src.core.strategy.templates.moving_average import (
+    MovingAverageStrategy as CoreMovingAverageStrategy,
+)
 
 # Configure logging
 logging.basicConfig(

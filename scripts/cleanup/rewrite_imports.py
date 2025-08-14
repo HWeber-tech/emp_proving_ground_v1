@@ -37,10 +37,8 @@ import os
 import re
 import shutil
 import sys
-import tempfile
 from dataclasses import dataclass
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Set, Tuple
-
 
 SKIP_DIRS: Set[str] = {
     ".git",

@@ -6,8 +6,9 @@ Request Security List (35=x) to discover valid symbol identifiers for MD subscri
 import asyncio
 import os
 import sys
-from dotenv import load_dotenv
+
 import simplefix
+from dotenv import load_dotenv
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 

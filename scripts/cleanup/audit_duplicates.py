@@ -8,12 +8,11 @@ grouping them by normalized names and domain-specific keywords.
 
 from __future__ import annotations
 
+import ast
 import os
 import re
-import ast
 from collections import defaultdict
 from typing import Dict, List, Set, Tuple
-
 
 ROOTS_TO_SCAN = ["src", "tests"]
 NAME_NORMALIZER = re.compile(r"[^a-z0-9]+")

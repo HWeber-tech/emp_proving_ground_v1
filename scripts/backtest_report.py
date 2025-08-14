@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
+# ruff: noqa: I001
 
 import argparse
-import json
 import csv
+import json
 import logging
 import os
 import sys
@@ -13,7 +14,8 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir))
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 
-from src.data_foundation.replay.multidim_replayer import MultiDimReplayer
+from src.data_foundation.replay.multidim_replayer import MultiDimReplayer  # noqa: E402
+
 try:
     from src.sensory.dimensions.microstructure import RollingMicrostructure  # legacy
 except Exception:
@@ -34,7 +36,9 @@ except Exception:
                 "microprice": mid,
                 "top_imbalance": 0.0,
             }
-from src.data_foundation.persist.parquet_writer import write_events_parquet
+from src.data_foundation.persist.parquet_writer import write_events_parquet  # noqa: E402
+
+
 def macro_proximity_signal(mins_since: float | None, mins_to_next: float | None) -> tuple[float, float]:
     # Minimal placeholder: low confidence unless near events
     try:
@@ -50,8 +54,8 @@ def macro_proximity_signal(mins_since: float | None, mins_to_next: float | None)
 try:
     from src.sensory.dimensions.what.volatility_engine import vol_signal  # legacy
 except Exception:
-    from dataclasses import dataclass
     import math
+    from dataclasses import dataclass
     @dataclass
     class _VolSig:
         sigma_ann: float
@@ -66,14 +70,18 @@ except Exception:
             sigma = 0.1
         regime = 'normal'
         return _VolSig(sigma_ann=float(sigma), regime=regime, sizing_multiplier=1.0)
-from src.data_foundation.config.vol_config import load_vol_config
-from src.sensory.dimensions.why.yield_signal import YieldSlopeTracker
-from src.data_foundation.config.why_config import load_why_config
-from src.data_foundation.config.execution_config import load_execution_config
-from src.trading.execution.execution_model import ExecContext, estimate_slippage_bps, estimate_commission_bps
-from src.data_foundation.config.risk_portfolio_config import load_portfolio_risk_config
-from src.trading.risk.portfolio_caps import apply_aggregate_cap, usd_beta_sign
-from src.data_foundation.config.sizing_config import load_sizing_config
+from src.data_foundation.config.execution_config import load_execution_config  # noqa: E402
+from src.data_foundation.config.risk_portfolio_config import load_portfolio_risk_config  # noqa: E402
+from src.data_foundation.config.sizing_config import load_sizing_config  # noqa: E402
+from src.data_foundation.config.vol_config import load_vol_config  # noqa: E402
+from src.data_foundation.config.why_config import load_why_config  # noqa: E402
+from src.sensory.dimensions.why.yield_signal import YieldSlopeTracker  # noqa: E402
+from src.trading.execution.execution_model import (  # noqa: E402
+    ExecContext,
+    estimate_commission_bps,
+    estimate_slippage_bps,
+)
+from src.trading.risk.portfolio_caps import apply_aggregate_cap, usd_beta_sign  # noqa: E402
 
 
 def parse_args():

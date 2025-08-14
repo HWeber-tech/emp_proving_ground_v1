@@ -12,7 +12,7 @@ from decimal import Decimal
 from datetime import datetime
 
 try:
-    from src.core.interfaces import IRiskManager  # legacy
+    from src.core.interfaces import IRiskManager
 except Exception:  # pragma: no cover
     class IRiskManager:  # type: ignore
         pass

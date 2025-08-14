@@ -7,15 +7,13 @@ Comprehensive validation system for Phase 2 completion.
 Tests performance benchmarks, accuracy metrics, and integration points.
 """
 
-import asyncio
 import logging
 import time
+from typing import Any, Dict, List
+
 import psutil
-import numpy as np
-import pandas as pd
-from typing import Dict, List, Any, Optional
-from datetime import datetime, timedelta
-from dataclasses import dataclass, field
+
+from src.validation.models import ValidationResult
 
 try:
     class MultiDimensionalFitnessEvaluator:  # type: ignore
@@ -24,6 +22,7 @@ except Exception:  # pragma: no cover
     class MultiDimensionalFitnessEvaluator:  # type: ignore
         pass
 from src.evolution.selection.adversarial_selector import AdversarialSelector
+
 try:
     class MarketRegimeDetector:  # type: ignore
         def __call__(self):
@@ -38,7 +37,6 @@ except Exception:  # pragma: no cover
 logger = logging.getLogger(__name__)
 
 
-from src.validation.models import ValidationResult
 
 
 class Phase2ValidationSuite:

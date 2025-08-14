@@ -6,6 +6,7 @@ Subscribe to FIX market data for EURUSD and place + cancel a demo order (paper m
 import asyncio
 import os
 import sys
+
 from dotenv import load_dotenv
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
@@ -35,7 +36,9 @@ async def main(symbol: str = "EURUSD", side: str = "BUY", qty: float = 1000.0) -
 
         # Place a resting limit order far from market to test cancel reliably
         # Build a synthetic price: for BUY limit, set a very low price; for SELL limit, set very high
-        from datetime import datetime as _dt, timezone as _tz
+        from datetime import datetime as _dt
+        from datetime import timezone as _tz
+
         import simplefix
 
         # Use direct message for limit order (OrdType=2)

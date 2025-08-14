@@ -6,8 +6,26 @@ This package contains data models for trading entities including orders,
 positions, and market data.
 """
 
-from .order import Order, OrderStatus, OrderType
-from .position import Position
-from .trade import Trade
+__all__: list[str] = []
 
-__all__ = ['Order', 'OrderStatus', 'OrderType', 'Position', 'Trade']
+# Safe, guarded re-exports to avoid runtime errors if submodules are absent.
+try:
+    from .order import Order as Order, OrderStatus as OrderStatus, OrderType as OrderType
+except ImportError:  # pragma: no cover
+    pass
+else:
+    __all__.extend(["Order", "OrderStatus", "OrderType"])
+
+try:
+    from .position import Position as Position
+except ImportError:  # pragma: no cover
+    pass
+else:
+    __all__.append("Position")
+
+try:
+    from .trade import Trade as Trade
+except ImportError:  # pragma: no cover
+    pass
+else:
+    __all__.append("Trade")

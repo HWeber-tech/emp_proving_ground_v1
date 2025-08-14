@@ -15,18 +15,18 @@ Expected Output:
     - Final statistics with >90% success rate
 """
 
-import sys
-import os
 import asyncio
 import logging
+import os
+import sys
 from datetime import datetime, timedelta
-from typing import List, Dict, Any
+from typing import Any
+
 import numpy as np
-import pandas as pd
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'src'))
 
-from sensory.core.base import MarketData, InstrumentMeta, DimensionalReading
+from sensory.core.base import DimensionalReading, InstrumentMeta, MarketData
 from sensory.orchestration.enhanced_intelligence_engine import ContextualFusionEngine
 
 logging.basicConfig(

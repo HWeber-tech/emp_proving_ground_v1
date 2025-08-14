@@ -22,8 +22,7 @@ import io
 import json
 import os
 import sys
-from typing import Any, Dict, Iterable, List, Optional, Sequence, Set, Tuple
-
+from typing import Any, Dict, Iterable, List, Optional, Set, Tuple
 
 SKIP_DIRS: Set[str] = {
     ".git",
@@ -45,12 +44,7 @@ SKIP_DIRS: Set[str] = {
 DEFAULT_ROOT = "src"
 DEFAULT_MAP = os.path.join("docs", "development", "import_rewrite_map.yaml")
 
-DEFAULT_ALLOWED_FILES = [
-    "src/core/sensory_organ.py",
-    "src/phase2d_integration_validator.py",
-    "src/intelligence/red_team_ai.py",
-    "src/sensory/models/__init__.py",
-]
+DEFAULT_ALLOWED_FILES: List[str] = []  # intentionally empty; prefer explicit --allow-file flags in CI
 
 
 def eprint(*args: Any, **kwargs: Any) -> None:
@@ -222,6 +216,7 @@ def main() -> int:
     parser.add_argument("--allow-file", action="append", default=[], help="Repo-relative path to allow legacy imports (repeatable)")
     parser.add_argument("--fail", action="store_true", help="Exit non-zero if violations are found")
     parser.add_argument("--verbose", action="store_true", help="Print per-file details")
+    parser.add_argument("--no-default-allow", action="store_true", help="Disable default allow-list for this run")
 
     args = parser.parse_args()
 
@@ -237,7 +232,9 @@ def main() -> int:
                     whitelist.add(tgt)
 
     # Prepare allowed files (normalize to posix repo-relative)
-    allowed: Set[str] = set(to_posix(p) for p in DEFAULT_ALLOWED_FILES)
+    allowed: Set[str] = set()
+    if not args.no_default_allow:
+        allowed.update(to_posix(p) for p in DEFAULT_ALLOWED_FILES)
     for p in args.allow_file or []:
         allowed.add(to_posix(p))
 

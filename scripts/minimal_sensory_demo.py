@@ -3,17 +3,18 @@
 Minimal Sensory Demo Script - Simplified version that focuses on core functionality
 """
 
-import sys
-import os
 import asyncio
+import os
+import random
+import sys
 import time
 from datetime import datetime, timedelta
-from typing import Dict, Any
-import random
+from typing import Any, Dict
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'src'))
 
-from sensory.core.base import MarketData, DimensionalReading, MarketRegime
+from sensory.core.base import DimensionalReading, MarketData, MarketRegime
+
 
 class MinimalTickGenerator:
     """Generate realistic market ticks for testing"""

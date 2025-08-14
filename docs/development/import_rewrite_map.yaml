@@ -74,6 +74,21 @@
       "sources": ["trading.models.position", "src.trading.models.position"],
       "target_module": "src.trading.models.position",
       "symbols": ["*"]
+    },
+    {
+      "sources": ["core.interfaces", "src.core.interfaces"],
+      "target_module": "src.core.interfaces",
+      "symbols": ["*"]
+    },
+    {
+      "sources": ["core.exceptions", "src.core.exceptions"],
+      "target_module": "src.core.exceptions",
+      "symbols": ["*"]
+    },
+    {
+      "sources": ["trading.models", "src.trading.models"],
+      "target_module": "src.trading.models",
+      "symbols": ["*"]
     }
   ]
 }

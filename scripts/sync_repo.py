@@ -4,7 +4,7 @@ Script to synchronize the repository with all the critical fixes.
 """
 import subprocess
 import sys
-import os
+
 
 def run_command(cmd, description):
     """Run a command and handle errors."""

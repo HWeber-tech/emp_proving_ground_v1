@@ -4,7 +4,6 @@ import argparse
 import csv
 import os
 
-
 HTML_TMPL = """
 <!doctype html>
 <html>

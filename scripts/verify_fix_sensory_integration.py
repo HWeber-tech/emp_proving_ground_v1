@@ -6,9 +6,9 @@ Tests the complete FIX connection and sensory organ integration
 
 import asyncio
 import logging
-import sys
 import os
-from datetime import datetime, timedelta
+import sys
+from datetime import datetime
 
 # Add src to path for imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
@@ -16,7 +16,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from src.governance.system_config import SystemConfig
 from src.operational.fix_connection_manager import FIXConnectionManager
 from src.sensory.organs.fix_sensory_organ import FIXSensoryOrgan
-
 
 # Configure logging
 logging.basicConfig(

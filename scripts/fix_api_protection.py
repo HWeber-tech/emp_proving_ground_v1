@@ -4,11 +4,12 @@ FIX API Protection System
 Creates comprehensive backup and verification system for FIX API functionality
 """
 
+import json
 import os
 import shutil
-import json
 from datetime import datetime
 from pathlib import Path
+
 
 class FIXAPIProtection:
     def __init__(self):

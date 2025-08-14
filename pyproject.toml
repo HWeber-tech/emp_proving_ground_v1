@@ -6,18 +6,7 @@ exclude = [
   "__pycache__",
   "build",
   "dist",
-  # Exclude legacy/demo/prototype areas from CI lint to keep baseline green
-  "examples",
-  "tests/legacy",
-  "tools",
-  # Individual problematic scripts (legacy or demos)
-  "scripts/basic_test.py",
-  "scripts/cleanup/analyze_dependencies.py",
-  "scripts/demo_liquidity_prober.py",
-  "scripts/place_demo_order.py",
-  # Validation suites and exploratory modules
-  "src/validation",
-  "src/ecosystem/optimization/ecosystem_optimizer.py",
+  # Stage 2 pending files remain excluded until C hygiene verified in CI
   "src/risk/risk_manager_impl.py",
   "src/integration/component_integrator.py",
   "src/sensory/organs/dimensions/anomaly_dimension.py",
@@ -30,6 +19,10 @@ known-first-party = ["src"]
 
 [tool.ruff.lint.per-file-ignores]
 "scripts/backtest_report.py" = ["F401","F811"]
+"src/genome/__init__.py" = ["F403","F405"]
+"src/evolution/__init__.py" = ["F403","F405"]
+"src/evolution/engine/__init__.py" = ["F403","F405"]
+"src/thinking/__init__.py" = ["F403","F405"]
 
 [tool.ruff.lint]
 # Keep CI green with a minimal, safety-focused rule set.
@@ -40,56 +33,11 @@ ignore = []
 [tool.mypy]
 python_version = "3.11"
 warn_unused_configs = true
-ignore_missing_imports = true
+ignore_missing_imports = false
 disallow_untyped_defs = false
 check_untyped_defs = false
 no_strict_optional = true
 show_error_codes = true
-# Silence third-party stub noise and permissive areas while we converge
-disable_error_code = [
-  "import-untyped",
-]
-# Skip unstable or legacy domains to keep CI green; focus mypy on the green core
-exclude = '''
-^src/(?:sensory|thinking|ecosystem|intelligence|validation|evolution|data_integration|operational|ui|domain|genome|data_sources|integration)/
-|^src/trading/(?:integration|monitoring|portfolio|performance|strategies)/
-|^src/governance/(?:audit|registry|strategy_registry)\.py$
-|^src/phase2d_integration_validator\.py$
-|^src/pnl\.py$
-'''
 
-# Per-module suppression to align with CI scope (keeps mypy green while we converge)
-[[tool.mypy.overrides]]
-module = [
-  "src.sensory.*",
-  "src.thinking.*",
-  "src.ecosystem.*",
-  "src.intelligence.*",
-  "src.validation.*",
-  "src.evolution.*",
-  "src.data_integration.*",
-  "src.operational.*",
-  "src.ui.*",
-  "src.domain.*",
-  "src.genome.*",
-  "src.data_sources.*",
-  "src.integration.*",
-  "src.trading.integration.*",
-  "src.trading.monitoring.*",
-  "src.trading.portfolio.*",
-  "src.trading.performance.*",
-  "src.trading.strategies.*",
-  "src.trading.execution.*",
-  "src.governance.*",
-  "src.phase2d_integration_validator",
-  "src.pnl",
-  "src.core.population_manager",
-  # Additional modules to silence for CI baseline
-  "src.core.configuration",
-  "src.risk.risk_manager_impl",
-  "src.sentient.memory.faiss_pattern_memory",
-  "src.trading.trading_manager",
-]
-ignore_errors = true
 
 

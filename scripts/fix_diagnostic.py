@@ -4,12 +4,12 @@ FIX Diagnostic Tool - Comprehensive troubleshooting
 """
 
 import logging
-import sys
-import os
 import socket
-import simplefix
+import sys
 import time
 from datetime import datetime
+
+import simplefix
 
 # Configure logging
 logging.basicConfig(

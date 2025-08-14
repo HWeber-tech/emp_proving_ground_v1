@@ -7,8 +7,6 @@ import sys
 import threading
 import time
 
-from datetime import datetime
-
 from src.operational.icmarkets_api import GenuineFIXManager
 from src.operational.icmarkets_config import ICMarketsConfig
 

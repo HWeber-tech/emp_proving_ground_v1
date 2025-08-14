@@ -9,13 +9,26 @@ actively probes the order book for hidden liquidity and icebergs.
 import asyncio
 import logging
 from decimal import Decimal
-from datetime import datetime
+from unittest.mock import Mock
 
 from src.trading.execution.liquidity_prober import LiquidityProber
 from src.trading.integration.fix_broker_interface import FIXBrokerInterface
-from src.trading.risk.risk_gateway import RiskGateway
 from src.trading.risk.position_sizer import PositionSizer
-# from src.core.events import TradeIntent  # legacy, avoid for FIX-only demo
+from src.trading.risk.risk_gateway import RiskGateway
+
+# Legacy type import (provide local fallback if unavailable)
+try:
+    from src.core.events import TradeIntent  # type: ignore
+except Exception:
+    from dataclasses import dataclass  # local-only fallback
+    @dataclass
+    class TradeIntent:  # type: ignore
+        symbol: str
+        side: str
+        quantity: Decimal
+        order_type: str
+        price: Decimal
+        metadata: dict
 
 # Configure logging
 logging.basicConfig(

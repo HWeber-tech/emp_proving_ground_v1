@@ -11,7 +11,7 @@ import logging
 from typing import Dict, List, Any, Optional
 from datetime import datetime
 
-from ..core.interfaces import IComponentIntegrator
+from src.core.interfaces import IComponentIntegrator
 from ..core import PopulationManager, SensoryOrgan, RiskManager
 from src.core.performance.market_data_cache import get_global_cache
 

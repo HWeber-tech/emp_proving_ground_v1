@@ -7,10 +7,10 @@ Benchmarks system performance against Phase 2 requirements.
 """
 
 import time
-import psutil
-import numpy as np
-from typing import Dict, Any
 from dataclasses import dataclass
+from typing import Dict
+
+import psutil
 
 
 @dataclass

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# ruff: noqa: I001
 """
 Phase 2D: Simple Real Integration Test
 ======================================
@@ -8,26 +9,29 @@ Validates end-to-end functionality without complex dependencies.
 """
 
 import asyncio
-import logging
 import json
+import logging
 import time
-from datetime import datetime, timedelta
-import pandas as pd
-import numpy as np
+from datetime import datetime
 from decimal import Decimal
+from typing import List, Optional
 
-from src.sensory.organs.yahoo_finance_organ import YahooFinanceOrgan
+import numpy as np
+import pandas as pd
+
 from src.sensory.enhanced.anomaly.manipulation_detection import ManipulationDetectionSystem
+from src.sensory.organs.yahoo_finance_organ import YahooFinanceOrgan
+
 try:
     from src.trading.risk.market_regime_detector import MarketRegimeDetector  # deprecated
 except Exception:  # pragma: no cover
     MarketRegimeDetector = None  # type: ignore
 try:
-    from src.core.interfaces import DecisionGenome  # legacy
+    from src.core.interfaces import DecisionGenome
 except Exception:  # pragma: no cover
     DecisionGenome = object  # type: ignore
 from src.core import Instrument, InstrumentProvider
-from src.risk import RiskManager, RiskConfig
+from src.risk import RiskConfig, RiskManager
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

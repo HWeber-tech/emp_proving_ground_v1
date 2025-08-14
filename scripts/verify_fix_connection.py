@@ -6,9 +6,10 @@ Tests the connection to IC Markets cTrader FIX gateways
 
 import asyncio
 import logging
-import sys
 import os
+import sys
 from datetime import datetime
+
 from dotenv import load_dotenv
 
 # Add src to path for imports

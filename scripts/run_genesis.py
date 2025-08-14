@@ -12,29 +12,29 @@ This script executes a complete evolutionary run with:
 - Baseline performance metrics
 """
 
-import logging
 import asyncio
 import json
+import logging
 import sys
-from datetime import datetime, timedelta
-from pathlib import Path
-from decimal import Decimal
 from dataclasses import dataclass
-from typing import Dict, Any, List
-import pandas as pd
+from datetime import datetime
+from decimal import Decimal
+from pathlib import Path
+from typing import Any, Dict
+
 import numpy as np
+import pandas as pd
 
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
-from src.core import RiskConfig, InstrumentProvider, CurrencyConverter
+from src.core import CurrencyConverter, InstrumentProvider, RiskConfig
+from src.data import DukascopyIngestor, TickDataCleaner, TickDataStorage
+from src.evolution import EvolutionConfig, EvolutionEngine, FitnessEvaluator
 from src.risk import RiskManager
-from src.pnl import EnhancedPosition, TradeRecord
-from src.data import TickDataStorage, TickDataCleaner, DukascopyIngestor
+from src.sensory.core.base import InstrumentMeta
 from src.sensory.orchestration.master_orchestrator import MasterOrchestrator
-from src.sensory.core.base import InstrumentMeta, MarketData
-from src.evolution import EvolutionEngine, EvolutionConfig, FitnessEvaluator
-from src.simulation import MarketSimulator, AdversarialEngine
+from src.simulation import AdversarialEngine, MarketSimulator
 
 # Configure logging
 logging.basicConfig(

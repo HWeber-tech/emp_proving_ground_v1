@@ -8,6 +8,29 @@ from typing import Optional, Dict, Any
 from datetime import datetime
 
 
+# Minimal, stable core exception anchors
+class CoreError(Exception):
+    """Base error for core subsystems.
+
+    Framework-agnostic and safe to import from anywhere:
+        from src.core.exceptions import CoreError
+    """
+    pass
+
+
+class ConfigurationError(CoreError):
+    """Raised for configuration-related problems (missing keys, invalid values)."""
+    pass
+
+
+class DependencyError(CoreError):
+    """Raised when a required dependency/service is unavailable or misconfigured."""
+    pass
+
+
+class ValidationError(CoreError):
+    """Raised for validation failures in inputs, state, or configuration."""
+    pass
 class EMPException(Exception):
     """Base exception for EMP Proving Ground system."""
     

@@ -3,8 +3,8 @@
 Quick verification of the microstructure tool
 """
 
+import importlib.util
 import os
-import sys
 
 print("Testing Microstructure Verification Tool Structure...")
 
@@ -22,25 +22,22 @@ for file_path in files_to_check:
         print(f"❌ {file_path} missing")
         all_exist = False
 
-# Test imports
-try:
-    import pandas as pd
+# Test imports availability without importing modules (avoids F401)
+if importlib.util.find_spec("pandas") is not None:
     print("✅ pandas available")
-except ImportError:
+else:
     print("❌ pandas not available")
     all_exist = False
 
-try:
-    import argparse
+if importlib.util.find_spec("argparse") is not None:
     print("✅ argparse available")
-except ImportError:
+else:
     print("❌ argparse not available")
     all_exist = False
 
-try:
-    from dotenv import load_dotenv
+if importlib.util.find_spec("dotenv") is not None:
     print("✅ dotenv available")
-except ImportError:
+else:
     print("❌ dotenv not available")
     all_exist = False
 

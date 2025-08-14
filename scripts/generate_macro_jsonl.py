@@ -2,8 +2,9 @@
 
 import argparse
 from datetime import datetime, timedelta
-from src.data_integration.openbb_integration import fetch_calendar
+
 from src.data_foundation.persist.jsonl_writer import write_events_jsonl
+from src.data_integration.openbb_integration import fetch_calendar
 
 
 def parse_args():

@@ -8,8 +8,8 @@ Tests system performance under load conditions.
 
 import asyncio
 import time
-from typing import Dict, Any, Callable
 from dataclasses import dataclass
+from typing import Any, Callable, Dict
 
 
 @dataclass

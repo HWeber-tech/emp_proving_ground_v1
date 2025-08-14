@@ -1,0 +1,2785 @@
+Run started:2025-08-14 12:40:58.639210
+
+Test results:
+>> Issue: [B110:try_except_pass] Try, Except, Pass detected.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b110_try_except_pass.html
+   Location: src\core\__init__.py:48:0
+47	    from .sensory_organ import SensoryOrgan, create_sensory_organ, WHAT_ORGAN, WHEN_ORGAN, ANOMALY_ORGAN, CHAOS_ORGAN  # type: ignore
+48	except Exception:  # pragma: no cover
+49	    pass
+50	from .risk.manager import RiskManager
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\core\evolution\operators.py:10:12
+9	        return p1, p2
+10	    point = random.randint(1, min(len(p1), len(p2)) - 1)
+11	    return p1[:point] + p2[point:], p2[:point] + p1[point:]
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\core\evolution\operators.py:18:10
+17	        return individual
+18	    idx = random.randrange(len(individual))
+19	    individual[idx] += random.gauss(0.0, sigma)
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\core\population_manager.py:162:42
+161	                    parameters={
+162	                        'risk_tolerance': random.uniform(0.1, 0.9),
+163	                        'position_size_factor': random.uniform(0.01, 0.1),
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\core\population_manager.py:163:48
+162	                        'risk_tolerance': random.uniform(0.1, 0.9),
+163	                        'position_size_factor': random.uniform(0.01, 0.1),
+164	                        'stop_loss_factor': random.uniform(0.005, 0.05),
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\core\population_manager.py:164:44
+163	                        'position_size_factor': random.uniform(0.01, 0.1),
+164	                        'stop_loss_factor': random.uniform(0.005, 0.05),
+165	                        'take_profit_factor': random.uniform(0.01, 0.1),
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\core\population_manager.py:165:46
+164	                        'stop_loss_factor': random.uniform(0.005, 0.05),
+165	                        'take_profit_factor': random.uniform(0.01, 0.1),
+166	                        'trend_sensitivity': random.uniform(0.1, 1.0),
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\core\population_manager.py:166:45
+165	                        'take_profit_factor': random.uniform(0.01, 0.1),
+166	                        'trend_sensitivity': random.uniform(0.1, 1.0),
+167	                        'volatility_threshold': random.uniform(0.001, 0.01),
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\core\population_manager.py:167:48
+166	                        'trend_sensitivity': random.uniform(0.1, 1.0),
+167	                        'volatility_threshold': random.uniform(0.001, 0.01),
+168	                        'correlation_threshold': random.uniform(0.3, 0.9),
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\core\population_manager.py:168:49
+167	                        'volatility_threshold': random.uniform(0.001, 0.01),
+168	                        'correlation_threshold': random.uniform(0.3, 0.9),
+169	                        'momentum_window': random.randint(5, 50),
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\core\population_manager.py:169:43
+168	                        'correlation_threshold': random.uniform(0.3, 0.9),
+169	                        'momentum_window': random.randint(5, 50),
+170	                        'mean_reversion_factor': random.uniform(0.1, 0.8),
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\core\population_manager.py:170:49
+169	                        'momentum_window': random.randint(5, 50),
+170	                        'mean_reversion_factor': random.uniform(0.1, 0.8),
+171	                        'market_regime_sensitivity': random.uniform(0.2, 0.8)
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\core\population_manager.py:171:53
+170	                        'mean_reversion_factor': random.uniform(0.1, 0.8),
+171	                        'market_regime_sensitivity': random.uniform(0.2, 0.8)
+172	                    },
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\core\population_manager.py:258:21
+257	        
+258	        tournament = random.sample(self.population, min(tournament_size, len(self.population)))
+259	        return max(tournament, key=lambda g: g.fitness)
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\core\population_manager.py:267:51
+266	        # Create new genome ID
+267	        offspring_id = f"genome_{self.generation}_{random.randint(1000, 9999)}"
+268	        
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\core\population_manager.py:272:15
+271	        for key in parent1.parameters:
+272	            if random.random() < 0.5:
+273	                offspring_params[key] = parent1.parameters[key]
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\core\population_manager.py:293:15
+292	        for key, value in genome.parameters.items():
+293	            if random.random() < mutation_rate:
+294	                if isinstance(value, float):
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\core\population_manager.py:300:60
+299	                    # Integer mutation
+300	                    genome.parameters[key] = max(1, value + random.randint(-5, 5))
+301	                
+
+--------------------------------------------------
+>> Issue: [B608:hardcoded_sql_expressions] Possible SQL injection vector through string-based query construction.
+   Severity: Medium   Confidence: Medium
+   CWE: CWE-89 (https://cwe.mitre.org/data/definitions/89.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b608_hardcoded_sql_expressions.html
+   Location: src\data_foundation\ingest\yahoo_ingest.py:64:18
+63	    )
+64	    con.execute(f"DELETE FROM {table} WHERE symbol IN ({','.join(['?']*len(df['symbol'].unique()))})", list(df['symbol'].unique()))
+65	    con.register("tmp_df", df)
+
+--------------------------------------------------
+>> Issue: [B608:hardcoded_sql_expressions] Possible SQL injection vector through string-based query construction.
+   Severity: Medium   Confidence: Medium
+   CWE: CWE-89 (https://cwe.mitre.org/data/definitions/89.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b608_hardcoded_sql_expressions.html
+   Location: src\data_foundation\ingest\yahoo_ingest.py:66:18
+65	    con.register("tmp_df", df)
+66	    con.execute(f"INSERT INTO {table} SELECT * FROM tmp_df")
+67	    con.close()
+
+--------------------------------------------------
+>> Issue: [B112:try_except_continue] Try, Except, Continue detected.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b112_try_except_continue.html
+   Location: src\data_foundation\replay\multidim_replayer.py:18:16
+17	                    yield json.loads(line)
+18	                except Exception:
+19	                    continue
+20	    except Exception:
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\ecosystem\optimization\ecosystem_optimizer.py:169:26
+168	            if len(scored_population) >= 2:
+169	                parent1 = random.choice(scored_population[:max(5, len(scored_population)//2)])[1]
+170	                parent2 = random.choice(scored_population[:max(5, len(scored_population)//2)])[1]
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\ecosystem\optimization\ecosystem_optimizer.py:170:26
+169	                parent1 = random.choice(scored_population[:max(5, len(scored_population)//2)])[1]
+170	                parent2 = random.choice(scored_population[:max(5, len(scored_population)//2)])[1]
+171	                child = self._crossover_genomes(parent1, parent2)
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\ecosystem\optimization\ecosystem_optimizer.py:175:25
+174	            
+175	            if child and random.random() < self.optimization_params['mutation_rate']:
+176	                child = self._mutate_genome(child)
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\ecosystem\optimization\ecosystem_optimizer.py:220:15
+219	        for key in parent1.parameters:
+220	            if random.random() < 0.5:
+221	                child.parameters[key] = parent1.parameters[key]
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\ecosystem\optimization\ecosystem_optimizer.py:231:15
+230	        for key in parent1.risk_profile:
+231	            if random.random() < 0.5:
+232	                child.risk_profile[key] = parent1.risk_profile[key]
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\ecosystem\optimization\ecosystem_optimizer.py:252:15
+251	        for key, value in mutated.parameters.items():
+252	            if random.random() < 0.1:  # 10% mutation rate
+253	                if isinstance(value, float):
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\ecosystem\optimization\ecosystem_optimizer.py:254:54
+253	                if isinstance(value, float):
+254	                    mutated.parameters[key] = value * random.uniform(0.8, 1.2)
+255	                elif isinstance(value, int):
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\ecosystem\optimization\ecosystem_optimizer.py:256:61
+255	                elif isinstance(value, int):
+256	                    mutated.parameters[key] = max(1, value + random.randint(-2, 2))
+257	        
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\ecosystem\species\factories.py:23:28
+22	            parameters={
+23	                'sma_fast': random.randint(50, 200),
+24	                'sma_slow': random.randint(100, 400),
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\ecosystem\species\factories.py:24:28
+23	                'sma_fast': random.randint(50, 200),
+24	                'sma_slow': random.randint(100, 400),
+25	                'ema_period': random.randint(20, 100),
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\ecosystem\species\factories.py:25:30
+24	                'sma_slow': random.randint(100, 400),
+25	                'ema_period': random.randint(20, 100),
+26	                'adx_period': random.randint(14, 28),
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\ecosystem\species\factories.py:26:30
+25	                'ema_period': random.randint(20, 100),
+26	                'adx_period': random.randint(14, 28),
+27	                'adx_threshold': random.uniform(20, 30),
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\ecosystem\species\factories.py:27:33
+26	                'adx_period': random.randint(14, 28),
+27	                'adx_threshold': random.uniform(20, 30),
+28	                'rsi_period': random.randint(14, 21),
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\ecosystem\species\factories.py:28:30
+27	                'adx_threshold': random.uniform(20, 30),
+28	                'rsi_period': random.randint(14, 21),
+29	                'rsi_oversold': random.uniform(25, 35),
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\ecosystem\species\factories.py:29:32
+28	                'rsi_period': random.randint(14, 21),
+29	                'rsi_oversold': random.uniform(25, 35),
+30	                'rsi_overbought': random.uniform(65, 75),
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\ecosystem\species\factories.py:30:34
+29	                'rsi_oversold': random.uniform(25, 35),
+30	                'rsi_overbought': random.uniform(65, 75),
+31	                'min_trend_duration': random.randint(5, 15),
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\ecosystem\species\factories.py:31:38
+30	                'rsi_overbought': random.uniform(65, 75),
+31	                'min_trend_duration': random.randint(5, 15),
+32	                'confirmation_bars': random.randint(3, 8),
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\ecosystem\species\factories.py:32:37
+31	                'min_trend_duration': random.randint(5, 15),
+32	                'confirmation_bars': random.randint(3, 8),
+33	                'max_volatility': random.uniform(0.02, 0.05),
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\ecosystem\species\factories.py:33:34
+32	                'confirmation_bars': random.randint(3, 8),
+33	                'max_volatility': random.uniform(0.02, 0.05),
+34	                'volatility_period': random.randint(20, 50)
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\ecosystem\species\factories.py:34:37
+33	                'max_volatility': random.uniform(0.02, 0.05),
+34	                'volatility_period': random.randint(20, 50)
+35	            },
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\ecosystem\species\factories.py:52:37
+51	            risk_profile={
+52	                'max_position_size': random.uniform(0.05, 0.15),
+53	                'stop_loss_pct': random.uniform(0.02, 0.05),
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\ecosystem\species\factories.py:53:33
+52	                'max_position_size': random.uniform(0.05, 0.15),
+53	                'stop_loss_pct': random.uniform(0.02, 0.05),
+54	                'take_profit_pct': random.uniform(0.05, 0.15),
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\ecosystem\species\factories.py:54:35
+53	                'stop_loss_pct': random.uniform(0.02, 0.05),
+54	                'take_profit_pct': random.uniform(0.05, 0.15),
+55	                'max_drawdown': random.uniform(0.05, 0.10),
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\ecosystem\species\factories.py:55:32
+54	                'take_profit_pct': random.uniform(0.05, 0.15),
+55	                'max_drawdown': random.uniform(0.05, 0.10),
+56	                'risk_reward_ratio': random.uniform(2.0, 4.0)
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\ecosystem\species\factories.py:56:37
+55	                'max_drawdown': random.uniform(0.05, 0.10),
+56	                'risk_reward_ratio': random.uniform(2.0, 4.0)
+57	            }
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\ecosystem\species\factories.py:86:28
+85	            parameters={
+86	                'sma_fast': random.randint(3, 10),
+87	                'sma_slow': random.randint(5, 20),
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\ecosystem\species\factories.py:87:28
+86	                'sma_fast': random.randint(3, 10),
+87	                'sma_slow': random.randint(5, 20),
+88	                'ema_period': random.randint(3, 12),
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\ecosystem\species\factories.py:88:30
+87	                'sma_slow': random.randint(5, 20),
+88	                'ema_period': random.randint(3, 12),
+89	                'rsi_period': random.randint(5, 10),
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\ecosystem\species\factories.py:89:30
+88	                'ema_period': random.randint(3, 12),
+89	                'rsi_period': random.randint(5, 10),
+90	                'rsi_oversold': random.uniform(15, 25),
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\ecosystem\species\factories.py:90:32
+89	                'rsi_period': random.randint(5, 10),
+90	                'rsi_oversold': random.uniform(15, 25),
+91	                'rsi_overbought': random.uniform(75, 85),
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\ecosystem\species\factories.py:91:34
+90	                'rsi_oversold': random.uniform(15, 25),
+91	                'rsi_overbought': random.uniform(75, 85),
+92	                'bb_period': random.randint(10, 20),
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\ecosystem\species\factories.py:92:29
+91	                'rsi_overbought': random.uniform(75, 85),
+92	                'bb_period': random.randint(10, 20),
+93	                'bb_std': random.uniform(1.5, 2.5),
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\ecosystem\species\factories.py:93:26
+92	                'bb_period': random.randint(10, 20),
+93	                'bb_std': random.uniform(1.5, 2.5),
+94	                'stoch_k': random.randint(5, 14),
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\ecosystem\species\factories.py:94:27
+93	                'bb_std': random.uniform(1.5, 2.5),
+94	                'stoch_k': random.randint(5, 14),
+95	                'stoch_d': random.randint(3, 5),
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\ecosystem\species\factories.py:95:27
+94	                'stoch_k': random.randint(5, 14),
+95	                'stoch_d': random.randint(3, 5),
+96	                'target_pips': random.uniform(5, 20),
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\ecosystem\species\factories.py:96:31
+95	                'stoch_d': random.randint(3, 5),
+96	                'target_pips': random.uniform(5, 20),
+97	                'max_hold_time': random.randint(1, 5),
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\ecosystem\species\factories.py:97:33
+96	                'target_pips': random.uniform(5, 20),
+97	                'max_hold_time': random.randint(1, 5),
+98	                'volatility_threshold': random.uniform(0.001, 0.005)
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\ecosystem\species\factories.py:98:40
+97	                'max_hold_time': random.randint(1, 5),
+98	                'volatility_threshold': random.uniform(0.001, 0.005)
+99	            },
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\ecosystem\species\factories.py:116:37
+115	            risk_profile={
+116	                'max_position_size': random.uniform(0.01, 0.05),
+117	                'stop_loss_pct': random.uniform(0.005, 0.015),
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\ecosystem\species\factories.py:117:33
+116	                'max_position_size': random.uniform(0.01, 0.05),
+117	                'stop_loss_pct': random.uniform(0.005, 0.015),
+118	                'take_profit_pct': random.uniform(0.01, 0.03),
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\ecosystem\species\factories.py:118:35
+117	                'stop_loss_pct': random.uniform(0.005, 0.015),
+118	                'take_profit_pct': random.uniform(0.01, 0.03),
+119	                'max_drawdown': random.uniform(0.02, 0.05),
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\ecosystem\species\factories.py:119:32
+118	                'take_profit_pct': random.uniform(0.01, 0.03),
+119	                'max_drawdown': random.uniform(0.02, 0.05),
+120	                'risk_reward_ratio': random.uniform(1.0, 2.0)
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\ecosystem\species\factories.py:120:37
+119	                'max_drawdown': random.uniform(0.02, 0.05),
+120	                'risk_reward_ratio': random.uniform(1.0, 2.0)
+121	            }
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\ecosystem\species\factories.py:149:27
+148	            parameters={
+149	                'tf1_sma': random.randint(5, 15),
+150	                'tf2_sma': random.randint(15, 30),
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\ecosystem\species\factories.py:150:27
+149	                'tf1_sma': random.randint(5, 15),
+150	                'tf2_sma': random.randint(15, 30),
+151	                'tf3_sma': random.randint(30, 60),
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\ecosystem\species\factories.py:151:27
+150	                'tf2_sma': random.randint(15, 30),
+151	                'tf3_sma': random.randint(30, 60),
+152	                'alignment_threshold': random.uniform(0.7, 0.9),
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\ecosystem\species\factories.py:152:39
+151	                'tf3_sma': random.randint(30, 60),
+152	                'alignment_threshold': random.uniform(0.7, 0.9),
+153	                'confirmation_count': random.randint(2, 4),
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\ecosystem\species\factories.py:153:38
+152	                'alignment_threshold': random.uniform(0.7, 0.9),
+153	                'confirmation_count': random.randint(2, 4),
+154	                'rsi_tf1': random.randint(7, 14),
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\ecosystem\species\factories.py:154:27
+153	                'confirmation_count': random.randint(2, 4),
+154	                'rsi_tf1': random.randint(7, 14),
+155	                'rsi_tf2': random.randint(14, 21),
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\ecosystem\species\factories.py:155:27
+154	                'rsi_tf1': random.randint(7, 14),
+155	                'rsi_tf2': random.randint(14, 21),
+156	                'rsi_tf3': random.randint(21, 28),
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\ecosystem\species\factories.py:156:27
+155	                'rsi_tf2': random.randint(14, 21),
+156	                'rsi_tf3': random.randint(21, 28),
+157	                'correlation_period': random.randint(20, 50),
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\ecosystem\species\factories.py:157:38
+156	                'rsi_tf3': random.randint(21, 28),
+157	                'correlation_period': random.randint(20, 50),
+158	                'min_correlation': random.uniform(0.6, 0.8),
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\ecosystem\species\factories.py:158:35
+157	                'correlation_period': random.randint(20, 50),
+158	                'min_correlation': random.uniform(0.6, 0.8),
+159	                'entry_delay': random.uniform(0.1, 0.5),
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\ecosystem\species\factories.py:159:31
+158	                'min_correlation': random.uniform(0.6, 0.8),
+159	                'entry_delay': random.uniform(0.1, 0.5),
+160	                'exit_delay': random.uniform(0.1, 0.3)
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\ecosystem\species\factories.py:160:30
+159	                'entry_delay': random.uniform(0.1, 0.5),
+160	                'exit_delay': random.uniform(0.1, 0.3)
+161	            },
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\ecosystem\species\factories.py:178:37
+177	            risk_profile={
+178	                'max_position_size': random.uniform(0.03, 0.08),
+179	                'stop_loss_pct': random.uniform(0.01, 0.03),
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\ecosystem\species\factories.py:179:33
+178	                'max_position_size': random.uniform(0.03, 0.08),
+179	                'stop_loss_pct': random.uniform(0.01, 0.03),
+180	                'take_profit_pct': random.uniform(0.02, 0.06),
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\ecosystem\species\factories.py:180:35
+179	                'stop_loss_pct': random.uniform(0.01, 0.03),
+180	                'take_profit_pct': random.uniform(0.02, 0.06),
+181	                'max_drawdown': random.uniform(0.03, 0.08),
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\ecosystem\species\factories.py:181:32
+180	                'take_profit_pct': random.uniform(0.02, 0.06),
+181	                'max_drawdown': random.uniform(0.03, 0.08),
+182	                'risk_reward_ratio': random.uniform(1.5, 3.0)
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\ecosystem\species\factories.py:182:37
+181	                'max_drawdown': random.uniform(0.03, 0.08),
+182	                'risk_reward_ratio': random.uniform(1.5, 3.0)
+183	            }
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\ecosystem\species\factories.py:210:33
+209	            parameters={
+210	                'gap_threshold': random.uniform(0.001, 0.005),
+211	                'gap_fill_target': random.uniform(0.5, 0.8),
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\ecosystem\species\factories.py:211:35
+210	                'gap_threshold': random.uniform(0.001, 0.005),
+211	                'gap_fill_target': random.uniform(0.5, 0.8),
+212	                'volume_spike_threshold': random.uniform(2.0, 5.0),
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\ecosystem\species\factories.py:212:42
+211	                'gap_fill_target': random.uniform(0.5, 0.8),
+212	                'volume_spike_threshold': random.uniform(2.0, 5.0),
+213	                'price_spike_threshold': random.uniform(0.005, 0.02),
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\ecosystem\species\factories.py:213:41
+212	                'volume_spike_threshold': random.uniform(2.0, 5.0),
+213	                'price_spike_threshold': random.uniform(0.005, 0.02),
+214	                'correlation_deviation': random.uniform(0.01, 0.03),
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\ecosystem\species\factories.py:214:41
+213	                'price_spike_threshold': random.uniform(0.005, 0.02),
+214	                'correlation_deviation': random.uniform(0.01, 0.03),
+215	                'mean_reversion_speed': random.uniform(0.1, 0.3),
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\ecosystem\species\factories.py:215:40
+214	                'correlation_deviation': random.uniform(0.01, 0.03),
+215	                'mean_reversion_speed': random.uniform(0.1, 0.3),
+216	                'liquidity_threshold': random.uniform(1000, 5000),
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\ecosystem\species\factories.py:216:39
+215	                'mean_reversion_speed': random.uniform(0.1, 0.3),
+216	                'liquidity_threshold': random.uniform(1000, 5000),
+217	                'spread_threshold': random.uniform(0.0001, 0.0005),
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\ecosystem\species\factories.py:217:36
+216	                'liquidity_threshold': random.uniform(1000, 5000),
+217	                'spread_threshold': random.uniform(0.0001, 0.0005),
+218	                'reaction_time': random.uniform(0.1, 0.5),
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\ecosystem\species\factories.py:218:33
+217	                'spread_threshold': random.uniform(0.0001, 0.0005),
+218	                'reaction_time': random.uniform(0.1, 0.5),
+219	                'opportunity_window': random.uniform(1, 10)
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\ecosystem\species\factories.py:219:38
+218	                'reaction_time': random.uniform(0.1, 0.5),
+219	                'opportunity_window': random.uniform(1, 10)
+220	            },
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\ecosystem\species\factories.py:237:37
+236	            risk_profile={
+237	                'max_position_size': random.uniform(0.02, 0.06),
+238	                'stop_loss_pct': random.uniform(0.008, 0.02),
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\ecosystem\species\factories.py:238:33
+237	                'max_position_size': random.uniform(0.02, 0.06),
+238	                'stop_loss_pct': random.uniform(0.008, 0.02),
+239	                'take_profit_pct': random.uniform(0.01, 0.04),
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\ecosystem\species\factories.py:239:35
+238	                'stop_loss_pct': random.uniform(0.008, 0.02),
+239	                'take_profit_pct': random.uniform(0.01, 0.04),
+240	                'max_drawdown': random.uniform(0.02, 0.06),
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\ecosystem\species\factories.py:240:32
+239	                'take_profit_pct': random.uniform(0.01, 0.04),
+240	                'max_drawdown': random.uniform(0.02, 0.06),
+241	                'risk_reward_ratio': random.uniform(1.2, 2.5)
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\ecosystem\species\factories.py:241:37
+240	                'max_drawdown': random.uniform(0.02, 0.06),
+241	                'risk_reward_ratio': random.uniform(1.2, 2.5)
+242	            }
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\ecosystem\species\factories.py:268:38
+267	            parameters={
+268	                'market_lead_period': random.randint(10, 30),
+269	                'leadership_threshold': random.uniform(0.6, 0.9),
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\ecosystem\species\factories.py:269:40
+268	                'market_lead_period': random.randint(10, 30),
+269	                'leadership_threshold': random.uniform(0.6, 0.9),
+270	                'volume_lead_ratio': random.uniform(1.5, 3.0),
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\ecosystem\species\factories.py:270:37
+269	                'leadership_threshold': random.uniform(0.6, 0.9),
+270	                'volume_lead_ratio': random.uniform(1.5, 3.0),
+271	                'volume_confirmation': random.uniform(0.8, 1.0),
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\ecosystem\species\factories.py:271:39
+270	                'volume_lead_ratio': random.uniform(1.5, 3.0),
+271	                'volume_confirmation': random.uniform(0.8, 1.0),
+272	                'price_lead_distance': random.uniform(0.002, 0.01),
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\ecosystem\species\factories.py:272:39
+271	                'volume_confirmation': random.uniform(0.8, 1.0),
+272	                'price_lead_distance': random.uniform(0.002, 0.01),
+273	                'momentum_lead': random.uniform(0.01, 0.05),
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\ecosystem\species\factories.py:273:33
+272	                'price_lead_distance': random.uniform(0.002, 0.01),
+273	                'momentum_lead': random.uniform(0.01, 0.05),
+274	                'sentiment_threshold': random.uniform(0.7, 0.95),
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\ecosystem\species\factories.py:274:39
+273	                'momentum_lead': random.uniform(0.01, 0.05),
+274	                'sentiment_threshold': random.uniform(0.7, 0.95),
+275	                'sentiment_period': random.randint(5, 15),
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\ecosystem\species\factories.py:275:36
+274	                'sentiment_threshold': random.uniform(0.7, 0.95),
+275	                'sentiment_period': random.randint(5, 15),
+276	                'leader_stop_distance': random.uniform(0.01, 0.03),
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\ecosystem\species\factories.py:276:40
+275	                'sentiment_period': random.randint(5, 15),
+276	                'leader_stop_distance': random.uniform(0.01, 0.03),
+277	                'follower_confirmation': random.uniform(0.5, 0.8)
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\ecosystem\species\factories.py:277:41
+276	                'leader_stop_distance': random.uniform(0.01, 0.03),
+277	                'follower_confirmation': random.uniform(0.5, 0.8)
+278	            },
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\ecosystem\species\factories.py:295:37
+294	            risk_profile={
+295	                'max_position_size': random.uniform(0.08, 0.20),
+296	                'stop_loss_pct': random.uniform(0.015, 0.04),
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\ecosystem\species\factories.py:296:33
+295	                'max_position_size': random.uniform(0.08, 0.20),
+296	                'stop_loss_pct': random.uniform(0.015, 0.04),
+297	                'take_profit_pct': random.uniform(0.04, 0.12),
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\ecosystem\species\factories.py:297:35
+296	                'stop_loss_pct': random.uniform(0.015, 0.04),
+297	                'take_profit_pct': random.uniform(0.04, 0.12),
+298	                'max_drawdown': random.uniform(0.04, 0.10),
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\ecosystem\species\factories.py:298:32
+297	                'take_profit_pct': random.uniform(0.04, 0.12),
+298	                'max_drawdown': random.uniform(0.04, 0.10),
+299	                'risk_reward_ratio': random.uniform(2.5, 5.0)
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\ecosystem\species\factories.py:299:37
+298	                'max_drawdown': random.uniform(0.04, 0.10),
+299	                'risk_reward_ratio': random.uniform(2.5, 5.0)
+300	            }
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\evolution\mutation\gaussian_mutation.py:52:58
+51	        # Update genome ID and mutation count
+52	        mutated.genome_id = f"{genome.genome_id}_mutated_{random.randint(1000, 9999)}"
+53	        mutated.mutation_count = genome.mutation_count + 1
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\evolution\mutation\gaussian_mutation.py:56:11
+55	        # Mutate strategy parameters
+56	        if random.random() < mutation_rate:
+57	            mutated.strategy.entry_threshold = self._mutate_parameter(
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\evolution\mutation\gaussian_mutation.py:60:11
+59	            )
+60	        if random.random() < mutation_rate:
+61	            mutated.strategy.exit_threshold = self._mutate_parameter(
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\evolution\mutation\gaussian_mutation.py:64:11
+63	            )
+64	        if random.random() < mutation_rate:
+65	            mutated.strategy.momentum_weight = self._mutate_parameter(
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\evolution\mutation\gaussian_mutation.py:68:11
+67	            )
+68	        if random.random() < mutation_rate:
+69	            mutated.strategy.trend_weight = self._mutate_parameter(
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\evolution\mutation\gaussian_mutation.py:72:11
+71	            )
+72	        if random.random() < mutation_rate:
+73	            mutated.strategy.volume_weight = self._mutate_parameter(
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\evolution\mutation\gaussian_mutation.py:76:11
+75	            )
+76	        if random.random() < mutation_rate:
+77	            mutated.strategy.sentiment_weight = self._mutate_parameter(
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\evolution\mutation\gaussian_mutation.py:80:11
+79	            )
+80	        if random.random() < mutation_rate:
+81	            mutated.strategy.lookback_period = int(self._mutate_parameter(
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\evolution\mutation\gaussian_mutation.py:86:11
+85	        # Mutate risk parameters
+86	        if random.random() < mutation_rate:
+87	            mutated.risk.risk_tolerance = self._mutate_parameter(
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\evolution\mutation\gaussian_mutation.py:90:11
+89	            )
+90	        if random.random() < mutation_rate:
+91	            mutated.risk.position_size_multiplier = self._mutate_parameter(
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\evolution\mutation\gaussian_mutation.py:94:11
+93	            )
+94	        if random.random() < mutation_rate:
+95	            mutated.risk.stop_loss_threshold = self._mutate_parameter(
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\evolution\mutation\gaussian_mutation.py:98:11
+97	            )
+98	        if random.random() < mutation_rate:
+99	            mutated.risk.take_profit_threshold = self._mutate_parameter(
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\evolution\mutation\gaussian_mutation.py:102:11
+101	            )
+102	        if random.random() < mutation_rate:
+103	            mutated.risk.max_drawdown_limit = self._mutate_parameter(
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\evolution\mutation\gaussian_mutation.py:106:11
+105	            )
+106	        if random.random() < mutation_rate:
+107	            mutated.risk.volatility_threshold = self._mutate_parameter(
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\evolution\mutation\gaussian_mutation.py:110:11
+109	            )
+110	        if random.random() < mutation_rate:
+111	            mutated.risk.correlation_threshold = self._mutate_parameter(
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\evolution\mutation\gaussian_mutation.py:116:11
+115	        # Mutate timing parameters
+116	        if random.random() < mutation_rate:
+117	            mutated.timing.holding_period_min = max(0, int(self._mutate_parameter(
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\evolution\mutation\gaussian_mutation.py:120:11
+119	            )))
+120	        if random.random() < mutation_rate:
+121	            mutated.timing.holding_period_max = max(
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\evolution\mutation\gaussian_mutation.py:125:11
+124	            )
+125	        if random.random() < mutation_rate:
+126	            mutated.timing.reentry_delay = max(0, int(self._mutate_parameter(
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\evolution\mutation\gaussian_mutation.py:135:15
+134	        for weight_name in sensory_weights:
+135	            if random.random() < mutation_rate:
+136	                setattr(mutated.sensory, weight_name, 
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\evolution\mutation\gaussian_mutation.py:144:15
+143	        for weight_name in thinking_weights:
+144	            if random.random() < mutation_rate:
+145	                setattr(mutated.thinking, weight_name, 
+
+--------------------------------------------------
+>> Issue: [B110:try_except_pass] Try, Except, Pass detected.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b110_try_except_pass.html
+   Location: src\genome\__init__.py:17:0
+16	    from .encoders import *  # type: ignore
+17	except Exception:
+18	    pass
+19	try:
+
+--------------------------------------------------
+>> Issue: [B110:try_except_pass] Try, Except, Pass detected.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b110_try_except_pass.html
+   Location: src\genome\__init__.py:21:0
+20	    from .decoders import *  # type: ignore
+21	except Exception:
+22	    pass
+23	from .models import *
+
+--------------------------------------------------
+>> Issue: [B110:try_except_pass] Try, Except, Pass detected.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b110_try_except_pass.html
+   Location: src\governance\safety_manager.py:45:12
+44	                    raise RuntimeError(f"Kill-switch engaged at {self._ctx.kill_switch_path}. Aborting.")
+45	            except Exception:
+46	                # If path check fails, default to allowing startup; callers may log a warning
+47	                pass
+48	
+
+--------------------------------------------------
+>> Issue: [B108:hardcoded_tmp_directory] Probable insecure usage of temp file/directory.
+   Severity: Medium   Confidence: Medium
+   CWE: CWE-377 (https://cwe.mitre.org/data/definitions/377.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b108_hardcoded_tmp_directory.html
+   Location: src\governance\system_config.py:28:55
+27	def _default_kill_switch() -> Path:
+28	    tmp_dir = os.getenv("TMP") or os.getenv("TEMP") or "/tmp"
+29	    return Path(tmp_dir) / "emp_pg.KILL"
+
+--------------------------------------------------
+>> Issue: [B110:try_except_pass] Try, Except, Pass detected.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b110_try_except_pass.html
+   Location: src\operational\icmarkets_robust_application.py:309:12
+308	                self.ssl_socket.send(msg.encode())
+309	            except:
+310	                pass
+311	                
+
+--------------------------------------------------
+>> Issue: [B110:try_except_pass] Try, Except, Pass detected.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b110_try_except_pass.html
+   Location: src\operational\md_capture.py:46:8
+45	            self._fh.close()
+46	        except Exception:
+47	            pass
+48	
+
+--------------------------------------------------
+>> Issue: [B110:try_except_pass] Try, Except, Pass detected.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b110_try_except_pass.html
+   Location: src\operational\md_capture.py:88:24
+87	                            feature_writer(symbol, ob)
+88	                        except Exception:
+89	                            pass
+90	                    emitted += 1
+
+--------------------------------------------------
+>> Issue: [B112:try_except_continue] Try, Except, Continue detected.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b112_try_except_continue.html
+   Location: src\operational\md_capture.py:93:16
+92	                        break
+93	                except Exception:
+94	                    continue
+95	        return emitted
+
+--------------------------------------------------
+>> Issue: [B110:try_except_pass] Try, Except, Pass detected.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b110_try_except_pass.html
+   Location: src\operational\metrics.py:103:4
+102	        fix_md_rejects_total.labels(reason=str(reason or "?")).inc()
+103	    except Exception:
+104	        pass
+105	
+
+--------------------------------------------------
+>> Issue: [B110:try_except_pass] Try, Except, Pass detected.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b110_try_except_pass.html
+   Location: src\operational\metrics.py:125:4
+124	        fix_messages_total.labels(session=session, msg_type=msg_type).inc()
+125	    except Exception:
+126	        pass
+127	
+
+--------------------------------------------------
+>> Issue: [B110:try_except_pass] Try, Except, Pass detected.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b110_try_except_pass.html
+   Location: src\operational\metrics.py:132:4
+131	        fix_session_connected.labels(session=session).set(1 if connected else 0)
+132	    except Exception:
+133	        pass
+134	
+
+--------------------------------------------------
+>> Issue: [B110:try_except_pass] Try, Except, Pass detected.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b110_try_except_pass.html
+   Location: src\operational\metrics.py:139:4
+138	        fix_reconnect_attempts_total.labels(session=session, outcome=outcome).inc()
+139	    except Exception:
+140	        pass
+141	
+
+--------------------------------------------------
+>> Issue: [B110:try_except_pass] Try, Except, Pass detected.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b110_try_except_pass.html
+   Location: src\operational\metrics.py:146:4
+145	        fix_business_rejects_total.labels(ref_msg_type=str(ref_msg_type or "?")).inc()
+146	    except Exception:
+147	        pass
+148	
+
+--------------------------------------------------
+>> Issue: [B110:try_except_pass] Try, Except, Pass detected.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b110_try_except_pass.html
+   Location: src\operational\metrics.py:154:4
+153	            fix_exec_report_latency_seconds.observe(seconds)
+154	    except Exception:
+155	        pass
+156	
+
+--------------------------------------------------
+>> Issue: [B110:try_except_pass] Try, Except, Pass detected.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b110_try_except_pass.html
+   Location: src\operational\metrics.py:162:4
+161	            fix_cancel_latency_seconds.observe(seconds)
+162	    except Exception:
+163	        pass
+164	
+
+--------------------------------------------------
+>> Issue: [B110:try_except_pass] Try, Except, Pass detected.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b110_try_except_pass.html
+   Location: src\operational\metrics.py:169:4
+168	        fix_md_staleness_seconds.labels(symbol=symbol).set(max(0.0, seconds))
+169	    except Exception:
+170	        pass
+171	
+
+--------------------------------------------------
+>> Issue: [B110:try_except_pass] Try, Except, Pass detected.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b110_try_except_pass.html
+   Location: src\operational\metrics.py:198:4
+197	            fix_heartbeat_interval_seconds.labels(session=session).observe(seconds)
+198	    except Exception:
+199	        pass
+200	
+
+--------------------------------------------------
+>> Issue: [B110:try_except_pass] Try, Except, Pass detected.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b110_try_except_pass.html
+   Location: src\operational\metrics.py:205:4
+204	        fix_test_requests_total.labels(session=session).inc()
+205	    except Exception:
+206	        pass
+207	
+
+--------------------------------------------------
+>> Issue: [B110:try_except_pass] Try, Except, Pass detected.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b110_try_except_pass.html
+   Location: src\operational\metrics.py:212:4
+211	        fix_missed_heartbeats_total.labels(session=session).inc()
+212	    except Exception:
+213	        pass
+214	
+
+--------------------------------------------------
+>> Issue: [B110:try_except_pass] Try, Except, Pass detected.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b110_try_except_pass.html
+   Location: src\operational\metrics.py:227:4
+226	        fix_pretrade_denials_total.labels(symbol=symbol, reason=reason).inc()
+227	    except Exception:
+228	        pass
+229	
+
+--------------------------------------------------
+>> Issue: [B110:try_except_pass] Try, Except, Pass detected.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b110_try_except_pass.html
+   Location: src\operational\metrics.py:254:4
+253	        vol_sigma_ann.labels(symbol=symbol).set(max(0.0, sigma_ann))
+254	    except Exception:
+255	        pass
+256	
+
+--------------------------------------------------
+>> Issue: [B110:try_except_pass] Try, Except, Pass detected.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b110_try_except_pass.html
+   Location: src\operational\metrics.py:261:4
+260	        vol_regime_total.labels(symbol=symbol, regime=str(regime)).inc()
+261	    except Exception:
+262	        pass
+263	
+
+--------------------------------------------------
+>> Issue: [B110:try_except_pass] Try, Except, Pass detected.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b110_try_except_pass.html
+   Location: src\operational\metrics.py:268:4
+267	        vol_rv_garch_divergence.labels(symbol=symbol).set(max(0.0, divergence))
+268	    except Exception:
+269	        pass
+270	
+
+--------------------------------------------------
+>> Issue: [B110:try_except_pass] Try, Except, Pass detected.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b110_try_except_pass.html
+   Location: src\operational\metrics.py:295:4
+294	        why_composite_signal.labels(symbol=symbol).set(float(value))
+295	    except Exception:
+296	        pass
+297	
+
+--------------------------------------------------
+>> Issue: [B110:try_except_pass] Try, Except, Pass detected.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b110_try_except_pass.html
+   Location: src\operational\metrics.py:302:4
+301	        why_confidence.labels(symbol=symbol).set(max(0.0, min(1.0, float(value))))
+302	    except Exception:
+303	        pass
+304	
+
+--------------------------------------------------
+>> Issue: [B110:try_except_pass] Try, Except, Pass detected.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b110_try_except_pass.html
+   Location: src\operational\metrics.py:309:4
+308	        why_feature_available.labels(feature=str(name)).set(1 if available else 0)
+309	    except Exception:
+310	        pass
+311	
+
+--------------------------------------------------
+>> Issue: [B110:try_except_pass] Try, Except, Pass detected.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b110_try_except_pass.html
+   Location: src\operational\mock_fix.py:32:20
+31	                        cb(info)
+32	                    except Exception:
+33	                        pass
+34	            threading.Thread(target=_emit_reject, daemon=True).start()
+
+--------------------------------------------------
+>> Issue: [B110:try_except_pass] Try, Except, Pass detected.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b110_try_except_pass.html
+   Location: src\operational\mock_fix.py:45:20
+44	                        cb(info)
+45	                    except Exception:
+46	                        pass
+47	            threading.Thread(target=_emit_cancel, daemon=True).start()
+
+--------------------------------------------------
+>> Issue: [B110:try_except_pass] Try, Except, Pass detected.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b110_try_except_pass.html
+   Location: src\operational\mock_fix.py:58:16
+57	                    cb(info)
+58	                except Exception:
+59	                    pass
+60	        def _emit_partial():
+
+--------------------------------------------------
+>> Issue: [B110:try_except_pass] Try, Except, Pass detected.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b110_try_except_pass.html
+   Location: src\operational\mock_fix.py:68:16
+67	                    cb(info)
+68	                except Exception:
+69	                    pass
+70	        def _emit_fill():
+
+--------------------------------------------------
+>> Issue: [B110:try_except_pass] Try, Except, Pass detected.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b110_try_except_pass.html
+   Location: src\operational\mock_fix.py:78:16
+77	                    cb(info)
+78	                except Exception:
+79	                    pass
+80	        threading.Thread(target=_emit_new, daemon=True).start()
+
+--------------------------------------------------
+>> Issue: [B110:try_except_pass] Try, Except, Pass detected.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b110_try_except_pass.html
+   Location: src\operational\mock_fix.py:111:20
+110	                        cb("EURUSD", book)
+111	                    except Exception:
+112	                        pass
+113	                time.sleep(0.05)
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\sensory\organs\dimensions\institutional_tracker.py:615:33
+614	        for i in range(100):
+615	            price = base_price + random.uniform(-5, 5)
+616	            market_data.append(MarketData(
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\sensory\organs\dimensions\institutional_tracker.py:618:29
+617	                timestamp=datetime.now() - timedelta(minutes=i),
+618	                open=price + random.uniform(-1, 1),
+619	                high=price + random.uniform(0, 2),
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\sensory\organs\dimensions\institutional_tracker.py:619:29
+618	                open=price + random.uniform(-1, 1),
+619	                high=price + random.uniform(0, 2),
+620	                low=price - random.uniform(0, 2),
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\sensory\organs\dimensions\institutional_tracker.py:620:28
+619	                high=price + random.uniform(0, 2),
+620	                low=price - random.uniform(0, 2),
+621	                close=price,
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\sensory\organs\dimensions\institutional_tracker.py:622:23
+621	                close=price,
+622	                volume=random.uniform(1000, 10000),
+623	                bid=price - 0.01,
+
+--------------------------------------------------
+>> Issue: [B110:try_except_pass] Try, Except, Pass detected.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b110_try_except_pass.html
+   Location: src\sensory\organs\dimensions\why_organ.py:151:8
+150	            set_why_feature("macro", self.why_cfg.enable_macro_proximity if self.why_cfg else True)
+151	        except Exception:
+152	            pass
+153	        
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\sensory\organs\economic_organ.py:58:16
+57	        trends = ["BULLISH", "BEARISH", "NEUTRAL"]
+58	        trend = random.choice(trends)
+59	        strength = random.uniform(0.3, 0.9)
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\sensory\organs\economic_organ.py:59:19
+58	        trend = random.choice(trends)
+59	        strength = random.uniform(0.3, 0.9)
+60	        
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\sensory\organs\news_organ.py:70:16
+69	        # Add some noise
+70	        noise = random.uniform(-0.1, 0.1)
+71	        sentiment = base_sentiment + noise
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b311-random
+   Location: src\sensory\organs\sentiment_organ.py:55:15
+54	        random.seed(hash(market_data.timestamp) % 1000)
+55	        return random.uniform(0.3, 0.8)
+56	        
+
+--------------------------------------------------
+>> Issue: [B101:assert_used] Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b101_assert_used.html
+   Location: src\sensory\tests\test_integration.py:131:8
+130	
+131	        assert isinstance(reading, DimensionalReading)
+132	        assert reading.dimension == "WHY"
+
+--------------------------------------------------
+>> Issue: [B101:assert_used] Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b101_assert_used.html
+   Location: src\sensory\tests\test_integration.py:132:8
+131	        assert isinstance(reading, DimensionalReading)
+132	        assert reading.dimension == "WHY"
+133	        assert -1.0 <= reading.value <= 1.0
+
+--------------------------------------------------
+>> Issue: [B101:assert_used] Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b101_assert_used.html
+   Location: src\sensory\tests\test_integration.py:133:8
+132	        assert reading.dimension == "WHY"
+133	        assert -1.0 <= reading.value <= 1.0
+134	        assert 0.0 <= reading.confidence <= 1.0
+
+--------------------------------------------------
+>> Issue: [B101:assert_used] Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b101_assert_used.html
+   Location: src\sensory\tests\test_integration.py:134:8
+133	        assert -1.0 <= reading.value <= 1.0
+134	        assert 0.0 <= reading.confidence <= 1.0
+135	        assert isinstance(reading.context, dict)
+
+--------------------------------------------------
+>> Issue: [B101:assert_used] Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b101_assert_used.html
+   Location: src\sensory\tests\test_integration.py:135:8
+134	        assert 0.0 <= reading.confidence <= 1.0
+135	        assert isinstance(reading.context, dict)
+136	        assert reading.timestamp is not None
+
+--------------------------------------------------
+>> Issue: [B101:assert_used] Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b101_assert_used.html
+   Location: src\sensory\tests\test_integration.py:136:8
+135	        assert isinstance(reading.context, dict)
+136	        assert reading.timestamp is not None
+137	
+
+--------------------------------------------------
+>> Issue: [B101:assert_used] Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b101_assert_used.html
+   Location: src\sensory\tests\test_integration.py:147:8
+146	
+147	        assert isinstance(reading, DimensionalReading)
+148	        assert reading.dimension == "HOW"
+
+--------------------------------------------------
+>> Issue: [B101:assert_used] Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b101_assert_used.html
+   Location: src\sensory\tests\test_integration.py:148:8
+147	        assert isinstance(reading, DimensionalReading)
+148	        assert reading.dimension == "HOW"
+149	        assert -1.0 <= reading.value <= 1.0
+
+--------------------------------------------------
+>> Issue: [B101:assert_used] Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b101_assert_used.html
+   Location: src\sensory\tests\test_integration.py:149:8
+148	        assert reading.dimension == "HOW"
+149	        assert -1.0 <= reading.value <= 1.0
+150	        assert 0.0 <= reading.confidence <= 1.0
+
+--------------------------------------------------
+>> Issue: [B101:assert_used] Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b101_assert_used.html
+   Location: src\sensory\tests\test_integration.py:150:8
+149	        assert -1.0 <= reading.value <= 1.0
+150	        assert 0.0 <= reading.confidence <= 1.0
+151	        assert isinstance(reading.context, dict)
+
+--------------------------------------------------
+>> Issue: [B101:assert_used] Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b101_assert_used.html
+   Location: src\sensory\tests\test_integration.py:151:8
+150	        assert 0.0 <= reading.confidence <= 1.0
+151	        assert isinstance(reading.context, dict)
+152	
+
+--------------------------------------------------
+>> Issue: [B101:assert_used] Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b101_assert_used.html
+   Location: src\sensory\tests\test_integration.py:162:8
+161	
+162	        assert isinstance(reading, DimensionalReading)
+163	        assert reading.dimension == "WHAT"
+
+--------------------------------------------------
+>> Issue: [B101:assert_used] Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b101_assert_used.html
+   Location: src\sensory\tests\test_integration.py:163:8
+162	        assert isinstance(reading, DimensionalReading)
+163	        assert reading.dimension == "WHAT"
+164	        assert -1.0 <= reading.value <= 1.0
+
+--------------------------------------------------
+>> Issue: [B101:assert_used] Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b101_assert_used.html
+   Location: src\sensory\tests\test_integration.py:164:8
+163	        assert reading.dimension == "WHAT"
+164	        assert -1.0 <= reading.value <= 1.0
+165	        assert 0.0 <= reading.confidence <= 1.0
+
+--------------------------------------------------
+>> Issue: [B101:assert_used] Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b101_assert_used.html
+   Location: src\sensory\tests\test_integration.py:165:8
+164	        assert -1.0 <= reading.value <= 1.0
+165	        assert 0.0 <= reading.confidence <= 1.0
+166	        assert isinstance(reading.context, dict)
+
+--------------------------------------------------
+>> Issue: [B101:assert_used] Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b101_assert_used.html
+   Location: src\sensory\tests\test_integration.py:166:8
+165	        assert 0.0 <= reading.confidence <= 1.0
+166	        assert isinstance(reading.context, dict)
+167	
+
+--------------------------------------------------
+>> Issue: [B101:assert_used] Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b101_assert_used.html
+   Location: src\sensory\tests\test_integration.py:177:8
+176	
+177	        assert isinstance(reading, DimensionalReading)
+178	        assert reading.dimension == "WHEN"
+
+--------------------------------------------------
+>> Issue: [B101:assert_used] Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b101_assert_used.html
+   Location: src\sensory\tests\test_integration.py:178:8
+177	        assert isinstance(reading, DimensionalReading)
+178	        assert reading.dimension == "WHEN"
+179	        assert -1.0 <= reading.value <= 1.0
+
+--------------------------------------------------
+>> Issue: [B101:assert_used] Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b101_assert_used.html
+   Location: src\sensory\tests\test_integration.py:179:8
+178	        assert reading.dimension == "WHEN"
+179	        assert -1.0 <= reading.value <= 1.0
+180	        assert 0.0 <= reading.confidence <= 1.0
+
+--------------------------------------------------
+>> Issue: [B101:assert_used] Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b101_assert_used.html
+   Location: src\sensory\tests\test_integration.py:180:8
+179	        assert -1.0 <= reading.value <= 1.0
+180	        assert 0.0 <= reading.confidence <= 1.0
+181	        assert isinstance(reading.context, dict)
+
+--------------------------------------------------
+>> Issue: [B101:assert_used] Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b101_assert_used.html
+   Location: src\sensory\tests\test_integration.py:181:8
+180	        assert 0.0 <= reading.confidence <= 1.0
+181	        assert isinstance(reading.context, dict)
+182	
+
+--------------------------------------------------
+>> Issue: [B101:assert_used] Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b101_assert_used.html
+   Location: src\sensory\tests\test_integration.py:192:8
+191	
+192	        assert isinstance(reading, DimensionalReading)
+193	        assert reading.dimension == "ANOMALY"
+
+--------------------------------------------------
+>> Issue: [B101:assert_used] Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b101_assert_used.html
+   Location: src\sensory\tests\test_integration.py:193:8
+192	        assert isinstance(reading, DimensionalReading)
+193	        assert reading.dimension == "ANOMALY"
+194	        assert 0.0 <= reading.value <= 1.0  # Anomaly is always positive
+
+--------------------------------------------------
+>> Issue: [B101:assert_used] Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b101_assert_used.html
+   Location: src\sensory\tests\test_integration.py:194:8
+193	        assert reading.dimension == "ANOMALY"
+194	        assert 0.0 <= reading.value <= 1.0  # Anomaly is always positive
+195	        assert 0.0 <= reading.confidence <= 1.0
+
+--------------------------------------------------
+>> Issue: [B101:assert_used] Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b101_assert_used.html
+   Location: src\sensory\tests\test_integration.py:195:8
+194	        assert 0.0 <= reading.value <= 1.0  # Anomaly is always positive
+195	        assert 0.0 <= reading.confidence <= 1.0
+196	        assert isinstance(reading.context, dict)
+
+--------------------------------------------------
+>> Issue: [B101:assert_used] Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b101_assert_used.html
+   Location: src\sensory\tests\test_integration.py:196:8
+195	        assert 0.0 <= reading.confidence <= 1.0
+196	        assert isinstance(reading.context, dict)
+197	
+
+--------------------------------------------------
+>> Issue: [B101:assert_used] Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b101_assert_used.html
+   Location: src\sensory\tests\test_integration.py:235:12
+234	        for name, reading in readings.items():
+235	            assert reading is not None
+236	            assert reading.dimension == name
+
+--------------------------------------------------
+>> Issue: [B101:assert_used] Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b101_assert_used.html
+   Location: src\sensory\tests\test_integration.py:236:12
+235	            assert reading is not None
+236	            assert reading.dimension == name
+237	            assert isinstance(reading.value, (int, float))
+
+--------------------------------------------------
+>> Issue: [B101:assert_used] Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b101_assert_used.html
+   Location: src\sensory\tests\test_integration.py:237:12
+236	            assert reading.dimension == name
+237	            assert isinstance(reading.value, (int, float))
+238	            assert isinstance(reading.confidence, (int, float))
+
+--------------------------------------------------
+>> Issue: [B101:assert_used] Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b101_assert_used.html
+   Location: src\sensory\tests\test_integration.py:238:12
+237	            assert isinstance(reading.value, (int, float))
+238	            assert isinstance(reading.confidence, (int, float))
+239	
+
+--------------------------------------------------
+>> Issue: [B101:assert_used] Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b101_assert_used.html
+   Location: src\sensory\tests\test_integration.py:257:8
+256	        max_anomaly = max(anomaly_readings)
+257	        assert max_anomaly > 0.2, "Should detect anomalies in anomalous data"
+258	
+
+--------------------------------------------------
+>> Issue: [B101:assert_used] Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b101_assert_used.html
+   Location: src\sensory\tests\test_integration.py:282:8
+281	
+282	        assert synthesis is not None
+283	        assert hasattr(synthesis, "intelligence_level")
+
+--------------------------------------------------
+>> Issue: [B101:assert_used] Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b101_assert_used.html
+   Location: src\sensory\tests\test_integration.py:283:8
+282	        assert synthesis is not None
+283	        assert hasattr(synthesis, "intelligence_level")
+284	        assert hasattr(synthesis, "narrative_coherence")
+
+--------------------------------------------------
+>> Issue: [B101:assert_used] Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b101_assert_used.html
+   Location: src\sensory\tests\test_integration.py:284:8
+283	        assert hasattr(synthesis, "intelligence_level")
+284	        assert hasattr(synthesis, "narrative_coherence")
+285	        assert hasattr(synthesis, "unified_score")
+
+--------------------------------------------------
+>> Issue: [B101:assert_used] Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b101_assert_used.html
+   Location: src\sensory\tests\test_integration.py:285:8
+284	        assert hasattr(synthesis, "narrative_coherence")
+285	        assert hasattr(synthesis, "unified_score")
+286	        assert hasattr(synthesis, "confidence")
+
+--------------------------------------------------
+>> Issue: [B101:assert_used] Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b101_assert_used.html
+   Location: src\sensory\tests\test_integration.py:286:8
+285	        assert hasattr(synthesis, "unified_score")
+286	        assert hasattr(synthesis, "confidence")
+287	        assert hasattr(synthesis, "narrative_text")
+
+--------------------------------------------------
+>> Issue: [B101:assert_used] Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b101_assert_used.html
+   Location: src\sensory\tests\test_integration.py:287:8
+286	        assert hasattr(synthesis, "confidence")
+287	        assert hasattr(synthesis, "narrative_text")
+288	
+
+--------------------------------------------------
+>> Issue: [B101:assert_used] Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b101_assert_used.html
+   Location: src\sensory\tests\test_integration.py:290:8
+289	        # Verify score bounds
+290	        assert -1.0 <= synthesis.unified_score <= 1.0
+291	        assert 0.0 <= synthesis.confidence <= 1.0
+
+--------------------------------------------------
+>> Issue: [B101:assert_used] Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b101_assert_used.html
+   Location: src\sensory\tests\test_integration.py:291:8
+290	        assert -1.0 <= synthesis.unified_score <= 1.0
+291	        assert 0.0 <= synthesis.confidence <= 1.0
+292	
+
+--------------------------------------------------
+>> Issue: [B101:assert_used] Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b101_assert_used.html
+   Location: src\sensory\tests\test_integration.py:310:12
+309	        for synthesis in syntheses:
+310	            assert synthesis is not None
+311	            assert isinstance(synthesis.unified_score, (int, float))
+
+--------------------------------------------------
+>> Issue: [B101:assert_used] Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b101_assert_used.html
+   Location: src\sensory\tests\test_integration.py:311:12
+310	            assert synthesis is not None
+311	            assert isinstance(synthesis.unified_score, (int, float))
+312	            assert isinstance(synthesis.confidence, (int, float))
+
+--------------------------------------------------
+>> Issue: [B101:assert_used] Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b101_assert_used.html
+   Location: src\sensory\tests\test_integration.py:312:12
+311	            assert isinstance(synthesis.unified_score, (int, float))
+312	            assert isinstance(synthesis.confidence, (int, float))
+313	            assert isinstance(synthesis.narrative_text, str)
+
+--------------------------------------------------
+>> Issue: [B101:assert_used] Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b101_assert_used.html
+   Location: src\sensory\tests\test_integration.py:313:12
+312	            assert isinstance(synthesis.confidence, (int, float))
+313	            assert isinstance(synthesis.narrative_text, str)
+314	
+
+--------------------------------------------------
+>> Issue: [B101:assert_used] Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b101_assert_used.html
+   Location: src\sensory\tests\test_integration.py:317:8
+316	        confidences = [s.confidence for s in syntheses]
+317	        assert (
+318	            confidences[-1] >= confidences[0] - 0.1
+319	        ), "Confidence should not degrade significantly"
+320	
+
+--------------------------------------------------
+>> Issue: [B101:assert_used] Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b101_assert_used.html
+   Location: src\sensory\tests\test_integration.py:342:8
+341	        # Weights should adapt
+342	        assert initial_weights is not None
+343	        assert final_weights is not None
+
+--------------------------------------------------
+>> Issue: [B101:assert_used] Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b101_assert_used.html
+   Location: src\sensory\tests\test_integration.py:343:8
+342	        assert initial_weights is not None
+343	        assert final_weights is not None
+344	
+
+--------------------------------------------------
+>> Issue: [B101:assert_used] Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b101_assert_used.html
+   Location: src\sensory\tests\test_integration.py:350:8
+349	        ]
+350	        assert max(weight_changes) > 0.01, "Weights should adapt over time"
+351	
+
+--------------------------------------------------
+>> Issue: [B101:assert_used] Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b101_assert_used.html
+   Location: src\sensory\tests\test_integration.py:366:8
+365	        # Should have some correlations detected
+366	        assert (
+367	            len(correlations) > 0
+368	        ), "Should detect some correlations with sufficient data"
+369	
+
+--------------------------------------------------
+>> Issue: [B101:assert_used] Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b101_assert_used.html
+   Location: src\sensory\tests\test_integration.py:372:12
+371	        for (dim_a, dim_b), correlation in correlations.items():
+372	            assert dim_a in ["WHY", "HOW", "WHAT", "WHEN", "ANOMALY"]
+373	            assert dim_b in ["WHY", "HOW", "WHAT", "WHEN", "ANOMALY"]
+
+--------------------------------------------------
+>> Issue: [B101:assert_used] Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b101_assert_used.html
+   Location: src\sensory\tests\test_integration.py:373:12
+372	            assert dim_a in ["WHY", "HOW", "WHAT", "WHEN", "ANOMALY"]
+373	            assert dim_b in ["WHY", "HOW", "WHAT", "WHEN", "ANOMALY"]
+374	            assert -1.0 <= correlation.correlation <= 1.0
+
+--------------------------------------------------
+>> Issue: [B101:assert_used] Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b101_assert_used.html
+   Location: src\sensory\tests\test_integration.py:374:12
+373	            assert dim_b in ["WHY", "HOW", "WHAT", "WHEN", "ANOMALY"]
+374	            assert -1.0 <= correlation.correlation <= 1.0
+375	            assert 0.0 <= correlation.significance <= 1.0
+
+--------------------------------------------------
+>> Issue: [B101:assert_used] Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b101_assert_used.html
+   Location: src\sensory\tests\test_integration.py:375:12
+374	            assert -1.0 <= correlation.correlation <= 1.0
+375	            assert 0.0 <= correlation.significance <= 1.0
+376	
+
+--------------------------------------------------
+>> Issue: [B101:assert_used] Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b101_assert_used.html
+   Location: src\sensory\tests\test_integration.py:392:12
+391	        for pattern in patterns:
+392	            assert hasattr(pattern, "pattern_name")
+393	            assert hasattr(pattern, "involved_dimensions")
+
+--------------------------------------------------
+>> Issue: [B101:assert_used] Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b101_assert_used.html
+   Location: src\sensory\tests\test_integration.py:393:12
+392	            assert hasattr(pattern, "pattern_name")
+393	            assert hasattr(pattern, "involved_dimensions")
+394	            assert hasattr(pattern, "pattern_strength")
+
+--------------------------------------------------
+>> Issue: [B101:assert_used] Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b101_assert_used.html
+   Location: src\sensory\tests\test_integration.py:394:12
+393	            assert hasattr(pattern, "involved_dimensions")
+394	            assert hasattr(pattern, "pattern_strength")
+395	            assert hasattr(pattern, "confidence")
+
+--------------------------------------------------
+>> Issue: [B101:assert_used] Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b101_assert_used.html
+   Location: src\sensory\tests\test_integration.py:395:12
+394	            assert hasattr(pattern, "pattern_strength")
+395	            assert hasattr(pattern, "confidence")
+396	            assert 0.0 <= pattern.pattern_strength <= 1.0
+
+--------------------------------------------------
+>> Issue: [B101:assert_used] Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b101_assert_used.html
+   Location: src\sensory\tests\test_integration.py:396:12
+395	            assert hasattr(pattern, "confidence")
+396	            assert 0.0 <= pattern.pattern_strength <= 1.0
+397	            assert 0.0 <= pattern.confidence <= 1.0
+
+--------------------------------------------------
+>> Issue: [B101:assert_used] Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b101_assert_used.html
+   Location: src\sensory\tests\test_integration.py:397:12
+396	            assert 0.0 <= pattern.pattern_strength <= 1.0
+397	            assert 0.0 <= pattern.confidence <= 1.0
+398	
+
+--------------------------------------------------
+>> Issue: [B101:assert_used] Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b101_assert_used.html
+   Location: src\sensory\tests\test_integration.py:414:12
+413	        for narrative in narratives:
+414	            assert isinstance(narrative, str)
+415	            assert len(narrative) > 0
+
+--------------------------------------------------
+>> Issue: [B101:assert_used] Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b101_assert_used.html
+   Location: src\sensory\tests\test_integration.py:415:12
+414	            assert isinstance(narrative, str)
+415	            assert len(narrative) > 0
+416	            # Should contain some market-related terms
+
+--------------------------------------------------
+>> Issue: [B101:assert_used] Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b101_assert_used.html
+   Location: src\sensory\tests\test_integration.py:425:12
+424	            ]
+425	            assert any(term in narrative.lower() for term in market_terms)
+426	
+
+--------------------------------------------------
+>> Issue: [B101:assert_used] Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b101_assert_used.html
+   Location: src\sensory\tests\test_integration.py:453:16
+452	                # Verify synthesis is complete
+453	                assert synthesis is not None
+454	                assert synthesis.narrative_text is not None
+
+--------------------------------------------------
+>> Issue: [B101:assert_used] Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b101_assert_used.html
+   Location: src\sensory\tests\test_integration.py:454:16
+453	                assert synthesis is not None
+454	                assert synthesis.narrative_text is not None
+455	                assert len(synthesis.narrative_text) > 0
+
+--------------------------------------------------
+>> Issue: [B101:assert_used] Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b101_assert_used.html
+   Location: src\sensory\tests\test_integration.py:455:16
+454	                assert synthesis.narrative_text is not None
+455	                assert len(synthesis.narrative_text) > 0
+456	                assert isinstance(synthesis.supporting_evidence, list)
+
+--------------------------------------------------
+>> Issue: [B101:assert_used] Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b101_assert_used.html
+   Location: src\sensory\tests\test_integration.py:456:16
+455	                assert len(synthesis.narrative_text) > 0
+456	                assert isinstance(synthesis.supporting_evidence, list)
+457	                assert isinstance(synthesis.risk_factors, list)
+
+--------------------------------------------------
+>> Issue: [B101:assert_used] Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b101_assert_used.html
+   Location: src\sensory\tests\test_integration.py:457:16
+456	                assert isinstance(synthesis.supporting_evidence, list)
+457	                assert isinstance(synthesis.risk_factors, list)
+458	                assert isinstance(synthesis.opportunity_factors, list)
+
+--------------------------------------------------
+>> Issue: [B101:assert_used] Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b101_assert_used.html
+   Location: src\sensory\tests\test_integration.py:458:16
+457	                assert isinstance(synthesis.risk_factors, list)
+458	                assert isinstance(synthesis.opportunity_factors, list)
+459	
+
+--------------------------------------------------
+>> Issue: [B101:assert_used] Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b101_assert_used.html
+   Location: src\sensory\tests\test_integration.py:477:12
+476	            # If it doesn't crash, verify basic structure
+477	            assert synthesis is not None
+478	        except Exception as e:
+
+--------------------------------------------------
+>> Issue: [B101:assert_used] Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b101_assert_used.html
+   Location: src\sensory\tests\test_integration.py:480:12
+479	            # If it does raise an exception, it should be handled gracefully
+480	            assert isinstance(e, (ValueError, TypeError))
+481	
+
+--------------------------------------------------
+>> Issue: [B101:assert_used] Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b101_assert_used.html
+   Location: src\sensory\tests\test_integration.py:501:8
+500	        avg_time_per_analysis = total_time / len(data_sequence)
+501	        assert (
+502	            avg_time_per_analysis < 1.0
+503	        ), f"Analysis taking too long: {avg_time_per_analysis:.3f}s per analysis"
+504	
+
+--------------------------------------------------
+>> Issue: [B101:assert_used] Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b101_assert_used.html
+   Location: src\sensory\tests\test_integration.py:526:8
+525	        # Memory growth should be reasonable (less than 100MB)
+526	        assert (
+527	            memory_growth < 100 * 1024 * 1024
+528	        ), f"Excessive memory growth: {memory_growth / 1024 / 1024:.1f}MB"
+529	
+
+--------------------------------------------------
+>> Issue: [B101:assert_used] Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b101_assert_used.html
+   Location: src\sensory\tests\test_integration.py:535:8
+534	
+535	        assert isinstance(diagnostics, dict)
+536	        assert "current_readings" in diagnostics
+
+--------------------------------------------------
+>> Issue: [B101:assert_used] Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b101_assert_used.html
+   Location: src\sensory\tests\test_integration.py:536:8
+535	        assert isinstance(diagnostics, dict)
+536	        assert "current_readings" in diagnostics
+537	        assert "adaptive_weights" in diagnostics
+
+--------------------------------------------------
+>> Issue: [B101:assert_used] Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b101_assert_used.html
+   Location: src\sensory\tests\test_integration.py:537:8
+536	        assert "current_readings" in diagnostics
+537	        assert "adaptive_weights" in diagnostics
+538	        assert "correlations" in diagnostics
+
+--------------------------------------------------
+>> Issue: [B101:assert_used] Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b101_assert_used.html
+   Location: src\sensory\tests\test_integration.py:538:8
+537	        assert "adaptive_weights" in diagnostics
+538	        assert "correlations" in diagnostics
+539	        assert "patterns" in diagnostics
+
+--------------------------------------------------
+>> Issue: [B101:assert_used] Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b101_assert_used.html
+   Location: src\sensory\tests\test_integration.py:539:8
+538	        assert "correlations" in diagnostics
+539	        assert "patterns" in diagnostics
+540	
+
+--------------------------------------------------
+>> Issue: [B101:assert_used] Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b101_assert_used.html
+   Location: src\sensory\tests\test_integration.py:570:8
+569	        # Should detect bullish trend (positive unified score)
+570	        assert (
+571	            avg_score > 0.1
+572	        ), f"Should detect bullish trend, got average score: {avg_score:.3f}"
+573	
+
+--------------------------------------------------
+>> Issue: [B101:assert_used] Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b101_assert_used.html
+   Location: src\sensory\tests\test_integration.py:591:8
+590	        # Should detect bearish trend (negative unified score)
+591	        assert (
+592	            avg_score < -0.1
+593	        ), f"Should detect bearish trend, got average score: {avg_score:.3f}"
+594	
+
+--------------------------------------------------
+>> Issue: [B101:assert_used] Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b101_assert_used.html
+   Location: src\sensory\tests\test_integration.py:613:8
+612	        # Should have low directional bias
+613	        assert (
+614	            avg_abs_score < 0.4
+615	        ), f"Should detect ranging market, got average absolute score: {avg_abs_score:.3f}"
+616	
+
+--------------------------------------------------
+>> Issue: [B101:assert_used] Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b101_assert_used.html
+   Location: src\sensory\tests\test_integration.py:643:8
+642	        # but should not crash
+643	        assert isinstance(volatility_detected, bool)
+644	
+
+--------------------------------------------------
+>> Issue: [B101:assert_used] Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b101_assert_used.html
+   Location: src\sensory\tests\test_integration.py:663:12
+662	            max_anomaly = max(anomaly_levels)
+663	            assert (
+664	                max_anomaly > 0.2
+665	            ), f"Should detect anomalies, max level: {max_anomaly:.3f}"
+666	
+
+--------------------------------------------------
+>> Issue: [B101:assert_used] Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b101_assert_used.html
+   Location: src\sensory\tests\test_integration.py:700:8
+699	        # Should achieve reasonable throughput
+700	        assert throughput > 1.0, f"Throughput too low: {throughput:.2f} analyses/second"
+701	
+
+--------------------------------------------------
+>> Issue: [B307:blacklist] Use of possibly insecure function - consider using safer ast.literal_eval.
+   Severity: Medium   Confidence: High
+   CWE: CWE-78 (https://cwe.mitre.org/data/definitions/78.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b307-eval
+   Location: src\thinking\adaptation\tactical_adaptation_engine.py:301:25
+300	            if current_params:
+301	                params = eval(current_params)
+302	            else:
+
+--------------------------------------------------
+>> Issue: [B110:try_except_pass] Try, Except, Pass detected.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b110_try_except_pass.html
+   Location: src\thinking\adversarial\adversarial_trainer.py:47:12
+46	                pass
+47	            except Exception:
+48	                # Swallow to avoid breaking training loops during structural migration
+49	                pass
+50	
+
+--------------------------------------------------
+>> Issue: [B110:try_except_pass] Try, Except, Pass detected.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b110_try_except_pass.html
+   Location: src\thinking\adversarial\adversarial_trainer.py:78:8
+77	                self.current_difficulty = max(0.1, self.current_difficulty - 0.05)
+78	        except Exception:
+79	            # Non-fatal; keep loop going
+80	            pass
+81	
+
+--------------------------------------------------
+>> Issue: [B307:blacklist] Use of possibly insecure function - consider using safer ast.literal_eval.
+   Severity: Medium   Confidence: High
+   CWE: CWE-78 (https://cwe.mitre.org/data/definitions/78.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b307-eval
+   Location: src\thinking\adversarial\market_gan.py:299:34
+298	                if data:
+299	                    epochs.append(eval(data))
+300	            
+
+--------------------------------------------------
+>> Issue: [B307:blacklist] Use of possibly insecure function - consider using safer ast.literal_eval.
+   Severity: Medium   Confidence: High
+   CWE: CWE-78 (https://cwe.mitre.org/data/definitions/78.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b307-eval
+   Location: src\thinking\adversarial\red_team_ai.py:702:29
+701	                if data:
+702	                    record = eval(data)
+703	                    total_attacks += record.get('attacks_count', 0)
+
+--------------------------------------------------
+>> Issue: [B307:blacklist] Use of possibly insecure function - consider using safer ast.literal_eval.
+   Severity: Medium   Confidence: High
+   CWE: CWE-78 (https://cwe.mitre.org/data/definitions/78.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b307-eval
+   Location: src\thinking\competitive\competitive_intelligence_system.py:887:29
+886	                if data:
+887	                    record = eval(data)
+888	                    total_signatures += len(record.get('signatures', []))
+
+--------------------------------------------------
+>> Issue: [B307:blacklist] Use of possibly insecure function - consider using safer ast.literal_eval.
+   Severity: Medium   Confidence: High
+   CWE: CWE-78 (https://cwe.mitre.org/data/definitions/78.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/blacklists/blacklist_calls.html#b307-eval
+   Location: src\thinking\prediction\predictive_market_modeler.py:453:23
+452	            if data:
+453	                return eval(data)
+454	            return {
+
+--------------------------------------------------
+>> Issue: [B110:try_except_pass] Try, Except, Pass detected.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b110_try_except_pass.html
+   Location: src\trading\integration\fix_broker_interface.py:92:12
+91	                    last_px = float(last_px_raw.decode() if isinstance(last_px_raw, (bytes, bytearray)) else last_px_raw)
+92	            except Exception:
+93	                # Non-fatal; continue without qty/px
+94	                pass
+95	
+
+--------------------------------------------------
+>> Issue: [B110:try_except_pass] Try, Except, Pass detected.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b110_try_except_pass.html
+   Location: src\trading\integration\fix_broker_interface.py:209:12
+208	                        return None
+209	            except Exception:
+210	                # If risk check fails, proceed conservatively without blocking
+211	                pass
+212	            # Generate order ID
+
+--------------------------------------------------
+>> Issue: [B110:try_except_pass] Try, Except, Pass detected.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b110_try_except_pass.html
+   Location: src\trading\monitoring\parity_checker.py:39:8
+38	            fix_parity_mismatched_orders.set(mismatches)
+39	        except Exception:
+40	            pass
+41	        logger.info(f"Order parity mismatches: {mismatches}")
+
+--------------------------------------------------
+>> Issue: [B110:try_except_pass] Try, Except, Pass detected.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b110_try_except_pass.html
+   Location: src\trading\monitoring\parity_checker.py:93:8
+92	            fix_parity_mismatched_positions.set(mismatches)
+93	        except Exception:
+94	            pass
+95	        logger.info(f"Position parity mismatches: {mismatches}")
+
+--------------------------------------------------
+>> Issue: [B608:hardcoded_sql_expressions] Possible SQL injection vector through string-based query construction.
+   Severity: Medium   Confidence: Medium
+   CWE: CWE-89 (https://cwe.mitre.org/data/definitions/89.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b608_hardcoded_sql_expressions.html
+   Location: src\trading\portfolio\real_portfolio_monitor.py:454:27
+453	            
+454	            cursor.execute('''
+455	                SELECT * FROM positions 
+456	                WHERE entry_time > datetime('now', '-{} days')
+457	                ORDER BY entry_time DESC
+458	            '''.format(days))
+459	            
+
+--------------------------------------------------
+>> Issue: [B608:hardcoded_sql_expressions] Possible SQL injection vector through string-based query construction.
+   Severity: Medium   Confidence: Medium
+   CWE: CWE-89 (https://cwe.mitre.org/data/definitions/89.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b608_hardcoded_sql_expressions.html
+   Location: src\trading\portfolio\real_portfolio_monitor.py:491:27
+490	            
+491	            cursor.execute('''
+492	                SELECT DATE(timestamp) as date,
+493	                       SUM(realized_pnl) as daily_pnl,
+494	                       COUNT(*) as trades
+495	                FROM positions
+496	                WHERE exit_time > datetime('now', '-{} days')
+497	                GROUP BY DATE(timestamp)
+498	                ORDER BY date DESC
+499	            '''.format(days))
+500	            
+
+--------------------------------------------------
+>> Issue: [B110:try_except_pass] Try, Except, Pass detected.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b110_try_except_pass.html
+   Location: src\validation\validation_framework.py:290:16
+289	                    success_count += 1
+290	                except Exception:
+291	                    pass
+292	                    
+
+--------------------------------------------------
+
+Code scanned:
+	Total lines of code: 28682
+	Total lines skipped (#nosec): 0
+	Total potential issues skipped due to specifically being disabled (e.g., #nosec BXXX): 0
+
+Run metrics:
+	Total issues (by severity):
+		Undefined: 0
+		Low: 259
+		Medium: 10
+		High: 0
+	Total issues (by confidence):
+		Undefined: 0
+		Low: 0
+		Medium: 5
+		High: 264
+Files skipped (0):

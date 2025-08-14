@@ -5,11 +5,10 @@ Phase 0.1 inventory: dependency analysis (imports graph, circulars, orphans).
 
 from __future__ import annotations
 
-import os
 import ast
-from collections import defaultdict, deque
-from typing import Dict, List, Set, Tuple
-
+import os
+from collections import defaultdict
+from typing import Dict, List, Set
 
 ROOT = "src"
 
@@ -108,7 +107,7 @@ def find_orphans(graph: Dict[str, Set[str]]) -> Set[str]:
     # Keep top-level packages
     filtered = {o for o in orphans if not o.endswith("__init__")}
     # Filter legacy shims
-    def _excluded(name: string) -> bool:  # type: ignore[name-defined]
+    def _excluded(name: str) -> bool:
         try:
             n = name if name.startswith("src.") else f"src.{name}"
             return any(n.startswith(prefix) for prefix in EXCLUDE_PREFIXES)

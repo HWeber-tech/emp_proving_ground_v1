@@ -6,10 +6,10 @@ Intelligence Validator
 Validates the accuracy of intelligence components.
 """
 
-import numpy as np
-import pandas as pd
-from typing import Dict, List, Any
 from dataclasses import dataclass
+from typing import Dict, List
+
+import numpy as np
 
 
 @dataclass

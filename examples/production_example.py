@@ -1,3 +1,4 @@
+# ruff: noqa: I001
 """
 Sensory Cortex v2.2 - Production Example
 
@@ -7,11 +8,19 @@ Shows proper initialization, data feeding, and result interpretation.
 
 import asyncio
 import logging
-import numpy as np
-import pandas as pd
 from datetime import datetime, timedelta
-from typing import List, Dict, Optional
-import json
+from typing import Dict
+
+import numpy as np
+
+import os
+import sys
+
+# Ensure project root on path for local run
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from src.sensory.core.base import InstrumentMeta, MarketData, OrderBookSnapshot
+from src.sensory.orchestration.master_orchestrator import MasterOrchestrator
 
 # Configure logging
 logging.basicConfig(
@@ -19,14 +28,6 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
-
-# Import system components
-import sys
-import os
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-from src.sensory.core.base import MarketData, InstrumentMeta, OrderBookSnapshot, MarketRegime
-from src.sensory.orchestration.master_orchestrator import MasterOrchestrator
 
 
 class ProductionDataSimulator:

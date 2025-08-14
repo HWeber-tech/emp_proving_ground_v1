@@ -11,7 +11,7 @@ from typing import Dict, List, Any, Optional
 from datetime import datetime
 
 try:
-    from src.core.interfaces import ThinkingPattern, SensorySignal, AnalysisResult  # legacy
+    from src.core.interfaces import ThinkingPattern, SensorySignal, AnalysisResult
 except Exception:  # pragma: no cover
     ThinkingPattern = SensorySignal = AnalysisResult = object  # type: ignore
 from src.core.exceptions import ThinkingException

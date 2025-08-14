@@ -3,11 +3,12 @@
 Find your correct CTRADER_ACCOUNT_ID (ctidTraderAccountId)
 """
 
-import requests
-
 # Load from .env file
 import os
+
+import requests
 from dotenv import load_dotenv
+
 load_dotenv()
 
 # Get access token from .env

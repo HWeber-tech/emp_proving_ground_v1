@@ -14,7 +14,7 @@ from datetime import datetime
 from pathlib import Path
 
 try:
-    from src.core.interfaces import IStrategy, IMarketAnalyzer, IRiskManager, IPopulationManager  # legacy
+    from src.core.interfaces import IStrategy, IMarketAnalyzer, IRiskManager, IPopulationManager
 except Exception:  # pragma: no cover
     IStrategy = IMarketAnalyzer = IRiskManager = IPopulationManager = object  # type: ignore
 from src.core.exceptions import IntegrationException

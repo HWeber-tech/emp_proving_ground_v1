@@ -9,6 +9,7 @@ Safety:
 import asyncio
 import os
 import sys
+
 from dotenv import load_dotenv
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
@@ -39,8 +40,8 @@ async def main(symbol: str = "EURUSD", side: str = "BUY", qty: float = 1000.0) -
             print("Trade initiator not available")
             return 1
 
-        # Use manager to place a genuine order
-        manager = mgr._manager  # noqa: accessing underlying manager by design
+        # Use manager to place a genuine order (access underlying manager by design)
+        manager = mgr._manager
         result = manager.place_market_order_genuine(symbol=symbol, side=side, quantity=qty, timeout=10.0)
         if result is None:
             print("Order placement failed")

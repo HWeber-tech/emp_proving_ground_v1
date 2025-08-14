@@ -5,11 +5,10 @@ Demonstrates PROBE-40: The Predator's Sonar functionality
 
 import asyncio
 import logging
-from decimal import Decimal
-from datetime import datetime
-from typing import Dict, List, Optional, Any
 from dataclasses import dataclass
+from decimal import Decimal
 from enum import Enum
+from typing import Any, Dict, List, Optional
 
 # Configure logging
 logging.basicConfig(

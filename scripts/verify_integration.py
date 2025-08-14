@@ -4,10 +4,10 @@ Integration Verification Script
 Confirms that the sensory → decision → financial loop is properly integrated
 """
 
-import sys
 import logging
-from pathlib import Path
+import sys
 from decimal import Decimal
+from pathlib import Path
 
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent / "src"))
@@ -18,14 +18,13 @@ def test_integration():
     
     try:
         # Test 1: Core imports
-        from src.core import RiskConfig, InstrumentProvider, CurrencyConverter
+        from src.core import InstrumentProvider, RiskConfig
+        from src.data import TickDataCleaner, TickDataStorage
+        from src.evolution import EvolutionConfig, EvolutionEngine, FitnessEvaluator
         from src.risk import RiskManager
-        from src.pnl import EnhancedPosition, TradeRecord
-        from src.data import TickDataStorage, TickDataCleaner, DukascopyIngestor
-        from src.sensory.orchestration.master_orchestrator import MasterOrchestrator
         from src.sensory.core.base import InstrumentMeta
-        from src.evolution import EvolutionEngine, EvolutionConfig, FitnessEvaluator
-        from src.simulation import MarketSimulator, AdversarialEngine
+        from src.sensory.orchestration.master_orchestrator import MasterOrchestrator
+        from src.simulation import MarketSimulator
         
         print("✅ All core modules imported successfully")
         

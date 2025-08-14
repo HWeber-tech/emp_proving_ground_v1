@@ -9,17 +9,33 @@ rather than individual strategies, focusing on synergy and diversification.
 
 import asyncio
 import logging
-import numpy as np
-from typing import Dict, List, Tuple, Any, Optional
-from datetime import datetime, timedelta
+import random
+from collections import defaultdict
 from dataclasses import dataclass
-from sklearn.metrics import mutual_info_score
-import pandas as pd
+from datetime import datetime
+from typing import Any, Dict, List
 
-from src.core.interfaces import IEcosystemOptimizer, DecisionGenome, MarketContext
-from src.ecosystem.species.factories import get_all_factories
-from src.ecosystem.evaluation.niche_detector import NicheDetector
+import numpy as np
+
+from src.core.interfaces import DecisionGenome, IEcosystemOptimizer, MarketContext
 from src.ecosystem.coordination.coordination_engine import CoordinationEngine
+from src.ecosystem.evaluation.niche_detector import NicheDetector
+from src.ecosystem.species.factories import get_all_factories
+
+# Legacy-compatible TradeIntent import with local fallback
+try:
+    from src.core.interfaces import TradeIntent  # type: ignore[attr-defined]
+except Exception:  # pragma: no cover
+    @dataclass
+    class TradeIntent:  # type: ignore
+        strategy_id: str
+        species_type: str
+        symbol: str
+        direction: str
+        confidence: float
+        size: float
+        priority: int
+        timestamp: datetime
 
 logger = logging.getLogger(__name__)
 
@@ -199,8 +215,17 @@ class EcosystemOptimizer(IEcosystemOptimizer):
         species_bonus = species_suitability.get(genome.species_type, 0.5)
         
         # Adjust for market regime
-        
-        return base_score * species_bonus * regime_bonus
+        regime_bonus = 1.0
+        try:
+            regime_str = str(getattr(market_context, "regime", "")).lower()
+            if "trend" in regime_str:
+                regime_bonus = 1.1
+            elif "volatile" in regime_str or "crisis" in regime_str:
+                regime_bonus = 0.9
+        except Exception:
+            regime_bonus = 1.0
+
+        return float(base_score * species_bonus * regime_bonus)
     
     def _crossover_genomes(self, parent1: DecisionGenome, 
                           parent2: DecisionGenome) -> DecisionGenome:
@@ -402,7 +427,8 @@ class EcosystemOptimizer(IEcosystemOptimizer):
         strategy_diversity = sum(len(pop) for pop in populations.values()) / 50.0
         
         # Adaptability indicators
-        
+        adaptability_score = 0.5
+
         antifragility_score = (species_diversity + strategy_diversity + adaptability_score) / 3
         
         return max(0.0, min(1.0, antifragility_score))

@@ -6,10 +6,11 @@ Memory Profiler
 Profiles memory usage for Phase 2 validation.
 """
 
-import psutil
 import gc
-from typing import Dict, Any
 from dataclasses import dataclass
+from typing import Any, Dict
+
+import psutil
 
 
 @dataclass

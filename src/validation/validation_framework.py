@@ -7,22 +7,24 @@ with real market data and performance metrics.
 """
 
 import asyncio
-import logging
 import json
-from typing import Dict, List, Any, Optional, Callable
+import logging
 from datetime import datetime
 from pathlib import Path
+from typing import Any, Callable, Dict, List
 
 from src.core.exceptions import ValidationException
+
 try:
-    from src.core.interfaces import IStrategy, IMarketAnalyzer  # legacy
+    from src.core.interfaces import IMarketAnalyzer, IStrategy
 except Exception:  # pragma: no cover
     IStrategy = IMarketAnalyzer = object  # type: ignore
+
+from src.validation.models import ValidationResult
 
 logger = logging.getLogger(__name__)
 
 
-from src.validation.models import ValidationResult
 
 
 class ValidationFramework:
@@ -51,17 +53,16 @@ class ValidationFramework:
         try:
             # Test basic imports
             try:
-                from src.core.interfaces import IStrategy, IMarketAnalyzer  # legacy
+                from src.core.interfaces import IMarketAnalyzer, IStrategy
             except Exception:  # pragma: no cover
                 IStrategy = IMarketAnalyzer = object  # type: ignore
-            from src.core.exceptions import EMPException
             
             # Test component instantiation
             components = []
             
             # Test strategy instantiation
             try:
-                from src.core.strategy.templates.moving_average import MovingAverageStrategy
+                from src.core.strategy.templates.moving_average import MovingAverageStrategy  # noqa: I001
                 strategy = MovingAverageStrategy()
                 components.append('MovingAverageStrategy')
             except ImportError:

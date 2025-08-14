@@ -4,10 +4,10 @@ Interactive credential fix script for cTrader API
 This script will guide you through the OAuth process and update your .env file
 """
 
+
 import requests
-import json
-import os
-from dotenv import load_dotenv, set_key
+from dotenv import set_key
+
 
 def fix_credentials():
     """Interactive credential fix process"""

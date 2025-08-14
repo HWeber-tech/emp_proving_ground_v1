@@ -6,15 +6,16 @@ Market regime classification and detection for the thinking layer.
 Migrated from sensory layer to thinking layer where cognitive functions belong.
 """
 
+import logging
+from datetime import datetime
+from typing import Any, Dict, List, Optional
+
 import numpy as np
 import pandas as pd
-from typing import Dict, List, Optional, Tuple, Any
-from datetime import datetime, timedelta
-from enum import Enum
-import logging
 
-from ...core.events import MarketData, AnalysisResult
 from src.sensory.organs.dimensions.base_organ import MarketRegime
+
+from ...core.events import AnalysisResult, MarketData
 
 logger = logging.getLogger(__name__)
 

@@ -6,14 +6,14 @@ Concrete implementation of IPopulationManager for genetic algorithm population m
 Optimized for performance with Redis caching integration.
 """
 
-import asyncio
 import logging
-from typing import List, Dict, Any, Callable, Optional
-from datetime import datetime
+from typing import Any, Callable, Dict, List, Optional
+
 import numpy as np
 
-from .interfaces import IPopulationManager, DecisionGenome
 from src.core.performance.market_data_cache import get_global_cache
+
+from .interfaces import DecisionGenome, IPopulationManager
 
 logger = logging.getLogger(__name__)
 
@@ -150,6 +150,7 @@ class PopulationManager(IPopulationManager):
         """Generate initial population of genomes."""
         try:
             import random
+
             from src.core.interfaces import DecisionGenome
             
             logger.info(f"Generating initial population of {self.population_size} genomes")
@@ -261,6 +262,7 @@ class PopulationManager(IPopulationManager):
     def _crossover(self, parent1: DecisionGenome, parent2: DecisionGenome) -> DecisionGenome:
         """Create offspring via crossover."""
         import random
+
         from src.core.interfaces import DecisionGenome
         
         # Create new genome ID

@@ -5,12 +5,12 @@ Persistent strategy registry using SQLite for champion genome storage.
 Implements GOV-02 ticket requirements for database-backed strategy management.
 """
 
-import sqlite3
 import json
 import logging
-from typing import Dict, List, Optional, Any
+import sqlite3
 from datetime import datetime
 from pathlib import Path
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 

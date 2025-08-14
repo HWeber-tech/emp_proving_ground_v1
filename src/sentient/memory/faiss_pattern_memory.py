@@ -4,14 +4,15 @@ FAISSPatternMemory - Epic 1: The Predator's Instinct
 Upgraded memory system for storing and recalling trading experiences.
 """
 
-import numpy as np
-import faiss
-from typing import List, Dict, Any, Optional, Tuple
-from dataclasses import dataclass
 import json
-from pathlib import Path
 import logging
+from dataclasses import dataclass
 from datetime import datetime
+from pathlib import Path
+from typing import Any, Dict, List
+
+import faiss
+import numpy as np
 
 logger = logging.getLogger(__name__)
 

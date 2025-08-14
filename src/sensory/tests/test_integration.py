@@ -12,6 +12,7 @@ This module provides thorough testing of the complete system including:
 
 import logging
 import os
+
 # Import system components
 import sys
 from datetime import datetime, timedelta
@@ -19,19 +20,15 @@ from typing import List
 
 import numpy as np
 import pytest
-from market_intelligence.dimensions.enhanced_anomaly_dimension import \
-    AnomalyIntelligenceEngine
-from market_intelligence.dimensions.enhanced_how_dimension import \
-    InstitutionalIntelligenceEngine
-from market_intelligence.dimensions.enhanced_what_dimension import \
-    TechnicalRealityEngine
-from market_intelligence.dimensions.enhanced_when_dimension import \
-    ChronalIntelligenceEngine
-from market_intelligence.dimensions.enhanced_why_dimension import \
-    EnhancedFundamentalIntelligenceEngine
-from orchestration.enhanced_intelligence_engine import ContextualFusionEngine
-
 from core.base import DimensionalReading, MarketData
+from market_intelligence.dimensions.enhanced_anomaly_dimension import AnomalyIntelligenceEngine
+from market_intelligence.dimensions.enhanced_how_dimension import InstitutionalIntelligenceEngine
+from market_intelligence.dimensions.enhanced_what_dimension import TechnicalRealityEngine
+from market_intelligence.dimensions.enhanced_when_dimension import ChronalIntelligenceEngine
+from market_intelligence.dimensions.enhanced_why_dimension import (
+    EnhancedFundamentalIntelligenceEngine,
+)
+from orchestration.enhanced_intelligence_engine import ContextualFusionEngine
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 

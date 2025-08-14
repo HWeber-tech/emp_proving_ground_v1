@@ -3,11 +3,10 @@ CLI Interface for EMP Ultimate Architecture v1.1
 Production-ready command-line interface for system management
 """
 
-import asyncio
-import click
 import logging
-from pathlib import Path
 from typing import Optional
+
+import click
 
 from src.sensory.organs.yahoo_finance_organ import YahooFinanceOrgan
 

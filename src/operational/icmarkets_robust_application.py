@@ -3,20 +3,17 @@ Robust IC Markets FIX Application
 Production-ready implementation with error handling and session management
 """
 
+import logging
+import queue
 import socket
 import ssl
 import threading
 import time
-import logging
-from datetime import datetime
-from typing import Dict, List, Optional, Callable, Any
 from dataclasses import dataclass
+from datetime import datetime
+from typing import Any, Dict, List, Optional
+
 import simplefix
-import json
-import os
-from concurrent.futures import ThreadPoolExecutor
-import queue
-from src.trading.models.order import OrderStatus as TradingOrderStatus
 
 # Configure logging
 logging.basicConfig(

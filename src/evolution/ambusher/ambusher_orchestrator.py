@@ -4,14 +4,14 @@ AmbusherOrchestrator - Epic 2: Evolving "The Ambusher"
 Main orchestrator for the ambusher evolution system.
 """
 
-import asyncio
-from typing import Dict, List, Any, Optional
-from datetime import datetime
-import logging
 import json
+import logging
+from datetime import datetime
 from pathlib import Path
+from typing import Any, Dict, List, Optional
 
 from src.core.evolution.engine import EvolutionEngine  # consolidated engine
+
 AmbusherGenome = Dict[str, Any]  # simplified alias for compatibility
 try:
     from evolution.ambusher.ambusher_fitness import AmbusherFitnessFunction  # legacy

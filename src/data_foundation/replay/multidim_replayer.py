@@ -5,8 +5,8 @@ Multi-dimension replayer: plays back MD (WHAT) and macro (WHY) streams with a un
 """
 
 import json
-from typing import Callable, Optional
 from datetime import datetime
+from typing import Callable, Optional
 
 
 def _parse_jsonl(path: str):

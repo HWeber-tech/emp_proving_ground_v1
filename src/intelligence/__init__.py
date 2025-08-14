@@ -16,18 +16,18 @@ This module integrates:
 - Competitive intelligence system (COMPETITIVE-30)
 """
 
+import asyncio
 import logging
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Any
-import asyncio
+from typing import Any, Dict, List, Optional
 
-from .sentient_adaptation import SentientAdaptationEngine
-from .predictive_modeling import PredictiveMarketModeler
-from .adversarial_training import MarketGAN, AdversarialTrainer
-from .red_team_ai import RedTeamAI
-from .specialized_predators import SpecializedPredatorEvolution
-from .portfolio_evolution import PortfolioEvolutionEngine
+from .adversarial_training import AdversarialTrainer, MarketGAN
 from .competitive_intelligence import CompetitiveIntelligenceSystem
+from .portfolio_evolution import PortfolioEvolutionEngine
+from .predictive_modeling import PredictiveMarketModeler
+from .red_team_ai import RedTeamAI
+from .sentient_adaptation import SentientAdaptationEngine
+from .specialized_predators import SpecializedPredatorEvolution
 
 logger = logging.getLogger(__name__)
 

@@ -4,14 +4,14 @@ Provides real-time order book analysis, market microstructure insights,
 and liquidity assessment for enhanced trading decisions.
 """
 
-import pandas as pd
-import numpy as np
-from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Tuple, Any
-from dataclasses import dataclass
-from enum import Enum
 import logging
-from collections import deque, defaultdict
+from collections import defaultdict, deque
+from dataclasses import dataclass
+from datetime import datetime, timedelta
+from enum import Enum
+from typing import Any, Dict, List, Optional, Tuple
+
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +21,7 @@ class OrderBookSide(Enum):
     ASK = "ask"
 
 from trading.order_management.order_book.snapshot import OrderBookLevel, OrderBookSnapshot
+
 
 @dataclass
 class MarketMicrostructure:

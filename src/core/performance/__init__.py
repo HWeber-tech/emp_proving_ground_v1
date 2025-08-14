@@ -11,6 +11,7 @@ This module provides:
 """
 
 from .market_data_cache import MarketDataCache, get_global_cache
+
 try:  # optional component
     from .vectorized_indicators import VectorizedIndicators  # type: ignore
 except Exception:  # pragma: no cover

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-from typing import Dict, List, Any, Optional
-from datetime import datetime
+from typing import Any, Dict, List, Optional
 
 from src.core.strategy.engine import BaseStrategy
 

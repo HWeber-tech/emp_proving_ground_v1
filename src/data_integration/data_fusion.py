@@ -11,15 +11,16 @@ Phase: 2 - Advanced Data Integration
 
 import asyncio
 import logging
-from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Union, Any, Tuple
 from dataclasses import dataclass, field
+from datetime import datetime, timedelta
 from enum import Enum
+from typing import Any, Dict, List, Optional, Tuple
+
 import numpy as np
-import pandas as pd
 
 from src.sensory.core.base import MarketData
-from .data_validation import MarketDataValidator, ValidationLevel, ValidationResult
+
+from .data_validation import MarketDataValidator, ValidationLevel
 
 logger = logging.getLogger(__name__)
 

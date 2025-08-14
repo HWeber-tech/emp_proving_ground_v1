@@ -3,19 +3,17 @@ Tactical Adaptation Engine
 Generates real-time tactical adjustments based on learning signals and pattern memory.
 """
 
-import asyncio
 import logging
 from datetime import datetime, timedelta
 from decimal import Decimal
-from typing import Dict, List, Optional, Any
-import uuid
+from typing import Any, Dict, List
 
 try:
-    from src.core.events import LearningSignal, TacticalAdaptation, ContextPacket  # legacy
+    from src.core.events import ContextPacket, LearningSignal, TacticalAdaptation  # legacy
 except Exception:  # pragma: no cover
     LearningSignal = TacticalAdaptation = ContextPacket = object  # type: ignore
-from src.thinking.memory.faiss_memory import FAISSPatternMemory
 from src.operational.state_store import StateStore
+from src.thinking.memory.faiss_memory import FAISSPatternMemory
 
 logger = logging.getLogger(__name__)
 

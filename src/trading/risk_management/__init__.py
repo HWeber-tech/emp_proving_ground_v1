@@ -12,8 +12,8 @@ Redirects to consolidated `src.core.risk` implementations where applicable.
 try:
     from src.core.risk.manager import RiskManager  # type: ignore
     from src.core.risk.position_sizing import kelly_fraction as KellyCriterion  # alias
-    from src.core.risk.var_calculator import VarCalculator as VaRCalculator  # type: ignore
     from src.core.risk.stress_testing import StressTester  # type: ignore
+    from src.core.risk.var_calculator import VarCalculator as VaRCalculator  # type: ignore
 except Exception:  # pragma: no cover
     # Fallbacks if consolidation modules are not present
     RiskManager = object  # type: ignore

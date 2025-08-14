@@ -8,15 +8,13 @@ Provides unified interface for CLI and Web API to interact with:
 - Strategy management
 """
 
-import asyncio
-import json
-from typing import Dict, List, Any, Optional
 from datetime import datetime
+from typing import Any, Dict, List, Optional
 
 try:
     from src.core.event_bus import EventBus
-    from src.governance.strategy_registry import StrategyRegistry, StrategyStatus
     from src.domain.models import StrategyConfig
+    from src.governance.strategy_registry import StrategyRegistry, StrategyStatus
 except ImportError:
     # Mock implementations for standalone testing
     class EventBus:

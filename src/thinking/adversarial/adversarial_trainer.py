@@ -11,7 +11,7 @@ It intentionally avoids domain-specific logic to minimize coupling and enable st
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any, List
 
 
 class AdversarialTrainer:

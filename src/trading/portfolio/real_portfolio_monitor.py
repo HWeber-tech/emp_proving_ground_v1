@@ -3,15 +3,13 @@ Real Portfolio Monitor Implementation
 Replaces the mock with functional portfolio tracking and P&L calculation
 """
 
-import asyncio
-import sqlite3
 import logging
-from typing import List, Dict, Optional
-from datetime import datetime, timedelta
-from dataclasses import dataclass
+import sqlite3
+from datetime import datetime
+from typing import Dict, List, Optional
 
-from ..models import Position, PortfolioSnapshot
 from ...config.portfolio_config import PortfolioConfig
+from ..models import PortfolioSnapshot, Position
 
 logger = logging.getLogger(__name__)
 

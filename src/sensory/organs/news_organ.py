@@ -6,10 +6,10 @@ Processes news data and extracts sentiment signals.
 """
 
 import logging
-from typing import Dict, Any, Optional, List
 from datetime import datetime
+from typing import Any, Dict, Optional
 
-from ..core.base import SensoryOrgan, MarketData, SensoryReading
+from ..core.base import MarketData, SensoryOrgan, SensoryReading
 
 logger = logging.getLogger(__name__)
 

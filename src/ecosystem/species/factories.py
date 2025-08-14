@@ -8,8 +8,9 @@ Each factory generates DecisionGenome objects optimized for specific market nich
 """
 
 import random
-from typing import Dict, Tuple, List
-from src.core.interfaces import ISpecialistGenomeFactory, DecisionGenome
+from typing import Dict, Tuple
+
+from src.core.interfaces import DecisionGenome, ISpecialistGenomeFactory
 
 
 class StalkerFactory(ISpecialistGenomeFactory):

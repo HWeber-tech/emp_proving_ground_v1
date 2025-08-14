@@ -5,12 +5,13 @@ Provides centralized configuration management for the EMP system.
 Supports loading from YAML files, environment variables, and secrets.
 """
 
-import os
-import yaml
 import logging
-from typing import Dict, Any, Optional, Union
-from pathlib import Path
+import os
 from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any, Dict, Optional, Union
+
+import yaml
 
 from .exceptions import ConfigurationException
 

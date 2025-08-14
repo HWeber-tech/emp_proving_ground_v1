@@ -16,9 +16,9 @@ Responsibilities:
 from __future__ import annotations
 
 import asyncio
-import os
 import logging
-from typing import Optional, Any, Dict, Callable, List
+import os
+from typing import Any, Dict, Optional
 
 """If genuine manager is available in the environment (installed as plugin or present
 in the source tree), import it lazily. Otherwise, we will fall back to mock when

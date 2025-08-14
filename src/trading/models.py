@@ -9,8 +9,9 @@ Core trading models for positions, signals, and market data
 
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Optional, List
 from enum import Enum
+from typing import List, Optional
+
 
 class SignalType(Enum):
     """Types of trading signals"""
@@ -42,6 +43,7 @@ class TradingSignal:
             self.timestamp = datetime.now()
 
 from src.trading.models.position import Position as Position
+
 
 @dataclass
 class PortfolioSnapshot:

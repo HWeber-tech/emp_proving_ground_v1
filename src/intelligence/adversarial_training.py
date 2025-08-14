@@ -13,20 +13,13 @@ must survive increasingly challenging market conditions.
 
 import asyncio
 import logging
-import numpy as np
-import pandas as pd
-from typing import Dict, List, Optional, Any, Tuple
-from dataclasses import dataclass, field
-from datetime import datetime, timedelta
-import json
-import torch
-import torch.nn as nn
-from sklearn.preprocessing import StandardScaler
-from scipy import stats
+from dataclasses import dataclass
+from typing import Optional
 
 from src.trading.strategy_engine.testing.strategy_tester import (
     StrategyTester as StrategyTester,
 )
+
 logger = logging.getLogger(__name__)
 
 
@@ -52,25 +45,21 @@ class SurvivalResult:
 # Legacy StrategyTester (nn.Module) removed; using canonical trading.strategy_engine.testing.strategy_tester.StrategyTester
 
 
-from src.thinking.prediction.market_data_generator import (
-    MarketDataGenerator as MarketDataGenerator,
-)
-
-
 # Legacy StrategyTester implementation removed; using canonical trading.strategy_engine.testing.strategy_tester.StrategyTester
-
-
 from src.thinking.adversarial.adversarial_trainer import (
     AdversarialTrainer as AdversarialTrainer,
 )
 
-
-# Canonical import for ScenarioValidator (structural unification)
-from src.thinking.adversarial.market_gan import ScenarioValidator as ScenarioValidator  # type: ignore
-
-
 # Canonical import for MarketGAN (structural unification)
 from src.thinking.adversarial.market_gan import MarketGAN as MarketGAN  # type: ignore
+
+# Canonical import for ScenarioValidator (structural unification)
+from src.thinking.adversarial.market_gan import (
+    ScenarioValidator as ScenarioValidator,  # type: ignore
+)
+from src.thinking.prediction.market_data_generator import (
+    MarketDataGenerator as MarketDataGenerator,
+)
 
 
 # Example usage and testing

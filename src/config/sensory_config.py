@@ -6,6 +6,7 @@ Configuration for sensory processing and technical analysis
 from dataclasses import dataclass
 from typing import List
 
+
 @dataclass
 class SensoryConfig:
     """Configuration for sensory processing"""

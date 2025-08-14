@@ -1,4 +1,4 @@
-from src.operational.metrics import set_why_signal, set_why_conf, set_why_feature
+from src.operational.metrics import set_why_conf, set_why_feature, set_why_signal
 
 
 def test_why_metrics_noop():

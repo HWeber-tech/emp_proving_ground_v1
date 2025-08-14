@@ -14,6 +14,8 @@ from __future__ import annotations
 
 from src.sentient.memory.faiss_pattern_memory import (
     FAISSPatternMemory as FAISSPatternMemory,
+)
+from src.sentient.memory.faiss_pattern_memory import (
     MemoryEntry as MemoryEntry,
 )
 

@@ -11,18 +11,14 @@ This module creates a sophisticated portfolio evolution system that
 optimizes strategy combinations rather than individual strategies.
 """
 
-import asyncio
 import logging
+from dataclasses import dataclass
+from typing import Any, Dict, List
+
 import numpy as np
-import pandas as pd
-from typing import Dict, List, Optional, Any, Tuple
-from dataclasses import dataclass, field
-from datetime import datetime, timedelta
-import json
-from sklearn.covariance import LedoitWolf
-from sklearn.cluster import AgglomerativeClustering
-import torch
 import torch.nn as nn
+from sklearn.cluster import AgglomerativeClustering
+from sklearn.covariance import LedoitWolf
 
 logger = logging.getLogger(__name__)
 

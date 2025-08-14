@@ -5,16 +5,13 @@ Phase 2 Implementation: Advanced Central Bank & Geopolitical Analysis
 
 import asyncio
 import logging
-from typing import Dict, List, Optional, Any, Tuple
-from datetime import datetime, timedelta
-import aiohttp
-import pandas as pd
-import numpy as np
 from dataclasses import dataclass
-from textblob import TextBlob
-import feedparser
+from datetime import datetime, timedelta
+from typing import Any, Dict, List, Optional
 
-from src.sensory.core.base import MarketData, DimensionalReading, MarketRegime
+import numpy as np
+
+from src.sensory.core.base import DimensionalReading, MarketData, MarketRegime
 
 logger = logging.getLogger(__name__)
 

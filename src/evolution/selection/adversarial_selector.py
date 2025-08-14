@@ -4,7 +4,8 @@ Runtime-safe no-op implementation for validation flows.
 """
 
 from __future__ import annotations
-from typing import Any, Sequence, List
+
+from typing import Any, List, Sequence
 
 
 class AdversarialSelector:

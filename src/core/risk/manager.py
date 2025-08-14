@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from decimal import Decimal
+
 from src.config.risk.risk_config import RiskConfig
 
 

@@ -3,8 +3,8 @@ Volume Analysis Module
 Core CVD (Cumulative Volume Delta) calculation logic
 """
 
-from typing import Optional
 import logging
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 

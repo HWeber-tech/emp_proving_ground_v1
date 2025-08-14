@@ -3,16 +3,15 @@ Red Team AI System
 Dedicated AI system to attack and improve strategies.
 """
 
-import asyncio
 import logging
-import numpy as np
-from datetime import datetime, timedelta
-from decimal import Decimal
-from typing import Dict, List, Optional, Any
 import uuid
+from datetime import datetime
+from typing import Any, Dict, List, Optional
+
+import numpy as np
 
 try:
-    from src.core.events import StrategyAnalysis, AttackResult, ExploitResult  # legacy
+    from src.core.events import AttackResult, ExploitResult, StrategyAnalysis  # legacy
 except Exception:  # pragma: no cover
     StrategyAnalysis = AttackResult = ExploitResult = object  # type: ignore
 from src.operational.state_store import StateStore

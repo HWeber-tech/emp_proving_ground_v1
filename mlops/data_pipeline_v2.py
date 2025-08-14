@@ -10,12 +10,12 @@ This script:
 4. Saves processed dataset for training
 """
 
-import pandas as pd
-import numpy as np
-from pathlib import Path
-import logging
-from typing import Tuple, List
 import argparse
+import logging
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')

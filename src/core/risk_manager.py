@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 from typing import Optional
-from src.core.risk.manager import RiskManager as RiskManager  # canonical re-export
 
+from src.core.risk.manager import RiskManager as RiskManager  # canonical re-export
 
 _GLOBAL: Optional[RiskManager] = None
 

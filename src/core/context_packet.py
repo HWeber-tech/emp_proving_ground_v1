@@ -3,10 +3,10 @@ Context Packet Event Model
 Enhanced with CVD divergence analysis for the Thinking Layer
 """
 
-from pydantic import BaseModel, Field
-from typing import Optional, Literal, Dict, Any
 from datetime import datetime
-from decimal import Decimal
+from typing import Any, Dict, Literal, Optional
+
+from pydantic import BaseModel, Field
 
 
 class ContextPacket(BaseModel):

@@ -18,10 +18,10 @@ import logging
 from datetime import datetime
 from typing import Any, Dict, List
 
-from src.ecosystem.evaluation.niche_detector import NicheDetector
-from src.ecosystem.species.species_manager import SpeciesManager
 from src.ecosystem.coordination.coordination_engine import CoordinationEngine
+from src.ecosystem.evaluation.niche_detector import NicheDetector
 from src.ecosystem.optimization.ecosystem_optimizer import EcosystemOptimizer
+from src.ecosystem.species.species_manager import SpeciesManager
 
 logger = logging.getLogger(__name__)
 

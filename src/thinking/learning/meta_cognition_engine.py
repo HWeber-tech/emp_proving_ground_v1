@@ -3,15 +3,13 @@ Meta-Cognition Engine
 Self-awareness system that assesses learning quality and decision confidence.
 """
 
-import asyncio
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime
 from decimal import Decimal
-from typing import Dict, List, Optional, Any
-import uuid
+from typing import Any, Dict, List, Optional
 
 try:
-    from src.core.events import LearningSignal, ContextPacket  # legacy
+    from src.core.events import ContextPacket, LearningSignal  # legacy
 except Exception:  # pragma: no cover
     LearningSignal = ContextPacket = object  # type: ignore
 from src.operational.state_store import StateStore

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import os
-from typing import List, Dict, Any
+from typing import Any, Dict, List
 
 
 def write_events_jsonl(events: List[Dict[str, Any]], out_path: str) -> str:

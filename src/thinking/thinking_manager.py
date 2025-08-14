@@ -5,14 +5,15 @@ Enhanced thinking manager that integrates predictive intelligence into the cogni
 """
 
 import asyncio
-from collections import deque
-from typing import Optional, Dict, Any
-import pandas as pd
-from datetime import datetime
 import logging
+from collections import deque
+from datetime import datetime
+from typing import Any, Dict, Optional
 
+import pandas as pd
 from core.events import ContextPacket, MarketForecast
 from thinking.prediction.predictive_modeler import PredictiveMarketModeler
+
 from config.system_config import SystemConfig
 
 # Configure logging

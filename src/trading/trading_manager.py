@@ -6,9 +6,8 @@ ensuring no un-validated trade intent reaches the execution engine.
 """
 
 import logging
+
 import redis
-from typing import Optional
-from datetime import datetime
 
 try:
     from src.core.events import TradeIntent, TradeRejected  # legacy

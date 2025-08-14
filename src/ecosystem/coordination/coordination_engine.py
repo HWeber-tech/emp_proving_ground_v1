@@ -9,13 +9,14 @@ and optimize portfolio-level performance.
 
 import asyncio
 import logging
-from typing import Dict, List, Optional, Any
-from datetime import datetime, timedelta
-from dataclasses import dataclass
 from collections import defaultdict
+from dataclasses import dataclass
+from datetime import datetime, timedelta
+from typing import Any, Dict, List
+
 import numpy as np
 
-from src.core.interfaces import ICoordinationEngine, TradeIntent, MarketContext
+from src.core.interfaces import ICoordinationEngine, MarketContext, TradeIntent
 
 logger = logging.getLogger(__name__)
 

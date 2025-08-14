@@ -4,15 +4,14 @@ SentientPredator - Epic 1: The Predator's Instinct
 Main orchestrator for the sentient predator capabilities.
 """
 
-import asyncio
-from typing import Dict, List, Any, Optional
-from datetime import datetime
 import logging
-import numpy as np
+from datetime import datetime
+from typing import Any, Dict, List
 
-from sentient.learning.real_time_learning_engine import RealTimeLearningEngine, LearningSignal
-from sentient.memory.faiss_pattern_memory import FAISSPatternMemory
+import numpy as np
 from sentient.adaptation.adaptation_controller import AdaptationController, TacticalAdaptation
+from sentient.learning.real_time_learning_engine import LearningSignal, RealTimeLearningEngine
+from sentient.memory.faiss_pattern_memory import FAISSPatternMemory
 
 logger = logging.getLogger(__name__)
 

@@ -5,13 +5,14 @@ Risk analysis and assessment for the thinking layer.
 Provides comprehensive risk metrics and analysis for trading strategies.
 """
 
+import logging
+from datetime import datetime
+from typing import Any, Dict, List, Optional
+
 import numpy as np
 import pandas as pd
-from typing import Dict, List, Optional, Tuple, Any
-from datetime import datetime, timedelta
-import logging
 
-from ...core.events import TradeIntent, RiskMetrics, AnalysisResult
+from ...core.events import AnalysisResult, RiskMetrics, TradeIntent
 
 logger = logging.getLogger(__name__)
 

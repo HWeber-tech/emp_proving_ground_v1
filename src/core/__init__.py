@@ -7,8 +7,16 @@ Provides concrete implementations of all critical interfaces.
 """
 
 from .population_manager import PopulationManager
+
 try:
-    from .sensory_organ import SensoryOrgan, create_sensory_organ, WHAT_ORGAN, WHEN_ORGAN, ANOMALY_ORGAN, CHAOS_ORGAN  # type: ignore
+    from .sensory_organ import (  # type: ignore
+        ANOMALY_ORGAN,
+        CHAOS_ORGAN,
+        WHAT_ORGAN,
+        WHEN_ORGAN,
+        SensoryOrgan,
+        create_sensory_organ,
+    )
 except Exception:  # pragma: no cover
     # Legacy compatibility placeholders
     class SensoryOrgan:  # type: ignore
@@ -16,8 +24,8 @@ except Exception:  # pragma: no cover
     def create_sensory_organ(*_args, **_kwargs):  # type: ignore
         return None
     WHAT_ORGAN = WHEN_ORGAN = ANOMALY_ORGAN = CHAOS_ORGAN = None  # type: ignore
+from .instrument import Instrument, get_all_instruments, get_instrument
 from .risk.manager import RiskManager  # consolidated SoT
-from .instrument import Instrument, get_instrument, get_all_instruments
 
 __all__ = [
     # Population Manager
@@ -43,9 +51,17 @@ __all__ = [
 
 # Re-export for convenience
 from .population_manager import PopulationManager
+
 try:
-    from .sensory_organ import SensoryOrgan, create_sensory_organ, WHAT_ORGAN, WHEN_ORGAN, ANOMALY_ORGAN, CHAOS_ORGAN  # type: ignore
+    from .sensory_organ import (  # type: ignore
+        ANOMALY_ORGAN,
+        CHAOS_ORGAN,
+        WHAT_ORGAN,
+        WHEN_ORGAN,
+        SensoryOrgan,
+        create_sensory_organ,
+    )
 except Exception:  # pragma: no cover
     pass
+from .instrument import Instrument, get_all_instruments, get_instrument
 from .risk.manager import RiskManager
-from .instrument import Instrument, get_instrument, get_all_instruments

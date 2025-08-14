@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-from typing import Dict, List, Optional, Any
-from datetime import datetime
+from typing import Any, Dict, List
 
-from src.core.strategy.engine import BaseStrategy, StrategyPerformance
+from src.core.strategy.engine import BaseStrategy
 
 
 class TrendFollowing(BaseStrategy):

@@ -27,5 +27,6 @@ def estimate_slippage_bps(ctx: ExecContext, cfg) -> float:
 
 from src.data_foundation.config.execution_config import ExecutionConfig
 
+
 def estimate_commission_bps(cfg: ExecutionConfig) -> float:
     return max(0.0, cfg.fees.commission_bps)

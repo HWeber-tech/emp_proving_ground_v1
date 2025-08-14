@@ -12,11 +12,11 @@ This layer owns all cognitive functions including:
 - Memory and learning systems
 """
 
-from .patterns import *
 from .analysis import *
 from .inference import *
 from .memory import *
 from .models import *
+from .patterns import *
 
 __version__ = "1.1.0"
 __author__ = "EMP System"

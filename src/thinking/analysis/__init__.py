@@ -6,10 +6,10 @@ These modules process sensory signals and pattern detection results to
 provide comprehensive market analysis.
 """
 
-from .risk_analyzer import RiskAnalyzer
-from .performance_analyzer import PerformanceAnalyzer
-from .market_analyzer import MarketAnalyzer
 from .correlation_analyzer import CorrelationAnalyzer
+from .market_analyzer import MarketAnalyzer
+from .performance_analyzer import PerformanceAnalyzer
+from .risk_analyzer import RiskAnalyzer
 
 __all__ = [
     'RiskAnalyzer',

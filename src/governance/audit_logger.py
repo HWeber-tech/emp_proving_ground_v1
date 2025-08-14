@@ -5,11 +5,11 @@ Audit logging for the governance layer.
 Tracks all governance decisions and actions for compliance and transparency.
 """
 
-import logging
 import json
-from typing import Dict, List, Any, Optional
+import logging
 from datetime import datetime
 from pathlib import Path
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 

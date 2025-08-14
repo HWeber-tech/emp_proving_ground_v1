@@ -7,32 +7,30 @@ Comprehensive end-to-end integration testing with real market data.
 Validates that all components work together with actual data flows.
 """
 
-import asyncio
 import logging
-import json
 import time
-import sqlite3
-from datetime import datetime, timedelta
-from typing import Dict, List, Any, Optional, Tuple
-from pathlib import Path
-import pandas as pd
-import numpy as np
+from datetime import datetime
 from decimal import Decimal
+from typing import Any, Dict
 
-from src.sensory.organs.yahoo_finance_organ import YahooFinanceOrgan
+import numpy as np
+
 from src.sensory.enhanced.anomaly.manipulation_detection import ManipulationDetectionSystem
+from src.sensory.organs.yahoo_finance_organ import YahooFinanceOrgan
+
 try:
     from src.trading.risk.market_regime_detector import MarketRegimeDetector  # deprecated
 except Exception:  # pragma: no cover
     MarketRegimeDetector = None  # type: ignore
 from src.data_integration.real_data_integration import RealDataManager
+
 try:
     from src.core.interfaces import DecisionGenome
 except Exception:  # pragma: no cover
     DecisionGenome = object  # type: ignore
 from src.core import Instrument, InstrumentProvider
-from src.risk import RiskManager, RiskConfig
 from src.pnl import EnhancedPosition
+from src.risk import RiskConfig, RiskManager
 
 logger = logging.getLogger(__name__)
 

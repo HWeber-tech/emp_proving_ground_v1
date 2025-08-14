@@ -1,6 +1,10 @@
 # Import directly from module to avoid pulling heavy execution package
-from src.trading.execution.execution_model import ExecContext, estimate_slippage_bps, estimate_commission_bps
-from src.data_foundation.config.execution_config import ExecutionConfig, SlippageModel, FeeModel
+from src.data_foundation.config.execution_config import ExecutionConfig, FeeModel, SlippageModel
+from src.trading.execution.execution_model import (
+    ExecContext,
+    estimate_commission_bps,
+    estimate_slippage_bps,
+)
 
 
 def test_slippage_estimator_increases_with_inputs():

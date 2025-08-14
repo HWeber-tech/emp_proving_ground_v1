@@ -11,8 +11,10 @@ compatibility but are deprecated.
 
 # Re-export canonical signals (no in-file class definitions)
 from src.sensory.signals import (
-    SensorSignal as SensorSignal,
     IntegratedSignal as IntegratedSignal,
+)
+from src.sensory.signals import (
+    SensorSignal as SensorSignal,
 )
 
 __all__ = ['SensorSignal', 'IntegratedSignal']

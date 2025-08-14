@@ -1,5 +1,5 @@
-import os
 import json
+import os
 from datetime import datetime, timedelta
 
 
@@ -37,7 +37,8 @@ def test_backtest_runs_minimal(tmp_path):
 
     out_dir = tmp_path / "reports"
 
-    import subprocess, sys
+    import subprocess
+    import sys
     cmd = [sys.executable, "scripts/backtest_report.py", "--file", str(md_path), "--macro-file", str(macro_path), "--yields-file", str(yields_path), "--out-dir", str(out_dir)]
     proc = subprocess.run(cmd, capture_output=True, text=True)
     assert proc.returncode == 0, proc.stderr

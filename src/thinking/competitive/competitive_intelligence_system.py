@@ -3,13 +3,13 @@ Competitive Intelligence System
 Identify and counter competing algorithmic traders.
 """
 
-import asyncio
 import logging
-import numpy as np
-from datetime import datetime, timedelta
-from decimal import Decimal
-from typing import Dict, List, Optional, Any, Tuple
 import uuid
+from datetime import datetime
+from decimal import Decimal
+from typing import Any, Dict, List
+
+import numpy as np
 
 try:
     from src.core.events import AlgorithmSignature, CompetitorBehavior, CounterStrategy  # legacy

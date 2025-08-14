@@ -11,29 +11,33 @@ Phase: 2 - Truth-First Completion
 
 import asyncio
 import logging
-from typing import Dict, Any
 from datetime import datetime
-import pandas as pd
+from typing import Any, Dict
+
 import numpy as np
+import pandas as pd
+
+from src.sensory.enhanced.anomaly.manipulation_detection import (
+    ManipulationDetectionSystem,
+)
+from src.sensory.enhanced.chaos.antifragile_adaptation import ChaosAdaptationSystem
+from src.sensory.enhanced.how.institutional_footprint_hunter import (
+    InstitutionalFootprint,
+    InstitutionalFootprintHunter,
+)
+from src.sensory.enhanced.what.pattern_synthesis_engine import (
+    PatternSynthesis,
+    PatternSynthesisEngine,
+)
+from src.sensory.enhanced.when.temporal_advantage_system import (
+    TemporalAdvantage,
+    TemporalAdvantageSystem,
+)
 
 # Import all sensory dimensions
 from src.sensory.enhanced.why.macro_predator_intelligence import (
-    MacroPredatorIntelligence, MacroEnvironmentState
-)
-from src.sensory.enhanced.how.institutional_footprint_hunter import (
-    InstitutionalFootprintHunter, InstitutionalFootprint
-)
-from src.sensory.enhanced.what.pattern_synthesis_engine import (
-    PatternSynthesisEngine, PatternSynthesis
-)
-from src.sensory.enhanced.when.temporal_advantage_system import (
-    TemporalAdvantageSystem, TemporalAdvantage
-)
-from src.sensory.enhanced.anomaly.manipulation_detection import (
-    ManipulationDetectionSystem, AnomalyDetection
-)
-from src.sensory.enhanced.chaos.antifragile_adaptation import (
-    ChaosAdaptationSystem, ChaosAdaptation
+    MacroEnvironmentState,
+    MacroPredatorIntelligence,
 )
 
 logger = logging.getLogger(__name__)

@@ -5,8 +5,9 @@ Provides integration between FIX protocol and trading system
 
 import asyncio
 import logging
-from typing import Dict, Any, Optional
 from datetime import datetime
+from typing import Any, Dict, Optional
+
 import simplefix
 
 logger = logging.getLogger(__name__)

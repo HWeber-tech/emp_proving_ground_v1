@@ -6,7 +6,6 @@ This is a placeholder; customize with your preferred source.
 """
 
 from typing import List
-from datetime import datetime
 
 from src.data_foundation.schemas import MacroEvent
 

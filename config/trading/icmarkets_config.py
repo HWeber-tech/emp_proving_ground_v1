@@ -4,7 +4,8 @@ Production-ready configuration for IC Markets cTrader FIX API
 """
 
 import os
-from typing import Dict, Any
+from typing import Any, Dict
+
 
 class ICMarketsConfig:
     """Configuration manager for IC Markets FIX connections."""

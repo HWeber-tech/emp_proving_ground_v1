@@ -6,32 +6,30 @@ Complete system with configurable protocol selection (FIX vs OpenAPI)
 This is the final integration of Sprint 1: The Professional Upgrade
 """
 
+import argparse
 import asyncio
 import logging
 import sys
-from pathlib import Path
-from decimal import Decimal
 from datetime import datetime
-import os
-import argparse
+from pathlib import Path
 
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent))
 
-from src.governance.system_config import SystemConfig
-from src.governance.safety_manager import SafetyManager
-from src.operational.fix_connection_manager import FIXConnectionManager
 from src.core.event_bus import EventBus
+from src.governance.safety_manager import SafetyManager
+from src.governance.system_config import SystemConfig
+from src.operational.fix_connection_manager import FIXConnectionManager
+from src.sensory.anomaly.anomaly_sensor import AnomalySensor
+from src.sensory.how.how_sensor import HowSensor
+from src.sensory.integrate.bayesian_integrator import BayesianSignalIntegrator
 
 # Protocol-specific components (FIX-only)
 from src.sensory.organs.fix_sensory_organ import FIXSensoryOrgan
-from src.trading.integration.fix_broker_interface import FIXBrokerInterface
-from src.sensory.why.why_sensor import WhySensor
-from src.sensory.how.how_sensor import HowSensor
 from src.sensory.what.what_sensor import WhatSensor
 from src.sensory.when.when_sensor import WhenSensor
-from src.sensory.anomaly.anomaly_sensor import AnomalySensor
-from src.sensory.integrate.bayesian_integrator import BayesianSignalIntegrator
+from src.sensory.why.why_sensor import WhySensor
+from src.trading.integration.fix_broker_interface import FIXBrokerInterface
 
 logger = logging.getLogger(__name__)
 
@@ -69,7 +67,7 @@ class EMPProfessionalPredator:
             self.event_bus = EventBus()
             # Attach a risk manager instance for global checks (lazy/placeholder)
             try:
-                from src.core.risk.manager import RiskManager, RiskConfig
+                from src.core.risk.manager import RiskConfig, RiskManager
                 self.event_bus.risk_manager = RiskManager(RiskConfig())
                 # back-reference for event emission
                 self.event_bus.risk_manager.event_bus = self.event_bus
@@ -243,8 +241,9 @@ async def main():
         logger.info(f"Tier behavior: {emp_tier}")
         if emp_tier == 'tier_0' and not args.skip_ingest:
             try:
-                from src.data_foundation.ingest.yahoo_ingest import fetch_daily_bars, store_duckdb
                 from pathlib import Path
+
+                from src.data_foundation.ingest.yahoo_ingest import fetch_daily_bars, store_duckdb
                 symbols = [s.strip() for s in args.symbols.split(',') if s.strip()]
                 logger.info(f"📥 Tier-0 ingest for {symbols}")
                 df = fetch_daily_bars(symbols)

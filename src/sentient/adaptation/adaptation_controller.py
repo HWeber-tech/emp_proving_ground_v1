@@ -4,12 +4,12 @@ AdaptationController - Epic 1: The Predator's Instinct
 Generates tactical adaptations based on recalled memories to modify genome behavior in real-time.
 """
 
-import asyncio
-from typing import Dict, List, Any, Optional
-from dataclasses import dataclass
-from enum import Enum
 import logging
+from dataclasses import dataclass
 from datetime import datetime
+from enum import Enum
+from typing import Any, Dict, List
+
 import numpy as np
 
 logger = logging.getLogger(__name__)

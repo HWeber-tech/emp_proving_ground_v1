@@ -5,10 +5,9 @@ State Store - Simple In-Memory Implementation
 Provides state management for testing Phase 3 systems.
 """
 
-import asyncio
 import logging
-from typing import Dict, Any, Optional, List
 from datetime import datetime, timedelta
+from typing import List, Optional
 
 logger = logging.getLogger(__name__)
 

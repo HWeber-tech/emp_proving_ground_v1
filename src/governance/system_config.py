@@ -3,15 +3,14 @@
 from __future__ import annotations
 
 import os
-from pathlib import Path
-from typing import Dict, Any, Optional, Literal
-
 import os as _os
+from pathlib import Path
+from typing import Any, Dict, Literal, Optional
 
 try:
     # Prefer Pydantic v2 + pydantic-settings if available
-    from pydantic_settings import BaseSettings  # type: ignore
     from pydantic import Field  # type: ignore
+    from pydantic_settings import BaseSettings  # type: ignore
     _HAS_SETTINGS = True
 except Exception:  # No pydantic-settings available
     _HAS_SETTINGS = False

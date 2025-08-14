@@ -11,20 +11,22 @@ This script:
 5. Registers the trained model
 """
 
-import pandas as pd
-import numpy as np
-import torch
-import torch.nn as nn
-from torch.utils.data import Dataset, DataLoader
+import argparse
+import logging
+import warnings
+from pathlib import Path
+from typing import Dict, List, Tuple
+
 import mlflow
 import mlflow.pytorch
-from sklearn.preprocessing import StandardScaler, LabelEncoder
-from sklearn.metrics import accuracy_score, f1_score, classification_report
-import logging
-from pathlib import Path
-import argparse
-from typing import Tuple, Dict, List
-import warnings
+import numpy as np
+import pandas as pd
+import torch
+import torch.nn as nn
+from sklearn.metrics import f1_score
+from sklearn.preprocessing import LabelEncoder, StandardScaler
+from torch.utils.data import DataLoader, Dataset
+
 warnings.filterwarnings('ignore')
 
 # Configure logging

@@ -5,8 +5,8 @@ Specialized pattern detector for CVD/Price divergence analysis
 
 import logging
 from collections import deque
-from typing import Optional, Literal, List
 from datetime import datetime
+from typing import List, Literal, Optional
 
 try:
     from src.core.context_packet import ContextPacket  # legacy

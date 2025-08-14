@@ -15,21 +15,23 @@ Re-exported:
 
 from __future__ import annotations
 
-from src.ecosystem.evaluation.niche_detector import (
-    NicheDetector as NicheDetector,
-    MarketNiche as MarketNiche,  # also re-export commonly used type
-)
-from src.ecosystem.species.species_manager import (
-    SpeciesManager as SpeciesManager,
-)
 from src.ecosystem.coordination.coordination_engine import (
     CoordinationEngine as CoordinationEngine,
+)
+from src.ecosystem.evaluation.niche_detector import (
+    MarketNiche as MarketNiche,  # also re-export commonly used type
+)
+from src.ecosystem.evaluation.niche_detector import (
+    NicheDetector as NicheDetector,
+)
+from src.ecosystem.evolution.specialized_predator_evolution import (
+    SpecializedPredatorEvolution as SpecializedPredatorEvolution,
 )
 from src.ecosystem.optimization.ecosystem_optimizer import (
     EcosystemOptimizer as EcosystemOptimizer,
 )
-from src.ecosystem.evolution.specialized_predator_evolution import (
-    SpecializedPredatorEvolution as SpecializedPredatorEvolution,
+from src.ecosystem.species.species_manager import (
+    SpeciesManager as SpeciesManager,
 )
 
 __all__ = [

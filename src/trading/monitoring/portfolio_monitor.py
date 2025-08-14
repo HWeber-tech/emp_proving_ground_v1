@@ -3,12 +3,13 @@ Portfolio Monitor - Ticket TRADING-06
 Stateful portfolio management with Redis persistence
 """
 
-import json
 import asyncio
-import redis
-from typing import Dict, Any, Optional
-from datetime import datetime
+import json
 import logging
+from datetime import datetime
+from typing import Any, Dict, Optional
+
+import redis
 
 try:
     from src.core.events import ExecutionReport  # legacy

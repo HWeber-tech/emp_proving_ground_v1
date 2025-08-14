@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 import json
-import os
-from dataclasses import dataclass, asdict
-from typing import Dict, Optional
-from datetime import datetime
 import logging
+import os
+from dataclasses import asdict, dataclass
+from datetime import datetime
+from typing import Dict
+
 
 # Persistence layer removed; fallback to simple JSON file store
 class JSONStateStore:  # minimal shim

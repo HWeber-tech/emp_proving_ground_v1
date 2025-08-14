@@ -5,16 +5,16 @@ Processes raw price data and extracts price-related sensory signals
 including trends, momentum, volatility, and price action patterns.
 """
 
-import numpy as np
-import pandas as pd
-from typing import Dict, List, Any, Optional
-from datetime import datetime
-from dataclasses import dataclass
 import logging
+from dataclasses import dataclass
+from datetime import datetime
+from typing import Any, Dict, List, Optional
 
-from src.sensory.core.base import SensoryOrgan, MarketData
-from src.sensory.signals import SensorSignal as SensorySignal
+import numpy as np
+
 from src.core.exceptions import SensoryException
+from src.sensory.core.base import MarketData, SensoryOrgan
+from src.sensory.signals import SensorSignal as SensorySignal
 
 logger = logging.getLogger(__name__)
 

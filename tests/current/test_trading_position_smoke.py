@@ -1,7 +1,7 @@
 import pytest
 
-from src.trading.models.position import Position as PositionFromModule
 from src.trading.models import Position as PositionFromFacade
+from src.trading.models.position import Position as PositionFromModule
 
 
 def test_trading_position_smoke():

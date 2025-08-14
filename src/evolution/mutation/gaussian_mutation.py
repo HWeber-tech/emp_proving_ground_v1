@@ -7,10 +7,8 @@ Implements the IMutationStrategy interface for introducing genetic diversity.
 
 import logging
 import random
-from typing import Dict, Any
 
-from src.core.interfaces import IMutationStrategy
-from src.core.interfaces import DecisionGenome
+from src.core.interfaces import DecisionGenome, IMutationStrategy
 
 logger = logging.getLogger(__name__)
 

@@ -5,9 +5,8 @@ Processes market data from FIX protocol
 
 import asyncio
 import logging
-from typing import Dict, Any, List
 from datetime import datetime
-import simplefix
+from typing import Any, Dict, List
 
 logger = logging.getLogger(__name__)
 

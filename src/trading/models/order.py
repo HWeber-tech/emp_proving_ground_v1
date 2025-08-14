@@ -5,9 +5,9 @@ Order Models
 Data models for trading orders in the EMP Proving Ground system.
 """
 
-from enum import Enum
 from dataclasses import dataclass
 from datetime import datetime
+from enum import Enum
 from typing import Optional
 
 

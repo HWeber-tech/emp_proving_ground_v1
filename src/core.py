@@ -10,18 +10,14 @@ This module contains the essential building blocks:
 
 import json
 import logging
-from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
 from typing import Dict, List, Optional
-
-from pydantic import BaseModel, Field, validator
 
 logger = logging.getLogger(__name__)
 
 
 # Canonical RiskConfig is defined in src.config.risk.risk_config
-from src.config.risk.risk_config import RiskConfig  # re-export for backward compatibility
 
 
 # Re-export canonical Instrument implementation to avoid duplicate class definitions

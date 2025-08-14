@@ -1,5 +1,6 @@
 def test_data_integration_has_no_indicator_code():
-    import os, re
+    import os
+    import re
     forbidden = re.compile(r"\b(RSI|Bollinger|MACD|SMA|EMA|VectorizedIndicators)\b", re.I)
     root = "src/data_integration"
     for base, _, files in os.walk(root):

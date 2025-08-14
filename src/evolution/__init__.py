@@ -14,7 +14,7 @@ Architecture:
 """
 
 # Legacy facade: re-export core evolution interfaces
-from src.core.evolution.engine import EvolutionEngine, EvolutionConfig  # type: ignore
+from src.core.evolution.engine import EvolutionConfig, EvolutionEngine  # type: ignore
 from src.core.evolution.fitness import FitnessEvaluator  # type: ignore
 from src.core.evolution.operators import *  # noqa: F401,F403
 from src.core.evolution.population import Population  # type: ignore

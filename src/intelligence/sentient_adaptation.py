@@ -13,22 +13,17 @@ sentient trading system that learns and adapts in real-time.
 
 import asyncio
 import logging
-import numpy as np
-from typing import Dict, List, Optional, Any, Tuple
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
-import json
-import torch
-import torch.nn as nn
-from sklearn.preprocessing import StandardScaler
-import faiss
+from datetime import datetime
+from typing import Any, Dict, List, Optional
+
+import numpy as np
 
 try:
     from src.evolution.episodic_memory_system import EpisodicMemorySystem  # legacy
 except Exception:  # pragma: no cover
     class EpisodicMemorySystem:  # type: ignore
         pass
-from src.thinking.memory.pattern_memory import PatternMemory
 
 logger = logging.getLogger(__name__)
 
@@ -66,8 +61,6 @@ class MarketEvent:
 from src.sentient.learning.real_time_learning_engine import (
     RealTimeLearningEngine as RealTimeLearningEngine,
 )
-
-
 from src.sentient.memory.faiss_pattern_memory import (
     FAISSPatternMemory as FAISSPatternMemory,
 )
@@ -135,7 +128,9 @@ MetaCognitionEngine = MetaCognitionEngineImpl
 
 
 # Use canonical AdaptationController implementation to avoid duplicate ClassDef
-from src.sentient.adaptation.adaptation_controller import AdaptationController as AdaptationController  # type: ignore
+from src.sentient.adaptation.adaptation_controller import (
+    AdaptationController as AdaptationController,  # type: ignore
+)
 
 
 class SentientAdaptationEngine:

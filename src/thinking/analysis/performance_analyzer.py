@@ -5,13 +5,14 @@ Performance analysis and scoring for the thinking layer.
 Migrated from evolution layer to thinking layer where cognitive functions belong.
 """
 
+import logging
+from datetime import datetime
+from typing import Any, Dict, List, Optional
+
 import numpy as np
 import pandas as pd
-from typing import Dict, List, Optional, Tuple, Any
-from datetime import datetime, timedelta
-import logging
 
-from ...core.events import TradeIntent, PerformanceMetrics, AnalysisResult
+from ...core.events import AnalysisResult, PerformanceMetrics, TradeIntent
 
 logger = logging.getLogger(__name__)
 

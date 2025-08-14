@@ -6,10 +6,10 @@ Processes economic indicators and macro data.
 """
 
 import logging
-from typing import Dict, Any, Optional
 from datetime import datetime
+from typing import Any, Dict, Optional
 
-from ..core.base import SensoryOrgan, MarketData, SensoryReading
+from ..core.base import MarketData, SensoryOrgan, SensoryReading
 
 logger = logging.getLogger(__name__)
 

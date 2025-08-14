@@ -5,14 +5,10 @@ Defines the genetic encoding structure for trading strategies,
 risk parameters, and timing preferences in the adaptive core.
 """
 
-import json
 import logging
-from typing import Dict, List, Any, Optional
-from datetime import datetime
 from dataclasses import dataclass, field
 from enum import Enum
-
-from src.core.exceptions import GenomeException
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 

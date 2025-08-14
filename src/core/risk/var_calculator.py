@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from typing import List
-from decimal import Decimal
 
 
 def historical_var(returns: List[float], alpha: float = 0.95) -> float:

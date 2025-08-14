@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Dict, Any
+from typing import Any, Dict
 
 from src.operational.metrics import fix_parity_mismatched_orders, fix_parity_mismatched_positions
 

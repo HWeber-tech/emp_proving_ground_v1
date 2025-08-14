@@ -3,20 +3,19 @@ Predictive Market Modeler
 Advanced market prediction and scenario modeling system.
 """
 
-import asyncio
 import logging
-import numpy as np
-from datetime import datetime, timedelta
-from decimal import Decimal
-from typing import Dict, List, Optional, Any, Tuple
 import uuid
 from dataclasses import dataclass
+from datetime import datetime, timedelta
+from decimal import Decimal
+from typing import Any, Dict, List, Tuple
+
+import numpy as np
 
 try:
     from src.core.events import ContextPacket, PredictionResult  # legacy
 except Exception:  # pragma: no cover
     ContextPacket = PredictionResult = object  # type: ignore
-from src.thinking.memory.faiss_memory import FAISSPatternMemory
 from src.operational.state_store import StateStore
 
 logger = logging.getLogger(__name__)

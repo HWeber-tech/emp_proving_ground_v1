@@ -5,8 +5,8 @@ Models for sensory processing and technical analysis
 
 from dataclasses import dataclass
 from datetime import datetime
-from typing import List, Dict, Optional
 from enum import Enum
+from typing import Dict, List, Optional
 
 
 class Sentiment(Enum):
@@ -47,7 +47,9 @@ class TechnicalSignal:
 
 
 # Re-export canonical SensoryReading to avoid duplicate class definitions
-from src.sensory.organs.dimensions.base_organ import SensoryReading as SensoryReading  # type: ignore
+from src.sensory.organs.dimensions.base_organ import (
+    SensoryReading as SensoryReading,  # type: ignore
+)
 
 
 @dataclass

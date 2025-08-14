@@ -6,18 +6,16 @@ Concrete implementation of the component integrator for managing
 system-wide component integration and lifecycle.
 """
 
-import asyncio
-import logging
 import json
-from typing import Dict, List, Any, Optional, Type
+import logging
 from datetime import datetime
 from pathlib import Path
+from typing import Any, Dict, List, Optional
 
 try:
-    from src.core.interfaces import IStrategy, IMarketAnalyzer, IRiskManager, IPopulationManager
+    from src.core.interfaces import IMarketAnalyzer, IPopulationManager, IRiskManager, IStrategy
 except Exception:  # pragma: no cover
     IStrategy = IMarketAnalyzer = IRiskManager = IPopulationManager = object  # type: ignore
-from src.core.exceptions import IntegrationException
 from src.integration.component_integrator import ComponentIntegrator
 
 logger = logging.getLogger(__name__)
@@ -56,9 +54,9 @@ class ComponentIntegratorImpl(ComponentIntegrator):
         """Initialize sensory system components."""
         try:
             # New 4D+1 scaffolding (what/when/anomaly via simple sensors)
+            from src.sensory.anomaly.anomaly_sensor import AnomalySensor
             from src.sensory.what.what_sensor import WhatSensor
             from src.sensory.when.when_sensor import WhenSensor
-            from src.sensory.anomaly.anomaly_sensor import AnomalySensor
             
             self.components['what_sensor'] = WhatSensor()
             self.components['when_sensor'] = WhenSensor()
@@ -86,7 +84,7 @@ class ComponentIntegratorImpl(ComponentIntegrator):
     async def _initialize_evolution_system(self) -> None:
         """Initialize evolution system components."""
         try:
-            from src.core.evolution.engine import EvolutionEngine, EvolutionConfig
+            from src.core.evolution.engine import EvolutionConfig, EvolutionEngine
             self.components['evolution_engine'] = EvolutionEngine(EvolutionConfig())
             
             logger.info("Evolution system components initialized")
@@ -98,7 +96,7 @@ class ComponentIntegratorImpl(ComponentIntegrator):
         """Initialize risk management components."""
         try:
             # Consolidated risk manager (single source of truth)
-            from src.core.risk.manager import RiskManager, RiskConfig
+            from src.core.risk.manager import RiskConfig, RiskManager
             self.components['risk_manager'] = RiskManager(RiskConfig())
             logger.info("Risk system components initialized (core.risk.manager)")
         except Exception as e:
@@ -107,8 +105,8 @@ class ComponentIntegratorImpl(ComponentIntegrator):
     async def _initialize_governance_system(self) -> None:
         """Initialize governance components."""
         try:
-            from src.governance.system_config import SystemConfig
             from src.governance.audit_trail import AuditTrail
+            from src.governance.system_config import SystemConfig
             
             self.components['system_config'] = SystemConfig()
             self.components['audit_trail'] = AuditTrail()

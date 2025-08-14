@@ -14,15 +14,14 @@ Author: EMP Development Team
 Phase: 2 - Truth-First Completion
 """
 
-import asyncio
+import logging
+from dataclasses import dataclass
+from datetime import datetime
+from typing import Any, Dict, List, Optional
+
 import numpy as np
 import pandas as pd
-from typing import Dict, List, Optional, Any, Tuple
-from dataclasses import dataclass
-from datetime import datetime, timedelta
-import logging
 from scipy.signal import find_peaks
-from scipy.stats import linregress
 
 logger = logging.getLogger(__name__)
 

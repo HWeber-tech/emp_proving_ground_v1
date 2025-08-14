@@ -4,14 +4,13 @@ RealTimeLearningEngine - Epic 1: The Predator's Instinct
 Generates learning signals from every closed trade for real-time adaptation.
 """
 
-import asyncio
-import numpy as np
-from typing import Dict, List, Optional, Any
-from datetime import datetime
-from dataclasses import dataclass
-from enum import Enum
 import logging
-from pathlib import Path
+from dataclasses import dataclass
+from datetime import datetime
+from enum import Enum
+from typing import Any, Dict, List
+
+import numpy as np
 
 logger = logging.getLogger(__name__)
 

@@ -5,6 +5,7 @@ Configuration for portfolio monitoring
 
 from dataclasses import dataclass
 
+
 @dataclass
 class PortfolioConfig:
     """Configuration for portfolio monitoring"""

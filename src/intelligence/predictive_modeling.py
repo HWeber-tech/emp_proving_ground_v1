@@ -13,26 +13,18 @@ the EMP to anticipate market movements and prepare optimal strategies.
 
 import asyncio
 import logging
-import numpy as np
-import pandas as pd
-from typing import Dict, List, Optional, Any, Tuple
-from dataclasses import dataclass, field
-from datetime import datetime, timedelta
-import json
-from scipy import stats
-from sklearn.ensemble import RandomForestRegressor
-from sklearn.preprocessing import StandardScaler
-import torch
-import torch.nn as nn
+from dataclasses import dataclass
+from datetime import timedelta
 
 logger = logging.getLogger(__name__)
 
 # Canonical re-exports for duplicate classes (shim-only for these types)
 from src.thinking.prediction.predictive_market_modeler import (
-    PredictiveMarketModeler,
     MarketScenario,
     MarketScenarioGenerator,
+    PredictiveMarketModeler,
 )
+
 __all__ = [*globals().get("__all__", []), "PredictiveMarketModeler", "MarketScenario", "MarketScenarioGenerator"]
 
 
@@ -55,16 +47,14 @@ class ScenarioOutcome:
 from src.thinking.prediction.predictive_market_modeler import (
     BayesianProbabilityEngine as BayesianProbabilityEngine,
 )
-
-
-# Canonical OutcomePredictor (structural unification)
-from src.thinking.prediction.predictive_market_modeler import OutcomePredictor as OutcomePredictor  # type: ignore
-
-
 from src.thinking.prediction.predictive_market_modeler import (
     ConfidenceCalibrator as ConfidenceCalibrator,
 )
 
+# Canonical OutcomePredictor (structural unification)
+from src.thinking.prediction.predictive_market_modeler import (
+    OutcomePredictor as OutcomePredictor,  # type: ignore
+)
 
 # PredictiveMarketModeler is provided by canonical module (re-exported above).
 

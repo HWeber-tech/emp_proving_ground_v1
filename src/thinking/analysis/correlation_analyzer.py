@@ -6,12 +6,13 @@ Provides correlation insights for portfolio management and risk assessment.
 """
 
 import logging
-import numpy as np
-from typing import Dict, List, Any, Optional
 from datetime import datetime
+from typing import Any, Dict, List, Optional
+
+import numpy as np
 
 try:
-    from src.core.interfaces import ThinkingPattern, SensorySignal, AnalysisResult
+    from src.core.interfaces import AnalysisResult, SensorySignal, ThinkingPattern
 except Exception:  # pragma: no cover
     ThinkingPattern = SensorySignal = AnalysisResult = object  # type: ignore
 from src.core.exceptions import ThinkingException

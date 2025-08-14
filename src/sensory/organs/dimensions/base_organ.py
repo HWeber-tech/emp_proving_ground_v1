@@ -256,8 +256,11 @@ class EconomicEvent(BaseModel):
 # Legacy shim: re-export canonical trading order book types
 from trading.order_management.order_book.snapshot import (
     OrderBookLevel as OrderBookLevel,
+)
+from trading.order_management.order_book.snapshot import (
     OrderBookSnapshot as OrderBookSnapshot,
 )
+
 
 class DimensionalSensor(ABC):
     """

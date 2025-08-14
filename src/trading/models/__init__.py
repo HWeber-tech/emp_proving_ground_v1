@@ -10,7 +10,9 @@ __all__: list[str] = []
 
 # Safe, guarded re-exports to avoid runtime errors if submodules are absent.
 try:
-    from .order import Order as Order, OrderStatus as OrderStatus, OrderType as OrderType
+    from .order import Order as Order
+    from .order import OrderStatus as OrderStatus
+    from .order import OrderType as OrderType
 except ImportError:  # pragma: no cover
     pass
 else:

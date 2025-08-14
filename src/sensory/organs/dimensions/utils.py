@@ -454,7 +454,6 @@ from src.trading.monitoring.performance_tracker import (
     PerformanceTracker as PerformanceTracker,
 )
 
-
 # Utility constants
 TRADING_DAYS_PER_YEAR = 252
 HOURS_PER_TRADING_DAY = 24

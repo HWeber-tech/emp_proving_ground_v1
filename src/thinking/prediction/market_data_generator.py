@@ -14,10 +14,11 @@ Where:
 
 from __future__ import annotations
 
+import uuid
 from datetime import datetime
 from decimal import Decimal
 from typing import Any, Dict, List, Tuple
-import uuid
+
 import numpy as np
 
 from src.thinking.prediction.predictive_market_modeler import (

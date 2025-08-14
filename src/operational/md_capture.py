@@ -11,9 +11,8 @@ speed factor.
 import json
 import os
 import time
-from dataclasses import asdict
 from datetime import datetime
-from typing import Callable, Dict, Any, List, Tuple, Optional
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 
 def _serialize_order_book(symbol: str, order_book) -> Dict[str, Any]:

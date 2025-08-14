@@ -4,8 +4,8 @@ Comprehensive exception hierarchy for production trading system.
 """
 
 import logging
-from typing import Optional, Dict, Any
 from datetime import datetime
+from typing import Any, Dict
 
 
 # Minimal, stable core exception anchors

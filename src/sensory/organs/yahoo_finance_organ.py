@@ -3,12 +3,13 @@ Yahoo Finance Organ - Ticket DATA-01
 Real historical data organ using yfinance for development simulations
 """
 
-import yfinance as yf
-import pandas as pd
 import logging
+from datetime import datetime
 from pathlib import Path
-from typing import Optional, Dict, Any
-from datetime import datetime, timedelta
+from typing import Any, Dict, Optional
+
+import pandas as pd
+import yfinance as yf
 
 logger = logging.getLogger(__name__)
 

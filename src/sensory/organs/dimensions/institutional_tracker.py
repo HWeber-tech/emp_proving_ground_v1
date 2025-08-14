@@ -12,14 +12,14 @@ This module provides sophisticated institutional trading pattern analysis includ
 
 import asyncio
 import logging
-from typing import Dict, List, Optional, Any, Tuple
-from datetime import datetime, timedelta
-import pandas as pd
-import numpy as np
 from dataclasses import dataclass
-from scipy import stats
+from datetime import datetime, timedelta
+from typing import Any, Dict, List, Optional, Tuple
 
-from src.sensory.core.base import MarketData, DimensionalReading, MarketRegime
+import numpy as np
+import pandas as pd
+
+from src.sensory.core.base import DimensionalReading, MarketData, MarketRegime
 
 logger = logging.getLogger(__name__)
 

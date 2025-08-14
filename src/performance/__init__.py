@@ -7,7 +7,8 @@ Provides high-performance caching and vectorized calculations.
 """
 
 import logging
-from typing import Optional, Any
+from typing import Any, Optional
+
 import numpy as np
 
 logger = logging.getLogger(__name__)
@@ -137,7 +138,6 @@ _global_cache = None
 
 # Re-export canonical global cache accessor (deprecated local GlobalCache)
 from src.core.performance.market_data_cache import get_global_cache as get_global_cache
-
 
 # Re-export for convenience
 __all__ = [

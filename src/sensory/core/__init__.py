@@ -4,7 +4,7 @@ Prefer importing canonical dataclasses from
 `src.sensory.signals` or pydantic models in `src.sensory.core.base` where needed.
 """
 
-from .base import MarketData, DimensionalReading, MarketRegime, InstrumentMeta  # re-export
+from .base import DimensionalReading, InstrumentMeta, MarketData, MarketRegime  # re-export
 
 __all__ = [
     "MarketData",

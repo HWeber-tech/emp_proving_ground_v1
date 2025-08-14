@@ -60,14 +60,24 @@ jobs:
           python -m pip install --upgrade pip
           pip install import-linter tomli toml
 
-      - name: Run Import Linter (contracts/importlinter.toml)
+      - name: Import Linter diagnostics
+        run: |
+          python - <<'PY'
+          import importlinter, sys
+          print("importlinter", getattr(importlinter, "__version__", "unknown"))
+          print("python", sys.version.split()[0])
+          PY
+          # print CLI header to verify entrypoint exists
+          python -m importlinter.cli --help | sed -n '1,3p' || true
+
+      - name: Run Import Linter (contracts/importlinter.ini)
         run: |
           set -e
           if command -v lint-imports &>/dev/null; then
-            lint-imports --config contracts/importlinter.toml
+            lint-imports --config contracts/importlinter.ini --verbose
           else
             # Fallback entrypoint for environments without the console script
-            python -m importlinter.cli lint-imports --config contracts/importlinter.toml
+            python -m importlinter.cli lint-imports --config contracts/importlinter.ini --verbose
           fi
   core-lint:
     name: Ruff core hygiene (warning-only)

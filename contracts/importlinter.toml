@@ -10,6 +10,7 @@ name = "layered-architecture"
 type = "layers"
 layers = [
   "src.ui",
+  "src.orchestration",
   "src.operational",
   "src.integration",
   "src.data_integration",
@@ -17,6 +18,7 @@ layers = [
   "src.domain",
   "src.trading",
   "src.sensory",
+  "src.market_intelligence",
   "src.ecosystem",
   "src.validation",
   "src.genome",
@@ -36,6 +38,7 @@ type = "independence"
 modules = [
   "src.trading",
   "src.sensory",
+  "src.market_intelligence",
   "src.ecosystem",
   "src.thinking",
   "src.validation",
@@ -48,3 +51,20 @@ modules = [
 
 # Placeholder for package-specific cycle checks. Import Linter doesn't have a generic "no-cycles" contract;
 # enforce via finer-grained layers within large packages (added in later phases) or use additional tooling.
+
+# Gentle intra-package layering to keep data models at the bottom.
+[[contract]]
+name = "trading-models-bottom"
+type = "layers"
+layers = [
+  "src.trading",
+  "src.trading.models"
+]
+
+[[contract]]
+name = "sensory-models-bottom"
+type = "layers"
+layers = [
+  "src.sensory",
+  "src.sensory.models"
+]

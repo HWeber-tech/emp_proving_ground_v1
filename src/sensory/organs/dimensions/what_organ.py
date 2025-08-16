@@ -16,6 +16,7 @@ from typing import Any, Dict, List, Optional
 import pandas as pd
 
 from src.sensory.core.base import DimensionalReading, MarketData, MarketRegime
+from src.sensory.what.patterns.orchestrator import PatternOrchestrator
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +43,9 @@ class WhatEngine:
         except ImportError as e:
             logger.warning(f"Some sub-modules not available: {e}")
             self.price_action = None
+
+        # Pattern synthesis orchestrator (async engine behind a thin façade)
+        self.pattern_orchestrator = PatternOrchestrator()
     
     def analyze_market_data(self, market_data: List[MarketData], 
                           symbol: str = "UNKNOWN") -> Dict[str, Any]:
@@ -71,9 +75,28 @@ class WhatEngine:
                 'price_action': self._analyze_price_action(df),
                 'technical_reality': self._analyze_technical_reality(df),
                 'market_structure': self._analyze_market_structure(df),
-                'support_resistance': self._identify_support_resistance(df)
+                'support_resistance': self._identify_support_resistance(df),
             }
-            
+
+            # Best-effort pattern synthesis (async); avoid nesting event loops
+            try:
+                import asyncio
+
+                try:
+                    loop = asyncio.get_running_loop()
+                except RuntimeError:
+                    loop = None
+
+                if loop and loop.is_running():
+                    # In an async context already; skip sync orchestration to avoid nested loop issues.
+                    patterns: Dict[str, Any] = {}
+                else:
+                    patterns = asyncio.run(self.pattern_orchestrator.analyze(df))
+                analysis_results['pattern_synthesis'] = patterns
+            except Exception as _ex:
+                # Non-fatal: keep the rest of the analysis
+                analysis_results['pattern_synthesis'] = {}
+
             logger.info(f"Technical reality analysis completed for {symbol}")
             
             return analysis_results

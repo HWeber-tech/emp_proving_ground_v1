@@ -32,12 +32,12 @@ from src.core import Instrument, InstrumentProvider
 from src.pnl import EnhancedPosition
 from src.risk import RiskConfig, RiskManager
 
-logger = logging.getLogger(__name__)
-
 # Canonical re-export to avoid duplicate class definition in this module
 from src.validation.phase2d_integration_validator import (
     Phase2DIntegrationValidator as Phase2DIntegrationValidator,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class Phase2DIntegrationValidatorLegacy:

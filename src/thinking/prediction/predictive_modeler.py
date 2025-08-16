@@ -14,17 +14,15 @@ import asyncio
 import logging
 
 import pandas as pd
-
-# Configure logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
-
-# Duplicate shim: re-export canonical implementations (no logic)
 from .predictive_market_modeler import (
     MarketScenario,
     MarketScenarioGenerator,
     PredictiveMarketModeler,
 )
+
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
 __all__ = ["PredictiveMarketModeler", "MarketScenario", "MarketScenarioGenerator"]
 

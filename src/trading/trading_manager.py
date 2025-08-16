@@ -17,8 +17,8 @@ try:
     from src.core.risk.position_sizing import position_size as PositionSizer  # canonical
 except Exception:  # pragma: no cover
     PositionSizer = None  # type: ignore
-RiskGateway = None  # deprecated path removed; use core risk flows directly
 from src.trading.monitoring.portfolio_monitor import PortfolioMonitor
+RiskGateway = None  # deprecated path removed; use core risk flows directly
 
 logger = logging.getLogger(__name__)
 

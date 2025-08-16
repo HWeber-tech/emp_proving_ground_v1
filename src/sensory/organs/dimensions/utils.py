@@ -12,6 +12,9 @@ from typing import Dict, List, Optional, Tuple
 import numpy as np
 
 from .base_organ import MarketRegime
+from src.trading.monitoring.performance_tracker import (
+    PerformanceTracker as PerformanceTracker,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -448,11 +451,6 @@ def calculate_divergence(
         # Positive for confluence
         return abs(price_trend + indicator_trend) / 2
 
-
-# Re-export canonical PerformanceTracker to avoid duplicate class definitions
-from src.trading.monitoring.performance_tracker import (
-    PerformanceTracker as PerformanceTracker,
-)
 
 # Utility constants
 TRADING_DAYS_PER_YEAR = 252

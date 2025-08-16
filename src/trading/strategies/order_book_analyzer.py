@@ -12,6 +12,7 @@ from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
+from trading.order_management.order_book.snapshot import OrderBookLevel, OrderBookSnapshot
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +21,6 @@ class OrderBookSide(Enum):
     BID = "bid"
     ASK = "ask"
 
-from trading.order_management.order_book.snapshot import OrderBookLevel, OrderBookSnapshot
 
 
 @dataclass

@@ -9,6 +9,7 @@ Date: July 18, 2024
 Phase: 1.5 - Advanced Data Sources Complete
 """
 
+from src.validation.models import ValidationResult as ValidationResult
 # Import main data management classes
 # Legacy imports removed during cleanup; provide minimal stubs for compatibility
 class RealDataManager:  # type: ignore
@@ -35,7 +36,7 @@ class DataQualityMonitor:  # type: ignore
     pass
 class ValidationLevel:  # type: ignore
     pass
-from src.validation.models import ValidationResult as ValidationResult
+
 
 
 class DataQualityThresholds:  # type: ignore

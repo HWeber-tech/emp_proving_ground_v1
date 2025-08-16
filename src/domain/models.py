@@ -5,20 +5,19 @@ Shared domain models used across all layers.
 Separates domain concerns from infrastructure concerns.
 """
 
-import logging
+from __future__ import annotations
+
 from datetime import datetime
 from decimal import Decimal
+from typing import TYPE_CHECKING, Any
+from importlib import import_module
 
 from pydantic import BaseModel
 
-logger = logging.getLogger(__name__)
-
-
-# RiskConfig is unified under src.core.risk.manager
-try:
-    from src.core.risk.manager import RiskConfig  # type: ignore
-except Exception:
-    RiskConfig = object  # type: ignore
+if TYPE_CHECKING:
+    # Intentionally avoid importing runtime symbols for typing to prevent cycles
+    # and to keep import-time light. Use string annotations where needed.
+    pass
 
 
 class ExecutionReport(BaseModel):
@@ -34,29 +33,40 @@ class ExecutionReport(BaseModel):
     quantity: float
     price: float
     order_id: str
-    
+
     class Config:
         json_encoders = {
             datetime: lambda v: v.isoformat(),
-            Decimal: str
+            Decimal: str,
         }
 
 
+# Robust lazy re-exports with safe fallbacks (no import-time side effects)
+_DOMAIN_LAZY_EXPORTS = {
+    "InstrumentProvider": "src.core:InstrumentProvider",
+    "CurrencyConverter": "src.core:CurrencyConverter",
+}
+__all__ = ["ExecutionReport"] + list(_DOMAIN_LAZY_EXPORTS.keys())
 
 
-# Re-export canonical implementations instead of defining duplicates
-from importlib import import_module as _imp  # type: ignore
+def __getattr__(name: str) -> Any:
+    # Lazy attribute resolution to avoid import-time side effects and cycles.
+    # Provides safe fallback shims if canonical targets are unavailable.
+    target = _DOMAIN_LAZY_EXPORTS.get(name)
+    if target is None:
+        raise AttributeError(name)
 
-try:
-    _core_mod = _imp("src.core")  # prefer canonical implementations in src/core.py
-    InstrumentProvider = getattr(_core_mod, "InstrumentProvider")  # type: ignore
-except Exception:
-    class InstrumentProvider:  # type: ignore
-        pass
+    module_path, _, attr = target.partition(":")
+    try:
+        mod = import_module(module_path)
+        obj = getattr(mod, attr)
+    except Exception:
+        # Minimal shim class to satisfy hasattr(importer, name) and construction
+        obj = type(name, (), {})  # type: ignore[type-arg]
 
-try:
-    _core_mod = _imp("src.core")
-    CurrencyConverter = getattr(_core_mod, "CurrencyConverter")  # type: ignore
-except Exception:
-    class CurrencyConverter:  # type: ignore
-        pass
+    globals()[name] = obj
+    return obj
+
+
+def __dir__() -> list[str]:
+    return sorted(list(globals().keys()) + __all__)

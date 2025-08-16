@@ -10,10 +10,9 @@ from typing import Dict, List, Optional
 
 from ...config.portfolio_config import PortfolioConfig
 from ..models import PortfolioSnapshot, Position
+from ..monitoring.performance_tracker import PerformanceMetrics as PerformanceMetrics
 
 logger = logging.getLogger(__name__)
-
-from ..monitoring.performance_tracker import PerformanceMetrics as PerformanceMetrics
 
 
 class RealPortfolioMonitor:

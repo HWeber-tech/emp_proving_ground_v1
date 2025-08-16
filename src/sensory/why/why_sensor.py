@@ -18,7 +18,7 @@ class WhySensor:
 
     def process(self, df: pd.DataFrame) -> List[SensorSignal]:
         if df is None or df.empty or 'close' not in df:
-            return [SensorSignal(name='WHY', strength=0.0, confidence=0.1)]
+            return [SensorSignal(signal_type='WHY', value={'strength': 0.0}, confidence=0.1)]
 
         returns = df['close'].pct_change().dropna()
         vol = returns.rolling(window=20, min_periods=5).std().iloc[-1]
@@ -36,6 +36,6 @@ class WhySensor:
                 strength = 0.2 if slope > 0 else 0.0
                 confidence = 0.5
 
-        return [SensorSignal(name='WHY', strength=float(strength), confidence=float(confidence))]
+        return [SensorSignal(signal_type='WHY', value={'strength': float(strength)}, confidence=float(confidence))]
 
 

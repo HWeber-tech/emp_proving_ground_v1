@@ -14,14 +14,12 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Dict, List, Optional
 
-logger = logging.getLogger(__name__)
-
-
-# Canonical RiskConfig is defined in src.config.risk.risk_config
-
-
 # Re-export canonical Instrument implementation to avoid duplicate class definitions
 from src.core.instrument import Instrument as Instrument
+
+logger = logging.getLogger(__name__)
+
+# Canonical RiskConfig is defined in src.config.risk.risk_config
 
 
 class InstrumentProvider:

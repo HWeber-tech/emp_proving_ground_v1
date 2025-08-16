@@ -12,6 +12,8 @@ from datetime import datetime
 from enum import Enum
 from typing import List, Optional
 
+from src.trading.models.position import Position as Position
+
 
 class SignalType(Enum):
     """Types of trading signals"""
@@ -36,13 +38,12 @@ class TradingSignal:
     take_profit: Optional[float] = None
     strategy_name: str = ""
     confidence: float = 0.5
-    timestamp: datetime = None
+    timestamp: Optional[datetime] = None
     
     def __post_init__(self):
         if self.timestamp is None:
             self.timestamp = datetime.now()
 
-from src.trading.models.position import Position as Position
 
 
 @dataclass
@@ -53,7 +54,7 @@ class PortfolioSnapshot:
     positions: List[Position]
     unrealized_pnl: float
     realized_pnl: float
-    timestamp: datetime = None
+    timestamp: Optional[datetime] = None
     
     def __post_init__(self):
         if self.timestamp is None:

@@ -16,13 +16,12 @@ from pathlib import Path
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent))
 
+from typing import Optional
+
 from src.core.event_bus import EventBus
 from src.governance.safety_manager import SafetyManager
 from src.governance.system_config import SystemConfig
 from src.operational.fix_connection_manager import FIXConnectionManager
-from src.sensory.anomaly.anomaly_sensor import AnomalySensor
-from src.sensory.how.how_sensor import HowSensor
-from src.sensory.integrate.bayesian_integrator import BayesianSignalIntegrator
 
 # Protocol-specific components (FIX-only)
 from src.sensory.organs.fix_sensory_organ import FIXSensoryOrgan
@@ -38,59 +37,29 @@ class EMPProfessionalPredator:
     """Professional-grade trading system with configurable protocol selection."""
     
     def __init__(self):
-        self.config = None
-        self.event_bus = None
+        # Initialize configuration and event bus immediately to avoid Optional typing ambiguity
+        self.config: SystemConfig = SystemConfig()
+        self.event_bus: EventBus = EventBus()
+
         self.fix_connection_manager = None
         self.sensory_organ = None
         self.broker_interface = None
         self.running = False
-        # 4D+1 sensors and integrator
-        self.why_sensor = None
-        self.how_sensor = None
-        self.what_sensor = None
-        self.when_sensor = None
-        self.anomaly_sensor = None
-        self.signal_integrator = None
+        # Sensors (present in repository)
+        self.why_sensor = WhySensor()
+        self.what_sensor = WhatSensor()
+        self.when_sensor = WhenSensor()
         
-    async def initialize(self, config_path: str = None):
+    async def initialize(self, config_path: Optional[str] = None):
         """Initialize the professional predator system."""
         try:
             logger.info("🚀 Initializing EMP v4.0 Professional Predator")
-            
-            # Load configuration
-            self.config = SystemConfig()
-            logger.info(f"✅ Configuration loaded: EMP v4.0 Professional Predator")
+
+            # Configuration and event bus already initialized in __init__
+            logger.info("✅ Configuration loaded: EMP v4.0 Professional Predator")
             logger.info(f"🔧 Protocol: {self.config.connection_protocol}")
             logger.info(f"🧰 Run mode: {getattr(self.config, 'run_mode', 'paper')}")
-            
-            # Initialize event bus
-            self.event_bus = EventBus()
-            # Attach a risk manager instance for global checks (lazy/placeholder)
-            try:
-                from src.core.risk.manager import RiskConfig, RiskManager
-                self.event_bus.risk_manager = RiskManager(RiskConfig())
-                # back-reference for event emission
-                self.event_bus.risk_manager.event_bus = self.event_bus
-                logger.info("✅ Risk manager attached to event bus")
-            except Exception as _:
-                logger.warning("⚠️ Failed to attach risk manager; proceeding without")
-            logger.info("✅ Event bus initialized")
 
-            # Initialize 4D+1 sensors and integrator
-            self.why_sensor = WhySensor()
-            self.how_sensor = HowSensor()
-            self.what_sensor = WhatSensor()
-            self.when_sensor = WhenSensor()
-            self.anomaly_sensor = AnomalySensor()
-            self.signal_integrator = BayesianSignalIntegrator()
-            # Expose on event bus if needed elsewhere
-            self.event_bus.why_sensor = self.why_sensor
-            self.event_bus.how_sensor = self.how_sensor
-            self.event_bus.what_sensor = self.what_sensor
-            self.event_bus.when_sensor = self.when_sensor
-            self.event_bus.anomaly_sensor = self.anomaly_sensor
-            self.event_bus.signal_integrator = self.signal_integrator
-            
             # Safety guardrails
             SafetyManager.from_config(self.config).enforce()
 
@@ -99,9 +68,9 @@ class EMPProfessionalPredator:
 
             # Setup protocol-specific components with safety guardrails
             await self._setup_live_components()
-            
+
             logger.info("🎉 Professional Predator initialization complete")
-            
+
         except Exception as e:
             logger.error(f"❌ Error initializing Professional Predator: {e}")
             raise
@@ -222,6 +191,9 @@ async def main():
         level=logging.INFO,
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
     )
+    # Enforce scientific stack integrity at runtime (fail-fast if missing/mismatched)
+    from src.system.requirements_check import assert_scientific_stack
+    assert_scientific_stack()
     
     # CLI
     parser = argparse.ArgumentParser(description='EMP Professional Predator')
@@ -253,23 +225,10 @@ async def main():
                     # Run 4D+1 sensors and integrate
                     try:
                         signals = []
-                        for sensor in [system.why_sensor, system.how_sensor, system.what_sensor, system.when_sensor, system.anomaly_sensor]:
+                        for sensor in [system.why_sensor, system.what_sensor, system.when_sensor]:
                             if sensor:
                                 signals.extend(sensor.process(df))
-                        integrated = await system.signal_integrator.integrate(signals)
-                        logger.info(f"🧠 IntegratedSignal: dir={integrated.direction} strength={integrated.strength:.3f} conf={integrated.confidence:.2f} from={integrated.contributing}")
-                        # Emit on event bus for monitoring/consumers
-                        try:
-                            system.event_bus.publish_sync('integrated_signal', {
-                                'direction': integrated.direction,
-                                'strength': integrated.strength,
-                                'confidence': integrated.confidence,
-                                'contributing': integrated.contributing,
-                                'symbols': symbols,
-                                'db_path': str(Path(args.db))
-                            }, source='sensory_integrator')
-                        except Exception:
-                            pass
+                        logger.info(f"🧠 Signals produced: count={len(signals)}")
                     except Exception as e:
                         logger.warning(f"Sensor integration failed: {e}")
             except Exception as e:

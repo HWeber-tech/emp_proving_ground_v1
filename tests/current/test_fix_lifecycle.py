@@ -1,11 +1,13 @@
-def test_fix_only_protocol_enforced():
-    from src.governance.system_config import SystemConfig
-    cfg = SystemConfig()
-    assert cfg.connection_protocol == "fix"
 import asyncio
 import os
 
+from src.governance.system_config import SystemConfig
+from src.operational.fix_connection_manager import FIXConnectionManager
 
+
+def test_fix_only_protocol_enforced():
+    cfg = SystemConfig()
+    assert cfg.connection_protocol == "fix"
 async def _drain(q: asyncio.Queue, timeout=1.0):
     msgs = []
     start = asyncio.get_event_loop().time()
@@ -21,7 +23,7 @@ async def _drain(q: asyncio.Queue, timeout=1.0):
 def _setup_mgr():
     # Set to '1' to force the internal simulator when credentials are unavailable
     os.environ.setdefault("EMP_USE_MOCK_FIX", "0")
-    from src.operational.fix_connection_manager import FIXConnectionManager
+    # moved to top-level to satisfy E402; kept import semantics
 
     class Cfg:
         environment = "test"

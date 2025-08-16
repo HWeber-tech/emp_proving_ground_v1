@@ -1,311 +1,276 @@
 """
-Prometheus metrics for FIX connectivity and market data.
-
-Safely degrades to no-ops if prometheus_client is unavailable.
+Thin façade over a lazy metrics registry. Never raises on import and avoids
+creating metrics at import time. All wrappers are non-raising.
 """
 
+import logging
 import os
-import threading
-from typing import Optional
+from threading import Lock
+from typing import Dict, Optional
 
-try:
-    from prometheus_client import Counter, Gauge, Histogram, start_http_server
-    _METRICS_ENABLED = True
-except Exception:  # pragma: no cover - fallback when lib not installed
-    _METRICS_ENABLED = False
+from src.operational.metrics_registry import (
+    CounterLike,
+    GaugeLike,
+    HistogramLike,
+    get_registry,
+)
 
-    class _Noop:
-        def labels(self, *args, **kwargs):
-            return self
-        def inc(self, *args, **kwargs):
-            return None
-        def set(self, *args, **kwargs):
-            return None
-        def observe(self, *args, **kwargs):
-            return None
+_log = logging.getLogger(__name__)
 
-    def Counter(*args, **kwargs):  # type: ignore
-        return _Noop()
-    def Gauge(*args, **kwargs):  # type: ignore
-        return _Noop()
-    def Histogram(*args, **kwargs):  # type: ignore
-        return _Noop()
-    def start_http_server(*args, **kwargs):  # type: ignore
-        return None
-
-
-_started_lock = threading.Lock()
+# Internal state for exporter
+_started_lock = Lock()
 _started = False
 
 
-fix_messages_total = Counter(
-    "fix_messages_total",
-    "Total FIX messages received by type",
-    ["session", "msg_type"],
-)
+class LazyGaugeProxy:
+    def __init__(self, name: str, description: str, labelnames: Optional[list[str]] = None) -> None:
+        self._name = name
+        self._desc = description
+        self._labelnames = list(labelnames) if labelnames else None
+        self._resolved: Optional[GaugeLike] = None
+        self._lock = Lock()
 
-fix_reconnect_attempts_total = Counter(
-    "fix_reconnect_attempts_total",
-    "Total reconnect attempts",
-    ["session", "outcome"],  # outcome ∈ {success,failure}
-)
+    def resolve(self) -> GaugeLike:
+        if self._resolved is None:
+            with self._lock:
+                if self._resolved is None:
+                    self._resolved = get_registry().get_gauge(self._name, self._desc, self._labelnames)
+        return self._resolved
 
-fix_business_rejects_total = Counter(
-    "fix_business_rejects_total",
-    "Total business message rejects",
-    ["ref_msg_type"],
-)
+    def set(self, value: float) -> None:
+        try:
+            self.resolve().set(float(value))
+        except Exception:
+            pass
 
-fix_session_connected = Gauge(
-    "fix_session_connected",
-    "Session connectivity (1 connected, 0 disconnected)",
-    ["session"],
-)
+    def inc(self, amount: float = 1.0) -> None:
+        try:
+            self.resolve().inc(float(amount))
+        except Exception:
+            pass
 
-fix_exec_report_latency_seconds = Histogram(
-    "fix_exec_report_latency_seconds",
-    "Latency from NewOrderSingle send to first ExecutionReport",
-    buckets=(0.01, 0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10),
-)
+    def dec(self, amount: float = 1.0) -> None:
+        try:
+            self.resolve().dec(float(amount))
+        except Exception:
+            pass
 
-fix_cancel_latency_seconds = Histogram(
-    "fix_cancel_latency_seconds",
-    "Latency from OrderCancelRequest send to Canceled ExecutionReport",
-    buckets=(0.01, 0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10),
-)
-
-fix_md_staleness_seconds = Gauge(
-    "fix_md_staleness_seconds",
-    "Seconds since last market data update",
-    ["symbol"],
-)
-
-fix_parity_mismatched_orders = Gauge(
-    "fix_parity_mismatched_orders",
-    "Count of orders with suspected parity mismatch",
-)
-
-fix_parity_mismatched_positions = Gauge(
-    "fix_parity_mismatched_positions",
-    "Count of symbols with suspected position parity mismatch",
-)
-
-fix_md_rejects_total = Counter(
-    "fix_md_rejects_total",
-    "Total Market Data Request rejects",
-    ["reason"],
-)
+    def labels(self, **labels: str) -> GaugeLike:
+        try:
+            return self.resolve().labels(**labels)
+        except Exception:
+            return self.resolve()
 
 
+# Legacy globals (lazy; no metrics created at import time)
+fix_parity_mismatched_orders = LazyGaugeProxy("fix_parity_mismatched_orders", "Parity mismatched orders")
+fix_parity_mismatched_positions = LazyGaugeProxy("fix_parity_mismatched_positions", "Parity mismatched positions")
+
+
+# FIX/MD wrappers (all non-raising)
 def inc_md_reject(reason: str) -> None:
     try:
-        fix_md_rejects_total.labels(reason=str(reason or "?")).inc()
+        get_registry().get_counter("fix_md_rejects_total", "Total Market Data Request rejects", ["reason"]).labels(
+            reason=reason or "?"
+        ).inc()
     except Exception:
         pass
 
 
-def start_metrics_server(port: Optional[int] = None) -> None:
-    global _started
-    if port is None:
-        port = int(os.environ.get("EMP_METRICS_PORT", "8081"))
-    with _started_lock:
-        if _started:
-            return
-        try:
-            start_http_server(port)
-        except Exception:
-            # No-op if failing
-            return
-        _started = True
-
-
 def inc_message(session: str, msg_type: str) -> None:
     try:
-        fix_messages_total.labels(session=session, msg_type=msg_type).inc()
+        get_registry().get_counter("fix_messages_total", "Total FIX messages received by type", ["session", "msg_type"]).labels(
+            session=session or "?", msg_type=msg_type or "?"
+        ).inc()
     except Exception:
         pass
 
 
 def set_session_connected(session: str, connected: bool) -> None:
     try:
-        fix_session_connected.labels(session=session).set(1 if connected else 0)
+        get_registry().get_gauge("fix_session_connected", "Session connectivity (1 connected, 0 disconnected)", ["session"]).labels(
+            session=session or "?"
+        ).set(1.0 if connected else 0.0)
     except Exception:
         pass
 
 
 def inc_reconnect(session: str, outcome: str) -> None:
     try:
-        fix_reconnect_attempts_total.labels(session=session, outcome=outcome).inc()
+        get_registry().get_counter("fix_reconnect_attempts_total", "Total reconnect attempts", ["session", "outcome"]).labels(
+            session=session or "?", outcome=outcome or "?"
+        ).inc()
     except Exception:
         pass
 
 
 def inc_business_reject(ref_msg_type: Optional[str]) -> None:
     try:
-        fix_business_rejects_total.labels(ref_msg_type=str(ref_msg_type or "?")).inc()
+        get_registry().get_counter("fix_business_rejects_total", "Total business message rejects", ["ref_msg_type"]).labels(
+            ref_msg_type=(ref_msg_type or "?")
+        ).inc()
     except Exception:
         pass
 
 
 def observe_exec_latency(seconds: float) -> None:
     try:
-        if seconds >= 0:
-            fix_exec_report_latency_seconds.observe(seconds)
+        if float(seconds) >= 0.0:
+            get_registry().get_histogram(
+                "fix_exec_report_latency_seconds",
+                "Latency from NewOrderSingle send to first ExecutionReport",
+                [0.01, 0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10],
+            ).observe(float(seconds))
     except Exception:
         pass
 
 
 def observe_cancel_latency(seconds: float) -> None:
     try:
-        if seconds >= 0:
-            fix_cancel_latency_seconds.observe(seconds)
+        if float(seconds) >= 0.0:
+            get_registry().get_histogram(
+                "fix_cancel_latency_seconds",
+                "Latency from OrderCancelRequest send to Canceled ExecutionReport",
+                [0.01, 0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10],
+            ).observe(float(seconds))
     except Exception:
         pass
 
 
 def set_md_staleness(symbol: str, seconds: float) -> None:
     try:
-        fix_md_staleness_seconds.labels(symbol=symbol).set(max(0.0, seconds))
+        get_registry().get_gauge("fix_md_staleness_seconds", "Seconds since last market data update", ["symbol"]).labels(
+            symbol=symbol or "?"
+        ).set(max(0.0, float(seconds)))
     except Exception:
         pass
 
 
-# Heartbeat/TestRequest metrics
-fix_heartbeat_interval_seconds = Histogram(
-    "fix_heartbeat_interval_seconds",
-    "Observed interval between incoming heartbeats",
-    buckets=(1, 5, 10, 20, 30, 45, 60, 90, 120),
-    labelnames=["session"],
-)
-
-fix_test_requests_total = Counter(
-    "fix_test_requests_total",
-    "Total TestRequests sent due to heartbeat delays",
-    ["session"],
-)
-
-fix_missed_heartbeats_total = Counter(
-    "fix_missed_heartbeats_total",
-    "Total missed-heartbeat disconnects",
-    ["session"],
-)
-
-
+# Heartbeat
 def observe_heartbeat_interval(session: str, seconds: float) -> None:
     try:
-        if seconds >= 0:
-            fix_heartbeat_interval_seconds.labels(session=session).observe(seconds)
+        if float(seconds) >= 0.0:
+            get_registry().get_histogram(
+                "fix_heartbeat_interval_seconds",
+                "Observed interval between incoming heartbeats",
+                [1, 5, 10, 20, 30, 45, 60, 90, 120],
+                ["session"],
+            ).labels(session=session or "?").observe(float(seconds))
     except Exception:
         pass
 
 
 def inc_test_request(session: str) -> None:
     try:
-        fix_test_requests_total.labels(session=session).inc()
+        get_registry().get_counter("fix_test_requests_total", "Total TestRequests sent due to heartbeat delays", ["session"]).labels(
+            session=session or "?"
+        ).inc()
     except Exception:
         pass
 
 
 def inc_missed_heartbeat(session: str) -> None:
     try:
-        fix_missed_heartbeats_total.labels(session=session).inc()
+        get_registry().get_counter("fix_missed_heartbeats_total", "Total missed-heartbeat disconnects", ["session"]).labels(
+            session=session or "?"
+        ).inc()
     except Exception:
         pass
 
 
-# Pre-trade risk denials
-fix_pretrade_denials_total = Counter(
-    "fix_pretrade_denials_total",
-    "Total pre-trade risk denials",
-    ["symbol", "reason"],
-)
-
-
+# Pre-trade
 def inc_pretrade_denial(symbol: str, reason: str) -> None:
     try:
-        fix_pretrade_denials_total.labels(symbol=symbol, reason=reason).inc()
+        get_registry().get_counter("fix_pretrade_denials_total", "Total pre-trade risk denials", ["symbol", "reason"]).labels(
+            symbol=symbol or "?", reason=reason or "?"
+        ).inc()
     except Exception:
         pass
 
 
-# Volatility engine metrics
-vol_sigma_ann = Gauge(
-    "vol_sigma_ann",
-    "Annualized volatility estimate (per symbol)",
-    ["symbol"],
-)
-
-vol_regime_total = Counter(
-    "vol_regime_total",
-    "Volatility regime observations",
-    ["symbol", "regime"],
-)
-
-vol_rv_garch_divergence = Gauge(
-    "vol_rv_garch_divergence",
-    "Absolute divergence between RV and GARCH-ann vol",
-    ["symbol"],
-)
-
-
+# Vol
 def set_vol_sigma(symbol: str, sigma_ann: float) -> None:
     try:
-        vol_sigma_ann.labels(symbol=symbol).set(max(0.0, sigma_ann))
+        get_registry().get_gauge("vol_sigma_ann", "Annualized volatility estimate (per symbol)", ["symbol"]).labels(
+            symbol=symbol or "?"
+        ).set(max(0.0, float(sigma_ann)))
     except Exception:
         pass
 
 
 def inc_vol_regime(symbol: str, regime: str) -> None:
     try:
-        vol_regime_total.labels(symbol=symbol, regime=str(regime)).inc()
+        get_registry().get_counter("vol_regime_total", "Volatility regime observations", ["symbol", "regime"]).labels(
+            symbol=symbol or "?", regime=regime or "?"
+        ).inc()
     except Exception:
         pass
 
 
 def set_vol_divergence(symbol: str, divergence: float) -> None:
     try:
-        vol_rv_garch_divergence.labels(symbol=symbol).set(max(0.0, divergence))
+        get_registry().get_gauge("vol_rv_garch_divergence", "Absolute divergence between RV and GARCH-ann vol", ["symbol"]).labels(
+            symbol=symbol or "?"
+        ).set(max(0.0, float(divergence)))
     except Exception:
         pass
 
 
-# WHY metrics
-why_composite_signal = Gauge(
-    "why_composite_signal",
-    "WHY composite signal strength",
-    ["symbol"],
-)
-
-why_confidence = Gauge(
-    "why_confidence",
-    "WHY confidence",
-    ["symbol"],
-)
-
-why_feature_available = Gauge(
-    "why_feature_available",
-    "Availability (1/0) of WHY features (e.g., yields, macro)",
-    ["feature"],
-)
-
-
+# WHY
 def set_why_signal(symbol: str, value: float) -> None:
     try:
-        why_composite_signal.labels(symbol=symbol).set(float(value))
+        get_registry().get_gauge("why_composite_signal", "WHY composite signal strength", ["symbol"]).labels(
+            symbol=symbol or "?"
+        ).set(float(value))
     except Exception:
         pass
 
 
 def set_why_conf(symbol: str, value: float) -> None:
     try:
-        why_confidence.labels(symbol=symbol).set(max(0.0, min(1.0, float(value))))
+        get_registry().get_gauge("why_confidence", "WHY confidence", ["symbol"]).labels(
+            symbol=symbol or "?"
+        ).set(max(0.0, min(1.0, float(value))))
     except Exception:
         pass
 
 
-def set_why_feature(name: str, available: bool) -> None:
+def set_why_feature(name: str, value: float | bool, labels: Optional[Dict[str, str]] = None) -> None:
     try:
-        why_feature_available.labels(feature=str(name)).set(1 if available else 0)
+        labelnames = ["feature"] + (sorted(labels.keys()) if labels else [])
+        get_registry().get_gauge(
+            "why_feature_available",
+            "Availability (1/0) of WHY features (e.g., yields, macro)",
+            labelnames,
+        ).labels(**({**(labels or {}), "feature": name})).set(1.0 if bool(value) else 0.0)
     except Exception:
         pass
 
+
+# Exporter
+def start_metrics_server(port: Optional[int] = None) -> None:
+    """
+    Start the Prometheus exporter HTTP server in-process (idempotent).
+    Defaults to EMP_METRICS_PORT (8081). Silently no-ops if prometheus_client
+    is unavailable or if the server fails to start.
+    """
+    global _started
+    try:
+        with _started_lock:
+            if _started:
+                return
+            try:
+                effective_port = int(port) if port is not None else int(os.environ.get("EMP_METRICS_PORT", "8081"))
+            except Exception:
+                effective_port = 8081
+            try:
+                from prometheus_client import start_http_server  # type: ignore
+            except ImportError:
+                return
+            try:
+                start_http_server(effective_port)
+                _started = True
+            except Exception:
+                return
+    except Exception:
+        return

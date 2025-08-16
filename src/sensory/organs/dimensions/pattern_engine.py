@@ -21,7 +21,13 @@ from typing import Any, Dict, List, Optional
 
 import numpy as np
 import pandas as pd
-from scipy.signal import find_peaks
+from src.sensory.what.features.swing_analysis import find_peaks
+from src.sensory.what.features.swing_analysis import (
+    identify_significant_swings,
+    calculate_fibonacci_levels,
+    identify_significant_moves,
+    calculate_extension_levels,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -207,7 +213,7 @@ class PatternSynthesisEngine:
             0.8 if volume.point_of_control else 0.0,
             0.9 if volume.value_area_high > volume.value_area_low else 0.0
         ]
-        return min(1.0, np.mean(factors))
+        return min(1.0, float(np.mean(factors)))
     
     def _get_fallback_synthesis(self) -> PatternSynthesis:
         """Return fallback synthesis when pattern detection fails"""
@@ -247,15 +253,15 @@ class FractalDetector:
         waves = []
         
         # Find significant highs and lows
-        highs = find_peaks(data['high'].values, distance=5)[0]
-        lows = find_peaks(-data['low'].values, distance=5)[0]
+        highs = find_peaks(np.asarray(data['high'].values, dtype=float), distance=5)[0]
+        lows = find_peaks(-np.asarray(data['low'].values, dtype=float), distance=5)[0]
         
         # Look for 5-wave patterns
         if len(highs) >= 5 and len(lows) >= 5:
             # Basic Elliott wave detection logic
             for i in range(len(highs) - 4):
                 wave_sequence = self._validate_elliott_sequence(
-                    data, highs[i:i+5], lows[i:i+5]
+                    data, list(highs[i:i+5]), list(lows[i:i+5])
                 )
                 if wave_sequence:
                     waves.append(wave_sequence)
@@ -313,76 +319,20 @@ class FractalDetector:
         return extensions
     
     def _identify_significant_swings(self, data: pd.DataFrame) -> List[Dict]:
-        """Identify significant price swings"""
-        swings = []
-        
-        # Find local maxima and minima
-        highs = find_peaks(data['high'].values, distance=10, prominence=0.02)[0]
-        lows = find_peaks(-data['low'].values, distance=10, prominence=0.02)[0]
-        
-        # Combine and sort points
-        points = []
-        for idx in highs:
-            points.append({'time': data.index[idx], 'price': data['high'].iloc[idx], 'type': 'high'})
-        for idx in lows:
-            points.append({'time': data.index[idx], 'price': data['low'].iloc[idx], 'type': 'low'})
-        
-        points.sort(key=lambda x: x['time'])
-        
-        # Identify significant swings
-        for i in range(1, len(points)):
-            prev = points[i-1]
-            curr = points[i]
-            
-            if prev['type'] != curr['type']:
-                price_change = abs(curr['price'] - prev['price']) / prev['price']
-                if price_change > 0.05:  # 5% minimum swing
-                    swings.append({
-                        'start_time': prev['time'],
-                        'end_time': curr['time'],
-                        'start_price': prev['price'],
-                        'end_price': curr['price'],
-                        'confidence': min(1.0, price_change * 10),
-                        'strength': price_change
-                    })
-        
-        return swings
+        """Identify significant price swings (delegated to features module)."""
+        return identify_significant_swings(data)
     
     def _calculate_fibonacci_levels(self, swing: Dict) -> List[float]:
-        """Calculate Fibonacci retracement levels"""
-        start_price = swing['start_price']
-        end_price = swing['end_price']
-        price_range = abs(end_price - start_price)
-        
-        levels = []
-        fib_ratios = [0.236, 0.382, 0.5, 0.618, 0.786]
-        
-        for ratio in fib_ratios:
-            level = start_price + (end_price - start_price) * ratio
-            levels.append(level)
-        
-        return levels
+        """Calculate Fibonacci retracement levels (delegated to features module)."""
+        return calculate_fibonacci_levels(swing)
     
     def _identify_significant_moves(self, data: pd.DataFrame) -> List[Dict]:
-        """Identify significant price moves for extension patterns"""
-        return self._identify_significant_swings(data)
+        """Identify significant price moves for extension patterns (delegated)."""
+        return identify_significant_moves(data)
     
     def _calculate_extension_levels(self, move: Dict) -> List[float]:
-        """Calculate Fibonacci extension levels"""
-        start_price = move['start_price']
-        end_price = move['end_price']
-        move_distance = abs(end_price - start_price)
-        
-        extensions = []
-        extension_ratios = [1.618, 2.618, 4.236, 6.854]
-        
-        direction = 1 if end_price > start_price else -1
-        
-        for ratio in extension_ratios:
-            extension = end_price + (direction * move_distance * ratio)
-            extensions.append(extension)
-        
-        return extensions
+        """Calculate Fibonacci extension levels (delegated to features module)."""
+        return calculate_extension_levels(move)
     
     def _validate_elliott_sequence(self, data: pd.DataFrame, highs: List, lows: List) -> Optional[FractalPattern]:
         """Validate Elliott wave sequence"""
@@ -546,8 +496,8 @@ class HarmonicAnalyzer:
         patterns = []
         
         # Find significant turning points
-        highs = find_peaks(data['high'].values, distance=10, prominence=0.02)[0]
-        lows = find_peaks(-data['low'].values, distance=10, prominence=0.02)[0]
+        highs = find_peaks(np.asarray(data['high'].values, dtype=float), distance=10, prominence=0.02)[0]
+        lows = find_peaks(-np.asarray(data['low'].values, dtype=float), distance=10, prominence=0.02)[0]
         
         # Combine and sort points
         points = []
@@ -666,7 +616,7 @@ class VolumeProfiler:
             bins = np.linspace(price_min, price_max, num_bins + 1)
             
             # Calculate volume at each price level
-            volume_by_price = {}
+            volume_by_price: Dict[float, float] = {}
             for i in range(len(bins) - 1):
                 bin_low = bins[i]
                 bin_high = bins[i + 1]
@@ -682,7 +632,7 @@ class VolumeProfiler:
                 return self._get_fallback_volume_profile()
             
             # Find point of control (highest volume)
-            poc_price = max(volume_by_price, key=volume_by_price.get)
+            poc_price = max(volume_by_price.keys(), key=lambda k: volume_by_price[k])
             total_volume = sum(volume_by_price.values())
             
             # Calculate value area (70% of volume)
@@ -710,7 +660,7 @@ class VolumeProfiler:
                 point_of_control=poc_price,
                 high_volume_nodes=high_volume_nodes,
                 low_volume_nodes=low_volume_nodes,
-                volume_distribution=volume_by_price
+                volume_distribution={str(p): float(v) for p, v in volume_by_price.items()}
             )
             
         except Exception as e:
@@ -739,14 +689,14 @@ class PriceActionDNASynthesizer:
                 return self._get_fallback_dna()
             
             # Calculate volatility signature
-            volatility = data['high'].rolling(20).std().iloc[-1] / data['close'].iloc[-1]
+            volatility = float(data['high'].rolling(20).std().iloc[-1] / data['close'].iloc[-1])
             
             # Calculate momentum signature
             returns = data['close'].pct_change()
-            momentum = returns.rolling(10).mean().iloc[-1]
+            momentum = float(returns.rolling(10).mean().iloc[-1])
             
             # Calculate volume signature
-            volume_ratio = data['volume'].iloc[-1] / data['volume'].rolling(20).mean().iloc[-1]
+            volume_ratio = float(data['volume'].iloc[-1] / data['volume'].rolling(20).mean().iloc[-1])
             
             # Generate DNA sequence based on characteristics
             dna_sequence = self._generate_dna_sequence(volatility, momentum, volume_ratio)
@@ -795,8 +745,8 @@ class PriceActionDNASynthesizer:
         price_range = (data['high'].max() - data['low'].min()) / data['close'].mean()
         volume_range = data['volume'].max() / max(data['volume'].min(), 1)
         
-        uniqueness = (price_range * 0.7 + np.log(volume_range) * 0.3) / 2
-        return min(1.0, uniqueness)
+        uniqueness = float((price_range * 0.7 + float(np.log(volume_range)) * 0.3) / 2)
+        return min(1.0, float(uniqueness))
     
     def _get_fallback_dna(self) -> PriceActionDNA:
         """Return fallback DNA"""
@@ -822,18 +772,18 @@ class PatternValidator:
                 return 0.0
             
             # Calculate fractal strength
-            fractal_strength = np.mean([f.strength for f in fractals]) if fractals else 0.0
+            fractal_strength = float(np.mean([f.strength for f in fractals])) if fractals else 0.0
             
             # Calculate harmonic strength
-            harmonic_strength = np.mean([h.confidence for h in harmonics]) if harmonics else 0.0
+            harmonic_strength = float(np.mean([h.confidence for h in harmonics])) if harmonics else 0.0
             
             # Calculate data quality score
             data_quality = self._calculate_data_quality(data)
             
             # Combine strengths
-            total_strength = (fractal_strength * 0.4 + harmonic_strength * 0.4 + data_quality * 0.2)
+            total_strength: float = (fractal_strength * 0.4 + harmonic_strength * 0.4 + data_quality * 0.2)
             
-            return min(1.0, total_strength)
+            return min(1.0, float(total_strength))
             
         except Exception as e:
             logger.error(f"Pattern validation failed: {e}")

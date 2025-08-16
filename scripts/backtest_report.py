@@ -14,10 +14,14 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir))
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 
+# Enforce scientific stack integrity early (fail-fast if missing/mismatched)
+from src.system.requirements_check import assert_scientific_stack  # noqa: E402
+assert_scientific_stack()
+
 from src.data_foundation.replay.multidim_replayer import MultiDimReplayer  # noqa: E402
 
 try:
-    from src.sensory.dimensions.microstructure import RollingMicrostructure  # legacy
+    from src.sensory.dimensions.microstructure import RollingMicrostructure  # type: ignore[reportMissingImports]  # legacy
 except Exception:
     class RollingMicrostructure:  # type: ignore
         def __init__(self, window: int = 50):
@@ -52,7 +56,7 @@ def macro_proximity_signal(mins_since: float | None, mins_to_next: float | None)
     except Exception:
         return 0.0, 0.0
 try:
-    from src.sensory.dimensions.what.volatility_engine import vol_signal  # legacy
+    from src.sensory.dimensions.what.volatility_engine import vol_signal  # type: ignore[reportMissingImports]  # legacy
 except Exception:
     import math
     from dataclasses import dataclass
@@ -349,7 +353,10 @@ def main() -> int:
             cur = str(e.get("currency") or "").upper()
             if currencies and cur and cur not in currencies:
                 return
-            ts = datetime.fromisoformat(e.get("timestamp")).timestamp()
+            ts_raw = e.get("timestamp")
+            if not isinstance(ts_raw, str):
+                return
+            ts = datetime.fromisoformat(ts_raw).timestamp()
             last_macro_ts = ts
             # keep a short-term queue of upcoming macro events (count only)
             now = datetime.utcnow().timestamp()

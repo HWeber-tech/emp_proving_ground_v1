@@ -8,6 +8,11 @@ from datetime import datetime
 from enum import Enum
 from typing import Dict, List, Optional
 
+# Re-export canonical SensoryReading to avoid duplicate class definitions (top-level for E402)
+from src.sensory.organs.dimensions.base_organ import (
+    SensoryReading as SensoryReading,  # type: ignore
+)
+
 
 class Sentiment(Enum):
     """Market sentiment"""
@@ -39,17 +44,13 @@ class TechnicalSignal:
     value: float
     signal_type: str
     strength: float
-    timestamp: datetime = None
+    timestamp: Optional[datetime] = None
     
     def __post_init__(self):
         if self.timestamp is None:
             self.timestamp = datetime.now()
 
 
-# Re-export canonical SensoryReading to avoid duplicate class definitions
-from src.sensory.organs.dimensions.base_organ import (
-    SensoryReading as SensoryReading,  # type: ignore
-)
 
 
 @dataclass
@@ -64,7 +65,7 @@ class MarketContext:
     trend_direction: str
     support_levels: List[float]
     resistance_levels: List[float]
-    timestamp: datetime = None
+    timestamp: Optional[datetime] = None
     
     def __post_init__(self):
         if self.timestamp is None:

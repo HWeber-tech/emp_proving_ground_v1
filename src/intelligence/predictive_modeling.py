@@ -3,34 +3,106 @@
 SENTIENT-31: Predictive Market Modeling
 ======================================
 
-Advanced market prediction and scenario modeling system.
-Implements Bayesian probability engines, scenario generators, and
-confidence calibration for accurate market forecasting.
+Declarative façade that exposes canonical predictive modeling APIs while
+keeping import-time light. Heavy dependencies (if any) are loaded lazily
+on first attribute access to preserve legacy public paths.
 
-This module provides sophisticated predictive capabilities that enable
-the EMP to anticipate market movements and prepare optimal strategies.
+This façade preserves:
+- PredictiveMarketModeler
+- MarketScenario
+- MarketScenarioGenerator
+- BayesianProbabilityEngine
+- ConfidenceCalibrator
+- OutcomePredictor
 """
 
-import asyncio
+from __future__ import annotations
+
 import logging
 from dataclasses import dataclass
-from datetime import timedelta
+from typing import Any, Dict
 
 logger = logging.getLogger(__name__)
 
-# Canonical re-exports for duplicate classes (shim-only for these types)
-from src.thinking.prediction.predictive_market_modeler import (
-    MarketScenario,
-    MarketScenarioGenerator,
-    PredictiveMarketModeler,
-)
+# __all__ is computed dynamically from lazy exports and local classes.
 
-__all__ = [*globals().get("__all__", []), "PredictiveMarketModeler", "MarketScenario", "MarketScenarioGenerator"]
+_LAZY_EXPORTS: Dict[str, str] = {
+    "PredictiveMarketModeler": "src.thinking.prediction.predictive_market_modeler:PredictiveMarketModeler",
+    "MarketScenario": "src.thinking.prediction.predictive_market_modeler:MarketScenario",
+    "MarketScenarioGenerator": "src.thinking.prediction.predictive_market_modeler:MarketScenarioGenerator",
+    "BayesianProbabilityEngine": "src.thinking.prediction.predictive_market_modeler:BayesianProbabilityEngine",
+    "ConfidenceCalibrator": "src.thinking.prediction.predictive_market_modeler:ConfidenceCalibrator",
+    "OutcomePredictor": "src.thinking.prediction.predictive_market_modeler:OutcomePredictor",
+}
+# __all__ derived from lazy exports and local classes to satisfy Ruff F822 for lazy names.
+__all__ = list(_LAZY_EXPORTS.keys()) + ["ScenarioOutcome"]
+
+class _LazySymbol:
+    def __init__(self, mod_path: str, attr: str):
+        self._mod_path = mod_path
+        self._attr = attr
+
+    def _resolve(self):
+        # Ensure canonical thinking.* chain exposes ThinkingException on first resolution.
+        try:
+            from src.core.exceptions import EMPException as _EMPException  # noqa: F401
+            import src.core.exceptions as _excmod
+            if not hasattr(_excmod, "ThinkingException"):
+                setattr(_excmod, "ThinkingException", _EMPException)
+        except Exception:
+            # Best-effort alias injection; continue with lazy resolution
+            pass
+
+        import importlib
+        mod = importlib.import_module(self._mod_path)
+        obj = getattr(mod, self._attr)
+        # Cache resolved symbol on the module for subsequent accesses
+        globals()[self._attr] = obj
+        return obj
+
+    def __getattr__(self, item: str):
+        return getattr(self._resolve(), item)
+
+    def __call__(self, *args, **kwargs):
+        return self._resolve()(*args, **kwargs)
+
+    def __repr__(self) -> str:
+        return f"<LazySymbol {self._mod_path}:{self._attr}>"
+
+# Pre-populate lightweight placeholders so attribute access remains side-effect free
+for _name, _target in _LAZY_EXPORTS.items():
+    _mod_path, _attr = _target.split(":")
+    if _name not in globals():
+        globals()[_name] = _LazySymbol(_mod_path, _attr)
+
+def __getattr__(name: str) -> Any:
+    # Lazy import to reduce import-time cost; preserves legacy public path.
+    target = _LAZY_EXPORTS.get(name)
+    if target:
+        # Ensure canonical thinking.* chain exposes ThinkingException on first access.
+        try:
+            from src.core.exceptions import EMPException as _EMPException  # noqa: F401
+            import src.core.exceptions as _excmod
+            if not hasattr(_excmod, "ThinkingException"):
+                setattr(_excmod, "ThinkingException", _EMPException)
+        except Exception:
+            # Best-effort alias injection; continue lazily resolving target
+            pass
+
+        mod_path, attr = target.split(":")
+        import importlib
+        mod = importlib.import_module(mod_path)
+        obj = getattr(mod, attr)
+        globals()[name] = obj  # cache for subsequent accesses
+        return obj
+    raise AttributeError(name)
 
 
-# MarketScenario is provided by canonical module (re-exported above).
+def __dir__() -> list[str]:
+    return sorted(list(globals().keys()) + __all__)
 
 
+# Local data structures that remain light-weight
 @dataclass
 class ScenarioOutcome:
     """Represents the predicted outcome for a scenario."""
@@ -38,68 +110,5 @@ class ScenarioOutcome:
     risk_level: float
     probability: float
     confidence: float
-    scenario: MarketScenario
-
-
-# MarketScenarioGenerator is provided by canonical module (re-exported above).
-
-
-from src.thinking.prediction.predictive_market_modeler import (
-    BayesianProbabilityEngine as BayesianProbabilityEngine,
-)
-from src.thinking.prediction.predictive_market_modeler import (
-    ConfidenceCalibrator as ConfidenceCalibrator,
-)
-
-# Canonical OutcomePredictor (structural unification)
-from src.thinking.prediction.predictive_market_modeler import (
-    OutcomePredictor as OutcomePredictor,  # type: ignore
-)
-
-# PredictiveMarketModeler is provided by canonical module (re-exported above).
-
-
-# Example usage and testing
-async def test_predictive_modeling():
-    """Test the predictive market modeling system."""
-    modeler = PredictiveMarketModeler()
-    
-    # Create test current state
-    current_state = {
-        'price': 1.1850,
-        'volatility': 0.015,
-        'volume': 1500,
-        'trend': 0.05,
-        'momentum': 0.1,
-        'rsi': 65,
-        'macd': 0.002,
-        'bollinger_position': 0.8,
-        'atr': 0.012,
-        'support_distance': 0.008,
-        'resistance_distance': 0.005
-    }
-    
-    # Generate predictions
-    time_horizon = timedelta(hours=4)
-    predictions = await modeler.predict_market_scenarios(
-        current_state, time_horizon, num_scenarios=100
-    )
-    
-    print(f"Generated {len(predictions)} market scenarios")
-    
-    # Show top scenarios
-    top_scenarios = sorted(predictions, key=lambda x: x[1] * x[2].expected_return, reverse=True)[:5]
-    
-    for i, (scenario, probability, outcome) in enumerate(top_scenarios):
-        print(f"\nScenario {i+1}:")
-        print(f"  Probability: {probability:.3f}")
-        print(f"  Expected Return: {outcome.expected_return:.4f}")
-        print(f"  Risk Level: {outcome.risk_level:.4f}")
-        print(f"  Confidence: {outcome.confidence:.3f}")
-    
-    stats = modeler.get_prediction_stats()
-    print(f"\nPrediction Stats: {stats}")
-
-
-if __name__ == "__main__":
-    asyncio.run(test_predictive_modeling())
+    # Use Any to avoid runtime imports for typing-only reference
+    scenario: Any

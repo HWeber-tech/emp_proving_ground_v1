@@ -16,6 +16,8 @@ from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple
 
 from pydantic import BaseModel, Field, model_validator, validator
+from trading.order_management.order_book.snapshot import OrderBookLevel as OrderBookLevel
+from trading.order_management.order_book.snapshot import OrderBookSnapshot as OrderBookSnapshot
 
 logger = logging.getLogger(__name__)
 
@@ -253,13 +255,6 @@ class EconomicEvent(BaseModel):
         0.0, description="Hours until event (negative if past)"
     )
 
-# Legacy shim: re-export canonical trading order book types
-from trading.order_management.order_book.snapshot import (
-    OrderBookLevel as OrderBookLevel,
-)
-from trading.order_management.order_book.snapshot import (
-    OrderBookSnapshot as OrderBookSnapshot,
-)
 
 
 class DimensionalSensor(ABC):

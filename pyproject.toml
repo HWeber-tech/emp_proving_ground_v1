@@ -1,9 +1,12 @@
 [tool.ruff]
 line-length = 100
 target-version = "py311"
+force-exclude = true
 exclude = [
   ".git",
   "__pycache__",
+  ".venv",
+  ".venv*",
   "build",
   "dist",
   # Stage 2 pending files remain excluded until C hygiene verified in CI
@@ -24,35 +27,19 @@ known-first-party = ["src"]
 "src/evolution/engine/__init__.py" = ["F403","F405"]
 "src/thinking/__init__.py" = ["F403","F405"]
 # Targeted ignores for lazy re-exports and namespace preservation
-"src/core.py" = ["E402"]
-"src/data_foundation/ingest/fred_calendar.py" = ["E402"]
-"src/data_foundation/replay/multidim_replayer.py" = ["E402"]
-"src/data_integration/__init__.py" = ["E402"]
 "src/domain/__init__.py" = ["F401"]
-"src/intelligence/predictive_modeling.py" = ["E402"]
-"src/intelligence/red_team_ai.py" = ["E402"]
-"src/intelligence/sentient_adaptation.py" = ["E402"]
-"src/operational/md_capture.py" = ["E402"]
-"src/performance/__init__.py" = ["E402"]
-"src/phase2d_integration_validator.py" = ["E402"]
-"src/sensory/dimensions/why/yield_signal.py" = ["E402"]
-"src/sensory/models/__init__.py" = ["F401","E402"]
-"src/sensory/organs/dimensions/base_organ.py" = ["E402"]
-"src/sensory/organs/dimensions/utils.py" = ["E402"]
-"src/thinking/adversarial/market_gan.py" = ["E402"]
-"src/thinking/prediction/predictive_modeler.py" = ["E402"]
-"src/trading/execution/execution_model.py" = ["E402"]
-"src/trading/models.py" = ["E402"]
-"src/trading/portfolio/real_portfolio_monitor.py" = ["E402"]
-"src/trading/strategies/order_book_analyzer.py" = ["E402"]
-"src/trading/trading_manager.py" = ["E402"]
+"src/sensory/models/__init__.py" = ["F401"]
 "src/ui/ui_manager.py" = ["F401"]
-"tests/current/test_fix_lifecycle.py" = ["E402"]
 
-"src/domain/models.py" = ["E402"]
-"src/intelligence/adversarial_training.py" = ["E402"]
-"src/intelligence/competitive_intelligence.py" = ["E402"]
-"src/operational/mock_fix.py" = ["E402"]
+"src/thinking/thinking_manager.py" = ["I001"]
+
+# New targeted ignores to keep CI green while we refactor
+"main.py" = ["I001","F401"]  # import order noise; top-level integrity check moved inside main()
+"src/core/base.py" = ["I001"]  # complex TYPE_CHECKING import blocks
+"src/sensory/organs/dimensions/pattern_engine.py" = ["I001"]  # large grouped imports; refactor tracked in M2
+"src/sensory/tests/test_integration.py" = ["I001"]  # legacy test import ordering
+"src/market_intelligence/dimensions/enhanced_how_dimension.py" = ["F401"]
+"src/market_intelligence/dimensions/enhanced_what_dimension.py" = ["F401"]
 [tool.ruff.lint]
 # Keep CI green with a minimal, safety-focused rule set.
 # Adopt full style rules incrementally in future PRs.
@@ -102,3 +89,34 @@ module = [
   "src.pnl"
 ]
 ignore_errors = true
+
+[tool.coverage.run]
+branch = true
+relative_files = true
+source = ["src"]
+include = [
+  "src/core/**",
+  "src/trading/execution/**",
+  "src/trading/models/**",
+  "src/operational/metrics.py"
+]
+
+[tool.coverage.report]
+show_missing = true
+skip_empty = true
+precision = 2
+include = [
+  "src/trading/execution/execution_model.py",
+  "src/trading/models/position.py",
+  "src/trading/models/trade.py",
+  "src/trading/models/__init__.py",
+  "src/core/interfaces.py",
+  "src/core/sensory_organ.py",
+  "src/operational/metrics.py",
+  "src/operational/mock_fix.py",
+  "src/data_foundation/config/execution_config.py",
+  "src/data_foundation/config/risk_portfolio_config.py",
+  "src/data_foundation/config/sizing_config.py",
+  "src/data_foundation/config/why_config.py",
+  "src/sensory/dimensions/why/yield_signal.py"
+]

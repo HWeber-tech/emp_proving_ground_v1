@@ -1,4 +1,5 @@
 from typing import Any, Callable, Dict, List, Mapping, Optional, Protocol, runtime_checkable
+from .event_bus import Event
 
 
 @runtime_checkable
@@ -16,10 +17,20 @@ class Cache(Protocol):
 
 @runtime_checkable
 class EventBus(Protocol):
-    """Minimal event bus facade for fire-and-forget events."""
+    """Deprecated legacy topic/payload publisher.
+    
+    Deprecated: Use SupportsEventPublish for async-first Event publishing
+    or the TopicBus facade for transitional legacy usage.
+    """
     def publish(self, event: str, payload: Mapping[str, Any] | None = None) -> None:
         ...
 
+
+@runtime_checkable
+class SupportsEventPublish(Protocol):
+    """Async-first EventBus protocol (M3): async publish(Event)."""
+    async def publish(self, event: Event) -> None:
+        ...
 
 @runtime_checkable
 class Logger(Protocol):

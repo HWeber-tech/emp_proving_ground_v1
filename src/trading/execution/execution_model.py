@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-
+from src.data_foundation.config.execution_config import ExecutionConfig
 
 @dataclass
 class ExecContext:
@@ -23,9 +23,6 @@ def estimate_slippage_bps(ctx: ExecContext, cfg) -> float:
     sigma_coef = getattr(cfg.slippage, "sigma_coef", 0.0)
     size_coef = getattr(cfg.slippage, "size_coef", 0.0)
     return float(base + spread_coef * s + imbalance_coef * imb + sigma_coef * sig + size_coef * sz)
-
-
-from src.data_foundation.config.execution_config import ExecutionConfig
 
 
 def estimate_commission_bps(cfg: ExecutionConfig) -> float:

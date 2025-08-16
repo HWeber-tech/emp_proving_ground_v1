@@ -9,29 +9,29 @@ from typing import Any, Dict, List
 
 import numpy as np
 
-from src.thinking.prediction.predictive_market_modeler import (
-    MarketScenario as MarketScenario,
-)
-
-try:
-    from src.core.events import StrategyTestResult  # legacy
-except Exception:  # pragma: no cover
-    StrategyTestResult = object  # type: ignore
 from src.operational.state_store import StateStore
-from src.trading.strategy_engine.testing.strategy_tester import (
-    StrategyTester as StrategyTester,
-)
-
-logger = logging.getLogger(__name__)
-
-
-# Legacy StrategyTester removed; using canonical trading.strategy_engine.testing.strategy_tester.StrategyTester
 from src.thinking.adversarial.adversarial_trainer import (
     AdversarialTrainer as AdversarialTrainer,
 )
 from src.thinking.prediction.market_data_generator import (
     MarketDataGenerator as MarketDataGenerator,
 )
+from src.thinking.prediction.predictive_market_modeler import (
+    MarketScenario as MarketScenario,
+)
+# Legacy StrategyTester removed; using canonical trading.strategy_engine.testing.strategy_tester.StrategyTester
+from src.trading.strategy_engine.testing.strategy_tester import (
+    StrategyTester as StrategyTester,
+)
+
+try:
+    from src.core.events import StrategyTestResult  # legacy
+except Exception:  # pragma: no cover
+    StrategyTestResult = object  # type: ignore
+
+logger = logging.getLogger(__name__)
+
+
 
 
 class ScenarioValidator:

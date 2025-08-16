@@ -3,29 +3,56 @@
 ADVERSARIAL-30: Generative Adversarial Markets
 =============================================
 
-Train strategies against intelligent, evolving adversaries using GAN architecture.
-Implements intelligent market simulation, adaptive difficulty, stress testing,
-and realistic validation for creating robust trading strategies.
+Declarative façade that exposes canonical adversarial training APIs while
+keeping import-time light. Heavy dependencies (if any) are loaded lazily
+on first attribute access to preserve legacy public paths.
 
-This module creates a competitive training environment where strategies
-must survive increasingly challenging market conditions.
+This façade preserves:
+- AdversarialTrainer
+- MarketGAN
+- ScenarioValidator
+- MarketDataGenerator
+- StrategyTester
+- MarketScenario
+
+Example/CLI code removed to avoid import-time side effects.
 """
 
-import asyncio
+from __future__ import annotations
+
 import logging
 from dataclasses import dataclass
-from typing import Optional
-
-from src.trading.strategy_engine.testing.strategy_tester import (
-    StrategyTester as StrategyTester,
-)
+from typing import Any, Dict
 
 logger = logging.getLogger(__name__)
 
+# __all__ is computed dynamically from lazy exports and local classes.
 
-from src.thinking.prediction.predictive_market_modeler import (
-    MarketScenario as MarketScenario,
-)
+_LAZY_EXPORTS: Dict[str, str] = {
+    "AdversarialTrainer": "src.thinking.adversarial.adversarial_trainer:AdversarialTrainer",
+    "MarketGAN": "src.thinking.adversarial.market_gan:MarketGAN",
+    "ScenarioValidator": "src.thinking.adversarial.market_gan:ScenarioValidator",
+    "MarketDataGenerator": "src.thinking.prediction.market_data_generator:MarketDataGenerator",
+    "StrategyTester": "src.trading.strategy_engine.testing.strategy_tester:StrategyTester",
+    "MarketScenario": "src.thinking.prediction.predictive_market_modeler:MarketScenario",
+}
+# __all__ derived from lazy exports and local classes to satisfy Ruff F822 for lazy names.
+__all__ = list(_LAZY_EXPORTS.keys()) + ["SurvivalResult"]
+
+
+def __getattr__(name: str) -> Any:
+    # Lazy import to reduce import-time cost; preserves legacy public path.
+    target = _LAZY_EXPORTS.get(name)
+    if target:
+        mod_path, attr = target.split(":")
+        import importlib
+        mod = importlib.import_module(mod_path)
+        return getattr(mod, attr)
+    raise AttributeError(name)
+
+
+def __dir__() -> list[str]:
+    return sorted(list(globals().keys()) + __all__)
 
 
 @dataclass
@@ -36,50 +63,4 @@ class SurvivalResult:
     performance_score: float
     stress_endurance: float
     adaptation_score: float
-    failure_reason: Optional[str] = None
-
-
-# Legacy neural MarketDataGenerator removed; using canonical thinking.prediction.market_data_generator.MarketDataGenerator
-
-
-# Legacy StrategyTester (nn.Module) removed; using canonical trading.strategy_engine.testing.strategy_tester.StrategyTester
-
-
-# Legacy StrategyTester implementation removed; using canonical trading.strategy_engine.testing.strategy_tester.StrategyTester
-from src.thinking.adversarial.adversarial_trainer import (
-    AdversarialTrainer as AdversarialTrainer,
-)
-
-# Canonical import for MarketGAN (structural unification)
-from src.thinking.adversarial.market_gan import MarketGAN as MarketGAN  # type: ignore
-
-# Canonical import for ScenarioValidator (structural unification)
-from src.thinking.adversarial.market_gan import (
-    ScenarioValidator as ScenarioValidator,  # type: ignore
-)
-from src.thinking.prediction.market_data_generator import (
-    MarketDataGenerator as MarketDataGenerator,
-)
-
-
-# Example usage and testing
-async def test_adversarial_training():
-    """Test the adversarial training system."""
-    gan = MarketGAN(num_epochs=5)
-    
-    # Create test strategy population
-    strategies = [
-        {'id': f'strategy_{i}', 'type': 'momentum', 'risk_tolerance': 0.02}
-        for i in range(10)
-    ]
-    
-    # Train adversarially
-    trained_strategies = await gan.train_adversarial_strategies(strategies)
-    
-    print(f"Trained {len(trained_strategies)} strategies")
-    stats = gan.get_training_stats()
-    print(f"Training stats: {stats}")
-
-
-if __name__ == "__main__":
-    asyncio.run(test_adversarial_training())
+    failure_reason: str | None = None

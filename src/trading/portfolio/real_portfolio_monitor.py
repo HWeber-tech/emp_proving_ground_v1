@@ -448,11 +448,12 @@ class RealPortfolioMonitor:
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
             
+            # Bandit B608: parameterized query to avoid SQL injection
             cursor.execute('''
-                SELECT * FROM positions 
-                WHERE entry_time > datetime('now', '-{} days')
+                SELECT * FROM positions
+                WHERE entry_time > datetime('now', ?)
                 ORDER BY entry_time DESC
-            '''.format(days))
+            ''', (f'-{int(days)} days',))
             
             positions = []
             for row in cursor.fetchall():
@@ -485,15 +486,16 @@ class RealPortfolioMonitor:
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
             
+            # Bandit B608: parameterized query to avoid SQL injection
             cursor.execute('''
                 SELECT DATE(timestamp) as date,
                        SUM(realized_pnl) as daily_pnl,
                        COUNT(*) as trades
                 FROM positions
-                WHERE exit_time > datetime('now', '-{} days')
+                WHERE exit_time > datetime('now', ?)
                 GROUP BY DATE(timestamp)
                 ORDER BY date DESC
-            '''.format(days))
+            ''', (f'-{int(days)} days',))
             
             results = []
             for row in cursor.fetchall():

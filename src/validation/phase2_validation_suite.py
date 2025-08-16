@@ -29,10 +29,6 @@ try:
             return None
 except Exception:  # pragma: no cover
     MarketRegimeDetector = None  # type: ignore
-try:
-    from src.trading.risk.advanced_risk_manager import AdvancedRiskManager  # deprecated
-except Exception:  # pragma: no cover
-    AdvancedRiskManager = None  # type: ignore
 
 logger = logging.getLogger(__name__)
 

@@ -15,10 +15,6 @@ from typing import Any, Callable, Dict, List
 
 from src.core.exceptions import ValidationException
 
-try:
-    from src.core.interfaces import IMarketAnalyzer, IStrategy
-except Exception:  # pragma: no cover
-    IStrategy = IMarketAnalyzer = object  # type: ignore
 
 from src.validation.models import ValidationResult
 
@@ -52,10 +48,6 @@ class ValidationFramework:
         """Validate that all components integrate correctly."""
         try:
             # Test basic imports
-            try:
-                from src.core.interfaces import IMarketAnalyzer, IStrategy
-            except Exception:  # pragma: no cover
-                IStrategy = IMarketAnalyzer = object  # type: ignore
             
             # Test component instantiation
             components = []

@@ -32,11 +32,11 @@ ENV PATH="/opt/venv/bin:$PATH"
 # Copy requirements and install dependencies
 # Use the pinned requirements file instead of the main requirements to avoid
 # installing unavailable or incompatible packages (e.g. the cTrader API).  The
-# requirements-fixed.txt file contains version constraints tested for Python
+# requirements-freeze.txt file contains version constraints tested for Python
 # 3.8+ and does not include optional packages that require manual installation.
-COPY requirements-fixed.txt .
+COPY requirements-freeze.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements-fixed.txt
+    pip install --no-cache-dir -r requirements-freeze.txt
 
 # Stage 2: Production stage
 FROM python:3.11-slim as production

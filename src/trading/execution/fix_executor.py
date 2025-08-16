@@ -18,11 +18,6 @@ except Exception:  # pragma: no cover
     class IExecutionEngine:  # type: ignore
         pass
 try:
-    from src.core.exceptions import ExecutionException
-except Exception:  # pragma: no cover
-    class ExecutionException(Exception):  # type: ignore
-        pass
-try:
     from src.trading.models.order import Order, OrderStatus
     from src.trading.models.position import Position
 except Exception:  # pragma: no cover

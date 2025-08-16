@@ -13,7 +13,6 @@ from typing import Any, Dict, List, Optional
 
 try:
     from src.core.event_bus import EventBus
-    from src.domain.models import StrategyConfig
     from src.governance.strategy_registry import StrategyRegistry, StrategyStatus
 except ImportError:
     # Mock implementations for standalone testing
@@ -154,12 +153,12 @@ class UIManager:
             ])
         
         # Simple table formatting
-        table = f"{'ID':<20} {'Status':<10} {'Created':<19} {'Config':<30}\n"
-        table += "-" * 80 + "\n"
-        
+        parts: List[str] = []
+        parts.append(f"{'ID':<20} {'Status':<10} {'Created':<19} {'Config':<30}\n")
+        parts.append("-" * 80 + "\n")
         for row in rows:
-            table += f"{row[0]:<20} {row[1]:<10} {row[2]:<19} {row[3]:<30}\n"
-        
+            parts.append(f"{row[0]:<20} {row[1]:<10} {row[2]:<19} {row[3]:<30}\n")
+        table = "".join(parts)
         return table
 
 

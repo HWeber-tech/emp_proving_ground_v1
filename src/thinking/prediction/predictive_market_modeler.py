@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from decimal import Decimal
 from typing import Any, Dict, List, Tuple
+from ast import literal_eval
 
 import numpy as np
 
@@ -449,7 +450,15 @@ class PredictiveMarketModeler:
         try:
             data = await self.state_store.get(self._prediction_history_key)
             if data:
-                return eval(data)
+                # Bandit B307: replaced eval with safe parsing
+                try:
+                    return literal_eval(data)
+                except (ValueError, SyntaxError):
+                    return {
+                        'accuracy': 0.75,
+                        'total_predictions': 0,
+                        'successful_predictions': 0
+                    }
             return {
                 'accuracy': 0.75,
                 'total_predictions': 0,

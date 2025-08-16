@@ -13,9 +13,9 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 try:
-    from src.core.interfaces import IMarketAnalyzer, IPopulationManager, IRiskManager, IStrategy
+    from src.core.interfaces import IPopulationManager, IRiskManager
 except Exception:  # pragma: no cover
-    IStrategy = IMarketAnalyzer = IRiskManager = IPopulationManager = object  # type: ignore
+    IRiskManager = IPopulationManager = object  # type: ignore
 from src.integration.component_integrator import ComponentIntegrator
 
 logger = logging.getLogger(__name__)

@@ -7,6 +7,7 @@ import logging
 import uuid
 from datetime import datetime
 from typing import Any, Dict, List, Optional
+from ast import literal_eval
 
 import numpy as np
 
@@ -698,7 +699,11 @@ class RedTeamAI:
             for key in keys:
                 data = await self.state_store.get(key)
                 if data:
-                    record = eval(data)
+                    # Bandit B307: replaced eval with safe parsing
+                    try:
+                        record = literal_eval(data)
+                    except (ValueError, SyntaxError):
+                        record = {}
                     total_attacks += record.get('attacks_count', 0)
                     successful_attacks += record.get('successful_attacks', 0)
                     total_weaknesses += len(record.get('weaknesses', []))

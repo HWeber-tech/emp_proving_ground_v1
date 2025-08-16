@@ -45,7 +45,6 @@ class MarketDataGenerator:
     async def generate_scenarios(
         self,
         difficulty_level: Any,
-        target_strategies: List[str],  # kept for back-compat (unused in canonical type)
         num_scenarios: int = 100,
     ) -> List[MarketScenario]:
         """

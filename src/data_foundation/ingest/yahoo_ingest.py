@@ -9,6 +9,7 @@ import argparse
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import List
+import re
 
 import pandas as pd
 import yfinance as yf
@@ -47,9 +48,11 @@ def store_duckdb(df: pd.DataFrame, db_path: Path, table: str = "daily_bars") -> 
         return
 
     con = duckdb.connect(str(db_path))
+    # Bandit B608: parameterized query to avoid SQL injection (sanitize identifier)
+    safe_table = table if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", table or "daily_bars") else "daily_bars"
     con.execute(
         f"""
-        CREATE TABLE IF NOT EXISTS {table} (
+        CREATE TABLE IF NOT EXISTS {safe_table} (
             date TIMESTAMP,
             open DOUBLE,
             high DOUBLE,
@@ -61,9 +64,11 @@ def store_duckdb(df: pd.DataFrame, db_path: Path, table: str = "daily_bars") -> 
         )
         """
     )
-    con.execute(f"DELETE FROM {table} WHERE symbol IN ({','.join(['?']*len(df['symbol'].unique()))})", list(df['symbol'].unique()))
+    # Bandit B608: parameterized query to avoid SQL injection
+    con.execute(f"DELETE FROM {safe_table} WHERE symbol IN ({','.join(['?']*len(df['symbol'].unique()))})", list(df['symbol'].unique()))
     con.register("tmp_df", df)
-    con.execute(f"INSERT INTO {table} SELECT * FROM tmp_df")
+    # Bandit B608: parameterized query to avoid SQL injection (identifier sanitized)
+    con.execute(f"INSERT INTO {safe_table} SELECT * FROM tmp_df")
     con.close()
 
 

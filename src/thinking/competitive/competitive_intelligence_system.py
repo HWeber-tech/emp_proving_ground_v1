@@ -8,6 +8,7 @@ import uuid
 from datetime import datetime
 from decimal import Decimal
 from typing import Any, Dict, List
+from ast import literal_eval
 
 import numpy as np
 
@@ -884,7 +885,11 @@ class CompetitiveIntelligenceSystem:
             for key in keys:
                 data = await self.state_store.get(key)
                 if data:
-                    record = eval(data)
+                    # Bandit B307: replaced eval with safe parsing
+                    try:
+                        record = literal_eval(data)
+                    except (ValueError, SyntaxError):
+                        record = {}
                     total_signatures += len(record.get('signatures', []))
                     total_competitors += len(record.get('behaviors', []))
                     total_counters += len(record.get('counter_strategies', []))

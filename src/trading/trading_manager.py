@@ -10,7 +10,7 @@ import logging
 import redis
 
 try:
-    from src.core.events import TradeIntent, TradeRejected  # legacy
+    from src.core.events import TradeIntent  # legacy
 except Exception:  # pragma: no cover
     TradeIntent = TradeRejected = object  # type: ignore
 try:

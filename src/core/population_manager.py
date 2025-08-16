@@ -18,8 +18,6 @@ from src.genome.models.genome import DecisionGenome, new_genome, mutate
 from src.genome.models.adapters import from_legacy, to_legacy_view
 from .interfaces import IPopulationManager
 
-if TYPE_CHECKING:
-    from src.core.interfaces import DecisionGenome as LegacyDecisionGenome
 
 logger = logging.getLogger(__name__)
 

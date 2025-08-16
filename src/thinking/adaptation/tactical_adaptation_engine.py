@@ -7,6 +7,7 @@ import logging
 from datetime import datetime, timedelta
 from decimal import Decimal
 from typing import Any, Dict, List
+from ast import literal_eval
 
 try:
     from src.core.events import ContextPacket, LearningSignal, TacticalAdaptation  # legacy
@@ -296,7 +297,11 @@ class TacticalAdaptationEngine:
             current_params = await self.state_store.get(key)
             
             if current_params:
-                params = eval(current_params)
+                # Bandit B307: replaced eval with safe parsing
+                try:
+                    params = literal_eval(current_params)
+                except (ValueError, SyntaxError):
+                    params = {}
             else:
                 params = {}
             

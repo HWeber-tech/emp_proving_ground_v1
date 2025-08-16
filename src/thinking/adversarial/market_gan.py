@@ -6,6 +6,7 @@ Generative Adversarial Network for creating challenging market scenarios.
 import logging
 from datetime import datetime
 from typing import Any, Dict, List
+from ast import literal_eval
 
 import numpy as np
 
@@ -290,7 +291,12 @@ class MarketGAN:
             for key in keys:
                 data = await self.state_store.get(key)
                 if data:
-                    epochs.append(eval(data))
+                    # Bandit B307: replaced eval with safe parsing
+                    try:
+                        parsed = literal_eval(data)
+                    except (ValueError, SyntaxError):
+                        parsed = data
+                    epochs.append(parsed)
             
             if not epochs:
                 return {

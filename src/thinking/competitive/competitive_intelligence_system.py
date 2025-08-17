@@ -5,10 +5,10 @@ Identify and counter competing algorithmic traders.
 
 import logging
 import uuid
+from ast import literal_eval
 from datetime import datetime
 from decimal import Decimal
 from typing import Any, Dict, List
-from ast import literal_eval
 
 import numpy as np
 

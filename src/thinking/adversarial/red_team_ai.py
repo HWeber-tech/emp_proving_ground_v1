@@ -5,9 +5,9 @@ Dedicated AI system to attack and improve strategies.
 
 import logging
 import uuid
+from ast import literal_eval
 from datetime import datetime
 from typing import Any, Dict, List, Optional
-from ast import literal_eval
 
 import numpy as np
 

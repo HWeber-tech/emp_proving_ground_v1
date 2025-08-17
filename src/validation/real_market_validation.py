@@ -13,24 +13,56 @@ import json
 import logging
 import time
 from datetime import datetime, timedelta
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Protocol, runtime_checkable, Optional, Sequence
 
 import numpy as np
 import pandas as pd
 
-from src.sensory.enhanced.anomaly.manipulation_detection import ManipulationDetectionSystem
-from src.sensory.organs.yahoo_finance_organ import YahooFinanceOrgan
+@runtime_checkable
+class MarketDataProvider(Protocol):
+    def fetch_data(
+        self,
+        symbol: str,
+        period: str = ...,
+        interval: str = ...
+    ) -> Optional[pd.DataFrame]:
+        ...
 
-try:
-    from src.trading.risk.market_regime_detector import MarketRegimeDetector  # deprecated  # noqa: I001
-except Exception:  # pragma: no cover
-    MarketRegimeDetector = None  # type: ignore
-from src.data_integration.real_data_integration import RealDataManager
+@runtime_checkable
+class RegimeDetector(Protocol):
+    async def detect_regime(self, data: Any) -> Optional[Any]:
+        ...
 
-try:
-    from src.core.interfaces import DecisionGenome
-except Exception:  # pragma: no cover
-    DecisionGenome = object  # type: ignore
+@runtime_checkable
+class DataIntegrationManager(Protocol):
+    """Protocol for data integration manager (constructor-only dependency)."""
+    # No methods are required by this module.
+
+@runtime_checkable
+class ManipulationDetector(Protocol):
+    async def detect_manipulation(self, data: Any) -> Sequence[Dict[str, Any]]:
+        ...
+
+def _make_market_data_provider() -> MarketDataProvider:
+    # Lazily import to localize cross-domain dependencies
+    from src.sensory.organs.yahoo_finance_organ import YahooFinanceOrgan
+    return YahooFinanceOrgan()
+
+def _make_regime_detector() -> RegimeDetector:
+    # Preserve deprecated import handling semantics
+    try:
+        from src.trading.risk.market_regime_detector import MarketRegimeDetector  # deprecated  # noqa: I001
+    except Exception:  # pragma: no cover
+        MarketRegimeDetector = None  # type: ignore
+    return MarketRegimeDetector()  # type: ignore
+
+def _make_data_manager() -> DataIntegrationManager:
+    from src.data_integration.real_data_integration import RealDataManager
+    return RealDataManager({'fallback_to_mock': False})
+
+def _make_manipulation_detector() -> ManipulationDetector:
+    from src.sensory.enhanced.anomaly.manipulation_detection import ManipulationDetectionSystem
+    return ManipulationDetectionSystem()
 
 logger = logging.getLogger(__name__)
 
@@ -38,9 +70,9 @@ logger = logging.getLogger(__name__)
 class RealMarketValidationResult:
     """Result from real market validation testing"""
     
-    def __init__(self, test_name: str, passed: bool, value: float, 
+    def __init__(self, test_name: str, passed: bool, value: float,
                  threshold: float, unit: str, details: str = "",
-                 historical_data: Dict[str, Any] = None):
+                 historical_data: Optional[Dict[str, Any]] = None):
         self.test_name = test_name
         self.passed = passed
         self.value = value
@@ -71,10 +103,17 @@ class RealMarketValidationFramework:
     
     def __init__(self):
         self.results: List[RealMarketValidationResult] = []
-        self.yahoo_organ = YahooFinanceOrgan()
-        self.manipulation_detector = ManipulationDetectionSystem()
-        self.regime_detector = MarketRegimeDetector()
-        self.real_data_manager = RealDataManager({'fallback_to_mock': False})
+        # Adapter-backed dependencies via lazy factories
+        self._data_provider: MarketDataProvider = _make_market_data_provider()
+        self._manipulation_detector: ManipulationDetector = _make_manipulation_detector()
+        self._regime_detector: RegimeDetector = _make_regime_detector()
+        self._data_manager: DataIntegrationManager = _make_data_manager()
+
+        # Back-compat attribute aliases (preserve public surface)
+        self.yahoo_organ = self._data_provider
+        self.manipulation_detector = self._manipulation_detector
+        self.regime_detector = self._regime_detector
+        self.real_data_manager = self._data_manager
         
         # Historical market events for validation
         self.known_market_events = {
@@ -106,10 +145,12 @@ class RealMarketValidationFramework:
                     start_date = datetime.strptime(event['date'], '%Y-%m-%d') - timedelta(days=5)
                     end_date = datetime.strptime(event['date'], '%Y-%m-%d') + timedelta(days=5)
                     
-                    data = self.yahoo_organ.fetch_data(
-                        event['symbol'], 
-                        start=start_date.strftime('%Y-%m-%d'),
-                        end=end_date.strftime('%Y-%m-%d'),
+                    period_days = (end_date - start_date).days + 1
+                    period_str = f"{period_days}d"
+                    
+                    data = self._data_provider.fetch_data(
+                        event['symbol'],
+                        period=period_str,
                         interval="1m"
                     )
                     
@@ -117,7 +158,7 @@ class RealMarketValidationFramework:
                         continue
                     
                     # Detect anomalies
-                    anomalies = await self.manipulation_detector.detect_manipulation(data)
+                    anomalies = await self._manipulation_detector.detect_manipulation(data)
                     
                     # Check if we detected the known event
                     event_detected = any(
@@ -185,10 +226,11 @@ class RealMarketValidationFramework:
             end_date = datetime(2020, 5, 1)
             
             # Get S&P 500 data
-            data = self.yahoo_organ.fetch_data(
+            period_days = (end_date - start_date).days + 1
+            period_str = f"{period_days}d"
+            data = self._data_provider.fetch_data(
                 '^GSPC',
-                start=start_date.strftime('%Y-%m-%d'),
-                end=end_date.strftime('%Y-%m-%d'),
+                period=period_str,
                 interval="1d"
             )
             
@@ -206,7 +248,7 @@ class RealMarketValidationFramework:
             regimes = []
             for i in range(20, len(data)):
                 window = data.iloc[i-20:i]
-                regime_result = await self.regime_detector.detect_regime(window)
+                regime_result = await self._regime_detector.detect_regime(window)
                 if regime_result:
                     regimes.append({
                         'date': data.iloc[i]['timestamp'],
@@ -266,10 +308,11 @@ class RealMarketValidationFramework:
             end_date = datetime.now()
             start_date = end_date - timedelta(days=30)
             
-            data = self.yahoo_organ.fetch_data(
+            period_days = (end_date - start_date).days + 1
+            period_str = f"{period_days}d"
+            data = self._data_provider.fetch_data(
                 'EURUSD=X',
-                start=start_date.strftime('%Y-%m-%d'),
-                end=end_date.strftime('%Y-%m-%d'),
+                period=period_str,
                 interval="1h"
             )
             
@@ -288,19 +331,19 @@ class RealMarketValidationFramework:
             
             # Test data retrieval
             start_time = time.time()
-            _ = self.yahoo_organ.fetch_data('EURUSD=X', period="1d", interval="1m")
+            _ = self._data_provider.fetch_data('EURUSD=X', period="1d", interval="1m")
             retrieval_time = time.time() - start_time
             processing_times.append(retrieval_time)
             
             # Test anomaly detection
             start_time = time.time()
-            _ = await self.manipulation_detector.detect_manipulation(data)
+            _ = await self._manipulation_detector.detect_manipulation(data)
             anomaly_time = time.time() - start_time
             processing_times.append(anomaly_time)
             
             # Test regime detection
             start_time = time.time()
-            _ = await self.regime_detector.detect_regime(data)
+            _ = await self._regime_detector.detect_regime(data)
             regime_time = time.time() - start_time
             processing_times.append(regime_time)
             
@@ -358,10 +401,11 @@ class RealMarketValidationFramework:
             end_date = datetime.now()
             start_date = end_date - timedelta(days=365)
             
-            data = self.yahoo_organ.fetch_data(
+            period_days = (end_date - start_date).days + 1
+            period_str = f"{period_days}d"
+            data = self._data_provider.fetch_data(
                 '^GSPC',
-                start=start_date.strftime('%Y-%m-%d'),
-                end=end_date.strftime('%Y-%m-%d'),
+                period=period_str,
                 interval="1d"
             )
             
@@ -419,10 +463,11 @@ class RealMarketValidationFramework:
             start_date = datetime(2020, 2, 1)
             end_date = datetime(2020, 5, 1)
             
-            data = self.yahoo_organ.fetch_data(
+            period_days = (end_date - start_date).days + 1
+            period_str = f"{period_days}d"
+            data = self._data_provider.fetch_data(
                 '^GSPC',
-                start=start_date.strftime('%Y-%m-%d'),
-                end=end_date.strftime('%Y-%m-%d'),
+                period=period_str,
                 interval="1d"
             )
             
@@ -490,7 +535,7 @@ class RealMarketValidationFramework:
             for symbol in test_symbols:
                 try:
                     # Get real data
-                    data = self.yahoo_organ.fetch_data(symbol, period="1d", interval="1h")
+                    data = self._data_provider.fetch_data(symbol, period="1d", interval="1h")
                     
                     if data is not None and len(data) > 0:
                         # Check for synthetic patterns

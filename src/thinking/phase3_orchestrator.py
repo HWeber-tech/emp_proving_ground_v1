@@ -13,20 +13,24 @@ This orchestrator manages:
 5. Competitive intelligence
 """
 
+from __future__ import annotations
+
 import asyncio
 import logging
 from datetime import datetime, timedelta
 from typing import Dict, List, Any, Optional
+from typing import TYPE_CHECKING
 import uuid
 
-from src.intelligence.sentient_adaptation import SentientAdaptationEngine
 from src.thinking.prediction.predictive_market_modeler import PredictiveMarketModeler
 from src.thinking.adversarial.market_gan import MarketGAN
 from src.thinking.adversarial.red_team_ai import RedTeamAI
 from src.thinking.ecosystem.specialized_predator_evolution import SpecializedPredatorEvolution
 from src.thinking.competitive.competitive_intelligence_system import CompetitiveIntelligenceSystem
-from src.operational.state_store import StateStore
-from src.core.event_bus import EventBus
+
+if TYPE_CHECKING:
+    from src.operational.state_store import StateStore
+    from src.core.event_bus import EventBus
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +48,7 @@ class Phase3Orchestrator:
         self.event_bus = event_bus
         
         # Initialize all Phase 3 systems
+        from src.intelligence.sentient_adaptation import SentientAdaptationEngine
         self.sentient_engine = SentientAdaptationEngine(state_store, event_bus)
         self.predictive_modeler = PredictiveMarketModeler(state_store)
         self.market_gan = MarketGAN(state_store)
@@ -242,6 +247,7 @@ class Phase3Orchestrator:
                 time_horizon=timedelta(hours=24)
             )
             
+            import numpy as np
             return {
                 'scenarios_generated': len(predictions),
                 'average_confidence': np.mean([p.confidence for p in predictions]),
@@ -270,6 +276,7 @@ class Phase3Orchestrator:
                 attack_result = await self.red_team.attack_strategy(strategy)
                 red_team_results.append(attack_result)
             
+            import numpy as np
             return {
                 'gan_training_complete': gan_results.get('success', False),
                 'strategies_improved': len(gan_results.get('improved_strategies', [])),

@@ -45,8 +45,8 @@ class _LazySymbol:
     def _resolve(self):
         # Ensure canonical thinking.* chain exposes ThinkingException on first resolution.
         try:
-            from src.core.exceptions import EMPException as _EMPException  # noqa: F401
             import src.core.exceptions as _excmod
+            from src.core.exceptions import EMPException as _EMPException  # noqa: F401
             if not hasattr(_excmod, "ThinkingException"):
                 setattr(_excmod, "ThinkingException", _EMPException)
         except Exception:
@@ -81,8 +81,8 @@ def __getattr__(name: str) -> Any:
     if target:
         # Ensure canonical thinking.* chain exposes ThinkingException on first access.
         try:
-            from src.core.exceptions import EMPException as _EMPException  # noqa: F401
             import src.core.exceptions as _excmod
+            from src.core.exceptions import EMPException as _EMPException  # noqa: F401
             if not hasattr(_excmod, "ThinkingException"):
                 setattr(_excmod, "ThinkingException", _EMPException)
         except Exception:

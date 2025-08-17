@@ -19,7 +19,7 @@ import asyncio
 import logging
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 # Avoid heavy third-party imports at module import-time.
 # Use TYPE_CHECKING for static types and lazy proxies for runtime access.
@@ -186,8 +186,8 @@ class StrategyAnalyzerLegacy:
 
     def __init__(self):
         # Localize sklearn imports to avoid import-time side effects
-        from sklearn.ensemble import IsolationForest  # type: ignore
         from sklearn.cluster import DBSCAN  # type: ignore
+        from sklearn.ensemble import IsolationForest  # type: ignore
 
         self.behavior_models: Dict[str, Any] = {}
         self.pattern_detector = IsolationForest(contamination=0.1)  # type: ignore[arg-type]

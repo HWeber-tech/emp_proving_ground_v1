@@ -13,6 +13,38 @@ from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
+# Module-level cache of path-specific loggers to avoid duplicate handlers
+_LOGGERS: Dict[str, logging.Logger] = {}
+
+
+def get_path_logger(path: str) -> logging.Logger:
+    """
+    Return a logger bound to the absolute file path with a single FileHandler.
+    Ensures messages are emitted as raw text with exactly one trailing newline.
+    """
+    abs_path = str(Path(path).resolve())
+    # Return cached logger if already created for this path
+    if abs_path in _LOGGERS:
+        return _LOGGERS[abs_path]
+
+    logger_name = f"audit_logger::{abs_path}"
+    log = logging.getLogger(logger_name)
+    log.propagate = False
+    log.setLevel(logging.INFO)
+
+    # Ensure only one FileHandler targeting this path is attached
+    has_handler = any(
+        isinstance(h, logging.FileHandler) and getattr(h, "baseFilename", None) == abs_path
+        for h in log.handlers
+    )
+    if not has_handler:
+        handler = logging.FileHandler(abs_path, mode="a", encoding="utf-8", delay=True)
+        handler.setFormatter(logging.Formatter("%(message)s"))
+        log.addHandler(handler)
+
+    _LOGGERS[abs_path] = log
+    return log
+
 
 class AuditLogger:
     """Audit logger for governance layer actions."""
@@ -145,8 +177,9 @@ class AuditLogger:
     def _write_log_entry(self, entry: Dict[str, Any]):
         """Write a log entry to the audit log file."""
         try:
-            with open(self.log_path, 'a') as f:
-                f.write(json.dumps(entry) + '\n')
+            path_logger = get_path_logger(str(self.log_path))
+            # Emit without a trailing newline; the logging handler appends exactly one.
+            path_logger.info(json.dumps(entry))
         except Exception as e:
             logger.error(f"Error writing to audit log: {e}")
             

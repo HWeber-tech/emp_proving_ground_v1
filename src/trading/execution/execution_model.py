@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+
 from src.data_foundation.config.execution_config import ExecutionConfig
+
 
 @dataclass
 class ExecContext:

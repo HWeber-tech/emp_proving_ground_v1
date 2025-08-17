@@ -6,7 +6,7 @@ Provides integration between FIX protocol and trading system
 import asyncio
 import logging
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, cast
 
 import simplefix
 
@@ -79,91 +79,21 @@ class FIXBrokerInterface:
           - 31 LastPx (bytes/str)
         """
         try:
-            order_id = message.get(11).decode() if message.get(11) else None
-            exec_type = message.get(150).decode() if message.get(150) else None
-            last_qty_raw = message.get(32)
-            last_px_raw = message.get(31)
-            last_qty = None
-            last_px = None
-            try:
-                if last_qty_raw is not None:
-                    last_qty = float(last_qty_raw.decode() if isinstance(last_qty_raw, (bytes, bytearray)) else last_qty_raw)
-                if last_px_raw is not None:
-                    last_px = float(last_px_raw.decode() if isinstance(last_px_raw, (bytes, bytearray)) else last_px_raw)
-            except Exception:
-                # Non-fatal; continue without qty/px
-                pass
+            # Pre-validate (behavior-preserving no-op; keeps ordering explicit)
+            self._prevalidate_execution_report(message)
+
+            data = self._normalize_execution_tags(message)
+            order_id = data.get("order_id")
+            exec_type = data.get("exec_type")
 
             if not order_id or not exec_type:
                 return
 
-            logger.info(f"Execution report for order {order_id}: {exec_type}")
+            # Use dict-based dispatch to apply state changes and build payload
+            update_payload = self._dispatch_execution(data)
 
-            # Update in-memory order state
-            order_state = self.orders.get(order_id, {
-                "symbol": None,
-                "side": None,
-                "quantity": 0.0,
-                "status": "UNKNOWN",
-                "timestamp": datetime.utcnow(),
-                "filled_qty": 0.0,
-                "avg_px": None,
-            })
-
-            # Map ExecType to status string
-            status_map = {
-                "0": "ACKNOWLEDGED",
-                "1": "PARTIALLY_FILLED",
-                "2": "FILLED",
-                "4": "CANCELLED",
-                "8": "REJECTED",
-            }
-            new_status = status_map.get(exec_type, order_state.get("status", "UNKNOWN"))
-            order_state["status"] = new_status
-
-            if last_qty is not None and last_qty > 0:
-                # Update running filled quantity and average price
-                prev_filled = float(order_state.get("filled_qty", 0.0) or 0.0)
-                prev_avg = order_state.get("avg_px")
-                new_filled = prev_filled + float(last_qty)
-                if last_px is not None:
-                    if prev_avg is None or prev_filled <= 0:
-                        new_avg = float(last_px)
-                    else:
-                        total_value = prev_avg * prev_filled + float(last_px) * float(last_qty)
-                        new_avg = total_value / new_filled if new_filled > 0 else prev_avg
-                    order_state["avg_px"] = new_avg
-                order_state["filled_qty"] = new_filled
-
-            self.orders[order_id] = order_state
-
-            update_payload = {
-                "order_id": order_id,
-                "exec_type": exec_type,
-                "status": order_state.get("status"),
-                "filled_qty": order_state.get("filled_qty"),
-                "avg_px": order_state.get("avg_px"),
-                "symbol": order_state.get("symbol"),
-                "side": order_state.get("side"),
-                "timestamp": datetime.utcnow(),
-            }
-
-            # Emit event for system (if compatible bus provided)
-            try:
-                if self.event_bus and hasattr(self.event_bus, "emit"):
-                    await self.event_bus.emit("order_update", update_payload)
-            except Exception as emit_err:
-                logger.debug(f"Event bus emit failed: {emit_err}")
-
-            # Notify local listeners
-            for callback in list(self._order_update_listeners):
-                try:
-                    if asyncio.iscoroutinefunction(callback):
-                        await callback(order_id, update_payload)
-                    else:
-                        callback(order_id, update_payload)
-                except Exception as cb_err:
-                    logger.warning(f"Order update listener error: {cb_err}")
+            await self._emit_order_update(update_payload)
+            await self._notify_listeners(order_id, update_payload)
 
         except Exception as e:
             logger.error(f"Error handling execution report: {e}")
@@ -267,6 +197,7 @@ class FIXBrokerInterface:
                 self.fix_initiator.send_message(msg)
                 logger.info(f"Order cancel requested: {order_id}")
                 return True
+            return False
                 
         except Exception as e:
             logger.error(f"Error canceling order: {e}")
@@ -287,6 +218,162 @@ class FIXBrokerInterface:
     def get_all_orders(self) -> Dict[str, Dict[str, Any]]:
         """Get all orders."""
         return self.orders.copy()
+
+    # --- Internal helpers -------------------------------------------------------
+
+    def _prevalidate_execution_report(self, message) -> None:
+        """Pre-validate execution report input.
+
+        Behavior-preserving: current implementation intentionally does not raise
+        or log; invalid inputs will be handled by downstream logic exactly as before.
+        """
+        return
+
+    def _dispatch_execution(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Dispatch normalized execution report to the appropriate handler.
+
+        Uses exec_type as the dispatch key. Behavior-preserving: all exec types
+        share the same state transition semantics as the original implementation.
+        Returns the update payload for downstream emission/notification.
+        """
+        exec_type = data.get("exec_type")
+        # Dict-based dispatch (stable keys), default handler preserves prior behavior
+        handlers = {
+            "0": self._on_exec_default,
+            "1": self._on_exec_default,
+            "2": self._on_exec_default,
+            "4": self._on_exec_default,
+            "8": self._on_exec_default,
+        }
+        # Avoid static type checker issues while preserving runtime behavior
+        if isinstance(exec_type, str) and exec_type in handlers:
+            handler = handlers[exec_type]
+        else:
+            handler = self._on_exec_default
+        return handler(data)
+
+    def _on_exec_default(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Default execution handler implementing original update semantics."""
+        order_id = cast(str, data.get("order_id"))
+        exec_type = cast(str, data.get("exec_type"))
+        logger.info(f"Execution report for order {order_id}: {exec_type}")
+
+        # Update in-memory order state (preserve order of side-effects)
+        order_state = self._get_or_init_order_state(order_id)
+
+        new_status = self._map_exec_type_to_status(exec_type, order_state.get("status", "UNKNOWN"))
+        order_state["status"] = new_status
+
+        # Apply fill-related updates
+        self._apply_fill_updates(order_state, data.get("last_qty"), data.get("last_px"))
+
+        # Persist updated state
+        self.orders[order_id] = order_state
+
+        # Build payload (returned to caller for emission/notification)
+        return self._build_update_payload(order_id, exec_type, order_state)
+
+    def _normalize_execution_tags(self, message) -> Dict[str, Any]:
+        """Extract and normalize fields from an execution report message.
+
+        Behavior-preserving: decoding and float parsing mirrors original logic,
+        including the single try/except around both conversions.
+        """
+        order_id = message.get(11).decode() if message.get(11) else None
+        exec_type = message.get(150).decode() if message.get(150) else None
+        last_qty_raw = message.get(32)
+        last_px_raw = message.get(31)
+        last_qty = None
+        last_px = None
+        try:
+            if last_qty_raw is not None:
+                last_qty = float(last_qty_raw.decode() if isinstance(last_qty_raw, (bytes, bytearray)) else last_qty_raw)
+            if last_px_raw is not None:
+                last_px = float(last_px_raw.decode() if isinstance(last_px_raw, (bytes, bytearray)) else last_px_raw)
+        except Exception:
+            # Non-fatal; continue without qty/px
+            pass
+        return {
+            "order_id": order_id,
+            "exec_type": exec_type,
+            "last_qty": last_qty,
+            "last_px": last_px,
+        }
+
+    def _get_or_init_order_state(self, order_id: str) -> Dict[str, Any]:
+        """Get existing order state or initialize a new one."""
+        return self.orders.get(order_id, {
+            "symbol": None,
+            "side": None,
+            "quantity": 0.0,
+            "status": "UNKNOWN",
+            "timestamp": datetime.utcnow(),
+            "filled_qty": 0.0,
+            "avg_px": None,
+        })
+
+    def _map_exec_type_to_status(self, exec_type: str, current_status: str) -> str:
+        """Translate ExecType to internal status string."""
+        status_map = {
+            "0": "ACKNOWLEDGED",
+            "1": "PARTIALLY_FILLED",
+            "2": "FILLED",
+            "4": "CANCELLED",
+            "8": "REJECTED",
+        }
+        return status_map.get(exec_type, current_status)
+
+    def _apply_fill_updates(
+        self,
+        order_state: Dict[str, Any],
+        last_qty: Optional[float],
+        last_px: Optional[float],
+    ) -> None:
+        """Apply filled quantity and average price updates."""
+        if last_qty is not None and last_qty > 0:
+            prev_filled = float(order_state.get("filled_qty", 0.0) or 0.0)
+            prev_avg = order_state.get("avg_px")
+            new_filled = prev_filled + float(last_qty)
+            if last_px is not None:
+                if prev_avg is None or prev_filled <= 0:
+                    new_avg = float(last_px)
+                else:
+                    total_value = prev_avg * prev_filled + float(last_px) * float(last_qty)
+                    new_avg = total_value / new_filled if new_filled > 0 else prev_avg
+                order_state["avg_px"] = new_avg
+            order_state["filled_qty"] = new_filled
+
+    def _build_update_payload(self, order_id: str, exec_type: str, order_state: Dict[str, Any]) -> Dict[str, Any]:
+        """Build outbound order update payload."""
+        return {
+            "order_id": order_id,
+            "exec_type": exec_type,
+            "status": order_state.get("status"),
+            "filled_qty": order_state.get("filled_qty"),
+            "avg_px": order_state.get("avg_px"),
+            "symbol": order_state.get("symbol"),
+            "side": order_state.get("side"),
+            "timestamp": datetime.utcnow(),
+        }
+
+    async def _emit_order_update(self, update_payload: Dict[str, Any]) -> None:
+        """Emit update on event bus, preserving original error handling/log text."""
+        try:
+            if self.event_bus and hasattr(self.event_bus, "emit"):
+                await self.event_bus.emit("order_update", update_payload)
+        except Exception as emit_err:
+            logger.debug(f"Event bus emit failed: {emit_err}")
+
+    async def _notify_listeners(self, order_id: str, update_payload: Dict[str, Any]) -> None:
+        """Notify registered local listeners, preserving warning text and sync/async behavior."""
+        for callback in list(self._order_update_listeners):
+            try:
+                if asyncio.iscoroutinefunction(callback):
+                    await callback(order_id, update_payload)
+                else:
+                    callback(order_id, update_payload)
+            except Exception as cb_err:
+                logger.warning(f"Order update listener error: {cb_err}")
 
     # --- Listener registration -------------------------------------------------
     def add_order_update_listener(self, callback):

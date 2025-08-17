@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from typing import Dict, Any
+from typing import Any, Dict
 
-from src.core.base import MarketData, DimensionalReading
+from src.core.base import DimensionalReading, MarketData
 from src.sensory.organs.dimensions.base_organ import MarketRegime
 
 __all__ = ["TechnicalRealityEngine"]

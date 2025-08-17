@@ -1,9 +1,9 @@
-from __future__ import annotations
-
 """
 FRED-like calendar ingestion for WHY dimension using public APIs where available.
 This is a placeholder; customize with your preferred source.
 """
+
+from __future__ import annotations
 
 from typing import List
 

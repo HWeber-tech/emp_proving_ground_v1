@@ -2,7 +2,7 @@
 # ruff: noqa: I001
 """
 Phase 2D: Real Integration & Testing Framework
-================================================
+===============================================
 
 Comprehensive end-to-end integration testing with real market data.
 Validates that all components work together with actual data flows.
@@ -12,27 +12,63 @@ import logging
 import time
 from datetime import datetime
 from decimal import Decimal
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, TYPE_CHECKING, Protocol, runtime_checkable, Sequence
 
 import numpy as np
 import pandas as pd
 
-from src.sensory.enhanced.anomaly.manipulation_detection import ManipulationDetectionSystem
-from src.sensory.organs.yahoo_finance_organ import YahooFinanceOrgan
-
-try:
-    from src.trading.risk.market_regime_detector import MarketRegimeDetector  # deprecated
-except Exception:  # pragma: no cover
-    MarketRegimeDetector = None  # type: ignore
-from src.data_integration.real_data_integration import RealDataManager
-
-try:
+if TYPE_CHECKING:
     from src.core.interfaces import DecisionGenome
-except Exception:  # pragma: no cover
-    DecisionGenome = object  # type: ignore
-from src.core import Instrument, InstrumentProvider
-from src.pnl import EnhancedPosition
-from src.risk import RiskConfig, RiskManager
+
+# Minimal Protocols for localized dependencies
+@runtime_checkable
+class MarketDataProvider(Protocol):
+    def fetch_data(self, symbol: str, period: str, interval: str) -> Optional[pd.DataFrame]:
+        ...
+
+@runtime_checkable
+class RegimeDetector(Protocol):
+    async def detect_regime(self, data: pd.DataFrame) -> Optional[Any]:
+        ...
+
+@runtime_checkable
+class InstrumentRegistry(Protocol):
+    # No required methods for this integration surface
+    ...
+
+@runtime_checkable
+class DataIntegrationManager(Protocol):
+    # No required methods used within this validator
+    ...
+
+@runtime_checkable
+class ManipulationDetector(Protocol):
+    async def detect_manipulation(self, data: pd.DataFrame) -> Optional[Sequence[Any]]:
+        ...
+
+# Internal factories to preserve lazy imports and localized edges
+def _make_market_data_provider() -> MarketDataProvider:
+    from src.sensory.organs.yahoo_finance_organ import YahooFinanceOrgan
+    return YahooFinanceOrgan()
+
+def _make_regime_detector() -> RegimeDetector:
+    try:
+        from src.trading.risk.market_regime_detector import MarketRegimeDetector  # deprecated
+    except Exception:  # pragma: no cover
+        MarketRegimeDetector = None  # type: ignore
+    return MarketRegimeDetector()  # type: ignore
+
+def _make_instrument_registry() -> InstrumentRegistry:
+    from src.core import InstrumentProvider  # type: ignore[attr-defined]
+    return InstrumentProvider()
+
+def _make_data_integration_manager() -> DataIntegrationManager:
+    from src.data_integration.real_data_integration import RealDataManager
+    return RealDataManager({'fallback_to_mock': False})
+
+def _make_manipulation_detector() -> ManipulationDetector:
+    from src.sensory.enhanced.anomaly.manipulation_detection import ManipulationDetectionSystem
+    return ManipulationDetectionSystem()
 
 logger = logging.getLogger(__name__)
 
@@ -44,12 +80,14 @@ class Phase2DIntegrationValidator:
     """
     
     def __init__(self):
+        # Localized factories to minimize cross-domain edges
         self.results = []
-        self.yahoo_organ = YahooFinanceOrgan()
-        self.manipulation_detector = ManipulationDetectionSystem()
-        self.regime_detector = MarketRegimeDetector()
-        self.strategy_manager = None # Removed StrategyManager import, so set to None
-        self.real_data_manager = RealDataManager({'fallback_to_mock': False})
+        self._data_provider: MarketDataProvider = _make_market_data_provider()
+        self._regime_detector: RegimeDetector = _make_regime_detector()
+        self._instrument_registry: InstrumentRegistry = _make_instrument_registry()
+        self._data_manager: DataIntegrationManager = _make_data_integration_manager()
+        self._manipulation_detector: ManipulationDetector = _make_manipulation_detector()
+        self.strategy_manager = None  # Removed StrategyManager import, so set to None
         
     async def test_real_data_flow(self) -> Dict[str, Any]:
         """Test complete data flow from market data to decision engine"""
@@ -63,7 +101,7 @@ class Phase2DIntegrationValidator:
             real_data_count = 0
             for symbol in symbols:
                 try:
-                    data = self.yahoo_organ.fetch_data(symbol, period="1d", interval="1m")
+                    data = self._data_provider.fetch_data(symbol, period="1d", interval="1m")
                     if data is not None and len(data) > 0:
                         real_data_count += 1
                 except Exception as e:
@@ -74,11 +112,11 @@ class Phase2DIntegrationValidator:
             # Test 2: Sensory processing
             start_time = time.time()
             if real_data_count > 0:
-                test_data = self.yahoo_organ.fetch_data('EURUSD=X', period="1d", interval="1h")
+                test_data = self._data_provider.fetch_data('EURUSD=X', period="1d", interval="1h")
                 if test_data is not None:
                     # Process through sensory cortex
-                    anomalies = await self.manipulation_detector.detect_manipulation(test_data)
-                    regimes = await self.regime_detector.detect_regime(test_data)
+                    anomalies = await self._manipulation_detector.detect_manipulation(test_data)
+                    regimes = await self._regime_detector.detect_regime(test_data)
                     processing_complete = True
                 else:
                     processing_complete = False
@@ -91,11 +129,15 @@ class Phase2DIntegrationValidator:
             start_time = time.time()
             if processing_complete:
                 # Create decision genome
+                try:
+                    from src.core.interfaces import DecisionGenome
+                except Exception:  # pragma: no cover
+                    DecisionGenome = object  # type: ignore
                 genome = DecisionGenome()
-                genome.initialize_random()
+                genome.initialize_random()  # type: ignore[attr-defined]
                 
                 # Test evaluation
-                fitness_score = await self._evaluate_genome_with_real_data(genome, test_data)
+                fitness_score = await self._evaluate_genome_with_real_data(genome, test_data)  # type: ignore[arg-type]
                 decision_engine_time = time.time() - start_time
                 
                 decision_complete = fitness_score is not None
@@ -106,20 +148,25 @@ class Phase2DIntegrationValidator:
             # Test 4: Risk management integration
             start_time = time.time()
             if decision_complete:
+                from src.risk import RiskConfig, RiskManager  # type: ignore[attr-defined]
+                from src.core import Instrument
+                from src.core import InstrumentProvider  # type: ignore[attr-defined]
+                from src.pnl import EnhancedPosition
                 risk_config = RiskConfig(
                     max_risk_per_trade_pct=Decimal('0.02'),
                     max_leverage=Decimal('10.0'),
                     max_total_exposure_pct=Decimal('0.5'),
                     max_drawdown_pct=Decimal('0.25')
                 )
-                risk_manager = RiskManager(risk_config, InstrumentProvider())
+                risk_manager = RiskManager(risk_config, self._instrument_registry)
                 
                 # Test risk validation
                 position = EnhancedPosition(
                     symbol="EURUSD",
                     quantity=10000,
                     avg_price=Decimal('1.1000'),
-                    entry_timestamp=datetime.now()
+                    entry_timestamp=datetime.now(),
+                    last_swap_time=datetime.now()
                 )
                 
                 is_valid = risk_manager.validate_position(
@@ -163,7 +210,7 @@ class Phase2DIntegrationValidator:
             logger.info("Testing strategy performance tracking...")
             
             # Get real market data
-            data = self.yahoo_organ.fetch_data('EURUSD=X', period="90d", interval="1d")
+            data = self._data_provider.fetch_data('EURUSD=X', period="90d", interval="1d")
             if data is None or len(data) < 20:
                 return {
                     'test_name': 'strategy_performance_tracking',
@@ -226,7 +273,7 @@ class Phase2DIntegrationValidator:
                 'details': 'Concurrent operations test failed'
             }
 
-    async def _evaluate_genome_with_real_data(self, genome: DecisionGenome, data: pd.DataFrame) -> Optional[float]:
+    async def _evaluate_genome_with_real_data(self, genome: 'DecisionGenome', data: pd.DataFrame) -> Optional[float]:
         """Evaluate genome performance with real market data"""
         try:
             if data is None or len(data) < 10:

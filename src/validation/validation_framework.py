@@ -14,8 +14,6 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List
 
 from src.core.exceptions import ValidationException
-
-
 from src.validation.models import ValidationResult
 
 logger = logging.getLogger(__name__)

@@ -1,11 +1,11 @@
-from __future__ import annotations
-
 """
 Yield signal utilities for WHY dimension.
 
 Provides a small stateful tracker to compute common yield-curve features
 such as 2s10s slope and a basic directional signal/confidence.
 """
+
+from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import Dict, Optional, Tuple
@@ -29,7 +29,6 @@ class YieldSlopeTracker:
             self.latest_values[str(tenor).upper()] = float(value)
         except Exception:
             return
-
 
     def signal(self) -> Tuple[float, float]:
         """Return a naive directional signal and confidence.

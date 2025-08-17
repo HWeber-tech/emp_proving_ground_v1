@@ -10,6 +10,7 @@ from __future__ import annotations
 # Explicit canonical re-exports (no namespace side-effects)
 from src.core.instrument import Instrument as Instrument
 from src.core.risk.manager import RiskConfig as RiskConfig
+
 from .models import ExecutionReport as ExecutionReport
 
 __all__ = [

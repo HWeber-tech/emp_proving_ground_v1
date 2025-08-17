@@ -18,14 +18,15 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 import numpy as np
+
+from src.sentient.adaptation.adaptation_controller import (
+    AdaptationController as AdaptationController,  # type: ignore
+)
 from src.sentient.learning.real_time_learning_engine import (
     RealTimeLearningEngine as RealTimeLearningEngine,
 )
 from src.sentient.memory.faiss_pattern_memory import (
     FAISSPatternMemory as FAISSPatternMemory,
-)
-from src.sentient.adaptation.adaptation_controller import (
-    AdaptationController as AdaptationController,  # type: ignore
 )
 
 try:

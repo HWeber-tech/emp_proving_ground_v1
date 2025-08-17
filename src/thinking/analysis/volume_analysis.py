@@ -41,14 +41,18 @@ def calculate_delta(trade_price: float, trade_size: float, best_bid: float, best
 
 
 # Conditionally apply Numba JIT if available
-if HAS_NUMBA:
-    from src.governance.system_config import config
-    
+def _maybe_enable_numba(func):
+    # Localize governance import to the narrowest scope to reduce cross-domain edges
+    from src.governance.system_config import config  # type: ignore
     if config.enable_numba_acceleration:
-        calculate_delta = jit(nopython=True)(calculate_delta)
+        func = jit(nopython=True)(func)
         logger.info("Numba acceleration enabled for CVD calculations")
     else:
         logger.info("Numba acceleration disabled via configuration")
+    return func
+
+if HAS_NUMBA:
+    calculate_delta = _maybe_enable_numba(calculate_delta)
 else:
     logger.info("Numba not available - using pure Python for CVD calculations")
 

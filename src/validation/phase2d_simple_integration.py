@@ -8,43 +8,89 @@ Simplified but complete integration testing with real market data.
 Validates end-to-end functionality without complex dependencies.
 """
 
+from __future__ import annotations
+
 import asyncio
 import json
 import logging
 import time
 from datetime import datetime
 from decimal import Decimal
-from typing import List, Optional
+from typing import List, Optional, TYPE_CHECKING, Protocol, runtime_checkable, Any, Sequence
 
 import numpy as np
 import pandas as pd
 
-from src.sensory.enhanced.anomaly.manipulation_detection import ManipulationDetectionSystem
-from src.sensory.organs.yahoo_finance_organ import YahooFinanceOrgan
-
-try:
-    from src.trading.risk.market_regime_detector import MarketRegimeDetector  # deprecated
-except Exception:  # pragma: no cover
-    MarketRegimeDetector = None  # type: ignore
-try:
+if TYPE_CHECKING:  # type-only imports to keep hints without creating runtime edges
     from src.core.interfaces import DecisionGenome
-except Exception:  # pragma: no cover
-    DecisionGenome = object  # type: ignore
-from src.core import Instrument, InstrumentProvider
-from src.risk import RiskConfig, RiskManager
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+
+@runtime_checkable
+class MarketDataProvider(Protocol):
+    """Adapter for market data fetching used by this validator."""
+    def fetch_data(self, symbol: str, period: str, interval: str) -> Optional[pd.DataFrame]:
+        ...
+
+
+@runtime_checkable
+class RegimeDetector(Protocol):
+    """Adapter for market regime detection used by this validator."""
+    async def detect_regime(self, data: pd.DataFrame) -> Optional[Any]:
+        ...
+
+
+@runtime_checkable
+class InstrumentRegistry(Protocol):
+    """Adapter for instrument resolution passed to risk manager (no methods used here)."""
+    ...
+
+
+@runtime_checkable
+class ManipulationDetector(Protocol):
+    """Adapter for manipulation/anomaly detection used by this validator."""
+    async def detect_manipulation(self, data: pd.DataFrame) -> Optional[Sequence[Any]]:
+        ...
+
+
+def _make_market_data_provider() -> MarketDataProvider:
+    """Factory: lazily import and construct the current market data provider."""
+    from src.sensory.organs.yahoo_finance_organ import YahooFinanceOrgan
+    return YahooFinanceOrgan()
+
+
+def _make_regime_detector() -> RegimeDetector:
+    """Factory: lazily import and construct the current regime detector."""
+    try:
+        from src.trading.risk.market_regime_detector import MarketRegimeDetector  # deprecated
+    except Exception:  # pragma: no cover
+        MarketRegimeDetector = None  # type: ignore
+    return MarketRegimeDetector()  # type: ignore[operator]
+
+
+def _make_instrument_registry() -> InstrumentRegistry:
+    """Factory: lazily import and construct the current instrument registry."""
+    from src.core import InstrumentProvider  # type: ignore[attr-defined]
+    return InstrumentProvider()
+
+
+def _make_manipulation_detector() -> ManipulationDetector:
+    """Factory: lazily import and construct the current manipulation detector."""
+    from src.sensory.enhanced.anomaly.manipulation_detection import ManipulationDetectionSystem
+    return ManipulationDetectionSystem()
 
 
 class SimplePhase2DValidator:
     """Simplified Phase 2D validator for real integration testing"""
     
     def __init__(self):
-        self.yahoo_organ = YahooFinanceOrgan()
-        self.manipulation_detector = ManipulationDetectionSystem()
-        self.regime_detector = MarketRegimeDetector()
-        self.instrument_provider = InstrumentProvider()
+        # Localized factories to reduce cross-domain edges (preserve lazy imports)
+        self._data_provider: MarketDataProvider = _make_market_data_provider()
+        self._manipulation_detector: ManipulationDetector = _make_manipulation_detector()
+        self._regime_detector: RegimeDetector = _make_regime_detector()
+        self._instrument_registry: InstrumentRegistry = _make_instrument_registry()
         
     async def test_real_data_integration(self) -> dict:
         """Test real market data integration"""
@@ -58,7 +104,7 @@ class SimplePhase2DValidator:
             real_data_results = []
             for symbol in symbols:
                 try:
-                    data = self.yahoo_organ.fetch_data(symbol, period="7d", interval="1h")
+                    data = self._data_provider.fetch_data(symbol, period="7d", interval="1h")
                     if data is not None and len(data) > 10:
                         real_data_results.append({
                             'symbol': symbol,
@@ -84,10 +130,10 @@ class SimplePhase2DValidator:
             # Test 2: Sensory processing
             start_time = time.time()
             if any(r['success'] for r in real_data_results):
-                test_data = self.yahoo_organ.fetch_data('EURUSD=X', period="30d", interval="1d")
+                test_data = self._data_provider.fetch_data('EURUSD=X', period="30d", interval="1d")
                 if test_data is not None:
-                    anomalies = await self.manipulation_detector.detect_manipulation(test_data)
-                    regime = await self.regime_detector.detect_regime(test_data)
+                    anomalies = await self._manipulation_detector.detect_manipulation(test_data)
+                    regime = await self._regime_detector.detect_regime(test_data)
                     
                     sensory_processing_time = time.time() - start_time
                     
@@ -124,7 +170,7 @@ class SimplePhase2DValidator:
             logger.info("Testing real performance metrics...")
             
             # Get real market data for performance testing
-            data = self.yahoo_organ.fetch_data('^GSPC', period="365d", interval="1d")
+            data = self._data_provider.fetch_data('^GSPC', period="365d", interval="1d")
             if data is None or len(data) < 20:
                 return {
                     'test_name': 'performance_metrics',
@@ -177,6 +223,9 @@ class SimplePhase2DValidator:
         try:
             logger.info("Testing risk management integration...")
             
+            from src.risk import RiskConfig, RiskManager  # type: ignore[attr-defined]
+            from src.core import Instrument
+            
             # Test risk configuration
             risk_config = RiskConfig(
                 max_risk_per_trade_pct=Decimal('0.02'),
@@ -187,7 +236,7 @@ class SimplePhase2DValidator:
                 max_position_size=100000
             )
             
-            risk_manager = RiskManager(risk_config, self.instrument_provider)
+            risk_manager = RiskManager(risk_config, self._instrument_registry)
             
             # Test position validation
             position = {
@@ -267,7 +316,7 @@ class SimplePhase2DValidator:
     async def _fetch_symbol_async(self, symbol: str) -> dict:
         """Helper for async symbol fetching"""
         try:
-            data = self.yahoo_organ.fetch_data(symbol, period="1d", interval="1h")
+            data = self._data_provider.fetch_data(symbol, period="1d", interval="1h")
             if data is not None and len(data) > 0:
                 return {'success': True, 'symbol': symbol, 'data_points': len(data)}
             return {'success': False, 'symbol': symbol}
@@ -344,7 +393,7 @@ class SimplePhase2DValidator:
     
     def _validate_real_success_criteria(self, results: List[dict]) -> dict:
         """Validate against real success criteria"""
-        criteria = {
+        criteria: dict[str, Any] = {
             'response_time': {'target': 1.0, 'actual': None, 'passed': False},
             'sharpe_ratio': {'target': 1.5, 'actual': None, 'passed': False},
             'max_drawdown': {'target': 0.03, 'actual': None, 'passed': False},
@@ -379,3 +428,4 @@ class SimplePhase2DValidator:
                     all_passed = False
         
         criteria['all_passed'] = all_passed
+        return criteria

@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 """
 Market Data capture and replay utilities.
 
@@ -7,6 +5,8 @@ Recorder attaches to GenuineFIXManager market data callbacks and writes JSONL
 snapshots. Replayer reads JSONL and replays to a supplied callback with a
 speed factor.
 """
+
+from __future__ import annotations
 
 import json
 import os
@@ -57,40 +57,41 @@ class MarketDataReplayer:
 
         Returns number of events emitted.
         """
-        if not os.path.exists(self.in_path):
-            return 0
         emitted = 0
         prev_ts: Optional[float] = None
-        with open(self.in_path, "r", encoding="utf-8") as fh:
-            for line in fh:
-                try:
-                    rec = json.loads(line)
-                    symbol = rec.get("symbol")
-                    # Simple sleep based on recorded time deltas
-                    ts = datetime.fromisoformat(rec.get("t")).timestamp() if rec.get("t") else None
-                    if ts is not None and prev_ts is not None and self.speed > 0:
-                        delay = max(0.0, (ts - prev_ts) / self.speed)
-                        if delay > 0:
-                            time.sleep(delay)
-                    prev_ts = ts
-                    # Convert record into lightweight order_book-like dict
-                    ob = {
-                        "symbol": symbol,
-                        "bids": rec.get("bids", []),
-                        "asks": rec.get("asks", []),
-                        "last_update": rec.get("t"),
-                    }
-                    callback(symbol, ob)
-                    if feature_writer:
-                        try:
-                            feature_writer(symbol, ob)
-                        except Exception:
-                            pass
-                    emitted += 1
-                    if max_events and emitted >= max_events:
-                        break
-                except Exception:
-                    continue
+        try:
+            with open(self.in_path, "r", encoding="utf-8") as fh:
+                for line in fh:
+                    try:
+                        rec = json.loads(line)
+                        symbol = rec.get("symbol")
+                        # Simple sleep based on recorded time deltas
+                        ts = datetime.fromisoformat(rec.get("t")).timestamp() if rec.get("t") else None
+                        if ts is not None and prev_ts is not None and self.speed > 0:
+                            delay = max(0.0, (ts - prev_ts) / self.speed)
+                            if delay > 0:
+                                time.sleep(delay)
+                        prev_ts = ts
+                        # Convert record into lightweight order_book-like dict
+                        ob = {
+                            "symbol": symbol,
+                            "bids": rec.get("bids", []),
+                            "asks": rec.get("asks", []),
+                            "last_update": rec.get("t"),
+                        }
+                        callback(symbol, ob)
+                        if feature_writer:
+                            try:
+                                feature_writer(symbol, ob)
+                            except Exception:
+                                pass
+                        emitted += 1
+                        if max_events and emitted >= max_events:
+                            break
+                    except Exception:
+                        continue
+        except FileNotFoundError:
+            return 0
         return emitted
 
 

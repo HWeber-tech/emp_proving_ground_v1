@@ -14,6 +14,7 @@ import asyncio
 import logging
 
 import pandas as pd
+
 from .predictive_market_modeler import (
     MarketScenario,
     MarketScenarioGenerator,

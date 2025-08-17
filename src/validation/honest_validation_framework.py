@@ -13,22 +13,45 @@ import json
 import logging
 import time
 from datetime import datetime
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Protocol, runtime_checkable, Optional, Sequence
+import pandas as pd
 
-from src.sensory.organs.yahoo_finance_organ import YahooFinanceOrgan
 
-try:
-    from src.trading.risk.market_regime_detector import MarketRegimeDetector  # deprecated
-except Exception:  # pragma: no cover
-    MarketRegimeDetector = None  # type: ignore
-from src.data_integration.real_data_integration import RealDataManager
 
-try:
-    from src.core.interfaces import DecisionGenome
-except Exception:  # pragma: no cover
-    DecisionGenome = object  # type: ignore
 
 logger = logging.getLogger(__name__)
+
+# Adapter Protocols (minimal surfaces used in this module)
+@runtime_checkable
+class MarketDataProvider(Protocol):
+    def fetch_data(self, symbol: str, period: str, interval: str) -> Optional[pd.DataFrame]:
+        ...
+
+@runtime_checkable
+class RegimeDetector(Protocol):
+    async def detect_regime(self, data: pd.DataFrame) -> Optional[Any]:
+        ...
+
+@runtime_checkable
+class DataIntegrationManager(Protocol):
+    async def get_market_data(self, symbol: str) -> Optional[Any]:
+        ...
+
+# Internal factories to preserve lazy imports and localized edges
+def _make_market_data_provider() -> MarketDataProvider:
+    from src.sensory.organs.yahoo_finance_organ import YahooFinanceOrgan
+    return YahooFinanceOrgan()
+
+def _make_regime_detector() -> RegimeDetector:
+    try:
+        from src.trading.risk.market_regime_detector import MarketRegimeDetector  # deprecated
+    except Exception:  # pragma: no cover
+        MarketRegimeDetector = None  # type: ignore
+    return MarketRegimeDetector()  # type: ignore
+
+def _make_data_manager() -> DataIntegrationManager:
+    from src.data_integration.real_data_integration import RealDataManager
+    return RealDataManager({'fallback_to_mock': False})
 
 
 class HonestValidationResult:
@@ -64,17 +87,24 @@ class HonestValidationFramework:
     
     def __init__(self):
         self.results: List[HonestValidationResult] = []
-        self.yahoo_organ = YahooFinanceOrgan()
-        self.regime_detector = MarketRegimeDetector()
+        # Adapter-backed dependencies via internal factories
+        self._data_provider: MarketDataProvider = _make_market_data_provider()
+        self._regime_detector: RegimeDetector = _make_regime_detector()
         self.strategy_manager = None # Placeholder for StrategyManager
-        self.real_data_manager = RealDataManager({'fallback_to_mock': False})
+        self._data_manager: DataIntegrationManager = _make_data_manager()
+
+        # Back-compat: expose legacy attribute names without changing public APIs
+        # These references point to the adapter-backed instances
+        self.yahoo_organ = self._data_provider
+        self.regime_detector = self._regime_detector
+        self.real_data_manager = self._data_manager
         
     async def validate_data_integrity(self) -> HonestValidationResult:
         """Validate that real market data can be retrieved and processed"""
         try:
             # Test actual data retrieval
             start_time = time.time()
-            data = self.yahoo_organ.fetch_data('EURUSD=X', period="1d", interval="1m")
+            data = self._data_provider.fetch_data('EURUSD=X', period="1d", interval="1m")
             retrieval_time = time.time() - start_time
             
             if data is None or len(data) == 0:
@@ -102,7 +132,7 @@ class HonestValidationFramework:
                 )
             
             # Check data quality
-            null_count = data[required_columns].isnull().sum().sum()
+            null_count = int(data[required_columns].isnull().to_numpy().sum())
             if null_count > 0:
                 return HonestValidationResult(
                     test_name="data_integrity",
@@ -136,7 +166,7 @@ class HonestValidationFramework:
         """Validate market regime detection with real data"""
         try:
             # Get real market data
-            data = self.yahoo_organ.fetch_data('EURUSD=X', period="1d", interval="1h")
+            data = self._data_provider.fetch_data('EURUSD=X', period="1d", interval="1h")
             if data is None or len(data) < 20:
                 return HonestValidationResult(
                     test_name="regime_detection",
@@ -149,7 +179,7 @@ class HonestValidationFramework:
             
             # Test regime detection
             start_time = time.time()
-            regime_result = await self.regime_detector.detect_regime(data)
+            regime_result = await self._regime_detector.detect_regime(data)
             detection_time = time.time() - start_time
             
             if regime_result is None:
@@ -189,6 +219,10 @@ class HonestValidationFramework:
         """Validate strategy manager integration with real data"""
         try:
             # Create test strategy
+            try:
+                from src.core.interfaces import DecisionGenome
+            except Exception:  # pragma: no cover
+                DecisionGenome = object  # type: ignore
             test_genome = DecisionGenome()
             test_genome.genome_id = "honest_test_strategy"
             test_genome.generation = 1
@@ -208,7 +242,7 @@ class HonestValidationFramework:
                 )
             
             # Get real market data
-            data = self.yahoo_organ.fetch_data('EURUSD=X', period="1d", interval="1h")
+            data = self._data_provider.fetch_data('EURUSD=X', period="1d", interval="1h")
             if data is None or len(data) == 0:
                 return HonestValidationResult(
                     test_name="strategy_integration",
@@ -273,11 +307,11 @@ class HonestValidationFramework:
         """Validate that real data sources are working"""
         try:
             # Test Yahoo Finance
-            yahoo_data = self.yahoo_organ.fetch_data('EURUSD=X', period="1d", interval="1h")
+            yahoo_data = self._data_provider.fetch_data('EURUSD=X', period="1d", interval="1h")
             yahoo_works = yahoo_data is not None and len(yahoo_data) > 0
             
             # Test RealDataManager
-            market_data = await self.real_data_manager.get_market_data('EURUSD=X')
+            market_data = await self._data_manager.get_market_data('EURUSD=X')
             real_manager_works = market_data is not None
             
             # Overall success
@@ -307,7 +341,7 @@ class HonestValidationFramework:
         """Validate that we're not using synthetic data"""
         try:
             # Check if we're using real data
-            data = self.yahoo_organ.fetch_data('EURUSD=X', period="1d", interval="1h")
+            data = self._data_provider.fetch_data('EURUSD=X', period="1d", interval="1h")
             
             if data is None:
                 return HonestValidationResult(

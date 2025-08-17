@@ -6,10 +6,10 @@ Tier-0 Yahoo ingest: fetch daily bars for symbols and persist to DuckDB (if avai
 from __future__ import annotations
 
 import argparse
+import re
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import List
-import re
 
 import pandas as pd
 import yfinance as yf

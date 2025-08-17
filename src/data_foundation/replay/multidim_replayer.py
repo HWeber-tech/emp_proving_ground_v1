@@ -1,8 +1,8 @@
-from __future__ import annotations
-
 """
 Multi-dimension replayer: plays back MD (WHAT) and macro (WHY) streams with a unified clock.
 """
+
+from __future__ import annotations
 
 import json
 from datetime import datetime

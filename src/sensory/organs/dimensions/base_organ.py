@@ -16,6 +16,7 @@ from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple
 
 from pydantic import BaseModel, Field, model_validator, validator
+
 from trading.order_management.order_book.snapshot import OrderBookLevel as OrderBookLevel
 from trading.order_management.order_book.snapshot import OrderBookSnapshot as OrderBookSnapshot
 

@@ -264,9 +264,10 @@ class CoordinationEngine(ICoordinationEngine):
     def _update_active_positions(self, approved_intents: List[TradeIntent]) -> None:
         """Update active positions with new intents."""
         for intent in approved_intents:
+            now = datetime.now()
             self.active_positions[intent.symbol].append({
                 'intent': intent,
-                'timestamp': datetime.now(),
+                'timestamp': now,
                 'status': 'active'
             })
         

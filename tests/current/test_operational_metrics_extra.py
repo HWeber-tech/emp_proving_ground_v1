@@ -1,6 +1,6 @@
-import types
-import sys
 import importlib
+import sys
+import types
 
 import pytest
 

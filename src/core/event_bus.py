@@ -16,12 +16,11 @@ from __future__ import annotations
 import asyncio
 import logging
 import threading
+import time
 import warnings
 from concurrent.futures import TimeoutError as FuturesTimeoutError
 from dataclasses import dataclass, field
 from typing import Any, Awaitable, Callable, Dict, Optional, Set, Tuple
-
-import time
 
 logger = logging.getLogger(__name__)
 

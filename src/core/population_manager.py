@@ -9,15 +9,15 @@ Optimized for performance with Redis caching integration.
 from __future__ import annotations
 
 import logging
-from typing import Any, Callable, Dict, List, Optional, TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, cast
 
 import numpy as np
 
 from src.core.performance.market_data_cache import get_global_cache
-from src.genome.models.genome import DecisionGenome, new_genome, mutate
 from src.genome.models.adapters import from_legacy, to_legacy_view
-from .interfaces import IPopulationManager
+from src.genome.models.genome import DecisionGenome, mutate, new_genome
 
+from .interfaces import IPopulationManager
 
 logger = logging.getLogger(__name__)
 

@@ -18,6 +18,7 @@ try:
 except Exception:  # pragma: no cover
     PositionSizer = None  # type: ignore
 from src.trading.monitoring.portfolio_monitor import PortfolioMonitor
+
 RiskGateway = None  # deprecated path removed; use core risk flows directly
 
 logger = logging.getLogger(__name__)

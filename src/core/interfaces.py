@@ -1,4 +1,5 @@
 from typing import Any, Callable, Dict, List, Mapping, Optional, Protocol, runtime_checkable
+
 from .event_bus import Event
 
 

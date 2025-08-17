@@ -8,31 +8,31 @@ from typing import Any, Dict
 import pytest
 
 from src.core.base import MarketData
-from src.sensory.organs.dimensions.base_organ import MarketRegime
 
-# WHEN
-from src.market_intelligence.dimensions.enhanced_when_dimension import (
-    ChronalIntelligenceEngine as WHEN_MI,
-)
-from src.sensory.enhanced.when_dimension import (
-    ChronalIntelligenceEngine as WHEN_SENS,
+# ANOMALY
+from src.market_intelligence.dimensions.enhanced_anomaly_dimension import (
+    AnomalyIntelligenceEngine as ANOM_MI,
 )
 
 # HOW
 from src.market_intelligence.dimensions.enhanced_how_dimension import (
     InstitutionalIntelligenceEngine as HOW_MI,
 )
-from src.sensory.enhanced.how_dimension import (
-    InstitutionalIntelligenceEngine as HOW_SENS,
-)
 
-# ANOMALY
-from src.market_intelligence.dimensions.enhanced_anomaly_dimension import (
-    AnomalyIntelligenceEngine as ANOM_MI,
+# WHEN
+from src.market_intelligence.dimensions.enhanced_when_dimension import (
+    ChronalIntelligenceEngine as WHEN_MI,
 )
 from src.sensory.enhanced.anomaly_dimension import (
     AnomalyIntelligenceEngine as ANOM_SENS,
 )
+from src.sensory.enhanced.how_dimension import (
+    InstitutionalIntelligenceEngine as HOW_SENS,
+)
+from src.sensory.enhanced.when_dimension import (
+    ChronalIntelligenceEngine as WHEN_SENS,
+)
+from src.sensory.organs.dimensions.base_organ import MarketRegime
 
 
 def test_forwarded_class_identities_phase2():

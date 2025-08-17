@@ -5,8 +5,7 @@ is unavailable. Never raises on import; safe to use in any environment.
 
 import logging
 from threading import RLock
-from typing import Any, Dict, List, Optional, Protocol, Tuple, Self
-
+from typing import Any, Dict, List, Optional, Protocol, Self, Tuple
 
 _log = logging.getLogger(__name__)
 

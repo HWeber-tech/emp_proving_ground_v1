@@ -8,8 +8,8 @@ from typing import Any, Dict, List
 import pandas as pd
 import pytest
 
-from src.sensory.what.patterns.orchestrator import PatternOrchestrator
 from src.sensory.organs.dimensions.pattern_engine import PatternSynthesis
+from src.sensory.what.patterns.orchestrator import PatternOrchestrator
 
 
 @pytest.mark.asyncio

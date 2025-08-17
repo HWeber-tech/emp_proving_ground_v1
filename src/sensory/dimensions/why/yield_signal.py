@@ -30,12 +30,6 @@ class YieldSlopeTracker:
         except Exception:
             return
 
-    def slope(self) -> Optional[float]:
-        s = self.latest_values.get(self.short_tenor.upper())
-        l = self.latest_values.get(self.long_tenor.upper())
-        if s is None or l is None:
-            return None
-        return float(l - s)
 
     def signal(self) -> Tuple[float, float]:
         """Return a naive directional signal and confidence.
@@ -54,14 +48,15 @@ class YieldSlopeTracker:
         return direction, conf
 
     # Extended features
-    def slope(self, short: str = None, long: str = None) -> Optional[float]:
+    def slope(self, short: Optional[str] = None, long: Optional[str] = None) -> Optional[float]:
         s_t = (short or self.short_tenor).upper()
         l_t = (long or self.long_tenor).upper()
         s = self.latest_values.get(s_t)
         l = self.latest_values.get(l_t)
         if s is None or l is None:
             return None
-        return float(l - s)
+        # Round to mitigate float artifacts (e.g., 0.40000000000000036)
+        return round(float(l - s), 10)
 
     def slope_2s10s(self) -> Optional[float]:
         return self.slope("2Y", "10Y")

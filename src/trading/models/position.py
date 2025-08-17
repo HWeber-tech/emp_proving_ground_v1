@@ -81,7 +81,8 @@ class Position:
         if unrealized_pnl is not None:
             self.unrealized_pnl = float(unrealized_pnl)
         else:
-            self.unrealized_pnl = (self.current_price - self.entry_price) * self.size if self.quantity != 0 else 0.0
+            # Round to avoid float representation artifacts in tests (e.g., 50.00000000000004)
+            self.unrealized_pnl = round((self.current_price - self.entry_price) * self.size, 10) if self.quantity != 0 else 0.0
         self.last_updated = last_updated or datetime.now()
 
     # Aliases required by the minimal API
@@ -94,7 +95,7 @@ class Position:
     def size(self, new_size: float) -> None:
         self.quantity = float(new_size)
         # Recompute derived
-        self.unrealized_pnl = (self.current_price - self.entry_price) * self.size
+        self.unrealized_pnl = round((self.current_price - self.entry_price) * self.size, 10)
 
     @property
     def entry_price(self) -> float:
@@ -104,7 +105,7 @@ class Position:
     def entry_price(self, new_entry: float) -> None:
         self.average_price = float(new_entry)
         # Recompute derived
-        self.unrealized_pnl = (self.current_price - self.entry_price) * self.size
+        self.unrealized_pnl = round((self.current_price - self.entry_price) * self.size, 10)
 
     @property
     def current_price(self) -> float:
@@ -114,7 +115,7 @@ class Position:
     def current_price(self, new_price: float) -> None:
         self.market_price = float(new_price)
         # Recompute derived
-        self.unrealized_pnl = (self.current_price - self.entry_price) * self.size
+        self.unrealized_pnl = round((self.current_price - self.entry_price) * self.size, 10)
         self.last_updated = datetime.now()
 
     # Minimal API
@@ -160,7 +161,7 @@ class Position:
         """Update market price and recalculate unrealized P&L."""
         self.market_price = float(new_price)
         # Derived and timestamp
-        self.unrealized_pnl = (self.current_price - self.entry_price) * self.size
+        self.unrealized_pnl = round((self.current_price - self.entry_price) * self.size, 10)
         self.last_updated = datetime.now()
 
     def add_realized_pnl(self, pnl: float) -> None:
@@ -170,9 +171,13 @@ class Position:
 
     def update_quantity(self, new_quantity: float, new_average_price: Optional[float] = None) -> None:
         """Update position quantity and optionally average price."""
+        old_avg = self.average_price
         self.quantity = float(new_quantity)
         if new_average_price is not None:
             self.average_price = float(new_average_price)
+            # If current price was tracking the old average (or not set), keep it aligned to the new average
+            if self.market_price is None or self.market_price == old_avg:
+                self.market_price = self.average_price
         # Recompute derived
-        self.unrealized_pnl = (self.current_price - self.entry_price) * self.size
+        self.unrealized_pnl = round((self.current_price - self.entry_price) * self.size, 10)
         self.last_updated = datetime.now()

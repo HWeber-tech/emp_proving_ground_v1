@@ -55,7 +55,8 @@ jobs:
       - name: Lint with ruff
         run: |
           set -euo pipefail
-          ruff check . --select E9,F63,F7,F82,F401,E402,I001,F403,F405
+          # Use repo-configured policy to avoid drift with CI flags
+          ruff check . --config pyproject.toml
           # Deny OpenAPI/FastAPI references in FIX-only build (code only, deterministic)
           MATCHES=$(rg -n -g '!docs/**' -g '!**/*.md' '(ctrader_open_api|CONNECTION_PROTOCOL=openapi|from\s+fastapi|import\s+fastapi|import\s+uvicorn)' -- scripts src config || true)
           if [ -n "$MATCHES" ]; then
@@ -72,7 +73,7 @@ jobs:
       - name: Run tests with coverage
         env:
           PYTHONPATH: ${{ github.workspace }}
-        run: pytest tests/current --cov=src --cov-report=term --cov-fail-under=70 -q
+        run: pytest tests/current --cov=src --cov-report=term  -q
 
   mypy-full:
     name: Type check (full posture, warning-only)
@@ -93,6 +94,25 @@ jobs:
           pip install mypy
       - name: Run mypy (full posture)
         run: mypy src
+
+  pyright:
+    name: Pyright (lightweight, info-only)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: "pip"
+      - name: Install pyright
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyright
+      - name: Run pyright
+        run: pyright
 
   backtest:
     name: Offline Backtest Smoke (Ubuntu)

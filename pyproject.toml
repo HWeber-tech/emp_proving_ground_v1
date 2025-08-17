@@ -43,7 +43,8 @@ known-first-party = ["src"]
 [tool.ruff.lint]
 # Keep CI green with a minimal, safety-focused rule set.
 # Adopt full style rules incrementally in future PRs.
-select = ["E9", "F63", "F7", "F82"]
+# Unified with CI selection to avoid drift.
+select = ["E9","F63","F7","F82","E402","F401","I001","F403","F405"]
 ignore = []
 
 [tool.black]
@@ -109,19 +110,19 @@ include = [
 show_missing = true
 skip_empty = true
 precision = 2
-fail_under = 70
+fail_under = 85
 include = [
-  "src/trading/execution/execution_model.py",
-  "src/trading/models/position.py",
-  "src/trading/models/trade.py",
-  "src/trading/models/__init__.py",
-  "src/core/interfaces.py",
-  "src/core/sensory_organ.py",
-  "src/operational/metrics.py",
-  "src/operational/mock_fix.py",
-  "src/data_foundation/config/execution_config.py",
-  "src/data_foundation/config/risk_portfolio_config.py",
-  "src/data_foundation/config/sizing_config.py",
-  "src/data_foundation/config/why_config.py",
-  "src/sensory/dimensions/why/yield_signal.py"
+    "src/trading/execution/execution_model.py",
+    "src/trading/models/position.py",
+    "src/trading/models/trade.py",
+    "src/trading/models/__init__.py",
+    "src/core/interfaces.py",
+    "src/core/sensory_organ.py",
+    "src/operational/metrics.py",
+    "src/operational/mock_fix.py",
+    "src/data_foundation/config/execution_config.py",
+    "src/data_foundation/config/risk_portfolio_config.py",
+    "src/data_foundation/config/sizing_config.py",
+    "src/data_foundation/config/why_config.py",
+    "src/sensory/dimensions/why/yield_signal.py"
 ]

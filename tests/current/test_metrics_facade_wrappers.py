@@ -1,4 +1,3 @@
-import pytest
 
 import src.operational.metrics as m
 

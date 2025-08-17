@@ -1,4 +1,3 @@
-import pytest
 
 from src.operational.metrics_registry import MetricsRegistry
 

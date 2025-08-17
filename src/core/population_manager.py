@@ -9,15 +9,15 @@ Optimized for performance with Redis caching integration.
 from __future__ import annotations
 
 import logging
-from typing import Any, Callable, Dict, List, Optional, TYPE_CHECKING, cast
+from typing import Any, Callable, Dict, List, Optional, cast
 
 import numpy as np
 
 from src.core.performance.market_data_cache import get_global_cache
-from src.genome.models.genome import DecisionGenome, new_genome, mutate
 from src.genome.models.adapters import from_legacy, to_legacy_view
-from .interfaces import IPopulationManager
+from src.genome.models.genome import DecisionGenome, mutate, new_genome
 
+from .interfaces import IPopulationManager
 
 logger = logging.getLogger(__name__)
 
@@ -47,11 +47,11 @@ class PopulationManager(IPopulationManager):
         self.generation = 0
         self._cache_population_stats()
         
-    def get_population(self) -> List["LegacyDecisionGenome"]:
+    def get_population(self) -> List[DecisionGenome]:
         """Get current population."""
-        return cast(List["LegacyDecisionGenome"], self.population.copy())
+        return cast(List[DecisionGenome], self.population.copy())
     
-    def get_best_genomes(self, count: int) -> List["LegacyDecisionGenome"]:
+    def get_best_genomes(self, count: int) -> List[DecisionGenome]:
         """Get top N genomes by fitness."""
         if not self.population:
             # Generate initial population if empty
@@ -68,7 +68,7 @@ class PopulationManager(IPopulationManager):
             key=lambda g: (g.fitness or 0.0),
             reverse=True,
         )
-        return cast(List["LegacyDecisionGenome"], sorted_population[:min(count, len(sorted_population))])
+        return cast(List[DecisionGenome], sorted_population[:min(count, len(sorted_population))])
     
     def update_population(self, new_population: List[Any]) -> None:
         """Replace current population with new one."""
@@ -129,11 +129,11 @@ class PopulationManager(IPopulationManager):
             pass
         logger.debug(f"Cached population stats: {stats}")
     
-    def get_genome_by_id(self, genome_id: str) -> Optional["LegacyDecisionGenome"]:
+    def get_genome_by_id(self, genome_id: str) -> Optional[DecisionGenome]:
         """Get a specific genome by ID."""
         for genome in self.population:
             if genome.id == genome_id:
-                return cast("LegacyDecisionGenome", genome)
+                return cast(DecisionGenome, genome)
         return None
     
     def get_species_count(self, species_type: str) -> int:

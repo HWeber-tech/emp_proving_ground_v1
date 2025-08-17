@@ -1,4 +1,3 @@
-import pytest
 
 from src.governance.system_config import (
     ConnectionProtocol,

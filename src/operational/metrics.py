@@ -9,9 +9,7 @@ from threading import Lock
 from typing import Dict, Optional
 
 from src.operational.metrics_registry import (
-    CounterLike,
     GaugeLike,
-    HistogramLike,
     get_registry,
 )
 

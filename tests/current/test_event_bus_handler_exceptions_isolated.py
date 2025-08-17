@@ -1,5 +1,6 @@
 import asyncio
 import logging
+
 import pytest
 
 from src.core.event_bus import AsyncEventBus, Event

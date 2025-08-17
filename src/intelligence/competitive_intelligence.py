@@ -24,7 +24,7 @@ from __future__ import annotations
 
 import importlib
 import logging
-from typing import Any, Dict, TYPE_CHECKING
+from typing import Any, Dict
 
 logger = logging.getLogger(__name__)
 
@@ -164,7 +164,9 @@ class AlgorithmFingerprinterLegacy:
     def __init__(self) -> None:
         # Localized heavy import to ensure construction fails when sklearn is blocked
         try:
-            from sklearn.preprocessing import StandardScaler  # type: ignore  # Localized heavy import
+            from sklearn.preprocessing import (
+                StandardScaler,  # type: ignore  # Localized heavy import
+            )
         except Exception as exc:
             raise ImportError("scikit-learn is required for AlgorithmFingerprinterLegacy") from exc
         self._scaler = StandardScaler()

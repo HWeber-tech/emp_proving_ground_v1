@@ -8,7 +8,6 @@ import pytest
 
 from src.operational import metrics as metrics
 
-
 # ----- Stubs -----
 
 

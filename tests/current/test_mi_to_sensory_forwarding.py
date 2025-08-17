@@ -8,22 +8,21 @@ from typing import Any, Dict
 import pytest
 
 from src.core.base import MarketData
-from src.sensory.organs.dimensions.base_organ import MarketRegime
 
 # Forwarder vs canonical identity
 from src.market_intelligence.dimensions.enhanced_what_dimension import (
     TechnicalRealityEngine as TE_MI,
 )
-from src.sensory.enhanced.what_dimension import (
-    TechnicalRealityEngine as TE_SENS,
-)
-
 from src.market_intelligence.dimensions.enhanced_why_dimension import (
     EnhancedFundamentalIntelligenceEngine as WHY_MI,
+)
+from src.sensory.enhanced.what_dimension import (
+    TechnicalRealityEngine as TE_SENS,
 )
 from src.sensory.enhanced.why_dimension import (
     EnhancedFundamentalIntelligenceEngine as WHY_SENS,
 )
+from src.sensory.organs.dimensions.base_organ import MarketRegime
 
 
 def test_forwarded_class_identities():

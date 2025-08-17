@@ -1,7 +1,6 @@
 import asyncio
-import pytest
 
-from src.core.event_bus import get_global_bus, event_bus
+from src.core.event_bus import event_bus, get_global_bus
 
 
 def test_topic_facade_compat_works_with_async_handler():

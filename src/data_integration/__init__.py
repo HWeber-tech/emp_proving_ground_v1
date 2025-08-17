@@ -10,6 +10,8 @@ Phase: 1.5 - Advanced Data Sources Complete
 """
 
 from src.validation.models import ValidationResult as ValidationResult
+
+
 # Import main data management classes
 # Legacy imports removed during cleanup; provide minimal stubs for compatibility
 class RealDataManager:  # type: ignore

@@ -5,7 +5,11 @@ def test_strategy_engine_register_unregister() -> None:
     tse = importlib.import_module("src.trading.strategy_engine")
     assert hasattr(tse, "StrategyEngine")
 
-    from src.core.strategy.engine import BaseStrategy, StrategyEngine, StrategyPerformance  # type: ignore
+    from src.core.strategy.engine import (  # type: ignore
+        BaseStrategy,
+        StrategyEngine,
+        StrategyPerformance,
+    )
 
     class DummyStrategy(BaseStrategy):  # minimal stub
         async def generate_signal(self, market_data, symbol: str):

@@ -11,10 +11,11 @@ from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 
-from .base_organ import MarketRegime
 from src.trading.monitoring.performance_tracker import (
     PerformanceTracker as PerformanceTracker,
 )
+
+from .base_organ import MarketRegime
 
 logger = logging.getLogger(__name__)
 

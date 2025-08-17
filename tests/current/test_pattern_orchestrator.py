@@ -2,14 +2,13 @@
 
 from __future__ import annotations
 
-import asyncio
-from typing import Any, Dict, List
+from typing import Any, Dict
 
 import pandas as pd
 import pytest
 
-from src.sensory.what.patterns.orchestrator import PatternOrchestrator
 from src.sensory.organs.dimensions.pattern_engine import PatternSynthesis
+from src.sensory.what.patterns.orchestrator import PatternOrchestrator
 
 
 @pytest.mark.asyncio

@@ -9,8 +9,8 @@ from __future__ import annotations
 
 from datetime import datetime
 from decimal import Decimal
-from typing import TYPE_CHECKING, Any
 from importlib import import_module
+from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel
 

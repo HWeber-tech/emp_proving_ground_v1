@@ -5,11 +5,11 @@ Advanced market prediction and scenario modeling system.
 
 import logging
 import uuid
+from ast import literal_eval
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from decimal import Decimal
 from typing import Any, Dict, List, Tuple
-from ast import literal_eval
 
 import numpy as np
 

@@ -4,6 +4,7 @@ Moved out of performance package __init__ to avoid heavy imports at package impo
 """
 
 from typing import Optional
+
 import numpy as np
 
 

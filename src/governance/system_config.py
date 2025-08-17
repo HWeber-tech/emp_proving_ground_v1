@@ -1,10 +1,10 @@
 """Typed, Enum-based SystemConfig with safe environment coercion and no import-time side effects."""
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from enum import Enum
 import logging
 import os
+from dataclasses import dataclass, field
+from enum import Enum
 from typing import Mapping, TypeVar
 
 logger = logging.getLogger(__name__)

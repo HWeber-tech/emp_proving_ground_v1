@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, Dict
 
-from src.core.base import MarketData, DimensionalReading
+from src.core.base import DimensionalReading, MarketData
 from src.sensory.organs.dimensions.base_organ import MarketRegime
 
 if TYPE_CHECKING:  # pragma: no cover

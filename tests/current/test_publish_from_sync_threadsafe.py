@@ -1,5 +1,6 @@
 import asyncio
 import threading
+
 import pytest
 
 from src.core.event_bus import AsyncEventBus, Event

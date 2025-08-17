@@ -4,9 +4,9 @@ Generative Adversarial Network for creating challenging market scenarios.
 """
 
 import logging
+from ast import literal_eval
 from datetime import datetime
 from typing import Any, Dict, List
-from ast import literal_eval
 
 import numpy as np
 
@@ -20,6 +20,7 @@ from src.thinking.prediction.market_data_generator import (
 from src.thinking.prediction.predictive_market_modeler import (
     MarketScenario as MarketScenario,
 )
+
 # Legacy StrategyTester removed; using canonical trading.strategy_engine.testing.strategy_tester.StrategyTester
 from src.trading.strategy_engine.testing.strategy_tester import (
     StrategyTester as StrategyTester,

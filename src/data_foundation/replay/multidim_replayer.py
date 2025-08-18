@@ -3,8 +3,8 @@ Multi-dimension replayer: plays back MD (WHAT) and macro (WHY) streams with a un
 """
 from __future__ import annotations
 
-from datetime import datetime
 import json
+from datetime import datetime
 from typing import Callable, Optional
 
 

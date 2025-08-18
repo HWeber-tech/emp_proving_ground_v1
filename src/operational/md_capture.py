@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 """
 Market Data capture and replay utilities.
 
@@ -7,6 +5,7 @@ Recorder attaches to GenuineFIXManager market data callbacks and writes JSONL
 snapshots. Replayer reads JSONL and replays to a supplied callback with a
 speed factor.
 """
+from __future__ import annotations
 
 import json
 import os

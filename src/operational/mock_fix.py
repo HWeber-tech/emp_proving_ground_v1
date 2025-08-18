@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 """
 Mock FIX Manager for tests and offline development.
 
@@ -9,10 +7,12 @@ Implements a minimal interface used by FIXConnectionManager:
 - start()/stop()
 - trade_connection.send_message_and_track(msg)
 """
+from __future__ import annotations
 
 import threading
 import time
-from typing import Any, Callable, List
+from dataclasses import dataclass, field
+from typing import Any, Callable, Dict, List
 
 
 class _MockTradeConnection:

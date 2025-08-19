@@ -2,63 +2,48 @@
 Core Regime Classification Port (Protocol)
 =========================================
 
-Defines a minimal, domain-agnostic interface for market regime classification.
+Defines a minimal, domain-agnostic interface for market regime detection so that
+validation and other domain packages do not import concrete implementations.
 
-- Do not import sensory/trading here (core must remain dependency-free).
-- Domain packages should depend on this Protocol and receive implementations via DI.
+Concrete adapters should live in higher layers (e.g., sensory or data providers)
+and be injected at runtime by orchestration. This module provides a NoOp fallback.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from enum import Enum
-from typing import Any, Optional, Protocol, runtime_checkable
-
-
-class MarketRegime(Enum):
-    """Canonical market regime taxonomy (core, dependency-free).
-
-    Includes minimal generic labels and aliases used across layers.
-    """
-    # Minimal generic labels
-    UNKNOWN = "UNKNOWN"
-    CRISIS = "CRISIS"
-    BULLISH = "BULLISH"
-    BEARISH = "BEARISH"
-    SIDEWAYS = "SIDEWAYS"
-
-    # Aliases used by thinking layer (map to canonical values where appropriate)
-    HIGH_VOLATILITY = "HIGH_VOLATILITY"
-    LOW_VOLATILITY = "LOW_VOLATILITY"
-    TRENDING_UP = "BULLISH"
-    TRENDING_DOWN = "BEARISH"
-    BULL_MARKET = "BULLISH"
-    BEAR_MARKET = "BEARISH"
-    CONSOLIDATION = "SIDEWAYS"
-    SIDEWAYS_MARKET = "SIDEWAYS"
+from typing import Any, Dict, Optional, Protocol, runtime_checkable
 
 
 @dataclass
 class RegimeResult:
-    """Classification output: a regime label and confidence in [0.0, 1.0]."""
+    """Result structure returned by a RegimeClassifier implementation."""
     regime: str
     confidence: float
+    metadata: Optional[Dict[str, Any]] = None
 
 
 @runtime_checkable
 class RegimeClassifier(Protocol):
-    """Abstract regime classifier."""
+    """
+    Abstract regime classifier interface.
+
+    Implementations should swallow internal errors and return a safe Optional[RegimeResult].
+    """
 
     async def detect_regime(self, data: Any) -> Optional[RegimeResult]:
-        """Classify a regime from a tabular/time-series dataset."""
+        """Analyze tabular/series-like market data and return a regime classification."""
         ...
 
 
 class NoOpRegimeClassifier:
-    """Safe fallback implementation that reports unknown regime."""
+    """Safe default regime classifier that classifies nothing with zero confidence."""
 
     async def detect_regime(self, data: Any) -> Optional[RegimeResult]:
-        return RegimeResult(regime="UNKNOWN", confidence=0.0)
+        try:
+            return RegimeResult(regime="UNKNOWN", confidence=0.0, metadata={})
+        except Exception:
+            return RegimeResult(regime="UNKNOWN", confidence=0.0, metadata={})
 
 
 def is_regime_classifier(obj: object) -> bool:
@@ -67,3 +52,6 @@ def is_regime_classifier(obj: object) -> bool:
         return isinstance(obj, RegimeClassifier)
     except Exception:
         return False
+
+
+__all__ = ["RegimeClassifier", "NoOpRegimeClassifier", "RegimeResult", "is_regime_classifier"]

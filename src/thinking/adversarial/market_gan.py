@@ -3,10 +3,12 @@ Market GAN System
 Generative Adversarial Network for creating challenging market scenarios.
 """
 
+from __future__ import annotations
+
 import logging
 from ast import literal_eval
 from datetime import datetime
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional, Sequence, Mapping
 
 import numpy as np
 
@@ -20,7 +22,8 @@ from src.thinking.prediction.market_data_generator import (
 from src.thinking.prediction.predictive_market_modeler import (
     MarketScenario as MarketScenario,
 )
-
+from src.thinking.models.types import SurvivalResultLike
+from src.thinking.models.normalizers import normalize_survival_result
 # Legacy StrategyTester removed; using canonical trading.strategy_engine.testing.strategy_tester.StrategyTester
 from src.trading.strategy_engine.testing.strategy_tester import (
     StrategyTester as StrategyTester,
@@ -170,8 +173,7 @@ class MarketGAN:
                 # Step 1: Generator creates challenging scenarios
                 difficulty = self._get_difficulty_for_epoch(epoch, num_epochs)
                 synthetic_scenarios = await self.generator.generate_scenarios(
-                    difficulty,
-                    strategy_population,
+                    difficulty_level=difficulty,
                     num_scenarios=100
                 )
                 
@@ -179,15 +181,17 @@ class MarketGAN:
                     continue
                 
                 # Step 2: Discriminator tests strategies
+                strategy_payload: List[Dict[str, Any]] = [{"id": s} for s in strategy_population]
                 survival_results = await self.discriminator.test_strategies(
-                    strategy_population,
+                    strategy_payload,
                     synthetic_scenarios
                 )
                 
                 # Step 3: Train generator to create more challenging scenarios
+                norm_sr = [normalize_survival_result(r) for r in survival_results]
                 await self.adversarial_trainer.train_generator(
                     self.generator,
-                    survival_results,
+                    norm_sr,
                     target_failure_rate=0.3
                 )
                 
@@ -195,7 +199,7 @@ class MarketGAN:
                 improved = await self.adversarial_trainer.train_discriminator(
                     strategy_population,
                     synthetic_scenarios,
-                    survival_results
+                    norm_sr
                 )
                 
                 improved_strategies.extend(improved)
@@ -259,7 +263,7 @@ class MarketGAN:
     async def _store_training_results(
         self,
         epoch: int,
-        survival_results: List[StrategyTestResult],
+        survival_results: Sequence[Any],
         validation: Dict[str, Any],
         improved_strategies: List[str]
     ) -> None:
@@ -268,7 +272,7 @@ class MarketGAN:
             if not survival_results:
                 return
             
-            avg_survival = np.mean([r.survival_rate for r in survival_results])
+            avg_survival = np.mean([normalize_survival_result(r)["survival_rate"] for r in survival_results]) if survival_results else 0.0
             
             result = {
                 'epoch': epoch,

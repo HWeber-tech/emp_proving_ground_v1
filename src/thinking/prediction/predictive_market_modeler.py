@@ -3,13 +3,15 @@ Predictive Market Modeler
 Advanced market prediction and scenario modeling system.
 """
 
+from __future__ import annotations
+
 import logging
 import uuid
 from ast import literal_eval
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from decimal import Decimal
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Mapping, Tuple, cast
 
 import numpy as np
 
@@ -18,6 +20,8 @@ try:
 except Exception:  # pragma: no cover
     ContextPacket = PredictionResult = object  # type: ignore
 from src.core.state_store import StateStore
+from src.thinking.models.types import PredictionLike
+from src.thinking.models.normalizers import normalize_prediction
 
 logger = logging.getLogger(__name__)
 
@@ -318,7 +322,7 @@ class ConfidenceCalibrator:
         self,
         outcome_predictions: List[Tuple[MarketScenario, Decimal, Dict[str, Any]]],
         prediction_history: Dict[str, Any]
-    ) -> List[PredictionResult]:
+    ) -> List[object]:
         """Calibrate confidence based on historical accuracy."""
         try:
             calibrated_results = []
@@ -336,7 +340,7 @@ class ConfidenceCalibrator:
                 calibrated_confidence = max(0.1, min(1.0, calibrated_confidence))
                 
                 # Create prediction result
-                result = PredictionResult(
+                result = cast(Any, PredictionResult)(
                     scenario_id=scenario.scenario_id,
                     probability=probability,
                     predicted_outcome=outcome,
@@ -395,7 +399,7 @@ class PredictiveMarketModeler:
         current_state: Dict[str, Any],
         time_horizon: timedelta,
         num_scenarios: int = 1000
-    ) -> List[PredictionResult]:
+    ) -> List[object]:
         """
         Predict market scenarios with probabilities and outcomes.
         
@@ -433,9 +437,12 @@ class PredictiveMarketModeler:
             
             # Step 4: Calibrate confidence
             prediction_history = await self._get_prediction_history()
-            calibrated_results = await self.confidence_calibrator.calibrate_confidence(
-                outcome_predictions,
-                prediction_history
+            calibrated_results: Sequence[PredictionLike] = cast(
+                Sequence[PredictionLike],
+                await self.confidence_calibrator.calibrate_confidence(
+                    outcome_predictions,
+                    prediction_history
+                )
             )
             
             # Step 5: Store predictions
@@ -445,7 +452,7 @@ class PredictiveMarketModeler:
                 f"Generated {len(calibrated_results)} calibrated market predictions"
             )
             
-            return calibrated_results
+            return cast(List[object], calibrated_results)
             
         except Exception as e:
             logger.error(f"Error predicting market scenarios: {e}")
@@ -482,13 +489,16 @@ class PredictiveMarketModeler:
             logger.error(f"Error getting prediction history: {e}")
             return {'accuracy': 0.75}
     
-    async def _store_predictions(self, results: List[PredictionResult]) -> None:
+    async def _store_predictions(self, results: Sequence[PredictionLike]) -> None:
         """Store prediction results for future calibration."""
         try:
             key = f"{self._prediction_history_key}:{datetime.utcnow().date()}"
+            payload_list: List[Dict[str, Any]] = []
+            for p in results:
+                payload_list.append(normalize_prediction(p))
             await self.state_store.set(
                 key,
-                str([r.dict() for r in results]),
+                str(payload_list),
                 expire=86400 * 30  # 30 days
             )
         except Exception as e:

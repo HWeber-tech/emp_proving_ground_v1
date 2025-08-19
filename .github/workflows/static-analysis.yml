@@ -31,8 +31,20 @@ jobs:
         run: |
           import-linter -c contracts/importlinter.ini
 
-      - name: Mypy (core + orchestration + orchestrator)
+      - name: Mypy (enforced targets)
         env:
           PYTHONPATH: .
         run: |
-          mypy --config-file mypy.ini src/core src/orchestration src/thinking/phase3_orchestrator.py
+          mypy --config-file mypy.ini \
+            src/core \
+            src/orchestration \
+            src/core/market_data.py \
+            src/core/regime.py \
+            src/core/config_access.py \
+            src/thinking/phase3_orchestrator.py \
+            src/thinking/adversarial/market_gan.py \
+            src/thinking/adversarial/red_team_ai.py \
+            src/ui/cli/main_cli.py \
+            src/trading/monitoring/parity_checker.py \
+            src/sensory/organs/dimensions/why_organ.py \
+            src/sensory/organs/dimensions/utils.py

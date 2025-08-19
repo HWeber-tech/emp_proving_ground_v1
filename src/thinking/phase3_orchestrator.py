@@ -321,8 +321,16 @@ class Phase3Orchestrator:
             )
             
             # Treat GAN results flexibly (dict-like or attribute-object)
-            success = bool(getattr(gan_results, "get", lambda *_: False)("success", False)) if isinstance(gan_results, dict) else bool(getattr(gan_results, "success", False))
-            improved = getattr(gan_results, "get", lambda *_: [])("improved_strategies", []) if isinstance(gan_results, dict) else getattr(gan_results, "improved_strategies", [])
+            # Normalize GAN results: the adapter returns List[str] of improved strategy IDs
+            if isinstance(gan_results, list):
+                improved = list(gan_results)
+                success = len(improved) > 0
+            elif isinstance(gan_results, dict):
+                improved = list(gan_results.get("improved_strategies", []))
+                success = bool(gan_results.get("success", bool(improved)))
+            else:
+                improved = []
+                success = False
             
             # Run red team attacks
             red_team_results = []
@@ -330,8 +338,20 @@ class Phase3Orchestrator:
                 attack_result = await self.red_team.attack_strategy(strategy)
                 red_team_results.append(attack_result)
             
-            survival_rate = float(np.mean([float(getattr(r, "survival_probability", getattr(r, "survival_probability", 0.0))) for r in red_team_results])) if red_team_results else 0.0
-            vulnerabilities_found = int(sum([len(getattr(r, "weaknesses", getattr(r, "weaknesses", []))) for r in red_team_results]))
+            # Red team report normalization (AttackReportTD-style)
+            total_attacks = 0
+            total_successes = 0
+            vuln_count = 0
+            for rpt in red_team_results:
+                try:
+                    attacks = rpt.get("attack_results", []) if isinstance(rpt, dict) else []
+                    total_attacks += len(attacks)
+                    total_successes += sum(1 for a in attacks if isinstance(a, dict) and bool(a.get("success", False)))
+                    vuln_count += len(rpt.get("weaknesses_found", [])) if isinstance(rpt, dict) else 0
+                except Exception:
+                    continue
+            survival_rate = float(total_successes / total_attacks) if total_attacks > 0 else 0.0
+            vulnerabilities_found = int(vuln_count)
             
             return {
                 'gan_training_complete': success,

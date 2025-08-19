@@ -1,76 +1,76 @@
 """
-Compatibility shim for legacy imports used in tests.
+Core models shim (sensory-independent)
+=====================================
 
-Exposes DimensionalReading and MarketData via 'core.base', bridging to the
-canonical implementations in src.sensory.organs.dimensions.base_organ.
+This module provides minimal, standalone core representations that are
+safe for use across layers without importing from higher layers (e.g. sensory).
+It intentionally avoids any imports from src.sensory.* to satisfy layered architecture.
 
-Also provides a 'value' property on DimensionalReading as an alias to
-'signal_strength' to satisfy legacy usage in tests, and a MarketData
-wrapper that accepts legacy constructor fields (timestamp, bid, ask, volume, volatility)
-and maps them to the canonical Pydantic model.
+Provided:
+- MarketRegime (Enum)
+- DimensionalReading (with legacy .value alias for signal_strength)
+- MarketData (wrapper that accepts legacy constructor fields and normalizes)
+- InstrumentMeta (placeholder metadata container)
 """
 
 from __future__ import annotations
 
+from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import TYPE_CHECKING, Any, Optional, Type, Union, cast
-
-# Static typing declarations for analyzers
-if TYPE_CHECKING:  # pragma: no cover
-    from src.sensory.organs.dimensions.base_organ import (
-        DimensionalReading as DimensionalReadingDecl,
-        InstrumentMeta as InstrumentMetaDecl,
-        MarketData as MarketDataDecl,
-        MarketRegime as MarketRegimeDecl,
-    )
-else:
-    class MarketRegimeDecl(Enum):
-        UNKNOWN = "unknown"
-
-    class DimensionalReadingDecl:  # minimal placeholder
-        ...
-
-    class MarketDataDecl:  # minimal placeholder
-        ...
-
-    class InstrumentMetaDecl:  # minimal placeholder
-        ...
+from typing import Any, Dict, List, Optional, Union
 
 
-# Runtime imports of canonical models
-try:
-    from src.sensory.organs.dimensions.base_organ import (
-        DimensionalReading as _RealDimensionalReading,
-        InstrumentMeta as _RealInstrumentMeta,
-        MarketData as _RealMarketData,
-        MarketRegime as _RealMarketRegime,
-    )
-except Exception:  # pragma: no cover
-    # Defensive fallbacks (types already provided above)
-    _RealDimensionalReading = DimensionalReadingDecl  # type: ignore[assignment]
-    _RealInstrumentMeta = InstrumentMetaDecl  # type: ignore[assignment]
-    _RealMarketData = MarketDataDecl  # type: ignore[assignment]
-    _RealMarketRegime = MarketRegimeDecl  # type: ignore[assignment]
+class MarketRegime(Enum):
+    UNKNOWN = "unknown"
+    TRENDING_STRONG = "trending_strong"
+    TRENDING_WEAK = "trending_weak"
+    CONSOLIDATING = "consolidating"
+    BREAKOUT = "breakout"
+    REVERSAL = "reversal"
+    EXHAUSTED = "exhausted"
 
 
-class DimensionalReading(_RealDimensionalReading):  # type: ignore[misc]
+@dataclass
+class InstrumentMeta:
+    """Lightweight instrument metadata placeholder."""
+    symbol: str = "UNKNOWN"
+    tick_size: float = 0.0
+    lot_size: float = 0.0
+    extra: Dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
+class DimensionalReading:
+    """
+    Minimal core representation of a dimensional reading.
+
+    Notes:
+    - Provides a legacy `.value` property that aliases to `signal_strength`.
+    """
+    dimension: str
+    signal_strength: float
+    confidence: float = 0.0
+    regime: MarketRegime = MarketRegime.UNKNOWN
+    context: Dict[str, Any] = field(default_factory=dict)
+    data_quality: float = 1.0
+    processing_time_ms: float = 0.0
+    evidence: Dict[str, Any] = field(default_factory=dict)
+    warnings: List[str] = field(default_factory=list)
+
     @property
     def value(self) -> float:
-        """
-        Legacy alias expected by some tests; maps to canonical 'signal_strength'.
-        """
-        try:
-            return float(getattr(self, "signal_strength"))
-        except Exception:
-            return 0.0
+        """Legacy alias for signal_strength."""
+        return float(self.signal_strength)
 
 
-class MarketData(_RealMarketData):  # type: ignore[misc]
+class MarketData:
     """
-    Wrapper that accepts legacy constructor arguments and maps them to the canonical model.
+    Core market data wrapper that accepts legacy constructor arguments
+    and normalizes them to a consistent shape.
 
     Supported legacy fields:
+      - symbol: str
       - timestamp: datetime
       - bid: float
       - ask: float
@@ -78,69 +78,63 @@ class MarketData(_RealMarketData):  # type: ignore[misc]
       - volatility: float (ignored; accepted for compatibility)
       - price: float (used if bid/ask missing to infer OHLC)
       - open/high/low/close: optional; inferred when absent
-      - symbol: optional; defaults to "UNKNOWN"
     """
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
-        # Pop and normalize legacy fields first (ignore unknowns gracefully)
-        symbol: str = str(kwargs.pop("symbol", "UNKNOWN"))
+        # Symbol
+        self.symbol: str = str(kwargs.pop("symbol", "UNKNOWN"))
 
         # Time
         ts_raw: Any = kwargs.pop("timestamp", datetime.utcnow())
-        timestamp: datetime = ts_raw if isinstance(ts_raw, datetime) else datetime.utcnow()
+        self.timestamp: datetime = ts_raw if isinstance(ts_raw, datetime) else datetime.utcnow()
 
-        # Prices
-        val_price: Optional[Union[float, int, str]] = kwargs.pop("price", None)
-        val_bid: Optional[Union[float, int, str]] = kwargs.pop("bid", None)
-        val_ask: Optional[Union[float, int, str]] = kwargs.pop("ask", None)
-
-        # Convert to floats with safe fallbacks
+        # Prices and helpers
         def _to_float(x: Optional[Union[float, int, str]], default: float = 0.0) -> float:
             if x is None:
                 return default
             try:
-                return float(cast(Union[float, int, str], x))
+                return float(x)  # type: ignore[arg-type]
             except (TypeError, ValueError):
                 return default
 
-        bid: float = _to_float(val_bid)
-        ask: float = _to_float(val_ask, default=bid if bid else 0.0)
+        val_price: Optional[Union[float, int, str]] = kwargs.pop("price", None)
+        val_bid: Optional[Union[float, int, str]] = kwargs.pop("bid", None)
+        val_ask: Optional[Union[float, int, str]] = kwargs.pop("ask", None)
+
+        self.bid: float = _to_float(val_bid)
+        self.ask: float = _to_float(val_ask, default=self.bid if self.bid else 0.0)
 
         # Close inferred from mid or provided fields
-        close: float = _to_float(kwargs.pop("close", None))
-        if close == 0.0:
-            if bid or ask:
-                close = (bid + ask) / 2.0
+        close_in: Optional[Union[float, int, str]] = kwargs.pop("close", None)
+        self.close: float = _to_float(close_in)
+        if self.close == 0.0:
+            if self.bid or self.ask:
+                self.close = (self.bid + self.ask) / 2.0
             else:
-                close = _to_float(val_price, default=0.0)
+                self.close = _to_float(val_price, default=0.0)
 
         # OHLC fallbacks
-        open_: float = _to_float(kwargs.pop("open", None), default=close)
-        high: float = _to_float(kwargs.pop("high", None), default=max(open_, close))
-        low: float = _to_float(kwargs.pop("low", None), default=min(open_, close))
+        open_in: Optional[Union[float, int, str]] = kwargs.pop("open", None)
+        high_in: Optional[Union[float, int, str]] = kwargs.pop("high", None)
+        low_in: Optional[Union[float, int, str]] = kwargs.pop("low", None)
+
+        self.open: float = _to_float(open_in, default=self.close)
+        self.high: float = _to_float(high_in, default=max(self.open, self.close))
+        self.low: float = _to_float(low_in, default=min(self.open, self.close))
 
         # Volume
-        volume: float = _to_float(kwargs.pop("volume", None), default=0.0)
+        self.volume: float = _to_float(kwargs.pop("volume", None), default=0.0)
 
         # Accept and ignore legacy extras
         kwargs.pop("volatility", None)  # accepted but not used
 
-        super().__init__(
-            symbol=symbol,
-            timestamp=timestamp,
-            open=open_,
-            high=high,
-            low=low,
-            close=close,
-            volume=volume,
-            bid=bid,
-            ask=ask,
-            **kwargs,
-        )
+        # Retain any additional fields as passthrough (non-breaking)
+        for k, v in kwargs.items():
+            try:
+                setattr(self, k, v)
+            except Exception:
+                # Ignore non-assignable extras
+                pass
 
-
-# Re-export canonical enums and types with precise static types
-MarketRegime: Type[MarketRegimeDecl] = _RealMarketRegime  # type: ignore[assignment]
-InstrumentMeta: Type[InstrumentMetaDecl] = _RealInstrumentMeta  # type: ignore[assignment]
 
 __all__ = ["DimensionalReading", "MarketData", "MarketRegime", "InstrumentMeta"]

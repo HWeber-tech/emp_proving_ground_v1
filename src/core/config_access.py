@@ -1,9 +1,12 @@
 """
-Core configuration access port.
+Core Configuration Access Port (Protocol)
+========================================
 
-This module defines a minimal ConfigurationProvider protocol to decouple domain
-modules (e.g., thinking) from concrete governance/system implementations.
-It also provides a NoOpConfigurationProvider that safely returns defaults.
+Provides a minimal, domain-agnostic interface for retrieving configuration values
+without importing governance or higher-layer packages.
+
+Concrete adapters should live in higher layers (e.g., orchestration) and be injected
+where needed. A NoOpConfigurationProvider is provided for safe defaults.
 """
 
 from __future__ import annotations
@@ -14,23 +17,22 @@ from typing import Any, Dict, Protocol, runtime_checkable
 @runtime_checkable
 class ConfigurationProvider(Protocol):
     """
-    Minimal configuration access protocol used by thinking modules.
+    Abstract configuration provider interface.
 
-    - get_value: retrieve a single key with an optional default
-    - get_namespace: retrieve a namespaced dictionary (or empty dict if missing)
+    Implementations should never raise and must return safe defaults on error.
     """
 
     def get_value(self, key: str, default: Any = None) -> Any:
+        """Return config value for a flat key (or default if not present)."""
         ...
 
     def get_namespace(self, namespace: str) -> Dict[str, Any]:
+        """Return a dict for a configuration namespace (or empty dict)."""
         ...
 
 
 class NoOpConfigurationProvider:
-    """
-    No-op implementation that never raises and always returns safe defaults.
-    """
+    """Safe default provider that returns defaults or empty data structures."""
 
     def get_value(self, key: str, default: Any = None) -> Any:
         return default
@@ -39,4 +41,12 @@ class NoOpConfigurationProvider:
         return {}
 
 
-__all__ = ["ConfigurationProvider", "NoOpConfigurationProvider"]
+def is_configuration_provider(obj: object) -> bool:
+    """Runtime duck-typing helper."""
+    try:
+        return isinstance(obj, ConfigurationProvider)
+    except Exception:
+        return False
+
+
+__all__ = ["ConfigurationProvider", "NoOpConfigurationProvider", "is_configuration_provider"]

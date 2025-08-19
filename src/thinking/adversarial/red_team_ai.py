@@ -3,11 +3,13 @@ Red Team AI System
 Dedicated AI system to attack and improve strategies.
 """
 
+from __future__ import annotations
+
 import logging
 import uuid
 from ast import literal_eval
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Sequence, Mapping
 
 import numpy as np
 
@@ -16,8 +18,38 @@ try:
 except Exception:  # pragma: no cover
     StrategyAnalysis = AttackResult = ExploitResult = object  # type: ignore
 from src.core.state_store import StateStore
+from src.thinking.models.types import RedTeamResultLike, AttackReportTD
+from src.thinking.models.normalizers import normalize_attack_report
 
 logger = logging.getLogger(__name__)
+
+
+def _to_mapping(obj: Any) -> Dict[str, Any]:
+    """
+    Best-effort conversion to a plain dict without raising.
+    Order of attempts:
+    - obj.dict() if available and mapping-like
+    - dict(obj) if mapping-like
+    - minimal attribute projection fallback
+    """
+    try:
+        if hasattr(obj, "dict"):
+            d = obj.dict()  # type: ignore[attr-defined]
+            if isinstance(d, dict):
+                return d
+    except Exception:
+        pass
+    if isinstance(obj, dict):
+        return obj
+    # Fallback: gather common attributes if present
+    out: Dict[str, Any] = {}
+    for key in ("strategy_id", "timestamp", "behavior_profile", "risk_factors", "performance_patterns", "metadata"):
+        try:
+            if hasattr(obj, key):
+                out[key] = getattr(obj, key)
+        except Exception:
+            continue
+    return out
 
 
 class StrategyAnalyzer:
@@ -36,7 +68,7 @@ class StrategyAnalyzer:
         self,
         target_strategy: str,
         test_scenarios: List[Dict[str, Any]]
-    ) -> StrategyAnalysis:
+    ) -> Any:
         """Analyze strategy behavior patterns."""
         try:
             # Simulate strategy behavior across scenarios
@@ -53,14 +85,14 @@ class StrategyAnalyzer:
             metrics = self._calculate_behavior_metrics(behavior_data)
             
             # Create behavior profile
-            analysis = StrategyAnalysis(
-                strategy_id=target_strategy,
-                timestamp=datetime.utcnow(),
-                behavior_profile=metrics,
-                risk_factors=self._identify_risk_factors(metrics),
-                performance_patterns=self._identify_performance_patterns(behavior_data),
-                metadata={'analysis_type': 'comprehensive'}
-            )
+            analysis = {
+                'strategy_id': target_strategy,
+                'timestamp': datetime.utcnow(),
+                'behavior_profile': metrics,
+                'risk_factors': self._identify_risk_factors(metrics),
+                'performance_patterns': self._identify_performance_patterns(behavior_data),
+                'metadata': {'analysis_type': 'comprehensive'},
+            }
             
             logger.debug(
                 f"Analyzed strategy {target_strategy}: "
@@ -71,14 +103,14 @@ class StrategyAnalyzer:
             
         except Exception as e:
             logger.error(f"Error analyzing strategy behavior: {e}")
-            return StrategyAnalysis(
-                strategy_id=target_strategy,
-                timestamp=datetime.utcnow(),
-                behavior_profile={},
-                risk_factors=[],
-                performance_patterns=[],
-                metadata={'error': str(e)}
-            )
+            return {
+                'strategy_id': target_strategy,
+                'timestamp': datetime.utcnow(),
+                'behavior_profile': {},
+                'risk_factors': [],
+                'performance_patterns': [],
+                'metadata': {'error': str(e)},
+            }
     
     async def _simulate_strategy_behavior(
         self,
@@ -273,7 +305,7 @@ class AttackGenerator:
         self,
         weakness: str,
         target_strategy: str
-    ) -> AttackResult:
+    ) -> Any:
         """Create a targeted attack for a weakness."""
         try:
             # Get attack template
@@ -289,18 +321,18 @@ class AttackGenerator:
                 target_strategy
             )
             
-            attack = AttackResult(
-                attack_id=str(uuid.uuid4()),
-                strategy_id=target_strategy,
-                weakness_targeted=weakness,
-                attack_type=template['attack_type'],
-                parameters=attack_params,
-                expected_impact=self._calculate_expected_impact(weakness),
-                timestamp=datetime.utcnow()
-            )
+            attack = {
+                'attack_id': str(uuid.uuid4()),
+                'strategy_id': target_strategy,
+                'weakness_targeted': weakness,
+                'attack_type': template['attack_type'],
+                'parameters': attack_params,
+                'expected_impact': self._calculate_expected_impact(weakness),
+                'timestamp': datetime.utcnow(),
+            }
             
             logger.debug(
-                f"Created attack {attack.attack_id} "
+                f"Created attack {attack.get('attack_id', 'unknown')} "
                 f"targeting {weakness} in {target_strategy}"
             )
             
@@ -308,15 +340,15 @@ class AttackGenerator:
             
         except Exception as e:
             logger.error(f"Error creating attack: {e}")
-            return AttackResult(
-                attack_id=str(uuid.uuid4()),
-                strategy_id=target_strategy,
-                weakness_targeted=weakness,
-                attack_type='error',
-                parameters={},
-                expected_impact=0.0,
-                timestamp=datetime.utcnow()
-            )
+            return {
+                'attack_id': str(uuid.uuid4()),
+                'strategy_id': target_strategy,
+                'weakness_targeted': weakness,
+                'attack_type': 'error',
+                'parameters': {},
+                'expected_impact': 0.0,
+                'timestamp': datetime.utcnow(),
+            }
     
     def _generate_attack_parameters(
         self,
@@ -382,7 +414,7 @@ class ExploitDeveloper:
         self,
         weaknesses: List[str],
         target_strategy: str
-    ) -> List[ExploitResult]:
+    ) -> List[Any]:
         """Develop exploits for discovered weaknesses."""
         try:
             exploits = []
@@ -407,7 +439,7 @@ class ExploitDeveloper:
         self,
         weakness: str,
         target_strategy: str
-    ) -> Optional[ExploitResult]:
+    ) -> Optional[Any]:
         """Create a specific exploit for a weakness."""
         try:
             template = self.exploit_templates.get(weakness, {
@@ -416,16 +448,16 @@ class ExploitDeveloper:
                 'complexity': 'low'
             })
             
-            exploit = ExploitResult(
-                exploit_id=str(uuid.uuid4()),
-                strategy_id=target_strategy,
-                weakness_exploited=weakness,
-                exploit_type=template['exploit_type'],
-                severity=template['severity'],
-                complexity=template['complexity'],
-                parameters=self._generate_exploit_parameters(weakness),
-                timestamp=datetime.utcnow()
-            )
+            exploit = {
+                'exploit_id': str(uuid.uuid4()),
+                'strategy_id': target_strategy,
+                'weakness_exploited': weakness,
+                'exploit_type': template['exploit_type'],
+                'severity': template['severity'],
+                'complexity': template['complexity'],
+                'parameters': self._generate_exploit_parameters(weakness),
+                'timestamp': datetime.utcnow(),
+            }
             
             return exploit
             
@@ -499,8 +531,13 @@ class RedTeamAI:
             
             # Step 2: Identify weaknesses
             known_vulnerabilities = await self._get_known_vulnerabilities()
+            profile_map = (
+                behavior_profile.get('behavior_profile', {})
+                if isinstance(behavior_profile, dict)
+                else getattr(behavior_profile, 'behavior_profile', {})
+            )
             weaknesses = await self.weakness_detector.find_weaknesses(
-                behavior_profile.behavior_profile,
+                profile_map,
                 known_vulnerabilities
             )
             
@@ -520,7 +557,7 @@ class RedTeamAI:
             )
             
             # Step 5: Execute attacks
-            attack_results = []
+            attack_results: List[AttackReportTD] = []
             for attack in attacks:
                 result = await self._execute_attack(target_strategy, attack)
                 attack_results.append(result)
@@ -543,10 +580,10 @@ class RedTeamAI:
             
             report = {
                 'strategy_id': target_strategy,
-                'behavior_analysis': behavior_profile.dict(),
+                'behavior_analysis': _to_mapping(behavior_profile),
                 'weaknesses_found': weaknesses,
-                'attacks_generated': [a.dict() for a in attacks],
-                'exploits_developed': [e.dict() for e in exploits],
+                'attacks_generated': [normalize_attack_report(a) for a in attacks],
+                'exploits_developed': [_to_mapping(e) for e in exploits],
                 'attack_results': attack_results,
                 'improvements': recommendations,
                 'timestamp': datetime.utcnow().isoformat()
@@ -599,26 +636,33 @@ class RedTeamAI:
     async def _execute_attack(
         self,
         target_strategy: str,
-        attack: AttackResult
-    ) -> Dict[str, Any]:
+        attack: Any
+    ) -> AttackReportTD:
         """Execute an attack against a strategy."""
         try:
             # Simulate attack execution
-            success_probability = attack.expected_impact
+            exp = getattr(attack, 'expected_impact', (attack.get('expected_impact', 0.0) if isinstance(attack, dict) else 0.0))
+            try:
+                success_probability = float(exp)
+            except Exception:
+                success_probability = 0.0
             actual_success = np.random.random() < success_probability
-            
+
+            attack_id = getattr(attack, 'attack_id', (attack.get('attack_id') if isinstance(attack, dict) else None)) or str(uuid.uuid4())
+
             return {
-                'attack_id': attack.attack_id,
+                'attack_id': attack_id,
                 'strategy_id': target_strategy,
                 'success': actual_success,
-                'impact': attack.expected_impact if actual_success else 0.0,
+                'impact': success_probability if actual_success else 0.0,
                 'timestamp': datetime.utcnow().isoformat()
             }
             
         except Exception as e:
             logger.error(f"Error executing attack: {e}")
+            aid = getattr(attack, 'attack_id', (attack.get('attack_id') if isinstance(attack, dict) else None)) or 'unknown'
             return {
-                'attack_id': attack.attack_id,
+                'attack_id': aid,
                 'strategy_id': target_strategy,
                 'success': False,
                 'impact': 0.0,
@@ -628,11 +672,11 @@ class RedTeamAI:
     async def _store_attack_results(
         self,
         strategy_id: str,
-        behavior_profile: StrategyAnalysis,
+        behavior_profile: Any,
         weaknesses: List[str],
-        attacks: List[AttackResult],
-        exploits: List[ExploitResult],
-        attack_results: List[Dict[str, Any]]
+        attacks: List[Any],
+        exploits: List[Any],
+        attack_results: List[AttackReportTD]
     ) -> None:
         """Store attack results for analysis."""
         try:
@@ -643,7 +687,7 @@ class RedTeamAI:
                 'weaknesses': weaknesses,
                 'attacks_count': len(attacks),
                 'exploits_count': len(exploits),
-                'successful_attacks': len([r for r in attack_results if r.get('success', False)])
+                'successful_attacks': sum(1 for r in attack_results if isinstance(r, dict) and r.get('success', False))
             }
             
             key = f"{self._attack_history_key}:{strategy_id}:{datetime.utcnow().date()}"
@@ -655,10 +699,11 @@ class RedTeamAI:
             
             # Store exploit history
             for exploit in exploits:
-                key = f"{self._exploit_history_key}:{strategy_id}:{exploit.exploit_id}"
+                eid = getattr(exploit, 'exploit_id', (exploit.get('exploit_id') if isinstance(exploit, dict) else None)) or 'unknown'
+                key = f"{self._exploit_history_key}:{strategy_id}:{eid}"
                 await self.state_store.set(
                     key,
-                    str(exploit.dict()),
+                    str(_to_mapping(exploit)),
                     expire=86400 * 30  # 30 days
                 )
                 
@@ -668,7 +713,7 @@ class RedTeamAI:
     async def _generate_improvements(
         self,
         weaknesses: List[str],
-        attack_results: List[Dict[str, Any]]
+        attack_results: Sequence[Mapping[str, Any]]
     ) -> List[str]:
         """Generate improvement recommendations."""
         try:

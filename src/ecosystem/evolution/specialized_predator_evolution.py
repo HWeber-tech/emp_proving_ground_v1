@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional, Sequence, Mapping, cast
 
 from src.ecosystem.coordination.coordination_engine import CoordinationEngine
 from src.ecosystem.evaluation.niche_detector import NicheDetector
@@ -37,7 +37,7 @@ class SpecializedPredatorEvolution:
 
     def __init__(self) -> None:
         self.niche_detector = NicheDetector()
-        self.species_manager = SpeciesManager()
+        self.species_manager = cast(Any, SpeciesManager)()
         self.coordination_engine = CoordinationEngine()
         self.ecosystem_optimizer = EcosystemOptimizer()
         self._history: List[Dict[str, Any]] = []

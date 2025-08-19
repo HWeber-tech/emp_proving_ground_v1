@@ -3,12 +3,14 @@ Competitive Intelligence System
 Identify and counter competing algorithmic traders.
 """
 
+from __future__ import annotations
+
 import logging
 import uuid
 from ast import literal_eval
 from datetime import datetime
 from decimal import Decimal
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional, Sequence, Mapping, cast
 
 import numpy as np
 
@@ -17,6 +19,51 @@ try:
 except Exception:  # pragma: no cover
     AlgorithmSignature = CompetitorBehavior = CounterStrategy = object  # type: ignore
 from src.core.state_store import StateStore
+from src.thinking.models.types import (
+    AlgorithmSignatureLike,
+    CompetitorBehaviorLike,
+    CounterStrategyLike,
+    IntelligenceReportTD,
+)
+def _to_mapping(obj: object, keys: Sequence[str] | None = None) -> Dict[str, Any]:
+    """
+    Best-effort conversion to a minimal dict without raising.
+    - If obj has .dict() and returns a mapping, use it.
+    - If obj is a mapping, shallow-copy selected keys or full mapping.
+    - Otherwise, pull selected attributes by name if present.
+    """
+    try:
+        if hasattr(obj, "dict"):
+            d = obj.dict()  # type: ignore[attr-defined]
+            if isinstance(d, Mapping):
+                if keys:
+                    return {k: d.get(k) for k in keys if k in d}
+                return dict(d)
+    except Exception:
+        pass
+    if isinstance(obj, Mapping):
+        if keys:
+            return {k: obj.get(k) for k in keys if k in obj}
+        return dict(obj)
+    out: Dict[str, Any] = {}
+    if keys:
+        for k in keys:
+            try:
+                if hasattr(obj, k):
+                    out[k] = getattr(obj, k)
+            except Exception:
+                continue
+    else:
+        # Fallback common attributes
+        for k in ("algorithm_type", "frequency", "confidence", "competitor_id", "threat_level",
+                  "market_share", "performance", "strategy_id", "counter_type", "parameters",
+                  "expected_effectiveness"):
+            try:
+                if hasattr(obj, k):
+                    out[k] = getattr(obj, k)
+            except Exception:
+                continue
+    return out
 
 logger = logging.getLogger(__name__)
 
@@ -57,7 +104,7 @@ class AlgorithmFingerprinter:
         self,
         market_data: Dict[str, Any],
         known_patterns: Dict[str, Any]
-    ) -> List[AlgorithmSignature]:
+    ) -> List[AlgorithmSignatureLike]:
         """Identify algorithmic signatures in market data."""
         try:
             signatures = []
@@ -68,7 +115,7 @@ class AlgorithmFingerprinter:
             # Match against known patterns
             for pattern_type, pattern_data in patterns.items():
                 if self._matches_known_pattern(pattern_data, known_patterns):
-                    signature = AlgorithmSignature(
+                    signature = cast(Any, AlgorithmSignature)(
                         signature_id=str(uuid.uuid4()),
                         algorithm_type=pattern_type,
                         confidence=self._calculate_confidence(pattern_data),
@@ -192,9 +239,9 @@ class BehaviorAnalyzer:
     
     async def analyze_behavior(
         self,
-        signature: AlgorithmSignature,
+        signature: AlgorithmSignatureLike,
         historical_data: Dict[str, Any]
-    ) -> CompetitorBehavior:
+    ) -> CompetitorBehaviorLike:
         """Analyze competitor behavior patterns."""
         try:
             # Analyze behavior over time
@@ -212,7 +259,7 @@ class BehaviorAnalyzer:
             # Assess threat level
             threat_level = self._assess_threat_level(metrics, patterns)
             
-            behavior = CompetitorBehavior(
+            behavior = cast(Any, CompetitorBehavior)(
                 competitor_id=str(uuid.uuid4()),
                 algorithm_signature=signature,
                 behavior_metrics=metrics,
@@ -229,23 +276,23 @@ class BehaviorAnalyzer:
                 f"{signature.algorithm_type} with threat level {threat_level}"
             )
             
-            return behavior
+            return cast(CompetitorBehaviorLike, behavior)
             
         except Exception as e:
             logger.error(f"Error analyzing behavior: {e}")
-            return CompetitorBehavior(
-                competitor_id=str(uuid.uuid4()),
-                algorithm_signature=signature,
-                behavior_metrics={},
-                patterns=[],
-                threat_level='low',
-                market_share=Decimal('0.0'),
-                performance=Decimal('0.0')
-            )
+            return cast(CompetitorBehaviorLike, {
+                "competitor_id": str(uuid.uuid4()),
+                "algorithm_signature": signature,
+                "behavior_metrics": {},
+                "patterns": [],
+                "threat_level": "low",
+                "market_share": Decimal("0.0"),
+                "performance": Decimal("0.0"),
+            })
     
     async def _extract_behavior_data(
         self,
-        signature: AlgorithmSignature,
+        signature: Any,
         historical_data: Dict[str, Any]
     ) -> Dict[str, Any]:
         """Extract behavior data from historical data."""
@@ -409,9 +456,9 @@ class CounterStrategyDeveloper:
     
     async def develop_counter(
         self,
-        behavior: CompetitorBehavior,
+        behavior: CompetitorBehaviorLike,
         our_capabilities: Dict[str, Any]
-    ) -> CounterStrategy:
+    ) -> CounterStrategyLike:
         """Develop counter-strategy against competitor."""
         try:
             algorithm_type = behavior.algorithm_signature.algorithm_type
@@ -436,7 +483,7 @@ class CounterStrategyDeveloper:
                 behavior
             )
             
-            counter_strategy = CounterStrategy(
+            counter_strategy = cast(Any, CounterStrategy)(
                 strategy_id=str(uuid.uuid4()),
                 target_competitor=behavior.competitor_id,
                 counter_type=customized_counter['counter_type'],
@@ -454,26 +501,26 @@ class CounterStrategyDeveloper:
                 f"with {expected_impact:.2f} expected effectiveness"
             )
             
-            return counter_strategy
+            return cast(CounterStrategyLike, counter_strategy)
             
         except Exception as e:
             logger.error(f"Error developing counter-strategy: {e}")
-            return CounterStrategy(
-                strategy_id=str(uuid.uuid4()),
-                target_competitor=behavior.competitor_id,
-                counter_type='generic',
-                parameters={},
-                expected_effectiveness=Decimal('0.3'),
-                implementation_complexity='low',
-                risk_level='low',
-                deployment_timeline='immediate',
-                timestamp=datetime.utcnow()
-            )
+            return cast(CounterStrategyLike, {
+                "strategy_id": str(uuid.uuid4()),
+                "target_competitor": behavior.competitor_id,
+                "counter_type": "generic",
+                "parameters": {},
+                "expected_effectiveness": Decimal("0.3"),
+                "implementation_complexity": "low",
+                "risk_level": "low",
+                "deployment_timeline": "immediate",
+                "timestamp": datetime.utcnow(),
+            })
     
     def _customize_counter_strategy(
         self,
         base_counter: Dict[str, Any],
-        behavior: CompetitorBehavior,
+        behavior: Any,
         our_capabilities: Dict[str, Any]
     ) -> Dict[str, Any]:
         """Customize counter-strategy based on competitor and our capabilities."""
@@ -519,7 +566,7 @@ class CounterStrategyDeveloper:
     def _calculate_expected_impact(
         self,
         counter: Dict[str, Any],
-        behavior: CompetitorBehavior
+        behavior: Any
     ) -> float:
         """Calculate expected impact of counter-strategy."""
         try:
@@ -557,7 +604,7 @@ class MarketShareTracker:
     
     async def analyze_share_changes(
         self,
-        competitor_behaviors: List[CompetitorBehavior],
+        competitor_behaviors: List[CompetitorBehaviorLike],
         our_performance: Dict[str, Any]
     ) -> Dict[str, Any]:
         """Analyze market share changes."""
@@ -616,7 +663,7 @@ class MarketShareTracker:
     
     def _calculate_share_trends(
         self,
-        competitors: List[CompetitorBehavior],
+        competitors: List[CompetitorBehaviorLike],
         our_performance: Dict[str, Any]
     ) -> Dict[str, str]:
         """Calculate share trends."""
@@ -639,7 +686,7 @@ class MarketShareTracker:
     
     def _identify_competitive_threats(
         self,
-        competitors: List[CompetitorBehavior],
+        competitors: List[CompetitorBehaviorLike],
         our_performance: Dict[str, Any]
     ) -> List[str]:
         """Identify competitive threats."""
@@ -664,7 +711,7 @@ class MarketShareTracker:
     
     def _calculate_competitive_position(
         self,
-        competitors: List[CompetitorBehavior],
+        competitors: List[CompetitorBehaviorLike],
         our_performance: Dict[str, Any],
         total_market: float
     ) -> str:
@@ -721,7 +768,7 @@ class CompetitiveIntelligenceSystem:
     async def identify_competitors(
         self,
         market_data: Dict[str, Any]
-    ) -> Dict[str, Any]:
+    ) -> IntelligenceReportTD | Dict[str, Any]:
         """
         Identify and analyze competing algorithmic traders.
         
@@ -855,17 +902,24 @@ class CompetitiveIntelligenceSystem:
     
     async def _store_intelligence(
         self,
-        signatures: List[AlgorithmSignature],
-        behaviors: List[CompetitorBehavior],
-        counters: List[CounterStrategy],
+        signatures: Sequence[AlgorithmSignatureLike],
+        behaviors: Sequence[CompetitorBehaviorLike],
+        counters: Sequence[CounterStrategyLike],
         market_analysis: Dict[str, Any]
     ) -> None:
         """Store competitive intelligence."""
         try:
             intelligence = {
-                'signatures': [s.dict() for s in signatures],
-                'behaviors': [b.dict() for b in behaviors],
-                'counter_strategies': [c.dict() for c in counters],
+                'signatures': [
+                    _to_mapping(s, keys=("algorithm_type", "frequency", "confidence"))
+                    for s in signatures
+                ],
+                'behaviors': [
+                    _to_mapping(b) for b in behaviors
+                ],
+                'counter_strategies': [
+                    _to_mapping(c) for c in counters
+                ],
                 'market_analysis': market_analysis,
                 'timestamp': datetime.utcnow().isoformat()
             }

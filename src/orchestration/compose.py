@@ -7,7 +7,8 @@ decoupled. All imports are guarded so that missing optional dependencies
 degrade gracefully to core no-op implementations.
 
 Provided adapters:
-- MarketDataGatewayAdapter (uses YahooFinanceOrgan when available)
+- YFinanceGateway (preferred MarketDataGateway adapter when available)
+- MarketDataGatewayAdapter (fallback using YahooFinanceOrgan if available)
 - AnomalyDetectorAdapter (uses ManipulationDetectionSystem when available)
 - RegimeClassifierAdapter (simple heuristic over pandas DataFrame)
 
@@ -487,17 +488,26 @@ def compose_validation_adapters() -> ComposeAdaptersTD:
     """
     adapters: ComposeAdaptersTD = {}
 
-    # Market data gateway
+    # Market data gateway (prefer data_integration.yfinance_gateway)
     try:
-        module = importlib.import_module("src.sensory.organs.yahoo_finance_organ")
-        organ_cls = getattr(module, "YahooFinanceOrgan", None)
-        organ = organ_cls() if callable(organ_cls) else None
-        if organ is not None:
-            adapters["market_data_gateway"] = MarketDataGatewayAdapter(organ=organ)
+        mod = importlib.import_module("src.data_integration.yfinance_gateway")
+        gw_cls = getattr(mod, "YFinanceGateway", None)
+        if callable(gw_cls):
+            adapters["market_data_gateway"] = cast(MarketDataGateway, gw_cls())
         else:
-            adapters["market_data_gateway"] = NoOpMarketDataGateway()
+            raise ImportError("YFinanceGateway not available")
     except Exception:
-        adapters["market_data_gateway"] = NoOpMarketDataGateway()
+        # Fallback to sensory organ adapter, then to NoOp
+        try:
+            module = importlib.import_module("src.sensory.organs.yahoo_finance_organ")
+            organ_cls = getattr(module, "YahooFinanceOrgan", None)
+            organ = organ_cls() if callable(organ_cls) else None
+            if organ is not None:
+                adapters["market_data_gateway"] = MarketDataGatewayAdapter(organ=organ)
+            else:
+                adapters["market_data_gateway"] = NoOpMarketDataGateway()
+        except Exception:
+            adapters["market_data_gateway"] = NoOpMarketDataGateway()
 
     # Anomaly detector
     try:

@@ -8,7 +8,10 @@ from typing import Optional
 
 import click
 
-from src.sensory.organs.yahoo_finance_organ import YahooFinanceOrgan
+from src.data_integration.yfinance_gateway import YFinanceGateway
+from pathlib import Path
+from datetime import datetime
+import pandas as pd
 
 # Configure logging
 logging.basicConfig(
@@ -39,29 +42,46 @@ def data():
 def download(symbol: str, start_date: str, end_date: Optional[str], interval: str, data_dir: str):
     """Download historical market data for a symbol"""
     try:
-        organ = YahooFinanceOrgan(data_dir)
-        
+        gw = YFinanceGateway()
         click.echo(f"Downloading {symbol} data from {start_date} to {end_date or 'today'} ({interval})")
-        
-        success = organ.download_data(
-            symbol=symbol,
-            start_date=start_date,
-            end_date=end_date,
-            interval=interval
-        )
-        
-        if success:
-            click.echo(f"✅ Successfully downloaded {symbol} data")
-            
-            # Validate the data
-            if organ.validate_data(symbol, interval):
-                click.echo("✅ Data validation passed")
-            else:
-                click.echo("⚠️ Data validation warnings")
-                
-        else:
+
+        # Fetch data via MarketDataGateway adapter
+        df = gw.fetch_data(symbol=symbol, start=start_date, end=end_date, interval=interval)
+
+        if df is None or getattr(df, "empty", True):
             click.echo(f"❌ Failed to download {symbol} data")
-            
+            return
+
+        # Ensure data directory exists
+        out_dir = Path(data_dir)
+        out_dir.mkdir(parents=True, exist_ok=True)
+
+        # Save standardized parquet file
+        filename = f"{symbol}_{interval}.parquet"
+        filepath = out_dir / filename
+        try:
+            df.to_parquet(filepath, engine="pyarrow")
+        except Exception:
+            # Fallback to auto engine if pyarrow isn't available
+            df.to_parquet(filepath)
+
+        click.echo(f"✅ Successfully downloaded {symbol} data to {filepath}")
+
+        # Basic validation (structure and NaN scan)
+        required_columns = ["timestamp", "open", "high", "low", "close", "volume"]
+        missing_columns = [c for c in required_columns if c not in df.columns]
+        if missing_columns:
+            click.echo(f"⚠️ Missing columns: {missing_columns}")
+        else:
+            try:
+                null_count = int(df[required_columns].isnull().to_numpy().sum())
+                if null_count > 0:
+                    click.echo(f"⚠️ Found {null_count} NaN values in required columns")
+                else:
+                    click.echo("✅ Data validation passed")
+            except Exception:
+                click.echo("⚠️ Validation step encountered an error")
+
     except Exception as e:
         click.echo(f"❌ Error: {e}")
         logger.error(f"Error downloading data: {e}")
@@ -72,26 +92,43 @@ def download(symbol: str, start_date: str, end_date: Optional[str], interval: st
 def list(data_dir: str):
     """List available historical data files"""
     try:
-        organ = YahooFinanceOrgan(data_dir)
-        available = organ.get_available_data()
-        
-        if not available:
+        path = Path(data_dir)
+        if not path.exists():
+            click.echo("No historical data directory found")
+            return
+
+        files = sorted(path.glob("*.parquet"))
+        if not files:
             click.echo("No historical data files found")
             return
-            
+
         click.echo("Available historical data files:")
         click.echo("-" * 80)
-        
-        for key, info in available.items():
-            click.echo(f"{key}:")
-            click.echo(f"  Symbol: {info['symbol']}")
-            click.echo(f"  Interval: {info['interval']}")
-            click.echo(f"  Rows: {info['rows']}")
-            click.echo(f"  Date Range: {info['start_date']} to {info['end_date']}")
-            click.echo(f"  File Size: {info['file_size_mb']:.2f} MB")
-            click.echo(f"  Last Modified: {info['last_modified']}")
-            click.echo()
-            
+
+        for file in files:
+            try:
+                stat = file.stat()
+                df = pd.read_parquet(file)
+                rows = len(df)
+                start_date = df["timestamp"].min()
+                end_date = df["timestamp"].max()
+                # Infer symbol and interval from filename convention "<symbol>_<interval>.parquet"
+                stem = file.stem
+                parts = stem.split("_")
+                symbol = parts[0] if parts else "UNKNOWN"
+                interval = "_".join(parts[1:]) if len(parts) > 1 else "unknown"
+
+                click.echo(f"{file.name}:")
+                click.echo(f"  Symbol: {symbol}")
+                click.echo(f"  Interval: {interval}")
+                click.echo(f"  Rows: {rows}")
+                click.echo(f"  Date Range: {getattr(start_date, 'strftime', lambda *_: str(start_date))('%Y-%m-%d') if hasattr(start_date, 'strftime') else start_date} to {getattr(end_date, 'strftime', lambda *_: str(end_date))('%Y-%m-%d') if hasattr(end_date, 'strftime') else end_date}")
+                click.echo(f"  File Size: {stat.st_size / (1024 * 1024):.2f} MB")
+                click.echo(f"  Last Modified: {datetime.fromtimestamp(stat.st_mtime).strftime('%Y-%m-%d %H:%M:%S')}")
+                click.echo()
+            except Exception as e:
+                click.echo(f"⚠️ Error reading {file.name}: {e}")
+
     except Exception as e:
         click.echo(f"❌ Error: {e}")
         logger.error(f"Error listing data: {e}")

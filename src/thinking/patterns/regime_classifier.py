@@ -13,7 +13,7 @@ from typing import Any, Dict, List, Optional
 import numpy as np
 import pandas as pd
 
-from src.core.regime import MarketRegime
+from src.core.base import MarketRegime
 
 from ...core.events import AnalysisResult, MarketData
 
@@ -133,9 +133,9 @@ class RegimeClassifier:
             return 0.0
             
         # Linear regression slope
-        x = np.arange(len(df))
-        y = df['close'].values
-        slope = np.polyfit(x, y, 1)[0]
+        x = np.arange(len(df), dtype=float)
+        y = df["close"].to_numpy(dtype=float)
+        slope = float(np.polyfit(x, y, 1)[0])
         
         # Normalize slope
         price_range = df['close'].max() - df['close'].min()
@@ -199,35 +199,32 @@ class RegimeClassifier:
         if len(df) < period + 1:
             return 50.0
             
-        delta = df['close'].diff()
-        gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
-        loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
-        
-        rs = gain / loss
+        delta = df["close"].astype(float).diff()
+        gain = delta.clip(lower=0).rolling(window=period).mean()
+        loss = (-delta.clip(upper=0)).rolling(window=period).mean()
+        rs = gain / loss.replace(0, np.nan)
         rsi = 100 - (100 / (1 + rs))
-        
-        return rsi.iloc[-1] / 100  # Normalize to [0, 1]
+        val = float(rsi.iloc[-1]) if not np.isnan(rsi.iloc[-1]) else 50.0
+        return float(np.clip(val / 100.0, 0.0, 1.0))
         
     def _calculate_macd(self, df: pd.DataFrame) -> float:
         """Calculate MACD indicator."""
         if len(df) < 26:
             return 0.0
             
-        ema12 = df['close'].ewm(span=12).mean()
-        ema26 = df['close'].ewm(span=26).mean()
+        close = df["close"].astype(float)
+        ema12 = close.ewm(span=12).mean()
+        ema26 = close.ewm(span=26).mean()
         macd = ema12 - ema26
         signal = macd.ewm(span=9).mean()
-        
-        macd_value = macd.iloc[-1]
-        signal_value = signal.iloc[-1]
-        
+        macd_value = float(macd.iloc[-1])
+        signal_value = float(signal.iloc[-1])
         # Normalize MACD
-        price_range = df['close'].max() - df['close'].min()
-        if price_range == 0:
+        price_range = float(close.max() - close.min())
+        if price_range == 0.0:
             return 0.0
-            
         normalized_macd = (macd_value - signal_value) / price_range
-        return np.clip(normalized_macd * 100, -1, 1)
+        return float(np.clip(normalized_macd * 100.0, -1.0, 1.0))
         
     def _calculate_bollinger_position(self, df: pd.DataFrame, period: int = 20) -> float:
         """Calculate position within Bollinger Bands."""
@@ -273,32 +270,25 @@ class RegimeClassifier:
         rsi = indicators.get('rsi', 0.5)
         macd = indicators.get('macd', 0)
         
-        # High volatility regime
+        # Map to core/base MarketRegime categories
         if volatility > self.volatility_threshold:
-            return MarketRegime.HIGH_VOLATILITY
-            
-        # Low volatility regime
-        if volatility < self.volatility_threshold * 0.3:
-            return MarketRegime.LOW_VOLATILITY
-            
-        # Trending regimes
-        if price_trend > 0.1 and price_momentum > 0.05:
-            return MarketRegime.TRENDING_UP
-        elif price_trend < -0.1 and price_momentum < -0.05:
-            return MarketRegime.TRENDING_DOWN
-            
-        # Bull/Bear market based on RSI and MACD
-        if rsi > 0.7 and macd > 0.1:
-            return MarketRegime.BULL_MARKET
-        elif rsi < 0.3 and macd < -0.1:
-            return MarketRegime.BEAR_MARKET
-            
-        # Consolidation
+            return MarketRegime.BREAKOUT
+
         if abs(price_trend) < 0.05 and abs(price_momentum) < 0.02:
-            return MarketRegime.CONSOLIDATION
-            
-        # Default to sideways
-        return MarketRegime.SIDEWAYS_MARKET
+            return MarketRegime.CONSOLIDATING
+
+        if price_trend > 0.1 and price_momentum > 0.05:
+            return MarketRegime.TRENDING_STRONG
+        if price_trend < -0.1 and price_momentum < -0.05:
+            return MarketRegime.TRENDING_WEAK
+
+        # RSI/MACD alignment as secondary signals
+        if rsi > 0.7 and macd > 0.1:
+            return MarketRegime.TRENDING_STRONG
+        if rsi < 0.3 and macd < -0.1:
+            return MarketRegime.REVERSAL
+
+        return MarketRegime.UNKNOWN
         
     def _calculate_regime_confidence(self, indicators: Dict[str, float]) -> float:
         """Calculate confidence in regime classification."""
@@ -322,8 +312,8 @@ class RegimeClassifier:
         confidence_factors.append(rsi_extreme)
         
         # Average confidence
-        avg_confidence = np.mean(confidence_factors)
-        return np.clip(avg_confidence, 0.1, 1.0)
+        avg_confidence = float(np.mean(confidence_factors))
+        return float(np.clip(avg_confidence, 0.1, 1.0))
         
     def _create_default_analysis(self) -> AnalysisResult:
         """Create default analysis when classification fails."""
@@ -331,7 +321,7 @@ class RegimeClassifier:
             timestamp=datetime.now(),
             analysis_type="market_regime_classification",
             result={
-                "primary_regime": MarketRegime.SIDEWAYS_MARKET.value,
+                "primary_regime": MarketRegime.CONSOLIDATING.value,
                 "regime_indicators": {},
                 "confidence": 0.1,
                 "lookback_period": self.lookback_period,

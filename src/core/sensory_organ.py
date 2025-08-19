@@ -1,16 +1,22 @@
 from __future__ import annotations
 
-from typing import Any, Dict
+from typing import Any, Dict, Protocol, runtime_checkable
 
-# Re-export canonical SensoryOrgan base to avoid duplicate class definitions
-from src.sensory.organs.dimensions.base_organ import SensoryOrgan as SensoryOrgan
+
+@runtime_checkable
+class SensoryOrganProto(Protocol):
+    """Structural type for sensory organs (process-only surface we rely on)."""
+
+    def process(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        ...
 
 
 class CoreSensoryOrgan:
     """Minimal sensory organ abstraction (legacy shim).
 
-    This shim preserves runtime behavior for legacy factory usage while the name
-    `SensoryOrgan` is re-exported from the canonical sensory base module.
+    Notes:
+    - This module intentionally avoids importing from src.sensory.* to satisfy
+      layered architecture contracts. Use orchestration to wire concrete sensory organs.
     """
 
     def __init__(self, organ_type: str) -> None:
@@ -18,6 +24,10 @@ class CoreSensoryOrgan:
 
     def process(self, data: Dict[str, Any]) -> Dict[str, Any]:
         return {"processed": True, "organ": self.organ_type, "data": data}
+
+
+# Backward-compat alias for legacy imports that expect `SensoryOrgan` to exist
+SensoryOrgan = CoreSensoryOrgan
 
 
 def create_sensory_organ(organ_type: str) -> CoreSensoryOrgan:
@@ -29,5 +39,3 @@ WHAT_ORGAN = create_sensory_organ("what")
 WHEN_ORGAN = create_sensory_organ("when")
 ANOMALY_ORGAN = create_sensory_organ("anomaly")
 CHAOS_ORGAN = create_sensory_organ("chaos")
-
-

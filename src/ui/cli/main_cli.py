@@ -11,7 +11,7 @@ import click
 from src.data_integration.yfinance_gateway import YFinanceGateway
 from pathlib import Path
 from datetime import datetime
-import pandas as pd
+import pandas as p
 
 # Configure logging
 logging.basicConfig(

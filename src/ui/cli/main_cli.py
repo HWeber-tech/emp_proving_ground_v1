@@ -4,12 +4,12 @@ Production-ready command-line interface for system management
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, date
 from pathlib import Path
 from typing import Optional
 
 import click
-import pandas as pd  # type: ignore[import-untyped]
+import pandas as pd
 
 from src.data_integration.yfinance_gateway import YFinanceGateway
 
@@ -23,12 +23,23 @@ logger = logging.getLogger(__name__)
 
 def _fmt_date(val: object) -> str:
     """
-    Best-effort formatting for pandas/pyarrow timestamps or plain values.
+    Format a value as YYYY-MM-DD when possible, otherwise str(val).
+    Handles datetime/date, pandas.Timestamp (via to_pydatetime), and ISO strings.
     """
     try:
-        if hasattr(val, "strftime"):
-            # mypy: treat as datetime-like
-            return getattr(val, "strftime")("%Y-%m-%d")
+        if isinstance(val, (datetime, date)):
+            return val.strftime("%Y-%m-%d")
+        to_py = getattr(val, "to_pydatetime", None)
+        if callable(to_py):
+            dt = to_py()
+            if isinstance(dt, datetime):
+                return dt.strftime("%Y-%m-%d")
+        if isinstance(val, str):
+            try:
+                dt2 = datetime.fromisoformat(val)
+                return dt2.strftime("%Y-%m-%d")
+            except Exception:
+                pass
         return str(val)
     except Exception:
         return str(val)

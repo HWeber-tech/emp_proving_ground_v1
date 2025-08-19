@@ -247,8 +247,20 @@ def register_genome_provider(provider: GenomeProvider) -> None:
 def get_genome_provider() -> GenomeProvider:
     """
     Return the registered GenomeProvider or the NoOp fallback if none is set.
+
+    If no provider has been registered, attempt to use the concrete genome adapter
+    from src.genome.models.genome_adapter to provide real genome instances.
     """
-    return _GENOME_PROVIDER or _NOOP_SINGLETON
+    global _GENOME_PROVIDER
+    if _GENOME_PROVIDER is not None:
+        return _GENOME_PROVIDER
+    try:
+        # Local import to avoid any potential import cycles
+        from src.genome.models.genome_adapter import GenomeProviderAdapter  # type: ignore
+        _GENOME_PROVIDER = GenomeProviderAdapter()
+        return _GENOME_PROVIDER
+    except Exception:
+        return _NOOP_SINGLETON
 
 
 __all__ = [

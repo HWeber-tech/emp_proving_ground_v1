@@ -11,6 +11,7 @@ Phase: 1.5 - Advanced Data Sources Complete
 
 
 
+from src.validation.models import ValidationResult  # re-export for package smoke test
 # Import main data management classes
 # Legacy imports removed during cleanup; provide minimal stubs for compatibility
 class RealDataManager:  # type: ignore
@@ -63,6 +64,7 @@ __all__ = [
     # Advanced providers intentionally unavailable in FIX-only baseline
     
     # Data validation
+    'ValidationResult',
     'MarketDataValidator',
     'DataConsistencyChecker',
     'DataQualityMonitor',
@@ -72,4 +74,4 @@ __all__ = [
     
     # Status
     'ADVANCED_PROVIDERS_AVAILABLE'
-] 
+]

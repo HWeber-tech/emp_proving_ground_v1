@@ -3,15 +3,15 @@ CLI Interface for EMP Ultimate Architecture v1.1
 Production-ready command-line interface for system management
 """
 
+from datetime import datetime
 import logging
+from pathlib import Path
 from typing import Optional
 
 import click
+import pandas as pd
 
 from src.data_integration.yfinance_gateway import YFinanceGateway
-from pathlib import Path
-from datetime import datetime
-import pandas as p
 
 # Configure logging
 logging.basicConfig(

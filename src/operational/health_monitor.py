@@ -12,7 +12,7 @@ from datetime import datetime
 from typing import Any, Dict, Optional
 
 from src.core.event_bus import EventBus
-from src.operational.state_store import StateStore
+from src.core.state_store import StateStore
 
 logger = logging.getLogger(__name__)
 

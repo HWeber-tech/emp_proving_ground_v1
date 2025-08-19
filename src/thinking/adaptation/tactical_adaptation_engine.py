@@ -13,7 +13,7 @@ try:
     from src.core.events import ContextPacket, LearningSignal, TacticalAdaptation  # legacy
 except Exception:  # pragma: no cover
     LearningSignal = TacticalAdaptation = ContextPacket = object  # type: ignore
-from src.operational.state_store import StateStore
+from src.core.state_store import StateStore
 from src.thinking.memory.faiss_memory import FAISSPatternMemory
 
 logger = logging.getLogger(__name__)

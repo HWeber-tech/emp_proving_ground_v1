@@ -1,0 +1,38 @@
+name: Static Analysis
+
+on:
+  pull_request:
+  push:
+    branches: [ main, master ]
+
+jobs:
+  lint-and-typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install tools
+        run: |
+          python -m pip install --upgrade pip
+          pip install ruff mypy import-linter types-requests types-redis
+
+      - name: Ruff
+        run: ruff check
+
+      - name: Import Linter
+        env:
+          PYTHONPATH: .
+        run: |
+          import-linter -c contracts/importlinter.ini
+
+      - name: Mypy (core + orchestration + orchestrator)
+        env:
+          PYTHONPATH: .
+        run: |
+          mypy --config-file mypy.ini src/core src/orchestration src/thinking/phase3_orchestrator.py

@@ -6,13 +6,13 @@ Specialized pattern detector for CVD/Price divergence analysis
 import logging
 from collections import deque
 from datetime import datetime
-from typing import List, Literal, Optional
+from typing import List, Literal, Optional, Any, cast
 
 try:
     from src.core.context_packet import ContextPacket  # legacy
 except Exception:  # pragma: no cover
     ContextPacket = object  # type: ignore
-from src.governance.system_config import config
+from src.core.config_access import ConfigurationProvider, NoOpConfigurationProvider
 
 logger = logging.getLogger(__name__)
 
@@ -25,16 +25,20 @@ class CVDDivergenceDetector:
     which often signals exhaustion of the dominant force and potential reversal.
     """
     
-    def __init__(self, symbol: str, lookback: int = None):
+    def __init__(self, symbol: str, lookback: Optional[int] = None, config: ConfigurationProvider = NoOpConfigurationProvider()):
         """
         Initialize the CVD divergence detector.
         
         Args:
             symbol: The symbol this detector is monitoring
-            lookback: Number of data points to analyze (defaults to config)
+            lookback: Number of data points to analyze (defaults to configuration provider or safe default)
+            config: Configuration provider port (defaults to NoOp)
         """
         self.symbol = symbol
-        self.lookback = lookback or config.cvd_history_length
+        self.config = config
+        # Resolve lookback: explicit arg > config value > safe default
+        default_lb = self._get_numeric_config("cvd_history_length", 20)
+        self.lookback = int(lookback) if lookback is not None else int(default_lb)
         
         # Rolling history for divergence detection
         self.price_history = deque(maxlen=self.lookback)
@@ -88,7 +92,37 @@ class CVDDivergenceDetector:
             return "bullish"
         
         return None
-    
+     
+    def _get_config_value(self, key: str, default: Any) -> Any:
+        """
+        Best-effort fetch from configuration provider:
+        - First try get_value(key)
+        - Then try get_namespace('system')[key]
+        - On any error or None, return default
+        """
+        try:
+            val = self.config.get_value(key, None)  # type: ignore[attr-defined]
+            if val is None:
+                ns = self.config.get_namespace("system")  # type: ignore[attr-defined]
+                val = ns.get(key)
+        except Exception:
+            val = None
+        return default if val is None else val
+     
+    def _get_numeric_config(self, key: str, default: float | int) -> float:
+        """
+        Fetch a numeric value from config, coercing to float/int as appropriate.
+        Returns the provided default on any error.
+        """
+        val = self._get_config_value(key, None)
+        try:
+            if isinstance(default, int):
+                return float(int(val)) if val is not None else float(int(default))
+            return float(val) if val is not None else float(default)
+        except Exception:
+            # As a last resort, return default coerced to float
+            return float(default)
+     
     def _calculate_confidence(self, prices: List[float], cvds: List[float]) -> float:
         """
         Calculate confidence level for divergence detection.
@@ -110,14 +144,17 @@ class CVDDivergenceDetector:
         # Divergence strength is the difference in trends
         divergence_strength = abs(price_trend - cvd_trend)
         
-        # Normalize to 0-1 range
-        confidence = min(divergence_strength / config.cvd_divergence_threshold, 1.0)
+        # Normalize to 0-1 range using configured threshold (default 1.0)
+        threshold = self._get_numeric_config("cvd_divergence_threshold", 1.0)
+        if threshold <= 0:
+            threshold = 1.0
+        confidence = min(divergence_strength / float(threshold), 1.0)
         
         return max(0.0, min(1.0, confidence))
     
     def create_context_packet(self, current_price: float, current_cvd: float, 
                             divergence: Optional[Literal["bullish", "bearish"]], 
-                            timestamp: datetime) -> ContextPacket:
+                            timestamp: datetime) -> Any:
         """
         Create a ContextPacket with CVD divergence analysis.
         
@@ -136,7 +173,7 @@ class CVDDivergenceDetector:
             list(self.cvd_history)
         ) if divergence else None
         
-        return ContextPacket(
+        return cast(Any, ContextPacket)(
             timestamp=timestamp,
             symbol=self.symbol,
             current_price=current_price,

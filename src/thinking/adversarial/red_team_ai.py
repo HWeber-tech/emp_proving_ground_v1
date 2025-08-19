@@ -15,7 +15,7 @@ try:
     from src.core.events import AttackResult, ExploitResult, StrategyAnalysis  # legacy
 except Exception:  # pragma: no cover
     StrategyAnalysis = AttackResult = ExploitResult = object  # type: ignore
-from src.operational.state_store import StateStore
+from src.core.state_store import StateStore
 
 logger = logging.getLogger(__name__)
 
@@ -468,7 +468,14 @@ class RedTeamAI:
         
         self._attack_history_key = "emp:red_team_attacks"
         self._exploit_history_key = "emp:red_team_exploits"
-    
+        
+    async def initialize(self) -> bool:
+        return True
+
+    async def stop(self) -> bool:
+        return True
+        
+
     async def attack_strategy(
         self,
         target_strategy: str

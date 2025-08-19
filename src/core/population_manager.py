@@ -14,10 +14,9 @@ from typing import Any, Callable, Dict, List, Optional, cast
 import numpy as np
 
 from src.core.performance.market_data_cache import get_global_cache
-from src.genome.models.adapters import from_legacy, to_legacy_view
-from src.genome.models.genome import DecisionGenome, mutate, new_genome
+from src.core.genome import get_genome_provider
 
-from .interfaces import IPopulationManager
+from .interfaces import IPopulationManager, DecisionGenome
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +42,8 @@ class PopulationManager(IPopulationManager):
     def initialize_population(self, genome_factory: Callable) -> None:
         """Initialize population with new genomes."""
         logger.info(f"Initializing population with {self.population_size} genomes")
-        self.population = [from_legacy(genome_factory()) for _ in range(self.population_size)]
+        provider = get_genome_provider()
+        self.population = [provider.from_legacy(genome_factory()) for _ in range(self.population_size)]
         self.generation = 0
         self._cache_population_stats()
         
@@ -70,10 +70,11 @@ class PopulationManager(IPopulationManager):
         )
         return cast(List[DecisionGenome], sorted_population[:min(count, len(sorted_population))])
     
-    def update_population(self, new_population: List[Any]) -> None:
+    def update_population(self, new_population: List[DecisionGenome]) -> None:
         """Replace current population with new one."""
         logger.info(f"Updating population with {len(new_population)} genomes")
-        self.population = [from_legacy(g) for g in new_population]
+        provider = get_genome_provider()
+        self.population = [provider.from_legacy(g) for g in new_population]
         self._cache_population_stats()
         
     def get_population_statistics(self) -> Dict[str, Any]:
@@ -123,8 +124,9 @@ class PopulationManager(IPopulationManager):
         stats = self.get_population_statistics()
         # Touch legacy view path for compatibility (no-op for performance)
         try:
+            provider = get_genome_provider()
             if self.population:
-                _ = to_legacy_view(self.population[0])
+                _ = provider.to_legacy_view(self.population[0])
         except Exception:
             pass
         logger.debug(f"Cached population stats: {stats}")
@@ -132,8 +134,12 @@ class PopulationManager(IPopulationManager):
     def get_genome_by_id(self, genome_id: str) -> Optional[DecisionGenome]:
         """Get a specific genome by ID."""
         for genome in self.population:
-            if genome.id == genome_id:
-                return cast(DecisionGenome, genome)
+            try:
+                gid = getattr(genome, "id", None)
+                if gid == genome_id:
+                    return cast(DecisionGenome, genome)
+            except Exception:
+                continue
         return None
     
     def get_species_count(self, species_type: str) -> int:
@@ -162,6 +168,7 @@ class PopulationManager(IPopulationManager):
             import random
 
             logger.info(f"Generating initial population of {self.population_size} genomes")
+            provider = get_genome_provider()
 
             for i in range(self.population_size):
                 params = {
@@ -176,7 +183,7 @@ class PopulationManager(IPopulationManager):
                     "mean_reversion_factor": random.uniform(0.1, 0.8),
                     "market_regime_sensitivity": random.uniform(0.2, 0.8),
                 }
-                genome = new_genome(
+                genome = provider.new_genome(
                     id=f"genome_{i:04d}",
                     parameters=params,
                     generation=0,
@@ -245,17 +252,23 @@ class PopulationManager(IPopulationManager):
 
                 # Update performance metrics with numeric values only
                 try:
-                    for k, v in performance_metrics.items():
-                        try:
-                            genome.performance_metrics[k] = float(v)  # type: ignore[assignment]
-                        except Exception:
-                            continue
+                    perf_dict = getattr(genome, "performance_metrics", None)
+                    if isinstance(perf_dict, dict):
+                        for k, v in performance_metrics.items():
+                            try:
+                                perf_dict[k] = float(v)  # type: ignore[index]
+                            except Exception:
+                                continue
                 except Exception:
                     pass
 
             except Exception as e:
-                logger.error(f"Fitness evaluation failed for genome {genome.id}: {e}")
-                genome.fitness = 0.0
+                gid = getattr(genome, "id", "unknown")
+                logger.error(f"Fitness evaluation failed for genome {gid}: {e}")
+                try:
+                    genome.fitness = 0.0  # type: ignore[assignment]
+                except Exception:
+                    pass
     
     def _tournament_selection(self, tournament_size: int = 3) -> DecisionGenome:
         """Select genome via tournament selection."""
@@ -264,7 +277,7 @@ class PopulationManager(IPopulationManager):
         tournament = random.sample(self.population, min(tournament_size, len(self.population)))
         return max(tournament, key=lambda g: (g.fitness or 0.0))
     
-    def _crossover(self, parent1: DecisionGenome, parent2: DecisionGenome) -> DecisionGenome:
+    def _crossover(self, parent1: Any, parent2: Any) -> Any:
         """Create offspring via crossover."""
         import random
 
@@ -272,50 +285,90 @@ class PopulationManager(IPopulationManager):
         offspring_id = f"genome_{self.generation}_{random.randint(1000, 9999)}"
 
         # Blend parameters from both parents
+        p1_params = getattr(parent1, "parameters", {}) or {}
+        p2_params = getattr(parent2, "parameters", {}) or {}
+        if not isinstance(p1_params, dict):
+            p1_params = {}
+        if not isinstance(p2_params, dict):
+            p2_params = {}
+
         offspring_params: Dict[str, float] = {}
-        for key in parent1.parameters:
-            if random.random() < 0.5:
-                offspring_params[key] = float(parent1.parameters[key])
-            else:
-                offspring_params[key] = float(parent2.parameters.get(key, parent1.parameters[key]))
+        for key in p1_params:
+            try:
+                if random.random() < 0.5:
+                    offspring_params[key] = float(p1_params[key])
+                else:
+                    fallback = p1_params[key]
+                    val = p2_params.get(key, fallback)
+                    offspring_params[key] = float(val)  # type: ignore[arg-type]
+            except Exception:
+                continue
 
-        child = new_genome(
-            id=offspring_id,
-            parameters=offspring_params,
-            generation=self.generation,
-            species_type=parent1.species_type,
-        ).with_updated(parent_ids=[parent1.id, parent2.id])
-
-        return child
+        provider = get_genome_provider()
+        try:
+            child = provider.new_genome(
+                id=offspring_id,
+                parameters=offspring_params,
+                generation=self.generation,
+                species_type=getattr(parent1, "species_type", None),
+            )
+            # Attempt to attach parent metadata if supported
+            try:
+                pid1 = getattr(parent1, "id", None)
+                pid2 = getattr(parent2, "id", None)
+                if hasattr(child, "with_updated"):
+                    child = child.with_updated(parent_ids=[pid1, pid2])
+            except Exception:
+                pass
+            return child
+        except Exception:
+            # Safe fallback to parent1 clone if anything goes wrong
+            return parent1
     
-    def _mutate(self, genome: DecisionGenome, mutation_rate: float = 0.1) -> DecisionGenome:
+    def _mutate(self, genome: Any, mutation_rate: float = 0.1) -> Any:
         """Apply mutation to genome."""
         import random
 
         new_params: Dict[str, float] = {}
-        for key, value in genome.parameters.items():
-            if random.random() < mutation_rate:
-                if isinstance(value, float):
-                    # Gaussian mutation for float values
-                    mutation_strength = 0.1
-                    new_val = max(0.0, float(value) + random.gauss(0, mutation_strength))
-                elif isinstance(value, int):
-                    # Integer mutation
-                    new_val = float(max(1, int(value) + random.randint(-5, 5)))
-                else:
-                    try:
-                        v = float(value)  # type: ignore[arg-type]
-                        mutation_strength = 0.1
-                        new_val = max(0.0, v + random.gauss(0, mutation_strength))
-                    except Exception:
-                        continue
-                new_params[key] = float(new_val)
+        params = getattr(genome, "parameters", {}) or {}
+        if isinstance(params, dict):
+            for key, value in params.items():
+                try:
+                    if random.random() < mutation_rate:
+                        if isinstance(value, float):
+                            # Gaussian mutation for float values
+                            mutation_strength = 0.1
+                            new_val = max(0.0, float(value) + random.gauss(0, mutation_strength))
+                        elif isinstance(value, int):
+                            # Integer mutation
+                            new_val = float(max(1, int(value) + random.randint(-5, 5)))
+                        else:
+                            try:
+                                v = float(value)  # type: ignore[arg-type]
+                                mutation_strength = 0.1
+                                new_val = max(0.0, v + random.gauss(0, mutation_strength))
+                            except Exception:
+                                continue
+                        new_params[key] = float(new_val)
+                except Exception:
+                    continue
 
         if not new_params:
             return genome
 
         # Ensure mutation tags reflect the manager's current generation
-        working = genome.with_updated(generation=self.generation)
+        try:
+            if hasattr(genome, "with_updated"):
+                working = genome.with_updated(generation=self.generation)
+            else:
+                working = genome
+        except Exception:
+            working = genome
+
         # Record mutation using canonical builder (appends canonical tags)
-        return mutate(working, "gaussian", new_params)
+        provider = get_genome_provider()
+        try:
+            return provider.mutate(working, "gaussian", new_params)
+        except Exception:
+            return genome
 

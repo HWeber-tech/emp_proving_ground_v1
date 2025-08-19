@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from typing import Any, Dict
 
-from src.operational.metrics import fix_parity_mismatched_orders, fix_parity_mismatched_positions
+from src.core.telemetry import get_metrics_sink
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +35,7 @@ class ParityChecker:
                 mismatches += 1
                 continue
         try:
-            fix_parity_mismatched_orders.set(mismatches)
+            get_metrics_sink().set_gauge("fix_parity_mismatched_orders", float(mismatches))
         except Exception:
             pass
         logger.info(f"Order parity mismatches: {mismatches}")
@@ -89,7 +89,7 @@ class ParityChecker:
                 mismatches += 1
                 continue
         try:
-            fix_parity_mismatched_positions.set(mismatches)
+            get_metrics_sink().set_gauge("fix_parity_mismatched_positions", float(mismatches))
         except Exception:
             pass
         logger.info(f"Position parity mismatches: {mismatches}")

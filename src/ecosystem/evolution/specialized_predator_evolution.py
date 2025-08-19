@@ -42,6 +42,12 @@ class SpecializedPredatorEvolution:
         self.ecosystem_optimizer = EcosystemOptimizer()
         self._history: List[Dict[str, Any]] = []
 
+    async def initialize(self) -> bool:
+        return True
+
+    async def stop(self) -> bool:
+        return True
+
     async def evolve_specialized_predators(self) -> Dict[str, Any]:
         """
         Detect niches, evolve species, optimize coordination, and produce

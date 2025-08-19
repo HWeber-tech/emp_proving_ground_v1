@@ -12,6 +12,5 @@ from src.config.risk.risk_config import RiskConfig as RiskConfig  # canonical co
 
 # Canonical re-exports
 from src.core.risk.manager import RiskManager as RiskManager  # single source of truth
-from src.validation.models import ValidationResult as ValidationResult
 
-__all__ = ["RiskManager", "RiskConfig", "ValidationResult"]
+__all__ = ["RiskManager", "RiskConfig"]

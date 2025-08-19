@@ -12,7 +12,7 @@ try:
     from src.core.events import ContextPacket, LearningSignal  # legacy
 except Exception:  # pragma: no cover
     LearningSignal = ContextPacket = object  # type: ignore
-from src.operational.state_store import StateStore
+from src.core.state_store import StateStore
 
 logger = logging.getLogger(__name__)
 

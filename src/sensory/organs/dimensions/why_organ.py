@@ -17,7 +17,7 @@ import numpy as np
 import pandas as pd
 
 from src.data_foundation.config.why_config import load_why_config
-from src.operational.metrics import set_why_conf, set_why_feature, set_why_signal
+from src.core.telemetry import get_metrics_sink
 from src.sensory.core.base import DimensionalReading, MarketData, MarketRegime
 from src.sensory.dimensions.why.yield_signal import YieldSlopeTracker
 
@@ -145,10 +145,19 @@ class WhyEngine:
         signal_strength = self._calculate_signal_strength(analysis)
         confidence = self._calculate_confidence(analysis)
         try:
-            set_why_signal(symbol, signal_strength)
-            set_why_conf(symbol, confidence)
-            set_why_feature("yields", self.why_cfg.enable_yields if self.why_cfg else True)
-            set_why_feature("macro", self.why_cfg.enable_macro_proximity if self.why_cfg else True)
+            sink = get_metrics_sink()
+            sink.set_gauge("why_composite_signal", float(signal_strength), {"symbol": symbol})
+            sink.set_gauge("why_confidence", float(confidence), {"symbol": symbol})
+            sink.set_gauge(
+                "why_feature_available",
+                1.0 if (self.why_cfg.enable_yields if self.why_cfg else True) else 0.0,
+                {"feature": "yields"},
+            )
+            sink.set_gauge(
+                "why_feature_available",
+                1.0 if (self.why_cfg.enable_macro_proximity if self.why_cfg else True) else 0.0,
+                {"feature": "macro"},
+            )
         except Exception:
             pass
         

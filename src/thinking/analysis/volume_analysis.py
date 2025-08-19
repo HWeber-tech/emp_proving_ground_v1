@@ -4,7 +4,7 @@ Core CVD (Cumulative Volume Delta) calculation logic
 """
 
 import logging
-from typing import Optional
+from typing import Optional, Any
 
 logger = logging.getLogger(__name__)
 
@@ -42,13 +42,28 @@ def calculate_delta(trade_price: float, trade_size: float, best_bid: float, best
 
 # Conditionally apply Numba JIT if available
 if HAS_NUMBA:
-    from src.governance.system_config import config
-    
-    if config.enable_numba_acceleration:
-        calculate_delta = jit(nopython=True)(calculate_delta)
-        logger.info("Numba acceleration enabled for CVD calculations")
-    else:
-        logger.info("Numba acceleration disabled via configuration")
+    try:
+        from src.core.config_access import ConfigurationProvider, NoOpConfigurationProvider
+        _config_provider: ConfigurationProvider = NoOpConfigurationProvider()
+
+        def _get_config_value(key: str, default: Any) -> Any:
+            try:
+                val = _config_provider.get_value(key, None)  # type: ignore[attr-defined]
+                if val is None:
+                    ns = _config_provider.get_namespace("system")  # type: ignore[attr-defined]
+                    val = ns.get(key)
+            except Exception:
+                val = None
+            return default if val is None else val
+
+        enabled = bool(_get_config_value("enable_numba_acceleration", False))
+        if enabled:
+            calculate_delta = jit(nopython=True)(calculate_delta)  # type: ignore[misc]
+            logger.info("Numba acceleration enabled for CVD calculations")
+        else:
+            logger.info("Numba acceleration disabled via configuration")
+    except Exception:
+        logger.info("Numba configuration unavailable - using pure Python for CVD calculations")
 else:
     logger.info("Numba not available - using pure Python for CVD calculations")
 

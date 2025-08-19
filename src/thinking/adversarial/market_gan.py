@@ -10,7 +10,7 @@ from typing import Any, Dict, List
 
 import numpy as np
 
-from src.operational.state_store import StateStore
+from src.core.state_store import StateStore
 from src.thinking.adversarial.adversarial_trainer import (
     AdversarialTrainer as AdversarialTrainer,
 )
@@ -140,6 +140,12 @@ class MarketGAN:
         
         self._training_history_key = "emp:gan_training_history"
         
+    async def initialize(self) -> bool:
+        return True
+
+    async def stop(self) -> bool:
+        return True
+
     async def train_adversarial_strategies(
         self,
         strategy_population: List[str],

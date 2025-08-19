@@ -16,7 +16,7 @@ try:
     from src.core.events import AlgorithmSignature, CompetitorBehavior, CounterStrategy  # legacy
 except Exception:  # pragma: no cover
     AlgorithmSignature = CompetitorBehavior = CounterStrategy = object  # type: ignore
-from src.operational.state_store import StateStore
+from src.core.state_store import StateStore
 
 logger = logging.getLogger(__name__)
 
@@ -710,7 +710,14 @@ class CompetitiveIntelligenceSystem:
         self.market_share_tracker = MarketShareTracker()
         
         self._intelligence_history_key = "emp:competitive_intelligence"
-    
+
+    async def initialize(self) -> bool:
+        return True
+
+    async def stop(self) -> bool:
+        return True
+
+
     async def identify_competitors(
         self,
         market_data: Dict[str, Any]

@@ -11,8 +11,7 @@ from __future__ import annotations
 
 import threading
 import time
-from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List
+from typing import Any, Callable, List
 
 
 class _MockTradeConnection:
@@ -23,7 +22,7 @@ class _MockTradeConnection:
         # Respect optional flags on msg for reject/cancel flows
         if getattr(msg, "reject", False):
             def _emit_reject():
-                info = type("OrderInfo", (), {})()
+                info: Any = type("OrderInfo", (), {})()
                 info.cl_ord_id = str(getattr(msg, "cl_ord_id", "TEST"))
                 info.executions = [{"exec_type": "8"}]  # Reject
                 for cb in self._order_cbs:
@@ -36,7 +35,7 @@ class _MockTradeConnection:
 
         if getattr(msg, "cancel", False):
             def _emit_cancel():
-                info = type("OrderInfo", (), {})()
+                info: Any = type("OrderInfo", (), {})()
                 info.cl_ord_id = str(getattr(msg, "cl_ord_id", "TEST"))
                 info.executions = [{"exec_type": "4"}]  # Canceled
                 for cb in self._order_cbs:
@@ -49,7 +48,7 @@ class _MockTradeConnection:
 
         # Emit a New, Partial, then Fill execution on background threads
         def _emit_new():
-            info = type("OrderInfo", (), {})()
+            info: Any = type("OrderInfo", (), {})()
             info.cl_ord_id = str(getattr(msg, "cl_ord_id", "TEST"))
             info.executions = [{"exec_type": "0"}]  # New
             for cb in self._order_cbs:
@@ -59,7 +58,7 @@ class _MockTradeConnection:
                     pass
         def _emit_partial():
             time.sleep(0.05)
-            info = type("OrderInfo", (), {})()
+            info: Any = type("OrderInfo", (), {})()
             info.cl_ord_id = str(getattr(msg, "cl_ord_id", "TEST"))
             info.executions = [{"exec_type": "1"}]  # Partial Fill
             for cb in self._order_cbs:
@@ -69,7 +68,7 @@ class _MockTradeConnection:
                     pass
         def _emit_fill():
             time.sleep(0.1)
-            info = type("OrderInfo", (), {})()
+            info: Any = type("OrderInfo", (), {})()
             info.cl_ord_id = str(getattr(msg, "cl_ord_id", "TEST"))
             info.executions = [{"exec_type": "F"}]  # Fill
             for cb in self._order_cbs:
@@ -102,7 +101,7 @@ class MockFIXManager:
         def _emit_md_loop():
             t0 = time.time()
             while self._running and (time.time() - t0) < 2.0:
-                book = type("Book", (), {})()
+                book: Any = type("Book", (), {})()
                 book.bids = [type("L", (), {"price": 1.1, "size": 1000})()]
                 book.asks = [type("L", (), {"price": 1.1002, "size": 1000})()]
                 for cb in self._md_cbs:

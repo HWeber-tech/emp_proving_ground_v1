@@ -17,7 +17,7 @@ try:
     from src.core.events import ContextPacket, PredictionResult  # legacy
 except Exception:  # pragma: no cover
     ContextPacket = PredictionResult = object  # type: ignore
-from src.operational.state_store import StateStore
+from src.core.state_store import StateStore
 
 logger = logging.getLogger(__name__)
 
@@ -384,6 +384,12 @@ class PredictiveMarketModeler:
         
         self._prediction_history_key = "emp:prediction_history"
     
+    async def initialize(self) -> bool:
+        return True
+
+    async def stop(self) -> bool:
+        return True
+
     async def predict_market_scenarios(
         self,
         current_state: Dict[str, Any],

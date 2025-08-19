@@ -9,7 +9,6 @@ Date: July 18, 2024
 Phase: 1.5 - Advanced Data Sources Complete
 """
 
-from src.validation.models import ValidationResult as ValidationResult
 
 
 # Import main data management classes
@@ -68,7 +67,6 @@ __all__ = [
     'DataConsistencyChecker',
     'DataQualityMonitor',
     'ValidationLevel',
-    'ValidationResult',
     'DataQualityThresholds',
     'DataIssue',
     

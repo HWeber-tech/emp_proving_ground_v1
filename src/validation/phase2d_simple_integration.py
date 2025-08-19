@@ -8,30 +8,28 @@ Simplified but complete integration testing with real market data.
 Validates end-to-end functionality without complex dependencies.
 """
 
+from __future__ import annotations
+
 import asyncio
 import json
 import logging
 import time
 from datetime import datetime
 from decimal import Decimal
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 import pandas as pd
 
-from src.sensory.enhanced.anomaly.manipulation_detection import ManipulationDetectionSystem
-from src.sensory.organs.yahoo_finance_organ import YahooFinanceOrgan
+from src.core.market_data import MarketDataGateway, NoOpMarketDataGateway
+from src.core.anomaly import AnomalyDetector, NoOpAnomalyDetector
+from src.core.regime import RegimeClassifier, NoOpRegimeClassifier
 
 try:
-    from src.trading.risk.market_regime_detector import MarketRegimeDetector  # deprecated
-except Exception:  # pragma: no cover
-    MarketRegimeDetector = None  # type: ignore
-try:
-    from src.core.interfaces import DecisionGenome
+    from src.core.interfaces import DecisionGenome  # pragma: no cover
 except Exception:  # pragma: no cover
     DecisionGenome = object  # type: ignore
-from src.core import Instrument, InstrumentProvider
-from src.risk import RiskConfig, RiskManager
+from src.core.risk_ports import RiskManagerPort, RiskConfigDecl, NoOpRiskManager
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -40,11 +38,17 @@ logger = logging.getLogger(__name__)
 class SimplePhase2DValidator:
     """Simplified Phase 2D validator for real integration testing"""
     
-    def __init__(self):
-        self.yahoo_organ = YahooFinanceOrgan()
-        self.manipulation_detector = ManipulationDetectionSystem()
-        self.regime_detector = MarketRegimeDetector()
-        self.instrument_provider = InstrumentProvider()
+    def __init__(
+        self,
+        market_data_gateway: Optional[MarketDataGateway] = None,
+        anomaly_detector: Optional[AnomalyDetector] = None,
+        regime_classifier: Optional[RegimeClassifier] = None,
+        risk_manager: Optional[RiskManagerPort] = None,
+    ):
+        self.market_data = market_data_gateway or NoOpMarketDataGateway()
+        self.anomaly_detector = anomaly_detector or NoOpAnomalyDetector()
+        self.regime_classifier = regime_classifier or NoOpRegimeClassifier()
+        self.risk_manager = risk_manager
         
     async def test_real_data_integration(self) -> dict:
         """Test real market data integration"""
@@ -58,7 +62,7 @@ class SimplePhase2DValidator:
             real_data_results = []
             for symbol in symbols:
                 try:
-                    data = self.yahoo_organ.fetch_data(symbol, period="7d", interval="1h")
+                    data = self.market_data.fetch_data(symbol, period="7d", interval="1h")
                     if data is not None and len(data) > 10:
                         real_data_results.append({
                             'symbol': symbol,
@@ -84,13 +88,13 @@ class SimplePhase2DValidator:
             # Test 2: Sensory processing
             start_time = time.time()
             if any(r['success'] for r in real_data_results):
-                test_data = self.yahoo_organ.fetch_data('EURUSD=X', period="30d", interval="1d")
+                test_data = self.market_data.fetch_data('EURUSD=X', period="30d", interval="1d")
                 if test_data is not None:
-                    anomalies = await self.manipulation_detector.detect_manipulation(test_data)
-                    regime = await self.regime_detector.detect_regime(test_data)
-                    
+                    anomalies = await self.anomaly_detector.detect_manipulation(test_data)
+                    regime_result = await self.regime_classifier.detect_regime(test_data)
+
                     sensory_processing_time = time.time() - start_time
-                    
+
                     return {
                         'test_name': 'real_data_integration',
                         'passed': True,
@@ -98,7 +102,7 @@ class SimplePhase2DValidator:
                         'sensory_processing_time': sensory_processing_time,
                         'real_data_sources': sum(1 for r in real_data_results if r['success']),
                         'anomalies_detected': len(anomalies) if anomalies else 0,
-                        'regime_detected': regime.regime.value if regime else 'UNKNOWN',
+                        'regime_detected': (regime_result.regime if regime_result else 'UNKNOWN'),
                         'details': f"Successfully processed real data from {sum(1 for r in real_data_results if r['success'])} sources"
                     }
             
@@ -124,7 +128,7 @@ class SimplePhase2DValidator:
             logger.info("Testing real performance metrics...")
             
             # Get real market data for performance testing
-            data = self.yahoo_organ.fetch_data('^GSPC', period="365d", interval="1d")
+            data = self.market_data.fetch_data('^GSPC', period="365d", interval="1d")
             if data is None or len(data) < 20:
                 return {
                     'test_name': 'performance_metrics',
@@ -178,7 +182,7 @@ class SimplePhase2DValidator:
             logger.info("Testing risk management integration...")
             
             # Test risk configuration
-            risk_config = RiskConfig(
+            risk_config = RiskConfigDecl(
                 max_risk_per_trade_pct=Decimal('0.02'),
                 max_leverage=Decimal('10.0'),
                 max_total_exposure_pct=Decimal('0.5'),
@@ -187,7 +191,7 @@ class SimplePhase2DValidator:
                 max_position_size=100000
             )
             
-            risk_manager = RiskManager(risk_config, self.instrument_provider)
+            risk_manager = self.risk_manager or NoOpRiskManager(risk_config)
             
             # Test position validation
             position = {
@@ -197,9 +201,9 @@ class SimplePhase2DValidator:
                 'entry_timestamp': datetime.now()
             }
             
-            instrument = Instrument("EURUSD", "Currency")
+            instrument = {"symbol": "EURUSD", "type": "Currency"}
             equity = Decimal('100000')
-            
+
             is_valid = risk_manager.validate_position(
                 position=position,
                 instrument=instrument,
@@ -267,14 +271,14 @@ class SimplePhase2DValidator:
     async def _fetch_symbol_async(self, symbol: str) -> dict:
         """Helper for async symbol fetching"""
         try:
-            data = self.yahoo_organ.fetch_data(symbol, period="1d", interval="1h")
+            data = self.market_data.fetch_data(symbol, period="1d", interval="1h")
             if data is not None and len(data) > 0:
                 return {'success': True, 'symbol': symbol, 'data_points': len(data)}
             return {'success': False, 'symbol': symbol}
         except Exception:
             return {'success': False, 'symbol': symbol}
     
-    async def _evaluate_genome_with_real_data(self, genome: DecisionGenome, data: pd.DataFrame) -> Optional[float]:
+    async def _evaluate_genome_with_real_data(self, genome: Any, data: pd.DataFrame) -> Optional[float]:
         """Simple fitness evaluation with real data"""
         try:
             if len(data) < 10:
@@ -342,40 +346,41 @@ class SimplePhase2DValidator:
         
         return report
     
-    def _validate_real_success_criteria(self, results: List[dict]) -> dict:
+    def _validate_real_success_criteria(self, results: List[dict]) -> Dict[str, Any]:
         """Validate against real success criteria"""
-        criteria = {
+        criteria: Dict[str, Any] = {
             'response_time': {'target': 1.0, 'actual': None, 'passed': False},
             'sharpe_ratio': {'target': 1.5, 'actual': None, 'passed': False},
             'max_drawdown': {'target': 0.03, 'actual': None, 'passed': False},
             'concurrent_ops': {'target': 5.0, 'actual': None, 'passed': False},
             'uptime': {'target': 99.9, 'actual': None, 'passed': False}
         }
-        
+
         # Extract actual values
         for result in results:
             test_name = result.get('test_name')
-            
+
             if test_name == 'real_data_integration':
                 criteria['response_time']['actual'] = result.get('data_fetch_time', 999)
-                
+
             elif test_name == 'performance_metrics':
                 criteria['sharpe_ratio']['actual'] = result.get('sharpe_ratio', 0)
                 criteria['max_drawdown']['actual'] = abs(result.get('max_drawdown', 999))
-                
+
             elif test_name == 'concurrent_operations':
                 criteria['concurrent_ops']['actual'] = result.get('throughput', 0)
-        
+
         # Validate each criterion
         all_passed = True
-        for key, criterion in criteria.items():
-            if criterion['actual'] is not None:
+        for key, criterion in list(criteria.items()):
+            if isinstance(criterion, dict) and criterion.get('actual') is not None:
                 if key == 'max_drawdown':
                     criterion['passed'] = criterion['actual'] <= criterion['target']
                 else:
                     criterion['passed'] = criterion['actual'] >= criterion['target']
-                
+
                 if not criterion['passed']:
                     all_passed = False
-        
-        criteria['all_passed'] = all_passed
+
+        criteria['summary'] = {'all_passed': all_passed}
+        return criteria

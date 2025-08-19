@@ -16,17 +16,70 @@ This orchestrator manages:
 import asyncio
 import logging
 from datetime import datetime, timedelta
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, Protocol, TypedDict, runtime_checkable, Sequence
 import uuid
+import json
+import numpy as np
+import inspect
 
-from src.intelligence.sentient_adaptation import SentientAdaptationEngine
+from src.core.adaptation import AdaptationService, NoOpAdaptationService
 from src.thinking.prediction.predictive_market_modeler import PredictiveMarketModeler
 from src.thinking.adversarial.market_gan import MarketGAN
 from src.thinking.adversarial.red_team_ai import RedTeamAI
 from src.thinking.ecosystem.specialized_predator_evolution import SpecializedPredatorEvolution
 from src.thinking.competitive.competitive_intelligence_system import CompetitiveIntelligenceSystem
-from src.operational.state_store import StateStore
+from src.core.state_store import StateStore
 from src.core.event_bus import EventBus
+
+# Local type definitions to reduce Any usage
+class PredictionTD(TypedDict, total=False):
+    confidence: float
+    probability: float
+
+class GANResultTD(TypedDict, total=False):
+    success: bool
+    improved_strategies: list[str]
+
+class RedTeamResultTD(TypedDict, total=False):
+    survival_probability: float
+    weaknesses: list[object]
+
+@runtime_checkable
+class PredictiveModeler(Protocol):
+    async def initialize(self) -> bool: ...
+    async def stop(self) -> bool: ...
+    async def predict_market_scenarios(
+        self,
+        current_state: Dict[str, Any],
+        time_horizon: timedelta,
+        num_scenarios: int = ...
+    ) -> Sequence[object]: ...
+
+@runtime_checkable
+class MarketGANP(Protocol):
+    async def initialize(self) -> bool: ...
+    async def stop(self) -> bool: ...
+    async def train_adversarial_strategies(
+        self,
+        strategy_population: List[str],
+        num_epochs: int = ...
+    ) -> List[str]: ...
+
+@runtime_checkable
+class RedTeamP(Protocol):
+    async def initialize(self) -> bool: ...
+    async def stop(self) -> bool: ...
+    async def attack_strategy(self, target_strategy: str) -> Dict[str, Any]: ...
+
+@runtime_checkable
+class SpecializedEvolutionP(Protocol):
+    async def initialize(self) -> bool: ...
+    async def stop(self) -> bool: ...
+
+@runtime_checkable
+class CompetitiveIntelP(Protocol):
+    async def initialize(self) -> bool: ...
+    async def stop(self) -> bool: ...
 
 logger = logging.getLogger(__name__)
 
@@ -39,17 +92,17 @@ class Phase3Orchestrator:
     together as a unified, intelligent ecosystem.
     """
     
-    def __init__(self, state_store: StateStore, event_bus: EventBus):
+    def __init__(self, state_store: StateStore, event_bus: EventBus, adaptation_service: Optional[AdaptationService] = None):
         self.state_store = state_store
         self.event_bus = event_bus
         
         # Initialize all Phase 3 systems
-        self.sentient_engine = SentientAdaptationEngine(state_store, event_bus)
-        self.predictive_modeler = PredictiveMarketModeler(state_store)
-        self.market_gan = MarketGAN(state_store)
-        self.red_team = RedTeamAI(state_store)
-        self.specialized_evolution = SpecializedPredatorEvolution(state_store)
-        self.competitive_intelligence = CompetitiveIntelligenceSystem(state_store)
+        self.sentient_engine = adaptation_service or NoOpAdaptationService()
+        self.predictive_modeler: PredictiveModeler = PredictiveMarketModeler(state_store)
+        self.market_gan: MarketGANP = MarketGAN(state_store)
+        self.red_team: RedTeamP = RedTeamAI(state_store)
+        self.specialized_evolution: SpecializedEvolutionP = SpecializedPredatorEvolution()
+        self.competitive_intelligence: CompetitiveIntelP = CompetitiveIntelligenceSystem(state_store)
         
         # Configuration
         self.config = {
@@ -65,7 +118,7 @@ class Phase3Orchestrator:
         # State tracking
         self.is_running = False
         self.last_full_analysis = None
-        self.performance_metrics = {}
+        self.performance_metrics: Dict[str, Any] = {}
         
         logger.info("Phase 3 Orchestrator initialized")
     
@@ -165,7 +218,7 @@ class Phase3Orchestrator:
             logger.info("Running full Phase 3 analysis...")
             
             analysis_start = datetime.utcnow()
-            results = {
+            results: Dict[str, Any] = {
                 'analysis_id': str(uuid.uuid4()),
                 'timestamp': analysis_start.isoformat(),
                 'systems': {}
@@ -237,15 +290,18 @@ class Phase3Orchestrator:
             current_state = await self._get_current_market_state()
             
             # Generate predictions
-            predictions = await self.predictive_modeler.predict_market_scenarios(
+            predictions: Sequence[object] = await self.predictive_modeler.predict_market_scenarios(
                 current_state=current_state,
                 time_horizon=timedelta(hours=24)
             )
             
+            avg_conf = float(np.mean([float(getattr(p, "confidence", getattr(p, "confidence", 0.0))) for p in predictions])) if predictions else 0.0
+            high_prob = sum(1 for p in predictions if float(getattr(p, "probability", getattr(p, "probability", 0.0))) > 0.7)
+            
             return {
                 'scenarios_generated': len(predictions),
-                'average_confidence': np.mean([p.confidence for p in predictions]),
-                'high_probability_scenarios': len([p for p in predictions if p.probability > 0.7]),
+                'average_confidence': avg_conf,
+                'high_probability_scenarios': high_prob,
                 'prediction_accuracy': 0.75  # Would be calculated from historical data
             }
             
@@ -264,20 +320,205 @@ class Phase3Orchestrator:
                 strategy_population=strategy_population
             )
             
+            # Treat GAN results flexibly (dict-like or attribute-object)
+            success = bool(getattr(gan_results, "get", lambda *_: False)("success", False)) if isinstance(gan_results, dict) else bool(getattr(gan_results, "success", False))
+            improved = getattr(gan_results, "get", lambda *_: [])("improved_strategies", []) if isinstance(gan_results, dict) else getattr(gan_results, "improved_strategies", [])
+            
             # Run red team attacks
             red_team_results = []
             for strategy in strategy_population[:5]:  # Test top 5 strategies
                 attack_result = await self.red_team.attack_strategy(strategy)
                 red_team_results.append(attack_result)
             
+            survival_rate = float(np.mean([float(getattr(r, "survival_probability", getattr(r, "survival_probability", 0.0))) for r in red_team_results])) if red_team_results else 0.0
+            vulnerabilities_found = int(sum([len(getattr(r, "weaknesses", getattr(r, "weaknesses", []))) for r in red_team_results]))
+            
             return {
-                'gan_training_complete': gan_results.get('success', False),
-                'strategies_improved': len(gan_results.get('improved_strategies', [])),
+                'gan_training_complete': success,
+                'strategies_improved': len(improved),
                 'red_team_attacks': len(red_team_results),
-                'vulnerabilities_found': sum([len(r.weaknesses) for r in red_team_results]),
-                'survival_rate': np.mean([r.survival_probability for r in red_team_results])
+                'vulnerabilities_found': vulnerabilities_found,
+                'survival_rate': survival_rate
             }
             
         except Exception as e:
             logger.error(f"Error in adversarial analysis: {e}")
-            return
+            return {'error': str(e)}
+
+    async def _run_specialized_analysis(self) -> Dict[str, Any]:
+        """Run specialized predator evolution analysis (safe defaults)."""
+        try:
+            result: Dict[str, Any] = {'status': 'ok', 'modules': 0}
+            se = getattr(self, 'specialized_evolution', None)
+            if se is not None:
+                for method_name in ('analyze', 'evaluate', 'run_analysis', 'run_cycle'):
+                    method = getattr(se, method_name, None)
+                    if callable(method):
+                        maybe = method()
+                        if asyncio.iscoroutine(maybe):
+                            maybe = await maybe
+                        if isinstance(maybe, dict):
+                            # Merge but keep required keys if absent in response
+                            result.update({**maybe})
+                        else:
+                            result['result'] = str(maybe)
+                        break
+            # Ensure required keys present
+            result.setdefault('status', 'ok')
+            result.setdefault('modules', 0)
+            return result
+        except Exception as e:
+            logger.error(f"Error in specialized analysis: {e}")
+            return {'error': str(e), 'status': 'error', 'modules': 0}
+
+    async def _run_competitive_analysis(self) -> Dict[str, Any]:
+        """Run competitive intelligence analysis (safe defaults)."""
+        try:
+            result: Dict[str, Any] = {'competitors_analyzed': 0, 'threats': []}
+            ci = getattr(self, 'competitive_intelligence', None)
+            if ci is not None:
+                for method_name in ('analyze_competitors', 'scan_market', 'analyze', 'scan'):
+                    method = getattr(ci, method_name, None)
+                    if callable(method):
+                        maybe = method()
+                        if asyncio.iscoroutine(maybe):
+                            maybe = await maybe
+                        if isinstance(maybe, dict):
+                            result.update({**maybe})
+                        elif isinstance(maybe, list):
+                            result['threats'] = maybe
+                            result['competitors_analyzed'] = len(maybe)
+                        else:
+                            result['summary'] = str(maybe)
+                        break
+            result.setdefault('competitors_analyzed', 0)
+            result.setdefault('threats', [])
+            return result
+        except Exception as e:
+            logger.error(f"Error in competitive analysis: {e}")
+            return {'error': str(e), 'competitors_analyzed': 0, 'threats': []}
+
+    async def _calculate_overall_metrics(self, results: Dict[str, Any]) -> Dict[str, Any]:
+        """Compute simple aggregate metrics from system results (defensive)."""
+        try:
+            systems = results.get('systems', {}) or {}
+            total = len(systems)
+            has_errors = any(isinstance(v, dict) and 'error' in v for v in systems.values())
+
+            success_count = 0
+            for name, v in systems.items():
+                if not isinstance(v, dict):
+                    continue
+                if v.get('error'):
+                    continue
+                if v.get('adaptation_success') or v.get('gan_training_complete') or v.get('status') == 'ok':
+                    success_count += 1
+
+            success_ratio = (success_count / total) if total else 0.0
+
+            presence = {
+                'sentient': 'sentient' in systems,
+                'predictive': 'predictive' in systems,
+                'adversarial': 'adversarial' in systems,
+                'specialized': 'specialized' in systems,
+                'competitive': 'competitive' in systems,
+            }
+
+            return {
+                'systems_count': total,
+                'has_errors': has_errors,
+                'success_ratio': success_ratio,
+                'presence': presence,
+                'computed_at': datetime.utcnow().isoformat()
+            }
+        except Exception as e:
+            logger.error(f"Error calculating overall metrics: {e}")
+            return {
+                'systems_count': 0,
+                'has_errors': True,
+                'success_ratio': 0.0,
+                'presence': {},
+                'computed_at': datetime.utcnow().isoformat()
+            }
+
+    async def _store_analysis_results(self, results: Dict[str, Any]) -> None:
+        """Persist compact analysis summary to the state store (defensive)."""
+        try:
+            compact = {
+                'analysis_id': results.get('analysis_id'),
+                'timestamp': results.get('timestamp'),
+                'overall_metrics': results.get('overall_metrics', {})
+            }
+            payload = json.dumps(compact, separators=(',', ':'))
+            setter = getattr(self.state_store, 'set', None)
+            if callable(setter):
+                try:
+                    result = setter('phase3:last_full_analysis', payload)
+                    if inspect.isawaitable(result):
+                        await result
+                except Exception:
+                    # Fallback for sync or differently-typed setter; swallow errors
+                    try:
+                        setter('phase3:last_full_analysis', payload)  # type: ignore[misc]
+                    except Exception:
+                        pass
+        except Exception as e:
+            # Swallow errors by design to keep behavior non-breaking
+            logger.debug(f"Non-fatal error storing analysis results: {e}")
+
+    async def _get_current_market_state(self) -> Dict[str, Any]:
+        """Return a minimal current market state snapshot."""
+        try:
+            return {'timestamp': datetime.utcnow().isoformat()}
+        except Exception:
+            # Extremely defensive: always return a dict
+            return {'timestamp': datetime.utcnow().isoformat()}
+
+    async def _get_strategy_population(self) -> List[str]:
+        """Return placeholder strategy identifiers."""
+        try:
+            return ['strat_A', 'strat_B', 'strat_C']
+        except Exception:
+            return ['strat_A']
+
+    async def _run_performance_monitoring(self) -> None:
+        """Background task to track simple performance metrics."""
+        try:
+            while self.is_running:
+                try:
+                    now = datetime.utcnow().isoformat()
+                    metrics = self.performance_metrics
+                    metrics['last_tick'] = now
+                    metrics['tick_count'] = int(metrics.get('tick_count', 0)) + 1
+                    if self.last_full_analysis:
+                        metrics['last_full_analysis_age_sec'] = max(
+                            0,
+                            int((datetime.utcnow() - self.last_full_analysis).total_seconds())
+                        )
+                    sleep_interval = min(5, int(self.config.get('update_frequency', 300)))
+                except Exception as inner:
+                    logger.debug(f"Performance monitoring loop error: {inner}")
+                    sleep_interval = 5
+                await asyncio.sleep(sleep_interval)
+        except asyncio.CancelledError:
+            # Task cancellation should not raise
+            pass
+        except Exception as e:
+            logger.debug(f"Performance monitoring stopped with error: {e}")
+
+    async def _run_continuous_analysis(self) -> None:
+        """Background lightweight continuous analysis or heartbeat."""
+        try:
+            while self.is_running:
+                try:
+                    # Lightweight heartbeat; extend with real checks if needed
+                    self.performance_metrics['heartbeat'] = datetime.utcnow().isoformat()
+                    sleep_interval = int(self.config.get('update_frequency', 300))
+                except Exception as inner:
+                    logger.debug(f"Continuous analysis loop error: {inner}")
+                    sleep_interval = 60
+                await asyncio.sleep(sleep_interval)
+        except asyncio.CancelledError:
+            pass
+        except Exception as e:
+            logger.debug(f"Continuous analysis stopped with error: {e}")

@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from typing import Dict, List, Optional
 
 from src.core.event_bus import EventBus
-from src.operational.state_store import StateStore
+from src.core.state_store import StateStore
 
 logger = logging.getLogger(__name__)
 

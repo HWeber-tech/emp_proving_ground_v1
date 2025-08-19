@@ -13,7 +13,7 @@ from typing import Any, Dict, List, Optional
 import numpy as np
 import pandas as pd
 
-from src.sensory.organs.dimensions.base_organ import MarketRegime
+from src.core.regime import MarketRegime
 
 from ...core.events import AnalysisResult, MarketData
 

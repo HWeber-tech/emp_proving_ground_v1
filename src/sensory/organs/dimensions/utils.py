@@ -11,9 +11,6 @@ from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 
-from src.trading.monitoring.performance_tracker import (
-    PerformanceTracker as PerformanceTracker,
-)
 
 from .base_organ import MarketRegime
 
@@ -53,7 +50,8 @@ class EMA:
             self.value = new_value
             self.is_initialized = True
         else:
-            self.value = self.alpha * new_value + (1 - self.alpha) * self.value
+            prev = float(self.value if self.value is not None else new_value)
+            self.value = self.alpha * new_value + (1 - self.alpha) * prev
 
         return self.value
 

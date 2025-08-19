@@ -272,3 +272,60 @@ def start_metrics_server(port: Optional[int] = None) -> None:
                 return
     except Exception:
         return
+
+# ---- Core telemetry sink adapter registration (ports/adapters) ----
+try:
+    # Register an adapter so domain code can emit metrics via core.telemetry.MetricsSink
+    from src.core.telemetry import MetricsSink as _MetricsSink, set_metrics_sink as _set_metrics_sink  # type: ignore
+except Exception:  # pragma: no cover
+    _MetricsSink = None  # type: ignore
+
+if _MetricsSink is not None:  # pragma: no cover
+    from typing import Dict, List, Optional
+
+    class _RegistryMetricsSink(_MetricsSink):  # type: ignore[misc]
+        def set_gauge(self, name: str, value: float, labels: Optional[Dict[str, str]] = None) -> None:
+            try:
+                labelnames = sorted(labels.keys()) if labels else None
+                g = get_registry().get_gauge(name, name, labelnames)  # type: ignore[arg-type]
+                if labels:
+                    g.labels(**labels).set(float(value))
+                else:
+                    g.set(float(value))
+            except Exception:
+                pass
+
+        def inc_counter(self, name: str, amount: float = 1.0, labels: Optional[Dict[str, str]] = None) -> None:
+            try:
+                labelnames = sorted(labels.keys()) if labels else None
+                c = get_registry().get_counter(name, name, labelnames)  # type: ignore[arg-type]
+                if labels:
+                    c.labels(**labels).inc(float(amount))
+                else:
+                    c.inc(float(amount))
+            except Exception:
+                pass
+
+        def observe_histogram(
+            self,
+            name: str,
+            value: float,
+            buckets: Optional[List[float]] = None,
+            labels: Optional[Dict[str, str]] = None,
+        ) -> None:
+            try:
+                eff_buckets = list(buckets) if buckets is not None else [0.005, 0.01, 0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10]
+                if labels:
+                    labelnames = sorted(labels.keys())
+                    h = get_registry().get_histogram(name, name, eff_buckets, labelnames)  # type: ignore[call-arg]
+                    h.labels(**labels).observe(float(value))
+                else:
+                    h = get_registry().get_histogram(name, name, eff_buckets)  # type: ignore[call-arg]
+                    h.observe(float(value))
+            except Exception:
+                pass
+
+    try:
+        _set_metrics_sink(_RegistryMetricsSink())  # type: ignore[operator]
+    except Exception:
+        pass

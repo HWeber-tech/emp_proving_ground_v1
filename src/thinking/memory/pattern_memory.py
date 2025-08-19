@@ -14,7 +14,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 
 from src.core.event_bus import EventBus
-from src.operational.state_store import StateStore
+from src.core.state_store import StateStore
 
 logger = logging.getLogger(__name__)
 
@@ -60,7 +60,7 @@ class PatternMemory:
         latent_vector: np.ndarray,
         market_context: Dict[str, Any],
         trading_outcome: Dict[str, Any],
-        metadata: Dict[str, Any] = None
+        metadata: Optional[Dict[str, Any]] = None
     ) -> None:
         """Store a new trading context in memory."""
         entry = MemoryEntry(

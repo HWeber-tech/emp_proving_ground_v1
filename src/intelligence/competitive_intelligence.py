@@ -53,7 +53,7 @@ _LAZY_EXPORTS: Dict[str, str] = {
 __all__ = list(_LAZY_EXPORTS.keys()) + ["StrategyInsightLegacy", "AlgorithmFingerprinterLegacy"]
 
 
-def __getattr__(name: str) -> Any:
+def __getattr__(name: str) -> object:
     """PEP 562 lazy re-export for canonical symbols.
 
     Imports the canonical implementation on first attribute access, caches
@@ -89,7 +89,7 @@ class _NumpyProxy:
     deferring the import until a legacy method actually needs it.
     """
 
-    def __getattr__(self, item: str) -> Any:  # pragma: no cover - exercised indirectly
+    def __getattr__(self, item: str) -> object:  # pragma: no cover - exercised indirectly
         try:
             import numpy as _np  # Localized heavy import
         except Exception as exc:
@@ -135,15 +135,16 @@ class StrategyInsightLegacy:
                 "scikit-learn is required for StrategyInsightLegacy.cluster_signatures"
             ) from exc
 
-        # Import numpy locally for this operation; _np proxy provides attributes too.
+        # Import numpy locally for this operation; require real numpy at use-time.
         try:
-            import numpy as np  # Prefer a real numpy if available
-        except Exception:  # Fall back to proxy that raises on use if truly absent
-            np = _np  # type: ignore[assignment]
+            import numpy as _np_mod  # Prefer a real numpy if available
+        except Exception as exc:
+            raise RuntimeError("numpy is required for StrategyInsightLegacy.cluster_signatures") from exc
 
         model = DBSCAN(eps=eps, min_samples=min_samples)
-        labels = model.fit(np.asarray(X)).labels_
-        return labels.tolist()  # type: ignore[no-any-return]
+        labels_arr = model.fit(_np_mod.asarray(X)).labels_
+        labels_list: list[int] = [int(x) for x in getattr(labels_arr, "tolist")()]
+        return labels_list
 
     def torch_sanity(self) -> bool:
         """Check that torch is importable at use-time (not at module import).
@@ -165,18 +166,16 @@ class AlgorithmFingerprinterLegacy:
         # Localized heavy import to ensure construction fails when sklearn is blocked
         try:
             from sklearn.preprocessing import (
-                StandardScaler,  # type: ignore  # Localized heavy import
+                StandardScaler,  # Localized heavy import
             )
         except Exception as exc:
             raise ImportError("scikit-learn is required for AlgorithmFingerprinterLegacy") from exc
         self._scaler = StandardScaler()
 
     def fingerprint(self, X: "list[list[float]]") -> "tuple[int,int]":
-        try:
-            import numpy as np
-        except Exception:
-            np = _np  # type: ignore[assignment]
-        arr = np.asarray(X)
-        return tuple(arr.shape)  # type: ignore[return-value]
+        # Compute shape without relying on numpy typing
+        rows = len(X)
+        cols = len(X[0]) if (rows > 0 and isinstance(X[0], list)) else 0
+        return (rows, cols)
 
 # End of module

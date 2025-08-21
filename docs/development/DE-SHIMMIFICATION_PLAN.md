@@ -64,6 +64,43 @@ Notes:
 - Catch-all policy: The rewrite tool will also detect import-from modules that are pure re-exports (modules that only import-and-expose symbols from canonical modules) and suggest mapping entries where not explicitly listed, see Section 4.
 
 
+### 3A) Phase 1 canonicalization status — Completed
+
+This batch promotes the following surfaces to their canonical modules and normalizes imports across src/ and tests/ (no behavior changes):
+
+- Volatility surface (canonical module):
+  - [src/sensory/what/volatility_engine.py](src/sensory/what/volatility_engine.py:1)
+  - Canonical symbols: VolConfig, VolatilityEngine
+  - Export contract: __all__ = ["VolConfig", "VolatilityEngine"]
+  - Real implementation discovery: no existing VolatilityEngine class elsewhere; canonical now houses typed shim for VolatilityEngine and the VolConfig dataclass.
+
+- Trading Execution surface (canonical module):
+  - [src/trading/execution/execution_engine.py](src/trading/execution/execution_engine.py:1)
+  - Canonical symbols: ExecutionEngine
+  - Export contract: __all__ = ["ExecutionEngine"]
+  - Real implementation discovery: no alternate internal ExecutionEngine classes found; package __init__ retains non-canonical re-export but is unused internally.
+
+- Real Sensory Organ surface (canonical module):
+  - [src/sensory/real_sensory_organ.py](src/sensory/real_sensory_organ.py:1)
+  - Canonical symbols: RealSensoryOrgan
+  - Export contract: __all__ = ["RealSensoryOrgan"]
+  - Removed placeholder shim (re-export only): [src/sensory/organs/dimensions/real_sensory_organ.py](src/sensory/organs/dimensions/real_sensory_organ.py:1)
+
+Import normalization summary (src/ + tests/ only):
+- Volatility surface: 1 import alignment (see migration notes)
+- Execution surface: 0 (already canonical)
+- Real Sensory Organ: 0 (no internal uses of the shim)
+- Total: 1
+
+Migration notes (anchors):
+- [src/data_foundation/config/vol_config.py](src/data_foundation/config/vol_config.py:22)
+  - Before → after:
+    - from src.sensory.what.volatility_engine import VolConfig as _VolConfig  →  from src.sensory.what.volatility_engine import VolConfig, VolatilityEngine
+- No other legacy imports for these surfaces were found under src/ or tests/.
+
+Notes:
+- Scripts under scripts/ still reference historical helpers like vol_signal; these are out-of-scope for Phase 1 and intentionally untouched.
+
 ## 4) Automated import rewrite blueprint
 
 Tooling deliverable: [scripts/cleanup/rewrite_imports.py](scripts/cleanup/rewrite_imports.py) (to be implemented in PR1)

@@ -11,7 +11,7 @@ from typing import Any, Dict, List, Optional
 
 import numpy as np
 
-from src.sensory.core.base import DimensionalReading, MarketData, MarketRegime
+from src.core.base import DimensionalReading, MarketData, MarketRegime
 
 logger = logging.getLogger(__name__)
 

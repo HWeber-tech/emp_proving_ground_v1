@@ -12,18 +12,25 @@ import logging
 from collections import defaultdict
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Any, Dict, List
+from typing import Dict, List, DefaultDict, TypedDict
 
 import numpy as np
+from src.core.types import JSONObject
 
-from src.core.interfaces import ICoordinationEngine, MarketContext, TradeIntent
+from src.core.interfaces import (
+    ICoordinationEngine,
+    MarketContext,
+    TradeIntent,
+    CoordinationResult as CoordinationResultProto,
+    HasSpeciesType,
+)
 
 logger = logging.getLogger(__name__)
 
 
 @dataclass
-class CoordinationResult:
-    """Result of coordination process."""
+class CoordinationResultData:
+    """Result of coordination process (implementation of CoordinationResult Protocol)."""
     approved_intents: List[TradeIntent]
     rejected_intents: List[TradeIntent]
     coordination_score: float
@@ -31,27 +38,39 @@ class CoordinationResult:
     correlation_impact: float
 
 
+class PositionEntry(TypedDict):
+    intent: TradeIntent
+    timestamp: datetime
+    status: str
+
+
+class CoordinationHistoryEntry(TypedDict):
+    timestamp: datetime
+    result: CoordinationResultData
+    context: MarketContext
+
+
 class CoordinationEngine(ICoordinationEngine):
     """Advanced coordination engine for predator strategies."""
     
-    def __init__(self):
-        self.active_positions = defaultdict(list)
-        self.coordination_history = []
-        self.risk_limits = {
+    def __init__(self) -> None:
+        self.active_positions: DefaultDict[str, List[PositionEntry]] = defaultdict(list)
+        self.coordination_history: List[CoordinationHistoryEntry] = []
+        self.risk_limits: Dict[str, float] = {
             'max_portfolio_risk': 0.15,
             'max_correlation': 0.7,
             'max_single_species_risk': 0.05,
-            'max_daily_trades': 50
+            'max_daily_trades': 50.0,
         }
         
-    async def resolve_intents(self, intents: List[TradeIntent], 
-                            market_context: MarketContext) -> CoordinationResult:
+    async def resolve_intents(self, intents: List[TradeIntent],
+                            market_context: MarketContext) -> CoordinationResultProto:
         """Resolve conflicting intents from multiple strategies."""
         if not intents:
-            return CoordinationResult([], [], 0.0, 0.0, 0.0)
+            return CoordinationResultData([], [], 0.0, 0.0, 0.0)
         
         # Group intents by symbol
-        symbol_groups = defaultdict(list)
+        symbol_groups: DefaultDict[str, List[TradeIntent]] = defaultdict(list)
         for intent in intents:
             symbol_groups[intent.symbol].append(intent)
         
@@ -72,7 +91,7 @@ class CoordinationEngine(ICoordinationEngine):
         # Update active positions
         self._update_active_positions(approved_intents)
         
-        result = CoordinationResult(
+        result = CoordinationResultData(
             approved_intents=approved_intents,
             rejected_intents=rejected_intents,
             coordination_score=coordination_score,
@@ -106,7 +125,7 @@ class CoordinationEngine(ICoordinationEngine):
         # Apply coordination rules
         approved = []
         rejected = []
-        total_risk = 0
+        total_risk: float = 0.0
         
         for score, intent in scored_intents:
             intent_risk = intent.size * intent.confidence
@@ -140,7 +159,7 @@ class CoordinationEngine(ICoordinationEngine):
         score += (intent.priority / 10.0) * 0.15
         
         # Time decay (recent intents get slight bonus)
-        time_bonus = max(0, 1 - (datetime.now() - intent.timestamp).seconds / 3600)
+        time_bonus = max(0.0, 1 - (datetime.now() - intent.timestamp).seconds / 3600)
         score += time_bonus * 0.1
         
         return score
@@ -188,8 +207,8 @@ class CoordinationEngine(ICoordinationEngine):
         
         return suitability_map.get(species_type, {}).get(market_context.regime, 0.5)
     
-    async def prioritize_strategies(self, strategies: List[Any], 
-                                  regime: str) -> List[Any]:
+    async def prioritize_strategies(self, strategies: List[HasSpeciesType],
+                                  regime: str) -> List[HasSpeciesType]:
         """Prioritize strategies based on current market regime."""
         if not strategies:
             return []
@@ -206,7 +225,7 @@ class CoordinationEngine(ICoordinationEngine):
         species_order = priority_map.get(regime, ['pack_hunter'] * 5)
         
         # Sort strategies by species priority
-        def get_priority(strategy):
+        def get_priority(strategy: HasSpeciesType) -> int:
             species = getattr(strategy, 'species_type', 'generic')
             try:
                 return species_order.index(species)
@@ -221,7 +240,7 @@ class CoordinationEngine(ICoordinationEngine):
             return 0.0
         
         # Check for conflicting directions
-        directions = defaultdict(int)
+        directions: DefaultDict[str, int] = defaultdict(int)
         for intent in approved_intents:
             directions[intent.symbol + intent.direction] += 1
         
@@ -248,7 +267,7 @@ class CoordinationEngine(ICoordinationEngine):
             return 0.0
         
         # Group by species
-        species_groups = defaultdict(list)
+        species_groups: DefaultDict[str, List[TradeIntent]] = defaultdict(list)
         for intent in approved_intents:
             species_groups[intent.species_type].append(intent)
         
@@ -278,11 +297,11 @@ class CoordinationEngine(ICoordinationEngine):
                 if pos['timestamp'] > cutoff_time
             ]
     
-    async def get_portfolio_summary(self) -> Dict[str, Any]:
+    async def get_portfolio_summary(self) -> JSONObject:
         """Get summary of current portfolio state."""
         total_positions = sum(len(positions) for positions in self.active_positions.values())
         
-        species_distribution = defaultdict(int)
+        species_distribution: DefaultDict[str, int] = defaultdict(int)
         for positions in self.active_positions.values():
             for pos in positions:
                 species_distribution[pos['intent'].species_type] += 1
@@ -301,7 +320,7 @@ class CoordinationEngine(ICoordinationEngine):
                 'avg_coordination_score': 0.0,
                 'avg_portfolio_risk': 0.0,
                 'avg_correlation_impact': 0.0,
-                'total_resolutions': 0
+                'total_resolutions': 0.0
             }
         
         recent_history = self.coordination_history[-100:]
@@ -313,12 +332,12 @@ class CoordinationEngine(ICoordinationEngine):
             'avg_coordination_score': float(np.mean(scores)),
             'avg_portfolio_risk': float(np.mean(risks)),
             'avg_correlation_impact': float(np.mean(correlations)),
-            'total_resolutions': len(self.coordination_history)
+            'total_resolutions': float(len(self.coordination_history))
         }
 
 
 # Example usage
-async def test_coordination_engine():
+async def test_coordination_engine() -> None:
     """Test the coordination engine."""
     engine = CoordinationEngine()
     

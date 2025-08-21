@@ -13,7 +13,7 @@ from typing import Any, Dict, List, Optional
 import numpy as np
 
 from src.core.exceptions import SensoryException
-from src.sensory.core.base import MarketData, SensoryOrgan
+from src.core.base import MarketData, SensoryOrgan
 from src.sensory.signals import SensorSignal as SensorySignal
 
 logger = logging.getLogger(__name__)

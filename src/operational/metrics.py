@@ -6,12 +6,10 @@ creating metrics at import time. All wrappers are non-raising.
 import logging
 import os
 from threading import Lock
-from typing import Dict, Optional
+from typing import Dict, Optional, List, TYPE_CHECKING, Callable, cast
 
-from src.operational.metrics_registry import (
-    GaugeLike,
-    get_registry,
-)
+from src.core.interfaces import GaugeLike
+from src.operational.metrics_registry import get_registry
 
 _log = logging.getLogger(__name__)
 
@@ -262,7 +260,7 @@ def start_metrics_server(port: Optional[int] = None) -> None:
             except Exception:
                 effective_port = 8081
             try:
-                from prometheus_client import start_http_server  # type: ignore
+                from prometheus_client import start_http_server
             except ImportError:
                 return
             try:
@@ -274,58 +272,65 @@ def start_metrics_server(port: Optional[int] = None) -> None:
         return
 
 # ---- Core telemetry sink adapter registration (ports/adapters) ----
+# Provide static typing via TYPE_CHECKING while keeping runtime optional dependency.
+if TYPE_CHECKING:  # pragma: no cover
+    from src.core.telemetry import MetricsSink as _MetricsSinkBase
+else:  # Runtime fallback base to avoid import-time failures
+    class _MetricsSinkBase:
+        pass
+
+# Runtime import for the registration function
+_rt_set_metrics_sink: Optional[Callable[["_MetricsSinkBase"], None]] = None
 try:
-    # Register an adapter so domain code can emit metrics via core.telemetry.MetricsSink
-    from src.core.telemetry import MetricsSink as _MetricsSink, set_metrics_sink as _set_metrics_sink  # type: ignore
+    from src.core.telemetry import set_metrics_sink as _rt_set_metrics_sink
 except Exception:  # pragma: no cover
-    _MetricsSink = None  # type: ignore
+    _rt_set_metrics_sink = None
 
-if _MetricsSink is not None:  # pragma: no cover
-    from typing import Dict, List, Optional
+class _RegistryMetricsSink:
+    def set_gauge(self, name: str, value: float, labels: Optional[Dict[str, str]] = None) -> None:
+        try:
+            labelnames: Optional[List[str]] = sorted(labels.keys()) if labels else None
+            g = get_registry().get_gauge(name, name, labelnames)
+            if labels:
+                g.labels(**labels).set(float(value))
+            else:
+                g.set(float(value))
+        except Exception:
+            pass
 
-    class _RegistryMetricsSink(_MetricsSink):  # type: ignore[misc]
-        def set_gauge(self, name: str, value: float, labels: Optional[Dict[str, str]] = None) -> None:
-            try:
-                labelnames = sorted(labels.keys()) if labels else None
-                g = get_registry().get_gauge(name, name, labelnames)  # type: ignore[arg-type]
-                if labels:
-                    g.labels(**labels).set(float(value))
-                else:
-                    g.set(float(value))
-            except Exception:
-                pass
+    def inc_counter(self, name: str, amount: float = 1.0, labels: Optional[Dict[str, str]] = None) -> None:
+        try:
+            labelnames: Optional[List[str]] = sorted(labels.keys()) if labels else None
+            c = get_registry().get_counter(name, name, labelnames)
+            if labels:
+                c.labels(**labels).inc(float(amount))
+            else:
+                c.inc(float(amount))
+        except Exception:
+            pass
 
-        def inc_counter(self, name: str, amount: float = 1.0, labels: Optional[Dict[str, str]] = None) -> None:
-            try:
-                labelnames = sorted(labels.keys()) if labels else None
-                c = get_registry().get_counter(name, name, labelnames)  # type: ignore[arg-type]
-                if labels:
-                    c.labels(**labels).inc(float(amount))
-                else:
-                    c.inc(float(amount))
-            except Exception:
-                pass
+    def observe_histogram(
+        self,
+        name: str,
+        value: float,
+        buckets: Optional[List[float]] = None,
+        labels: Optional[Dict[str, str]] = None,
+    ) -> None:
+        try:
+            eff_buckets: List[float] = list(buckets) if buckets is not None else [0.005, 0.01, 0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10]
+            if labels:
+                labelnames: List[str] = sorted(labels.keys())
+                h = get_registry().get_histogram(name, name, eff_buckets, labelnames)
+                h.labels(**labels).observe(float(value))
+            else:
+                h = get_registry().get_histogram(name, name, eff_buckets)
+                h.observe(float(value))
+        except Exception:
+            pass
 
-        def observe_histogram(
-            self,
-            name: str,
-            value: float,
-            buckets: Optional[List[float]] = None,
-            labels: Optional[Dict[str, str]] = None,
-        ) -> None:
-            try:
-                eff_buckets = list(buckets) if buckets is not None else [0.005, 0.01, 0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10]
-                if labels:
-                    labelnames = sorted(labels.keys())
-                    h = get_registry().get_histogram(name, name, eff_buckets, labelnames)  # type: ignore[call-arg]
-                    h.labels(**labels).observe(float(value))
-                else:
-                    h = get_registry().get_histogram(name, name, eff_buckets)  # type: ignore[call-arg]
-                    h.observe(float(value))
-            except Exception:
-                pass
-
+# Register the sink at runtime if available
+if _rt_set_metrics_sink is not None:  # pragma: no cover
     try:
-        _set_metrics_sink(_RegistryMetricsSink())  # type: ignore[operator]
+        _rt_set_metrics_sink(cast("_MetricsSinkBase", _RegistryMetricsSink()))
     except Exception:
         pass

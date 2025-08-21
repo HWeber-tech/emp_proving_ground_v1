@@ -1,0 +1,38 @@
+mypy summary generated at 2025-08-21T11-08-UTC (UTC)
+
+Trailer:
+Found 1777 errors in 189 files (checked 341 source files)
+
+Top 20 files by error count:
+     61 src/sensory/organs/dimensions/integration_orchestrator.py
+     45 src/sensory/organs/analyzers/anomaly_organ.py
+     45 src/operational/icmarkets_robust_application.py
+     44 src/thinking/competitive/competitive_intelligence_system.py
+     44 src/evolution/mutation/gaussian_mutation.py
+     39 src/sensory/organs/dimensions/institutional_tracker.py
+     30 src/thinking/adversarial/red_team_ai.py
+     30 src/sensory/organs/dimensions/pattern_engine.py
+     29 src/ui/ui_manager.py
+     29 src/intelligence/sentient_adaptation.py
+     28 src/sensory/organs/dimensions/why_organ.py
+     28 src/sensory/organs/dimensions/when_organ.py
+     27 src/intelligence/__init__.py
+     27 src/data_integration/data_fusion.py
+     26 src/trading/monitoring/performance_tracker.py
+     26 src/sensory/organs/dimensions/what_organ.py
+     26 src/orchestration/compose.py
+     25 src/sensory/organs/dimensions/macro_intelligence.py
+     25 src/sensory/organs/dimensions/how_organ.py
+     24 src/sentient/memory/faiss_pattern_memory.py
+
+Representative errors (first 10):
+src/core/instrument.py:27: error: Function is missing a return type annotation 
+src/core/instrument.py:43: error: Explicit "Any" is not allowed  [explicit-any]
+src/core/instrument.py:59: error: Explicit "Any" is not allowed  [explicit-any]
+src/core/instrument.py:64: error: Function is missing a type annotation for one
+src/core/instrument.py:74: error: Function is missing a type annotation for one
+src/config/sensory_config.py:16: error: Incompatible types in assignment
+src/config/sensory_config.py:43: error: Function is missing a return type
+src/config/sensory_config.py:45: error: Statement is unreachable  [unreachable]
+src/trading/risk/market_regime_detector.py:13: error: Explicit "Any" is not
+src/thinking/sentient_adaptation_engine.py:24: error: Explicit "Any" is not

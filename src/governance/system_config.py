@@ -4,17 +4,10 @@ from __future__ import annotations
 import logging
 import os
 from dataclasses import dataclass, field
-from enum import Enum
-from typing import Mapping, TypeVar
+from enum import StrEnum
+from typing import Mapping, TypeVar, TypedDict, Unpack
 
 logger = logging.getLogger(__name__)
-
-# Prefer StrEnum on Python 3.11; fallback to a compatible shim otherwise
-try:  # Python 3.11+
-    from enum import StrEnum  # type: ignore[attr-defined]
-except Exception:  # pragma: no cover - fallback path for older Python
-    class StrEnum(str, Enum):  # minimal shim
-        pass
 
 
 class RunMode(StrEnum):
@@ -39,7 +32,16 @@ class ConnectionProtocol(StrEnum):
     fix = "fix"
 
 
-E = TypeVar("E", bound=Enum)
+E = TypeVar("E", bound=StrEnum)
+
+
+class SystemConfigUpdate(TypedDict, total=False):
+    run_mode: RunMode | str
+    environment: EmpEnvironment | str
+    tier: EmpTier | str
+    confirm_live: bool | str | int
+    connection_protocol: ConnectionProtocol | str
+    extras: dict[str, str]
 
 
 def _coerce_enum(
@@ -52,7 +54,7 @@ def _coerce_enum(
     Normalize and coerce a string to an enum value without raising.
     - Normalization: strip, lower, replace '-' with '_'
     - If aliases provided and match, return alias
-    - Else try enum_type(normalized) by value; on failure return default
+    - Else match by member.value; on failure return default
     """
     if value is None:
         return default
@@ -64,17 +66,17 @@ def _coerce_enum(
         alt = aliases.get(normalized) or aliases.get(raw_lower)
         if alt is not None:
             return alt
-    try:
-        # enumType("value") resolves by value for Enum/StrEnum with string values
-        return enum_type(normalized)  # type: ignore[call-arg]
-    except Exception:
-        return default
+    for member in enum_type:
+        if member.value == normalized:
+            return member
+    return default
 
 
-def _coerce_bool(value: str | bool | None, default: bool) -> bool:
+def _coerce_bool(value: str | bool | int | None, default: bool) -> bool:
     """
     Normalize and coerce to bool without raising.
     - For bool: return as-is
+    - For int: 1/0 treated via string normalization
     - For str: normalize (strip, lower, '-'->'_') and map common variants
     - On unknown: return default
     """
@@ -170,7 +172,7 @@ class SystemConfig:
             if raw is None:
                 return False  # absence is not "invalid", it's "unset"
             normalized = raw.strip().lower().replace("-", "_")
-            values = {m.value for m in enum_type}  # type: ignore[attr-defined]
+            values: set[str] = {m.value for m in enum_type}
             if aliases and (normalized in aliases):
                 return True
             return normalized in values
@@ -230,10 +232,10 @@ class SystemConfig:
             extras=extras,
         )
 
-    def with_updated(self, **kwargs) -> SystemConfig:
+    def with_updated(self, **overrides: Unpack[SystemConfigUpdate]) -> SystemConfig:
         """
         Return a new instance with updated fields; deep-copy extras to avoid aliasing.
-        Accepts either Enum instances or strings for Enum fields, and str/bool for confirm_live.
+        Accepts either Enum instances or strings for Enum fields, and bool/str/int for confirm_live.
         """
         # Start with existing fields
         run_mode = self.run_mode
@@ -243,25 +245,25 @@ class SystemConfig:
         connection_protocol = self.connection_protocol
         extras: dict[str, str] = dict(self.extras)  # deep copy for simple dict[str, str]
 
-        if "run_mode" in kwargs:
-            val = kwargs["run_mode"]
-            run_mode = _coerce_enum(val, RunMode, run_mode) if not isinstance(val, RunMode) else val  # type: ignore[arg-type]
-        if "environment" in kwargs:
-            val = kwargs["environment"]
-            environment = _coerce_enum(val, EmpEnvironment, environment) if not isinstance(val, EmpEnvironment) else val  # type: ignore[arg-type]
-        if "tier" in kwargs:
-            val = kwargs["tier"]
-            tier = _coerce_enum(val, EmpTier, tier) if not isinstance(val, EmpTier) else val  # type: ignore[arg-type]
-        if "confirm_live" in kwargs:
-            val = kwargs["confirm_live"]
-            confirm_live = _coerce_bool(val, confirm_live)  # type: ignore[arg-type]
-        if "connection_protocol" in kwargs:
-            val = kwargs["connection_protocol"]
+        if "run_mode" in overrides:
+            v_rm = overrides["run_mode"]
+            run_mode = v_rm if isinstance(v_rm, RunMode) else _coerce_enum(v_rm, RunMode, run_mode)
+        if "environment" in overrides:
+            v_env = overrides["environment"]
+            environment = v_env if isinstance(v_env, EmpEnvironment) else _coerce_enum(v_env, EmpEnvironment, environment)
+        if "tier" in overrides:
+            v_tier = overrides["tier"]
+            tier = v_tier if isinstance(v_tier, EmpTier) else _coerce_enum(v_tier, EmpTier, tier)
+        if "confirm_live" in overrides:
+            v_cl = overrides["confirm_live"]
+            confirm_live = _coerce_bool(v_cl, confirm_live)
+        if "connection_protocol" in overrides:
+            v_cp = overrides["connection_protocol"]
             connection_protocol = (
-                _coerce_enum(val, ConnectionProtocol, connection_protocol) if not isinstance(val, ConnectionProtocol) else val  # type: ignore[arg-type]
+                v_cp if isinstance(v_cp, ConnectionProtocol) else _coerce_enum(v_cp, ConnectionProtocol, connection_protocol)
             )
-        if "extras" in kwargs:
-            new_extras = kwargs["extras"]
+        if "extras" in overrides:
+            new_extras = overrides["extras"]
             extras = dict(new_extras) if isinstance(new_extras, dict) else extras
 
         return SystemConfig(

@@ -4,9 +4,61 @@ Instrument Module
 
 Defines the Instrument class for financial instruments.
 """
+from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict, Optional
+from typing import TypedDict, Unpack, cast
+
+from src.core.types import JSONObject
+
+
+class InstrumentPayload(TypedDict, total=False):
+    symbol: str
+    name: str
+    instrument_type: str
+    base_currency: str
+    quote_currency: str
+    pip_value: float
+    contract_size: float
+    min_lot_size: float
+    max_lot_size: float
+    tick_size: float
+
+
+class _InstrumentCtorKwargs(TypedDict, total=False):
+    base_currency: str
+    quote_currency: str
+    pip_value: float
+    contract_size: float
+    min_lot_size: float
+    max_lot_size: float
+    tick_size: float
+
+
+class _CryptoCtorKwargs(TypedDict, total=False):
+    base_currency: str
+    quote_currency: str
+    contract_size: float
+    min_lot_size: float
+    max_lot_size: float
+    tick_size: float
+
+
+__all__ = ["Instrument", "InstrumentPayload", "get_instrument", "get_all_instruments", "FOREX_INSTRUMENTS"]
+
+
+def _coerce_to_float(value: object, default: float) -> float:
+    """Best-effort coercion of value to float; falls back to default on failure."""
+    if value is None:
+        return default
+    try:
+        if isinstance(value, (int, float)):
+            return float(value)
+        s = str(value).strip().replace(",", "").replace("_", "")
+        return float(s)
+    except Exception:
+        return default
+
 
 
 @dataclass
@@ -24,7 +76,7 @@ class Instrument:
     max_lot_size: float = 100.0
     tick_size: float = 0.00001
     
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Initialize derived attributes."""
         if not self.base_currency and self.symbol:
             # Extract base currency from symbol (e.g., EUR from EURUSD)
@@ -40,7 +92,7 @@ class Instrument:
         position_size = lot_size * self.contract_size
         return position_size / leverage
     
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> InstrumentPayload:
         """Convert instrument to dictionary."""
         return {
             'symbol': self.symbol,
@@ -56,12 +108,31 @@ class Instrument:
         }
     
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'Instrument':
-        """Create instrument from dictionary."""
-        return cls(**data)
+    def from_dict(cls, data: InstrumentPayload | JSONObject) -> Instrument:
+        """Create instrument from dictionary.
+
+        Performs safe coercion of numeric fields that may be provided as str|int|float.
+        Leaves unknown keys untouched to preserve current error semantics.
+        """
+        # Make a shallow copy so we can adjust values without mutating the caller's dict
+        payload: dict[str, object] = dict(data)
+
+        # Coerce known numeric fields if present
+        if "pip_value" in payload:
+            payload["pip_value"] = _coerce_to_float(payload.get("pip_value"), cls.pip_value)
+        if "contract_size" in payload:
+            payload["contract_size"] = _coerce_to_float(payload.get("contract_size"), cls.contract_size)
+        if "min_lot_size" in payload:
+            payload["min_lot_size"] = _coerce_to_float(payload.get("min_lot_size"), cls.min_lot_size)
+        if "max_lot_size" in payload:
+            payload["max_lot_size"] = _coerce_to_float(payload.get("max_lot_size"), cls.max_lot_size)
+        if "tick_size" in payload:
+            payload["tick_size"] = _coerce_to_float(payload.get("tick_size"), cls.tick_size)
+
+        return cls(**cast(InstrumentPayload, payload))  # type: ignore[arg-type]
     
     @classmethod
-    def forex(cls, symbol: str, **kwargs) -> 'Instrument':
+    def forex(cls, symbol: str, **kwargs: Unpack[_InstrumentCtorKwargs]) -> Instrument:
         """Create forex instrument."""
         return cls(
             symbol=symbol,
@@ -71,7 +142,7 @@ class Instrument:
         )
     
     @classmethod
-    def crypto(cls, symbol: str, **kwargs) -> 'Instrument':
+    def crypto(cls, symbol: str, **kwargs: Unpack[_CryptoCtorKwargs]) -> Instrument:
         """Create crypto instrument."""
         return cls(
             symbol=symbol,
@@ -83,7 +154,7 @@ class Instrument:
 
 
 # Common forex instruments
-FOREX_INSTRUMENTS = {
+FOREX_INSTRUMENTS: dict[str, Instrument] = {
     'EURUSD': Instrument.forex('EURUSD'),
     'GBPUSD': Instrument.forex('GBPUSD'),
     'USDJPY': Instrument.forex('USDJPY'),
@@ -97,12 +168,12 @@ FOREX_INSTRUMENTS = {
 }
 
 
-def get_instrument(symbol: str) -> Optional[Instrument]:
+def get_instrument(symbol: str) -> Instrument | None:
     """Get instrument by symbol."""
     return FOREX_INSTRUMENTS.get(symbol.upper())
 
 
-def get_all_instruments() -> Dict[str, Instrument]:
+def get_all_instruments() -> dict[str, Instrument]:
     """Get all available instruments."""
     return FOREX_INSTRUMENTS.copy()
 

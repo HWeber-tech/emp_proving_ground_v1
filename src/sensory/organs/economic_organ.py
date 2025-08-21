@@ -9,7 +9,7 @@ import logging
 from datetime import datetime
 from typing import Any, Dict, Optional
 
-from ..core.base import MarketData, SensoryOrgan, SensoryReading
+from src.core.base import MarketData, SensoryOrgan, SensoryReading
 
 logger = logging.getLogger(__name__)
 

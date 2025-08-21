@@ -14,7 +14,7 @@ from src.core.evolution.engine import EvolutionEngine  # consolidated engine
 
 AmbusherGenome = Dict[str, Any]  # simplified alias for compatibility
 try:
-    from evolution.ambusher.ambusher_fitness import AmbusherFitnessFunction  # legacy
+    from src.evolution.ambusher.ambusher_fitness import AmbusherFitnessFunction
 except Exception:  # pragma: no cover
     class AmbusherFitnessFunction:  # type: ignore
         def __init__(self, *_args, **_kwargs):

@@ -24,22 +24,12 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Dict, List, Tuple
 
-from core.base import DimensionalReading, MarketData
-from market_intelligence.dimensions.enhanced_anomaly_dimension import (
-    AnomalyIntelligenceEngine,
-)
-from market_intelligence.dimensions.enhanced_how_dimension import (
-    InstitutionalIntelligenceEngine,
-)
-from market_intelligence.dimensions.enhanced_what_dimension import (
-    TechnicalRealityEngine,
-)
-from market_intelligence.dimensions.enhanced_when_dimension import (
-    ChronalIntelligenceEngine,
-)
-from market_intelligence.dimensions.enhanced_why_dimension import (
-    EnhancedFundamentalIntelligenceEngine,
-)
+from src.core.base import DimensionalReading, MarketData
+from src.market_intelligence.dimensions.enhanced_anomaly_dimension import AnomalyIntelligenceEngine
+from src.market_intelligence.dimensions.enhanced_how_dimension import InstitutionalIntelligenceEngine
+from src.market_intelligence.dimensions.enhanced_what_dimension import TechnicalRealityEngine
+from src.market_intelligence.dimensions.enhanced_when_dimension import ChronalIntelligenceEngine
+from src.market_intelligence.dimensions.enhanced_why_dimension import EnhancedFundamentalIntelligenceEngine
 
 
 class IntelligenceLevel(Enum):

@@ -52,48 +52,26 @@ target-version = ["py311"]
 
 [tool.mypy]
 python_version = "3.11"
+mypy_path = ["src", "stubs"]
+namespace_packages = true
+explicit_package_bases = true
 warn_unused_configs = true
-ignore_missing_imports = true
-disallow_untyped_defs = false
-check_untyped_defs = false
-no_strict_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_return_any = true
+warn_unreachable = true
+no_implicit_optional = true
+strict_equality = true
+disallow_any_generics = true
+disallow_any_explicit = true
+disallow_subclassing_any = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
 show_error_codes = true
-# Narrow initial type-checking scope to critical packages; exclude high-churn/experimental areas.
-exclude = '''
-^(src/(thinking|intelligence|validation|ecosystem|genome|integration|operational|performance|data_integration|ui|simulation|sentient|portfolio|domain|trading|sensory)/.*)|
-^(src/data_foundation/(ingest|persist|replay)/.*)|
-^(src/phase2d_.*)
-'''
-
-
-
-
-[[tool.mypy.overrides]]
-module = [
-  "src.validation.*",
-  "src.ecosystem.*",
-  "src.genome.*",
-  "src.integration.*",
-  "src.operational.*",
-  "src.performance.*",
-  "src.data_integration.*",
-  "src.ui.*",
-  "src.simulation.*",
-  "src.sentient.*",
-  "src.portfolio.*",
-  "src.domain.*",
-  "src.trading.*",
-  "src.sensory.*",
-  "src.evolution.*",
-  "src.risk.*",
-  "src.core.*",
-  "src.governance.*",
-  "src.data_foundation.config.*",
-  "src.phase2d_integration_validator",
-  "src.pnl"
-]
-ignore_errors = true
-
+pretty = true
+plugins = ["pydantic.mypy"]
+follow_imports = "normal"
 [tool.coverage.run]
 branch = true
 relative_files = true

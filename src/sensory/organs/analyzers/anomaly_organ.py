@@ -9,14 +9,109 @@ Date: July 18, 2024
 Phase: 2 - Missing Function Implementation
 """
 
+from __future__ import annotations
+
 import logging
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Mapping, Sequence, TypedDict, NotRequired, Required
 
 import numpy as np
 import pandas as pd
 
+from src.core.types import JSONObject
+
 logger = logging.getLogger(__name__)
+
+# TypedDicts for structured payloads used in this module
+
+class DetectionConfig(TypedDict, total=False):
+    threshold: float
+    min_points: int
+    smoothing: NotRequired[float]
+
+
+AnomalyRecord = TypedDict(
+    "AnomalyRecord",
+    {
+        "type": Required[str],
+        "subtype": NotRequired[str],
+        "index": NotRequired[int],
+        "z_score": NotRequired[float],
+        "return": NotRequired[float],
+        "confidence": NotRequired[float],
+        "timestamp": NotRequired[datetime | pd.Timestamp | None],
+        "volume": NotRequired[float],
+        "volatility": NotRequired[float],
+        "gap_size": NotRequired[float],
+    },
+    total=False,
+)
+
+ChaosPattern = TypedDict(
+    "ChaosPattern",
+    {
+        "type": Required[str],
+        "subtype": NotRequired[str],
+        "hurst_exponent": NotRequired[float],
+        "entropy": NotRequired[float],
+        "sensitivity": NotRequired[float],
+        "confidence": NotRequired[float],
+        "description": NotRequired[str],
+    },
+    total=False,
+)
+
+ManipulationPattern = TypedDict(
+    "ManipulationPattern",
+    {
+        "type": Required[str],
+        "subtype": NotRequired[str],
+        "index": NotRequired[int],
+        "pump_size": NotRequired[float],
+        "dump_size": NotRequired[float],
+        "volume_spike": NotRequired[float],
+        "price_reversal": NotRequired[float],
+        "price_stability": NotRequired[float],
+        "volume_consistency": NotRequired[float],
+        "confidence": NotRequired[float],
+        "description": NotRequired[str],
+    },
+    total=False,
+)
+
+class AnomalyWindowSummary(TypedDict):
+    anomalies_detected: int
+    anomaly_types: list[str]
+    anomalies: list[AnomalyRecord]
+    anomaly_score: float
+    timestamp: datetime
+
+class ChaosWindowSummary(TypedDict):
+    chaos_patterns_detected: int
+    chaos_types: list[str]
+    patterns: list[ChaosPattern]
+    chaos_score: float
+    timestamp: datetime
+
+class ManipulationWindowSummary(TypedDict):
+    manipulation_patterns_detected: int
+    manipulation_types: list[str]
+    patterns: list[ManipulationPattern]
+    manipulation_score: float
+    timestamp: datetime
+
+__all__ = [
+    "StatisticalAnomalyDetector",
+    "ChaosDetector",
+    "ManipulationDetector",
+    "DetectionConfig",
+    "AnomalyRecord",
+    "ChaosPattern",
+    "ManipulationPattern",
+    "AnomalyWindowSummary",
+    "ChaosWindowSummary",
+    "ManipulationWindowSummary",
+]
 
 
 class StatisticalAnomalyDetector:
@@ -26,13 +121,13 @@ class StatisticalAnomalyDetector:
     Detects statistical anomalies using various methods.
     """
     
-    def __init__(self, config: Optional[Dict[str, Any]] = None):
+    def __init__(self, config: DetectionConfig | None = None) -> None:
         """Initialize statistical anomaly detector"""
         self.config = config or {}
-        self.anomalies_detected = []
+        self.anomalies_detected: list[AnomalyRecord] = []
         logger.info("StatisticalAnomalyDetector initialized")
     
-    def detect_statistical_anomalies(self, df: pd.DataFrame) -> List[Dict[str, Any]]:
+    def detect_statistical_anomalies(self, df: pd.DataFrame) -> Sequence[AnomalyRecord]:
         """
         Detect statistical anomalies in market data.
         
@@ -46,7 +141,7 @@ class StatisticalAnomalyDetector:
             return []
         
         try:
-            anomalies = []
+            anomalies: list[AnomalyRecord] = []
             
             # Detect various types of anomalies
             anomalies.extend(self._detect_price_anomalies(df))
@@ -61,7 +156,7 @@ class StatisticalAnomalyDetector:
             logger.error(f"Error detecting statistical anomalies: {e}")
             return []
     
-    def update_data(self, df: pd.DataFrame) -> Dict[str, Any]:
+    def update_data(self, df: pd.DataFrame) -> Mapping[str, object]:
         """
         Update data and detect anomalies.
         
@@ -91,35 +186,39 @@ class StatisticalAnomalyDetector:
             logger.error(f"Error updating anomaly data: {e}")
             return {}
     
-    def _detect_price_anomalies(self, df: pd.DataFrame) -> List[Dict[str, Any]]:
+    def _detect_price_anomalies(self, df: pd.DataFrame) -> list[AnomalyRecord]:
         """Detect price-based anomalies"""
         try:
-            anomalies = []
+            anomalies: list[AnomalyRecord] = []
             
             if len(df) < 20:
                 return anomalies
             
             # Calculate price statistics
             returns = df['close'].pct_change().dropna()
-            mean_return = returns.mean()
-            std_return = returns.std()
+            mean_return = float(returns.mean())
+            std_return = float(returns.std())
             
-            # Detect outliers using z-score
-            z_scores = (returns - mean_return) / std_return if std_return > 0 else 0
+            # Detect outliers using z-score as a numpy array to ensure indexable typing
+            if std_return > 0:
+                z_scores = ((returns - mean_return) / std_return).to_numpy(dtype=float)
+            else:
+                z_scores = np.zeros(len(returns), dtype=float)
             
             # Find extreme values (z-score > 3 or < -3)
             extreme_indices = np.where(np.abs(z_scores) > 3)[0]
             
             for idx in extreme_indices:
-                if idx < len(df) - 1:  # Ensure we have the data point
+                idx_int = int(idx)
+                if idx_int < len(df) - 1:  # Ensure we have the data point
                     anomalies.append({
                         'type': 'price_anomaly',
                         'subtype': 'extreme_return',
-                        'index': idx,
-                        'z_score': z_scores[idx],
-                        'return': returns.iloc[idx],
-                        'confidence': min(abs(z_scores[idx]) / 5.0, 1.0),
-                        'timestamp': df.index[idx] if hasattr(df.index[idx], 'timestamp') else None
+                        'index': idx_int,
+                        'z_score': float(z_scores[idx_int]),
+                        'return': float(returns.iloc[idx_int]),
+                        'confidence': float(min(abs(z_scores[idx_int]) / 5.0, 1.0)),
+                        'timestamp': df.index[idx_int] if hasattr(df.index[idx_int], 'timestamp') else None
                     })
             
             return anomalies
@@ -128,34 +227,38 @@ class StatisticalAnomalyDetector:
             logger.error(f"Error detecting price anomalies: {e}")
             return []
     
-    def _detect_volume_anomalies(self, df: pd.DataFrame) -> List[Dict[str, Any]]:
+    def _detect_volume_anomalies(self, df: pd.DataFrame) -> list[AnomalyRecord]:
         """Detect volume-based anomalies"""
         try:
-            anomalies = []
+            anomalies: list[AnomalyRecord] = []
             
             if len(df) < 20:
                 return anomalies
             
             # Calculate volume statistics
             volume = df['volume']
-            mean_volume = volume.mean()
-            std_volume = volume.std()
+            mean_volume = float(volume.mean())
+            std_volume = float(volume.std())
             
-            # Detect volume spikes
-            volume_z_scores = (volume - mean_volume) / std_volume if std_volume > 0 else 0
+            # Detect volume spikes (ensure numpy array for indexing)
+            if std_volume > 0:
+                volume_z_scores = ((volume - mean_volume) / std_volume).to_numpy(dtype=float)
+            else:
+                volume_z_scores = np.zeros(len(volume), dtype=float)
             
             # Find extreme volume (z-score > 2.5)
             extreme_volume_indices = np.where(volume_z_scores > 2.5)[0]
             
             for idx in extreme_volume_indices:
+                idx_int = int(idx)
                 anomalies.append({
                     'type': 'volume_anomaly',
                     'subtype': 'volume_spike',
-                    'index': idx,
-                    'z_score': volume_z_scores.iloc[idx],
-                    'volume': volume.iloc[idx],
-                    'confidence': min(volume_z_scores.iloc[idx] / 5.0, 1.0),
-                    'timestamp': df.index[idx] if hasattr(df.index[idx], 'timestamp') else None
+                    'index': idx_int,
+                    'z_score': float(volume_z_scores[idx_int]),
+                    'volume': float(volume.iloc[idx_int]),
+                    'confidence': float(min(volume_z_scores[idx_int] / 5.0, 1.0)),
+                    'timestamp': df.index[idx_int] if hasattr(df.index[idx_int], 'timestamp') else None
                 })
             
             return anomalies
@@ -164,7 +267,7 @@ class StatisticalAnomalyDetector:
             logger.error(f"Error detecting volume anomalies: {e}")
             return []
     
-    def _detect_volatility_anomalies(self, df: pd.DataFrame) -> List[Dict[str, Any]]:
+    def _detect_volatility_anomalies(self, df: pd.DataFrame) -> list[AnomalyRecord]:
         """Detect volatility-based anomalies"""
         try:
             anomalies = []
@@ -177,24 +280,28 @@ class StatisticalAnomalyDetector:
             rolling_vol = returns.rolling(10).std()
             
             # Detect volatility spikes
-            mean_vol = rolling_vol.mean()
-            std_vol = rolling_vol.std()
+            mean_vol = float(rolling_vol.mean())
+            std_vol = float(rolling_vol.std())
             
-            vol_z_scores = (rolling_vol - mean_vol) / std_vol if std_vol > 0 else 0
+            if std_vol > 0:
+                vol_z_scores = ((rolling_vol - mean_vol) / std_vol).to_numpy(dtype=float)
+            else:
+                vol_z_scores = np.zeros(len(rolling_vol), dtype=float)
             
             # Find extreme volatility (z-score > 2)
             extreme_vol_indices = np.where(vol_z_scores > 2)[0]
             
             for idx in extreme_vol_indices:
-                if idx < len(df) - 1:
+                idx_int = int(idx)
+                if idx_int < len(df) - 1:
                     anomalies.append({
                         'type': 'volatility_anomaly',
                         'subtype': 'volatility_spike',
-                        'index': idx,
-                        'z_score': vol_z_scores.iloc[idx],
-                        'volatility': rolling_vol.iloc[idx],
-                        'confidence': min(vol_z_scores.iloc[idx] / 4.0, 1.0),
-                        'timestamp': df.index[idx] if hasattr(df.index[idx], 'timestamp') else None
+                        'index': idx_int,
+                        'z_score': float(vol_z_scores[idx_int]),
+                        'volatility': float(rolling_vol.iloc[idx_int]),
+                        'confidence': float(min(vol_z_scores[idx_int] / 4.0, 1.0)),
+                        'timestamp': df.index[idx_int] if hasattr(df.index[idx_int], 'timestamp') else None
                     })
             
             return anomalies
@@ -203,7 +310,7 @@ class StatisticalAnomalyDetector:
             logger.error(f"Error detecting volatility anomalies: {e}")
             return []
     
-    def _detect_pattern_anomalies(self, df: pd.DataFrame) -> List[Dict[str, Any]]:
+    def _detect_pattern_anomalies(self, df: pd.DataFrame) -> list[AnomalyRecord]:
         """Detect pattern-based anomalies"""
         try:
             anomalies = []
@@ -226,7 +333,7 @@ class StatisticalAnomalyDetector:
                         'type': 'pattern_anomaly',
                         'subtype': 'gap_up',
                         'index': i,
-                        'gap_size': current['low'] - prev['high'],
+                        'gap_size': float(current['low'] - prev['high']),
                         'confidence': 0.8,
                         'timestamp': df.index[i] if hasattr(df.index[i], 'timestamp') else None
                     })
@@ -236,7 +343,7 @@ class StatisticalAnomalyDetector:
                         'type': 'pattern_anomaly',
                         'subtype': 'gap_down',
                         'index': i,
-                        'gap_size': prev['low'] - current['high'],
+                        'gap_size': float(prev['low'] - current['high']),
                         'confidence': 0.8,
                         'timestamp': df.index[i] if hasattr(df.index[i], 'timestamp') else None
                     })
@@ -247,7 +354,7 @@ class StatisticalAnomalyDetector:
             logger.error(f"Error detecting pattern anomalies: {e}")
             return []
     
-    def _calculate_anomaly_score(self, anomalies: List[Dict[str, Any]]) -> float:
+    def _calculate_anomaly_score(self, anomalies: Sequence[AnomalyRecord]) -> float:
         """Calculate overall anomaly score"""
         try:
             if not anomalies:
@@ -258,7 +365,7 @@ class StatisticalAnomalyDetector:
             total_weight = 0.0
             
             for anomaly in anomalies:
-                confidence = anomaly.get('confidence', 0.0)
+                confidence = float(anomaly.get('confidence', 0.0))
                 weight = 1.0
                 
                 # Weight by anomaly type
@@ -285,12 +392,12 @@ class ChaosDetector:
     Detects chaos patterns and market disorder.
     """
     
-    def __init__(self, config: Optional[Dict[str, Any]] = None):
+    def __init__(self, config: DetectionConfig | None = None) -> None:
         """Initialize chaos detector"""
         self.config = config or {}
         logger.info("ChaosDetector initialized")
     
-    def detect_chaos_patterns(self, df: pd.DataFrame) -> List[Dict[str, Any]]:
+    def detect_chaos_patterns(self, df: pd.DataFrame) -> Sequence[ChaosPattern]:
         """
         Detect chaos patterns in market data.
         
@@ -317,7 +424,7 @@ class ChaosDetector:
             logger.error(f"Error detecting chaos patterns: {e}")
             return []
     
-    def update_data(self, df: pd.DataFrame) -> Dict[str, Any]:
+    def update_data(self, df: pd.DataFrame) -> Mapping[str, object]:
         """
         Update data and detect chaos patterns.
         
@@ -347,7 +454,7 @@ class ChaosDetector:
             logger.error(f"Error updating chaos data: {e}")
             return {}
     
-    def _detect_fractal_chaos(self, df: pd.DataFrame) -> List[Dict[str, Any]]:
+    def _detect_fractal_chaos(self, df: pd.DataFrame) -> list[ChaosPattern]:
         """Detect fractal chaos patterns"""
         try:
             patterns = []
@@ -376,7 +483,7 @@ class ChaosDetector:
             logger.error(f"Error detecting fractal chaos: {e}")
             return []
     
-    def _detect_entropy_chaos(self, df: pd.DataFrame) -> List[Dict[str, Any]]:
+    def _detect_entropy_chaos(self, df: pd.DataFrame) -> list[ChaosPattern]:
         """Detect entropy-based chaos"""
         try:
             patterns = []
@@ -404,7 +511,7 @@ class ChaosDetector:
             logger.error(f"Error detecting entropy chaos: {e}")
             return []
     
-    def _detect_butterfly_effect(self, df: pd.DataFrame) -> List[Dict[str, Any]]:
+    def _detect_butterfly_effect(self, df: pd.DataFrame) -> list[ChaosPattern]:
         """Detect butterfly effect patterns"""
         try:
             patterns = []
@@ -446,7 +553,7 @@ class ChaosDetector:
             
             # Linear fit to double-log graph
             if len(tau) > 1:
-                hurst = np.polyfit(np.log(lags), np.log(tau), 1)[0]
+                hurst = float(np.polyfit(np.log(lags), np.log(tau), 1)[0])
                 return min(max(hurst, 0.0), 1.0)
             
             return 0.5
@@ -469,7 +576,7 @@ class ChaosDetector:
             probabilities = value_counts / len(bins)
             
             # Shannon entropy
-            entropy = -np.sum(probabilities * np.log2(probabilities + 1e-10))
+            entropy = float(-np.sum(probabilities * np.log2(probabilities + 1e-10)))
             
             # Normalize to [0, 1]
             max_entropy = np.log2(10)  # For 10 bins
@@ -493,7 +600,7 @@ class ChaosDetector:
             volatility_autocorr = volatility.autocorr()
             
             # High autocorrelation indicates sensitivity
-            sensitivity = abs(volatility_autocorr) if not pd.isna(volatility_autocorr) else 0.0
+            sensitivity = float(abs(volatility_autocorr)) if not pd.isna(volatility_autocorr) else 0.0
             
             return min(max(sensitivity, 0.0), 1.0)
             
@@ -501,7 +608,7 @@ class ChaosDetector:
             logger.error(f"Error calculating sensitivity: {e}")
             return 0.0
     
-    def _calculate_chaos_score(self, patterns: List[Dict[str, Any]]) -> float:
+    def _calculate_chaos_score(self, patterns: Sequence[ChaosPattern]) -> float:
         """Calculate overall chaos score"""
         try:
             if not patterns:
@@ -525,12 +632,12 @@ class ManipulationDetector:
     Detects potential market manipulation patterns.
     """
     
-    def __init__(self, config: Optional[Dict[str, Any]] = None):
+    def __init__(self, config: DetectionConfig | None = None) -> None:
         """Initialize manipulation detector"""
         self.config = config or {}
         logger.info("ManipulationDetector initialized")
     
-    def detect_manipulation_patterns(self, df: pd.DataFrame) -> List[Dict[str, Any]]:
+    def detect_manipulation_patterns(self, df: pd.DataFrame) -> Sequence[ManipulationPattern]:
         """
         Detect potential manipulation patterns.
         
@@ -557,7 +664,7 @@ class ManipulationDetector:
             logger.error(f"Error detecting manipulation patterns: {e}")
             return []
     
-    def update_data(self, df: pd.DataFrame) -> Dict[str, Any]:
+    def update_data(self, df: pd.DataFrame) -> Mapping[str, object]:
         """
         Update data and detect manipulation patterns.
         
@@ -587,7 +694,7 @@ class ManipulationDetector:
             logger.error(f"Error updating manipulation data: {e}")
             return {}
     
-    def _detect_pump_and_dump(self, df: pd.DataFrame) -> List[Dict[str, Any]]:
+    def _detect_pump_and_dump(self, df: pd.DataFrame) -> list[ManipulationPattern]:
         """Detect pump and dump patterns"""
         try:
             patterns = []
@@ -611,8 +718,8 @@ class ManipulationDetector:
                             'type': 'manipulation',
                             'subtype': 'pump_and_dump',
                             'index': i,
-                            'pump_size': recent_returns.sum(),
-                            'dump_size': future_returns.sum(),
+                            'pump_size': float(recent_returns.sum()),
+                            'dump_size': float(future_returns.sum()),
                             'confidence': 0.6,
                             'description': 'Potential pump and dump pattern'
                         })
@@ -623,7 +730,7 @@ class ManipulationDetector:
             logger.error(f"Error detecting pump and dump: {e}")
             return []
     
-    def _detect_spoofing(self, df: pd.DataFrame) -> List[Dict[str, Any]]:
+    def _detect_spoofing(self, df: pd.DataFrame) -> list[ManipulationPattern]:
         """Detect spoofing patterns"""
         try:
             patterns = []
@@ -646,8 +753,8 @@ class ManipulationDetector:
                             'type': 'manipulation',
                             'subtype': 'spoofing',
                             'index': i,
-                            'volume_spike': volume.iloc[i] / volume.iloc[i-1],
-                            'price_reversal': (price.iloc[i] - price.iloc[i+1]) / price.iloc[i],
+                            'volume_spike': float(volume.iloc[i] / volume.iloc[i-1]),
+                            'price_reversal': float((price.iloc[i] - price.iloc[i+1]) / price.iloc[i]),
                             'confidence': 0.5,
                             'description': 'Potential spoofing pattern'
                         })
@@ -658,7 +765,7 @@ class ManipulationDetector:
             logger.error(f"Error detecting spoofing: {e}")
             return []
     
-    def _detect_layering(self, df: pd.DataFrame) -> List[Dict[str, Any]]:
+    def _detect_layering(self, df: pd.DataFrame) -> list[ManipulationPattern]:
         """Detect layering patterns"""
         try:
             patterns = []
@@ -687,8 +794,8 @@ class ManipulationDetector:
                         'type': 'manipulation',
                         'subtype': 'layering',
                         'index': i,
-                        'price_stability': 1.0 - (price_std / price.iloc[i]),
-                        'volume_consistency': 1.0 - (volume_std / volume_mean),
+                        'price_stability': float(1.0 - (price_std / price.iloc[i])),
+                        'volume_consistency': float(1.0 - (volume_std / volume_mean)),
                         'confidence': 0.4,
                         'description': 'Potential layering pattern'
                     })
@@ -699,7 +806,7 @@ class ManipulationDetector:
             logger.error(f"Error detecting layering: {e}")
             return []
     
-    def _calculate_manipulation_score(self, patterns: List[Dict[str, Any]]) -> float:
+    def _calculate_manipulation_score(self, patterns: Sequence[ManipulationPattern]) -> float:
         """Calculate overall manipulation score"""
         try:
             if not patterns:
@@ -710,7 +817,7 @@ class ManipulationDetector:
             total_weight = 0.0
             
             for pattern in patterns:
-                confidence = pattern.get('confidence', 0.0)
+                confidence = float(pattern.get('confidence', 0.0))
                 weight = 1.0
                 
                 # Weight by manipulation type

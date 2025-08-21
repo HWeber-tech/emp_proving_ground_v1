@@ -7,45 +7,26 @@ for the EMP Proving Ground Phase 2 completion.
 
 Dimensions:
 - WHY: Macro Predator Intelligence
-- HOW: Institutional Footprint Hunter  
+- HOW: Institutional Footprint Hunter
 - WHAT: Pattern Synthesis Engine
 - WHEN: Temporal Advantage System
 - ANOMALY: Manipulation Detection
 - CHAOS: Antifragile Adaptation
 """
 
-# Re-export canonical dimension implementations (no in-file class definitions)
+from __future__ import annotations
 
-# WhatDimension is implemented in organs layer; re-export
-try:
-    from src.sensory.organs.dimensions.pattern_engine import (
-        WhatDimension as WhatDimension,  # type: ignore
-    )
-except Exception:
-    # Optional shim if organs layer is not present in current runtime
-    class WhatDimension:  # type: ignore
-        pass
+# Re-export canonical dimension implementations
 
-# WhenDimension may be defined in organs layer; re-export if available, else provide a shim
-try:
-    from src.sensory.organs.dimensions.when_dimension import (
-        WhenDimension as WhenDimension,  # type: ignore
-    )
-except Exception:
-    class WhenDimension:  # type: ignore
-        pass
+# WHAT dimension: implemented in organs layer
+from src.sensory.organs.dimensions.pattern_engine import WhatDimension
 
-# Re-export concrete anomaly/chaos dimensions from organs
-from src.sensory.organs.dimensions.anomaly_dimension import (
-    AnomalyDimension as AnomalyDimension,  # type: ignore
-)
-from src.sensory.organs.dimensions.chaos_dimension import (
-    ChaosDimension as ChaosDimension,  # type: ignore
-)
+# ANOMALY and CHAOS dimensions: implemented in organs layer
+from src.sensory.organs.dimensions.anomaly_dimension import AnomalyDimension
+from src.sensory.organs.dimensions.chaos_dimension import ChaosDimension
 
 __all__ = [
-    'WhatDimension',
-    'WhenDimension',
-    'AnomalyDimension',
-    'ChaosDimension',
+    "WhatDimension",
+    "AnomalyDimension",
+    "ChaosDimension",
 ]

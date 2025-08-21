@@ -5,27 +5,14 @@ is unavailable. Never raises on import; safe to use in any environment.
 
 import logging
 from threading import RLock
-from typing import Any, Dict, List, Optional, Protocol, Self, Tuple
+from typing import Callable, Dict, List, Optional, Protocol, Self, Tuple, Union, cast, Sequence
 
 _log = logging.getLogger(__name__)
 
 
 # Protocols describing the subset of prometheus metric APIs we rely on.
-class CounterLike(Protocol):
-    def inc(self, amount: float = 1.0) -> None: ...
-    def labels(self, **labels: str) -> "CounterLike": ...
-
-
-class GaugeLike(Protocol):
-    def set(self, value: float) -> None: ...
-    def inc(self, amount: float = 1.0) -> None: ...
-    def dec(self, amount: float = 1.0) -> None: ...
-    def labels(self, **labels: str) -> "GaugeLike": ...
-
-
-class HistogramLike(Protocol):
-    def observe(self, value: float) -> None: ...
-    def labels(self, **labels: str) -> "HistogramLike": ...
+# Import canonical Protocols from core interfaces to avoid duplication.
+from src.core.interfaces import CounterLike, GaugeLike, HistogramLike
 
 
 # No-op implementations when prometheus_client is absent
@@ -70,6 +57,26 @@ class NoOpHistogram:
     def with_labels(self, labels: Dict[str, str]) -> Self:
         return self
 
+# Internal typing aliases
+MetricLike = Union[CounterLike, GaugeLike, HistogramLike]
+MemoKey = Tuple[str, str, Optional[Tuple[str, ...]]]
+
+# Constructor Protocols for metric types
+class CounterCtor(Protocol):
+    def __call__(self, name: str, documentation: str, labelnames: Optional[Sequence[str]] = None) -> CounterLike: ...
+
+class GaugeCtor(Protocol):
+    def __call__(self, name: str, documentation: str, labelnames: Optional[Sequence[str]] = None) -> GaugeLike: ...
+
+class HistogramCtor(Protocol):
+    def __call__(
+        self,
+        name: str,
+        documentation: str,
+        buckets: Optional[Sequence[float]] = None,
+        labelnames: Optional[Sequence[str]] = None,
+    ) -> HistogramLike: ...
+
 
 class MetricsRegistry:
     """
@@ -83,18 +90,18 @@ class MetricsRegistry:
     def __init__(self) -> None:
         self._lock = RLock()
         self._enabled: Optional[bool] = None  # None=unknown; True/False determined at first use
-        self._counter_cls: Any = None
-        self._gauge_cls: Any = None
-        self._hist_cls: Any = None
-        self._memo: Dict[Tuple[str, str, Optional[Tuple[str, ...]]], Any] = {}
+        self._counter_ctor: Optional[CounterCtor] = None
+        self._gauge_ctor: Optional[GaugeCtor] = None
+        self._hist_ctor: Optional[HistogramCtor] = None
+        self._memo: Dict[MemoKey, MetricLike] = {}
         self._logged_no_prom: bool = False
 
     def _import_prometheus(self) -> bool:
         try:
-            from prometheus_client import Counter, Gauge, Histogram  # type: ignore
-            self._counter_cls = Counter
-            self._gauge_cls = Gauge
-            self._hist_cls = Histogram
+            from prometheus_client import Counter, Gauge, Histogram
+            self._counter_ctor = cast(CounterCtor, Counter)
+            self._gauge_ctor = cast(GaugeCtor, Gauge)
+            self._hist_ctor = cast(HistogramCtor, Histogram)
             self._enabled = True
             return True
         except Exception:
@@ -120,18 +127,21 @@ class MetricsRegistry:
         key = self._key("counter", name, labelnames)
         metric = self._memo.get(key)
         if metric is not None:
-            return metric
+            return cast(CounterLike, metric)
 
         with self._lock:
             metric = self._memo.get(key)
             if metric is not None:
-                return metric
+                return cast(CounterLike, metric)
+            ctor = self._counter_ctor
+            if ctor is None:
+                return NoOpCounter()
             if labelnames:
-                metric = self._counter_cls(name, description, labelnames=labelnames)
+                metric_c = ctor(name, description, labelnames=labelnames)
             else:
-                metric = self._counter_cls(name, description)
-            self._memo[key] = metric
-            return metric
+                metric_c = ctor(name, description)
+            self._memo[key] = metric_c
+            return metric_c
 
     def get_gauge(self, name: str, description: str, labelnames: Optional[List[str]] = None) -> GaugeLike:
         self._ensure_backend()
@@ -141,18 +151,21 @@ class MetricsRegistry:
         key = self._key("gauge", name, labelnames)
         metric = self._memo.get(key)
         if metric is not None:
-            return metric
+            return cast(GaugeLike, metric)
 
         with self._lock:
             metric = self._memo.get(key)
             if metric is not None:
-                return metric
+                return cast(GaugeLike, metric)
+            ctor = self._gauge_ctor
+            if ctor is None:
+                return NoOpGauge()
             if labelnames:
-                metric = self._gauge_cls(name, description, labelnames=labelnames)
+                metric_g = ctor(name, description, labelnames=labelnames)
             else:
-                metric = self._gauge_cls(name, description)
-            self._memo[key] = metric
-            return metric
+                metric_g = ctor(name, description)
+            self._memo[key] = metric_g
+            return metric_g
 
     def get_histogram(
         self,
@@ -168,20 +181,20 @@ class MetricsRegistry:
         key = self._key("hist", name, labelnames)
         metric = self._memo.get(key)
         if metric is not None:
-            return metric
+            return cast(HistogramLike, metric)
 
         with self._lock:
             metric = self._memo.get(key)
             if metric is not None:
-                return metric
-            kwargs: Dict[str, Any] = {}
-            if buckets is not None:
-                kwargs["buckets"] = tuple(buckets)
-            if labelnames is not None:
-                kwargs["labelnames"] = labelnames
-            metric = self._hist_cls(name, description, **kwargs)
-            self._memo[key] = metric
-            return metric
+                return cast(HistogramLike, metric)
+            ctor = self._hist_ctor
+            if ctor is None:
+                return NoOpHistogram()
+            buckets_seq: Optional[Sequence[float]] = tuple(buckets) if buckets is not None else None
+            labelnames_seq: Optional[Sequence[str]] = tuple(labelnames) if labelnames is not None else None
+            metric_h = ctor(name, description, buckets=buckets_seq, labelnames=labelnames_seq)
+            self._memo[key] = metric_h
+            return metric_h
 
 
 # Module-level singleton accessor

@@ -10,13 +10,13 @@ specialized predator strategies can excel.
 import asyncio
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Dict, List, Tuple
+from typing import Dict, List, Tuple, TypedDict, cast, Protocol
+import importlib
 
 import numpy as np
+from numpy.typing import NDArray
 import pandas as pd
-from sklearn.cluster import KMeans
-from sklearn.preprocessing import StandardScaler
-
+from src.core.types import JSONObject, JSONArray
 
 @dataclass
 class MarketNiche:
@@ -31,21 +31,54 @@ class MarketNiche:
     risk_level: str
     preferred_species: List[str]
 
+class NicheRow(TypedDict):
+    regime_type: str
+    volatility_range: Tuple[float, float]
+    volume_range: Tuple[float, float]
+    trend_strength: float
+    duration: int
+    preferred_species: List[str]
+
+class OHLCVRecord(TypedDict):
+    close: float
+    high: float
+    low: float
+    volume: int
+
+
+
+class ScalerLike(Protocol):
+    """Minimal interface for scalers like sklearn.preprocessing.StandardScaler."""
+    def fit_transform(self, X: NDArray[np.float64]) -> NDArray[np.float64]:
+        ...
+
+class ClustererLike(Protocol):
+    """Minimal interface for clusterers like sklearn.cluster.KMeans."""
+    def fit_predict(self, X: NDArray[np.float64]) -> NDArray[np.int64]:
+        ...
 
 class NicheDetector:
     """Advanced market niche detection system."""
     
-    def __init__(self):
-        self.scaler = StandardScaler()
-        self.clusterer = KMeans(n_clusters=5, random_state=42)
-        self.niche_history = []
+    def __init__(self) -> None:
+        cluster_mod = importlib.import_module("sklearn.cluster")
+        preprocessing_mod = importlib.import_module("sklearn.preprocessing")
+
+        KMeans = getattr(cluster_mod, "KMeans")
+        StandardScaler = getattr(preprocessing_mod, "StandardScaler")
+
+        self.scaler = cast(ScalerLike, StandardScaler())
+        self.clusterer = cast(ClustererLike, KMeans(n_clusters=5, random_state=42))
+        self.niche_history: List[MarketNiche] = []
         
-    async def detect_niches(self, market_data: Dict[str, Any]) -> Dict[str, MarketNiche]:
+    async def detect_niches(self, market_data: JSONObject) -> Dict[str, MarketNiche]:
         """Detect and segment market into different niches."""
-        if not market_data or 'data' not in market_data:
+        raw = market_data.get('data', [])
+        if not isinstance(raw, list):
             return {}
-        
-        df = pd.DataFrame(market_data['data'])
+
+        records = cast(List[OHLCVRecord], raw)
+        df = pd.DataFrame(records)
         if len(df) < 50:
             return {}
         
@@ -68,8 +101,8 @@ class NicheDetector:
         features = pd.DataFrame()
         
         # Price features
-        features['returns'] = df['close'].pct_change()
-        features['volatility'] = features['returns'].rolling(20).std() * np.sqrt(252)
+        features['returns'] = df['close'].astype(float).pct_change()
+        features['volatility'] = features['returns'].rolling(20).std() * np.sqrt(252.0)
         features['trend_strength'] = self._calculate_trend_strength(df)
         
         # Volume features
@@ -78,51 +111,59 @@ class NicheDetector:
         features['volume_volatility'] = df['volume'].pct_change().rolling(20).std()
         
         # Technical indicators
-        features['rsi'] = self._calculate_rsi(df['close'])
+        features['rsi'] = self._calculate_rsi(df['close'].astype(float))
         features['atr'] = self._calculate_atr(df)
         features['momentum'] = self._calculate_momentum(df)
         
         # Market microstructure
-        features['spread'] = (df['high'] - df['low']) / df['close']
-        features['efficiency'] = np.abs(df['close'].diff()) / (df['high'] - df['low'])
+        features['spread'] = (df['high'].astype(float) - df['low'].astype(float)) / df['close'].astype(float)
+        features['efficiency'] = df['close'].diff().abs().astype(float) / (df['high'].astype(float) - df['low'].astype(float))
         
         return features.dropna()
     
-    def _calculate_trend_strength(self, df: pd.DataFrame) -> pd.Series:
+    def _calculate_trend_strength(self, df: pd.DataFrame) -> pd.Series[float]:
         """Calculate trend strength using linear regression."""
-        def rolling_trend(window):
+        def rolling_trend(window: pd.Series[float]) -> float:
             if len(window) < 10:
-                return 0
-            x = np.arange(len(window))
-            slope, _ = np.polyfit(x, window, 1)
-            return slope / np.std(window) if np.std(window) > 0 else 0
-        
-        return df['close'].rolling(20).apply(
-            lambda x: rolling_trend(x[-10:]) if len(x) >= 10 else 0
+                return 0.0
+            arr = np.asarray(window, dtype=float)
+            x = np.arange(len(arr), dtype=float)
+            coef = np.polyfit(x, arr, 1)
+            slope = float(coef[0])
+            std_val = float(np.std(arr))
+            return slope / std_val if std_val > 0.0 else 0.0
+
+        result = df['close'].astype(float).rolling(20).apply(
+            lambda x: rolling_trend(x[-10:]) if len(x) >= 10 else 0.0
         )
+        return result
     
-    def _calculate_rsi(self, prices: pd.Series, period: int = 14) -> pd.Series:
+    def _calculate_rsi(self, prices: pd.Series[float], period: int = 14) -> pd.Series[float]:
         """Calculate RSI indicator."""
-        delta = prices.diff()
-        gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
-        loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
-        rs = gain / loss
-        return 100 - (100 / (1 + rs))
+        prices_f = prices.astype(float)
+        delta = prices_f.diff()
+        gain = delta.where(delta > 0.0, 0.0).rolling(window=period).mean()
+        loss = (-delta.where(delta < 0.0, 0.0)).rolling(window=period).mean()
+        rs = gain / loss.replace(0.0, np.nan)
+        result = 100.0 - (100.0 / (1.0 + rs))
+        return result
     
-    def _calculate_atr(self, df: pd.DataFrame, period: int = 14) -> pd.Series:
+    def _calculate_atr(self, df: pd.DataFrame, period: int = 14) -> pd.Series[float]:
         """Calculate Average True Range."""
-        high_low = df['high'] - df['low']
-        high_close = np.abs(df['high'] - df['close'].shift())
-        low_close = np.abs(df['low'] - df['close'].shift())
+        high_low = (df['high'] - df['low']).astype(float)
+        high_close = (df['high'] - df['close'].shift()).abs()
+        low_close = (df['low'] - df['close'].shift()).abs()
         ranges = pd.concat([high_low, high_close, low_close], axis=1)
         true_range = ranges.max(axis=1)
-        return true_range.rolling(period).mean()
+        result = true_range.rolling(period).mean()
+        return result
     
-    def _calculate_momentum(self, df: pd.DataFrame) -> pd.Series:
+    def _calculate_momentum(self, df: pd.DataFrame) -> pd.Series[float]:
         """Calculate momentum indicator."""
-        return df['close'].pct_change(10)
+        result = df['close'].astype(float).pct_change(10)
+        return result
     
-    def _detect_regimes(self, features: pd.DataFrame) -> pd.Series:
+    def _detect_regimes(self, features: pd.DataFrame) -> pd.Series[str]:
         """Detect market regimes using clustering."""
         # Select key features for clustering
         cluster_features = features[['volatility', 'trend_strength', 'volume_ratio']].dropna()
@@ -131,7 +172,7 @@ class NicheDetector:
             return pd.Series(['neutral'] * len(features), index=features.index)
         
         # Standardize features
-        scaled_features = self.scaler.fit_transform(cluster_features)
+        scaled_features = self.scaler.fit_transform(cluster_features.to_numpy(dtype=float))
         
         # Cluster market states
         clusters = self.clusterer.fit_predict(scaled_features)
@@ -145,18 +186,18 @@ class NicheDetector:
             4: 'quiet'
         }
         
-        regimes = pd.Series([regime_map.get(c, 'neutral') for c in clusters], 
+        regimes = pd.Series([regime_map.get(int(c), 'neutral') for c in clusters],
                           index=cluster_features.index)
         
         # Extend to full length
-        full_regimes = pd.Series(['neutral'] * len(features), index=features.index)
+        full_regimes: pd.Series[str] = pd.Series(['neutral'] * len(features), index=features.index)
         full_regimes.update(regimes)
         
         return full_regimes
     
-    def _identify_niches(self, features: pd.DataFrame, regimes: pd.Series) -> List[Dict[str, Any]]:
+    def _identify_niches(self, features: pd.DataFrame, regimes: pd.Series[str]) -> List[NicheRow]:
         """Identify specific niches within market regimes."""
-        niches = []
+        niches: List[NicheRow] = []
         
         for regime in regimes.unique():
             regime_mask = regimes == regime
@@ -170,12 +211,12 @@ class NicheDetector:
                               regime_data['volatility'].quantile(0.75))
             volume_range = (regime_data['volume_ratio'].quantile(0.25),
                           regime_data['volume_ratio'].quantile(0.75))
-            trend_strength = regime_data['trend_strength'].mean()
+            trend_strength = float(regime_data['trend_strength'].mean())
             
             # Determine preferred species for this niche
             preferred_species = self._determine_preferred_species(regime, volatility_range)
             
-            niche = {
+            niche: NicheRow = {
                 'regime_type': regime,
                 'volatility_range': volatility_range,
                 'volume_range': volume_range,
@@ -190,9 +231,9 @@ class NicheDetector:
     
     def _determine_preferred_species(self, regime: str, volatility_range: Tuple[float, float]) -> List[str]:
         """Determine which species are best suited for this regime."""
-        preferred = []
+        preferred: List[str] = []
         
-        vol_low, vol_high = volatility_range
+        _vol_low, vol_high = volatility_range
         
         if regime == 'trending_bull':
             preferred = ['stalker', 'alpha', 'pack_hunter']
@@ -213,17 +254,17 @@ class NicheDetector:
         
         return preferred
     
-    def _score_opportunities(self, niches: List[Dict[str, Any]]) -> Dict[str, MarketNiche]:
+    def _score_opportunities(self, niches: List[NicheRow]) -> Dict[str, MarketNiche]:
         """Score niches based on opportunity potential."""
-        scored_niches = {}
+        scored_niches: Dict[str, MarketNiche] = {}
         
         for i, niche_data in enumerate(niches):
             # Calculate opportunity score
-            volatility_score = min(niche_data['volatility_range'][1] * 10, 1.0)
+            volatility_score = min(niche_data['volatility_range'][1] * 10.0, 1.0)
             volume_score = min(niche_data['volume_range'][1] * 0.5, 1.0)
-            trend_score = abs(niche_data['trend_strength']) * 2
+            trend_score = abs(niche_data['trend_strength']) * 2.0
             
-            opportunity_score = (volatility_score + volume_score + trend_score) / 3
+            opportunity_score = (volatility_score + volume_score + trend_score) / 3.0
             
             # Determine risk level
             if niche_data['volatility_range'][1] > 0.05:
@@ -249,7 +290,7 @@ class NicheDetector:
         
         return scored_niches
     
-    async def get_current_regime(self, market_data: Dict[str, Any]) -> str:
+    async def get_current_regime(self, market_data: JSONObject) -> str:
         """Get current market regime classification."""
         niches = await self.detect_niches(market_data)
         
@@ -259,7 +300,7 @@ class NicheDetector:
         # Return the most recent/active niche
         return list(niches.values())[0].regime_type
     
-    async def get_species_recommendations(self, market_data: Dict[str, Any]) -> List[str]:
+    async def get_species_recommendations(self, market_data: JSONObject) -> List[str]:
         """Get species recommendations for current market conditions."""
         niches = await self.detect_niches(market_data)
         
@@ -276,12 +317,10 @@ class NicheDetector:
 
 
 # Example usage
-async def test_niche_detection():
+async def test_niche_detection() -> None:
     """Test the niche detection system."""
-    import numpy as np
 
     # Generate test market data
-    dates = pd.date_range(start='2024-01-01', periods=100, freq='H')
     np.random.seed(42)
 
     # Create trending market
@@ -290,7 +329,7 @@ async def test_niche_detection():
     prices = trend + noise
 
     # Build synthetic OHLCV records for the detector
-    records = []
+    records: List[OHLCVRecord] = []
     for i in range(100):
         close = float(prices[i])
         high = float(close + 0.001)
@@ -303,15 +342,14 @@ async def test_niche_detection():
             'volume': volume
         })
 
-    market_data = {'data': records}
+    market_data: JSONObject = {'data': cast(JSONArray, records)}
 
     detector = NicheDetector()
     niches = await detector.detect_niches(market_data)
 
     print(f"Detected {len(niches)} niches:")
     for niche_id, niche in niches.items():
-        print(f"  {niche.regime_type}: score={niche.opportunity_score:.2f}, "
-              f"species={niche.preferred_species}")
+        print(f"  {niche_id} -> {niche.regime_type}: score={niche.opportunity_score:.2f}, species={niche.preferred_species}")
 
 if __name__ == "__main__":
     asyncio.run(test_niche_detection())

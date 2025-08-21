@@ -1,0 +1,180 @@
+src/data_foundation/config/vol_config.py:12: error: Cannot find implementation
+or library stub for module named "src.sensory.dimensions.what.volatility_engine"
+ [import-not-found]
+        from src.sensory.dimensions.what.volatility_engine import VolConfi...
+    ^
+src/data_foundation/config/vol_config.py:12: note: See https://mypy.readthedocs.io/en/stable/running_mypy.html#missing-imports
+src/data_integration/data_fusion.py:21: error: Cannot find implementation or
+library stub for module named "src.sensory.core.base"  [import-not-found]
+    from src.sensory.core.base import MarketData
+    ^
+src/data_integration/data_fusion.py:23: error: Cannot find implementation or
+library stub for module named "src.data_integration.data_validation" 
+[import-not-found]
+    from .data_validation import MarketDataValidator, ValidationLevel
+    ^
+src/data_integration/dukascopy_ingestor.py:24: error: Library stubs not
+installed for "requests"  [import-untyped]
+    import requests
+    ^
+src/data_integration/dukascopy_ingestor.py:24: note: Hint: "python3 -m pip install types-requests"
+src/data_integration/dukascopy_ingestor.py:24: note: (or run "mypy --install-types" to install all missing stub packages)
+src/evolution/ambusher/ambusher_orchestrator.py:17: error: Cannot find
+implementation or library stub for module named
+"src.evolution.ambusher.ambusher_fitness"  [import-not-found]
+        from src.evolution.ambusher.ambusher_fitness import AmbusherFitnes...
+    ^
+src/integration/component_integrator_impl.py:74: error: Cannot find
+implementation or library stub for module named
+"src.trading.execution.execution_engine"  [import-not-found]
+                from src.trading.execution.execution_engine import Executi...
+    ^
+src/integration/component_integrator_impl.py:108: error: Cannot find
+implementation or library stub for module named "src.governance.audit_trail" 
+[import-not-found]
+                from src.governance.audit_trail import AuditTrail
+    ^
+src/intelligence/sentient_adaptation.py:33: error: Cannot find implementation
+or library stub for module named "src.evolution.episodic_memory_system" 
+[import-not-found]
+        from src.evolution.episodic_memory_system import EpisodicMemorySys...
+    ^
+src/risk/__init__.py:8: error: Cannot find implementation or library stub for
+module named "src.risk.real_risk_manager"  [import-not-found]
+    from .real_risk_manager import RealRiskConfig, RealRiskManager
+    ^
+src/sensory/core/__init__.py:7: error: Cannot find implementation or library
+stub for module named "src.sensory.core.base"  [import-not-found]
+    from .base import DimensionalReading, InstrumentMeta, MarketData, Mark...
+    ^
+src/sensory/dimensions/__init__.py:31: error: Cannot find implementation or
+library stub for module named "src.sensory.organs.dimensions.when_dimension" 
+[import-not-found]
+        from src.sensory.organs.dimensions.when_dimension import (
+    ^
+src/sensory/organs/dimensions/anomaly_dimension.py:14: error: Library stubs not
+installed for "scipy"  [import-untyped]
+    from scipy import stats
+    ^
+src/sensory/organs/dimensions/anomaly_dimension.py:14: note: Hint: "python3 -m pip install scipy-stubs"
+src/sensory/organs/dimensions/how_organ.py:18: error: Cannot find
+implementation or library stub for module named "src.sensory.core.base" 
+[import-not-found]
+    from src.sensory.core.base import DimensionalReading, MarketData, Mark...
+    ^
+src/sensory/organs/dimensions/how_organ.py:37: error: Cannot find
+implementation or library stub for module named
+"src.sensory.organs.dimensions.indicators"  [import-not-found]
+                from .indicators import TechnicalIndicators
+    ^
+src/sensory/organs/dimensions/how_organ.py:38: error: Cannot find
+implementation or library stub for module named
+"src.sensory.organs.dimensions.order_flow"  [import-not-found]
+                from .order_flow import MarketMicrostructureAnalyzer, Orde...
+    ^
+src/sensory/organs/dimensions/how_organ.py:39: error: Cannot find
+implementation or library stub for module named
+"src.sensory.organs.dimensions.patterns"  [import-not-found]
+                from .patterns import ICTPatternDetector, OrderFlowDataPro...
+    ^
+src/sensory/organs/dimensions/institutional_tracker.py:22: error: Cannot find
+implementation or library stub for module named "src.sensory.core.base" 
+[import-not-found]
+    from src.sensory.core.base import DimensionalReading, MarketData, Mark...
+    ^
+src/sensory/organs/dimensions/integration_orchestrator.py:23: error: Cannot
+find implementation or library stub for module named
+"src.sensory.enhanced.chaos.antifragile_adaptation"  [import-not-found]
+    from src.sensory.enhanced.chaos.antifragile_adaptation import ChaosAda...
+    ^
+src/sensory/organs/dimensions/integration_orchestrator.py:24: error: Cannot
+find implementation or library stub for module named
+"src.sensory.enhanced.how.institutional_footprint_hunter"  [import-not-found]
+    from src.sensory.enhanced.how.institutional_footprint_hunter import (
+    ^
+src/sensory/organs/dimensions/integration_orchestrator.py:28: error: Cannot
+find implementation or library stub for module named
+"src.sensory.enhanced.what.pattern_synthesis_engine"  [import-not-found]
+    from src.sensory.enhanced.what.pattern_synthesis_engine import (
+    ^
+src/sensory/organs/dimensions/integration_orchestrator.py:32: error: Cannot
+find implementation or library stub for module named
+"src.sensory.enhanced.when.temporal_advantage_system"  [import-not-found]
+    from src.sensory.enhanced.when.temporal_advantage_system import (
+    ^
+src/sensory/organs/dimensions/integration_orchestrator.py:38: error: Cannot
+find implementation or library stub for module named
+"src.sensory.enhanced.why.macro_predator_intelligence"  [import-not-found]
+    from src.sensory.enhanced.why.macro_predator_intelligence import (
+    ^
+src/sensory/organs/dimensions/macro_intelligence.py:14: error: Cannot find
+implementation or library stub for module named "src.sensory.core.base" 
+[import-not-found]
+    from src.sensory.core.base import DimensionalReading, MarketData, Mark...
+    ^
+src/sensory/organs/dimensions/real_sensory_organ.py:11: error: Cannot find
+implementation or library stub for module named "src.sensory.real_sensory_organ"
+ [import-not-found]
+    from src.sensory.real_sensory_organ import RealSensoryOrgan as RealSen...
+    ^
+src/sensory/organs/dimensions/what_organ.py:18: error: Cannot find
+implementation or library stub for module named "src.sensory.core.base" 
+[import-not-found]
+    from src.sensory.core.base import DimensionalReading, MarketData, Mark...
+    ^
+src/sensory/organs/dimensions/what_organ.py:38: error: Cannot find
+implementation or library stub for module named
+"src.sensory.organs.dimensions.price_action"  [import-not-found]
+                from .price_action import PriceActionAnalyzer
+    ^
+src/sensory/organs/dimensions/when_organ.py:19: error: Cannot find
+implementation or library stub for module named "src.sensory.core.base" 
+[import-not-found]
+    from src.sensory.core.base import DimensionalReading, MarketData, Mark...
+    ^
+src/sensory/organs/dimensions/when_organ.py:38: error: Cannot find
+implementation or library stub for module named
+"src.sensory.organs.dimensions.regime_detection"  [import-not-found]
+                from .regime_detection import MarketRegimeDetector, Tempor...
+    ^
+src/sensory/organs/dimensions/why_organ.py:21: error: Cannot find
+implementation or library stub for module named "src.sensory.core.base" 
+[import-not-found]
+    from src.sensory.core.base import DimensionalReading, MarketData, Mark...
+    ^
+src/sensory/organs/dimensions/why_organ.py:46: error: Cannot find
+implementation or library stub for module named
+"src.sensory.organs.dimensions.economic_analysis"  [import-not-found]
+                from .economic_analysis import EconomicDataProvider, Funda...
+    ^
+src/sensory/organs/economic_organ.py:12: error: Cannot find implementation or
+library stub for module named "src.sensory.core.base"  [import-not-found]
+    from ..core.base import MarketData, SensoryOrgan, SensoryReading
+    ^
+src/sensory/organs/news_organ.py:12: error: Cannot find implementation or
+library stub for module named "src.sensory.core.base"  [import-not-found]
+    from ..core.base import MarketData, SensoryOrgan, SensoryReading
+    ^
+src/sensory/organs/orderbook_organ.py:16: error: Cannot find implementation or
+library stub for module named "src.sensory.core.base"  [import-not-found]
+    from src.sensory.core.base import MarketData, SensoryOrgan
+    ^
+src/sensory/organs/price_organ.py:16: error: Cannot find implementation or
+library stub for module named "src.sensory.core.base"  [import-not-found]
+    from src.sensory.core.base import MarketData, SensoryOrgan
+    ^
+src/sensory/organs/sentiment_organ.py:12: error: Cannot find implementation or
+library stub for module named "src.sensory.core.base"  [import-not-found]
+    from ..core.base import MarketData, SensoryOrgan, SensoryReading
+    ^
+src/sensory/organs/volume_organ.py:16: error: Cannot find implementation or
+library stub for module named "src.sensory.core.base"  [import-not-found]
+    from src.sensory.core.base import MarketData, SensoryOrgan
+    ^
+src/market_intelligence/dimensions/enhanced_anomaly_dimension.py: error: Source
+file found twice under different module names:
+"src.market_intelligence.dimensions.enhanced_anomaly_dimension" and
+"market_intelligence.dimensions.enhanced_anomaly_dimension"
+src/market_intelligence/dimensions/enhanced_anomaly_dimension.py: note: See https://mypy.readthedocs.io/en/stable/running_mypy.html#mapping-file-paths-to-modules for more info
+src/market_intelligence/dimensions/enhanced_anomaly_dimension.py: note: Common resolutions include: a) adding `__init__.py` somewhere, b) using `--explicit-package-bases` or adjusting MYPYPATH
+Found 37 errors in 25 files (errors prevented further checking)

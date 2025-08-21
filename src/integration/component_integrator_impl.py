@@ -6,17 +6,15 @@ Concrete implementation of the component integrator for managing
 system-wide component integration and lifecycle.
 """
 
+import asyncio
 import json
 import logging
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Dict, List, Optional
 
-try:
-    from src.core.interfaces import IPopulationManager, IRiskManager
-except Exception:  # pragma: no cover
-    IRiskManager = IPopulationManager = object  # type: ignore
-from src.integration.component_integrator import ComponentIntegrator
+from src.core.types import JSONObject
+from src.integration.component_integrator import ComponentIntegrator, IComponentIntegrator
 
 logger = logging.getLogger(__name__)
 
@@ -24,9 +22,9 @@ logger = logging.getLogger(__name__)
 class ComponentIntegratorImpl(ComponentIntegrator):
     """Concrete implementation of component integrator."""
     
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
-        self.components: Dict[str, Any] = {}
+        self.components: Dict[str, object] = {}
         self.dependencies: Dict[str, List[str]] = {}
         self.initialized = False
         
@@ -123,8 +121,11 @@ class ComponentIntegratorImpl(ComponentIntegrator):
             
             # Shutdown components in reverse order
             for component_name, component in reversed(list(self.components.items())):
-                if hasattr(component, 'shutdown'):
-                    await component.shutdown()
+                shutdown_attr = getattr(component, "shutdown", None)
+                if callable(shutdown_attr):
+                    result = shutdown_attr()
+                    if asyncio.iscoroutine(result):
+                        await result
                 logger.info(f"Shutdown {component_name}")
                 
             self.components.clear()
@@ -136,7 +137,7 @@ class ComponentIntegratorImpl(ComponentIntegrator):
             logger.error(f"Failed to shutdown component integrator: {e}")
             return False
             
-    def get_component(self, name: str) -> Optional[Any]:
+    def get_component(self, name: str) -> Optional[object]:
         """Get a component by name."""
         return self.components.get(name)
         
@@ -144,20 +145,25 @@ class ComponentIntegratorImpl(ComponentIntegrator):
         """List all available components."""
         return list(self.components.keys())
         
-    def get_component_status(self) -> Dict[str, str]:
-        """Get status of all components."""
-        status = {}
+    def get_component_status(self) -> JSONObject:
+        """Get status of all components as JSON object."""
+        status: JSONObject = {}
         for name, component in self.components.items():
-            if hasattr(component, 'get_status'):
-                status[name] = component.get_status()
+            get_status = getattr(component, "get_status", None)
+            if callable(get_status):
+                try:
+                    value = get_status()
+                    status[name] = value if isinstance(value, (str, int, float, bool)) else str(value)
+                except Exception:
+                    status[name] = "unknown"
             else:
-                status[name] = 'active' if component else 'inactive'
+                status[name] = "active" if component else "inactive"
         return status
         
-    async def validate_integration(self) -> Dict[str, Any]:
+    async def validate_integration(self) -> JSONObject:
         """Validate component integration."""
         try:
-            validation_results = {}
+            validation_results: JSONObject = {}
             
             # Test component availability
             for name, component in self.components.items():
@@ -230,28 +236,31 @@ class ComponentIntegratorImpl(ComponentIntegrator):
             logger.error(f"Failed to load configuration: {e}")
             return False
             
-    def get_system_health(self) -> Dict[str, Any]:
+    def get_system_health(self) -> JSONObject:
         """Get overall system health."""
         try:
-            health = {
-                'timestamp': datetime.now().isoformat(),
-                'initialized': self.initialized,
-                'total_components': len(self.components),
-                'component_status': self.get_component_status(),
-                'integration_valid': True  # Simplified for now
+            component_status_obj: JSONObject = self.get_component_status()
+
+            # Calculate health score from component statuses without generator typing issues
+            active_components = 0
+            for v in component_status_obj.values():
+                if isinstance(v, str) and v == "active":
+                    active_components += 1
+
+            health: JSONObject = {
+                "timestamp": datetime.now().isoformat(),
+                "initialized": self.initialized,
+                "total_components": len(self.components),
+                "component_status": component_status_obj,
+                "integration_valid": True,  # Simplified for now
+                "health_score": active_components / max(1, len(self.components)),
             }
-            
-            # Calculate health score
-            active_components = sum(1 for status in health['component_status'].values() 
-                                  if status == 'active')
-            
-            health['health_score'] = active_components / max(1, len(self.components))
             return health
-            
+
         except Exception as e:
             logger.error(f"Failed to get system health: {e}")
             return {
-                'timestamp': datetime.now().isoformat(),
-                'error': str(e),
-                'status': 'error'
+                "timestamp": datetime.now().isoformat(),
+                "error": str(e),
+                "status": "error",
             }

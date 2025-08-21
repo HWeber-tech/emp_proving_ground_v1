@@ -9,13 +9,17 @@ Author: EMP Development Team
 Phase: 2 - Truth-First Completion
 """
 
+from __future__ import annotations
+
 import asyncio
 import logging
 from datetime import datetime
-from typing import Any, Dict
+from typing import Mapping, Protocol, TypedDict, runtime_checkable, cast
 
 import numpy as np
 import pandas as pd
+
+from src.core.types import JSONObject
 
 from src.sensory.enhanced.anomaly.manipulation_detection import (
     ManipulationDetectionSystem,
@@ -40,26 +44,44 @@ from src.sensory.enhanced.why.macro_predator_intelligence import (
     MacroPredatorIntelligence,
 )
 
+# Typed payloads and minimal Protocols for orchestrator I/O
+
+class OrchestratorMarketData(TypedDict, total=False):
+    price_data: pd.DataFrame
+    meta: JSONObject
+
+@runtime_checkable
+class AnomalyDetectionLike(Protocol):
+    confidence: float
+    overall_risk_score: float
+
+@runtime_checkable
+class ChaosAdaptationLike(Protocol):
+    confidence: float
+    black_swan_probability: float
+
+__all__ = ["UnifiedMarketIntelligence", "SensoryIntegrationOrchestrator", "OrchestratorMarketData"]
+
 logger = logging.getLogger(__name__)
 
 
 class UnifiedMarketIntelligence:
     """Unified market intelligence from all sensory dimensions"""
-    def __init__(self, symbol: str = None):
-        self.symbol = symbol
-        self.macro_environment = None
-        self.institutional_footprint = None
-        self.pattern_synthesis = None
-        self.temporal_advantage = None
-        self.anomaly_detection = None
-        self.chaos_adaptation = None
-        self.overall_confidence = 0.0  # Changed to match test
-        self.signal_strength = 0.0
-        self.risk_assessment = 0.0  # Changed to match test
-        self.opportunity_score = 0.0  # Added to match test
-        self.confluence_score = 0.0  # Added to match test
-        self.recommended_action = "hold"
-        self.timestamp = datetime.now()
+    def __init__(self, symbol: str | None = None) -> None:
+        self.symbol: str | None = symbol
+        self.macro_environment: MacroEnvironmentState | None = None
+        self.institutional_footprint: InstitutionalFootprint | None = None
+        self.pattern_synthesis: PatternSynthesis | None = None
+        self.temporal_advantage: TemporalAdvantage | None = None
+        self.anomaly_detection: AnomalyDetectionLike | None = None
+        self.chaos_adaptation: ChaosAdaptationLike | None = None
+        self.overall_confidence: float = 0.0  # Changed to match test
+        self.signal_strength: float = 0.0
+        self.risk_assessment: float = 0.0  # Changed to match test
+        self.opportunity_score: float = 0.0  # Added to match test
+        self.confluence_score: float = 0.0  # Added to match test
+        self.recommended_action: str = "hold"
+        self.timestamp: datetime = datetime.now()
 
 
 class SensoryIntegrationOrchestrator:
@@ -67,17 +89,17 @@ class SensoryIntegrationOrchestrator:
     Master orchestrator for the 5D+1 sensory cortex.
     """
     
-    def __init__(self):
+    def __init__(self) -> None:
         # Initialize all sensory dimensions
-        self.macro_intelligence = MacroPredatorIntelligence()
-        self.footprint_hunter = InstitutionalFootprintHunter()
-        self.pattern_engine = PatternSynthesisEngine()
-        self.temporal_analyzer = TemporalAdvantageSystem()
-        self.anomaly_detector = ManipulationDetectionSystem()
-        self.chaos_adapter = ChaosAdaptationSystem()
+        self.macro_intelligence: MacroPredatorIntelligence = MacroPredatorIntelligence()
+        self.footprint_hunter: InstitutionalFootprintHunter = InstitutionalFootprintHunter()
+        self.pattern_engine: PatternSynthesisEngine = PatternSynthesisEngine()
+        self.temporal_analyzer: TemporalAdvantageSystem = TemporalAdvantageSystem()
+        self.anomaly_detector: ManipulationDetectionSystem = ManipulationDetectionSystem()
+        self.chaos_adapter: ChaosAdaptationSystem = ChaosAdaptationSystem()
         
         # Initialize adaptive weights
-        self.adaptive_weights = {
+        self.adaptive_weights: dict[str, float] = {
             'macro': 0.20,
             'footprint': 0.25,
             'patterns': 0.20,
@@ -88,26 +110,26 @@ class SensoryIntegrationOrchestrator:
         
         logger.info("Sensory Integration Orchestrator initialized")
     
-    async def analyze_unified_intelligence(self, market_data: Dict[str, Any], symbol: str = None) -> UnifiedMarketIntelligence:
+    async def analyze_unified_intelligence(self, market_data: OrchestratorMarketData | Mapping[str, object], symbol: str | None = None) -> UnifiedMarketIntelligence:
         """
         Analyze unified intelligence across all dimensions.
-        
+
         Args:
-            market_data: Market data dictionary
+            market_data: Market data mapping; may include 'price_data' as a pandas.DataFrame and optional JSON-like metadata.
             symbol: Trading symbol (optional)
-            
+
         Returns:
             UnifiedMarketIntelligence: Complete market analysis
         """
         return await self.process_market_intelligence(market_data, symbol)
     
-    async def process_market_intelligence(self, market_data: Dict[str, Any], symbol: str = None) -> UnifiedMarketIntelligence:
+    async def process_market_intelligence(self, market_data: OrchestratorMarketData | Mapping[str, object], symbol: str | None = None) -> UnifiedMarketIntelligence:
         """Process all sensory dimensions and create unified market intelligence."""
         try:
             logger.info("Starting unified market intelligence processing")
             
             # Extract data components
-            price_data = market_data.get('price_data', pd.DataFrame())
+            price_data = cast(pd.DataFrame, market_data.get('price_data', pd.DataFrame()))
             
             # Process each dimension in parallel
             tasks = [
@@ -126,12 +148,41 @@ class SensoryIntegrationOrchestrator:
             intelligence = UnifiedMarketIntelligence(symbol=symbol)
             
             # Assign results
-            intelligence.macro_environment = results[0] if not isinstance(results[0], Exception) else self._get_fallback_macro()
-            intelligence.institutional_footprint = results[1] if not isinstance(results[1], Exception) else self._get_fallback_footprint()
-            intelligence.pattern_synthesis = results[2] if not isinstance(results[2], Exception) else self._get_fallback_patterns()
-            intelligence.temporal_advantage = results[3] if not isinstance(results[3], Exception) else self._get_fallback_timing()
-            intelligence.anomaly_detection = results[4] if not isinstance(results[4], Exception) else self._get_fallback_anomalies()
-            intelligence.chaos_adaptation = results[5] if not isinstance(results[5], Exception) else self._get_fallback_chaos()
+            res0 = results[0]
+            if isinstance(res0, Exception):
+                intelligence.macro_environment = self._get_fallback_macro()
+            else:
+                intelligence.macro_environment = cast(MacroEnvironmentState, res0)
+
+            res1 = results[1]
+            if isinstance(res1, Exception):
+                intelligence.institutional_footprint = self._get_fallback_footprint()
+            else:
+                intelligence.institutional_footprint = cast(InstitutionalFootprint, res1)
+
+            res2 = results[2]
+            if isinstance(res2, Exception):
+                intelligence.pattern_synthesis = self._get_fallback_patterns()
+            else:
+                intelligence.pattern_synthesis = cast(PatternSynthesis, res2)
+
+            res3 = results[3]
+            if isinstance(res3, Exception):
+                intelligence.temporal_advantage = self._get_fallback_timing()
+            else:
+                intelligence.temporal_advantage = cast(TemporalAdvantage, res3)
+
+            res4 = results[4]
+            if isinstance(res4, Exception):
+                intelligence.anomaly_detection = self._get_fallback_anomalies()
+            else:
+                intelligence.anomaly_detection = cast(AnomalyDetectionLike, res4)
+
+            res5 = results[5]
+            if isinstance(res5, Exception):
+                intelligence.chaos_adaptation = self._get_fallback_chaos()
+            else:
+                intelligence.chaos_adaptation = cast(ChaosAdaptationLike, res5)
             
             # Calculate unified confidence
             intelligence.overall_confidence = self._calculate_overall_confidence(intelligence)
@@ -155,7 +206,7 @@ class SensoryIntegrationOrchestrator:
     def _calculate_overall_confidence(self, intelligence: UnifiedMarketIntelligence) -> float:
         """Calculate overall confidence score"""
         try:
-            confidences = []
+            confidences: list[float] = []
             
             # Safely extract confidence scores
             if intelligence.macro_environment and hasattr(intelligence.macro_environment, 'confidence_score'):
@@ -188,10 +239,10 @@ class SensoryIntegrationOrchestrator:
             else:
                 confidences.append(0.1)
             
-            weights = list(self.adaptive_weights.values())
-            weighted_confidence = np.average(confidences, weights=weights)
+            weights: list[float] = list(self.adaptive_weights.values())
+            weighted_confidence = float(np.average(confidences, weights=weights))
             
-            return min(max(weighted_confidence, 0.0), 1.0)
+            return float(min(max(weighted_confidence, 0.0), 1.0))
             
         except Exception as e:
             logger.error(f"Failed to calculate overall confidence: {e}")
@@ -200,7 +251,7 @@ class SensoryIntegrationOrchestrator:
     def _calculate_opportunity_score(self, intelligence: UnifiedMarketIntelligence) -> float:
         """Calculate opportunity score based on all dimensions"""
         try:
-            scores = []
+            scores: list[float] = []
             
             # Macro opportunity
             if intelligence.macro_environment and hasattr(intelligence.macro_environment, 'central_bank_sentiment'):
@@ -226,7 +277,7 @@ class SensoryIntegrationOrchestrator:
             else:
                 scores.append(0.0)
             
-            return np.mean(scores)
+            return float(np.mean(scores))
             
         except Exception as e:
             logger.error(f"Failed to calculate opportunity score: {e}")
@@ -235,11 +286,11 @@ class SensoryIntegrationOrchestrator:
     def _calculate_confluence_score(self, intelligence: UnifiedMarketIntelligence) -> float:
         """Calculate confluence score based on agreement between dimensions"""
         try:
-            signals = []
+            signals: list[float] = []
             
             # Collect directional signals
             if intelligence.macro_environment and hasattr(intelligence.macro_environment, 'central_bank_sentiment'):
-                signals.append(np.sign(intelligence.macro_environment.central_bank_sentiment))
+                signals.append(float(np.sign(intelligence.macro_environment.central_bank_sentiment)))
                 
             if intelligence.institutional_footprint and hasattr(intelligence.institutional_footprint, 'institutional_bias'):
                 bias = intelligence.institutional_footprint.institutional_bias
@@ -252,7 +303,7 @@ class SensoryIntegrationOrchestrator:
             
             if len(signals) > 1:
                 # Calculate agreement
-                agreement = np.std(signals)
+                agreement = float(np.std(signals))
                 return max(0.0, 1.0 - agreement)  # Lower std = higher agreement
             else:
                 return 0.0
@@ -264,7 +315,7 @@ class SensoryIntegrationOrchestrator:
     def _calculate_risk_assessment(self, intelligence: UnifiedMarketIntelligence) -> float:
         """Calculate overall risk assessment score"""
         try:
-            risk_factors = []
+            risk_factors: list[float] = []
             
             # Macro risk
             if intelligence.macro_environment and hasattr(intelligence.macro_environment, 'geopolitical_risk'):
@@ -284,7 +335,7 @@ class SensoryIntegrationOrchestrator:
             else:
                 risk_factors.append(0.5)
             
-            return np.mean(risk_factors)
+            return float(np.mean(risk_factors))
             
         except Exception as e:
             logger.error(f"Failed to calculate risk assessment: {e}")
@@ -307,49 +358,41 @@ class SensoryIntegrationOrchestrator:
             logger.error(f"Failed to generate recommended action: {e}")
             return 'hold'
     
-    def _get_fallback_macro(self):
+    def _get_fallback_macro(self) -> MacroEnvironmentState:
         """Return fallback macro environment"""
         return MacroEnvironmentState(0.0, 0.5, 0.0, 0.0, 0.1)
     
-    def _get_fallback_footprint(self):
+    def _get_fallback_footprint(self) -> InstitutionalFootprint:
         """Return fallback institutional footprint"""
         return InstitutionalFootprint([], [], [], 0.0, 'neutral', 0.1)
     
-    def _get_fallback_patterns(self):
+    def _get_fallback_patterns(self) -> PatternSynthesis:
         """Return fallback pattern synthesis"""
         return PatternSynthesis([], {}, {}, "", 0.0, 0.1)
     
-    def _get_fallback_timing(self):
+    def _get_fallback_timing(self) -> TemporalAdvantage:
         """Return fallback temporal advantage"""
         return TemporalAdvantage(0.0, {}, {}, "", (datetime.now(), datetime.now()), 0.1)
     
-    def _get_fallback_anomalies(self):
-        """Return fallback anomaly detection"""
-        from src.sensory.enhanced.anomaly.manipulation_detection import AnomalyDetection
-        return AnomalyDetection(
-            spoofing=None,
-            wash_trading=None,
-            pump_dump=None,
-            regulatory_arbitrage=[],
-            microstructure_anomalies=[],
-            overall_risk_score=0.0,
-            confidence=0.1
-        )
+    def _get_fallback_anomalies(self) -> AnomalyDetectionLike:
+        """Return fallback anomaly detection (minimal Protocol-compatible object)."""
+        class _AnomalyFallback:
+            def __init__(self, overall_risk_score: float, confidence: float) -> None:
+                self.overall_risk_score = overall_risk_score
+                self.confidence = confidence
+
+        return _AnomalyFallback(0.0, 0.1)
     
-    def _get_fallback_chaos(self):
-        """Return fallback chaos adaptation"""
-        from src.sensory.enhanced.chaos.antifragile_adaptation import ChaosAdaptation
-        return ChaosAdaptation(
-            black_swan=None,
-            volatility_harvesting=None,
-            crisis_alpha=None,
-            regime_change=None,
-            antifragile_strategies=[],
-            overall_adaptation_score=0.0,
-            confidence=0.1
-        )
+    def _get_fallback_chaos(self) -> ChaosAdaptationLike:
+        """Return fallback chaos adaptation (minimal Protocol-compatible object)."""
+        class _ChaosFallback:
+            def __init__(self, black_swan_probability: float, confidence: float) -> None:
+                self.black_swan_probability = black_swan_probability
+                self.confidence = confidence
+
+        return _ChaosFallback(0.0, 0.1)
     
-    def _get_fallback_intelligence(self, symbol: str = None) -> UnifiedMarketIntelligence:
+    def _get_fallback_intelligence(self, symbol: str | None = None) -> UnifiedMarketIntelligence:
         """Return fallback unified intelligence"""
         intelligence = UnifiedMarketIntelligence(symbol=symbol)
         intelligence.macro_environment = self._get_fallback_macro()

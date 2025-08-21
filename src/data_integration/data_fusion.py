@@ -18,7 +18,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 
-from src.sensory.core.base import MarketData
+from src.core.base import MarketData
 
 from .data_validation import MarketDataValidator, ValidationLevel
 

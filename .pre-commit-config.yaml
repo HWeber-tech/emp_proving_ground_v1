@@ -3,12 +3,12 @@ repos:
     hooks:
       - id: check-no-new-duplicates
         name: check-no-new-duplicates
-        entry: python scripts/cleanup/check_no_new_duplicates.py --root src --out docs/reports --min-count 2
+        entry: python3 scripts/cleanup/check_no_new_duplicates.py --root src --out docs/reports --min-count 2
         language: system
         pass_filenames: false
       - id: check-legacy-imports
         name: check-legacy-imports
-        entry: python scripts/cleanup/check_legacy_imports.py --root src --map docs/development/import_rewrite_map.yaml --fail
+        entry: python3 scripts/cleanup/check_legacy_imports.py --root src --map docs/development/import_rewrite_map.yaml --fail
         language: system
         pass_filenames: false
   - repo: https://github.com/astral-sh/ruff-pre-commit
@@ -22,6 +22,20 @@ repos:
     hooks:
       - id: black
         args: ["--line-length=100", "--target-version=py311"]
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.10.0
+    hooks:
+      - id: mypy
+        name: mypy
+        args:
+          - --python-version=3.11
+          - --pretty
+          - --show-error-codes
+        additional_dependencies:
+          - types-PyYAML
+          - pandas-stubs
+          - types-psutil
+        files: ^src/
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.6.0
     hooks:

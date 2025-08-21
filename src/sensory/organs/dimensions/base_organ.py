@@ -17,8 +17,9 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from pydantic import BaseModel, Field, model_validator, validator
 
-from trading.order_management.order_book.snapshot import OrderBookLevel as OrderBookLevel
-from trading.order_management.order_book.snapshot import OrderBookSnapshot as OrderBookSnapshot
+from src.trading.order_management.order_book.snapshot import OrderBookLevel as OrderBookLevel
+from src.trading.order_management.order_book.snapshot import OrderBookSnapshot as OrderBookSnapshot
+
 
 logger = logging.getLogger(__name__)
 

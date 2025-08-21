@@ -18,7 +18,7 @@ import pandas as pd
 
 from src.data_foundation.config.why_config import load_why_config
 from src.core.telemetry import get_metrics_sink
-from src.sensory.core.base import DimensionalReading, MarketData, MarketRegime
+from src.core.base import DimensionalReading, MarketData, MarketRegime
 from src.sensory.dimensions.why.yield_signal import YieldSlopeTracker
 
 logger = logging.getLogger(__name__)

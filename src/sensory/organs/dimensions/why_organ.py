@@ -11,7 +11,7 @@ Phase: 2 - Sensory Cortex Refactoring
 
 import logging
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Mapping, TYPE_CHECKING
 
 import numpy as np
 import pandas as pd
@@ -23,6 +23,12 @@ from src.sensory.dimensions.why.yield_signal import YieldSlopeTracker
 
 logger = logging.getLogger(__name__)
 
+# Remove heavy imports at module import time; use TYPE_CHECKING for type hints only.
+if TYPE_CHECKING:
+    import pandas as pd
+    import numpy as np
+    from numpy.typing import NDArray
+
 
 class WhyEngine:
     """
@@ -32,7 +38,7 @@ class WhyEngine:
     including economic factors, fundamental analysis, and market drivers.
     """
     
-    def __init__(self, config: Optional[Dict[str, Any]] = None):
+    def __init__(self, config: dict[str, object] | None = None):
         """Initialize the why engine with configuration"""
         self.config = config or {}
         try:
@@ -54,8 +60,8 @@ class WhyEngine:
             self.economic_provider = None
             self.fundamental_analyzer = None
     
-    def analyze_market_data(self, market_data: List[MarketData], 
-                          symbol: str = "UNKNOWN") -> Dict[str, Any]:
+    def analyze_market_data(self, market_data: list[MarketData], 
+                          symbol: str = "UNKNOWN") -> dict[str, object]:
         """
         Perform comprehensive fundamental analysis on market data.
         
@@ -93,8 +99,8 @@ class WhyEngine:
             logger.error(f"Error in fundamental analysis for {symbol}: {e}")
             return {}
     
-    def analyze_fundamental_intelligence(self, market_data: List[MarketData], 
-                                       symbol: str = "UNKNOWN") -> Dict[str, Any]:
+    def analyze_fundamental_intelligence(self, market_data: list[MarketData], 
+                                       symbol: str = "UNKNOWN") -> dict[str, object]:
         """
         Analyze fundamental intelligence and economic factors.
         
@@ -173,7 +179,7 @@ class WhyEngine:
             warnings=[]
         )
     
-    def _analyze_economic_factors(self, df: pd.DataFrame) -> Dict[str, Any]:
+    def _analyze_economic_factors(self, df: "pd.DataFrame") -> dict[str, object]:
         """Analyze economic factors"""
         if self.economic_provider is None:
             return {}
@@ -189,7 +195,7 @@ class WhyEngine:
             logger.error(f"Error analyzing economic factors: {e}")
             return {}
     
-    def _analyze_fundamentals(self, df: pd.DataFrame) -> Dict[str, Any]:
+    def _analyze_fundamentals(self, df: "pd.DataFrame") -> dict[str, object]:
         """Analyze fundamental factors"""
         if self.fundamental_analyzer is None:
             return {}
@@ -206,7 +212,7 @@ class WhyEngine:
             logger.error(f"Error analyzing fundamentals: {e}")
             return {}
     
-    def _analyze_market_drivers(self, df: pd.DataFrame) -> Dict[str, Any]:
+    def _analyze_market_drivers(self, df: "pd.DataFrame") -> dict[str, object]:
         """Analyze market drivers"""
         try:
             if df.empty:
@@ -229,15 +235,15 @@ class WhyEngine:
             logger.error(f"Error analyzing market drivers: {e}")
             return {}
     
-    def _analyze_sentiment(self, df: pd.DataFrame) -> Dict[str, Any]:
+    def _analyze_sentiment(self, df: "pd.DataFrame") -> dict[str, object]:
         """Analyze market sentiment"""
         try:
             if df.empty:
                 return {}
             
             # Calculate sentiment indicators
-            price_momentum = df['close'].pct_change().tail(10).mean()
-            volatility = df['close'].pct_change().std()
+            price_momentum = float(df['close'].pct_change().tail(10).mean())
+            volatility = float(df['close'].pct_change().std())
             
             # Determine sentiment
             if price_momentum > 0.001 and volatility < 0.02:
@@ -261,7 +267,7 @@ class WhyEngine:
             logger.error(f"Error analyzing sentiment: {e}")
             return {}
     
-    def _get_economic_calendar(self) -> List[Dict[str, Any]]:
+    def _get_economic_calendar(self) -> list[dict[str, object]]:
         """Get economic calendar"""
         if self.economic_provider is None:
             return []
@@ -272,7 +278,7 @@ class WhyEngine:
             logger.error(f"Error getting economic calendar: {e}")
             return []
     
-    def _get_central_bank_policies(self) -> Dict[str, Any]:
+    def _get_central_bank_policies(self) -> dict[str, object]:
         """Get central bank policies"""
         if self.economic_provider is None:
             return {}
@@ -283,7 +289,7 @@ class WhyEngine:
             logger.error(f"Error getting central bank policies: {e}")
             return {}
     
-    def _analyze_economic_momentum(self, df: pd.DataFrame) -> Dict[str, Any]:
+    def _analyze_economic_momentum(self, df: "pd.DataFrame") -> dict[str, object]:
         """Analyze economic momentum"""
         if self.fundamental_analyzer is None:
             return {}
@@ -294,7 +300,7 @@ class WhyEngine:
             logger.error(f"Error analyzing economic momentum: {e}")
             return {}
     
-    def _analyze_risk_sentiment(self, df: pd.DataFrame) -> Dict[str, Any]:
+    def _analyze_risk_sentiment(self, df: "pd.DataFrame") -> dict[str, object]:
         """Analyze risk sentiment"""
         if self.fundamental_analyzer is None:
             return {}
@@ -305,7 +311,7 @@ class WhyEngine:
             logger.error(f"Error analyzing risk sentiment: {e}")
             return {}
     
-    def _analyze_yield_differentials(self, df: pd.DataFrame) -> Dict[str, Any]:
+    def _analyze_yield_differentials(self, df: "pd.DataFrame") -> dict[str, object]:
         """Analyze yield differentials"""
         if self.fundamental_analyzer is None:
             return {}
@@ -316,42 +322,46 @@ class WhyEngine:
             logger.error(f"Error analyzing yield differentials: {e}")
             return {}
     
-    def _calculate_price_trend(self, df: pd.DataFrame) -> float:
+    def _calculate_price_trend(self, df: "pd.DataFrame") -> float:
         """Calculate price trend"""
         try:
+            # Local heavy import to avoid module import-time cost
+            import numpy as np  # runtime
             if len(df) < 10:
                 return 0.0
             
-            # Calculate trend using linear regression
-            x = np.arange(len(df))
-            y = df['close'].values
+            # Calculate trend using linear regression with explicit numeric arrays
+            x: "NDArray[np.float64]" = np.arange(len(df), dtype=float)
+            y: "NDArray[np.float64]" = df['close'].to_numpy(dtype=float)
             
             # Linear regression
-            slope, intercept = np.polyfit(x, y, 1)
+            slope_np, intercept_np = np.polyfit(x, y, 1)
+            slope: float = float(slope_np)
+            mean_close: float = float(df['close'].mean())
             
             # Normalize trend
-            trend = slope / df['close'].mean() if df['close'].mean() > 0 else 0
-            return min(max(trend, -1.0), 1.0)
+            trend = slope / mean_close if mean_close > 0.0 else 0.0
+            return float(min(max(trend, -1.0), 1.0))
             
         except Exception as e:
             logger.error(f"Error calculating price trend: {e}")
             return 0.0
     
-    def _calculate_volume_trend(self, df: pd.DataFrame) -> float:
+    def _calculate_volume_trend(self, df: "pd.DataFrame") -> float:
         """Calculate volume trend"""
         try:
             if len(df) < 10:
                 return 0.0
             
             # Calculate volume trend
-            volume_trend = df['volume'].pct_change().tail(10).mean()
-            return min(max(volume_trend, -1.0), 1.0)
+            volume_trend = float(df['volume'].pct_change().tail(10).mean())
+            return float(min(max(volume_trend, -1.0), 1.0))
             
         except Exception as e:
             logger.error(f"Error calculating volume trend: {e}")
             return 0.0
     
-    def _calculate_signal_strength(self, analysis: Dict[str, Any]) -> float:
+    def _calculate_signal_strength(self, analysis: Mapping[str, object]) -> float:
         """Calculate signal strength from analysis results"""
         try:
             # Combine various analysis components
@@ -368,38 +378,41 @@ class WhyEngine:
             w_yield = (self.why_cfg.weight_yields if self.why_cfg else 0.6)
             # Calculate weighted signal strength (macro prox -> neutral 0)
             base = (
-                economic_momentum * 0.4 +
-                (1 - risk_sentiment) * 0.3 +
-                sentiment_score * 0.3
+                float(economic_momentum) * 0.4 +
+                (1 - float(risk_sentiment)) * 0.3 +
+                float(sentiment_score) * 0.3
             )
             why_weighted = (0.0 * w_macro) + (y_sig * y_conf * w_yield)
             signal_strength = float(max(-1.0, min(1.0, base * 0.5 + why_weighted)))
-            return min(max(signal_strength, -1.0), 1.0)
+            return float(min(max(signal_strength, -1.0), 1.0))
             
         except Exception as e:
             logger.error(f"Error calculating signal strength: {e}")
             return 0.0
     
-    def _calculate_confidence(self, analysis: Dict[str, Any]) -> float:
+    def _calculate_confidence(self, analysis: Mapping[str, object]) -> float:
         """Calculate confidence from analysis results"""
         try:
             # Base confidence on data quality and analysis completeness
-            data_points = analysis.get('data_points', 0)
+            data_points_obj = analysis.get('data_points', 0)
+            data_points = int(data_points_obj) if not isinstance(data_points_obj, int) else data_points_obj
             base_confidence = min(data_points / 100.0, 1.0)  # Higher confidence with more data
             
             # Adjust based on analysis quality
             if analysis.get('economic_analysis') and analysis.get('fundamental_analysis'):
                 base_confidence *= 1.2  # Boost confidence if we have good analysis
             
-            return min(max(base_confidence, 0.0), 1.0)
+            return float(min(max(base_confidence, 0.0), 1.0))
             
         except Exception as e:
             logger.error(f"Error calculating confidence: {e}")
             return 0.5
     
-    def _market_data_to_dataframe(self, market_data: List[MarketData]) -> pd.DataFrame:
+    def _market_data_to_dataframe(self, market_data: list[MarketData]) -> "pd.DataFrame":
         """Convert market data list to pandas DataFrame"""
-        data = []
+        # Local import to avoid heavy import at module import-time
+        import pandas as pd  # runtime
+        data: list[dict[str, object]] = []
         for md in market_data:
             data.append({
                 'timestamp': md.timestamp,

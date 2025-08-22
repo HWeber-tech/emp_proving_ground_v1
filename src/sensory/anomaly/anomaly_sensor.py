@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Dict, List
+from typing import Mapping
 
 
 class AnomalySensor:
@@ -9,7 +9,5 @@ class AnomalySensor:
     Processes inputs and returns an empty list of signals for compatibility.
     """
 
-    def process(self, data: Any) -> List[Dict[str, Any]]:
+    def process(self, data: Mapping[str, object]) -> list[dict[str, object]]:
         return []
-
-

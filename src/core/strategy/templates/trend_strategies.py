@@ -1,15 +1,12 @@
 from __future__ import annotations
-
-from typing import Any, Dict, List
-
 from src.core.strategy.engine import BaseStrategy
 
 
 class TrendFollowing(BaseStrategy):
-    def __init__(self, strategy_id: str, symbols: List[str], params: Dict[str, Any]):
+    def __init__(self, strategy_id: str, symbols: list[str], params: dict[str, object]):
         super().__init__(strategy_id, symbols)
         self.params = params
 
-    async def generate_signal(self, market_data, symbol: str):
+    async def generate_signal(self, market_data: object, symbol: str) -> object:
         return None
 

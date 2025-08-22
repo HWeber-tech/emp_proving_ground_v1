@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Optional
 
 
 class ValidationResult:
@@ -15,7 +15,7 @@ class ValidationResult:
         threshold: float,
         unit: str,
         details: str = "",
-        metadata: Optional[Dict[str, Any]] = None,
+        metadata: Optional[dict[str, object]] = None,
     ):
         self.test_name = test_name
         self.passed = passed
@@ -26,7 +26,7 @@ class ValidationResult:
         self.metadata = metadata or {}
         self.timestamp = datetime.now()
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, object]:
         return {
             "test_name": self.test_name,
             "passed": self.passed,

@@ -24,9 +24,9 @@ class PatternMemoryEntry:
     """A single memory entry with context and outcome."""
     timestamp: datetime
     latent_vector: np.ndarray
-    market_context: Dict[str, Any]
-    trading_outcome: Dict[str, Any]
-    metadata: Dict[str, Any]
+    market_context: dict[str, object]
+    trading_outcome: dict[str, object]
+    metadata: dict[str, object]
 
 # Backward-compat alias to preserve legacy import name without duplicate ClassDef
 MemoryEntry = PatternMemoryEntry
@@ -58,9 +58,9 @@ class PatternMemory:
     async def store_context(
         self,
         latent_vector: np.ndarray,
-        market_context: Dict[str, Any],
-        trading_outcome: Dict[str, Any],
-        metadata: Optional[Dict[str, Any]] = None
+        market_context: dict[str, object],
+        trading_outcome: dict[str, object],
+        metadata: Optional[dict[str, object]] = None
     ) -> None:
         """Store a new trading context in memory."""
         entry = MemoryEntry(
@@ -137,7 +137,7 @@ class PatternMemory:
         
         return float(dot_product / (norm1 * norm2))
     
-    async def get_pattern_statistics(self) -> Dict[str, Any]:
+    async def get_pattern_statistics(self) -> dict[str, object]:
         """Get statistics about stored patterns."""
         if not self._memory:
             return {
@@ -216,7 +216,7 @@ class PatternMemory:
         await self.state_store.delete(self._memory_key)
         logger.info("Pattern memory cleared")
     
-    async def get_memory_context(self, query_vector: np.ndarray) -> Optional[Dict[str, Any]]:
+    async def get_memory_context(self, query_vector: np.ndarray) -> Optional[dict[str, object]]:
         """
         Get enriched context with memory matches.
         

@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, Mapping
 
 
 @dataclass
@@ -26,7 +26,7 @@ class SafetyManager:
         self._ctx = SafetyContext(run_mode=run_mode, confirm_live=confirm_live, kill_switch_path=kill_switch_path)
 
     @classmethod
-    def from_config(cls, config) -> "SafetyManager":
+    def from_config(cls, config: Mapping[str, object]) -> "SafetyManager":
         run_mode = getattr(config, "run_mode", "paper")
         confirm_live = getattr(config, "confirm_live", False)
         kill_switch_path = getattr(config, "kill_switch_path", None)

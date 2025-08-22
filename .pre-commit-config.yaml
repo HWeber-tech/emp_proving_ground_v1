@@ -35,6 +35,7 @@ repos:
           - types-PyYAML
           - pandas-stubs
           - types-psutil
+          - scipy-stubs
         files: ^src/
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.6.0

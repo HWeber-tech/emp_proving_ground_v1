@@ -11,12 +11,13 @@ import json
 import os
 import time
 from datetime import datetime
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Callable, Optional
+from typing import Protocol
 
 
-def _serialize_order_book(symbol: str, order_book) -> Dict[str, Any]:
-    def side(entries) -> List[Tuple[float, float]]:
-        return [(float(e.price), float(e.size)) for e in entries]
+def _serialize_order_book(symbol: str, order_book: object) -> dict[str, object]:
+    def side(entries: list[object]) -> list[tuple[float, float]]:
+        return [(float(getattr(e, "price")), float(getattr(e, "size"))) for e in entries]
     return {
         "t": datetime.utcnow().isoformat(),
         "symbol": symbol,
@@ -31,8 +32,10 @@ class MarketDataRecorder:
         os.makedirs(os.path.dirname(self.out_path), exist_ok=True)
         self._fh = open(self.out_path, "a", encoding="utf-8")
 
-    def attach_to_manager(self, manager) -> None:
-        def on_md(symbol: str, order_book) -> None:
+    class _ManagerProto(Protocol):
+        def add_market_data_callback(self, cb: Callable[[str, object], None]) -> None: ...
+    def attach_to_manager(self, manager: _ManagerProto) -> None:
+        def on_md(symbol: str, order_book: object) -> None:
             rec = _serialize_order_book(symbol, order_book)
             self._fh.write(json.dumps(rec) + "\n")
             self._fh.flush()
@@ -50,10 +53,10 @@ class MarketDataReplayer:
         self.in_path = in_path
         self.speed = max(0.0, speed)
 
-    def replay(self, callback: Callable[[str, Dict[str, Any]], None], max_events: Optional[int] = None,
-               feature_writer: Optional[Callable[[str, Dict[str, Any]], None]] = None) -> int:
+    def replay(self, callback: Callable[[str, dict[str, object]], None], max_events: Optional[int] = None,
+               feature_writer: Optional[Callable[[str, dict[str, object]], None]] = None) -> int:
         """Replay captured MD to callback(symbol, order_book_like_dict).
-
+        
         Returns number of events emitted.
         """
         if not os.path.exists(self.in_path):

@@ -28,13 +28,13 @@ class TrendAnalysis:
     strength: float  # 0.0 to 1.0
     confidence: float  # 0.0 to 1.0
     duration: int  # Trend duration in periods
-    metadata: Dict[str, Any]
+    metadata: dict[str, object]
 
 
 class TrendDetector(ThinkingPattern):
     """Detects and analyzes market trends from sensory signals."""
     
-    def __init__(self, config: Optional[Dict[str, Any]] = None):
+    def __init__(self, config: Optional[dict[str, object]] = None):
         self.config = config or {}
         self.min_confidence = self.config.get('min_confidence', 0.3)
         self.min_strength = self.config.get('min_strength', 0.2)
@@ -87,7 +87,7 @@ class TrendDetector(ThinkingPattern):
         except Exception as e:
             raise ThinkingException(f"Error in trend detection: {e}")
             
-    def learn(self, feedback: Dict[str, Any]) -> bool:
+    def learn(self, feedback: dict[str, object]) -> bool:
         """Learn from feedback to improve trend detection."""
         try:
             # Extract learning data from feedback

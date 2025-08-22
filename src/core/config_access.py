@@ -10,8 +10,7 @@ where needed. A NoOpConfigurationProvider is provided for safe defaults.
 """
 
 from __future__ import annotations
-
-from typing import Any, Dict, Protocol, runtime_checkable
+from typing import Protocol, runtime_checkable
 
 
 @runtime_checkable
@@ -22,11 +21,11 @@ class ConfigurationProvider(Protocol):
     Implementations should never raise and must return safe defaults on error.
     """
 
-    def get_value(self, key: str, default: Any = None) -> Any:
+    def get_value(self, key: str, default: object | None = None) -> object | None:
         """Return config value for a flat key (or default if not present)."""
         ...
 
-    def get_namespace(self, namespace: str) -> Dict[str, Any]:
+    def get_namespace(self, namespace: str) -> dict[str, object]:
         """Return a dict for a configuration namespace (or empty dict)."""
         ...
 
@@ -34,10 +33,10 @@ class ConfigurationProvider(Protocol):
 class NoOpConfigurationProvider:
     """Safe default provider that returns defaults or empty data structures."""
 
-    def get_value(self, key: str, default: Any = None) -> Any:
+    def get_value(self, key: str, default: object | None = None) -> object | None:
         return default
 
-    def get_namespace(self, namespace: str) -> Dict[str, Any]:
+    def get_namespace(self, namespace: str) -> dict[str, object]:
         return {}
 
 

@@ -1,0 +1,200 @@
+src/core/strategy/engine.py: note: In member "generate_signal" of class "BaseStrategy":
+src/core/strategy/engine.py:23: error: Function is missing a return type
+annotation  [no-untyped-def]
+        async def generate_signal(self, market_data, symbol: str):
+        ^
+src/core/strategy/engine.py:23: error: Function is missing a type annotation
+for one or more arguments  [no-untyped-def]
+        async def generate_signal(self, market_data, symbol: str):
+        ^
+src/trading/strategy_engine/__init__.py:6: error: Unused "type: ignore" comment
+ [unused-ignore]
+    from src.core.strategy.engine import StrategyEngine  # type: ignore
+    ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/thinking/models/normalizers.py: note: In function "normalize_attack_report":
+src/thinking/models/normalizers.py:95: error: Explicit "Any" is not allowed 
+[explicit-any]
+    def normalize_attack_report(a: Mapping[str, Any] | object) -> AttackRe...
+    ^
+src/thinking/models/normalizers.py: note: At top level:
+src/thinking/models/normalizers.py:113: error: Unused "type: ignore" comment 
+[unused-ignore]
+                    d = obj.dict()  # type: ignore[attr-defined]
+                    ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/operational/mock_fix.py: note: In member "__init__" of class "_MockTradeConnection":
+src/operational/mock_fix.py:18: error: Explicit "Any" is not allowed 
+[explicit-any]
+        def __init__(self, order_cbs: List[Callable[[Any], None]]):
+        ^
+src/operational/mock_fix.py: note: In member "send_message_and_track" of class "_MockTradeConnection":
+src/operational/mock_fix.py:21: error: Explicit "Any" is not allowed 
+[explicit-any]
+        def send_message_and_track(self, msg: Any) -> bool:
+        ^
+src/operational/mock_fix.py: note: In function "send_message_and_track":
+src/operational/mock_fix.py:24: error: Function is missing a return type
+annotation  [no-untyped-def]
+                def _emit_reject():
+                ^
+src/operational/mock_fix.py:24: note: Use "-> None" if function does not return a value
+src/operational/mock_fix.py:25: error: Explicit "Any" is not allowed 
+[explicit-any]
+                    info: Any = type("OrderInfo", (), {})()
+                    ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/operational/mock_fix.py:37: error: Function is missing a return type
+annotation  [no-untyped-def]
+                def _emit_cancel():
+                ^
+src/operational/mock_fix.py:37: note: Use "-> None" if function does not return a value
+src/operational/mock_fix.py:38: error: Explicit "Any" is not allowed 
+[explicit-any]
+                    info: Any = type("OrderInfo", (), {})()
+                    ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/operational/mock_fix.py:50: error: Function is missing a return type
+annotation  [no-untyped-def]
+            def _emit_new():
+            ^
+src/operational/mock_fix.py:50: note: Use "-> None" if function does not return a value
+src/operational/mock_fix.py:51: error: Explicit "Any" is not allowed 
+[explicit-any]
+                info: Any = type("OrderInfo", (), {})()
+                ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/operational/mock_fix.py:59: error: Function is missing a return type
+annotation  [no-untyped-def]
+            def _emit_partial():
+            ^
+src/operational/mock_fix.py:59: note: Use "-> None" if function does not return a value
+src/operational/mock_fix.py:61: error: Explicit "Any" is not allowed 
+[explicit-any]
+                info: Any = type("OrderInfo", (), {})()
+                ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/operational/mock_fix.py:69: error: Function is missing a return type
+annotation  [no-untyped-def]
+            def _emit_fill():
+            ^
+src/operational/mock_fix.py:69: note: Use "-> None" if function does not return a value
+src/operational/mock_fix.py:71: error: Explicit "Any" is not allowed 
+[explicit-any]
+                info: Any = type("OrderInfo", (), {})()
+                ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/operational/mock_fix.py: note: In member "__init__" of class "MockFIXManager":
+src/operational/mock_fix.py:86: error: Function is missing a return type
+annotation  [no-untyped-def]
+        def __init__(self):
+        ^
+src/operational/mock_fix.py:86: note: Use "-> None" if function does not return a value
+src/operational/mock_fix.py:87: error: Explicit "Any" is not allowed 
+[explicit-any]
+            self._md_cbs: List[Callable[[str, Any], None]] = []
+            ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/operational/mock_fix.py:88: error: Explicit "Any" is not allowed 
+[explicit-any]
+            self._order_cbs: List[Callable[[Any], None]] = []
+            ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/operational/mock_fix.py: note: In member "add_market_data_callback" of class "MockFIXManager":
+src/operational/mock_fix.py:92: error: Explicit "Any" is not allowed 
+[explicit-any]
+        def add_market_data_callback(self, cb: Callable[[str, Any], None])...
+        ^
+src/operational/mock_fix.py: note: In member "add_order_callback" of class "MockFIXManager":
+src/operational/mock_fix.py:95: error: Explicit "Any" is not allowed 
+[explicit-any]
+        def add_order_callback(self, cb: Callable[[Any], None]) -> None:
+        ^
+src/operational/mock_fix.py: note: In function "start":
+src/operational/mock_fix.py:101: error: Function is missing a return type
+annotation  [no-untyped-def]
+            def _emit_md_loop():
+            ^
+src/operational/mock_fix.py:101: note: Use "-> None" if function does not return a value
+src/operational/mock_fix.py:104: error: Explicit "Any" is not allowed 
+[explicit-any]
+                    book: Any = type("Book", (), {})()
+                    ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/core/strategy/templates/trend_strategies.py: note: In member "generate_signal" of class "TrendFollowing":
+src/core/strategy/templates/trend_strategies.py:12: error: Function is missing
+a return type annotation  [no-untyped-def]
+        async def generate_signal(self, market_data, symbol: str):
+        ^
+src/core/strategy/templates/trend_strategies.py:12: error: Function is missing
+a type annotation for one or more arguments  [no-untyped-def]
+        async def generate_signal(self, market_data, symbol: str):
+        ^
+src/core/strategy/templates/moving_average.py: note: In member "__init__" of class "MovingAverageStrategy":
+src/core/strategy/templates/moving_average.py:10: error: No overload variant of
+"int" matches argument type "object"  [call-overload]
+            self.fast = int(params.get("fast_period", 20))
+                        ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/core/strategy/templates/moving_average.py:10: note: Possible overload variants:
+src/core/strategy/templates/moving_average.py:10: note:     def int(str | Buffer | SupportsInt | SupportsIndex | SupportsTrunc = ..., /) -> int
+src/core/strategy/templates/moving_average.py:10: note:     def int(str | bytes | bytearray, /, base: SupportsIndex) -> int
+src/core/strategy/templates/moving_average.py:11: error: No overload variant of
+"int" matches argument type "object"  [call-overload]
+            self.slow = int(params.get("slow_period", 50))
+                        ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/core/strategy/templates/moving_average.py:11: note: Possible overload variants:
+src/core/strategy/templates/moving_average.py:11: note:     def int(str | Buffer | SupportsInt | SupportsIndex | SupportsTrunc = ..., /) -> int
+src/core/strategy/templates/moving_average.py:11: note:     def int(str | bytes | bytearray, /, base: SupportsIndex) -> int
+src/core/strategy/templates/mean_reversion.py: note: In member "__init__" of class "MeanReversionStrategy":
+src/core/strategy/templates/mean_reversion.py:10: error: No overload variant of
+"int" matches argument type "object"  [call-overload]
+            self.period = int(params.get("period", 20))
+                          ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/core/strategy/templates/mean_reversion.py:10: note: Possible overload variants:
+src/core/strategy/templates/mean_reversion.py:10: note:     def int(str | Buffer | SupportsInt | SupportsIndex | SupportsTrunc = ..., /) -> int
+src/core/strategy/templates/mean_reversion.py:10: note:     def int(str | bytes | bytearray, /, base: SupportsIndex) -> int
+src/core/performance/market_data_cache.py: note: In member "get_snapshot" of class "MarketDataCache":
+src/core/performance/market_data_cache.py:40: error: Explicit "Any" is not
+allowed  [explicit-any]
+        def get_snapshot(self, symbol: str) -> Dict[str, Any] | None:
+        ^
+src/core/performance/market_data_cache.py: note: At top level:
+src/core/performance/market_data_cache.py:81: error: Unused "type: ignore"
+comment  [unused-ignore]
+    LegacyInMemoryCache = _InMemoryCache  # type: ignore
+    ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/validation/phase2_validation_suite.py:20: error: Unused "type: ignore"
+comment  [unused-ignore]
+        class MultiDimensionalFitnessEvaluator:  # type: ignore
+        ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/validation/phase2_validation_suite.py:28: error: Unused "type: ignore"
+comment  [unused-ignore]
+        class MarketRegimeDetector:  # type: ignore
+        ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/validation/phase2_validation_suite.py: note: In member "__call__" of class "MarketRegimeDetector":
+src/validation/phase2_validation_suite.py:29: error: Function is missing a
+return type annotation  [no-untyped-def]
+            def __call__(self):
+            ^
+src/validation/phase2_validation_suite.py:29: note: Use "-> None" if function does not return a value
+src/validation/phase2_validation_suite.py: note: In member "run_all_tests" of class "Phase2ValidationSuite":
+src/validation/phase2_validation_suite.py:53: error: Explicit "Any" is not
+allowed  [explicit-any]
+        async def run_all_tests(self) -> Dict[str, Any]:
+        ^
+src/validation/phase2_validation_suite.py: note: In member "_test_response_time" of class "Phase2ValidationSuite":
+src/validation/phase2_validation_suite.py:75: error: Function is missing a
+return type annotation  [no-untyped-def]
+        async def _test_response_time(self):
+        ^
+src/validation/phase2_validation_suite.py:75: note: Use "-> None" if function does not return a value
+src/validation/phase2_validation_suite.py: note: In member "_test_throughput" of class "Phase2ValidationSuite":
+src/validation/phase2_validation_suite.py:104: error: Function is missing a
+return type annotation  [no-untyped-def]
+        async def _test_throughput(self):
+        ^
+src/validation/phase2_validation_suite.py:104: note: Use "-> None" if function does not return a value
+src/validation/phase2_validation_suite.py: note: In member "_test_memory_usage" of class "Phase2ValidationSuite":
+src/validation/phase2_validation_suite.py:137: error: Function is missing a
+return type annotation  [no-untyped-def]
+        async def _test_memory_usage(self):
+        ^
+src/validation/phase2_validation_suite.py:137: note: Use "-> None" if function does not return a value
+src/validation/phase2_validation_suite.py: note: In member "_test_cpu_usage" of class "Phase2ValidationSuite":
+src/validation/phase2_validation_suite.py:175: error: Function is missing a
+return type annotation  [no-untyped-def]
+        async def _test_cpu_usage(self):
+        ^
+src/validation/phase2_validation_suite.py:175: note: Use "-> None" if function does not return a value
+src/validation/phase2_validation_suite.py: note: In member "_test_anomaly_detection_accuracy" of class "Phase2ValidationSuite":
+src/validation/phase2_validation_suite.py:201: error: Function is missing a

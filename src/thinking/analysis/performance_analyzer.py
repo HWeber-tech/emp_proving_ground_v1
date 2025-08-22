@@ -23,7 +23,7 @@ class PerformanceAnalyzer:
     def __init__(self, risk_free_rate: float = 0.02, trading_days_per_year: int = 252):
         self.risk_free_rate = risk_free_rate
         self.trading_days_per_year = trading_days_per_year
-        self.analysis_history: List[Dict[str, Any]] = []
+        self.analysis_history: List[dict[str, object]] = []
         
         logger.info(f"Performance Analyzer initialized with {risk_free_rate:.2%} risk-free rate")
         
@@ -81,7 +81,7 @@ class PerformanceAnalyzer:
             logger.error(f"Error analyzing performance: {e}")
             return self._create_default_analysis()
             
-    def analyze_backtest_results(self, backtest_results: Dict[str, Any]) -> AnalysisResult:
+    def analyze_backtest_results(self, backtest_results: dict[str, object]) -> AnalysisResult:
         """Analyze backtest results from genome evaluation."""
         try:
             # Extract data from backtest results
@@ -130,7 +130,7 @@ class PerformanceAnalyzer:
             
     def _calculate_metrics_from_returns(self, returns: List[float], 
                                       equity_curve: List[float], 
-                                      trades: List[Dict[str, Any]]) -> PerformanceMetrics:
+                                      trades: List[dict[str, object]]) -> PerformanceMetrics:
         """Calculate performance metrics from returns, equity curve, and trades."""
         if not returns:
             return PerformanceMetrics()
@@ -204,7 +204,7 @@ class PerformanceAnalyzer:
         )
         
     def _convert_trades_to_performance(self, trade_history: List[TradeIntent], 
-                                     initial_capital: float) -> Dict[str, Any]:
+                                     initial_capital: float) -> dict[str, object]:
         """Convert trade history to performance data structure."""
         # Sort trades by timestamp
         sorted_trades = sorted(trade_history, key=lambda x: x.timestamp)
@@ -246,7 +246,7 @@ class PerformanceAnalyzer:
             'final_capital': current_capital
         }
         
-    def _calculate_performance_metrics(self, performance_data: Dict[str, Any]) -> PerformanceMetrics:
+    def _calculate_performance_metrics(self, performance_data: dict[str, object]) -> PerformanceMetrics:
         """Calculate comprehensive performance metrics."""
         equity_curve = performance_data['equity_curve']
         returns = performance_data['returns']
@@ -361,7 +361,7 @@ class PerformanceAnalyzer:
                 
         return float(np.mean(recovery_times)) if recovery_times else 0.0
         
-    def _calculate_avg_trade_duration(self, performance_data: Dict[str, Any]) -> float:
+    def _calculate_avg_trade_duration(self, performance_data: dict[str, object]) -> float:
         """Calculate average trade duration in days."""
         # This is a simplified calculation
         # In a real implementation, you'd track entry and exit times for each trade
@@ -376,7 +376,7 @@ class PerformanceAnalyzer:
         else:
             return 0.0
             
-    def _calculate_analysis_confidence(self, performance_data: Dict[str, Any]) -> float:
+    def _calculate_analysis_confidence(self, performance_data: dict[str, object]) -> float:
         """Calculate confidence in performance analysis."""
         confidence_factors = []
         
@@ -418,7 +418,7 @@ class PerformanceAnalyzer:
             
         return np.mean(confidence_factors)
         
-    def _calculate_backtest_confidence(self, backtest_results: Dict[str, Any]) -> float:
+    def _calculate_backtest_confidence(self, backtest_results: dict[str, object]) -> float:
         """Calculate confidence in backtest analysis."""
         confidence_factors = []
         
@@ -446,7 +446,7 @@ class PerformanceAnalyzer:
             
         return np.mean(confidence_factors) if confidence_factors else 0.5
         
-    def _calculate_analysis_period(self, trade_history: List[TradeIntent]) -> Dict[str, Any]:
+    def _calculate_analysis_period(self, trade_history: List[TradeIntent]) -> dict[str, object]:
         """Calculate the analysis period from trade history."""
         if not trade_history:
             return {"start": None, "end": None, "duration_days": 0}
@@ -481,13 +481,13 @@ class PerformanceAnalyzer:
             }
         )
         
-    def get_performance_history(self, limit: Optional[int] = None) -> List[Dict[str, Any]]:
+    def get_performance_history(self, limit: Optional[int] = None) -> List[dict[str, object]]:
         """Get performance analysis history."""
         if limit:
             return self.analysis_history[-limit:]
         return self.analysis_history.copy()
         
-    def get_performance_statistics(self) -> Dict[str, Any]:
+    def get_performance_statistics(self) -> dict[str, object]:
         """Get statistics about performance analyses."""
         if not self.analysis_history:
             return {}

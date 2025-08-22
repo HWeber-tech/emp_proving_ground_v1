@@ -349,7 +349,7 @@ class OrderBookAnalyzer:
         
         return np.std(liquidity_changes)
     
-    def get_market_analysis(self, symbol: str) -> Dict[str, Any]:
+    def get_market_analysis(self, symbol: str) -> dict[str, object]:
         """Get comprehensive market analysis for a symbol."""
         if symbol not in self.current_metrics:
             return {}
@@ -448,7 +448,7 @@ class OrderBookAnalyzer:
         latest = self.order_book_history[symbol][-1]
         return latest.mid_price
     
-    def _generate_trading_signals(self, microstructure: MarketMicrostructure) -> Dict[str, Any]:
+    def _generate_trading_signals(self, microstructure: MarketMicrostructure) -> dict[str, object]:
         """Generate trading signals based on market microstructure."""
         signals = {
             'liquidity_signal': 'neutral',
@@ -493,7 +493,7 @@ class OrderBookAnalyzer:
         
         return signals
     
-    def get_liquidity_analysis(self, symbol: str, volume: float) -> Dict[str, Any]:
+    def get_liquidity_analysis(self, symbol: str, volume: float) -> dict[str, object]:
         """Analyze liquidity for a specific volume."""
         if symbol not in self.current_metrics:
             return {}

@@ -1,3 +1,4 @@
+from collections.abc import Mapping, Sequence
 """
 Predictive Market Modeler
 Advanced market prediction and scenario modeling system.
@@ -68,7 +69,7 @@ class MarketScenarioGenerator:
     
     async def generate_scenarios(
         self,
-        current_state: Dict[str, Any],
+        current_state: dict[str, object],
         time_horizon: timedelta,
         num_scenarios: int = 1000
     ) -> List[MarketScenario]:
@@ -147,7 +148,7 @@ class MarketScenarioGenerator:
     
     def _calculate_scenario_confidence(
         self,
-        current_state: Dict[str, Any],
+        current_state: dict[str, object],
         scenario_type: str
     ) -> Decimal:
         """Calculate confidence for a scenario."""
@@ -180,7 +181,7 @@ class BayesianProbabilityEngine:
     async def calculate_probabilities(
         self,
         scenarios: List[MarketScenario],
-        historical_data: Dict[str, Any]
+        historical_data: dict[str, object]
     ) -> List[Decimal]:
         """Calculate Bayesian probabilities for scenarios."""
         try:
@@ -212,7 +213,7 @@ class BayesianProbabilityEngine:
     def _calculate_likelihood(
         self,
         scenario: MarketScenario,
-        historical_data: Dict[str, Any]
+        historical_data: dict[str, object]
     ) -> Decimal:
         """Calculate likelihood of scenario given historical data."""
         try:
@@ -244,7 +245,7 @@ class OutcomePredictor:
     async def predict_outcome(
         self,
         scenario: MarketScenario
-    ) -> Dict[str, Any]:
+    ) -> dict[str, object]:
         """Predict outcome for a market scenario."""
         try:
             predictions = {}
@@ -320,8 +321,8 @@ class ConfidenceCalibrator:
     
     async def calibrate_confidence(
         self,
-        outcome_predictions: List[Tuple[MarketScenario, Decimal, Dict[str, Any]]],
-        prediction_history: Dict[str, Any]
+        outcome_predictions: List[Tuple[MarketScenario, Decimal, dict[str, object]]],
+        prediction_history: dict[str, object]
     ) -> List[object]:
         """Calibrate confidence based on historical accuracy."""
         try:
@@ -357,7 +358,7 @@ class ConfidenceCalibrator:
             logger.error(f"Error calibrating confidence: {e}")
             return []
     
-    def _calculate_calibration_factor(self, prediction_history: Dict[str, Any]) -> float:
+    def _calculate_calibration_factor(self, prediction_history: dict[str, object]) -> float:
         """Calculate calibration factor based on historical accuracy."""
         try:
             # Simple calibration based on historical accuracy
@@ -396,7 +397,7 @@ class PredictiveMarketModeler:
 
     async def predict_market_scenarios(
         self,
-        current_state: Dict[str, Any],
+        current_state: dict[str, object],
         time_horizon: timedelta,
         num_scenarios: int = 1000
     ) -> List[object]:
@@ -458,7 +459,7 @@ class PredictiveMarketModeler:
             logger.error(f"Error predicting market scenarios: {e}")
             return []
     
-    async def _get_historical_data(self) -> Dict[str, Any]:
+    async def _get_historical_data(self) -> dict[str, object]:
         """Get historical market data for probability calculation."""
         try:
             data = await self.state_store.get(self._prediction_history_key)
@@ -481,7 +482,7 @@ class PredictiveMarketModeler:
             logger.error(f"Error getting historical data: {e}")
             return {'accuracy': 0.75, 'total_predictions': 0, 'successful_predictions': 0}
     
-    async def _get_prediction_history(self) -> Dict[str, Any]:
+    async def _get_prediction_history(self) -> dict[str, object]:
         """Get prediction history for calibration."""
         try:
             return await self._get_historical_data()
@@ -493,7 +494,7 @@ class PredictiveMarketModeler:
         """Store prediction results for future calibration."""
         try:
             key = f"{self._prediction_history_key}:{datetime.utcnow().date()}"
-            payload_list: List[Dict[str, Any]] = []
+            payload_list: List[dict[str, object]] = []
             for p in results:
                 payload_list.append(normalize_prediction(p))
             await self.state_store.set(
@@ -504,7 +505,7 @@ class PredictiveMarketModeler:
         except Exception as e:
             logger.error(f"Error storing predictions: {e}")
     
-    async def get_prediction_accuracy(self, days: int = 30) -> Dict[str, Any]:
+    async def get_prediction_accuracy(self, days: int = 30) -> dict[str, object]:
         """Get prediction accuracy statistics."""
         try:
             # This would be enhanced with actual retrieval

@@ -49,8 +49,8 @@ class PerformanceMetrics:
     avg_trade_duration: float
     
     # Strategy metrics
-    strategy_performance: Dict[str, Dict[str, Any]]
-    regime_performance: Dict[str, Dict[str, Any]]
+    strategy_performance: Dict[str, dict[str, object]]
+    regime_performance: Dict[str, dict[str, object]]
     correlation_matrix: pd.DataFrame
     
     # Timestamps
@@ -315,7 +315,7 @@ class PerformanceTracker:
         
         return abs(var), abs(cvar)
     
-    def _calculate_trading_metrics(self) -> Dict[str, Any]:
+    def _calculate_trading_metrics(self) -> dict[str, object]:
         """Calculate trading-specific metrics"""
         if not self.trades_history:
             return {
@@ -361,7 +361,7 @@ class PerformanceTracker:
             'avg_trade_duration': avg_trade_duration
         }
     
-    def _calculate_strategy_performance(self) -> Dict[str, Dict[str, Any]]:
+    def _calculate_strategy_performance(self) -> Dict[str, dict[str, object]]:
         """Calculate strategy-specific performance metrics"""
         strategy_perf = {}
         
@@ -379,7 +379,7 @@ class PerformanceTracker:
         
         return strategy_perf
     
-    def _calculate_regime_performance(self) -> Dict[str, Dict[str, Any]]:
+    def _calculate_regime_performance(self) -> Dict[str, dict[str, object]]:
         """Calculate regime-specific performance metrics"""
         regime_perf = {}
         
@@ -412,7 +412,7 @@ class PerformanceTracker:
         df = pd.DataFrame([strategy_returns])
         return df.corr()
     
-    def generate_report(self, report_type: str = "comprehensive") -> Dict[str, Any]:
+    def generate_report(self, report_type: str = "comprehensive") -> dict[str, object]:
         """Generate performance report"""
         metrics = self.calculate_metrics()
         
@@ -533,7 +533,7 @@ class PerformanceTracker:
         else:
             raise ValueError(f"Unsupported export format: {format}")
     
-    def get_performance_alerts(self) -> List[Dict[str, Any]]:
+    def get_performance_alerts(self) -> List[dict[str, object]]:
         """Get performance alerts based on thresholds"""
         metrics = self.calculate_metrics()
         alerts = []

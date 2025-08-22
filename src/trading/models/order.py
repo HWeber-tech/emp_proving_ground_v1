@@ -41,11 +41,11 @@ class Order:
     status: OrderStatus = OrderStatus.PENDING
     filled_quantity: float = 0.0
     average_price: Optional[float] = None
-    created_at: datetime = None
+    created_at: datetime | None = None
     filled_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
     
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if self.created_at is None:
             self.created_at = datetime.now()
         if self.updated_at is None:

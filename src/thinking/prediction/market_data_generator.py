@@ -44,7 +44,7 @@ class MarketDataGenerator:
 
     async def generate_scenarios(
         self,
-        difficulty_level: Any,
+        difficulty_level: object,
         num_scenarios: int = 100,
     ) -> List[MarketScenario]:
         """
@@ -83,7 +83,7 @@ class MarketDataGenerator:
 
         return scenarios
 
-    def _difficulty_params(self, difficulty_level: Any) -> Tuple[float, float]:
+    def _difficulty_params(self, difficulty_level: object) -> Tuple[float, float]:
         """
         Resolve difficulty into (volatility, noise) tuple.
         Accepts preset strings or float in [0,1].

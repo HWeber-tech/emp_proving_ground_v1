@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Sequence, Any
+from typing import Sequence
 import numpy as np
 from numpy.typing import NDArray
 
@@ -11,7 +11,7 @@ class IsolationForest:
         n_estimators: int = ...,
         contamination: float | str = ...,
         random_state: int | None = ...,
-        **kwargs: Any,
+        **kwargs: object,
     ) -> None: ...
     def fit(
         self,

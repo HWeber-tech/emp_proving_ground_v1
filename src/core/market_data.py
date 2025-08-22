@@ -10,8 +10,7 @@ and must not be imported from here.
 """
 
 from __future__ import annotations
-
-from typing import Any, Optional, Protocol, runtime_checkable
+from typing import Optional, Protocol, runtime_checkable
 
 
 @runtime_checkable
@@ -21,7 +20,7 @@ class MarketDataGateway(Protocol):
 
     Implementations may return pandas.DataFrame or another tabular type.
     """
-
+    
     def fetch_data(
         self,
         symbol: str,
@@ -29,10 +28,10 @@ class MarketDataGateway(Protocol):
         interval: Optional[str] = None,
         start: Optional[str] = None,
         end: Optional[str] = None,
-    ) -> Any:
+    ) -> object:
         """Synchronous fetch suitable for CLI/tests."""
         ...
-
+    
     async def get_market_data(
         self,
         symbol: str,
@@ -40,14 +39,14 @@ class MarketDataGateway(Protocol):
         interval: Optional[str] = None,
         start: Optional[str] = None,
         end: Optional[str] = None,
-    ) -> Any:
+    ) -> object:
         """Async fetch suitable for orchestrated flows."""
         ...
 
 
 class NoOpMarketDataGateway:
     """Default gateway that returns no data. Safe placeholder for DI."""
-
+    
     def fetch_data(
         self,
         symbol: str,
@@ -55,9 +54,9 @@ class NoOpMarketDataGateway:
         interval: Optional[str] = None,
         start: Optional[str] = None,
         end: Optional[str] = None,
-    ) -> Any:
+    ) -> object:
         return None
-
+    
     async def get_market_data(
         self,
         symbol: str,
@@ -65,7 +64,7 @@ class NoOpMarketDataGateway:
         interval: Optional[str] = None,
         start: Optional[str] = None,
         end: Optional[str] = None,
-    ) -> Any:
+    ) -> object:
         return None
 
 

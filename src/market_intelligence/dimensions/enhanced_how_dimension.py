@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import importlib
-from typing import Any, Dict
+from typing import Dict
 
 # PEP 562 lazy forwarding to canonical sensory implementation
 _LAZY_EXPORTS: Dict[str, str] = {
@@ -11,7 +11,7 @@ _LAZY_EXPORTS: Dict[str, str] = {
 __all__ = list(_LAZY_EXPORTS.keys())
 
 
-def __getattr__(name: str) -> Any:
+def __getattr__(name: str) -> object:
     target = _LAZY_EXPORTS.get(name)
     if not target:
         raise AttributeError(name)

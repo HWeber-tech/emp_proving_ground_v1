@@ -11,8 +11,6 @@ It intentionally avoids domain-specific logic to minimize coupling and enable st
 
 from __future__ import annotations
 
-from typing import Any, List
-
 
 class AdversarialTrainer:
     """
@@ -25,8 +23,8 @@ class AdversarialTrainer:
 
     async def train_generator(
         self,
-        generator: Any,
-        survival_results: List[Any],
+        generator: object,
+        survival_results: list[object],
         target_failure_rate: float = 0.3,
     ) -> bool:
         """
@@ -83,10 +81,10 @@ class AdversarialTrainer:
 
     async def train_discriminator(
         self,
-        strategy_population: List[Any],
-        synthetic_scenarios: List[Any],
-        survival_results: List[Any],
-    ) -> List[Any]:
+        strategy_population: list[object],
+        synthetic_scenarios: list[object],
+        survival_results: list[object],
+    ) -> list[object]:
         """
         Improve strategies using survival_results feedback.
 
@@ -94,7 +92,7 @@ class AdversarialTrainer:
         - Tolerant: if strategy objects are dicts, annotate a hint based on survival
         - Returns a list of improved strategies (shallow-copied)
         """
-        improved: List[Any] = []
+        improved: list[object] = []
         try:
             for idx, strategy in enumerate(strategy_population):
                 sr = survival_results[idx] if idx < len(survival_results) else None

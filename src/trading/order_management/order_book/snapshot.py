@@ -43,7 +43,7 @@ class OrderBookSnapshot:
         self.total_ask_volume = sum(l.volume for l in self.asks)
         return self
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         # auto compute derived metrics when created
         self.compute()
 

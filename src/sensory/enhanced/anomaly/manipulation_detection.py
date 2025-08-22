@@ -5,10 +5,10 @@ Runtime-safe no-op implementation for validation flows.
 
 from __future__ import annotations
 
-from typing import Any, Dict, List
+from typing import Mapping
 
 
 class ManipulationDetectionSystem:
-    async def detect_manipulation(self, data: Any) -> List[Dict[str, Any]]:
+    async def detect_manipulation(self, data: Mapping[str, object]) -> list[dict[str, object]]:
         # No-op stub: returns empty anomalies list
         return []

@@ -20,7 +20,7 @@ class BaseStrategy:
         self.symbols = symbols
         self.performance = StrategyPerformance()
 
-    async def generate_signal(self, market_data, symbol: str):
+    async def generate_signal(self, market_data: object, symbol: str) -> object:
         raise NotImplementedError
 
 

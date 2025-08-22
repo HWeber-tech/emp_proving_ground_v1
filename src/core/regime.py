@@ -12,7 +12,8 @@ and be injected at runtime by orchestration. This module provides a NoOp fallbac
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict, Optional, Protocol, runtime_checkable
+from collections.abc import Mapping
+from typing import Optional, Protocol, runtime_checkable
 
 
 @dataclass
@@ -20,7 +21,7 @@ class RegimeResult:
     """Result structure returned by a RegimeClassifier implementation."""
     regime: str
     confidence: float
-    metadata: Optional[Dict[str, Any]] = None
+    metadata: Optional[dict[str, object]] = None
 
 
 @runtime_checkable
@@ -31,7 +32,7 @@ class RegimeClassifier(Protocol):
     Implementations should swallow internal errors and return a safe Optional[RegimeResult].
     """
 
-    async def detect_regime(self, data: Any) -> Optional[RegimeResult]:
+    async def detect_regime(self, data: Mapping[str, object]) -> Optional[RegimeResult]:
         """Analyze tabular/series-like market data and return a regime classification."""
         ...
 
@@ -39,7 +40,7 @@ class RegimeClassifier(Protocol):
 class NoOpRegimeClassifier:
     """Safe default regime classifier that classifies nothing with zero confidence."""
 
-    async def detect_regime(self, data: Any) -> Optional[RegimeResult]:
+    async def detect_regime(self, data: Mapping[str, object]) -> Optional[RegimeResult]:
         try:
             return RegimeResult(regime="UNKNOWN", confidence=0.0, metadata={})
         except Exception:

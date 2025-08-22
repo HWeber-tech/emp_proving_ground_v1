@@ -272,7 +272,7 @@ class FIXBrokerInterface:
             logger.error(f"Error canceling order: {e}")
             return False
             
-    def get_order_status(self, order_id: str) -> Optional[Dict[str, Any]]:
+    def get_order_status(self, order_id: str) -> Optional[dict[str, object]]:
         """
         Get order status.
         
@@ -284,7 +284,7 @@ class FIXBrokerInterface:
         """
         return self.orders.get(order_id)
         
-    def get_all_orders(self) -> Dict[str, Dict[str, Any]]:
+    def get_all_orders(self) -> Dict[str, dict[str, object]]:
         """Get all orders."""
         return self.orders.copy()
 

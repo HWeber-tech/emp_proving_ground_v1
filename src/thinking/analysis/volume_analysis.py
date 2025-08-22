@@ -46,7 +46,7 @@ if HAS_NUMBA:
         from src.core.config_access import ConfigurationProvider, NoOpConfigurationProvider
         _config_provider: ConfigurationProvider = NoOpConfigurationProvider()
 
-        def _get_config_value(key: str, default: Any) -> Any:
+        def _get_config_value(key: str, default: object) -> object:
             try:
                 val = _config_provider.get_value(key, None)  # type: ignore[attr-defined]
                 if val is None:

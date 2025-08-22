@@ -52,7 +52,7 @@ target-version = ["py311"]
 
 [tool.mypy]
 python_version = "3.11"
-mypy_path = ["src", "stubs"]
+mypy_path = ["stubs"]
 namespace_packages = true
 explicit_package_bases = true
 warn_unused_configs = true

@@ -1,0 +1,23 @@
+Found 1541 errors in 134 files (checked 340 source files)
+
+First 20 lines:
+src/core/strategy/templates/moving_average.py: note: In member "generate_signal" of class "MovingAverageStrategy":
+src/core/strategy/templates/moving_average.py:16: error: Argument 1 of
+"generate_signal" is incompatible with supertype
+"src.core.strategy.engine.BaseStrategy"; supertype defines the argument type as
+"object"  [override]
+        async def generate_signal(self, market_data: list[object], symbol:...
+                                        ^~~~~~~~~~~~~~~~~~~~~~~~~
+src/core/strategy/templates/moving_average.py:16: note: This violates the Liskov substitution principle
+src/core/strategy/templates/moving_average.py:16: note: See https://mypy.readthedocs.io/en/stable/common_issues.html#incompatible-overrides
+src/core/strategy/templates/mean_reversion.py: note: In member "__init__" of class "MeanReversionStrategy":
+src/core/strategy/templates/mean_reversion.py:10: error: No overload variant of
+"int" matches argument type "object"  [call-overload]
+            self.period = int(params.get("period", 20))
+                          ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/core/strategy/templates/mean_reversion.py:10: note: Possible overload variants:
+src/core/strategy/templates/mean_reversion.py:10: note:     def int(str | Buffer | SupportsInt | SupportsIndex | SupportsTrunc = ..., /) -> int
+src/core/strategy/templates/mean_reversion.py:10: note:     def int(str | bytes | bytearray, /, base: SupportsIndex) -> int
+src/core/strategy/templates/mean_reversion.py: note: In member "generate_signal" of class "MeanReversionStrategy":
+src/core/strategy/templates/mean_reversion.py:12: error: Argument 1 of
+"generate_signal" is incompatible with supertype

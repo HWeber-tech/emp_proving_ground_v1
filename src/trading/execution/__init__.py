@@ -10,8 +10,8 @@ unit tests (that import submodules directly) lightweight.
 
 __all__ = ['ExecutionEngine']
 
-def __getattr__(name):
+def __getattr__(name: str) -> object:
     if name == 'ExecutionEngine':
-        from .execution_engine import ExecutionEngine  # type: ignore
+        from .execution_engine import ExecutionEngine
         return ExecutionEngine
     raise AttributeError(name)

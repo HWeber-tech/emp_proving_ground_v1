@@ -14,7 +14,7 @@ class ParityChecker:
     def __init__(self, fix_manager) -> None:
         self.fix_manager = fix_manager
 
-    def check_orders(self, broker_orders: Dict[str, Any]) -> int:
+    def check_orders(self, broker_orders: dict[str, object]) -> int:
         """broker_orders: map clOrdID -> status/fields."""
         local = self.fix_manager.get_all_orders()
         mismatches = 0
@@ -41,11 +41,11 @@ class ParityChecker:
         logger.info(f"Order parity mismatches: {mismatches}")
         return mismatches
 
-    def compare_order_fields(self, local_order: Any, broker_order: Dict[str, Any]) -> Dict[str, Any]:
+    def compare_order_fields(self, local_order: object, broker_order: dict[str, object]) -> dict[str, object]:
         """Return a dict of mismatched fields between local OrderInfo and broker snapshot.
         Compares: status, leaves_qty, cum_qty, avg_px, order_id.
         """
-        diffs: Dict[str, Any] = {}
+        diffs: dict[str, object] = {}
         try:
             def norm(v):
                 return float(v) if isinstance(v, (int, float, str)) and str(v).replace('.', '', 1).isdigit() else v
@@ -67,7 +67,7 @@ class ParityChecker:
             diffs["error"] = "compare_failed"
         return diffs
 
-    def check_positions(self, broker_positions: Dict[str, Any]) -> int:
+    def check_positions(self, broker_positions: dict[str, object]) -> int:
         """broker_positions: map symbol -> quantity/avg_price."""
         mismatches = 0
         try:

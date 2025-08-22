@@ -1,3 +1,4 @@
+from collections.abc import Mapping, Sequence
 """
 Market GAN System
 Generative Adversarial Network for creating challenging market scenarios.
@@ -52,8 +53,8 @@ class ScenarioValidator:
     async def validate_realism(
         self,
         synthetic_scenarios: List[MarketScenario],
-        real_market_data: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        real_market_data: dict[str, object]
+    ) -> dict[str, object]:
         """Validate that synthetic scenarios are realistic."""
         try:
             validation_results = {
@@ -92,7 +93,7 @@ class ScenarioValidator:
     async def _validate_scenario(
         self,
         scenario: MarketScenario,
-        real_market_data: Dict[str, Any]
+        real_market_data: dict[str, object]
     ) -> bool:
         """Validate a single scenario."""
         try:
@@ -181,7 +182,7 @@ class MarketGAN:
                     continue
                 
                 # Step 2: Discriminator tests strategies
-                strategy_payload: List[Dict[str, Any]] = [{"id": s} for s in strategy_population]
+                strategy_payload: List[dict[str, object]] = [{"id": s} for s in strategy_population]
                 survival_results = await self.discriminator.test_strategies(
                     strategy_payload,
                     synthetic_scenarios
@@ -247,7 +248,7 @@ class MarketGAN:
             logger.error(f"Error getting difficulty: {e}")
             return 'medium'
     
-    async def _get_real_market_data(self) -> Dict[str, Any]:
+    async def _get_real_market_data(self) -> dict[str, object]:
         """Get real market data for validation."""
         try:
             # This would be enhanced with actual market data
@@ -263,8 +264,8 @@ class MarketGAN:
     async def _store_training_results(
         self,
         epoch: int,
-        survival_results: Sequence[Any],
-        validation: Dict[str, Any],
+        survival_results: Sequence[object],
+        validation: dict[str, object],
         improved_strategies: List[str]
     ) -> None:
         """Store training results for analysis."""
@@ -293,7 +294,7 @@ class MarketGAN:
         except Exception as e:
             logger.error(f"Error storing training results: {e}")
     
-    async def get_training_stats(self) -> Dict[str, Any]:
+    async def get_training_stats(self) -> dict[str, object]:
         """Get GAN training statistics."""
         try:
             keys = await self.state_store.keys(f"{self._training_history_key}:*")

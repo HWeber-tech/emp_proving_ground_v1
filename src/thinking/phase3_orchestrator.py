@@ -1,3 +1,4 @@
+from collections.abc import Sequence
 """
 Phase 3 Orchestrator - Advanced Intelligence & Predatory Behavior
 ================================================================
@@ -50,7 +51,7 @@ class PredictiveModeler(Protocol):
     async def stop(self) -> bool: ...
     async def predict_market_scenarios(
         self,
-        current_state: Dict[str, Any],
+        current_state: dict[str, object],
         time_horizon: timedelta,
         num_scenarios: int = ...
     ) -> Sequence[object]: ...
@@ -69,7 +70,7 @@ class MarketGANP(Protocol):
 class RedTeamP(Protocol):
     async def initialize(self) -> bool: ...
     async def stop(self) -> bool: ...
-    async def attack_strategy(self, target_strategy: str) -> Dict[str, Any]: ...
+    async def attack_strategy(self, target_strategy: str) -> dict[str, object]: ...
 
 @runtime_checkable
 class SpecializedEvolutionP(Protocol):
@@ -118,7 +119,7 @@ class Phase3Orchestrator:
         # State tracking
         self.is_running = False
         self.last_full_analysis = None
-        self.performance_metrics: Dict[str, Any] = {}
+        self.performance_metrics: dict[str, object] = {}
         
         logger.info("Phase 3 Orchestrator initialized")
     
@@ -212,13 +213,13 @@ class Phase3Orchestrator:
             logger.error(f"Error stopping Phase 3 orchestrator: {e}")
             return False
     
-    async def run_full_analysis(self) -> Dict[str, Any]:
+    async def run_full_analysis(self) -> dict[str, object]:
         """Run comprehensive Phase 3 analysis."""
         try:
             logger.info("Running full Phase 3 analysis...")
             
             analysis_start = datetime.utcnow()
-            results: Dict[str, Any] = {
+            results: dict[str, object] = {
                 'analysis_id': str(uuid.uuid4()),
                 'timestamp': analysis_start.isoformat(),
                 'systems': {}
@@ -259,7 +260,7 @@ class Phase3Orchestrator:
             logger.error(f"Error running full analysis: {e}")
             return {'error': str(e)}
     
-    async def _run_sentient_analysis(self) -> Dict[str, Any]:
+    async def _run_sentient_analysis(self) -> dict[str, object]:
         """Run sentient adaptation analysis."""
         try:
             # Get current market state
@@ -283,7 +284,7 @@ class Phase3Orchestrator:
             logger.error(f"Error in sentient analysis: {e}")
             return {'error': str(e)}
     
-    async def _run_predictive_analysis(self) -> Dict[str, Any]:
+    async def _run_predictive_analysis(self) -> dict[str, object]:
         """Run predictive market modeling."""
         try:
             # Get current market state
@@ -309,7 +310,7 @@ class Phase3Orchestrator:
             logger.error(f"Error in predictive analysis: {e}")
             return {'error': str(e)}
     
-    async def _run_adversarial_analysis(self) -> Dict[str, Any]:
+    async def _run_adversarial_analysis(self) -> dict[str, object]:
         """Run adversarial training analysis."""
         try:
             # Get current strategy population
@@ -365,10 +366,10 @@ class Phase3Orchestrator:
             logger.error(f"Error in adversarial analysis: {e}")
             return {'error': str(e)}
 
-    async def _run_specialized_analysis(self) -> Dict[str, Any]:
+    async def _run_specialized_analysis(self) -> dict[str, object]:
         """Run specialized predator evolution analysis (safe defaults)."""
         try:
-            result: Dict[str, Any] = {'status': 'ok', 'modules': 0}
+            result: dict[str, object] = {'status': 'ok', 'modules': 0}
             se = getattr(self, 'specialized_evolution', None)
             if se is not None:
                 for method_name in ('analyze', 'evaluate', 'run_analysis', 'run_cycle'):
@@ -391,10 +392,10 @@ class Phase3Orchestrator:
             logger.error(f"Error in specialized analysis: {e}")
             return {'error': str(e), 'status': 'error', 'modules': 0}
 
-    async def _run_competitive_analysis(self) -> Dict[str, Any]:
+    async def _run_competitive_analysis(self) -> dict[str, object]:
         """Run competitive intelligence analysis (safe defaults)."""
         try:
-            result: Dict[str, Any] = {'competitors_analyzed': 0, 'threats': []}
+            result: dict[str, object] = {'competitors_analyzed': 0, 'threats': []}
             ci = getattr(self, 'competitive_intelligence', None)
             if ci is not None:
                 for method_name in ('analyze_competitors', 'scan_market', 'analyze', 'scan'):
@@ -418,7 +419,7 @@ class Phase3Orchestrator:
             logger.error(f"Error in competitive analysis: {e}")
             return {'error': str(e), 'competitors_analyzed': 0, 'threats': []}
 
-    async def _calculate_overall_metrics(self, results: Dict[str, Any]) -> Dict[str, Any]:
+    async def _calculate_overall_metrics(self, results: dict[str, object]) -> dict[str, object]:
         """Compute simple aggregate metrics from system results (defensive)."""
         try:
             systems = results.get('systems', {}) or {}
@@ -461,7 +462,7 @@ class Phase3Orchestrator:
                 'computed_at': datetime.utcnow().isoformat()
             }
 
-    async def _store_analysis_results(self, results: Dict[str, Any]) -> None:
+    async def _store_analysis_results(self, results: dict[str, object]) -> None:
         """Persist compact analysis summary to the state store (defensive)."""
         try:
             compact = {
@@ -486,7 +487,7 @@ class Phase3Orchestrator:
             # Swallow errors by design to keep behavior non-breaking
             logger.debug(f"Non-fatal error storing analysis results: {e}")
 
-    async def _get_current_market_state(self) -> Dict[str, Any]:
+    async def _get_current_market_state(self) -> dict[str, object]:
         """Return a minimal current market state snapshot."""
         try:
             return {'timestamp': datetime.utcnow().isoformat()}

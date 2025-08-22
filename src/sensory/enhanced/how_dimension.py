@@ -1,13 +1,11 @@
 from __future__ import annotations
 
-from typing import Any, Dict
-
 __all__ = ["InstitutionalIntelligenceEngine"]
 
 
 class InstitutionalIntelligenceEngine:
-    def analyze_institutional_intelligence(self, data: Dict[str, float] | None = None) -> Dict[str, Any]:
-        payload: Dict[str, float] = dict(data or {})
+    def analyze_institutional_intelligence(self, data: dict[str, float] | None = None) -> dict[str, object]:
+        payload: dict[str, float] = dict(data or {})
         participation = float(payload.get("participation", 0.0))
         liquidity = float(payload.get("liquidity", 0.0))
         # Normalize participation [0, 1] to [-1, 1]

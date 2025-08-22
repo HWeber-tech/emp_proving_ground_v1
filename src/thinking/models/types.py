@@ -1,5 +1,6 @@
 from __future__ import annotations
-from typing import Any, Dict, Sequence, Protocol, runtime_checkable, TypedDict
+from typing import Protocol, runtime_checkable, TypedDict
+from collections.abc import Sequence
 from decimal import Decimal
 
 @runtime_checkable
@@ -14,7 +15,7 @@ class SurvivalResultLike(Protocol):
 @runtime_checkable
 class RedTeamResultLike(Protocol):
     survival_probability: float
-    weaknesses: Sequence[Any]
+    weaknesses: Sequence[object]
 
 class AttackReportTD(TypedDict, total=False):
     attack_id: str
@@ -36,7 +37,7 @@ class AlgorithmSignatureLike(Protocol):
 class CompetitorBehaviorLike(Protocol):
     competitor_id: str
     algorithm_signature: AlgorithmSignatureLike
-    behavior_metrics: Dict[str, float]
+    behavior_metrics: dict[str, float]
     patterns: Sequence[str]
     threat_level: str
     market_share: Decimal
@@ -48,14 +49,14 @@ class CounterStrategyLike(Protocol):
     strategy_id: str
     target_competitor: str
     counter_type: str
-    parameters: Dict[str, Any]
+    parameters: dict[str, object]
     expected_effectiveness: Decimal
 
 class IntelligenceReportTD(TypedDict, total=False):
     signatures_detected: int
     competitors_analyzed: int
     counter_strategies_developed: int
-    market_share_analysis: Dict[str, Any]
+    market_share_analysis: dict[str, object]
     timestamp: str
 
 __all__ = [

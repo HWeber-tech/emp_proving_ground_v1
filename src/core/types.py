@@ -14,7 +14,6 @@ Examples:
 
 These aliases are intentionally minimal and align with RFC 8259 JSON shapes.
 """
-
 from typing import Dict, List, Union
 
 # Atomic JSON primitives (RFC 8259)

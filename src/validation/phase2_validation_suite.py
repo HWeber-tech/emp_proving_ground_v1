@@ -9,27 +9,19 @@ Tests performance benchmarks, accuracy metrics, and integration points.
 
 import logging
 import time
-from typing import Any, Dict, List, Optional
-
+from typing import List, Optional
 import psutil
 
 from src.validation.models import ValidationResult
 from src.core.market_data import MarketDataGateway, NoOpMarketDataGateway
-
-try:
-    class MultiDimensionalFitnessEvaluator:  # type: ignore
-        pass
-except Exception:  # pragma: no cover
-    class MultiDimensionalFitnessEvaluator:  # type: ignore
-        pass
 from src.evolution.selection.adversarial_selector import AdversarialSelector
 
-try:
-    class MarketRegimeDetector:  # type: ignore
-        def __call__(self):
-            return None
-except Exception:  # pragma: no cover
-    MarketRegimeDetector = None  # type: ignore
+class MultiDimensionalFitnessEvaluator:
+    pass
+
+class MarketRegimeDetector:
+    def __call__(self) -> object:
+        return None
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +42,7 @@ class Phase2ValidationSuite:
         }
         self.market_data: MarketDataGateway = market_data_gateway or NoOpMarketDataGateway()
     
-    async def run_all_tests(self) -> Dict[str, Any]:
+    async def run_all_tests(self) -> dict[str, object]:
         """Run all validation tests"""
         logger.info("Starting Phase 2 validation suite...")
         
@@ -72,7 +64,7 @@ class Phase2ValidationSuite:
         # Generate summary
         return self._generate_summary()
     
-    async def _test_response_time(self):
+    async def _test_response_time(self) -> None:
         """Test system response time"""
         try:
             # Test market regime detection response time
@@ -101,7 +93,7 @@ class Phase2ValidationSuite:
                 details=str(e)
             ))
     
-    async def _test_throughput(self):
+    async def _test_throughput(self) -> None:
         """Test system throughput"""
         try:
             # Test concurrent operations
@@ -134,7 +126,7 @@ class Phase2ValidationSuite:
                 details=str(e)
             ))
     
-    async def _test_memory_usage(self):
+    async def _test_memory_usage(self) -> None:
         """Test memory usage"""
         try:
             process = psutil.Process()
@@ -143,7 +135,7 @@ class Phase2ValidationSuite:
             # Create components
             detector = MarketRegimeDetector()
             evaluator = MultiDimensionalFitnessEvaluator()
-            selector = AdversarialSelector()
+            _selector = AdversarialSelector()
             
             # Simulate usage
             
@@ -172,7 +164,7 @@ class Phase2ValidationSuite:
                 details=str(e)
             ))
     
-    async def _test_cpu_usage(self):
+    async def _test_cpu_usage(self) -> None:
         """Test CPU usage"""
         try:
             process = psutil.Process()
@@ -198,13 +190,13 @@ class Phase2ValidationSuite:
                 details=str(e)
             ))
     
-    async def _test_anomaly_detection_accuracy(self):
+    async def _test_anomaly_detection_accuracy(self) -> None:
         """Test anomaly detection accuracy using market data gateway"""
         try:
             # Attempt async fetch first
             df = None
             try:
-                df = await self.market_data.get_market_data("EURUSD=X")  # type: ignore[attr-defined]
+                df = await self.market_data.get_market_data("EURUSD=X")
             except Exception:
                 df = None
 
@@ -338,7 +330,7 @@ class Phase2ValidationSuite:
                 details=f"End-to-end workflow failed: {str(e)}"
             ))
  
-    def _generate_summary(self) -> Dict[str, Any]:
+    def _generate_summary(self) -> dict[str, object]:
         """Generate suite summary from accumulated results."""
         try:
             passed = sum(1 for r in self.results if getattr(r, "passed", False))

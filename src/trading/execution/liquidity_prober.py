@@ -27,7 +27,7 @@ class LiquidityProber:
     liquidity and iceberg orders.
     """
     
-    def __init__(self, broker_interface: FIXBrokerInterface, config: Optional[Dict[str, Any]] = None):
+    def __init__(self, broker_interface: FIXBrokerInterface, config: Optional[dict[str, object]] = None):
         """
         Initialize the LiquidityProber with broker interface and configuration.
         
@@ -250,7 +250,7 @@ class LiquidityProber:
         
         return confidence_score
     
-    def get_probe_summary(self, probe_results: Dict[float, float]) -> Dict[str, Any]:
+    def get_probe_summary(self, probe_results: Dict[float, float]) -> dict[str, object]:
         """
         Generate a summary of probe results for logging/monitoring.
         
@@ -278,7 +278,7 @@ class LiquidityProber:
             "empty_levels": len([v for v in probe_results.values() if v == 0])
         }
     
-    async def health_check(self) -> Dict[str, Any]:
+    async def health_check(self) -> dict[str, object]:
         """
         Perform a health check on the LiquidityProber.
         

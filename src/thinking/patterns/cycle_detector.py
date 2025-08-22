@@ -28,13 +28,13 @@ class CycleAnalysis:
     phase: str  # 'early', 'middle', 'late', 'transition'
     cycle_length: int  # Estimated cycle length in periods
     confidence: float  # 0.0 to 1.0
-    metadata: Dict[str, Any]
+    metadata: dict[str, object]
 
 
 class CycleDetector(ThinkingPattern):
     """Detects market cycles and cyclical patterns."""
     
-    def __init__(self, config: Optional[Dict[str, Any]] = None):
+    def __init__(self, config: Optional[dict[str, object]] = None):
         self.config = config or {}
         self.min_cycle_length = self.config.get('min_cycle_length', 10)
         self.max_cycle_length = self.config.get('max_cycle_length', 200)
@@ -77,7 +77,7 @@ class CycleDetector(ThinkingPattern):
         except Exception as e:
             raise ThinkingException(f"Error in cycle detection: {e}")
             
-    def learn(self, feedback: Dict[str, Any]) -> bool:
+    def learn(self, feedback: dict[str, object]) -> bool:
         """Learn from feedback to improve cycle detection."""
         try:
             # Extract learning data from feedback

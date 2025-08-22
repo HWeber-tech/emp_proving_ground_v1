@@ -1,18 +1,18 @@
 import threading
 import time
-from typing import Any, Dict
+from typing import TypedDict, cast
 
 
 class _InMemoryCache:
     def __init__(self) -> None:
-        self._store: Dict[str, Any] = {}
-        self._expiry: Dict[str, float] = {}
+        self._store: dict[str, object] = {}
+        self._expiry: dict[str, float] = {}
 
-    def set(self, key: str, value: Any, ttl_seconds: int = 300) -> None:
+    def set(self, key: str, value: object, ttl_seconds: int = 300) -> None:
         self._store[key] = value
         self._expiry[key] = time.time() + ttl_seconds
 
-    def get(self, key: str, default: Any = None) -> Any:
+    def get(self, key: str, default: object = None) -> object:
         expires = self._expiry.get(key)
         if expires is not None and time.time() > expires:
             self._store.pop(key, None)
@@ -24,24 +24,24 @@ class MarketDataCache:
     """Simple in-memory market data cache with minimal API, plus legacy set/get support."""
     def __init__(self) -> None:
         # Symbol snapshot store
-        self._data: Dict[str, Dict[str, Any]] = {}
+        self._data: dict[str, "_Snapshot"] = {}
         # Legacy generic KV store with TTL
-        self._kv_store: Dict[str, Any] = {}
-        self._kv_expiry: Dict[str, float] = {}
+        self._kv_store: dict[str, object] = {}
+        self._kv_expiry: dict[str, float] = {}
         self._lock = threading.Lock()
 
     # Minimal snapshot API
     def put_snapshot(self, symbol: str, bid: float, ask: float, ts: float | str) -> None:
         """Store a snapshot for a symbol."""
-        snapshot = {"symbol": symbol, "bid": float(bid), "ask": float(ask), "ts": ts}
+        snapshot: "_Snapshot" = {"symbol": symbol, "bid": float(bid), "ask": float(ask), "ts": ts}
         with self._lock:
             self._data[symbol] = snapshot
 
-    def get_snapshot(self, symbol: str) -> Dict[str, Any] | None:
+    def get_snapshot(self, symbol: str) -> "_Snapshot | None":
         """Retrieve the latest snapshot for a symbol."""
         with self._lock:
             snap = self._data.get(symbol)
-            return dict(snap) if snap is not None else None
+            return cast("_Snapshot", dict(snap)) if snap is not None else None
 
     def maybe_get_mid(self, symbol: str) -> float | None:
         """Return (bid+ask)/2 for the symbol if available, else None."""
@@ -54,12 +54,12 @@ class MarketDataCache:
             return None
 
     # Legacy KV API (backward-compatible with _InMemoryCache)
-    def set(self, key: str, value: Any, ttl_seconds: int = 300) -> None:
+    def set(self, key: str, value: object, ttl_seconds: int = 300) -> None:
         with self._lock:
             self._kv_store[key] = value
             self._kv_expiry[key] = time.time() + ttl_seconds
 
-    def get(self, key: str, default: Any = None) -> Any:
+    def get(self, key: str, default: object = None) -> object:
         with self._lock:
             expires = self._kv_expiry.get(key)
             if expires is not None and time.time() > expires:
@@ -78,4 +78,10 @@ def get_global_cache() -> MarketDataCache:
     return _global_cache
 
 # Backward compatibility: legacy in-memory KV cache alias
-LegacyInMemoryCache = _InMemoryCache  # type: ignore
+LegacyInMemoryCache = _InMemoryCache
+
+class _Snapshot(TypedDict):
+    symbol: str
+    bid: float
+    ask: float
+    ts: float | str

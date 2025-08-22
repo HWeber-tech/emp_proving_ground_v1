@@ -29,18 +29,18 @@ class Configuration:
     debug: bool = False
     
     # Layer configurations
-    sensory: Dict[str, Any] = field(default_factory=dict)
-    thinking: Dict[str, Any] = field(default_factory=dict)
-    trading: Dict[str, Any] = field(default_factory=dict)
-    evolution: Dict[str, Any] = field(default_factory=dict)
-    governance: Dict[str, Any] = field(default_factory=dict)
-    operational: Dict[str, Any] = field(default_factory=dict)
+    sensory: dict[str, object] = field(default_factory=dict)
+    thinking: dict[str, object] = field(default_factory=dict)
+    trading: dict[str, object] = field(default_factory=dict)
+    evolution: dict[str, object] = field(default_factory=dict)
+    governance: dict[str, object] = field(default_factory=dict)
+    operational: dict[str, object] = field(default_factory=dict)
     
     # External service configurations
-    redis: Dict[str, Any] = field(default_factory=dict)
-    postgresql: Dict[str, Any] = field(default_factory=dict)
-    nats: Dict[str, Any] = field(default_factory=dict)
-    ctrader: Dict[str, Any] = field(default_factory=dict)
+    redis: dict[str, object] = field(default_factory=dict)
+    postgresql: dict[str, object] = field(default_factory=dict)
+    nats: dict[str, object] = field(default_factory=dict)
+    ctrader: dict[str, object] = field(default_factory=dict)
     
     def __post_init__(self):
         """Post-initialization setup."""
@@ -96,7 +96,7 @@ class Configuration:
         except Exception as e:
             raise ConfigurationException(f"Error saving configuration: {e}")
             
-    def get(self, key: str, default: Any = None) -> Any:
+    def get(self, key: str, default: object = None) -> object:
         """Get configuration value using dot notation."""
         keys = key.split('.')
         value = self
@@ -109,7 +109,7 @@ class Configuration:
                 
         return value
         
-    def set(self, key: str, value: Any):
+    def set(self, key: str, value: object):
         """Set configuration value using dot notation."""
         keys = key.split('.')
         config = self

@@ -11,23 +11,23 @@ Defines a minimal, domain-agnostic interface for anomaly/manipulation detection.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Protocol, runtime_checkable
+from typing import Protocol, runtime_checkable
 
 
 @dataclass
 class AnomalyEvent:
     """Generic anomaly/manipulation event."""
-    timestamp: Any
+    timestamp: object
     kind: str
     score: float
-    metadata: Dict[str, Any]
+    metadata: dict[str, object]
 
 
 @runtime_checkable
 class AnomalyDetector(Protocol):
     """Abstract anomaly/manipulation detector."""
 
-    async def detect_manipulation(self, data: Any) -> List[Dict[str, Any]] | List[AnomalyEvent]:
+    async def detect_manipulation(self, data: object) -> list[dict[str, object]] | list[AnomalyEvent]:
         """
         Detect anomalous/manipulative activity from a tabular/time-series dataset.
 
@@ -40,7 +40,7 @@ class AnomalyDetector(Protocol):
 class NoOpAnomalyDetector:
     """Safe fallback that reports no anomalies."""
 
-    async def detect_manipulation(self, data: Any) -> List[Dict[str, Any]]:
+    async def detect_manipulation(self, data: object) -> list[dict[str, object]]:
         return []
 
 

@@ -3,7 +3,6 @@
 Kept for compatibility; consolidated engine lives at `src.core.strategy.engine`.
 """
 
-from src.core.strategy.engine import StrategyEngine  # type: ignore
+from src.core.strategy.engine import StrategyEngine
 
 __all__ = ["StrategyEngine"]
-

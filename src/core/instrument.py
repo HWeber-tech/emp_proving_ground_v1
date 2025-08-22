@@ -129,7 +129,7 @@ class Instrument:
         if "tick_size" in payload:
             payload["tick_size"] = _coerce_to_float(payload.get("tick_size"), cls.tick_size)
 
-        return cls(**cast(InstrumentPayload, payload))  # type: ignore[arg-type]
+        return cls(**cast(InstrumentPayload, payload))
     
     @classmethod
     def forex(cls, symbol: str, **kwargs: Unpack[_InstrumentCtorKwargs]) -> Instrument:

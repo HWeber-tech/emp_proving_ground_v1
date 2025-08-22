@@ -1,3 +1,4 @@
+from collections.abc import Mapping, Sequence
 """
 Red Team AI System
 Dedicated AI system to attack and improve strategies.
@@ -24,7 +25,7 @@ from src.thinking.models.normalizers import normalize_attack_report
 logger = logging.getLogger(__name__)
 
 
-def _to_mapping(obj: Any) -> Dict[str, Any]:
+def _to_mapping(obj: object) -> dict[str, object]:
     """
     Best-effort conversion to a plain dict without raising.
     Order of attempts:
@@ -42,7 +43,7 @@ def _to_mapping(obj: Any) -> Dict[str, Any]:
     if isinstance(obj, dict):
         return obj
     # Fallback: gather common attributes if present
-    out: Dict[str, Any] = {}
+    out: dict[str, object] = {}
     for key in ("strategy_id", "timestamp", "behavior_profile", "risk_factors", "performance_patterns", "metadata"):
         try:
             if hasattr(obj, key):
@@ -67,8 +68,8 @@ class StrategyAnalyzer:
     async def analyze_behavior(
         self,
         target_strategy: str,
-        test_scenarios: List[Dict[str, Any]]
-    ) -> Any:
+        test_scenarios: List[dict[str, object]]
+    ) -> object:
         """Analyze strategy behavior patterns."""
         try:
             # Simulate strategy behavior across scenarios
@@ -115,8 +116,8 @@ class StrategyAnalyzer:
     async def _simulate_strategy_behavior(
         self,
         strategy_id: str,
-        scenario: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        scenario: dict[str, object]
+    ) -> dict[str, object]:
         """Simulate strategy behavior in a scenario."""
         try:
             # This would be enhanced with actual strategy simulation
@@ -134,7 +135,7 @@ class StrategyAnalyzer:
     
     def _calculate_behavior_metrics(
         self,
-        behavior_data: List[Dict[str, Any]]
+        behavior_data: List[dict[str, object]]
     ) -> Dict[str, float]:
         """Calculate aggregate behavior metrics."""
         try:
@@ -177,7 +178,7 @@ class StrategyAnalyzer:
     
     def _identify_performance_patterns(
         self,
-        behavior_data: List[Dict[str, Any]]
+        behavior_data: List[dict[str, object]]
     ) -> List[str]:
         """Identify performance patterns from behavior data."""
         try:
@@ -209,7 +210,7 @@ class WeaknessDetector:
     
     async def find_weaknesses(
         self,
-        behavior_profile: Dict[str, Any],
+        behavior_profile: dict[str, object],
         known_vulnerabilities: List[str]
     ) -> List[str]:
         """Find potential weaknesses in strategy."""
@@ -238,7 +239,7 @@ class WeaknessDetector:
     
     def _check_vulnerability(
         self,
-        behavior_profile: Dict[str, Any],
+        behavior_profile: dict[str, object],
         vulnerability: str
     ) -> bool:
         """Check if strategy has specific vulnerability."""
@@ -261,7 +262,7 @@ class WeaknessDetector:
     
     def _detect_new_weaknesses(
         self,
-        behavior_profile: Dict[str, Any]
+        behavior_profile: dict[str, object]
     ) -> List[str]:
         """Detect new weaknesses not in known list."""
         try:
@@ -305,7 +306,7 @@ class AttackGenerator:
         self,
         weakness: str,
         target_strategy: str
-    ) -> Any:
+    ) -> object:
         """Create a targeted attack for a weakness."""
         try:
             # Get attack template
@@ -352,9 +353,9 @@ class AttackGenerator:
     
     def _generate_attack_parameters(
         self,
-        template: Dict[str, Any],
+        template: dict[str, object],
         target_strategy: str
-    ) -> Dict[str, Any]:
+    ) -> dict[str, object]:
         """Generate attack parameters."""
         try:
             return {
@@ -414,7 +415,7 @@ class ExploitDeveloper:
         self,
         weaknesses: List[str],
         target_strategy: str
-    ) -> List[Any]:
+    ) -> list[object]:
         """Develop exploits for discovered weaknesses."""
         try:
             exploits = []
@@ -465,7 +466,7 @@ class ExploitDeveloper:
             logger.error(f"Error creating exploit: {e}")
             return None
     
-    def _generate_exploit_parameters(self, weakness: str) -> Dict[str, Any]:
+    def _generate_exploit_parameters(self, weakness: str) -> dict[str, object]:
         """Generate exploit parameters."""
         try:
             return {
@@ -511,7 +512,7 @@ class RedTeamAI:
     async def attack_strategy(
         self,
         target_strategy: str
-    ) -> Dict[str, Any]:
+    ) -> dict[str, object]:
         """
         Execute a comprehensive attack on a strategy.
         
@@ -605,7 +606,7 @@ class RedTeamAI:
                 'timestamp': datetime.utcnow().isoformat()
             }
     
-    async def _generate_test_scenarios(self) -> List[Dict[str, Any]]:
+    async def _generate_test_scenarios(self) -> List[dict[str, object]]:
         """Generate test scenarios for analysis."""
         try:
             # This would be enhanced with actual scenario generation
@@ -636,7 +637,7 @@ class RedTeamAI:
     async def _execute_attack(
         self,
         target_strategy: str,
-        attack: Any
+        attack: object
     ) -> AttackReportTD:
         """Execute an attack against a strategy."""
         try:
@@ -672,10 +673,10 @@ class RedTeamAI:
     async def _store_attack_results(
         self,
         strategy_id: str,
-        behavior_profile: Any,
+        behavior_profile: object,
         weaknesses: List[str],
-        attacks: List[Any],
-        exploits: List[Any],
+        attacks: list[object],
+        exploits: list[object],
         attack_results: List[AttackReportTD]
     ) -> None:
         """Store attack results for analysis."""
@@ -713,7 +714,7 @@ class RedTeamAI:
     async def _generate_improvements(
         self,
         weaknesses: List[str],
-        attack_results: Sequence[Mapping[str, Any]]
+        attack_results: Sequence[Mapping[str, object]]
     ) -> List[str]:
         """Generate improvement recommendations."""
         try:
@@ -739,7 +740,7 @@ class RedTeamAI:
             logger.error(f"Error generating improvements: {e}")
             return []
     
-    async def get_red_team_stats(self) -> Dict[str, Any]:
+    async def get_red_team_stats(self) -> dict[str, object]:
         """Get Red Team AI statistics."""
         try:
             keys = await self.state_store.keys(f"{self._attack_history_key}:*")

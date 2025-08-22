@@ -29,7 +29,7 @@ class AnomalyDetectionResult:
     severity: float  # 0.0 to 1.0
     confidence: float  # 0.0 to 1.0
     description: str
-    metadata: Dict[str, Any]
+    metadata: dict[str, object]
 
 # Backward-compat alias (structural unification without behavior change)
 AnomalyDetection = AnomalyDetectionResult
@@ -38,7 +38,7 @@ AnomalyDetection = AnomalyDetectionResult
 class AnomalyDetector(ThinkingPattern):
     """Detects anomalies in market data and sensory signals."""
     
-    def __init__(self, config: Optional[Dict[str, Any]] = None):
+    def __init__(self, config: Optional[dict[str, object]] = None):
         self.config = config or {}
         self.sensitivity = self.config.get('sensitivity', 0.7)
         self.lookback_periods = self.config.get('lookback_periods', 50)
@@ -85,7 +85,7 @@ class AnomalyDetector(ThinkingPattern):
         except Exception as e:
             raise ThinkingException(f"Error in anomaly detection: {e}")
             
-    def learn(self, feedback: Dict[str, Any]) -> bool:
+    def learn(self, feedback: dict[str, object]) -> bool:
         """Learn from feedback to improve anomaly detection."""
         try:
             # Extract learning data from feedback

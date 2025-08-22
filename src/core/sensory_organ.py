@@ -1,13 +1,13 @@
 from __future__ import annotations
-
-from typing import Any, Dict, Protocol, runtime_checkable
+from collections.abc import Mapping
+from typing import Protocol, runtime_checkable
 
 
 @runtime_checkable
 class SensoryOrganProto(Protocol):
     """Structural type for sensory organs (process-only surface we rely on)."""
 
-    def process(self, data: Dict[str, Any]) -> Dict[str, Any]:
+    def process(self, data: Mapping[str, object]) -> dict[str, object]:
         ...
 
 
@@ -22,7 +22,7 @@ class CoreSensoryOrgan:
     def __init__(self, organ_type: str) -> None:
         self.organ_type = organ_type
 
-    def process(self, data: Dict[str, Any]) -> Dict[str, Any]:
+    def process(self, data: Mapping[str, object]) -> dict[str, object]:
         return {"processed": True, "organ": self.organ_type, "data": data}
 
 

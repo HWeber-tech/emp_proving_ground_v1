@@ -23,12 +23,12 @@ class RiskAnalyzer:
     def __init__(self, confidence_level: float = 0.95, lookback_period: int = 252):
         self.confidence_level = confidence_level
         self.lookback_period = lookback_period
-        self.risk_history: List[Dict[str, Any]] = []
+        self.risk_history: List[dict[str, object]] = []
         
         logger.info(f"Risk Analyzer initialized with {confidence_level:.0%} confidence level")
         
     def analyze_risk(self, trade_history: List[TradeIntent], 
-                    market_data: Optional[List[Any]] = None) -> AnalysisResult:
+                    market_data: Optional[list[object]] = None) -> AnalysisResult:
         """Analyze trading risk and generate risk metrics."""
         try:
             if not trade_history:
@@ -82,7 +82,7 @@ class RiskAnalyzer:
             logger.error(f"Error analyzing risk: {e}")
             return self._create_default_analysis()
             
-    def _convert_trades_to_risk_data(self, trade_history: List[TradeIntent]) -> Dict[str, Any]:
+    def _convert_trades_to_risk_data(self, trade_history: List[TradeIntent]) -> dict[str, object]:
         """Convert trade history to risk data structure."""
         # Sort trades by timestamp
         sorted_trades = sorted(trade_history, key=lambda x: x.timestamp)
@@ -113,8 +113,8 @@ class RiskAnalyzer:
             'total_trades': len(trade_returns)
         }
         
-    def _calculate_risk_metrics(self, risk_data: Dict[str, Any], 
-                              market_data: Optional[List[Any]] = None) -> RiskMetrics:
+    def _calculate_risk_metrics(self, risk_data: dict[str, object], 
+                              market_data: Optional[list[object]] = None) -> RiskMetrics:
         """Calculate comprehensive risk metrics."""
         trade_returns = risk_data['trade_returns']
         position_sizes = risk_data['position_sizes']
@@ -185,7 +185,7 @@ class RiskAnalyzer:
             
         return abs(cvar)
         
-    def _calculate_beta(self, returns: pd.Series, market_data: Optional[List[Any]]) -> float:
+    def _calculate_beta(self, returns: pd.Series, market_data: Optional[list[object]]) -> float:
         """Calculate beta relative to market."""
         if not market_data or len(returns) < 2:
             return 1.0  # Default to market beta
@@ -210,7 +210,7 @@ class RiskAnalyzer:
             logger.warning(f"Error calculating beta: {e}")
             return 1.0
             
-    def _calculate_correlation(self, returns: pd.Series, market_data: Optional[List[Any]]) -> float:
+    def _calculate_correlation(self, returns: pd.Series, market_data: Optional[list[object]]) -> float:
         """Calculate correlation with market."""
         if not market_data or len(returns) < 2:
             return 0.0
@@ -275,7 +275,7 @@ class RiskAnalyzer:
         else:
             return "HIGH"
             
-    def _calculate_risk_confidence(self, risk_data: Dict[str, Any]) -> float:
+    def _calculate_risk_confidence(self, risk_data: dict[str, object]) -> float:
         """Calculate confidence in risk analysis."""
         confidence_factors = []
         
@@ -325,7 +325,7 @@ class RiskAnalyzer:
             
         return np.mean(confidence_factors)
         
-    def _calculate_analysis_period(self, trade_history: List[TradeIntent]) -> Dict[str, Any]:
+    def _calculate_analysis_period(self, trade_history: List[TradeIntent]) -> dict[str, object]:
         """Calculate the analysis period from trade history."""
         if not trade_history:
             return {"start": None, "end": None, "duration_days": 0}
@@ -360,13 +360,13 @@ class RiskAnalyzer:
             }
         )
         
-    def get_risk_history(self, limit: Optional[int] = None) -> List[Dict[str, Any]]:
+    def get_risk_history(self, limit: Optional[int] = None) -> List[dict[str, object]]:
         """Get risk analysis history."""
         if limit:
             return self.risk_history[-limit:]
         return self.risk_history.copy()
         
-    def get_risk_statistics(self) -> Dict[str, Any]:
+    def get_risk_statistics(self) -> dict[str, object]:
         """Get statistics about risk analyses."""
         if not self.risk_history:
             return {}

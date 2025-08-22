@@ -32,23 +32,23 @@ class GenomeProvider(Protocol):
         parameters: Dict[str, float],
         generation: int = 0,
         species_type: Optional[str] = None,
-    ) -> Any:
+    ) -> object:
         """
         Create a new genome-like object with the given parameters.
         Returns Any to allow decoupling from concrete model classes.
         """
 
-    def mutate(self, genome: Any, mutation: str, new_params: Dict[str, float]) -> Any:
+    def mutate(self, genome: object, mutation: str, new_params: Dict[str, float]) -> object:
         """
         Apply a mutation to the provided genome-like object and return a new instance/object.
         """
 
-    def from_legacy(self, obj: Any) -> Any:
+    def from_legacy(self, obj: object) -> object:
         """
         Adapt a legacy dict/object to a genome-like object suitable for core usage.
         """
 
-    def to_legacy_view(self, genome: Any) -> Dict[str, Any] | Any:
+    def to_legacy_view(self, genome: object) -> Dict[str, Any] | Any:
         """
         Return a plain dict or legacy-compatible view for downstream consumers.
         """
@@ -75,7 +75,7 @@ class _CoreGenomeStub:
     performance_metrics: Dict[str, float] = field(default_factory=dict)
     created_at: float = field(default_factory=time.time)
 
-    def with_updated(self, **kwargs: Any) -> "_CoreGenomeStub":
+    def with_updated(self, **kwargs: object) -> "_CoreGenomeStub":
         """Return a shallow-copied updated instance. Only known fields are applied."""
         data = {
             "id": self.id,
@@ -99,7 +99,7 @@ class _CoreGenomeStub:
                     data[k] = v
         return _CoreGenomeStub(**data)  # type: ignore[arg-type]
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, object]:
         """Return a plain dict view of this stub."""
         return {
             "id": self.id,
@@ -114,7 +114,7 @@ class _CoreGenomeStub:
         }
 
 
-def _coerce_numeric_mapping(mapping: Any) -> Dict[str, float]:
+def _coerce_numeric_mapping(mapping: object) -> Dict[str, float]:
     """Best-effort coercion of a mapping/object to Dict[str, float]."""
     result: Dict[str, float] = {}
     try:
@@ -156,7 +156,7 @@ class NoOpGenomeProvider:
         parameters: Dict[str, float],
         generation: int = 0,
         species_type: Optional[str] = None,
-    ) -> Any:
+    ) -> object:
         try:
             return _CoreGenomeStub(
                 id=str(id),
@@ -172,7 +172,7 @@ class NoOpGenomeProvider:
         except Exception:
             return _CoreGenomeStub(id=str(id))
 
-    def mutate(self, genome: Any, mutation: str, new_params: Dict[str, float]) -> Any:
+    def mutate(self, genome: object, mutation: str, new_params: Dict[str, float]) -> object:
         try:
             # Best-effort: if stub-like, update parameters and append a simple tag.
             if hasattr(genome, "parameters") and hasattr(genome, "with_updated"):
@@ -191,7 +191,7 @@ class NoOpGenomeProvider:
         except Exception:
             return genome
 
-    def from_legacy(self, obj: Any) -> Any:
+    def from_legacy(self, obj: object) -> object:
         try:
             # If it's already stub-like (has id/parameters), return as is
             if hasattr(obj, "id") and hasattr(obj, "parameters"):
@@ -212,7 +212,7 @@ class NoOpGenomeProvider:
         except Exception:
             return _CoreGenomeStub(id=f"noop_{int(time.time()*1000)}")
 
-    def to_legacy_view(self, genome: Any) -> Dict[str, Any] | Any:
+    def to_legacy_view(self, genome: object) -> Dict[str, Any] | Any:
         try:
             # Prefer an existing to_dict() if present
             to_dict = getattr(genome, "to_dict", None)

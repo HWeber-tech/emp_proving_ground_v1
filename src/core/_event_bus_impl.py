@@ -55,9 +55,9 @@ class AsyncEventBus:
     """
 
     def __init__(self) -> None:
-        self._subscribers: Dict[str, Set[Callable[[Event], Any]]] = {}
-        self._pair_to_id: Dict[Tuple[str, Callable[[Event], Any]], int] = {}
-        self._id_to_pair: Dict[int, Tuple[str, Callable[[Event], Any]]] = {}
+        self._subscribers: Dict[str, Set[Callable[[Event], object]]] = {}
+        self._pair_to_id: Dict[Tuple[str, Callable[[Event], object]], int] = {}
+        self._id_to_pair: Dict[int, Tuple[str, Callable[[Event], object]]] = {}
         self._next_id: int = 1
 
         self._running: bool = False
@@ -201,7 +201,7 @@ class AsyncEventBus:
 
     async def _fanout_event(self, event: Event) -> int:
         """Fan out to all matching handlers concurrently; log exceptions; return invoked count."""
-        handlers_snapshot: list[Callable[[Event], Any]]
+        handlers_snapshot: list[Callable[[Event], object]]
         with self._lock:
             handlers_snapshot = list(self._subscribers.get(event.type, set()))
         if not handlers_snapshot:
@@ -220,7 +220,7 @@ class AsyncEventBus:
                 logger.error("Error in handler %r for event type %s", h, event.type)
         return len(handlers_snapshot)
 
-    async def _invoke_handler(self, handler: Callable[[Event], Any], event: Event) -> None:
+    async def _invoke_handler(self, handler: Callable[[Event], object], event: Event) -> None:
         try:
             result = handler(event)
             if asyncio.iscoroutine(result):
@@ -254,7 +254,7 @@ class TopicBus:
     def __init__(self, bus: AsyncEventBus) -> None:
         self._bus = bus
         # Preserve adapter identity to avoid duplicate registrations for same (topic, handler)
-        self._adapter_map: Dict[Tuple[str, Callable[..., Any]], Callable[[Event], Any]] = {}
+        self._adapter_map: Dict[Tuple[str, Callable[..., object]], Callable[[Event], object]] = {}
 
     def publish_sync(self, topic: str, payload: dict[str, Any] | Any, source: str | None = None) -> int | None:
         loop = self._bus._loop
@@ -284,7 +284,7 @@ class TopicBus:
         key = (topic, handler)
         adapter_fn = self._adapter_map.get(key)
         if adapter_fn is None:
-            def _adapter(ev: Event) -> Any:
+            def _adapter(ev: Event) -> object:
                 res = handler(ev.type, ev.payload)
                 if asyncio.iscoroutine(res):
                     return res
@@ -316,7 +316,7 @@ class TopicBus:
             )
 
         # Adapt payload-only legacy signature to (type, payload)
-        def adapter(_type: str, payload: Any) -> Any:
+        def adapter(_type: str, payload: object) -> object:
             res = handler(payload)
             if asyncio.iscoroutine(res):
                 return res
@@ -399,7 +399,7 @@ def subscribe_to_event(
     return event_bus.subscribe(event_type, callback)
 
 
-def unsubscribe_from_event(event_type: str, callback: Callable[[Event], Any]) -> None:
+def unsubscribe_from_event(event_type: str, callback: Callable[[Event], object]) -> None:
     # Best-effort legacy removal by (event_type, callback)
     with event_bus._lock:
         sub_id = event_bus._pair_to_id.get((event_type, callback))

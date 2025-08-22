@@ -77,7 +77,7 @@ class PopulationManager(IPopulationManager):
         self.population = [provider.from_legacy(g) for g in new_population]
         self._cache_population_stats()
         
-    def get_population_statistics(self) -> Dict[str, Any]:
+    def get_population_statistics(self) -> dict[str, object]:
         """Get statistics about the current population."""
         if not self.population:
             return {
@@ -277,7 +277,7 @@ class PopulationManager(IPopulationManager):
         tournament = random.sample(self.population, min(tournament_size, len(self.population)))
         return max(tournament, key=lambda g: (g.fitness or 0.0))
     
-    def _crossover(self, parent1: Any, parent2: Any) -> Any:
+    def _crossover(self, parent1: object, parent2: object) -> object:
         """Create offspring via crossover."""
         import random
 
@@ -325,7 +325,7 @@ class PopulationManager(IPopulationManager):
             # Safe fallback to parent1 clone if anything goes wrong
             return parent1
     
-    def _mutate(self, genome: Any, mutation_rate: float = 0.1) -> Any:
+    def _mutate(self, genome: object, mutation_rate: float = 0.1) -> object:
         """Apply mutation to genome."""
         import random
 

@@ -7,7 +7,7 @@ such as 2s10s slope and a basic directional signal/confidence.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Dict, Optional, Tuple
+from typing import Dict, Tuple
 
 
 @dataclass
@@ -21,7 +21,7 @@ class YieldSlopeTracker:
     long_tenor: str = "10Y"
     latest_values: Dict[str, float] = field(default_factory=dict)
 
-    def update(self, tenor: str, value: float) -> None:
+    def update(self, tenor: str | None, value: float) -> None:
         if tenor is None:
             return
         try:
@@ -29,20 +29,13 @@ class YieldSlopeTracker:
         except Exception:
             return
 
-    def slope(self) -> Optional[float]:
-        s = self.latest_values.get(self.short_tenor.upper())
-        l = self.latest_values.get(self.long_tenor.upper())
-        if s is None or l is None:
-            return None
-        return float(l - s)
-
     def signal(self) -> Tuple[float, float]:
         """Return a naive directional signal and confidence.
 
         Signal is sign of steepening: +1 if long-short > 0, -1 if < 0, 0 if flat/unknown.
         Confidence grows with absolute slope up to a modest cap.
         """
-        sl = self.slope()
+        sl = self.slope(self.short_tenor, self.long_tenor)
         if sl is None:
             return 0.0, 0.0
         if abs(sl) < 1e-6:
@@ -53,22 +46,22 @@ class YieldSlopeTracker:
         return direction, conf
 
     # Extended features
-    def slope(self, short: str = None, long: str = None) -> Optional[float]:
-        s_t = (short or self.short_tenor).upper()
-        l_t = (long or self.long_tenor).upper()
+    def slope(self, short: str, long: str) -> float | None:
+        s_t = short.upper()
+        l_t = long.upper()
         s = self.latest_values.get(s_t)
         l = self.latest_values.get(l_t)
         if s is None or l is None:
             return None
         return float(l - s)
 
-    def slope_2s10s(self) -> Optional[float]:
+    def slope_2s10s(self) -> float | None:
         return self.slope("2Y", "10Y")
 
-    def slope_5s30s(self) -> Optional[float]:
+    def slope_5s30s(self) -> float | None:
         return self.slope("5Y", "30Y")
 
-    def curvature_2_10_30(self) -> Optional[float]:
+    def curvature_2_10_30(self) -> float | None:
         y2 = self.latest_values.get("2Y")
         y10 = self.latest_values.get("10Y")
         y30 = self.latest_values.get("30Y")
@@ -77,7 +70,7 @@ class YieldSlopeTracker:
         # Standard 2-10-30 curvature: 2*10Y - 2Y - 30Y
         return float(2.0 * y10 - y2 - y30)
 
-    def parallel_shift(self) -> Optional[float]:
+    def parallel_shift(self) -> float | None:
         if not self.latest_values:
             return None
         # Average level across available tenors as proxy for shift

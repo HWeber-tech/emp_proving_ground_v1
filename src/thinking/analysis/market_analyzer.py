@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 class MarketAnalyzer(ThinkingPattern):
     """Comprehensive market analyzer combining multiple analysis components."""
     
-    def __init__(self, config: Optional[Dict[str, Any]] = None):
+    def __init__(self, config: Optional[dict[str, object]] = None):
         self.config = config or {}
         self.performance_analyzer = PerformanceAnalyzer()
         self.risk_analyzer = RiskAnalyzer()
@@ -64,7 +64,7 @@ class MarketAnalyzer(ThinkingPattern):
         except Exception as e:
             raise ThinkingException(f"Error in market analysis: {e}")
             
-    def learn(self, feedback: Dict[str, Any]) -> bool:
+    def learn(self, feedback: dict[str, object]) -> bool:
         """Learn from feedback to improve market analysis."""
         try:
             # Delegate learning to component analyzers
@@ -80,7 +80,7 @@ class MarketAnalyzer(ThinkingPattern):
             
     def _combine_analysis_results(self, performance_result: AnalysisResult,
                                 risk_result: AnalysisResult,
-                                signals: List[SensorySignal]) -> Dict[str, Any]:
+                                signals: List[SensorySignal]) -> dict[str, object]:
         """Combine analysis results into unified market insights."""
         
         # Extract key metrics
@@ -103,7 +103,7 @@ class MarketAnalyzer(ThinkingPattern):
         
         return combined_analysis
         
-    def _calculate_market_sentiment(self, signals: List[SensorySignal]) -> Dict[str, Any]:
+    def _calculate_market_sentiment(self, signals: List[SensorySignal]) -> dict[str, object]:
         """Calculate market sentiment from sensory signals."""
         if not signals:
             return {
@@ -134,8 +134,8 @@ class MarketAnalyzer(ThinkingPattern):
             'signal_count': len(signals)
         }
         
-    def _calculate_market_health(self, performance_metrics: Dict[str, Any],
-                               risk_metrics: Dict[str, Any]) -> Dict[str, Any]:
+    def _calculate_market_health(self, performance_metrics: dict[str, object],
+                               risk_metrics: dict[str, object]) -> dict[str, object]:
         """Calculate overall market health score."""
         
         # Extract key metrics
@@ -159,9 +159,9 @@ class MarketAnalyzer(ThinkingPattern):
             'health_status': self._classify_health_status(overall_health)
         }
         
-    def _assess_trading_opportunity(self, performance_metrics: Dict[str, Any],
-                                  risk_metrics: Dict[str, Any],
-                                  market_sentiment: Dict[str, Any]) -> Dict[str, Any]:
+    def _assess_trading_opportunity(self, performance_metrics: dict[str, object],
+                                  risk_metrics: dict[str, object],
+                                  market_sentiment: dict[str, object]) -> dict[str, object]:
         """Assess trading opportunity based on analysis."""
         
         # Extract metrics
@@ -198,7 +198,7 @@ class MarketAnalyzer(ThinkingPattern):
             'recommended_action': self._recommend_action(opportunity_score, sentiment)
         }
         
-    def _assess_risk_level(self, risk_metrics: Dict[str, Any]) -> Dict[str, Any]:
+    def _assess_risk_level(self, risk_metrics: dict[str, object]) -> dict[str, object]:
         """Assess current risk level."""
         risk_score = risk_metrics.get('risk_score', 0.5)
         var_95 = risk_metrics.get('var_95', 0.0)
@@ -220,7 +220,7 @@ class MarketAnalyzer(ThinkingPattern):
             'risk_warnings': self._generate_risk_warnings(risk_metrics)
         }
         
-    def _assess_signal_quality(self, signals: List[SensorySignal]) -> Dict[str, Any]:
+    def _assess_signal_quality(self, signals: List[SensorySignal]) -> dict[str, object]:
         """Assess the quality of sensory signals."""
         if not signals:
             return {
@@ -295,7 +295,7 @@ class MarketAnalyzer(ThinkingPattern):
         else:
             return 'hold'
             
-    def _generate_risk_warnings(self, risk_metrics: Dict[str, Any]) -> List[str]:
+    def _generate_risk_warnings(self, risk_metrics: dict[str, object]) -> List[str]:
         """Generate risk warnings based on metrics."""
         warnings = []
         

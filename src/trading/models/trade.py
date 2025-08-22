@@ -20,11 +20,11 @@ class Trade:
     side: str  # 'BUY' or 'SELL'
     quantity: float
     price: float
-    timestamp: datetime
+    timestamp: datetime | str
     commission: float = 0.0
     exchange: Optional[str] = None
     
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if not isinstance(self.timestamp, datetime):
             self.timestamp = datetime.fromisoformat(self.timestamp)
     

@@ -13,7 +13,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from decimal import Decimal
-from typing import Any, Dict, Optional, Protocol, runtime_checkable
+from typing import Optional, Protocol, runtime_checkable, cast
+from collections.abc import Mapping
 
 
 @dataclass
@@ -36,7 +37,7 @@ class RiskManagerPort(Protocol):
     to avoid coupling to concrete types.
     """
 
-    def validate_position(self, position: Dict[str, Any], instrument: Dict[str, Any] | Any, equity: Decimal | float) -> bool:
+    def validate_position(self, position: Mapping[str, object], instrument: Mapping[str, object] | object, equity: Decimal | float) -> bool:
         """
         Validate a position given an instrument and account equity.
         Returns True if the position is acceptable under risk constraints.
@@ -50,10 +51,11 @@ class NoOpRiskManager:
     def __init__(self, config: Optional[RiskConfigDecl] = None) -> None:
         self.config = config or RiskConfigDecl()
 
-    def validate_position(self, position: Dict[str, Any], instrument: Dict[str, Any] | Any, equity: Decimal | float) -> bool:
+    def validate_position(self, position: Mapping[str, object], instrument: Mapping[str, object] | object, equity: Decimal | float) -> bool:
         try:
             # Perform trivial sanity checks without rejecting
-            qty = float(position.get("quantity", 0))
+            raw_qty = position.get("quantity", 0)
+            qty = float(cast("str | int | float", raw_qty))
             return qty >= 0
         except Exception:
             return True

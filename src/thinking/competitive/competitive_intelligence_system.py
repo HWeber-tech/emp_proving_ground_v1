@@ -1,3 +1,4 @@
+from collections.abc import Mapping, Sequence
 """
 Competitive Intelligence System
 Identify and counter competing algorithmic traders.
@@ -25,7 +26,7 @@ from src.thinking.models.types import (
     CounterStrategyLike,
     IntelligenceReportTD,
 )
-def _to_mapping(obj: object, keys: Sequence[str] | None = None) -> Dict[str, Any]:
+def _to_mapping(obj: object, keys: Sequence[str] | None = None) -> dict[str, object]:
     """
     Best-effort conversion to a minimal dict without raising.
     - If obj has .dict() and returns a mapping, use it.
@@ -45,7 +46,7 @@ def _to_mapping(obj: object, keys: Sequence[str] | None = None) -> Dict[str, Any
         if keys:
             return {k: obj.get(k) for k in keys if k in obj}
         return dict(obj)
-    out: Dict[str, Any] = {}
+    out: dict[str, object] = {}
     if keys:
         for k in keys:
             try:
@@ -102,8 +103,8 @@ class AlgorithmFingerprinter:
     
     async def identify_signatures(
         self,
-        market_data: Dict[str, Any],
-        known_patterns: Dict[str, Any]
+        market_data: dict[str, object],
+        known_patterns: dict[str, object]
     ) -> List[AlgorithmSignatureLike]:
         """Identify algorithmic signatures in market data."""
         try:
@@ -139,8 +140,8 @@ class AlgorithmFingerprinter:
     
     async def _analyze_trading_patterns(
         self,
-        market_data: Dict[str, Any]
-    ) -> Dict[str, Dict[str, Any]]:
+        market_data: dict[str, object]
+    ) -> Dict[str, dict[str, object]]:
         """Analyze trading patterns in market data."""
         try:
             # Simulate pattern analysis
@@ -167,8 +168,8 @@ class AlgorithmFingerprinter:
     
     def _matches_known_pattern(
         self,
-        pattern: Dict[str, Any],
-        known_patterns: Dict[str, Any]
+        pattern: dict[str, object],
+        known_patterns: dict[str, object]
     ) -> bool:
         """Check if pattern matches known algorithm type."""
         try:
@@ -187,8 +188,8 @@ class AlgorithmFingerprinter:
     
     def _calculate_pattern_similarity(
         self,
-        pattern: Dict[str, Any],
-        known: Dict[str, Any]
+        pattern: dict[str, object],
+        known: dict[str, object]
     ) -> float:
         """Calculate similarity between pattern and known algorithm."""
         try:
@@ -208,7 +209,7 @@ class AlgorithmFingerprinter:
             logger.error(f"Error calculating similarity: {e}")
             return 0
     
-    def _calculate_confidence(self, pattern: Dict[str, Any]) -> Decimal:
+    def _calculate_confidence(self, pattern: dict[str, object]) -> Decimal:
         """Calculate confidence in signature identification."""
         try:
             # Simple confidence calculation
@@ -240,7 +241,7 @@ class BehaviorAnalyzer:
     async def analyze_behavior(
         self,
         signature: AlgorithmSignatureLike,
-        historical_data: Dict[str, Any]
+        historical_data: dict[str, object]
     ) -> CompetitorBehaviorLike:
         """Analyze competitor behavior patterns."""
         try:
@@ -292,9 +293,9 @@ class BehaviorAnalyzer:
     
     async def _extract_behavior_data(
         self,
-        signature: Any,
-        historical_data: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        signature: object,
+        historical_data: dict[str, object]
+    ) -> dict[str, object]:
         """Extract behavior data from historical data."""
         try:
             # Simulate behavior extraction
@@ -312,7 +313,7 @@ class BehaviorAnalyzer:
     
     def _calculate_behavior_metrics(
         self,
-        behavior_data: Dict[str, Any]
+        behavior_data: dict[str, object]
     ) -> Dict[str, float]:
         """Calculate behavior metrics."""
         try:
@@ -331,7 +332,7 @@ class BehaviorAnalyzer:
     
     def _identify_behavior_patterns(
         self,
-        behavior_data: Dict[str, Any]
+        behavior_data: dict[str, object]
     ) -> List[str]:
         """Identify behavior patterns."""
         try:
@@ -390,7 +391,7 @@ class BehaviorAnalyzer:
     
     def _estimate_market_share(
         self,
-        behavior_data: Dict[str, Any]
+        behavior_data: dict[str, object]
     ) -> Decimal:
         """Estimate competitor's market share."""
         try:
@@ -406,7 +407,7 @@ class BehaviorAnalyzer:
     
     def _estimate_performance(
         self,
-        behavior_data: Dict[str, Any]
+        behavior_data: dict[str, object]
     ) -> Decimal:
         """Estimate competitor's performance."""
         try:
@@ -457,7 +458,7 @@ class CounterStrategyDeveloper:
     async def develop_counter(
         self,
         behavior: CompetitorBehaviorLike,
-        our_capabilities: Dict[str, Any]
+        our_capabilities: dict[str, object]
     ) -> CounterStrategyLike:
         """Develop counter-strategy against competitor."""
         try:
@@ -519,10 +520,10 @@ class CounterStrategyDeveloper:
     
     def _customize_counter_strategy(
         self,
-        base_counter: Dict[str, Any],
-        behavior: Any,
-        our_capabilities: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        base_counter: dict[str, object],
+        behavior: object,
+        our_capabilities: dict[str, object]
+    ) -> dict[str, object]:
         """Customize counter-strategy based on competitor and our capabilities."""
         try:
             customized = base_counter.copy()
@@ -565,8 +566,8 @@ class CounterStrategyDeveloper:
     
     def _calculate_expected_impact(
         self,
-        counter: Dict[str, Any],
-        behavior: Any
+        counter: dict[str, object],
+        behavior: object
     ) -> float:
         """Calculate expected impact of counter-strategy."""
         try:
@@ -605,8 +606,8 @@ class MarketShareTracker:
     async def analyze_share_changes(
         self,
         competitor_behaviors: List[CompetitorBehaviorLike],
-        our_performance: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        our_performance: dict[str, object]
+    ) -> dict[str, object]:
         """Analyze market share changes."""
         try:
             # Calculate current market shares
@@ -664,7 +665,7 @@ class MarketShareTracker:
     def _calculate_share_trends(
         self,
         competitors: List[CompetitorBehaviorLike],
-        our_performance: Dict[str, Any]
+        our_performance: dict[str, object]
     ) -> Dict[str, str]:
         """Calculate share trends."""
         try:
@@ -687,7 +688,7 @@ class MarketShareTracker:
     def _identify_competitive_threats(
         self,
         competitors: List[CompetitorBehaviorLike],
-        our_performance: Dict[str, Any]
+        our_performance: dict[str, object]
     ) -> List[str]:
         """Identify competitive threats."""
         try:
@@ -712,7 +713,7 @@ class MarketShareTracker:
     def _calculate_competitive_position(
         self,
         competitors: List[CompetitorBehaviorLike],
-        our_performance: Dict[str, Any],
+        our_performance: dict[str, object],
         total_market: float
     ) -> str:
         """Calculate competitive position."""
@@ -767,7 +768,7 @@ class CompetitiveIntelligenceSystem:
 
     async def identify_competitors(
         self,
-        market_data: Dict[str, Any]
+        market_data: dict[str, object]
     ) -> IntelligenceReportTD | Dict[str, Any]:
         """
         Identify and analyze competing algorithmic traders.
@@ -849,7 +850,7 @@ class CompetitiveIntelligenceSystem:
             logger.error(f"Error in competitive intelligence: {e}")
             return {'error': str(e)}
     
-    async def _get_known_patterns(self) -> Dict[str, Any]:
+    async def _get_known_patterns(self) -> dict[str, object]:
         """Get known algorithmic patterns."""
         try:
             return self.algorithm_fingerprinter.known_patterns
@@ -857,7 +858,7 @@ class CompetitiveIntelligenceSystem:
             logger.error(f"Error getting known patterns: {e}")
             return {}
     
-    async def _get_historical_data(self) -> Dict[str, Any]:
+    async def _get_historical_data(self) -> dict[str, object]:
         """Get historical market data."""
         try:
             # This would be enhanced with actual historical data
@@ -871,7 +872,7 @@ class CompetitiveIntelligenceSystem:
             logger.error(f"Error getting historical data: {e}")
             return {}
     
-    async def _get_our_capabilities(self) -> Dict[str, Any]:
+    async def _get_our_capabilities(self) -> dict[str, object]:
         """Get our system capabilities."""
         try:
             # This would be enhanced with actual capabilities
@@ -885,7 +886,7 @@ class CompetitiveIntelligenceSystem:
             logger.error(f"Error getting our capabilities: {e}")
             return {}
     
-    async def _get_our_performance(self) -> Dict[str, Any]:
+    async def _get_our_performance(self) -> dict[str, object]:
         """Get our system performance."""
         try:
             # This would be enhanced with actual performance
@@ -905,7 +906,7 @@ class CompetitiveIntelligenceSystem:
         signatures: Sequence[AlgorithmSignatureLike],
         behaviors: Sequence[CompetitorBehaviorLike],
         counters: Sequence[CounterStrategyLike],
-        market_analysis: Dict[str, Any]
+        market_analysis: dict[str, object]
     ) -> None:
         """Store competitive intelligence."""
         try:
@@ -934,7 +935,7 @@ class CompetitiveIntelligenceSystem:
         except Exception as e:
             logger.error(f"Error storing intelligence: {e}")
     
-    async def get_intelligence_stats(self) -> Dict[str, Any]:
+    async def get_intelligence_stats(self) -> dict[str, object]:
         """Get competitive intelligence statistics."""
         try:
             keys = await self.state_store.keys(f"{self._intelligence_history_key}:*")

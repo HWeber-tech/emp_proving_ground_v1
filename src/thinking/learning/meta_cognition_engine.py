@@ -37,8 +37,8 @@ class MetaCognitionEngine:
     async def assess_learning_quality(
         self,
         learning_signal: LearningSignal,
-        historical_performance: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        historical_performance: dict[str, object]
+    ) -> dict[str, object]:
         """
         Assess the quality of a learning signal.
         
@@ -276,7 +276,7 @@ class MetaCognitionEngine:
     async def calibrate_confidence(
         self,
         learning_signal: LearningSignal,
-        prediction_history: Dict[str, Any]
+        prediction_history: dict[str, object]
     ) -> Decimal:
         """
         Calibrate confidence based on historical accuracy.
@@ -319,7 +319,7 @@ class MetaCognitionEngine:
             logger.error(f"Error calibrating confidence: {e}")
             return learning_signal.confidence_of_outcome
     
-    async def _get_historical_predictions(self, context: ContextPacket) -> List[Dict[str, Any]]:
+    async def _get_historical_predictions(self, context: ContextPacket) -> List[dict[str, object]]:
         """Get historical predictions for similar contexts."""
         try:
             # This would be enhanced with actual retrieval
@@ -375,7 +375,7 @@ class MetaCognitionEngine:
     async def _store_learning_assessment(
         self,
         trade_id: str,
-        assessment: Dict[str, Any]
+        assessment: dict[str, object]
     ) -> None:
         """Store learning assessment for future reference."""
         try:
@@ -409,7 +409,7 @@ class MetaCognitionEngine:
         except Exception as e:
             logger.error(f"Error storing confidence calibration: {e}")
     
-    async def get_meta_cognitive_stats(self) -> Dict[str, Any]:
+    async def get_meta_cognitive_stats(self) -> dict[str, object]:
         """Get meta-cognitive statistics."""
         try:
             return {

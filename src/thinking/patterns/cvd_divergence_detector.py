@@ -93,7 +93,7 @@ class CVDDivergenceDetector:
         
         return None
      
-    def _get_config_value(self, key: str, default: Any) -> Any:
+    def _get_config_value(self, key: str, default: object) -> object:
         """
         Best-effort fetch from configuration provider:
         - First try get_value(key)
@@ -154,7 +154,7 @@ class CVDDivergenceDetector:
     
     def create_context_packet(self, current_price: float, current_cvd: float, 
                             divergence: Optional[Literal["bullish", "bearish"]], 
-                            timestamp: datetime) -> Any:
+                            timestamp: datetime) -> object:
         """
         Create a ContextPacket with CVD divergence analysis.
         

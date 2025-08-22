@@ -39,7 +39,7 @@ class TacticalAdaptationEngine:
     async def generate_adaptations(
         self,
         learning_signal: LearningSignal,
-        current_strategy_state: Dict[str, Any]
+        current_strategy_state: dict[str, object]
     ) -> List[TacticalAdaptation]:
         """
         Generate tactical adaptations based on learning signal.
@@ -106,7 +106,7 @@ class TacticalAdaptationEngine:
         self,
         similar_experiences: List,
         learning_signal: LearningSignal
-    ) -> Dict[str, Any]:
+    ) -> dict[str, object]:
         """Analyze patterns from similar experiences."""
         try:
             # Extract outcomes and contexts
@@ -152,8 +152,8 @@ class TacticalAdaptationEngine:
     
     async def _generate_parameter_adaptations(
         self,
-        pattern_analysis: Dict[str, Any],
-        current_strategy_state: Dict[str, Any]
+        pattern_analysis: dict[str, object],
+        current_strategy_state: dict[str, object]
     ) -> List[TacticalAdaptation]:
         """Generate parameter-based adaptations."""
         adaptations = []
@@ -218,8 +218,8 @@ class TacticalAdaptationEngine:
     
     async def _generate_risk_adaptations(
         self,
-        pattern_analysis: Dict[str, Any],
-        current_strategy_state: Dict[str, Any]
+        pattern_analysis: dict[str, object],
+        current_strategy_state: dict[str, object]
     ) -> List[TacticalAdaptation]:
         """Generate risk-based adaptations."""
         adaptations = []
@@ -345,7 +345,7 @@ class TacticalAdaptationEngine:
             logger.error(f"Error getting active adaptations: {e}")
             return []
     
-    async def get_adaptation_statistics(self) -> Dict[str, Any]:
+    async def get_adaptation_statistics(self) -> dict[str, object]:
         """Get statistics about tactical adaptations."""
         try:
             return {

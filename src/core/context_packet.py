@@ -36,7 +36,7 @@ class ContextPacket(BaseModel):
     source: str = "CVDDivergenceDetector"
     
     # Additional context
-    metadata: Dict[str, Any] = Field(default_factory=dict)
+    metadata: dict[str, object] = Field(default_factory=dict)
     
     def __str__(self):
         divergence_str = f" ({self.cvd_divergence})" if self.cvd_divergence else ""

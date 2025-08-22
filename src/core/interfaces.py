@@ -1,8 +1,9 @@
+from collections.abc import Iterable, Mapping, Sequence
 from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Callable, Dict, List, Mapping, Optional, Protocol, Sequence, Tuple, TypedDict, runtime_checkable
+from typing import Callable, Dict, List, Optional, Protocol, Tuple, TypedDict, runtime_checkable, TYPE_CHECKING
 
 from .types import JSONObject
 from .event_bus import Event
@@ -16,8 +17,8 @@ class Cache(Protocol):
 
     Framework-agnostic. Implementations may be backed by dict, Redis, etc.
     """
-    def get(self, key: str) -> Optional[Any]: ...
-    def set(self, key: str, value: Any) -> None: ...
+    def get(self, key: str) -> Optional[object]: ...
+    def set(self, key: str, value: object) -> None: ...
 
 
 @runtime_checkable
@@ -27,7 +28,7 @@ class EventBus(Protocol):
     Deprecated: Use SupportsEventPublish for async-first Event publishing
     or the TopicBus facade for transitional legacy usage.
     """
-    def publish(self, event: str, payload: Mapping[str, Any] | None = None) -> None: ...
+    def publish(self, event: str, payload: Mapping[str, object] | None = None, /, **kwargs: object) -> None: ...
 
 
 @runtime_checkable
@@ -39,10 +40,10 @@ class SupportsEventPublish(Protocol):
 @runtime_checkable
 class Logger(Protocol):
     """Minimal logging facade with conventional methods."""
-    def info(self, msg: str, /, **kwargs: Any) -> None: ...
-    def debug(self, msg: str, /, **kwargs: Any) -> None: ...
-    def warning(self, msg: str, /, **kwargs: Any) -> None: ...
-    def error(self, msg: str, /, **kwargs: Any) -> None: ...
+    def info(self, msg: str, /, **kwargs: object) -> None: ...
+    def debug(self, msg: str, /, **kwargs: object) -> None: ...
+    def warning(self, msg: str, /, **kwargs: object) -> None: ...
+    def error(self, msg: str, /, **kwargs: object) -> None: ...
 
 
 @runtime_checkable
@@ -51,7 +52,7 @@ class ConfigProvider(Protocol):
 
     Implementations load and provide structured configuration as JSON-like objects.
     """
-    def get(self, key: str, default: Any | None = ...) -> Any: ...
+    def get(self, key: str, default: object | None = ...) -> object: ...
     def get_section(self, name: str) -> JSONObject: ...
     def get_config(self) -> JSONObject: ...
     def with_overrides(self, updates: JSONObject) -> "ConfigProvider": ...
@@ -63,14 +64,14 @@ class RiskManager(Protocol):
     def evaluate_portfolio_risk(
         self,
         positions: Mapping[str, float],
-        context: Mapping[str, Any] | None = ...,
+        context: Mapping[str, object] | None = ...,
     ) -> float: ...
     def propose_rebalance(
         self,
         positions: Mapping[str, float],
-        constraints: Mapping[str, Any] | None = ...,
+        constraints: Mapping[str, object] | None = ...,
     ) -> Mapping[str, float]: ...
-    def update_limits(self, limits: Mapping[str, Any]) -> None: ...
+    def update_limits(self, limits: Mapping[str, object]) -> None: ...
 
 
 @runtime_checkable
@@ -90,11 +91,11 @@ class DecisionGenome(Protocol):
 @runtime_checkable
 class PopulationManager(Protocol):
     """Protocol for population management (authoritative)."""
-    def initialize_population(self, genome_factory: Callable) -> None: ...
+    def initialize_population(self, genome_factory: Callable[[], "DecisionGenome"]) -> None: ...
     def get_population(self) -> List[DecisionGenome]: ...
     def get_best_genomes(self, count: int) -> List[DecisionGenome]: ...
     def update_population(self, new_population: List[DecisionGenome]) -> None: ...
-    def get_population_statistics(self) -> Dict[str, Any]: ...
+    def get_population_statistics(self) -> dict[str, object]: ...
     def advance_generation(self) -> None: ...
     def reset(self) -> None: ...
 
@@ -107,7 +108,7 @@ class IPopulationManager:
     Prefer the PopulationManager Protocol for new code.
     """
 
-    def initialize_population(self, genome_factory: Callable) -> None:  # pragma: no cover
+    def initialize_population(self, genome_factory: Callable[[], "DecisionGenome"]) -> None:  # pragma: no cover
         raise NotImplementedError
 
     def get_population(self) -> List[DecisionGenome]:  # pragma: no cover
@@ -119,7 +120,7 @@ class IPopulationManager:
     def update_population(self, new_population: List[DecisionGenome]) -> None:  # pragma: no cover
         raise NotImplementedError
 
-    def get_population_statistics(self) -> Dict[str, Any]:  # pragma: no cover
+    def get_population_statistics(self) -> dict[str, object]:  # pragma: no cover
         raise NotImplementedError
 
     def advance_generation(self) -> None:  # pragma: no cover
@@ -179,7 +180,7 @@ class ICoordinationEngine(Protocol):
         strategies: List[HasSpeciesType],
         regime: str,
     ) -> List[HasSpeciesType]: ...
-    async def get_portfolio_summary(self) -> Dict[str, Any]: ...
+    async def get_portfolio_summary(self) -> dict[str, object]: ...
     async def get_coordination_metrics(self) -> Dict[str, float]: ...
 
 
@@ -234,6 +235,25 @@ class HistogramLike(Protocol):
     def labels(self, **labels: str) -> "HistogramLike": ...
 
 
+# Minimal JSON alias for this module to avoid circular imports with src.core.types
+JSONValue = object
+
+@runtime_checkable
+class ThinkingPattern(Protocol):
+    def learn(self, feedback: Mapping[str, object]) -> bool: ...
+
+class SensorySignal(TypedDict, total=False):
+    name: str
+    value: float
+    confidence: float
+
+class AnalysisResult(TypedDict, total=False):
+    summary: str
+    score: float
+    details: Mapping[str, object]
+
+# === End Interfaces hub ===
+
 __all__ = [
     # Core infra
     "Cache",
@@ -264,4 +284,9 @@ __all__ = [
     "CounterLike",
     "GaugeLike",
     "HistogramLike",
+    # Interfaces hub exports
+    "ThinkingPattern",
+    "SensorySignal",
+    "AnalysisResult",
+    "JSONValue",
 ]

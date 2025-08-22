@@ -8,12 +8,11 @@ against market scenarios and report survival and performance metrics.
 It is designed to serve as the single source of truth for 'StrategyTester'
 and to be consumed by shims in intelligence/thinking layers.
 """
-
 from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Optional
 
 
 @dataclass
@@ -42,9 +41,9 @@ class StrategyTester:
 
     async def test_strategies(
         self,
-        strategy_population: List[Dict[str, Any]],
-        scenarios: List[Any],
-    ) -> List[CanonicalTestResult]:
+        strategy_population: list[dict[str, object]],
+        scenarios: list[object],
+    ) -> list[CanonicalTestResult]:
         """
         Evaluate each strategy against all scenarios and return canonical results.
 
@@ -52,7 +51,7 @@ class StrategyTester:
           - Scenarios are treated generically. Where possible, scenario_id is
             extracted from attribute 'scenario_id' or 'id' if present.
         """
-        results: List[CanonicalTestResult] = []
+        results: list[CanonicalTestResult] = []
 
         total = max(1, len(scenarios))
         for strategy in strategy_population:
@@ -73,7 +72,7 @@ class StrategyTester:
             avg_performance = total_performance / total
 
             result = CanonicalTestResult(
-                strategy_id=strategy_id,
+                strategy_id=str(strategy.get("id", "unknown")),
                 survived=stress_endurance >= self.performance_threshold,
                 performance_score=avg_performance,
                 stress_endurance=stress_endurance,
@@ -85,7 +84,7 @@ class StrategyTester:
 
         return results
 
-    async def _evaluate_strategy_performance(self, strategy: Dict[str, Any], scenario: Any) -> float:
+    async def _evaluate_strategy_performance(self, strategy: dict[str, object], scenario: object) -> float:
         """
         Simplified performance estimation. Callers can refine this via
         upstream preparation of 'strategy' and 'scenario' attributes.
@@ -105,11 +104,12 @@ class StrategyTester:
         # Fallback constant small positive performance
         return 0.01
 
-    def _calculate_adaptation_score(self, strategy: Dict[str, Any], scenarios: List[Any]) -> float:
+    def _calculate_adaptation_score(self, strategy: dict[str, object], scenarios: list[object]) -> float:
         """
         Lightweight adaptation score based on strategy features, if any.
         """
-        features = strategy.get("adaptation_features", {})
+        features_obj = strategy.get("adaptation_features")
+        features: dict[str, object] = features_obj if isinstance(features_obj, dict) else {}
         score = 0.0
         if features.get("dynamic_risk"):
             score += 0.3

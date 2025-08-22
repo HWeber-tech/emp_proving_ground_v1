@@ -36,11 +36,11 @@ class FIXExecutor(IExecutionEngine):
     and position management through FIX API connections.
     """
     
-    def __init__(self, fix_config: Optional[Dict[str, Any]] = None):
+    def __init__(self, fix_config: Optional[dict[str, object]] = None):
         self.fix_config = fix_config or {}
         self.active_orders: Dict[str, Order] = {}
         self.positions: Dict[str, Position] = {}
-        self.execution_history: List[Dict[str, Any]] = []
+        self.execution_history: List[dict[str, object]] = []
         self.is_initialized = False
         
     async def initialize(self) -> bool:

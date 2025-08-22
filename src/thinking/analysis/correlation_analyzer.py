@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 class CorrelationAnalyzer(ThinkingPattern):
     """Analyzes correlations between market signals and assets."""
     
-    def __init__(self, config: Optional[Dict[str, Any]] = None):
+    def __init__(self, config: Optional[dict[str, object]] = None):
         self.config = config or {}
         self.lookback_periods = self.config.get('lookback_periods', 50)
         self.min_correlation_threshold = self.config.get('min_correlation_threshold', 0.3)
@@ -66,7 +66,7 @@ class CorrelationAnalyzer(ThinkingPattern):
         except Exception as e:
             raise ThinkingException(f"Error in correlation analysis: {e}")
             
-    def learn(self, feedback: Dict[str, Any]) -> bool:
+    def learn(self, feedback: dict[str, object]) -> bool:
         """Learn from feedback to improve correlation analysis."""
         try:
             # Extract learning data from feedback
@@ -142,7 +142,7 @@ class CorrelationAnalyzer(ThinkingPattern):
             logger.warning(f"Error calculating correlation: {e}")
             return 0.0
             
-    def _identify_significant_correlations(self, correlation_matrix: Dict[str, Dict[str, float]]) -> List[Dict[str, Any]]:
+    def _identify_significant_correlations(self, correlation_matrix: Dict[str, Dict[str, float]]) -> List[dict[str, object]]:
         """Identify significant correlations above threshold."""
         significant_correlations = []
         signal_types = list(correlation_matrix.keys())
@@ -163,7 +163,7 @@ class CorrelationAnalyzer(ThinkingPattern):
                         
         return significant_correlations
         
-    def _analyze_correlation_clusters(self, correlation_matrix: Dict[str, Dict[str, float]]) -> List[Dict[str, Any]]:
+    def _analyze_correlation_clusters(self, correlation_matrix: Dict[str, Dict[str, float]]) -> List[dict[str, object]]:
         """Analyze clusters of highly correlated signals."""
         signal_types = list(correlation_matrix.keys())
         clusters = []
@@ -236,7 +236,7 @@ class CorrelationAnalyzer(ThinkingPattern):
         diversification_score = 1.0 - avg_correlation
         return max(0.0, min(1.0, diversification_score))
         
-    def _assess_risk_concentration(self, correlation_matrix: Dict[str, Dict[str, float]]) -> Dict[str, Any]:
+    def _assess_risk_concentration(self, correlation_matrix: Dict[str, Dict[str, float]]) -> dict[str, object]:
         """Assess risk concentration based on correlations."""
         signal_types = list(correlation_matrix.keys())
         

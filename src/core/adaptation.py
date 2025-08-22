@@ -11,7 +11,6 @@ a NoOp fallback that is safe and never raises.
 """
 
 from __future__ import annotations
-
 from typing import Any, Dict, Protocol, runtime_checkable
 import logging
 
@@ -31,8 +30,8 @@ class AdaptationService(Protocol):
         ...
 
     async def adapt_in_real_time(
-        self, market_event: Any, strategy_response: Any, outcome: Any
-    ) -> Dict[str, Any]:
+        self, market_event: object, strategy_response: object, outcome: object
+    ) -> dict[str, object]:
         """
         Process a market event and associated strategy outcome to adapt parameters.
         Must swallow errors and return a safe dict. Keys are not strictly required,
@@ -62,8 +61,8 @@ class NoOpAdaptationService:
             return True
 
     async def adapt_in_real_time(
-        self, market_event: Any, strategy_response: Any, outcome: Any
-    ) -> Dict[str, Any]:
+        self, market_event: object, strategy_response: object, outcome: object
+    ) -> dict[str, object]:
         try:
             return {
                 "success": False,

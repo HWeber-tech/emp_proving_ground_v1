@@ -29,7 +29,7 @@ class RegimeClassifier:
     def __init__(self, lookback_period: int = 252, volatility_threshold: float = 0.2):
         self.lookback_period = lookback_period
         self.volatility_threshold = volatility_threshold
-        self.regime_history: List[Dict[str, Any]] = []
+        self.regime_history: List[dict[str, object]] = []
         
         logger.info(f"Regime Classifier initialized with {lookback_period} day lookback")
         
@@ -335,13 +335,13 @@ class RegimeClassifier:
             }
         )
         
-    def get_regime_history(self, limit: Optional[int] = None) -> List[Dict[str, Any]]:
+    def get_regime_history(self, limit: Optional[int] = None) -> List[dict[str, object]]:
         """Get regime classification history."""
         if limit:
             return self.regime_history[-limit:]
         return self.regime_history.copy()
         
-    def get_regime_statistics(self) -> Dict[str, Any]:
+    def get_regime_statistics(self) -> dict[str, object]:
         """Get statistics about regime classifications."""
         if not self.regime_history:
             return {}

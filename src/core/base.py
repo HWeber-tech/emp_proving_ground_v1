@@ -18,7 +18,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union, cast
 
 
 class MarketRegime(Enum):
@@ -37,7 +37,7 @@ class InstrumentMeta:
     symbol: str = "UNKNOWN"
     tick_size: float = 0.0
     lot_size: float = 0.0
-    extra: Dict[str, Any] = field(default_factory=dict)
+    extra: dict[str, object] = field(default_factory=dict)
 
 
 @dataclass
@@ -52,10 +52,10 @@ class DimensionalReading:
     signal_strength: float
     confidence: float = 0.0
     regime: MarketRegime = MarketRegime.UNKNOWN
-    context: Dict[str, Any] = field(default_factory=dict)
+    context: dict[str, object] = field(default_factory=dict)
     data_quality: float = 1.0
     processing_time_ms: float = 0.0
-    evidence: Dict[str, Any] = field(default_factory=dict)
+    evidence: dict[str, object] = field(default_factory=dict)
     warnings: List[str] = field(default_factory=list)
 
     @property
@@ -80,12 +80,12 @@ class MarketData:
       - open/high/low/close: optional; inferred when absent
     """
 
-    def __init__(self, *args: Any, **kwargs: Any) -> None:
+    def __init__(self, *args: object, **kwargs: object) -> None:
         # Symbol
         self.symbol: str = str(kwargs.pop("symbol", "UNKNOWN"))
 
         # Time
-        ts_raw: Any = kwargs.pop("timestamp", datetime.utcnow())
+        ts_raw: object = kwargs.pop("timestamp", datetime.utcnow())
         self.timestamp: datetime = ts_raw if isinstance(ts_raw, datetime) else datetime.utcnow()
 
         # Prices and helpers
@@ -93,19 +93,19 @@ class MarketData:
             if x is None:
                 return default
             try:
-                return float(x)  # type: ignore[arg-type]
+                return float(x)
             except (TypeError, ValueError):
                 return default
 
-        val_price: Optional[Union[float, int, str]] = kwargs.pop("price", None)
-        val_bid: Optional[Union[float, int, str]] = kwargs.pop("bid", None)
-        val_ask: Optional[Union[float, int, str]] = kwargs.pop("ask", None)
+        val_price = cast(Optional[Union[float, int, str]], kwargs.pop("price", None))
+        val_bid = cast(Optional[Union[float, int, str]], kwargs.pop("bid", None))
+        val_ask = cast(Optional[Union[float, int, str]], kwargs.pop("ask", None))
 
         self.bid: float = _to_float(val_bid)
         self.ask: float = _to_float(val_ask, default=self.bid if self.bid else 0.0)
 
         # Close inferred from mid or provided fields
-        close_in: Optional[Union[float, int, str]] = kwargs.pop("close", None)
+        close_in = cast(Optional[Union[float, int, str]], kwargs.pop("close", None))
         self.close: float = _to_float(close_in)
         if self.close == 0.0:
             if self.bid or self.ask:
@@ -114,16 +114,16 @@ class MarketData:
                 self.close = _to_float(val_price, default=0.0)
 
         # OHLC fallbacks
-        open_in: Optional[Union[float, int, str]] = kwargs.pop("open", None)
-        high_in: Optional[Union[float, int, str]] = kwargs.pop("high", None)
-        low_in: Optional[Union[float, int, str]] = kwargs.pop("low", None)
+        open_in = cast(Optional[Union[float, int, str]], kwargs.pop("open", None))
+        high_in = cast(Optional[Union[float, int, str]], kwargs.pop("high", None))
+        low_in = cast(Optional[Union[float, int, str]], kwargs.pop("low", None))
 
         self.open: float = _to_float(open_in, default=self.close)
         self.high: float = _to_float(high_in, default=max(self.open, self.close))
         self.low: float = _to_float(low_in, default=min(self.open, self.close))
 
         # Volume
-        self.volume: float = _to_float(kwargs.pop("volume", None), default=0.0)
+        self.volume: float = _to_float(cast(Optional[Union[float, int, str]], kwargs.pop("volume", None)), default=0.0)
 
         # Accept and ignore legacy extras
         kwargs.pop("volatility", None)  # accepted but not used

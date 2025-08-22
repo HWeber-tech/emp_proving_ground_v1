@@ -5,14 +5,14 @@ Runtime-safe no-op implementation for validation flows.
 
 from __future__ import annotations
 
-from typing import Any, List, Sequence
+from typing import List, Sequence
 
 
 class AdversarialSelector:
-    def __init__(self, **kwargs: Any) -> None:
+    def __init__(self, **kwargs: object) -> None:
         self.params = kwargs
 
-    def select(self, population: Sequence[Any] | None, k: int = 1) -> List[Any]:
+    def select(self, population: Sequence[object] | None, k: int = 1) -> List[object]:
         """
         No-op stub: returns the first k items from the population (if provided).
         """

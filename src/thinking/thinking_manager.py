@@ -43,7 +43,7 @@ class ThinkingManager:
             logger.warning(f"Failed to initialize predictive modeler: {e}")
             self.predictive_modeler = None
     
-    async def on_market_understanding(self, market_data: Dict[str, Any]) -> ContextPacket:
+    async def on_market_understanding(self, market_data: dict[str, object]) -> ContextPacket:
         """
         Handle market understanding event and generate context with forecast.
         
@@ -91,7 +91,7 @@ class ThinkingManager:
         
         return context
     
-    def _calculate_risk_metrics(self, market_data: Dict[str, Any]) -> Dict[str, float]:
+    def _calculate_risk_metrics(self, market_data: dict[str, object]) -> Dict[str, float]:
         """Calculate basic risk metrics from market data."""
         return {
             "volatility": 0.02,
@@ -137,7 +137,7 @@ class ThinkingManager:
 
         return {"price": price, "volatility": vol}
     
-    def get_model_info(self) -> Dict[str, Any]:
+    def get_model_info(self) -> dict[str, object]:
         """Get information about the predictive model."""
         if self.predictive_modeler:
             return {"status": "enabled"}

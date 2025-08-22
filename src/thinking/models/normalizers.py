@@ -1,3 +1,4 @@
+from collections.abc import Mapping
 from __future__ import annotations
 
 """
@@ -12,15 +13,23 @@ Rules:
 - Never raise: always return a safe default shape.
 - Only include fields we actually consume in the codebase.
 """
-
-from typing import Any, Dict, Mapping, Optional
+from typing import Dict, Optional, SupportsFloat, SupportsIndex, Union, cast
 
 from .types import AttackReportTD
 
-
-def _to_float(value: Any, default: float = 0.0) -> float:
+def _to_float(value: object, default: float = 0.0) -> float:
+    if value is None:
+        return default
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, str):
+        try:
+            return float(value)
+        except Exception:
+            return default
     try:
-        return float(value)  # type: ignore[arg-type]
+        Floatable = Union[str, SupportsFloat, SupportsIndex]
+        return float(cast(Floatable, value))
     except Exception:
         return default
 
@@ -92,7 +101,7 @@ def normalize_survival_result(r: object) -> Dict[str, float]:
     return {"survival_rate": 0.0}
 
 
-def normalize_attack_report(a: Mapping[str, Any] | object) -> AttackReportTD:
+def normalize_attack_report(a: Mapping[str, object] | object) -> AttackReportTD:
     """
     Normalize a red-team attack report-like payload to an AttackReportTD.
 
@@ -104,13 +113,14 @@ def normalize_attack_report(a: Mapping[str, Any] | object) -> AttackReportTD:
       - timestamp: str
       - error: str
     """
-    def _as_mapping(obj: object) -> Optional[Mapping[str, Any]]:
+    def _as_mapping(obj: object) -> Optional[Mapping[str, object]]:
         try:
             if isinstance(obj, Mapping):
                 return obj
             # Pydantic/dataclass-like
-            if hasattr(obj, "dict"):
-                d = obj.dict()  # type: ignore[attr-defined]
+            dict_meth = getattr(obj, "dict", None)
+            if callable(dict_meth):
+                d = dict_meth()
                 if isinstance(d, Mapping):
                     return d
         except Exception:

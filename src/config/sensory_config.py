@@ -3,8 +3,7 @@ Sensory Configuration
 Configuration for sensory processing and technical analysis
 """
 
-from dataclasses import dataclass
-from typing import List
+from dataclasses import dataclass, field
 
 
 @dataclass
@@ -13,7 +12,7 @@ class SensoryConfig:
     
     # Basic settings
     symbol: str = "EURUSD"
-    timeframes: List[str] = None
+    timeframes: list[str] = field(default_factory=lambda: ["M5", "M15", "H1", "H4"])
     primary_timeframe: str = "M15"
     
     # Data settings
@@ -39,10 +38,6 @@ class SensoryConfig:
     
     # Calibration
     calibration_days: int = 30
-    
-    def __post_init__(self):
-        if self.timeframes is None:
-            self.timeframes = ["M5", "M15", "H1", "H4"]
     
     def validate(self) -> bool:
         """Validate configuration parameters"""

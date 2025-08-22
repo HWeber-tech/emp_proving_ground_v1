@@ -6,9 +6,10 @@ from __future__ import annotations
 import json
 from datetime import datetime
 from typing import Callable, Optional
+from collections.abc import Iterator
 
 
-def _parse_jsonl(path: str):
+def _parse_jsonl(path: str) -> Iterator[dict[str, object]]:
     try:
         with open(path, "r", encoding="utf-8") as fh:
             for line in fh:
@@ -27,12 +28,12 @@ class MultiDimReplayer:
         self.yields_path = yields_path
 
     def replay(self,
-               on_md: Optional[Callable[[dict], None]] = None,
-               on_macro: Optional[Callable[[dict], None]] = None,
-               on_yield: Optional[Callable[[dict], None]] = None,
+               on_md: Optional[Callable[[dict[str, object]], None]] = None,
+               on_macro: Optional[Callable[[dict[str, object]], None]] = None,
+               on_yield: Optional[Callable[[dict[str, object]], None]] = None,
                limit: Optional[int] = None) -> int:
         """Simple merge by timestamp ISO; no sleeping to keep offline fast."""
-        events = []
+        events: list[dict[str, object]] = []
         if self.md_path:
             for e in _parse_jsonl(self.md_path):
                 e["_kind"] = "md"
@@ -45,9 +46,9 @@ class MultiDimReplayer:
             for e in _parse_jsonl(self.yields_path):
                 e["_kind"] = "yield"
                 events.append(e)
-        def ts(e):
+        def ts(e: dict[str, object]) -> datetime:
             try:
-                return datetime.fromisoformat(e.get("timestamp"))
+                return datetime.fromisoformat(e.get("timestamp"))  # type: ignore[arg-type]
             except Exception:
                 return datetime.min
         events.sort(key=ts)

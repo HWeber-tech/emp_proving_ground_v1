@@ -37,7 +37,7 @@ class PortfolioMonitor:
         
         logger.info(f"PortfolioMonitor initialized with state: {self.portfolio}")
     
-    def _load_initial_state(self) -> Dict[str, Any]:
+    def _load_initial_state(self) -> dict[str, object]:
         """Load portfolio state from Redis or initialize defaults"""
         try:
             state_json = self.redis_client.get(self.redis_key)
@@ -121,11 +121,11 @@ class PortfolioMonitor:
         # This is a simplified P&L calculation
         # In a real system, this would use current market prices
     
-    def get_portfolio(self) -> Dict[str, Any]:
+    def get_portfolio(self) -> dict[str, object]:
         """Get current portfolio state"""
         return self.portfolio.copy()
     
-    def get_position(self, symbol: str) -> Optional[Dict[str, Any]]:
+    def get_position(self, symbol: str) -> Optional[dict[str, object]]:
         """Get position for a specific symbol"""
         return self.portfolio['open_positions'].get(symbol)
     

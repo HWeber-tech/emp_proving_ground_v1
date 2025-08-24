@@ -17,7 +17,7 @@ class YahooFinanceDataSource:
     def __init__(self, config: dict[str, object] | None = None) -> None:
         self.config = config or {}
 
-    def get_market_data(self, symbol: str) -> List[MarketTick]:
+    def get_market_data(self, symbol: str) -> list[MarketTick]:
         # Placeholder implementation for compatibility; real ingest lives in
         # src/data_foundation/ingest/yahoo_ingest.py
         return []

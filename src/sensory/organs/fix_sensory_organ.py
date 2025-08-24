@@ -3,6 +3,8 @@ FIX Sensory Organ for IC Markets
 Processes market data from FIX protocol
 """
 
+from __future__ import annotations
+
 import asyncio
 import logging
 from datetime import datetime
@@ -13,11 +15,11 @@ logger = logging.getLogger(__name__)
 
 class FIXSensoryOrgan:
     """Processes market data from FIX protocol."""
-    
-    def __init__(self, event_bus, price_queue, config):
+
+    def __init__(self, event_bus: Any, price_queue: Any, config: dict[str, Any]) -> None:
         """
         Initialize FIX sensory organ.
-        
+
         Args:
             event_bus: Event bus for system communication
             price_queue: Queue for price messages
@@ -27,93 +29,91 @@ class FIXSensoryOrgan:
         self.price_queue = price_queue
         self.config = config
         self.running = False
-        self.market_data = {}
-        self.symbols = []
-        
-    async def start(self):
+        self.market_data: dict[str, dict[str, Any]] = {}
+        self.symbols: list[str] = []
+
+    async def start(self) -> None:
         """Start the sensory organ."""
         self.running = True
         logger.info("FIX sensory organ started")
-        
+
         # Start message processing
         asyncio.create_task(self._process_price_messages())
-        
-    async def stop(self):
+
+    async def stop(self) -> None:
         """Stop the sensory organ."""
         self.running = False
         logger.info("FIX sensory organ stopped")
-        
-    async def _process_price_messages(self):
+
+    async def _process_price_messages(self) -> None:
         """Process price messages from the queue."""
         while self.running:
             try:
                 # Get message from queue
                 message = await self.price_queue.get()
-                
+
                 # Process based on message type
                 msg_type = message.get(35)
-                
+
                 if msg_type == b"W":  # MarketDataSnapshotFullRefresh
                     await self._handle_market_data_snapshot(message)
                 elif msg_type == b"X":  # MarketDataIncrementalRefresh
                     await self._handle_market_data_incremental(message)
-                    
+
             except Exception as e:
                 logger.error(f"Error processing price message: {e}")
-                
-    async def _handle_market_data_snapshot(self, message):
+
+    async def _handle_market_data_snapshot(self, message: Any) -> None:
         """Handle market data snapshot messages."""
         try:
             symbol = message.get(55).decode() if message.get(55) else None
             if not symbol:
                 return
-                
+
             # Extract market data
             market_data = self._extract_market_data(message)
-            
+
             if market_data:
                 # Update local cache
                 self.market_data[symbol] = market_data
-                
+
                 # Emit event for system
-                await self.event_bus.emit("market_data_update", {
-                    "symbol": symbol,
-                    "data": market_data,
-                    "timestamp": datetime.utcnow()
-                })
-                
+                await self.event_bus.emit(
+                    "market_data_update",
+                    {"symbol": symbol, "data": market_data, "timestamp": datetime.utcnow()},
+                )
+
                 logger.debug(f"Market data updated for {symbol}: {market_data}")
-                
+
         except Exception as e:
             logger.error(f"Error handling market data snapshot: {e}")
-            
-    async def _handle_market_data_incremental(self, message):
+
+    async def _handle_market_data_incremental(self, message: Any) -> None:
         """Handle incremental market data updates."""
         try:
             symbol = message.get(55).decode() if message.get(55) else None
             if not symbol or symbol not in self.market_data:
                 return
-                
+
             # Update existing market data
             updates = self._extract_market_data(message)
             if updates:
                 self.market_data[symbol].update(updates)
-                
+
                 # Emit event for system
-                await self.event_bus.emit("market_data_incremental", {
-                    "symbol": symbol,
-                    "updates": updates,
-                    "timestamp": datetime.utcnow()
-                })
-                
+                await self.event_bus.emit(
+                    "market_data_incremental",
+                    {"symbol": symbol, "updates": updates, "timestamp": datetime.utcnow()},
+                )
+
                 logger.debug(f"Market data incremental update for {symbol}: {updates}")
-                
+
         except Exception as e:
             logger.error(f"Error handling market data incremental: {e}")
-            
-    def _extract_market_data(self, message) -> Dict[str, Any]:
+
+    def _extract_market_data(self, message: Any) -> dict[str, Any]:
         """Extract market data from FIX message."""
-        data: Dict[str, Any] = {}
+        data: dict[str, Any] = {}
 
         try:
             # Preferred path: adapter supplies parsed entries as b"entries"
@@ -164,20 +164,20 @@ class FIXSensoryOrgan:
             logger.error(f"Error extracting market data: {e}")
 
         return data
-        
-    def subscribe_to_symbols(self, symbols: List[str]):
+
+    def subscribe_to_symbols(self, symbols: list[str]) -> None:
         """Subscribe to market data for symbols."""
         self.symbols = symbols
         logger.info(f"Subscribed to symbols: {symbols}")
-        
-    def get_market_data(self, symbol: str) -> Dict[str, Any]:
+
+    def get_market_data(self, symbol: str) -> dict[str, Any]:
         """Get market data for a symbol."""
         return self.market_data.get(symbol, {})
-        
-    def get_all_market_data(self) -> Dict[str, Dict[str, Any]]:
+
+    def get_all_market_data(self) -> dict[str, dict[str, Any]]:
         """Get all market data."""
         return self.market_data.copy()
-        
-    def get_subscribed_symbols(self) -> List[str]:
+
+    def get_subscribed_symbols(self) -> list[str]:
         """Get list of subscribed symbols."""
         return self.symbols.copy()

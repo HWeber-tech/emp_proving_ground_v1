@@ -4,6 +4,7 @@ Yield signal utilities for WHY dimension.
 Provides a small stateful tracker to compute common yield-curve features
 such as 2s10s slope and a basic directional signal/confidence.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -19,7 +20,7 @@ class YieldSlopeTracker:
 
     short_tenor: str = "2Y"
     long_tenor: str = "10Y"
-    latest_values: Dict[str, float] = field(default_factory=dict)
+    latest_values: dict[str, float] = field(default_factory=dict)
 
     def update(self, tenor: str | None, value: float) -> None:
         if tenor is None:
@@ -29,7 +30,7 @@ class YieldSlopeTracker:
         except Exception:
             return
 
-    def signal(self) -> Tuple[float, float]:
+    def signal(self) -> tuple[float, float]:
         """Return a naive directional signal and confidence.
 
         Signal is sign of steepening: +1 if long-short > 0, -1 if < 0, 0 if flat/unknown.
@@ -78,5 +79,3 @@ class YieldSlopeTracker:
         if not vals:
             return None
         return float(sum(vals) / len(vals))
-
-

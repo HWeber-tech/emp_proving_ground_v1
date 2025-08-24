@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 from collections.abc import Mapping
 from typing import Protocol, runtime_checkable
 
@@ -7,8 +8,7 @@ from typing import Protocol, runtime_checkable
 class SensoryOrganProto(Protocol):
     """Structural type for sensory organs (process-only surface we rely on)."""
 
-    def process(self, data: Mapping[str, object]) -> dict[str, object]:
-        ...
+    def process(self, data: Mapping[str, object]) -> dict[str, object]: ...
 
 
 class CoreSensoryOrgan:

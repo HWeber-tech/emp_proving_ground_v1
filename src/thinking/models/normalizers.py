@@ -1,5 +1,6 @@
-from collections.abc import Mapping
 from __future__ import annotations
+
+from collections.abc import Mapping
 
 """
 Normalization helpers for boundary objects (structural typing)
@@ -13,9 +14,10 @@ Rules:
 - Never raise: always return a safe default shape.
 - Only include fields we actually consume in the codebase.
 """
-from typing import Dict, Optional, SupportsFloat, SupportsIndex, Union, cast
+from typing import Optional, SupportsFloat, SupportsIndex, cast
 
 from .types import AttackReportTD
+
 
 def _to_float(value: object, default: float = 0.0) -> float:
     if value is None:
@@ -28,13 +30,13 @@ def _to_float(value: object, default: float = 0.0) -> float:
         except Exception:
             return default
     try:
-        Floatable = Union[str, SupportsFloat, SupportsIndex]
+        Floatable = str | SupportsFloat | SupportsIndex
         return float(cast(Floatable, value))
     except Exception:
         return default
 
 
-def normalize_prediction(p: object) -> Dict[str, float]:
+def normalize_prediction(p: object) -> dict[str, float]:
     """
     Normalize a prediction-like object into a minimal dict.
 
@@ -73,7 +75,7 @@ def normalize_prediction(p: object) -> Dict[str, float]:
     return {"confidence": conf, "probability": prob}
 
 
-def normalize_survival_result(r: object) -> Dict[str, float]:
+def normalize_survival_result(r: object) -> dict[str, float]:
     """
     Normalize a survival-like result into a minimal dict.
 
@@ -113,6 +115,7 @@ def normalize_attack_report(a: Mapping[str, object] | object) -> AttackReportTD:
       - timestamp: str
       - error: str
     """
+
     def _as_mapping(obj: object) -> Optional[Mapping[str, object]]:
         try:
             if isinstance(obj, Mapping):

@@ -27,8 +27,8 @@ def _to_float(value: Any) -> Optional[float]:
         return None
 
 
-def _coerce_numeric_mapping(mapping: Any) -> Dict[str, float]:
-    result: Dict[str, float] = {}
+def _coerce_numeric_mapping(mapping: Any) -> dict[str, float]:
+    result: dict[str, float] = {}
     if isinstance(mapping, dict):
         items = mapping.items()
     else:
@@ -49,13 +49,13 @@ def _coerce_numeric_mapping(mapping: Any) -> Dict[str, float]:
     return result
 
 
-def _force_str_list(value: Any) -> List[str]:
+def _force_str_list(value: Any) -> list[str]:
     if value is None:
         return []
     if isinstance(value, str):
         return [value]
     try:
-        out: List[str] = []
+        out: list[str] = []
         for item in list(value):  # type: ignore[arg-type]
             out.append(str(item))
         return out
@@ -97,16 +97,16 @@ class DecisionGenome:
     """Canonical DecisionGenome for evolutionary optimization."""
 
     id: str
-    parameters: Dict[str, float]
+    parameters: dict[str, float]
     fitness: Optional[float] = None
     generation: int = 0
     species_type: Optional[str] = None
-    parent_ids: List[str] = field(default_factory=list)
-    mutation_history: List[str] = field(default_factory=list)
-    performance_metrics: Dict[str, float] = field(default_factory=dict)
+    parent_ids: list[str] = field(default_factory=list)
+    mutation_history: list[str] = field(default_factory=list)
+    performance_metrics: dict[str, float] = field(default_factory=dict)
     created_at: float = field(default_factory=time.time)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Serialize to a plain dict with deep copies for mutables."""
         return {
             "id": self.id,
@@ -121,7 +121,7 @@ class DecisionGenome:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "DecisionGenome":
+    def from_dict(cls, data: dict[str, Any]) -> "DecisionGenome":
         """Deserialize with coercion rules and safe defaults.
 
         Rules:
@@ -172,7 +172,7 @@ class DecisionGenome:
             parent_ids = _force_str_list(data.get("parent_ids", []))
 
             mh_raw = data.get("mutation_history", [])
-            mh_list: List[str] = []
+            mh_list: list[str] = []
             for entry in _force_str_list(mh_raw) if isinstance(mh_raw, str) else (mh_raw or []):
                 tag = _to_mutation_tag(entry)
                 if tag:
@@ -239,7 +239,7 @@ class DecisionGenome:
 
 def new_genome(
     id: str,
-    parameters: Dict[str, float],
+    parameters: dict[str, float],
     generation: int = 0,
     species_type: Optional[str] = None,
 ) -> DecisionGenome:
@@ -259,7 +259,7 @@ def new_genome(
     )
 
 
-def mutate(genome: DecisionGenome, mutation: str, new_params: Dict[str, float]) -> DecisionGenome:
+def mutate(genome: DecisionGenome, mutation: str, new_params: dict[str, float]) -> DecisionGenome:
     """Builder: return a new genome updated with new_params and appended mutation tag(s).
 
     For each changed param, append a tag: "g{gen}:{key}:{old}->{new}"
@@ -268,7 +268,7 @@ def mutate(genome: DecisionGenome, mutation: str, new_params: Dict[str, float]) 
     coerced_updates = _coerce_numeric_mapping(new_params or {})
     updated_params = copy.deepcopy(genome.parameters)
 
-    tags: List[str] = []
+    tags: list[str] = []
     for key, new_val in coerced_updates.items():
         old_val = updated_params.get(key)
         if old_val is None or float(old_val) != float(new_val):

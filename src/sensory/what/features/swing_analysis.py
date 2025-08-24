@@ -5,32 +5,41 @@ Pure, reusable utilities extracted from the monolithic pattern engine to
 reduce coupling and aid unit testing.
 """
 
-from typing import Dict, List, Tuple
+from __future__ import annotations
+
+from typing import cast
 
 import numpy as np
 import pandas as pd
+from numpy.typing import NDArray
+from pandas import Timestamp as PandasTimestamp
 
 # Strict SciPy-backed implementation (no functional fallback).
-from scipy.signal import find_peaks as _scipy_find_peaks  # type: ignore
+from scipy.signal import find_peaks as _scipy_find_peaks
 
 
-def find_peaks(values: np.ndarray, distance: int = 1, prominence: float | None = None) -> Tuple[np.ndarray, Dict]:
+def find_peaks(
+    values: NDArray[np.float64], distance: int = 1, prominence: float | None = None
+) -> tuple[NDArray[np.intp], dict[str, NDArray[np.float64] | NDArray[np.intp]]]:
     """
     Strict SciPy-backed peak finder. Raises ImportError if SciPy is unavailable.
     """
-    return _scipy_find_peaks(values, distance=distance, prominence=prominence)
+    peaks, props = _scipy_find_peaks(values, distance=distance, prominence=prominence)
+    return cast(NDArray[np.intp], peaks), cast(
+        dict[str, NDArray[np.float64] | NDArray[np.intp]], props
+    )
 
 
-def identify_significant_swings(data: pd.DataFrame) -> List[Dict]:
+def identify_significant_swings(data: pd.DataFrame) -> list[dict[str, object]]:
     """Identify significant price swings from OHLCV data."""
-    swings: List[Dict] = []
+    swings: list[dict[str, object]] = []
 
     # Find local maxima and minima
-    highs = find_peaks(data["high"].values, distance=10, prominence=0.02)[0]
-    lows = find_peaks(-data["low"].values, distance=10, prominence=0.02)[0]
+    highs = find_peaks(data["high"].to_numpy(dtype=float), distance=10, prominence=0.02)[0]
+    lows = find_peaks(-data["low"].to_numpy(dtype=float), distance=10, prominence=0.02)[0]
 
     # Combine and sort points
-    points: List[Dict] = []
+    points: list[dict[str, object]] = []
     for idx in highs:
         points.append(
             {"time": data.index[idx], "price": float(data["high"].iloc[idx]), "type": "high"}
@@ -40,7 +49,7 @@ def identify_significant_swings(data: pd.DataFrame) -> List[Dict]:
             {"time": data.index[idx], "price": float(data["low"].iloc[idx]), "type": "low"}
         )
 
-    points.sort(key=lambda x: x["time"])
+    points.sort(key=lambda x: cast(PandasTimestamp, x["time"]))
 
     # Identify significant swings
     for i in range(1, len(points)):
@@ -48,16 +57,18 @@ def identify_significant_swings(data: pd.DataFrame) -> List[Dict]:
         curr = points[i]
 
         if prev["type"] != curr["type"]:
-            # Protect against division by zero
-            denom = prev["price"] if prev["price"] else 1e-12
-            price_change = abs(curr["price"] - prev["price"]) / denom
+            # Protect against division by zero with explicit float casts
+            prev_price = cast(float, prev["price"])
+            curr_price = cast(float, curr["price"])
+            denom = prev_price if prev_price != 0.0 else 1e-12
+            price_change = abs(curr_price - prev_price) / denom
             if price_change > 0.05:  # 5% minimum swing
                 swings.append(
                     {
                         "start_time": prev["time"],
                         "end_time": curr["time"],
-                        "start_price": prev["price"],
-                        "end_price": curr["price"],
+                        "start_price": prev_price,
+                        "end_price": curr_price,
                         "confidence": float(min(1.0, price_change * 10)),
                         "strength": float(price_change),
                     }
@@ -66,13 +77,12 @@ def identify_significant_swings(data: pd.DataFrame) -> List[Dict]:
     return swings
 
 
-def calculate_fibonacci_levels(swing: Dict) -> List[float]:
+def calculate_fibonacci_levels(swing: dict[str, object]) -> list[float]:
     """Calculate Fibonacci retracement levels for a swing."""
-    start_price = float(swing["start_price"])
-    end_price = float(swing["end_price"])
+    start_price = cast(float, swing["start_price"])
+    end_price = cast(float, swing["end_price"])
     _ = abs(end_price - start_price)  # price_range (kept for parity, not used directly)
-
-    levels: List[float] = []
+    levels: list[float] = []
     fib_ratios = [0.236, 0.382, 0.5, 0.618, 0.786]
 
     for ratio in fib_ratios:
@@ -82,7 +92,7 @@ def calculate_fibonacci_levels(swing: Dict) -> List[float]:
     return levels
 
 
-def identify_significant_moves(data: pd.DataFrame) -> List[Dict]:
+def identify_significant_moves(data: pd.DataFrame) -> list[dict[str, object]]:
     """Identify significant price moves for extension patterns.
 
     In this first extraction, significant moves are the same as significant swings.
@@ -90,13 +100,12 @@ def identify_significant_moves(data: pd.DataFrame) -> List[Dict]:
     return identify_significant_swings(data)
 
 
-def calculate_extension_levels(move: Dict) -> List[float]:
+def calculate_extension_levels(move: dict[str, object]) -> list[float]:
     """Calculate Fibonacci extension levels for a move."""
-    start_price = float(move["start_price"])
-    end_price = float(move["end_price"])
+    start_price = cast(float, move["start_price"])
+    end_price = cast(float, move["end_price"])
     move_distance = abs(end_price - start_price)
-
-    extensions: List[float] = []
+    extensions: list[float] = []
     extension_ratios = [1.618, 2.618, 4.236, 6.854]
 
     direction = 1 if end_price > start_price else -1

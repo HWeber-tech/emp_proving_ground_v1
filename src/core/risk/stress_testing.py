@@ -1,8 +1,5 @@
 from __future__ import annotations
-from typing import List
 
 
-def shock_returns(returns: List[float], shock: float = -0.05) -> List[float]:
+def shock_returns(returns: list[float], shock: float = -0.05) -> list[float]:
     return [r + shock for r in returns]
-
-

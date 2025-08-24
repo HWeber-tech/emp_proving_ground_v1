@@ -3,7 +3,7 @@ from __future__ import annotations
 """
 Canonical JSON type aliases for the project.
 
-Use these instead of Dict[str, Any] when passing JSON-like payloads between
+Use these instead of dict[str, Any] when passing JSON-like payloads between
 modules, across adapters, or to/from external systems.
 
 Examples:
@@ -21,7 +21,7 @@ JSONPrimitive = Union[str, int, float, bool, None]
 
 # Recursive JSON structure
 JSONValue = Union[JSONPrimitive, "JSONArray", "JSONObject"]
-JSONArray = List["JSONValue"]
-JSONObject = Dict[str, JSONValue]
+JSONArray = list["JSONValue"]
+JSONObject = dict[str, JSONValue]
 
 __all__ = ["JSONPrimitive", "JSONValue", "JSONArray", "JSONObject"]

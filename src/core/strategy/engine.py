@@ -15,7 +15,7 @@ class StrategyPerformance:
 
 
 class BaseStrategy:
-    def __init__(self, strategy_id: str, symbols: List[str]):
+    def __init__(self, strategy_id: str, symbols: list[str]):
         self.strategy_id = strategy_id
         self.symbols = symbols
         self.performance = StrategyPerformance()
@@ -28,8 +28,8 @@ class StrategyEngine:
     """Consolidated, minimal strategy engine surface."""
 
     def __init__(self) -> None:
-        self._strategies: Dict[str, BaseStrategy] = {}
-        self._performance: Dict[str, StrategyPerformance] = {}
+        self._strategies: dict[str, BaseStrategy] = {}
+        self._performance: dict[str, StrategyPerformance] = {}
         self._last_updated = datetime.utcnow()
 
     def register(self, strategy: BaseStrategy) -> bool:
@@ -49,5 +49,3 @@ class StrategyEngine:
 
     def performance(self, strategy_id: str) -> Optional[StrategyPerformance]:
         return self._performance.get(strategy_id)
-
-

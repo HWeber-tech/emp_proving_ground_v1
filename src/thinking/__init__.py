@@ -12,6 +12,8 @@ This layer owns all cognitive functions including:
 - Memory and learning systems
 """
 
+from __future__ import annotations
+
 from .analysis import *
 from .inference import *
 from .memory import *
@@ -20,4 +22,4 @@ from .patterns import *
 
 __version__ = "1.1.0"
 __author__ = "EMP System"
-__description__ = "Cognitive layer for pattern recognition and analysis" 
+__description__ = "Cognitive layer for pattern recognition and analysis"

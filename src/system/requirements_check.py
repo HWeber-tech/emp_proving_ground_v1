@@ -8,10 +8,10 @@ from entry points that rely on these libraries (e.g., batch jobs, services).
 
 from __future__ import annotations
 
-from typing import Tuple
+from typing import Any
 
 
-def _parse(ver: str) -> Tuple[int, int, int]:
+def _parse(ver: str) -> tuple[int, int, int]:
     parts = (ver.split("+", 1)[0]).split(".")
     try:
         major = int(parts[0]) if len(parts) > 0 else 0
@@ -23,7 +23,7 @@ def _parse(ver: str) -> Tuple[int, int, int]:
     return major, minor, patch
 
 
-def _ge(a: Tuple[int, int, int], b: Tuple[int, int, int]) -> bool:
+def _ge(a: tuple[int, int, int], b: tuple[int, int, int]) -> bool:
     return a >= b
 
 
@@ -37,9 +37,9 @@ def assert_scientific_stack() -> None:
       - scipy >= 1.11
     """
     try:
-        import numpy  # type: ignore
-        import pandas  # type: ignore
-        import scipy  # type: ignore
+        import numpy
+        import pandas
+        import scipy
     except Exception as ex:  # pragma: no cover - immediate hard error
         raise ImportError(
             "Scientific stack is missing required libraries (numpy/pandas/scipy). "

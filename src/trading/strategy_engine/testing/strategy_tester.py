@@ -18,6 +18,7 @@ from typing import Optional
 @dataclass
 class CanonicalTestResult:
     """Generic result object with attributes expected by various callers."""
+
     strategy_id: str
     survived: bool
     performance_score: float
@@ -33,7 +34,7 @@ class StrategyTester:
     Canonical strategy tester.
 
     Public API:
-      - test_strategies(strategy_population, scenarios) -> List[CanonicalTestResult]
+      - test_strategies(strategy_population, scenarios) -> list[CanonicalTestResult]
     """
 
     def __init__(self, performance_threshold: float = 0.7) -> None:
@@ -84,7 +85,9 @@ class StrategyTester:
 
         return results
 
-    async def _evaluate_strategy_performance(self, strategy: dict[str, object], scenario: object) -> float:
+    async def _evaluate_strategy_performance(
+        self, strategy: dict[str, object], scenario: object
+    ) -> float:
         """
         Simplified performance estimation. Callers can refine this via
         upstream preparation of 'strategy' and 'scenario' attributes.
@@ -104,7 +107,9 @@ class StrategyTester:
         # Fallback constant small positive performance
         return 0.01
 
-    def _calculate_adaptation_score(self, strategy: dict[str, object], scenarios: list[object]) -> float:
+    def _calculate_adaptation_score(
+        self, strategy: dict[str, object], scenarios: list[object]
+    ) -> float:
         """
         Lightweight adaptation score based on strategy features, if any.
         """

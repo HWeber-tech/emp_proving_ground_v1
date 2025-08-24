@@ -6,6 +6,8 @@ This package contains data models for trading entities including orders,
 positions, and market data.
 """
 
+from __future__ import annotations
+
 __all__: list[str] = []
 
 # Safe, guarded re-exports to avoid runtime errors if submodules are absent.

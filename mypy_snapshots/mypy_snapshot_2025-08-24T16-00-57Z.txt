@@ -1,0 +1,33 @@
+src/sensory/organs/dimensions/integration_orchestrator.py:27: error: Cannot
+find implementation or library stub for module named
+"src.sensory.enhanced.chaos.antifragile_adaptation"  [import-not-found]
+    from src.sensory.enhanced.chaos.antifragile_adaptation import ChaosAda...
+    ^
+src/sensory/organs/dimensions/integration_orchestrator.py:27: note: See https://mypy.readthedocs.io/en/stable/running_mypy.html#missing-imports
+src/sensory/organs/dimensions/integration_orchestrator.py:28: error: Cannot
+find implementation or library stub for module named
+"src.sensory.enhanced.how.institutional_footprint_hunter"  [import-not-found]
+    from src.sensory.enhanced.how.institutional_footprint_hunter import (
+    ^
+src/sensory/organs/dimensions/integration_orchestrator.py:32: error: Cannot
+find implementation or library stub for module named
+"src.sensory.enhanced.what.pattern_synthesis_engine"  [import-not-found]
+    from src.sensory.enhanced.what.pattern_synthesis_engine import (
+    ^
+src/sensory/organs/dimensions/integration_orchestrator.py:36: error: Cannot
+find implementation or library stub for module named
+"src.sensory.enhanced.when.temporal_advantage_system"  [import-not-found]
+    from src.sensory.enhanced.when.temporal_advantage_system import (
+    ^
+src/sensory/organs/dimensions/what_organ.py:38: error: Cannot find
+implementation or library stub for module named
+"src.sensory.organs.dimensions.price_action"  [import-not-found]
+                from .price_action import PriceActionAnalyzer
+    ^
+src/market_intelligence/dimensions/enhanced_anomaly_dimension.py: error: Source
+file found twice under different module names:
+"src.market_intelligence.dimensions.enhanced_anomaly_dimension" and
+"market_intelligence.dimensions.enhanced_anomaly_dimension"
+src/market_intelligence/dimensions/enhanced_anomaly_dimension.py: note: See https://mypy.readthedocs.io/en/stable/running_mypy.html#mapping-file-paths-to-modules for more info
+src/market_intelligence/dimensions/enhanced_anomaly_dimension.py: note: Common resolutions include: a) adding `__init__.py` somewhere, b) using `--explicit-package-bases` or adjusting MYPYPATH
+Found 6 errors in 3 files (errors prevented further checking)

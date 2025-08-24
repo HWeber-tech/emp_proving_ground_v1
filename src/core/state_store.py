@@ -10,6 +10,7 @@ and must not be imported from here to preserve layering.
 """
 
 from __future__ import annotations
+
 from typing import List, Optional, Protocol, runtime_checkable
 
 
@@ -35,7 +36,7 @@ class StateStore(Protocol):
         """Delete a key, returning True if removed."""
         ...
 
-    async def keys(self, pattern: str) -> List[str]:
+    async def keys(self, pattern: str) -> list[str]:
         """Return keys matching a simple pattern (implementation-defined)."""
         ...
 

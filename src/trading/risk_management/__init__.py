@@ -4,29 +4,28 @@ Risk Management Package
 Dynamic risk assessment, position sizing, drawdown protection, and risk analytics.
 """
 
-"""Legacy risk_management facade retained for compatibility.
+from __future__ import annotations
 
-Redirects to consolidated `src.core.risk` implementations where applicable.
-"""
+from typing import Any
+
+# Legacy risk_management facade retained for compatibility.
+# Redirects to consolidated `src.core.risk` implementations where applicable.
+
 
 try:
-    from src.core.risk.manager import RiskManager  # type: ignore
+    from src.core.risk.manager import RiskManager
     from src.core.risk.position_sizing import kelly_fraction as KellyCriterion  # alias
-    from src.core.risk.stress_testing import StressTester  # type: ignore
-    from src.core.risk.var_calculator import VarCalculator as VaRCalculator  # type: ignore
-except Exception:  # pragma: no cover
+    from src.core.risk.stress_testing import StressTester
+    from src.core.risk.var_calculator import VarCalculator as VaRCalculator
+except ImportError:  # pragma: no cover
     # Fallbacks if consolidation modules are not present
-    RiskManager = object  # type: ignore
-    def KellyCriterion(*args, **kwargs):  # type: ignore
-        return 0.0
-    class VaRCalculator:  # type: ignore
-        pass
-    class StressTester:  # type: ignore
-        pass
+    RiskManager = object
 
-__all__ = [
-    'RiskManager',
-    'KellyCriterion',
-    'VaRCalculator',
-    'StressTester'
-] 
+    def KellyCriterion(*args: Any, **kwargs: Any) -> float:
+        return 0.0
+
+    VaRCalculator = object
+    StressTester = object
+
+
+__all__ = ["RiskManager", "KellyCriterion", "VaRCalculator", "StressTester"]

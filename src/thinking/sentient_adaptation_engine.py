@@ -21,7 +21,11 @@ class SentientAdaptationEngine:
 
     async def adapt_in_real_time(self, *args: object, **kwargs: object) -> dict[str, object]:
         # Return a minimal dict to avoid downstream None handling
-        return {"success": False, "engine": "noop", "details": "Use core AdaptationService via orchestration."}
+        return {
+            "success": False,
+            "engine": "noop",
+            "details": "Use core AdaptationService via orchestration.",
+        }
 
 
 __all__ = ["SentientAdaptationEngine"]

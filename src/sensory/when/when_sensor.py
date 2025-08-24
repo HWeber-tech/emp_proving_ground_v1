@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import List
-
 import pandas as pd
 
 from src.sensory.signals import SensorSignal
@@ -16,7 +14,7 @@ class WhenSensor:
     realized volatility above a small threshold.
     """
 
-    def process(self, df: pd.DataFrame) -> List[SensorSignal]:
+    def process(self, df: pd.DataFrame) -> list[SensorSignal]:
         if df is None or df.empty or "close" not in df or "timestamp" not in df:
             return [SensorSignal(signal_type="WHEN", value={"strength": 0.0}, confidence=0.1)]
 
@@ -31,5 +29,3 @@ class WhenSensor:
         if session_active and vol and vol > 0.003:
             return [SensorSignal(signal_type="WHEN", value={"strength": 0.3}, confidence=0.6)]
         return [SensorSignal(signal_type="WHEN", value={"strength": 0.0}, confidence=0.3)]
-
-

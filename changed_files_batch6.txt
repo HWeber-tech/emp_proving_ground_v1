@@ -1,0 +1,5 @@
+scripts/analysis/triage_batch6.py
+src/core/evolution/engine.py
+src/trading/execution/execution_model.py
+src/trading/strategies/strategy_registry.py
+src/sensory/why/why_sensor.py

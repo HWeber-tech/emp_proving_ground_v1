@@ -1,0 +1,161 @@
+name: Typing and Lint (Interim Profile A)
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  workflow_dispatch:
+
+jobs:
+  typing-and-lint:
+    name: Lint + Mypy Gates (changed files only)
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.draft == false || github.event_name == 'workflow_dispatch'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install tooling
+        run: |
+          python -m pip install --upgrade pip
+          pip install mypy ruff black isort
+
+      - name: Determine changed Python files
+        id: changed
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Resolve base and head SHAs for PRs and pushes
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            BASE_SHA="${{ github.event.pull_request.base.sha }}"
+            HEAD_SHA="${{ github.event.pull_request.head.sha }}"
+          else
+            # Fallback for workflow_dispatch or push
+            BASE_SHA="$(git rev-parse HEAD~1)"
+            HEAD_SHA="$(git rev-parse HEAD)"
+          fi
+
+          echo "Base: $BASE_SHA"
+          echo "Head: $HEAD_SHA"
+
+          git diff --name-only --diff-filter=ACMRT "$BASE_SHA" "$HEAD_SHA" \
+            | grep -E '\.py$' > changed_python_files.txt || true
+          COUNT="$(wc -l < changed_python_files.txt | tr -d ' ')"
+          echo "File count: ${COUNT}"
+          if [[ "${COUNT}" -gt 0 ]]; then
+            echo "has_changes=true" >> "$GITHUB_OUTPUT"
+            echo "count=${COUNT}" >> "$GITHUB_OUTPUT"
+            echo "Changed Python files:"; cat changed_python_files.txt
+          else
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+            echo "count=0" >> "$GITHUB_OUTPUT"
+            echo "No Python file changes detected."
+          fi
+
+      - name: Ruff check (changed files)
+        if: steps.changed.outputs.has_changes == 'true'
+        run: |
+          set -euo pipefail
+          xargs -a changed_python_files.txt ruff check --force-exclude
+
+      - name: Black check (changed files)
+        if: steps.changed.outputs.has_changes == 'true'
+        run: |
+          set -euo pipefail
+          xargs -a changed_python_files.txt black --check
+
+      - name: isort check (changed files)
+        if: steps.changed.outputs.has_changes == 'true'
+        run: |
+          set -euo pipefail
+          xargs -a changed_python_files.txt isort --check-only
+
+      - name: Mypy base config — no-new-errors on changed files
+        if: steps.changed.outputs.has_changes == 'true'
+        env:
+          MYPY_FORCE_COLOR: '1'
+        run: |
+          set -euo pipefail
+          # Base repository config enforces transitional settings; per-package sections may be stricter.
+          echo "Running mypy with mypy.ini on changed files..."
+          mypy --config-file mypy.ini --follow-imports=skip $(tr '\n' ' ' < changed_python_files.txt)
+
+      - name: Mypy strict-on-touch (L2+) — changed files
+        if: steps.changed.outputs.has_changes == 'true'
+        env:
+          MYPY_FORCE_COLOR: '1'
+        run: |
+          set -euo pipefail
+          # Enforce strict-on-touch via CLI flags (L2+ baseline for changed files).
+          # Note: ignore_missing_imports remains as per mypy.ini (cannot disable via CLI);
+          # stricter package sections (e.g., src.sensory.utils.*) already flip it off.
+          echo "Running mypy strict-on-touch on changed files..."
+          mypy \
+            --config-file mypy.ini \
+            --follow-imports=skip \
+            --disallow-untyped-defs \
+            --disallow-incomplete-defs \
+            --no-implicit-optional \
+            --disallow-any-generics \
+            --check-untyped-defs \
+            --warn-unused-ignores \
+            --warn-redundant-casts \
+            --warn-return-any \
+            --strict-equality \
+            $(tr '\n' ' ' < changed_python_files.txt)
+
+      - name: Mypy repository snapshot (non-gating) — artifact only
+        if: always()
+        env:
+          MYPY_FORCE_COLOR: '0'
+        run: |
+          set -euo pipefail
+          TS="$(date -u +'%Y-%m-%dT%H-%M-%SZ')"
+          SNAP_DIR="mypy_snapshots"
+          mkdir -p "$SNAP_DIR"
+          SNAP_FILE="$SNAP_DIR/mypy_snapshot_${TS}.txt"
+          echo "Running repository-wide mypy snapshot with base config..."
+          mypy --config-file mypy.ini src > "$SNAP_FILE" || true
+          echo "Snapshot written to $SNAP_FILE"
+
+      - name: Generate mypy summary (non-gating)
+        if: always()
+        run: |
+          set -euo pipefail
+          TS="$(date -u +'%Y-%m-%dT%H-%M-%SZ')"
+          SNAP_DIR="mypy_snapshots"
+          SNAP_FILE="$(ls -1 ${SNAP_DIR}/mypy_snapshot_*.txt | tail -n 1 || true)"
+          if [[ -z "${SNAP_FILE}" ]]; then
+            echo "No snapshot file found; skipping summary."
+            exit 0
+          fi
+          SUMMARY_FILE="${SNAP_DIR}/mypy_summary_${TS}.txt"
+          echo "Generating summary for ${SNAP_FILE} -> ${SUMMARY_FILE}"
+          python scripts/analysis/mypy_summary.py --snapshot "${SNAP_FILE}" --summary-out "${SUMMARY_FILE}"
+
+      - name: Upload mypy snapshot artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mypy-snapshot-and-summary
+          path: |
+            mypy_snapshots/
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "Typing & Lint pipeline completed."
+          echo
+          echo "Changed Python files:"
+          if [[ -s changed_python_files.txt ]]; then
+            cat changed_python_files.txt
+          else
+            echo "(none)"
+          fi

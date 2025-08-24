@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional
 
 
 @dataclass
@@ -16,10 +15,8 @@ class EvolutionConfig:
 class EvolutionEngine:
     """Consolidated evolution engine surface."""
 
-    def __init__(self, config: Optional[EvolutionConfig] = None) -> None:
+    def __init__(self, config: EvolutionConfig | None = None) -> None:
         self.config = config or EvolutionConfig()
 
     def evolve(self) -> None:
         raise NotImplementedError
-
-

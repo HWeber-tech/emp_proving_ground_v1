@@ -21,13 +21,13 @@ import time
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-import pandas as pd  # Used for DataFrame checks
+import pandas as pd
 
 from src.core.market_data import MarketDataGateway, NoOpMarketDataGateway
-from src.core.regime import RegimeClassifier, NoOpRegimeClassifier, RegimeResult
+from src.core.regime import NoOpRegimeClassifier, RegimeClassifier, RegimeResult
 
 try:
-    from src.core.interfaces import DecisionGenome  # optional legacy import
+    from src.core.interfaces import DecisionGenome
 except Exception:  # pragma: no cover
     DecisionGenome = object  # type: ignore
 

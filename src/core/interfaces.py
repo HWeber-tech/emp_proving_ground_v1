@@ -1,14 +1,24 @@
-from collections.abc import Iterable, Mapping, Sequence
 from __future__ import annotations
 
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Callable, Dict, List, Optional, Protocol, Tuple, TypedDict, runtime_checkable, TYPE_CHECKING
+from typing import (
+    TYPE_CHECKING,
+    Callable,
+    Dict,
+    List,
+    Optional,
+    Protocol,
+    Tuple,
+    TypedDict,
+    runtime_checkable,
+)
 
-from .types import JSONObject
 from .event_bus import Event
 from .market_data import MarketDataGateway
 from .regime import RegimeClassifier, RegimeResult
+from .types import JSONObject
 
 
 @runtime_checkable
@@ -17,6 +27,7 @@ class Cache(Protocol):
 
     Framework-agnostic. Implementations may be backed by dict, Redis, etc.
     """
+
     def get(self, key: str) -> Optional[object]: ...
     def set(self, key: str, value: object) -> None: ...
 
@@ -28,18 +39,23 @@ class EventBus(Protocol):
     Deprecated: Use SupportsEventPublish for async-first Event publishing
     or the TopicBus facade for transitional legacy usage.
     """
-    def publish(self, event: str, payload: Mapping[str, object] | None = None, /, **kwargs: object) -> None: ...
+
+    def publish(
+        self, event: str, payload: Mapping[str, object] | None = None, /, **kwargs: object
+    ) -> None: ...
 
 
 @runtime_checkable
 class SupportsEventPublish(Protocol):
     """Async-first EventBus protocol (M3): async publish(Event)."""
+
     async def publish(self, event: Event) -> None: ...
 
 
 @runtime_checkable
 class Logger(Protocol):
     """Minimal logging facade with conventional methods."""
+
     def info(self, msg: str, /, **kwargs: object) -> None: ...
     def debug(self, msg: str, /, **kwargs: object) -> None: ...
     def warning(self, msg: str, /, **kwargs: object) -> None: ...
@@ -52,6 +68,7 @@ class ConfigProvider(Protocol):
 
     Implementations load and provide structured configuration as JSON-like objects.
     """
+
     def get(self, key: str, default: object | None = ...) -> object: ...
     def get_section(self, name: str) -> JSONObject: ...
     def get_config(self) -> JSONObject: ...
@@ -61,6 +78,7 @@ class ConfigProvider(Protocol):
 @runtime_checkable
 class RiskManager(Protocol):
     """Canonical risk manager Protocol (minimal shared surface)."""
+
     def evaluate_portfolio_risk(
         self,
         positions: Mapping[str, float],
@@ -81,6 +99,7 @@ class DecisionGenome(Protocol):
     Implemented by src.genome.models.genome.DecisionGenome.
     Minimal surface: fields actually consumed by optimizers/factories.
     """
+
     id: str
     parameters: Mapping[str, float]
     fitness: Optional[float] | None
@@ -91,10 +110,11 @@ class DecisionGenome(Protocol):
 @runtime_checkable
 class PopulationManager(Protocol):
     """Protocol for population management (authoritative)."""
+
     def initialize_population(self, genome_factory: Callable[[], "DecisionGenome"]) -> None: ...
-    def get_population(self) -> List[DecisionGenome]: ...
-    def get_best_genomes(self, count: int) -> List[DecisionGenome]: ...
-    def update_population(self, new_population: List[DecisionGenome]) -> None: ...
+    def get_population(self) -> list[DecisionGenome]: ...
+    def get_best_genomes(self, count: int) -> list[DecisionGenome]: ...
+    def update_population(self, new_population: list[DecisionGenome]) -> None: ...
     def get_population_statistics(self) -> dict[str, object]: ...
     def advance_generation(self) -> None: ...
     def reset(self) -> None: ...
@@ -108,16 +128,18 @@ class IPopulationManager:
     Prefer the PopulationManager Protocol for new code.
     """
 
-    def initialize_population(self, genome_factory: Callable[[], "DecisionGenome"]) -> None:  # pragma: no cover
+    def initialize_population(
+        self, genome_factory: Callable[[], "DecisionGenome"]
+    ) -> None:  # pragma: no cover
         raise NotImplementedError
 
-    def get_population(self) -> List[DecisionGenome]:  # pragma: no cover
+    def get_population(self) -> list[DecisionGenome]:  # pragma: no cover
         raise NotImplementedError
 
-    def get_best_genomes(self, count: int) -> List[DecisionGenome]:  # pragma: no cover
+    def get_best_genomes(self, count: int) -> list[DecisionGenome]:  # pragma: no cover
         raise NotImplementedError
 
-    def update_population(self, new_population: List[DecisionGenome]) -> None:  # pragma: no cover
+    def update_population(self, new_population: list[DecisionGenome]) -> None:  # pragma: no cover
         raise NotImplementedError
 
     def get_population_statistics(self) -> dict[str, object]:  # pragma: no cover
@@ -131,6 +153,7 @@ class IPopulationManager:
 
 
 # Ecosystem and coordination domain types
+
 
 @runtime_checkable
 class HasSpeciesType(Protocol):
@@ -161,8 +184,8 @@ class MarketContext:
 
 @runtime_checkable
 class CoordinationResult(Protocol):
-    approved_intents: List[TradeIntent]
-    rejected_intents: List[TradeIntent]
+    approved_intents: list[TradeIntent]
+    rejected_intents: list[TradeIntent]
     coordination_score: float
     portfolio_risk: float
     correlation_impact: float
@@ -172,16 +195,16 @@ class CoordinationResult(Protocol):
 class ICoordinationEngine(Protocol):
     async def resolve_intents(
         self,
-        intents: List[TradeIntent],
+        intents: list[TradeIntent],
         market_context: MarketContext,
     ) -> CoordinationResult: ...
     async def prioritize_strategies(
         self,
-        strategies: List[HasSpeciesType],
+        strategies: list[HasSpeciesType],
         regime: str,
-    ) -> List[HasSpeciesType]: ...
+    ) -> list[HasSpeciesType]: ...
     async def get_portfolio_summary(self) -> dict[str, object]: ...
-    async def get_coordination_metrics(self) -> Dict[str, float]: ...
+    async def get_coordination_metrics(self) -> dict[str, float]: ...
 
 
 # Ecosystem optimizer summaries
@@ -191,10 +214,12 @@ class MetricsSummary(TypedDict):
     diversification_ratio: float
     synergy_score: float
 
+
 class EcosystemSummary(TypedDict):
     total_optimizations: int
     best_metrics: MetricsSummary | None
-    current_species_distribution: Dict[str, int]
+    current_species_distribution: dict[str, int]
+
 
 @runtime_checkable
 class IEcosystemOptimizer(Protocol):
@@ -211,7 +236,7 @@ class IEcosystemOptimizer(Protocol):
 class ISpecialistGenomeFactory(Protocol):
     def create_genome(self) -> DecisionGenome: ...
     def get_species_name(self) -> str: ...
-    def get_parameter_ranges(self) -> Dict[str, Tuple[float, float]]: ...
+    def get_parameter_ranges(self) -> dict[str, tuple[float, float]]: ...
 
 
 # Metrics protocols (can be implemented by prometheus_client metrics or no-op fallbacks)
@@ -238,19 +263,23 @@ class HistogramLike(Protocol):
 # Minimal JSON alias for this module to avoid circular imports with src.core.types
 JSONValue = object
 
+
 @runtime_checkable
 class ThinkingPattern(Protocol):
     def learn(self, feedback: Mapping[str, object]) -> bool: ...
+
 
 class SensorySignal(TypedDict, total=False):
     name: str
     value: float
     confidence: float
 
+
 class AnalysisResult(TypedDict, total=False):
     summary: str
     score: float
     details: Mapping[str, object]
+
 
 # === End Interfaces hub ===
 

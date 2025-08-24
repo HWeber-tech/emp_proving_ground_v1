@@ -25,12 +25,12 @@ from typing import Any, Dict, List, Optional
 import numpy as np
 import pandas as pd
 
-from src.core.market_data import MarketDataGateway, NoOpMarketDataGateway
 from src.core.anomaly import AnomalyDetector, NoOpAnomalyDetector
-from src.core.regime import RegimeClassifier, NoOpRegimeClassifier, RegimeResult
+from src.core.market_data import MarketDataGateway, NoOpMarketDataGateway
+from src.core.regime import NoOpRegimeClassifier, RegimeClassifier, RegimeResult
 
 try:
-    from src.core.interfaces import DecisionGenome  # optional legacy import
+    from src.core.interfaces import DecisionGenome
 except Exception:  # pragma: no cover
     DecisionGenome = object  # type: ignore
 
@@ -218,7 +218,10 @@ class RealMarketValidationFramework:
 
             # Get S&P 500 data
             data = self.market_data.fetch_data(
-                "^GSPC", start=start_date.strftime("%Y-%m-%d"), end=end_date.strftime("%Y-%m-%d"), interval="1d"
+                "^GSPC",
+                start=start_date.strftime("%Y-%m-%d"),
+                end=end_date.strftime("%Y-%m-%d"),
+                interval="1d",
             )
 
             if not isinstance(data, pd.DataFrame) or len(data) < 20:
@@ -235,7 +238,9 @@ class RealMarketValidationFramework:
             regimes = []
             for i in range(20, len(data)):
                 window = data.iloc[i - 20 : i]
-                regime_result: Optional[RegimeResult] = await self.regime_classifier.detect_regime(window)
+                regime_result: Optional[RegimeResult] = await self.regime_classifier.detect_regime(
+                    window
+                )
                 if regime_result:
                     regimes.append(
                         {
@@ -257,7 +262,12 @@ class RealMarketValidationFramework:
                 # Check if correctly identified crisis periods
                 for crisis_start, crisis_end in crisis_periods:
                     if crisis_start <= regime_date <= crisis_end:
-                        if regime["regime"].upper() in ["CRISIS", "VOLATILE", "BEARISH", "BREAKDOWN"]:
+                        if regime["regime"].upper() in [
+                            "CRISIS",
+                            "VOLATILE",
+                            "BEARISH",
+                            "BREAKDOWN",
+                        ]:
                             correct_classifications += 1
                         total_classifications += 1
 
@@ -391,7 +401,10 @@ class RealMarketValidationFramework:
             start_date = end_date - timedelta(days=365)
 
             data = self.market_data.fetch_data(
-                "^GSPC", start=start_date.strftime("%Y-%m-%d"), end=end_date.strftime("%Y-%m-%d"), interval="1d"
+                "^GSPC",
+                start=start_date.strftime("%Y-%m-%d"),
+                end=end_date.strftime("%Y-%m-%d"),
+                interval="1d",
             )
 
             if not isinstance(data, pd.DataFrame) or len(data) < 20:
@@ -411,7 +424,9 @@ class RealMarketValidationFramework:
 
             # Calculate Sharpe ratio (annualized)
             excess_returns = data["returns"] - 0.02 / 252  # 2% risk-free rate
-            sharpe_ratio = float(np.sqrt(252) * excess_returns.mean() / max(excess_returns.std(), 1e-12))
+            sharpe_ratio = float(
+                np.sqrt(252) * excess_returns.mean() / max(excess_returns.std(), 1e-12)
+            )
 
             # Validate calculation
             expected_range = (-2.0, 3.0)  # Reasonable range for S&P 500
@@ -450,7 +465,10 @@ class RealMarketValidationFramework:
             end_date = datetime(2020, 5, 1)
 
             data = self.market_data.fetch_data(
-                "^GSPC", start=start_date.strftime("%Y-%m-%d"), end=end_date.strftime("%Y-%m-%d"), interval="1d"
+                "^GSPC",
+                start=start_date.strftime("%Y-%m-%d"),
+                end=end_date.strftime("%Y-%m-%d"),
+                interval="1d",
             )
 
             if not isinstance(data, pd.DataFrame) or len(data) < 20:
@@ -539,7 +557,9 @@ class RealMarketValidationFramework:
 
                         # 2. Non-perfect correlation with volume
                         correlation = (
-                            float(data["close"].corr(data["volume"])) if "volume" in data.columns else 0.0
+                            float(data["close"].corr(data["volume"]))
+                            if "volume" in data.columns
+                            else 0.0
                         )
 
                         # 3. Realistic price ranges
@@ -549,7 +569,9 @@ class RealMarketValidationFramework:
                             price_range = 0.0
 
                         # Simple heuristic for real data
-                        is_real = volatility > 0.0001 and abs(correlation) < 0.95 and price_range > 0
+                        is_real = (
+                            volatility > 0.0001 and abs(correlation) < 0.95 and price_range > 0
+                        )
 
                         if is_real:
                             real_data_count += 1

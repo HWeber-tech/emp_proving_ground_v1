@@ -11,14 +11,15 @@ and be injected at runtime by orchestration. This module provides a NoOp fallbac
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from collections.abc import Mapping
+from dataclasses import dataclass
 from typing import Optional, Protocol, runtime_checkable
 
 
 @dataclass
 class RegimeResult:
     """Result structure returned by a RegimeClassifier implementation."""
+
     regime: str
     confidence: float
     metadata: Optional[dict[str, object]] = None

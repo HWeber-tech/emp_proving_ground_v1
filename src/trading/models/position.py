@@ -5,6 +5,8 @@ Position Models
 Data models for trading positions in the EMP Proving Ground system.
 """
 
+from __future__ import annotations
+
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Optional
@@ -60,7 +62,11 @@ class Position:
     ) -> None:
         # Resolve canonical fields
         resolved_qty = quantity if quantity is not None else (size if size is not None else 0.0)
-        resolved_avg = average_price if average_price is not None else (entry_price if entry_price is not None else 0.0)
+        resolved_avg = (
+            average_price
+            if average_price is not None
+            else (entry_price if entry_price is not None else 0.0)
+        )
 
         # Prefer explicit current/market over default-to-entry
         resolved_mkt = (
@@ -81,7 +87,9 @@ class Position:
         if unrealized_pnl is not None:
             self.unrealized_pnl = float(unrealized_pnl)
         else:
-            self.unrealized_pnl = (self.current_price - self.entry_price) * self.size if self.quantity != 0 else 0.0
+            self.unrealized_pnl = (
+                (self.current_price - self.entry_price) * self.size if self.quantity != 0 else 0.0
+            )
         self.last_updated = last_updated or datetime.now()
 
     # Aliases required by the minimal API
@@ -168,7 +176,9 @@ class Position:
         self.realized_pnl += float(pnl)
         self.last_updated = datetime.now()
 
-    def update_quantity(self, new_quantity: float, new_average_price: Optional[float] = None) -> None:
+    def update_quantity(
+        self, new_quantity: float, new_average_price: Optional[float] = None
+    ) -> None:
         """Update position quantity and optionally average price."""
         self.quantity = float(new_quantity)
         if new_average_price is not None:

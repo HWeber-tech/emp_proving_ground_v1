@@ -8,7 +8,6 @@ This class provides a minimal, stable interface used by both intelligence and th
 
 It intentionally avoids domain-specific logic to minimize coupling and enable structural unification.
 """
-
 from __future__ import annotations
 
 

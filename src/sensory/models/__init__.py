@@ -3,6 +3,8 @@ Sensory Models
 Models for sensory processing and technical analysis
 """
 
+from __future__ import annotations
+
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
@@ -16,6 +18,7 @@ from src.sensory.organs.dimensions.base_organ import (
 
 class Sentiment(Enum):
     """Market sentiment"""
+
     BULLISH = "bullish"
     BEARISH = "bearish"
     NEUTRAL = "neutral"
@@ -23,6 +26,7 @@ class Sentiment(Enum):
 
 class TechnicalSignalType(Enum):
     """Types of technical signals"""
+
     RSI_OVERBOUGHT = "rsi_overbought"
     RSI_OVERSOLD = "rsi_oversold"
     MACD_BULLISH_CROSS = "macd_bullish_cross"
@@ -39,23 +43,23 @@ class TechnicalSignalType(Enum):
 @dataclass
 class TechnicalSignal:
     """Technical analysis signal"""
+
     indicator: str
     timeframe: str
     value: float
     signal_type: str
     strength: float
     timestamp: Optional[datetime] = None
-    
+
     def __post_init__(self):
         if self.timestamp is None:
             self.timestamp = datetime.now()
 
 
-
-
 @dataclass
 class MarketContext:
     """Market context information"""
+
     symbol: str
     timeframe: str
     current_price: float
@@ -63,20 +67,14 @@ class MarketContext:
     volume_24h: float
     volatility: float
     trend_direction: str
-    support_levels: List[float]
-    resistance_levels: List[float]
+    support_levels: list[float]
+    resistance_levels: list[float]
     timestamp: Optional[datetime] = None
-    
+
     def __post_init__(self):
         if self.timestamp is None:
             self.timestamp = datetime.now()
 
 
 # Export commonly used classes
-__all__ = [
-    'Sentiment',
-    'TechnicalSignalType',
-    'TechnicalSignal',
-    'SensoryReading',
-    'MarketContext'
-]
+__all__ = ["Sentiment", "TechnicalSignalType", "TechnicalSignal", "SensoryReading", "MarketContext"]

@@ -10,6 +10,7 @@ and can register themselves via set_metrics_sink().
 """
 
 from __future__ import annotations
+
 from typing import Dict, List, Optional, Protocol, runtime_checkable
 
 
@@ -21,11 +22,13 @@ class MetricsSink(Protocol):
     Methods are best-effort; implementations must not raise.
     """
 
-    def set_gauge(self, name: str, value: float, labels: Optional[Dict[str, str]] = None) -> None:
+    def set_gauge(self, name: str, value: float, labels: Optional[dict[str, str]] = None) -> None:
         """Set a gauge to a value."""
         ...
 
-    def inc_counter(self, name: str, amount: float = 1.0, labels: Optional[Dict[str, str]] = None) -> None:
+    def inc_counter(
+        self, name: str, amount: float = 1.0, labels: Optional[dict[str, str]] = None
+    ) -> None:
         """Increment a counter."""
         ...
 
@@ -33,8 +36,8 @@ class MetricsSink(Protocol):
         self,
         name: str,
         value: float,
-        buckets: Optional[List[float]] = None,
-        labels: Optional[Dict[str, str]] = None,
+        buckets: Optional[list[float]] = None,
+        labels: Optional[dict[str, str]] = None,
     ) -> None:
         """Observe a value for a histogram."""
         ...
@@ -43,18 +46,20 @@ class MetricsSink(Protocol):
 class _NoOpMetricsSink:
     """Default no-op implementation used until an adapter is registered."""
 
-    def set_gauge(self, name: str, value: float, labels: Optional[Dict[str, str]] = None) -> None:
+    def set_gauge(self, name: str, value: float, labels: Optional[dict[str, str]] = None) -> None:
         return
 
-    def inc_counter(self, name: str, amount: float = 1.0, labels: Optional[Dict[str, str]] = None) -> None:
+    def inc_counter(
+        self, name: str, amount: float = 1.0, labels: Optional[dict[str, str]] = None
+    ) -> None:
         return
 
     def observe_histogram(
         self,
         name: str,
         value: float,
-        buckets: Optional[List[float]] = None,
-        labels: Optional[Dict[str, str]] = None,
+        buckets: Optional[list[float]] = None,
+        labels: Optional[dict[str, str]] = None,
     ) -> None:
         return
 

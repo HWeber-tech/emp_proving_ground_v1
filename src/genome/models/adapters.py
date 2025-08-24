@@ -28,7 +28,7 @@ def from_legacy(obj: Any) -> DecisionGenome:
     """
     try:
         # Build a mapping compatible with DecisionGenome.from_dict
-        data: Dict[str, Any] = {
+        data: dict[str, Any] = {
             "id": _get(obj, "id"),
             "parameters": _get(obj, "parameters", {}) or {},
             "fitness": _get(obj, "fitness", None),
@@ -56,7 +56,7 @@ def from_legacy(obj: Any) -> DecisionGenome:
         )
 
 
-def to_legacy_view(genome: DecisionGenome) -> Dict[str, Any]:
+def to_legacy_view(genome: DecisionGenome) -> dict[str, Any]:
     """Return a plain dict view using canonical keys for legacy consumers."""
     d = genome.to_dict()
     # Ensure types are JSON-serializable/simple

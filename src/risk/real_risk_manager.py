@@ -14,7 +14,7 @@ class RealRiskManager:
     def __init__(self, config: RealRiskConfig) -> None:
         self.config = config
 
-    def assess_risk(self, positions: Dict[str, float]) -> float:
+    def assess_risk(self, positions: dict[str, float]) -> float:
         return 0.0
 
 

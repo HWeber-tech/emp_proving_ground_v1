@@ -5,69 +5,75 @@ Load Tester
 
 Tests system performance under load conditions.
 """
+from __future__ import annotations
 
 import asyncio
 import time
 from dataclasses import dataclass
-from typing import Any, Callable, Dict
+from typing import Any, Awaitable, Callable
 
 
 @dataclass
 class LoadTestResult:
     """Load test result"""
+
     concurrent_users: int
     total_requests: int
     successful_requests: int
     failed_requests: int
     average_response_time: float
     throughput: float
-    errors: list
+    errors: list[str]
 
 
 class LoadTester:
     """System load testing"""
-    
-    def __init__(self):
+
+    def __init__(self) -> None:
         self.max_concurrent = 100
-    
-    async def load_test(self, 
-                     test_function: Callable, 
-                     concurrent_users: int = 10, 
-                     requests_per_user: int = 10) -> LoadTestResult:
+
+    async def load_test(
+        self,
+        test_function: Callable[[], Awaitable[None]],
+        concurrent_users: int = 10,
+        requests_per_user: int = 10,
+    ) -> LoadTestResult:
         """Run load test"""
-        
+
         total_requests = concurrent_users * requests_per_user
         successful_requests = 0
         failed_requests = 0
-        total_response_time = 0
-        errors = []
-        
-        async def user_session():
+        total_response_time: float = 0.0
+        errors: list[str] = []
+
+        async def user_session() -> None:
             nonlocal successful_requests, failed_requests, total_response_time
-            
+
             for _ in range(requests_per_user):
                 try:
                     start_time = time.time()
                     await test_function()
                     elapsed = time.time() - start_time
-                    
+
                     successful_requests += 1
                     total_response_time += elapsed
-                    
+
                 except Exception as e:
                     failed_requests += 1
                     errors.append(str(e))
-        
+
         # Run concurrent users
         start_time = time.time()
         tasks = [user_session() for _ in range(concurrent_users)]
         await asyncio.gather(*tasks)
         total_time = time.time() - start_time
-        
+
         # Calculate metrics
         throughput = total_requests / total_time
-        avg_response_time = total_response_time / successful_requests if successful_requests > 0 else 0
-        
+        avg_response_time = (
+            total_response_time / successful_requests if successful_requests > 0 else 0
+        )
+
         return LoadTestResult(
             concurrent_users=concurrent_users,
             total_requests=total_requests,
@@ -75,20 +81,20 @@ class LoadTester:
             failed_requests=failed_requests,
             average_response_time=avg_response_time,
             throughput=throughput,
-            errors=errors
+            errors=errors,
         )
-    
-    async def stress_test(self, test_function: Callable) -> Dict[str, Any]:
+
+    async def stress_test(self, test_function: Callable[[], Awaitable[None]]) -> dict[str, Any]:
         """Run stress test with increasing load"""
-        results = {}
-        
+        results: dict[str, Any] = {}
+
         for users in [1, 5, 10, 25, 50, 100]:
             result = await self.load_test(test_function, concurrent_users=users)
             results[f"{users}_users"] = {
-                'throughput': result.throughput,
-                'avg_response_time': result.average_response_time,
-                'success_rate': result.successful_requests / result.total_requests,
-                'errors': len(result.errors)
+                "throughput": result.throughput,
+                "avg_response_time": result.average_response_time,
+                "success_rate": result.successful_requests / result.total_requests,
+                "errors": len(result.errors),
             }
-        
+
         return results

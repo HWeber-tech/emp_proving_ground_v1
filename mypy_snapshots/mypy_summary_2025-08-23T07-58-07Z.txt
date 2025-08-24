@@ -1,0 +1,17 @@
+Mypy Summary
+Generated: 2025-08-23T07:58:09Z UTC
+Snapshot: /home/dev/emp_proving_ground_v1-1/mypy_snapshots/mypy_snapshot_2025-08-23T07-58-07Z.txt
+
+Total errors: 2
+
+Top 15 error codes:
+  unknown                        2
+
+Errors by top-level package:
+  data_integration               1
+  market_intelligence            1
+
+Errors by module prefix:
+  data_integration.dukascopy_ingestor.py 1
+  market_intelligence.dimensions 1
+

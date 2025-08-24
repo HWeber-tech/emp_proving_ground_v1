@@ -5,13 +5,14 @@ import logging
 import os
 from dataclasses import asdict, dataclass
 from datetime import datetime
-from typing import Dict
+from typing import Any, Dict
 
 
 # Persistence layer removed; fallback to simple JSON file store
 class JSONStateStore:  # minimal shim
     def __init__(self, base_dir: str = "data/portfolio") -> None:
         self.base_dir = base_dir
+
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +32,7 @@ class PortfolioTracker:
         # Select store (Redis preferred)
         self._store = JSONStateStore(base_dir="data/portfolio")
         self.cash: float = 0.0
-        self.positions: Dict[str, PositionState] = {}
+        self.positions: dict[str, PositionState] = {}
         self._load()
 
     def _key(self) -> str:
@@ -74,7 +75,7 @@ class PortfolioTracker:
         except Exception as e:
             logger.warning(f"Failed to persist portfolio: {e}")
 
-    def daily_rollup(self) -> Dict[str, float]:
+    def daily_rollup(self) -> dict[str, float]:
         """Return simple daily rollup metrics for offline reports."""
         gross = sum(abs(p.quantity) for p in self.positions.values())
         symbols = len(self.positions)
@@ -85,17 +86,18 @@ class PortfolioTracker:
             "timestamp": 0.0,
         }
 
-    def attach_to_manager(self, fix_manager) -> None:
+    def attach_to_manager(self, fix_manager: Any) -> None:
         # Subscribe to order updates
-        def _on_order(order_info):
+        def _on_order(order_info: Any) -> None:
             try:
                 self._handle_order_info(order_info)
             except Exception as e:
                 logger.error(f"Portfolio update failed: {e}")
+
         fix_manager.add_order_callback(_on_order)
         logger.info("PortfolioTracker attached to FIX manager")
 
-    def _handle_order_info(self, order) -> None:
+    def _handle_order_info(self, order: Any) -> None:
         # Use the last execution to detect fills
         if not getattr(order, "executions", None):
             return
@@ -113,7 +115,9 @@ class PortfolioTracker:
         if side == "1":  # BUY
             new_qty = pos.quantity + qty
             if new_qty > 0:
-                pos.avg_price = (pos.avg_price * pos.quantity + px * qty) / new_qty if pos.quantity > 0 else px
+                pos.avg_price = (
+                    (pos.avg_price * pos.quantity + px * qty) / new_qty if pos.quantity > 0 else px
+                )
             pos.quantity = new_qty
         else:  # SELL
             # Realized PnL for the portion closed
@@ -124,5 +128,3 @@ class PortfolioTracker:
                 pos.avg_price = 0.0
         self.positions[symbol] = pos
         self._save()
-
-

@@ -391,3 +391,74 @@ graph TD
 E) Reference: Scanner entrypoint for duplicates
 - [duplicate_map.py](scripts/cleanup/duplicate_map.py:1) generates [docs/reports/duplicate_map.json](docs/reports/duplicate_map.json) and associated CSVs.
 - CI guard script: [scripts/cleanup/check_no_new_duplicates.py](scripts/cleanup/check_no_new_duplicates.py:1) ensures no regressions.
+## Typing Rollout Policy (Interim Profile A)
+
+This document governs the transition away from dynamic/untype-checked code paths (“de‑shimmification”) toward fully typed modules under a no‑new‑errors CI contract.
+
+### CI Contract
+
+- Python 3.11, with ruff/black/isort executed before typing.
+- No-new-errors gate:
+  - All changed Python files must pass mypy using the repository base configuration in [`mypy.ini`](mypy.ini).
+- Strict-on-touch gate:
+  - All changed Python files must also pass elevated strict flags (L2 minimum) applied in CI.
+  - New modules target L3 immediately.
+- Non-gating repository snapshot:
+  - CI produces a full-repo mypy snapshot and a human-readable summary artifact each run.
+  - Baseline increase gate will be enabled once baselines are curated under [`docs/development/mypy_snapshots/`](docs/development/mypy_snapshots/).
+
+See workflow: [`typing.yml`](.github/workflows/typing.yml)
+
+### Strictness Ladder
+
+- L1 (entry bar for touched files):
+  - Flags: --disallow-untyped-defs, --check-untyped-defs
+- L2 (strict-on-touch minimum):
+  - L1 plus: --disallow-incomplete-defs, --no-implicit-optional
+- L3 (target for new modules and pilot package `src/sensory/utils`):
+  - L2 plus: --disallow-any-generics, --warn-unused-ignores, --warn-redundant-casts, --warn-return-any, --strict-equality
+  - Per-package mypy section may also set: ignore_missing_imports=False, implicit_reexport=False
+- L4 (strict parity):
+  - Equivalent to `mypy --strict` unless explicitly documented otherwise
+
+The pilot package is pre-configured to L3 via a mypy override section in [`mypy.ini`](mypy.ini) for `src.sensory.utils.*`.
+
+### Per-Package Overrides
+
+- Add package sections to [`mypy.ini`](mypy.ini) using module globs:
+  - Example (L3 for `src.sensory.utils.*`):
+    - ignore_missing_imports=False
+    - implicit_reexport=False
+    - disallow_untyped_defs=True
+    - disallow_incomplete_defs=True
+    - no_implicit_optional=True
+    - disallow_any_generics=True
+    - check_untyped_defs=True
+    - warn_unused_ignores=True
+    - warn_redundant_casts=True
+    - warn_return_any=True
+    - strict_equality=True
+- Scale packages up the ladder as they are cleaned. Track target levels in [`docs/development/hotspots.md`](docs/development/hotspots.md) or an optional registry file (e.g., `docs/development/typing_targets.md`).
+
+### PR Acceptance Criteria
+
+- Changed Python files pass:
+  - ruff check, black --check, isort --check-only
+  - mypy base config (no new errors)
+  - mypy strict-on-touch (L2 min; L3 for new modules)
+- All new public functions/methods are fully annotated (parameters + return).
+- Collections are parameterized (no bare list/dict/set/tuple).
+- Any `# type: ignore[CODE]` must include an error code and a short justification in the PR description.
+- Prefer stubs in [`stubs/`](stubs/) over `ignore_missing_imports`. Reference new/updated stubs in the PR.
+- If dynamic/untyped patterns remain, add a TODO with owner and a linked issue describing the replacement path (Protocol/TypedDict/dataclass/generics, etc.).
+
+### Tooling
+
+- CI workflow: [`typing.yml`](.github/workflows/typing.yml)
+- Snapshot script: [`mypy_capture.py`](scripts/analysis/mypy_capture.py)
+- Summary script: [`mypy_summary.py`](scripts/analysis/mypy_summary.py)
+
+### Next Steps
+
+- Expand per-package sections to additional leaf modules as they are refactored.
+- On merges to main, persist snapshots into [`docs/development/mypy_snapshots/`](docs/development/mypy_snapshots/) and later enable “no increase vs baseline” gating on PRs.

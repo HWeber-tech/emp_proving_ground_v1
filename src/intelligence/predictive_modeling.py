@@ -37,6 +37,7 @@ _LAZY_EXPORTS: Dict[str, str] = {
 # __all__ derived from lazy exports and local classes to satisfy Ruff F822 for lazy names.
 __all__ = list(_LAZY_EXPORTS.keys()) + ["ScenarioOutcome"]
 
+
 class _LazySymbol:
     def __init__(self, mod_path: str, attr: str):
         self._mod_path = mod_path
@@ -46,7 +47,8 @@ class _LazySymbol:
         # Ensure canonical thinking.* chain exposes ThinkingException on first resolution.
         try:
             import src.core.exceptions as _excmod
-            from src.core.exceptions import EMPException as _EMPException  # noqa: F401
+            from src.core.exceptions import EMPException as _EMPException
+
             if not hasattr(_excmod, "ThinkingException"):
                 setattr(_excmod, "ThinkingException", _EMPException)
         except Exception:
@@ -54,6 +56,7 @@ class _LazySymbol:
             pass
 
         import importlib
+
         mod = importlib.import_module(self._mod_path)
         obj = getattr(mod, self._attr)
         # Cache resolved symbol on the module for subsequent accesses
@@ -69,11 +72,13 @@ class _LazySymbol:
     def __repr__(self) -> str:
         return f"<LazySymbol {self._mod_path}:{self._attr}>"
 
+
 # Pre-populate lightweight placeholders so attribute access remains side-effect free
 for _name, _target in _LAZY_EXPORTS.items():
     _mod_path, _attr = _target.split(":")
     if _name not in globals():
         globals()[_name] = _LazySymbol(_mod_path, _attr)
+
 
 def __getattr__(name: str) -> Any:
     # Lazy import to reduce import-time cost; preserves legacy public path.
@@ -82,7 +87,8 @@ def __getattr__(name: str) -> Any:
         # Ensure canonical thinking.* chain exposes ThinkingException on first access.
         try:
             import src.core.exceptions as _excmod
-            from src.core.exceptions import EMPException as _EMPException  # noqa: F401
+            from src.core.exceptions import EMPException as _EMPException
+
             if not hasattr(_excmod, "ThinkingException"):
                 setattr(_excmod, "ThinkingException", _EMPException)
         except Exception:
@@ -91,6 +97,7 @@ def __getattr__(name: str) -> Any:
 
         mod_path, attr = target.split(":")
         import importlib
+
         mod = importlib.import_module(mod_path)
         obj = getattr(mod, attr)
         globals()[name] = obj  # cache for subsequent accesses
@@ -106,6 +113,7 @@ def __dir__() -> list[str]:
 @dataclass
 class ScenarioOutcome:
     """Represents the predicted outcome for a scenario."""
+
     expected_return: float
     risk_level: float
     probability: float

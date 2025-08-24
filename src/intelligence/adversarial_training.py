@@ -17,7 +17,6 @@ This façade preserves:
 
 Example/CLI code removed to avoid import-time side effects.
 """
-
 from __future__ import annotations
 
 import logging
@@ -28,7 +27,7 @@ logger = logging.getLogger(__name__)
 
 # __all__ is computed dynamically from lazy exports and local classes.
 
-_LAZY_EXPORTS: Dict[str, str] = {
+_LAZY_EXPORTS: dict[str, str] = {
     "AdversarialTrainer": "src.thinking.adversarial.adversarial_trainer:AdversarialTrainer",
     "MarketGAN": "src.thinking.adversarial.market_gan:MarketGAN",
     "ScenarioValidator": "src.thinking.adversarial.market_gan:ScenarioValidator",
@@ -46,6 +45,7 @@ def __getattr__(name: str) -> Any:
     if target:
         mod_path, attr = target.split(":")
         import importlib
+
         mod = importlib.import_module(mod_path)
         return getattr(mod, attr)
     raise AttributeError(name)
@@ -58,6 +58,7 @@ def __dir__() -> list[str]:
 @dataclass
 class SurvivalResult:
     """Represents strategy survival results."""
+
     strategy_id: str
     survived: bool
     performance_score: float

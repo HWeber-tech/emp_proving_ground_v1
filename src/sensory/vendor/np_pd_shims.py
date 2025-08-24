@@ -6,17 +6,21 @@ Runtime/Editor shim for numpy and pandas.
   resolves the imports and provides 'Any' typing to silence unresolved errors.
 """
 
+from __future__ import annotations
+
 from typing import Any, cast
 
 try:  # Prefer real numpy at runtime
-    import numpy as _np  # type: ignore
+    import numpy as _np
+
     np = cast(Any, _np)
 except Exception:
     # Fallback for editors without the venv; provide an 'Any' so attribute access type-checks
     np = cast(Any, object())
 
 try:  # Prefer real pandas at runtime
-    import pandas as _pd  # type: ignore
+    import pandas as _pd
+
     pd = cast(Any, _pd)
 except Exception:
     pd = cast(Any, object())

@@ -153,3 +153,34 @@ PEP 668 note:
 
 CI:
 - The CI runs pre-commit against the entire repository on each push and pull request. Fix reported issues locally, re-run pre-commit, and push again.
+## Typing PR Acceptance Criteria (Interim Profile A)
+
+Effective immediately for all pull requests that modify Python code:
+
+- Linting and formatting gates (changed files):
+  - Run: ruff check, black --check, isort --check-only.
+- Mypy typing gates (changed files):
+  - Base config: no new mypy errors against the repository baseline using [mypy.ini](mypy.ini).
+  - Strict-on-touch: changed files must satisfy at least L2 strictness via CI flags (see Strictness Ladder below). New modules should target L3.
+- Annotation requirements:
+  - All new public functions and methods must be fully annotated (parameters and return).
+  - Collections must be parameterized (no bare list/dict/set/tuple).
+- Type ignores and missing types:
+  - Any `# type: ignore[CODE]` must include a specific error code and a brief justification in the PR description.
+  - Prefer adding/refining stubs under [stubs/](stubs/) over `ignore_missing_imports`. If a stub is added/updated, reference it in the PR description.
+- Transitional dynamic patterns:
+  - If dynamic/untyped patterns must remain, add a TODO with an owner and a linked issue. Document the intended replacement (e.g., Protocol, TypedDict, dataclass, or generic).
+
+### Strictness Ladder
+
+- L1 (entry bar for touched files):
+  - --disallow-untyped-defs, --check-untyped-defs
+- L2 (strict-on-touch minimum):
+  - L1 plus --disallow-incomplete-defs, --no-implicit-optional
+- L3 (target for new modules and pilot package src/sensory/utils):
+  - L2 plus --disallow-any-generics, --warn-unused-ignores, --warn-redundant-casts, --warn-return-any, --strict-equality
+  - Per-package config may also set ignore_missing_imports=False and implicit_reexport=False
+- L4 (strict parity):
+  - Equivalent to mypy --strict unless otherwise documented
+
+See CI workflow for enforcement: [.github/workflows/typing.yml](.github/workflows/typing.yml)

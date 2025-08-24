@@ -9,27 +9,39 @@ import argparse
 import re
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import List
+from typing import Any, List, cast
 
 import pandas as pd
+
 import yfinance as yf
 
 
-def fetch_daily_bars(symbols: List[str], days: int = 60) -> pd.DataFrame:
+def fetch_daily_bars(symbols: list[str], days: int = 60) -> pd.DataFrame:
     end = datetime.utcnow()
     start = end - timedelta(days=days)
-    frames = []
+    frames: list[pd.DataFrame] = []
     for sym in symbols:
-        df = yf.download(sym, start=start.strftime("%Y-%m-%d"), end=end.strftime("%Y-%m-%d"), interval="1d", progress=False)
+        df = cast(
+            pd.DataFrame,
+            yf.download(
+                sym,
+                start=start.strftime("%Y-%m-%d"),
+                end=end.strftime("%Y-%m-%d"),
+                interval="1d",
+                progress=False,
+            ),
+        )
         if not df.empty:
-            df = df.rename(columns={
-                "Open": "open",
-                "High": "high",
-                "Low": "low",
-                "Close": "close",
-                "Adj Close": "adj_close",
-                "Volume": "volume",
-            })
+            df = df.rename(
+                columns={
+                    "Open": "open",
+                    "High": "high",
+                    "Low": "low",
+                    "Close": "close",
+                    "Adj Close": "adj_close",
+                    "Volume": "volume",
+                }
+            )
             df["symbol"] = sym
             df = df.reset_index().rename(columns={"Date": "date"})
             frames.append(df)
@@ -47,9 +59,11 @@ def store_duckdb(df: pd.DataFrame, db_path: Path, table: str = "daily_bars") -> 
         df.to_csv(csv_path, index=False)
         return
 
-    con = duckdb.connect(str(db_path))
+    con = cast(Any, duckdb.connect(str(db_path)))
     # Bandit B608: parameterized query to avoid SQL injection (sanitize identifier)
-    safe_table = table if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", table or "daily_bars") else "daily_bars"
+    safe_table = (
+        table if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", table or "daily_bars") else "daily_bars"
+    )
     con.execute(
         f"""
         CREATE TABLE IF NOT EXISTS {safe_table} (
@@ -65,14 +79,17 @@ def store_duckdb(df: pd.DataFrame, db_path: Path, table: str = "daily_bars") -> 
         """
     )
     # Bandit B608: parameterized query to avoid SQL injection
-    con.execute(f"DELETE FROM {safe_table} WHERE symbol IN ({','.join(['?']*len(df['symbol'].unique()))})", list(df['symbol'].unique()))
+    con.execute(
+        f"DELETE FROM {safe_table} WHERE symbol IN ({','.join(['?']*len(df['symbol'].unique()))})",
+        list(df["symbol"].unique()),
+    )
     con.register("tmp_df", df)
     # Bandit B608: parameterized query to avoid SQL injection (identifier sanitized)
     con.execute(f"INSERT INTO {safe_table} SELECT * FROM tmp_df")
     con.close()
 
 
-def main():
+def main() -> int:
     parser = argparse.ArgumentParser(description="Tier-0 Yahoo ingest")
     parser.add_argument("--symbols", type=str, required=True, help="Comma-separated symbols")
     parser.add_argument("--db", type=str, default="data/tier0.duckdb", help="DuckDB path")
@@ -91,5 +108,3 @@ def main():
 
 if __name__ == "__main__":
     raise SystemExit(main())
-
-

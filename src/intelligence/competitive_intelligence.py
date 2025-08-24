@@ -91,7 +91,7 @@ class _NumpyProxy:
 
     def __getattr__(self, item: str) -> object:  # pragma: no cover - exercised indirectly
         try:
-            import numpy as _np  # Localized heavy import
+            import numpy as _np
         except Exception as exc:
             raise AttributeError(f"numpy not available: {exc}") from exc
         return getattr(_np, item)
@@ -137,9 +137,11 @@ class StrategyInsightLegacy:
 
         # Import numpy locally for this operation; require real numpy at use-time.
         try:
-            import numpy as _np_mod  # Prefer a real numpy if available
+            import numpy as _np_mod
         except Exception as exc:
-            raise RuntimeError("numpy is required for StrategyInsightLegacy.cluster_signatures") from exc
+            raise RuntimeError(
+                "numpy is required for StrategyInsightLegacy.cluster_signatures"
+            ) from exc
 
         model = DBSCAN(eps=eps, min_samples=min_samples)
         labels_arr = model.fit(_np_mod.asarray(X)).labels_
@@ -156,18 +158,17 @@ class StrategyInsightLegacy:
             RuntimeError: if torch is not importable.
         """
         try:
-            import torch  # Localized heavy import  # noqa: F401
+            import torch
         except Exception as exc:  # pragma: no cover - import-failure path
             raise RuntimeError("torch is required for StrategyInsightLegacy.torch_sanity") from exc
         return True
+
 
 class AlgorithmFingerprinterLegacy:
     def __init__(self) -> None:
         # Localized heavy import to ensure construction fails when sklearn is blocked
         try:
-            from sklearn.preprocessing import (
-                StandardScaler,  # Localized heavy import
-            )
+            from sklearn.preprocessing import StandardScaler  # Localized heavy import
         except Exception as exc:
             raise ImportError("scikit-learn is required for AlgorithmFingerprinterLegacy") from exc
         self._scaler = StandardScaler()
@@ -177,5 +178,6 @@ class AlgorithmFingerprinterLegacy:
         rows = len(X)
         cols = len(X[0]) if (rows > 0 and isinstance(X[0], list)) else 0
         return (rows, cols)
+
 
 # End of module

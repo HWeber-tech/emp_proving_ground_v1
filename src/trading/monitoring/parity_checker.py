@@ -1,26 +1,42 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict
+from typing import Any, Mapping, Protocol
 
 from src.core.telemetry import get_metrics_sink
 
 logger = logging.getLogger(__name__)
 
 
+class OrderLike(Protocol):
+    status: Any
+    leaves_qty: Any
+    cum_qty: Any
+    avg_px: Any
+    order_id: Any
+
+
+class PositionLike(Protocol):
+    quantity: Any
+
+
+class FixManagerLike(Protocol):
+    def get_all_orders(self) -> Mapping[str, "OrderLike"]: ...
+
+
 class ParityChecker:
     """Compares local FIX-tracked state with broker-reported snapshots to flag mismatches."""
 
-    def __init__(self, fix_manager) -> None:
+    def __init__(self, fix_manager: "FixManagerLike") -> None:
         self.fix_manager = fix_manager
 
-    def check_orders(self, broker_orders: dict[str, object]) -> int:
+    def check_orders(self, broker_orders: Mapping[str, Mapping[str, Any]]) -> int:
         """broker_orders: map clOrdID -> status/fields."""
         local = self.fix_manager.get_all_orders()
         mismatches = 0
         for cl_id, order in local.items():
             b = broker_orders.get(cl_id)
-            if not b:
+            if b is None:
                 # Potential mismatch (local exists, broker missing)
                 mismatches += 1
                 continue
@@ -41,17 +57,33 @@ class ParityChecker:
         logger.info(f"Order parity mismatches: {mismatches}")
         return mismatches
 
-    def compare_order_fields(self, local_order: object, broker_order: dict[str, object]) -> dict[str, object]:
+    def compare_order_fields(
+        self, local_order: "OrderLike", broker_order: Mapping[str, Any]
+    ) -> dict[str, object]:
         """Return a dict of mismatched fields between local OrderInfo and broker snapshot.
         Compares: status, leaves_qty, cum_qty, avg_px, order_id.
         """
         diffs: dict[str, object] = {}
         try:
-            def norm(v):
-                return float(v) if isinstance(v, (int, float, str)) and str(v).replace('.', '', 1).isdigit() else v
+
+            def norm(v: object) -> object:
+                return (
+                    float(v)
+                    if isinstance(v, (int, float, str)) and str(v).replace(".", "", 1).isdigit()
+                    else v
+                )
+
             fields = (
-                ("status", getattr(local_order.status, "value", local_order.status), broker_order.get("status")),
-                ("leaves_qty", getattr(local_order, "leaves_qty", None), broker_order.get("leaves_qty")),
+                (
+                    "status",
+                    getattr(local_order.status, "value", local_order.status),
+                    broker_order.get("status"),
+                ),
+                (
+                    "leaves_qty",
+                    getattr(local_order, "leaves_qty", None),
+                    broker_order.get("leaves_qty"),
+                ),
                 ("cum_qty", getattr(local_order, "cum_qty", None), broker_order.get("cum_qty")),
                 ("avg_px", getattr(local_order, "avg_px", None), broker_order.get("avg_px")),
                 ("order_id", getattr(local_order, "order_id", None), broker_order.get("order_id")),
@@ -67,11 +99,12 @@ class ParityChecker:
             diffs["error"] = "compare_failed"
         return diffs
 
-    def check_positions(self, broker_positions: dict[str, object]) -> int:
+    def check_positions(self, broker_positions: Mapping[str, Mapping[str, Any]]) -> int:
         """broker_positions: map symbol -> quantity/avg_price."""
         mismatches = 0
         try:
-            from src.trading.monitoring.portfolio_tracker import PortfolioTracker
+            from src.trading.monitoring.portfolio_tracker import PortfolioTracker  # isort: skip
+
             pt = PortfolioTracker()
             local_positions = pt.positions
         except Exception:
@@ -79,7 +112,7 @@ class ParityChecker:
         for sym, pos in local_positions.items():
             b = broker_positions.get(sym)
             try:
-                if not b:
+                if b is None:
                     mismatches += 1
                     continue
                 if abs(float(b.get("quantity", 0.0)) - float(pos.quantity)) > 1e-6:
@@ -94,5 +127,3 @@ class ParityChecker:
             pass
         logger.info(f"Position parity mismatches: {mismatches}")
         return mismatches
-
-

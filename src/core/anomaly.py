@@ -17,6 +17,7 @@ from typing import Protocol, runtime_checkable
 @dataclass
 class AnomalyEvent:
     """Generic anomaly/manipulation event."""
+
     timestamp: object
     kind: str
     score: float
@@ -27,7 +28,9 @@ class AnomalyEvent:
 class AnomalyDetector(Protocol):
     """Abstract anomaly/manipulation detector."""
 
-    async def detect_manipulation(self, data: object) -> list[dict[str, object]] | list[AnomalyEvent]:
+    async def detect_manipulation(
+        self, data: object
+    ) -> list[dict[str, object]] | list[AnomalyEvent]:
         """
         Detect anomalous/manipulative activity from a tabular/time-series dataset.
 

@@ -11,17 +11,19 @@ Architecture:
 - models/: Genome data models and structures
 """
 
+from __future__ import annotations
+
 # Legacy subpackages removed in cleanup; keep guards for compatibility
 try:
-    from .encoders import *  # type: ignore
+    from .encoders import *
 except Exception:
     pass
 try:
-    from .decoders import *  # type: ignore
+    from .decoders import *
 except Exception:
     pass
 from .models import *
 
 __version__ = "1.1.0"
 __author__ = "EMP System"
-__description__ = "Genome Layer - Genetic Encoding and Decoding" 
+__description__ = "Genome Layer - Genetic Encoding and Decoding"

@@ -5,14 +5,17 @@ Order Models
 Data models for trading orders in the EMP Proving Ground system.
 """
 
+from __future__ import annotations
+
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
-from typing import Optional
+from typing import Literal, Optional
 
 
 class OrderStatus(Enum):
     """Order status enumeration."""
+
     PENDING = "PENDING"
     FILLED = "FILLED"
     PARTIALLY_FILLED = "PARTIALLY_FILLED"
@@ -22,6 +25,7 @@ class OrderStatus(Enum):
 
 class OrderType(Enum):
     """Order type enumeration."""
+
     MARKET = "MARKET"
     LIMIT = "LIMIT"
     STOP = "STOP"
@@ -30,12 +34,12 @@ class OrderType(Enum):
 @dataclass
 class Order:
     """Represents a trading order."""
-    
+
     order_id: str
     symbol: str
-    side: str  # 'BUY' or 'SELL'
+    side: Literal["BUY", "SELL"]  # constrained literal for clarity
     quantity: float
-    order_type: str
+    order_type: OrderType
     price: Optional[float] = None
     stop_price: Optional[float] = None
     status: OrderStatus = OrderStatus.PENDING
@@ -44,28 +48,28 @@ class Order:
     created_at: datetime | None = None
     filled_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
-    
+
     def __post_init__(self) -> None:
         if self.created_at is None:
             self.created_at = datetime.now()
         if self.updated_at is None:
             self.updated_at = datetime.now()
-    
+
     @property
     def is_filled(self) -> bool:
         """Check if order is completely filled."""
         return self.status == OrderStatus.FILLED
-    
+
     @property
     def is_active(self) -> bool:
         """Check if order is active (pending or partially filled)."""
         return self.status in [OrderStatus.PENDING, OrderStatus.PARTIALLY_FILLED]
-    
+
     def update_status(self, new_status: OrderStatus) -> None:
         """Update order status and timestamp."""
         self.status = new_status
         self.updated_at = datetime.now()
-    
+
     def add_fill(self, quantity: float, price: float) -> None:
         """Add a fill to the order."""
         self.filled_quantity += quantity
@@ -73,13 +77,15 @@ class Order:
             self.average_price = price
         else:
             # Calculate weighted average price
-            total_value = (self.average_price * (self.filled_quantity - quantity)) + (price * quantity)
+            total_value = (self.average_price * (self.filled_quantity - quantity)) + (
+                price * quantity
+            )
             self.average_price = total_value / self.filled_quantity
-        
+
         if self.filled_quantity >= self.quantity:
             self.status = OrderStatus.FILLED
             self.filled_at = datetime.now()
         else:
             self.status = OrderStatus.PARTIALLY_FILLED
-        
+
         self.updated_at = datetime.now()

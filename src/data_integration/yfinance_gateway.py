@@ -13,9 +13,9 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
-import pandas as pd  # type: ignore
-import yfinance as yf  # type: ignore
+import pandas as pd
 
+import yfinance as yf
 from src.core.market_data import MarketDataGateway
 
 

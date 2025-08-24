@@ -10,6 +10,7 @@ where needed. A NoOpConfigurationProvider is provided for safe defaults.
 """
 
 from __future__ import annotations
+
 from typing import Protocol, runtime_checkable
 
 

@@ -3,8 +3,10 @@ CLI Interface for EMP Ultimate Architecture v1.1
 Production-ready command-line interface for system management
 """
 
+from __future__ import annotations
+
 import logging
-from datetime import datetime, date
+from datetime import date, datetime
 from pathlib import Path
 from typing import Optional
 
@@ -79,7 +81,9 @@ def download(
     """Download historical market data for a symbol."""
     try:
         gw = YFinanceGateway()
-        click.echo(f"Downloading {symbol} data from {start_date} to {end_date or 'today'} ({interval})")
+        click.echo(
+            f"Downloading {symbol} data from {start_date} to {end_date or 'today'} ({interval})"
+        )
 
         df = gw.fetch_data(symbol=symbol, start=start_date, end=end_date, interval=interval)
 

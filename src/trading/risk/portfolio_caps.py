@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 
-def apply_aggregate_cap(current_abs_exposure_sum: float, aggregate_cap: float, desired_abs: float) -> float:
+def apply_aggregate_cap(
+    current_abs_exposure_sum: float, aggregate_cap: float, desired_abs: float
+) -> float:
     """
     Given current aggregate absolute exposure and a per-portfolio aggregate cap,
     return the allowed absolute exposure for the next position change.

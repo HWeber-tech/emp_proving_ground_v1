@@ -11,8 +11,9 @@ a NoOp fallback that is safe and never raises.
 """
 
 from __future__ import annotations
-from typing import Any, Dict, Protocol, runtime_checkable
+
 import logging
+from typing import Any, Dict, Protocol, runtime_checkable
 
 logger = logging.getLogger(__name__)
 

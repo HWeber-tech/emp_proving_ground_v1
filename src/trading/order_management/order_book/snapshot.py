@@ -2,6 +2,8 @@
 Canonical order book models for trading domain.
 """
 
+from __future__ import annotations
+
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import List, Optional
@@ -19,8 +21,8 @@ class OrderBookLevel:
 class OrderBookSnapshot:
     symbol: str
     timestamp: datetime
-    bids: List[OrderBookLevel] = field(default_factory=list)
-    asks: List[OrderBookLevel] = field(default_factory=list)
+    bids: list[OrderBookLevel] = field(default_factory=list)
+    asks: list[OrderBookLevel] = field(default_factory=list)
     spread: float = 0.0
     mid_price: float = 0.0
     best_bid: float = 0.0

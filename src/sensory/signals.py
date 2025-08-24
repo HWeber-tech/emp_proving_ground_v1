@@ -2,8 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import List, Optional
-from typing import cast
+from typing import List, Optional, cast
 
 
 @dataclass
@@ -28,5 +27,5 @@ class IntegratedSignal:
     direction: float
     strength: float
     confidence: float
-    contributing: List[str] = field(default_factory=list)
+    contributing: list[str] = field(default_factory=list)
     timestamp: datetime = field(default_factory=datetime.utcnow)

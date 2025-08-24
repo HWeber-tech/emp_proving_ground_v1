@@ -7,6 +7,8 @@ This package provides human interface capabilities for the EMP system:
 - Event monitoring and broadcasting
 """
 
+from __future__ import annotations
+
 from .cli.main_cli import app as cli_app
 from .ui_manager import UIManager
 

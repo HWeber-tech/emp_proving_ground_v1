@@ -11,15 +11,16 @@ and be injected at runtime by orchestration.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from decimal import Decimal
-from typing import Optional, Protocol, runtime_checkable, cast
-from collections.abc import Mapping
+from typing import Optional, Protocol, cast, runtime_checkable
 
 
 @dataclass
 class RiskConfigDecl:
     """Lightweight risk configuration placeholder for consumers that need it."""
+
     max_risk_per_trade_pct: Decimal = Decimal("0.02")
     max_leverage: Decimal = Decimal("10.0")
     max_total_exposure_pct: Decimal = Decimal("0.5")
@@ -37,7 +38,12 @@ class RiskManagerPort(Protocol):
     to avoid coupling to concrete types.
     """
 
-    def validate_position(self, position: Mapping[str, object], instrument: Mapping[str, object] | object, equity: Decimal | float) -> bool:
+    def validate_position(
+        self,
+        position: Mapping[str, object],
+        instrument: Mapping[str, object] | object,
+        equity: Decimal | float,
+    ) -> bool:
         """
         Validate a position given an instrument and account equity.
         Returns True if the position is acceptable under risk constraints.
@@ -51,7 +57,12 @@ class NoOpRiskManager:
     def __init__(self, config: Optional[RiskConfigDecl] = None) -> None:
         self.config = config or RiskConfigDecl()
 
-    def validate_position(self, position: Mapping[str, object], instrument: Mapping[str, object] | object, equity: Decimal | float) -> bool:
+    def validate_position(
+        self,
+        position: Mapping[str, object],
+        instrument: Mapping[str, object] | object,
+        equity: Decimal | float,
+    ) -> bool:
         try:
             # Perform trivial sanity checks without rejecting
             raw_qty = position.get("quantity", 0)

@@ -1,0 +1,19 @@
+Mypy Summary
+Generated: 2025-08-23T19:58:46Z UTC
+Snapshot: /home/dev/emp_proving_ground_v1-1/mypy_snapshots/mypy_snapshot_2025-08-23T19-58-45Z.txt
+
+Total errors: 8
+
+Top 15 error codes:
+  unknown                        8
+
+Errors by top-level package:
+  sensory                        6
+  data_integration               1
+  market_intelligence            1
+
+Errors by module prefix:
+  sensory.organs                 6
+  data_integration.dukascopy_ingestor.py 1
+  market_intelligence.dimensions 1
+

@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 from typing import Optional
 
 from src.core.risk.manager import RiskManager as RiskManager  # canonical re-export
@@ -15,4 +16,3 @@ def get_global_risk_manager() -> RiskManager:
 
 
 __all__ = ["RiskManager", "get_global_risk_manager"]
-

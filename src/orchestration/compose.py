@@ -19,16 +19,18 @@ from __future__ import annotations
 
 import asyncio
 import importlib
-from typing import Any, Dict, List, Optional, TypedDict, cast
+from typing import Any
+from typing import Dict
 from typing import Dict as _Dict
+from typing import List, Optional, TypedDict, cast
 
-from src.core.market_data import MarketDataGateway, NoOpMarketDataGateway
-from src.core.anomaly import AnomalyDetector, NoOpAnomalyDetector, AnomalyEvent
-from src.core.regime import RegimeClassifier, NoOpRegimeClassifier, RegimeResult
-from src.core.risk_ports import RiskManagerPort, NoOpRiskManager
 from src.core.adaptation import AdaptationService, NoOpAdaptationService
+from src.core.anomaly import AnomalyDetector, AnomalyEvent, NoOpAnomalyDetector
 from src.core.config_access import ConfigurationProvider, NoOpConfigurationProvider
 from src.core.genome import GenomeProvider, NoOpGenomeProvider
+from src.core.market_data import MarketDataGateway, NoOpMarketDataGateway
+from src.core.regime import NoOpRegimeClassifier, RegimeClassifier, RegimeResult
+from src.core.risk_ports import NoOpRiskManager, RiskManagerPort
 
 
 class ComposeAdaptersTD(TypedDict, total=False):
@@ -99,9 +101,7 @@ class MarketDataGatewayAdapter:
         Implementation runs the synchronous fetch in a worker thread.
         """
         try:
-            return await asyncio.to_thread(
-                self.fetch_data, symbol, period, interval, start, end
-            )
+            return await asyncio.to_thread(self.fetch_data, symbol, period, interval, start, end)
         except Exception:
             return None
 
@@ -119,9 +119,7 @@ class AnomalyDetectorAdapter:
             self._system = system
             return
         try:
-            module = importlib.import_module(
-                "src.sensory.enhanced.anomaly.manipulation_detection"
-            )
+            module = importlib.import_module("src.sensory.enhanced.anomaly.manipulation_detection")
             sys_cls = getattr(module, "ManipulationDetectionSystem", None)
             if callable(sys_cls):
                 self._system = sys_cls()
@@ -161,7 +159,7 @@ class RegimeClassifierAdapter:
 
     async def detect_regime(self, data: Any) -> Optional[RegimeResult]:
         try:
-            import pandas as pd  # Local import to keep module import safe
+            import pandas as pd
 
             if not isinstance(data, pd.DataFrame) or "close" not in data.columns:
                 return RegimeResult(regime="UNKNOWN", confidence=0.0)
@@ -245,7 +243,9 @@ class AdaptationServiceAdapter:
         except Exception:
             return True
 
-    async def adapt_in_real_time(self, market_event: Any, strategy_response: Any, outcome: Any) -> Dict[str, Any]:
+    async def adapt_in_real_time(
+        self, market_event: Any, strategy_response: Any, outcome: Any
+    ) -> Dict[str, Any]:
         try:
             if self._engine is None:
                 return {"success": False, "quality": 0.0, "adaptations": [], "confidence": 0.0}
@@ -265,7 +265,12 @@ class AdaptationServiceAdapter:
             else:
                 d = {}
                 # Extract common attributes if present on dataclass-like result
-                for key in ("confidence", "adaptation_strength", "pattern_relevance", "risk_adjustment"):
+                for key in (
+                    "confidence",
+                    "adaptation_strength",
+                    "pattern_relevance",
+                    "risk_adjustment",
+                ):
                     try:
                         d[key] = getattr(res, key)  # type: ignore[attr-defined]
                     except Exception:
@@ -298,6 +303,8 @@ class AdaptationServiceAdapter:
             }
         except Exception:
             return {"success": False, "quality": 0.0, "adaptations": [], "confidence": 0.0}
+
+
 class ConfigurationProviderAdapter:
     """
     Adapter that exposes governance.system_config through the ConfigurationProvider port.
@@ -422,7 +429,13 @@ class GenomeProviderAdapterFactory:
             import time as _time
 
             class _LocalNoOp:
-                def new_genome(self, id: str, parameters: Dict[str, float], generation: int = 0, species_type: Optional[str] = None) -> Any:
+                def new_genome(
+                    self,
+                    id: str,
+                    parameters: Dict[str, float],
+                    generation: int = 0,
+                    species_type: Optional[str] = None,
+                ) -> Any:
                     return {
                         "id": str(id),
                         "parameters": dict(parameters or {}),
@@ -473,6 +486,8 @@ class GenomeProviderAdapterFactory:
                 "from_legacy": lambda o: o,
                 "to_legacy_view": lambda g: {},
             }
+
+
 def compose_validation_adapters() -> ComposeAdaptersTD:
     """
     Compose and return default adapters for validation or orchestration flows.
@@ -511,9 +526,7 @@ def compose_validation_adapters() -> ComposeAdaptersTD:
 
     # Anomaly detector
     try:
-        module = importlib.import_module(
-            "src.sensory.enhanced.anomaly.manipulation_detection"
-        )
+        module = importlib.import_module("src.sensory.enhanced.anomaly.manipulation_detection")
         sys_cls = getattr(module, "ManipulationDetectionSystem", None)
         system = sys_cls() if callable(sys_cls) else None
         if system is not None:
@@ -556,7 +569,9 @@ def compose_validation_adapters() -> ComposeAdaptersTD:
         try:
             core_mod = importlib.import_module("src.core.genome")
             noop_cls = getattr(core_mod, "NoOpGenomeProvider", None)
-            gp_fallback: GenomeProvider = cast(GenomeProvider, noop_cls()) if callable(noop_cls) else NoOpGenomeProvider()
+            gp_fallback: GenomeProvider = (
+                cast(GenomeProvider, noop_cls()) if callable(noop_cls) else NoOpGenomeProvider()
+            )
             adapters["genome_provider"] = gp_fallback
         except Exception:
             adapters["genome_provider"] = NoOpGenomeProvider()

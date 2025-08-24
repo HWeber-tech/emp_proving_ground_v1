@@ -34,6 +34,7 @@ class MarketRegime(Enum):
 @dataclass
 class InstrumentMeta:
     """Lightweight instrument metadata placeholder."""
+
     symbol: str = "UNKNOWN"
     tick_size: float = 0.0
     lot_size: float = 0.0
@@ -48,6 +49,7 @@ class DimensionalReading:
     Notes:
     - Provides a legacy `.value` property that aliases to `signal_strength`.
     """
+
     dimension: str
     signal_strength: float
     confidence: float = 0.0
@@ -56,7 +58,7 @@ class DimensionalReading:
     data_quality: float = 1.0
     processing_time_ms: float = 0.0
     evidence: dict[str, object] = field(default_factory=dict)
-    warnings: List[str] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
 
     @property
     def value(self) -> float:
@@ -123,7 +125,9 @@ class MarketData:
         self.low: float = _to_float(low_in, default=min(self.open, self.close))
 
         # Volume
-        self.volume: float = _to_float(cast(Optional[Union[float, int, str]], kwargs.pop("volume", None)), default=0.0)
+        self.volume: float = _to_float(
+            cast(Optional[Union[float, int, str]], kwargs.pop("volume", None)), default=0.0
+        )
 
         # Accept and ignore legacy extras
         kwargs.pop("volatility", None)  # accepted but not used

@@ -13,7 +13,7 @@ class ExecContext:
     size_ratio: float
 
 
-def estimate_slippage_bps(ctx: ExecContext, cfg) -> float:
+def estimate_slippage_bps(ctx: ExecContext, cfg: ExecutionConfig) -> float:
     # Simple monotonic function consistent with test expectations
     s = max(ctx.spread, 0.0)
     imb = max(ctx.top_imbalance, 0.0)

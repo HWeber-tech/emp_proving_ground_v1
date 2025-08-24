@@ -1,0 +1,15 @@
+Mypy Summary
+Generated: 2025-08-24T17:44:18Z UTC
+Snapshot: mypy_snapshots/mypy_snapshot_2025-08-24T17-44-01Z.txt
+
+Total errors: 1
+
+Top 15 error codes:
+  unknown                        1
+
+Errors by top-level package:
+  pnl.py                         1
+
+Errors by module prefix:
+  pnl.py                         1
+

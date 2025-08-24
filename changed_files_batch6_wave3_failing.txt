@@ -1,0 +1,15 @@
+src/data_foundation/ingest/yahoo_ingest.py
+src/governance/audit_logger.py
+src/governance/strategy_registry.py
+src/performance/vectorized_indicators.py
+src/sensory/organs/dimensions/anomaly_detection.py
+src/sensory/organs/dimensions/anomaly_dimension.py
+src/sensory/organs/dimensions/chaos_dimension.py
+src/sensory/organs/dimensions/temporal_system.py
+src/sensory/organs/fix_sensory_organ.py
+src/sensory/organs/yahoo_finance_organ.py
+src/sensory/what/features/swing_analysis.py
+src/thinking/analysis/risk_analyzer.py
+src/thinking/analysis/volume_analysis.py
+src/trading/integration/fix_broker_interface.py
+src/trading/monitoring/portfolio_tracker.py

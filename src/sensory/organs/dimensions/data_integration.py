@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import List
@@ -8,10 +10,10 @@ import numpy as np
 @dataclass
 class DataOrderBookSnapshot:
     timestamp: datetime
-    bids: List[float] = field(default_factory=list)  # Sorted descending
-    asks: List[float] = field(default_factory=list)  # Sorted ascending
-    bid_volumes: List[float] = field(default_factory=list)
-    ask_volumes: List[float] = field(default_factory=list)
+    bids: list[float] = field(default_factory=list)  # Sorted descending
+    asks: list[float] = field(default_factory=list)  # Sorted ascending
+    bid_volumes: list[float] = field(default_factory=list)
+    ask_volumes: list[float] = field(default_factory=list)
 
     def best_bid(self) -> float:
         return self.bids[0] if self.bids else 0.0

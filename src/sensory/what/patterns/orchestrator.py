@@ -22,7 +22,7 @@ class PatternOrchestrator:
     def __init__(self) -> None:
         self.engine = PatternSynthesisEngine()
 
-    async def analyze(self, market_data: pd.DataFrame) -> Dict[str, Any]:
+    async def analyze(self, market_data: pd.DataFrame) -> dict[str, Any]:
         """
         Run the full pattern synthesis pipeline and return a dict payload.
 

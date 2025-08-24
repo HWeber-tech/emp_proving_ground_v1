@@ -8,8 +8,8 @@ Phase 1/2 approach: re-export from thinking implementation to avoid code moves.
 Later phases may relocate the implementation fully under src/ecosystem/.
 """
 
-from src.thinking.ecosystem.specialized_predator_evolution import (
-    SpeciesManager as SpeciesManager,
-)
+from __future__ import annotations
+
+from src.thinking.ecosystem.specialized_predator_evolution import SpeciesManager as SpeciesManager
 
 __all__ = ["SpeciesManager"]

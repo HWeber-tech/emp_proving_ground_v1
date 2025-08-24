@@ -8,7 +8,6 @@ Canonical implementation resides at:
 This module re-exports the canonical class to maintain backward compatibility
 for imports that reference src.thinking.learning.real_time_learner.
 """
-
 from __future__ import annotations
 
 from src.sentient.learning.real_time_learning_engine import (

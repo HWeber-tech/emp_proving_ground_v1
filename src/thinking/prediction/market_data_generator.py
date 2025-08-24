@@ -11,7 +11,6 @@ Where:
 - difficulty_level can be a string: {"easy","medium","hard","extreme"} or a float in [0,1]
 - target_strategies is accepted for backward-compat but not required by the canonical shape
 """
-
 from __future__ import annotations
 
 import uuid
@@ -21,9 +20,7 @@ from typing import Any, Dict, List, Tuple
 
 import numpy as np
 
-from src.thinking.prediction.predictive_market_modeler import (
-    MarketScenario as MarketScenario,
-)
+from src.thinking.prediction.predictive_market_modeler import MarketScenario as MarketScenario
 
 
 class MarketDataGenerator:
@@ -35,7 +32,7 @@ class MarketDataGenerator:
 
     def __init__(self) -> None:
         # String difficulty presets mapped to (volatility, noise)
-        self._presets: Dict[str, Tuple[float, float]] = {
+        self._presets: dict[str, tuple[float, float]] = {
             "easy": (0.01, 0.02),
             "medium": (0.02, 0.04),
             "hard": (0.04, 0.08),
@@ -44,9 +41,9 @@ class MarketDataGenerator:
 
     async def generate_scenarios(
         self,
-        difficulty_level: object,
+        difficulty_level: str | float | int | Decimal,
         num_scenarios: int = 100,
-    ) -> List[MarketScenario]:
+    ) -> list[MarketScenario]:
         """
         Generate canonical market scenarios.
 
@@ -56,11 +53,11 @@ class MarketDataGenerator:
           num_scenarios: number of scenarios to generate
 
         Returns:
-          List[MarketScenario] (canonical)
+          list[MarketScenario] (canonical)
         """
         vol, noise = self._difficulty_params(difficulty_level)
 
-        scenarios: List[MarketScenario] = []
+        scenarios: list[MarketScenario] = []
         for _ in range(max(0, num_scenarios)):
             price_path = self._generate_price_path(
                 base_price=100.0,
@@ -83,7 +80,9 @@ class MarketDataGenerator:
 
         return scenarios
 
-    def _difficulty_params(self, difficulty_level: object) -> Tuple[float, float]:
+    def _difficulty_params(
+        self, difficulty_level: str | float | int | Decimal
+    ) -> tuple[float, float]:
         """
         Resolve difficulty into (volatility, noise) tuple.
         Accepts preset strings or float in [0,1].
@@ -115,7 +114,7 @@ class MarketDataGenerator:
         volatility: float,
         noise_level: float,
         days: int = 30,
-    ) -> List[float]:
+    ) -> list[float]:
         """
         Generate a price path with regime shifts and noise to stress strategies.
         """

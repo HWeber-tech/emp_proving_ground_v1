@@ -12,7 +12,7 @@ class AdversarialSelector:
     def __init__(self, **kwargs: object) -> None:
         self.params = kwargs
 
-    def select(self, population: Sequence[object] | None, k: int = 1) -> List[object]:
+    def select(self, population: Sequence[object] | None, k: int = 1) -> list[object]:
         """
         No-op stub: returns the first k items from the population (if provided).
         """

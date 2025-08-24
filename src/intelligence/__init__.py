@@ -12,7 +12,6 @@ Design goals:
 - Avoid import-time side effects (no logging/I/O/thread starts)
 - Keep heavy imports localized inside functions/methods
 """
-
 from __future__ import annotations
 
 import logging
@@ -36,7 +35,7 @@ __all__ = [
 # Lazy mapping of public names to their canonical modules
 # We point to the intelligence facades for stability; they in turn may lazily
 # resolve canonical thinking.* implementations.
-_LAZY_EXPORTS: Dict[str, str] = {
+_LAZY_EXPORTS: dict[str, str] = {
     "SentientAdaptationEngine": "src.intelligence.sentient_adaptation:SentientAdaptationEngine",
     "PredictiveMarketModeler": "src.intelligence.predictive_modeling:PredictiveMarketModeler",
     "MarketGAN": "src.intelligence.adversarial_training:MarketGAN",
@@ -53,13 +52,14 @@ def __getattr__(name: str) -> Any:
     target = _LAZY_EXPORTS.get(name)
     if target:
         import importlib
+
         mod_path, attr = target.split(":")
         mod = importlib.import_module(mod_path)
         return getattr(mod, attr)
     raise AttributeError(name)
 
 
-def __dir__() -> List[str]:
+def __dir__() -> list[str]:
     return sorted(list(globals().keys()) + __all__)
 
 
@@ -84,14 +84,14 @@ class Phase3IntelligenceOrchestrator:
         from datetime import timedelta  # noqa: F401  (used by clients)
 
         # Resolve facades lazily from this package to preserve public path
-        SentientAdaptationEngine = __getattr__("SentientAdaptationEngine")  # type: ignore
-        PredictiveMarketModeler = __getattr__("PredictiveMarketModeler")  # type: ignore
-        MarketGAN = __getattr__("MarketGAN")  # type: ignore
-        AdversarialTrainer = __getattr__("AdversarialTrainer")  # type: ignore
-        RedTeamAI = __getattr__("RedTeamAI")  # type: ignore
-        SpecializedPredatorEvolution = __getattr__("SpecializedPredatorEvolution")  # type: ignore
-        PortfolioEvolutionEngine = __getattr__("PortfolioEvolutionEngine")  # type: ignore
-        CompetitiveIntelligenceSystem = __getattr__("CompetitiveIntelligenceSystem")  # type: ignore
+        SentientAdaptationEngine = __getattr__("SentientAdaptationEngine")
+        PredictiveMarketModeler = __getattr__("PredictiveMarketModeler")
+        MarketGAN = __getattr__("MarketGAN")
+        AdversarialTrainer = __getattr__("AdversarialTrainer")
+        RedTeamAI = __getattr__("RedTeamAI")
+        SpecializedPredatorEvolution = __getattr__("SpecializedPredatorEvolution")
+        PortfolioEvolutionEngine = __getattr__("PortfolioEvolutionEngine")
+        CompetitiveIntelligenceSystem = __getattr__("CompetitiveIntelligenceSystem")
 
         # Instantiate components
         self.sentient_engine = SentientAdaptationEngine()
@@ -121,7 +121,9 @@ class Phase3IntelligenceOrchestrator:
                 if inspect.isawaitable(res):
                     await res
 
-    async def run_intelligence_cycle(self, market_data: Dict[str, Any], current_strategies: List[Any]) -> Dict[str, Any]:
+    async def run_intelligence_cycle(
+        self, market_data: dict[str, Any], current_strategies: list[Any]
+    ) -> dict[str, Any]:
         """Run complete intelligence cycle."""
         from datetime import datetime, timedelta
 
@@ -133,7 +135,7 @@ class Phase3IntelligenceOrchestrator:
         assert self.portfolio_evolution is not None
         assert self.competitive_intelligence is not None
 
-        results: Dict[str, Any] = {
+        results: dict[str, Any] = {
             "timestamp": datetime.utcnow(),
             "sentient_adaptations": [],
             "predictions": [],
@@ -146,17 +148,17 @@ class Phase3IntelligenceOrchestrator:
 
         # 1. Sentient adaptation
         for strategy in current_strategies:
-            adaptation = await self.sentient_engine.adapt_in_real_time(market_data, strategy, {})  # type: ignore[attr-defined]
+            adaptation = await self.sentient_engine.adapt_in_real_time(market_data, strategy, {})
             results["sentient_adaptations"].append(adaptation)
 
         # 2. Predictive modeling
-        predictions = await self.predictive_modeler.predict_market_scenarios(  # type: ignore[attr-defined]
+        predictions = await self.predictive_modeler.predict_market_scenarios(
             market_data, timedelta(hours=24)
         )
         results["predictions"] = predictions
 
         # 3. Adversarial training
-        improved_strategies = await self.adversarial_trainer.train_adversarial_strategies(  # type: ignore[attr-defined]
+        improved_strategies = await self.adversarial_trainer.train_adversarial_strategies(
             current_strategies
         )
         results["adversarial_results"] = improved_strategies
@@ -164,29 +166,29 @@ class Phase3IntelligenceOrchestrator:
         # 4. Red team testing
         red_team_findings = []
         for strategy in improved_strategies:
-            findings = await self.red_team.attack_strategy(strategy)  # type: ignore[attr-defined]
+            findings = await self.red_team.attack_strategy(strategy)
             red_team_findings.append(findings)
         results["red_team_findings"] = red_team_findings
 
         # 5. Specialized predator evolution
-        specialized_predators = await self.specialized_evolution.evolve_specialized_predators()  # type: ignore[attr-defined]
+        specialized_predators = await self.specialized_evolution.evolve_specialized_predators()
         results["specialized_predators"] = specialized_predators
 
         # 6. Portfolio evolution
-        portfolio_result = await self.portfolio_evolution.evolve_portfolio(  # type: ignore[attr-defined]
+        portfolio_result = await self.portfolio_evolution.evolve_portfolio(
             current_strategies, market_data
         )
         results["portfolio_evolution"] = portfolio_result
 
         # 7. Competitive intelligence
-        competitive_analysis = await self.competitive_intelligence.analyze_competitive_landscape(  # type: ignore[attr-defined]
+        competitive_analysis = await self.competitive_intelligence.analyze_competitive_landscape(
             market_data, {"market_share": 0.15, "win_rate": 0.65}
         )
         results["competitive_intelligence"] = competitive_analysis
 
         return results
 
-    async def get_phase3_status(self) -> Dict[str, Any]:
+    async def get_phase3_status(self) -> dict[str, Any]:
         """Get status of all Phase 3 systems."""
         assert self.sentient_engine is not None
         assert self.predictive_modeler is not None
@@ -197,13 +199,13 @@ class Phase3IntelligenceOrchestrator:
         assert self.competitive_intelligence is not None
 
         return {
-            "sentient_engine": self.sentient_engine.get_status(),  # type: ignore[attr-defined]
-            "predictive_modeler": self.predictive_modeler.get_status(),  # type: ignore[attr-defined]
-            "adversarial_trainer": self.adversarial_trainer.get_status(),  # type: ignore[attr-defined]
-            "red_team": self.red_team.get_status(),  # type: ignore[attr-defined]
-            "specialized_evolution": self.specialized_evolution.get_status(),  # type: ignore[attr-defined]
-            "portfolio_evolution": self.portfolio_evolution.get_evolution_stats(),  # type: ignore[attr-defined]
-            "competitive_intelligence": self.competitive_intelligence.get_intelligence_summary(),  # type: ignore[attr-defined]
+            "sentient_engine": self.sentient_engine.get_status(),
+            "predictive_modeler": self.predictive_modeler.get_status(),
+            "adversarial_trainer": self.adversarial_trainer.get_status(),
+            "red_team": self.red_team.get_status(),
+            "specialized_evolution": self.specialized_evolution.get_status(),
+            "portfolio_evolution": self.portfolio_evolution.get_evolution_stats(),
+            "competitive_intelligence": self.competitive_intelligence.get_intelligence_summary(),
         }
 
 

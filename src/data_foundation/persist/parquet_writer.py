@@ -10,7 +10,7 @@ except Exception:  # pragma: no cover
     pd = None
 
 
-def write_events_parquet(events: List[Dict[str, Any]], out_dir: str, partition: str) -> str:
+def write_events_parquet(events: list[dict[str, Any]], out_dir: str, partition: str) -> str:
     """Write a list of dict events to Parquet under out_dir/partition=.../file.parquet.
     Returns the file path (or empty string if pandas not available).
     """
@@ -27,5 +27,3 @@ def write_events_parquet(events: List[Dict[str, Any]], out_dir: str, partition: 
         return path
     except Exception:
         return ""
-
-

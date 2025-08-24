@@ -1,0 +1,7 @@
+src/market_intelligence/dimensions/__init__.py
+src/thinking/analysis/correlation_analyzer.py
+src/thinking/analysis/market_analyzer.py
+src/trading/monitoring/__init__.py
+src/trading/monitoring/portfolio_monitor.py
+src/trading/risk_management/__init__.py
+src/ui/cli/__init__.py

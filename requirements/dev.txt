@@ -2,6 +2,7 @@ mypy==1.*
 ruff==0.6.*
 black==24.*
 pre-commit>=3.7,<4
+import-linter>=2.0,<3  # architecture contracts
 types-PyYAML
 pandas-stubs
 types-psutil

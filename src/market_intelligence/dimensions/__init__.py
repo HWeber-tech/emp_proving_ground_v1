@@ -8,6 +8,9 @@ These wrappers map legacy engine names to the canonical sensory engines in:
 - src.sensory.organs.dimensions.why_organ
 - src.sensory.organs.dimensions.anomaly_dimension
 """
+
+from __future__ import annotations
+
 __all__ = [
     "EnhancedFundamentalIntelligenceEngine",
     "InstitutionalIntelligenceEngine",

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import threading
 import time
 from typing import TypedDict, cast
@@ -12,7 +14,7 @@ class _InMemoryCache:
         self._store[key] = value
         self._expiry[key] = time.time() + ttl_seconds
 
-    def get(self, key: str, default: object = None) -> object:
+    def get(self, key: str, default: object | None = None) -> object | None:
         expires = self._expiry.get(key)
         if expires is not None and time.time() > expires:
             self._store.pop(key, None)
@@ -20,11 +22,13 @@ class _InMemoryCache:
             return default
         return self._store.get(key, default)
 
+
 class MarketDataCache:
     """Simple in-memory market data cache with minimal API, plus legacy set/get support."""
+
     def __init__(self) -> None:
         # Symbol snapshot store
-        self._data: dict[str, "_Snapshot"] = {}
+        self._data: dict[str, _Snapshot] = {}
         # Legacy generic KV store with TTL
         self._kv_store: dict[str, object] = {}
         self._kv_expiry: dict[str, float] = {}
@@ -33,15 +37,15 @@ class MarketDataCache:
     # Minimal snapshot API
     def put_snapshot(self, symbol: str, bid: float, ask: float, ts: float | str) -> None:
         """Store a snapshot for a symbol."""
-        snapshot: "_Snapshot" = {"symbol": symbol, "bid": float(bid), "ask": float(ask), "ts": ts}
+        snapshot: _Snapshot = {"symbol": symbol, "bid": float(bid), "ask": float(ask), "ts": ts}
         with self._lock:
             self._data[symbol] = snapshot
 
-    def get_snapshot(self, symbol: str) -> "_Snapshot | None":
+    def get_snapshot(self, symbol: str) -> _Snapshot | None:
         """Retrieve the latest snapshot for a symbol."""
         with self._lock:
             snap = self._data.get(symbol)
-            return cast("_Snapshot", dict(snap)) if snap is not None else None
+            return cast(_Snapshot, dict(snap)) if snap is not None else None
 
     def maybe_get_mid(self, symbol: str) -> float | None:
         """Return (bid+ask)/2 for the symbol if available, else None."""
@@ -59,7 +63,7 @@ class MarketDataCache:
             self._kv_store[key] = value
             self._kv_expiry[key] = time.time() + ttl_seconds
 
-    def get(self, key: str, default: object = None) -> object:
+    def get(self, key: str, default: object | None = None) -> object | None:
         with self._lock:
             expires = self._kv_expiry.get(key)
             if expires is not None and time.time() > expires:
@@ -67,6 +71,7 @@ class MarketDataCache:
                 self._kv_expiry.pop(key, None)
                 return default
             return self._kv_store.get(key, default)
+
 
 _global_cache: MarketDataCache | None = None
 
@@ -77,8 +82,10 @@ def get_global_cache() -> MarketDataCache:
         _global_cache = MarketDataCache()
     return _global_cache
 
+
 # Backward compatibility: legacy in-memory KV cache alias
 LegacyInMemoryCache = _InMemoryCache
+
 
 class _Snapshot(TypedDict):
     symbol: str

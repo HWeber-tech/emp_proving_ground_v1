@@ -1,10 +1,9 @@
 from __future__ import annotations
 
 import importlib
-from typing import Dict
 
 # PEP 562 lazy forwarding to canonical sensory implementation
-_LAZY_EXPORTS: Dict[str, str] = {
+_LAZY_EXPORTS: dict[str, str] = {
     "InstitutionalIntelligenceEngine": "src.sensory.enhanced.how_dimension:InstitutionalIntelligenceEngine",
 }
 

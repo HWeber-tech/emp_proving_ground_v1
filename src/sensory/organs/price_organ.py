@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, cast
 
 import numpy as np
 
@@ -80,11 +80,14 @@ class PriceOrgan(SensoryOrgan):
                 signal_type="price_composite",
                 value=combined_signal.value,
                 confidence=combined_signal.confidence,
-                metadata={
-                    "signals": [s.__dict__ for s in signals],
-                    "price_history_length": len(self._price_history),
-                    "organ_id": "price_organ",
-                },
+                metadata=cast(
+                    dict[str, object],
+                    {
+                        "signals": [s.__dict__ for s in signals],
+                        "price_history_length": len(self._price_history),
+                        "organ_id": "price_organ",
+                    },
+                ),
             )
 
         except Exception as e:

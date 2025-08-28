@@ -27,23 +27,23 @@ try:
     from src.genome.models.genome import mutate as _mutate
     from src.genome.models.genome import new_genome as _new_genome
 except Exception:
-    _DecisionGenome = None
-    _mutate = None
-    _new_genome = None
+    _DecisionGenome: Any = None
+    _mutate: Any = None
+    _new_genome: Any = None
 
 try:
     from src.genome.models.adapters import from_legacy as _from_legacy
     from src.genome.models.adapters import to_legacy_view as _to_legacy_view
 except Exception:
-    _from_legacy = None
-    _to_legacy_view = None
+    _from_legacy: Any = None
+    _to_legacy_view: Any = None
 
 
 def _coerce_float_map(mapping: Any) -> Dict[str, float]:
     """Best-effort coercion of mapping/object to Dict[str, float]."""
     result: Dict[str, float] = {}
     try:
-        items = mapping.items() if isinstance(mapping, dict) else vars(mapping).items()
+        items: Any = mapping.items() if isinstance(mapping, dict) else vars(mapping).items()
     except Exception:
         return result
     for k, v in items:
@@ -116,6 +116,16 @@ class _FallbackGenome:
         }
 
 
+def _is_decision_genome(obj: Any) -> bool:
+    """Runtime-safe isinstance check that avoids mypy 'type expected' issues."""
+    try:
+        from src.genome.models.genome import DecisionGenome as _DG  # local import
+
+        return isinstance(obj, _DG)
+    except Exception:
+        return False
+
+
 class GenomeProviderAdapter:
     """
     Adapter conforming to core GenomeProvider Protocol.
@@ -159,11 +169,7 @@ class GenomeProviderAdapter:
 
     def mutate(self, genome: Any, mutation: str, new_params: Dict[str, float]) -> Any:
         try:
-            if (
-                callable(_mutate)
-                and _DecisionGenome is not None
-                and isinstance(genome, _DecisionGenome)
-            ):
+            if callable(_mutate) and _is_decision_genome(genome):
                 return _mutate(genome, mutation, new_params)
         except Exception as e:
             logger.error("GenomeProviderAdapter.mutate failed via concrete impl: %s", e)
@@ -174,7 +180,7 @@ class GenomeProviderAdapter:
             updates = _coerce_float_map(new_params or {})
             updated.update(updates)
 
-            mh = list(getattr(genome, "mutation_history", []) or [])
+            mh: list[str] = list(getattr(genome, "mutation_history", []) or [])
             gen = getattr(genome, "generation", 0)
             try:
                 gen_i = int(gen)
@@ -211,36 +217,33 @@ class GenomeProviderAdapter:
             logger.error("GenomeProviderAdapter.from_legacy failed via concrete impl: %s", e)
         # Fallback adaptation
         try:
-            get = (
-                (lambda o, k, d=None: o.get(k, d))
-                if isinstance(obj, dict)
-                else (lambda o, k, d=None: getattr(o, k, d))
-            )
+
+            def _get(o: Any, k: str, d: Any = None) -> Any:
+                if isinstance(o, dict):
+                    return o.get(k, d)
+                return getattr(o, k, d)
+
             return _FallbackGenome(
-                id=str(get(obj, "id", f"fallback_{int(time.time()*1000)}")),
-                parameters=_coerce_float_map(get(obj, "parameters", {}) or {}),
+                id=str(_get(obj, "id", f"fallback_{int(time.time()*1000)}")),
+                parameters=_coerce_float_map(_get(obj, "parameters", {}) or {}),
                 fitness=None,
-                generation=int(get(obj, "generation", 0) or 0),
+                generation=int(_get(obj, "generation", 0) or 0),
                 species_type=(
-                    str(get(obj, "species_type", None))
-                    if get(obj, "species_type", None) is not None
+                    str(_get(obj, "species_type", None))
+                    if _get(obj, "species_type", None) is not None
                     else None
                 ),
-                parent_ids=list(get(obj, "parent_ids", []) or []),
-                mutation_history=list(get(obj, "mutation_history", []) or []),
-                performance_metrics=_coerce_float_map(get(obj, "performance_metrics", {}) or {}),
-                created_at=float(get(obj, "created_at", time.time()) or time.time()),
+                parent_ids=list(_get(obj, "parent_ids", []) or []),
+                mutation_history=list(_get(obj, "mutation_history", []) or []),
+                performance_metrics=_coerce_float_map(_get(obj, "performance_metrics", {}) or {}),
+                created_at=float(_get(obj, "created_at", time.time()) or time.time()),
             )
         except Exception:
             return _FallbackGenome(id=f"fallback_{int(time.time()*1000)}")
 
     def to_legacy_view(self, genome: Any) -> Dict[str, Any] | Any:
         try:
-            if (
-                callable(_to_legacy_view)
-                and _DecisionGenome is not None
-                and isinstance(genome, _DecisionGenome)
-            ):
+            if callable(_to_legacy_view) and _is_decision_genome(genome):
                 return _to_legacy_view(genome)
         except Exception as e:
             logger.error("GenomeProviderAdapter.to_legacy_view failed via concrete impl: %s", e)

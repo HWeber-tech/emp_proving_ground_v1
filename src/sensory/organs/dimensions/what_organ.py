@@ -11,7 +11,7 @@ Phase: 2 - Sensory Cortex Refactoring
 
 import logging
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, cast
 
 import pandas as pd
 
@@ -178,7 +178,7 @@ class WhatEngine:
             return {}
 
         try:
-            return self.price_action.update_market_data(df)
+            return cast(Dict[str, Any], self.price_action.update_market_data(df))
         except Exception as e:
             logger.error(f"Error analyzing price action: {e}")
             return {}
@@ -239,7 +239,7 @@ class WhatEngine:
             return {"support_levels": [], "resistance_levels": []}
 
         try:
-            return self.price_action._identify_support_resistance(df)
+            return cast(Dict[str, List[float]], self.price_action._identify_support_resistance(df))
         except Exception as e:
             logger.error(f"Error identifying support/resistance: {e}")
             return {"support_levels": [], "resistance_levels": []}
@@ -250,7 +250,7 @@ class WhatEngine:
             return 0.0
 
         try:
-            return self.price_action.get_price_action_score(df)
+            return float(self.price_action.get_price_action_score(df))
         except Exception as e:
             logger.error(f"Error getting price action score: {e}")
             return 0.0

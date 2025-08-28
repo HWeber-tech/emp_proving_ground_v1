@@ -8,14 +8,18 @@ Provides trend direction, strength, and confidence metrics.
 import logging
 from dataclasses import dataclass
 from datetime import datetime
-from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Optional, Protocol, cast
+from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Optional, Protocol, TypeAlias, cast
 
 import numpy as np
 
-try:
-    from src.core.interfaces import AnalysisResult, SensorySignal, ThinkingPattern
-except Exception:  # pragma: no cover
-    ThinkingPattern = SensorySignal = AnalysisResult = object
+if TYPE_CHECKING:
+    from src.core.interfaces import AnalysisResult as AnalysisResult
+    from src.core.interfaces import SensorySignal as SensorySignal
+    from src.core.interfaces import ThinkingPattern as ThinkingPattern
+else:
+    ThinkingPattern: TypeAlias = Any
+    SensorySignal: TypeAlias = Any
+    AnalysisResult: TypeAlias = Dict[str, object]
 from src.core.exceptions import TradingException
 
 logger = logging.getLogger(__name__)
@@ -135,17 +139,19 @@ class TrendDetector(ThinkingPattern):
 
     def _extract_trend_signals(self, signals: List[SensorySignal]) -> List[SensorySignal]:
         """Extract signals relevant to trend detection."""
-        trend_signals = []
+        trend_signals: list[SensorySignal] = []
 
         for signal in signals:
-            if signal.signal_type in ["price_composite", "volume_composite", "momentum"]:
+            st = getattr(signal, "signal_type", None)
+            if isinstance(st, str) and st in ["price_composite", "volume_composite", "momentum"]:
                 trend_signals.append(signal)
 
         return trend_signals
 
     def _analyze_price_trend(self, signals: List[SensorySignal]) -> TrendAnalysis:
         """Analyze price trend from signals."""
-        price_signals = [s for s in signals if s.signal_type == "price_composite"]
+        sigs = cast(List[Any], signals)
+        price_signals = [s for s in sigs if s.signal_type == "price_composite"]
 
         if not price_signals:
             return TrendAnalysis(
@@ -167,7 +173,7 @@ class TrendDetector(ThinkingPattern):
         strength = min(float(abs(avg_value)), 1.0)
 
         # Calculate confidence
-        confidences = [s.confidence for s in recent_signals]
+        confidences = [float(s.confidence) for s in recent_signals]
         confidence = float(np.mean(confidences)) if confidences else 0.0
 
         # Calculate duration
@@ -183,7 +189,8 @@ class TrendDetector(ThinkingPattern):
 
     def _analyze_momentum_trend(self, signals: List[SensorySignal]) -> TrendAnalysis:
         """Analyze momentum trend from signals."""
-        momentum_signals = [s for s in signals if s.signal_type == "momentum"]
+        sigs = cast(List[Any], signals)
+        momentum_signals = [s for s in sigs if s.signal_type == "momentum"]
 
         if not momentum_signals:
             return TrendAnalysis(
@@ -205,7 +212,7 @@ class TrendDetector(ThinkingPattern):
         strength = min(float(abs(avg_momentum)), 1.0)
 
         # Calculate confidence
-        confidences = [s.confidence for s in recent_signals]
+        confidences = [float(s.confidence) for s in recent_signals]
         confidence = float(np.mean(confidences)) if confidences else 0.0
 
         return TrendAnalysis(
@@ -218,7 +225,8 @@ class TrendDetector(ThinkingPattern):
 
     def _analyze_volume_trend(self, signals: List[SensorySignal]) -> TrendAnalysis:
         """Analyze volume trend from signals."""
-        volume_signals = [s for s in signals if s.signal_type == "volume_composite"]
+        sigs = cast(List[Any], signals)
+        volume_signals = [s for s in sigs if s.signal_type == "volume_composite"]
 
         if not volume_signals:
             return TrendAnalysis(
@@ -240,7 +248,7 @@ class TrendDetector(ThinkingPattern):
         strength = min(float(abs(avg_volume)), 1.0)
 
         # Calculate confidence
-        confidences = [s.confidence for s in recent_signals]
+        confidences = [float(s.confidence) for s in recent_signals]
         confidence = float(np.mean(confidences)) if confidences else 0.0
 
         return TrendAnalysis(
@@ -320,11 +328,12 @@ class TrendDetector(ThinkingPattern):
         duration = 0
 
         for signal in reversed(signals):
-            if direction == "BULLISH" and signal.value > 0:
+            val = float(cast(Any, signal).value)
+            if direction == "BULLISH" and val > 0.0:
                 duration += 1
-            elif direction == "BEARISH" and signal.value < 0:
+            elif direction == "BEARISH" and val < 0.0:
                 duration += 1
-            elif direction == "NEUTRAL" and abs(signal.value) < 0.1:
+            elif direction == "NEUTRAL" and abs(val) < 0.1:
                 duration += 1
             else:
                 break
@@ -333,16 +342,19 @@ class TrendDetector(ThinkingPattern):
 
     def _create_neutral_result(self) -> AnalysisResult:
         """Create a neutral analysis result when no signals are available."""
-        return AnalysisResult(
-            timestamp=datetime.now(),
-            analysis_type="trend_detection",
-            result={
-                "trend_direction": "NEUTRAL",
-                "trend_strength": 0.0,
-                "trend_confidence": 0.0,
-                "trend_duration": 0,
-                "metadata": {},
+        return cast(
+            AnalysisResult,
+            {
+                "timestamp": datetime.now(),
+                "analysis_type": "trend_detection",
+                "result": {
+                    "trend_direction": "NEUTRAL",
+                    "trend_strength": 0.0,
+                    "trend_confidence": 0.0,
+                    "trend_duration": 0,
+                    "metadata": {},
+                },
+                "confidence": 0.0,
+                "metadata": {"signal_count": 0, "analysis_method": "neutral_fallback"},
             },
-            confidence=0.0,
-            metadata={"signal_count": 0, "analysis_method": "neutral_fallback"},
         )

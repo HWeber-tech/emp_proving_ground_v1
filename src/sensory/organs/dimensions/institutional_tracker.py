@@ -156,7 +156,7 @@ class InstitutionalFootprintHunter:
 
     def _market_data_to_dataframe(self, market_data: List[MarketData]) -> pd.DataFrame:
         """Convert market data to pandas DataFrame"""
-        data = []
+        data: list[dict[str, object]] = []
         for md in market_data:
             data.append(
                 {
@@ -166,10 +166,12 @@ class InstitutionalFootprintHunter:
                     "low": md.low,
                     "close": md.close,
                     "volume": md.volume,
-                    "bid": md.bid,
-                    "ask": md.ask,
-                    "spread": md.spread,
-                    "mid_price": md.mid_price,
+                    "bid": getattr(md, "bid", float(md.close)),
+                    "ask": getattr(md, "ask", float(md.close)),
+                    "spread": float(getattr(md, "spread", 0.0)),
+                    "mid_price": float(
+                        getattr(md, "mid_price", (float(md.high) + float(md.low)) / 2.0)
+                    ),
                 }
             )
 
@@ -252,16 +254,16 @@ class InstitutionalFootprintHunter:
         self, order_blocks: List[OrderBlock], fvgs: List[FairValueGap]
     ) -> List[float]:
         """Identify key institutional levels"""
-        levels = []
+        levels: list[float] = []
 
         # Add order block levels
         for ob in order_blocks:
-            levels.append(ob.price_level)
-            levels.append(ob.breaker_level)
+            levels.append(float(ob.price_level))
+            levels.append(float(ob.breaker_level))
 
         # Add FVG levels
         for fvg in fvgs:
-            levels.extend([fvg.start_price, fvg.end_price])
+            levels.extend([float(fvg.start_price), float(fvg.end_price)])
 
         # Remove duplicates and sort
         levels = list(set(levels))
@@ -538,11 +540,15 @@ class LiquidityAnalyzer:
 
     def _find_equal_levels(self, levels: np.ndarray, tolerance: float = 0.001) -> List[float]:
         """Find equal or near-equal price levels"""
-        equal_levels = []
+        equal_levels: list[float] = []
         for i, level in enumerate(levels):
             for j in range(i + 1, len(levels)):
-                if abs(level - levels[j]) / level <= tolerance:
-                    equal_levels.append(level)
+                # Normalize to float and guard division by zero
+                lv = float(level)
+                lj = float(levels[j])
+                den = lv if lv != 0.0 else 1.0
+                if abs(lv - lj) / den <= float(tolerance):
+                    equal_levels.append(lv)
         return equal_levels
 
 
@@ -637,11 +643,20 @@ class EnhancedHowAdapter:
             return MarketRegime.UNKNOWN
 
         if footprint.institutional_bias == "bullish":
-            return MarketRegime.BULLISH
+            from typing import Any as _Any
+            from typing import cast as _cast
+
+            return _cast(_Any, MarketRegime).BULLISH
         elif footprint.institutional_bias == "bearish":
-            return MarketRegime.BEARISH
+            from typing import Any as _Any
+            from typing import cast as _cast
+
+            return _cast(_Any, MarketRegime).BEARISH
         else:
-            return MarketRegime.RANGING
+            from typing import Any as _Any
+            from typing import cast as _cast
+
+            return _cast(_Any, MarketRegime).RANGING
 
 
 # Example usage

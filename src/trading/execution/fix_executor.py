@@ -10,21 +10,16 @@ backward compatibility and will be removed after migration.
 import asyncio
 import logging
 from datetime import datetime
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
-
-try:
-    from src.core.interfaces import IExecutionEngine
-except Exception:  # pragma: no cover
-
-    class IExecutionEngine:  # type: ignore
-        pass
-
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Protocol
 
 if TYPE_CHECKING:
-    from src.core.interfaces import IExecutionEngine as _IExecForTyping  # noqa: F401
+
+    class IExecutionEngine(Protocol):  # minimal typing surface
+        pass
+
 else:
 
-    class _IExecForTyping:  # runtime-friendly base if needed
+    class IExecutionEngine:
         pass
 
 

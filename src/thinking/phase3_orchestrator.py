@@ -21,7 +21,7 @@ import json
 import logging
 import uuid
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional, Protocol, Sequence, TypedDict, cast, runtime_checkable
+from typing import Any, Dict, List, Optional, Protocol, TypedDict, cast, runtime_checkable
 
 import numpy as np
 
@@ -119,7 +119,7 @@ class Phase3Orchestrator:
         )
 
         # Configuration
-        self.config = {
+        self.config: dict[str, object] = {
             "sentient_enabled": True,
             "predictive_enabled": True,
             "adversarial_enabled": True,
@@ -361,10 +361,11 @@ class Phase3Orchestrator:
                 success = False
 
             # Run red team attacks
-            red_team_results = []
+            red_team_results: list[dict[str, object]] = []
             for strategy in strategy_population[:5]:  # Test top 5 strategies
                 attack_result = await self.red_team.attack_strategy(strategy)
-                red_team_results.append(attack_result)
+                if isinstance(attack_result, dict):
+                    red_team_results.append(cast(dict[str, object], attack_result))
 
             # Red team report normalization (AttackReportTD-style)
             total_attacks = 0

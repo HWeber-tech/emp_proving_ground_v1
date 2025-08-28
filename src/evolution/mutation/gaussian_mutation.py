@@ -14,8 +14,10 @@ from typing import TYPE_CHECKING, Any, cast
 try:
     from src.core.interfaces import DecisionGenome, IMutationStrategy
 except Exception:  # pragma: no cover
-    IMutationStrategy = object
-    DecisionGenome = object
+    from typing import Any as _Any
+
+    IMutationStrategy = _Any  # type: ignore[assignment]
+    DecisionGenome = _Any  # type: ignore[assignment]
 
 logger = logging.getLogger(__name__)
 
@@ -126,9 +128,9 @@ class GaussianMutation(IMutationStrategy):
         for weight_name in sensory_weights:
             if random.random() < mutation_rate:
                 setattr(
-                    mutated.sensory,
+                    _m.sensory,
                     weight_name,
-                    self._mutate_parameter(getattr(mutated.sensory, weight_name), 0.0, 1.0),
+                    self._mutate_parameter(getattr(_m.sensory, weight_name), 0.0, 1.0),
                 )
                 mutated_any = True
 
@@ -142,9 +144,9 @@ class GaussianMutation(IMutationStrategy):
         for weight_name in thinking_weights:
             if random.random() < mutation_rate:
                 setattr(
-                    mutated.thinking,
+                    _m.thinking,
                     weight_name,
-                    self._mutate_parameter(getattr(mutated.thinking, weight_name), 0.0, 1.0),
+                    self._mutate_parameter(getattr(_m.thinking, weight_name), 0.0, 1.0),
                 )
                 mutated_any = True
 

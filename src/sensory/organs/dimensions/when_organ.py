@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, cast
 
 import numpy as np
 import pandas as pd
@@ -167,8 +167,8 @@ class WhenEngine:
             context=analysis,
             data_quality=1.0,
             processing_time_ms=0.0,
-            evidence={},
-            warnings=[],
+            evidence=cast(dict[str, object], {}),
+            warnings=cast(list[str], []),
         )
 
     def _analyze_regime_detection(self, df: pd.DataFrame) -> dict[str, Any]:

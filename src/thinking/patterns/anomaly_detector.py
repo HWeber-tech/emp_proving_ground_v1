@@ -8,14 +8,21 @@ Provides anomaly detection and classification capabilities.
 import logging
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Dict, List, Mapping, Optional, cast
+from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Optional, TypeAlias, cast
 
 import numpy as np
 
 try:
     from src.core.interfaces import AnalysisResult, SensorySignal, ThinkingPattern
 except Exception:  # pragma: no cover
-    ThinkingPattern = SensorySignal = AnalysisResult = object
+    # Minimal placeholders to avoid assigning names directly to a type
+    class ThinkingPattern:  # type: ignore[no-redef]
+        pass
+
+    class SensorySignal:  # type: ignore[no-redef]
+        pass
+
+    AnalysisResult: TypeAlias = Dict[str, object]
 from src.core.exceptions import TradingException
 
 logger = logging.getLogger(__name__)

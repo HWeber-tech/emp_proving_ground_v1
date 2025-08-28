@@ -144,7 +144,8 @@ class EcosystemOptimizer(IEcosystemOptimizer):
             }
         )
 
-        return coordinated_populations
+        # Narrow to the interface type expected by IEcosystemOptimizer while preserving runtime object
+        return cast(Mapping[str, Sequence["DecisionGenome"]], coordinated_populations)
 
     async def _calculate_optimal_distribution(
         self, niches: Dict[str, MarketNiche], performance_history: JSONObject

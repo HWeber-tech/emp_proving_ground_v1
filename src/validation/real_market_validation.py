@@ -99,7 +99,7 @@ class RealMarketValidationFramework:
         self.regime_classifier: RegimeClassifier = regime_classifier or NoOpRegimeClassifier()
 
         # Historical market events for validation
-        self.known_market_events = {
+        self.known_market_events: Dict[str, List[Dict[str, str]]] = {
             "flash_crash": [
                 {"date": "2010-05-06", "symbol": "^GSPC", "type": "flash_crash"},
                 {"date": "2015-08-24", "symbol": "^DJI", "type": "flash_crash"},
@@ -243,7 +243,7 @@ class RealMarketValidationFramework:
                 )
 
             # Detect regimes
-            regimes = []
+            regimes: List[Dict[str, object]] = []
             for i in range(20, len(data)):
                 window = data.iloc[i - 20 : i]
                 regime_result: Optional[RegimeResult] = await self.regime_classifier.detect_regime(

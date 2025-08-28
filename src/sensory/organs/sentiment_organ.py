@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime
-from typing import Any, Dict, Optional, Protocol
+from typing import Any, Dict, Optional, Protocol, cast
 
 from src.core.base import MarketData, SensoryOrgan, SensoryReading
 
@@ -32,12 +32,18 @@ class SentimentOrgan(SensoryOrgan):
             reading = SensoryReading(
                 organ_name=self.name,
                 timestamp=market_data.timestamp,
-                data={
-                    "overall_sentiment": sentiment_score,
-                    "confidence": 0.8,
-                    "source": "social_media",
-                },
-                metadata={"organ_version": "1.1.0", "processing_time_ms": 30},
+                data=cast(
+                    dict[str, object],
+                    {
+                        "overall_sentiment": sentiment_score,
+                        "confidence": 0.8,
+                        "source": "social_media",
+                    },
+                ),
+                metadata=cast(
+                    dict[str, object],
+                    {"organ_version": "1.1.0", "processing_time_ms": 30.0},
+                ),
             )
 
             logger.debug(f"Sentiment organ processed: sentiment={sentiment_score:.3f}")
@@ -59,6 +65,11 @@ class SentimentOrgan(SensoryOrgan):
         return SensoryReading(
             organ_name=self.name,
             timestamp=timestamp,
-            data={"overall_sentiment": 0.5, "confidence": 0.0, "source": "error"},
-            metadata={"organ_version": "1.1.0", "error": "Processing failed"},
+            data=cast(
+                dict[str, object],
+                {"overall_sentiment": 0.5, "confidence": 0.0, "source": "error"},
+            ),
+            metadata=cast(
+                dict[str, object], {"organ_version": "1.1.0", "error": "Processing failed"}
+            ),
         )

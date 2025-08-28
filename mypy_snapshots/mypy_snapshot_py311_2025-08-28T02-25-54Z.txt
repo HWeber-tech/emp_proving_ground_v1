@@ -1,0 +1,54 @@
+[mypy-py311] TS=2025-08-28T02-25-54Z
+[mypy-py311] Building image mypy-py311:latest from docker/mypy311/Dockerfile ...
+#0 building with "default" instance using docker driver
+
+#1 [internal] load build definition from Dockerfile
+#1 transferring dockerfile: 581B done
+#1 DONE 0.0s
+
+#2 resolve image config for docker-image://docker.io/docker/dockerfile:1.4
+#2 DONE 0.7s
+
+#3 docker-image://docker.io/docker/dockerfile:1.4@sha256:9ba7531bd80fb0a858632727cf7a112fbfd19b17e94c4e84ced81e24ef1a0dbc
+#3 CACHED
+
+#4 [internal] load .dockerignore
+#4 transferring context: 2B done
+#4 DONE 0.0s
+
+#5 [internal] load metadata for docker.io/library/python:3.11-slim
+#5 DONE 0.5s
+
+#6 [1/5] FROM docker.io/library/python:3.11-slim@sha256:1d6131b5d479888b43200645e03a78443c7157efbdb730e6b48129740727c312
+#6 DONE 0.0s
+
+#7 [internal] load build context
+#7 transferring context: 74B done
+#7 DONE 0.0s
+
+#8 [2/5] RUN apt-get update && apt-get install -y --no-install-recommends     build-essential     git     ca-certificates   && rm -rf /var/lib/apt/lists/*
+#8 CACHED
+
+#9 [3/5] WORKDIR /workspace
+#9 CACHED
+
+#10 [4/5] COPY requirements/dev.txt /tmp/dev.txt
+#10 CACHED
+
+#11 [5/5] RUN python -m pip install --upgrade pip &&     pip install -r /tmp/dev.txt
+#11 CACHED
+
+#12 exporting to image
+#12 exporting layers done
+#12 writing image sha256:3c55c1475f41fb9c913ae0b9d484dcb870e0e15e23071ac9f208c2401c385cd8 done
+#12 naming to docker.io/library/mypy-py311:latest done
+#12 DONE 0.0s
+[mypy-py311] Running mypy in container ...
+/usr/bin/sh: /usr/bin/sh: cannot execute binary file
+[mypy-py311] Capturing environment ...
+[mypy-py311] Generating ranked offenders CSV ...
+[mypy-py311] Artifacts:
+  Summary:  /home/dev/emp_proving_ground_v1-1/mypy_snapshots/mypy_summary_py311_2025-08-28T02-25-54Z.txt
+  Snapshot: /home/dev/emp_proving_ground_v1-1/mypy_snapshots/mypy_snapshot_py311_2025-08-28T02-25-54Z.txt
+  Ranked:   /home/dev/emp_proving_ground_v1-1/mypy_snapshots/mypy_ranked_offenders_py311_2025-08-28T02-25-54Z.csv
+  Env:      /home/dev/emp_proving_ground_v1-1/mypy_snapshots/env_py311_2025-08-28T02-25-54Z.txt

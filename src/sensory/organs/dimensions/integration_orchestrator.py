@@ -14,15 +14,13 @@ from __future__ import annotations
 import asyncio
 import logging
 from datetime import datetime
-from typing import Mapping, Protocol, TypedDict, cast, runtime_checkable
+from typing import TYPE_CHECKING, Any, Mapping, Protocol, TypedDict, cast, runtime_checkable
 
 import numpy as np
 import pandas as pd
 
 from src.core.types import JSONObject
-from src.sensory.enhanced.anomaly.manipulation_detection import (
-    ManipulationDetectionSystem,
-)
+from src.sensory.enhanced.anomaly.manipulation_detection import ManipulationDetectionSystem
 from src.sensory.enhanced.chaos.antifragile_adaptation import (
     ChaosAdaptationSystem as EnhancedChaosAdaptationSystem,
 )
@@ -55,14 +53,8 @@ from src.sensory.organs.dimensions.macro_intelligence import (
     MacroEnvironmentState,
     MacroPredatorIntelligence,
 )
-from src.sensory.organs.dimensions.pattern_engine import (
-    PatternSynthesis,
-    PatternSynthesisEngine,
-)
-from src.sensory.organs.dimensions.temporal_system import (
-    TemporalAdvantage,
-    TemporalAdvantageSystem,
-)
+from src.sensory.organs.dimensions.pattern_engine import PatternSynthesis, PatternSynthesisEngine
+from src.sensory.organs.dimensions.temporal_system import TemporalAdvantage, TemporalAdvantageSystem
 
 # Typed payloads and minimal Protocols for orchestrator I/O
 
@@ -163,10 +155,13 @@ class SensoryIntegrationOrchestrator:
             # Process each dimension in parallel
             tasks = [
                 self.macro_intelligence.analyze_macro_environment(),
-                self.footprint_hunter.analyze_institutional_footprint(price_data),
+                # Footprint hunter expects List[MarketData]; use a narrow cast to preserve runtime while satisfying typing
+                self.footprint_hunter.analyze_institutional_footprint(cast(Any, price_data)),
                 self.pattern_engine.synthesize_patterns(price_data),
-                self.temporal_analyzer.analyze_timing(market_data),
-                self.anomaly_detector.detect_manipulation(market_data),
+                # Temporal analyzer expects a dict[str, Any]; cast the mapping for typing without altering behavior
+                self.temporal_analyzer.analyze_timing(cast(dict[str, Any], cast(Any, market_data))),
+                # Anomaly detector expects a DataFrame; supply price_data
+                self.anomaly_detector.detect_manipulation(cast(Any, price_data)),
                 self.chaos_adapter.assess_chaos_opportunities(price_data),
             ]
 

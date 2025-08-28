@@ -27,9 +27,11 @@ from src.core.regime import NoOpRegimeClassifier, RegimeClassifier
 try:
     from src.core.interfaces import DecisionGenome as _DecisionGenome
 except Exception:  # pragma: no cover
-    from typing import Any as _Any
+    # Provide a minimal placeholder class to avoid assigning to a type alias
+    class _DecisionGenome:  # type: ignore[too-many-ancestors]
+        pass
 
-    _DecisionGenome = _Any
+
 from typing import TypeAlias as _TypeAlias
 
 DecisionGenome: _TypeAlias = _DecisionGenome
@@ -63,7 +65,7 @@ class SimplePhase2DValidator:
             start_time = time.time()
             symbols = ["EURUSD=X", "GBPUSD=X", "USDJPY=X", "^GSPC"]
 
-            real_data_results = []
+            real_data_results: List[Dict[str, object]] = []
             for symbol in symbols:
                 try:
                     data = self.market_data.fetch_data(symbol, period="7d", interval="1h")
@@ -194,6 +196,9 @@ class SimplePhase2DValidator:
             )
 
             risk_manager = self.risk_manager or NoOpRiskManager(risk_config)
+            from typing import cast as _cast  # type-only, avoid global import churn
+
+            risk_manager = _cast(RiskManagerPort, risk_manager)
 
             # Test position validation
             position = {
@@ -248,7 +253,9 @@ class SimplePhase2DValidator:
             successful_ops = sum(
                 1 for r in results if isinstance(r, dict) and r.get("success", False)
             )
-            throughput = successful_ops / concurrent_time if concurrent_time > 0 else 0
+            throughput: float = (
+                (float(successful_ops) / float(concurrent_time)) if concurrent_time > 0 else 0.0
+            )
 
             return {
                 "test_name": "concurrent_operations",
@@ -272,8 +279,8 @@ class SimplePhase2DValidator:
         """Helper for async symbol fetching"""
         try:
             data = self.market_data.fetch_data(symbol, period="1d", interval="1h")
-            if data is not None and len(data) > 0:
-                return {"success": True, "symbol": symbol, "data_points": len(data)}
+            if isinstance(data, pd.DataFrame) and len(data) > 0:
+                return {"success": True, "symbol": symbol, "data_points": int(len(data))}
             return {"success": False, "symbol": symbol}
         except Exception:
             return {"success": False, "symbol": symbol}
@@ -298,7 +305,7 @@ class SimplePhase2DValidator:
                 return None
 
             fitness = mean_return / volatility
-            return max(0, fitness)
+            return float(max(0.0, float(fitness)))
 
         except Exception:
             return None
@@ -315,7 +322,7 @@ class SimplePhase2DValidator:
             self.test_concurrent_operations(),
         ]
 
-        results = await asyncio.gather(*tests)
+        results: List[Dict[str, object]] = await asyncio.gather(*tests)
 
         # Calculate summary
         passed = sum(1 for r in results if r.get("passed", False))

@@ -162,4 +162,4 @@ class AmbusherOrchestrator:
     def update_trade_metrics(self, trade_data: Dict[str, Any]) -> None:
         """Update trade-based metrics."""
         self.performance_metrics["total_trades"] += 1
-        self.performance_metrics["total_pnl"] += trade_data.get("pnl", 0.0)
+        self.performance_metrics["total_pnl"] += float(trade_data.get("pnl", 0.0))

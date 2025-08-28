@@ -41,7 +41,7 @@ RUN_OUT="$(docker run --rm -t \
   -w /workspace \
   -e MYPY_CACHE_DIR=/tmp/mypy_cache \
   "${IMG_TAG}" \
-  bash -lc 'set -euo pipefail; mkdir -p "${MYPY_CACHE_DIR}"; mypy --no-incremental --show-error-codes --no-color-output 2>&1')"
+  sh -lc 'set -eu; mkdir -p "${MYPY_CACHE_DIR}"; mypy --no-incremental --show-error-codes --no-color-output 2>&1')"
 RUN_RC=$?
 set -e
 
@@ -57,7 +57,7 @@ ENV_OUT="$(docker run --rm \
   -v "${ROOT}:/workspace" \
   -w /workspace \
   "${IMG_TAG}" \
-  bash -lc 'python --version; mypy --version; echo "--- pip freeze ---"; pip freeze' 2>&1)"
+  sh -lc 'python --version; mypy --version; echo "--- pip freeze ---"; pip freeze' 2>&1)"
 ENV_RC=$?
 set -e
 printf "%s\n" "${ENV_OUT}" > "${ENV_FILE}"

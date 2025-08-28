@@ -294,10 +294,16 @@ class ContextualFusionEngine:
             opportunity_factors=opportunity_factors,
         )
 
-    def get_diagnostic_information(self) -> Dict[str, Any]:
+    def get_diagnostic_information(self) -> Dict[str, object]:
         return {
-            "current_readings": self.current_readings,
-            "adaptive_weights": self.weight_manager.calculate_current_weights(),
-            "correlations": self.correlation_analyzer.get_dimensional_correlations(),
-            "patterns": self.correlation_analyzer.get_cross_dimensional_patterns(),
+            "current_readings": cast(Dict[str, object], self.current_readings),
+            "adaptive_weights": cast(
+                Dict[str, object], self.weight_manager.calculate_current_weights()
+            ),
+            "correlations": cast(
+                Dict[str, object], self.correlation_analyzer.get_dimensional_correlations()
+            ),
+            "patterns": cast(
+                List[object], self.correlation_analyzer.get_cross_dimensional_patterns()
+            ),
         }

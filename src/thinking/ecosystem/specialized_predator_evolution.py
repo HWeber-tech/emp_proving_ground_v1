@@ -30,9 +30,13 @@ from src.ecosystem.optimization.ecosystem_optimizer import EcosystemOptimizer as
 if TYPE_CHECKING:  # pragma: no cover
     from src.ecosystem.species.species_manager import SpeciesManager as SpeciesManager
 else:  # runtime fallback for type-check-time only symbol
-    SpeciesManager = object  # type: ignore[assignment]
 
-__all__ = [
+    class _SpeciesManagerRT:
+        pass
+
+    SpeciesManager = _SpeciesManagerRT
+
+__all__: list[str] = [
     "NicheDetector",
     "MarketNiche",
     "SpeciesManager",

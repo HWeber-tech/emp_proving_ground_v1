@@ -15,7 +15,7 @@ import asyncio
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Dict, List, Optional, cast
+from typing import Any, Dict, List, Mapping, Optional, cast
 
 import numpy as np
 
@@ -153,8 +153,8 @@ class SentientAdaptationEngine:
     async def adapt_in_real_time(
         self,
         market_event: MarketEvent,
-        strategy_response: Dict[str, Any],
-        outcome: Dict[str, float],
+        strategy_response: Dict[str, object],
+        outcome: Dict[str, object],
     ) -> LearningSignal:
         """Main adaptation method - process market event and adapt strategy."""
 
@@ -167,8 +167,8 @@ class SentientAdaptationEngine:
         # Update pattern memory with new experience
         await self.pattern_memory.store_pattern(
             pattern=market_event.extract_pattern(),
-            context=market_event.context,
-            outcome=outcome,
+            context=cast(Mapping[str, object], market_event.context),
+            outcome=cast(Mapping[str, object], outcome),
             confidence=learning_signal.confidence,
         )
 
@@ -202,7 +202,7 @@ class SentientAdaptationEngine:
         """Get recent performance metrics."""
         return self.recent_performance[-20:] if self.recent_performance else []
 
-    def get_strategy_state(self) -> Dict[str, Any]:
+    def get_strategy_state(self) -> Dict[str, object]:
         """Get current strategy state for adaptation."""
         return {
             "risk_parameters": self.adaptation_controller.risk_parameters,
@@ -217,12 +217,12 @@ class SentientAdaptationEngine:
         # This would integrate with the episodic memory system
         pass
 
-    def get_adaptation_stats(self) -> Dict[str, Any]:
+    def get_adaptation_stats(self) -> Dict[str, object]:
         """Get statistics about adaptations."""
         return {
             "total_adaptations": self.adaptation_count,
             "last_adaptation": self.last_adaptation,
-            "pattern_memory_stats": self.pattern_memory.get_memory_stats(),
+            "pattern_memory_stats": cast(Dict[str, object], self.pattern_memory.get_memory_stats()),
             "recent_performance": self.get_recent_performance(),
         }
 

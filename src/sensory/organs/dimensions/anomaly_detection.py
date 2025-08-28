@@ -237,7 +237,7 @@ class SpoofingDetector:
 
         # Detect sudden volume spikes
         recent_vol = volume.iloc[-5:].mean()
-        return recent_vol > mean_vol + 3 * std_vol
+        return bool(recent_vol > mean_vol + 3 * std_vol)
 
     def _detect_price_anomaly(self, data: pd.DataFrame) -> bool:
         """Detect price-based anomalies"""
@@ -303,7 +303,7 @@ class WashTradingDetector:
         if historical_volume == 0:
             return 0.0
 
-        return recent_volume / historical_volume
+        return float(recent_volume / historical_volume)
 
     def _get_fallback_wash_trading(self) -> WashTradingDetection:
         """Return fallback wash trading detection"""
@@ -368,7 +368,7 @@ class PumpDumpDetector:
         if historical_volume == 0:
             return 0.0
 
-        return recent_volume / historical_volume
+        return float(recent_volume / historical_volume)
 
     def _get_fallback_pump_dump(self) -> PumpDumpDetection:
         """Return fallback pump dump detection"""

@@ -82,7 +82,7 @@ class UIManager:
     """
 
     def __init__(self) -> None:
-        self.event_bus: Any = EventBus()
+        self.event_bus: "EventBus" = EventBus()
         self.strategy_registry = StrategyRegistry()
         self._connected = False
 
@@ -114,7 +114,7 @@ class UIManager:
             "event_bus_connected": self._connected,
             "total_strategies": len(strategies),
             "active_strategies": len(
-                [s for s in strategies if s.get("status") == StrategyStatus.ACTIVE]
+                [s for s in strategies if str(s.get("status")) == str(StrategyStatus.ACTIVE)]
             ),
         }
 
@@ -184,4 +184,4 @@ class UIManager:
 
 
 # Global UIManager instance
-ui_manager = UIManager()
+ui_manager: "UIManager" = UIManager()

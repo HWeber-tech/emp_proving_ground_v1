@@ -79,14 +79,18 @@ class ThinkingManager:
         )
 
         # Generate forecast if predictive modeler is available
-        if self.predictive_modeler and len(self.market_data_buffer) >= 20:
+        pm = self.predictive_modeler
+        if pm is not None and len(self.market_data_buffer) >= 20:
             try:
                 # Derive simple state from the rolling buffer without pandas
                 state = self._compute_state_from_buffer()
-                current_state = {"price": state["price"], "volatility": state["volatility"]}
+                current_state: dict[str, float] = {
+                    "price": state["price"],
+                    "volatility": state["volatility"],
+                }
 
                 # Predict scenarios
-                results = await self.predictive_modeler.predict_market_scenarios(
+                results = await pm.predict_market_scenarios(
                     current_state=cast(dict[str, object], current_state),
                     time_horizon=timedelta(days=1),
                     num_scenarios=200,

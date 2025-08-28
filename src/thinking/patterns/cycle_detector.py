@@ -17,12 +17,13 @@ import numpy as np
 try:
     from src.core.interfaces import AnalysisResult, SensorySignal, ThinkingPattern
 except Exception:  # pragma: no cover
-    # Fall back to Any-typed aliases to avoid mypy re-assignment-to-type errors
+    # Fall back to Any-typed TypeAlias definitions to avoid assigning to a type name
     from typing import Any as _Any
+    from typing import TypeAlias as _TypeAlias
 
-    ThinkingPattern = _Any
-    SensorySignal = _Any
-    AnalysisResult = _Any
+    ThinkingPattern: _TypeAlias = _Any
+    SensorySignal: _TypeAlias = _Any
+    AnalysisResult: _TypeAlias = Dict[str, object]
 # Guard the exception import: alias TradingException if ThinkingException absent
 try:
     from src.core.exceptions import ThinkingException
@@ -124,10 +125,15 @@ class CycleDetector(ThinkingPattern):
 
     def _extract_cycle_signals(self, signals: List[SensorySignal]) -> List[SensorySignal]:
         """Extract signals relevant to cycle detection."""
-        cycle_signals = []
+        cycle_signals: list[SensorySignal] = []
 
         for signal in signals:
-            if signal.signal_type in ["price_composite", "momentum", "volatility"]:
+            sig_type = getattr(signal, "signal_type", None)
+            if isinstance(sig_type, str) and sig_type in [
+                "price_composite",
+                "momentum",
+                "volatility",
+            ]:
                 cycle_signals.append(signal)
 
         return cycle_signals
@@ -179,7 +185,7 @@ class CycleDetector(ThinkingPattern):
 
     def _find_peaks(self, values: List[float]) -> List[int]:
         """Find peaks in the signal values."""
-        peaks = []
+        peaks: list[int] = []
 
         for i in range(1, len(values) - 1):
             if values[i] > values[i - 1] and values[i] > values[i + 1]:
@@ -189,7 +195,7 @@ class CycleDetector(ThinkingPattern):
 
     def _find_troughs(self, values: List[float]) -> List[int]:
         """Find troughs in the signal values."""
-        troughs = []
+        troughs: list[int] = []
 
         for i in range(1, len(values) - 1):
             if values[i] < values[i - 1] and values[i] < values[i + 1]:
@@ -205,7 +211,7 @@ class CycleDetector(ThinkingPattern):
             return 0
 
         # Calculate distances between consecutive extrema
-        distances = []
+        distances: list[int] = []
         for i in range(1, len(all_extrema)):
             distance = all_extrema[i] - all_extrema[i - 1]
             if distance >= self.min_cycle_length:
@@ -231,7 +237,7 @@ class CycleDetector(ThinkingPattern):
             trend = 0
 
         # Classify based on trend and volatility
-        volatility = np.std(values) if len(values) > 1 else 0
+        volatility = float(np.std(values)) if len(values) > 1 else 0.0
 
         if trend > 0.01:
             return "bull_market"
@@ -322,7 +328,7 @@ class CycleDetector(ThinkingPattern):
             regularity_confidence = 0.0
 
         # 3. Signal strength
-        signal_strength = np.std(values) if len(values) > 1 else 0
+        signal_strength = float(np.std(values)) if len(values) > 1 else 0.0
         strength_confidence = min(signal_strength * 10, 1.0)
 
         # Combine confidence factors

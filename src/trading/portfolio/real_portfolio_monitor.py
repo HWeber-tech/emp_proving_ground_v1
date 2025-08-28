@@ -111,7 +111,7 @@ class RealPortfolioMonitor:
             """
             )
 
-            positions = []
+            positions: list[Position] = []
             for row in cursor.fetchall():
                 P = cast(Any, Position)
                 position = P(
@@ -140,7 +140,7 @@ class RealPortfolioMonitor:
     def get_total_value(self) -> float:
         """Get total portfolio value (cash + positions)"""
         positions = self.get_positions()
-        position_value = sum(pos.value for pos in positions)
+        position_value = sum(float(cast(Any, pos).value) for pos in positions)
         return float(self.initial_balance + position_value)
 
     def add_position(self, position: Position) -> bool:
@@ -204,18 +204,19 @@ class RealPortfolioMonitor:
                 return False
 
             # Calculate new unrealized P&L
-            size = row[2]
-            entry_price = row[3]
-            unrealized_pnl = (new_price - entry_price) * size
+            size = float(row[2])
+            entry_price = float(row[3])
+            price_now = float(new_price)
+            unrealized_pnl = (price_now - entry_price) * size
 
             # Update position
             cursor.execute(
                 """
-                UPDATE positions 
+                UPDATE positions
                 SET current_price = ?, unrealized_pnl = ?
                 WHERE position_id = ?
             """,
-                (new_price, unrealized_pnl, position_id),
+                (price_now, float(unrealized_pnl), position_id),
             )
 
             conn.commit()
@@ -254,18 +255,24 @@ class RealPortfolioMonitor:
                 return False
 
             # Calculate final P&L
-            size = row[2]
-            entry_price = row[3]
-            realized_pnl = (exit_price - entry_price) * size
+            size = float(row[2])
+            entry_price = float(row[3])
+            px_exit = float(exit_price)
+            realized_pnl = (px_exit - entry_price) * size
 
             # Update position
             cursor.execute(
                 """
-                UPDATE positions 
+                UPDATE positions
                 SET status = 'CLOSED', exit_time = ?, realized_pnl = ?, current_price = ?
                 WHERE position_id = ?
             """,
-                ((exit_time or datetime.now()).isoformat(), realized_pnl, exit_price, position_id),
+                (
+                    (exit_time or datetime.now()).isoformat(),
+                    float(realized_pnl),
+                    px_exit,
+                    position_id,
+                ),
             )
 
             conn.commit()
@@ -273,7 +280,7 @@ class RealPortfolioMonitor:
 
             # Update cache
             if position_id in self._position_cache:
-                self._position_cache[position_id].close(exit_price, exit_time)
+                cast(Any, self._position_cache[position_id]).close(exit_price, exit_time)
 
             logger.info(f"Closed position: {position_id} with P&L: {realized_pnl:.4f}")
             return True
@@ -288,11 +295,11 @@ class RealPortfolioMonitor:
             positions = self.get_positions()
 
             # Calculate P&L
-            unrealized_pnl = sum(pos.unrealized_pnl for pos in positions)
-            realized_pnl = sum(pos.realized_pnl for pos in positions)
+            unrealized_pnl = sum(float(cast(Any, pos).unrealized_pnl) for pos in positions)
+            realized_pnl = sum(float(cast(Any, pos).realized_pnl) for pos in positions)
 
             # Calculate position value
-            position_value = sum(pos.value for pos in positions)
+            position_value = sum(float(cast(Any, pos).value) for pos in positions)
             cash_balance = self.initial_balance - position_value
 
             snapshot = PortfolioSnapshot(
@@ -386,131 +393,23 @@ def _make_performance_metrics(
         last_updated=now,
     )
 
-    def get_performance_metrics(self) -> PerformanceMetrics:
-        """Calculate performance metrics"""
-        try:
-            conn = sqlite3.connect(self.db_path)
-            cursor = conn.cursor()
 
-            # Get historical snapshots
-            cursor.execute(
-                """
-                SELECT * FROM portfolio_snapshots 
-                ORDER BY timestamp DESC LIMIT 100
+def get_performance_metrics(self) -> PerformanceMetrics:
+    """Calculate performance metrics"""
+    try:
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+
+        # Get historical snapshots
+        cursor.execute(
             """
-            )
-
-            snapshots = cursor.fetchall()
-            if not snapshots:
-                return _make_performance_metrics(
-                    total_return=0.0,
-                    annualized_return=0.0,
-                    sharpe_ratio=0.0,
-                    max_drawdown=0.0,
-                    win_rate=0.0,
-                    profit_factor=0.0,
-                    total_trades=0,
-                    winning_trades=0,
-                    losing_trades=0,
-                )
-
-            # Calculate returns
-            initial_value = self.initial_balance
-            current_value = snapshots[0][2]  # Most recent total_value
-
-            total_return = (current_value - initial_value) / initial_value
-
-            # Calculate annualized return (simplified)
-            days_elapsed = (datetime.now() - datetime.fromisoformat(snapshots[-1][1])).days
-            if days_elapsed > 0:
-                annualized_return = total_return * (365 / days_elapsed)
-            else:
-                annualized_return = 0.0
-
-            # Get closed positions for win rate calculation
-            cursor.execute(
-                """
-                SELECT COUNT(*), SUM(CASE WHEN realized_pnl > 0 THEN 1 ELSE 0 END)
-                FROM positions WHERE status = 'CLOSED'
+            SELECT * FROM portfolio_snapshots
+            ORDER BY timestamp DESC LIMIT 100
             """
-            )
+        )
 
-            result = cursor.fetchone()
-            total_trades = result[0] if result[0] else 0
-            winning_trades = result[1] if result[1] else 0
-            losing_trades = total_trades - winning_trades
-
-            # Calculate win rate
-            win_rate = winning_trades / total_trades if total_trades > 0 else 0.0
-
-            # Calculate profit factor
-            cursor.execute(
-                """
-                SELECT SUM(realized_pnl) FROM positions WHERE realized_pnl > 0
-            """
-            )
-            gross_profit = cursor.fetchone()[0] or 0.0
-
-            cursor.execute(
-                """
-                SELECT ABS(SUM(realized_pnl)) FROM positions WHERE realized_pnl < 0
-            """
-            )
-            gross_loss = cursor.fetchone()[0] or 0.0
-
-            profit_factor = gross_profit / gross_loss if gross_loss > 0 else 0.0
-
-            # Calculate max drawdown (simplified)
-            max_drawdown = 0.0
-            peak_value = initial_value
-            for snapshot in reversed(snapshots):
-                value = snapshot[2]
-                if value > peak_value:
-                    peak_value = value
-                else:
-                    drawdown = (peak_value - value) / peak_value
-                    max_drawdown = max(max_drawdown, drawdown)
-
-            # Calculate Sharpe ratio (simplified)
-            # Derive daily returns from snapshots (ordered oldest -> newest)
-            try:
-                values = [
-                    row[2]
-                    for row in reversed(snapshots)
-                    if row and len(row) > 2 and row[2] is not None
-                ]
-                returns: List[float] = []
-                for i in range(1, len(values)):
-                    prev = values[i - 1]
-                    curr = values[i]
-                    if prev and prev != 0:
-                        returns.append((curr - prev) / prev)
-                if len(returns) > 1:
-                    mu = sum(returns) / len(returns)
-                    var = sum((r - mu) ** 2 for r in returns) / (len(returns) - 1)
-                    sigma = var**0.5
-                    sharpe_ratio = (mu / sigma) * (252**0.5) if sigma > 0 else 0.0
-                else:
-                    sharpe_ratio = 0.0
-            except Exception:
-                sharpe_ratio = 0.0
-
-            conn.close()
-
-            return _make_performance_metrics(
-                total_return=total_return,
-                annualized_return=annualized_return,
-                sharpe_ratio=sharpe_ratio,
-                max_drawdown=max_drawdown,
-                win_rate=win_rate,
-                profit_factor=profit_factor,
-                total_trades=total_trades,
-                winning_trades=winning_trades,
-                losing_trades=losing_trades,
-            )
-
-        except Exception as e:
-            logger.error(f"Error calculating performance metrics: {e}")
+        snapshots = cursor.fetchall()
+        if not snapshots:
             return _make_performance_metrics(
                 total_return=0.0,
                 annualized_return=0.0,
@@ -523,75 +422,191 @@ def _make_performance_metrics(
                 losing_trades=0,
             )
 
-    def get_position_history(self, days: int = 30) -> List[Position]:
-        """Get position history for the last N days"""
+        # Calculate returns
+        initial_value = self.initial_balance
+        current_value = snapshots[0][2]  # Most recent total_value
+
+        total_return = (current_value - initial_value) / initial_value
+
+        # Calculate annualized return (simplified)
+        days_elapsed = (datetime.now() - datetime.fromisoformat(snapshots[-1][1])).days
+        if days_elapsed > 0:
+            annualized_return = total_return * (365 / days_elapsed)
+        else:
+            annualized_return = 0.0
+
+        # Get closed positions for win rate calculation
+        cursor.execute(
+            """
+            SELECT COUNT(*), SUM(CASE WHEN realized_pnl > 0 THEN 1 ELSE 0 END)
+            FROM positions WHERE status = 'CLOSED'
+            """
+        )
+
+        result = cursor.fetchone()
+        total_trades = result[0] if result[0] else 0
+        winning_trades = result[1] if result[1] else 0
+        losing_trades = total_trades - winning_trades
+
+        # Calculate win rate
+        win_rate = winning_trades / total_trades if total_trades > 0 else 0.0
+
+        # Calculate profit factor
+        cursor.execute(
+            """
+            SELECT SUM(realized_pnl) FROM positions WHERE realized_pnl > 0
+            """
+        )
+        gross_profit = cursor.fetchone()[0] or 0.0
+
+        cursor.execute(
+            """
+            SELECT ABS(SUM(realized_pnl)) FROM positions WHERE realized_pnl < 0
+            """
+        )
+        gross_loss = cursor.fetchone()[0] or 0.0
+
+        profit_factor = gross_profit / gross_loss if gross_loss > 0 else 0.0
+
+        # Calculate max drawdown (simplified)
+        max_drawdown = 0.0
+        peak_value = initial_value
+        for snapshot in reversed(snapshots):
+            value = snapshot[2]
+            if value > peak_value:
+                peak_value = value
+            else:
+                drawdown = (peak_value - value) / peak_value
+                max_drawdown = max(max_drawdown, drawdown)
+
+        # Calculate Sharpe ratio (simplified)
+        # Derive daily returns from snapshots (ordered oldest -> newest)
         try:
-            conn = sqlite3.connect(self.db_path)
-            cursor = conn.cursor()
+            values = [
+                row[2] for row in reversed(snapshots) if row and len(row) > 2 and row[2] is not None
+            ]
+            returns: List[float] = []
+            for i in range(1, len(values)):
+                prev = values[i - 1]
+                curr = values[i]
+                if prev and prev != 0:
+                    returns.append((curr - prev) / prev)
+            if len(returns) > 1:
+                mu = sum(returns) / len(returns)
+                var = sum((r - mu) ** 2 for r in returns) / (len(returns) - 1)
+                sigma = var**0.5
+                sharpe_ratio = (mu / sigma) * (252**0.5) if sigma > 0 else 0.0
+            else:
+                sharpe_ratio = 0.0
+        except Exception:
+            sharpe_ratio = 0.0
 
-            # Bandit B608: parameterized query to avoid SQL injection
-            cursor.execute(
-                """
-                SELECT * FROM positions
-                WHERE entry_time > datetime('now', ?)
-                ORDER BY entry_time DESC
+        conn.close()
+
+        return _make_performance_metrics(
+            total_return=total_return,
+            annualized_return=annualized_return,
+            sharpe_ratio=sharpe_ratio,
+            max_drawdown=max_drawdown,
+            win_rate=win_rate,
+            profit_factor=profit_factor,
+            total_trades=total_trades,
+            winning_trades=winning_trades,
+            losing_trades=losing_trades,
+        )
+
+    except Exception as e:
+        logger.error(f"Error calculating performance metrics: {e}")
+        return _make_performance_metrics(
+            total_return=0.0,
+            annualized_return=0.0,
+            sharpe_ratio=0.0,
+            max_drawdown=0.0,
+            win_rate=0.0,
+            profit_factor=0.0,
+            total_trades=0,
+            winning_trades=0,
+            losing_trades=0,
+        )
+
+
+def get_position_history(self, days: int = 30) -> List[Position]:
+    """Get position history for the last N days"""
+    try:
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+
+        # Bandit B608: parameterized query to avoid SQL injection
+        cursor.execute(
+            """
+            SELECT * FROM positions
+            WHERE entry_time > datetime('now', ?)
+            ORDER BY entry_time DESC
             """,
-                (f"-{int(days)} days",),
+            (f"-{int(days)} days",),
+        )
+
+        positions = []
+        for row in cursor.fetchall():
+            P = cast(Any, Position)
+            position = P(
+                position_id=row[0],
+                symbol=row[1],
+                size=row[2],
+                entry_price=row[3],
+                current_price=row[4],
+                status=row[5],
+                stop_loss=row[6],
+                take_profit=row[7],
+                entry_time=datetime.fromisoformat(row[8]) if row[8] else datetime.now(),
+                exit_time=datetime.fromisoformat(row[9]) if row[9] else None,
+                realized_pnl=row[10],
+                unrealized_pnl=row[11],
             )
+            positions.append(position)
 
-            positions = []
-            for row in cursor.fetchall():
-                P = cast(Any, Position)
-                position = P(
-                    position_id=row[0],
-                    symbol=row[1],
-                    size=row[2],
-                    entry_price=row[3],
-                    current_price=row[4],
-                    status=row[5],
-                    stop_loss=row[6],
-                    take_profit=row[7],
-                    entry_time=datetime.fromisoformat(row[8]) if row[8] else datetime.now(),
-                    exit_time=datetime.fromisoformat(row[9]) if row[9] else None,
-                    realized_pnl=row[10],
-                    unrealized_pnl=row[11],
-                )
-                positions.append(position)
+        conn.close()
+        return positions
 
-            conn.close()
-            return positions
+    except Exception as e:
+        logger.error(f"Error getting position history: {e}")
+        return []
 
-        except Exception as e:
-            logger.error(f"Error getting position history: {e}")
-            return []
 
-    def get_daily_pnl(self, days: int = 30) -> List[Dict[str, float]]:
-        """Get daily P&L for the last N days"""
-        try:
-            conn = sqlite3.connect(self.db_path)
-            cursor = conn.cursor()
+def get_daily_pnl(self, days: int = 30) -> List[Dict[str, object]]:
+    """Get daily P&L for the last N days"""
+    try:
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
 
-            # Bandit B608: parameterized query to avoid SQL injection
-            cursor.execute(
-                """
-                SELECT DATE(timestamp) as date,
-                       SUM(realized_pnl) as daily_pnl,
-                       COUNT(*) as trades
-                FROM positions
-                WHERE exit_time > datetime('now', ?)
-                GROUP BY DATE(timestamp)
-                ORDER BY date DESC
+        # Bandit B608: parameterized query to avoid SQL injection
+        cursor.execute(
+            """
+            SELECT DATE(exit_time) as date,
+                   SUM(realized_pnl) as daily_pnl,
+                   COUNT(*) as trades
+            FROM positions
+            WHERE exit_time > datetime('now', ?)
+            GROUP BY DATE(exit_time)
+            ORDER BY date DESC
             """,
-                (f"-{int(days)} days",),
-            )
+            (f"-{int(days)} days",),
+        )
 
-            results = []
-            for row in cursor.fetchall():
-                results.append({"date": row[0], "pnl": row[1] or 0.0, "trades": row[2] or 0})
+        results: list[dict[str, object]] = []
+        for row in cursor.fetchall():
+            results.append({"date": row[0], "pnl": row[1] or 0.0, "trades": row[2] or 0})
 
-            conn.close()
-            return results
+        conn.close()
+        return results
 
-        except Exception as e:
-            logger.error(f"Error getting daily P&L: {e}")
-            return []
+    except Exception as e:
+        logger.error(f"Error getting daily P&L: {e}")
+        return []
+
+
+# Bind the standalone function as a method on the class for compatibility
+# mypy: dynamic class attribute assignment is intentional here
+RealPortfolioMonitor.get_performance_metrics = get_performance_metrics  # type: ignore[attr-defined]
+RealPortfolioMonitor.get_position_history = get_position_history  # type: ignore[attr-defined]
+RealPortfolioMonitor.get_daily_pnl = get_daily_pnl  # type: ignore[attr-defined]

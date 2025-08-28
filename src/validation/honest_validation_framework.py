@@ -87,7 +87,7 @@ class HonestValidationFramework:
         self.results: List[HonestValidationResult] = []
         self.market_data: MarketDataGateway = market_data_gateway or NoOpMarketDataGateway()
         self.regime_classifier: RegimeClassifier = regime_classifier or NoOpRegimeClassifier()
-        self.strategy_manager = None  # Placeholder for StrategyManager or equivalent
+        self.strategy_manager: Any | None = None  # Placeholder for StrategyManager or equivalent
 
     async def validate_data_integrity(self) -> HonestValidationResult:
         """Validate that real market data can be retrieved and processed"""

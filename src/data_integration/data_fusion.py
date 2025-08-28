@@ -141,7 +141,7 @@ class DataHarmonizer:
             aligned_data[interval_start].append((source, data))
 
         # For each interval, select the best data point
-        result = []
+        result: List[Tuple[DataSource, MarketData]] = []
         for interval_start, points in aligned_data.items():
             if len(points) == 1:
                 result.append(points[0])
@@ -170,7 +170,7 @@ class ConflictResolver:
         self,
         data_points: List[Tuple[DataSource, MarketData, float]],
         weights: Dict[DataSource, float],
-    ) -> Tuple[MarketData, List[str]]:
+    ) -> Tuple[Optional[MarketData], List[str]]:
         """Resolve conflicts between data points"""
         if not data_points:
             return None, []
@@ -219,11 +219,11 @@ class ConflictResolver:
         weights: Dict[DataSource, float],
     ) -> MarketData:
         """Resolve conflicts using weighted average"""
-        total_weight = 0.0
-        weighted_bid = 0
-        weighted_ask = 0
-        weighted_volume = 0
-        weighted_volatility = 0
+        total_weight: float = 0.0
+        weighted_bid: float = 0.0
+        weighted_ask: float = 0.0
+        weighted_volume: float = 0.0
+        weighted_volatility: float = 0.0
 
         for source, data, confidence in data_points:
             weight = weights.get(source, 0.5) * confidence
@@ -324,7 +324,7 @@ class DataFusionEngine:
         """Fuse market data from multiple sources"""
         try:
             # Collect data from all sources
-            raw_data_points = []
+            raw_data_points: List[Tuple[DataSource, MarketData]] = []
 
             for source, provider in data_providers.items():
                 if source not in self.source_weights:
@@ -350,13 +350,13 @@ class DataFusionEngine:
                 return None
 
             # Calculate confidence scores
-            data_with_confidence = []
+            data_with_confidence: List[Tuple[DataSource, MarketData, float]] = []
             for source, data in harmonized_data:
                 confidence = self._calculate_confidence(source, data)
                 data_with_confidence.append((source, data, confidence))
 
             # Filter by confidence threshold
-            filtered_data = [
+            filtered_data: List[Tuple[DataSource, MarketData, float]] = [
                 (source, data, conf)
                 for source, data, conf in data_with_confidence
                 if conf >= self.config.min_confidence
@@ -367,7 +367,7 @@ class DataFusionEngine:
                 return None
 
             # Resolve conflicts
-            weights = {sw.source: sw.weight for sw in self.config.sources}
+            weights: Dict[DataSource, float] = {sw.source: sw.weight for sw in self.config.sources}
             resolved_data, conflicts = self.resolver.resolve_conflicts(filtered_data, weights)
 
             if not resolved_data:

@@ -8,7 +8,7 @@ including volume trends, volume momentum, and volume-based indicators.
 import logging
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, cast
 
 import numpy as np
 
@@ -87,11 +87,14 @@ class VolumeOrgan(SensoryOrgan):
                 signal_type="volume_composite",
                 value=combined_signal.value,
                 confidence=combined_signal.confidence,
-                metadata={
-                    "signals": [s.__dict__ for s in signals],
-                    "volume_history_length": len(self._volume_history),
-                    "organ_id": "volume_organ",
-                },
+                metadata=cast(
+                    dict[str, object],
+                    {
+                        "signals": [s.__dict__ for s in signals],
+                        "volume_history_length": len(self._volume_history),
+                        "organ_id": "volume_organ",
+                    },
+                ),
             )
 
         except Exception as e:

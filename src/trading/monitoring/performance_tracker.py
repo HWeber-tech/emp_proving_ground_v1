@@ -446,7 +446,7 @@ class PerformanceTracker:
             return pd.DataFrame()
 
         # Create strategy returns series
-        strategy_returns = {}
+        strategy_returns: dict[str, float] = {}
         for strategy, data in self.strategy_performance.items():
             trades_n = int(cast(int, data.get("trades", 0)))
             if trades_n > 0:

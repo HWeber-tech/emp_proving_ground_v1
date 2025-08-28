@@ -85,9 +85,11 @@ class MarketAnalyzer(ThinkingPattern):
     def learn(self, feedback: Mapping[str, object]) -> bool:
         """Learn from feedback to improve market analysis."""
         try:
-            # Delegate learning to component analyzers
-            performance_learned = self.performance_analyzer.learn(feedback)
-            risk_learned = self.risk_analyzer.learn(feedback)
+            # Delegate learning to component analyzers (guard .learn availability)
+            perf_learn_fn = getattr(self.performance_analyzer, "learn", None)
+            risk_learn_fn = getattr(self.risk_analyzer, "learn", None)
+            performance_learned = perf_learn_fn(feedback) if callable(perf_learn_fn) else True
+            risk_learned = risk_learn_fn(feedback) if callable(risk_learn_fn) else True
 
             logger.info("Market analyzer learned from feedback")
             return bool(performance_learned) and bool(risk_learned)
@@ -105,8 +107,12 @@ class MarketAnalyzer(ThinkingPattern):
         """Combine analysis results into unified market insights."""
 
         # Extract key metrics
-        performance_metrics = performance_result.result.get("performance_metrics", {})
-        risk_metrics = risk_result.result.get("risk_metrics", {})
+        perf_map = cast(Mapping[str, object], performance_result)
+        risk_map = cast(Mapping[str, object], risk_result)
+        perf_result = cast(dict[str, object], perf_map.get("result", {}))
+        performance_metrics = cast(dict[str, object], perf_result.get("performance_metrics", {}))
+        risk_result = cast(dict[str, object], risk_map.get("result", {}))
+        risk_metrics = cast(dict[str, object], risk_result.get("risk_metrics", {}))
 
         # Calculate market sentiment from signals
         market_sentiment = self._calculate_market_sentiment(signals)

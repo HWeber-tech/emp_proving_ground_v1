@@ -16,11 +16,11 @@ try:
 except Exception:  # pragma: no cover
     TradeIntent = TradeRejected = object
 try:
-    from src.core.risk.position_sizing import position_size as PositionSizer  # canonical
+    from src.core.risk.position_sizing import position_size as _PositionSizer  # canonical
 except Exception:  # pragma: no cover
-    PositionSizer = None
-# Provide precise callable typing for the sizer (Optional at runtime)
-PositionSizer = cast(Optional[Callable[[Decimal, Decimal, Decimal], Decimal]], PositionSizer)
+    _PositionSizer = None  # type: ignore[assignment]
+PositionSizerType = Optional[Callable[[Decimal, Decimal, Decimal], Decimal]]
+PositionSizer: PositionSizerType = _PositionSizer
 from src.trading.monitoring.portfolio_monitor import PortfolioMonitor
 
 RiskGateway = None  # deprecated path removed; use core risk flows directly

@@ -10,7 +10,7 @@ import logging
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional, cast
 
 import numpy as np
 
@@ -31,12 +31,12 @@ class MemoryEntry:
     @property
     def features(self) -> dict[str, float]:
         """Get the features from metadata."""
-        return self.metadata.get("features", {})
+        return cast(dict[str, float], self.metadata.get("features", {}))
 
     @property
     def outcome(self) -> dict[str, float]:
         """Get the outcome from metadata."""
-        return self.metadata.get("outcome", {})
+        return cast(dict[str, float], self.metadata.get("outcome", {}))
 
 
 class FAISSPatternMemory:
@@ -52,14 +52,14 @@ class FAISSPatternMemory:
         self.index_path.parent.mkdir(parents=True, exist_ok=True)
 
         # Initialize FAISS index
-        self.index = None
-        self.metadata = {}
+        self.index: Optional[faiss.Index] = None
+        self.metadata: dict[str, Any] = {}
         self.memory_counter = 0
 
         self._initialize_index()
         self._load_metadata()
 
-    def _initialize_index(self):
+    def _initialize_index(self) -> None:
         """Initialize the FAISS index."""
         if self.index_path.exists():
             self.index = faiss.read_index(str(self.index_path))
@@ -69,14 +69,14 @@ class FAISSPatternMemory:
             self.index = faiss.IndexFlatL2(self.dimension)
             logger.info("Created new FAISS index")
 
-    def _load_metadata(self):
+    def _load_metadata(self) -> None:
         """Load metadata from disk."""
         if self.metadata_path.exists():
             with open(self.metadata_path, "r") as f:
                 self.metadata = json.load(f)
             logger.info(f"Loaded {len(self.metadata)} metadata entries")
 
-    def _save_metadata(self):
+    def _save_metadata(self) -> None:
         """Save metadata to disk."""
         with open(self.metadata_path, "w") as f:
             json.dump(self.metadata, f, default=str)
@@ -87,11 +87,14 @@ class FAISSPatternMemory:
             raise ValueError(f"Vector dimension {len(vector)} != {self.dimension}")
 
         # Normalize vector
-        vector = vector.astype(np.float32)
+        vector = np.asarray(vector, dtype=np.float32)
         if np.linalg.norm(vector) > 0:
             vector = vector / np.linalg.norm(vector)
 
         # Add to FAISS index
+        if self.index is None:
+            self._initialize_index()
+        assert self.index is not None
         self.index.add(vector.reshape(1, -1))
 
         # Create memory entry
@@ -121,12 +124,16 @@ class FAISSPatternMemory:
             raise ValueError(f"Query vector dimension {len(query_vector)} != {self.dimension}")
 
         # Normalize query vector
-        query_vector = query_vector.astype(np.float32)
+        query_vector = np.asarray(query_vector, dtype=np.float32)
         if np.linalg.norm(query_vector) > 0:
             query_vector = query_vector / np.linalg.norm(query_vector)
 
         # Search FAISS index
+        if self.index is None:
+            return []
         distances, indices = self.index.search(query_vector.reshape(1, -1), k)
+        distances = cast(np.ndarray, distances)
+        indices = cast(np.ndarray, indices)
 
         # Get results
         results = []
@@ -156,14 +163,14 @@ class FAISSPatternMemory:
     def get_memory_stats(self) -> dict[str, Any]:
         """Get memory statistics."""
         return {
-            "total_memories": self.index.ntotal,
+            "total_memories": int(self.index.ntotal) if self.index is not None else 0,
             "dimension": self.dimension,
             "index_path": str(self.index_path),
             "metadata_path": str(self.metadata_path),
             "memory_counter": self.memory_counter,
         }
 
-    def clear_memory(self):
+    def clear_memory(self) -> None:
         """Clear all memories."""
         self.index = faiss.IndexFlatL2(self.dimension)
         self.metadata = {}

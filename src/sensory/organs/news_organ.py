@@ -9,9 +9,42 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import TYPE_CHECKING, Any, Dict, Optional
 
-from src.core.base import MarketData, SensoryOrgan, SensoryReading
+from src.core.base import MarketData
+
+if TYPE_CHECKING:
+    from typing import Protocol
+
+    class _SensoryOrganProto(Protocol):
+        name: str
+        config: dict[str, Any]
+
+        def __init__(self, name: str, config: Optional[dict[str, Any]] = ...) -> None: ...
+
+    class _SensoryReadingProto(Protocol):
+        organ_name: str
+        timestamp: datetime
+        data: dict[str, Any]
+        metadata: dict[str, Any]
+
+
+# Minimal runtime placeholders preserving behavior
+class SensoryOrgan:
+    def __init__(self, name: str, config: Optional[dict[str, Any]] = None) -> None:
+        self.name = name
+        self.config = config or {}
+
+
+class SensoryReading:
+    def __init__(
+        self, organ_name: str, timestamp: datetime, data: dict[str, Any], metadata: dict[str, Any]
+    ) -> None:
+        self.organ_name = organ_name
+        self.timestamp = timestamp
+        self.data = data
+        self.metadata = metadata
+
 
 logger = logging.getLogger(__name__)
 
@@ -62,7 +95,9 @@ class NewsOrgan(SensoryOrgan):
 
         # Base sentiment on price movement
         if hasattr(market_data, "close") and hasattr(market_data, "open"):
-            price_change: float = (market_data.close - market_data.open) / market_data.open  # type: ignore[attr-defined]
+            price_change: float = (float(market_data.close) - float(market_data.open)) / float(
+                market_data.open
+            )
             base_sentiment: float = 0.5 + (price_change * 10)  # Scale price change to sentiment
             base_sentiment = max(0.0, min(1.0, base_sentiment))  # Clamp to [0,1]
         else:

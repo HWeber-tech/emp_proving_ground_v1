@@ -181,7 +181,7 @@ class HowEngine:
             return {}
 
         try:
-            return self.indicators.calculate_all(df)
+            return dict(self.indicators.calculate_all(df))
         except Exception as e:
             logger.error(f"Error analyzing indicators: {e}")
             return {}
@@ -192,7 +192,7 @@ class HowEngine:
             return {}
 
         try:
-            return self.patterns.update_market_data(df)
+            return dict(self.patterns.update_market_data(df))
         except Exception as e:
             logger.error(f"Error analyzing patterns: {e}")
             return {}
@@ -203,7 +203,7 @@ class HowEngine:
             return {}
 
         try:
-            return self.order_flow_analyzer.analyze_institutional_flow(df)
+            return dict(self.order_flow_analyzer.analyze_institutional_flow(df))
         except Exception as e:
             logger.error(f"Error analyzing order flow: {e}")
             return {}
@@ -214,7 +214,7 @@ class HowEngine:
             return {}
 
         try:
-            return self.microstructure.analyze_microstructure(df)
+            return dict(self.microstructure.analyze_microstructure(df))
         except Exception as e:
             logger.error(f"Error analyzing microstructure: {e}")
             return {}
@@ -225,7 +225,7 @@ class HowEngine:
             return 0.0
 
         try:
-            return self.patterns.get_institutional_footprint_score(df)
+            return float(self.patterns.get_institutional_footprint_score(df))
         except Exception as e:
             logger.error(f"Error getting footprint score: {e}")
             return 0.0
@@ -294,8 +294,8 @@ class HowEngine:
                     "volume": md.volume,
                     "bid": md.bid,
                     "ask": md.ask,
-                    "spread": md.spread,
-                    "mid_price": md.mid_price,
+                    "spread": float(getattr(md, "spread", 0.0)),
+                    "mid_price": float(getattr(md, "mid_price", float("nan"))),
                 }
             )
 

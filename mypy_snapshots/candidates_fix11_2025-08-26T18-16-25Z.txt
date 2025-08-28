@@ -1,0 +1,5 @@
+src/sensory/organs/dimensions/anomaly_dimension.py
+src/thinking/memory/pattern_memory.py
+src/sensory/what/what_sensor.py
+src/sensory/organs/dimensions/base_organ.py
+src/integration/component_integrator_impl.py

@@ -139,7 +139,7 @@ class NicheDetector:
             if len(window) < 10:
                 return 0.0
             arr = np.asarray(window, dtype=float)
-            x = np.arange(len(arr), dtype=float)
+            x: np.ndarray = np.arange(len(arr), dtype=float)
             coef = np.polyfit(x, arr, 1)
             slope = float(coef[0])
             std_val = float(np.std(arr))
@@ -184,7 +184,8 @@ class NicheDetector:
         cluster_features = features[["volatility", "trend_strength", "volume_ratio"]].dropna()
 
         if len(cluster_features) < 10:
-            return pd.Series(["neutral"] * len(features), index=features.index)
+            fallback = pd.Series(["neutral"] * len(features), index=features.index, dtype="string")
+            return cast(pd.Series[str], fallback.astype(str))
 
         # Standardize features
         scaled_features = self.scaler.fit_transform(cluster_features.to_numpy(dtype=float))
@@ -202,12 +203,23 @@ class NicheDetector:
         }
 
         regimes = pd.Series(
-            [regime_map.get(int(c), "neutral") for c in clusters], index=cluster_features.index
+            [regime_map.get(int(c), "neutral") for c in clusters],
+            index=cluster_features.index,
+            dtype="string",
         )
+        regimes = regimes.astype(str)
+        regimes = cast(pd.Series[str], regimes)
 
         # Extend to full length
-        full_regimes: pd.Series[str] = pd.Series(["neutral"] * len(features), index=features.index)
-        full_regimes.update(regimes)
+        full_regimes_raw: pd.Series[str] = cast(
+            pd.Series[str],
+            pd.Series(["neutral"] * len(features), index=features.index, dtype="string").astype(
+                str
+            ),
+        )
+        # Assign detected regimes by index to avoid pandas Series.update typing issues
+        full_regimes_raw.loc[regimes.index] = regimes.astype(str)
+        full_regimes = cast(pd.Series[str], full_regimes_raw.astype(str))
 
         return full_regimes
 

@@ -4,7 +4,9 @@ __all__ = ["InstitutionalIntelligenceEngine"]
 
 
 class InstitutionalIntelligenceEngine:
-    def analyze_institutional_intelligence(self, data: dict[str, float] | None = None) -> dict[str, object]:
+    def analyze_institutional_intelligence(
+        self, data: dict[str, float] | None = None
+    ) -> dict[str, object]:
         payload: dict[str, float] = dict(data or {})
         participation = float(payload.get("participation", 0.0))
         liquidity = float(payload.get("liquidity", 0.0))

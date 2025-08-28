@@ -13,21 +13,21 @@ from typing import Any, Callable, Dict, List, Optional, cast
 
 import numpy as np
 
-from src.core.performance.market_data_cache import get_global_cache
 from src.core.genome import get_genome_provider
+from src.core.performance.market_data_cache import get_global_cache
 
-from .interfaces import IPopulationManager, DecisionGenome
+from .interfaces import DecisionGenome, IPopulationManager
 
 logger = logging.getLogger(__name__)
 
 
 class PopulationManager(IPopulationManager):
     """High-performance population manager with caching support."""
-    
+
     def __init__(self, population_size: int = 100, cache_ttl: int = 300):
         """
         Initialize population manager.
-        
+
         Args:
             population_size: Size of the population
             cache_ttl: Cache TTL in seconds
@@ -38,19 +38,22 @@ class PopulationManager(IPopulationManager):
         self.generation = 0
         self.cache = get_global_cache()
         self._cache_key_prefix = "population"
-        
+
     def initialize_population(self, genome_factory: Callable) -> None:
         """Initialize population with new genomes."""
         logger.info(f"Initializing population with {self.population_size} genomes")
         provider = get_genome_provider()
-        self.population = [provider.from_legacy(genome_factory()) for _ in range(self.population_size)]
+        self.population = [
+            cast(DecisionGenome, provider.from_legacy(genome_factory()))
+            for _ in range(self.population_size)
+        ]
         self.generation = 0
         self._cache_population_stats()
-        
+
     def get_population(self) -> List[DecisionGenome]:
         """Get current population."""
         return cast(List[DecisionGenome], self.population.copy())
-    
+
     def get_best_genomes(self, count: int) -> List[DecisionGenome]:
         """Get top N genomes by fitness."""
         if not self.population:
@@ -68,15 +71,15 @@ class PopulationManager(IPopulationManager):
             key=lambda g: (g.fitness or 0.0),
             reverse=True,
         )
-        return cast(List[DecisionGenome], sorted_population[:min(count, len(sorted_population))])
-    
+        return cast(List[DecisionGenome], sorted_population[: min(count, len(sorted_population))])
+
     def update_population(self, new_population: List[DecisionGenome]) -> None:
         """Replace current population with new one."""
         logger.info(f"Updating population with {len(new_population)} genomes")
         provider = get_genome_provider()
-        self.population = [provider.from_legacy(g) for g in new_population]
+        self.population = [cast(DecisionGenome, provider.from_legacy(g)) for g in new_population]
         self._cache_population_stats()
-        
+
     def get_population_statistics(self) -> dict[str, object]:
         """Get statistics about the current population."""
         if not self.population:
@@ -107,18 +110,18 @@ class PopulationManager(IPopulationManager):
             "fitness_std": float(np.std(fitness_values)) if fitness_values else 0.0,
             "species_distribution": species_count,
         }
-    
+
     def advance_generation(self) -> None:
         """Increment the generation counter."""
         self.generation += 1
         logger.info(f"Advanced to generation {self.generation}")
-    
+
     def reset(self) -> None:
         """Reset the population manager to initial state."""
         logger.info("Resetting population manager")
         self.population.clear()
         self.generation = 0
-    
+
     def _cache_population_stats(self) -> None:
         """Cache population statistics for performance."""
         stats = self.get_population_statistics()
@@ -130,7 +133,7 @@ class PopulationManager(IPopulationManager):
         except Exception:
             pass
         logger.debug(f"Cached population stats: {stats}")
-    
+
     def get_genome_by_id(self, genome_id: str) -> Optional[DecisionGenome]:
         """Get a specific genome by ID."""
         for genome in self.population:
@@ -141,11 +144,11 @@ class PopulationManager(IPopulationManager):
             except Exception:
                 continue
         return None
-    
+
     def get_species_count(self, species_type: str) -> int:
         """Get count of genomes for a specific species."""
         return sum(1 for g in self.population if (g.species_type or "generic") == species_type)
-    
+
     def get_fitness_distribution(self) -> Dict[str, float]:
         """Get fitness distribution statistics."""
         if not self.population:
@@ -189,14 +192,14 @@ class PopulationManager(IPopulationManager):
                     generation=0,
                     species_type="trading_strategy",
                 )
-                self.population.append(genome)
+                self.population.append(cast(DecisionGenome, genome))
 
             logger.info(f"Successfully generated {len(self.population)} genomes")
 
         except Exception as e:
             logger.error(f"Failed to generate initial population: {e}")
             self.population = []
-    
+
     def evolve_population(self, market_data: Dict, performance_metrics: Dict) -> None:
         """Evolve the population based on market data and performance."""
         try:
@@ -212,7 +215,9 @@ class PopulationManager(IPopulationManager):
             elite_genomes = self.get_best_genomes(elite_count)
 
             # Generate new population
-            new_population: List[DecisionGenome] = cast(List[DecisionGenome], elite_genomes.copy())  # Keep elite
+            new_population: List[DecisionGenome] = cast(
+                List[DecisionGenome], elite_genomes.copy()
+            )  # Keep elite
 
             # Fill remaining slots with offspring
             while len(new_population) < self.population_size:
@@ -223,8 +228,7 @@ class PopulationManager(IPopulationManager):
                 # Create offspring via crossover and mutation
                 offspring = self._crossover(parent1, parent2)
                 offspring = self._mutate(offspring)
-
-                new_population.append(offspring)
+                new_population.append(cast(DecisionGenome, offspring))
 
             # Update population
             self.population = new_population
@@ -237,7 +241,7 @@ class PopulationManager(IPopulationManager):
 
         except Exception as e:
             logger.error(f"Evolution failed: {e}")
-    
+
     def _evaluate_fitness(self, market_data: Dict, performance_metrics: Dict) -> None:
         """Evaluate fitness for all genomes based on market performance."""
         for genome in self.population:
@@ -248,7 +252,9 @@ class PopulationManager(IPopulationManager):
                 consistency_score = float(performance_metrics.get("win_rate", 0.0)) * 0.2
                 efficiency_score = float(performance_metrics.get("sharpe_ratio", 0.0)) * 0.1
 
-                genome.fitness = max(0.0, profit_score + risk_score + consistency_score + efficiency_score)
+                genome.fitness = max(
+                    0.0, profit_score + risk_score + consistency_score + efficiency_score
+                )
 
                 # Update performance metrics with numeric values only
                 try:
@@ -256,7 +262,7 @@ class PopulationManager(IPopulationManager):
                     if isinstance(perf_dict, dict):
                         for k, v in performance_metrics.items():
                             try:
-                                perf_dict[k] = float(v)  # type: ignore[index]
+                                perf_dict[k] = float(v)
                             except Exception:
                                 continue
                 except Exception:
@@ -266,17 +272,17 @@ class PopulationManager(IPopulationManager):
                 gid = getattr(genome, "id", "unknown")
                 logger.error(f"Fitness evaluation failed for genome {gid}: {e}")
                 try:
-                    genome.fitness = 0.0  # type: ignore[assignment]
+                    genome.fitness = 0.0
                 except Exception:
                     pass
-    
+
     def _tournament_selection(self, tournament_size: int = 3) -> DecisionGenome:
         """Select genome via tournament selection."""
         import random
 
         tournament = random.sample(self.population, min(tournament_size, len(self.population)))
         return max(tournament, key=lambda g: (g.fitness or 0.0))
-    
+
     def _crossover(self, parent1: object, parent2: object) -> object:
         """Create offspring via crossover."""
         import random
@@ -300,7 +306,7 @@ class PopulationManager(IPopulationManager):
                 else:
                     fallback = p1_params[key]
                     val = p2_params.get(key, fallback)
-                    offspring_params[key] = float(val)  # type: ignore[arg-type]
+                    offspring_params[key] = float(val)
             except Exception:
                 continue
 
@@ -324,7 +330,7 @@ class PopulationManager(IPopulationManager):
         except Exception:
             # Safe fallback to parent1 clone if anything goes wrong
             return parent1
-    
+
     def _mutate(self, genome: object, mutation_rate: float = 0.1) -> object:
         """Apply mutation to genome."""
         import random
@@ -344,7 +350,7 @@ class PopulationManager(IPopulationManager):
                             new_val = float(max(1, int(value) + random.randint(-5, 5)))
                         else:
                             try:
-                                v = float(value)  # type: ignore[arg-type]
+                                v = float(value)
                                 mutation_strength = 0.1
                                 new_val = max(0.0, v + random.gauss(0, mutation_strength))
                             except Exception:
@@ -371,4 +377,3 @@ class PopulationManager(IPopulationManager):
             return provider.mutate(working, "gaussian", new_params)
         except Exception:
             return genome
-

@@ -135,8 +135,14 @@ class AnomalyDetectorAdapter:
                 return []
             # If underlying is async, await; otherwise run in a thread.
             if asyncio.iscoroutinefunction(func):
-                return await func(data)  # type: ignore[no-any-return]
-            return await asyncio.to_thread(func, data)  # type: ignore[no-any-return]
+                res = await func(data)
+            else:
+                res = await asyncio.to_thread(func, data)
+            return (
+                cast(List[_Dict[str, Any]] | List[AnomalyEvent], res)
+                if isinstance(res, list)
+                else []
+            )
         except Exception:
             return []
 
@@ -272,7 +278,7 @@ class AdaptationServiceAdapter:
                     "risk_adjustment",
                 ):
                     try:
-                        d[key] = getattr(res, key)  # type: ignore[attr-defined]
+                        d[key] = getattr(res, key)
                     except Exception:
                         pass
 
@@ -325,7 +331,7 @@ class ConfigurationProviderAdapter:
                 if callable(sys_cls):
                     try:
                         from_env = getattr(sys_cls, "from_env", None)
-                        candidate = from_env() if callable(from_env) else sys_cls()  # type: ignore[call-arg]
+                        candidate = from_env() if callable(from_env) else sys_cls()
                     except Exception:
                         candidate = None
             # Prefer concrete instance if available, else fall back to module for attribute lookups
@@ -348,7 +354,7 @@ class ConfigurationProviderAdapter:
             # Item access
             try:
                 if hasattr(obj, "__getitem__"):
-                    val = obj[key]  # type: ignore[index]
+                    val = obj[key]
                     return default if val is None else val
             except Exception:
                 pass
@@ -373,7 +379,7 @@ class ConfigurationProviderAdapter:
             # Mapping-style
             try:
                 if hasattr(obj, "__getitem__"):
-                    ns_val = obj[namespace]  # type: ignore[index]
+                    ns_val = obj[namespace]
                     if isinstance(ns_val, dict):
                         return dict(ns_val)
                     to_dict = getattr(ns_val, "to_dict", None)

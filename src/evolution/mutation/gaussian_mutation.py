@@ -9,8 +9,13 @@ from __future__ import annotations
 
 import logging
 import random
+from typing import TYPE_CHECKING, Any, cast
 
-from src.core.interfaces import DecisionGenome, IMutationStrategy
+try:
+    from src.core.interfaces import DecisionGenome, IMutationStrategy
+except Exception:  # pragma: no cover
+    IMutationStrategy = object
+    DecisionGenome = object
 
 logger = logging.getLogger(__name__)
 
@@ -48,84 +53,65 @@ class GaussianMutation(IMutationStrategy):
         # Create a deep copy to avoid modifying the original
         mutated = copy.deepcopy(genome)
 
-        # Update genome ID and mutation count
-        mutated.genome_id = f"{genome.genome_id}_mutated_{random.randint(1000, 9999)}"
-        mutated.mutation_count = genome.mutation_count + 1
+        # Update genome ID and mutation count (operate via local Any to satisfy typing)
+        _m = cast(Any, mutated)
+        _g = cast(Any, genome)
+        _m.genome_id = f"{_g.genome_id}_mutated_{random.randint(1000, 9999)}"
+        _m.mutation_count = _g.mutation_count + 1
 
         # Mutate strategy parameters
+        strategy: Any = _m.strategy
         if random.random() < mutation_rate:
-            mutated.strategy.entry_threshold = self._mutate_parameter(
-                mutated.strategy.entry_threshold, 0.0, 1.0
-            )
+            strategy.entry_threshold = self._mutate_parameter(strategy.entry_threshold, 0.0, 1.0)
         if random.random() < mutation_rate:
-            mutated.strategy.exit_threshold = self._mutate_parameter(
-                mutated.strategy.exit_threshold, 0.0, 1.0
-            )
+            strategy.exit_threshold = self._mutate_parameter(strategy.exit_threshold, 0.0, 1.0)
         if random.random() < mutation_rate:
-            mutated.strategy.momentum_weight = self._mutate_parameter(
-                mutated.strategy.momentum_weight, 0.0, 1.0
-            )
+            strategy.momentum_weight = self._mutate_parameter(strategy.momentum_weight, 0.0, 1.0)
         if random.random() < mutation_rate:
-            mutated.strategy.trend_weight = self._mutate_parameter(
-                mutated.strategy.trend_weight, 0.0, 1.0
-            )
+            strategy.trend_weight = self._mutate_parameter(strategy.trend_weight, 0.0, 1.0)
         if random.random() < mutation_rate:
-            mutated.strategy.volume_weight = self._mutate_parameter(
-                mutated.strategy.volume_weight, 0.0, 1.0
-            )
+            strategy.volume_weight = self._mutate_parameter(strategy.volume_weight, 0.0, 1.0)
         if random.random() < mutation_rate:
-            mutated.strategy.sentiment_weight = self._mutate_parameter(
-                mutated.strategy.sentiment_weight, 0.0, 1.0
-            )
+            strategy.sentiment_weight = self._mutate_parameter(strategy.sentiment_weight, 0.0, 1.0)
         if random.random() < mutation_rate:
-            mutated.strategy.lookback_period = int(
-                self._mutate_parameter(mutated.strategy.lookback_period, 1, 100)
-            )
+            strategy.lookback_period = int(self._mutate_parameter(strategy.lookback_period, 1, 100))
 
         # Mutate risk parameters
+        risk: Any = _m.risk
         if random.random() < mutation_rate:
-            mutated.risk.risk_tolerance = self._mutate_parameter(
-                mutated.risk.risk_tolerance, 0.0, 1.0
+            risk.risk_tolerance = self._mutate_parameter(risk.risk_tolerance, 0.0, 1.0)
+        if random.random() < mutation_rate:
+            risk.position_size_multiplier = self._mutate_parameter(
+                risk.position_size_multiplier, 0.1, 5.0
             )
         if random.random() < mutation_rate:
-            mutated.risk.position_size_multiplier = self._mutate_parameter(
-                mutated.risk.position_size_multiplier, 0.1, 5.0
+            risk.stop_loss_threshold = self._mutate_parameter(risk.stop_loss_threshold, 0.001, 0.1)
+        if random.random() < mutation_rate:
+            risk.take_profit_threshold = self._mutate_parameter(
+                risk.take_profit_threshold, 0.001, 0.2
             )
         if random.random() < mutation_rate:
-            mutated.risk.stop_loss_threshold = self._mutate_parameter(
-                mutated.risk.stop_loss_threshold, 0.001, 0.1
-            )
+            risk.max_drawdown_limit = self._mutate_parameter(risk.max_drawdown_limit, 0.01, 0.5)
         if random.random() < mutation_rate:
-            mutated.risk.take_profit_threshold = self._mutate_parameter(
-                mutated.risk.take_profit_threshold, 0.001, 0.2
-            )
+            risk.volatility_threshold = self._mutate_parameter(risk.volatility_threshold, 0.01, 1.0)
         if random.random() < mutation_rate:
-            mutated.risk.max_drawdown_limit = self._mutate_parameter(
-                mutated.risk.max_drawdown_limit, 0.01, 0.5
-            )
-        if random.random() < mutation_rate:
-            mutated.risk.volatility_threshold = self._mutate_parameter(
-                mutated.risk.volatility_threshold, 0.01, 1.0
-            )
-        if random.random() < mutation_rate:
-            mutated.risk.correlation_threshold = self._mutate_parameter(
-                mutated.risk.correlation_threshold, 0.0, 1.0
+            risk.correlation_threshold = self._mutate_parameter(
+                risk.correlation_threshold, 0.0, 1.0
             )
 
         # Mutate timing parameters
+        timing: Any = _m.timing
         if random.random() < mutation_rate:
-            mutated.timing.holding_period_min = max(
-                0, int(self._mutate_parameter(mutated.timing.holding_period_min, 0, 10))
+            timing.holding_period_min = max(
+                0, int(self._mutate_parameter(timing.holding_period_min, 0, 10))
             )
         if random.random() < mutation_rate:
-            mutated.timing.holding_period_max = max(
-                mutated.timing.holding_period_min + 1,
-                int(self._mutate_parameter(mutated.timing.holding_period_max, 1, 100)),
+            timing.holding_period_max = max(
+                timing.holding_period_min + 1,
+                int(self._mutate_parameter(timing.holding_period_max, 1, 100)),
             )
         if random.random() < mutation_rate:
-            mutated.timing.reentry_delay = max(
-                0, int(self._mutate_parameter(mutated.timing.reentry_delay, 0, 20))
-            )
+            timing.reentry_delay = max(0, int(self._mutate_parameter(timing.reentry_delay, 0, 20)))
 
         # Mutate sensory weights (ensure they sum to 1.0)
         sensory_weights = [
@@ -163,7 +149,7 @@ class GaussianMutation(IMutationStrategy):
                 mutated_any = True
 
         # Normalize weights after mutation
-        mutated._normalize_weights()
+        _m._normalize_weights()
 
         return mutated
 

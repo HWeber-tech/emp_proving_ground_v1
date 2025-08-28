@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Sequence, Mapping, cast
+from typing import Any, Dict, List, Mapping, Optional, Sequence, cast
 
 from src.ecosystem.coordination.coordination_engine import CoordinationEngine
 from src.ecosystem.evaluation.niche_detector import NicheDetector
@@ -80,7 +80,9 @@ class SpecializedPredatorEvolution:
             try:
                 # Attempt to evolve a specialist; fall back to a lightweight record if not supported
                 evolved = await self._evolve_specialist(niche)
-                specialists[getattr(niche, "regime_type", getattr(niche, "niche_type", "unknown"))] = evolved
+                specialists[
+                    getattr(niche, "regime_type", getattr(niche, "niche_type", "unknown"))
+                ] = evolved
             except Exception as e:
                 logger.error(f"Failed to evolve specialist for niche: {e}")
 
@@ -99,7 +101,7 @@ class SpecializedPredatorEvolution:
         # Ecosystem-level optimization (canonical optimizer)
         try:
             # Canonical optimizer expects populations and history; provide minimal placeholders
-            optimization = await self.ecosystem_optimizer.get_ecosystem_summary()  # type: ignore[attr-defined]
+            optimization = await self.ecosystem_optimizer.get_ecosystem_summary()
         except Exception:
             optimization = {
                 "total_optimizations": 0,
@@ -132,12 +134,18 @@ class SpecializedPredatorEvolution:
         # Provide a stable dict wrapper for downstream code.
         try:
             # Attempt an async evolution API commonly found in prior implementations
-            evolved_obj = await self.species_manager.evolve_specialist(  # type: ignore[attr-defined]
-                niche=niche, base_population=[], specialization_pressure=getattr(niche, "opportunity_score", 0.5)
+            evolved_obj = await self.species_manager.evolve_specialist(
+                niche=niche,
+                base_population=[],
+                specialization_pressure=getattr(niche, "opportunity_score", 0.5),
             )
             return {
-                "species_type": getattr(evolved_obj, "predator_type", getattr(evolved_obj, "species_type", "unknown")),
-                "id": getattr(evolved_obj, "predator_id", getattr(evolved_obj, "species_id", "unknown")),
+                "species_type": getattr(
+                    evolved_obj, "predator_type", getattr(evolved_obj, "species_type", "unknown")
+                ),
+                "id": getattr(
+                    evolved_obj, "predator_id", getattr(evolved_obj, "species_id", "unknown")
+                ),
                 "metrics": getattr(evolved_obj, "performance_metrics", {}),
             }
         except AttributeError:

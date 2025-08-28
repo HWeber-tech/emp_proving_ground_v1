@@ -28,4 +28,4 @@ def estimate_slippage_bps(ctx: ExecContext, cfg: ExecutionConfig) -> float:
 
 
 def estimate_commission_bps(cfg: ExecutionConfig) -> float:
-    return max(0.0, cfg.fees.commission_bps)
+    return max(0.0, float(cfg.fees.commission_bps))

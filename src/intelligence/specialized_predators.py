@@ -16,21 +16,34 @@ Re-exported:
 
 from __future__ import annotations
 
-from src.ecosystem.coordination.coordination_engine import (
-    CoordinationEngine as CoordinationEngine,
-)
-from src.ecosystem.evaluation.niche_detector import (
-    NicheDetector as NicheDetector,
-)
-from src.ecosystem.evolution.specialized_predator_evolution import (
-    SpecializedPredatorEvolution as SpecializedPredatorEvolution,
-)
-from src.ecosystem.optimization.ecosystem_optimizer import (
-    EcosystemOptimizer as EcosystemOptimizer,
-)
-from src.ecosystem.species.species_manager import (
-    SpeciesManager as SpeciesManager,
-)
+import importlib
+from typing import Any
+
+from src.ecosystem.coordination.coordination_engine import CoordinationEngine as CoordinationEngine
+from src.ecosystem.evaluation.niche_detector import NicheDetector as NicheDetector
+
+
+def _eco_mod(mod: str) -> Any:
+    return importlib.import_module(f"src.ecosystem.{mod}")
+
+
+def _species_manager() -> Any:
+    return getattr(_eco_mod("species.species_manager"), "SpeciesManager")
+
+
+def _predator_evolution() -> Any:
+    return getattr(
+        _eco_mod("evolution.specialized_predator_evolution"), "SpecializedPredatorEvolution"
+    )
+
+
+def _ecosystem_optimizer() -> Any:
+    return getattr(_eco_mod("optimization.ecosystem_optimizer"), "EcosystemOptimizer")
+
+
+SpeciesManager = _species_manager()
+EcosystemOptimizer = _ecosystem_optimizer()
+SpecializedPredatorEvolution = _predator_evolution()
 
 __all__ = [
     "NicheDetector",

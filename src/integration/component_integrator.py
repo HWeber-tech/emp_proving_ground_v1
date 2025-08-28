@@ -12,17 +12,30 @@ from __future__ import annotations
 import asyncio
 import logging
 from datetime import datetime
-from typing import Dict, List, Optional, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Dict, List, Optional, Protocol, runtime_checkable
 
-from src.core.types import JSONObject
 from src.core.performance.market_data_cache import get_global_cache
+from src.core.types import JSONObject
 
 # Canonical imports (avoid relative package traversals)
 # Note: These may be optional at runtime depending on environment; guarded in methods.
 try:
-    from src.core import PopulationManager, SensoryOrgan, RiskManager  # type: ignore[attr-defined]
+    from src.core import PopulationManager, RiskManager, SensoryOrgan
 except Exception:  # pragma: no cover
-    PopulationManager = SensoryOrgan = RiskManager = None  # type: ignore[assignment]
+    # Provide tiny runtime stubs to avoid rebinding type names to None
+    class PopulationManager:  # type: ignore[no-redef]
+        def __init__(self, *args: object, **kwargs: object) -> None: ...
+    class SensoryOrgan:  # type: ignore[no-redef]
+        def __init__(self, *args: object, **kwargs: object) -> None: ...
+    class RiskManager:  # type: ignore[no-redef]
+        def __init__(self, *args: object, **kwargs: object) -> None: ...
+
+
+if TYPE_CHECKING:
+    # Type-only imports to satisfy checkers without runtime coupling
+    from src.core import PopulationManager as _TPopulationManager  # noqa: F401
+    from src.core import RiskManager as _TRiskManager  # noqa: F401
+    from src.core import SensoryOrgan as _TSensoryOrgan  # noqa: F401
 
 logger = logging.getLogger(__name__)
 
@@ -86,13 +99,13 @@ class ComponentIntegrator:
 
         if PopulationManager is not None:
             # Population Manager
-            population_manager = PopulationManager(population_size=100)  # type: ignore[call-arg]
+            population_manager = PopulationManager(population_size=100)
             self.components["population_manager"] = population_manager
             self.component_status["population_manager"] = "initialized"
 
         if RiskManager is not None:
             # Risk Manager
-            risk_manager = RiskManager()  # type: ignore[call-arg]
+            risk_manager = RiskManager()
             self.components["risk_manager"] = risk_manager
             self.component_status["risk_manager"] = "initialized"
 
@@ -186,9 +199,9 @@ class ComponentIntegrator:
 
             # Re-initialize based on component type
             if PopulationManager is not None and component_name == "population_manager":
-                self.components[component_name] = PopulationManager(population_size=100)  # type: ignore[call-arg]
+                self.components[component_name] = PopulationManager(population_size=100)
             elif RiskManager is not None and component_name == "risk_manager":
-                self.components[component_name] = RiskManager()  # type: ignore[call-arg]
+                self.components[component_name] = RiskManager()
             elif SensoryOrgan is not None and component_name.endswith("_organ"):
                 organ_type = component_name.replace("_organ", "")
                 self.components[component_name] = SensoryOrgan(organ_type)
@@ -209,8 +222,12 @@ class ComponentIntegrator:
         """Get summary of all components."""
         return {
             "total_components": len(self.components),
-            "initialized_components": sum(1 for status in self.component_status.values() if status == "initialized"),
-            "shutdown_components": sum(1 for status in self.component_status.values() if status == "shutdown"),
+            "initialized_components": sum(
+                1 for status in self.component_status.values() if status == "initialized"
+            ),
+            "shutdown_components": sum(
+                1 for status in self.component_status.values() if status == "shutdown"
+            ),
             "component_status": self.component_status.copy(),
         }
 
@@ -252,7 +269,9 @@ class ComponentIntegrator:
         metrics: Dict[str, object] = {
             "timestamp": datetime.now().isoformat(),
             "component_count": len(self.components),
-            "initialized_count": sum(1 for status in self.component_status.values() if status == "initialized"),
+            "initialized_count": sum(
+                1 for status in self.component_status.values() if status == "initialized"
+            ),
             "cache_status": "connected" if self.cache else "disconnected",
         }
 
@@ -282,4 +301,9 @@ def get_global_component_integrator() -> ComponentIntegrator:
     return _global_integrator
 
 
-__all__ = ["IComponentIntegrator", "ComponentIntegrator", "get_global_component_integrator", "_MISSING"]
+__all__ = [
+    "IComponentIntegrator",
+    "ComponentIntegrator",
+    "get_global_component_integrator",
+    "_MISSING",
+]

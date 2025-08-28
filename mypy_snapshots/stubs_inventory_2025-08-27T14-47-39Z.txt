@@ -1,0 +1,1 @@
+stubs/src/core\tfiles=1\nstubs/src/market_intelligence\tfiles=1\nstubs/src/sensory\tfiles=5\n

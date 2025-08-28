@@ -20,7 +20,7 @@ import json
 import logging
 import time
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Optional, cast
 
 import numpy as np
 import pandas as pd
@@ -32,7 +32,15 @@ from src.core.regime import NoOpRegimeClassifier, RegimeClassifier, RegimeResult
 try:
     from src.core.interfaces import DecisionGenome
 except Exception:  # pragma: no cover
-    DecisionGenome = object  # type: ignore
+    DecisionGenome = object
+
+if TYPE_CHECKING:
+    from src.core.interfaces import DecisionGenome as _DecisionGenome  # noqa: F401
+else:
+
+    class _DecisionGenome:  # minimal runtime stub for typing isolation
+        pass
+
 
 logger = logging.getLogger(__name__)
 
@@ -138,7 +146,7 @@ class RealMarketValidationFramework:
 
                     def _to_datetime(ts: Any) -> Optional[datetime]:
                         try:
-                            return pd.to_datetime(ts).to_pydatetime()
+                            return cast(datetime, pd.to_datetime(ts).to_pydatetime())
                         except Exception:
                             try:
                                 # Fallback if it's a second-based timestamp
@@ -239,7 +247,7 @@ class RealMarketValidationFramework:
             for i in range(20, len(data)):
                 window = data.iloc[i - 20 : i]
                 regime_result: Optional[RegimeResult] = await self.regime_classifier.detect_regime(
-                    window
+                    cast(Mapping[str, object], window)
                 )
                 if regime_result:
                     regimes.append(
@@ -257,12 +265,14 @@ class RealMarketValidationFramework:
             total_classifications = 0
 
             for regime in regimes:
-                regime_date = pd.to_datetime(regime["date"])
+                regime_date_dt = cast(datetime, pd.to_datetime(regime["date"]).to_pydatetime())
 
                 # Check if correctly identified crisis periods
                 for crisis_start, crisis_end in crisis_periods:
-                    if crisis_start <= regime_date <= crisis_end:
-                        if regime["regime"].upper() in [
+                    if crisis_start <= regime_date_dt <= crisis_end:
+                        key = regime.get("regime")
+                        key_up = key.upper() if isinstance(key, str) else str(key).upper()
+                        if key_up in [
                             "CRISIS",
                             "VOLATILE",
                             "BEARISH",
@@ -339,7 +349,7 @@ class RealMarketValidationFramework:
 
             # Test regime detection
             start_time = time.time()
-            _ = await self.regime_classifier.detect_regime(data)
+            _ = await self.regime_classifier.detect_regime(cast(Mapping[str, object], data))
             regime_time = time.time() - start_time
             processing_times.append(regime_time)
 
@@ -656,7 +666,7 @@ class RealMarketValidationFramework:
 
         return report
 
-    def print_comprehensive_report(self, report: Dict[str, Any]):
+    def print_comprehensive_report(self, report: Dict[str, Any]) -> None:
         """Print comprehensive validation report"""
         print("\n" + "=" * 100)
         print("REAL MARKET VALIDATION FRAMEWORK REPORT")
@@ -688,7 +698,7 @@ class RealMarketValidationFramework:
         print("=" * 100)
 
 
-async def main():
+async def main() -> None:
     """Run comprehensive real market validation"""
     logging.basicConfig(level=logging.INFO)
 

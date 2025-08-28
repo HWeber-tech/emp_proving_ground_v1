@@ -1,13 +1,9 @@
 from __future__ import annotations
 
+import importlib
 import os
 from dataclasses import dataclass
-from typing import Optional
-
-try:
-    import yaml
-except Exception:  # pragma: no cover
-    yaml = None
+from typing import Any, Optional
 
 
 @dataclass
@@ -24,14 +20,21 @@ class WhyConfig:
     use_parallel_shift: bool = True
 
 
+_yaml: object | None = None
+try:  # pragma: no cover
+    _yaml = importlib.import_module("yaml")
+except Exception:  # pragma: no cover
+    _yaml = None
+
+
 def load_why_config(path: Optional[str] = None) -> WhyConfig:
     if path is None:
         path = os.environ.get("WHY_CONFIG_PATH", "config/why/why_engine.yaml")
-    if yaml is None or not os.path.exists(path):
+    if _yaml is None or not os.path.exists(path):
         return WhyConfig()
     try:
         with open(path, "r", encoding="utf-8") as fh:
-            data = yaml.safe_load(fh) or {}
+            data = getattr(_yaml, "safe_load")(fh) or {}
         we = data.get("why_engine", data)
         return WhyConfig(
             enable_macro_proximity=bool(we.get("enable_macro_proximity", True)),
@@ -45,5 +48,3 @@ def load_why_config(path: Optional[str] = None) -> WhyConfig:
         )
     except Exception:
         return WhyConfig()
-
-

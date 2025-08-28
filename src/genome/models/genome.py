@@ -34,7 +34,8 @@ def _coerce_numeric_mapping(mapping: Any) -> dict[str, float]:
     else:
         # Try to get object-like attributes; fallback to empty
         try:
-            items = vars(mapping).items()  # type: ignore[arg-type]
+            from typing import cast as _cast
+            items = vars(_cast(Any, mapping)).items()
         except Exception:
             return result
 
@@ -56,7 +57,8 @@ def _force_str_list(value: Any) -> list[str]:
         return [value]
     try:
         out: list[str] = []
-        for item in list(value):  # type: ignore[arg-type]
+        from typing import cast as _cast
+        for item in list(_cast(Any, value)):
             out.append(str(item))
         return out
     except Exception:
@@ -133,7 +135,8 @@ class DecisionGenome:
             if not isinstance(data, dict):
                 # Try object-like attr access
                 try:
-                    data = dict(vars(data))  # type: ignore[arg-type]
+                    from typing import cast as _cast
+                    data = dict(vars(_cast(Any, data)))
                 except Exception:
                     data = {}
 
@@ -234,7 +237,10 @@ class DecisionGenome:
             kwargs["performance_metrics"] = copy.deepcopy(kwargs["performance_metrics"])
 
         data.update(kwargs)
-        return DecisionGenome(**data)
+        # Cast to a permissive mapping before kwargs expansion to satisfy typing
+        from typing import cast as _cast
+
+        return DecisionGenome(**_cast(dict[str, Any], data))
 
 
 def new_genome(

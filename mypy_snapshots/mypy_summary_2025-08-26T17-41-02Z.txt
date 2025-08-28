@@ -1,0 +1,28 @@
+Timestamp: 2025-08-26T17-41-02Z
+Post-Batch10 fix9 snapshot
+
+Found 221 errors in 48 files
+Delta vs previous: unavailable (no prior summary found or unparsable)
+
+Top offenders (top 20):
+ 1. [src/thinking/patterns/trend_detector.py](src/thinking/patterns/trend_detector.py:1) — 31
+ 2. [src/orchestration/enhanced_intelligence_engine.py](src/orchestration/enhanced_intelligence_engine.py:1) — 15
+ 3. [src/thinking/analysis/market_analyzer.py](src/thinking/analysis/market_analyzer.py:1) — 15
+ 4. [src/thinking/phase3_orchestrator.py](src/thinking/phase3_orchestrator.py:1) — 14
+ 5. [src/sensory/services/symbol_mapper.py](src/sensory/services/symbol_mapper.py:1) — 11
+ 6. [src/validation/phase2d_simple_integration.py](src/validation/phase2d_simple_integration.py:1) — 11
+ 7. [src/data_integration/data_fusion.py](src/data_integration/data_fusion.py:1) — 10
+ 8. [src/intelligence/sentient_adaptation.py](src/intelligence/sentient_adaptation.py:1) — 9
+ 9. [src/thinking/patterns/cycle_detector.py](src/thinking/patterns/cycle_detector.py:1) — 8
+10. [src/sensory/organs/dimensions/institutional_tracker.py](src/sensory/organs/dimensions/institutional_tracker.py:1) — 8
+11. [src/evolution/mutation/gaussian_mutation.py](src/evolution/mutation/gaussian_mutation.py:1) — 7
+12. [src/thinking/patterns/anomaly_detector.py](src/thinking/patterns/anomaly_detector.py:1) — 7
+13. [src/trading/portfolio/real_portfolio_monitor.py](src/trading/portfolio/real_portfolio_monitor.py:1) — 7
+14. [src/genome/models/genome_adapter.py](src/genome/models/genome_adapter.py:1) — 5
+15. [src/core/_event_bus_impl.py](src/core/_event_bus_impl.py:1) — 5
+16. [src/sensory/organs/dimensions/why_organ.py](src/sensory/organs/dimensions/why_organ.py:1) — 5
+17. [src/ui/ui_manager.py](src/ui/ui_manager.py:1) — 4
+18. [src/trading/execution/fix_executor.py](src/trading/execution/fix_executor.py:1) — 4
+19. [src/integration/component_integrator.py](src/integration/component_integrator.py:1) — 4
+20. [src/trading/trading_manager.py](src/trading/trading_manager.py:1) — 3
+

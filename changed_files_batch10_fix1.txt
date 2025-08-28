@@ -1,0 +1,8 @@
+src/evolution/mutation/__init__.py
+src/thinking/adversarial/__init__.py
+src/sensory/organs/analyzers/__init__.py
+src/sensory/organs/__init__.py
+src/sensory/organs/dimensions/__init__.py
+src/trading/monitoring/__init__.py
+src/sensory/organs/dimensions/sensory_signal.py
+src/thinking/patterns/__init__.py

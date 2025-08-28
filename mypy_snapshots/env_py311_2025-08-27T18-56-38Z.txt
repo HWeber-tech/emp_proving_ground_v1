@@ -1,0 +1,4 @@
+===== python -V =====
+Python 3.11.13
+===== mypy --version =====
+mypy 1.17.1 (compiled: yes)

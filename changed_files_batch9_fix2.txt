@@ -1,0 +1,7 @@
+src/sensory/enhanced/anomaly_dimension.py
+src/sensory/what/volatility_engine.py
+src/trading/execution/execution_model.py
+src/sensory/organs/news_organ.py
+src/data_integration/dukascopy_ingestor.py
+src/sensory/organs/dimensions/how_organ.py
+src/data_integration/yfinance_gateway.py

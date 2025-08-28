@@ -14,10 +14,11 @@ Architecture:
 """
 
 # Legacy facade: re-export core evolution interfaces
-from src.core.evolution.engine import EvolutionConfig, EvolutionEngine  # type: ignore
-from src.core.evolution.fitness import FitnessEvaluator  # type: ignore
+_ = None  # Legacy facade: re-export core evolution interfaces
+from src.core.evolution.engine import EvolutionConfig, EvolutionEngine
+from src.core.evolution.fitness import FitnessEvaluator
 from src.core.evolution.operators import *  # noqa: F401,F403
-from src.core.evolution.population import Population  # type: ignore
+from src.core.evolution.population import Population
 
 __version__ = "1.1.0"
 __author__ = "EMP System"

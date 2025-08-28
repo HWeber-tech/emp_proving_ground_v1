@@ -1,0 +1,33 @@
+Mypy Snapshot Summary
+Timestamp: 2025-08-26T16-24-11Z UTC
+Mode: Base posture (not strict-on-touch)
+Note: Post-Batch10 fix8 snapshot
+
+Totals:
+  Total errors: 240
+  Total files with errors: 60
+Delta vs previous (mypy_snapshots/mypy_summary_2025-08-26T14-20-55Z.txt):
+  Errors delta: -8
+  Files-with-errors delta: -4
+
+Top offenders (top 20 by error count):
+31 - [31 src/thinking/patterns/trend_detector.py](31 src/thinking/patterns/trend_detector.py:1)
+15 - [15 src/orchestration/enhanced_intelligence_engine.py](15 src/orchestration/enhanced_intelligence_engine.py:1)
+15 - [15 src/thinking/analysis/market_analyzer.py](15 src/thinking/analysis/market_analyzer.py:1)
+14 - [14 src/thinking/phase3_orchestrator.py](14 src/thinking/phase3_orchestrator.py:1)
+11 - [11 src/sensory/services/symbol_mapper.py](11 src/sensory/services/symbol_mapper.py:1)
+11 - [11 src/validation/phase2d_simple_integration.py](11 src/validation/phase2d_simple_integration.py:1)
+10 - [10 src/data_integration/data_fusion.py](10 src/data_integration/data_fusion.py:1)
+9 - [9 src/intelligence/sentient_adaptation.py](9 src/intelligence/sentient_adaptation.py:1)
+8 - [8 src/sensory/organs/dimensions/institutional_tracker.py](8 src/sensory/organs/dimensions/institutional_tracker.py:1)
+8 - [src/thinking/patterns/cycle_detector.py](src/thinking/patterns/cycle_detector.py:1)
+7 - [src/evolution/mutation/gaussian_mutation.py](src/evolution/mutation/gaussian_mutation.py:1)
+7 - [src/thinking/patterns/anomaly_detector.py](src/thinking/patterns/anomaly_detector.py:1)
+7 - [src/trading/portfolio/real_portfolio_monitor.py](src/trading/portfolio/real_portfolio_monitor.py:1)
+5 - [src/core/_event_bus_impl.py](src/core/_event_bus_impl.py:1)
+5 - [src/genome/models/genome_adapter.py](src/genome/models/genome_adapter.py:1)
+5 - [src/sensory/organs/dimensions/why_organ.py](src/sensory/organs/dimensions/why_organ.py:1)
+4 - [src/integration/component_integrator.py](src/integration/component_integrator.py:1)
+4 - [src/trading/execution/fix_executor.py](src/trading/execution/fix_executor.py:1)
+4 - [src/ui/ui_manager.py](src/ui/ui_manager.py:1)
+3 - [src/trading/trading_manager.py](src/trading/trading_manager.py:1)

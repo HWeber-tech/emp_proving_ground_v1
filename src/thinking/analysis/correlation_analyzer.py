@@ -9,16 +9,12 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime
-from typing import Any, Dict, List, Optional, cast
+from typing import Any, Dict, List, Mapping, Optional, cast
 
 import numpy as np
 
-from src.core.exceptions import ThinkingException
-
-try:
-    from src.core.interfaces import AnalysisResult, SensorySignal, ThinkingPattern
-except Exception:  # pragma: no cover
-    ThinkingPattern = SensorySignal = AnalysisResult = object
+from src.core.exceptions import TradingException as ThinkingException
+from src.core.interfaces import AnalysisResult, SensorySignal, ThinkingPattern
 
 logger = logging.getLogger(__name__)
 
@@ -50,30 +46,33 @@ class CorrelationAnalyzer(ThinkingPattern):
             correlation_clusters = self._analyze_correlation_clusters(correlation_matrix)
 
             # Create analysis result
-            return AnalysisResult(
-                timestamp=datetime.now(),
-                analysis_type="correlation_analysis",
-                result={
-                    "correlation_matrix": correlation_matrix,
-                    "significant_correlations": significant_correlations,
-                    "correlation_clusters": correlation_clusters,
-                    "diversification_score": self._calculate_diversification_score(
-                        correlation_matrix
-                    ),
-                    "risk_concentration": self._assess_risk_concentration(correlation_matrix),
-                },
-                confidence=self._calculate_correlation_confidence(correlation_matrix),
-                metadata={
-                    "signal_count": len(signals),
-                    "signal_types": list(self._signal_history.keys()),
-                    "analysis_method": "pearson_correlation",
+            return cast(
+                AnalysisResult,
+                {
+                    "timestamp": datetime.now(),
+                    "analysis_type": "correlation_analysis",
+                    "result": {
+                        "correlation_matrix": correlation_matrix,
+                        "significant_correlations": significant_correlations,
+                        "correlation_clusters": correlation_clusters,
+                        "diversification_score": self._calculate_diversification_score(
+                            correlation_matrix
+                        ),
+                        "risk_concentration": self._assess_risk_concentration(correlation_matrix),
+                    },
+                    "confidence": self._calculate_correlation_confidence(correlation_matrix),
+                    "metadata": {
+                        "signal_count": len(signals),
+                        "signal_types": list(self._signal_history.keys()),
+                        "analysis_method": "pearson_correlation",
+                    },
                 },
             )
 
         except Exception as e:
             raise ThinkingException(f"Error in correlation analysis: {e}")
 
-    def learn(self, feedback: dict[str, object]) -> bool:
+    def learn(self, feedback: Mapping[str, object]) -> bool:
         """Learn from feedback to improve correlation analysis."""
         try:
             # Extract learning data from feedback
@@ -95,12 +94,12 @@ class CorrelationAnalyzer(ThinkingPattern):
     def _update_signal_history(self, signals: list[SensorySignal]) -> None:
         """Update the signal history."""
         for signal in signals:
-            signal_type = signal.signal_type
+            signal_type = cast(Any, signal).signal_type
 
             if signal_type not in self._signal_history:
                 self._signal_history[signal_type] = []
 
-            self._signal_history[signal_type].append(float(signal.value))
+            self._signal_history[signal_type].append(float(cast(Any, signal).value))
 
             # Keep only recent signals
             if len(self._signal_history[signal_type]) > int(self.lookback_periods):

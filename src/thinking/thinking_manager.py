@@ -11,30 +11,34 @@ from collections import deque
 from datetime import datetime, timedelta
 from typing import Any, Dict, Optional, Union, cast
 
+from src.core.context_packet import ContextPacket
+from src.governance.system_config import SystemConfig
+from src.operational.state_store import StateStore
+from src.thinking.prediction.predictive_modeler import PredictiveMarketModeler
+
 # Removed pandas dependency
 
-from src.governance.system_config import SystemConfig
-from src.core.context_packet import ContextPacket
-from src.thinking.prediction.predictive_modeler import PredictiveMarketModeler
-from src.operational.state_store import StateStore
 
 # Configure logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
+
 
 class ThinkingManager:
     """Enhanced thinking manager with predictive intelligence."""
-    
+
     def __init__(self, system_config: SystemConfig):
         """Initialize the thinking manager with predictive capabilities."""
         self.system_config = system_config
         self.predictive_modeler: Optional[PredictiveMarketModeler] = None
-        self.market_data_buffer = deque(maxlen=100)  # Rolling buffer for recent market data
-        
+        self.market_data_buffer: deque[dict[str, object]] = deque(
+            maxlen=100
+        )  # Rolling buffer for recent market data
+
         # Initialize predictive modeler if configured
         self._initialize_predictive_modeler()
-    
-    def _initialize_predictive_modeler(self):
+
+    def _initialize_predictive_modeler(self) -> None:
         """Initialize the predictive modeler."""
         try:
             self.predictive_modeler = PredictiveMarketModeler(StateStore())
@@ -42,34 +46,38 @@ class ThinkingManager:
         except Exception as e:
             logger.warning(f"Failed to initialize predictive modeler: {e}")
             self.predictive_modeler = None
-    
+
     async def on_market_understanding(self, market_data: dict[str, object]) -> ContextPacket:
         """
         Handle market understanding event and generate context with forecast.
-        
+
         Args:
             market_data: Raw market data from sensors
-            
+
         Returns:
             ContextPacket with predictive intelligence
         """
         logger.debug("Processing market understanding event")
-        
+
         # Add to buffer
         self.market_data_buffer.append(market_data)
-        
+
         # Create base context packet
         context = ContextPacket(
             timestamp=datetime.utcnow(),
             symbol=str(market_data.get("symbol", "UNKNOWN")),
-            current_price=float(market_data.get("close") or market_data.get("price") or 0.0),
-            current_cvd=float(market_data.get("cvd") or market_data.get("current_cvd") or 0.0),
+            current_price=(lambda _v: float(cast(Union[int, float, str], _v)))(
+                market_data.get("close") or market_data.get("price") or 0.0
+            ),
+            current_cvd=(lambda _v: float(cast(Union[int, float, str], _v)))(
+                market_data.get("cvd") or market_data.get("current_cvd") or 0.0
+            ),
             metadata={
                 "risk_metrics": self._calculate_risk_metrics(market_data),
                 "sequence_id": f"{datetime.utcnow().timestamp()}",
             },
         )
-        
+
         # Generate forecast if predictive modeler is available
         if self.predictive_modeler and len(self.market_data_buffer) >= 20:
             try:
@@ -79,7 +87,9 @@ class ThinkingManager:
 
                 # Predict scenarios
                 results = await self.predictive_modeler.predict_market_scenarios(
-                    current_state=current_state, time_horizon=timedelta(days=1), num_scenarios=200
+                    current_state=cast(dict[str, object], current_state),
+                    time_horizon=timedelta(days=1),
+                    num_scenarios=200,
                 )
 
                 # Attach summary to context metadata
@@ -88,17 +98,13 @@ class ThinkingManager:
 
             except Exception as e:
                 logger.warning(f"Failed to generate predictions: {e}")
-        
+
         return context
-    
+
     def _calculate_risk_metrics(self, market_data: dict[str, object]) -> Dict[str, float]:
         """Calculate basic risk metrics from market data."""
-        return {
-            "volatility": 0.02,
-            "max_drawdown": 0.05,
-            "sharpe_ratio": 1.5
-        }
-    
+        return {"volatility": 0.02, "max_drawdown": 0.05, "sharpe_ratio": 1.5}
+
     def _compute_state_from_buffer(self) -> Dict[str, float]:
         """Compute current price and volatility from the rolling buffer without pandas."""
         if not self.market_data_buffer:
@@ -136,43 +142,44 @@ class ThinkingManager:
             vol = 0.02
 
         return {"price": price, "volatility": vol}
-    
+
     def get_model_info(self) -> dict[str, object]:
         """Get information about the predictive model."""
         if self.predictive_modeler:
             return {"status": "enabled"}
         return {"status": "disabled", "reason": "no_model_configured"}
-    
+
     def is_predictive_enabled(self) -> bool:
         """Check if predictive features are enabled."""
         return self.predictive_modeler is not None
 
+
 # Example usage and testing
 if __name__ == "__main__":
     import asyncio
-    
-    async def test_thinking_manager():
+
+    async def test_thinking_manager() -> None:
         """Test the thinking manager with predictive integration."""
-        
+
         config = SystemConfig()
         manager = ThinkingManager(config)
-        
+
         # Test market data
-        market_data = {
-            'open': 1.1000,
-            'high': 1.1005,
-            'low': 1.0995,
-            'close': 1.1002,
-            'volume': 1000
+        market_data: dict[str, object] = {
+            "open": 1.1000,
+            "high": 1.1005,
+            "low": 1.0995,
+            "close": 1.1002,
+            "volume": 1000,
         }
-        
+
         # Generate context
         context = await manager.on_market_understanding(market_data)
         print("Generated context:")
         print(f"  Timestamp: {context.timestamp}")
         print(f"  Has predictions: {'predictions' in context.metadata}")
-        if 'predictions' in context.metadata:
+        if "predictions" in context.metadata:
             print(f"  Predictions count: {context.metadata['predictions'].get('count', 0)}")
-    
+
     # Run test
     asyncio.run(test_thinking_manager())

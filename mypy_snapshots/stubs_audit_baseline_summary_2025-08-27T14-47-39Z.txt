@@ -1,0 +1,1 @@
+mypy completed, exit_code=unknown\nexit_code=1\nparsed_errors=unparsed\n

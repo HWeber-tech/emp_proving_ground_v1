@@ -1,0 +1,8 @@
+src/domain/__init__.py
+src/sensory/enhanced/when_dimension.py
+src/sensory/enhanced/what_dimension.py
+src/operational/health_monitor.py
+src/sentient/learning/real_time_learning_engine.py
+src/ecosystem/coordination/coordination_engine.py
+src/intelligence/portfolio_evolution.py
+src/thinking/ecosystem/specialized_predator_evolution.py

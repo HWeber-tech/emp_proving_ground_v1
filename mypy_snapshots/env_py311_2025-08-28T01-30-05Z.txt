@@ -1,0 +1,6 @@
+===== python -V =====
+Python 3.12.3
+===== mypy --version =====
+mypy 1.17.1 (compiled: yes)
+===== emulation note =====
+Executed under Python 3.12.3 with mypy --python-version 3.11 (emulation)

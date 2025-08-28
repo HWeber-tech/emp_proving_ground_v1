@@ -22,14 +22,18 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Dict, List, Tuple
+from typing import TYPE_CHECKING, Any, Dict, List, Protocol, Tuple, cast
 
 from src.core.base import DimensionalReading, MarketData
 from src.market_intelligence.dimensions.enhanced_anomaly_dimension import AnomalyIntelligenceEngine
-from src.market_intelligence.dimensions.enhanced_how_dimension import InstitutionalIntelligenceEngine
+from src.market_intelligence.dimensions.enhanced_how_dimension import (
+    InstitutionalIntelligenceEngine,
+)
 from src.market_intelligence.dimensions.enhanced_what_dimension import TechnicalRealityEngine
 from src.market_intelligence.dimensions.enhanced_when_dimension import ChronalIntelligenceEngine
-from src.market_intelligence.dimensions.enhanced_why_dimension import EnhancedFundamentalIntelligenceEngine
+from src.market_intelligence.dimensions.enhanced_why_dimension import (
+    EnhancedFundamentalIntelligenceEngine,
+)
 
 
 class IntelligenceLevel(Enum):
@@ -142,9 +146,9 @@ class CorrelationAnalyzer:
         var_b = sum((y - mean_b) ** 2 for y in bx) / n
         if var_a <= 0 or var_b <= 0:
             return 0.0
-        corr = cov / ((var_a ** 0.5) * (var_b ** 0.5))
+        corr = cov / ((var_a**0.5) * (var_b**0.5))
         # clamp to [-1, 1]
-        return max(-1.0, min(1.0, corr))
+        return float(max(-1.0, min(1.0, corr)))
 
     def get_dimensional_correlations(self) -> Dict[Tuple[str, str], Correlation]:
         # Provide at least one correlation pair
@@ -157,7 +161,9 @@ class CorrelationAnalyzer:
         # Simple heuristic: if recent WHAT and WHEN align, emit a "TREND_ALIGNMENT" pattern
         what = self._history.get("WHAT", [-0.0])
         when = self._history.get("WHEN", [-0.0])
-        strength = float(min(1.0, max(0.0, abs((what[-1] if what else 0.0) + (when[-1] if when else 0.0)) / 2.0)))
+        strength = float(
+            min(1.0, max(0.0, abs((what[-1] if what else 0.0) + (when[-1] if when else 0.0)) / 2.0))
+        )
         return [
             Pattern(
                 pattern_name="TREND_ALIGNMENT",
@@ -168,14 +174,33 @@ class CorrelationAnalyzer:
         ]
 
 
+# Typing-only protocol describing the minimal API we call on enhanced engines
+class EnhancedEngineProto(Protocol):
+    async def analyze_fundamental_intelligence(
+        self, market_data: MarketData
+    ) -> DimensionalReading: ...
+    async def analyze_institutional_intelligence(
+        self, market_data: MarketData
+    ) -> DimensionalReading: ...
+    async def analyze_technical_reality(self, market_data: MarketData) -> DimensionalReading: ...
+    async def analyze_temporal_intelligence(
+        self, market_data: MarketData
+    ) -> DimensionalReading: ...
+    async def analyze_anomaly_intelligence(self, market_data: MarketData) -> DimensionalReading: ...
+
+
 class ContextualFusionEngine:
     def __init__(self) -> None:
         # Engines
-        self._why = EnhancedFundamentalIntelligenceEngine()
-        self._how = InstitutionalIntelligenceEngine()
-        self._what = TechnicalRealityEngine()
-        self._when = ChronalIntelligenceEngine()
-        self._anomaly = AnomalyIntelligenceEngine()
+        self._why: EnhancedEngineProto = cast(
+            EnhancedEngineProto, EnhancedFundamentalIntelligenceEngine()
+        )
+        self._how: EnhancedEngineProto = cast(
+            EnhancedEngineProto, InstitutionalIntelligenceEngine()
+        )
+        self._what: EnhancedEngineProto = cast(EnhancedEngineProto, TechnicalRealityEngine())
+        self._when: EnhancedEngineProto = cast(EnhancedEngineProto, ChronalIntelligenceEngine())
+        self._anomaly: EnhancedEngineProto = cast(EnhancedEngineProto, AnomalyIntelligenceEngine())
 
         # Public state used in tests
         self.current_readings: Dict[str, DimensionalReading] = {}
@@ -190,9 +215,7 @@ class ContextualFusionEngine:
         when_t = self._when.analyze_temporal_intelligence(market_data)
         anom_t = self._anomaly.analyze_anomaly_intelligence(market_data)
 
-        why, how, what, when, anomaly = await asyncio.gather(
-            why_t, how_t, what_t, when_t, anom_t
-        )
+        why, how, what, when, anomaly = await asyncio.gather(why_t, how_t, what_t, when_t, anom_t)
 
         readings: Dict[str, DimensionalReading] = {
             "WHY": why,
@@ -217,8 +240,7 @@ class ContextualFusionEngine:
                 return default
 
         unified = sum(
-            weights[dim] * _safe(getattr(r, "signal_strength", 0.0))
-            for dim, r in readings.items()
+            weights[dim] * _safe(getattr(r, "signal_strength", 0.0)) for dim, r in readings.items()
         )
         conf = sum(_safe(getattr(r, "confidence", 0.0)) for r in readings.values()) / 5.0
 
@@ -230,7 +252,11 @@ class ContextualFusionEngine:
         if _safe(getattr(anomaly, "signal_strength", 0.0)) > 0.7:
             dominant = Narrative.VOLATILE
 
-        intel_level = IntelligenceLevel.HIGH if conf > 0.7 else IntelligenceLevel.MEDIUM if conf > 0.4 else IntelligenceLevel.LOW
+        intel_level = (
+            IntelligenceLevel.HIGH
+            if conf > 0.7
+            else IntelligenceLevel.MEDIUM if conf > 0.4 else IntelligenceLevel.LOW
+        )
 
         # Compose simple narrative text
         narrative_text = (
@@ -246,7 +272,9 @@ class ContextualFusionEngine:
             f"WHEN:{_safe(getattr(when, 'signal_strength', 0.0)):+.2f}",
             f"ANOMALY:{_safe(getattr(anomaly, 'signal_strength', 0.0)):+.2f}",
         ]
-        risk_factors = ["elevated volatility"] if dominant is Narrative.VOLATILE else ["standard risk"]
+        risk_factors = (
+            ["elevated volatility"] if dominant is Narrative.VOLATILE else ["standard risk"]
+        )
         opportunity_factors = ["trend continuation"] if abs(unified) > 0.2 else ["range strategies"]
 
         # Coherence: simple function of agreement among dims (1 - variance proxy)

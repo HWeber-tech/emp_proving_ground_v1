@@ -1,0 +1,1008 @@
+src/trading/risk_management/__init__.py:18: error: Module
+"src.core.risk.stress_testing" has no attribute "StressTester"  [attr-defined]
+        from src.core.risk.stress_testing import StressTester
+        ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/trading/risk_management/__init__.py:19: error: Module
+"src.core.risk.var_calculator" has no attribute "VarCalculator"  [attr-defined]
+        from src.core.risk.var_calculator import VarCalculator as VaRCalcu...
+        ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~...
+src/domain/__init__.py:12: error: Module "src.core.risk.manager" has no
+attribute "RiskConfig"  [attr-defined]
+    from src.core.risk.manager import RiskConfig as RiskConfig
+    ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/thinking/patterns/cvd_divergence_detector.py:15: error: Name
+"ContextPacket" already defined (possibly by an import)  [no-redef]
+        ContextPacket: TypeAlias = Any
+        ^~~~~~~~~~~~~
+src/sensory/services/symbol_mapper.py:42: error: No overload variant of "int"
+matches argument type "object"  [call-overload]
+            symbol_id=int(info.get("symbol_id", 0)),
+                      ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/sensory/services/symbol_mapper.py:42: note: Possible overload variants:
+src/sensory/services/symbol_mapper.py:42: note:     def __new__(cls, str | Buffer | SupportsInt | SupportsIndex | SupportsTrunc = ..., /) -> int
+src/sensory/services/symbol_mapper.py:42: note:     def __new__(cls, str | bytes | bytearray, /, base: SupportsIndex) -> int
+src/sensory/services/symbol_mapper.py:47: error: No overload variant of "int"
+matches argument type "object"  [call-overload]
+            precision=int(info.get("precision", 0)),
+                      ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/sensory/services/symbol_mapper.py:47: note: Possible overload variants:
+src/sensory/services/symbol_mapper.py:47: note:     def __new__(cls, str | Buffer | SupportsInt | SupportsIndex | SupportsTrunc = ..., /) -> int
+src/sensory/services/symbol_mapper.py:47: note:     def __new__(cls, str | bytes | bytearray, /, base: SupportsIndex) -> int
+src/sensory/services/symbol_mapper.py:48: error: No overload variant of "int"
+matches argument type "object"  [call-overload]
+            pip_position=int(info.get("pip_position", 0)),
+                         ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/sensory/services/symbol_mapper.py:48: note: Possible overload variants:
+src/sensory/services/symbol_mapper.py:48: note:     def __new__(cls, str | Buffer | SupportsInt | SupportsIndex | SupportsTrunc = ..., /) -> int
+src/sensory/services/symbol_mapper.py:48: note:     def __new__(cls, str | bytes | bytearray, /, base: SupportsIndex) -> int
+src/sensory/services/symbol_mapper.py:49: error: Argument 1 to "float" has
+incompatible type "object"; expected
+"str | Buffer | SupportsFloat | SupportsIndex"  [arg-type]
+            contract_size=float(info.get("contract_size", 0.0)),
+                                ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/sensory/services/symbol_mapper.py:50: error: Argument 1 to "float" has
+incompatible type "object"; expected
+"str | Buffer | SupportsFloat | SupportsIndex"  [arg-type]
+            min_volume=float(info.get("min_volume", 0.0)),
+                             ^~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/sensory/services/symbol_mapper.py:51: error: Argument 1 to "float" has
+incompatible type "object"; expected
+"str | Buffer | SupportsFloat | SupportsIndex"  [arg-type]
+            max_volume=float(info.get("max_volume", 0.0)),
+                             ^~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/sensory/services/symbol_mapper.py:52: error: Argument 1 to "float" has
+incompatible type "object"; expected
+"str | Buffer | SupportsFloat | SupportsIndex"  [arg-type]
+            step_volume=float(info.get("step_volume", 0.0)),
+                              ^~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/sensory/services/symbol_mapper.py:53: error: Argument 1 to "float" has
+incompatible type "object"; expected
+"str | Buffer | SupportsFloat | SupportsIndex"  [arg-type]
+            swap_long=float(info.get("swap_long", 0.0)),
+                            ^~~~~~~~~~~~~~~~~~~~~~~~~~
+src/sensory/services/symbol_mapper.py:54: error: Argument 1 to "float" has
+incompatible type "object"; expected
+"str | Buffer | SupportsFloat | SupportsIndex"  [arg-type]
+            swap_short=float(info.get("swap_short", 0.0)),
+                             ^~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/sensory/services/symbol_mapper.py:55: error: Argument 1 to "float" has
+incompatible type "object"; expected
+"str | Buffer | SupportsFloat | SupportsIndex"  [arg-type]
+            margin_initial=float(info.get("margin_initial", 0.0)),
+                                 ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/sensory/services/symbol_mapper.py:56: error: Argument 1 to "float" has
+incompatible type "object"; expected
+"str | Buffer | SupportsFloat | SupportsIndex"  [arg-type]
+            margin_maintenance=float(info.get("margin_maintenance", 0.0)),
+                                     ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/sensory/organs/sentiment_organ.py:18: error: Name "SensoryOrgan" already
+defined (possibly by an import)  [no-redef]
+        class SensoryOrgan(Protocol):  # typing-only fallback
+        ^
+src/sensory/organs/sentiment_organ.py:23: error: Name "SensoryReading" already
+defined (possibly by an import)  [no-redef]
+        class SensoryReading(Protocol):  # typing-only fallback
+        ^
+src/evolution/mutation/gaussian_mutation.py:15: error: Module
+"src.core.interfaces" has no attribute "IMutationStrategy"  [attr-defined]
+        from src.core.interfaces import DecisionGenome, IMutationStrategy
+        ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/evolution/mutation/gaussian_mutation.py:18: error: Cannot assign to a type 
+[misc]
+        DecisionGenome = object
+        ^~~~~~~~~~~~~~
+src/evolution/mutation/gaussian_mutation.py:18: error: Incompatible types in
+assignment (expression has type "type[object]", variable has type
+"type[DecisionGenome]")  [assignment]
+        DecisionGenome = object
+                         ^~~~~~
+src/evolution/mutation/gaussian_mutation.py:129: error: "DecisionGenome" has no
+attribute "sensory"  [attr-defined]
+                        mutated.sensory,
+                        ^~~~~~~~~~~~~~~
+src/evolution/mutation/gaussian_mutation.py:131: error: "DecisionGenome" has no
+attribute "sensory"  [attr-defined]
+    ...                  self._mutate_parameter(getattr(mutated.sensory, weig...
+                                                        ^~~~~~~~~~~~~~~
+src/evolution/mutation/gaussian_mutation.py:145: error: "DecisionGenome" has no
+attribute "thinking"  [attr-defined]
+                        mutated.thinking,
+                        ^~~~~~~~~~~~~~~~
+src/evolution/mutation/gaussian_mutation.py:147: error: "DecisionGenome" has no
+attribute "thinking"  [attr-defined]
+    ...                  self._mutate_parameter(getattr(mutated.thinking, wei...
+                                                        ^~~~~~~~~~~~~~~~
+src/evolution/ambusher/ambusher_orchestrator.py:36: error: Too many arguments
+for "AmbusherFitnessFunction"  [call-arg]
+            self.fitness_function = AmbusherFitnessFunction(config.get("fi...
+                                    ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~...
+src/ui/ui_manager.py:16: error: Module "src.governance.strategy_registry" has
+no attribute "StrategyStatus"  [attr-defined]
+        from src.governance.strategy_registry import StrategyRegistry, Str...
+        ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~...
+src/ui/ui_manager.py:110: error: "StrategyRegistry" has no attribute
+"list_strategies"  [attr-defined]
+                "total_strategies": len(self.strategy_registry.list_strate...
+                                        ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~...
+src/ui/ui_manager.py:114: error: "StrategyRegistry" has no attribute
+"list_strategies"  [attr-defined]
+                        for s in self.strategy_registry.list_strategies()
+                                 ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/ui/ui_manager.py:122: error: "StrategyRegistry" has no attribute
+"list_strategies"  [attr-defined]
+            return cast(List[Dict[str, Any]], self.strategy_registry.list_...
+                                              ^~~~~~~~~~~~~~~~~~~~~~~~~~~~...
+src/sensory/enhanced/when_dimension.py:43: error: Argument "regime" to
+"DimensionalReading" has incompatible type
+"src.sensory.organs.dimensions.base_organ.MarketRegime"; expected
+"src.core.base.MarketRegime"  [arg-type]
+                regime=MarketRegime.UNKNOWN,
+                       ^~~~~~~~~~~~~~~~~~~~
+src/sensory/enhanced/what_dimension.py:43: error: Argument "regime" to
+"DimensionalReading" has incompatible type
+"src.sensory.organs.dimensions.base_organ.MarketRegime"; expected
+"src.core.base.MarketRegime"  [arg-type]
+                regime=MarketRegime.UNKNOWN,
+                       ^~~~~~~~~~~~~~~~~~~~
+src/data_foundation/config/sizing_config.py:10: error: Incompatible types in
+assignment (expression has type "None", variable has type Module)  [assignment]
+        _yaml_mod = None
+                    ^~~~
+src/genome/models/genome_adapter.py:28: error: Cannot assign to a type  [misc]
+        _DecisionGenome = None  # type: ignore[assignment]
+        ^~~~~~~~~~~~~~~
+src/genome/models/genome_adapter.py:28: note: Error code "misc" not covered by "type: ignore" comment
+src/genome/models/genome_adapter.py:29: error: Incompatible types in assignment
+(expression has type "None", variable has type
+"Callable[[DecisionGenome, str, dict[str, float]], DecisionGenome]") 
+[assignment]
+        _mutate = None
+                  ^~~~
+src/genome/models/genome_adapter.py:30: error: Incompatible types in assignment
+(expression has type "None", variable has type
+"Callable[[str, dict[str, float], int, str | None], DecisionGenome]") 
+[assignment]
+        _new_genome = None
+                      ^~~~
+src/genome/models/genome_adapter.py:36: error: Incompatible types in assignment
+(expression has type "None", variable has type
+"Callable[[Any], DecisionGenome]")  [assignment]
+        _from_legacy = None
+                       ^~~~
+src/genome/models/genome_adapter.py:37: error: Incompatible types in assignment
+(expression has type "None", variable has type
+"Callable[[DecisionGenome], dict[str, Any]]")  [assignment]
+        _to_legacy_view = None
+                          ^~~~
+src/trading/execution/fix_executor.py:16: error: Module "src.core.interfaces"
+has no attribute "IExecutionEngine"  [attr-defined]
+        from src.core.interfaces import IExecutionEngine
+        ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/trading/execution/fix_executor.py:27: error: Cannot assign to a type 
+[misc]
+        Order = Position = object
+        ^~~~~
+src/trading/execution/fix_executor.py:27: error: Incompatible types in
+assignment (expression has type "type[object]", variable has type "type[Order]")
+ [assignment]
+        Order = Position = object
+        ^
+src/trading/execution/fix_executor.py:27: error: Incompatible types in
+assignment (expression has type "type[object]", variable has type
+"type[Position]")  [assignment]
+        Order = Position = object
+                           ^~~~~~
+src/orchestration/enhanced_intelligence_engine.py:180: error: Variable
+"src.market_intelligence.dimensions.enhanced_why_dimension.EnhancedFundamentalIntelligenceEngine"
+is not valid as a type  [valid-type]
+            self._why: EnhancedFundamentalIntelligenceEngine = EnhancedFun...
+                       ^
+src/orchestration/enhanced_intelligence_engine.py:180: note: See https://mypy.readthedocs.io/en/stable/common_issues.html#variables-vs-type-aliases
+src/orchestration/enhanced_intelligence_engine.py:180: error: "object" not
+callable  [operator]
+    ...lf._why: EnhancedFundamentalIntelligenceEngine = EnhancedFundamentalIn...
+                                                        ^~~~~~~~~~~~~~~~~~~~~...
+src/orchestration/enhanced_intelligence_engine.py:181: error: Variable
+"src.market_intelligence.dimensions.enhanced_how_dimension.InstitutionalIntelligenceEngine"
+is not valid as a type  [valid-type]
+            self._how: InstitutionalIntelligenceEngine = InstitutionalInte...
+                       ^
+src/orchestration/enhanced_intelligence_engine.py:181: note: See https://mypy.readthedocs.io/en/stable/common_issues.html#variables-vs-type-aliases
+src/orchestration/enhanced_intelligence_engine.py:181: error: "object" not
+callable  [operator]
+    ...    self._how: InstitutionalIntelligenceEngine = InstitutionalIntellig...
+                                                        ^~~~~~~~~~~~~~~~~~~~~...
+src/orchestration/enhanced_intelligence_engine.py:182: error: Variable
+"src.market_intelligence.dimensions.enhanced_what_dimension.TechnicalRealityEngine"
+is not valid as a type  [valid-type]
+            self._what: TechnicalRealityEngine = TechnicalRealityEngine()
+                        ^
+src/orchestration/enhanced_intelligence_engine.py:182: note: See https://mypy.readthedocs.io/en/stable/common_issues.html#variables-vs-type-aliases
+src/orchestration/enhanced_intelligence_engine.py:182: error: "object" not
+callable  [operator]
+            self._what: TechnicalRealityEngine = TechnicalRealityEngine()
+                                                 ^~~~~~~~~~~~~~~~~~~~~~~~
+src/orchestration/enhanced_intelligence_engine.py:183: error: Variable
+"src.market_intelligence.dimensions.enhanced_when_dimension.ChronalIntelligenceEngine"
+is not valid as a type  [valid-type]
+            self._when: ChronalIntelligenceEngine = ChronalIntelligenceEng...
+                        ^
+src/orchestration/enhanced_intelligence_engine.py:183: note: See https://mypy.readthedocs.io/en/stable/common_issues.html#variables-vs-type-aliases
+src/orchestration/enhanced_intelligence_engine.py:183: error: "object" not
+callable  [operator]
+            self._when: ChronalIntelligenceEngine = ChronalIntelligenceEng...
+                                                    ^~~~~~~~~~~~~~~~~~~~~~...
+src/orchestration/enhanced_intelligence_engine.py:184: error: Variable
+"src.market_intelligence.dimensions.enhanced_anomaly_dimension.AnomalyIntelligenceEngine"
+is not valid as a type  [valid-type]
+            self._anomaly: AnomalyIntelligenceEngine = AnomalyIntelligence...
+                           ^
+src/orchestration/enhanced_intelligence_engine.py:184: note: See https://mypy.readthedocs.io/en/stable/common_issues.html#variables-vs-type-aliases
+src/orchestration/enhanced_intelligence_engine.py:184: error: "object" not
+callable  [operator]
+    ...      self._anomaly: AnomalyIntelligenceEngine = AnomalyIntelligenceEn...
+                                                        ^~~~~~~~~~~~~~~~~~~~~...
+src/orchestration/enhanced_intelligence_engine.py:193: error:
+EnhancedFundamentalIntelligenceEngine? has no attribute
+"analyze_fundamental_intelligence"  [attr-defined]
+            why_t = self._why.analyze_fundamental_intelligence(market_data...
+                    ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/orchestration/enhanced_intelligence_engine.py:194: error:
+InstitutionalIntelligenceEngine? has no attribute
+"analyze_institutional_intelligence"  [attr-defined]
+            how_t = self._how.analyze_institutional_intelligence(market_da...
+                    ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/orchestration/enhanced_intelligence_engine.py:195: error:
+TechnicalRealityEngine? has no attribute "analyze_technical_reality" 
+[attr-defined]
+            what_t = self._what.analyze_technical_reality(market_data)
+                     ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/orchestration/enhanced_intelligence_engine.py:196: error:
+ChronalIntelligenceEngine? has no attribute "analyze_temporal_intelligence" 
+[attr-defined]
+            when_t = self._when.analyze_temporal_intelligence(market_data)
+                     ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/orchestration/enhanced_intelligence_engine.py:197: error:
+AnomalyIntelligenceEngine? has no attribute "analyze_anomaly_intelligence" 
+[attr-defined]
+            anom_t = self._anomaly.analyze_anomaly_intelligence(market_dat...
+                     ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/operational/health_monitor.py:28: error: Need type annotation for
+"health_history" (hint: "health_history: list[<type>] = ...")  [var-annotated]
+            self.health_history = []
+            ^~~~~~~~~~~~~~~~~~~
+src/core/_event_bus_impl.py:293: error: Incompatible types in assignment
+(expression has type "Callable[[Event], Awaitable[None] | None]", variable has
+type "Callable[[Event], None] | Callable[[Event], Awaitable[None]] | None") 
+[assignment]
+                adapter_fn = _adapter
+                             ^~~~~~~~
+src/core/_event_bus_impl.py:294: error: Incompatible types in assignment
+(expression has type "None", target has type
+"Callable[[Event], None] | Callable[[Event], Awaitable[None]]")  [assignment]
+                self._adapter_map[key] = adapter_fn
+                                         ^~~~~~~~~~
+src/core/_event_bus_impl.py:295: error: Argument 2 to "subscribe" of
+"AsyncEventBus" has incompatible type
+"Callable[[Event], None] | Callable[[Event], Awaitable[None]] | None"; expected
+"Callable[[Event], Awaitable[None]] | Callable[[Event], None]"  [arg-type]
+            return self._bus.subscribe(topic, adapter_fn)
+                                              ^~~~~~~~~~
+src/core/_event_bus_impl.py:405: error: Argument 1 to "get" of "dict" has
+incompatible type "tuple[str, Callable[[Event], object]]"; expected
+"tuple[str, Callable[[Event], None] | Callable[[Event], Awaitable[None]]]" 
+[arg-type]
+            sub_id = event_bus._pair_to_id.get((event_type, callback))
+                                               ^~~~~~~~~~~~~~~~~~~~~~
+src/core/_event_bus_impl.py:407: error: Argument "handler" to
+"SubscriptionHandle" has incompatible type "Callable[[Event], object]"; expected
+"Callable[[Event], Awaitable[None]] | Callable[[Event], None]"  [arg-type]
+    ...SubscriptionHandle(id=sub_id, event_type=event_type, handler=callback)
+                                                                    ^~~~~~~~
+src/thinking/prediction/predictive_market_modeler.py:475: error: Argument 1 to
+"append" of "list" has incompatible type "dict[str, float]"; expected
+"dict[str, object]"  [arg-type]
+                    payload_list.append(normalize_prediction(p))
+                                        ^~~~~~~~~~~~~~~~~~~~~~~
+src/thinking/prediction/predictive_market_modeler.py:475: note: "dict" is invariant -- see https://mypy.readthedocs.io/en/stable/common_issues.html#variance
+src/thinking/prediction/predictive_market_modeler.py:475: note: Consider using "Mapping" instead, which is covariant in the value type
+src/thinking/patterns/trend_detector.py:19: error: Module "src.core.exceptions"
+has no attribute "ThinkingException"; maybe "TradingException"?  [attr-defined]
+    from src.core.exceptions import ThinkingException
+    ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/thinking/patterns/trend_detector.py:68: error: Extra keys ("timestamp",
+"analysis_type", "result", "confidence", "metadata") for TypedDict
+"AnalysisResult"  [typeddict-unknown-key]
+                return AnalysisResult(
+                       ^
+src/thinking/patterns/trend_detector.py:95: error: Unsupported operand types
+for > ("float" and "object")  [operator]
+                    if accuracy < 0.5:
+                       ^
+src/thinking/patterns/trend_detector.py:96: error: Unsupported operand types
+for * ("object" and "float")  [operator]
+                        self.min_confidence *= 0.9  # Lower threshold
+                        ^
+src/thinking/patterns/trend_detector.py:97: error: Unsupported operand types
+for < ("float" and "object")  [operator]
+                    elif accuracy > 0.8:
+                         ^
+src/thinking/patterns/trend_detector.py:98: error: Unsupported operand types
+for * ("object" and "float")  [operator]
+                        self.min_confidence *= 1.1  # Raise threshold
+                        ^
+src/thinking/patterns/trend_detector.py:103: error: Unsupported operand types
+for < ("float" and "object")  [operator]
+                    if strength_error > 0.3:
+                       ^
+src/thinking/patterns/trend_detector.py:104: error: Unsupported operand types
+for * ("object" and "float")  [operator]
+                        self.min_strength *= 0.9
+                        ^
+src/thinking/patterns/trend_detector.py:105: error: Unsupported operand types
+for > ("float" and "object")  [operator]
+                    elif strength_error < 0.1:
+                         ^
+src/thinking/patterns/trend_detector.py:106: error: Unsupported operand types
+for * ("object" and "float")  [operator]
+                        self.min_strength *= 1.1
+                        ^
+src/thinking/patterns/trend_detector.py:115: error: Function is missing a
+return type annotation  [no-untyped-def]
+        def _update_signal_history(self, signals: List[SensorySignal]):
+        ^
+src/thinking/patterns/trend_detector.py:120: error: Unsupported operand types
+for * ("object" and "int")  [operator]
+            if len(self._signal_history) > self.lookback_periods * 10:
+                                           ^
+src/thinking/patterns/trend_detector.py:121: error: Unsupported operand type
+for unary - ("object")  [operator]
+    ...     self._signal_history = self._signal_history[-self.lookback_period...
+                                                        ^~~~~~~~~~~~~~~~~~~~~~
+src/thinking/patterns/trend_detector.py:128: error: "SensorySignal" has no
+attribute "signal_type"  [attr-defined]
+                if signal.signal_type in ["price_composite", "volume_compo...
+                   ^~~~~~~~~~~~~~~~~~
+src/thinking/patterns/trend_detector.py:135: error: "SensorySignal" has no
+attribute "signal_type"  [attr-defined]
+            price_signals = [s for s in signals if s.signal_type == "price...
+                                                   ^~~~~~~~~~~~~
+src/thinking/patterns/trend_detector.py:144: error: "SensorySignal" has no
+attribute "value"  [attr-defined]
+            avg_value = np.mean([s.value for s in recent_signals])
+                                 ^~~~~~~
+src/thinking/patterns/trend_detector.py:157: error: "SensorySignal" has no
+attribute "confidence"  [attr-defined]
+            confidences = [s.confidence for s in recent_signals]
+                           ^~~~~~~~~~~~
+src/thinking/patterns/trend_detector.py:165: error: Argument "strength" to
+"TrendAnalysis" has incompatible type
+"SupportsDunderLT[Any] | SupportsDunderGT[Any]"; expected "float"  [arg-type]
+                strength=strength,
+                         ^~~~~~~~
+src/thinking/patterns/trend_detector.py:173: error: "SensorySignal" has no
+attribute "signal_type"  [attr-defined]
+    ...       momentum_signals = [s for s in signals if s.signal_type == "mom...
+                                                        ^~~~~~~~~~~~~
+src/thinking/patterns/trend_detector.py:182: error: "SensorySignal" has no
+attribute "value"  [attr-defined]
+            avg_momentum = np.mean([s.value for s in recent_signals])
+                                    ^~~~~~~
+src/thinking/patterns/trend_detector.py:195: error: "SensorySignal" has no
+attribute "confidence"  [attr-defined]
+            confidences = [s.confidence for s in recent_signals]
+                           ^~~~~~~~~~~~
+src/thinking/patterns/trend_detector.py:200: error: Argument "strength" to
+"TrendAnalysis" has incompatible type
+"SupportsDunderLT[Any] | SupportsDunderGT[Any]"; expected "float"  [arg-type]
+                strength=strength,
+                         ^~~~~~~~
+src/thinking/patterns/trend_detector.py:208: error: "SensorySignal" has no
+attribute "signal_type"  [attr-defined]
+            volume_signals = [s for s in signals if s.signal_type == "volu...
+                                                    ^~~~~~~~~~~~~
+src/thinking/patterns/trend_detector.py:217: error: "SensorySignal" has no
+attribute "value"  [attr-defined]
+            avg_volume = np.mean([s.value for s in recent_signals])
+                                  ^~~~~~~
+src/thinking/patterns/trend_detector.py:230: error: "SensorySignal" has no
+attribute "confidence"  [attr-defined]
+            confidences = [s.confidence for s in recent_signals]
+                           ^~~~~~~~~~~~
+src/thinking/patterns/trend_detector.py:235: error: Argument "strength" to
+"TrendAnalysis" has incompatible type
+"SupportsDunderLT[Any] | SupportsDunderGT[Any]"; expected "float"  [arg-type]
+                strength=strength,
+                         ^~~~~~~~
+src/thinking/patterns/trend_detector.py:279: error: Argument "key" to "max" has
+incompatible type overloaded function; expected
+"Callable[[str], SupportsDunderLT[Any] | SupportsDunderGT[Any]]"  [arg-type]
+    ... composite_direction = max(direction_scores, key=direction_scores.get)
+                                                        ^~~~~~~~~~~~~~~~~~~~
+src/thinking/patterns/trend_detector.py:310: error: "SensorySignal" has no
+attribute "value"  [attr-defined]
+                if direction == "BULLISH" and signal.value > 0:
+                                              ^~~~~~~~~~~~
+src/thinking/patterns/trend_detector.py:312: error: "SensorySignal" has no
+attribute "value"  [attr-defined]
+                elif direction == "BEARISH" and signal.value < 0:
+                                                ^~~~~~~~~~~~
+src/thinking/patterns/trend_detector.py:314: error: "SensorySignal" has no
+attribute "value"  [attr-defined]
+                elif direction == "NEUTRAL" and abs(signal.value) < 0.1:
+                                                    ^~~~~~~~~~~~
+src/thinking/patterns/trend_detector.py:323: error: Extra keys ("timestamp",
+"analysis_type", "result", "confidence", "metadata") for TypedDict
+"AnalysisResult"  [typeddict-unknown-key]
+            return AnalysisResult(
+                   ^
+src/thinking/patterns/cycle_detector.py:23: error: Cannot assign to a type 
+[misc]
+        ThinkingPattern = _Any
+        ^~~~~~~~~~~~~~~
+src/thinking/patterns/cycle_detector.py:23: error: Incompatible types in
+assignment (expression has type "type[Any]", variable has type
+"type[ThinkingPattern]")  [assignment]
+        ThinkingPattern = _Any
+                          ^~~~
+src/thinking/patterns/cycle_detector.py:24: error: Cannot assign to a type 
+[misc]
+        SensorySignal = _Any
+        ^~~~~~~~~~~~~
+src/thinking/patterns/cycle_detector.py:24: error: Incompatible types in
+assignment (expression has type "type[Any]", variable has type
+"type[SensorySignal]")  [assignment]
+        SensorySignal = _Any
+                        ^~~~
+src/thinking/patterns/cycle_detector.py:25: error: Cannot assign to a type 
+[misc]
+        AnalysisResult = _Any
+        ^~~~~~~~~~~~~~
+src/thinking/patterns/cycle_detector.py:25: error: Incompatible types in
+assignment (expression has type "type[Any]", variable has type
+"type[AnalysisResult]")  [assignment]
+        AnalysisResult = _Any
+                         ^~~~
+src/thinking/patterns/cycle_detector.py:28: error: Module "src.core.exceptions"
+has no attribute "ThinkingException"; maybe "TradingException"?  [attr-defined]
+        from src.core.exceptions import ThinkingException
+        ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/thinking/patterns/cycle_detector.py:130: error: "SensorySignal" has no
+attribute "signal_type"  [attr-defined]
+                if signal.signal_type in ["price_composite", "momentum", "...
+                   ^~~~~~~~~~~~~~~~~~
+src/thinking/patterns/anomaly_detector.py:18: error: Cannot assign to a type 
+[misc]
+        ThinkingPattern = SensorySignal = AnalysisResult = object
+        ^~~~~~~~~~~~~~~
+src/thinking/patterns/anomaly_detector.py:18: error: Incompatible types in
+assignment (expression has type "type[object]", variable has type
+"type[ThinkingPattern]")  [assignment]
+        ThinkingPattern = SensorySignal = AnalysisResult = object
+        ^
+src/thinking/patterns/anomaly_detector.py:18: error: Incompatible types in
+assignment (expression has type "type[object]", variable has type
+"type[SensorySignal]")  [assignment]
+        ThinkingPattern = SensorySignal = AnalysisResult = object
+        ^
+src/thinking/patterns/anomaly_detector.py:18: error: Incompatible types in
+assignment (expression has type "type[object]", variable has type
+"type[AnalysisResult]")  [assignment]
+        ThinkingPattern = SensorySignal = AnalysisResult = object
+                                                           ^~~~~~
+src/thinking/patterns/anomaly_detector.py:19: error: Module
+"src.core.exceptions" has no attribute "ThinkingException"; maybe
+"TradingException"?  [attr-defined]
+    from src.core.exceptions import ThinkingException
+    ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/thinking/patterns/anomaly_detector.py:68: error: Extra keys ("timestamp",
+"analysis_type", "result", "confidence", "metadata") for TypedDict
+"AnalysisResult"  [typeddict-unknown-key]
+                return AnalysisResult(
+                       ^
+src/thinking/patterns/anomaly_detector.py:92: error: Argument 1 of "learn" is
+incompatible with supertype "src.core.interfaces.ThinkingPattern"; supertype
+defines the argument type as "Mapping[str, object]"  [override]
+        def learn(self, feedback: dict[str, object]) -> bool:
+                        ^~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/thinking/patterns/anomaly_detector.py:92: note: This violates the Liskov substitution principle
+src/thinking/patterns/anomaly_detector.py:92: note: See https://mypy.readthedocs.io/en/stable/common_issues.html#incompatible-overrides
+src/thinking/analysis/correlation_analyzer.py:17: error: Module
+"src.core.exceptions" has no attribute "ThinkingException"; maybe
+"TradingException"?  [attr-defined]
+        from src.core.exceptions import ThinkingException
+        ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/sentient/learning/real_time_learning_engine.py:128: error: Returning Any
+from function declared to return "bool"  [no-any-return]
+            return price_change > 0.001 and volume > 3 * avg_volume
+            ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/sensory/organs/volume_organ.py:22: error: Name "SensoryOrgan" already
+defined (possibly by an import)  [no-redef]
+        class SensoryOrgan(Protocol):
+        ^
+src/sensory/organs/price_organ.py:21: error: Name "SensoryOrgan" already
+defined (possibly by an import)  [no-redef]
+        class SensoryOrgan(Protocol):
+        ^
+src/ecosystem/coordination/coordination_engine.py:299: error: Return type
+"Coroutine[Any, Any, JSONObject]" of "get_portfolio_summary" incompatible with
+return type "Coroutine[Any, Any, dict[str, object]]" in supertype
+"src.core.interfaces.ICoordinationEngine"  [override]
+        async def get_portfolio_summary(self) -> JSONObject:
+        ^
+src/data_integration/data_fusion.py:110: error: "MarketData" has no attribute
+"volatility"  [attr-defined]
+                        volatility=data.volatility,
+                                   ^~~~~~~~~~~~~~~
+src/data_integration/data_fusion.py:176: error: Incompatible return value type
+(got "tuple[None, list[str]]", expected "tuple[MarketData, list[str]]") 
+[return-value]
+                return None, []
+                       ^~~~~~~~
+src/data_integration/data_fusion.py:232: error: Incompatible types in
+assignment (expression has type "float", variable has type "int")  [assignment]
+                weighted_bid += data.bid * weight
+                ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/data_integration/data_fusion.py:233: error: Incompatible types in
+assignment (expression has type "float", variable has type "int")  [assignment]
+                weighted_ask += data.ask * weight
+                ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/data_integration/data_fusion.py:234: error: Incompatible types in
+assignment (expression has type "float", variable has type "int")  [assignment]
+                weighted_volume += data.volume * weight
+                ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/data_integration/data_fusion.py:235: error: "MarketData" has no attribute
+"volatility"  [attr-defined]
+                weighted_volatility += data.volatility * weight
+                                       ^~~~~~~~~~~~~~~
+src/data_integration/data_fusion.py:273: error: "MarketData" has no attribute
+"volatility"  [attr-defined]
+            volatilities = [data.volatility for _, data, _ in data_points]
+                            ^~~~~~~~~~~~~~~
+src/data_integration/data_fusion.py:293: error: "MarketData" has no attribute
+"volatility"  [attr-defined]
+            volatilities = [data.volatility for _, data, _ in data_points]
+                            ^~~~~~~~~~~~~~~
+src/data_integration/data_fusion.py:396: error: Argument "volume" to
+"FusedDataPoint" has incompatible type "float"; expected "int"  [arg-type]
+                    volume=resolved_data.volume,
+                           ^~~~~~~~~~~~~~~~~~~~
+src/data_integration/data_fusion.py:397: error: "MarketData" has no attribute
+"volatility"  [attr-defined]
+                    volatility=resolved_data.volatility,
+                               ^~~~~~~~~~~~~~~~~~~~~~~~
+src/intelligence/sentient_adaptation.py:142: error: Missing positional argument
+"config" in call to "RealTimeLearningEngine"  [call-arg]
+            self.real_time_learner = RealTimeLearningEngine()
+                                     ^~~~~~~~~~~~~~~~~~~~~~~~
+src/intelligence/sentient_adaptation.py:143: error: Missing positional argument
+"config" in call to "FAISSPatternMemory"  [call-arg]
+            self.pattern_memory = FAISSPatternMemory()
+                                  ^~~~~~~~~~~~~~~~~~~~
+src/intelligence/sentient_adaptation.py:145: error: Missing positional argument
+"config" in call to "AdaptationController"  [call-arg]
+            self.adaptation_controller = AdaptationController()
+                                         ^~~~~~~~~~~~~~~~~~~~~~
+src/intelligence/sentient_adaptation.py:164: error: "RealTimeLearningEngine"
+has no attribute "process_outcome"  [attr-defined]
+                await self.real_time_learner.process_outcome(market_event,...
+                      ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/intelligence/sentient_adaptation.py:168: error: "FAISSPatternMemory" has no
+attribute "store_pattern"  [attr-defined]
+            await self.pattern_memory.store_pattern(
+                  ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/intelligence/sentient_adaptation.py:182: error: Unexpected keyword argument
+"current_strategy_state" for "generate_adaptations" of "AdaptationController" 
+[call-arg]
+                adaptations = await self.adaptation_controller.generate_ad...
+                                    ^
+src/sentient/adaptation/adaptation_controller.py:66: note: "generate_adaptations" of "AdaptationController" defined here
+src/intelligence/sentient_adaptation.py:183: error: Argument 1 to
+"generate_adaptations" of "AdaptationController" has incompatible type
+"AdaptationSignal"; expected "list[dict[str, Any]]"  [arg-type]
+                    learning_signal, current_strategy_state=self.get_strat...
+                    ^~~~~~~~~~~~~~~
+src/intelligence/sentient_adaptation.py:185: error: Argument 1 to
+"apply_adaptations" of "SentientAdaptationEngine" has incompatible type
+"list[TacticalAdaptation]"; expected "dict[str, Any]"  [arg-type]
+                await self.apply_adaptations(adaptations)
+                                             ^~~~~~~~~~~
+src/intelligence/sentient_adaptation.py:208: error: "AdaptationController" has
+no attribute "risk_parameters"  [attr-defined]
+                "risk_parameters": self.adaptation_controller.risk_paramet...
+                                   ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/intelligence/portfolio_evolution.py:558: error: Need type annotation for
+"weighted_volatility"  [var-annotated]
+            weighted_volatility = np.sum(weights * volatilities)
+                                  ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/thinking/adaptation/tactical_adaptation_engine.py:56: error:
+"FAISSPatternMemory" has no attribute "find_similar_experiences"  [attr-defined]
+                similar_experiences = await self.pattern_memory.find_simil...
+                                            ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~...
+src/integration/component_integrator.py:25: error: Cannot assign to a type 
+[misc]
+        PopulationManager = SensoryOrgan = RiskManager = None
+        ^~~~~~~~~~~~~~~~~
+src/integration/component_integrator.py:25: error: Incompatible types in
+assignment (expression has type "None", variable has type
+"type[PopulationManager]")  [assignment]
+        PopulationManager = SensoryOrgan = RiskManager = None
+        ^
+src/integration/component_integrator.py:25: error: Incompatible types in
+assignment (expression has type "None", variable has type
+"type[CoreSensoryOrgan]")  [assignment]
+        PopulationManager = SensoryOrgan = RiskManager = None
+        ^
+src/integration/component_integrator.py:25: error: Incompatible types in
+assignment (expression has type "None", variable has type "type[RiskManager]") 
+[assignment]
+        PopulationManager = SensoryOrgan = RiskManager = None
+                                                         ^~~~
+src/trading/trading_manager.py:21: error: Incompatible types in assignment
+(expression has type "None", variable has type
+"Callable[[Decimal, Decimal, Decimal], Decimal]")  [assignment]
+        PositionSizer = None
+                        ^~~~
+src/trading/trading_manager.py:69: error: Missing positional argument
+"stop_loss_pct" in call to "position_size"  [call-arg]
+                PositionSizer(Decimal(str(risk_per_trade)), Decimal("0.02"...
+                ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/trading/trading_manager.py:69: error: Function "PositionSizer" could always
+be true in boolean context  [truthy-function]
+    ...ecimal(str(risk_per_trade)), Decimal("0.02")) if PositionSizer else No...
+                                                        ^~~~~~~~~~~~~
+src/intelligence/red_team_ai.py:1026: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+src/intelligence/red_team_ai.py:1035: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+src/intelligence/red_team_ai.py:1043: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+src/validation/real_market_validation.py:35: error: Cannot assign to a type 
+[misc]
+        DecisionGenome = object
+        ^~~~~~~~~~~~~~
+src/validation/real_market_validation.py:35: error: Incompatible types in
+assignment (expression has type "type[object]", variable has type
+"type[DecisionGenome]")  [assignment]
+        DecisionGenome = object
+                         ^~~~~~
+src/validation/real_market_validation.py:344: error: Argument 1 to
+"detect_regime" of "RegimeClassifier" has incompatible type "DataFrame";
+expected "Mapping[str, object]"  [arg-type]
+                _ = await self.regime_classifier.detect_regime(data)
+                                                               ^~~~
+src/validation/phase2d_simple_integration.py:30: error: Cannot assign to a type
+ [misc]
+        DecisionGenome = object
+        ^~~~~~~~~~~~~~
+src/validation/phase2d_simple_integration.py:30: error: Incompatible types in
+assignment (expression has type "type[object]", variable has type
+"type[DecisionGenome]")  [assignment]
+        DecisionGenome = object
+                         ^~~~~~
+src/validation/phase2d_simple_integration.py:65: error: Argument 1 to "len" has
+incompatible type "object"; expected "Sized"  [arg-type]
+                        if data is not None and len(data) > 10:
+                                                    ^~~~
+src/validation/phase2d_simple_integration.py:67: error: Argument 1 to "len" has
+incompatible type "object"; expected "Sized"  [arg-type]
+    ...           {"symbol": symbol, "data_points": len(data), "success": Tru...
+                                                        ^~~~
+src/validation/phase2d_simple_integration.py:86: error: Argument 1 to
+"detect_regime" of "RegimeClassifier" has incompatible type "object"; expected
+"Mapping[str, object]"  [arg-type]
+    ... regime_result = await self.regime_classifier.detect_regime(test_data)
+                                                                   ^~~~~~~~~
+src/validation/phase2d_simple_integration.py:124: error: Argument 1 to "len"
+has incompatible type "object"; expected "Sized"  [arg-type]
+                if data is None or len(data) < 20:
+                                       ^~~~
+src/validation/phase2d_simple_integration.py:132: error: Unsupported target for
+indexed assignment ("object")  [index]
+                data["returns"] = data["close"].pct_change()
+                ^~~~~~~~~~~~~~~
+src/validation/phase2d_simple_integration.py:132: error: Value of type "object"
+is not indexable  [index]
+                data["returns"] = data["close"].pct_change()
+                                  ^~~~~~~~~~~~~
+src/validation/phase2d_simple_integration.py:133: error: "object" has no
+attribute "dropna"  [attr-defined]
+                data = data.dropna()
+                       ^~~~~~~~~~~
+src/validation/phase2d_simple_integration.py:265: error: Argument 1 to "len"
+has incompatible type "object"; expected "Sized"  [arg-type]
+                if data is not None and len(data) > 0:
+                                            ^~~~
+src/validation/phase2d_simple_integration.py:266: error: Argument 1 to "len"
+has incompatible type "object"; expected "Sized"  [arg-type]
+    ...  return {"success": True, "symbol": symbol, "data_points": len(data)}
+                                                                       ^~~~
+src/validation/phase2d_integration_validator.py:26: error: Cannot assign to a
+type  [misc]
+        DecisionGenome = object
+        ^~~~~~~~~~~~~~
+src/validation/phase2d_integration_validator.py:26: error: Incompatible types
+in assignment (expression has type "type[object]", variable has type
+"type[DecisionGenome]")  [assignment]
+        DecisionGenome = object
+                         ^~~~~~
+src/validation/phase2d_integration_validator.py:97: error: Argument 2 to
+"_evaluate_genome_with_real_data" of "Phase2DIntegrationValidator" has
+incompatible type "object"; expected "DataFrame"  [arg-type]
+    ..._score = await self._evaluate_genome_with_real_data(genome, test_data)
+                                                                   ^~~~~~~~~
+src/validation/honest_validation_framework.py:31: error: Cannot assign to a
+type  [misc]
+        DecisionGenome = object
+        ^~~~~~~~~~~~~~
+src/validation/honest_validation_framework.py:31: error: Incompatible types in
+assignment (expression has type "type[object]", variable has type
+"type[DecisionGenome]")  [assignment]
+        DecisionGenome = object
+                         ^~~~~~
+src/thinking/prediction/predictive_modeler.py:74: error: Argument 1 to
+"predict_market_scenarios" of "PredictiveMarketModeler" has incompatible type
+"dict[str, float]"; expected "dict[str, object]"  [arg-type]
+    ...results = await modeler.predict_market_scenarios(current_state, timede...
+                                                        ^~~~~~~~~~~~~
+src/thinking/prediction/predictive_modeler.py:74: note: "dict" is invariant -- see https://mypy.readthedocs.io/en/stable/common_issues.html#variance
+src/thinking/prediction/predictive_modeler.py:74: note: Consider using "Mapping" instead, which is covariant in the value type
+src/sensory/organs/dimensions/why_organ.py:47: error: Incompatible types in
+assignment (expression has type "None", variable has type "WhyConfig") 
+[assignment]
+                self.why_cfg = None
+                               ^~~~
+src/sensory/organs/dimensions/why_organ.py:60: error: Incompatible types in
+assignment (expression has type "None", variable has type
+"EconomicDataProvider")  [assignment]
+                self.economic_provider = None
+                                         ^~~~
+src/sensory/organs/dimensions/why_organ.py:61: error: Incompatible types in
+assignment (expression has type "None", variable has type "FundamentalAnalyzer")
+ [assignment]
+                self.fundamental_analyzer = None
+                                            ^~~~
+src/sensory/organs/dimensions/why_organ.py:453: error: "MarketData" has no
+attribute "spread"  [attr-defined]
+                        "spread": md.spread,
+                                  ^~~~~~~~~
+src/sensory/organs/dimensions/why_organ.py:454: error: "MarketData" has no
+attribute "mid_price"  [attr-defined]
+                        "mid_price": md.mid_price,
+                                     ^~~~~~~~~~~~
+src/sensory/organs/dimensions/institutional_tracker.py:171: error: "MarketData"
+has no attribute "spread"  [attr-defined]
+                        "spread": md.spread,
+                                  ^~~~~~~~~
+src/sensory/organs/dimensions/institutional_tracker.py:172: error: "MarketData"
+has no attribute "mid_price"  [attr-defined]
+                        "mid_price": md.mid_price,
+                                     ^~~~~~~~~~~~
+src/sensory/organs/dimensions/institutional_tracker.py:640: error: Returning
+Any from function declared to return "MarketRegime"  [no-any-return]
+                return MarketRegime.BULLISH
+                ^~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/sensory/organs/dimensions/institutional_tracker.py:640: error:
+"type[MarketRegime]" has no attribute "BULLISH"  [attr-defined]
+                return MarketRegime.BULLISH
+                       ^~~~~~~~~~~~~~~~~~~~
+src/sensory/organs/dimensions/institutional_tracker.py:642: error: Returning
+Any from function declared to return "MarketRegime"  [no-any-return]
+                return MarketRegime.BEARISH
+                ^~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/sensory/organs/dimensions/institutional_tracker.py:642: error:
+"type[MarketRegime]" has no attribute "BEARISH"  [attr-defined]
+                return MarketRegime.BEARISH
+                       ^~~~~~~~~~~~~~~~~~~~
+src/sensory/organs/dimensions/institutional_tracker.py:644: error: Returning
+Any from function declared to return "MarketRegime"  [no-any-return]
+                return MarketRegime.RANGING
+                ^~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/sensory/organs/dimensions/institutional_tracker.py:644: error:
+"type[MarketRegime]" has no attribute "RANGING"  [attr-defined]
+                return MarketRegime.RANGING
+                       ^~~~~~~~~~~~~~~~~~~~
+src/trading/portfolio/real_portfolio_monitor.py:14: error: Module
+"src.trading.models" has no attribute "PortfolioSnapshot"  [attr-defined]
+    from ..models import PortfolioSnapshot, Position
+    ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/trading/portfolio/real_portfolio_monitor.py:165: error: "Position" has no
+attribute "status"  [attr-defined]
+                        position.status.value,
+                        ^~~~~~~~~~~~~~~
+src/trading/portfolio/real_portfolio_monitor.py:166: error: "Position" has no
+attribute "stop_loss"  [attr-defined]
+                        position.stop_loss,
+                        ^~~~~~~~~~~~~~~~~~
+src/trading/portfolio/real_portfolio_monitor.py:167: error: "Position" has no
+attribute "take_profit"  [attr-defined]
+                        position.take_profit,
+                        ^~~~~~~~~~~~~~~~~~~~
+src/trading/portfolio/real_portfolio_monitor.py:168: error: "Position" has no
+attribute "entry_time"; maybe "entry_price"?  [attr-defined]
+                        position.entry_time.isoformat(),
+                        ^~~~~~~~~~~~~~~~~~~
+src/trading/portfolio/real_portfolio_monitor.py:178: error: Invalid index type
+"str | int | None" for "dict[str, Position]"; expected type "str"  [index]
+                self._position_cache[position.position_id] = position
+                                     ^~~~~~~~~~~~~~~~~~~~
+src/trading/portfolio/real_portfolio_monitor.py:276: error: "Position" has no
+attribute "close"  [attr-defined]
+                    self._position_cache[position_id].close(exit_price, ex...
+                    ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/thinking/thinking_manager.py:182: error: "object" has no attribute "get" 
+[attr-defined]
+                print(f"  Predictions count: {context.metadata['prediction...
+                                              ^~~~~~~~~~~~~~~~~~~~~~~~~~~~...
+src/thinking/analysis/market_analyzer.py:16: error: Module
+"src.core.exceptions" has no attribute "ThinkingException"; maybe
+"TradingException"?  [attr-defined]
+    from src.core.exceptions import ThinkingException
+    ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/thinking/analysis/market_analyzer.py:21: error: Cannot assign to a type 
+[misc]
+        ThinkingPattern = SensorySignal = AnalysisResult = object
+        ^~~~~~~~~~~~~~~
+src/thinking/analysis/market_analyzer.py:21: error: Incompatible types in
+assignment (expression has type "type[object]", variable has type
+"type[ThinkingPattern]")  [assignment]
+        ThinkingPattern = SensorySignal = AnalysisResult = object
+        ^
+src/thinking/analysis/market_analyzer.py:21: error: Incompatible types in
+assignment (expression has type "type[object]", variable has type
+"type[SensorySignal]")  [assignment]
+        ThinkingPattern = SensorySignal = AnalysisResult = object
+        ^
+src/thinking/analysis/market_analyzer.py:21: error: Incompatible types in
+assignment (expression has type "type[object]", variable has type
+"type[AnalysisResult]")  [assignment]
+        ThinkingPattern = SensorySignal = AnalysisResult = object
+                                                           ^~~~~~
+src/thinking/analysis/market_analyzer.py:56: error: Extra keys ("timestamp",
+"analysis_type", "result", "confidence", "metadata") for TypedDict
+"AnalysisResult"  [typeddict-unknown-key]
+                return AnalysisResult(
+                       ^
+src/thinking/analysis/market_analyzer.py:71: error: Argument 1 of "learn" is
+incompatible with supertype "src.core.interfaces.ThinkingPattern"; supertype
+defines the argument type as "Mapping[str, object]"  [override]
+        def learn(self, feedback: dict[str, object]) -> bool:
+                        ^~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/thinking/analysis/market_analyzer.py:71: note: This violates the Liskov substitution principle
+src/thinking/analysis/market_analyzer.py:71: note: See https://mypy.readthedocs.io/en/stable/common_issues.html#incompatible-overrides
+src/thinking/analysis/market_analyzer.py:75: error: "PerformanceAnalyzer" has
+no attribute "learn"  [attr-defined]
+                performance_learned = self.performance_analyzer.learn(feed...
+                                      ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/thinking/analysis/market_analyzer.py:76: error: "RiskAnalyzer" has no
+attribute "learn"  [attr-defined]
+                risk_learned = self.risk_analyzer.learn(feedback)
+                               ^~~~~~~~~~~~~~~~~~~~~~~~
+src/thinking/analysis/market_analyzer.py:94: error: "AnalysisResult" has no
+attribute "result"  [attr-defined]
+            performance_metrics = performance_result.result.get("performan...
+                                  ^~~~~~~~~~~~~~~~~~~~~~~~~
+src/thinking/analysis/market_analyzer.py:95: error: "AnalysisResult" has no
+attribute "result"  [attr-defined]
+            risk_metrics = risk_result.result.get("risk_metrics", {})
+                           ^~~~~~~~~~~~~~~~~~
+src/thinking/analysis/market_analyzer.py:125: error: "SensorySignal" has no
+attribute "signal_type"  [attr-defined]
+                if signal.signal_type in ["sentiment", "momentum", "price_...
+                   ^~~~~~~~~~~~~~~~~~
+src/thinking/analysis/market_analyzer.py:126: error: "SensorySignal" has no
+attribute "value"  [attr-defined]
+                    sentiment_values.append(float(signal.value))  # ensure...
+                                                  ^~~~~~~~~~~~
+src/thinking/analysis/market_analyzer.py:127: error: "SensorySignal" has no
+attribute "confidence"  [attr-defined]
+                    confidences.append(float(signal.confidence))
+                                             ^~~~~~~~~~~~~~~~~
+src/thinking/analysis/market_analyzer.py:247: error: "SensorySignal" has no
+attribute "confidence"  [attr-defined]
+            confidences: list[float] = [float(s.confidence) for s in signa...
+                                              ^~~~~~~~~~~~
+src/ecosystem/optimization/ecosystem_optimizer.py:78: error: Return type
+"Coroutine[Any, Any, Mapping[str, Sequence[src.genome.models.genome.DecisionGenome]]]"
+of "optimize_ecosystem" incompatible with return type
+"Coroutine[Any, Any, Mapping[str, Sequence[src.core.interfaces.DecisionGenome]]]"
+in supertype "src.core.interfaces.IEcosystemOptimizer"  [override]
+        async def optimize_ecosystem(
+        ^
+src/ecosystem/optimization/ecosystem_optimizer.py:80: error: Argument 1 of
+"optimize_ecosystem" is incompatible with supertype
+"src.core.interfaces.IEcosystemOptimizer"; supertype defines the argument type
+as "Mapping[str, Sequence[DecisionGenome]]"  [override]
+            species_populations: Mapping[str, Sequence[CanonDecisionGenome...
+            ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/ecosystem/optimization/ecosystem_optimizer.py:80: note: This violates the Liskov substitution principle
+src/ecosystem/optimization/ecosystem_optimizer.py:80: note: See https://mypy.readthedocs.io/en/stable/common_issues.html#incompatible-overrides
+src/sensory/organs/dimensions/integration_orchestrator.py:166: error: Argument
+1 to "analyze_institutional_footprint" of "InstitutionalFootprintHunter" has
+incompatible type "DataFrame"; expected "list[MarketData]"  [arg-type]
+    ...    self.footprint_hunter.analyze_institutional_footprint(price_data),
+                                                                 ^~~~~~~~~~
+src/sensory/organs/dimensions/integration_orchestrator.py:168: error: Argument
+1 to "analyze_timing" of "TemporalAdvantageSystem" has incompatible type
+"OrchestratorMarketData | Mapping[str, object]"; expected "dict[str, Any]" 
+[arg-type]
+                    self.temporal_analyzer.analyze_timing(market_data),
+                                                          ^~~~~~~~~~~
+src/thinking/ecosystem/specialized_predator_evolution.py:33: error: Module
+"src.ecosystem.species.species_manager" has no attribute "SpeciesManager" 
+[attr-defined]
+    from src.ecosystem.species.species_manager import (
+    ^
+src/thinking/phase3_orchestrator.py:292: error: Argument 1 to "len" has
+incompatible type "object"; expected "Sized"  [arg-type]
+                    "adaptations_applied": len(adaptation_result.get("adap...
+                                               ^~~~~~~~~~~~~~~~~~~~~~~~~~~...
+src/thinking/phase3_orchestrator.py:376: error: Argument 1 to "len" has
+incompatible type "object"; expected "Sized"  [arg-type]
+                        total_attacks += len(attacks)
+                                             ^~~~~~~
+src/thinking/phase3_orchestrator.py:378: error: Generator has incompatible item
+type "int"; expected "bool"  [misc]
+                            1 for a in attacks if isinstance(a, dict) and ...
+                            ^
+src/thinking/phase3_orchestrator.py:378: error: "object" has no attribute
+"__iter__"; maybe "__dir__" or "__str__"? (not iterable)  [attr-defined]
+                            1 for a in attacks if isinstance(a, dict) and ...
+                                       ^~~~~~~
+src/thinking/phase3_orchestrator.py:381: error: Argument 1 to "len" has
+incompatible type "object"; expected "Sized"  [arg-type]
+                            len(rpt.get("weaknesses_found", [])) if isinst...
+                                ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/thinking/phase3_orchestrator.py:457: error: Argument 1 to "len" has
+incompatible type "object"; expected "Sized"  [arg-type]
+                total = len(systems)
+                            ^~~~~~~
+src/thinking/phase3_orchestrator.py:458: error: "object" has no attribute
+"values"  [attr-defined]
+    ... = any(isinstance(v, dict) and "error" in v for v in systems.values())
+                                                            ^~~~~~~~~~~~~~
+src/thinking/phase3_orchestrator.py:461: error: "object" has no attribute
+"items"  [attr-defined]
+                for name, v in systems.items():
+                               ^~~~~~~~~~~~~
+src/thinking/phase3_orchestrator.py:476: error: Unsupported right operand type
+for in ("object")  [operator]
+                    "sentient": "sentient" in systems,
+                                ^~~~~~~~~~~~~~~~~~~~~
+src/thinking/phase3_orchestrator.py:477: error: Unsupported right operand type
+for in ("object")  [operator]
+                    "predictive": "predictive" in systems,
+                                  ^~~~~~~~~~~~~~~~~~~~~~~
+src/thinking/phase3_orchestrator.py:478: error: Unsupported right operand type
+for in ("object")  [operator]
+                    "adversarial": "adversarial" in systems,
+                                   ^~~~~~~~~~~~~~~~~~~~~~~~
+src/thinking/phase3_orchestrator.py:479: error: Unsupported right operand type
+for in ("object")  [operator]
+                    "specialized": "specialized" in systems,
+                                   ^~~~~~~~~~~~~~~~~~~~~~~~
+src/thinking/phase3_orchestrator.py:480: error: Unsupported right operand type
+for in ("object")  [operator]
+                    "competitive": "competitive" in systems,
+                                   ^~~~~~~~~~~~~~~~~~~~~~~~
+src/thinking/phase3_orchestrator.py:548: error: No overload variant of "int"
+matches argument type "object"  [call-overload]
+                        metrics["tick_count"] = int(metrics.get("tick_coun...
+                                                ^~~~~~~~~~~~~~~~~~~~~~~~~~...
+src/thinking/phase3_orchestrator.py:548: note: Possible overload variants:
+src/thinking/phase3_orchestrator.py:548: note:     def __new__(cls, str | Buffer | SupportsInt | SupportsIndex | SupportsTrunc = ..., /) -> int
+src/thinking/phase3_orchestrator.py:548: note:     def __new__(cls, str | bytes | bytearray, /, base: SupportsIndex) -> int
+src/sensory/what/what_sensor.py:38: error: Missing type parameters for generic
+type "dict"  [type-arg]
+            patterns: dict = {}
+                      ^
+src/sensory/organs/dimensions/what_organ.py:398: error: "MarketData" has no
+attribute "spread"  [attr-defined]
+                        "spread": md.spread,
+                                  ^~~~~~~~~
+src/sensory/organs/dimensions/what_organ.py:399: error: "MarketData" has no
+attribute "mid_price"  [attr-defined]
+                        "mid_price": md.mid_price,
+                                     ^~~~~~~~~~~~
+src/integration/component_integrator_impl.py:97: error: Module
+"src.core.risk.manager" has no attribute "RiskConfig"  [attr-defined]
+                from src.core.risk.manager import RiskConfig, RiskManager
+                ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Found 221 errors in 48 files (checked 343 source files)

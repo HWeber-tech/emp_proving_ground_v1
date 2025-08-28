@@ -11,7 +11,7 @@ Phase: 2 - Sensory Cortex Refactoring
 
 import logging
 from datetime import datetime
-from typing import TYPE_CHECKING, Mapping
+from typing import TYPE_CHECKING, List, Mapping, cast
 
 import numpy as np
 import pandas as pd
@@ -29,6 +29,10 @@ if TYPE_CHECKING:
     import pandas as pd
     from numpy.typing import NDArray
 
+    from src.data_foundation.config.why_config import WhyConfig
+
+    from .economic_analysis import EconomicDataProvider, FundamentalAnalyzer
+
 
 class WhyEngine:
     """
@@ -42,12 +46,14 @@ class WhyEngine:
         """Initialize the why engine with configuration"""
         self.config = config or {}
         try:
-            self.why_cfg = load_why_config()
+            self.why_cfg: "WhyConfig | None" = load_why_config()
         except Exception:
             self.why_cfg = None
         self._ytracker = YieldSlopeTracker()
 
         # Initialize sub-modules
+        self.economic_provider: "EconomicDataProvider | None" = None
+        self.fundamental_analyzer: "FundamentalAnalyzer | None" = None
         try:
             from .economic_analysis import EconomicDataProvider, FundamentalAnalyzer
 
@@ -229,11 +235,11 @@ class WhyEngine:
             price_trend = self._calculate_price_trend(df)
             volume_trend = self._calculate_volume_trend(df)
 
-            drivers = {
-                "price_trend": price_trend,
-                "volume_trend": volume_trend,
-                "primary_driver": "technical" if abs(price_trend) > 0.01 else "fundamental",
-                "driver_strength": min(max(abs(price_trend) + abs(volume_trend), 0.0), 1.0),
+            drivers: dict[str, object] = {
+                "price_trend": float(price_trend),
+                "volume_trend": float(volume_trend),
+                "primary_driver": str("technical" if abs(price_trend) > 0.01 else "fundamental"),
+                "driver_strength": float(min(max(abs(price_trend) + abs(volume_trend), 0.0), 1.0)),
             }
 
             return drivers
@@ -280,7 +286,7 @@ class WhyEngine:
             return []
 
         try:
-            return self.economic_provider.get_economic_calendar()
+            return cast(list[dict[str, object]], self.economic_provider.get_economic_calendar())
         except Exception as e:
             logger.error(f"Error getting economic calendar: {e}")
             return []
@@ -291,7 +297,7 @@ class WhyEngine:
             return {}
 
         try:
-            return self.economic_provider.get_central_bank_policies()
+            return cast(dict[str, object], self.economic_provider.get_central_bank_policies())
         except Exception as e:
             logger.error(f"Error getting central bank policies: {e}")
             return {}
@@ -302,7 +308,7 @@ class WhyEngine:
             return {}
 
         try:
-            return self.fundamental_analyzer.analyze_economic_momentum(df)
+            return cast(dict[str, object], self.fundamental_analyzer.analyze_economic_momentum(df))
         except Exception as e:
             logger.error(f"Error analyzing economic momentum: {e}")
             return {}
@@ -313,7 +319,7 @@ class WhyEngine:
             return {}
 
         try:
-            return self.fundamental_analyzer.analyze_risk_sentiment(df)
+            return cast(dict[str, object], self.fundamental_analyzer.analyze_risk_sentiment(df))
         except Exception as e:
             logger.error(f"Error analyzing risk sentiment: {e}")
             return {}
@@ -324,7 +330,9 @@ class WhyEngine:
             return {}
 
         try:
-            return self.fundamental_analyzer.analyze_yield_differentials(df)
+            return cast(
+                dict[str, object], self.fundamental_analyzer.analyze_yield_differentials(df)
+            )
         except Exception as e:
             logger.error(f"Error analyzing yield differentials: {e}")
             return {}
@@ -373,17 +381,13 @@ class WhyEngine:
         """Calculate signal strength from analysis results"""
         try:
             # Combine various analysis components
-            economic_momentum = (
-                analysis.get("fundamental_analysis", {})
-                .get("economic_momentum", {})
-                .get("momentum_score", 0.0)
-            )
-            risk_sentiment = (
-                analysis.get("fundamental_analysis", {})
-                .get("risk_sentiment", {})
-                .get("risk_sentiment", 0.0)
-            )
-            sentiment_score = analysis.get("sentiment_analysis", {}).get("sentiment_score", 0.5)
+            fa = cast(Mapping[str, object], analysis.get("fundamental_analysis", {}))
+            em = cast(Mapping[str, object], fa.get("economic_momentum", {}))
+            rs = cast(Mapping[str, object], fa.get("risk_sentiment", {}))
+            economic_momentum = em.get("momentum_score", 0.0)
+            risk_sentiment = rs.get("risk_sentiment", 0.0)
+            sentiment_map = cast(Mapping[str, object], analysis.get("sentiment_analysis", {}))
+            sentiment_score = sentiment_map.get("sentiment_score", 0.5)
             # Yield signal
             y_sig, y_conf = (0.0, 0.0)
             if self.why_cfg is None or self.why_cfg.enable_yields:
@@ -393,10 +397,13 @@ class WhyEngine:
             w_macro = self.why_cfg.weight_macro if self.why_cfg else 0.4
             w_yield = self.why_cfg.weight_yields if self.why_cfg else 0.6
             # Calculate weighted signal strength (macro prox -> neutral 0)
+            economic_momentum_f = float(cast(float, economic_momentum))
+            risk_sentiment_f = float(cast(float, risk_sentiment))
+            sentiment_score_f = float(cast(float, sentiment_score))
             base = (
-                float(economic_momentum) * 0.4
-                + (1 - float(risk_sentiment)) * 0.3
-                + float(sentiment_score) * 0.3
+                (economic_momentum_f * 0.4)
+                + (1 - risk_sentiment_f) * 0.3
+                + (sentiment_score_f * 0.3)
             )
             why_weighted = (0.0 * w_macro) + (y_sig * y_conf * w_yield)
             signal_strength = float(max(-1.0, min(1.0, base * 0.5 + why_weighted)))
@@ -412,7 +419,13 @@ class WhyEngine:
             # Base confidence on data quality and analysis completeness
             data_points_obj = analysis.get("data_points", 0)
             data_points = (
-                int(data_points_obj) if not isinstance(data_points_obj, int) else data_points_obj
+                data_points_obj
+                if isinstance(data_points_obj, int)
+                else (
+                    int(data_points_obj)
+                    if isinstance(data_points_obj, (float,))
+                    else (int(str(data_points_obj)) if isinstance(data_points_obj, str) else 0)
+                )
             )
             base_confidence = min(data_points / 100.0, 1.0)  # Higher confidence with more data
 
@@ -443,8 +456,8 @@ class WhyEngine:
                     "volume": md.volume,
                     "bid": md.bid,
                     "ask": md.ask,
-                    "spread": md.spread,
-                    "mid_price": md.mid_price,
+                    "spread": float(max(0.0, float(md.ask) - float(md.bid))),
+                    "mid_price": float((float(md.ask) + float(md.bid)) / 2.0),
                 }
             )
 

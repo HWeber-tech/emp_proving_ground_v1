@@ -1,0 +1,63 @@
+Mypy Summary
+Generated: 2025-08-25T08:19:26Z UTC
+Snapshot: mypy_snapshots/mypy_snapshot_2025-08-25T08-18-19Z.txt
+
+Total errors: 747
+
+Top 15 error codes:
+  unknown                        745
+  misc                           2
+
+Errors by top-level package:
+  thinking                       272
+  sensory                        182
+  trading                        73
+  evolution                      57
+  validation                     51
+  sentient                       20
+  data_integration               15
+  genome                         12
+  orchestration                  11
+  ecosystem                      10
+  intelligence                   10
+  core                           8
+  data_foundation                7
+  integration                    7
+  ui                             4
+  risk                           3
+  pnl.py                         3
+  domain                         1
+  operational                    1
+
+Errors by module prefix:
+  sensory.organs                 176
+  thinking.patterns              78
+  thinking.analysis              74
+  evolution.mutation             43
+  thinking.competitive           35
+  trading.monitoring             24
+  thinking.adversarial           20
+  trading.portfolio              20
+  thinking.phase3_orchestrator.py 20
+  sentient.memory                16
+  validation.phase2d_simple_integration.py 16
+  data_integration.data_fusion.py 15
+  thinking.prediction            14
+  thinking.adaptation            13
+  genome.models                  12
+  thinking.learning              11
+  trading.strategies             11
+  intelligence.sentient_adaptation.py 10
+  evolution.ambusher             9
+  validation.phase2d_integration_validator.py 9
+  validation.phase2c_validation_suite.py 9
+  validation.honest_validation_framework.py 8
+  trading.execution              7
+  ecosystem.optimization         7
+  data_foundation.config         6
+  orchestration.enhanced_intelligence_engine.py 6
+  trading.trading_manager.py     6
+  integration.component_integrator.py 6
+  trading.risk_management        5
+  validation.real_market_validation.py 5
+

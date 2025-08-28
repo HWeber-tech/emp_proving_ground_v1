@@ -35,7 +35,7 @@ class MacroEnvironmentState:
 class MacroPredatorIntelligence:
     """Advanced WHY dimension with central bank and geopolitical analysis"""
 
-    def __init__(self, config: Optional[dict[str, Any]] = None):
+    def __init__(self, config: Optional[dict[str, Any]] = None) -> None:
         self.config = config or {}
         self.central_bank_parser = CentralBankSentimentEngine()
         self.geopolitical_mapper = GeopoliticalTensionAnalyzer()
@@ -84,7 +84,7 @@ class MacroPredatorIntelligence:
     ) -> float:
         """Calculate confidence score for macro analysis"""
         factors = [abs(cb_sentiment), 1 - geo_risk, abs(economic_momentum), abs(policy_outlook)]
-        return np.mean(factors)
+        return float(np.mean(factors))
 
     def _get_fallback_macro_state(self) -> MacroEnvironmentState:
         """Fallback state when analysis fails"""
@@ -132,7 +132,7 @@ class MacroPredatorIntelligence:
 class CentralBankSentimentEngine:
     """Advanced central bank sentiment analysis engine"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.banks = {
             "FED": {"name": "Federal Reserve", "feeds": []},
             "ECB": {"name": "European Central Bank", "feeds": []},
@@ -167,7 +167,7 @@ class CentralBankSentimentEngine:
 
     def _calculate_statement_weight(self, statement: dict[str, Any]) -> float:
         """Calculate weight based on statement importance"""
-        return statement.get("weight", 1.0)
+        return float(statement.get("weight", 1.0))
 
     async def get_upcoming_events(self) -> list[dict[str, Any]]:
         """Get upcoming central bank events"""
@@ -185,7 +185,7 @@ class CentralBankSentimentEngine:
 class GeopoliticalTensionAnalyzer:
     """Advanced geopolitical tension analysis"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.news_sources = [
             "https://feeds.reuters.com/reuters/worldNews",
             "https://feeds.bbci.co.uk/news/world/rss.xml",
@@ -227,7 +227,7 @@ class GeopoliticalTensionAnalyzer:
 
     def _calculate_event_weight(self, event: dict[str, Any]) -> float:
         """Calculate weight based on event recency and severity"""
-        return event.get("severity", 0.5)
+        return float(event.get("severity", 0.5))
 
     async def get_active_events(self) -> list[dict[str, Any]]:
         """Get currently active geopolitical events"""
@@ -255,8 +255,16 @@ class PolicyImpactPredictor:
 class EnhancedWhyAdapter:
     """Adapter to integrate enhanced WHY dimension with existing system"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.macro_intelligence = MacroPredatorIntelligence()
+
+    # Minimal helper to resolve enum members safely without changing runtime behavior
+    def _to_market_regime(self, name: str) -> MarketRegime:
+        from typing import cast as _cast  # local import to avoid polluting module namespace
+
+        return _cast(
+            MarketRegime, getattr(MarketRegime, name, getattr(MarketRegime, "UNKNOWN", name))
+        )
 
     async def get_enhanced_reading(
         self, market_data: list[MarketData], symbol: str = "UNKNOWN"
@@ -300,19 +308,19 @@ class EnhancedWhyAdapter:
     def _determine_regime(self, macro_state: MacroEnvironmentState) -> MarketRegime:
         """Determine market regime based on macro state"""
         if macro_state.geopolitical_risk > 0.7:
-            return MarketRegime.HIGH_VOLATILITY
+            return self._to_market_regime("HIGH_VOLATILITY")
         elif macro_state.central_bank_sentiment > 0.5:
-            return MarketRegime.BULLISH
+            return self._to_market_regime("BULLISH")
         elif macro_state.central_bank_sentiment < -0.5:
-            return MarketRegime.BEARISH
+            return self._to_market_regime("BEARISH")
         else:
-            return MarketRegime.RANGING
+            return self._to_market_regime("RANGING")
 
 
 # Example usage
 if __name__ == "__main__":
 
-    async def test_macro_intelligence():
+    async def test_macro_intelligence() -> None:
         intelligence = MacroPredatorIntelligence()
         result = await intelligence.analyze_macro_environment()
         print(f"Macro Environment: {result}")

@@ -1,0 +1,59 @@
+Mypy Summary
+Generated: 2025-08-26T18:12:15Z UTC
+Snapshot: /home/dev/emp_proving_ground_v1-1/mypy_snapshots/mypy_snapshot_2025-08-26T18-11-40Z.txt
+
+Total errors: 227
+
+Top 15 error codes:
+  unknown                        226
+  misc                           1
+
+Errors by top-level package:
+  thinking                       89
+  sensory                        38
+  validation                     19
+  trading                        16
+  orchestration                  15
+  data_integration               10
+  intelligence                   9
+  evolution                      8
+  genome                         5
+  core                           5
+  integration                    5
+  ui                             4
+  ecosystem                      2
+  domain                         1
+  data_foundation                1
+
+Errors by module prefix:
+  thinking.patterns              52
+  sensory.organs                 26
+  thinking.analysis              16
+  orchestration.enhanced_intelligence_engine.py 15
+  thinking.phase3_orchestrator.py 14
+  sensory.services               11
+  validation.phase2d_simple_integration.py 11
+  data_integration.data_fusion.py 10
+  intelligence.sentient_adaptation.py 9
+  evolution.mutation             7
+  trading.portfolio              7
+  genome.models                  5
+  core._event_bus_impl.py        5
+  ui.ui_manager.py               4
+  trading.execution              4
+  integration.component_integrator.py 4
+  trading.trading_manager.py     3
+  validation.real_market_validation.py 3
+  validation.phase2d_integration_validator.py 3
+  trading.risk_management        2
+  thinking.prediction            2
+  validation.honest_validation_framework.py 2
+  thinking.thinking_manager.py   2
+  ecosystem.optimization         2
+  evolution.ambusher             1
+  domain.__init__.py             1
+  data_foundation.config         1
+  thinking.memory                1
+  thinking.adaptation            1
+  thinking.ecosystem             1
+

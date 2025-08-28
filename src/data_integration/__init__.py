@@ -16,7 +16,7 @@ from src.validation.models import ValidationResult  # re-export for package smok
 
 # Import main data management classes
 # Legacy imports removed during cleanup; provide minimal stubs for compatibility
-class RealDataManager:  # type: ignore
+class RealDataManager:
     def __init__(self, *_args, **_kwargs) -> None:
         pass
 
@@ -24,47 +24,47 @@ class RealDataManager:  # type: ignore
         return None
 
 
-class DataSourceConfig:  # type: ignore
+class DataSourceConfig:
     pass
 
 
-class YahooFinanceDataProvider:  # type: ignore
+class YahooFinanceDataProvider:
     pass
 
 
-class AlphaVantageDataProvider:  # type: ignore
+class AlphaVantageDataProvider:
     pass
 
 
-class FREDDataProvider:  # type: ignore
+class FREDDataProvider:
     pass
 
 
-class NewsAPIDataProvider:  # type: ignore
+class NewsAPIDataProvider:
     pass
 
 
-class MarketDataValidator:  # type: ignore
+class MarketDataValidator:
     pass
 
 
-class DataConsistencyChecker:  # type: ignore
+class DataConsistencyChecker:
     pass
 
 
-class DataQualityMonitor:  # type: ignore
+class DataQualityMonitor:
     pass
 
 
-class ValidationLevel:  # type: ignore
+class ValidationLevel:
     pass
 
 
-class DataQualityThresholds:  # type: ignore
+class DataQualityThresholds:
     pass
 
 
-class DataIssue:  # type: ignore
+class DataIssue:
     pass
 
 

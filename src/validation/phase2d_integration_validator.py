@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# ruff: noqa: I001
 """
 Phase 2D: Real Integration & Testing Framework
 ================================================
@@ -12,7 +11,7 @@ import logging
 import time
 from datetime import datetime
 from decimal import Decimal
-from typing import Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Optional, cast
 
 import numpy as np
 import pandas as pd
@@ -24,7 +23,14 @@ from src.core.regime import NoOpRegimeClassifier, RegimeClassifier
 try:
     from src.core.interfaces import DecisionGenome
 except Exception:  # pragma: no cover
-    DecisionGenome = object  # type: ignore
+    pass
+if TYPE_CHECKING:
+    from src.core.interfaces import DecisionGenome as _DecisionGenome  # noqa: F401
+else:
+
+    class DecisionGenome:  # minimal runtime placeholder to avoid rebinding a type alias
+        pass
+
 
 from src.core.risk_ports import NoOpRiskManager, RiskConfigDecl, RiskManagerPort
 
@@ -44,7 +50,7 @@ class Phase2DIntegrationValidator:
         regime_classifier: Optional[RegimeClassifier] = None,
         risk_manager: Optional[RiskManagerPort] = None,
     ):
-        self.results = []
+        self.results: List[Dict[str, Any]] = []
         self.market_data = market_data_gateway or NoOpMarketDataGateway()
         self.anomaly_detector = anomaly_detector or NoOpAnomalyDetector()
         self.regime_classifier = regime_classifier or NoOpRegimeClassifier()
@@ -64,7 +70,7 @@ class Phase2DIntegrationValidator:
             for symbol in symbols:
                 try:
                     data = self.market_data.fetch_data(symbol, period="1d", interval="1m")
-                    if data is not None and len(data) > 0:
+                    if isinstance(data, pd.DataFrame) and len(data) > 0:
                         real_data_count += 1
                 except Exception as e:
                     logger.warning(f"Failed to fetch {symbol}: {e}")
@@ -75,9 +81,11 @@ class Phase2DIntegrationValidator:
             start_time = time.time()
             if real_data_count > 0:
                 test_data = self.market_data.fetch_data("EURUSD=X", period="1d", interval="1h")
-                if test_data is not None:
+                if isinstance(test_data, pd.DataFrame):
                     anomalies = await self.anomaly_detector.detect_manipulation(test_data)
-                    regime_result = await self.regime_classifier.detect_regime(test_data)
+                    regime_result = await self.regime_classifier.detect_regime(
+                        cast(Mapping[str, object], test_data)
+                    )
                     processing_complete = True
                 else:
                     processing_complete = False
@@ -89,11 +97,13 @@ class Phase2DIntegrationValidator:
             # Test 3: Decision engine integration
             start_time = time.time()
             if processing_complete:
-                # Create decision genome
-                genome = DecisionGenome()  # placeholder instance for evaluation path
+                # Create decision genome placeholder for evaluation path (protocol-safe)
+                genome = cast(DecisionGenome, object())
 
                 # Test evaluation
-                fitness_score = await self._evaluate_genome_with_real_data(genome, test_data)
+                fitness_score = await self._evaluate_genome_with_real_data(
+                    genome, cast(pd.DataFrame, test_data)
+                )
                 decision_engine_time = time.time() - start_time
 
                 decision_complete = fitness_score is not None
@@ -170,7 +180,7 @@ class Phase2DIntegrationValidator:
 
             # Get real market data
             data = self.market_data.fetch_data("EURUSD=X", period="90d", interval="1d")
-            if data is None or len(data) < 20:
+            if not isinstance(data, pd.DataFrame) or len(data) < 20:
                 return {
                     "test_name": "strategy_performance_tracking",
                     "passed": False,

@@ -1,0 +1,85 @@
+# Typing Nightly workflow
+name: Typing Nightly
+
+on:
+  schedule:
+    - cron: "0 2 * * *"
+  workflow_dispatch:
+
+jobs:
+  mypy:
+    runs-on: ubuntu-latest
+    env:
+      PYTHON_VERSION: "3.11"
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements/dev.txt') }}
+
+      - name: Install dependencies
+        shell: bash
+        run: |
+          set -euxo pipefail
+          python -m pip install --upgrade pip
+          pip install -r requirements/dev.txt
+          if [ -f setup.py ] || [ -f pyproject.toml ]; then
+            # Optional local editable install if project supports it
+            pip install -e . || true
+          fi
+
+      - name: Compute timestamp (UTC)
+        id: timestamp
+        shell: bash
+        run: |
+          set -euo pipefail
+          TS="$(date -u +'%Y-%m-%dT%H-%M-%SZ')"
+          echo "TS=${TS}" >> "$GITHUB_ENV"
+
+      - name: Run mypy and capture snapshot
+        shell: bash
+        run: |
+          set -euxo pipefail
+          TS="${{ env.TS }}"
+          OUT="mypy_snapshot_${TS}.txt"
+          SUM="mypy_summary_${TS}.txt"
+          CSV="mypy_ranked_offenders_${TS}.csv"
+
+          ERR=0
+          # Run mypy with base configuration, capture both stdout and stderr
+          mypy --config-file mypy.ini |& tee "${OUT}" || ERR=$?
+
+          # Extract totals line if present, else emit a minimal summary
+          TOTALS="$(grep -E 'Found [0-9]+ errors? in [0-9]+ files?' "${OUT}" || true)"
+          if [ -z "${TOTALS}" ]; then
+            echo "mypy completed, exit_code=${ERR}" > "${SUM}"
+          else
+            echo "${TOTALS}" > "${SUM}"
+          fi
+
+          # Optional ranked offenders CSV (best-effort)
+          echo "path,count" > "${CSV}"
+          awk -F: '/\.py:[0-9]+: error:/ {print $1}' "${OUT}" \
+            | sort | uniq -c | sort -rn \
+            | awk '{print $2","$1}' >> "${CSV}"
+
+          # Exit with mypy's status to enforce baseline
+          exit ${ERR}
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: typing-nightly-${{ env.TS }}
+          path: |
+            mypy_snapshot_${{ env.TS }}*.txt
+            mypy_summary_${{ env.TS }}*.txt
+            mypy_ranked_offenders_${{ env.TS }}*.csv

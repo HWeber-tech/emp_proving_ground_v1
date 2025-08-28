@@ -125,7 +125,7 @@ class RealTimeLearningEngine:
         volume = trade_data.get("volume", 0)
         avg_volume = trade_data.get("avg_volume", 1)
 
-        return price_change > 0.001 and volume > 3 * avg_volume
+        return bool(float(price_change) > 0.001 and float(volume) > 3 * float(avg_volume))
 
     def _detect_stop_cascade(self, trade_data: dict[str, Any]) -> bool:
         """Detect if this trade was part of a stop cascade."""

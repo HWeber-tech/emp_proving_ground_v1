@@ -6,7 +6,9 @@ __all__ = ["AnomalyIntelligenceEngine"]
 
 
 class AnomalyIntelligenceEngine:
-    def analyze_anomaly_intelligence(self, series: list[float] | Iterable[float] | None) -> dict[str, object]:
+    def analyze_anomaly_intelligence(
+        self, series: list[float] | Iterable[float] | None
+    ) -> dict[str, object]:
         values = list(series or [])
         try:
             max_abs = max((abs(float(x)) for x in values), default=0.0)

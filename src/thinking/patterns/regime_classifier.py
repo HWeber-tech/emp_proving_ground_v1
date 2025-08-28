@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, cast
 
 import numpy as np
 import pandas as pd
@@ -139,7 +139,7 @@ class RegimeClassifier:
             return 0.0
 
         # Linear regression slope
-        x = np.arange(len(df), dtype=float)
+        x: np.ndarray = np.arange(len(df), dtype=float)
         y = df["close"].to_numpy(dtype=float)
         slope = float(np.polyfit(x, y, 1)[0])
 
@@ -149,7 +149,7 @@ class RegimeClassifier:
             return 0.0
 
         normalized_slope = slope / price_range
-        return np.clip(normalized_slope * 100, -1, 1)
+        return float(np.clip(normalized_slope * 100.0, -1.0, 1.0))
 
     def _calculate_price_momentum(self, df: pd.DataFrame) -> float:
         """Calculate price momentum."""
@@ -158,7 +158,7 @@ class RegimeClassifier:
 
         # Rate of change over 14 periods
         roc = (df["close"].iloc[-1] - df["close"].iloc[-14]) / df["close"].iloc[-14]
-        return np.clip(roc, -1, 1)
+        return float(np.clip(roc, -1.0, 1.0))
 
     def _calculate_price_volatility(self, df: pd.DataFrame) -> float:
         """Calculate price volatility."""
@@ -168,7 +168,7 @@ class RegimeClassifier:
         # Rolling standard deviation
         returns = df["close"].pct_change().dropna()
         volatility = returns.rolling(window=20).std().iloc[-1]
-        return np.clip(volatility, 0, 1)
+        return float(np.clip(volatility, 0.0, 1.0))
 
     def _calculate_volume_trend(self, df: pd.DataFrame) -> float:
         """Calculate volume trend."""
@@ -183,7 +183,7 @@ class RegimeClassifier:
             return 0.0
 
         volume_ratio = (current_volume - avg_volume) / avg_volume
-        return np.clip(volume_ratio, -1, 1)
+        return float(np.clip(volume_ratio, -1.0, 1.0))
 
     def _calculate_volume_volatility(self, df: pd.DataFrame) -> float:
         """Calculate volume volatility."""
@@ -198,7 +198,7 @@ class RegimeClassifier:
             return 0.0
 
         volume_cv = volume_std / volume_mean
-        return np.clip(volume_cv, 0, 1)
+        return float(np.clip(volume_cv, 0.0, 1.0))
 
     def _calculate_rsi(self, df: pd.DataFrame, period: int = 14) -> float:
         """Calculate RSI indicator."""
@@ -251,7 +251,7 @@ class RegimeClassifier:
             return 0.5
 
         position = (current_price - current_lower) / (current_upper - current_lower)
-        return np.clip(position, 0, 1)
+        return float(np.clip(position, 0.0, 1.0))
 
     def _classify_volatility_regime(self, df: pd.DataFrame) -> float:
         """Classify volatility regime."""
@@ -269,12 +269,12 @@ class RegimeClassifier:
 
     def _determine_primary_regime(self, indicators: dict[str, float]) -> MarketRegime:
         """Determine the primary market regime based on indicators."""
-        price_trend = indicators.get("price_trend", 0)
-        price_momentum = indicators.get("price_momentum", 0)
-        volatility = indicators.get("price_volatility", 0)
-        volume_trend = indicators.get("volume_trend", 0)
+        price_trend = indicators.get("price_trend", 0.0)
+        price_momentum = indicators.get("price_momentum", 0.0)
+        volatility = indicators.get("price_volatility", 0.0)
+        volume_trend = indicators.get("volume_trend", 0.0)
         rsi = indicators.get("rsi", 0.5)
-        macd = indicators.get("macd", 0)
+        macd = indicators.get("macd", 0.0)
 
         # Map to core/base MarketRegime categories
         if volatility > self.volatility_threshold:
@@ -302,15 +302,15 @@ class RegimeClassifier:
         confidence_factors = []
 
         # Price trend consistency
-        price_trend = abs(indicators.get("price_trend", 0))
+        price_trend = abs(indicators.get("price_trend", 0.0))
         confidence_factors.append(price_trend)
 
         # Momentum consistency
-        price_momentum = abs(indicators.get("price_momentum", 0))
+        price_momentum = abs(indicators.get("price_momentum", 0.0))
         confidence_factors.append(price_momentum)
 
         # Volume confirmation
-        volume_trend = abs(indicators.get("volume_trend", 0))
+        volume_trend = abs(indicators.get("volume_trend", 0.0))
         confidence_factors.append(volume_trend * 0.5)
 
         # Technical indicator alignment
@@ -352,18 +352,18 @@ class RegimeClassifier:
         if not self.regime_history:
             return {}
 
-        regimes = [h["regime"] for h in self.regime_history]
-        confidences = [h["confidence"] for h in self.regime_history]
+        regimes = [cast(str, h["regime"]) for h in self.regime_history]
+        confidences = [cast(float, h["confidence"]) for h in self.regime_history]
 
-        regime_counts = {}
+        regime_counts: Dict[str, int] = {}
         for regime in regimes:
             regime_counts[regime] = regime_counts.get(regime, 0) + 1
 
         return {
             "total_classifications": len(self.regime_history),
             "regime_distribution": regime_counts,
-            "average_confidence": np.mean(confidences),
-            "confidence_std": np.std(confidences),
+            "average_confidence": float(np.mean(confidences)),
+            "confidence_std": float(np.std(confidences)),
             "most_common_regime": (
                 max(regime_counts.items(), key=lambda x: x[1])[0] if regime_counts else None
             ),

@@ -1,0 +1,2 @@
+total_errors=127
+files_with_errors=34

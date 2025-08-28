@@ -11,7 +11,7 @@ import logging
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, MutableMapping, Optional, Union, cast
 
 import yaml
 
@@ -121,7 +121,7 @@ class Configuration:
                 config.__dict__[k] = {}
             config = config.__dict__[k]
 
-        config[keys[-1]] = value
+        cast(MutableMapping[str, object], config)[keys[-1]] = value
 
     def validate(self) -> bool:
         """Validate configuration."""

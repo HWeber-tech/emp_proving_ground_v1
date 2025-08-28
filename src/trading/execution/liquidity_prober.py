@@ -44,8 +44,10 @@ class LiquidityProber:
 
         # Probe configuration
         self.probe_size = Decimal(str(self.config.get("probe_size", 0.001)))  # 0.001 lots default
-        self.timeout_seconds: float = float(self.config.get("timeout_seconds", 2.0))
-        self.max_concurrent_probes: int = int(self.config.get("max_concurrent_probes", 5))
+        _ts_v = self.config.get("timeout_seconds", 2.0)
+        self.timeout_seconds = float(_ts_v) if isinstance(_ts_v, (int, float, str)) else 2.0
+        _mcp_v = self.config.get("max_concurrent_probes", 5)
+        self.max_concurrent_probes = int(_mcp_v) if isinstance(_mcp_v, (int, float, str)) else 5
 
         # Tracking
         self.active_probes: dict[str, asyncio.Task[float]] = {}
@@ -197,7 +199,8 @@ class LiquidityProber:
             # Read in-memory order state from FIXBrokerInterface
             status = self.broker.get_order_status(order_id)
             if status and status.get("status") in ("FILLED", "PARTIALLY_FILLED"):
-                return float(status.get("filled_qty") or 0.0)
+                _fq = status.get("filled_qty")
+                return float(_fq) if isinstance(_fq, (int, float, str)) else 0.0
 
             # Small delay to prevent busy waiting
             await asyncio.sleep(0.1)

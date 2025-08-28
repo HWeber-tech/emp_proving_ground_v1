@@ -1,0 +1,14 @@
+Timestamp (UTC): 2025-08-25T16-40-33Z
+Posture: Base (not strict-on-touch)
+Config: [mypy.ini](mypy.ini:1)
+
+Found 643 errors in 81 files
+Errors: 643
+Files: 81
+Previous summary: [mypy_snapshots/mypy_summary_2025-08-25T12-46-33Z.txt](mypy_snapshots/mypy_summary_2025-08-25T12-46-33Z.txt:1)
+Delta vs previous: errors=+643, files=+81
+
+Top offenders (by error count, top 20):
+
+
+Notes: Post-Batch10 fix3 snapshot

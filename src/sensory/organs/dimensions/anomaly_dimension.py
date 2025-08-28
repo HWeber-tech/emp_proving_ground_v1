@@ -90,7 +90,8 @@ class AnomalyDimension:
         anomalies = []
 
         # Z-score based anomaly detection
-        z_scores = np.abs(stats.zscore(prices))
+        prices_np = np.asarray(prices, dtype=float)
+        z_scores = np.abs(stats.zscore(prices_np))
 
         for i, z_score in enumerate(z_scores):
             if z_score > self.anomaly_threshold:
@@ -118,10 +119,11 @@ class AnomalyDimension:
         anomalies = []
 
         # Volume spike detection
-        mean_volume = np.mean(volumes)
-        std_volume = np.std(volumes)
+        volumes_np = np.asarray(volumes, dtype=float)
+        mean_volume = np.mean(volumes_np)
+        std_volume = np.std(volumes_np)
 
-        for i, volume in enumerate(volumes):
+        for i, volume in enumerate(volumes_np):
             if std_volume > 0:
                 z_score = abs(volume - mean_volume) / std_volume
                 if z_score > self.anomaly_threshold:

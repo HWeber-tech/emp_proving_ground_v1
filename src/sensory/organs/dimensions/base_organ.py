@@ -20,8 +20,8 @@ from pydantic import BaseModel, Field, model_validator, validator
 from src.trading.order_management.order_book.snapshot import OrderBookLevel as OrderBookLevel
 from src.trading.order_management.order_book.snapshot import OrderBookSnapshot as OrderBookSnapshot
 
-
 logger = logging.getLogger(__name__)
+
 
 class MarketRegime(Enum):
     """Market volatility and trend regimes"""
@@ -41,6 +41,7 @@ class MarketRegime(Enum):
     TRANSITION = "transition"
     CRISIS = "crisis"
 
+
 class ConfidenceLevel(Enum):
     """Standardized confidence levels across all dimensions"""
 
@@ -50,12 +51,14 @@ class ConfidenceLevel(Enum):
     HIGH = 0.7
     VERY_HIGH = 0.9
 
+
 class EventTier(Enum):
     """Economic event importance tiers"""
 
     TIER_1 = "tier_1"  # High impact (NFP, FOMC, CPI)
     TIER_2 = "tier_2"  # Medium impact (PMI, Retail Sales)
     TIER_3 = "tier_3"  # Low impact (Housing data, minor indicators)
+
 
 class SessionType(Enum):
     """Trading session types"""
@@ -66,38 +69,38 @@ class SessionType(Enum):
     OVERLAP_LONDON_NY = "overlap_london_ny"
     DEAD_ZONE = "dead_zone"
 
+
 class SensoryReading(BaseModel):
     """Standardized sensory reading from any organ."""
-    
+
     organ_name: str
     timestamp: datetime
     data: Dict[str, Any] = Field(default_factory=dict)
     metadata: Dict[str, Any] = Field(default_factory=dict)
 
+
 class SensoryOrgan(ABC):
     """Base class for all sensory organs."""
-    
+
     def __init__(self, name: str, config: Dict[str, Any]):
         self.name = name
         self.config = config
         self.logger = logging.getLogger(f"sensory.{name}")
-        
+
     @abstractmethod
-    async def process(self, market_data: 'MarketData') -> SensoryReading:
+    async def process(self, market_data: "MarketData") -> SensoryReading:
         """Process market data and return sensory reading."""
         pass
-        
+
     def _create_error_reading(self, timestamp: datetime) -> SensoryReading:
         """Create error reading when processing fails."""
         return SensoryReading(
             organ_name=self.name,
             timestamp=timestamp,
             data={},
-            metadata={
-                "error": "Processing failed",
-                "organ_version": "1.1.0"
-            }
+            metadata={"error": "Processing failed", "organ_version": "1.1.0"},
         )
+
 
 class InstrumentMeta(BaseModel):
     """
@@ -122,22 +125,19 @@ class InstrumentMeta(BaseModel):
 
     # Spread and volatility characteristics
     typical_spread: float = Field(0.0001, description="Typical spread in price units")
-    avg_daily_range: float = Field(
-        0.01, description="Average daily range in price units"
-    )
+    avg_daily_range: float = Field(0.01, description="Average daily range in price units")
 
     @validator("sessions")
-    def validate_sessions(cls, v):
+    def validate_sessions(cls, v: Dict[str, Tuple[str, str]]) -> Dict[str, Tuple[str, str]]:
         """Validate session time formats"""
         for session, (start, end) in v.items():
             try:
                 time.fromisoformat(start)
                 time.fromisoformat(end)
             except ValueError:
-                raise ValueError(
-                    f"Invalid time format in session {session}: {start}-{end}"
-                )
+                raise ValueError(f"Invalid time format in session {session}: {start}-{end}")
         return v
+
 
 class DimensionalReading(BaseModel):
     """
@@ -145,32 +145,20 @@ class DimensionalReading(BaseModel):
     Standardizes how each dimension communicates its perception to the orchestrator.
     """
 
-    dimension: str = Field(
-        ..., description="Dimension name (WHY/HOW/WHAT/WHEN/ANOMALY)"
-    )
+    dimension: str = Field(..., description="Dimension name (WHY/HOW/WHAT/WHEN/ANOMALY)")
     timestamp: datetime = Field(default_factory=datetime.utcnow)
 
     # Core signal components
-    signal_strength: float = Field(
-        ..., ge=-1.0, le=1.0, description="Primary signal (-1 to +1)"
-    )
-    confidence: float = Field(
-        ..., ge=0.0, le=1.0, description="Signal confidence (0 to 1)"
-    )
+    signal_strength: float = Field(..., ge=-1.0, le=1.0, description="Primary signal (-1 to +1)")
+    confidence: float = Field(..., ge=0.0, le=1.0, description="Signal confidence (0 to 1)")
 
     # Context and metadata
     regime: MarketRegime = Field(..., description="Detected market regime")
-    context: Dict[str, Any] = Field(
-        default_factory=dict, description="Dimension-specific context"
-    )
+    context: Dict[str, Any] = Field(default_factory=dict, description="Dimension-specific context")
 
     # Quality metrics
-    data_quality: float = Field(
-        1.0, ge=0.0, le=1.0, description="Input data quality score"
-    )
-    processing_time_ms: float = Field(
-        0.0, description="Processing time in milliseconds"
-    )
+    data_quality: float = Field(1.0, ge=0.0, le=1.0, description="Input data quality score")
+    processing_time_ms: float = Field(0.0, description="Processing time in milliseconds")
 
     # Supporting evidence
     evidence: Dict[str, float] = Field(
@@ -179,18 +167,19 @@ class DimensionalReading(BaseModel):
     warnings: List[str] = Field(default_factory=list, description="Processing warnings")
 
     @validator("signal_strength")
-    def validate_signal_strength(cls, v):
+    def validate_signal_strength(cls, v: float) -> float:
         """Ensure signal strength is within valid range"""
         if not -1.0 <= v <= 1.0:
-            raise ValueError(f"Signal strength must be between -1.0 and 1.0, got {v}")
+            raise ValueError(f"Signal strength must be between -1.0 and +1.0, got {v}")
         return v
 
     @validator("confidence")
-    def validate_confidence(cls, v):
+    def validate_confidence(cls, v: float) -> float:
         """Ensure confidence is within valid range"""
         if not 0.0 <= v <= 1.0:
             raise ValueError(f"Confidence must be between 0.0 and 1.0, got {v}")
         return v
+
 
 class MarketData(BaseModel):
     """
@@ -225,11 +214,12 @@ class MarketData(BaseModel):
     latency_ms: float = Field(0.0, description="Data latency in milliseconds")
 
     @model_validator(mode="after")
-    def calculate_derived_fields(self):
+    def calculate_derived_fields(self) -> "MarketData":
         """Calculate derived fields after validation."""
         self.spread = self.ask - self.bid
         self.mid_price = (self.bid + self.ask) / 2.0
         return self
+
 
 class EconomicEvent(BaseModel):
     """
@@ -253,10 +243,7 @@ class EconomicEvent(BaseModel):
     surprise_index: float = Field(0.0, ge=-1.0, le=1.0)
 
     # Time to event (for forward-looking analysis)
-    time_to_event_hours: float = Field(
-        0.0, description="Hours until event (negative if past)"
-    )
-
+    time_to_event_hours: float = Field(0.0, description="Hours until event (negative if past)")
 
 
 class DimensionalSensor(ABC):
@@ -297,9 +284,8 @@ class DimensionalSensor(ABC):
 
     def get_dimension_name(self) -> str:
         """Return the dimension name for this sensor."""
-        return (
-            self.__class__.__name__.replace("Engine", "").replace("Sensor", "").upper()
-        )
+        return self.__class__.__name__.replace("Engine", "").replace("Sensor", "").upper()
+
 
 class SystemHealth(BaseModel):
     """
@@ -333,6 +319,7 @@ class SystemHealth(BaseModel):
             and len(self.failed_dimensions) == 0
             and self.error_count == 0
         )
+
 
 # Type aliases for clarity
 SignalStrength = float  # -1.0 to +1.0

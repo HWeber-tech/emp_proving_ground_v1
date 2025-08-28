@@ -159,3 +159,49 @@ jobs:
           else
             echo "(none)"
           fi
+  mypy-full:
+    name: Mypy (full repo)
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.draft == false || github.event_name == 'workflow_dispatch'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements/dev.txt') }}
+      - name: Install dependencies
+        shell: bash
+        run: |
+          set -euxo pipefail
+          python -m pip install --upgrade pip
+          pip install -r requirements/dev.txt
+          if [ -f setup.py ] || [ -f pyproject.toml ]; then pip install -e . || true; fi
+      - name: Run mypy full-repo and capture snapshot
+        shell: bash
+        run: |
+          set -euxo pipefail
+          TS=$(date -u +'%Y-%m-%dT%H-%M-%SZ')
+          OUT="mypy_snapshot_${TS}.txt"
+          ERR=0
+          mypy --config-file mypy.ini |& tee "$OUT" || ERR=$?
+          TOTALS=$(grep -E 'Found [0-9]+ errors? in [0-9]+ files?' "$OUT" || true)
+          if [ -z "$TOTALS" ]; then
+            echo "mypy completed, exit_code=${ERR}" > "mypy_summary_${TS}.txt"
+          else
+            echo "$TOTALS" > "mypy_summary_${TS}.txt"
+          fi
+          echo "path,count" > "mypy_ranked_offenders_${TS}.csv"
+          awk -F: '/\.py:[0-9]+: error:/ {print $1}' "$OUT" | sort | uniq -c | sort -rn | awk '{print $2","$1}' >> "mypy_ranked_offenders_${TS}.csv"
+          exit $ERR
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: typing-fullrepo-${{ github.run_id }}
+          path: |
+            mypy_snapshot_*.txt
+            mypy_summary_*.txt
+            mypy_ranked_offenders_*.csv

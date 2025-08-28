@@ -1,4 +1,5 @@
 # EMP Proving Ground (FIX‑First)
+[![Type Safety: 0 errors](https://img.shields.io/badge/Type%20Safety-0%20errors-brightgreen?style=flat&logo=python)](mypy_snapshots/mypy_summary_2025-08-27T09-43-50Z.txt:1)
 
 A lean, FIX‑only algorithmic trading platform for research, simulation, and controlled execution. The repository reflects a consolidated, production‑lean layout with clear entry points, safe defaults, and an emphasis on risk‑aware design.
 
@@ -91,6 +92,13 @@ tests/current/          # Canonical test suite
 - [Roadmap (Authoritative)](docs/ROADMAP.md)
 - [Roadmap (Comprehensive, budget‑tiered)](docs/reports/ROADMAP_COMPREHENSIVE.md)
 - [Cleanup Report](docs/reports/CLEANUP_REPORT.md)
+
+### Type Safety
+
+- The project maintains a zero-error mypy baseline; see the [Latest clean snapshot](mypy_snapshots/mypy_summary_2025-08-27T09-43-50Z.txt:1).
+- PRs run changed-files strict-on-touch and a full-repo job in [typing.yml](.github/workflows/typing.yml:1).
+- A nightly full-repo snapshot runs via [typing-nightly.yml](.github/workflows/typing-nightly.yml:1).
+- Contributor guidance: see [Typing recipes](docs/development/typing_recipes.md:1).
 
 ### Transparency Metrics
 Run quick status metrics:

@@ -1,0 +1,17 @@
+code,count
+attr-defined,53
+assignment,23
+misc,10
+object,9
+arg-type,9
+no-any-return,6
+call-arg,6
+operator,5
+import-not-found,5
+type-var,3
+annotation-unchecked,3
+str,2
+return-value,2
+typeddict-unknown-key,1
+index,1
+float,1

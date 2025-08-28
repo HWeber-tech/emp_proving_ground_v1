@@ -33,17 +33,26 @@ class YFinanceGateway(MarketDataGateway):
         try:
             yf_symbol = self._to_yahoo_symbol(symbol)
             ticker = yf.Ticker(yf_symbol)
+            # Fetch into an object-typed temporary to avoid Any pollution
+            df_obj: object
             if period is not None or (start is None and end is None):
                 # Period-based request
-                df = ticker.history(period=period or "1d", interval=interval or "1h")
+                df_obj = ticker.history(period=period or "1d", interval=interval or "1h")
             else:
                 # Start/end range request
-                df = ticker.history(start=start, end=end, interval=interval or "1h")
+                df_obj = ticker.history(start=start, end=end, interval=interval or "1h")
 
-            if df is None or df.empty:
+            if df_obj is None:
+                return None
+            if not isinstance(df_obj, pd.DataFrame):
                 return None
 
-            df = df.reset_index()
+            # Safe to treat as DataFrame after guards
+            df: pd.DataFrame = df_obj.reset_index()
+
+            if df.empty:
+                return None
+
             # Normalize column names
             rename_map = {
                 "Datetime": "timestamp",

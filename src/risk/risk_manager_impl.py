@@ -257,7 +257,7 @@ class RiskManagerImpl(RiskManagerProtocol):
     def evaluate_portfolio_risk(
         self,
         positions: Mapping[str, float],
-        context: JSONObject | None = None,
+        context: Mapping[str, object] | None = None,
     ) -> float:
         try:
             numeric_positions: Dict[str, float] = {k: float(v) for k, v in positions.items()}
@@ -269,17 +269,17 @@ class RiskManagerImpl(RiskManagerProtocol):
     def propose_rebalance(
         self,
         positions: Mapping[str, float],
-        constraints: JSONObject | None = None,
+        constraints: Mapping[str, object] | None = None,
     ) -> Mapping[str, float]:
         # Minimal adapter: preserve existing allocations (no-op)
         return dict(positions)
 
-    def update_limits(self, limits: Mapping[str, float | Decimal]) -> None:
+    def update_limits(self, limits: Mapping[str, object]) -> None:
         # Accept float|Decimal, coerce using _to_float
         if "max_position_risk" in limits:
-            self.config.max_position_risk = _to_float(limits["max_position_risk"])
+            self.config.max_position_risk = _to_float(limits["max_position_risk"])  # type: ignore[arg-type]
         if "max_drawdown" in limits:
-            self.config.max_drawdown = _to_float(limits["max_drawdown"])
+            self.config.max_drawdown = _to_float(limits["max_drawdown"])  # type: ignore[arg-type]
 
 
 # Factory function for easy instantiation

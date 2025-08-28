@@ -21,8 +21,19 @@ import pandas as pd
 from src.core.base import DimensionalReading, MarketData, MarketRegime
 
 if TYPE_CHECKING:
-    # Type-only imports to avoid runtime dependency issues
-    from .regime_detection import MarketRegimeDetector, TemporalAnalyzer
+    # Local Protocols to provide precise typing for mypy without runtime deps
+    from typing import Protocol
+
+    class MarketRegimeDetector(Protocol):
+        def get_temporal_regime(self, df: "pd.DataFrame") -> dict[str, Any]: ...
+        def get_chrono_behavior(self, df: "pd.DataFrame") -> dict[str, Any]: ...
+        def detect_market_regime(self, df: "pd.DataFrame") -> str: ...
+        def calculate_temporal_confidence(self, df: "pd.DataFrame") -> float: ...
+        def calculate_temporal_strength(self, df: "pd.DataFrame") -> float: ...
+
+    class TemporalAnalyzer(Protocol):
+        def get_temporal_regime(self, df: "pd.DataFrame") -> dict[str, Any]: ...
+
 
 logger = logging.getLogger(__name__)
 
@@ -361,8 +372,8 @@ class WhenEngine:
                     "volume": md.volume,
                     "bid": md.bid,
                     "ask": md.ask,
-                    "spread": md.spread,
-                    "mid_price": md.mid_price,
+                    "spread": float(getattr(md, "spread", 0.0)),
+                    "mid_price": float(getattr(md, "mid_price", float("nan"))),
                 }
             )
 

@@ -1,0 +1,10 @@
+src/thinking/patterns/trend_detector.py
+src/thinking/patterns/cycle_detector.py
+src/data_integration/data_fusion.py
+src/intelligence/sentient_adaptation.py
+src/sensory/organs/dimensions/institutional_tracker.py
+src/trading/portfolio/real_portfolio_monitor.py
+src/sensory/organs/dimensions/integration_orchestrator.py
+src/evolution/mutation/gaussian_mutation.py
+src/genome/models/genome_adapter.py
+src/orchestration/enhanced_intelligence_engine.py

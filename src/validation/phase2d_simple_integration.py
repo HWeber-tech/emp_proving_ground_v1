@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# ruff: noqa: I001
 """
 Phase 2D: Simple Real Integration Test
 ======================================
@@ -26,9 +25,14 @@ from src.core.market_data import MarketDataGateway, NoOpMarketDataGateway
 from src.core.regime import NoOpRegimeClassifier, RegimeClassifier
 
 try:
-    from src.core.interfaces import DecisionGenome
+    from src.core.interfaces import DecisionGenome as _DecisionGenome
 except Exception:  # pragma: no cover
-    DecisionGenome = object  # type: ignore
+    from typing import Any as _Any
+
+    _DecisionGenome = _Any
+from typing import TypeAlias as _TypeAlias
+
+DecisionGenome: _TypeAlias = _DecisionGenome
 from src.core.risk_ports import NoOpRiskManager, RiskConfigDecl, RiskManagerPort
 
 logging.basicConfig(level=logging.INFO)
@@ -50,7 +54,7 @@ class SimplePhase2DValidator:
         self.regime_classifier = regime_classifier or NoOpRegimeClassifier()
         self.risk_manager = risk_manager
 
-    async def test_real_data_integration(self) -> dict:
+    async def test_real_data_integration(self) -> Dict[str, Any]:
         """Test real market data integration"""
         try:
             logger.info("Testing real market data integration...")
@@ -63,7 +67,7 @@ class SimplePhase2DValidator:
             for symbol in symbols:
                 try:
                     data = self.market_data.fetch_data(symbol, period="7d", interval="1h")
-                    if data is not None and len(data) > 10:
+                    if isinstance(data, pd.DataFrame) and len(data) > 10:
                         real_data_results.append(
                             {"symbol": symbol, "data_points": len(data), "success": True}
                         )
@@ -82,9 +86,14 @@ class SimplePhase2DValidator:
             start_time = time.time()
             if any(r["success"] for r in real_data_results):
                 test_data = self.market_data.fetch_data("EURUSD=X", period="30d", interval="1d")
-                if test_data is not None:
+                if isinstance(test_data, pd.DataFrame):
                     anomalies = await self.anomaly_detector.detect_manipulation(test_data)
-                    regime_result = await self.regime_classifier.detect_regime(test_data)
+                    from typing import Mapping
+                    from typing import cast as _cast  # local, to keep import hygiene
+
+                    regime_result = await self.regime_classifier.detect_regime(
+                        _cast(Mapping[str, object], test_data)
+                    )
 
                     sensory_processing_time = time.time() - start_time
 
@@ -115,14 +124,14 @@ class SimplePhase2DValidator:
                 "details": "Real data integration test failed",
             }
 
-    async def test_performance_metrics(self) -> dict:
+    async def test_performance_metrics(self) -> Dict[str, Any]:
         """Test real performance metrics calculation"""
         try:
             logger.info("Testing real performance metrics...")
 
             # Get real market data for performance testing
             data = self.market_data.fetch_data("^GSPC", period="365d", interval="1d")
-            if data is None or len(data) < 20:
+            if not isinstance(data, pd.DataFrame) or len(data) < 20:
                 return {
                     "test_name": "performance_metrics",
                     "passed": False,
@@ -169,7 +178,7 @@ class SimplePhase2DValidator:
                 "details": "Performance metrics test failed",
             }
 
-    async def test_risk_management_integration(self) -> dict:
+    async def test_risk_management_integration(self) -> Dict[str, Any]:
         """Test risk management with real data"""
         try:
             logger.info("Testing risk management integration...")
@@ -217,7 +226,7 @@ class SimplePhase2DValidator:
                 "details": "Risk management integration test failed",
             }
 
-    async def test_concurrent_operations(self) -> dict:
+    async def test_concurrent_operations(self) -> Dict[str, Any]:
         """Test concurrent operations capability"""
         try:
             logger.info("Testing concurrent operations...")
@@ -259,7 +268,7 @@ class SimplePhase2DValidator:
                 "details": "Concurrent operations test failed",
             }
 
-    async def _fetch_symbol_async(self, symbol: str) -> dict:
+    async def _fetch_symbol_async(self, symbol: str) -> Dict[str, Any]:
         """Helper for async symbol fetching"""
         try:
             data = self.market_data.fetch_data(symbol, period="1d", interval="1h")
@@ -294,7 +303,7 @@ class SimplePhase2DValidator:
         except Exception:
             return None
 
-    async def run_phase2d_validation(self) -> dict:
+    async def run_phase2d_validation(self) -> Dict[str, Any]:
         """Run complete Phase 2D validation"""
         logger.info("Starting Phase 2D: Real Integration & Testing...")
 
@@ -339,7 +348,7 @@ class SimplePhase2DValidator:
 
         return report
 
-    def _validate_real_success_criteria(self, results: List[dict]) -> Dict[str, Any]:
+    def _validate_real_success_criteria(self, results: List[Dict[str, Any]]) -> Dict[str, Any]:
         """Validate against real success criteria"""
         criteria: Dict[str, Any] = {
             "response_time": {"target": 1.0, "actual": None, "passed": False},

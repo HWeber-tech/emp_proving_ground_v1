@@ -288,7 +288,7 @@ class DukascopyIngestor:
             logger.error(f"Error downloading year data for {symbol} {year}: {e}")
             return False
 
-    def _save_data(self, symbol: str, data: pd.DataFrame, year: int):
+    def _save_data(self, symbol: str, data: pd.DataFrame, year: int) -> None:
         """
         Save downloaded data to storage.
 
@@ -350,7 +350,7 @@ class DukascopyIngestor:
             return False
 
 
-def main():
+def main() -> None:
     """Test the Dukascopy ingestor."""
     import argparse
 

@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from typing import cast
 
 import pandas as pd
 
@@ -31,16 +32,38 @@ __all__ = ["PredictiveMarketModeler", "MarketScenario", "MarketScenarioGenerator
 # Example usage and testing
 if __name__ == "__main__":
     import asyncio
+    from datetime import timedelta
+
+    from src.core.state_store import StateStore
+
+    class _InMemoryStateStore(StateStore):  # minimal demo-only implementation
+        def __init__(self) -> None:
+            self._db: dict[str, str] = {}
+
+        async def set(self, key: str, value: str, expire: int | None = None) -> bool:
+            self._db[key] = value
+            return True
+
+        async def get(self, key: str) -> str | None:
+            return self._db.get(key)
+
+        async def delete(self, key: str) -> bool:
+            return self._db.pop(key, None) is not None
+
+        async def keys(self, pattern: str) -> list[str]:
+            return list(self._db.keys())
+
+        async def clear(self) -> bool:
+            self._db.clear()
+            return True
 
     async def test_predictive_modeler() -> None:
         """Test the predictive modeler with sample data."""
 
-        # This would normally use a real model_run_id from training
-        model_run_id = "test_run_id"
-
         try:
             # Initialize modeler
-            modeler = PredictiveMarketModeler(model_run_id)
+            store = _InMemoryStateStore()
+            modeler = PredictiveMarketModeler(store)
 
             # Create sample market data
             sample_data = pd.DataFrame(
@@ -53,9 +76,12 @@ if __name__ == "__main__":
                 }
             )
 
-            # Generate forecast
-            forecast = await modeler.forecast(sample_data)
-            print("Forecast:", forecast)
+            # Generate scenario-based predictions for demo
+            current_state = {"price": float(sample_data["close"].iloc[-1]), "volatility": 0.02}
+            results = await modeler.predict_market_scenarios(
+                cast(dict[str, object], current_state), timedelta(days=5), num_scenarios=25
+            )
+            print("Predictions:", results[:3])
 
         except Exception as e:
             print(f"Test failed: {e}")

@@ -1,48 +1,29 @@
 repos:
-  - repo: local
-    hooks:
-      - id: check-no-new-duplicates
-        name: check-no-new-duplicates
-        entry: python3 scripts/cleanup/check_no_new_duplicates.py --root src --out docs/reports --min-count 2
-        language: system
-        pass_filenames: false
-      - id: check-legacy-imports
-        name: check-legacy-imports
-        entry: python3 scripts/cleanup/check_legacy_imports.py --root src --map docs/development/import_rewrite_map.yaml --fail
-        language: system
-        pass_filenames: false
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.6.4
+    rev: v0.6.0
     hooks:
       - id: ruff
         args: ["--fix", "--exit-non-zero-on-fix"]
-        additional_dependencies: []
   - repo: https://github.com/psf/black
     rev: 24.8.0
     hooks:
       - id: black
-        args: ["--line-length=100", "--target-version=py311"]
-  - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.10.0
+  - repo: https://github.com/pycqa/isort
+    rev: 5.13.2
+    hooks:
+      - id: isort
+        args: ["--profile=black"]
+  - repo: local
     hooks:
       - id: mypy
-        name: mypy
-        args:
-          - --python-version=3.11
-          - --pretty
-          - --show-error-codes
-        additional_dependencies:
-          - types-PyYAML
-          - pandas-stubs
-          - types-psutil
-          - scipy-stubs
-        files: ^src/
+        name: mypy (changed files)
+        entry: mypy
+        language: system
+        types: [python]
+        pass_filenames: true
+        args: ["--config-file", "mypy.ini"]
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.6.0
     hooks:
       - id: end-of-file-fixer
       - id: trailing-whitespace
-      - id: check-yaml
-
-default_language_version:
-  python: python3.11

@@ -26,6 +26,7 @@ class VolatilityEngine:
     """Typed shim for volatility engine. Canonical import surface.
     Real implementation not yet present in the repository; this preserves type stability.
     """
+
     def __init__(self, config: VolConfig | None = None) -> None:
         self.config: VolConfig = config or VolConfig()
 

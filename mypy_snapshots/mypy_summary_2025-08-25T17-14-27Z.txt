@@ -1,0 +1,33 @@
+Timestamp (UTC): 2025-08-25T17-14-27Z
+Posture: Base (not strict-on-touch)
+Config: [mypy.ini](mypy.ini:1)
+
+Found 643 errors in 81 files
+Errors: 643
+Files: 81
+Previous summary: [mypy_snapshots/mypy_summary_2025-08-25T16-40-33Z.txt](mypy_snapshots/mypy_summary_2025-08-25T16-40-33Z.txt:1)
+Delta vs previous: errors=+0, files=+0
+
+Top offenders (by error count, top 20):
+1. [src/thinking/analysis/performance_analyzer.py	45](src/thinking/analysis/performance_analyzer.py	45:1) - 0
+2. [src/evolution/mutation/gaussian_mutation.py	43](src/evolution/mutation/gaussian_mutation.py	43:1) - 0
+3. [src/thinking/patterns/trend_detector.py	36](src/thinking/patterns/trend_detector.py	36:1) - 0
+4. [src/thinking/competitive/competitive_intelligence_system.py	35](src/thinking/competitive/competitive_intelligence_system.py	35:1) - 0
+5. [src/trading/monitoring/performance_tracker.py	25](src/trading/monitoring/performance_tracker.py	25:1) - 0
+6. [src/sensory/organs/dimensions/pattern_engine.py	20](src/sensory/organs/dimensions/pattern_engine.py	20:1) - 0
+7. [src/thinking/phase3_orchestrator.py	20](src/thinking/phase3_orchestrator.py	20:1) - 0
+8. [src/trading/portfolio/real_portfolio_monitor.py	20](src/trading/portfolio/real_portfolio_monitor.py	20:1) - 0
+9. [src/sentient/memory/faiss_pattern_memory.py	18](src/sentient/memory/faiss_pattern_memory.py	18:1) - 0
+10. [src/sensory/organs/dimensions/integration_orchestrator.py	17](src/sensory/organs/dimensions/integration_orchestrator.py	17:1) - 0
+11. [src/validation/phase2d_simple_integration.py	16](src/validation/phase2d_simple_integration.py	16:1) - 0
+12. [src/data_integration/data_fusion.py	15](src/data_integration/data_fusion.py	15:1) - 0
+13. [src/thinking/analysis/market_analyzer.py	15](src/thinking/analysis/market_analyzer.py	15:1) - 0
+14. [src/sensory/organs/dimensions/why_organ.py	14](src/sensory/organs/dimensions/why_organ.py	14:1) - 0
+15. [src/thinking/adaptation/tactical_adaptation_engine.py	13](src/thinking/adaptation/tactical_adaptation_engine.py	13:1) - 0
+16. [src/thinking/adversarial/red_team_ai.py	13](src/thinking/adversarial/red_team_ai.py	13:1) - 0
+17. [src/thinking/patterns/anomaly_detector.py	12](src/thinking/patterns/anomaly_detector.py	12:1) - 0
+18. [src/thinking/prediction/predictive_market_modeler.py	12](src/thinking/prediction/predictive_market_modeler.py	12:1) - 0
+19. [src/intelligence/sentient_adaptation.py	11](src/intelligence/sentient_adaptation.py	11:1) - 0
+20. [src/thinking/learning/meta_cognition_engine.py	11](src/thinking/learning/meta_cognition_engine.py	11:1) - 0
+
+Notes: Post-Batch10 fix3 snapshot

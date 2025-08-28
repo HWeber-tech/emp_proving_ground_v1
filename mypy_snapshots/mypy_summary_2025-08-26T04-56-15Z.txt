@@ -1,0 +1,26 @@
+Mypy snapshot summary — UTC 2025-08-26T04-56-15Z — Post-Batch10 fix4 snapshot
+
+Found 425 errors in 76 files
+Delta vs previous: errors: -218, files: -5
+
+Top offenders (by error count):
+- [src/thinking/patterns/trend_detector.py](src/thinking/patterns/trend_detector.py:1) — 31
+- [src/validation/phase2d_simple_integration.py](src/validation/phase2d_simple_integration.py:1) — 16
+- [src/thinking/analysis/market_analyzer.py](src/thinking/analysis/market_analyzer.py:1) — 15
+- [src/data_integration/data_fusion.py](src/data_integration/data_fusion.py:1) — 15
+- [src/thinking/phase3_orchestrator.py](src/thinking/phase3_orchestrator.py:1) — 14
+- [src/sensory/organs/dimensions/why_organ.py](src/sensory/organs/dimensions/why_organ.py:1) — 14
+- [src/thinking/adversarial/red_team_ai.py](src/thinking/adversarial/red_team_ai.py:1) — 13
+- [src/thinking/adaptation/tactical_adaptation_engine.py](src/thinking/adaptation/tactical_adaptation_engine.py:1) — 13
+- [src/thinking/prediction/predictive_market_modeler.py](src/thinking/prediction/predictive_market_modeler.py:1) — 12
+- [src/thinking/patterns/anomaly_detector.py](src/thinking/patterns/anomaly_detector.py:1) — 12
+- [src/trading/strategies/order_book_analyzer.py](src/trading/strategies/order_book_analyzer.py:1) — 11
+- [src/thinking/learning/meta_cognition_engine.py](src/thinking/learning/meta_cognition_engine.py:1) — 11
+- [src/intelligence/sentient_adaptation.py](src/intelligence/sentient_adaptation.py:1) — 11
+- [src/thinking/patterns/cycle_detector.py](src/thinking/patterns/cycle_detector.py:1) — 10
+- [src/validation/phase2d_integration_validator.py](src/validation/phase2d_integration_validator.py:1) — 9
+- [src/validation/phase2c_validation_suite.py](src/validation/phase2c_validation_suite.py:1) — 9
+- [src/thinking/analysis/correlation_analyzer.py](src/thinking/analysis/correlation_analyzer.py:1) — 9
+- [src/evolution/ambusher/ambusher_orchestrator.py](src/evolution/ambusher/ambusher_orchestrator.py:1) — 9
+- [src/validation/real_market_validation.py](src/validation/real_market_validation.py:1) — 8
+- [src/validation/honest_validation_framework.py](src/validation/honest_validation_framework.py:1) — 8

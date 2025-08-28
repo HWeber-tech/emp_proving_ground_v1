@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-from typing import List
+from typing import Any, List
 
 import pandas as pd
 
@@ -19,7 +19,9 @@ class WhatSensor:
 
     def process(self, df: pd.DataFrame) -> List[SensorSignal]:
         if df is None or df.empty or "close" not in df:
-            return [SensorSignal(signal_type="WHAT", value={"pattern_strength": 0.0}, confidence=0.1)]
+            return [
+                SensorSignal(signal_type="WHAT", value={"pattern_strength": 0.0}, confidence=0.1)
+            ]
 
         window = 20
         recent = df.tail(window)
@@ -35,7 +37,7 @@ class WhatSensor:
             base_strength = -0.6
 
         # Attempt pattern synthesis (async engine) to compute strength/confidence
-        patterns: dict = {}
+        patterns: dict[str, Any] = {}
         try:
             try:
                 loop = asyncio.get_running_loop()
@@ -54,5 +56,3 @@ class WhatSensor:
         confidence = float(patterns.get("confidence_score", 0.5))
         value = {"pattern_strength": strength, "pattern_details": patterns or {}}
         return [SensorSignal(signal_type="WHAT", value=value, confidence=confidence)]
-
-

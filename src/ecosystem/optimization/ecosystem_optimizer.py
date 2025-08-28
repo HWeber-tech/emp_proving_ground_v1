@@ -15,27 +15,43 @@ import random
 from collections import defaultdict
 from dataclasses import dataclass
 from datetime import datetime
-from typing import DefaultDict, Dict, List, Tuple, TypedDict, Optional
+from typing import (
+    TYPE_CHECKING,
+    DefaultDict,
+    Dict,
+    List,
+    Mapping,
+    Optional,
+    Sequence,
+    Tuple,
+    TypedDict,
+    cast,
+)
 
 import numpy as np
 from numpy.typing import NDArray
-from src.core.types import JSONObject
 
 from src.core.interfaces import IEcosystemOptimizer, MarketContext, TradeIntent
+from src.core.types import JSONObject
 from src.ecosystem.coordination.coordination_engine import CoordinationEngine
-from src.ecosystem.evaluation.niche_detector import NicheDetector, MarketNiche
+from src.ecosystem.evaluation.niche_detector import MarketNiche, NicheDetector
 from src.ecosystem.species.factories import get_all_factories
-from src.genome.models.genome import DecisionGenome as CanonDecisionGenome, mutate as genome_mutate
 from src.genome.models.adapters import from_legacy as adapt_to_canonical
+from src.genome.models.genome import DecisionGenome as CanonDecisionGenome
+from src.genome.models.genome import mutate as genome_mutate
 
 logger = logging.getLogger(__name__)
 
 __all__ = ["EcosystemOptimizer", "EcosystemMetrics", "EcosystemSummary"]
 
+if TYPE_CHECKING:
+    from src.core.interfaces import DecisionGenome as DecisionGenome
+
 
 @dataclass
 class EcosystemMetrics:
     """Metrics for evaluating ecosystem performance."""
+
     total_return: float
     sharpe_ratio: float
     max_drawdown: float
@@ -75,36 +91,48 @@ class EcosystemOptimizer(IEcosystemOptimizer):
 
     async def optimize_ecosystem(
         self,
-        species_populations: Dict[str, List[CanonDecisionGenome]],
+        species_populations: Mapping[str, Sequence["DecisionGenome"]],
         market_context: MarketContext,
         performance_history: JSONObject,
-    ) -> Dict[str, List[CanonDecisionGenome]]:
+    ) -> Mapping[str, Sequence["DecisionGenome"]]:
         """Optimize entire ecosystem for maximum synergy and diversification."""
 
         # Normalize/convert input populations to canonical genomes
         canonical_populations: Dict[str, List[CanonDecisionGenome]] = {}
         for species_type, population in species_populations.items():
-            canonical_populations[species_type] = [self._ensure_canonical(g) for g in population]
+            canonical_populations[species_type] = [
+                self._ensure_canonical(g) for g in list(population)
+            ]
 
         # Detect current market niches
-        market_data_jo: JSONObject = market_context.data if isinstance(market_context.data, dict) else {"data": []}
+        market_data_jo: JSONObject = (
+            market_context.data if isinstance(market_context.data, dict) else {"data": []}
+        )
         niches = await self.niche_detector.detect_niches(market_data_jo)
 
         # Calculate optimal species distribution
-        optimal_distribution = await self._calculate_optimal_distribution(niches, performance_history)
+        optimal_distribution = await self._calculate_optimal_distribution(
+            niches, performance_history
+        )
 
         # Evolve species populations
         evolved_populations: Dict[str, List[CanonDecisionGenome]] = {}
         for species_type, population in canonical_populations.items():
             target_size = optimal_distribution.get(species_type, 10)
-            evolved = await self._evolve_species_population(species_type, population, target_size, market_context)
+            evolved = await self._evolve_species_population(
+                species_type, population, target_size, market_context
+            )
             evolved_populations[species_type] = evolved
 
         # Optimize coordination between species
-        coordinated_populations = await self._optimize_coordination(evolved_populations, market_context)
+        coordinated_populations = await self._optimize_coordination(
+            evolved_populations, market_context
+        )
 
         # Evaluate ecosystem performance
-        ecosystem_metrics = await self._evaluate_ecosystem_performance(coordinated_populations, performance_history)
+        ecosystem_metrics = await self._evaluate_ecosystem_performance(
+            coordinated_populations, performance_history
+        )
 
         # Store optimization results
         self.ecosystem_history.append(
@@ -187,10 +215,15 @@ class EcosystemOptimizer(IEcosystemOptimizer):
         scored_population.sort(key=lambda x: x[0], reverse=True)
 
         # Apply elitism
-        elite_count = max(1, int(len(scored_population) * float(self.optimization_params["elitism_rate"])))
-        new_population: List[CanonDecisionGenome] = [genome for _, genome in scored_population[:elite_count]]
+        elite_count = max(
+            1, int(len(scored_population) * float(self.optimization_params["elitism_rate"]))
+        )
+        new_population: List[CanonDecisionGenome] = [
+            genome for _, genome in scored_population[:elite_count]
+        ]
 
         # Fill remaining slots
+        child: Optional[CanonDecisionGenome] = None
         while len(new_population) < target_size and scored_population:
             # Crossover and mutation
             if len(scored_population) >= 2:
@@ -200,7 +233,9 @@ class EcosystemOptimizer(IEcosystemOptimizer):
             else:
                 child = scored_population[0][1] if scored_population else None
 
-            if child is not None and random.random() < float(self.optimization_params["mutation_rate"]):
+            if child is not None and random.random() < float(
+                self.optimization_params["mutation_rate"]
+            ):
                 child = self._mutate_genome(child)
 
             if child is not None:
@@ -208,7 +243,9 @@ class EcosystemOptimizer(IEcosystemOptimizer):
 
         return new_population[:target_size]
 
-    async def _evaluate_genome_performance(self, genome: CanonDecisionGenome, market_context: MarketContext) -> float:
+    async def _evaluate_genome_performance(
+        self, genome: CanonDecisionGenome, market_context: MarketContext
+    ) -> float:
         """Evaluate performance of a single genome."""
         # Simplified performance evaluation
         # In real implementation, this would use backtesting
@@ -239,7 +276,9 @@ class EcosystemOptimizer(IEcosystemOptimizer):
 
         return float(base_score * species_bonus * regime_bonus)
 
-    def _crossover_genomes(self, parent1: CanonDecisionGenome, parent2: CanonDecisionGenome) -> CanonDecisionGenome:
+    def _crossover_genomes(
+        self, parent1: CanonDecisionGenome, parent2: CanonDecisionGenome
+    ) -> CanonDecisionGenome:
         """Perform crossover between two genomes (canonical model)."""
         child_params: Dict[str, float] = {}
 
@@ -311,15 +350,21 @@ class EcosystemOptimizer(IEcosystemOptimizer):
                 intents.append(intent)
 
         # Resolve coordination
-        coordination_result = await self.coordination_engine.resolve_intents(intents, market_context)
+        coordination_result = await self.coordination_engine.resolve_intents(
+            intents, market_context
+        )
 
         # Filter populations based on coordination
         coordinated_populations: Dict[str, List[CanonDecisionGenome]] = {}
-        approved_strategies = {intent.strategy_id for intent in coordination_result.approved_intents}
+        approved_strategies = {
+            intent.strategy_id for intent in coordination_result.approved_intents
+        }
 
         for species_type, population in populations.items():
             coordinated_populations[species_type] = [
-                genome for genome in population if f"{species_type}_{id(genome)}" in approved_strategies
+                genome
+                for genome in population
+                if f"{species_type}_{id(genome)}" in approved_strategies
             ]
 
         return coordinated_populations
@@ -356,7 +401,9 @@ class EcosystemOptimizer(IEcosystemOptimizer):
             antifragility_score=float(antifragility_score),
         )
 
-    def _calculate_correlation_matrix(self, populations: Dict[str, List[CanonDecisionGenome]]) -> NDArray[np.float64]:
+    def _calculate_correlation_matrix(
+        self, populations: Dict[str, List[CanonDecisionGenome]]
+    ) -> NDArray[np.float64]:
         """Calculate correlation matrix between species."""
         species_list = list(populations.keys())
         n_species = len(species_list)
@@ -380,7 +427,9 @@ class EcosystemOptimizer(IEcosystemOptimizer):
         for i, species1 in enumerate(species_list):
             for j, species2 in enumerate(species_list):
                 if i != j:
-                    pair: Tuple[str, str] = (species1, species2) if species1 < species2 else (species2, species1)
+                    pair: Tuple[str, str] = (
+                        (species1, species2) if species1 < species2 else (species2, species1)
+                    )
                     correlation_matrix[i, j] = float(correlation_map.get(pair, 0.5))
 
         return correlation_matrix
@@ -392,14 +441,18 @@ class EcosystemOptimizer(IEcosystemOptimizer):
             return 0.0
 
         # Average correlation
-        avg_correlation = (float(np.sum(correlation_matrix)) - n_assets) / (n_assets * (n_assets - 1))
+        avg_correlation = (float(np.sum(correlation_matrix)) - n_assets) / (
+            n_assets * (n_assets - 1)
+        )
 
         # Diversification ratio (higher is better)
         diversification_ratio = 1.0 - float(avg_correlation)
 
         return max(0.0, min(1.0, float(diversification_ratio)))
 
-    def _calculate_synergy_score(self, populations: Dict[str, List[CanonDecisionGenome]], performance_history: JSONObject) -> float:
+    def _calculate_synergy_score(
+        self, populations: Dict[str, List[CanonDecisionGenome]], performance_history: JSONObject
+    ) -> float:
         """Calculate synergy score between species."""
         # Mock synergy calculation
         # In real implementation, would analyze complementary strategies
@@ -408,7 +461,9 @@ class EcosystemOptimizer(IEcosystemOptimizer):
 
         # Higher diversity and balanced populations indicate better synergy
         diversity_bonus = species_count / 5.0  # 5 species max
-        std_val = float(np.std([len(pop) for pop in populations.values()])) if genome_count > 0 else 0.0
+        std_val = (
+            float(np.std([len(pop) for pop in populations.values()])) if genome_count > 0 else 0.0
+        )
         denom = float(max(1, genome_count))
         balance_bonus = float(1.0 - std_val / denom)
 
@@ -416,7 +471,9 @@ class EcosystemOptimizer(IEcosystemOptimizer):
 
         return max(0.0, min(1.0, synergy_score))
 
-    def _calculate_antifragility_score(self, populations: Dict[str, List[CanonDecisionGenome]], performance_history: JSONObject) -> float:
+    def _calculate_antifragility_score(
+        self, populations: Dict[str, List[CanonDecisionGenome]], performance_history: JSONObject
+    ) -> float:
         """Calculate antifragility score of the ecosystem."""
         # Mock antifragility calculation
         # In real implementation, would analyze performance under stress
@@ -437,7 +494,7 @@ class EcosystemOptimizer(IEcosystemOptimizer):
         if isinstance(genome, CanonDecisionGenome):
             return genome
         try:
-            return adapt_to_canonical(genome)  # type: ignore[arg-type]
+            return cast(CanonDecisionGenome, adapt_to_canonical(genome))
         except Exception:
             # Minimal fallback canonical genome
             return CanonDecisionGenome.from_dict(
@@ -470,8 +527,41 @@ class EcosystemOptimizer(IEcosystemOptimizer):
                 "diversification_ratio": metrics.diversification_ratio,
                 "synergy_score": metrics.synergy_score,
             },
-            "current_species_distribution": {species: len(population) for species, population in populations.items()},
+            "current_species_distribution": {
+                species: len(population) for species, population in populations.items()
+            },
         }
+
+    def _calculate_regime_bonus(self, market_regime: str) -> float:
+        """Calculate regime-specific bonus based on actual market conditions."""
+        regime_multipliers = {
+            "trending": 1.2,
+            "ranging": 0.9,
+            "volatile": 1.1,
+            "calm": 1.0,
+            "crisis": 0.8,
+        }
+        return float(regime_multipliers.get(market_regime, 1.0))
+
+    def _calculate_adaptability_score(
+        self, genome: CanonDecisionGenome, market_data: Mapping[str, object]
+    ) -> float:
+        """Calculate adaptability score based on genome performance across market conditions."""
+        if not hasattr(genome, "performance_metrics") or not genome.performance_metrics:
+            return 0.5  # Neutral score for new genomes
+
+        # Calculate adaptability based on performance variance across different market conditions
+        performance_values = list(genome.performance_metrics.values())
+        if len(performance_values) < 2:
+            return 0.5
+
+        # Lower variance indicates better adaptability
+        import statistics
+
+        variance = statistics.variance(performance_values)
+        # Normalize to 0-1 scale (lower variance = higher adaptability)
+        adaptability = max(0.0, min(1.0, 1.0 - (variance / 10.0)))
+        return float(adaptability)
 
 
 # Example usage
@@ -505,7 +595,9 @@ async def test_ecosystem_optimizer() -> None:
     }
 
     # Optimize ecosystem
-    optimized = await optimizer.optimize_ecosystem(test_populations, market_context, performance_history)
+    optimized = await optimizer.optimize_ecosystem(
+        test_populations, market_context, performance_history
+    )
 
     print("Ecosystem Optimization Complete")
     print(f"Species distribution: { {k: len(v) for k, v in optimized.items()} }")
@@ -516,31 +608,3 @@ async def test_ecosystem_optimizer() -> None:
 
 if __name__ == "__main__":
     asyncio.run(test_ecosystem_optimizer())
-
-    def _calculate_regime_bonus(self, market_regime: str) -> float:
-        """Calculate regime-specific bonus based on actual market conditions."""
-        regime_multipliers = {
-            "trending": 1.2,
-            "ranging": 0.9,
-            "volatile": 1.1,
-            "calm": 1.0,
-            "crisis": 0.8,
-        }
-        return regime_multipliers.get(market_regime, 1.0)
-
-    def _calculate_adaptability_score(self, genome, market_data) -> float:
-        """Calculate adaptability score based on genome performance across market conditions."""
-        if not hasattr(genome, "performance_metrics") or not genome.performance_metrics:
-            return 0.5  # Neutral score for new genomes
-
-        # Calculate adaptability based on performance variance across different market conditions
-        performance_values = list(genome.performance_metrics.values())
-        if len(performance_values) < 2:
-            return 0.5
-
-        # Lower variance indicates better adaptability
-        import statistics
-        variance = statistics.variance(performance_values)
-        # Normalize to 0-1 scale (lower variance = higher adaptability)
-        adaptability = max(0.0, min(1.0, 1.0 - (variance / 10.0)))
-        return adaptability

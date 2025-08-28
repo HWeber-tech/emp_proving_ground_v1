@@ -1,0 +1,1110 @@
+tools/truth_validator.py:75: error: Need type annotation for "results" 
+[var-annotated]
+            self.results = {
+                           ^
+tools/truth_validator.py:102: error: "AST" has no attribute "parent" 
+[attr-defined]
+                            child.parent = node
+                            ^~~~~~~~~~~~
+tools/truth_validator.py:110: error: "Collection[Any]" has no attribute
+"append"  [attr-defined]
+                        self.results['pass_statements'].append(item)
+                        ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+tools/truth_validator.py:114: error: "Collection[Any]" has no attribute
+"append"  [attr-defined]
+                        self.results['not_implemented_errors'].append(item...
+                        ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+tools/truth_validator.py:118: error: "Collection[Any]" has no attribute
+"append"  [attr-defined]
+                        self.results['mock_objects'].append(item)
+                        ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+scripts/find_my_id.py:26: error: Module has no attribute "get"  [attr-defined]
+    response = requests.get(
+               ^~~~~~~~~~~~
+scripts/analysis/mypy_summary.py:78: error: Need type annotation for "codes" 
+[var-annotated]
+        codes = Counter()
+                ^~~~~~~~~
+scripts/analysis/mypy_summary.py:79: error: Need type annotation for
+"by_package"  [var-annotated]
+        by_package = Counter()
+                     ^~~~~~~~~
+scripts/analysis/mypy_summary.py:80: error: Need type annotation for
+"by_prefix"  [var-annotated]
+        by_prefix = Counter()
+                    ^~~~~~~~~
+src/trading/risk_management/__init__.py:18: error: Module
+"src.core.risk.stress_testing" has no attribute "StressTester"  [attr-defined]
+        from src.core.risk.stress_testing import StressTester
+        ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/trading/risk_management/__init__.py:19: error: Module
+"src.core.risk.var_calculator" has no attribute "VarCalculator"  [attr-defined]
+        from src.core.risk.var_calculator import VarCalculator as VaRCalcu...
+        ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~...
+src/sensory/organs/sentiment_organ.py:18: error: Name "SensoryOrgan" already
+defined (possibly by an import)  [no-redef]
+        class SensoryOrgan(Protocol):  # typing-only fallback
+        ^
+src/sensory/organs/sentiment_organ.py:23: error: Name "SensoryReading" already
+defined (possibly by an import)  [no-redef]
+        class SensoryReading(Protocol):  # typing-only fallback
+        ^
+src/evolution/mutation/gaussian_mutation.py:15: error: Module
+"src.core.interfaces" has no attribute "IMutationStrategy"  [attr-defined]
+        from src.core.interfaces import DecisionGenome, IMutationStrategy
+        ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/evolution/mutation/gaussian_mutation.py:18: error: Cannot assign to a type 
+[misc]
+        DecisionGenome = object
+        ^~~~~~~~~~~~~~
+src/evolution/mutation/gaussian_mutation.py:18: error: Incompatible types in
+assignment (expression has type "type[object]", variable has type
+"type[DecisionGenome]")  [assignment]
+        DecisionGenome = object
+                         ^~~~~~
+src/evolution/mutation/gaussian_mutation.py:129: error: "DecisionGenome" has no
+attribute "sensory"  [attr-defined]
+                        mutated.sensory,
+                        ^~~~~~~~~~~~~~~
+src/evolution/mutation/gaussian_mutation.py:131: error: "DecisionGenome" has no
+attribute "sensory"  [attr-defined]
+    ...                  self._mutate_parameter(getattr(mutated.sensory, weig...
+                                                        ^~~~~~~~~~~~~~~
+src/evolution/mutation/gaussian_mutation.py:145: error: "DecisionGenome" has no
+attribute "thinking"  [attr-defined]
+                        mutated.thinking,
+                        ^~~~~~~~~~~~~~~~
+src/evolution/mutation/gaussian_mutation.py:147: error: "DecisionGenome" has no
+attribute "thinking"  [attr-defined]
+    ...                  self._mutate_parameter(getattr(mutated.thinking, wei...
+                                                        ^~~~~~~~~~~~~~~~
+src/evolution/ambusher/ambusher_orchestrator.py:36: error: Too many arguments
+for "AmbusherFitnessFunction"  [call-arg]
+            self.fitness_function = AmbusherFitnessFunction(config.get("fi...
+                                    ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~...
+src/ui/ui_manager.py:16: error: Module "src.governance.strategy_registry" has
+no attribute "StrategyStatus"  [attr-defined]
+        from src.governance.strategy_registry import StrategyRegistry, Str...
+        ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~...
+src/ui/ui_manager.py:110: error: "StrategyRegistry" has no attribute
+"list_strategies"  [attr-defined]
+                "total_strategies": len(self.strategy_registry.list_strate...
+                                        ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~...
+src/ui/ui_manager.py:114: error: "StrategyRegistry" has no attribute
+"list_strategies"  [attr-defined]
+                        for s in self.strategy_registry.list_strategies()
+                                 ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/ui/ui_manager.py:122: error: "StrategyRegistry" has no attribute
+"list_strategies"  [attr-defined]
+            return cast(List[Dict[str, Any]], self.strategy_registry.list_...
+                                              ^~~~~~~~~~~~~~~~~~~~~~~~~~~~...
+src/data_foundation/config/sizing_config.py:10: error: Incompatible types in
+assignment (expression has type "None", variable has type Module)  [assignment]
+        _yaml_mod = None
+                    ^~~~
+scripts/paper_strategy.py:42: error: Need type annotation for "next_macros"
+(hint: "next_macros: list[<type>] = ...")  [var-annotated]
+        next_macros = []
+        ^~~~~~~~~~~
+scripts/paper_strategy.py:46: error: Need type annotation for "daily_returns"
+(hint: "daily_returns: list[<type>] = ...")  [var-annotated]
+        daily_returns = []
+        ^~~~~~~~~~~~~
+scripts/paper_strategy.py:47: error: Need type annotation for "rv_window"
+(hint: "rv_window: list[<type>] = ...")  [var-annotated]
+        rv_window = []
+        ^~~~~~~~~
+scripts/cleanup/rewrite_imports.py:328: error: Argument 1 to "get" of "dict"
+has incompatible type "str | None"; expected "str"  [arg-type]
+                    star_entry = index.star_by_source.get(module_name)
+                                                          ^~~~~~~~~~~
+scripts/cleanup/rewrite_imports.py:344: error: Argument 1 to "is_legacy_module"
+has incompatible type "str | None"; expected "str"  [arg-type]
+                        if is_legacy_module(module_name):
+                                            ^~~~~~~~~~~
+scripts/cleanup/rewrite_imports.py:349: error: Argument 1 to "get" of "dict"
+has incompatible type "str | None"; expected "str"  [arg-type]
+                entries = index.by_source.get(module_name)
+                                              ^~~~~~~~~~~
+scripts/cleanup/rewrite_imports.py:395: error: Argument 1 to "setdefault" of
+"MutableMapping" has incompatible type "str | None"; expected "str"  [arg-type]
+                        grouped.setdefault(module_name, []).extend(remaini...
+                                           ^~~~~~~~~~~
+scripts/cleanup/rewrite_imports.py:435: error: Name "new_lines" already defined
+on line 404  [no-redef]
+                new_lines: List[str] = []
+                ^~~~~~~~~
+scripts/cleanup/check_legacy_imports.py:202: error: Incompatible types in
+assignment (expression has type "str | None", variable has type "str") 
+[assignment]
+                mod = node.module
+                      ^~~~~~~~~~~
+src/genome/models/genome_adapter.py:28: error: Cannot assign to a type  [misc]
+        _DecisionGenome = None  # type: ignore[assignment]
+        ^~~~~~~~~~~~~~~
+src/genome/models/genome_adapter.py:28: note: Error code "misc" not covered by "type: ignore" comment
+src/genome/models/genome_adapter.py:29: error: Incompatible types in assignment
+(expression has type "None", variable has type
+"Callable[[DecisionGenome, str, dict[str, float]], DecisionGenome]") 
+[assignment]
+        _mutate = None
+                  ^~~~
+src/genome/models/genome_adapter.py:30: error: Incompatible types in assignment
+(expression has type "None", variable has type
+"Callable[[str, dict[str, float], int, str | None], DecisionGenome]") 
+[assignment]
+        _new_genome = None
+                      ^~~~
+src/genome/models/genome_adapter.py:36: error: Incompatible types in assignment
+(expression has type "None", variable has type
+"Callable[[Any], DecisionGenome]")  [assignment]
+        _from_legacy = None
+                       ^~~~
+src/genome/models/genome_adapter.py:37: error: Incompatible types in assignment
+(expression has type "None", variable has type
+"Callable[[DecisionGenome], dict[str, Any]]")  [assignment]
+        _to_legacy_view = None
+                          ^~~~
+src/thinking/patterns/cvd_divergence_detector.py:15: error: Name
+"ContextPacket" already defined (possibly by an import)  [no-redef]
+        ContextPacket: TypeAlias = Any
+        ^~~~~~~~~~~~~
+src/domain/__init__.py:16: error: Module "src.core.risk.manager" has no
+attribute "RiskConfig"  [attr-defined]
+        from src.core.risk.manager import RiskConfig as RiskConfig
+        ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+tests/current/test_topic_facade_compat.py:10: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+tests/current/test_publish_from_sync_threadsafe.py:15: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+tests/current/test_publish_from_sync_threadsafe.py:18: error: Argument 1 to
+"append" of "list" has incompatible type "object"; expected "dict[Any, Any]" 
+[arg-type]
+                received.append(ev.payload)
+                                ^~~~~~~~~~
+tests/current/test_publish_from_sync_threadsafe.py:23: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+tests/current/test_event_bus_unsubscribe.py:13: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+tests/current/test_event_bus_unsubscribe.py:17: error: Argument 1 to "append"
+of "list" has incompatible type "object"; expected "dict[Any, Any]"  [arg-type]
+                calls.append(ev.payload)
+                             ^~~~~~~~~~
+tests/current/test_event_bus_publish_counts.py:12: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+tests/current/test_event_bus_handler_exceptions_isolated.py:30: error:
+Incompatible types in assignment (expression has type
+"Callable[[Event], Coroutine[Any, Any, None]]", variable has type
+"Callable[[Event], None]")  [assignment]
+                bad_handler = bad_handler_async
+                              ^~~~~~~~~~~~~~~~~
+tests/current/test_event_bus_handler_exceptions_isolated.py:36: error:
+Unexpected keyword argument "type" for "Event"  [call-arg]
+                await bus.publish(Event(type="boom", payload={"k": "v"}))
+                                  ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/home/dev/emp_proving_ground_v1/.venv_mypy/lib/python3.12/site-packages/mypy/typeshed/stdlib/builtins.pyi:114: note: "Event" defined here
+tests/current/test_event_bus_handler_exceptions_isolated.py:36: error:
+Unexpected keyword argument "payload" for "Event"  [call-arg]
+                await bus.publish(Event(type="boom", payload={"k": "v"}))
+                                  ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+tests/current/test_event_bus_error_isolation.py:46: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+tests/current/test_event_bus_deprecated_aliases.py:38: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+tests/current/test_event_bus_basic_publish.py:13: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+tests/current/test_event_bus_basic_publish.py:17: error: Argument 1 to "append"
+of "list" has incompatible type "object"; expected "dict[Any, Any]"  [arg-type]
+                received.append(ev.payload)
+                                ^~~~~~~~~~
+src/trading/execution/fix_executor.py:16: error: Module "src.core.interfaces"
+has no attribute "IExecutionEngine"  [attr-defined]
+        from src.core.interfaces import IExecutionEngine
+        ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/trading/execution/fix_executor.py:27: error: Cannot assign to a type 
+[misc]
+        Order = Position = object
+        ^~~~~
+src/trading/execution/fix_executor.py:27: error: Incompatible types in
+assignment (expression has type "type[object]", variable has type "type[Order]")
+ [assignment]
+        Order = Position = object
+        ^
+src/trading/execution/fix_executor.py:27: error: Incompatible types in
+assignment (expression has type "type[object]", variable has type
+"type[Position]")  [assignment]
+        Order = Position = object
+                           ^~~~~~
+src/orchestration/enhanced_intelligence_engine.py:196: error: "object" not
+callable  [operator]
+                EnhancedEngineProto, EnhancedFundamentalIntelligenceEngine...
+                                     ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/orchestration/enhanced_intelligence_engine.py:199: error: "object" not
+callable  [operator]
+                EnhancedEngineProto, InstitutionalIntelligenceEngine()
+                                     ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/orchestration/enhanced_intelligence_engine.py:201: error: "object" not
+callable  [operator]
+    ... EnhancedEngineProto = cast(EnhancedEngineProto, TechnicalRealityEngin...
+                                                        ^~~~~~~~~~~~~~~~~~~~~~~~
+src/orchestration/enhanced_intelligence_engine.py:202: error: "object" not
+callable  [operator]
+    ... EnhancedEngineProto = cast(EnhancedEngineProto, ChronalIntelligenceEn...
+                                                        ^~~~~~~~~~~~~~~~~~~~~...
+src/orchestration/enhanced_intelligence_engine.py:203: error: "object" not
+callable  [operator]
+    ... EnhancedEngineProto = cast(EnhancedEngineProto, AnomalyIntelligenceEn...
+                                                        ^~~~~~~~~~~~~~~~~~~~~...
+src/core/_event_bus_impl.py:293: error: Incompatible types in assignment
+(expression has type "Callable[[Event], Awaitable[None] | None]", variable has
+type "Callable[[Event], None] | Callable[[Event], Awaitable[None]] | None") 
+[assignment]
+                adapter_fn = _adapter
+                             ^~~~~~~~
+src/core/_event_bus_impl.py:294: error: Incompatible types in assignment
+(expression has type "None", target has type
+"Callable[[Event], None] | Callable[[Event], Awaitable[None]]")  [assignment]
+                self._adapter_map[key] = adapter_fn
+                                         ^~~~~~~~~~
+src/core/_event_bus_impl.py:295: error: Argument 2 to "subscribe" of
+"AsyncEventBus" has incompatible type
+"Callable[[Event], None] | Callable[[Event], Awaitable[None]] | None"; expected
+"Callable[[Event], Awaitable[None]] | Callable[[Event], None]"  [arg-type]
+            return self._bus.subscribe(topic, adapter_fn)
+                                              ^~~~~~~~~~
+src/core/_event_bus_impl.py:405: error: Argument 1 to "get" of "dict" has
+incompatible type "tuple[str, Callable[[Event], object]]"; expected
+"tuple[str, Callable[[Event], None] | Callable[[Event], Awaitable[None]]]" 
+[arg-type]
+            sub_id = event_bus._pair_to_id.get((event_type, callback))
+                                               ^~~~~~~~~~~~~~~~~~~~~~
+src/core/_event_bus_impl.py:407: error: Argument "handler" to
+"SubscriptionHandle" has incompatible type "Callable[[Event], object]"; expected
+"Callable[[Event], Awaitable[None]] | Callable[[Event], None]"  [arg-type]
+    ...SubscriptionHandle(id=sub_id, event_type=event_type, handler=callback)
+                                                                    ^~~~~~~~
+scripts/verify_complete_system.py:22: error: Module "src.core.risk.manager" has
+no attribute "RiskConfig"  [attr-defined]
+    from src.core.risk.manager import RiskConfig, RiskManager
+    ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+scripts/verify_complete_system.py:60: error: "RiskManager" has no attribute
+"account_balance"  [attr-defined]
+                assert risk_manager.account_balance == 10000.0
+                       ^~~~~~~~~~~~~~~~~~~~~~~~~~~~
+scripts/verify_complete_system.py:69: error: "RiskManager" has no attribute
+"validate_position"  [attr-defined]
+                is_valid = await risk_manager.validate_position(position)
+                                 ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+scripts/verify_complete_system.py:79: error: "RiskManager" has no attribute
+"calculate_position_size"  [attr-defined]
+                position_size = await risk_manager.calculate_position_size...
+                                      ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+scripts/verify_complete_system.py:83: error: "RiskManager" has no attribute
+"get_risk_summary"  [attr-defined]
+                summary = risk_manager.get_risk_summary()
+                          ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+scripts/verify_complete_system.py:107: error: "StrategyEngine" has no attribute
+"register_strategy"  [attr-defined]
+                success = engine.register_strategy(strategy)
+                          ^~~~~~~~~~~~~~~~~~~~~~~~
+scripts/verify_complete_system.py:111: error: "StrategyEngine" has no attribute
+"start_strategy"  [attr-defined]
+                started = engine.start_strategy("test_engine")
+                          ^~~~~~~~~~~~~~~~~~~~~
+scripts/verify_complete_system.py:122: error: "StrategyEngine" has no attribute
+"execute_strategy"  [attr-defined]
+                result = await engine.execute_strategy("test_engine", mark...
+                               ^~~~~~~~~~~~~~~~~~~~~~~
+scripts/verify_complete_system.py:126: error: "StrategyEngine" has no attribute
+"get_all_strategies"; maybe "_strategies"?  [attr-defined]
+                strategies = engine.get_all_strategies()
+                             ^~~~~~~~~~~~~~~~~~~~~~~~~
+scripts/verify_complete_system.py:147: error: "MovingAverageStrategy" has no
+attribute "get_strategy_info"  [attr-defined]
+                info = strategy.get_strategy_info()
+                       ^~~~~~~~~~~~~~~~~~~~~~~~~~
+scripts/verify_complete_system.py:152: error: "MovingAverageStrategy" has no
+attribute "update_parameters"  [attr-defined]
+                success = strategy.update_parameters({'fast_period': 15})
+                          ^~~~~~~~~~~~~~~~~~~~~~~~~~
+scripts/verify_complete_system.py:156: error: "MovingAverageStrategy" has no
+attribute "get_parameters"  [attr-defined]
+                params = strategy.get_parameters()
+                         ^~~~~~~~~~~~~~~~~~~~~~~
+scripts/verify_complete_system.py:198: error: "StrategyEngine" has no attribute
+"register_strategy"  [attr-defined]
+                engine.register_strategy(strategy)
+                ^~~~~~~~~~~~~~~~~~~~~~~~
+scripts/verify_complete_system.py:199: error: "StrategyEngine" has no attribute
+"start_strategy"  [attr-defined]
+                engine.start_strategy("integration_test")
+                ^~~~~~~~~~~~~~~~~~~~~
+scripts/verify_complete_system.py:210: error: "StrategyEngine" has no attribute
+"execute_strategy"  [attr-defined]
+                result = await engine.execute_strategy("integration_test",...
+                               ^~~~~~~~~~~~~~~~~~~~~~~
+scripts/verify_complete_system.py:215: error: "RiskManager" has no attribute
+"validate_position"  [attr-defined]
+                    is_valid = await risk_manager.validate_position({
+                                     ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+scripts/minimal_sensory_demo.py:65: error: Need type annotation for "history"
+(hint: "history: list[<type>] = ...")  [var-annotated]
+            self.history = []
+            ^~~~~~~~~~~~
+scripts/demo_liquidity_prober_standalone.py:41: error: Incompatible types in
+assignment (expression has type "None", variable has type "dict[str, Any]") 
+[assignment]
+        metadata: Dict[str, Any] = None
+                                   ^~~~
+scripts/request_security_list.py:32: error: "SystemConfig" has no attribute
+"account_number"  [attr-defined]
+            msg.append_pair(49, f"demo.icmarkets.{cfg.account_number}")
+                                                 ^~~~~~~~~~~~~~~~~~~
+scripts/request_security_list.py:39: error: Item "None" of "Any | None" has no
+attribute "price_connection"  [union-attr]
+            ok = mgr._manager.price_connection.send_message_and_track(msg,...
+                 ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+scripts/request_security_list.py:43: error: Item "None" of "Any | None" has no
+attribute "security_list_samples"  [union-attr]
+            samples = mgr._manager.security_list_samples if hasattr(mgr._m...
+                      ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+scripts/place_demo_order.py:27: error: "SystemConfig" has no attribute
+"account_number"  [attr-defined]
+        if not (cfg.account_number and cfg.password):
+                ^~~~~~~~~~~~~~~~~~
+scripts/place_demo_order.py:27: error: "SystemConfig" has no attribute
+"password"  [attr-defined]
+        if not (cfg.account_number and cfg.password):
+                                       ^~~~~~~~~~~~
+scripts/place_demo_order.py:45: error: Item "None" of "Any | None" has no
+attribute "place_market_order_genuine"  [union-attr]
+            result = manager.place_market_order_genuine(symbol=symbol, sid...
+                     ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+scripts/mass_cancel_all.py:33: error: Item "None" of "Any | None" has no
+attribute "cancel_all_tracked_orders"  [union-attr]
+            results = manager.cancel_all_tracked_orders()
+                      ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+scripts/fix_md_and_cancel_demo.py:34: error: Item "None" of "Any | None" has no
+attribute "subscribe_market_data_genuine"  [union-attr]
+            sub = manager.subscribe_market_data_genuine([symbol], timeout=...
+                  ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+scripts/fix_md_and_cancel_demo.py:51: error: "SystemConfig" has no attribute
+"account_number"  [attr-defined]
+            msg.append_pair(49, f"demo.icmarkets.{cfg.account_number}")
+                                                 ^~~~~~~~~~~~~~~~~~~
+scripts/fix_md_and_cancel_demo.py:64: error: Item "None" of "Any | None" has no
+attribute "trade_connection"  [union-attr]
+            ok = manager.trade_connection.send_message_and_track(msg, cl_i...
+                 ^~~~~~~~~~~~~~~~~~~~~~~~
+scripts/fix_md_and_cancel_demo.py:86: error: Item "None" of "Any | None" has no
+attribute "send_order_status_request"  [union-attr]
+            manager.send_order_status_request(order.cl_ord_id, "1" if side...
+            ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+scripts/fix_md_and_cancel_demo.py:99: error: "SystemConfig" has no attribute
+"account_number"  [attr-defined]
+    ...           msg1.append_pair(49, f"demo.icmarkets.{cfg.account_number}"...
+                                                        ^~~~~~~~~~~~~~~~~~~
+scripts/fix_md_and_cancel_demo.py:105: error: Item "None" of "Any | None" has
+no attribute "trade_connection"  [union-attr]
+                ok1 = manager.trade_connection.send_message_and_track(msg1...
+                      ^~~~~~~~~~~~~~~~~~~~~~~~
+scripts/fix_md_and_cancel_demo.py:117: error: "SystemConfig" has no attribute
+"account_number"  [attr-defined]
+    ...           msg2.append_pair(49, f"demo.icmarkets.{cfg.account_number}"...
+                                                        ^~~~~~~~~~~~~~~~~~~
+scripts/fix_md_and_cancel_demo.py:124: error: Item "None" of "Any | None" has
+no attribute "trade_connection"  [union-attr]
+                        ok2 = manager.trade_connection.send_message_and_tr...
+                              ^~~~~~~~~~~~~~~~~~~~~~~~
+src/thinking/prediction/predictive_market_modeler.py:475: error: Argument 1 to
+"append" of "list" has incompatible type "dict[str, float]"; expected
+"dict[str, object]"  [arg-type]
+                    payload_list.append(normalize_prediction(p))
+                                        ^~~~~~~~~~~~~~~~~~~~~~~
+src/thinking/prediction/predictive_market_modeler.py:475: note: "dict" is invariant -- see https://mypy.readthedocs.io/en/stable/common_issues.html#variance
+src/thinking/prediction/predictive_market_modeler.py:475: note: Consider using "Mapping" instead, which is covariant in the value type
+src/thinking/patterns/trend_detector.py:18: error: Cannot assign to a type 
+[misc]
+        ThinkingPattern = SensorySignal = AnalysisResult = object
+        ^~~~~~~~~~~~~~~
+src/thinking/patterns/trend_detector.py:18: error: Incompatible types in
+assignment (expression has type "type[object]", variable has type
+"type[ThinkingPattern]")  [assignment]
+        ThinkingPattern = SensorySignal = AnalysisResult = object
+        ^
+src/thinking/patterns/trend_detector.py:18: error: Incompatible types in
+assignment (expression has type "type[object]", variable has type
+"type[SensorySignal]")  [assignment]
+        ThinkingPattern = SensorySignal = AnalysisResult = object
+        ^
+src/thinking/patterns/trend_detector.py:18: error: Incompatible types in
+assignment (expression has type "type[object]", variable has type
+"type[AnalysisResult]")  [assignment]
+        ThinkingPattern = SensorySignal = AnalysisResult = object
+                                                           ^~~~~~
+src/thinking/patterns/trend_detector.py:141: error: "SensorySignal" has no
+attribute "signal_type"  [attr-defined]
+                if signal.signal_type in ["price_composite", "volume_compo...
+                   ^~~~~~~~~~~~~~~~~~
+src/thinking/patterns/trend_detector.py:148: error: "SensorySignal" has no
+attribute "signal_type"  [attr-defined]
+            price_signals = [s for s in signals if s.signal_type == "price...
+                                                   ^~~~~~~~~~~~~
+src/thinking/patterns/trend_detector.py:157: error: "SensorySignal" has no
+attribute "value"  [attr-defined]
+            avg_value = float(np.mean([float(s.value) for s in recent_sign...
+                                             ^~~~~~~
+src/thinking/patterns/trend_detector.py:170: error: "SensorySignal" has no
+attribute "confidence"  [attr-defined]
+            confidences = [s.confidence for s in recent_signals]
+                           ^~~~~~~~~~~~
+src/thinking/patterns/trend_detector.py:186: error: "SensorySignal" has no
+attribute "signal_type"  [attr-defined]
+    ...       momentum_signals = [s for s in signals if s.signal_type == "mom...
+                                                        ^~~~~~~~~~~~~
+src/thinking/patterns/trend_detector.py:195: error: "SensorySignal" has no
+attribute "value"  [attr-defined]
+            avg_momentum = float(np.mean([float(s.value) for s in recent_s...
+                                                ^~~~~~~
+src/thinking/patterns/trend_detector.py:208: error: "SensorySignal" has no
+attribute "confidence"  [attr-defined]
+            confidences = [s.confidence for s in recent_signals]
+                           ^~~~~~~~~~~~
+src/thinking/patterns/trend_detector.py:221: error: "SensorySignal" has no
+attribute "signal_type"  [attr-defined]
+            volume_signals = [s for s in signals if s.signal_type == "volu...
+                                                    ^~~~~~~~~~~~~
+src/thinking/patterns/trend_detector.py:230: error: "SensorySignal" has no
+attribute "value"  [attr-defined]
+            avg_volume = float(np.mean([float(s.value) for s in recent_sig...
+                                              ^~~~~~~
+src/thinking/patterns/trend_detector.py:243: error: "SensorySignal" has no
+attribute "confidence"  [attr-defined]
+            confidences = [s.confidence for s in recent_signals]
+                           ^~~~~~~~~~~~
+src/thinking/patterns/trend_detector.py:323: error: "SensorySignal" has no
+attribute "value"  [attr-defined]
+                if direction == "BULLISH" and signal.value > 0:
+                                              ^~~~~~~~~~~~
+src/thinking/patterns/trend_detector.py:325: error: "SensorySignal" has no
+attribute "value"  [attr-defined]
+                elif direction == "BEARISH" and signal.value < 0:
+                                                ^~~~~~~~~~~~
+src/thinking/patterns/trend_detector.py:327: error: "SensorySignal" has no
+attribute "value"  [attr-defined]
+                elif direction == "NEUTRAL" and abs(signal.value) < 0.1:
+                                                    ^~~~~~~~~~~~
+src/thinking/patterns/trend_detector.py:336: error: Extra keys ("timestamp",
+"analysis_type", "result", "confidence", "metadata") for TypedDict
+"AnalysisResult"  [typeddict-unknown-key]
+            return AnalysisResult(
+                   ^
+src/thinking/patterns/cycle_detector.py:23: error: Cannot assign to a type 
+[misc]
+        ThinkingPattern = _Any
+        ^~~~~~~~~~~~~~~
+src/thinking/patterns/cycle_detector.py:23: error: Incompatible types in
+assignment (expression has type "type[Any]", variable has type
+"type[ThinkingPattern]")  [assignment]
+        ThinkingPattern = _Any
+                          ^~~~
+src/thinking/patterns/cycle_detector.py:24: error: Cannot assign to a type 
+[misc]
+        SensorySignal = _Any
+        ^~~~~~~~~~~~~
+src/thinking/patterns/cycle_detector.py:24: error: Incompatible types in
+assignment (expression has type "type[Any]", variable has type
+"type[SensorySignal]")  [assignment]
+        SensorySignal = _Any
+                        ^~~~
+src/thinking/patterns/cycle_detector.py:25: error: Cannot assign to a type 
+[misc]
+        AnalysisResult = _Any
+        ^~~~~~~~~~~~~~
+src/thinking/patterns/cycle_detector.py:25: error: Incompatible types in
+assignment (expression has type "type[Any]", variable has type
+"type[AnalysisResult]")  [assignment]
+        AnalysisResult = _Any
+                         ^~~~
+src/thinking/patterns/cycle_detector.py:28: error: Module "src.core.exceptions"
+has no attribute "ThinkingException"; maybe "TradingException"?  [attr-defined]
+        from src.core.exceptions import ThinkingException
+        ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/thinking/patterns/cycle_detector.py:130: error: "SensorySignal" has no
+attribute "signal_type"  [attr-defined]
+                if signal.signal_type in ["price_composite", "momentum", "...
+                   ^~~~~~~~~~~~~~~~~~
+src/thinking/patterns/cycle_detector.py:326: error: Value of type variable
+"SupportsRichComparisonT" of "min" cannot be "float | floating[Any] | int" 
+[type-var]
+            strength_confidence = min(signal_strength * 10, 1.0)
+                                  ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/thinking/patterns/cycle_detector.py:330: error: Value of type variable
+"SupportsRichComparisonT" of "max" cannot be "floating[Any] | float"  [type-var]
+            return float(max(0.0, min(1.0, overall_confidence)))
+                         ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/thinking/patterns/cycle_detector.py:330: error: Value of type variable
+"SupportsRichComparisonT" of "min" cannot be "floating[Any] | float"  [type-var]
+            return float(max(0.0, min(1.0, overall_confidence)))
+                                  ^~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/thinking/patterns/anomaly_detector.py:18: error: Cannot assign to a type 
+[misc]
+        ThinkingPattern = SensorySignal = AnalysisResult = object
+        ^~~~~~~~~~~~~~~
+src/thinking/patterns/anomaly_detector.py:18: error: Incompatible types in
+assignment (expression has type "type[object]", variable has type
+"type[ThinkingPattern]")  [assignment]
+        ThinkingPattern = SensorySignal = AnalysisResult = object
+        ^
+src/thinking/patterns/anomaly_detector.py:18: error: Incompatible types in
+assignment (expression has type "type[object]", variable has type
+"type[SensorySignal]")  [assignment]
+        ThinkingPattern = SensorySignal = AnalysisResult = object
+        ^
+src/thinking/patterns/anomaly_detector.py:18: error: Incompatible types in
+assignment (expression has type "type[object]", variable has type
+"type[AnalysisResult]")  [assignment]
+        ThinkingPattern = SensorySignal = AnalysisResult = object
+                                                           ^~~~~~
+src/thinking/analysis/correlation_analyzer.py:17: error: Module
+"src.core.exceptions" has no attribute "ThinkingException"; maybe
+"TradingException"?  [attr-defined]
+        from src.core.exceptions import ThinkingException
+        ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/sensory/organs/volume_organ.py:22: error: Name "SensoryOrgan" already
+defined (possibly by an import)  [no-redef]
+        class SensoryOrgan(Protocol):
+        ^
+src/sensory/organs/price_organ.py:21: error: Name "SensoryOrgan" already
+defined (possibly by an import)  [no-redef]
+        class SensoryOrgan(Protocol):
+        ^
+src/data_integration/data_fusion.py:110: error: "MarketData" has no attribute
+"volatility"  [attr-defined]
+                        volatility=data.volatility,
+                                   ^~~~~~~~~~~~~~~
+src/data_integration/data_fusion.py:176: error: Incompatible return value type
+(got "tuple[None, list[str]]", expected "tuple[MarketData, list[str]]") 
+[return-value]
+                return None, []
+                       ^~~~~~~~
+src/data_integration/data_fusion.py:232: error: Incompatible types in
+assignment (expression has type "float", variable has type "int")  [assignment]
+                weighted_bid += data.bid * weight
+                ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/data_integration/data_fusion.py:233: error: Incompatible types in
+assignment (expression has type "float", variable has type "int")  [assignment]
+                weighted_ask += data.ask * weight
+                ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/data_integration/data_fusion.py:234: error: Incompatible types in
+assignment (expression has type "float", variable has type "int")  [assignment]
+                weighted_volume += data.volume * weight
+                ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/data_integration/data_fusion.py:235: error: "MarketData" has no attribute
+"volatility"  [attr-defined]
+                weighted_volatility += data.volatility * weight
+                                       ^~~~~~~~~~~~~~~
+src/data_integration/data_fusion.py:273: error: "MarketData" has no attribute
+"volatility"  [attr-defined]
+            volatilities = [data.volatility for _, data, _ in data_points]
+                            ^~~~~~~~~~~~~~~
+src/data_integration/data_fusion.py:293: error: "MarketData" has no attribute
+"volatility"  [attr-defined]
+            volatilities = [data.volatility for _, data, _ in data_points]
+                            ^~~~~~~~~~~~~~~
+src/data_integration/data_fusion.py:396: error: Argument "volume" to
+"FusedDataPoint" has incompatible type "float"; expected "int"  [arg-type]
+                    volume=resolved_data.volume,
+                           ^~~~~~~~~~~~~~~~~~~~
+src/data_integration/data_fusion.py:397: error: "MarketData" has no attribute
+"volatility"  [attr-defined]
+                    volatility=resolved_data.volatility,
+                               ^~~~~~~~~~~~~~~~~~~~~~~~
+scripts/demo_liquidity_prober.py:16: error: Cannot find implementation or
+library stub for module named "src.trading.risk.position_sizer" 
+[import-not-found]
+    from src.trading.risk.position_sizer import PositionSizer
+    ^
+scripts/demo_liquidity_prober.py:16: note: See https://mypy.readthedocs.io/en/stable/running_mypy.html#missing-imports
+scripts/demo_liquidity_prober.py:17: error: Cannot find implementation or
+library stub for module named "src.trading.risk.risk_gateway" 
+[import-not-found]
+    from src.trading.risk.risk_gateway import RiskGateway
+    ^
+src/intelligence/sentient_adaptation.py:142: error: Missing positional argument
+"config" in call to "RealTimeLearningEngine"  [call-arg]
+            self.real_time_learner = RealTimeLearningEngine()
+                                     ^~~~~~~~~~~~~~~~~~~~~~~~
+src/intelligence/sentient_adaptation.py:143: error: Missing positional argument
+"config" in call to "FAISSPatternMemory"  [call-arg]
+            self.pattern_memory = FAISSPatternMemory()
+                                  ^~~~~~~~~~~~~~~~~~~~
+src/intelligence/sentient_adaptation.py:145: error: Missing positional argument
+"config" in call to "AdaptationController"  [call-arg]
+            self.adaptation_controller = AdaptationController()
+                                         ^~~~~~~~~~~~~~~~~~~~~~
+src/intelligence/sentient_adaptation.py:164: error: "RealTimeLearningEngine"
+has no attribute "process_outcome"  [attr-defined]
+                await self.real_time_learner.process_outcome(market_event,...
+                      ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/intelligence/sentient_adaptation.py:168: error: "FAISSPatternMemory" has no
+attribute "store_pattern"  [attr-defined]
+            await self.pattern_memory.store_pattern(
+                  ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/intelligence/sentient_adaptation.py:182: error: Unexpected keyword argument
+"current_strategy_state" for "generate_adaptations" of "AdaptationController" 
+[call-arg]
+                adaptations = await self.adaptation_controller.generate_ad...
+                                    ^
+src/sentient/adaptation/adaptation_controller.py:66: note: "generate_adaptations" of "AdaptationController" defined here
+src/intelligence/sentient_adaptation.py:183: error: Argument 1 to
+"generate_adaptations" of "AdaptationController" has incompatible type
+"AdaptationSignal"; expected "list[dict[str, Any]]"  [arg-type]
+                    learning_signal, current_strategy_state=self.get_strat...
+                    ^~~~~~~~~~~~~~~
+src/intelligence/sentient_adaptation.py:185: error: Argument 1 to
+"apply_adaptations" of "SentientAdaptationEngine" has incompatible type
+"list[TacticalAdaptation]"; expected "dict[str, Any]"  [arg-type]
+                await self.apply_adaptations(adaptations)
+                                             ^~~~~~~~~~~
+src/intelligence/sentient_adaptation.py:208: error: "AdaptationController" has
+no attribute "risk_parameters"  [attr-defined]
+                "risk_parameters": self.adaptation_controller.risk_paramet...
+                                   ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/thinking/adaptation/tactical_adaptation_engine.py:56: error:
+"FAISSPatternMemory" has no attribute "find_similar_experiences"  [attr-defined]
+                similar_experiences = await self.pattern_memory.find_simil...
+                                            ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~...
+src/integration/component_integrator.py:25: error: Cannot assign to a type 
+[misc]
+        PopulationManager = SensoryOrgan = RiskManager = None
+        ^~~~~~~~~~~~~~~~~
+src/integration/component_integrator.py:25: error: Incompatible types in
+assignment (expression has type "None", variable has type
+"type[PopulationManager]")  [assignment]
+        PopulationManager = SensoryOrgan = RiskManager = None
+        ^
+src/integration/component_integrator.py:25: error: Incompatible types in
+assignment (expression has type "None", variable has type
+"type[CoreSensoryOrgan]")  [assignment]
+        PopulationManager = SensoryOrgan = RiskManager = None
+        ^
+src/integration/component_integrator.py:25: error: Incompatible types in
+assignment (expression has type "None", variable has type "type[RiskManager]") 
+[assignment]
+        PopulationManager = SensoryOrgan = RiskManager = None
+                                                         ^~~~
+tests/current/test_mi_to_sensory_forwarding_phase2.py:64: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+tests/current/test_mi_to_sensory_forwarding_phase2.py:72: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+tests/current/test_mi_to_sensory_forwarding.py:51: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+src/trading/trading_manager.py:21: error: Incompatible types in assignment
+(expression has type "None", variable has type
+"Callable[[Decimal, Decimal, Decimal], Decimal]")  [assignment]
+        PositionSizer = None
+                        ^~~~
+src/trading/trading_manager.py:69: error: Missing positional argument
+"stop_loss_pct" in call to "position_size"  [call-arg]
+                PositionSizer(Decimal(str(risk_per_trade)), Decimal("0.02"...
+                ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/trading/trading_manager.py:69: error: Function "PositionSizer" could always
+be true in boolean context  [truthy-function]
+    ...ecimal(str(risk_per_trade)), Decimal("0.02")) if PositionSizer else No...
+                                                        ^~~~~~~~~~~~~
+src/intelligence/red_team_ai.py:1026: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+src/intelligence/red_team_ai.py:1035: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+src/intelligence/red_team_ai.py:1043: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+scripts/cleanup/explicit_any_rewriter.py:156: error: Incompatible types in
+assignment (expression has type "str | MaybeSentinel", variable has type
+"ParamStar | None")  [assignment]
+            self._param_star = node.star
+                               ^~~~~~~~~
+scripts/cleanup/explicit_any_rewriter.py:412: error: "ParamStar" has no
+attribute "kind"  [attr-defined]
+    ... isinstance(self._param_star, cst.ParamStar) and self._param_star.kind...
+                                                        ^~~~~~~~~~~~~~~~~~~~~
+scripts/cleanup/explicit_any_rewriter.py:416: error: "ParamStar" has no
+attribute "kind"  [attr-defined]
+    ... isinstance(self._param_star, cst.ParamStar) and self._param_star.kind...
+                                                        ^~~~~~~~~~~~~~~~~~~~~
+tests/current/test_metrics_facade_coverage.py:137: error: Argument 1 to
+"inc_message" has incompatible type "None"; expected "str"  [arg-type]
+        metrics.inc_message(None, None)
+                            ^~~~
+tests/current/test_metrics_facade_coverage.py:137: error: Argument 2 to
+"inc_message" has incompatible type "None"; expected "str"  [arg-type]
+        metrics.inc_message(None, None)
+                                  ^~~~
+tests/current/test_metrics_facade_coverage.py:144: error: Argument 1 to
+"inc_md_reject" has incompatible type "None"; expected "str"  [arg-type]
+        metrics.inc_md_reject(None)
+                              ^~~~
+tests/current/test_metrics_facade_coverage.py:151: error: Argument 1 to
+"set_session_connected" has incompatible type "None"; expected "str"  [arg-type]
+        metrics.set_session_connected(None, False)
+                                      ^~~~
+tests/current/test_metrics_facade_coverage.py:159: error: Argument 1 to
+"inc_reconnect" has incompatible type "None"; expected "str"  [arg-type]
+        metrics.inc_reconnect(None, None)
+                              ^~~~
+tests/current/test_metrics_facade_coverage.py:159: error: Argument 2 to
+"inc_reconnect" has incompatible type "None"; expected "str"  [arg-type]
+        metrics.inc_reconnect(None, None)
+                                    ^~~~
+tests/current/test_metrics_facade_coverage.py:211: error: Argument 1 to
+"inc_test_request" has incompatible type "None"; expected "str"  [arg-type]
+        metrics.inc_test_request(None)
+                                 ^~~~
+tests/current/test_metrics_facade_coverage.py:226: error: Argument 1 to
+"inc_pretrade_denial" has incompatible type "None"; expected "str"  [arg-type]
+        metrics.inc_pretrade_denial(None, None)
+                                    ^~~~
+tests/current/test_metrics_facade_coverage.py:226: error: Argument 2 to
+"inc_pretrade_denial" has incompatible type "None"; expected "str"  [arg-type]
+        metrics.inc_pretrade_denial(None, None)
+                                          ^~~~
+tests/current/test_metrics_facade_coverage.py:241: error: Argument 1 to
+"inc_vol_regime" has incompatible type "None"; expected "str"  [arg-type]
+        metrics.inc_vol_regime(None, None)
+                               ^~~~
+tests/current/test_metrics_facade_coverage.py:241: error: Argument 2 to
+"inc_vol_regime" has incompatible type "None"; expected "str"  [arg-type]
+        metrics.inc_vol_regime(None, None)
+                                     ^~~~
+tests/current/test_metrics_facade_coverage.py:330: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+scripts/fix_dry_run.py:26: error: Need type annotation for "price_q" 
+[var-annotated]
+        price_q = asyncio.Queue()
+                  ^~~~~~~~~~~~~~~
+scripts/fix_dry_run.py:27: error: Need type annotation for "trade_q" 
+[var-annotated]
+        trade_q = asyncio.Queue()
+                  ^~~~~~~~~~~~~~~
+scripts/fix_dry_run.py:28: error: Item "None" of
+"_FIXApplicationAdapter | None" has no attribute "set_message_queue" 
+[union-attr]
+        mgr.get_application("price").set_message_queue(price_q)
+        ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+scripts/fix_dry_run.py:29: error: Item "None" of
+"_FIXApplicationAdapter | None" has no attribute "set_message_queue" 
+[union-attr]
+        mgr.get_application("trade").set_message_queue(trade_q)
+        ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/validation/real_market_validation.py:35: error: Cannot assign to a type 
+[misc]
+        DecisionGenome = object
+        ^~~~~~~~~~~~~~
+src/validation/real_market_validation.py:35: error: Incompatible types in
+assignment (expression has type "type[object]", variable has type
+"type[DecisionGenome]")  [assignment]
+        DecisionGenome = object
+                         ^~~~~~
+src/validation/real_market_validation.py:344: error: Argument 1 to
+"detect_regime" of "RegimeClassifier" has incompatible type "DataFrame";
+expected "Mapping[str, object]"  [arg-type]
+                _ = await self.regime_classifier.detect_regime(data)
+                                                               ^~~~
+src/validation/phase2d_simple_integration.py:32: error: Cannot assign to a type
+ [misc]
+        _DecisionGenome = _Any
+        ^~~~~~~~~~~~~~~
+src/validation/phase2d_simple_integration.py:32: error: Incompatible types in
+assignment (expression has type "type[Any]", variable has type
+"type[DecisionGenome]")  [assignment]
+        _DecisionGenome = _Any
+                          ^~~~
+src/validation/phase2d_simple_integration.py:275: error: Argument 1 to "len"
+has incompatible type "object"; expected "Sized"  [arg-type]
+                if data is not None and len(data) > 0:
+                                            ^~~~
+src/validation/phase2d_simple_integration.py:276: error: Argument 1 to "len"
+has incompatible type "object"; expected "Sized"  [arg-type]
+    ...  return {"success": True, "symbol": symbol, "data_points": len(data)}
+                                                                       ^~~~
+src/validation/phase2d_integration_validator.py:26: error: Cannot assign to a
+type  [misc]
+        DecisionGenome = object
+        ^~~~~~~~~~~~~~
+src/validation/phase2d_integration_validator.py:26: error: Incompatible types
+in assignment (expression has type "type[object]", variable has type
+"type[DecisionGenome]")  [assignment]
+        DecisionGenome = object
+                         ^~~~~~
+src/validation/phase2d_integration_validator.py:97: error: Argument 2 to
+"_evaluate_genome_with_real_data" of "Phase2DIntegrationValidator" has
+incompatible type "object"; expected "DataFrame"  [arg-type]
+    ..._score = await self._evaluate_genome_with_real_data(genome, test_data)
+                                                                   ^~~~~~~~~
+src/validation/honest_validation_framework.py:31: error: Cannot assign to a
+type  [misc]
+        DecisionGenome = object
+        ^~~~~~~~~~~~~~
+src/validation/honest_validation_framework.py:31: error: Incompatible types in
+assignment (expression has type "type[object]", variable has type
+"type[DecisionGenome]")  [assignment]
+        DecisionGenome = object
+                         ^~~~~~
+src/thinking/prediction/predictive_modeler.py:74: error: Argument 1 to
+"predict_market_scenarios" of "PredictiveMarketModeler" has incompatible type
+"dict[str, float]"; expected "dict[str, object]"  [arg-type]
+    ...results = await modeler.predict_market_scenarios(current_state, timede...
+                                                        ^~~~~~~~~~~~~
+src/thinking/prediction/predictive_modeler.py:74: note: "dict" is invariant -- see https://mypy.readthedocs.io/en/stable/common_issues.html#variance
+src/thinking/prediction/predictive_modeler.py:74: note: Consider using "Mapping" instead, which is covariant in the value type
+src/sensory/organs/dimensions/why_organ.py:47: error: Incompatible types in
+assignment (expression has type "None", variable has type "WhyConfig") 
+[assignment]
+                self.why_cfg = None
+                               ^~~~
+src/sensory/organs/dimensions/why_organ.py:60: error: Incompatible types in
+assignment (expression has type "None", variable has type
+"EconomicDataProvider")  [assignment]
+                self.economic_provider = None
+                                         ^~~~
+src/sensory/organs/dimensions/why_organ.py:61: error: Incompatible types in
+assignment (expression has type "None", variable has type "FundamentalAnalyzer")
+ [assignment]
+                self.fundamental_analyzer = None
+                                            ^~~~
+src/sensory/organs/dimensions/why_organ.py:453: error: "MarketData" has no
+attribute "spread"  [attr-defined]
+                        "spread": md.spread,
+                                  ^~~~~~~~~
+src/sensory/organs/dimensions/why_organ.py:454: error: "MarketData" has no
+attribute "mid_price"  [attr-defined]
+                        "mid_price": md.mid_price,
+                                     ^~~~~~~~~~~~
+src/sensory/organs/dimensions/institutional_tracker.py:171: error: "MarketData"
+has no attribute "spread"  [attr-defined]
+                        "spread": md.spread,
+                                  ^~~~~~~~~
+src/sensory/organs/dimensions/institutional_tracker.py:172: error: "MarketData"
+has no attribute "mid_price"  [attr-defined]
+                        "mid_price": md.mid_price,
+                                     ^~~~~~~~~~~~
+src/sensory/organs/dimensions/institutional_tracker.py:640: error: Returning
+Any from function declared to return "MarketRegime"  [no-any-return]
+                return MarketRegime.BULLISH
+                ^~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/sensory/organs/dimensions/institutional_tracker.py:640: error:
+"type[MarketRegime]" has no attribute "BULLISH"  [attr-defined]
+                return MarketRegime.BULLISH
+                       ^~~~~~~~~~~~~~~~~~~~
+src/sensory/organs/dimensions/institutional_tracker.py:642: error: Returning
+Any from function declared to return "MarketRegime"  [no-any-return]
+                return MarketRegime.BEARISH
+                ^~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/sensory/organs/dimensions/institutional_tracker.py:642: error:
+"type[MarketRegime]" has no attribute "BEARISH"  [attr-defined]
+                return MarketRegime.BEARISH
+                       ^~~~~~~~~~~~~~~~~~~~
+src/sensory/organs/dimensions/institutional_tracker.py:644: error: Returning
+Any from function declared to return "MarketRegime"  [no-any-return]
+                return MarketRegime.RANGING
+                ^~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/sensory/organs/dimensions/institutional_tracker.py:644: error:
+"type[MarketRegime]" has no attribute "RANGING"  [attr-defined]
+                return MarketRegime.RANGING
+                       ^~~~~~~~~~~~~~~~~~~~
+scripts/run_genesis.py:31: error: Module "src.core" has no attribute
+"CurrencyConverter"  [attr-defined]
+    from src.core import CurrencyConverter, InstrumentProvider, RiskConfig
+    ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+scripts/run_genesis.py:31: error: Module "src.core" has no attribute
+"InstrumentProvider"  [attr-defined]
+    from src.core import CurrencyConverter, InstrumentProvider, RiskConfig
+    ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+scripts/run_genesis.py:31: error: Module "src.core" has no attribute
+"RiskConfig"  [attr-defined]
+    from src.core import CurrencyConverter, InstrumentProvider, RiskConfig
+    ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+scripts/run_genesis.py:34: error: Module "src.risk" has no attribute
+"RiskManager"; maybe "RealRiskManager"?  [attr-defined]
+    from src.risk import RiskManager
+    ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+scripts/run_genesis.py:37: error: Module "src.simulation" has no attribute
+"AdversarialEngine"  [attr-defined]
+    from src.simulation import AdversarialEngine, MarketSimulator
+    ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+scripts/run_genesis.py:37: error: Module "src.simulation" has no attribute
+"MarketSimulator"  [attr-defined]
+    from src.simulation import AdversarialEngine, MarketSimulator
+    ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+scripts/run_genesis.py:368: error: Need type annotation for "random_returns"
+(hint: "random_returns: list[<type>] = ...")  [var-annotated]
+            random_returns = []
+            ^~~~~~~~~~~~~~
+scripts/run_genesis.py:369: error: Need type annotation for "buy_hold_returns"
+(hint: "buy_hold_returns: list[<type>] = ...")  [var-annotated]
+            buy_hold_returns = []
+            ^~~~~~~~~~~~~~~~
+mlops/train.py:98: error: Argument 1 to "fit_transform" of "LabelEncoder" has
+incompatible type "ExtensionArray | ndarray[tuple[Any, ...], dtype[Any]]";
+expected "Sequence[object]"  [arg-type]
+            y_encoded = self.label_encoder.fit_transform(y)
+                                                         ^
+mlops/train.py:175: error: "LSTMModel" has no attribute "train"  [attr-defined]
+                model.train()
+                ^~~~~~~~~~~
+mlops/train.py:185: error: "object" has no attribute "backward"  [attr-defined]
+                    loss.backward()
+                    ^~~~~~~~~~~~~
+mlops/train.py:188: error: "object" has no attribute "item"  [attr-defined]
+                    train_loss += loss.item()
+                                  ^~~~~~~~~
+mlops/train.py:189: error: Module has no attribute "max"  [attr-defined]
+                    _, predicted = torch.max(outputs.data, 1)
+                                   ^~~~~~~~~
+mlops/train.py:189: error: "object" has no attribute "data"  [attr-defined]
+                    _, predicted = torch.max(outputs.data, 1)
+                                             ^~~~~~~~~~~~
+mlops/train.py:196: error: "LSTMModel" has no attribute "eval"  [attr-defined]
+                model.eval()
+                ^~~~~~~~~~
+mlops/train.py:202: error: "object" has no attribute "__enter__" 
+[attr-defined]
+                with torch.no_grad():
+                     ^~~~~~~~~~~~~~~
+mlops/train.py:202: error: "object" has no attribute "__exit__"  [attr-defined]
+                with torch.no_grad():
+                     ^~~~~~~~~~~~~~~
+mlops/train.py:205: error: Module has no attribute "max"  [attr-defined]
+                        _, predicted = torch.max(outputs.data, 1)
+                                       ^~~~~~~~~
+mlops/train.py:205: error: "object" has no attribute "data"  [attr-defined]
+                        _, predicted = torch.max(outputs.data, 1)
+                                                 ^~~~~~~~~~~~
+mlops/train.py:215: error: Incompatible types in assignment (expression has
+type "float", variable has type "int")  [assignment]
+                    best_accuracy = test_accuracy
+                                    ^~~~~~~~~~~~~
+mlops/train.py:227: error: Dict entry 3 has incompatible type "str":
+"LSTMModel"; expected "str": "float"  [dict-item]
+                'model': model
+                ^~~~~~~~~~~~~~
+mlops/train.py:274: error: Incompatible types in assignment (expression has
+type "float", variable has type "int")  [assignment]
+                        best_accuracy = fold_result['accuracy']
+                                        ^~~~~~~~~~~~~~~~~~~~~~~
+mlops/data_pipeline_v2.py:98: error: Unsupported operand types for >
+("Series[type[object]]" and "int")  [operator]
+            gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
+                                        ^
+mlops/data_pipeline_v2.py:99: error: Unsupported operand types for <
+("Series[type[object]]" and "int")  [operator]
+            loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+                                         ^
+src/trading/portfolio/real_portfolio_monitor.py:14: error: Module
+"src.trading.models" has no attribute "PortfolioSnapshot"  [attr-defined]
+    from ..models import PortfolioSnapshot, Position
+    ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/trading/portfolio/real_portfolio_monitor.py:165: error: "Position" has no
+attribute "status"  [attr-defined]
+                        position.status.value,
+                        ^~~~~~~~~~~~~~~
+src/trading/portfolio/real_portfolio_monitor.py:166: error: "Position" has no
+attribute "stop_loss"  [attr-defined]
+                        position.stop_loss,
+                        ^~~~~~~~~~~~~~~~~~
+src/trading/portfolio/real_portfolio_monitor.py:167: error: "Position" has no
+attribute "take_profit"  [attr-defined]
+                        position.take_profit,
+                        ^~~~~~~~~~~~~~~~~~~~
+src/trading/portfolio/real_portfolio_monitor.py:168: error: "Position" has no
+attribute "entry_time"; maybe "entry_price"?  [attr-defined]
+                        position.entry_time.isoformat(),
+                        ^~~~~~~~~~~~~~~~~~~
+src/trading/portfolio/real_portfolio_monitor.py:178: error: Invalid index type
+"str | int | None" for "dict[str, Position]"; expected type "str"  [index]
+                self._position_cache[position.position_id] = position
+                                     ^~~~~~~~~~~~~~~~~~~~
+src/trading/portfolio/real_portfolio_monitor.py:276: error: "Position" has no
+attribute "close"  [attr-defined]
+                    self._position_cache[position_id].close(exit_price, ex...
+                    ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/thinking/thinking_manager.py:66: error: Missing named argument
+"divergence_confidence" for "ContextPacket"  [call-arg]
+            context = ContextPacket(
+                      ^
+src/thinking/thinking_manager.py:182: error: "object" has no attribute "get" 
+[attr-defined]
+                print(f"  Predictions count: {context.metadata['prediction...
+                                              ^~~~~~~~~~~~~~~~~~~~~~~~~~~~...
+src/thinking/analysis/market_analyzer.py:89: error: "PerformanceAnalyzer" has
+no attribute "learn"  [attr-defined]
+                performance_learned = self.performance_analyzer.learn(feed...
+                                      ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/thinking/analysis/market_analyzer.py:90: error: "RiskAnalyzer" has no
+attribute "learn"  [attr-defined]
+                risk_learned = self.risk_analyzer.learn(feedback)
+                               ^~~~~~~~~~~~~~~~~~~~~~~~
+src/thinking/analysis/market_analyzer.py:108: error: "AnalysisResult" has no
+attribute "result"  [attr-defined]
+            performance_metrics = performance_result.result.get("performan...
+                                  ^~~~~~~~~~~~~~~~~~~~~~~~~
+src/thinking/analysis/market_analyzer.py:109: error: "AnalysisResult" has no
+attribute "result"  [attr-defined]
+            risk_metrics = risk_result.result.get("risk_metrics", {})
+                           ^~~~~~~~~~~~~~~~~~
+src/ecosystem/optimization/ecosystem_optimizer.py:78: error: Return type
+"Coroutine[Any, Any, Mapping[str, Sequence[src.genome.models.genome.DecisionGenome]]]"
+of "optimize_ecosystem" incompatible with return type
+"Coroutine[Any, Any, Mapping[str, Sequence[src.core.interfaces.DecisionGenome]]]"
+in supertype "src.core.interfaces.IEcosystemOptimizer"  [override]
+        async def optimize_ecosystem(
+        ^
+src/ecosystem/optimization/ecosystem_optimizer.py:80: error: Argument 1 of
+"optimize_ecosystem" is incompatible with supertype
+"src.core.interfaces.IEcosystemOptimizer"; supertype defines the argument type
+as "Mapping[str, Sequence[DecisionGenome]]"  [override]
+            species_populations: Mapping[str, Sequence[CanonDecisionGenome...
+            ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/ecosystem/optimization/ecosystem_optimizer.py:80: note: This violates the Liskov substitution principle
+src/ecosystem/optimization/ecosystem_optimizer.py:80: note: See https://mypy.readthedocs.io/en/stable/common_issues.html#incompatible-overrides
+scripts/backtest_report.py:132: error: Need type annotation for "next_macros"
+(hint: "next_macros: list[<type>] = ...")  [var-annotated]
+        next_macros = []
+        ^~~~~~~~~~~
+scripts/backtest_report.py:157: error: Need type annotation for "daily_returns"
+(hint: "daily_returns: list[<type>] = ...")  [var-annotated]
+        daily_returns = []
+        ^~~~~~~~~~~~~
+scripts/backtest_report.py:158: error: Need type annotation for "rv_window"
+(hint: "rv_window: list[<type>] = ...")  [var-annotated]
+        rv_window = []
+        ^~~~~~~~~
+src/sensory/organs/dimensions/integration_orchestrator.py:166: error: Argument
+1 to "analyze_institutional_footprint" of "InstitutionalFootprintHunter" has
+incompatible type "DataFrame"; expected "list[MarketData]"  [arg-type]
+    ...    self.footprint_hunter.analyze_institutional_footprint(price_data),
+                                                                 ^~~~~~~~~~
+src/sensory/organs/dimensions/integration_orchestrator.py:168: error: Argument
+1 to "analyze_timing" of "TemporalAdvantageSystem" has incompatible type
+"OrchestratorMarketData | Mapping[str, object]"; expected "dict[str, Any]" 
+[arg-type]
+                    self.temporal_analyzer.analyze_timing(market_data),
+                                                          ^~~~~~~~~~~
+src/thinking/ecosystem/specialized_predator_evolution.py:31: error: Module
+"src.ecosystem.species.species_manager" has no attribute "SpeciesManager" 
+[attr-defined]
+        from src.ecosystem.species.species_manager import SpeciesManager a...
+        ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~...
+src/thinking/phase3_orchestrator.py:292: error: Argument 1 to "len" has
+incompatible type "object"; expected "Sized"  [arg-type]
+                    "adaptations_applied": len(adaptation_result.get("adap...
+                                               ^~~~~~~~~~~~~~~~~~~~~~~~~~~...
+src/sensory/organs/dimensions/what_organ.py:398: error: "MarketData" has no
+attribute "spread"  [attr-defined]
+                        "spread": md.spread,
+                                  ^~~~~~~~~
+src/sensory/organs/dimensions/what_organ.py:399: error: "MarketData" has no
+attribute "mid_price"  [attr-defined]
+                        "mid_price": md.mid_price,
+                                     ^~~~~~~~~~~~
+main.py:41: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+main.py:42: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+main.py:64: error: Argument 1 to "from_config" of "SafetyManager" has
+incompatible type "SystemConfig"; expected "Mapping[str, object]"  [arg-type]
+                SafetyManager.from_config(self.config).enforce()
+                                          ^~~~~~~~~~~
+main.py:128: error: Argument 1 to "from_config" of "SafetyManager" has
+incompatible type "SystemConfig"; expected "Mapping[str, object]"  [arg-type]
+            SafetyManager.from_config(self.config).enforce()
+                                      ^~~~~~~~~~~
+scripts/validate_system_completeness.py:108: error: Module
+"src.core.population_manager" has no attribute "create_population_manager" 
+[attr-defined]
+                from src.core.population_manager import create_population_...
+                ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~...
+Found 256 errors in 66 files (checked 465 source files)

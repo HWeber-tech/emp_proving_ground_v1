@@ -20,7 +20,7 @@ import time
 import warnings
 from concurrent.futures import TimeoutError as FuturesTimeoutError
 from dataclasses import dataclass, field
-from typing import Any, Awaitable, Callable, Dict, Optional, Set, Tuple
+from typing import Any, Awaitable, Callable, Dict, Optional, Set, Tuple, cast
 
 logger = logging.getLogger(__name__)
 
@@ -55,9 +55,15 @@ class AsyncEventBus:
     """
 
     def __init__(self) -> None:
-        self._subscribers: Dict[str, Set[Callable[[Event], object]]] = {}
-        self._pair_to_id: Dict[Tuple[str, Callable[[Event], object]], int] = {}
-        self._id_to_pair: Dict[int, Tuple[str, Callable[[Event], object]]] = {}
+        self._subscribers: Dict[
+            str, Set[Callable[[Event], None] | Callable[[Event], Awaitable[None]]]
+        ] = {}
+        self._pair_to_id: Dict[
+            Tuple[str, Callable[[Event], None] | Callable[[Event], Awaitable[None]]], int
+        ] = {}
+        self._id_to_pair: Dict[
+            int, Tuple[str, Callable[[Event], None] | Callable[[Event], Awaitable[None]]]
+        ] = {}
         self._next_id: int = 1
 
         self._running: bool = False
@@ -93,7 +99,9 @@ class AsyncEventBus:
             self._next_id += 1
             self._pair_to_id[key] = new_id
             self._id_to_pair[new_id] = key
-            logger.debug("Subscribed handler %r to event_type %s as id=%d", handler, event_type, new_id)
+            logger.debug(
+                "Subscribed handler %r to event_type %s as id=%d", handler, event_type, new_id
+            )
             return SubscriptionHandle(id=new_id, event_type=event_type, handler=handler)
 
     def unsubscribe(self, handle: SubscriptionHandle) -> None:
@@ -109,7 +117,9 @@ class AsyncEventBus:
                 handlers.discard(handler)
                 if not handlers:
                     self._subscribers.pop(event_type, None)
-            logger.debug("Unsubscribed handler %r from event_type %s (id=%d)", handler, event_type, handle.id)
+            logger.debug(
+                "Unsubscribed handler %r from event_type %s (id=%d)", handler, event_type, handle.id
+            )
 
     async def publish(self, event: Event) -> None:
         """Enqueue event for async processing; logs and no-ops if not running."""
@@ -132,7 +142,9 @@ class AsyncEventBus:
         if not self._running or loop is None or not loop.is_running():
             if not self._warned_not_running_sync:
                 self._warned_not_running_sync = True
-                logger.warning("AsyncEventBus.publish_from_sync called while loop/bus not running; no-op")
+                logger.warning(
+                    "AsyncEventBus.publish_from_sync called while loop/bus not running; no-op"
+                )
             return None
         try:
             # Return number of handlers scheduled at time of enqueue (legacy-compatible semantics)
@@ -175,7 +187,9 @@ class AsyncEventBus:
     def is_running(self) -> bool:
         return self._running
 
-    async def emit(self, topic: str, payload: dict[str, Any] | Any, source: str | None = None) -> None:
+    async def emit(
+        self, topic: str, payload: dict[str, Any] | Any, source: str | None = None
+    ) -> None:
         """Deprecated alias: await publish(Event(...))."""
         if not self._warned_emit_deprecated:
             self._warned_emit_deprecated = True
@@ -196,12 +210,14 @@ class AsyncEventBus:
                 continue
             try:
                 await self._fanout_event(event)
-            except Exception:  # pragma: no cover - defensive; all exceptions should be handled internally
+            except (
+                Exception
+            ):  # pragma: no cover - defensive; all exceptions should be handled internally
                 logger.exception("Unexpected error during event fan-out")
 
     async def _fanout_event(self, event: Event) -> int:
         """Fan out to all matching handlers concurrently; log exceptions; return invoked count."""
-        handlers_snapshot: list[Callable[[Event], object]]
+        handlers_snapshot: list[Callable[[Event], None] | Callable[[Event], Awaitable[None]]]
         with self._lock:
             handlers_snapshot = list(self._subscribers.get(event.type, set()))
         if not handlers_snapshot:
@@ -220,7 +236,9 @@ class AsyncEventBus:
                 logger.error("Error in handler %r for event type %s", h, event.type)
         return len(handlers_snapshot)
 
-    async def _invoke_handler(self, handler: Callable[[Event], object], event: Event) -> None:
+    async def _invoke_handler(
+        self, handler: Callable[[Event], None] | Callable[[Event], Awaitable[None]], event: Event
+    ) -> None:
         try:
             result = handler(event)
             if asyncio.iscoroutine(result):
@@ -254,9 +272,14 @@ class TopicBus:
     def __init__(self, bus: AsyncEventBus) -> None:
         self._bus = bus
         # Preserve adapter identity to avoid duplicate registrations for same (topic, handler)
-        self._adapter_map: Dict[Tuple[str, Callable[..., object]], Callable[[Event], object]] = {}
+        self._adapter_map: Dict[
+            Tuple[str, Callable[..., object]],
+            Callable[[Event], None] | Callable[[Event], Awaitable[None]],
+        ] = {}
 
-    def publish_sync(self, topic: str, payload: dict[str, Any] | Any, source: str | None = None) -> int | None:
+    def publish_sync(
+        self, topic: str, payload: dict[str, Any] | Any, source: str | None = None
+    ) -> int | None:
         loop = self._bus._loop
         if not self._bus.is_running() or loop is None or not loop.is_running():
             logger.warning("TopicBus.publish_sync called while bus not running; no-op")
@@ -284,14 +307,18 @@ class TopicBus:
         key = (topic, handler)
         adapter_fn = self._adapter_map.get(key)
         if adapter_fn is None:
-            def _adapter(ev: Event) -> object:
+
+            def _adapter(ev: Event) -> None | Awaitable[None]:
                 res = handler(ev.type, ev.payload)
                 if asyncio.iscoroutine(res):
                     return res
                 return None
 
-            adapter_fn = _adapter
-            self._adapter_map[key] = adapter_fn
+            adapter_typed = cast(
+                Callable[[Event], None] | Callable[[Event], Awaitable[None]], _adapter
+            )
+            adapter_fn = adapter_typed
+            self._adapter_map[key] = adapter_typed
         return self._bus.subscribe(topic, adapter_fn)
 
     # Deprecated wrappers
@@ -306,7 +333,9 @@ class TopicBus:
             )
         return self.publish_sync(topic, payload)
 
-    def subscribe(self, topic: str, handler: Callable[[Any], None | Awaitable[None]]) -> SubscriptionHandle:
+    def subscribe(
+        self, topic: str, handler: Callable[[Any], None | Awaitable[None]]
+    ) -> SubscriptionHandle:
         if not TopicBus._warned_subscribe_once:
             TopicBus._warned_subscribe_once = True
             warnings.warn(
@@ -316,7 +345,7 @@ class TopicBus:
             )
 
         # Adapt payload-only legacy signature to (type, payload)
-        def adapter(_type: str, payload: object) -> object:
+        def adapter(_type: str, payload: object) -> None | Awaitable[None]:
             res = handler(payload)
             if asyncio.iscoroutine(res):
                 return res
@@ -353,6 +382,7 @@ def _ensure_global_bus_running_in_background() -> None:
             # Thread already running; fall through to readiness wait below
             pass
         else:
+
             def _runner() -> None:
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
@@ -367,7 +397,9 @@ def _ensure_global_bus_running_in_background() -> None:
                         pass
                     loop.close()
 
-            _BG_THREAD = threading.Thread(target=_runner, name="AsyncEventBusLoopThread", daemon=True)
+            _BG_THREAD = threading.Thread(
+                target=_runner, name="AsyncEventBusLoopThread", daemon=True
+            )
             _BG_THREAD.start()
 
     # Briefly wait for the loop to be ready to avoid race on immediate publish_sync()
@@ -402,9 +434,18 @@ def subscribe_to_event(
 def unsubscribe_from_event(event_type: str, callback: Callable[[Event], object]) -> None:
     # Best-effort legacy removal by (event_type, callback)
     with event_bus._lock:
-        sub_id = event_bus._pair_to_id.get((event_type, callback))
+        sub_id = event_bus._pair_to_id.get(
+            (
+                event_type,
+                cast(Callable[[Event], None] | Callable[[Event], Awaitable[None]], callback),
+            )
+        )
     if sub_id is not None:
-        handle = SubscriptionHandle(id=sub_id, event_type=event_type, handler=callback)
+        handle = SubscriptionHandle(
+            id=sub_id,
+            event_type=event_type,
+            handler=cast(Callable[[Event], None] | Callable[[Event], Awaitable[None]], callback),
+        )
         event_bus.unsubscribe(handle)
 
 

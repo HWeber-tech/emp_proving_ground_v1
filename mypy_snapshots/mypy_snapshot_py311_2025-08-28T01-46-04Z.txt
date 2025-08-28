@@ -1,0 +1,5 @@
+[mypy-py311] TS=2025-08-28T01-46-04Z
+[mypy-py311] Building image mypy-py311:latest from docker/mypy311/Dockerfile ...
+ERROR: permission denied while trying to connect to the Docker daemon socket at unix:///var/run/docker.sock: Head "http://%2Fvar%2Frun%2Fdocker.sock/_ping": dial unix /var/run/docker.sock: connect: permission denied
+[mypy-py311] Docker build failed with exit code 1
+[mypy-py311] Skipping environment capture due to build failure

@@ -1,0 +1,1 @@
+mypy (py311 emulation) completed; see snapshot for details

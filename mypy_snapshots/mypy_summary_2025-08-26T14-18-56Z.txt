@@ -1,0 +1,7 @@
+Mypy Snapshot Summary
+Timestamp (UTC): 2025-08-26T14-18-56Z
+Totals: Errors=248, Files=64
+Delta vs previous: Errors=N/A, Files=N/A
+Note: Post-Batch10 fix7 snapshot
+
+Top offenders (top 20):

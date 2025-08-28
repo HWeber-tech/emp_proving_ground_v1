@@ -11,7 +11,6 @@ from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 
-
 from .base_organ import MarketRegime
 
 logger = logging.getLogger(__name__)
@@ -71,7 +70,7 @@ class WelfordVar:
     Provides numerically stable variance computation without storing historical data.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize Welford variance calculator."""
         self.count = 0
         self.mean = 0.0
@@ -234,9 +233,7 @@ def compute_confidence(
                 agreement = 1.0 - abs(signal_strength - conf_signal) / 2.0
                 signal_agreements.append(max(0.0, agreement))
 
-            factors.confluence = (
-                np.mean(signal_agreements) if signal_agreements else 0.5
-            )
+            factors.confluence = float(np.mean(signal_agreements)) if signal_agreements else 0.5
         else:
             factors.confluence = 0.5  # Neutral when no confluence data
 
@@ -255,7 +252,7 @@ def compute_confidence(
             f"factors={factors}, final={confidence:.3f}"
         )
 
-        return confidence
+        return float(confidence)
 
     except Exception as e:
         logger.error(f"Error in confidence computation: {e}")
@@ -313,7 +310,7 @@ def exponential_decay(distance: float, decay_rate: float = 0.1) -> float:
     Returns:
         Decay factor (0-1)
     """
-    return np.exp(-decay_rate * abs(distance))
+    return float(np.exp(-decay_rate * abs(distance)))
 
 
 def calculate_momentum(prices: List[float], period: int = 14) -> float:
@@ -339,7 +336,7 @@ def calculate_momentum(prices: List[float], period: int = 14) -> float:
     momentum = (current_price - past_price) / past_price
 
     # Normalize to reasonable range (assuming max 10% move)
-    return np.tanh(momentum * 10)
+    return float(np.tanh(momentum * 10))
 
 
 def calculate_volatility(prices: List[float], period: int = 20) -> float:
@@ -361,7 +358,7 @@ def calculate_volatility(prices: List[float], period: int = 20) -> float:
     volatility = np.std(returns) * np.sqrt(252)  # Annualized
 
     # Normalize to 0-1 range (assuming max 100% annual volatility)
-    return min(1.0, volatility)
+    return float(min(1.0, volatility))
 
 
 def detect_regime_change(
@@ -404,9 +401,7 @@ def detect_regime_change(
     return current_regime  # No change detected
 
 
-def smooth_signal(
-    signal: float, previous_signal: float, smoothing_factor: float = 0.3
-) -> float:
+def smooth_signal(signal: float, previous_signal: float, smoothing_factor: float = 0.3) -> float:
     """
     Apply exponential smoothing to reduce signal noise.
 
@@ -421,9 +416,7 @@ def smooth_signal(
     return smoothing_factor * signal + (1 - smoothing_factor) * previous_signal
 
 
-def calculate_divergence(
-    price_series: List[float], indicator_series: List[float]
-) -> float:
+def calculate_divergence(price_series: List[float], indicator_series: List[float]) -> float:
     """
     Calculate divergence between price and indicator.
 
@@ -439,9 +432,7 @@ def calculate_divergence(
 
     # Calculate recent trends
     price_trend = (price_series[-1] - price_series[-2]) / price_series[-2]
-    indicator_trend = (indicator_series[-1] - indicator_series[-2]) / abs(
-        indicator_series[-2]
-    )
+    indicator_trend = (indicator_series[-1] - indicator_series[-2]) / abs(indicator_series[-2])
 
     # Divergence occurs when trends are opposite
     if price_trend * indicator_trend < 0:

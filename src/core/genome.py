@@ -12,9 +12,10 @@ Also provides:
 - Simple registry: register_genome_provider / get_genome_provider
 """
 
-from dataclasses import dataclass, field
+import importlib
 import time
-from typing import Any, Dict, List, Optional, Protocol, runtime_checkable
+from dataclasses import dataclass, field
+from typing import Any, Dict, List, Optional, Protocol, cast, runtime_checkable
 
 
 @runtime_checkable
@@ -96,7 +97,7 @@ class _CoreGenomeStub:
                 elif k in ("parent_ids", "mutation_history") and isinstance(v, list):
                     data[k] = list(v)
                 else:
-                    data[k] = v
+                    data[k] = cast(Any, v)
         return _CoreGenomeStub(**data)  # type: ignore[arg-type]
 
     def to_dict(self) -> dict[str, object]:
@@ -118,7 +119,7 @@ def _coerce_numeric_mapping(mapping: object) -> Dict[str, float]:
     """Best-effort coercion of a mapping/object to Dict[str, float]."""
     result: Dict[str, float] = {}
     try:
-        items = mapping.items() if isinstance(mapping, dict) else vars(mapping).items()  # type: ignore[arg-type]
+        items = mapping.items() if isinstance(mapping, dict) else vars(mapping).items()
     except Exception:
         return result
     for k, v in items:
@@ -134,6 +135,10 @@ def _coerce_numeric_mapping(mapping: object) -> Dict[str, float]:
         except Exception:
             continue
     return result
+
+
+def _genome_models(sym: str) -> Any:
+    return getattr(importlib.import_module("src.genome.models.genome_adapter"), sym)
 
 
 class NoOpGenomeProvider:
@@ -197,16 +202,26 @@ class NoOpGenomeProvider:
             if hasattr(obj, "id") and hasattr(obj, "parameters"):
                 return obj
             # Adapt dict/object into stub
-            get = (lambda o, k, d=None: o.get(k, d)) if isinstance(obj, dict) else (lambda o, k, d=None: getattr(o, k, d))
+            get = (
+                (lambda o, k, d=None: o.get(k, d))
+                if isinstance(obj, dict)
+                else (lambda o, k, d=None: getattr(o, k, d))
+            )
             return _CoreGenomeStub(
                 id=str(get(obj, "id", f"noop_{int(time.time()*1000)}")),
                 parameters=_coerce_numeric_mapping(get(obj, "parameters", {}) or {}),
                 fitness=None,
                 generation=int(get(obj, "generation", 0) or 0),
-                species_type=(str(get(obj, "species_type", None)) if get(obj, "species_type", None) is not None else None),
+                species_type=(
+                    str(get(obj, "species_type", None))
+                    if get(obj, "species_type", None) is not None
+                    else None
+                ),
                 parent_ids=list(get(obj, "parent_ids", []) or []),
                 mutation_history=list(get(obj, "mutation_history", []) or []),
-                performance_metrics=_coerce_numeric_mapping(get(obj, "performance_metrics", {}) or {}),
+                performance_metrics=_coerce_numeric_mapping(
+                    get(obj, "performance_metrics", {}) or {}
+                ),
                 created_at=float(get(obj, "created_at", time.time()) or time.time()),
             )
         except Exception:
@@ -255,8 +270,8 @@ def get_genome_provider() -> GenomeProvider:
     if _GENOME_PROVIDER is not None:
         return _GENOME_PROVIDER
     try:
-        # Local import to avoid any potential import cycles
-        from src.genome.models.genome_adapter import GenomeProviderAdapter  # type: ignore
+        # Local dynamic import to avoid static cross-layer dependency
+        GenomeProviderAdapter = _genome_models("GenomeProviderAdapter")
         _GENOME_PROVIDER = GenomeProviderAdapter()
         return _GENOME_PROVIDER
     except Exception:

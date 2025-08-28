@@ -9,9 +9,44 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import TYPE_CHECKING, Any, Dict, Optional
 
-from src.core.base import MarketData, SensoryOrgan, SensoryReading
+from src.core.base import MarketData
+
+if TYPE_CHECKING:
+    # These names are not available from src.core.base; provide type-only hints if needed.
+    # In Round A we keep local runtime stubs to preserve behavior.
+    from typing import Protocol
+
+    class _SensoryOrganProto(Protocol):
+        name: str
+        config: dict[str, Any]
+
+        def __init__(self, name: str, config: Optional[dict[str, Any]] = ...) -> None: ...
+
+    class _SensoryReadingProto(Protocol):
+        organ_name: str
+        timestamp: datetime
+        data: dict[str, Any]
+        metadata: dict[str, Any]
+
+
+# Minimal runtime placeholders to avoid import-time failures and keep behavior unchanged
+class SensoryOrgan:
+    def __init__(self, name: str, config: Optional[dict[str, Any]] = None) -> None:
+        self.name = name
+        self.config = config or {}
+
+
+class SensoryReading:
+    def __init__(
+        self, organ_name: str, timestamp: datetime, data: dict[str, Any], metadata: dict[str, Any]
+    ) -> None:
+        self.organ_name = organ_name
+        self.timestamp = timestamp
+        self.data = data
+        self.metadata = metadata
+
 
 logger = logging.getLogger(__name__)
 

@@ -1,0 +1,12 @@
+src/thinking/patterns/trend_detector.py
+src/thinking/analysis/market_analyzer.py
+src/orchestration/enhanced_intelligence_engine.py
+src/thinking/phase3_orchestrator.py
+src/validation/phase2d_simple_integration.py
+src/thinking/patterns/cycle_detector.py
+src/sensory/services/symbol_mapper.py
+src/data_integration/data_fusion.py
+src/thinking/patterns/anomaly_detector.py
+src/intelligence/sentient_adaptation.py
+src/sensory/organs/dimensions/institutional_tracker.py
+src/trading/portfolio/real_portfolio_monitor.py

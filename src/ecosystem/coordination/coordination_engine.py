@@ -12,7 +12,7 @@ import logging
 from collections import defaultdict
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import DefaultDict, Dict, List, TypedDict
+from typing import DefaultDict, Dict, List, TypedDict, cast
 
 import numpy as np
 
@@ -296,7 +296,7 @@ class CoordinationEngine(ICoordinationEngine):
                 pos for pos in positions if pos["timestamp"] > cutoff_time
             ]
 
-    async def get_portfolio_summary(self) -> JSONObject:
+    async def get_portfolio_summary(self) -> dict[str, object]:
         """Get summary of current portfolio state."""
         total_positions = sum(len(positions) for positions in self.active_positions.values())
 
@@ -305,12 +305,15 @@ class CoordinationEngine(ICoordinationEngine):
             for pos in positions:
                 species_distribution[pos["intent"].species_type] += 1
 
-        return {
-            "total_active_positions": total_positions,
-            "species_distribution": dict(species_distribution),
-            "symbols_traded": list(self.active_positions.keys()),
-            "coordination_history_length": len(self.coordination_history),
-        }
+        return cast(
+            dict[str, object],
+            {
+                "total_active_positions": total_positions,
+                "species_distribution": dict(species_distribution),
+                "symbols_traded": list(self.active_positions.keys()),
+                "coordination_history_length": len(self.coordination_history),
+            },
+        )
 
     async def get_coordination_metrics(self) -> Dict[str, float]:
         """Get coordination performance metrics."""

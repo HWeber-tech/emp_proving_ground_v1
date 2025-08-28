@@ -168,21 +168,23 @@ class MarketGAN:
                 # Step 2: Discriminator tests strategies
                 strategy_payload: List[dict[str, object]] = [{"id": s} for s in strategy_population]
                 survival_results = await self.discriminator.test_strategies(
-                    strategy_payload, synthetic_scenarios
+                    strategy_payload, cast(List[object], synthetic_scenarios)
                 )
 
                 # Step 3: Train generator to create more challenging scenarios
                 norm_sr = [normalize_survival_result(r) for r in survival_results]
                 await self.adversarial_trainer.train_generator(
-                    self.generator, norm_sr, target_failure_rate=0.3
+                    self.generator, cast(List[object], norm_sr), target_failure_rate=0.3
                 )
 
                 # Step 4: Train discriminator (strategies) to survive
                 improved = await self.adversarial_trainer.train_discriminator(
-                    strategy_population, synthetic_scenarios, norm_sr
+                    cast(List[object], strategy_population),
+                    cast(List[object], synthetic_scenarios),
+                    cast(List[object], norm_sr),
                 )
 
-                improved_strategies.extend(improved)
+                improved_strategies.extend([str(x) for x in improved])
 
                 # Step 5: Validate scenarios are realistic
                 real_market_data = await self._get_real_market_data()
@@ -233,7 +235,7 @@ class MarketGAN:
         epoch: int,
         survival_results: Sequence[object],
         validation: dict[str, object],
-        improved_strategies: List[str],
+        improved_strategies: Sequence[object],
     ) -> None:
         """Store training results for analysis."""
         try:

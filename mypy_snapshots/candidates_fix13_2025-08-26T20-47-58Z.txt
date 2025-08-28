@@ -1,0 +1,12 @@
+src/sensory/organs/dimensions/why_organ.py
+src/genome/models/genome_adapter.py
+src/ui/ui_manager.py
+src/trading/execution/fix_executor.py
+src/integration/component_integrator.py
+src/validation/real_market_validation.py
+src/validation/phase2d_integration_validator.py
+src/trading/trading_manager.py
+src/validation/honest_validation_framework.py
+src/trading/risk_management/__init__.py
+src/thinking/thinking_manager.py
+src/sensory/organs/dimensions/what_organ.py

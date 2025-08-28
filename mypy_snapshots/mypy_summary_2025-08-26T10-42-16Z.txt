@@ -1,0 +1,26 @@
+Timestamp: 2025-08-26T10-42-16Z
+Post-Batch10 fix6 snapshot
+Found 268 errors in 69 files
+Delta vs previous (mypy_snapshots/mypy_summary_2025-08-26T09-26-46Z.txt): errors 268, files 69
+
+Top offenders (20):
+- [src/thinking/patterns/trend_detector.py](src/thinking/patterns/trend_detector.py:1): 31
+- [src/thinking/analysis/market_analyzer.py](src/thinking/analysis/market_analyzer.py:1): 15
+- [src/thinking/phase3_orchestrator.py](src/thinking/phase3_orchestrator.py:1): 14
+- [src/validation/phase2d_simple_integration.py](src/validation/phase2d_simple_integration.py:1): 11
+- [src/data_integration/data_fusion.py](src/data_integration/data_fusion.py:1): 10
+- [src/intelligence/sentient_adaptation.py](src/intelligence/sentient_adaptation.py:1): 9
+- [src/thinking/patterns/cycle_detector.py](src/thinking/patterns/cycle_detector.py:1): 8
+- [src/sensory/organs/dimensions/institutional_tracker.py](src/sensory/organs/dimensions/institutional_tracker.py:1): 8
+- [src/trading/portfolio/real_portfolio_monitor.py](src/trading/portfolio/real_portfolio_monitor.py:1): 7
+- [src/thinking/patterns/anomaly_detector.py](src/thinking/patterns/anomaly_detector.py:1): 7
+- [src/evolution/mutation/gaussian_mutation.py](src/evolution/mutation/gaussian_mutation.py:1): 7
+- [src/orchestration/enhanced_intelligence_engine.py](src/orchestration/enhanced_intelligence_engine.py:1): 6
+- [src/integration/component_integrator.py](src/integration/component_integrator.py:1): 6
+- [src/trading/risk_management/__init__.py](src/trading/risk_management/__init__.py:1): 5
+- [src/sensory/organs/dimensions/why_organ.py](src/sensory/organs/dimensions/why_organ.py:1): 5
+- [src/orchestration/compose.py](src/orchestration/compose.py:1): 5
+- [src/genome/models/genome_adapter.py](src/genome/models/genome_adapter.py:1): 5
+- [src/validation/validation_framework.py](src/validation/validation_framework.py:1): 4
+- [src/ui/ui_manager.py](src/ui/ui_manager.py:1): 4
+- [src/trading/execution/fix_executor.py](src/trading/execution/fix_executor.py:1): 4

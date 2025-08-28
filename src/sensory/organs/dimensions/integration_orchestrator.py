@@ -23,18 +23,26 @@ from src.core.types import JSONObject
 from src.sensory.enhanced.anomaly.manipulation_detection import (
     ManipulationDetectionSystem,
 )
-from src.sensory.enhanced.chaos.antifragile_adaptation import ChaosAdaptationSystem
+from src.sensory.enhanced.chaos.antifragile_adaptation import (
+    ChaosAdaptationSystem as EnhancedChaosAdaptationSystem,
+)
 from src.sensory.enhanced.how.institutional_footprint_hunter import (
-    InstitutionalFootprint,
-    InstitutionalFootprintHunter,
+    InstitutionalFootprint as EnhancedInstitutionalFootprint,
+)
+from src.sensory.enhanced.how.institutional_footprint_hunter import (
+    InstitutionalFootprintHunter as EnhancedInstitutionalFootprintHunter,
 )
 from src.sensory.enhanced.what.pattern_synthesis_engine import (
-    PatternSynthesis,
-    PatternSynthesisEngine,
+    PatternSynthesis as EnhancedPatternSynthesis,
+)
+from src.sensory.enhanced.what.pattern_synthesis_engine import (
+    PatternSynthesisEngine as EnhancedPatternSynthesisEngine,
 )
 from src.sensory.enhanced.when.temporal_advantage_system import (
-    TemporalAdvantage,
-    TemporalAdvantageSystem,
+    TemporalAdvantage as EnhancedTemporalAdvantage,
+)
+from src.sensory.enhanced.when.temporal_advantage_system import (
+    TemporalAdvantageSystem as EnhancedTemporalAdvantageSystem,
 )
 
 # Import all sensory dimensions
@@ -158,7 +166,7 @@ class SensoryIntegrationOrchestrator:
                 self.footprint_hunter.analyze_institutional_footprint(price_data),
                 self.pattern_engine.synthesize_patterns(price_data),
                 self.temporal_analyzer.analyze_timing(market_data),
-                self.anomaly_detector.detect_manipulation(cast(Mapping[str, object], market_data)),
+                self.anomaly_detector.detect_manipulation(market_data),
                 self.chaos_adapter.assess_chaos_opportunities(price_data),
             ]
 

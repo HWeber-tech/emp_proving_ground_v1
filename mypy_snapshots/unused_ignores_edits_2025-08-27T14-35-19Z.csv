@@ -1,0 +1,20 @@
+path,line_before,line_after,status
+/home/dev/emp_proving_ground_v1-1/src/core/genome.py,"        items = mapping.items() if isinstance(mapping, dict) else vars(mapping).items()  # type: ignore[arg-type]","        items = mapping.items() if isinstance(mapping, dict) else vars(mapping).items() ",removed
+/home/dev/emp_proving_ground_v1-1/src/data_integration/__init__.py,class RealDataManager:  # type: ignore,class RealDataManager: ,removed
+/home/dev/emp_proving_ground_v1-1/src/data_integration/__init__.py,class DataSourceConfig:  # type: ignore,class DataSourceConfig: ,removed
+/home/dev/emp_proving_ground_v1-1/src/data_integration/__init__.py,class YahooFinanceDataProvider:  # type: ignore,class YahooFinanceDataProvider: ,removed
+/home/dev/emp_proving_ground_v1-1/src/data_integration/__init__.py,class AlphaVantageDataProvider:  # type: ignore,class AlphaVantageDataProvider: ,removed
+/home/dev/emp_proving_ground_v1-1/src/data_integration/__init__.py,class FREDDataProvider:  # type: ignore,class FREDDataProvider: ,removed
+/home/dev/emp_proving_ground_v1-1/src/data_integration/__init__.py,class NewsAPIDataProvider:  # type: ignore,class NewsAPIDataProvider: ,removed
+/home/dev/emp_proving_ground_v1-1/src/data_integration/__init__.py,class MarketDataValidator:  # type: ignore,class MarketDataValidator: ,removed
+/home/dev/emp_proving_ground_v1-1/src/data_integration/__init__.py,class DataConsistencyChecker:  # type: ignore,class DataConsistencyChecker: ,removed
+/home/dev/emp_proving_ground_v1-1/src/data_integration/__init__.py,class DataQualityMonitor:  # type: ignore,class DataQualityMonitor: ,removed
+/home/dev/emp_proving_ground_v1-1/src/data_integration/__init__.py,class ValidationLevel:  # type: ignore,class ValidationLevel: ,removed
+/home/dev/emp_proving_ground_v1-1/src/data_integration/__init__.py,class DataQualityThresholds:  # type: ignore,class DataQualityThresholds: ,removed
+/home/dev/emp_proving_ground_v1-1/src/data_integration/__init__.py,class DataIssue:  # type: ignore,class DataIssue: ,removed
+/home/dev/emp_proving_ground_v1-1/src/domain/models.py,"        obj = type(name, (), {})  # type: ignore[type-arg]","        obj = type(name, (), {})  # type: ignore[type-arg]",reverted
+/home/dev/emp_proving_ground_v1-1/src/sensory/models/__init__.py,"    SensoryReading as SensoryReading,  # type: ignore","    SensoryReading as SensoryReading, ",removed
+/home/dev/emp_proving_ground_v1-1/src/core/population_manager.py,                                perf_dict[k] = float(v)  # type: ignore[index],                                perf_dict[k] = float(v) ,removed
+/home/dev/emp_proving_ground_v1-1/src/core/population_manager.py,                    genome.fitness = 0.0  # type: ignore[assignment],                    genome.fitness = 0.0 ,removed
+/home/dev/emp_proving_ground_v1-1/src/core/population_manager.py,                    offspring_params[key] = float(val)  # type: ignore[arg-type],                    offspring_params[key] = float(val) ,removed
+/home/dev/emp_proving_ground_v1-1/src/core/population_manager.py,                                v = float(value)  # type: ignore[arg-type],                                v = float(value) ,removed

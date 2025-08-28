@@ -1,0 +1,7 @@
+Mypy Summary
+Generated: 2025-08-26T19-18-45Z UTC
+Snapshot: /home/dev/emp_proving_ground_v1-1/mypy_snapshots/mypy_snapshot_2025-08-26T19-18-45Z.txt
+
+Total errors: 227
+Total files with errors: 45
+

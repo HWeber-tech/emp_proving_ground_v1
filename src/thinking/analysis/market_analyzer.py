@@ -9,21 +9,30 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime
-from typing import Any, Dict, List, Optional, cast
+from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Optional, Protocol, TypeAlias, cast
 
 import numpy as np
 
-from src.core.exceptions import ThinkingException
+from src.core.exceptions import TradingException
 
-try:
+if TYPE_CHECKING:
     from src.core.interfaces import AnalysisResult, SensorySignal, ThinkingPattern
-except Exception:  # pragma: no cover
-    ThinkingPattern = SensorySignal = AnalysisResult = object
+else:
+    AnalysisResult: TypeAlias = Any
+    SensorySignal: TypeAlias = Any
+    ThinkingPattern: TypeAlias = Any
 
 from .performance_analyzer import PerformanceAnalyzer
 from .risk_analyzer import RiskAnalyzer
 
 logger = logging.getLogger(__name__)
+
+
+# typing-only protocol for signal attributes used locally
+class _SignalProto(Protocol):
+    signal_type: str
+    value: float
+    confidence: float
 
 
 class MarketAnalyzer(ThinkingPattern):
@@ -53,22 +62,27 @@ class MarketAnalyzer(ThinkingPattern):
             )
 
             # Create unified market analysis result
-            return AnalysisResult(
-                timestamp=datetime.now(),
-                analysis_type="market_analysis",
-                result=combined_analysis,
-                confidence=self._calculate_overall_confidence(performance_result, risk_result),
-                metadata={
-                    "analysis_components": ["performance", "risk"],
-                    "signal_count": len(signals),
-                    "analysis_method": "comprehensive_market_analysis",
+            return cast(
+                AnalysisResult,
+                {
+                    "timestamp": datetime.now(),
+                    "analysis_type": "market_analysis",
+                    "result": combined_analysis,
+                    "confidence": self._calculate_overall_confidence(
+                        performance_result, risk_result
+                    ),
+                    "metadata": {
+                        "analysis_components": ["performance", "risk"],
+                        "signal_count": len(signals),
+                        "analysis_method": "comprehensive_market_analysis",
+                    },
                 },
             )
 
         except Exception as e:
-            raise ThinkingException(f"Error in market analysis: {e}")
+            raise TradingException(f"Error in market analysis: {e}")
 
-    def learn(self, feedback: dict[str, object]) -> bool:
+    def learn(self, feedback: Mapping[str, object]) -> bool:
         """Learn from feedback to improve market analysis."""
         try:
             # Delegate learning to component analyzers
@@ -114,6 +128,7 @@ class MarketAnalyzer(ThinkingPattern):
 
     def _calculate_market_sentiment(self, signals: list[SensorySignal]) -> dict[str, object]:
         """Calculate market sentiment from sensory signals."""
+        signals_t = cast(list[_SignalProto], signals)
         if not signals:
             return {"overall_sentiment": 0.5, "confidence": 0.0, "signal_count": 0}
 
@@ -121,7 +136,7 @@ class MarketAnalyzer(ThinkingPattern):
         sentiment_values: list[float] = []
         confidences: list[float] = []
 
-        for signal in signals:
+        for signal in signals_t:
             if signal.signal_type in ["sentiment", "momentum", "price_composite"]:
                 sentiment_values.append(float(signal.value))  # ensure numeric as float
                 confidences.append(float(signal.confidence))
@@ -235,6 +250,7 @@ class MarketAnalyzer(ThinkingPattern):
 
     def _assess_signal_quality(self, signals: list[SensorySignal]) -> dict[str, object]:
         """Assess the quality of sensory signals."""
+        signals_t = cast(list[_SignalProto], signals)
         if not signals:
             return {
                 "quality_score": 0.0,
@@ -244,7 +260,7 @@ class MarketAnalyzer(ThinkingPattern):
             }
 
         # Calculate quality metrics
-        confidences: list[float] = [float(s.confidence) for s in signals]
+        confidences: list[float] = [float(s.confidence) for s in signals_t]
         average_confidence = float(np.mean(confidences)) if confidences else 0.0
 
         # Calculate quality score

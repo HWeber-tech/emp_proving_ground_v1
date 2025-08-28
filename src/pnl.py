@@ -197,7 +197,8 @@ class EnhancedPosition:
             return
 
         # Parse swap time
-        swap_hour, swap_minute = map(int, instrument.swap_time.split(":"))
+        swap_time_s = str(getattr(instrument, "swap_time", "00:00"))
+        swap_hour, swap_minute = map(int, swap_time_s.split(":"))
         swap_time = current_time.replace(
             hour=swap_hour, minute=swap_minute, second=0, microsecond=0
         )
@@ -210,9 +211,11 @@ class EnhancedPosition:
 
             # Apply appropriate swap rate
             if self.quantity > 0:  # Long position
-                swap_fee = instrument.long_swap_rate * abs(self.quantity)
+                long_rate = float(getattr(instrument, "long_swap_rate", 0.0))
+                swap_fee = Decimal(str(long_rate)) * abs(self.quantity)
             else:  # Short position
-                swap_fee = instrument.short_swap_rate * abs(self.quantity)
+                short_rate = float(getattr(instrument, "short_swap_rate", 0.0))
+                swap_fee = Decimal(str(short_rate)) * abs(self.quantity)
 
             # Add to trade history
             swap_record = TradeRecord(

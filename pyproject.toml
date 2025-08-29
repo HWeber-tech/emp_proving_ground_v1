@@ -58,7 +58,7 @@ src_paths = ["src", "tests", "stubs"]
 
 [tool.mypy]
 python_version = "3.11"
-mypy_path = ["stubs"]
+mypy_path = ["stubs/src", "stubs", "src"]
 namespace_packages = true
 explicit_package_bases = true
 warn_unused_configs = true

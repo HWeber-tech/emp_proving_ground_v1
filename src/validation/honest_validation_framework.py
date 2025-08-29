@@ -25,15 +25,9 @@ import pandas as pd
 from src.core.market_data import MarketDataGateway, NoOpMarketDataGateway
 from src.core.regime import NoOpRegimeClassifier, RegimeClassifier, RegimeResult
 
-try:
-    from src.core.interfaces import DecisionGenome
-except Exception:  # pragma: no cover
-    DecisionGenome = object
-
 if TYPE_CHECKING:
-    from src.core.interfaces import DecisionGenome as _DecisionGenome  # noqa: F401
+    from src.core.interfaces import DecisionGenome  # type: ignore
 else:
-
     class DecisionGenome:  # minimal runtime placeholder
         pass
 

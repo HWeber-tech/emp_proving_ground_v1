@@ -21,22 +21,24 @@ logger = logging.getLogger(__name__)
 
 # Guarded imports of concrete genome functions/classes
 if TYPE_CHECKING:
-    from src.genome.models.genome import DecisionGenome  # type-only
+    from src.core.interfaces import DecisionGenome  # type-only
 try:
-    from src.genome.models.genome import DecisionGenome as _DecisionGenome
-    from src.genome.models.genome import mutate as _mutate
-    from src.genome.models.genome import new_genome as _new_genome
+    # Import concrete implementations into distinct names to avoid
+    # shadowing/type-redefinition with type-only imports.
+    from src.genome.models.genome import DecisionGenome as _DecisionGenome_impl
+    from src.genome.models.genome import mutate as _mutate_impl
+    from src.genome.models.genome import new_genome as _new_genome_impl
 except Exception:
-    _DecisionGenome: Any = None
-    _mutate: Any = None
-    _new_genome: Any = None
+    _DecisionGenome_impl: Any = None
+    _mutate_impl: Any = None
+    _new_genome_impl: Any = None
 
 try:
-    from src.genome.models.adapters import from_legacy as _from_legacy
-    from src.genome.models.adapters import to_legacy_view as _to_legacy_view
+    from src.genome.models.adapters import from_legacy as _from_legacy_impl
+    from src.genome.models.adapters import to_legacy_view as _to_legacy_view_impl
 except Exception:
-    _from_legacy: Any = None
-    _to_legacy_view: Any = None
+    _from_legacy_impl: Any = None
+    _to_legacy_view_impl: Any = None
 
 
 def _coerce_float_map(mapping: Any) -> Dict[str, float]:
@@ -142,8 +144,8 @@ class GenomeProviderAdapter:
         species_type: Optional[str] = None,
     ) -> Any:
         try:
-            if callable(_new_genome):
-                return _new_genome(
+            if callable(_new_genome_impl):
+                return _new_genome_impl(
                     id=id,
                     parameters=parameters,
                     generation=generation,
@@ -169,8 +171,8 @@ class GenomeProviderAdapter:
 
     def mutate(self, genome: Any, mutation: str, new_params: Dict[str, float]) -> Any:
         try:
-            if callable(_mutate) and _is_decision_genome(genome):
-                return _mutate(genome, mutation, new_params)
+            if callable(_mutate_impl) and _is_decision_genome(genome):
+                return _mutate_impl(genome, mutation, new_params)
         except Exception as e:
             logger.error("GenomeProviderAdapter.mutate failed via concrete impl: %s", e)
         # Fallback: shallow param update + mutation tag
@@ -211,8 +213,8 @@ class GenomeProviderAdapter:
 
     def from_legacy(self, obj: Any) -> Any:
         try:
-            if callable(_from_legacy):
-                return _from_legacy(obj)
+            if callable(_from_legacy_impl):
+                return _from_legacy_impl(obj)
         except Exception as e:
             logger.error("GenomeProviderAdapter.from_legacy failed via concrete impl: %s", e)
         # Fallback adaptation
@@ -243,8 +245,8 @@ class GenomeProviderAdapter:
 
     def to_legacy_view(self, genome: Any) -> Dict[str, Any] | Any:
         try:
-            if callable(_to_legacy_view) and _is_decision_genome(genome):
-                return _to_legacy_view(genome)
+            if callable(_to_legacy_view_impl) and _is_decision_genome(genome):
+                return _to_legacy_view_impl(genome)
         except Exception as e:
             logger.error("GenomeProviderAdapter.to_legacy_view failed via concrete impl: %s", e)
         # Fallbacks

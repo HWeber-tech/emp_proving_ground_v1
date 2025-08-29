@@ -14,7 +14,7 @@ import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, cast
 
 import numpy as np
 
@@ -23,6 +23,18 @@ from src.core.base import MarketData
 from .data_validation import MarketDataValidator, ValidationLevel
 
 logger = logging.getLogger(__name__)
+
+# Local typing Protocol to indicate objects that expose a `volatility` attribute.
+# This is a local typing-only hint to satisfy mypy in this module without changing
+# the global MarketData dataclass or runtime behavior.
+try:
+    from typing import Protocol  # type: ignore
+except Exception:
+    from typing_extensions import Protocol  # type: ignore
+
+
+class _HasVolatility(Protocol):
+    volatility: float
 
 
 class DataSource(Enum):
@@ -107,7 +119,7 @@ class DataHarmonizer:
                     bid=data.bid,
                     ask=data.ask,
                     volume=data.volume,
-                    volatility=data.volatility,
+                    volatility=cast(_HasVolatility, data).volatility,
                 )
 
                 harmonized.append((source, harmonized_data))
@@ -232,7 +244,7 @@ class ConflictResolver:
             weighted_bid += data.bid * weight
             weighted_ask += data.ask * weight
             weighted_volume += data.volume * weight
-            weighted_volatility += data.volatility * weight
+            weighted_volatility += cast(_HasVolatility, data).volatility * weight
 
         if total_weight == 0:
             # Fallback to simple average
@@ -280,7 +292,7 @@ class ConflictResolver:
             bid=np.median(bids),
             ask=np.median(asks),
             volume=int(np.median(volumes)),
-            volatility=np.median(volatilities),
+            volatility=np.median([cast(_HasVolatility, data).volatility for _, data, _ in data_points]),
         )
 
     def _simple_average_resolution(
@@ -300,7 +312,7 @@ class ConflictResolver:
             bid=np.mean(bids),
             ask=np.mean(asks),
             volume=int(np.mean(volumes)),
-            volatility=np.mean(volatilities),
+            volatility=np.mean([cast(_HasVolatility, data).volatility for _, data, _ in data_points]),
         )
 
 
@@ -393,8 +405,8 @@ class DataFusionEngine:
                 timestamp=resolved_data.timestamp,
                 bid=resolved_data.bid,
                 ask=resolved_data.ask,
-                volume=resolved_data.volume,
-                volatility=resolved_data.volatility,
+                volume=int(resolved_data.volume),
+                volatility=cast(_HasVolatility, resolved_data).volatility,
                 confidence=overall_confidence,
                 sources_used=[source for source, _, _ in filtered_data],
                 conflicts_resolved=conflicts,

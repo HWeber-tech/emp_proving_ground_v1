@@ -11,7 +11,11 @@ import logging
 from datetime import datetime
 from typing import Any, Dict, Optional, Protocol, cast
 
-from src.core.base import MarketData, SensoryOrgan, SensoryReading
+from src.sensory.organs.dimensions.base_organ import (
+    MarketData,
+    SensoryOrgan,
+    SensoryReading,
+)
 
 logger = logging.getLogger(__name__)
 

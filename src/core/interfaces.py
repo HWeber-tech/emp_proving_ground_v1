@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import (
     TYPE_CHECKING,
+    Any,
     Callable,
     Dict,
     List,
@@ -100,11 +101,26 @@ class DecisionGenome(Protocol):
     Minimal surface: fields actually consumed by optimizers/factories.
     """
 
+    # Core canonical fields (kept narrow)
     id: str
     parameters: Mapping[str, float]
     fitness: Optional[float] | None
     generation: int
     species_type: Optional[str] | None
+
+    # The mutation implementation in src.evolution.mutation.gaussian_mutation
+    # expects a few additional, runtime-only attributes (legacy/adapter surface).
+    # These are optional from a structural typing perspective and declared here
+    # to satisfy mypy for mutation consumers without importing concrete genome types.
+    genome_id: str | None
+    mutation_count: int | None
+    strategy: Any | None
+    risk: Any | None
+    timing: Any | None
+    sensory: Any | None
+    thinking: Any | None
+
+    def _normalize_weights(self) -> None: ...
 
 
 @runtime_checkable
@@ -279,6 +295,33 @@ class AnalysisResult(TypedDict, total=False):
     summary: str
     score: float
     details: Mapping[str, object]
+
+
+# Mutation strategy protocol used by evolution modules.
+@runtime_checkable
+class IMutationStrategy(Protocol):
+    """Protocol for mutation strategies consumed by the evolution engine.
+
+    Introduced to provide a stable, importable interface for mutation implementations
+    (e.g., GaussianMutation) without creating runtime coupling to evolution packages.
+    """
+
+    def mutate(self, genome: "DecisionGenome", mutation_rate: float) -> "DecisionGenome": ...
+    @property
+    def name(self) -> str: ...
+    def __repr__(self) -> str: ...
+
+
+# Provide a TYPE_CHECKING-only alias to the canonical DecisionGenome dataclass to
+# allow stronger static checks in modules that can import the concrete model.
+# This avoids runtime import cycles while keeping typing precise.
+if TYPE_CHECKING:
+    try:
+        from src.genome.models.genome import DecisionGenome as _CanonicalDecisionGenome  # type: ignore
+        DecisionGenome = _CanonicalDecisionGenome  # type: ignore[assignment]
+    except Exception:
+        # Fallback: keep Protocol-based DecisionGenome at runtime.
+        pass
 
 
 # === End Interfaces hub ===

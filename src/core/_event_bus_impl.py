@@ -20,7 +20,7 @@ import time
 import warnings
 from concurrent.futures import TimeoutError as FuturesTimeoutError
 from dataclasses import dataclass, field
-from typing import Any, Awaitable, Callable, Dict, Optional, Set, Tuple, cast
+from typing import Any, Awaitable, Callable, Dict, Optional, Set, Tuple, cast, overload
 
 logger = logging.getLogger(__name__)
 
@@ -121,8 +121,29 @@ class AsyncEventBus:
                 "Unsubscribed handler %r from event_type %s (id=%d)", handler, event_type, handle.id
             )
 
-    async def publish(self, event: Event) -> None:
-        """Enqueue event for async processing; logs and no-ops if not running."""
+    @overload
+    async def publish(self, event: "Event") -> None:  # pragma: no cover - typing-only overload
+        ...
+    
+    @overload
+    async def publish(self, topic: str, data: object) -> None:  # pragma: no cover - typing-only overload
+        ...
+    
+    async def publish(self, event_or_topic: "Event" | str, data: object | None = None) -> None:
+        """Enqueue event for async processing.
+    
+        Runtime accepts either:
+        - an Event instance (canonical form), or
+        - (topic: str, data: object) pair for legacy/compat callers (e.g. UI).
+    
+        Behavior: if the bus is not running the call logs and no-ops, preserving existing behavior.
+        """
+        # Normalize to Event
+        if isinstance(event_or_topic, str):
+            event = Event(type=event_or_topic, payload=data)
+        else:
+            event = event_or_topic
+    
         if not self._running or self._loop is None:
             if not self._warned_not_running_publish:
                 self._warned_not_running_publish = True
@@ -183,6 +204,24 @@ class AsyncEventBus:
                 pass
         self._worker_task = None
         logger.info("AsyncEventBus stopped")
+
+    async def connect(self) -> None:
+        """Compatibility shim: start the bus/workers.
+
+        Present for callers that expect an async connect()/disconnect() lifecycle
+        (e.g. UI). This forwards to start() and intentionally performs no additional
+        runtime behavior beyond starting the internal worker.
+        """
+        await self.start()
+
+    async def disconnect(self) -> None:
+        """Compatibility shim: stop the bus/workers.
+
+        Present for callers that expect an async connect()/disconnect() lifecycle
+        (e.g. UI). This forwards to stop() and intentionally performs no additional
+        runtime behavior beyond stopping the internal worker.
+        """
+        await self.stop()
 
     def is_running(self) -> bool:
         return self._running

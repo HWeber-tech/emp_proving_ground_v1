@@ -7,17 +7,12 @@ Implements the IMutationStrategy interface for introducing genetic diversity.
 
 from __future__ import annotations
 
+import copy
 import logging
 import random
-from typing import TYPE_CHECKING, Any, cast
+from typing import cast
 
-try:
-    from src.core.interfaces import DecisionGenome, IMutationStrategy
-except Exception:  # pragma: no cover
-    from typing import Any as _Any
-
-    IMutationStrategy = _Any  # type: ignore[assignment]
-    DecisionGenome = _Any  # type: ignore[assignment]
+from src.core.interfaces import DecisionGenome, IMutationStrategy
 
 logger = logging.getLogger(__name__)
 
@@ -50,16 +45,15 @@ class GaussianMutation(IMutationStrategy):
         Returns:
             Mutated genome
         """
-        import copy
-
         # Create a deep copy to avoid modifying the original
         mutated = copy.deepcopy(genome)
 
-        # Update genome ID and mutation count (operate via local Any to satisfy typing)
-        _m = cast(Any, mutated)
-        _g = cast(Any, genome)
+        # Narrow to protocol type for typing while preserving runtime behavior.
+        _m = cast(DecisionGenome, mutated)
+        _g = cast(DecisionGenome, genome)
+        # Safely update adapter-style fields used by downstream systems.
         _m.genome_id = f"{_g.genome_id}_mutated_{random.randint(1000, 9999)}"
-        _m.mutation_count = _g.mutation_count + 1
+        _m.mutation_count = ( _g.mutation_count or 0 ) + 1
 
         # Mutate strategy parameters
         strategy: Any = _m.strategy
@@ -150,7 +144,7 @@ class GaussianMutation(IMutationStrategy):
                 )
                 mutated_any = True
 
-        # Normalize weights after mutation
+        # Normalize weights after mutation (protocol exposes this method)
         _m._normalize_weights()
 
         return mutated

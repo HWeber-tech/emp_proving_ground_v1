@@ -118,7 +118,7 @@ class MarketAnalyzer(ThinkingPattern):
         market_sentiment = self._calculate_market_sentiment(signals)
 
         # Create combined analysis
-        combined_analysis = {
+        combined_analysis: dict[str, object] = {
             "market_sentiment": market_sentiment,
             "performance_metrics": performance_metrics,
             "risk_metrics": risk_metrics,

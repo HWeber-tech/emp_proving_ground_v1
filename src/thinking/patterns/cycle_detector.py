@@ -9,26 +9,30 @@ import logging
 from dataclasses import dataclass
 from datetime import datetime
 
-# Add Mapping and cast for typing-safe minimal fixes
-from typing import Any, Dict, List, Mapping, Optional, cast
+# Add Mapping, TYPE_CHECKING and cast for typing-safe minimal fixes
+from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Optional, cast, TypeAlias
 
 import numpy as np
 
-try:
+if TYPE_CHECKING:
+    # Prefer the canonical interfaces during static analysis only.
     from src.core.interfaces import AnalysisResult, SensorySignal, ThinkingPattern
-except Exception:  # pragma: no cover
-    # Fall back to Any-typed TypeAlias definitions to avoid assigning to a type name
-    from typing import Any as _Any
-    from typing import TypeAlias as _TypeAlias
+else:
+    # Runtime fallback: use opaque TypeAlias -> Any to avoid assigning runtime types
+    _Any = Any
+    ThinkingPattern: TypeAlias = _Any
+    SensorySignal: TypeAlias = _Any
+    AnalysisResult: TypeAlias = Dict[str, object]
 
-    ThinkingPattern: _TypeAlias = _Any
-    SensorySignal: _TypeAlias = _Any
-    AnalysisResult: _TypeAlias = Dict[str, object]
-# Guard the exception import: alias TradingException if ThinkingException absent
-try:
-    from src.core.exceptions import ThinkingException
-except Exception:  # pragma: no cover
+# Guard the exception import: alias TradingException if ThinkingException absent.
+if TYPE_CHECKING:
+    # During static analysis prefer the canonical exception name but map to TradingException
     from src.core.exceptions import TradingException as ThinkingException
+else:
+    try:
+        from src.core.exceptions import ThinkingException  # runtime if present
+    except Exception:  # pragma: no cover
+        from src.core.exceptions import TradingException as ThinkingException
 
 logger = logging.getLogger(__name__)
 
@@ -333,7 +337,9 @@ class CycleDetector(ThinkingPattern):
 
         # Combine confidence factors
         overall_confidence = (cycle_confidence + regularity_confidence + strength_confidence) / 3.0
-        return float(max(0.0, min(1.0, overall_confidence)))
+        # Coerce to plain float before using min/max to satisfy mypy's type-variable constraints
+        oc: float = float(overall_confidence)
+        return float(max(0.0, min(1.0, oc)))
 
     def _create_neutral_result(self) -> AnalysisResult:
         """Create neutral result when no cycles are detected."""

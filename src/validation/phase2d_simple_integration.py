@@ -24,15 +24,14 @@ from src.core.anomaly import AnomalyDetector, NoOpAnomalyDetector
 from src.core.market_data import MarketDataGateway, NoOpMarketDataGateway
 from src.core.regime import NoOpRegimeClassifier, RegimeClassifier
 
-try:
+from typing import TYPE_CHECKING, TypeAlias as _TypeAlias
+
+if TYPE_CHECKING:
     from src.core.interfaces import DecisionGenome as _DecisionGenome
-except Exception:  # pragma: no cover
-    # Provide a minimal placeholder class to avoid assigning to a type alias
-    class _DecisionGenome:  # type: ignore[too-many-ancestors]
+else:
+    # Runtime placeholder when src.core.interfaces is not importable during simple tooling runs
+    class _DecisionGenome:
         pass
-
-
-from typing import TypeAlias as _TypeAlias
 
 DecisionGenome: _TypeAlias = _DecisionGenome
 from src.core.risk_ports import NoOpRiskManager, RiskConfigDecl, RiskManagerPort

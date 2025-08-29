@@ -12,9 +12,17 @@ import logging
 import sqlite3
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, cast
+from typing import Any, Dict, List, Optional, Union, cast
+from enum import Enum
 
 logger = logging.getLogger(__name__)
+
+
+class StrategyStatus(Enum):
+    EVOLVED = "evolved"
+    APPROVED = "approved"
+    ACTIVE = "active"
+    INACTIVE = "inactive"
 
 
 class StrategyRegistry:
@@ -180,7 +188,7 @@ class StrategyRegistry:
             logger.error(f"Error retrieving strategy: {e}")
             return None
 
-    def update_strategy_status(self, strategy_id: str, new_status: str) -> bool:
+    def update_strategy_status(self, strategy_id: str, new_status: Union["StrategyStatus", str]) -> bool:
         """
         Update the status of a strategy.
 
@@ -193,8 +201,10 @@ class StrategyRegistry:
         """
         try:
             cursor = self.conn.cursor()
+            # Normalize enum to its string value if needed
+            status_str: str = new_status.value if isinstance(new_status, StrategyStatus) else str(new_status)
             cursor.execute(
-                "UPDATE strategies SET status = ? WHERE genome_id = ?", (new_status, strategy_id)
+                "UPDATE strategies SET status = ? WHERE genome_id = ?", (status_str, strategy_id)
             )
 
             if cursor.rowcount > 0:

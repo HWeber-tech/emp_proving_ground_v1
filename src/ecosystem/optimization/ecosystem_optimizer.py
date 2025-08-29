@@ -597,7 +597,9 @@ async def test_ecosystem_optimizer() -> None:
 
     # Optimize ecosystem
     optimized = await optimizer.optimize_ecosystem(
-        test_populations, market_context, performance_history
+        cast(Mapping[str, Sequence["DecisionGenome"]], test_populations),
+        market_context,
+        performance_history,
     )
 
     print("Ecosystem Optimization Complete")

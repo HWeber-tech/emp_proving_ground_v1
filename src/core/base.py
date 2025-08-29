@@ -129,8 +129,10 @@ class MarketData:
             cast(Optional[Union[float, int, str]], kwargs.pop("volume", None)), default=0.0
         )
 
-        # Accept and ignore legacy extras
-        kwargs.pop("volatility", None)  # accepted but not used
+        # Accept legacy volatility and persist as a normalized float for compatibility
+        self.volatility: float = _to_float(
+            cast(Optional[Union[float, int, str]], kwargs.pop("volatility", None)), default=0.0
+        )
 
         # Retain any additional fields as passthrough (non-breaking)
         for k, v in kwargs.items():

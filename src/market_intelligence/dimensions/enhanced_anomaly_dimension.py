@@ -5,7 +5,7 @@ from typing import Dict
 
 # PEP 562 lazy forwarding to canonical sensory implementation
 _LAZY_EXPORTS: dict[str, str] = {
-    "AnomalyIntelligenceEngine": "src.sensory.enhanced.anomaly_dimension:AnomalyIntelligenceEngine",
+    "AnomalyIntelligenceEngine": "sensory.enhanced.anomaly_dimension:AnomalyIntelligenceEngine",
 }
 
 __all__ = list(_LAZY_EXPORTS.keys())

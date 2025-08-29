@@ -26,7 +26,7 @@ from src.core.market_data import MarketDataGateway, NoOpMarketDataGateway
 from src.core.regime import NoOpRegimeClassifier, RegimeClassifier, RegimeResult
 
 if TYPE_CHECKING:
-    from src.core.interfaces import DecisionGenome  # type: ignore
+    from src.core.interfaces import DecisionGenome
 else:
     class DecisionGenome:  # minimal runtime placeholder
         pass

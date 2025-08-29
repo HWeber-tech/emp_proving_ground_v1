@@ -11,7 +11,7 @@ import logging
 from datetime import datetime
 from typing import Any, Dict, Optional, Protocol, cast
 
-from src.sensory.organs.dimensions.base_organ import (
+from sensory.organs.dimensions.base_organ import (
     MarketData,
     SensoryOrgan,
     SensoryReading,

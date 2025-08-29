@@ -10,7 +10,7 @@ from __future__ import annotations
 import copy
 import logging
 import random
-from typing import cast
+from typing import Any, cast
 
 from src.core.interfaces import DecisionGenome, IMutationStrategy
 

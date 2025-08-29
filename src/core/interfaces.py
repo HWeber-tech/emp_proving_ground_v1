@@ -318,7 +318,10 @@ class IMutationStrategy(Protocol):
 if TYPE_CHECKING:
     try:
         from src.genome.models.genome import DecisionGenome as _CanonicalDecisionGenome  # type: ignore
-        DecisionGenome = _CanonicalDecisionGenome  # type: ignore[assignment]
+        # Expose a TYPE_CHECKING-only name so other modules can refer to the
+        # concrete dataclass when statically analyzing without reassigning the
+        # runtime Protocol name.
+        _DecisionGenomeConcrete = _CanonicalDecisionGenome  # type: ignore
     except Exception:
         # Fallback: keep Protocol-based DecisionGenome at runtime.
         pass

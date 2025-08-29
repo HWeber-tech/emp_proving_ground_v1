@@ -29,16 +29,16 @@ try:
     from src.genome.models.genome import mutate as _mutate_impl
     from src.genome.models.genome import new_genome as _new_genome_impl
 except Exception:
-    _DecisionGenome_impl: Any = None
-    _mutate_impl: Any = None
-    _new_genome_impl: Any = None
+    _DecisionGenome_impl: Any = None  # type: ignore[no-redef]
+    _mutate_impl: Any = None  # type: ignore[no-redef]
+    _new_genome_impl: Any = None  # type: ignore[no-redef]
 
 try:
     from src.genome.models.adapters import from_legacy as _from_legacy_impl
     from src.genome.models.adapters import to_legacy_view as _to_legacy_view_impl
 except Exception:
-    _from_legacy_impl: Any = None
-    _to_legacy_view_impl: Any = None
+    _from_legacy_impl: Any = None  # type: ignore[no-redef]
+    _to_legacy_view_impl: Any = None  # type: ignore[no-redef]
 
 
 def _coerce_float_map(mapping: Any) -> Dict[str, float]:

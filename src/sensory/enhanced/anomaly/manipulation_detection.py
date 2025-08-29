@@ -1,5 +1,5 @@
 """
-Stub module to satisfy optional import: src.sensory.enhanced.anomaly.manipulation_detection
+Stub module to satisfy optional import: sensory.enhanced.anomaly.manipulation_detection
 Runtime-safe no-op implementation for validation flows.
 """
 

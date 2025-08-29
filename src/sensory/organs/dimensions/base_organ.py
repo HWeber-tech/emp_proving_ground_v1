@@ -13,9 +13,25 @@ import logging
 from abc import ABC, abstractmethod
 from datetime import datetime, time
 from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING
 
-from pydantic import BaseModel, Field, model_validator, validator
+# Pydantic v1/v2 compatibility: expose model_validator to type checkers while
+# providing a safe runtime shim if pydantic < v2 is installed.
+if TYPE_CHECKING:
+    from pydantic import BaseModel, Field, model_validator, validator
+else:
+    try:
+        from pydantic import BaseModel, Field, model_validator, validator
+    except Exception:
+        # Runtime fallback for pydantic v1: import available symbols and provide a
+        # no-op model_validator decorator that returns the wrapped function unchanged.
+        from pydantic import BaseModel, Field, validator  # type: ignore
+
+        def model_validator(*_args: object, **_kwargs: object):
+            def _identity(fn):
+                return fn
+
+            return _identity
 
 from src.trading.order_management.order_book.snapshot import OrderBookLevel as OrderBookLevel
 from src.trading.order_management.order_book.snapshot import OrderBookSnapshot as OrderBookSnapshot
@@ -204,6 +220,8 @@ class MarketData(BaseModel):
     # Derived fields
     spread: float = Field(default=0.0)
     mid_price: float = Field(default=0.0)
+    # Backward-compatible optional volatility field (some modules read data.volatility)
+    volatility: Optional[float] = None
 
     # Optional Level 2 data
     bid_volume: Optional[float] = None

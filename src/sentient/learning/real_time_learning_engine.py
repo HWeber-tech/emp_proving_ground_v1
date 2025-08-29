@@ -183,3 +183,53 @@ class RealTimeLearningEngine:
             "total_pnl": sum([s.pnl for s in signals]),
             "signal_types": {t.value: len(self.get_signals_by_type(t)) for t in LearningSignalType},
         }
+
+    # Compatibility adapter -------------------------------------------------
+    async def process_outcome(
+        self, market_event: object, strategy_response: dict[str, Any], outcome: dict[str, Any]
+    ) -> "LearningSignal":
+        """
+        Compatibility helper expected by SentientAdaptationEngine.
+
+        Accepts:
+          - market_event: object with attributes (pattern_vector, context, symbol, timestamp)
+          - strategy_response: mapping with strategy metadata and confidence
+          - outcome: mapping with pnl, duration, volatility, etc.
+
+        This constructs a best-effort trade_data dict and delegates to the
+        existing process_closed_trade implementation so learning signals are
+        produced consistently.
+        """
+        # Build minimal trade_data shape expected by process_closed_trade
+        try:
+            pattern_vec = getattr(market_event, "pattern_vector", None)
+        except Exception:
+            pattern_vec = None
+
+        trade_data: dict[str, Any] = {
+            "trade_id": strategy_response.get("strategy_id", f"rtle_{int(datetime.utcnow().timestamp())}"),
+            "close_time": getattr(market_event, "timestamp", datetime.utcnow()).isoformat()
+            if getattr(market_event, "timestamp", None)
+            else datetime.utcnow().isoformat(),
+            "pnl": outcome.get("pnl", 0.0),
+            "duration": outcome.get("duration", 0),
+            "max_drawdown": outcome.get("max_drawdown", 0),
+            "max_profit": outcome.get("max_profit", 0),
+            "price_change": outcome.get("price_change", 0),
+            "volume": outcome.get("volume", 0),
+            "avg_volume": outcome.get("avg_volume", 1),
+            "strategy": strategy_response.get("strategy_id", "unknown"),
+            "market_condition": getattr(market_event, "context", {}).get("regime", "neutral")
+            if getattr(market_event, "context", None)
+            else "neutral",
+            "volatility": outcome.get("volatility", 0),
+            "recent_trades": strategy_response.get("recent_trades", []),
+            "entry_price": outcome.get("entry_price", 0),
+            "price_momentum": outcome.get("price_momentum", 0),
+            "volume_ratio": outcome.get("volume_ratio", 1),
+            "volatility_ratio": outcome.get("volatility_ratio", 1),
+            "microstructure_score": outcome.get("microstructure_score", 0),
+        }
+
+        # Delegate to existing processing pipeline for consistency.
+        return await self.process_closed_trade(trade_data)

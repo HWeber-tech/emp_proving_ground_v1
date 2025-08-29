@@ -153,7 +153,17 @@ class UIManager:
     async def broadcast_event(self, event_type: str, data: Dict[str, Any]) -> None:
         """Broadcast an event to all connected clients"""
         if self._connected:
-            await self.event_bus.publish(f"ui.{event_type}", data)
+            # Prefer canonical Event publishing when the core Event is available.
+            try:
+                # Import at runtime to avoid import cycles and support environments
+                # where the core Event may not be present (testing fallback).
+                from src.core.event_bus import Event as CoreEvent  # type: ignore
+
+                evt = CoreEvent(type=f"ui.{event_type}", payload=data)
+                await self.event_bus.publish(evt)  # type: ignore[arg-type]
+            except Exception:
+                # Fallback to legacy (topic, payload) call for compatibility.
+                await self.event_bus.publish(f"ui.{event_type}", data)
 
     def format_strategy_table(self, strategies: List[Dict[str, Any]]) -> str:
         """Format strategies as a readable table"""

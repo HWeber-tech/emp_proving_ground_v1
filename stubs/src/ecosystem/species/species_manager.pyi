@@ -1,0 +1,9 @@
+from __future__ import annotations
+from typing import Any, List
+
+class SpeciesManager:
+    def list_species(self) -> List[str]: ...
+    def get_species(self, name: str) -> Any: ...
+    def register_species(self, name: str, config: Any) -> bool: ...
+
+__all__ = ["SpeciesManager"]

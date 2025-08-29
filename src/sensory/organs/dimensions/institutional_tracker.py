@@ -643,20 +643,11 @@ class EnhancedHowAdapter:
             return MarketRegime.UNKNOWN
 
         if footprint.institutional_bias == "bullish":
-            from typing import Any as _Any
-            from typing import cast as _cast
-
-            return _cast(_Any, MarketRegime).BULLISH
+            return MarketRegime.TRENDING_STRONG
         elif footprint.institutional_bias == "bearish":
-            from typing import Any as _Any
-            from typing import cast as _cast
-
-            return _cast(_Any, MarketRegime).BEARISH
+            return MarketRegime.TRENDING_WEAK
         else:
-            from typing import Any as _Any
-            from typing import cast as _cast
-
-            return _cast(_Any, MarketRegime).RANGING
+            return MarketRegime.CONSOLIDATING
 
 
 # Example usage

@@ -22,7 +22,7 @@ from typing import Any, Dict, List, Optional, cast
 import numpy as np
 import pandas as pd
 
-from src.sensory.what.features.swing_analysis import (
+from sensory.what.features.swing_analysis import (
     calculate_extension_levels,
     calculate_fibonacci_levels,
     find_peaks,

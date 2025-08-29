@@ -16,7 +16,7 @@ from typing import Any, Dict, List, Optional, cast
 import pandas as pd
 
 from src.core.base import DimensionalReading, MarketData, MarketRegime
-from src.sensory.what.patterns.orchestrator import PatternOrchestrator
+from sensory.what.patterns.orchestrator import PatternOrchestrator
 
 logger = logging.getLogger(__name__)
 

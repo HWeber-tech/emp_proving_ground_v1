@@ -183,7 +183,12 @@ if __name__ == "__main__":
         print(f"  Timestamp: {context.timestamp}")
         print(f"  Has predictions: {'predictions' in context.metadata}")
         if "predictions" in context.metadata:
-            print(f"  Predictions count: {context.metadata['predictions'].get('count', 0)}")
+            preds = context.metadata.get("predictions")
+            # Narrow to a mapping before accessing .get to satisfy static checks
+            if isinstance(preds, dict):
+                print(f"  Predictions count: {preds.get('count', 0)}")
+            else:
+                print("  Predictions count: 0")
 
     # Run test
     asyncio.run(test_thinking_manager())

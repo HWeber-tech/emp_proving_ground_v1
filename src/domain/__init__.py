@@ -7,15 +7,17 @@ Separates domain concerns from infrastructure concerns.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Final
+from typing import TYPE_CHECKING, Final, Any
 
 # Explicit canonical re-exports (no namespace side-effects)
 from src.core.instrument import Instrument as Instrument
 
+# For static checking we avoid importing the dynamically-resolved RiskConfig
+# (it is loaded at runtime via importlib in src.core.risk.manager). Use an
+# Any alias while TYPE_CHECKING so mypy does not attempt to resolve the module.
 if TYPE_CHECKING:
-    from src.core.risk.manager import RiskConfig as RiskConfig
-else:  # Runtime fallback to satisfy attr-defined without import-time dependency
-
+    from typing import Any as RiskConfig  # type: ignore[misc]
+else:
     class _RiskConfigRT:
         pass
 

@@ -22,7 +22,7 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass
 from enum import Enum
-from typing import TYPE_CHECKING, Any, Dict, List, Protocol, Tuple, cast
+from typing import TYPE_CHECKING, Any, Dict, List, Protocol, Tuple, cast, Type
 
 from src.core.base import DimensionalReading, MarketData
 from src.market_intelligence.dimensions.enhanced_anomaly_dimension import AnomalyIntelligenceEngine
@@ -191,16 +191,23 @@ class EnhancedEngineProto(Protocol):
 
 class ContextualFusionEngine:
     def __init__(self) -> None:
-        # Engines
+        # Some import shims expose these symbols as import-time objects; cast them
+        # to a constructible Type[EnhancedEngineProto] to satisfy static typing.
         self._why: EnhancedEngineProto = cast(
-            EnhancedEngineProto, EnhancedFundamentalIntelligenceEngine()
+            EnhancedEngineProto, cast(Type[EnhancedEngineProto], EnhancedFundamentalIntelligenceEngine)()
         )
         self._how: EnhancedEngineProto = cast(
-            EnhancedEngineProto, InstitutionalIntelligenceEngine()
+            EnhancedEngineProto, cast(Type[EnhancedEngineProto], InstitutionalIntelligenceEngine)()
         )
-        self._what: EnhancedEngineProto = cast(EnhancedEngineProto, TechnicalRealityEngine())
-        self._when: EnhancedEngineProto = cast(EnhancedEngineProto, ChronalIntelligenceEngine())
-        self._anomaly: EnhancedEngineProto = cast(EnhancedEngineProto, AnomalyIntelligenceEngine())
+        self._what: EnhancedEngineProto = cast(
+            EnhancedEngineProto, cast(Type[EnhancedEngineProto], TechnicalRealityEngine)()
+        )
+        self._when: EnhancedEngineProto = cast(
+            EnhancedEngineProto, cast(Type[EnhancedEngineProto], ChronalIntelligenceEngine)()
+        )
+        self._anomaly: EnhancedEngineProto = cast(
+            EnhancedEngineProto, cast(Type[EnhancedEngineProto], AnomalyIntelligenceEngine)()
+        )
 
         # Public state used in tests
         self.current_readings: Dict[str, DimensionalReading] = {}

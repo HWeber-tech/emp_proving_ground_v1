@@ -13,7 +13,7 @@ from typing import Any, Dict
 
 import pandas as pd
 
-from src.sensory.organs.dimensions.pattern_engine import PatternSynthesisEngine
+from sensory.organs.dimensions.pattern_engine import PatternSynthesisEngine
 
 
 class PatternOrchestrator:

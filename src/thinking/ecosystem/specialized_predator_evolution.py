@@ -15,7 +15,7 @@ Re-exported:
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from src.ecosystem.coordination.coordination_engine import CoordinationEngine as CoordinationEngine
 from src.ecosystem.evaluation.niche_detector import (
@@ -28,7 +28,9 @@ from src.ecosystem.evolution.specialized_predator_evolution import (
 from src.ecosystem.optimization.ecosystem_optimizer import EcosystemOptimizer as EcosystemOptimizer
 
 if TYPE_CHECKING:  # pragma: no cover
-    from src.ecosystem.species.species_manager import SpeciesManager as SpeciesManager
+    # Avoid importing the concrete module here to prevent circular resolution during
+    # static analysis; alias to Any for light-weight typing in this layer.
+    SpeciesManager = Any
 else:  # runtime fallback for type-check-time only symbol
 
     class _SpeciesManagerRT:

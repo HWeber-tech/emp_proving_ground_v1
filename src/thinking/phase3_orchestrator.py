@@ -136,6 +136,16 @@ class Phase3Orchestrator:
 
         logger.info("Phase 3 Orchestrator initialized")
 
+    def _safe_int(self, value: object, default: int = 0) -> int:
+        """Safely coerce a value to int, returning default on failure."""
+        try:
+            # Only call int(...) on known acceptable types to satisfy overloads.
+            if isinstance(value, (int, float, str)):
+                return int(value)
+            return default
+        except Exception:
+            return default
+
     async def initialize(self) -> bool:
         """Initialize all Phase 3 systems."""
         try:
@@ -286,10 +296,12 @@ class Phase3Orchestrator:
                 outcome={"performance": 0.15},
             )
 
+            # Normalize adaptations to a sequence before taking length to satisfy mypy invariance
+            adaptations_seq = cast(Sequence[object], adaptation_result.get("adaptations", []) or [])
             return {
-                "adaptation_success": adaptation_result.get("success", False),
+                "adaptation_success": bool(adaptation_result.get("success", False)),
                 "learning_quality": adaptation_result.get("quality", 0.0),
-                "adaptations_applied": len(adaptation_result.get("adaptations", [])),
+                "adaptations_applied": len(adaptations_seq),
                 "confidence": adaptation_result.get("confidence", 0.0),
             }
 
@@ -560,7 +572,7 @@ class Phase3Orchestrator:
                         metrics["last_full_analysis_age_sec"] = max(
                             0, int((datetime.utcnow() - self.last_full_analysis).total_seconds())
                         )
-                    sleep_interval = min(5, int(self.config.get("update_frequency", 300)))
+                    sleep_interval = min(5, self._safe_int(self.config.get("update_frequency", 300), 300))
                 except Exception as inner:
                     logger.debug(f"Performance monitoring loop error: {inner}")
                     sleep_interval = 5
@@ -578,7 +590,7 @@ class Phase3Orchestrator:
                 try:
                     # Lightweight heartbeat; extend with real checks if needed
                     self.performance_metrics["heartbeat"] = datetime.utcnow().isoformat()
-                    sleep_interval = int(self.config.get("update_frequency", 300))
+                    sleep_interval = self._safe_int(self.config.get("update_frequency", 300), 300)
                 except Exception as inner:
                     logger.debug(f"Continuous analysis loop error: {inner}")
                     sleep_interval = 60

@@ -7,8 +7,8 @@ from typing import Any, List
 
 import pandas as pd
 
-from src.sensory.signals import SensorSignal
-from src.sensory.what.patterns.orchestrator import PatternOrchestrator
+from sensory.signals import SensorSignal
+from sensory.what.patterns.orchestrator import PatternOrchestrator
 
 
 class WhatSensor:

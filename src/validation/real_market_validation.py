@@ -30,7 +30,7 @@ from src.core.market_data import MarketDataGateway, NoOpMarketDataGateway
 from src.core.regime import NoOpRegimeClassifier, RegimeClassifier, RegimeResult
 
 if TYPE_CHECKING:
-    from src.core.interfaces import DecisionGenome  # type: ignore
+    from src.core.interfaces import DecisionGenome
 else:
     class DecisionGenome:  # minimal runtime placeholder
         pass
@@ -259,7 +259,7 @@ class RealMarketValidationFramework:
             total_classifications = 0
 
             for regime in regimes:
-                regime_date_dt = cast(datetime, pd.to_datetime(regime["date"]).to_pydatetime())
+                regime_date_dt = cast(datetime, pd.to_datetime(str(regime["date"])).to_pydatetime())
 
                 # Check if correctly identified crisis periods
                 for crisis_start, crisis_end in crisis_periods:

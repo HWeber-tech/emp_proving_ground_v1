@@ -11,7 +11,7 @@ from enum import Enum
 from typing import Dict, List, Optional
 
 # Re-export canonical SensoryReading to avoid duplicate class definitions (top-level for E402)
-from src.sensory.organs.dimensions.base_organ import SensoryReading as SensoryReading
+from sensory.organs.dimensions.base_organ import SensoryReading as SensoryReading
 
 
 class Sentiment(Enum):

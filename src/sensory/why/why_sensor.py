@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pandas as pd
 
-from src.sensory.signals import SensorSignal
+from sensory.signals import SensorSignal
 
 
 class WhySensor:

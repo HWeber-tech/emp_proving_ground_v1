@@ -14,7 +14,7 @@ import numpy as np
 
 from src.core.base import MarketData
 from src.core.exceptions import ResourceException as SensoryException
-from src.sensory.signals import SensorSignal as SensorySignal
+from sensory.signals import SensorSignal as SensorySignal
 
 logger = logging.getLogger(__name__)
 

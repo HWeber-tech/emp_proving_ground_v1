@@ -4,7 +4,7 @@ import importlib
 
 # PEP 562 lazy forwarding to canonical sensory implementation
 _LAZY_EXPORTS: dict[str, str] = {
-    "TechnicalRealityEngine": "src.sensory.enhanced.what_dimension:TechnicalRealityEngine",
+    "TechnicalRealityEngine": "sensory.enhanced.what_dimension:TechnicalRealityEngine",
 }
 
 __all__ = list(_LAZY_EXPORTS.keys())

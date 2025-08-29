@@ -11,7 +11,7 @@ from typing import Any, Dict, List, Optional, cast, Protocol
 import pandas as pd
 
 from ...config.portfolio_config import PortfolioConfig
-from src.trading.models import PortfolioSnapshot
+from src.trading.models import PortfolioSnapshot  # type: ignore[attr-defined]
 from src.trading.models.position import Position
 from ..monitoring.performance_tracker import PerformanceMetrics as PerformanceMetrics
 
@@ -177,7 +177,10 @@ class RealPortfolioMonitor:
                     cast(_HasExtendedPosition, position).status.value,
                     cast(_HasExtendedPosition, position).stop_loss,
                     cast(_HasExtendedPosition, position).take_profit,
-                    cast(_HasExtendedPosition, position).entry_time.isoformat(),
+                    # Narrow the optional entry_time before calling .isoformat()
+                    (lambda t: (t.isoformat() if t is not None else None))(
+                        cast(_HasExtendedPosition, position).entry_time
+                    ),
                     position.realized_pnl,
                     position.unrealized_pnl,
                 ),

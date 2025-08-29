@@ -20,7 +20,7 @@ import time
 import warnings
 from concurrent.futures import TimeoutError as FuturesTimeoutError
 from dataclasses import dataclass, field
-from typing import Any, Awaitable, Callable, Dict, Optional, Set, Tuple, cast, overload
+from typing import Any, Awaitable, Callable, Dict, Optional, Set, Tuple, cast
 
 logger = logging.getLogger(__name__)
 
@@ -121,14 +121,6 @@ class AsyncEventBus:
                 "Unsubscribed handler %r from event_type %s (id=%d)", handler, event_type, handle.id
             )
 
-    @overload
-    async def publish(self, event: "Event") -> None:  # pragma: no cover - typing-only overload
-        ...
-    
-    @overload
-    async def publish(self, topic: str, data: object) -> None:  # pragma: no cover - typing-only overload
-        ...
-    
     async def publish(self, event_or_topic: "Event" | str, data: object | None = None) -> None:
         """Enqueue event for async processing.
     

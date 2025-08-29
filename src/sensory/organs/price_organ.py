@@ -14,9 +14,9 @@ from typing import Any, Dict, List, Optional, cast
 
 import numpy as np
 
-from src.sensory.organs.dimensions.base_organ import SensoryOrgan
+from sensory.organs.dimensions.base_organ import SensoryOrgan
 from src.core.exceptions import ResourceException as SensoryException
-from src.sensory.signals import SensorSignal as SensorySignal
+from sensory.signals import SensorSignal as SensorySignal
 
 logger = logging.getLogger(__name__)
 

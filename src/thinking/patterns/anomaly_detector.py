@@ -12,16 +12,11 @@ from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Optional, TypeAlias,
 
 import numpy as np
 
-try:
+if TYPE_CHECKING:
     from src.core.interfaces import AnalysisResult, SensorySignal, ThinkingPattern
-except Exception:  # pragma: no cover
-    # Minimal placeholders to avoid assigning names directly to a type
-    class ThinkingPattern:  # type: ignore[no-redef]
-        pass
-
-    class SensorySignal:  # type: ignore[no-redef]
-        pass
-
+else:
+    ThinkingPattern: TypeAlias = Any
+    SensorySignal: TypeAlias = Any
     AnalysisResult: TypeAlias = Dict[str, object]
 from src.core.exceptions import TradingException
 

@@ -13,16 +13,9 @@ import logging
 from abc import ABC, abstractmethod
 from datetime import datetime, time
 from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple, Callable
+from typing import Any, Dict, List, Optional, Tuple
 
-from pydantic import BaseModel, Field, validator
-try:
-    from pydantic import model_validator as model_validator  # type: ignore[attr-defined]
-except Exception:
-    def model_validator(*args: Any, **kwargs: Any) -> "Callable[[Any], Any]":  # fallback no-op decorator for Pydantic v1
-        def deco(func: Any) -> Any:
-            return func
-        return deco
+from pydantic import BaseModel, Field, validator, model_validator
 
 from src.trading.order_management.order_book.snapshot import OrderBookLevel as OrderBookLevel
 from src.trading.order_management.order_book.snapshot import OrderBookSnapshot as OrderBookSnapshot

@@ -295,7 +295,7 @@ class SimplePhase2DValidator:
                 return None
 
             fitness = mean_return / volatility
-            return max(0, fitness)
+            return float(max(0.0, float(fitness)))
 
         except Exception:
             return None

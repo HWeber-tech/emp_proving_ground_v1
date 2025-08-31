@@ -583,7 +583,7 @@ class PerformanceTracker:
             # Export trades to CSV
             if self.trades_history:
                 trades_df = pd.DataFrame(self.trades_history)
-                return trades_df.to_csv(index=False)
+                return cast(str, trades_df.to_csv(index=False))
             else:
                 return ""
 

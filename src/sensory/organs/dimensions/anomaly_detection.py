@@ -232,12 +232,12 @@ class SpoofingDetector:
         if len(volume) < 10:
             return False
 
-        mean_vol = volume.mean()
-        std_vol = volume.std()
+        mean_vol = float(volume.mean())
+        std_vol = float(volume.std())
 
         # Detect sudden volume spikes
-        recent_vol = volume.iloc[-5:].mean()
-        return recent_vol > mean_vol + 3 * std_vol
+        recent_vol = float(volume.iloc[-5:].mean())
+        return bool(recent_vol > (mean_vol + 3.0 * std_vol))
 
     def _detect_price_anomaly(self, data: pd.DataFrame) -> bool:
         """Detect price-based anomalies"""
@@ -297,13 +297,13 @@ class WashTradingDetector:
         if "volume" not in data.columns or len(data) < 5:
             return 0.0
 
-        recent_volume = data["volume"].iloc[-5:].mean()
-        historical_volume = data["volume"].iloc[:-5].mean() if len(data) > 5 else recent_volume
+        recent_volume = float(data["volume"].iloc[-5:].mean())
+        historical_volume = float(data["volume"].iloc[:-5].mean()) if len(data) > 5 else recent_volume
 
-        if historical_volume == 0:
+        if historical_volume == 0.0:
             return 0.0
 
-        return recent_volume / historical_volume
+        return float(recent_volume / historical_volume)
 
     def _get_fallback_wash_trading(self) -> WashTradingDetection:
         """Return fallback wash trading detection"""
@@ -362,13 +362,13 @@ class PumpDumpDetector:
         if "volume" not in data.columns or len(data) < 2:
             return 0.0
 
-        recent_volume = data["volume"].iloc[-5:].mean()
-        historical_volume = data["volume"].iloc[:-5].mean() if len(data) > 5 else recent_volume
+        recent_volume = float(data["volume"].iloc[-5:].mean())
+        historical_volume = float(data["volume"].iloc[:-5].mean()) if len(data) > 5 else recent_volume
 
-        if historical_volume == 0:
+        if historical_volume == 0.0:
             return 0.0
 
-        return recent_volume / historical_volume
+        return float(recent_volume / historical_volume)
 
     def _get_fallback_pump_dump(self) -> PumpDumpDetection:
         """Return fallback pump dump detection"""

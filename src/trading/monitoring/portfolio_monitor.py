@@ -58,7 +58,20 @@ class PortfolioMonitor:
         try:
             state_json = self.redis_client.get(self.redis_key)
             if state_json:
-                state = cast(PortfolioState, json.loads(state_json))
+                # Debug: observe unexpected coroutine-like values from client stubs
+                try:
+                    is_coro = asyncio.iscoroutine(state_json)
+                except Exception:
+                    is_coro = False
+                logger.debug("Redis get returned type=%s, is_coro=%s", type(state_json), is_coro)
+
+                # Decode bytes/bytearray to str for json.loads
+                state_str = (
+                    state_json.decode("utf-8")
+                    if isinstance(state_json, (bytes, bytearray))
+                    else str(state_json)
+                )
+                state = cast(PortfolioState, json.loads(state_str))
                 logger.info("Loaded portfolio state from Redis")
                 return state
         except Exception as e:

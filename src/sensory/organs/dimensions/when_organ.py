@@ -287,8 +287,8 @@ class WhenEngine:
                 return 0.0
 
             returns = df["close"].pct_change().dropna()
-            volatility = returns.std()
-            return min(max(volatility, 0.0), 1.0)
+            volatility = float(returns.std())
+            return float(min(max(volatility, 0.0), 1.0))
 
         except Exception as e:
             logger.error(f"Error calculating volatility: {e}")

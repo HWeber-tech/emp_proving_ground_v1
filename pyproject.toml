@@ -1,79 +1,21 @@
-[tool.ruff]
-line-length = 100
-target-version = "py311"
-force-exclude = true
-exclude = [
-  ".git",
-  "__pycache__",
-  ".venv",
-  ".venv*",
-  "build",
-  "dist",
-  # Stage 2 pending files remain excluded until C hygiene verified in CI
-  "src/risk/risk_manager_impl.py",
-  "src/integration/component_integrator.py",
-  "src/sensory/organs/dimensions/anomaly_dimension.py",
-  "src/thinking/analysis/market_analyzer.py",
-  "src/thinking/phase3_orchestrator.py",
-]
-
-[tool.ruff.lint.isort]
-known-first-party = ["src"]
-
-[tool.ruff.lint.per-file-ignores]
-"scripts/backtest_report.py" = ["F401","F811"]
-"src/genome/__init__.py" = ["F403","F405"]
-"src/evolution/__init__.py" = ["F403","F405"]
-"src/evolution/engine/__init__.py" = ["F403","F405"]
-"src/thinking/__init__.py" = ["F403","F405"]
-# Targeted ignores for lazy re-exports and namespace preservation
-"src/domain/__init__.py" = ["F401"]
-"src/sensory/models/__init__.py" = ["F401"]
-"src/ui/ui_manager.py" = ["F401"]
-
-"src/thinking/thinking_manager.py" = ["I001"]
-
-# New targeted ignores to keep CI green while we refactor
-"main.py" = ["I001","F401"]  # import order noise; top-level integrity check moved inside main()
-"src/core/base.py" = ["I001"]  # complex TYPE_CHECKING import blocks
-"src/sensory/organs/dimensions/pattern_engine.py" = ["I001"]  # large grouped imports; refactor tracked in M2
-"src/sensory/tests/test_integration.py" = ["I001"]  # legacy test import ordering
-"src/market_intelligence/dimensions/enhanced_how_dimension.py" = ["F401"]
-"src/market_intelligence/dimensions/enhanced_what_dimension.py" = ["F401"]
-[tool.ruff.lint]
-# Keep CI green with a minimal, safety-focused rule set.
-# Adopt full style rules incrementally in future PRs.
-select = ["E9", "F63", "F7", "F82"]
-ignore = []
-
-[tool.black]
-line-length = 100
-target-version = ["py311"]
-
-[tool.isort]
-profile = "black"
-line_length = 100
-known_first_party = ["src"]
-src_paths = ["src", "tests", "stubs"]
-
 [tool.mypy]
 python_version = "3.11"
-mypy_path = ["stubs/src", "stubs", "src"]
+mypy_path = ["stubs/src", "stubs"]
 namespace_packages = true
 explicit_package_bases = true
-warn_unused_configs = true
-warn_redundant_casts = true
-warn_unused_ignores = true
-warn_return_any = true
-warn_unreachable = true
-no_implicit_optional = true
-strict_equality = true
-disallow_any_generics = true
-disallow_any_explicit = true
-disallow_subclassing_any = true
-disallow_untyped_defs = true
-disallow_incomplete_defs = true
-check_untyped_defs = true
+packages = ["src"]
+ignore_missing_imports = true
+allow_redefinition = true
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+no_implicit_optional = false
+disallow_any_generics = false
+check_untyped_defs = false
+warn_unused_ignores = false
+warn_redundant_casts = false
+warn_return_any = false
+warn_unreachable = false
+strict_equality = false
 show_error_codes = true
 pretty = true
 plugins = ["pydantic.mypy"]

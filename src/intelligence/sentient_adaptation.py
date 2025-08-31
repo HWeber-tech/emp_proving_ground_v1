@@ -21,6 +21,7 @@ import numpy as np
 
 from src.sentient.adaptation.adaptation_controller import (
     AdaptationController as AdaptationController,
+    TacticalAdaptation as TacticalAdaptation,
 )
 from src.sentient.learning.real_time_learning_engine import (
     RealTimeLearningEngine as RealTimeLearningEngine,
@@ -139,10 +140,28 @@ class SentientAdaptationEngine:
     """Main engine for real-time adaptation and learning."""
 
     def __init__(self, episodic_memory: Optional[EpisodicMemorySystem] = None):
-        self.real_time_learner = RealTimeLearningEngine()
-        self.pattern_memory = FAISSPatternMemory()
+        # Initialize with minimal configs to satisfy component contracts
+        self.real_time_learner = RealTimeLearningEngine(
+            {
+                "max_buffer_size": 1000,
+                "min_pnl_threshold": 0.0001,
+            }
+        )
+        self.pattern_memory = FAISSPatternMemory(
+            {
+                "vector_dimension": 64,
+                "index_path": "data/memory/faiss_index",
+                "metadata_path": "data/memory/metadata.json",
+            }
+        )
         self.meta_cognition = MetaCognitionEngine()
-        self.adaptation_controller = AdaptationController()
+        self.adaptation_controller = AdaptationController(
+            {
+                "min_confidence": 0.7,
+                "max_adaptations": 10,
+                # optional: "risk_parameters": {...}
+            }
+        )
         self.episodic_memory = episodic_memory or EpisodicMemorySystem()
 
         # Performance tracking
@@ -158,18 +177,56 @@ class SentientAdaptationEngine:
     ) -> LearningSignal:
         """Main adaptation method - process market event and adapt strategy."""
 
-        # Immediate learning from trade outcome
-        learning_signal = cast(
-            AdaptationSignal,
-            await self.real_time_learner.process_outcome(market_event, strategy_response, outcome),
+        # Construct a trade_data payload expected by RealTimeLearningEngine
+        now = datetime.utcnow()
+        trade_data: Dict[str, Any] = {
+            "trade_id": f"{strategy_response.get('strategy_id', 'strategy')}-{int(now.timestamp())}",
+            "close_time": now.isoformat(),
+            "pnl": float(outcome.get("pnl", 0.0)),
+            "duration": float(outcome.get("duration", 0.0)),
+            "max_drawdown": float(outcome.get("max_drawdown", 0.0)),
+            "max_profit": float(outcome.get("max_profit", 0.0)),
+            # context features used by detectors
+            "price_change": float(market_event.price_change),
+            "volume": float(market_event.volume_change),
+            "avg_volume": float(market_event.context.get("avg_volume", 1) or 1),
+            "entry_price": float(market_event.context.get("entry_price", 0.0)),
+            "spread": float(market_event.context.get("spread", 0.0)),
+            "volatility": float(market_event.volatility_change),
+            "order_imbalance": float(market_event.context.get("order_imbalance", 0.0)),
+            "liquidity_depth": float(market_event.context.get("liquidity_depth", 0.0)),
+            "recent_trades": market_event.context.get("recent_trades", []),
+        }
+
+        # Immediate learning from trade outcome (canonical API)
+        ls = await self.real_time_learner.process_closed_trade(trade_data)
+
+        # Map learning signal into AdaptationSignal for compatibility
+        adaptation_confidence = float(max(0.0, min(1.0, abs(float(ls.outcome.get("pnl", 0.0))))))
+        learning_signal = AdaptationSignal(
+            confidence=adaptation_confidence,
+            adaptation_strength=adaptation_confidence,
+            pattern_relevance=0.5,
+            risk_adjustment=0.0,
+            timestamp=now,
+            metadata={
+                "trade_id": ls.trade_id,
+                "signal_type": ls.signal_type.value,
+                "context": ls.context,
+                "outcome": ls.outcome,
+                "features": ls.features,
+            },
         )
 
-        # Update pattern memory with new experience
-        await self.pattern_memory.store_pattern(
-            pattern=market_event.extract_pattern(),
-            context=market_event.context,
-            outcome=outcome,
-            confidence=learning_signal.confidence,
+        # Update pattern memory with new experience (canonical API)
+        _ = self.pattern_memory.add_experience(
+            vector=market_event.extract_pattern(),
+            metadata={
+                "context": market_event.context,
+                "outcome": outcome,
+                "learning_signal_id": ls.trade_id,
+                "generated_at": now.isoformat(),
+            },
         )
 
         # Meta-cognitive assessment of learning quality
@@ -179,23 +236,27 @@ class SentientAdaptationEngine:
 
         # Adapt strategy parameters based on learning
         if learning_quality["should_adapt"]:
+            # Build the memories payload expected by AdaptationController
+            memories: List[Dict[str, Any]] = [
+                {"metadata": {"outcome": outcome, "context": market_event.context}}
+            ]
             adaptations = await self.adaptation_controller.generate_adaptations(
-                learning_signal, current_strategy_state=self.get_strategy_state()
+                memories, current_context=self.get_strategy_state()
             )
             await self.apply_adaptations(adaptations)
 
             self.adaptation_count += 1
-            self.last_adaptation = datetime.utcnow()
+            self.last_adaptation = now
 
         # Update episodic memory
         self._update_episodic_memory(market_event, outcome, learning_signal)
 
         return learning_signal
 
-    async def apply_adaptations(self, adaptations: Dict[str, Any]) -> None:
+    async def apply_adaptations(self, adaptations: List[TacticalAdaptation]) -> None:
         """Apply generated adaptations to the system."""
         # This would interface with the actual strategy system
-        logger.info(f"Applying adaptations: {adaptations}")
+        logger.info(f"Applying adaptations: {[a.adaptation_id for a in adaptations]}")
         return None
 
     def get_recent_performance(self) -> List[float]:
@@ -205,7 +266,9 @@ class SentientAdaptationEngine:
     def get_strategy_state(self) -> Dict[str, Any]:
         """Get current strategy state for adaptation."""
         return {
-            "risk_parameters": self.adaptation_controller.risk_parameters,
+            "risk_parameters": cast(Dict[str, Any], self.adaptation_controller.config).get(
+                "risk_parameters", {}
+            ),
             "adaptation_count": self.adaptation_count,
             "last_adaptation": self.last_adaptation,
         }

@@ -14,7 +14,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from datetime import datetime
-from typing import Mapping, Protocol, TypedDict, cast, runtime_checkable
+from typing import Any, Mapping, Protocol, TypedDict, cast, runtime_checkable
 
 import numpy as np
 import pandas as pd
@@ -163,9 +163,9 @@ class SensoryIntegrationOrchestrator:
             # Process each dimension in parallel
             tasks = [
                 self.macro_intelligence.analyze_macro_environment(),
-                self.footprint_hunter.analyze_institutional_footprint(price_data),
+                cast(Any, self.footprint_hunter).analyze_institutional_footprint(price_data),
                 self.pattern_engine.synthesize_patterns(price_data),
-                self.temporal_analyzer.analyze_timing(market_data),
+                cast(Any, self.temporal_analyzer).analyze_timing(cast(dict[str, Any], dict(market_data))),
                 self.anomaly_detector.detect_manipulation(market_data),
                 self.chaos_adapter.assess_chaos_opportunities(price_data),
             ]

@@ -20,14 +20,23 @@ from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional
 logger = logging.getLogger(__name__)
 
 # Guarded imports of concrete genome functions/classes
+# Pre-declare dynamic bindings with permissive types to satisfy mypy in fallback branches
+_DecisionGenome: Any = None
+_mutate: Any = None
+_new_genome: Any = None
+_from_legacy: Any = None
+_to_legacy_view: Any = None
 if TYPE_CHECKING:
     from src.genome.models.genome import DecisionGenome  # type-only
 try:
-    from src.genome.models.genome import DecisionGenome as _DecisionGenome
-    from src.genome.models.genome import mutate as _mutate
-    from src.genome.models.genome import new_genome as _new_genome
+    from src.genome.models.genome import DecisionGenome as __DecisionGenome
+    from src.genome.models.genome import mutate as __mutate
+    from src.genome.models.genome import new_genome as __new_genome
+    _DecisionGenome = __DecisionGenome  # type: ignore[assignment]
+    _mutate = __mutate
+    _new_genome = __new_genome
 except Exception:
-    _DecisionGenome = None
+    _DecisionGenome = None  # type: ignore[assignment]
     _mutate = None
     _new_genome = None
 

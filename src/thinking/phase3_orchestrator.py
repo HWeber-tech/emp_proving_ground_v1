@@ -286,11 +286,19 @@ class Phase3Orchestrator:
                 outcome={"performance": 0.15},
             )
 
+            # Normalize adaptation_result which may be an object (e.g., dataclass) rather than a dict
+            adaptations_obj = getattr(adaptation_result, "adaptations", [])
+            if isinstance(adaptations_obj, dict):
+                adaptations_count = len(cast(dict[str, object], adaptations_obj))
+            elif isinstance(adaptations_obj, (list, tuple, set)):
+                adaptations_count = len(cast(Sequence[object], adaptations_obj))
+            else:
+                adaptations_count = 0
             return {
-                "adaptation_success": adaptation_result.get("success", False),
-                "learning_quality": adaptation_result.get("quality", 0.0),
-                "adaptations_applied": len(adaptation_result.get("adaptations", [])),
-                "confidence": adaptation_result.get("confidence", 0.0),
+                "adaptation_success": bool(getattr(adaptation_result, "success", False)),
+                "learning_quality": float(getattr(adaptation_result, "learning_quality", 0.0)),
+                "adaptations_applied": adaptations_count,
+                "confidence": float(getattr(adaptation_result, "confidence", 0.0)),
             }
 
         except Exception as e:

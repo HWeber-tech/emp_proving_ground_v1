@@ -134,20 +134,20 @@ class UIManager:
         """Approve an evolved strategy for live trading"""
         return cast(
             bool,
-            self.strategy_registry.update_strategy_status(strategy_id, StrategyStatus.APPROVED),
+            self.strategy_registry.update_strategy_status(strategy_id, StrategyStatus.APPROVED.value),
         )
 
     def activate_strategy(self, strategy_id: str) -> bool:
         """Activate an approved strategy for live trading"""
         return cast(
-            bool, self.strategy_registry.update_strategy_status(strategy_id, StrategyStatus.ACTIVE)
+            bool, self.strategy_registry.update_strategy_status(strategy_id, StrategyStatus.ACTIVE.value)
         )
 
     def deactivate_strategy(self, strategy_id: str) -> bool:
         """Deactivate an active strategy"""
         return cast(
             bool,
-            self.strategy_registry.update_strategy_status(strategy_id, StrategyStatus.INACTIVE),
+            self.strategy_registry.update_strategy_status(strategy_id, StrategyStatus.INACTIVE.value),
         )
 
     async def broadcast_event(self, event_type: str, data: Dict[str, Any]) -> None:

@@ -170,7 +170,7 @@ class ConflictResolver:
         self,
         data_points: List[Tuple[DataSource, MarketData, float]],
         weights: Dict[DataSource, float],
-    ) -> Tuple[MarketData, List[str]]:
+    ) -> Tuple[Optional[MarketData], List[str]]:
         """Resolve conflicts between data points"""
         if not data_points:
             return None, []
@@ -220,10 +220,10 @@ class ConflictResolver:
     ) -> MarketData:
         """Resolve conflicts using weighted average"""
         total_weight = 0.0
-        weighted_bid = 0
-        weighted_ask = 0
-        weighted_volume = 0
-        weighted_volatility = 0
+        weighted_bid = 0.0
+        weighted_ask = 0.0
+        weighted_volume = 0.0
+        weighted_volatility = 0.0
 
         for source, data, confidence in data_points:
             weight = weights.get(source, 0.5) * confidence
@@ -393,7 +393,7 @@ class DataFusionEngine:
                 timestamp=resolved_data.timestamp,
                 bid=resolved_data.bid,
                 ask=resolved_data.ask,
-                volume=resolved_data.volume,
+                volume=int(resolved_data.volume),
                 volatility=resolved_data.volatility,
                 confidence=overall_confidence,
                 sources_used=[source for source, _, _ in filtered_data],

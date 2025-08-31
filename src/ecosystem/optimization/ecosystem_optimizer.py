@@ -17,6 +17,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import (
     TYPE_CHECKING,
+    Any,
     DefaultDict,
     Dict,
     List,
@@ -144,7 +145,8 @@ class EcosystemOptimizer(IEcosystemOptimizer):
             }
         )
 
-        return coordinated_populations
+        logger.debug("Returning coordinated populations with %d species and total %d genomes", len(coordinated_populations), sum(len(v) for v in coordinated_populations.values()))
+        return cast(Mapping[str, Sequence["DecisionGenome"]], coordinated_populations)
 
     async def _calculate_optimal_distribution(
         self, niches: Dict[str, MarketNiche], performance_history: JSONObject
@@ -367,6 +369,7 @@ class EcosystemOptimizer(IEcosystemOptimizer):
                 if f"{species_type}_{id(genome)}" in approved_strategies
             ]
 
+        logger.debug("Returning coordinated populations with %d species and total %d genomes", len(coordinated_populations), sum(len(v) for v in coordinated_populations.values()))
         return coordinated_populations
 
     async def _evaluate_ecosystem_performance(
@@ -596,7 +599,9 @@ async def test_ecosystem_optimizer() -> None:
 
     # Optimize ecosystem
     optimized = await optimizer.optimize_ecosystem(
-        test_populations, market_context, performance_history
+        cast(Mapping[str, Sequence["DecisionGenome"]], test_populations),
+        market_context,
+        performance_history,
     )
 
     print("Ecosystem Optimization Complete")

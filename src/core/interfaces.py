@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import (
     TYPE_CHECKING,
+    Any,
     Callable,
     Dict,
     List,
@@ -12,6 +13,7 @@ from typing import (
     Protocol,
     Tuple,
     TypedDict,
+    TypeAlias,
     runtime_checkable,
 )
 
@@ -97,14 +99,45 @@ class DecisionGenome(Protocol):
     """Structural genome interface used across ecosystem modules.
 
     Implemented by src.genome.models.genome.DecisionGenome.
-    Minimal surface: fields actually consumed by optimizers/factories.
+    Minimal surface extended with common attributes accessed across modules.
     """
 
+    # Core identity and metadata
     id: str
     parameters: Mapping[str, float]
     fitness: Optional[float] | None
     generation: int
     species_type: Optional[str] | None
+
+    # Widely accessed extended attributes (structural; may exist on concrete genome)
+    genome_id: str  # often used as alternative id
+    mutation_count: int
+
+    # Sub-structures used by mutation pipelines (typed loosely to avoid import cycles)
+    strategy: Any
+    risk: Any
+    timing: Any
+    sensory: Any
+    thinking: Any
+
+    # Normalization hook used after mutating weights
+    def _normalize_weights(self) -> None: ...
+
+
+# Mutation strategy used by evolution modules
+@runtime_checkable
+class IMutationStrategy(Protocol):
+    def mutate(self, genome: DecisionGenome, mutation_rate: float) -> DecisionGenome: ...
+
+
+# Minimal execution engine facade used by trading execution modules
+@runtime_checkable
+class IExecutionEngine(Protocol):
+    async def send_order(
+        self, symbol: str, side: str, quantity: float, price: float | None = ...
+    ) -> str: ...
+    async def cancel_order(self, order_id: str) -> bool: ...
+    async def get_position(self, symbol: str) -> Any: ...
 
 
 @runtime_checkable
@@ -269,16 +302,14 @@ class ThinkingPattern(Protocol):
     def learn(self, feedback: Mapping[str, object]) -> bool: ...
 
 
-class SensorySignal(TypedDict, total=False):
-    name: str
+@runtime_checkable
+class SensorySignal(Protocol):
+    signal_type: str
     value: float
     confidence: float
 
 
-class AnalysisResult(TypedDict, total=False):
-    summary: str
-    score: float
-    details: Mapping[str, object]
+AnalysisResult: TypeAlias = Dict[str, Any]
 
 
 # === End Interfaces hub ===
@@ -293,6 +324,8 @@ __all__ = [
     "RiskManager",
     # Domain models/interfaces
     "DecisionGenome",
+    "IMutationStrategy",
+    "IExecutionEngine",
     "PopulationManager",
     "IPopulationManager",
     # Ecosystem and coordination

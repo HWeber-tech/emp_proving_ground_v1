@@ -20,7 +20,8 @@ class SentimentOrgan(SensoryOrgan):
     """Market sentiment analysis organ."""
 
     def __init__(self, config: Optional[dict[str, Any]] = None):
-        super().__init__("sentiment_organ", config or {})
+        self.name = "sentiment_organ"
+        self.config = config or {}
         self.sentiment_threshold = self.config.get("sentiment_threshold", 0.6)
 
     async def process(self, market_data: MarketData) -> SensoryReading:

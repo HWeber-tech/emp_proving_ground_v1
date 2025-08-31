@@ -28,9 +28,11 @@ from src.ecosystem.evolution.specialized_predator_evolution import (
 from src.ecosystem.optimization.ecosystem_optimizer import EcosystemOptimizer as EcosystemOptimizer
 
 if TYPE_CHECKING:  # pragma: no cover
-    from src.ecosystem.species.species_manager import SpeciesManager as SpeciesManager
-else:  # runtime fallback for type-check-time only symbol
-    SpeciesManager = object  # type: ignore[assignment]
+    class SpeciesManager:  # minimal typing stub to avoid import errors under mypy
+        ...
+else:  # runtime fallback
+    class SpeciesManager:  # type: ignore[override]
+        ...
 
 __all__ = [
     "NicheDetector",

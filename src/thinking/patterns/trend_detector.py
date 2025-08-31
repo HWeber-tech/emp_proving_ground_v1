@@ -12,10 +12,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Optional, Protocol, 
 
 import numpy as np
 
-try:
-    from src.core.interfaces import AnalysisResult, SensorySignal, ThinkingPattern
-except Exception:  # pragma: no cover
-    ThinkingPattern = SensorySignal = AnalysisResult = object
+from src.core.interfaces import AnalysisResult, SensorySignal, ThinkingPattern
 from src.core.exceptions import TradingException
 
 logger = logging.getLogger(__name__)

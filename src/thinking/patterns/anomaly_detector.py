@@ -12,10 +12,7 @@ from typing import Any, Dict, List, Mapping, Optional, cast
 
 import numpy as np
 
-try:
-    from src.core.interfaces import AnalysisResult, SensorySignal, ThinkingPattern
-except Exception:  # pragma: no cover
-    ThinkingPattern = SensorySignal = AnalysisResult = object
+from src.core.interfaces import AnalysisResult, SensorySignal, ThinkingPattern
 from src.core.exceptions import TradingException
 
 logger = logging.getLogger(__name__)

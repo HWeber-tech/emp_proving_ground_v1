@@ -72,6 +72,7 @@ class ThinkingManager:
             current_cvd=(lambda _v: float(cast(Union[int, float, str], _v)))(
                 market_data.get("cvd") or market_data.get("current_cvd") or 0.0
             ),
+            divergence_confidence=None,
             metadata={
                 "risk_metrics": self._calculate_risk_metrics(market_data),
                 "sequence_id": f"{datetime.utcnow().timestamp()}",
@@ -179,7 +180,8 @@ if __name__ == "__main__":
         print(f"  Timestamp: {context.timestamp}")
         print(f"  Has predictions: {'predictions' in context.metadata}")
         if "predictions" in context.metadata:
-            print(f"  Predictions count: {context.metadata['predictions'].get('count', 0)}")
+            preds = context.metadata.get('predictions')
+            print(f"  Predictions count: {cast(dict, preds).get('count', 0) if isinstance(preds, dict) else 0}")
 
     # Run test
     asyncio.run(test_thinking_manager())

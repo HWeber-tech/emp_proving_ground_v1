@@ -14,18 +14,10 @@ from typing import Any, Dict, List, Mapping, Optional, cast
 
 import numpy as np
 
-try:
-    from src.core.interfaces import AnalysisResult, SensorySignal, ThinkingPattern
-except Exception:  # pragma: no cover
-    # Fall back to Any-typed aliases to avoid mypy re-assignment-to-type errors
-    from typing import Any as _Any
-
-    ThinkingPattern = _Any
-    SensorySignal = _Any
-    AnalysisResult = _Any
+from src.core.interfaces import AnalysisResult, SensorySignal, ThinkingPattern
 # Guard the exception import: alias TradingException if ThinkingException absent
 try:
-    from src.core.exceptions import ThinkingException
+    from src.core.exceptions import TradingException as ThinkingException
 except Exception:  # pragma: no cover
     from src.core.exceptions import TradingException as ThinkingException
 
@@ -323,11 +315,11 @@ class CycleDetector(ThinkingPattern):
 
         # 3. Signal strength
         signal_strength = np.std(values) if len(values) > 1 else 0
-        strength_confidence = min(signal_strength * 10, 1.0)
+        strength_confidence = min(float(signal_strength) * 10.0, 1.0)
 
         # Combine confidence factors
         overall_confidence = (cycle_confidence + regularity_confidence + strength_confidence) / 3.0
-        return float(max(0.0, min(1.0, overall_confidence)))
+        return float(max(0.0, min(1.0, float(overall_confidence))))
 
     def _create_neutral_result(self) -> AnalysisResult:
         """Create neutral result when no cycles are detected."""

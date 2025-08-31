@@ -45,6 +45,12 @@ class Position:
     # Keep the original field name for compatibility; reads go through property or direct access
     unrealized_pnl: float = 0.0
 
+    # Optional extended attributes for broader compatibility with portfolio code
+    status: object | str | None = None
+    stop_loss: Optional[float] = None
+    take_profit: Optional[float] = None
+    entry_time: Optional[datetime] = None
+    exit_time: Optional[datetime] = None
     def __init__(
         self,
         symbol: str,
@@ -186,3 +192,11 @@ class Position:
         # Recompute derived
         self.unrealized_pnl = (self.current_price - self.entry_price) * self.size
         self.last_updated = datetime.now()
+
+
+    def close(self, exit_price: float, exit_time: Optional[datetime] = None) -> None:
+        """Mark position as closed at the given exit price/time."""
+        # Update current price and derived fields
+        self.update_market_price(exit_price)
+        # Record exit time
+        self.exit_time = exit_time or datetime.now()

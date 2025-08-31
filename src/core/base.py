@@ -7,10 +7,12 @@ safe for use across layers without importing from higher layers (e.g. sensory).
 It intentionally avoids any imports from src.sensory.* to satisfy layered architecture.
 
 Provided:
-- MarketRegime (Enum)
+- MarketRegime (Enum) [with legacy aliases]
 - DimensionalReading (with legacy .value alias for signal_strength)
+- SensoryReading (dataclass used by organs; matches call sites)
 - MarketData (wrapper that accepts legacy constructor fields and normalizes)
 - InstrumentMeta (placeholder metadata container)
+- SensoryOrgan (Protocol; very permissive to avoid false positives)
 """
 
 from __future__ import annotations
@@ -18,7 +20,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional, Union, cast
+from typing import Any, Dict, List, Optional, Protocol, TypeAlias, Union, cast, runtime_checkable
 
 
 class MarketRegime(Enum):
@@ -29,6 +31,10 @@ class MarketRegime(Enum):
     BREAKOUT = "breakout"
     REVERSAL = "reversal"
     EXHAUSTED = "exhausted"
+    # Legacy aliases used across modules
+    BULLISH = "bullish"
+    BEARISH = "bearish"
+    RANGING = "ranging"
 
 
 @dataclass
@@ -66,6 +72,21 @@ class DimensionalReading:
         return float(self.signal_strength)
 
 
+@dataclass
+class SensoryReading:
+    """
+    Canonical sensory reading used by organs.* modules.
+
+    Matches construction pattern:
+        SensoryReading(organ_name=..., timestamp=..., data={...}, metadata={...})
+    """
+
+    organ_name: str
+    timestamp: datetime
+    data: dict[str, Any]
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+
 class MarketData:
     """
     Core market data wrapper that accepts legacy constructor arguments
@@ -77,7 +98,7 @@ class MarketData:
       - bid: float
       - ask: float
       - volume: float
-      - volatility: float (ignored; accepted for compatibility)
+      - volatility: float (accepted and stored for compatibility)
       - price: float (used if bid/ask missing to infer OHLC)
       - open/high/low/close: optional; inferred when absent
     """
@@ -129,8 +150,10 @@ class MarketData:
             cast(Optional[Union[float, int, str]], kwargs.pop("volume", None)), default=0.0
         )
 
-        # Accept and ignore legacy extras
-        kwargs.pop("volatility", None)  # accepted but not used
+        # Volatility (accepted and stored for compatibility)
+        self.volatility: float = _to_float(
+            cast(Optional[Union[float, int, str]], kwargs.pop("volatility", None)), default=0.0
+        )
 
         # Retain any additional fields as passthrough (non-breaking)
         for k, v in kwargs.items():
@@ -140,5 +163,51 @@ class MarketData:
                 # Ignore non-assignable extras
                 pass
 
+    @property
+    def mid_price(self) -> float:
+        try:
+            if self.bid or self.ask:
+                return (float(self.bid) + float(self.ask)) / 2.0
+        except Exception:
+            pass
+        try:
+            return float(self.close)
+        except Exception:
+            return 0.0
 
-__all__ = ["DimensionalReading", "MarketData", "MarketRegime", "InstrumentMeta"]
+    @property
+    def spread(self) -> float:
+        try:
+            return max(0.0, float(self.ask) - float(self.bid))
+        except Exception:
+            return 0.0
+
+
+@runtime_checkable
+class SensoryOrgan(Protocol):
+    """
+    Minimal sensory organ Protocol used by organs.* modules without creating a hard dependency.
+
+    Very permissive signatures to avoid false-positive override errors across mixed legacy/new code.
+    """
+
+    name: str
+    config: dict[str, object]
+
+    def calibrate(self) -> bool: ...
+    def perceive(self, market_data: Any) -> Any: ...
+    def reset(self) -> None: ...
+
+
+# Backwards-compatible alias retained for legacy use (not used by organs now)
+LegacySensoryReading: TypeAlias = DimensionalReading
+
+__all__ = [
+    "DimensionalReading",
+    "SensoryReading",
+    "MarketData",
+    "MarketRegime",
+    "InstrumentMeta",
+    "SensoryOrgan",
+    "LegacySensoryReading",
+]

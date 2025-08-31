@@ -11,7 +11,8 @@ from typing import Any, Dict, List, Optional, cast
 import pandas as pd
 
 from ...config.portfolio_config import PortfolioConfig
-from ..models import PortfolioSnapshot, Position
+from ..models import Position
+from ..models.portfolio_snapshot import PortfolioSnapshot
 from ..monitoring.performance_tracker import PerformanceMetrics as PerformanceMetrics
 
 logger = logging.getLogger(__name__)
@@ -162,10 +163,10 @@ class RealPortfolioMonitor:
                     position.size,
                     position.entry_price,
                     position.current_price,
-                    position.status.value,
+                    getattr(position.status, "value", position.status if position.status is not None else "OPEN"),
                     position.stop_loss,
                     position.take_profit,
-                    position.entry_time.isoformat(),
+                    (position.entry_time.isoformat() if isinstance(position.entry_time, datetime) else datetime.now().isoformat()),
                     position.realized_pnl,
                     position.unrealized_pnl,
                 ),
@@ -175,7 +176,7 @@ class RealPortfolioMonitor:
             conn.close()
 
             # Update cache
-            self._position_cache[position.position_id] = position
+            self._position_cache[str(position.position_id or position.symbol)] = position
 
             logger.info(f"Added position: {position.position_id} for {position.symbol}")
             return True

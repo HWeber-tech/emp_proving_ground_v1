@@ -193,14 +193,14 @@ class ContextualFusionEngine:
     def __init__(self) -> None:
         # Engines
         self._why: EnhancedEngineProto = cast(
-            EnhancedEngineProto, EnhancedFundamentalIntelligenceEngine()
+            EnhancedEngineProto, cast(Any, EnhancedFundamentalIntelligenceEngine)()
         )
         self._how: EnhancedEngineProto = cast(
-            EnhancedEngineProto, InstitutionalIntelligenceEngine()
+            EnhancedEngineProto, cast(Any, InstitutionalIntelligenceEngine)()
         )
-        self._what: EnhancedEngineProto = cast(EnhancedEngineProto, TechnicalRealityEngine())
-        self._when: EnhancedEngineProto = cast(EnhancedEngineProto, ChronalIntelligenceEngine())
-        self._anomaly: EnhancedEngineProto = cast(EnhancedEngineProto, AnomalyIntelligenceEngine())
+        self._what: EnhancedEngineProto = cast(EnhancedEngineProto, cast(Any, TechnicalRealityEngine)())
+        self._when: EnhancedEngineProto = cast(EnhancedEngineProto, cast(Any, ChronalIntelligenceEngine)())
+        self._anomaly: EnhancedEngineProto = cast(EnhancedEngineProto, cast(Any, AnomalyIntelligenceEngine)())
 
         # Public state used in tests
         self.current_readings: Dict[str, DimensionalReading] = {}

@@ -16,6 +16,13 @@ from typing import Any, Dict, List, Optional, cast
 
 logger = logging.getLogger(__name__)
 
+from enum import Enum
+
+class StrategyStatus(Enum):
+    EVOLVED = "evolved"
+    APPROVED = "approved"
+    ACTIVE = "active"
+    INACTIVE = "inactive"
 
 class StrategyRegistry:
     """Persistent strategy registry using SQLite database."""

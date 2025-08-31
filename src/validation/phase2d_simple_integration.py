@@ -24,15 +24,12 @@ from src.core.anomaly import AnomalyDetector, NoOpAnomalyDetector
 from src.core.market_data import MarketDataGateway, NoOpMarketDataGateway
 from src.core.regime import NoOpRegimeClassifier, RegimeClassifier
 
-try:
-    from src.core.interfaces import DecisionGenome as _DecisionGenome
-except Exception:  # pragma: no cover
-    from typing import Any as _Any
-
-    _DecisionGenome = _Any
-from typing import TypeAlias as _TypeAlias
-
-DecisionGenome: _TypeAlias = _DecisionGenome
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from src.core.interfaces import DecisionGenome as DecisionGenome  # noqa: F401
+else:
+    class DecisionGenome:
+        pass
 from src.core.risk_ports import NoOpRiskManager, RiskConfigDecl, RiskManagerPort
 
 logging.basicConfig(level=logging.INFO)
@@ -272,7 +269,7 @@ class SimplePhase2DValidator:
         """Helper for async symbol fetching"""
         try:
             data = self.market_data.fetch_data(symbol, period="1d", interval="1h")
-            if data is not None and len(data) > 0:
+            if isinstance(data, pd.DataFrame) and len(data) > 0:
                 return {"success": True, "symbol": symbol, "data_points": len(data)}
             return {"success": False, "symbol": symbol}
         except Exception:

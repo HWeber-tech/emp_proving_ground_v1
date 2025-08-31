@@ -11,11 +11,7 @@ import logging
 import random
 from typing import TYPE_CHECKING, Any, cast
 
-try:
-    from src.core.interfaces import DecisionGenome, IMutationStrategy
-except Exception:  # pragma: no cover
-    IMutationStrategy = object
-    DecisionGenome = object
+from src.core.interfaces import DecisionGenome, IMutationStrategy
 
 logger = logging.getLogger(__name__)
 

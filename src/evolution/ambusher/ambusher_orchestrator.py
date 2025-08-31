@@ -33,7 +33,7 @@ class AmbusherOrchestrator:
 
         # Initialize components
         self.genetic_engine = EvolutionEngine()
-        self.fitness_function = AmbusherFitnessFunction(config.get("fitness", {}))
+        self.fitness_function = AmbusherFitnessFunction()
 
         # State tracking
         self.is_active = False

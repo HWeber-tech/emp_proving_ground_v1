@@ -23,24 +23,7 @@ from src.trading.order_management.order_book.snapshot import OrderBookSnapshot a
 logger = logging.getLogger(__name__)
 
 
-class MarketRegime(Enum):
-    """Market volatility and trend regimes"""
-
-    TRENDING_STRONG = "trending_strong"
-    TRENDING_WEAK = "trending_weak"
-    CONSOLIDATING = "consolidating"
-    EXHAUSTED = "exhausted"
-    BREAKOUT = "breakout"
-    REVERSAL = "reversal"
-    UNKNOWN = "unknown"
-    VOLATILE = "volatile"
-    TRENDING_BULL = "trending_bull"
-    TRENDING_BEAR = "trending_bear"
-    RANGING_HIGH_VOL = "ranging_high_vol"
-    RANGING_LOW_VOL = "ranging_low_vol"
-    TRANSITION = "transition"
-    CRISIS = "crisis"
-
+from src.core.base import MarketRegime as MarketRegime
 
 class ConfidenceLevel(Enum):
     """Standardized confidence levels across all dimensions"""

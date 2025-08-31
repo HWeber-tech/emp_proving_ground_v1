@@ -2,6 +2,19 @@
 
 from __future__ import annotations
 
-from .phase2_validation_suite import Phase2ValidationSuite
+from typing import TYPE_CHECKING
 
 __all__ = ["Phase2ValidationSuite"]
+
+# Avoid importing optional heavy dependencies (e.g., psutil) at package import time.
+# Provide a lazy attribute to load the suite only when actually accessed.
+if TYPE_CHECKING:
+    from .phase2_validation_suite import Phase2ValidationSuite  # for type checkers only
+
+
+def __getattr__(name: str):
+    if name == "Phase2ValidationSuite":
+        # Lazy import to prevent ModuleNotFoundError for optional deps during unrelated imports
+        from .phase2_validation_suite import Phase2ValidationSuite  # type: ignore
+        return Phase2ValidationSuite
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

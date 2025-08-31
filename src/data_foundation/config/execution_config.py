@@ -26,21 +26,22 @@ class ExecutionConfig:
     fees: FeeModel = field(default_factory=FeeModel)
 
 
-_yaml: object | None = None
+yaml: object | None = None
 try:  # pragma: no cover
-    _yaml = importlib.import_module("yaml")
+    # Expose a module-level 'yaml' symbol so tests can monkeypatch ec.yaml
+    yaml = importlib.import_module("yaml")
 except Exception:  # pragma: no cover
-    _yaml = None
+    yaml = None
 
 
 def load_execution_config(path: Optional[str] = None) -> ExecutionConfig:
     if path is None:
         path = os.environ.get("EXECUTION_CONFIG_PATH", "config/execution/execution.yaml")
-    if _yaml is None or not os.path.exists(path):
+    if yaml is None or not os.path.exists(path):
         return ExecutionConfig()
     try:
         with open(path, "r", encoding="utf-8") as fh:
-            data = getattr(_yaml, "safe_load")(fh) or {}
+            data = getattr(yaml, "safe_load")(fh) or {}
         ex = data.get("execution", data)
         sl = ex.get("slippage", {})
         fe = ex.get("fees", {})

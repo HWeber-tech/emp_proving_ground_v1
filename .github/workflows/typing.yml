@@ -16,6 +16,14 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Guard: disallow [tool.mypy] in pyproject.toml
+        shell: bash
+        run: |
+          if grep -n '^\[tool\.mypy\]' pyproject.toml >/dev/null 2>&1; then
+            echo "[tool.mypy] detected in pyproject.toml; use mypy.ini as single source of truth"
+            exit 1
+          fi
+
       - name: Set up Python 3.11
         uses: actions/setup-python@v5
         with:
@@ -165,6 +173,13 @@ jobs:
     if: github.event.pull_request.draft == false || github.event_name == 'workflow_dispatch'
     steps:
       - uses: actions/checkout@v4
+      - name: Guard: disallow [tool.mypy] in pyproject.toml
+        shell: bash
+        run: |
+          if grep -n '^\[tool\.mypy\]' pyproject.toml >/dev/null 2>&1; then
+            echo "[tool.mypy] detected in pyproject.toml; use mypy.ini as single source of truth"
+            exit 1
+          fi
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'

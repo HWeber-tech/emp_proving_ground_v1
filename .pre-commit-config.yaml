@@ -22,6 +22,12 @@ repos:
         types: [python]
         pass_filenames: true
         args: ["--config-file", "mypy.ini"]
+      - id: guard-no-tool-mypy-in-pyproject
+        name: Guard: disallow [tool.mypy] in pyproject.toml
+        entry: bash -c 'if grep -n "^\[tool\.mypy\]" pyproject.toml >/dev/null; then echo "[tool.mypy] detected in pyproject.toml; use mypy.ini"; exit 1; fi'
+        language: system
+        pass_filenames: false
+        files: ^pyproject\.toml$
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.6.0
     hooks:

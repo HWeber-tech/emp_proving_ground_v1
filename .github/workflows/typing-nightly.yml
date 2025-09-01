@@ -26,6 +26,14 @@ jobs:
           path: ~/.cache/pip
           key: ${{ runner.os }}-pip-${{ hashFiles('requirements/dev.txt') }}
 
+      - name: Guard: disallow [tool.mypy] in pyproject.toml
+        shell: bash
+        run: |
+          if grep -n '^\[tool\.mypy\]' pyproject.toml >/dev/null 2>&1; then
+            echo "[tool.mypy] detected in pyproject.toml; use mypy.ini as single source of truth"
+            exit 1
+          fi
+
       - name: Install dependencies
         shell: bash
         run: |

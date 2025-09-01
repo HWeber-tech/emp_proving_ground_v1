@@ -1,0 +1,7 @@
+src/sensory/organs/dimensions/base_organ.py:201: error: Function is missing a
+type annotation  [no-untyped-def]
+        def calculate_derived_fields(cls, values):
+        ^
+src/intelligence/red_team_ai.py:1026: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+src/intelligence/red_team_ai.py:1035: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+src/intelligence/red_team_ai.py:1043: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]

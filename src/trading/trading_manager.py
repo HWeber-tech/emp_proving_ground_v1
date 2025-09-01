@@ -10,6 +10,7 @@ from decimal import Decimal
 from typing import Any, Callable, Optional, cast
 
 import redis
+from src.trading.monitoring.portfolio_monitor import PortfolioMonitor
 
 try:
     from src.core.events import TradeIntent  # legacy

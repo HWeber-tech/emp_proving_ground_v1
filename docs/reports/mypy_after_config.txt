@@ -1,0 +1,19 @@
+src/trading/trading_manager.py:67: error: Name "PortfolioMonitor" is not
+defined  [name-defined]
+            self.portfolio_monitor = PortfolioMonitor(
+                                     ^~~~~~~~~~~~~~~~
+src/sensory/organs/dimensions/base_organ.py:18: error: Module "pydantic" has no
+attribute "model_validator"; maybe "root_validator"?  [attr-defined]
+    from pydantic import BaseModel, Field, model_validator, validator
+    ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/validation/__init__.py:15: error: Function is missing a return type
+annotation  [no-untyped-def]
+    def __getattr__(name: str):
+    ^
+src/validation/__init__.py:18: error: Unused "type: ignore" comment 
+[unused-ignore]
+            from .phase2_validation_suite import Phase2ValidationSuite  # ...
+            ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~...
+src/intelligence/red_team_ai.py:1026: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+src/intelligence/red_team_ai.py:1035: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+src/intelligence/red_team_ai.py:1043: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]

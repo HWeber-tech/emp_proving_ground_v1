@@ -56,28 +56,8 @@ line_length = 100
 known_first_party = ["src"]
 src_paths = ["src", "tests", "stubs"]
 
-[tool.mypy]
-python_version = "3.11"
-mypy_path = ["stubs"]
-namespace_packages = true
-explicit_package_bases = true
-warn_unused_configs = true
-warn_redundant_casts = true
-warn_unused_ignores = true
-warn_return_any = true
-warn_unreachable = true
-no_implicit_optional = true
-strict_equality = true
-disallow_any_generics = true
-disallow_any_explicit = true
-disallow_subclassing_any = true
-disallow_untyped_defs = true
-disallow_incomplete_defs = true
-check_untyped_defs = true
-show_error_codes = true
-pretty = true
-plugins = ["pydantic.mypy"]
-follow_imports = "normal"
+# mypy configuration is managed via mypy.ini to support a transitional, per-package strictness rollout.
+# This pyproject [tool.mypy] section is intentionally omitted to avoid conflicting, repo-wide strict settings.
 [tool.coverage.run]
 branch = true
 relative_files = true

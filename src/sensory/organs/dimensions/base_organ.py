@@ -15,7 +15,7 @@ from datetime import datetime, time
 from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple
 
-from pydantic import BaseModel, Field, model_validator, validator
+from pydantic import BaseModel, Field, root_validator, validator
 from src.core.base import MarketRegime as MarketRegime
 
 from src.trading.order_management.order_book.snapshot import OrderBookLevel as OrderBookLevel
@@ -197,12 +197,15 @@ class MarketData(BaseModel):
     source: str = Field("unknown", description="Data source identifier")
     latency_ms: float = Field(0.0, description="Data latency in milliseconds")
 
-    @model_validator(mode="after")
-    def calculate_derived_fields(self) -> "MarketData":
+    @root_validator()
+    def calculate_derived_fields(cls, values: Dict[str, Any]) -> Dict[str, Any]:
         """Calculate derived fields after validation."""
-        self.spread = self.ask - self.bid
-        self.mid_price = (self.bid + self.ask) / 2.0
-        return self
+        bid = values.get("bid")
+        ask = values.get("ask")
+        if bid is not None and ask is not None:
+            values["spread"] = ask - bid
+            values["mid_price"] = (bid + ask) / 2.0
+        return values
 
 
 class EconomicEvent(BaseModel):

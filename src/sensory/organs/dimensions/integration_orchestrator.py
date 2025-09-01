@@ -23,27 +23,6 @@ from src.core.types import JSONObject
 from src.sensory.enhanced.anomaly.manipulation_detection import (
     ManipulationDetectionSystem,
 )
-from src.sensory.enhanced.chaos.antifragile_adaptation import (
-    ChaosAdaptationSystem as EnhancedChaosAdaptationSystem,
-)
-from src.sensory.enhanced.how.institutional_footprint_hunter import (
-    InstitutionalFootprint as EnhancedInstitutionalFootprint,
-)
-from src.sensory.enhanced.how.institutional_footprint_hunter import (
-    InstitutionalFootprintHunter as EnhancedInstitutionalFootprintHunter,
-)
-from src.sensory.enhanced.what.pattern_synthesis_engine import (
-    PatternSynthesis as EnhancedPatternSynthesis,
-)
-from src.sensory.enhanced.what.pattern_synthesis_engine import (
-    PatternSynthesisEngine as EnhancedPatternSynthesisEngine,
-)
-from src.sensory.enhanced.when.temporal_advantage_system import (
-    TemporalAdvantage as EnhancedTemporalAdvantage,
-)
-from src.sensory.enhanced.when.temporal_advantage_system import (
-    TemporalAdvantageSystem as EnhancedTemporalAdvantageSystem,
-)
 
 # Import all sensory dimensions
 from src.sensory.organs.dimensions.chaos_adaptation import ChaosAdaptationSystem

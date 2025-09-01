@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 import random
-from typing import TYPE_CHECKING, Any, cast
+from typing import Any, cast
 
 from src.core.interfaces import DecisionGenome, IMutationStrategy
 

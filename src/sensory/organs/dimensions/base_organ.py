@@ -15,7 +15,8 @@ from datetime import datetime, time
 from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple
 
-from pydantic import BaseModel, Field, validator, model_validator
+from pydantic import BaseModel, Field, model_validator, validator
+from src.core.base import MarketRegime as MarketRegime
 
 from src.trading.order_management.order_book.snapshot import OrderBookLevel as OrderBookLevel
 from src.trading.order_management.order_book.snapshot import OrderBookSnapshot as OrderBookSnapshot
@@ -23,7 +24,7 @@ from src.trading.order_management.order_book.snapshot import OrderBookSnapshot a
 logger = logging.getLogger(__name__)
 
 
-from src.core.base import MarketRegime as MarketRegime
+
 
 class ConfidenceLevel(Enum):
     """Standardized confidence levels across all dimensions"""

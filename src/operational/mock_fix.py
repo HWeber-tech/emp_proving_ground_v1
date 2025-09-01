@@ -13,6 +13,7 @@ import threading
 import time
 from typing import Callable, List
 
+
 class _MockTradeConnection:
     def __init__(self, order_cbs: List[Callable[[object], None]]) -> None:
         self._order_cbs = order_cbs

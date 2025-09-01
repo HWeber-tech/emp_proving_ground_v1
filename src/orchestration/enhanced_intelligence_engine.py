@@ -22,7 +22,7 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass
 from enum import Enum
-from typing import TYPE_CHECKING, Any, Dict, List, Protocol, Tuple, cast
+from typing import Any, Dict, List, Protocol, Tuple, cast
 
 from src.core.base import DimensionalReading, MarketData
 from src.market_intelligence.dimensions.enhanced_anomaly_dimension import AnomalyIntelligenceEngine

@@ -8,7 +8,6 @@ from entry points that rely on these libraries (e.g., batch jobs, services).
 
 from __future__ import annotations
 
-from typing import Any
 
 
 def _parse(ver: str) -> tuple[int, int, int]:

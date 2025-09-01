@@ -11,12 +11,12 @@ import json
 import logging
 import sqlite3
 from datetime import datetime
+from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional, cast
+from typing import Any, Optional, cast
 
 logger = logging.getLogger(__name__)
 
-from enum import Enum
 
 class StrategyStatus(Enum):
     EVOLVED = "evolved"

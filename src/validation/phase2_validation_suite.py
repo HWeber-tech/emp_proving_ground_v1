@@ -10,11 +10,13 @@ Tests performance benchmarks, accuracy metrics, and integration points.
 import logging
 import time
 from typing import List, Optional
+
 import psutil
 
-from src.validation.models import ValidationResult
 from src.core.market_data import MarketDataGateway, NoOpMarketDataGateway
 from src.evolution.selection.adversarial_selector import AdversarialSelector
+from src.validation.models import ValidationResult
+
 
 class MultiDimensionalFitnessEvaluator:
     pass

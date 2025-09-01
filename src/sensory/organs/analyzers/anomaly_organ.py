@@ -18,7 +18,6 @@ from typing import Mapping, NotRequired, Required, Sequence, TypedDict, cast
 import numpy as np
 import pandas as pd
 
-from src.core.types import JSONObject
 
 logger = logging.getLogger(__name__)
 

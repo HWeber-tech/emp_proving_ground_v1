@@ -10,7 +10,7 @@ backward compatibility and will be removed after migration.
 import asyncio
 import logging
 from datetime import datetime
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Dict, List, Optional
 
 try:
     from src.core.interfaces import IExecutionEngine

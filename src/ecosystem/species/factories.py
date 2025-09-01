@@ -11,7 +11,8 @@ import random
 from collections.abc import Mapping
 from typing import cast
 
-from src.core.interfaces import DecisionGenome as GenomeLike, ISpecialistGenomeFactory
+from src.core.interfaces import DecisionGenome as GenomeLike
+from src.core.interfaces import ISpecialistGenomeFactory
 from src.genome.models.genome import DecisionGenome as CanonDecisionGenome
 
 

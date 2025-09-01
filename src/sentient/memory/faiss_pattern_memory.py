@@ -10,11 +10,10 @@ import logging
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, cast
-
-import numpy as np
+from typing import Any, Optional, cast
 
 import faiss
+import numpy as np
 
 logger = logging.getLogger(__name__)
 

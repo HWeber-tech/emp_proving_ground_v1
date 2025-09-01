@@ -1,5 +1,3 @@
-from collections.abc import Mapping, Sequence
-
 """
 Red Team AI System
 Dedicated AI system to attack and improve strategies.
@@ -7,11 +5,12 @@ Dedicated AI system to attack and improve strategies.
 
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
 import logging
 import uuid
 from ast import literal_eval
 from datetime import datetime
-from typing import Any, Dict, List, Mapping, Optional, Sequence, cast
+from typing import Any, Dict, List, Optional, cast
 
 import numpy as np
 
@@ -21,7 +20,7 @@ except Exception:  # pragma: no cover
     StrategyAnalysis = AttackResult = ExploitResult = object
 from src.core.state_store import StateStore
 from src.thinking.models.normalizers import normalize_attack_report
-from src.thinking.models.types import AttackReportTD, RedTeamResultLike
+from src.thinking.models.types import AttackReportTD
 
 logger = logging.getLogger(__name__)
 

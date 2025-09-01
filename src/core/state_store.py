@@ -11,7 +11,7 @@ and must not be imported from here to preserve layering.
 
 from __future__ import annotations
 
-from typing import List, Optional, Protocol, runtime_checkable
+from typing import Optional, Protocol, runtime_checkable
 
 
 @runtime_checkable

@@ -28,7 +28,7 @@ import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, List, Tuple, Dict, Set
+from typing import Dict, Iterable, List, Set, Tuple
 
 # ... existing code ...
 VENV_DIRS = [

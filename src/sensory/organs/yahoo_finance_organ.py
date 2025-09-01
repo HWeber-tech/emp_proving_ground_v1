@@ -8,10 +8,9 @@ from __future__ import annotations
 import logging
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, Optional, cast
+from typing import Any, Optional, cast
 
 import pandas as pd
-
 import yfinance as yf
 
 logger = logging.getLogger(__name__)

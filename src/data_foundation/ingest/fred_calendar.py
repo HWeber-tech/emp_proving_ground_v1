@@ -5,7 +5,6 @@ This is a placeholder; customize with your preferred source.
 
 from __future__ import annotations
 
-from typing import List
 
 from src.data_foundation.schemas import MacroEvent
 

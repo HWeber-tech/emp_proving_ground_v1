@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 """
 Core Genome Port
 ================
@@ -11,6 +9,8 @@ Also provides:
 - NoOpGenomeProvider: safe, non-raising stub implementation
 - Simple registry: register_genome_provider / get_genome_provider
 """
+
+from __future__ import annotations
 
 import importlib
 import time

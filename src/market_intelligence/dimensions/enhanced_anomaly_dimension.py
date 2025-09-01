@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import importlib
-from typing import Dict
 
 # PEP 562 lazy forwarding to canonical sensory implementation
 _LAZY_EXPORTS: dict[str, str] = {

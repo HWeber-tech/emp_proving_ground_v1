@@ -3,7 +3,7 @@
 Provides Protocol for MetricsSink and function set_metrics_sink used by operational metrics module to register a sink implementation while keeping runtime dependency optional.
 """
 
-from typing import Protocol, Optional, Dict, List
+from typing import Dict, List, Optional, Protocol
 
 class MetricsSink(Protocol):
     def set_gauge(self, name: str, value: float, labels: Optional[Dict[str, str]] = ...) -> None: ...

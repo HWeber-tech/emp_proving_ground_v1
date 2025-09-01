@@ -9,7 +9,7 @@ Optimized for performance with Redis caching integration.
 from __future__ import annotations
 
 import logging
-from typing import Any, Callable, Dict, List, Optional, cast
+from typing import Callable, Dict, List, Optional, cast
 
 import numpy as np
 

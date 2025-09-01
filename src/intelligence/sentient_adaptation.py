@@ -21,6 +21,8 @@ import numpy as np
 
 from src.sentient.adaptation.adaptation_controller import (
     AdaptationController as AdaptationController,
+)
+from src.sentient.adaptation.adaptation_controller import (
     TacticalAdaptation as TacticalAdaptation,
 )
 from src.sentient.learning.real_time_learning_engine import (

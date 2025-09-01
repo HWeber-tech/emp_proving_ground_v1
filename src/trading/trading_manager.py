@@ -23,7 +23,6 @@ except Exception:  # pragma: no cover
 PositionSizer: Optional[Callable[[Decimal, Decimal, Decimal], Decimal]] = cast(
     Optional[Callable[[Decimal, Decimal, Decimal], Decimal]], _PositionSizer
 )
-from src.trading.monitoring.portfolio_monitor import PortfolioMonitor
 
 RiskGateway = None  # deprecated path removed; use core risk flows directly
 

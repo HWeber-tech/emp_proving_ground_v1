@@ -11,8 +11,7 @@ import json
 import os
 import time
 from datetime import datetime
-from typing import Callable, Optional
-from typing import Protocol
+from typing import Callable, Optional, Protocol
 
 
 def _serialize_order_book(symbol: str, order_book: object) -> dict[str, object]:

@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-import os
-from typing import Optional, Protocol, cast
 import importlib
+import os
 from collections.abc import Mapping
+from typing import Optional, Protocol, cast
+from src.sensory.what.volatility_engine import VolConfig
 
 _yaml_module = None
 try:
@@ -17,9 +18,8 @@ class _YAMLProtocol(Protocol):
 
 
 yaml_mod: _YAMLProtocol | None = cast(_YAMLProtocol | None, _yaml_module)
-
 # Canonical volatility surface (Phase 1 canonicalization)
-from src.sensory.what.volatility_engine import VolConfig, VolatilityEngine  # noqa: F401
+
 
 
 def load_vol_config(path: Optional[str] = None) -> VolConfig:

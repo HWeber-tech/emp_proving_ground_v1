@@ -6,7 +6,7 @@ creating metrics at import time. All wrappers are non-raising.
 import logging
 import os
 from threading import Lock
-from typing import Dict, Optional, List, TYPE_CHECKING, Callable, cast
+from typing import TYPE_CHECKING, Callable, Dict, List, Optional, cast
 
 from src.core.interfaces import GaugeLike
 from src.operational.metrics_registry import get_registry

@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 """
 Canonical JSON type aliases for the project.
 
@@ -14,7 +12,10 @@ Examples:
 
 These aliases are intentionally minimal and align with RFC 8259 JSON shapes.
 """
-from typing import Dict, List, Union
+
+from __future__ import annotations
+
+from typing import Union
 
 # Atomic JSON primitives (RFC 8259)
 JSONPrimitive = Union[str, int, float, bool, None]

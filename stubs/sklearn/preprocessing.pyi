@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 from typing import Sequence
+
 import numpy as np
 from numpy.typing import NDArray
-
 
 class StandardScaler:
     def __init__(self, **kwargs: object) -> None: ...

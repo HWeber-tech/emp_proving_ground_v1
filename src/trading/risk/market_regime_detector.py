@@ -1,5 +1,3 @@
-from collections.abc import Mapping
-
 """
 Stub module to satisfy optional import: src.trading.risk.market_regime_detector
 Runtime-safe no-op implementation for validation flows.
@@ -7,8 +5,8 @@ Runtime-safe no-op implementation for validation flows.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from types import SimpleNamespace
-from typing import Mapping
 
 
 class MarketRegimeDetector:

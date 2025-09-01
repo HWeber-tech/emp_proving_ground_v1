@@ -1,4 +1,4 @@
-from typing import Iterable, Mapping, Sequence, Tuple, List, Optional, Union
+from typing import Iterable, List, Mapping, Optional, Sequence, Tuple, Union
 
 # Minimal duckdb typing stubs sufficient for this codebase’s usage.
 # These are intentionally narrow and avoid Any to comply with strict mypy settings.

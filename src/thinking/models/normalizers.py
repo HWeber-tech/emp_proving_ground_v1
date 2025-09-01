@@ -1,7 +1,3 @@
-from __future__ import annotations
-
-from collections.abc import Mapping
-
 """
 Normalization helpers for boundary objects (structural typing)
 =============================================================
@@ -14,6 +10,10 @@ Rules:
 - Never raise: always return a safe default shape.
 - Only include fields we actually consume in the codebase.
 """
+
+from __future__ import annotations
+
+from collections.abc import Mapping
 from typing import Optional, SupportsFloat, SupportsIndex, cast
 
 from .types import AttackReportTD

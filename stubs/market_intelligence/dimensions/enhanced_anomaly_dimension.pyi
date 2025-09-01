@@ -1,5 +1,6 @@
 from __future__ import annotations
-from typing import Iterable, Dict, Any
+
+from typing import Any, Dict, Iterable
 
 # Typing-only stub to avoid loading the real module under two names.
 # Do NOT import from src.* here to prevent duplicate module path detection.

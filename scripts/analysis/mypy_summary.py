@@ -30,7 +30,6 @@ import sys
 from collections import Counter, defaultdict
 from pathlib import Path
 
-
 ERROR_LINE_RE = re.compile(r":\s*error:\s")
 CODE_RE = re.compile(r"\[([A-Za-z0-9_-]+)\]\s*$")
 

@@ -15,7 +15,7 @@ import logging
 import time
 from datetime import datetime
 from decimal import Decimal
-from typing import Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 import numpy as np
 import pandas as pd
@@ -24,7 +24,6 @@ from src.core.anomaly import AnomalyDetector, NoOpAnomalyDetector
 from src.core.market_data import MarketDataGateway, NoOpMarketDataGateway
 from src.core.regime import NoOpRegimeClassifier, RegimeClassifier
 
-from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from src.core.interfaces import DecisionGenome as DecisionGenome  # noqa: F401
 else:

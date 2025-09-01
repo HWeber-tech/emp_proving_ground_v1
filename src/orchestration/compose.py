@@ -19,10 +19,8 @@ from __future__ import annotations
 
 import asyncio
 import importlib
-from typing import Any
-from typing import Dict
+from typing import Any, Dict, List, Optional, TypedDict, cast
 from typing import Dict as _Dict
-from typing import List, Optional, TypedDict, cast
 
 from src.core.adaptation import AdaptationService, NoOpAdaptationService
 from src.core.anomaly import AnomalyDetector, AnomalyEvent, NoOpAnomalyDetector

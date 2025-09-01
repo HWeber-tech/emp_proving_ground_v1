@@ -10,7 +10,7 @@ import logging
 from datetime import datetime
 
 # Add typing for callbacks and awaitables
-from typing import Any, Awaitable, Callable, Dict, Optional, cast
+from typing import Any, Awaitable, Callable, Optional
 
 import simplefix
 

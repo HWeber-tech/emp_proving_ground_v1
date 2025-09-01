@@ -4,7 +4,6 @@ import importlib
 from decimal import Decimal
 from typing import Any
 
-from typing import TYPE_CHECKING
 
 class RiskConfig:
     """Minimal RiskConfig placeholder to satisfy type imports.

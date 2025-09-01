@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 from types import ModuleType as _ModuleType
 
 # Stub package to ensure market_intelligence.dimensions.* resolves to typing-only stubs.

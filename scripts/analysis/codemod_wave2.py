@@ -5,7 +5,6 @@ import sys
 from pathlib import Path
 from typing import Tuple
 
-
 FUTURE_LINE = "from __future__ import annotations"
 SHEBANG_RE = re.compile(r"^#!.*\n")
 TRIPLE_START = re.compile(r"^[ruRU]*([\'\"]{3})")

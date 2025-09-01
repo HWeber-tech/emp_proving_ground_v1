@@ -8,7 +8,6 @@ such as 2s10s slope and a basic directional signal/confidence.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Dict, Tuple
 
 
 @dataclass

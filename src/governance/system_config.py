@@ -5,7 +5,7 @@ import logging
 import os
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import Mapping, TypeVar, TypedDict, Unpack
+from typing import Mapping, TypedDict, TypeVar, Unpack
 
 logger = logging.getLogger(__name__)
 

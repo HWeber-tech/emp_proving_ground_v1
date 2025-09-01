@@ -11,7 +11,7 @@ and can register themselves via set_metrics_sink().
 
 from __future__ import annotations
 
-from typing import Dict, List, Optional, Protocol, runtime_checkable
+from typing import Optional, Protocol, runtime_checkable
 
 
 @runtime_checkable

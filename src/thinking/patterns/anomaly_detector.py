@@ -12,8 +12,8 @@ from typing import Any, Dict, List, Mapping, Optional, cast
 
 import numpy as np
 
-from src.core.interfaces import AnalysisResult, SensorySignal, ThinkingPattern
 from src.core.exceptions import TradingException
+from src.core.interfaces import AnalysisResult, SensorySignal, ThinkingPattern
 
 logger = logging.getLogger(__name__)
 

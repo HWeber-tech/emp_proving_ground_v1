@@ -1,4 +1,5 @@
 from typing import Any, Dict, List
+
 import pandas as pd
 
 class PriceActionAnalyzer:

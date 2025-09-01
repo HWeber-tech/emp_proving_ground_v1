@@ -18,9 +18,8 @@ from typing import TYPE_CHECKING, Dict, List, Mapping, Optional, Protocol, Seque
 import numpy as np
 
 if TYPE_CHECKING:  # pragma: no cover
-    from numpy.typing import NDArray
-
     import torch.nn as _nn
+    from numpy.typing import NDArray
 
 logger = logging.getLogger(__name__)
 

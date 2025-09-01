@@ -1,6 +1,7 @@
 from __future__ import annotations
-from typing import Any, Tuple
+
 from datetime import datetime
+from typing import Any, Tuple
 
 class TemporalAdvantage:
     session_transition_score: float

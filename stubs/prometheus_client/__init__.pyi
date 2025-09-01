@@ -1,4 +1,4 @@
-from typing import Optional, Sequence, Dict
+from typing import Dict, Optional, Sequence
 
 # Minimal typing stubs for prometheus_client used by our codebase.
 

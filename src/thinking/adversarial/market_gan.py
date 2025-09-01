@@ -1,5 +1,3 @@
-from collections.abc import Mapping, Sequence
-
 """
 Market GAN System
 Generative Adversarial Network for creating challenging market scenarios.
@@ -7,18 +5,18 @@ Generative Adversarial Network for creating challenging market scenarios.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 import importlib
 import logging
 from ast import literal_eval
 from datetime import datetime
-from typing import Any, Dict, List, Mapping, Optional, Sequence, cast
+from typing import Any, List, cast
 
 import numpy as np
 
 from src.core.state_store import StateStore
 from src.thinking.adversarial.adversarial_trainer import AdversarialTrainer as AdversarialTrainer
 from src.thinking.models.normalizers import normalize_survival_result
-from src.thinking.models.types import SurvivalResultLike
 from src.thinking.prediction.market_data_generator import MarketDataGenerator as MarketDataGenerator
 from src.thinking.prediction.predictive_market_modeler import MarketScenario as MarketScenario
 

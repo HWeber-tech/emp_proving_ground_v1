@@ -9,10 +9,9 @@ import argparse
 import re
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, List, cast
+from typing import Any, cast
 
 import pandas as pd
-
 import yfinance as yf
 
 

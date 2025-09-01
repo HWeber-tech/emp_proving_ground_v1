@@ -3,7 +3,7 @@ from __future__ import annotations
 import importlib
 import os
 from datetime import datetime
-from typing import Any, Dict, List
+from typing import Any
 
 _pd: object | None = None
 try:  # pragma: no cover

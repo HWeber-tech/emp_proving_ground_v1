@@ -19,10 +19,9 @@ import logging
 import struct
 from datetime import date, datetime, timedelta
 from pathlib import Path
-from typing import List, Optional
+from typing import Optional
 
 import pandas as pd
-
 import requests
 
 logger = logging.getLogger(__name__)

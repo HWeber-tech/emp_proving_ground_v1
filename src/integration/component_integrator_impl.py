@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 from src.core.types import JSONObject
-from src.integration.component_integrator import ComponentIntegrator, IComponentIntegrator
+from src.integration.component_integrator import ComponentIntegrator
 
 logger = logging.getLogger(__name__)
 

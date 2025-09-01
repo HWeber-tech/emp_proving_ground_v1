@@ -1,4 +1,3 @@
-from collections.abc import Mapping, Sequence
 
 """
 Competitive Intelligence System

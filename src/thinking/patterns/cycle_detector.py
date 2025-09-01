@@ -15,6 +15,7 @@ from typing import Any, Dict, List, Mapping, Optional, cast
 import numpy as np
 
 from src.core.interfaces import AnalysisResult, SensorySignal, ThinkingPattern
+
 # Guard the exception import: alias TradingException if ThinkingException absent
 try:
     from src.core.exceptions import TradingException as ThinkingException

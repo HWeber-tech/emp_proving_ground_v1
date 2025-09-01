@@ -5,14 +5,14 @@ is unavailable. Never raises on import; safe to use in any environment.
 
 import logging
 from threading import RLock
-from typing import Callable, Dict, List, Optional, Protocol, Self, Tuple, Union, cast, Sequence
+from typing import Dict, List, Optional, Protocol, Self, Sequence, Tuple, Union, cast
+from src.core.interfaces import CounterLike, GaugeLike, HistogramLike
 
 _log = logging.getLogger(__name__)
 
 
 # Protocols describing the subset of prometheus metric APIs we rely on.
 # Import canonical Protocols from core interfaces to avoid duplication.
-from src.core.interfaces import CounterLike, GaugeLike, HistogramLike
 
 
 # No-op implementations when prometheus_client is absent

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import random
-from typing import Tuple
 
 
 def single_point_crossover(p1: list[float], p2: list[float]) -> tuple[list[float], list[float]]:

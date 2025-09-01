@@ -9,7 +9,7 @@ pattern engine and supports future decomposition of detectors.
 
 from __future__ import annotations
 
-from typing import Any, Dict
+from typing import Any
 
 import pandas as pd
 

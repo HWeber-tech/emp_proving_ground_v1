@@ -20,14 +20,14 @@ import logging
 from datetime import datetime
 from typing import Any, Dict, List
 
+from src.core.anomaly import AnomalyDetector, NoOpAnomalyDetector
+from src.core.market_data import MarketDataGateway, NoOpMarketDataGateway
+from src.core.regime import NoOpRegimeClassifier, RegimeClassifier
+from src.core.risk_ports import NoOpRiskManager, RiskManagerPort
+from src.orchestration.compose import compose_validation_adapters
 from src.validation.phase2d_integration_validator import (
     Phase2DIntegrationValidator as ModernPhase2DIntegrationValidator,
 )
-from src.orchestration.compose import compose_validation_adapters
-from src.core.market_data import MarketDataGateway, NoOpMarketDataGateway
-from src.core.anomaly import AnomalyDetector, NoOpAnomalyDetector
-from src.core.regime import RegimeClassifier, NoOpRegimeClassifier
-from src.core.risk_ports import RiskManagerPort, NoOpRiskManager
 
 logger = logging.getLogger(__name__)
 

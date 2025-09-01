@@ -6,7 +6,7 @@ Enhanced with CVD divergence analysis for the Thinking Layer
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Dict, Literal, Optional
+from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
 

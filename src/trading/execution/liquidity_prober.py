@@ -13,7 +13,7 @@ import logging
 import uuid
 from datetime import datetime
 from decimal import Decimal
-from typing import Any, Dict, List, Literal, Optional
+from typing import Any, Literal, Optional
 
 from src.trading.integration.fix_broker_interface import FIXBrokerInterface
 

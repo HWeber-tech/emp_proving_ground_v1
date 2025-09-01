@@ -4,9 +4,9 @@ Multi-dimension replayer: plays back MD (WHAT) and macro (WHY) streams with a un
 from __future__ import annotations
 
 import json
+from collections.abc import Iterator
 from datetime import datetime
 from typing import Callable, Optional
-from collections.abc import Iterator
 
 
 def _parse_jsonl(path: str) -> Iterator[dict[str, object]]:

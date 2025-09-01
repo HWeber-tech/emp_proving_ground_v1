@@ -1,5 +1,3 @@
-from collections.abc import Mapping, Sequence
-
 """
 Predictive Market Modeler
 Advanced market prediction and scenario modeling system.
@@ -13,17 +11,17 @@ from ast import literal_eval
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from decimal import Decimal
-from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple, cast
+from typing import Any, List, Sequence, Tuple, cast
 
 import numpy as np
+from src.core.state_store import StateStore
+from src.thinking.models.normalizers import normalize_prediction
+from src.thinking.models.types import PredictionLike
 
 try:
     from src.core.events import ContextPacket, PredictionResult  # legacy
 except Exception:  # pragma: no cover
     ContextPacket = PredictionResult = object
-from src.core.state_store import StateStore
-from src.thinking.models.normalizers import normalize_prediction
-from src.thinking.models.types import PredictionLike
 
 logger = logging.getLogger(__name__)
 

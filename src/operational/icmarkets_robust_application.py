@@ -12,9 +12,10 @@ import threading
 import time
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Dict, List, Optional, Protocol, TypedDict, runtime_checkable, cast
+from typing import Dict, List, Optional, Protocol, TypedDict, cast, runtime_checkable
 
 import simplefix
+
 from src.core.types import JSONObject
 
 # Configure logging

@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 """
 Genome Provider Adapter
 =======================
@@ -12,10 +10,12 @@ This module does NOT import core modules at runtime; it only depends on local
 genome implementations and provides local fallbacks to avoid introducing cycles.
 """
 
+from __future__ import annotations
+
 import logging
 import time
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +27,7 @@ _new_genome: Any = None
 _from_legacy: Any = None
 _to_legacy_view: Any = None
 if TYPE_CHECKING:
-    from src.genome.models.genome import DecisionGenome  # type-only
+    pass  # type-only
 try:
     from src.genome.models.genome import DecisionGenome as __DecisionGenome
     from src.genome.models.genome import mutate as __mutate

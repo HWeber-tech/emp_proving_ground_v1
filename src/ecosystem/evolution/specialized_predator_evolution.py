@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime
-from typing import Any, Dict, List, Mapping, Optional, Sequence, cast
+from typing import Any, Dict, List, cast
 
 from src.ecosystem.coordination.coordination_engine import CoordinationEngine
 from src.ecosystem.evaluation.niche_detector import NicheDetector

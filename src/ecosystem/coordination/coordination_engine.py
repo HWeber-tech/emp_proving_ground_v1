@@ -23,7 +23,6 @@ from src.core.interfaces import (
     MarketContext,
     TradeIntent,
 )
-from src.core.types import JSONObject
 
 logger = logging.getLogger(__name__)
 

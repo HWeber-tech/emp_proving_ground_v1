@@ -1,5 +1,6 @@
 from __future__ import annotations
-from typing import Iterable, Dict, Any
+
+from typing import Any, Dict, Iterable
 
 # Typing-only stub to shadow the runtime module so mypy doesn't load the .py file
 # under two module names. Canonical import path used across the project is src.*.

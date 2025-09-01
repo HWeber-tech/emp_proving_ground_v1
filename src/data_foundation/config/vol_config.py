@@ -1,8 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 import importlib
 import os
-from collections.abc import Mapping
 from typing import cast, Optional, Protocol
 
 from src.sensory.what.volatility_engine import VolConfig

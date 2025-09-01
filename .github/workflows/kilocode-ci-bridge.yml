@@ -1,0 +1,116 @@
+---
+name: Kilocode CI Bridge
+
+on:
+  workflow_run:
+    workflows: ["CI"]   # <-- put the exact name of your main CI workflow
+    types: [completed]
+
+permissions:
+  issues: write
+  actions: read
+
+jobs:
+  notify-kilocode:
+    if: ${{ github.event.workflow_run.conclusion == 'failure' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Build reduced failure capsule
+        uses: actions/github-script@v7
+        id: capsule
+        with:
+          script: |
+            const MAX_CHARS = 30000;
+            const TAIL_LINES = 250;
+            const ERR_GREP = /(FAIL|ERROR|Traceback|AssertionError|TypeError|✗|Unhandled|Exit code)/i;
+            const STRIP_ANSI = str => str.replace(/\x1B\[[0-9;]*[A-Za-z]/g, '');
+
+            const run = context.payload.workflow_run;
+            const {owner, repo} = context.repo;
+
+            const jobs = await github.paginate(
+              github.rest.actions.listJobsForWorkflowRunAttempt,
+              {owner, repo, run_id: run.id, attempt_number: run.run_attempt}
+            );
+
+            const failing = jobs.filter(j => j.conclusion === 'failure');
+            const parts = [];
+            for (const j of failing) {
+              const {url} = await github.rest.actions.downloadJobLogsForWorkflowRun({owner, repo, job_id: j.id});
+              const res = await fetch(url);
+              const raw = STRIP_ANSI(await res.text());
+              const lines = raw.split('\n');
+
+              const errChunks = [];
+              for (let i=0;i<lines.length;i++){
+                if (ERR_GREP.test(lines[i])){
+                  const start = Math.max(0, i-10), end = Math.min(lines.length, i+15);
+                  errChunks.push(lines.slice(start,end).join('\n'));
+                  i = end;
+                }
+              }
+              const tail = lines.slice(-TAIL_LINES).join('\n');
+              const reduced = [
+                `### Job: ${j.name}`,
+                '---',
+                errChunks.length ? '#### Error Excerpt:\n' + errChunks.join('\n...\n') : '#### Error Excerpt: <none>',
+                '\n#### Tail:\n' + tail
+              ].join('\n');
+              parts.push({ job: j.name, reduced, log_url: url });
+            }
+
+            let body = parts.map(p => p.reduced).join('\n\n===== =====\n\n');
+            if (body.length > MAX_CHARS) body = body.slice(-MAX_CHARS);
+
+            const payload = {
+              repo: `${owner}/${repo}`,
+              sha: run.head_sha,
+              branch: run.head_branch,
+              pr: (run.pull_requests?.[0]?.number) || null,
+              run_id: run.id,
+              run_html_url: run.html_url,
+              failed_jobs: parts.map(p => ({job: p.job, log_url: p.log_url})),
+              capsule_chars: body.length,
+              capsule_limit: MAX_CHARS
+            };
+
+            core.setOutput('title', `CI failed on ${run.head_branch} @ ${run.head_sha.substring(0,7)}`);
+            core.setOutput('capsule', body);
+            core.setOutput('payload', JSON.stringify(payload, null, 2));
+
+      - name: Comment capsule to kilocode issue
+        uses: actions/github-script@v7
+        env:
+          TITLE: ${{ steps.capsule.outputs.title }}
+          CAPSULE: ${{ steps.capsule.outputs.capsule }}
+          PAYLOAD: ${{ steps.capsule.outputs.payload }}
+        with:
+          script: |
+            const {owner, repo} = context.repo;
+            const title   = process.env.TITLE;
+            const capsule = process.env.CAPSULE;
+            const payload = process.env.PAYLOAD;
+
+            const body = [
+              'CI failed. Kilocode payload:',
+              '',
+              '```json',
+              payload,
+              '```',
+              '',
+              '### Reduced Failure Capsule',
+              '```',
+              capsule,
+              '```'
+            ].join('\n');
+
+            const issues = await github.paginate(github.rest.issues.listForRepo, {
+              owner, repo, state: 'open', labels: 'kilocode-ci'
+            });
+            const issue = issues[0];
+            if (issue) {
+              await github.rest.issues.createComment({owner, repo, issue_number: issue.number, body});
+            } else {
+              await github.rest.issues.create({owner, repo, title, body, labels: ['kilocode-ci']});
+            }
+---

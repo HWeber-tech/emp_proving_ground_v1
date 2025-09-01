@@ -3,7 +3,8 @@ from __future__ import annotations
 import importlib
 import os
 from collections.abc import Mapping
-from typing import Optional, Protocol, cast
+from typing import cast, Optional, Protocol
+
 from src.sensory.what.volatility_engine import VolConfig
 
 _yaml_module = None

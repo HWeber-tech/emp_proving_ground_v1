@@ -1,35 +1,21 @@
+---
+default_language_version:
+  python: python3
+default_stages: [push]
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.6.0
+    rev: v0.6.4
     hooks:
       - id: ruff
-        args: ["--fix", "--exit-non-zero-on-fix"]
+        args: [--exit-non-zero-on-fix]
   - repo: https://github.com/psf/black
     rev: 24.8.0
     hooks:
       - id: black
-  - repo: https://github.com/pycqa/isort
-    rev: 5.13.2
+        args: [--check]
+  - repo: https://github.com/pre-commit/mirrors-isort
+    rev: v5.13.2
     hooks:
       - id: isort
-        args: ["--profile=black"]
-  - repo: local
-    hooks:
-      - id: mypy
-        name: mypy (changed files)
-        entry: mypy
-        language: system
-        types: [python]
-        pass_filenames: true
-        args: ["--config-file", "mypy.ini"]
-      - id: guard-no-tool-mypy-in-pyproject
-        name: "Guard: disallow [tool.mypy] in pyproject.toml"
-        entry: bash -c 'if grep -n "^\[tool\.mypy\]" pyproject.toml >/dev/null; then echo "[tool.mypy] detected in pyproject.toml; use mypy.ini"; exit 1; fi'
-        language: system
-        pass_filenames: false
-        files: ^pyproject\.toml$
-  - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.6.0
-    hooks:
-      - id: end-of-file-fixer
-      - id: trailing-whitespace
+        args: [--check-only]
+---

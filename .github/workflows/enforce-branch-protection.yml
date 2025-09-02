@@ -1,0 +1,65 @@
+---
+name: Enforce Branch Protection
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: Branch to protect
+        required: false
+        default: main
+
+permissions: {}
+
+jobs:
+  protect:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate admin token is present
+        env:
+          HAS_TOKEN: ${{ secrets.REPO_ADMIN_TOKEN != '' }}
+        run: |
+          if [ "${HAS_TOKEN}" != "true" ]; then
+            echo "Missing REPO_ADMIN_TOKEN secret with repo admin privileges."; exit 1; fi
+      - name: Apply branch protection
+        env:
+          GH_OWNER_REPO: ${{ github.repository }}
+          BRANCH: ${{ github.event.inputs.branch || 'main' }}
+          TOKEN: ${{ secrets.REPO_ADMIN_TOKEN }}
+        run: |
+          set -euo pipefail
+          OWNER="${GH_OWNER_REPO%/*}"
+          REPO="${GH_OWNER_REPO#*/}"
+          API="https://api.github.com/repos/${OWNER}/${REPO}/branches/${BRANCH}/protection"
+
+          cat > body.json <<'JSON'
+          {
+            "required_status_checks": {
+              "strict": true,
+              "contexts": ["CI / policy", "CI / lint", "CI / types", "CI / tests"]
+            },
+            "enforce_admins": true,
+            "required_pull_request_reviews": {
+              "dismiss_stale_reviews": true,
+              "require_code_owner_reviews": false,
+              "required_approving_review_count": 1
+            },
+            "restrictions": null,
+            "allow_force_pushes": false,
+            "allow_deletions": false,
+            "block_creations": false,
+            "required_linear_history": true,
+            "required_conversation_resolution": true,
+            "lock_branch": false,
+            "allow_fork_syncing": true
+          }
+          JSON
+
+          curl -sSf -X PUT \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${TOKEN}" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "${API}" \
+            -d @body.json
+
+          echo "Branch protection applied to ${BRANCH}."
+---

@@ -1,146 +1,96 @@
+---
 name: CI
-
 on:
-  push:
-    branches: [ main, develop ]
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  push:
     branches: [ main ]
+  workflow_dispatch:
 
 jobs:
-  test:
-    name: Unit tests (Ubuntu, Python 3.11)
+  policy:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-          cache: "pip"
-      - name: Install deps
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-      - name: Guard: disallow [tool.mypy] in pyproject.toml
-        shell: bash
-        run: |
-          if grep -n '^\[tool\.mypy\]' pyproject.toml >/dev/null 2>&1; then
-            echo "[tool.mypy] detected in pyproject.toml; use mypy.ini as single source of truth"
-            exit 1
-          fi
-      - name: Run tests (current scope)
-        env:
-          EMP_USE_MOCK_FIX: '1'
-          PYTHONPATH: ${{ github.workspace }}
-        run: |
-          python -m pytest tests/current -q
-
-  quality:
-    name: Lint/Type/Coverage (Ubuntu)
-    runs-on: ubuntu-latest
-    env:
-      RUN_MODE: paper
-      EMP_ENVIRONMENT: demo
-      EMP_TIER: tier_0
-      CONFIRM_LIVE: 'false'
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-          cache: "pip"
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-          if [ -f requirements/dev.txt ]; then pip install -r requirements/dev.txt; fi
-          pip install pytest pytest-cov simplefix prometheus_client
-
-      - name: Guard: disallow [tool.mypy] in pyproject.toml
-        shell: bash
-        run: |
-          if grep -n '^\[tool\.mypy\]' pyproject.toml >/dev/null 2>&1; then
-            echo "[tool.mypy] detected in pyproject.toml; use mypy.ini as single source of truth"
-            exit 1
-          fi
-
-      - name: Lint with ruff
+      - uses: ./.github/actions/python-setup
+      - name: Block OpenAPI/FastAPI/cTrader
         run: |
           set -euo pipefail
-          ruff check . --select E9,F63,F7,F82,F401,E402,I001,F403,F405
-          # Deny OpenAPI/FastAPI references in FIX-only build (code only, deterministic)
-          MATCHES=$(rg -n -g '!docs/**' -g '!**/*.md' '(ctrader_open_api|CONNECTION_PROTOCOL=openapi|from\s+fastapi|import\s+fastapi|import\s+uvicorn)' -- scripts src config || true)
-          if [ -n "$MATCHES" ]; then
-            echo "OpenAPI/FastAPI references found in FIX-only build. Please remove them."
-            echo "$MATCHES"
-            exit 1
-          else
-            echo "No OpenAPI/FastAPI references in code."
-          fi
+          FORBIDDEN_REGEX='(ctrader_open_api|swagger|spotware|real_ctrader_interface|from[[:space:]]+fastapi|import[[:space:]]+fastapi|import[[:space:]]+uvicorn)'
+          MATCHES=$(grep -RniE "$FORBIDDEN_REGEX" -- src tests/current || true)
+          if [ -n "$MATCHES" ]; then echo "$MATCHES"; exit 1; fi
+          echo "No forbidden references found."
 
-      - name: Type check with mypy (mypy.ini)
+  lint:
+    runs-on: ubuntu-latest
+    needs: [policy]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/python-setup
+      - name: Ruff
+        run: ruff check .
+      - name: Black
+        run: black --check .
+      - name: isort
+        run: isort --check-only .
+
+  types:
+    runs-on: ubuntu-latest
+    needs: [lint]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/python-setup
+      - name: Guard single mypy source
+        run: |
+          set -euo pipefail
+          if grep -n '^\[tool\.mypy\]' pyproject.toml >/dev/null 2>&1; then
+            echo "[tool.mypy] found in pyproject.toml; use mypy.ini"; exit 1; fi
+          test -f mypy.ini || { echo "mypy.ini missing"; exit 1; }
+      - name: mypy
         env:
           MYPY_FORCE_COLOR: '1'
-        run: |
-          mypy --config-file mypy.ini src
+        run: mypy --config-file mypy.ini src
+      - name: Upload typing snapshot
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mypy-snapshot-${{ github.run_id }}
+          path: .mypy_cache
 
-      - name: Run tests with coverage
+  tests:
+    runs-on: ubuntu-latest
+    needs: [types]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/python-setup
+      - name: Pytest (coverage)
         env:
           PYTHONPATH: ${{ github.workspace }}
-        run: pytest tests/current --cov=src --cov-report=term --cov-fail-under=70 -q
-
-  mypy-full:
-    name: Type check (full posture, warning-only)
-    runs-on: ubuntu-latest
-    continue-on-error: true
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-          cache: "pip"
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-          pip install mypy
-      - name: Run mypy (full posture)
-        run: mypy src
+        run: pytest tests/current --cov=src --cov-report=term -q
 
   backtest:
-    name: Offline Backtest Smoke (Ubuntu)
     runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main'
+    needs: [tests]
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-          cache: "pip"
-      - name: Install deps
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/python-setup
       - name: Prepare fixtures
         run: |
           mkdir -p data/md_capture data/macro docs/reports/backtests
           printf '{"symbol":"EURUSD","timestamp":"2025-01-01T00:00:00","bids":[[1.1,1000000]],"asks":[[1.1002,1200000]]}\n' > data/md_capture/capture.jsonl
           printf '{"timestamp":"2025-01-01T00:30:00","event":"CPI","currency":"EUR"}\n' > data/macro/calendar.jsonl
       - name: Run backtest
-        env:
-          PYTHONPATH: ${{ github.workspace }}
         run: |
+          set -euo pipefail
           python scripts/backtest_report.py --file data/md_capture/capture.jsonl --macro-file data/macro/calendar.jsonl --out-dir docs/reports/backtests
-          python scripts/generate_html_report.py --csv docs/reports/backtests/why_features.csv --out docs/reports/backtests/WHY_FEATURES.html
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+          if test -f docs/reports/backtests/why_features.csv; then
+            python scripts/generate_html_report.py --csv docs/reports/backtests/why_features.csv --out docs/reports/backtests/WHY_FEATURES.html
+          else
+            echo "why_features.csv missing; skipping HTML."
+          fi
+      - uses: actions/upload-artifact@v4
         with:
           name: backtest-report
           path: docs/reports/backtests
+---

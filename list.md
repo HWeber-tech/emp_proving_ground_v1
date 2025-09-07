@@ -2,7 +2,7 @@
 2 - Create a long-form, high-impact TODO list to drive the cleanup effort
 3 - Add strict mypy configuration to [pyproject.toml](pyproject.toml:53) with mypy_path including src and stubs, pydantic plugin enabled, and disallow-any settings preserved
 4 - Add project-wide [mypy.ini](mypy.ini:1) with equivalent settings if pyproject is not used or for tool compatibility
-5 - Add pre-commit hooks in [.pre-commit-config.yaml](.pre-commit-config.yaml:1) for mypy and ruff
+5 - Add pre-commit hooks in [.pre-commit-config.yaml](.pre-commit-config.yaml:1) for mypy, ruff, and black
 6 - Wire pre-commit into CI and developers’ local workflows (document in [docs/development/contributing.md](docs/development/contributing.md:1))
 7 - Ensure all package directories have __init__.py files (audit src/* and add as needed)
 8 - Add typed JSON aliases to [src/core/types.py](src/core/types.py:1) (e.g., JSONValue, JSONObject) and reuse across payloads

@@ -46,9 +46,15 @@ known-first-party = ["src"]
 select = ["E9", "F63", "F7", "F82"]
 ignore = []
 
-[tool.ruff.format]
-quote-style = "double"
-indent-style = "space"
+[tool.black]
+line-length = 100
+target-version = ["py311"]
+
+[tool.isort]
+profile = "black"
+line_length = 100
+known_first_party = ["src"]
+src_paths = ["src", "tests", "stubs"]
 
 # mypy configuration is managed via mypy.ini to support a transitional, per-package strictness rollout.
 # This pyproject [tool.mypy] section is intentionally omitted to avoid conflicting, repo-wide strict settings.

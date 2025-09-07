@@ -1,6 +1,5 @@
 mypy==1.17.1  # pinned per env_py311_2025-08-27T18-56-38Z
 ruff==0.6.*
-black==24.*
 pre-commit>=3.7,<4
 pydantic>=1.10,<2.0  # align with codebase (v1 validators)
 import-linter>=2.0,<3  # architecture contracts

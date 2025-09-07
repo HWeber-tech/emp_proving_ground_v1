@@ -57,6 +57,7 @@ celerybeat-schedule
 .env
 !env_templates/.env.example
 .venv
+.venv*
 env/
 venv/
 ENV/
@@ -98,4 +99,4 @@ Thumbs.db
 data/
 experiments/
 logs/
-*.log 
+*.log

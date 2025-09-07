@@ -26,12 +26,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/python-setup
-      - name: Ruff
+      - name: Ruff (lint)
         run: ruff check .
-      - name: Black
-        run: black --check .
-      - name: isort
-        run: isort --check-only .
+      - name: Ruff (format)
+        run: ruff format --check .
 
   types:
     runs-on: ubuntu-latest

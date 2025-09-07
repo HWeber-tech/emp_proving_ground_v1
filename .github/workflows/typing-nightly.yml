@@ -9,22 +9,8 @@ on:
 jobs:
   mypy:
     runs-on: ubuntu-latest
-    env:
-      PYTHON_VERSION: "3.11"
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Cache pip
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('requirements/dev.txt') }}
+      - uses: ./.github/actions/python-setup
 
       - name: Guard: disallow [tool.mypy] in pyproject.toml
         shell: bash
@@ -32,17 +18,6 @@ jobs:
           if grep -n '^\[tool\.mypy\]' pyproject.toml >/dev/null 2>&1; then
             echo "[tool.mypy] detected in pyproject.toml; use mypy.ini as single source of truth"
             exit 1
-          fi
-
-      - name: Install dependencies
-        shell: bash
-        run: |
-          set -euxo pipefail
-          python -m pip install --upgrade pip
-          pip install -r requirements/dev.txt
-          if [ -f setup.py ] || [ -f pyproject.toml ]; then
-            # Optional local editable install if project supports it
-            pip install -e . || true
           fi
 
       - name: Compute timestamp (UTC)
@@ -63,10 +38,8 @@ jobs:
           CSV="mypy_ranked_offenders_${TS}.csv"
 
           ERR=0
-          # Run mypy with base configuration, capture both stdout and stderr
           mypy --config-file mypy.ini |& tee "${OUT}" || ERR=$?
 
-          # Extract totals line if present, else emit a minimal summary
           TOTALS="$(grep -E 'Found [0-9]+ errors? in [0-9]+ files?' "${OUT}" || true)"
           if [ -z "${TOTALS}" ]; then
             echo "mypy completed, exit_code=${ERR}" > "${SUM}"
@@ -74,13 +47,11 @@ jobs:
             echo "${TOTALS}" > "${SUM}"
           fi
 
-          # Optional ranked offenders CSV (best-effort)
           echo "path,count" > "${CSV}"
           awk -F: '/\.py:[0-9]+: error:/ {print $1}' "${OUT}" \
             | sort | uniq -c | sort -rn \
             | awk '{print $2","$1}' >> "${CSV}"
 
-          # Exit with mypy's status to enforce baseline
           exit ${ERR}
 
       - name: Upload artifacts
@@ -91,3 +62,4 @@ jobs:
             mypy_snapshot_${{ env.TS }}*.txt
             mypy_summary_${{ env.TS }}*.txt
             mypy_ranked_offenders_${{ env.TS }}*.csv
+

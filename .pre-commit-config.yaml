@@ -1,7 +1,6 @@
----
 default_language_version:
   python: python3
-default_stages: [push]
+default_stages: [pre-push]
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.6.4
@@ -14,8 +13,7 @@ repos:
       - id: black
         args: [--check]
   - repo: https://github.com/pre-commit/mirrors-isort
-    rev: v5.13.2
+    rev: v5.9.3
     hooks:
       - id: isort
         args: [--check-only]
----

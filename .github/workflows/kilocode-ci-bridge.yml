@@ -1,4 +1,3 @@
----
 name: Kilocode CI Bridge
 
 on:
@@ -113,4 +112,4 @@ jobs:
             } else {
               await github.rest.issues.create({owner, repo, title, body, labels: ['kilocode-ci']});
             }
----
+

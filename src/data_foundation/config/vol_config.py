@@ -1,26 +1,28 @@
 from __future__ import annotations
 
-from collections.abc import Mapping
 import importlib
 import os
-from typing import cast, Optional, Protocol
+from collections.abc import Mapping
+from typing import Optional, Protocol, cast
 
 from src.sensory.what.volatility_engine import VolConfig
-
-_yaml_module = None
-try:
-    _yaml_module = importlib.import_module("yaml")
-except Exception:  # pragma: no cover
-    _yaml_module = None
 
 
 class _YAMLProtocol(Protocol):
     def safe_load(self, stream: object) -> object: ...
 
 
-yaml_mod: _YAMLProtocol | None = cast(_YAMLProtocol | None, _yaml_module)
-# Canonical volatility surface (Phase 1 canonicalization)
+# Attempt to import PyYAML but fall back gracefully if unavailable.  Expose a
+# module-level ``yaml`` symbol so tests can monkeypatch it like they do for the
+# execution config module.
+yaml: _YAMLProtocol | None
+try:  # pragma: no cover - best-effort optional dependency
+    yaml = cast(_YAMLProtocol, importlib.import_module("yaml"))
+except Exception:  # pragma: no cover
+    yaml = None
 
+
+# Canonical volatility surface (Phase 1 canonicalization)
 
 
 def load_vol_config(path: Optional[str] = None) -> VolConfig:
@@ -29,12 +31,12 @@ def load_vol_config(path: Optional[str] = None) -> VolConfig:
     """
     if path is None:
         path = os.environ.get("VOL_CONFIG_PATH", "config/vol/vol_engine.yaml")
-    if yaml_mod is None or not os.path.exists(path):
+    if yaml is None or not os.path.exists(path):
         return VolConfig()
     try:
         with open(path, "r", encoding="utf-8") as fh:
-            assert yaml_mod is not None
-            raw = yaml_mod.safe_load(fh)
+            assert yaml is not None
+            raw = yaml.safe_load(fh)
             data = cast(dict[str, object], raw or {})
         ve = _as_map(data.get("vol_engine", data))
         rt = _as_map(ve.get("regime_thresholds", {}))
@@ -45,7 +47,9 @@ def load_vol_config(path: Optional[str] = None) -> VolConfig:
         rc = _as_map(ve.get("risk_controls", {}))
         return VolConfig(
             bar_interval_minutes=_parse_interval(_get_scalar(ve, "bar_interval", "5m")),
-            daily_fit_lookback_days=_to_int(_get_scalar(ve, "daily_fit_lookback", "500d"), default=500),
+            daily_fit_lookback_days=_to_int(
+                _get_scalar(ve, "daily_fit_lookback", "500d"), default=500
+            ),
             rv_window_minutes=_parse_interval(_get_scalar(ve, "rv_window", "60m")),
             blend_weight=float(_get_scalar(ve, "blend_weight", 0.7)),
             calm_thr=float(_get_scalar(rt, "calm", 0.08)),

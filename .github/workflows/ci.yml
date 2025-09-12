@@ -29,9 +29,9 @@ jobs:
       - name: Ruff (format check: src + tests)
         run: ruff format --check src tests
       - name: Black
-        run: black --check .
+        run: black --check src tests
       - name: isort
-        run: isort --check-only .
+        run: isort --check-only src tests
 
   types:
     runs-on: ubuntu-latest

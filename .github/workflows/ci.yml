@@ -24,32 +24,14 @@ jobs:
     needs: [policy]
     steps:
       - uses: ./.github/actions/python-setup
-<<<<<<< ours
-<<<<<<< ours
-<<<<<<< ours
-      - name: Ruff (lint)
-        run: ruff check .
-      - name: Ruff (format)
-        run: ruff format --check .
-=======
       - name: Ruff (lint: src + tests)
         run: ruff check src tests
       - name: Ruff (format check: src + tests)
         run: ruff format --check src tests
->>>>>>> theirs
-=======
-=======
->>>>>>> theirs
-      - name: Ruff
-        run: ruff check .
       - name: Black
         run: black --check .
       - name: isort
         run: isort --check-only .
-<<<<<<< ours
->>>>>>> theirs
-=======
->>>>>>> theirs
 
   types:
     runs-on: ubuntu-latest

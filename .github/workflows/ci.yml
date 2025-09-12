@@ -24,6 +24,9 @@ jobs:
     needs: [policy]
     steps:
       - uses: ./.github/actions/python-setup
+      - name: CI heartbeat
+        run: echo "CI workflow heartbeat $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+
       - name: Ruff (lint: src + tests)
         run: ruff check src tests
       - name: Ruff (format check: src + tests)

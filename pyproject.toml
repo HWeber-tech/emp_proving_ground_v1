@@ -79,7 +79,7 @@ include = [
   "src/trading/models/position.py",
   "src/trading/models/trade.py",
   "src/trading/models/__init__.py",
-  "src/core/interfaces.py",
+  "src/core/interfaces/__init__.py",
   "src/core/sensory_organ.py",
   "src/operational/metrics.py",
   "src/operational/mock_fix.py",

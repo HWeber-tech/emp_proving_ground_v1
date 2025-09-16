@@ -1,0 +1,11 @@
+# Paths (files or directories) that have been fully normalized with `ruff format`.
+#
+# Each entry should be relative to the repository root. Blank lines and lines starting
+# with `#` are ignored. Keep the list alphabetized so diffs remain readable.
+#
+# Example:
+# src/system/
+# tests/current/test_scientific_stack_guard.py
+#
+# The allowlist starts empty; populate it incrementally as teams finish formatting
+# individual packages.

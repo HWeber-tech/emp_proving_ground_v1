@@ -57,7 +57,7 @@ This document provides an honest assessment of the current development state of 
 - **Files with pass statements**: 44
 - **Files with NotImplementedError**: 1
 - **Mock implementations**: 10+ files identified
-- **Abstract interfaces**: Extensive (src/core/interfaces.py)
+- **Abstract interfaces**: Extensive (src/core/interfaces/__init__.py)
 
 ### Test Coverage
 - Unit test framework present

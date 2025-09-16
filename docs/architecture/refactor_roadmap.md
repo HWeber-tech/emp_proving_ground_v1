@@ -2,7 +2,7 @@
 
 Version: 0.1  
 Owner: Architecture Guild  
-Status: Draft for approval
+Status: Draft for approval (roadmap hygiene updated Q3 2025)
 
 ## Goals
 - Remove spaghetti by enforcing clear boundaries, single responsibility, and explicit contracts.
@@ -11,7 +11,7 @@ Status: Draft for approval
 
 ## Baseline and constraints
 - Python 3.11 on CI; local 3.13 supported only for lightweight ops.
-- Current gates: Ruff minimal set green; Mypy green via scoped excludes; coverage 70% with report include narrowed; policy checks green.
+- Current gates: Ruff minimal set green; Mypy green via scoped excludes; coverage 76% with targeted regression nets (event bus, configuration, FIX parity checker); policy checks green.
 - Import hygiene already defined in [contracts/importlinter.toml](contracts/importlinter.toml:).
 
 ## Guiding principles

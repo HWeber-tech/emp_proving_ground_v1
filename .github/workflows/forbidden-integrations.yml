@@ -1,0 +1,15 @@
+name: Forbidden Integration Scan
+
+on:
+  workflow_call:
+
+jobs:
+  scan:
+    name: Check for forbidden integrations
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Run forbidden integration guard
+        shell: bash
+        run: ./scripts/check_forbidden_integrations.sh

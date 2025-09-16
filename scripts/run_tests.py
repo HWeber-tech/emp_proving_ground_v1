@@ -13,7 +13,7 @@ def main() -> int:
     try:
         import pytest  # type: ignore
     except Exception:
-        print("pytest is required. Install with: pip install -r requirements.txt or pip install pytest")
+        print("pytest is required. Install with: pip install -r requirements/dev.txt or pip install pytest")
         return 2
 
     args = ["-q"]

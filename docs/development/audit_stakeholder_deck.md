@@ -35,7 +35,7 @@ Top hotspots (see detail)
 Remediation strategy (phases)
 - Phase 0 (Security P0): Eliminate B608 (SQL) and B307 (eval) in targeted files; remove B108 hardcoded tmp and reduce exception swallowing in critical paths.
 - Phase A–C (Hygiene only): Execute [docs/development/ruff_fix_plan.md](docs/development/ruff_fix_plan.md:1) across excluded paths; no behavior changes.
-- Phase D (Structural): Stabilize [src/core/interfaces.py](src/core/interfaces.py:1) contracts; align consumers; introduce typed facades for enhanced sensory modules.
+- Phase D (Structural): Stabilize [src/core/interfaces/__init__.py](src/core/interfaces/__init__.py:1) contracts; align consumers; introduce typed facades for enhanced sensory modules.
 - Excludes reduction: After A–C are green, trim [pyproject.toml](pyproject.toml:1) excludes.
 - Guard allow‑list removal: Run strict audit in [.github/workflows/import-hygiene.yml](.github/workflows/import-hygiene.yml:1) then remove allow‑list in [scripts/cleanup/check_legacy_imports.py](scripts/cleanup/check_legacy_imports.py:1).
 

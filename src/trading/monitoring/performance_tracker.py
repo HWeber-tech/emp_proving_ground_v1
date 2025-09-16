@@ -1,66 +1,29 @@
-"""
-Advanced Performance Tracking System
-Tracks real-time performance metrics, strategy analysis, and generates detailed reports
-"""
+"""Advanced performance tracking system with reporting helpers."""
 
 import json
 import logging
-from dataclasses import asdict, dataclass
+import math
+from dataclasses import asdict
 from datetime import datetime, timedelta
-from enum import Enum
-from typing import Dict, List, Optional, Tuple, cast
+from typing import Dict, List, Optional, cast
 
-import numpy as np
 import pandas as pd
 
+from .performance_metrics import (
+    PerformanceMetrics,
+    calculate_annualized_return,
+    calculate_correlation_matrix,
+    calculate_max_drawdown,
+    calculate_regime_performance,
+    calculate_sharpe_ratio,
+    calculate_sortino_ratio,
+    calculate_strategy_performance,
+    calculate_trading_metrics,
+    calculate_var_cvar,
+    create_empty_metrics,
+)
+
 logger = logging.getLogger(__name__)
-
-
-class MetricType(Enum):
-    """Performance metric types"""
-
-    RETURNS = "returns"
-    RISK = "risk"
-    TRADING = "trading"
-    STRATEGY = "strategy"
-
-
-@dataclass
-class PerformanceMetrics:
-    """Comprehensive performance metrics"""
-
-    # Returns metrics
-    total_return: float
-    annualized_return: float
-    daily_returns: List[float]
-
-    # Risk metrics
-    volatility: float
-    sharpe_ratio: float
-    sortino_ratio: float
-    max_drawdown: float
-    var_95: float
-    cvar_95: float
-
-    # Trading metrics
-    total_trades: int
-    winning_trades: int
-    losing_trades: int
-    win_rate: float
-    avg_win: float
-    avg_loss: float
-    profit_factor: float
-    avg_trade_duration: float
-
-    # Strategy metrics
-    strategy_performance: Dict[str, dict[str, object]]
-    regime_performance: Dict[str, dict[str, object]]
-    correlation_matrix: pd.DataFrame
-
-    # Timestamps
-    start_date: datetime
-    end_date: datetime
-    last_updated: datetime
 
 
 class PerformanceTracker:
@@ -176,7 +139,8 @@ class PerformanceTracker:
         logger.debug(f"Regime performance updated: {regime} = {performance:.4f}")
 
     def calculate_metrics(self, force_recalculate: bool = False) -> PerformanceMetrics:
-        """Calculate comprehensive performance metrics"""
+        """Calculate comprehensive performance metrics."""
+
         if (
             self.metrics is not None
             and self.last_calculation is not None
@@ -187,50 +151,48 @@ class PerformanceTracker:
 
         if not self.daily_equity:
             logger.warning("No equity data available for metrics calculation")
-            return self._create_empty_metrics()
+            empty_metrics = create_empty_metrics(datetime.now())
+            self.metrics = empty_metrics
+            self.last_calculation = datetime.now()
+            return empty_metrics
 
-        # Convert to DataFrame for analysis
-        df = pd.DataFrame(self.daily_equity)
-        df["date"] = pd.to_datetime(df["date"])
-        df = df.sort_values("date")
+        frame = pd.DataFrame(self.daily_equity)
+        frame["date"] = pd.to_datetime(frame["date"])
+        frame = frame.sort_values("date")
+        frame["daily_return"] = frame["equity"].pct_change()
 
-        # Calculate returns
-        df["daily_return"] = df["equity"].pct_change()
-        daily_returns = df["daily_return"].dropna().tolist()
+        daily_return_series = frame["daily_return"].dropna()
+        daily_returns = daily_return_series.tolist()
 
-        total_return = (df["equity"].iloc[-1] - self.initial_balance) / self.initial_balance
-        annualized_return = self._calculate_annualized_return(df)
+        total_return = (frame["equity"].iloc[-1] - self.initial_balance) / self.initial_balance
+        annualized_return = calculate_annualized_return(frame, self.initial_balance)
 
-        # Risk metrics
-        volatility = df["daily_return"].std() * np.sqrt(252)
-        sharpe_ratio = self._calculate_sharpe_ratio(daily_returns)
-        sortino_ratio = self._calculate_sortino_ratio(daily_returns)
-        max_drawdown = self._calculate_max_drawdown(df["equity"])
-        var_95, cvar_95 = self._calculate_var_cvar(daily_returns)
+        if daily_return_series.empty:
+            volatility = 0.0
+        else:
+            std = float(daily_return_series.std(ddof=0))
+            volatility = float(std * math.sqrt(252))
 
-        # Trading metrics
-        trading_metrics = self._calculate_trading_metrics()
+        sharpe_ratio = calculate_sharpe_ratio(daily_returns)
+        sortino_ratio = calculate_sortino_ratio(daily_returns)
+        max_drawdown = calculate_max_drawdown(frame["equity"])
+        var_95, cvar_95 = calculate_var_cvar(daily_returns)
 
-        # Extract typed locals for metrics
-        tm_total_trades: int = int(cast(int, trading_metrics["total_trades"]))
-        tm_winning_trades: int = int(cast(int, trading_metrics["winning_trades"]))
-        tm_losing_trades: int = int(cast(int, trading_metrics["losing_trades"]))
-        tm_win_rate: float = float(cast(float, trading_metrics["win_rate"]))
-        tm_avg_win: float = float(cast(float, trading_metrics["avg_win"]))
-        tm_avg_loss: float = float(cast(float, trading_metrics["avg_loss"]))
-        tm_profit_factor: float = float(cast(float, trading_metrics["profit_factor"]))
-        tm_avg_trade_duration: float = float(cast(float, trading_metrics["avg_trade_duration"]))
+        trading_metrics = calculate_trading_metrics(self.trades_history)
+        tm_total_trades = int(cast(int, trading_metrics["total_trades"]))
+        tm_winning_trades = int(cast(int, trading_metrics["winning_trades"]))
+        tm_losing_trades = int(cast(int, trading_metrics["losing_trades"]))
+        tm_win_rate = float(cast(float, trading_metrics["win_rate"]))
+        tm_avg_win = float(cast(float, trading_metrics["avg_win"]))
+        tm_avg_loss = float(cast(float, trading_metrics["avg_loss"]))
+        tm_profit_factor = float(cast(float, trading_metrics["profit_factor"]))
+        tm_avg_trade_duration = float(cast(float, trading_metrics["avg_trade_duration"]))
 
-        # Strategy performance
-        strategy_perf = self._calculate_strategy_performance()
+        strategy_perf = calculate_strategy_performance(self.strategy_performance)
+        regime_perf = calculate_regime_performance(self.regime_performance)
+        correlation_matrix = calculate_correlation_matrix(self.strategy_performance)
 
-        # Regime performance
-        regime_perf = self._calculate_regime_performance()
-
-        # Correlation matrix
-        correlation_matrix = self._calculate_correlation_matrix()
-
-        self.metrics = PerformanceMetrics(
+        metrics = PerformanceMetrics(
             total_return=total_return,
             annualized_return=annualized_return,
             daily_returns=daily_returns,
@@ -251,216 +213,18 @@ class PerformanceTracker:
             strategy_performance=strategy_perf,
             regime_performance=regime_perf,
             correlation_matrix=correlation_matrix,
-            start_date=df["date"].min(),
-            end_date=df["date"].max(),
+            start_date=frame["date"].min(),
+            end_date=frame["date"].max(),
             last_updated=datetime.now(),
         )
 
+        self.metrics = metrics
         self.last_calculation = datetime.now()
 
         logger.info(
             f"Performance metrics calculated: {total_return:.2%} total return, {sharpe_ratio:.2f} Sharpe"
         )
-        return self.metrics
-
-    def _create_empty_metrics(self) -> PerformanceMetrics:
-        """Create empty metrics when no data is available"""
-        return PerformanceMetrics(
-            total_return=0.0,
-            annualized_return=0.0,
-            daily_returns=[],
-            volatility=0.0,
-            sharpe_ratio=0.0,
-            sortino_ratio=0.0,
-            max_drawdown=0.0,
-            var_95=0.0,
-            cvar_95=0.0,
-            total_trades=0,
-            winning_trades=0,
-            losing_trades=0,
-            win_rate=0.0,
-            avg_win=0.0,
-            avg_loss=0.0,
-            profit_factor=0.0,
-            avg_trade_duration=0.0,
-            strategy_performance={},
-            regime_performance={},
-            correlation_matrix=pd.DataFrame(),
-            start_date=datetime.now(),
-            end_date=datetime.now(),
-            last_updated=datetime.now(),
-        )
-
-    def _calculate_annualized_return(self, df: pd.DataFrame) -> float:
-        """Calculate annualized return"""
-        if len(df) < 2:
-            return 0.0
-
-        total_days = (df["date"].max() - df["date"].min()).days
-        if total_days == 0:
-            return 0.0
-
-        total_return = (df["equity"].iloc[-1] - self.initial_balance) / self.initial_balance
-        return float((1 + total_return) ** (365 / total_days) - 1)
-
-    def _calculate_sharpe_ratio(self, returns: List[float]) -> float:
-        """Calculate Sharpe ratio"""
-        if not returns:
-            return 0.0
-
-        returns_array = np.array(returns)
-        if returns_array.std() == 0:
-            return 0.0
-
-        return float(returns_array.mean() / returns_array.std() * np.sqrt(252))
-
-    def _calculate_sortino_ratio(self, returns: List[float]) -> float:
-        """Calculate Sortino ratio"""
-        if not returns:
-            return 0.0
-
-        returns_array = np.array(returns)
-        negative_returns = returns_array[returns_array < 0]
-
-        if len(negative_returns) == 0:
-            return float("inf") if returns_array.mean() > 0 else 0.0
-
-        downside_deviation = negative_returns.std()
-        if downside_deviation == 0:
-            return 0.0
-
-        return float(returns_array.mean() / downside_deviation * np.sqrt(252))
-
-    def _calculate_max_drawdown(self, equity: pd.Series) -> float:
-        """Calculate maximum drawdown"""
-        if len(equity) < 2:
-            return 0.0
-
-        peak = equity.expanding().max()
-        drawdown = (equity - peak) / peak
-        return float(abs(drawdown.min()))
-
-    def _calculate_var_cvar(
-        self, returns: List[float], confidence: float = 0.95
-    ) -> Tuple[float, float]:
-        """Calculate Value at Risk and Conditional Value at Risk"""
-        if not returns:
-            return 0.0, 0.0
-
-        returns_array = np.array(returns)
-        var = np.percentile(returns_array, (1 - confidence) * 100)
-        cvar = returns_array[returns_array <= var].mean()
-
-        return float(abs(var)), float(abs(cvar))
-
-    def _calculate_trading_metrics(self) -> dict[str, object]:
-        """Calculate trading-specific metrics"""
-        if not self.trades_history:
-            return {
-                "total_trades": 0,
-                "winning_trades": 0,
-                "losing_trades": 0,
-                "win_rate": 0.0,
-                "avg_win": 0.0,
-                "avg_loss": 0.0,
-                "profit_factor": 0.0,
-                "avg_trade_duration": 0.0,
-            }
-
-        trades_df = pd.DataFrame(self.trades_history)
-
-        total_trades = len(trades_df)
-        winning_trades = len(trades_df[trades_df["pnl"] > 0])
-        losing_trades = len(trades_df[trades_df["pnl"] < 0])
-        win_rate = winning_trades / total_trades if total_trades > 0 else 0.0
-
-        avg_win = trades_df[trades_df["pnl"] > 0]["pnl"].mean() if winning_trades > 0 else 0.0
-        avg_loss = abs(trades_df[trades_df["pnl"] < 0]["pnl"].mean()) if losing_trades > 0 else 0.0
-
-        total_wins = trades_df[trades_df["pnl"] > 0]["pnl"].sum()
-        total_losses = abs(trades_df[trades_df["pnl"] < 0]["pnl"].sum())
-        profit_factor = total_wins / total_losses if total_losses > 0 else float("inf")
-
-        # Calculate average trade duration
-        if "entry_time" in trades_df.columns and "exit_time" in trades_df.columns:
-            trades_df["duration"] = pd.to_datetime(trades_df["exit_time"]) - pd.to_datetime(
-                trades_df["entry_time"]
-            )
-            duration_mean = cast(pd.Timedelta, trades_df["duration"].mean())
-            avg_trade_duration = float(duration_mean.total_seconds() / 3600)  # hours
-        else:
-            avg_trade_duration = 0.0
-
-        return {
-            "total_trades": total_trades,
-            "winning_trades": winning_trades,
-            "losing_trades": losing_trades,
-            "win_rate": win_rate,
-            "avg_win": avg_win,
-            "avg_loss": avg_loss,
-            "profit_factor": profit_factor,
-            "avg_trade_duration": avg_trade_duration,
-        }
-
-    def _calculate_strategy_performance(self) -> Dict[str, dict[str, object]]:
-        """Calculate strategy-specific performance metrics"""
-        strategy_perf: Dict[str, dict[str, object]] = {}
-
-        for strategy, data in self.strategy_performance.items():
-            trades_n = int(cast(int, data.get("trades", 0)))
-            if trades_n > 0:
-                wins_n = float(cast(float, data.get("wins", 0.0)))
-                total_ret = float(cast(float, data.get("total_return", 0.0)))
-                win_rate = wins_n / trades_n if trades_n > 0 else 0.0
-                avg_return = total_ret / trades_n if trades_n > 0 else 0.0
-
-                strategy_perf[strategy] = {
-                    "win_rate": win_rate,
-                    "avg_return": avg_return,
-                    "total_pnl": float(cast(float, data.get("total_pnl", 0.0))),
-                    "trade_count": trades_n,
-                }
-
-        return strategy_perf
-
-    def _calculate_regime_performance(self) -> Dict[str, dict[str, object]]:
-        """Calculate regime-specific performance metrics"""
-        regime_perf: Dict[str, dict[str, object]] = {}
-
-        for regime, data in self.regime_performance.items():
-            trades_n = int(cast(int, data.get("trades", 0)))
-            if trades_n > 0:
-                avg_ret = float(cast(float, data.get("avg_return", 0.0)))
-                tot_ret = float(cast(float, data.get("total_return", 0.0)))
-                regime_perf[regime] = {
-                    "avg_return": avg_ret,
-                    "total_return": tot_ret,
-                    "trade_count": trades_n,
-                }
-
-        return regime_perf
-
-    def _calculate_correlation_matrix(self) -> pd.DataFrame:
-        """Calculate correlation matrix between strategies"""
-        if len(self.strategy_performance) < 2:
-            return pd.DataFrame()
-
-        # Create strategy returns series
-        strategy_returns = {}
-        for strategy, data in self.strategy_performance.items():
-            trades_n = int(cast(int, data.get("trades", 0)))
-            if trades_n > 0:
-                # Use average return as proxy for strategy performance
-                strategy_returns[strategy] = float(
-                    cast(float, data.get("total_return", 0.0))
-                ) / float(trades_n)
-
-        if len(strategy_returns) < 2:
-            return pd.DataFrame()
-
-        # Create correlation matrix
-        df = pd.DataFrame([strategy_returns])
-        return df.corr()
+        return metrics
 
     def generate_report(self, report_type: str = "comprehensive") -> dict[str, object]:
         """Generate performance report"""

@@ -69,7 +69,7 @@ python scripts/cleanup/rewrite_imports.py --root src --map docs/development/impo
 
 ## Next steps (Phase 1 preview)
 
-- Introduce core facades: [src/core/interfaces.py](src/core/interfaces.py:1), [src/core/exceptions.py](src/core/exceptions.py:1).
+- Introduce core facades: [src/core/interfaces/__init__.py](src/core/interfaces/__init__.py:1), [src/core/exceptions.py](src/core/exceptions.py:1).
 - Expand rewrite map [docs/development/import_rewrite_map.yaml](docs/development/import_rewrite_map.yaml:1) with:
   - ["core.interfaces"] → "src.core.interfaces" (star)
   - ["core.exceptions"] → "src.core.exceptions" (star)

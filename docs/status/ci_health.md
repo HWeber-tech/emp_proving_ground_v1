@@ -1,0 +1,33 @@
+# CI Health Snapshot
+
+This dashboard summarizes the current state of the "CI" workflow and points to
+where to find richer telemetry. Update the metrics after significant
+infrastructure changes or once per sprint so stakeholders can confirm the
+pipeline remains healthy at a glance.
+
+## Latest pipeline status
+
+| Signal | Value | Notes |
+| --- | --- | --- |
+| Last successful run | Refer to the GitHub Actions **CI** workflow page | Capture the run URL in team status updates. |
+| Coverage (pytest `--cov`) | 76% (from [CI Baseline – 2025-09-16](../ci_baseline_report.md)) | Update when the coverage target moves. |
+| Formatter rollout | 0 / 235 legacy files normalized (tracked via `config/formatter/ruff_format_allowlist.txt`) | Guarded by `scripts/check_formatter_allowlist.py` in CI. |
+| Open CI alerts | Check the automatically managed **CI failure alerts** issue | Created/closed by `.github/workflows/ci-failure-alerts.yml`. |
+
+## Where to look when something fails
+
+1. **CI failure alerts issue** – Any failing `CI` run adds a comment to the
+   `CI failure alerts` issue with the run link, triggering actor, and failing
+   branch. Resolve the failure and close the issue to clear the alert backlog.
+2. **Pytest log artifact** – The `tests` job uploads `pytest.log` on every run
+   (success or failure). Download it to inspect the full trace beyond the tail
+   mirrored in the step summary.
+3. **CI baseline report** – The baseline in [`docs/ci_baseline_report.md`](../ci_baseline_report.md)
+   lists historical hotspots and still-relevant remediation tickets.
+
+## Maintenance checklist
+
+- Confirm the alert issue auto-closes after the next successful run.
+- Refresh coverage and formatter metrics after sizable refactors.
+- Add notes about recurring flakes directly to this page so trends remain
+  discoverable without mining historical logs.

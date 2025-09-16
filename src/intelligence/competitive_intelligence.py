@@ -158,7 +158,7 @@ class StrategyInsightLegacy:
             RuntimeError: if torch is not importable.
         """
         try:
-            import torch
+            importlib.import_module("torch")
         except Exception as exc:  # pragma: no cover - import-failure path
             raise RuntimeError("torch is required for StrategyInsightLegacy.torch_sanity") from exc
         return True

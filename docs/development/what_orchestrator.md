@@ -32,7 +32,7 @@ If required libraries are missing or below the minimum versions, the system stop
 
 ## Version policy for scientific stack
 
-Pinned via PEP 508 markers in requirements.txt (Python 3.11 and 3.13+):
+Pinned via PEP 508 markers in requirements/base.txt (Python 3.11 and 3.13+):
 
 - NumPy
 - Pandas

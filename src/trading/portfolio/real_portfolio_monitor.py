@@ -13,7 +13,7 @@ import pandas as pd
 from ...config.portfolio_config import PortfolioConfig
 from ..models import Position
 from ..models.portfolio_snapshot import PortfolioSnapshot
-from ..monitoring.performance_tracker import PerformanceMetrics as PerformanceMetrics
+from ..monitoring.performance_metrics import PerformanceMetrics
 
 logger = logging.getLogger(__name__)
 
@@ -347,46 +347,47 @@ class RealPortfolioMonitor:
             logger.error(f"Error storing snapshot: {e}")
 
 
-def _make_performance_metrics(
-    *,
-    total_return: float = 0.0,
-    annualized_return: float = 0.0,
-    sharpe_ratio: float = 0.0,
-    max_drawdown: float = 0.0,
-    win_rate: float = 0.0,
-    profit_factor: float = 0.0,
-    total_trades: int = 0,
-    winning_trades: int = 0,
-    losing_trades: int = 0,
-) -> PerformanceMetrics:
-    """Create a PerformanceMetrics instance satisfying required fields with safe defaults."""
-    now = datetime.now()
-    return PerformanceMetrics(
-        total_return=total_return,
-        annualized_return=annualized_return,
-        daily_returns=[],
-        volatility=0.0,
-        sharpe_ratio=sharpe_ratio,
-        sortino_ratio=0.0,
-        max_drawdown=max_drawdown,
-        var_95=0.0,
-        cvar_95=0.0,
-        total_trades=total_trades,
-        winning_trades=winning_trades,
-        losing_trades=losing_trades,
-        win_rate=win_rate,
-        avg_win=0.0,
-        avg_loss=0.0,
-        profit_factor=profit_factor,
-        avg_trade_duration=0.0,
-        strategy_performance={},
-        regime_performance={},
-        correlation_matrix=pd.DataFrame(),
-        start_date=now,
-        end_date=now,
-        last_updated=now,
-    )
-
+    @staticmethod
+    def _make_performance_metrics(
+        *,
+        total_return: float = 0.0,
+        annualized_return: float = 0.0,
+        sharpe_ratio: float = 0.0,
+        max_drawdown: float = 0.0,
+        win_rate: float = 0.0,
+        profit_factor: float = 0.0,
+        total_trades: int = 0,
+        winning_trades: int = 0,
+        losing_trades: int = 0,
+    ) -> PerformanceMetrics:
+        """Create a PerformanceMetrics instance satisfying required fields with safe defaults."""
+        now = datetime.now()
+        return PerformanceMetrics(
+            total_return=total_return,
+            annualized_return=annualized_return,
+            daily_returns=[],
+            volatility=0.0,
+            sharpe_ratio=sharpe_ratio,
+            sortino_ratio=0.0,
+            max_drawdown=max_drawdown,
+            var_95=0.0,
+            cvar_95=0.0,
+            total_trades=total_trades,
+            winning_trades=winning_trades,
+            losing_trades=losing_trades,
+            win_rate=win_rate,
+            avg_win=0.0,
+            avg_loss=0.0,
+            profit_factor=profit_factor,
+            avg_trade_duration=0.0,
+            strategy_performance={},
+            regime_performance={},
+            correlation_matrix=pd.DataFrame(),
+            start_date=now,
+            end_date=now,
+            last_updated=now,
+        )
+    
     def get_performance_metrics(self) -> PerformanceMetrics:
         """Calculate performance metrics"""
         try:
@@ -403,7 +404,7 @@ def _make_performance_metrics(
 
             snapshots = cursor.fetchall()
             if not snapshots:
-                return _make_performance_metrics(
+                return self._make_performance_metrics(
                     total_return=0.0,
                     annualized_return=0.0,
                     sharpe_ratio=0.0,
@@ -498,7 +499,7 @@ def _make_performance_metrics(
 
             conn.close()
 
-            return _make_performance_metrics(
+            return self._make_performance_metrics(
                 total_return=total_return,
                 annualized_return=annualized_return,
                 sharpe_ratio=sharpe_ratio,
@@ -512,7 +513,7 @@ def _make_performance_metrics(
 
         except Exception as e:
             logger.error(f"Error calculating performance metrics: {e}")
-            return _make_performance_metrics(
+            return self._make_performance_metrics(
                 total_return=0.0,
                 annualized_return=0.0,
                 sharpe_ratio=0.0,

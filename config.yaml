@@ -25,7 +25,7 @@ data:
 # Trading Configuration
 trading:
   mode: "mock"  # "mock" | "paper" | "live"
-  broker: "mock_ctrader"  # "mock_ctrader" | "ctrader_demo" | "ctrader_live"
+  broker: "fix_simulator"  # "fix_simulator" | "fix_paper" | "fix_live"
   account_type: "demo"  # "demo" | "live"
   instruments:
     - "EURUSD"
@@ -69,10 +69,9 @@ api_keys:
   alpha_vantage: ""  # Add your Alpha Vantage API key
   fred_api: ""       # Add your FRED API key
   news_api: ""       # Add your News API key
-  ctrader:
-    client_id: ""
-    client_secret: ""
-    demo_account: true
+  fix_sessions:
+    ic_markets_account: ""  # Set via environment for live connections
+    ic_markets_password: ""
 
 # Performance Tracking
 performance:

@@ -11,7 +11,8 @@ import logging
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import MutableMapping, Optional, Union, cast
+from collections.abc import Mapping, MutableMapping
+from typing import Any, Optional, Union
 
 import yaml
 
@@ -48,7 +49,7 @@ class Configuration:
         """Post-initialization setup."""
         self._load_environment_variables()
 
-    def _load_environment_variables(self):
+    def _load_environment_variables(self) -> None:
         """Load configuration from environment variables."""
         self.environment = os.getenv("EMP_ENVIRONMENT", self.environment)
         self.debug = os.getenv("EMP_DEBUG", "false").lower() == "true"
@@ -69,7 +70,7 @@ class Configuration:
         except Exception as e:
             raise ConfigurationException(f"Error loading configuration: {e}")
 
-    def to_yaml(self, config_path: Union[str, Path]):
+    def to_yaml(self, config_path: Union[str, Path]) -> None:
         """Save configuration to YAML file."""
         try:
             config_path = Path(config_path)
@@ -98,30 +99,46 @@ class Configuration:
         except Exception as e:
             raise ConfigurationException(f"Error saving configuration: {e}")
 
-    def get(self, key: str, default: object = None) -> object:
+    def get(self, key: str, default: Any | None = None) -> Any | None:
         """Get configuration value using dot notation."""
-        keys = key.split(".")
-        value = self
+        value: Any = self
 
-        for k in keys:
-            if isinstance(value, dict) and k in value:
-                value = value[k]
-            else:
+        for part in key.split("."):
+            if isinstance(value, Mapping):
+                if part not in value:
+                    return default
+                value = value[part]
+                continue
+
+            if not hasattr(value, part):
                 return default
+
+            value = getattr(value, part)
 
         return value
 
-    def set(self, key: str, value: object):
+    def set(self, key: str, value: Any) -> None:
         """Set configuration value using dot notation."""
-        keys = key.split(".")
-        config = self
+        parts = key.split(".")
+        target: Any = self
 
-        for k in keys[:-1]:
-            if k not in config.__dict__:
-                config.__dict__[k] = {}
-            config = config.__dict__[k]
+        for part in parts[:-1]:
+            if isinstance(target, MutableMapping):
+                target = target.setdefault(part, {})
+                continue
 
-        cast(MutableMapping[str, object], config)[keys[-1]] = value
+            current = getattr(target, part, None)
+            if not isinstance(current, MutableMapping):
+                current = {}
+                setattr(target, part, current)
+
+            target = current
+
+        final_key = parts[-1]
+        if isinstance(target, MutableMapping):
+            target[final_key] = value
+        else:
+            setattr(target, final_key, value)
 
     def validate(self) -> bool:
         """Validate configuration."""

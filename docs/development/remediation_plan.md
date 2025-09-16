@@ -105,7 +105,7 @@ Scope: targeted modules
 
 Phase D — Structural Refactors (Contracts, Types, Architecture)
 1) Core interface stabilization and consumer alignment
-   - Hubs: [src/core/interfaces.py](src/core/interfaces.py:1) (fanin 20), [src/core/events.py](src/core/events.py:1) (fanin 13) — see [docs/reports/fanin_fanout.csv](docs/reports/fanin_fanout.csv:22)
+   - Hubs: [src/core/interfaces/__init__.py](src/core/interfaces/__init__.py:1) (fanin 20), [src/core/events.py](src/core/events.py:1) (fanin 13) — see [docs/reports/fanin_fanout.csv](docs/reports/fanin_fanout.csv:22)
    - Mypy signals: many “has no attribute” errors in consumers (e.g., [src/risk/risk_manager_impl.py](src/risk/risk_manager_impl.py:1), [src/integration/component_integrator.py](src/integration/component_integrator.py:1))
    - Actions:
      - Define Protocols/dataclasses in interfaces with minimal surface needed by consumers; add TODO for deeper cleanup.

@@ -2,12 +2,12 @@
 
 1) Title and summary
 
-This PR stabilizes core import surfaces by introducing minimal, framework-agnostic facades and normalizing initial imports across trading models. It adds minimal stable facades in [src/core/interfaces.py](src/core/interfaces.py:1) and [src/core/exceptions.py](src/core/exceptions.py:1); consolidates trading model re-exports in [src/trading/models/__init__.py](src/trading/models/__init__.py:1); expands the import rewrite map in [docs/development/import_rewrite_map.yaml](docs/development/import_rewrite_map.yaml:1); removes two core mypy overrides in [pyproject.toml](pyproject.toml:1); and introduces a warning-only “core-lint” hygiene job in [.github/workflows/import-hygiene.yml](.github/workflows/import-hygiene.yml:1).
+This PR stabilizes core import surfaces by introducing minimal, framework-agnostic facades and normalizing initial imports across trading models. It adds minimal stable facades in [src/core/interfaces/__init__.py](src/core/interfaces/__init__.py:1) and [src/core/exceptions.py](src/core/exceptions.py:1); consolidates trading model re-exports in [src/trading/models/__init__.py](src/trading/models/__init__.py:1); expands the import rewrite map in [docs/development/import_rewrite_map.yaml](docs/development/import_rewrite_map.yaml:1); removes two core mypy overrides in [pyproject.toml](pyproject.toml:1); and introduces a warning-only “core-lint” hygiene job in [.github/workflows/import-hygiene.yml](.github/workflows/import-hygiene.yml:1).
 
 2) Files changed (explicit, with clickable refs)
 
 - Core stable facades:
-  - [src/core/interfaces.py](src/core/interfaces.py:1)
+  - [src/core/interfaces/__init__.py](src/core/interfaces/__init__.py:1)
   - [src/core/exceptions.py](src/core/exceptions.py:1)
 - Trading models façade:
   - [src/trading/models/__init__.py](src/trading/models/__init__.py:1)
@@ -21,7 +21,7 @@ This PR stabilizes core import surfaces by introducing minimal, framework-agnost
 3) What changed (bulleted detail)
 
 - Facades:
-  - Introduced minimal, framework-agnostic protocols in [src/core/interfaces.py](src/core/interfaces.py:1) ([python.Cache()](src/core/interfaces.py:5), [python.EventBus()](src/core/interfaces.py:18), [python.Logger()](src/core/interfaces.py:25))
+  - Introduced minimal, framework-agnostic protocols in [src/core/interfaces/__init__.py](src/core/interfaces/__init__.py:1) ([python.Cache()](src/core/interfaces/__init__.py:5), [python.EventBus()](src/core/interfaces/__init__.py:18), [python.Logger()](src/core/interfaces/__init__.py:25))
   - Introduced core exception anchors in [src/core/exceptions.py](src/core/exceptions.py:1) ([python.CoreError()](src/core/exceptions.py:12), [python.ConfigurationError()](src/core/exceptions.py:21), [python.DependencyError()](src/core/exceptions.py:26), [python.ValidationError()](src/core/exceptions.py:31))
 - Trading models façade re-exports:
   - Re-export Position/Order/OrderStatus from [src/trading/models/__init__.py](src/trading/models/__init__.py:1) using safe try/except ImportError guards and __all__ population (see [src/trading/models/__init__.py](src/trading/models/__init__.py:13), [src/trading/models/__init__.py](src/trading/models/__init__.py:20), [src/trading/models/__init__.py](src/trading/models/__init__.py:27)).

@@ -13,11 +13,6 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional, cast
 
 import numpy as np
-
-try:
-    from src.core.events import AttackResult, ExploitResult, StrategyAnalysis  # legacy
-except Exception:  # pragma: no cover
-    StrategyAnalysis = AttackResult = ExploitResult = object
 from src.core.state_store import StateStore
 from src.thinking.models.normalizers import normalize_attack_report
 from src.thinking.models.types import AttackReportTD

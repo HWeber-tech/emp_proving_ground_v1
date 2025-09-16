@@ -7,6 +7,7 @@ can layer on without introducing third-party dependencies.
 
 ## Current capabilities
 
+ codex/assess-technical-debt-in-codebase
 * **CI failure alerts** – `.github/workflows/ci-failure-alerts.yml` opens (or
   appends to) a `CI failure alerts` issue whenever the main pipeline finishes in
   a failing, cancelled, or timed-out state. The workflow also auto-closes the
@@ -19,10 +20,17 @@ can layer on without introducing third-party dependencies.
 * **Health snapshot** – [`docs/status/ci_health.md`](../status/ci_health.md)
   tracks the latest pipeline status, coverage baseline, formatter rollout
   progress, and where to look first when jobs fail.
+
+* **CI step summaries** – The `tests` job in `.github/workflows/ci.yml` now
+  tees pytest output into `pytest.log`, appends the last chunk to the GitHub
+  Step Summary, and uploads the full log as an artifact even on failure.  This
+  preserves visibility without the fragile Kilocode relay.
+ main
 * **Baseline hygiene reports** – `docs/reports/ci_baseline_report.md` and
   `docs/reports/dead_code_audit.md` capture periodic snapshots of pipeline
   health so regressions are easy to spot.
 * **Runtime logging** – The platform leans on Python's structured logging
+ codex/assess-technical-debt-in-codebase
   (module loggers + UTC timestamps). Configuration and policy failures abort
   startup with actionable errors.
 
@@ -50,6 +58,22 @@ can layer on without introducing third-party dependencies.
    exporter status.
 3. **Optional webhook** – If the Slack mirror proves insufficient, explore
    GitHub's native notification integrations for paging during off-hours.
+
+  (module loggers + UTC timestamps).  Configuration and policy failures abort
+  startup with actionable errors.
+
+## Immediate next steps
+
+1. **Slack or email webhook (optional)** – If stakeholders need push
+   notifications, wire GitHub's native workflow notification integration to a
+   shared channel.  This avoids custom code while restoring proactive alerts.
+2. **Test flake dashboard** – Extend the pytest log artifact uploader to retain
+   failure metadata (module, test name, error message) in a small JSON file.
+   Periodically aggregate this into a flake leaderboard.
+3. **Runtime healthchecks** – For long-running deployments, expose a `/health`
+   endpoint that checks FIX connectivity, market-data freshness, and telemetry
+   exporter status.
+ main
 
 ## Long-term instrumentation ideas
 

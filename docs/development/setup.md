@@ -28,6 +28,7 @@ python -m src.system.requirements_check
 
 The command exits non-zero if any library is missing or below the documented floor and prints the
 detected versions so upgrades can be recorded in `requirements/base.txt`.
+ codex/assess-technical-debt-in-codebase
 
 ## Formatting expectations
 
@@ -43,3 +44,4 @@ Ruff owns both linting and formatting. Follow the staged rollout captured in
 
 CI fails if any allowlisted path diverges from the formatter output, so keep the
 allowlist and your local environment in sync.
+ main

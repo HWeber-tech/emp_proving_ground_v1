@@ -17,8 +17,13 @@ jobs:
       - uses: ./.github/actions/python-setup
       - name: Ruff (lint)
         run: ruff check .
+ codex/assess-technical-debt-in-codebase
       - name: Ruff (format allowlist)
         run: python scripts/check_formatter_allowlist.py
+
+      - name: Ruff (format)
+        run: ruff format --check .
+ main
 
   types:
     runs-on: ubuntu-latest

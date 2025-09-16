@@ -1,6 +1,8 @@
-# IC Markets cTrader Configuration
-# 
-# This file contains OAuth 2.0 credentials for cTrader API access.
+# IC Markets cTrader Configuration (Legacy)
+#
+# This file contains OAuth 2.0 credentials for the deprecated cTrader OpenAPI
+# integration. The FIX-only [Integration Policy](../../docs/policies/integration_policy.md)
+# blocks this flow in active builds; keep this file for archival reference only.
 # 
 # IMPORTANT: Never commit real credentials to version control!
 # Use environment variables or secure credential management in production.

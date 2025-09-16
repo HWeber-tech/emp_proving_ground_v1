@@ -1,4 +1,0 @@
-src/thinking/analysis/market_analyzer.py
-src/trading/monitoring/portfolio_monitor.py
-src/thinking/analysis/correlation_analyzer.py
-src/trading/risk_management/__init__.py

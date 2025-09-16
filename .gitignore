@@ -99,3 +99,7 @@ data/
 experiments/
 logs/
 *.log 
+# Repository hygiene
+changed_files*.txt
+*.orig
+*.rej

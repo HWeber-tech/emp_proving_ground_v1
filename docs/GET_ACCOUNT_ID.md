@@ -1,5 +1,9 @@
 # Get Your cTrader Account ID
 
+> **Status:** Legacy – the runtime no longer consumes cTrader OpenAPI
+> credentials. This lookup guide remains for archival purposes and is
+> superseded by the FIX-only [Integration Policy](policies/integration_policy.md).
+
 ## Quick Method
 
 1. **Log into IC Markets Client Portal**

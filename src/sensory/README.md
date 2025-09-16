@@ -121,7 +121,7 @@ git clone <repository-url>
 cd market_intelligence
 
 # Install dependencies
-pip install -r requirements.txt
+pip install -r requirements/base.txt
 
 # Install the package
 pip install -e .

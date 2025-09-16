@@ -14,6 +14,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Upgrade pip and install dev requirements
 WORKDIR /workspace
+COPY requirements/base.txt /tmp/base.txt
 COPY requirements/dev.txt /tmp/dev.txt
 RUN python -m pip install --upgrade pip && \
     pip install -r /tmp/dev.txt

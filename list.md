@@ -25,14 +25,14 @@
 25 - Fix risk package public API: reconcile [src/risk/__init__.py](src/risk/__init__.py:1) to import the real module or add [src/risk/real_risk_manager.py](src/risk/real_risk_manager.py:1) if needed
 26 - Audit orchestration imports in [src/orchestration/enhanced_intelligence_engine.py](src/orchestration/enhanced_intelligence_engine.py:1) and update to canonical src.market_intelligence.* paths
 27 - Standardize imports in market intelligence dimension modules under [src/market_intelligence/dimensions/](src/market_intelligence/dimensions/)
-28 - Add authoritative interface hub [src/core/interfaces.py](src/core/interfaces.py:1) describing Protocols for shared interfaces
-29 - Define risk manager protocol and related config protocols in [src/core/interfaces.py](src/core/interfaces.py:1)
-30 - Define configuration provider protocol in [src/core/interfaces.py](src/core/interfaces.py:1)
-31 - Define market data gateway protocols in [src/core/interfaces.py](src/core/interfaces.py:1)
-32 - Define regime classifier protocol in [src/core/interfaces.py](src/core/interfaces.py:1)
-33 - Define metrics sink/registry protocols in [src/core/interfaces.py](src/core/interfaces.py:1)
-34 - Define ecosystem optimizer and coordination engine protocols in [src/core/interfaces.py](src/core/interfaces.py:1)
-35 - Rewire modules importing “src.core.interfaces” to align with the new Protocols in [src/core/interfaces.py](src/core/interfaces.py:1)
+28 - Add authoritative interface hub [src/core/interfaces/__init__.py](src/core/interfaces/__init__.py:1) describing Protocols for shared interfaces
+29 - Define risk manager protocol and related config protocols in [src/core/interfaces/__init__.py](src/core/interfaces/__init__.py:1)
+30 - Define configuration provider protocol in [src/core/interfaces/__init__.py](src/core/interfaces/__init__.py:1)
+31 - Define market data gateway protocols in [src/core/interfaces/__init__.py](src/core/interfaces/__init__.py:1)
+32 - Define regime classifier protocol in [src/core/interfaces/__init__.py](src/core/interfaces/__init__.py:1)
+33 - Define metrics sink/registry protocols in [src/core/interfaces/__init__.py](src/core/interfaces/__init__.py:1)
+34 - Define ecosystem optimizer and coordination engine protocols in [src/core/interfaces/__init__.py](src/core/interfaces/__init__.py:1)
+35 - Rewire modules importing “src.core.interfaces” to align with the new Protocols in [src/core/interfaces/__init__.py](src/core/interfaces/__init__.py:1)
 36 - Create canonical genome model alignment plan in [docs/development/DE-SHIMMIFICATION_PLAN.md](docs/development/DE-SHIMMIFICATION_PLAN.md:1) for DecisionGenome and adapters
 37 - Align dataclass fields and constructor of genome in [src/genome/models/genome.py](src/genome/models/genome.py:1) with actual usage across ecosystem modules
 38 - Replace Any-based helpers in [src/genome/models/genome.py](src/genome/models/genome.py:1) with concrete types or TypedDicts
@@ -45,7 +45,7 @@
 45 - Replace Any returns with TypedDict or dataclass payloads in [src/orchestration/compose.py](src/orchestration/compose.py:1)
 46 - Fix pandas import typing in [src/orchestration/compose.py](src/orchestration/compose.py:1) by local import under TYPE_CHECKING and concrete signatures
 47 - Remove unused type: ignore and fix generics for memoization in [src/operational/metrics.py](src/operational/metrics.py:1) and ensure get_registry returns protocol types
-48 - Define CounterLike, GaugeLike, HistogramLike protocols in [src/operational/metrics_registry.py](src/operational/metrics_registry.py:1) or in [src/core/interfaces.py](src/core/interfaces.py:1)
+48 - Define CounterLike, GaugeLike, HistogramLike protocols in [src/operational/metrics_registry.py](src/operational/metrics_registry.py:1) or in [src/core/interfaces/__init__.py](src/core/interfaces/__init__.py:1)
 49 - Type the memoization dictionaries in [src/operational/metrics_registry.py](src/operational/metrics_registry.py:1) with precise keys and values
 50 - Ensure registry getters in [src/operational/metrics_registry.py](src/operational/metrics_registry.py:1) return protocol types, not Any
 51 - Refactor [src/operational/icmarkets_robust_application.py](src/operational/icmarkets_robust_application.py:1) to type sockets, SSL sockets, threads, and message_queue properly
@@ -118,7 +118,7 @@
 118 - Replace Any in evaluation/niche detection with precise pandas/numpy types in [src/ecosystem/evaluation/niche_detector.py](src/ecosystem/evaluation/niche_detector.py:1)
 119 - Type rolling function helpers in [src/ecosystem/evaluation/niche_detector.py](src/ecosystem/evaluation/niche_detector.py:1)
 120 - Align specialist factories to canonical genome in [src/ecosystem/species/factories.py](src/ecosystem/species/factories.py:1)
-121 - Remove inheritance from missing Any-typed interfaces by using Protocols from [src/core/interfaces.py](src/core/interfaces.py:1) in [src/ecosystem/species/factories.py](src/ecosystem/species/factories.py:1)
+121 - Remove inheritance from missing Any-typed interfaces by using Protocols from [src/core/interfaces/__init__.py](src/core/interfaces/__init__.py:1) in [src/ecosystem/species/factories.py](src/ecosystem/species/factories.py:1)
 122 - Replace Any in specialized predator evolution module in [src/ecosystem/evolution/specialized_predator_evolution.py](src/ecosystem/evolution/specialized_predator_evolution.py:1)
 123 - Fix imports and use typed ecosystem optimizer in [src/ecosystem/evolution/specialized_predator_evolution.py](src/ecosystem/evolution/specialized_predator_evolution.py:1)
 124 - Replace Any in sentient adaptation with typed signals and controllers in [src/intelligence/sentient_adaptation.py](src/intelligence/sentient_adaptation.py:1)

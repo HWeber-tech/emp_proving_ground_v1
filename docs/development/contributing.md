@@ -131,7 +131,7 @@ Questions
   - Example references:
     - [mypy.ini](../../../mypy.ini:1)
     - [pyproject.toml](../../../pyproject.toml:53)
-    - [src/core/interfaces.py](../../../src/core/interfaces.py:1)
+    - [src/core/interfaces/__init__.py](../../../src/core/interfaces/__init__.py:1)
     - [src/intelligence/portfolio_evolution.py](../../../src/intelligence/portfolio_evolution.py:1)
 
 ## Pre-commit

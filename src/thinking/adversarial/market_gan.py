@@ -20,11 +20,6 @@ from src.thinking.models.normalizers import normalize_survival_result
 from src.thinking.prediction.market_data_generator import MarketDataGenerator as MarketDataGenerator
 from src.thinking.prediction.predictive_market_modeler import MarketScenario as MarketScenario
 
-try:
-    from src.core.events import StrategyTestResult  # legacy
-except Exception:  # pragma: no cover
-    StrategyTestResult = object
-
 logger = logging.getLogger(__name__)
 
 

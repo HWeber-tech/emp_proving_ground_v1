@@ -1,0 +1,39 @@
+name: Dead code audit
+
+on:
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+  push:
+    paths:
+      - "scripts/audit_dead_code.py"
+      - "docs/reports/dead_code_audit.md"
+      - "requirements/dev.txt"
+      - ".github/workflows/dead-code-audit.yml"
+
+permissions:
+  contents: read
+  actions: read
+  id-token: write
+
+jobs:
+  audit:
+    name: Run vulture audit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: ./.github/actions/python-setup
+
+      - name: Generate dead-code report
+        run: python scripts/audit_dead_code.py
+
+      - name: Upload report artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dead-code-audit
+          path: docs/reports/dead_code_audit.md
+          retention-days: 7

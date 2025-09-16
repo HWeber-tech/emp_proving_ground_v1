@@ -32,14 +32,14 @@ Action: replace with ast.literal_eval or safe parsers; gate/validate inputs.
 3) Core interfaces drift and missing definitions  [P1]
 Owners: Core, Integration
 Evidence:
-- [src/core/interfaces.py](src/core/interfaces.py:1) high fanin per deps ([docs/reports/fanin_fanout.csv](docs/reports/fanin_fanout.csv:22))
+- [src/core/interfaces/__init__.py](src/core/interfaces/__init__.py:1) high fanin per deps ([docs/reports/fanin_fanout.csv](docs/reports/fanin_fanout.csv:22))
 - Mypy: missing attributes in consumers; see e.g. [src/risk/risk_manager_impl.py](src/risk/risk_manager_impl.py:151), [src/integration/component_integrator.py](src/integration/component_integrator.py:1)
 Action: stabilize IRiskManager/IMarketAnalyzer/IExecutionEngine contracts; align implementations; add Protocols where appropriate.
 
 4) High-central modules with many dependents  [P1]
 Owners: Core, Integration
 Evidence:
-- [src/core/interfaces.py](src/core/interfaces.py:1) fanin 20 ([docs/reports/fanin_fanout.csv](docs/reports/fanin_fanout.csv:22))
+- [src/core/interfaces/__init__.py](src/core/interfaces/__init__.py:1) fanin 20 ([docs/reports/fanin_fanout.csv](docs/reports/fanin_fanout.csv:22))
 - [src/core/events.py](src/core/events.py:1) fanin 13 ([docs/reports/fanin_fanout.csv](docs/reports/fanin_fanout.csv:14))
 - [src/integration/component_integrator_impl.py](src/integration/component_integrator_impl.py:1) fanout 12 ([docs/reports/fanin_fanout.csv](docs/reports/fanin_fanout.csv:90))
 Action: add tests around these hubs; enforce import-linter layering; limit public surface.

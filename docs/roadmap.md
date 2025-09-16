@@ -18,10 +18,18 @@ For a detailed audit of the current state, pair this plan with the living [Techn
 
 ### Next-iteration kickoff backlog
 Spin up these tickets to begin the next modernization wave:
+ codex/assess-technical-debt-in-codebase
+- [ ] **Stage 0 formatter rollout** – Format every file under `tests/current/`, expand `config/formatter/ruff_format_allowlist.txt`, and confirm pytest still passes so CI begins enforcing the first slice.
+- [ ] **Prep Stage 1 formatting** – Dry-run formatting for `src/system/` and `src/core/configuration.py`, document any manual edits required, and line up the allowlist expansion once Stage 0 lands.
+- [ ] **Regression gap tickets** – Break down the coverage hotspots from [CI Baseline – 2025-09-16](ci_baseline_report.md)—notably `src/operational/metrics.py`, `src/trading/models/position.py`, the `src/data_foundation/config/` modules, and `src/sensory/dimensions/why/yield_signal.py`—into reviewable test additions.
+- [ ] **Dead-code audit follow-up** – Work through the remaining findings in [Dead code audit – 2025-09-16](reports/dead_code_audit.md), filing delete/refactor tickets and annotating intentional dynamic hooks so future scans stay actionable.
+- [ ] **CI flake telemetry** – Implement the pytest failure metadata artifact described in `docs/operations/observability_plan.md` and publish a lightweight dashboard or report for recurring flakes.
+
 - [ ] **Publish the formatter rollout plan** – agree on the directory-by-directory schedule for running `ruff format` so changesets stay reviewable.
 - [ ] **Prioritize coverage hotspots** – translate the red zones from `docs/ci_baseline_report.md` into scoped regression tickets for trading, risk, and orchestration modules.
 - [ ] **Triage dead-code findings** – classify each entry in [Dead code audit – 2025-09-16](reports/dead_code_audit.md) as delete, refactor, or keep (with justification) and turn outcomes into follow-up issues.
 - [ ] **Select the alerting channel** – choose between GitHub notifications, Slack, or email digests for CI failures and capture the decision in `docs/operations/observability_plan.md`.
+ main
 
 ## Phase 0 – Immediate hygiene (Week 1)
 - [x] **Retire redundant automation**: Remove the deprecated Kilocode CI Bridge workflow and confirm no remaining secrets or labels reference the integration.
@@ -64,6 +72,32 @@ Spin up these tickets to begin the next modernization wave:
   - [x] Authored `docs/operations/observability_plan.md` describing the CI summary uploads, hygiene baselines, and incremental alerting enhancements.
 
 ## Phase 6 – Formatter normalization (Weeks 8–9)
+ codex/assess-technical-debt-in-codebase
+- [x] **Document the staged rollout**: Captured in [`docs/development/formatter_rollout.md`](development/formatter_rollout.md) with owners, gating tasks, and sequencing for each formatting slice.
+- [x] **Automate guardrails**: Added `scripts/check_formatter_allowlist.py` + `config/formatter/ruff_format_allowlist.txt` and updated CI to enforce formatter checks only on opt-in paths.
+- [x] **Update contributor guidance**: Extended `docs/development/setup.md` with formatter expectations and the workflow for expanding the allowlist as directories are normalized.
+
+## Phase 7 – Regression depth in trading & risk (Weeks 10–11)
+- [x] **Backfill trading execution tests**: Add pytest coverage for FIX execution flows (order routing, failure handling, and reconciliation) prioritized by the CI baseline's uncovered lines.
+  - [x] Exercised quantity validation, missing-order cancellations, and defensive copies of active orders in `tests/current/test_fix_executor.py` to harden legacy FIX stubs.
+- [x] **Exercise risk management edges**: Target `src/risk` hot spots—such as position limits and drawdown guards—with unit tests that cover both success and failure paths.
+  - [x] Added `tests/current/test_risk_manager_impl.py` with async validation, Kelly sizing, limit updates, and summary aggregation scenarios exercising success paths and failure fallbacks.
+- [x] **Stabilize orchestration flows**: Create integration-style tests for the event bus and orchestrator wiring so configuration errors surface before live runs.
+  - [x] Added `tests/current/test_orchestration_compose.py` to verify gateway adapters invoke injected organs, adaptation services normalize payloads, and the validation bundle degrades gracefully when optional modules are missing.
+
+## Phase 8 – Operational telemetry & alerting (Weeks 11–12)
+- [x] **Implement CI alert delivery**: Added `.github/workflows/ci-failure-alerts.yml` to open (or update) a `CI failure alerts` issue when the pipeline fails, with automatic closure after the next green run.
+- [x] **Surface health dashboards**: Published [`docs/status/ci_health.md`](status/ci_health.md) summarizing latest runs, coverage, formatter rollout progress, and triage entry points.
+- [x] **Codify on-call expectations**: Expanded `docs/operations/observability_plan.md` with rotation duties, response-time targets, and escalation guidance tied to the automated alerts.
+
+## Phase 9 – Dead code remediation & modular cleanup (Weeks 12+)
+- [x] **Retire confirmed dead paths**: Deleted the high-confidence candidates called out in the latest `scripts/audit_dead_code.py` report—removing legacy event imports, tightening the portfolio monitor helper, and shoring up optional dependency shims—while documenting the rationale in the debt assessment.
+- [x] **Decompose monolith modules**: Use the updated architecture guide to split overly coupled packages (for example, shared utilities inside `src/core`) into focused components.
+  - [x] Extracted `performance_metrics.py` from the trading performance tracker so analytical helpers live outside the monitoring entry point.
+  - [x] Broke the interface hub into `src/core/interfaces/` submodules (`base.py`, `ecosystem.py`, `metrics.py`, `analysis.py`) with a re-exporting `__init__` so the high-fanin Protocols no longer live in a single 350-line file.
+- [x] **Schedule follow-up audits**: Re-run the dead-code audit after each cleanup batch and append findings to `docs/reports/dead_code_audit.md` to track progress over time.
+  - [x] Added a scheduled GitHub Action (`dead-code-audit.yml`) that runs the vulture report weekly, on demand, or when the script changes, uploading the Markdown snapshot as an artifact for review.
+
 - [ ] **Document the staged rollout**: Capture the agreed sequencing (by package or subsystem) for applying `ruff format` so reviewers can focus on mechanical diffs.
 - [ ] **Automate guardrails**: Introduce opt-in directory allow-lists (for example, via `ruff.toml`'s `extend-exclude`) and tighten CI to block regressions once each slice is formatted.
 - [ ] **Update contributor guidance**: Extend `docs/development/setup.md` with formatting expectations, including when to run `ruff format` locally and how to handle conflicts.
@@ -82,6 +116,7 @@ Spin up these tickets to begin the next modernization wave:
 - [ ] **Retire confirmed dead paths**: Delete the high-confidence candidates identified in the latest `scripts/audit_dead_code.py` report and document any intentionally retained hooks.
 - [ ] **Decompose monolith modules**: Use the updated architecture guide to split overly coupled packages (for example, shared utilities inside `src/core`) into focused components.
 - [ ] **Schedule follow-up audits**: Re-run the dead-code audit after each cleanup batch and append findings to `docs/reports/dead_code_audit.md` to track progress over time.
+ main
 
 ### Tracking and review
 - Review progress in weekly debt triage meetings.

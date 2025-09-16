@@ -9,7 +9,7 @@ backward compatibility and will be removed after migration.
 
 import asyncio
 import logging
-from datetime import datetime
+from enum import Enum
 from typing import TYPE_CHECKING, Dict, List, Optional
 
 try:
@@ -185,8 +185,11 @@ class FIXExecutor(IExecutionEngine):
 
         allowed_types: set[str] = {"MARKET", "LIMIT", "STOP"}
         otype = getattr(order, "order_type", None)
-        otype_s = str(otype) if otype is not None else ""
-        if otype_s not in allowed_types:
+        if isinstance(otype, Enum):
+            normalized_type = str(otype.value).upper()
+        else:
+            normalized_type = str(otype or "").upper()
+        if normalized_type not in allowed_types:
             logger.error(f"Invalid order type: {order.order_type}")
             return False
 
@@ -196,10 +199,12 @@ class FIXExecutor(IExecutionEngine):
         """Simulate FIX order execution."""
         await asyncio.sleep(0.1)  # Simulate network delay
 
-        # Simulate successful execution
-        order.status = OrderStatus.FILLED
-        order.filled_quantity = order.quantity
-        order.filled_at = datetime.now()
+        # Simulate successful execution using order data
+        fill_price_source = order.price
+        if fill_price_source is None:
+            fill_price_source = order.average_price
+        fill_price = float(fill_price_source or 0.0)
+        order.add_fill(order.quantity, fill_price)
 
     async def _update_position(self, order: Order) -> None:
         """Update position based on executed order."""

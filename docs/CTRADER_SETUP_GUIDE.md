@@ -1,6 +1,8 @@
 # [Legacy] IC Markets cTrader API Setup Guide (OpenAPI)
 
-Deprecated in FIX-only builds. For current connectivity, use FIX per `docs/fix_api/`.
+> **Status:** Legacy – deprecated in FIX-only builds.
+> Follow the [Integration Policy](policies/integration_policy.md) and use
+> the FIX guides in `docs/fix_api/` for supported connectivity.
 
 ## Prerequisites
 

@@ -1,5 +1,0 @@
-src/sensory/organs/dimensions/chaos_adaptation.py
-src/sensory/organs/analyzers/anomaly_organ.py
-src/sensory/organs/dimensions/institutional_tracker.py
-src/sensory/organs/dimensions/what_organ.py
-src/thinking/analysis/market_analyzer.py

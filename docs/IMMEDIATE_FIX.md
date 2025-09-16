@@ -1,5 +1,9 @@
 # IMMEDIATE FIX - Get Correct Account ID
 
+> **Status:** Legacy – applies to the deprecated cTrader OpenAPI tooling.
+> See the FIX-only [Integration Policy](policies/integration_policy.md)
+> before attempting to reuse these steps.
+
 ## 🚨 The Issue
 Your access token has no visibility to any accounts. This is a **scope issue**, not an account ID issue.
 

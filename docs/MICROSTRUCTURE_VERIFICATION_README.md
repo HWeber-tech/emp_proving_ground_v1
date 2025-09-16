@@ -1,5 +1,9 @@
 # IC Markets Microstructure Verification Tool
 
+> **Status:** Legacy – this walkthrough depends on the cTrader OpenAPI stack.
+> Consult the [Integration Policy](policies/integration_policy.md) for the
+> current FIX-only posture before attempting any updates.
+
 ## Overview
 This diagnostic tool connects to the IC Markets cTrader API to verify the quality, depth, and latency of Level 2 Depth-of-Book (DoB) market data. It produces a comprehensive report that serves as the basis for a go/no-go decision on microstructure-focused development.
 

@@ -1,8 +1,0 @@
-src/sensory/real_sensory_organ.py
-src/trading/execution/execution_engine.py
-src/sensory/anomaly/anomaly_sensor.py
-src/sensory/enhanced/anomaly/manipulation_detection.py
-src/sensory/organs/dimensions/indicators.py
-src/sensory/enhanced/why_dimension.py
-src/data_integration/real_data_integration.py
-src/sensory/enhanced/how_dimension.py

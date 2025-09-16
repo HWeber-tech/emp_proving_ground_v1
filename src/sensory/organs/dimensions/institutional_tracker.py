@@ -194,12 +194,13 @@ class InstitutionalFootprintHunter:
 
     def _calculate_atr(self, df: pd.DataFrame, period: int = 14) -> pd.Series:
         """Calculate Average True Range"""
-        high_low = df["high"] - df["low"]
-        high_close = np.abs(df["high"] - df["close"].shift())
-        low_close = np.abs(df["low"] - df["close"].shift())
-        ranges = pd.concat([high_low, high_close, low_close], axis=1)
-        true_range = ranges.max(axis=1)
-        return true_range.rolling(window=period).mean()
+        high_low: pd.Series = df["high"] - df["low"]
+        high_close: pd.Series = (df["high"] - df["close"].shift()).abs()
+        low_close: pd.Series = (df["low"] - df["close"].shift()).abs()
+        ranges = cast(pd.DataFrame, pd.concat([high_low, high_close, low_close], axis=1))
+        true_range: pd.Series = cast(pd.Series, ranges.max(axis=1))
+        atr = cast(pd.Series, true_range.rolling(window=period).mean())
+        return atr
 
     def _determine_institutional_bias(
         self, order_blocks: List[OrderBlock], fvgs: List[FairValueGap], smart_flow: float

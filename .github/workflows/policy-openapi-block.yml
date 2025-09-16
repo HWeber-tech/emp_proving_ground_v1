@@ -7,22 +7,4 @@ on:
 
 jobs:
   block-openapi:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Fail on OpenAPI/cTrader references
-        run: |
-          set -euo pipefail
-          echo "Scanning for forbidden keywords..."
-          # Narrow to concrete OpenAPI markers; avoid generic 'ctrader' and benign mentions
-          FORBIDDEN_REGEX='(ctrader_open_api|swagger|spotware|real_ctrader_interface|from[[:space:]]+fastapi|import[[:space:]]+fastapi|import[[:space:]]+uvicorn)'
-          MATCHES=$(grep -RniE "$FORBIDDEN_REGEX" -- src tests/current || true)
-          if [ -n "$MATCHES" ]; then
-            echo "Forbidden references detected:"
-            echo "$MATCHES"
-            exit 1
-          fi
-          echo "No forbidden references found."
-
+    uses: ./.github/workflows/forbidden-integrations.yml

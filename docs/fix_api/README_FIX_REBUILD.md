@@ -145,7 +145,7 @@ if manager.connect():
 
 ### Files to Update
 - `main.py`: Replace old FIXConnectionManager with ICMarketsSimpleFIXManager
-- `requirements.txt`: Use requirements-fix-windows.txt
+- `requirements/base.txt`: Use requirements-fix-windows.txt
 - Configuration: Update to use ICMarketsConfig
 
 ## 📊 Performance Comparison

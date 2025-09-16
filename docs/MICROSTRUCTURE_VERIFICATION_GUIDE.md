@@ -1,5 +1,9 @@
 # IC Markets Level 2 Depth Verification Guide
 
+> **Status:** Legacy – maintained for context about the retired cTrader OpenAPI
+> tooling. Active builds must adhere to the [Integration Policy](policies/integration_policy.md)
+> and use FIX-based workflows instead.
+
 ## Overview
 This guide provides step-by-step instructions for running the IC Markets cTrader Level 2 depth verification tool to assess data quality for microstructure strategies.
 

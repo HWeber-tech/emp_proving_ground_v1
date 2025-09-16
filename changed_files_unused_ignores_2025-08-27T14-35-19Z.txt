@@ -1,5 +1,0 @@
-src/core/genome.py
-src/core/population_manager.py
-src/data_integration/__init__.py
-src/domain/models.py
-src/sensory/models/__init__.py

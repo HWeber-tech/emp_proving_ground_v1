@@ -1,5 +1,9 @@
 # cTrader Credential Troubleshooting Guide
 
+> **Status:** Legacy – this procedure targets the deprecated cTrader OpenAPI flow.
+> The integration is blocked by the [Integration Policy](policies/integration_policy.md)
+> and is preserved for historical reference only.
+
 ## Current Issue: No Accounts Found
 
 **Error**: `No accounts found for this access token`

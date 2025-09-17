@@ -298,7 +298,9 @@ class WashTradingDetector:
             return 0.0
 
         recent_volume = float(data["volume"].iloc[-5:].mean())
-        historical_volume = float(data["volume"].iloc[:-5].mean()) if len(data) > 5 else recent_volume
+        historical_volume = (
+            float(data["volume"].iloc[:-5].mean()) if len(data) > 5 else recent_volume
+        )
 
         if historical_volume == 0.0:
             return 0.0
@@ -363,7 +365,9 @@ class PumpDumpDetector:
             return 0.0
 
         recent_volume = float(data["volume"].iloc[-5:].mean())
-        historical_volume = float(data["volume"].iloc[:-5].mean()) if len(data) > 5 else recent_volume
+        historical_volume = (
+            float(data["volume"].iloc[:-5].mean()) if len(data) > 5 else recent_volume
+        )
 
         if historical_volume == 0.0:
             return 0.0

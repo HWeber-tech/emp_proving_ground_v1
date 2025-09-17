@@ -10,6 +10,7 @@ from .position import Position
 @dataclass
 class PortfolioSnapshot:
     """Portfolio snapshot (package-local definition for typing/runtime use)."""
+
     total_value: float
     cash_balance: float
     positions: List[Position]

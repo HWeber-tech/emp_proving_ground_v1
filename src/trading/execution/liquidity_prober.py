@@ -110,7 +110,7 @@ class LiquidityProber:
                     results[price] = task.result()
 
         logger.info(
-            f"Completed liquidity probe for {symbol} - " f"found liquidity at {len(results)} levels"
+            f"Completed liquidity probe for {symbol} - found liquidity at {len(results)} levels"
         )
 
         return results

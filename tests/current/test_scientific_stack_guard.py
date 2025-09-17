@@ -31,7 +31,9 @@ def test_check_scientific_stack_missing(monkeypatch: pytest.MonkeyPatch) -> None
     packages = list(requirements_check.MINIMUM_VERSIONS)
     missing = packages[0]
     available = {
-        package: SimpleNamespace(__version__=_format_version(requirements_check.MINIMUM_VERSIONS[package]))
+        package: SimpleNamespace(
+            __version__=_format_version(requirements_check.MINIMUM_VERSIONS[package])
+        )
         for package in packages
         if package != missing
     }

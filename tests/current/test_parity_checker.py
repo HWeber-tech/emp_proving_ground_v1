@@ -1,4 +1,5 @@
 """Regression coverage for the FIX parity checker utilities."""
+
 from __future__ import annotations
 
 from enum import Enum
@@ -20,11 +21,17 @@ class _RecordingSink:
     def set_gauge(self, name: str, value: float, labels: Dict[str, str] | None = None) -> None:
         self.gauges.append((name, value, labels))
 
-    def inc_counter(self, name: str, amount: float = 1.0, labels: Dict[str, str] | None = None) -> None:
+    def inc_counter(
+        self, name: str, amount: float = 1.0, labels: Dict[str, str] | None = None
+    ) -> None:
         return
 
     def observe_histogram(
-        self, name: str, value: float, buckets: list[float] | None = None, labels: Dict[str, str] | None = None
+        self,
+        name: str,
+        value: float,
+        buckets: list[float] | None = None,
+        labels: Dict[str, str] | None = None,
     ) -> None:
         return
 
@@ -52,7 +59,14 @@ class _Status(Enum):
 
 
 class _StubOrder:
-    def __init__(self, order_id: str, status: _Status, leaves_qty: float = 0.0, cum_qty: float = 0.0, avg_px: float = 0.0):
+    def __init__(
+        self,
+        order_id: str,
+        status: _Status,
+        leaves_qty: float = 0.0,
+        cum_qty: float = 0.0,
+        avg_px: float = 0.0,
+    ):
         self.order_id = order_id
         self.status = status
         self.leaves_qty = leaves_qty
@@ -90,7 +104,13 @@ def test_check_orders_counts_mismatches_and_emits_metric(metrics_sink: _Recordin
 def test_compare_order_fields_reports_differences() -> None:
     checker = ParityChecker(_StubFixManager({}))
     local = _StubOrder(order_id="123", status=_Status.NEW, leaves_qty=10, cum_qty=4, avg_px=1.2)
-    broker = {"order_id": "999", "status": "cancelled", "leaves_qty": "10", "cum_qty": "5", "avg_px": 2}
+    broker = {
+        "order_id": "999",
+        "status": "cancelled",
+        "leaves_qty": "10",
+        "cum_qty": "5",
+        "avg_px": 2,
+    }
 
     diffs = checker.compare_order_fields(local, broker)
 
@@ -102,7 +122,9 @@ def test_compare_order_fields_reports_differences() -> None:
     }
 
 
-def test_check_positions_detects_missing_and_mismatched(monkeypatch: pytest.MonkeyPatch, metrics_sink: _RecordingSink) -> None:
+def test_check_positions_detects_missing_and_mismatched(
+    monkeypatch: pytest.MonkeyPatch, metrics_sink: _RecordingSink
+) -> None:
     from src.trading.monitoring import parity_checker as parity_module
     from src.trading.monitoring import portfolio_tracker as tracker_module
 

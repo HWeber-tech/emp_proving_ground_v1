@@ -22,7 +22,9 @@ from src.orchestration.compose import (
 
 
 @pytest.mark.asyncio
-async def test_market_data_gateway_adapter_uses_injected_organ(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_market_data_gateway_adapter_uses_injected_organ(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     calls: list[tuple[Any, ...]] = []
 
     class DummyOrgan:
@@ -99,7 +101,9 @@ def test_configuration_provider_adapter_accessors() -> None:
     assert adapter.get_value("missing", default="fallback") == "fallback"
 
 
-def test_compose_validation_adapters_handles_missing_modules(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_compose_validation_adapters_handles_missing_modules(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     original_import = importlib.import_module
 
     def fake_import(name: str, *args: Any, **kwargs: Any) -> Any:
@@ -118,7 +122,11 @@ def test_compose_validation_adapters_handles_missing_modules(monkeypatch: pytest
 
     adapters = compose_validation_adapters()
 
-    from src.orchestration.compose import AdaptationServiceAdapter, ConfigurationProviderAdapter, RegimeClassifierAdapter
+    from src.orchestration.compose import (
+        AdaptationServiceAdapter,
+        ConfigurationProviderAdapter,
+        RegimeClassifierAdapter,
+    )
 
     assert isinstance(adapters["market_data_gateway"], NoOpMarketDataGateway)
     assert isinstance(adapters["anomaly_detector"], NoOpAnomalyDetector)

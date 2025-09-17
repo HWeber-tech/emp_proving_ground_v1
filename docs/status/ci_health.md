@@ -11,7 +11,11 @@ pipeline remains healthy at a glance.
 | --- | --- | --- |
 | Last successful run | Refer to the GitHub Actions **CI** workflow page | Capture the run URL in team status updates. |
 | Coverage (pytest `--cov`) | 76% (from [CI Baseline – 2025-09-16](../ci_baseline_report.md)) | Update when the coverage target moves. |
-| Formatter rollout | 0 / 235 legacy files normalized (tracked via `config/formatter/ruff_format_allowlist.txt`) | Guarded by `scripts/check_formatter_allowlist.py` in CI. |
+| Formatter rollout | Stages 0–2 complete, Stage 3 locked (`tests/current/`, `src/system/`, `src/core/configuration.py`, `src/trading/execution/`, `src/trading/models/`, and the full `src/sensory/organs/dimensions/` package, including `__init__.py`, `utils.py`, `what_organ.py`, `when_organ.py`, `why_organ.py`, and prior organs), Stage 4 now enforces the entire `src/sensory/` tree plus `src/data_foundation/config/` via the allowlist | Guarded by `scripts/check_formatter_allowlist.py`; dry-run `src/data_foundation/ingest/` and `src/data_foundation/persist/` next and keep pytest green after each slice. |
+| Risk guardrail coverage | Portfolio cap clamps and USD beta orientation now exercised via `tests/current/test_portfolio_risk_caps.py` | Extend to FIX execution/risk integration paths next. |
+| Data foundation config coverage | YAML loader fallbacks and overrides regression-tested via `tests/current/test_data_foundation_config_loading.py` | Keep expanding toward operational metrics and sensory signal hotspots. |
+| Operational metrics coverage | FIX/WHY telemetry sanitization and guardrails enforced in `tests/current/test_operational_metrics_sanitization.py` | Fold orchestration smoke tests into the suite to cover adapter wiring. |
+| Pytest flake telemetry | `tests/.telemetry/flake_runs.json` emitted each run | Override with `PYTEST_FLAKE_LOG` or `--flake-log-file`; upload alongside `pytest.log`. |
 | Open CI alerts | Check the automatically managed **CI failure alerts** issue | Created/closed by `.github/workflows/ci-failure-alerts.yml`. |
 
 ## Where to look when something fails
@@ -31,3 +35,5 @@ pipeline remains healthy at a glance.
 - Refresh coverage and formatter metrics after sizable refactors.
 - Add notes about recurring flakes directly to this page so trends remain
   discoverable without mining historical logs.
+- Verify the flake telemetry JSON uploads with each run (or override the
+  location locally to avoid committing artifacts).

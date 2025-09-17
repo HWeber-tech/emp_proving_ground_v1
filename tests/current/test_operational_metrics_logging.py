@@ -39,7 +39,11 @@ def test_lazy_gauge_proxy_logs_once(monkeypatch, caplog):
         proxy.set(2.0)
 
     warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
-    debug = [r for r in caplog.records if r.levelno == logging.DEBUG and "Repeated failure" in r.getMessage()]
+    debug = [
+        r
+        for r in caplog.records
+        if r.levelno == logging.DEBUG and "Repeated failure" in r.getMessage()
+    ]
     assert len(warnings) == 1
     assert any("test_metric.set" in r.getMessage() for r in warnings)
     assert debug, "Expected repeated failure log at debug level"
@@ -55,7 +59,11 @@ def test_registry_metrics_sink_logs(monkeypatch, caplog):
         sink.set_gauge("foo", 2.0, labels={"l": "x"})
 
     warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
-    debug = [r for r in caplog.records if r.levelno == logging.DEBUG and "Repeated failure" in r.getMessage()]
+    debug = [
+        r
+        for r in caplog.records
+        if r.levelno == logging.DEBUG and "Repeated failure" in r.getMessage()
+    ]
     assert len(warnings) == 1
     assert any("metrics_sink.foo.set_gauge" in r.getMessage() for r in warnings)
     assert debug

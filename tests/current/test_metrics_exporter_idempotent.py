@@ -11,8 +11,10 @@ def test_start_metrics_server_idempotent() -> None:
     calls = {"n": 0}
 
     stub = types.ModuleType("prometheus_client")
+
     def start_http_server(_port: int) -> None:  # noqa: N802 (3rd-party style)
         calls["n"] += 1
+
     stub.start_http_server = start_http_server  # type: ignore[attr-defined]
 
     sys.modules["prometheus_client"] = stub

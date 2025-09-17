@@ -144,7 +144,9 @@ class SensoryIntegrationOrchestrator:
                 self.macro_intelligence.analyze_macro_environment(),
                 cast(Any, self.footprint_hunter).analyze_institutional_footprint(price_data),
                 self.pattern_engine.synthesize_patterns(price_data),
-                cast(Any, self.temporal_analyzer).analyze_timing(cast(dict[str, Any], dict(market_data))),
+                cast(Any, self.temporal_analyzer).analyze_timing(
+                    cast(dict[str, Any], dict(market_data))
+                ),
                 self.anomaly_detector.detect_manipulation(market_data),
                 self.chaos_adapter.assess_chaos_opportunities(price_data),
             ]

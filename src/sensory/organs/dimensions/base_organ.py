@@ -24,8 +24,6 @@ from src.trading.order_management.order_book.snapshot import OrderBookSnapshot a
 logger = logging.getLogger(__name__)
 
 
-
-
 class ConfidenceLevel(Enum):
     """Standardized confidence levels across all dimensions"""
 

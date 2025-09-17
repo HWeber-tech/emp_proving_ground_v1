@@ -399,7 +399,6 @@ class FairValueGapDetector:
                     and candle2["low"] > candle1["high"]
                     and candle2["low"] > candle3["low"]
                 ):
-
                     fvg = FairValueGap(
                         type="bullish",
                         start_price=float(candle1["high"]),
@@ -421,7 +420,6 @@ class FairValueGapDetector:
                     and candle2["high"] < candle1["low"]
                     and candle2["high"] < candle3["high"]
                 ):
-
                     fvg = FairValueGap(
                         type="bearish",
                         start_price=float(candle1["low"]),

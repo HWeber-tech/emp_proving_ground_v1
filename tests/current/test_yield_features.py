@@ -12,4 +12,3 @@ def test_yield_features_basic():
     assert yt.curvature_2_10_30() == (2 * 4.5 - 4.0 - 4.7)
     ps = yt.parallel_shift()
     assert ps is not None and abs(ps - ((4.0 + 4.3 + 4.5 + 4.7) / 4.0)) < 1e-9
-

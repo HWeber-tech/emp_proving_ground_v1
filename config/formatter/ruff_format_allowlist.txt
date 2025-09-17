@@ -9,3 +9,10 @@
 #
 # The allowlist starts empty; populate it incrementally as teams finish formatting
 # individual packages.
+src/core/configuration.py
+src/data_foundation/config/
+src/sensory/
+src/system/
+src/trading/execution/
+src/trading/models/
+tests/current/

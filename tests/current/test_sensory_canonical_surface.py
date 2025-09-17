@@ -18,6 +18,7 @@ def test_sensory_why_canonical_surface_all():
     assert hasattr(mod, "__all__")
     assert "EnhancedFundamentalIntelligenceEngine" in getattr(mod, "__all__")
 
+
 def test_sensory_when_canonical_surface_all():
     mod = importlib.import_module("src.sensory.enhanced.when_dimension")
     assert hasattr(mod, "__all__")
@@ -34,6 +35,7 @@ def test_sensory_anomaly_canonical_surface_all():
     mod = importlib.import_module("src.sensory.enhanced.anomaly_dimension")
     assert hasattr(mod, "__all__")
     assert "AnomalyIntelligenceEngine" in getattr(mod, "__all__")
+
 
 def test_no_heavy_imports_on_sensory_import(monkeypatch: pytest.MonkeyPatch):
     # Guard builtins.__import__ to forbid heavy deps during import

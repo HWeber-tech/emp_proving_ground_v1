@@ -9,8 +9,10 @@ import pytest
 def _stub_heavy_deps(monkeypatch: pytest.MonkeyPatch) -> None:
     # Provide minimal pandas with DataFrame attr for type annotations
     pd = types.ModuleType("pandas")
+
     class _DF:  # placeholder
         pass
+
     pd.DataFrame = _DF  # type: ignore[attr-defined]
     monkeypatch.setitem(sys.modules, "pandas", pd)
 

@@ -8,6 +8,8 @@ from src.operational.fix_connection_manager import FIXConnectionManager
 def test_fix_only_protocol_enforced():
     cfg = SystemConfig()
     assert cfg.connection_protocol == "fix"
+
+
 async def _drain(q: asyncio.Queue, timeout=1.0):
     msgs = []
     start = asyncio.get_event_loop().time()
@@ -43,10 +45,12 @@ def _setup_mgr():
 
 def test_fix_reject_and_cancel():
     mgr, initiator, trade_q, loop = _setup_mgr()
+
     # Reject
     class Reject:
         cl_ord_id = "R1"
         reject = True
+
     assert initiator.send_message(Reject())
     rej_msgs = loop.run_until_complete(_drain(trade_q, timeout=0.5))
     assert any(m.get(35) == b"8" and m.get(150) == b"8" for m in rej_msgs)
@@ -55,15 +59,16 @@ def test_fix_reject_and_cancel():
     class Cancel:
         cl_ord_id = "C1"
         cancel = True
+
     assert initiator.send_message(Cancel())
     can_msgs = loop.run_until_complete(_drain(trade_q, timeout=0.5))
     assert any(m.get(35) == b"8" and m.get(150) == b"4" for m in can_msgs)
+
     # Partial should also appear due to mock
     class Normal:
         cl_ord_id = "N1"
+
     assert initiator.send_message(Normal())
     norm_msgs = loop.run_until_complete(_drain(trade_q, timeout=0.5))
     assert any(m.get(35) == b"8" and m.get(150) == b"1" for m in norm_msgs)
     loop.close()
-
-

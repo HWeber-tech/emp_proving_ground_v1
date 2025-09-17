@@ -14,8 +14,12 @@ from src.risk.risk_manager_impl import RiskManagerImpl
 async def test_validate_position_rejects_invalid_inputs() -> None:
     manager = RiskManagerImpl(initial_balance=10_000)
 
-    invalid_size = await manager.validate_position({"symbol": "EURUSD", "size": 0, "entry_price": 1.1})
-    invalid_price = await manager.validate_position({"symbol": "EURUSD", "size": 1_000, "entry_price": 0})
+    invalid_size = await manager.validate_position(
+        {"symbol": "EURUSD", "size": 0, "entry_price": 1.1}
+    )
+    invalid_price = await manager.validate_position(
+        {"symbol": "EURUSD", "size": 1_000, "entry_price": 0}
+    )
 
     assert invalid_size is False
     assert invalid_price is False
@@ -25,8 +29,12 @@ async def test_validate_position_rejects_invalid_inputs() -> None:
 async def test_validate_position_enforces_max_risk() -> None:
     manager = RiskManagerImpl(initial_balance=5_000)
 
-    within_limits = await manager.validate_position({"symbol": "EURUSD", "size": 4_000, "entry_price": 1.1})
-    breaching_limits = await manager.validate_position({"symbol": "EURUSD", "size": 6_000, "entry_price": 1.1})
+    within_limits = await manager.validate_position(
+        {"symbol": "EURUSD", "size": 4_000, "entry_price": 1.1}
+    )
+    breaching_limits = await manager.validate_position(
+        {"symbol": "EURUSD", "size": 6_000, "entry_price": 1.1}
+    )
 
     assert within_limits is True
     assert breaching_limits is False
@@ -86,7 +94,9 @@ def test_get_risk_summary_reports_positions(monkeypatch: pytest.MonkeyPatch) -> 
     manager.add_position("EURUSD", 1_000, 1.1)
     manager.update_position_value("EURUSD", 1.2)
 
-    monkeypatch.setattr(manager.risk_manager, "assess_risk", lambda positions: {"total": sum(positions.values())})
+    monkeypatch.setattr(
+        manager.risk_manager, "assess_risk", lambda positions: {"total": sum(positions.values())}
+    )
 
     summary = manager.get_risk_summary()
 
@@ -101,7 +111,9 @@ def test_calculate_portfolio_risk_aggregates_and_delegates(monkeypatch: pytest.M
     manager.add_position("EURUSD", 1_500, 1.1)
     manager.add_position("GBPUSD", 500, 1.2)
 
-    monkeypatch.setattr(manager.risk_manager, "assess_risk", lambda positions: sum(positions.values()) * 0.1)
+    monkeypatch.setattr(
+        manager.risk_manager, "assess_risk", lambda positions: sum(positions.values()) * 0.1
+    )
 
     snapshot = manager.calculate_portfolio_risk()
 

@@ -1,4 +1,5 @@
 """Integration smoke test for SystemConfig.from_env with explicit env mapping."""
+
 from __future__ import annotations
 
 from src.governance.system_config import SystemConfig

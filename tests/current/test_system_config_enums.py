@@ -1,4 +1,5 @@
 """Tests for typed, Enum-based SystemConfig with safe env coercion."""
+
 from __future__ import annotations
 
 from src.governance.system_config import (

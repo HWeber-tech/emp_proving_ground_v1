@@ -112,4 +112,3 @@ def test_load_config_missing_file_raises(monkeypatch: pytest.MonkeyPatch) -> Non
 
     with pytest.raises(module.ConfigurationException):
         module.Configuration.from_yaml(Path("/does/not/exist.yaml"))
-

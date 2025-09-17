@@ -1,124 +1,365 @@
 # Modernization Roadmap
 
-This roadmap captures the next steps for reducing technical debt and restoring confidence in the EMP Professional Predator codebase and delivery pipelines. Items are grouped by phase so the team can focus on one layer of stability at a time while keeping downstream work unblocked.
+This roadmap orchestrates the remaining modernization work for the EMP Professional
+Predator codebase. Pair it with the living
+[Technical Debt Assessment](technical_debt_assessment.md) when planning discovery
+spikes, execution tickets, or milestone reviews.
 
-For a detailed audit of the current state, pair this plan with the living [Technical Debt Assessment](technical_debt_assessment.md).
+## Execution rhythm
 
-## How to work the roadmap
-- **Triage → ticket → deliver**: Start every phase by translating the bullet points below into discrete tickets (1–2 day efforts). Each ticket should have a crisp Definition of Done and a designated owner so work moves in parallel without surprise dependencies.
-- **Keep a rolling kanban**: Maintain a three-column board (Now / Next / Later) that reflects the current slice of roadmap work. As soon as a ticket lands in "Later" it can be groomed and sized so the next engineer can pick it up without needing a fresh planning meeting.
-- **Time-box discovery spikes**: When a task needs investigation (for example, understanding why CI fails after the conflict is resolved) reserve explicit spike tickets with 4–8 hour caps and a required summary comment in the ticket before it is closed.
-- **Close the feedback loop**: End each week with a 15-minute review to capture status, blockers, and any adjustments to sequencing. Update this document with lessons learned so it stays authoritative.
+- **Stage work into reviewable tickets** – Translate bullets into 1–2 day tasks with a
+  Definition of Done, clear owner, and explicit validation steps.
+- **Run a Now / Next / Later board** – Groom items as soon as they move to 'Later' so
+  the next engineer can start without another planning meeting.
+- **Time-box discovery** – Use 4–8 hour spike tickets when investigation is required
+  and close them with a written summary so execution inherits the findings.
+- **Weekly sync** – Spend 15 minutes each Friday to capture status, blockers, and any
+  resequencing. Update this document and the tracking board immediately afterwards.
+- **Keep telemetry fresh** – Refresh formatter progress, coverage deltas, and alerting
+  status in [`docs/status/ci_health.md`](status/ci_health.md) so dashboards mirror the
+  roadmap.
 
-### Initial kickoff backlog (completed)
-- [x] **Confirm deprecated integrations are inert** – verify secrets/labels for Kilocode are removed and document findings.
-- [x] **Resolve `ci.yml` merge markers** – reproduce the conflict locally, apply the correct sections, and push a validating branch build.
-- [x] **Re-run CI end-to-end** – execute the fixed workflow locally or via a draft PR and log which jobs fail plus top errors.
-- [x] **Spin up the tracking board** – set up the shared project board (GitHub Projects, Linear, or Jira) populated with the initial tickets.
+## Portfolio snapshot
 
-### Next-iteration kickoff backlog
-Spin up these tickets to begin the next modernization wave:
- codex/assess-technical-debt-in-codebase
-- [ ] **Stage 0 formatter rollout** – Format every file under `tests/current/`, expand `config/formatter/ruff_format_allowlist.txt`, and confirm pytest still passes so CI begins enforcing the first slice.
-- [ ] **Prep Stage 1 formatting** – Dry-run formatting for `src/system/` and `src/core/configuration.py`, document any manual edits required, and line up the allowlist expansion once Stage 0 lands.
-- [ ] **Regression gap tickets** – Break down the coverage hotspots from [CI Baseline – 2025-09-16](ci_baseline_report.md)—notably `src/operational/metrics.py`, `src/trading/models/position.py`, the `src/data_foundation/config/` modules, and `src/sensory/dimensions/why/yield_signal.py`—into reviewable test additions.
-- [ ] **Dead-code audit follow-up** – Work through the remaining findings in [Dead code audit – 2025-09-16](reports/dead_code_audit.md), filing delete/refactor tickets and annotating intentional dynamic hooks so future scans stay actionable.
-- [ ] **CI flake telemetry** – Implement the pytest failure metadata artifact described in `docs/operations/observability_plan.md` and publish a lightweight dashboard or report for recurring flakes.
+| Initiative | Phase | Outcome we need | Current status | Next checkpoint |
+| --- | --- | --- | --- | --- |
+| Formatter normalization | 6 | Repository passes `ruff format --check .` without relying on an allowlist. | Stages 0–2 landed (`tests/current/`, `src/system/`, `src/core/configuration.py`, `src/trading/execution/`, `src/trading/models/`), Stage 3 covers the entire `src/sensory/organs/dimensions/` package (including `__init__.py`, `utils.py`, `what_organ.py`, `when_organ.py`, `why_organ.py`, and the previously normalized organs), and Stage 4 now enforces the entire `src/sensory/` tree (organs, services, tests, vendor shims) via the allowlist after collapsing the module-level entries. | Sequence Stage 4 follow-ups by lining up `src/data_foundation/config/` and neighboring packages while keeping pytest green. |
+| Regression depth in trading & risk | 7 | Coverage hotspots wrapped in deterministic regression suites. | Baseline coverage at 76%; first regression PR hardened the data foundation config loaders while remaining hotspots await coverage. | Prioritize the FIX execution suite and orchestration smoke tests next. |
+| Operational telemetry & alerting | 8 | CI failures surface automatically with actionable context. | Logs and tails captured; GitHub issue alerts now open/close automatically while Slack/webhook mirroring remains on the to-do list; flake telemetry artifacts write to disk. | Force a failure to validate the channel and fold learnings into the response playbook. |
+| Dead code remediation & modular cleanup | 9 | Dead-code audit remains actionable and high-fanin modules are decomposed. | Weekly audit artifact generated; backlog not triaged. | Triage the latest audit, delete safe targets, and schedule the next cleanup batch. |
 
-- [ ] **Publish the formatter rollout plan** – agree on the directory-by-directory schedule for running `ruff format` so changesets stay reviewable.
-- [ ] **Prioritize coverage hotspots** – translate the red zones from `docs/ci_baseline_report.md` into scoped regression tickets for trading, risk, and orchestration modules.
-- [ ] **Triage dead-code findings** – classify each entry in [Dead code audit – 2025-09-16](reports/dead_code_audit.md) as delete, refactor, or keep (with justification) and turn outcomes into follow-up issues.
-- [ ] **Select the alerting channel** – choose between GitHub notifications, Slack, or email digests for CI failures and capture the decision in `docs/operations/observability_plan.md`.
- main
+## Active modernization streams
 
-## Phase 0 – Immediate hygiene (Week 1)
-- [x] **Retire redundant automation**: Remove the deprecated Kilocode CI Bridge workflow and confirm no remaining secrets or labels reference the integration.
-- [x] **Unblock CI parsing**: Resolve the merge-conflict markers in `.github/workflows/ci.yml` so GitHub can execute the workflow again.
-- [x] **Baseline pipeline health**: Run the fixed CI workflow end-to-end (policy, lint, mypy, pytest) and capture current failure modes to inform later phases. Results are logged in [CI Baseline – 2025-09-16](ci_baseline_report.md).
+### Initiative 1 – Formatter normalization (Phase 6)
 
-## Phase 1 – Policy enforcement consolidation (Week 2)
-- [x] **Single source of truth for OpenAPI/cTrader ban**: Collapse the duplicated policy checks (`policy` job inside `ci.yml` and `policy-openapi-block.yml`) behind a reusable workflow so the guardrail is defined once.
-- [x] **Configuration alignment**: Audit `config.yaml` and documentation to remove or clearly flag cTrader/OpenAPI placeholders so runtime defaults match the enforced FIX-only posture.
-  - [x] Default `config.yaml` to FIX simulator settings with IC Markets credentials placeholders.
-  - [x] Introduced an integration policy and legacy disclaimers so documentation mirrors the FIX-only stance.
+**Mission** – Land `ruff format` in reviewable slices until the repository passes
+`ruff format --check .` without leaning on `config/formatter/ruff_format_allowlist.txt`.
 
-## Phase 2 – Dependency and environment hygiene (Weeks 3–4)
-- [x] **Rationalize requirements**: Promote `requirements/base.txt` as the canonical runtime manifest and layer development tooling through `requirements/dev.txt`, updating automation and docs accordingly.
-- [x] **Pin critical tooling**: Align versions for linting, typing, and testing tools across local dev and CI to eliminate "works on my machine" discrepancies.
-  - [x] Lock mypy, Ruff, Black, pytest, and supporting stubs in `requirements/dev.txt` so automation and local shells resolve the same toolchain.
-- [x] **Scientific stack verification**: Document the minimum supported numpy/pandas/scipy versions, wire them into the setup guide, and expose a `python -m src.system.requirements_check` CLI so deploys can fail fast when the stack drifts.
+**Definition of done**
 
-## Phase 3 – Repository cleanup (Weeks 4–5)
-- [x] **Prune stray artifacts**: Delete `.orig` backups, `changed_files_*.txt`, and other scratch files from version control.
-- [x] **Establish guardrails**: Add `.gitignore` updates or pre-commit hooks to prevent regenerated artifacts from re-entering the repo.
-- [x] **Audit for dead code**: Captured the first pass in [Dead code audit – 2025-09-16](reports/dead_code_audit.md) generated via `scripts/audit_dead_code.py` to seed follow-up cleanup tickets.
+- Stage 0 (`tests/current/`) formatted, pytest green, and allowlist expanded
+  accordingly.
+- Stage 1 (`src/system/`, `src/core/configuration.py`) formatted with documented
+  manual edits and follow-up tickets for non-mechanical cleanups.
+- Remaining directories sequenced in [`docs/development/formatter_rollout.md`](development/formatter_rollout.md)
+  with owners and merge order captured.
+- CI enforces the formatter globally and the allowlist shrinks to empty (or is
+  removed entirely) without exceptions.
+- Contributor guidance in [`docs/development/setup.md`](development/setup.md) and
+  the PR checklist reflects the post-rollout workflow.
 
-## Phase 4 – Test coverage and observability (Weeks 6–7)
-- [x] **Strengthen regression nets**: Expand pytest coverage around the event bus, trading pipelines, and configuration loaders to reduce reliance on manual smoke tests.
-  - [x] Added regression coverage for `SystemConfig.with_updated` conversions and the scientific stack guard.
-  - [x] Added FIX parity checker tests covering order/position mismatch accounting and emitted telemetry gauges.
-  - [x] Added `core.configuration` regression tests that exercise environment overrides, nested accessors, YAML round-tripping, and module-level global state updates.
-- [x] **Type safety focus areas**: Use the nightly mypy reports to target high-churn modules and drive them toward clean type annotations.
-  - [x] Refactored the legacy `Configuration` helper to use typed mapping access with safe nested mutation semantics backed by new tests.
-- [x] **Operational insights**: Evaluate lightweight telemetry or structured logging so failures surface without external services like Kilocode.
-  - [x] CI now appends pytest tails to the GitHub Step Summary and uploads the full log as an artifact, with the follow-up alerting plan captured in `docs/operations/observability_plan.md`.
+**Key context**
 
-## Phase 5 – Strategic refactors (Weeks 8+)
-- [x] **Subsystem decomposition**: Prioritize modules with the highest coupling (e.g., `core` ↔ `trading`) for refactor spikes once the pipeline is green.
-  - [x] Updated `docs/architecture/refactor_roadmap.md` and the refreshed architecture overview to anchor upcoming decomposition work on the validated layering contract.
-- [x] **Documentation refresh**: Produce system architecture and runbook documentation reflecting the stabilized workflows and policies.
-  - [x] Replaced the stubbed architecture overview with a layered system guide linked from policy and roadmap docs.
-- [x] **Plan for future automation**: Revisit alerting and failure triage needs after CI is reliable, considering native GitHub features or self-hosted tooling if necessary.
-  - [x] Authored `docs/operations/observability_plan.md` describing the CI summary uploads, hygiene baselines, and incremental alerting enhancements.
+- `scripts/check_formatter_allowlist.py`
+- `config/formatter/ruff_format_allowlist.txt`
+- [`docs/development/formatter_rollout.md`](development/formatter_rollout.md)
+- [`docs/development/setup.md`](development/setup.md)
+- [`docs/status/ci_health.md`](status/ci_health.md) – formatter progress snapshots
 
-## Phase 6 – Formatter normalization (Weeks 8–9)
- codex/assess-technical-debt-in-codebase
-- [x] **Document the staged rollout**: Captured in [`docs/development/formatter_rollout.md`](development/formatter_rollout.md) with owners, gating tasks, and sequencing for each formatting slice.
-- [x] **Automate guardrails**: Added `scripts/check_formatter_allowlist.py` + `config/formatter/ruff_format_allowlist.txt` and updated CI to enforce formatter checks only on opt-in paths.
-- [x] **Update contributor guidance**: Extended `docs/development/setup.md` with formatter expectations and the workflow for expanding the allowlist as directories are normalized.
+**Now**
 
-## Phase 7 – Regression depth in trading & risk (Weeks 10–11)
-- [x] **Backfill trading execution tests**: Add pytest coverage for FIX execution flows (order routing, failure handling, and reconciliation) prioritized by the CI baseline's uncovered lines.
-  - [x] Exercised quantity validation, missing-order cancellations, and defensive copies of active orders in `tests/current/test_fix_executor.py` to harden legacy FIX stubs.
-- [x] **Exercise risk management edges**: Target `src/risk` hot spots—such as position limits and drawdown guards—with unit tests that cover both success and failure paths.
-  - [x] Added `tests/current/test_risk_manager_impl.py` with async validation, Kelly sizing, limit updates, and summary aggregation scenarios exercising success paths and failure fallbacks.
-- [x] **Stabilize orchestration flows**: Create integration-style tests for the event bus and orchestrator wiring so configuration errors surface before live runs.
-  - [x] Added `tests/current/test_orchestration_compose.py` to verify gateway adapters invoke injected organs, adaptation services normalize payloads, and the validation bundle degrades gracefully when optional modules are missing.
+- [x] Ship Stage 0 PR formatting `tests/current/`, expand the allowlist, and rerun
+      pytest to verify no behavioral drift.
+- [x] Publish the Stage 0 change log (manual edits, conflicts to expect) so
+      reviewers have context for subsequent slices.
+- [x] Normalize Stage 1 (`src/system/`, `src/core/configuration.py`), capture the
+      rollout notes, and keep `config/formatter/ruff_format_allowlist.txt`
+      alphabetized.
+- [x] Dry-run Stage 2 (`src/trading/execution/`, `src/trading/models/`) with a
+      paired regression test plan before opening the formatting PR. Completed –
+      directories are normalized and the allowlist now enforces them.
+- [x] Coordinate Stage 2 merge windows with trading/risk owners to minimize
+      conflicts while coverage work lands.
+- [x] Assign Stage 3 (`src/sensory/organs/dimensions/`) ownership to the Sensory
+      guild rotation and reserve merge windows before each organ lands.
+- [x] Dry-run the initial Stage 3 organ (`anomaly_detection.py`), capture manual
+      adjustments (none), and confirm pytest stays green prior to formatting.
+- [x] Normalize the next Stage 3 organ (`base_organ.py`), document any manual
+      edits, and enroll it in the allowlist without regressing coverage.
+- [x] Normalize `src/sensory/organs/dimensions/chaos_adaptation.py`, capture any
+      manual cleanups, and extend the allowlist while keeping pytest green.
+- [x] Normalize `src/sensory/organs/dimensions/chaos_dimension.py`, capture any
+      manual cleanups, and extend the allowlist while keeping pytest green.
+- [x] Normalize `src/sensory/organs/dimensions/anomaly_dimension.py`, capture any
+      manual cleanups, and extend the allowlist while keeping pytest green.
+- [x] Normalize `src/sensory/organs/dimensions/data_integration.py`, document
+      manual edits (none), and extend the allowlist while keeping pytest green.
+- [x] Normalize `src/sensory/organs/dimensions/integration_orchestrator.py`,
+      capture manual cleanups (timing call reflow), and extend the allowlist while
+      keeping pytest green.
+- [x] Normalize `src/sensory/organs/dimensions/institutional_tracker.py`,
+      document manual edits (none), and extend the allowlist while keeping pytest
+      green.
+- [x] Normalize `src/sensory/organs/dimensions/order_flow.py`, capture manual
+      cleanups (none), and extend the allowlist while keeping pytest green.
+- [x] Normalize `src/sensory/organs/dimensions/pattern_engine.py`, capture
+      manual cleanups (none), and extend the allowlist while keeping pytest green.
+- [x] Normalize `src/sensory/organs/dimensions/patterns.py`, capture manual
+      cleanups (none), and extend the allowlist while keeping pytest green.
+- [x] Normalize `src/sensory/organs/dimensions/regime_detection.py`, capture
+      manual cleanups (none), and extend the allowlist while keeping pytest green.
+- [x] Normalize `src/sensory/organs/dimensions/sensory_signal.py`, capture manual
+      cleanups (none), and extend the allowlist while keeping pytest green.
+- [x] Normalize `src/sensory/organs/dimensions/economic_analysis.py`,
+      `src/sensory/organs/dimensions/how_organ.py`,
+      `src/sensory/organs/dimensions/indicators.py`,
+      `src/sensory/organs/dimensions/macro_intelligence.py`, and
+      `src/sensory/organs/dimensions/temporal_system.py`, expand the allowlist,
+      and rerun pytest to confirm the slice stays green.
+- [x] Normalize `src/sensory/organs/dimensions/__init__.py`,
+      `src/sensory/organs/dimensions/utils.py`,
+      `src/sensory/organs/dimensions/what_organ.py`,
+      `src/sensory/organs/dimensions/when_organ.py`, and
+      `src/sensory/organs/dimensions/why_organ.py`; Stage 3 is now fully enforced
+      via the allowlist with pytest remaining green.
 
-## Phase 8 – Operational telemetry & alerting (Weeks 11–12)
-- [x] **Implement CI alert delivery**: Added `.github/workflows/ci-failure-alerts.yml` to open (or update) a `CI failure alerts` issue when the pipeline fails, with automatic closure after the next green run.
-- [x] **Surface health dashboards**: Published [`docs/status/ci_health.md`](status/ci_health.md) summarizing latest runs, coverage, formatter rollout progress, and triage entry points.
-- [x] **Codify on-call expectations**: Expanded `docs/operations/observability_plan.md` with rotation duties, response-time targets, and escalation guidance tied to the automated alerts.
+**Next**
 
-## Phase 9 – Dead code remediation & modular cleanup (Weeks 12+)
-- [x] **Retire confirmed dead paths**: Deleted the high-confidence candidates called out in the latest `scripts/audit_dead_code.py` report—removing legacy event imports, tightening the portfolio monitor helper, and shoring up optional dependency shims—while documenting the rationale in the debt assessment.
-- [x] **Decompose monolith modules**: Use the updated architecture guide to split overly coupled packages (for example, shared utilities inside `src/core`) into focused components.
-  - [x] Extracted `performance_metrics.py` from the trading performance tracker so analytical helpers live outside the monitoring entry point.
-  - [x] Broke the interface hub into `src/core/interfaces/` submodules (`base.py`, `ecosystem.py`, `metrics.py`, `analysis.py`) with a re-exporting `__init__` so the high-fanin Protocols no longer live in a single 350-line file.
-- [x] **Schedule follow-up audits**: Re-run the dead-code audit after each cleanup batch and append findings to `docs/reports/dead_code_audit.md` to track progress over time.
-  - [x] Added a scheduled GitHub Action (`dead-code-audit.yml`) that runs the vulture report weekly, on demand, or when the script changes, uploading the Markdown snapshot as an artifact for review.
+- [x] Update the rollout plan with Stage 4 sequencing notes as each package
+      lands, keeping owners and calendar slots current.
+- [x] Continue sequencing follow-up directories so the allowlist shrinks after
+      each slice lands. Completed by enrolling `src/data_foundation/config/` and
+      staging the data foundation ingest/persist slices next.
+- [ ] Dry-run `src/data_foundation/ingest/` and `src/data_foundation/persist/`
+      to confirm they are formatter-clean before expanding the allowlist again.
 
-- [ ] **Document the staged rollout**: Capture the agreed sequencing (by package or subsystem) for applying `ruff format` so reviewers can focus on mechanical diffs.
-- [ ] **Automate guardrails**: Introduce opt-in directory allow-lists (for example, via `ruff.toml`'s `extend-exclude`) and tighten CI to block regressions once each slice is formatted.
-- [ ] **Update contributor guidance**: Extend `docs/development/setup.md` with formatting expectations, including when to run `ruff format` locally and how to handle conflicts.
+**Immediate actions**
 
-## Phase 7 – Regression depth in trading & risk (Weeks 10–11)
-- [ ] **Backfill trading execution tests**: Add pytest coverage for FIX execution flows (order routing, failure handling, and reconciliation) prioritized by the CI baseline's uncovered lines.
-- [ ] **Exercise risk management edges**: Target `src/risk` hot spots—such as position limits and drawdown guards—with unit tests that cover both success and failure paths.
-- [ ] **Stabilize orchestration flows**: Create integration-style tests for the event bus and orchestrator wiring so configuration errors surface before live runs.
+- Broadcast the Stage 4 expansion that now enforces the entire `src/sensory/`
+  tree and the newly enrolled `src/data_foundation/config/` slice while
+  confirming `scripts/check_formatter_allowlist.py` stays green after each
+  update.
+- Prepare the `src/data_foundation/ingest/` and `src/data_foundation/persist/`
+  slices for formatting, documenting any manual adjustments and lining up
+  reviewers before running `ruff format`.
+- Land each Stage 4 package with a paired allowlist update, pytest run, and
+  roadmap/CI snapshot refresh so the guardrail covers newly formatted code
+  without masking regressions.
 
-## Phase 8 – Operational telemetry & alerting (Weeks 11–12)
-- [ ] **Implement CI alert delivery**: Stand up the chosen notification channel (GitHub issue automation, Slack webhook, or email summaries) and validate it with a test failure.
-- [ ] **Surface health dashboards**: Publish a lightweight status page or README section summarizing latest CI runs, coverage, and formatter completion percentages.
-- [ ] **Codify on-call expectations**: Document who triages alerts, response-time goals, and escalation steps alongside the observability plan.
+**Later**
 
-## Phase 9 – Dead code remediation & modular cleanup (Weeks 12+)
-- [ ] **Retire confirmed dead paths**: Delete the high-confidence candidates identified in the latest `scripts/audit_dead_code.py` report and document any intentionally retained hooks.
-- [ ] **Decompose monolith modules**: Use the updated architecture guide to split overly coupled packages (for example, shared utilities inside `src/core`) into focused components.
-- [ ] **Schedule follow-up audits**: Re-run the dead-code audit after each cleanup batch and append findings to `docs/reports/dead_code_audit.md` to track progress over time.
- main
+- [ ] Sequence remaining directories by churn and coupling, noting any directories
+      that require pairing or joint review.
+- [ ] Retire the allowlist guard and remove redundant formatters (for example,
+      Black) once Ruff owns enforcement end-to-end.
 
-### Tracking and review
-- Review progress in weekly debt triage meetings.
-- Keep a shared checklist linked to this roadmap so contributors can claim items and record findings.
-- Revisit phases quarterly (or after each Phase 6–9 milestone) to update priorities based on new discoveries or product needs.
+**Risks & watchpoints**
+
+- High-churn directories causing repeated merge conflicts – mitigate by staging PRs
+  early in the week and communicating freeze windows.
+- Generated files or vendored assets accidentally formatted – confirm each slice
+  honors project-level excludes before landing.
+- Formatting changes obscuring behavior tweaks – insist on mechanical-only commits
+  paired with focused follow-ups for real fixes.
+
+**Telemetry**
+
+- Track formatted-directory count and allowlist size in the CI health snapshot.
+- Flag the rollout timeline in retrospectives so future contributors understand the
+  historical sequencing.
+
+### Initiative 2 – Regression depth in trading & risk (Phase 7)
+
+**Mission** – Convert the CI baseline hotspots into deterministic regression suites
+that guard trading execution, risk controls, and orchestration wiring.
+
+**Definition of done**
+
+- Coverage for `src/operational/metrics.py`, `src/trading/models/position.py`,
+  `src/data_foundation/config/`, and
+  `src/sensory/dimensions/why/yield_signal.py` improves measurably and holds steady
+  in CI.
+- FIX execution flows (order routing, reconciliation, error handling) have
+  explicit success and failure scenarios documented and enforced by pytest.
+- Risk guardrails (position limits, drawdown gates, Kelly sizing) are exercised
+  across happy paths and failure modes with clear assertions.
+- Orchestration composition tests verify adapters, event bus wiring, and optional
+  module degradation across supported configurations.
+- Coverage deltas captured in [`docs/status/ci_health.md`](status/ci_health.md)
+  after each regression batch.
+
+**Key context**
+
+- [`docs/ci_baseline_report.md`](ci_baseline_report.md)
+- Existing regression suites in `tests/current/`
+- `src/trading/models/position.py`
+- `src/operational/metrics.py`
+- `src/data_foundation/config/`
+- `src/sensory/dimensions/why/yield_signal.py`
+
+**Now**
+
+- [x] Break the baseline hotspots into discrete regression tickets with scoped
+      inputs, expected outputs, and ownership. Captured in
+      [`docs/status/regression_backlog.md`](status/regression_backlog.md) with
+      ticket stubs for metrics, FIX, trading, and sensory coverage.
+- [x] Prioritize the FIX execution suite so mocked integrations remain predictable
+      while real endpoints are still pending. Added deterministic failure-path
+      coverage in `tests/current/test_fix_manager_failures.py` and linked follow-up
+      tickets in the regression backlog.
+
+**Next**
+
+- [x] Land tests that exercise position lifecycle accounting and reconciliation in
+      `src/trading/models/position.py`.
+- [x] Cover risk guardrails with both threshold-hitting and recovery scenarios.
+- [x] Harden data foundation config loaders with deterministic regression tests
+      so YAML overrides remain trustworthy.
+- [ ] Introduce orchestration smoke tests that wire the event bus, adapters, and
+      optional modules to catch configuration drift.
+
+**Later**
+
+- [ ] Expand into scenario-based integration tests once formatter noise is gone and
+      churn stabilizes.
+- [ ] Capture coverage trendlines in the CI dashboard and celebrate modules that
+      cross agreed thresholds.
+
+**Risks & watchpoints**
+
+- Mocked subsystems may give false confidence – document limitations and plan for
+  real integrations in future roadmaps.
+- Flaky tests can erode trust – add telemetry hooks to surface retries and
+  investigate immediately.
+
+**Telemetry**
+
+- Update coverage by module in the CI health snapshot after each landing.
+- Track flaky-test counts or retry rates to feed back into the observability plan.
+
+### Initiative 3 – Operational telemetry & alerting (Phase 8)
+
+**Mission** – Provide actionable observability for CI so failures surface without
+manual log digging or the deprecated Kilocode bridge.
+
+**Definition of done**
+
+- A single alerting channel (GitHub issue automation, Slack webhook, or email
+  digest) selected, documented, and validated with a forced failure.
+- Lightweight dashboard or README section summarizing recent CI runs, formatter
+  status, and coverage trends published and maintained.
+- On-call expectations, escalation paths, and response targets codified alongside
+  the observability plan.
+- CI failure telemetry (e.g., pytest flake metadata) stored in an accessible
+  location for trend analysis.
+
+**Key context**
+
+- `.github/workflows/ci.yml`
+- `.github/workflows/ci-failure-alerts.yml`
+- [`docs/operations/observability_plan.md`](operations/observability_plan.md)
+- [`docs/status/ci_health.md`](status/ci_health.md)
+
+**Now**
+
+- [x] Decide on the alert delivery channel and document the rationale and owners in
+      the observability plan (GitHub issue automation is live; Slack/webhook mirroring
+      still pending).
+- [ ] Prepare a test failure to validate end-to-end notifications before relying
+      on the channel.
+
+**Next**
+
+- [ ] Publish or update the CI health dashboard or README section with formatter
+      and coverage telemetry.
+- [x] Add pytest flake metadata collection or similar artifacts to the CI run.
+- [ ] Backfill historical flakes (where possible) and link the JSON artifact in the
+      observability plan for quick access.
+
+**Later**
+
+- [ ] Evaluate whether runtime observability (beyond CI) should join the roadmap
+      once formatter and regression work settles.
+- [ ] Schedule quarterly reviews of alert effectiveness with on-call participants.
+
+**Risks & watchpoints**
+
+- Alert fatigue if the signal is noisy – ensure alerts auto-resolve and include
+  actionable context.
+- Ownership drift – keep rotation details in the observability plan and revisit at
+  each roadmap review.
+
+**Telemetry**
+
+- Capture alert tests, run history, and open incidents in the CI health document.
+- Track mean time to acknowledgment (MTTA) and resolution (MTTR) once alerts are
+  live.
+
+### Initiative 4 – Dead code remediation & modular cleanup (Phase 9)
+
+**Mission** – Keep the dead-code signal actionable while decomposing high-fanin
+modules into maintainable components.
+
+**Definition of done**
+
+- Latest dead-code audit findings triaged as delete, refactor, or intentional
+  dynamic hook with rationale captured.
+- Confirmed dead paths removed with documentation or tests updated to reflect any
+  behavioral changes.
+- Remaining monolithic modules in `src/core` and adjacent packages decomposed into
+  focused components without breaking public interfaces.
+- Recurring audits scheduled after each cleanup batch, with results appended to
+  [`docs/reports/dead_code_audit.md`](reports/dead_code_audit.md).
+
+**Key context**
+
+- [`docs/reports/dead_code_audit.md`](reports/dead_code_audit.md)
+- `scripts/audit_dead_code.py`
+- `.github/workflows/dead-code-audit.yml`
+- Architecture references in `docs/architecture/`
+
+**Now**
+
+- [ ] Triage each outstanding audit entry with delete, refactor, or retain
+      decisions and capture follow-up tickets.
+- [ ] Remove high-confidence dead paths and run targeted tests to confirm behavior.
+
+**Next**
+
+- [ ] Decompose remaining high-fanin modules (for example, dense helpers inside
+      `src/core`) into smaller components with clear interfaces.
+- [ ] Align documentation and examples with the new module layout.
+
+**Later**
+
+- [ ] Continue scheduled audits after each cleanup batch, noting trends and
+      tracking resolved findings in the report.
+- [ ] Evaluate whether additional tooling or static analysis would reduce audit
+      noise.
+
+**Risks & watchpoints**
+
+- Accidentally deleting dynamic entry points – document intentional keepers and add
+  regression tests where reasonable.
+- Audit fatigue – keep the report curated so future scans remain trustworthy.
+
+**Telemetry**
+
+- Log each audit pass, decisions made, and resulting PRs in the audit report.
+- Track module fan-in or fan-out metrics where available to measure decomposition
+  impact.
+
+## Completed phases (0–5)
+
+| Phase | Focus | Status | Highlights |
+| --- | --- | --- | --- |
+| 0 | Immediate hygiene | ✅ Complete | Retired the Kilocode bridge, resolved `.github/workflows/ci.yml` merge markers, and captured the CI baseline. |
+| 1 | Policy consolidation | ✅ Complete | Centralized forbidden-integration checks and aligned `config.yaml` with the FIX-only posture. |
+| 2 | Dependency & environment hygiene | ✅ Complete | Promoted `requirements/base.txt`, pinned the development toolchain, and added the runtime requirements check CLI. |
+| 3 | Repository cleanup | ✅ Complete | Pruned stray artifacts, added guardrails to keep them out, and seeded the dead-code audit backlog. |
+| 4 | Test coverage & observability | ✅ Complete | Expanded regression nets across configuration, FIX parity, risk management, and orchestration while improving CI log surfacing. |
+| 5 | Strategic refactors | ✅ Complete | Decomposed high-coupling modules (e.g., `src/core/interfaces`, trading performance tracker) and refreshed architecture docs to match the layering contract. |
+
+Consult the linked documentation in each phase for implementation details when
+debugging regressions or planning follow-up work.
+
+## Review cadence & reporting
+
+- Keep a shared checklist linked to this roadmap so contributors can claim items
+  and capture findings.
+- Review progress in weekly debt triage meetings and update the Now / Next / Later
+  board accordingly.
+- Revisit the roadmap quarterly (or after completing any initiative above) to
+  adjust priorities based on emerging risks or product requirements.
+- Note material updates in commit messages so change history explains why items
+  moved or definitions shifted.

@@ -70,9 +70,7 @@ def check_scientific_stack() -> dict[str, str]:
     if outdated:
         message = ["Scientific stack version mismatch detected:"]
         for package, version, minimum in outdated:
-            message.append(
-                f"- {package}: found {version}, requires >= {_format_version(minimum)}"
-            )
+            message.append(f"- {package}: found {version}, requires >= {_format_version(minimum)}")
         raise RuntimeError("\n".join(message))
 
     return versions
@@ -104,9 +102,7 @@ def main() -> int:
     print("Scientific stack OK:")
     for package in sorted(versions):
         print(f"  - {package} {versions[package]}")
-    print(
-        "Ensure these versions stay in sync with requirements/base.txt when upgrading the stack."
-    )
+    print("Ensure these versions stay in sync with requirements/base.txt when upgrading the stack.")
     return 0
 
 

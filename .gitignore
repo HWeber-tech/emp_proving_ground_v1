@@ -95,6 +95,7 @@ ehthumbs.db
 Thumbs.db
 
 # Project specific
+tests/.telemetry/
 data/
 experiments/
 logs/

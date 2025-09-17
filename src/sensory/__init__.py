@@ -17,4 +17,4 @@ from src.sensory.signals import (
     SensorSignal as SensorSignal,
 )
 
-__all__ = ['SensorSignal', 'IntegratedSignal']
+__all__ = ["SensorSignal", "IntegratedSignal"]

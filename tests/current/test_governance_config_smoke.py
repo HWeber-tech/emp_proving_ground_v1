@@ -1,4 +1,3 @@
-
 from src.governance.system_config import (
     ConnectionProtocol,
     EmpEnvironment,
@@ -44,8 +43,8 @@ def test_system_config_env_roundtrip_valid() -> None:
 
 def test_system_config_invalid_tracking() -> None:
     env = {
-        "RUN_MODE": "super",       # invalid
-        "CONFIRM_LIVE": "maybe",   # invalid
+        "RUN_MODE": "super",  # invalid
+        "CONFIRM_LIVE": "maybe",  # invalid
     }
     cfg = SystemConfig.from_env(env)
 

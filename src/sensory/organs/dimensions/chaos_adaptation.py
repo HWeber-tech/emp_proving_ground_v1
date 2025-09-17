@@ -406,7 +406,9 @@ class RegimeChangeDetector:
                 "type": (
                     "volatility_regime"
                     if volatility > 0.05
-                    else "trend_regime" if abs(trend_strength) > 0.1 else "none"
+                    else "trend_regime"
+                    if abs(trend_strength) > 0.1
+                    else "none"
                 ),
                 "strength": max(volatility, abs(trend_strength)),
             }

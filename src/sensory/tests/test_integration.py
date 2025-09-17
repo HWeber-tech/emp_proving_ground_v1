@@ -223,9 +223,7 @@ class TestDimensionalEngines:
                 if name == "WHY":
                     reading = await engine.analyze_fundamental_intelligence(market_data)
                 elif name == "HOW":
-                    reading = await engine.analyze_institutional_intelligence(
-                        market_data
-                    )
+                    reading = await engine.analyze_institutional_intelligence(market_data)
                 elif name == "WHAT":
                     reading = await engine.analyze_technical_reality(market_data)
                 elif name == "WHEN":
@@ -274,9 +272,7 @@ class TestContextualFusion:
         return TestDataGenerator()
 
     @pytest.mark.asyncio
-    async def test_fusion_engine_basic_functionality(
-        self, fusion_engine, data_generator
-    ):
+    async def test_fusion_engine_basic_functionality(self, fusion_engine, data_generator):
         """Test basic fusion engine functionality"""
 
         market_data = data_generator.generate_market_data("normal")
@@ -296,9 +292,7 @@ class TestContextualFusion:
         assert 0.0 <= synthesis.confidence <= 1.0
 
     @pytest.mark.asyncio
-    async def test_fusion_with_multiple_data_points(
-        self, fusion_engine, data_generator
-    ):
+    async def test_fusion_with_multiple_data_points(self, fusion_engine, data_generator):
         """Test fusion engine with multiple data points"""
 
         # Generate sequence of data
@@ -319,9 +313,9 @@ class TestContextualFusion:
 
         # Confidence should generally improve with more data
         confidences = [s.confidence for s in syntheses]
-        assert (
-            confidences[-1] >= confidences[0] - 0.1
-        ), "Confidence should not degrade significantly"
+        assert confidences[-1] >= confidences[0] - 0.1, (
+            "Confidence should not degrade significantly"
+        )
 
     @pytest.mark.asyncio
     async def test_adaptive_weights(self, fusion_engine, data_generator):
@@ -337,9 +331,7 @@ class TestContextualFusion:
             await fusion_engine.analyze_market_intelligence(market_data)
 
             if i == 0:
-                initial_weights = (
-                    fusion_engine.weight_manager.calculate_current_weights()
-                )
+                initial_weights = fusion_engine.weight_manager.calculate_current_weights()
             elif i == len(data_sequence) - 1:
                 final_weights = fusion_engine.weight_manager.calculate_current_weights()
 
@@ -349,8 +341,7 @@ class TestContextualFusion:
 
         # At least one weight should change
         weight_changes = [
-            abs(final_weights[dim] - initial_weights[dim])
-            for dim in initial_weights.keys()
+            abs(final_weights[dim] - initial_weights[dim]) for dim in initial_weights.keys()
         ]
         assert max(weight_changes) > 0.01, "Weights should adapt over time"
 
@@ -368,9 +359,7 @@ class TestContextualFusion:
         correlations = fusion_engine.correlation_analyzer.get_dimensional_correlations()
 
         # Should have some correlations detected
-        assert (
-            len(correlations) > 0
-        ), "Should detect some correlations with sufficient data"
+        assert len(correlations) > 0, "Should detect some correlations with sufficient data"
 
         # Verify correlation structure
         for (dim_a, dim_b), correlation in correlations.items():
@@ -503,9 +492,9 @@ class TestSystemIntegration:
 
         # Should process reasonably quickly
         avg_time_per_analysis = total_time / len(data_sequence)
-        assert (
-            avg_time_per_analysis < 1.0
-        ), f"Analysis taking too long: {avg_time_per_analysis:.3f}s per analysis"
+        assert avg_time_per_analysis < 1.0, (
+            f"Analysis taking too long: {avg_time_per_analysis:.3f}s per analysis"
+        )
 
     @pytest.mark.asyncio
     async def test_memory_usage(self, fusion_engine, data_generator):
@@ -528,9 +517,9 @@ class TestSystemIntegration:
         memory_growth = final_memory - initial_memory
 
         # Memory growth should be reasonable (less than 100MB)
-        assert (
-            memory_growth < 100 * 1024 * 1024
-        ), f"Excessive memory growth: {memory_growth / 1024 / 1024:.1f}MB"
+        assert memory_growth < 100 * 1024 * 1024, (
+            f"Excessive memory growth: {memory_growth / 1024 / 1024:.1f}MB"
+        )
 
     def test_diagnostic_information(self, fusion_engine):
         """Test diagnostic information retrieval"""
@@ -572,9 +561,7 @@ class TestScenarioValidation:
         avg_score = np.mean([s.unified_score for s in final_syntheses])
 
         # Should detect bullish trend (positive unified score)
-        assert (
-            avg_score > 0.1
-        ), f"Should detect bullish trend, got average score: {avg_score:.3f}"
+        assert avg_score > 0.1, f"Should detect bullish trend, got average score: {avg_score:.3f}"
 
     @pytest.mark.asyncio
     async def test_bear_trend_detection(self, fusion_engine, data_generator):
@@ -593,9 +580,7 @@ class TestScenarioValidation:
         avg_score = np.mean([s.unified_score for s in final_syntheses])
 
         # Should detect bearish trend (negative unified score)
-        assert (
-            avg_score < -0.1
-        ), f"Should detect bearish trend, got average score: {avg_score:.3f}"
+        assert avg_score < -0.1, f"Should detect bearish trend, got average score: {avg_score:.3f}"
 
     @pytest.mark.asyncio
     async def test_ranging_market_detection(self, fusion_engine, data_generator):
@@ -615,9 +600,9 @@ class TestScenarioValidation:
         avg_abs_score = np.mean([abs(score) for score in scores])
 
         # Should have low directional bias
-        assert (
-            avg_abs_score < 0.4
-        ), f"Should detect ranging market, got average absolute score: {avg_abs_score:.3f}"
+        assert avg_abs_score < 0.4, (
+            f"Should detect ranging market, got average absolute score: {avg_abs_score:.3f}"
+        )
 
     @pytest.mark.asyncio
     async def test_volatility_detection(self, fusion_engine, data_generator):
@@ -637,9 +622,7 @@ class TestScenarioValidation:
         # Check for volatility indicators
         volatility_detected = (
             any("volatil" in factor.lower() for factor in final_synthesis.risk_factors)
-            or any(
-                "stress" in factor.lower() for factor in final_synthesis.risk_factors
-            )
+            or any("stress" in factor.lower() for factor in final_synthesis.risk_factors)
             or "VOLATILE" in final_synthesis.dominant_narrative.name
         )
 
@@ -665,9 +648,7 @@ class TestScenarioValidation:
         # Should detect some anomalies
         if anomaly_levels:
             max_anomaly = max(anomaly_levels)
-            assert (
-                max_anomaly > 0.2
-            ), f"Should detect anomalies, max level: {max_anomaly:.3f}"
+            assert max_anomaly > 0.2, f"Should detect anomalies, max level: {max_anomaly:.3f}"
 
 
 # Performance benchmarks
@@ -699,7 +680,7 @@ class TestPerformanceBenchmarks:
         throughput = len(data_sequence) / total_time
 
         print(f"System throughput: {throughput:.2f} analyses/second")
-        print(f"Average time per analysis: {total_time/len(data_sequence)*1000:.2f}ms")
+        print(f"Average time per analysis: {total_time / len(data_sequence) * 1000:.2f}ms")
 
         # Should achieve reasonable throughput
         assert throughput > 1.0, f"Throughput too low: {throughput:.2f} analyses/second"

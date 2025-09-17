@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 
 def write_jsonl(path, events):
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    with open(path, 'w', encoding='utf-8') as fh:
+    with open(path, "w", encoding="utf-8") as fh:
         for e in events:
             fh.write(json.dumps(e) + "\n")
 
@@ -18,8 +18,18 @@ def test_backtest_runs_minimal(tmp_path):
     now = datetime.utcnow()
     # Minimal MD: two snapshots
     md_events = [
-        {"timestamp": (now).isoformat(), "symbol": "EURUSD", "bids": [[1.1000, 1000]], "asks": [[1.1002, 1000]]},
-        {"timestamp": (now + timedelta(seconds=1)).isoformat(), "symbol": "EURUSD", "bids": [[1.1001, 1000]], "asks": [[1.1003, 1000]]},
+        {
+            "timestamp": (now).isoformat(),
+            "symbol": "EURUSD",
+            "bids": [[1.1000, 1000]],
+            "asks": [[1.1002, 1000]],
+        },
+        {
+            "timestamp": (now + timedelta(seconds=1)).isoformat(),
+            "symbol": "EURUSD",
+            "bids": [[1.1001, 1000]],
+            "asks": [[1.1003, 1000]],
+        },
     ]
     # Macro: one event
     macro_events = [
@@ -39,11 +49,21 @@ def test_backtest_runs_minimal(tmp_path):
 
     import subprocess
     import sys
-    cmd = [sys.executable, "scripts/backtest_report.py", "--file", str(md_path), "--macro-file", str(macro_path), "--yields-file", str(yields_path), "--out-dir", str(out_dir)]
+
+    cmd = [
+        sys.executable,
+        "scripts/backtest_report.py",
+        "--file",
+        str(md_path),
+        "--macro-file",
+        str(macro_path),
+        "--yields-file",
+        str(yields_path),
+        "--out-dir",
+        str(out_dir),
+    ]
     proc = subprocess.run(cmd, capture_output=True, text=True)
     assert proc.returncode == 0, proc.stderr
     # Check outputs exist
     assert (out_dir / "report.json").exists()
     assert (out_dir / "BACKTEST_SUMMARY.md").exists()
-
-

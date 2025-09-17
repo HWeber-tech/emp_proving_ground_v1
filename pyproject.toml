@@ -12,7 +12,6 @@ exclude = [
   # Stage 2 pending files remain excluded until C hygiene verified in CI
   "src/risk/risk_manager_impl.py",
   "src/integration/component_integrator.py",
-  "src/sensory/organs/dimensions/anomaly_dimension.py",
   "src/thinking/analysis/market_analyzer.py",
   "src/thinking/phase3_orchestrator.py",
 ]

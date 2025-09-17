@@ -85,7 +85,12 @@ def test_execution_and_vol_config_inmemory_yaml(monkeypatch: pytest.MonkeyPatch)
                     "sizing": {"risk_budget_per_trade": 0.004, "k_stop": 1.1},
                     "var": {"confidence": 0.97},
                     "fallbacks": {"ewma_lambda": 0.93},
-                    "regime_gate": {"enabled": True, "block": "storm", "mode": "block", "attenuation_factor": 0.25},
+                    "regime_gate": {
+                        "enabled": True,
+                        "block": "storm",
+                        "mode": "block",
+                        "attenuation_factor": 0.25,
+                    },
                     "risk_controls": {"brake_scale": 0.6},
                 }
             }

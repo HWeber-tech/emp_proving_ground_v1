@@ -51,6 +51,7 @@ class Position:
     take_profit: Optional[float] = None
     entry_time: Optional[datetime] = None
     exit_time: Optional[datetime] = None
+
     def __init__(
         self,
         symbol: str,
@@ -192,7 +193,6 @@ class Position:
         # Recompute derived
         self.unrealized_pnl = (self.current_price - self.entry_price) * self.size
         self.last_updated = datetime.now()
-
 
     def close(self, exit_price: float, exit_time: Optional[datetime] = None) -> None:
         """Mark position as closed at the given exit price/time."""

@@ -45,3 +45,92 @@ grows, the guardrail automatically expands.
 
 Check the modernization [roadmap](../roadmap.md) for the current stage status
 and ownership expectations.
+
+## Rollout change log
+
+- 2025-09-16 – Stage 0 (`tests/current/`) landed via `ruff format` with no manual
+  edits beyond whitespace normalization. Verified `pytest tests/current -q`
+  locally before expanding the allowlist.
+- 2025-09-16 – Introduced pytest flake telemetry (`tests/.telemetry/flake_runs.json`)
+  so future slices can correlate formatter churn with any transient test behavior.
+- 2025-09-17 – Stage 1 (`src/system/`, `src/core/configuration.py`) normalized with
+  `ruff format`. The formatter collapsed a few multi-line string appends into
+  single lines without changing behavior. Confirmed `pytest tests/current -q`
+  after updating the formatter allowlist.
+- 2025-09-18 – Stage 2 (`src/trading/execution/`, `src/trading/models/`) normalized
+  with `ruff format`, expanding the allowlist. Ruff merged an adjacent log string
+  in `LiquidityProber`; no manual edits were required. Re-ran
+  `pytest tests/current -q` to confirm coverage stayed green.
+- 2025-09-19 – Stage 3 kicked off with `src/sensory/organs/dimensions/anomaly_detection.py`
+  normalized via `ruff format`. The allowlist now enforces the module; Ruff simply
+  reflowed long assignments and no manual edits were necessary.
+- 2025-09-19 – Stage 3 continued with `src/sensory/organs/dimensions/base_organ.py`
+  normalized. Ruff removed redundant blank lines; no behavioral adjustments were
+  needed before expanding the allowlist.
+- 2025-09-19 – Stage 3 progressed with `src/sensory/organs/dimensions/chaos_adaptation.py`
+  normalized. Ruff only reflowed a nested conditional; pytest stayed green before
+  updating the allowlist and roadmap.
+- 2025-09-19 – Stage 3 advanced with `src/sensory/organs/dimensions/chaos_dimension.py`
+  normalized. No edits were required beyond running `ruff format`; pytest stayed
+  green ahead of extending the allowlist and refreshing the roadmap snapshot.
+- 2025-09-19 – Stage 3 continued with `src/sensory/organs/dimensions/anomaly_dimension.py`
+  normalized. Ruff left the file unchanged; pytest stayed green before extending
+  the allowlist and recording the slice across roadmap and debt snapshots.
+- 2025-09-19 – Stage 3 progressed with
+  `src/sensory/organs/dimensions/integration_orchestrator.py` and
+  `src/sensory/organs/dimensions/institutional_tracker.py` normalized. Ruff
+  reflowed a long `analyze_timing` call and stripped redundant blank lines; pytest
+  stayed green before expanding the allowlist, adding
+  `src/sensory/organs/dimensions/data_integration.py`,
+  `src/sensory/organs/dimensions/order_flow.py`,
+  `src/sensory/organs/dimensions/pattern_engine.py`,
+  `src/sensory/organs/dimensions/patterns.py`,
+  `src/sensory/organs/dimensions/regime_detection.py`, and
+  `src/sensory/organs/dimensions/sensory_signal.py` after verifying they already
+  matched the formatter output, and updating the roadmap snapshots.
+- 2025-09-19 – Stage 3 continued with
+  `src/sensory/organs/dimensions/economic_analysis.py`,
+  `src/sensory/organs/dimensions/how_organ.py`,
+  `src/sensory/organs/dimensions/indicators.py`,
+  `src/sensory/organs/dimensions/macro_intelligence.py`, and
+  `src/sensory/organs/dimensions/temporal_system.py` normalized. Ruff reported no
+  manual edits; pytest stayed green ahead of expanding the allowlist and queuing
+  `src/sensory/organs/dimensions/utils.py` as the next target.
+- 2025-09-20 – Stage 3 wrapped with
+  `src/sensory/organs/dimensions/__init__.py`,
+  `src/sensory/organs/dimensions/utils.py`,
+  `src/sensory/organs/dimensions/what_organ.py`,
+  `src/sensory/organs/dimensions/when_organ.py`, and
+  `src/sensory/organs/dimensions/why_organ.py` confirmed clean under `ruff format`.
+  No manual edits were required. The allowlist now enforces the entire
+  `src/sensory/organs/dimensions/` package, pytest remained green, and Stage 4
+  prep has begun with `src/sensory/organs/analyzers/` on deck.
+- 2025-09-21 – Stage 4 kicked off with `src/sensory/organs/analyzers/` verified
+  clean under `ruff format`. No manual edits were necessary; the allowlist now
+  enforces the package and `pytest tests/current -q` stayed green ahead of
+  queueing `src/sensory/organs/economic_organ.py` for the next slice.
+- 2025-09-21 – Stage 4 continued with `src/sensory/organs/economic_organ.py`
+  confirmed clean under `ruff format`. Ruff reported no changes, pytest stayed
+  green, and the allowlist now enforces the module while
+  `src/sensory/organs/news_organ.py` moves into the rotation next.
+- 2025-09-21 – Stage 4 advanced with `src/sensory/organs/news_organ.py`
+  confirmed clean under `ruff format`. No manual edits were required, pytest
+  stayed green, and the allowlist now enforces the organ while
+  `src/sensory/organs/orderbook_organ.py` lines up next in the rotation.
+- 2025-09-21 – Stage 4 progressed with `src/sensory/organs/orderbook_organ.py`
+  confirmed clean under `ruff format`. No manual edits were necessary, pytest
+  stayed green, and the allowlist now enforces the organ while
+  `src/sensory/organs/price_organ.py` lines up next in the rotation.
+- 2025-09-21 – Stage 4 expanded to cover the entire `src/sensory/` tree (organs,
+  services, vendor shims, tests, and supporting packages). Collapsed the
+  allowlist to a single `src/sensory/` entry after verifying `ruff format`
+  produced no behavioral edits; only quote normalization in
+  `src/sensory/__init__.py`, trailing blank removal in
+  `src/sensory/anomaly/__init__.py`, and assertion wrapping in
+  `src/sensory/tests/test_integration.py` appeared, and pytest stayed green
+  before recording the slice across roadmap, CI, and debt snapshots.
+  `src/data_foundation/config/` now queues next for Stage 4.
+- 2025-09-22 – Stage 4 continued with `src/data_foundation/config/` verified
+  clean under `ruff format`. No edits were required, pytest stayed green, and the
+  allowlist now enforces the package while `src/data_foundation/ingest/` lines up
+  next alongside other high-churn data foundation modules.

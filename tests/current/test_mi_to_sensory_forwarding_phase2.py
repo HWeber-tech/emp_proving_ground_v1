@@ -121,6 +121,6 @@ def test_no_import_time_logs_in_mi_modules_phase2(caplog: pytest.LogCaptureFixtu
         importlib.import_module(mod)
 
     forbidden = ("Starting", "Configured logging")
-    assert all(
-        not any(frag in rec.getMessage() for frag in forbidden) for rec in caplog.records
-    ), "Import-time log side effects detected in MI modules (phase 2)"
+    assert all(not any(frag in rec.getMessage() for frag in forbidden) for rec in caplog.records), (
+        "Import-time log side effects detected in MI modules (phase 2)"
+    )

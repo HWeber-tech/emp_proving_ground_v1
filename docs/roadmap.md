@@ -55,8 +55,8 @@ spikes, execution tickets, or milestone reviews.
 
 | Initiative | Phase | Outcome we need | Current status | Next checkpoint |
 | --- | --- | --- | --- | --- |
-| Formatter normalization | 6 | Repository passes `ruff format --check .` without relying on an allowlist. | Stage 4 covers `src/sensory/`, `src/data_foundation/config/`, `src/data_foundation/ingest/`, and `src/data_foundation/persist/` via the allowlist. Data foundation replay/schemas prep work is underway before widening to operational/performance slices. | Confirm Stage 4 data foundation completion and publish the sequencing brief for operational/performance directories. |
-| Regression depth in trading & risk | 7 | Coverage hotspots wrapped in deterministic regression suites. | Baseline suites land in trading models, FIX failure paths, config loaders, and orchestration smoke tests. Execution/risk flows still lack cross-module scenarios and recovery tests. | Demo execution-engine partial fill + risk rebound tests with coverage deltas captured in CI health snapshot. |
+| Formatter normalization | 6 | Repository passes `ruff format --check .` without relying on an allowlist. | Stage 4 enforces `src/sensory/`, all formatted data foundation packages (`config/`, `ingest/`, `persist/`, `replay/`, and `schemas.py`), and now ships an operational/performance briefing to coordinate the remaining slices. | Operational/performance formatting PRs rehearsed per the Stage 4 briefing (Week 3). |
+| Regression depth in trading & risk | 7 | Coverage hotspots wrapped in deterministic regression suites. | Regression suites now cover execution-engine partial fills/retries, risk drawdown recovery, and property-based order mutations alongside the existing FIX, config, and orchestration smoke tests. | Capture coverage deltas in `docs/status/ci_health.md` and plan the orchestration + risk end-to-end scenario. |
 | Operational telemetry & alerting | 8 | CI failures surface automatically with actionable context. | GitHub issue automation is live, alert drills run via the `alert_drill` dispatch, and flake telemetry is stored in git. Slack/webhook mirroring and dashboards remain open. | Document the webhook rollout plan, schedule quarterly drills, and surface telemetry trends in the CI health dashboard. |
 | Dead code remediation & modular cleanup | 9 | Dead-code audit remains actionable and high-fanin modules are decomposed. | Latest audit triage logged; unused imports removed. Structural decomposition for `src/core/` families and supporting docs are still outstanding. | Deliver the first decomposition PR (targeting `src/core/state_store.py` dependents) with updated documentation and audit sign-off. |
 
@@ -95,14 +95,18 @@ spikes, execution tickets, or milestone reviews.
   `src/data_foundation/ingest/`, and `src/data_foundation/persist/` packages.
 - Formatter sequencing notes updated in the rollout guide with owner assignments and
   merge windows.
+- `src/data_foundation/replay/` and `src/data_foundation/schemas.py` normalized under
+  `ruff format`, and the Stage 4 operational/performance briefing now coordinates
+  owners, reviewers, and freeze windows.
 
 **Now**
 
-- [ ] Normalize `src/data_foundation/replay/` with targeted replays to verify no data
-      integrity drift before widening the allowlist.
-- [ ] Diff `src/data_foundation/schemas.py` against formatter output, capture any
+- [x] Normalize `src/data_foundation/replay/` with targeted replays to verify no data
+      integrity drift before widening the allowlist. (Verified via `ruff format` and
+      replay smoke checks.)
+- [x] Diff `src/data_foundation/schemas.py` against formatter output, capture any
       manual reconciliations, and stage pytest smoke checks for downstream users.
-- [ ] Publish a Stage 4 briefing that lines up `src/operational/` and
+- [x] Publish a Stage 4 briefing that lines up `src/operational/` and
       `src/performance/` slices with nominated reviewers and freeze windows.
 
 **Next**
@@ -181,13 +185,15 @@ that guard trading execution, risk controls, and orchestration wiring.
 
 **Now**
 
-- [ ] Extend `tests/current/test_execution_engine.py` (or add a new suite) to cover
+- [x] Extend `tests/current/test_execution_engine.py` (or add a new suite) to cover
       partial fills, retries, and reconciliation paths in
-      `src/trading/execution/execution_engine.py`.
-- [ ] Add regression coverage for drawdown recovery and Kelly-sizing adjustments in
+      `src/trading/execution/execution_engine.py`. (`tests/current/test_execution_engine.py`)
+- [x] Add regression coverage for drawdown recovery and Kelly-sizing adjustments in
       `src/risk/risk_manager_impl.py` with fixtures that mirror production configs.
-- [ ] Introduce property-based tests around order mutation flows in
+      (`tests/current/test_risk_manager_impl.py`)
+- [x] Introduce property-based tests around order mutation flows in
       `src/trading/models/order.py` to lock in serialization and validation logic.
+      (`tests/current/test_order_model_properties.py`)
 
 **Next**
 

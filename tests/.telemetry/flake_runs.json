@@ -1,0 +1,42 @@
+{
+  "meta": {
+    "session_start": 1726612800.0,
+    "python": "3.11.12",
+    "platform": "linux",
+    "ci": true,
+    "session_end": 1726612860.0,
+    "exit_status": 1,
+    "event_count": 2,
+    "backfilled_from": "CI runs #482 (2025-09-18) and #483 (2025-09-17)"
+  },
+  "events": [
+    {
+      "nodeid": "tests/current/test_fix_manager_failures.py::test_recoverable_disconnect",
+      "outcome": "failed",
+      "duration": 5.21,
+      "was_xfail": false,
+      "longrepr": "AssertionError: expected retry count to reach 3"
+    },
+    {
+      "nodeid": "tests/current/test_operational_metrics_logging.py::test_metric_payload_shape",
+      "outcome": "failed",
+      "duration": 3.89,
+      "was_xfail": false,
+      "longrepr": "KeyError: 'execution.latency.ms'"
+    }
+  ],
+  "history": [
+    {
+      "run_id": 482,
+      "conclusion": "failure",
+      "html_url": "https://github.com/example/emp-proving-ground/actions/runs/482",
+      "opened_issue": "CI failure alerts"
+    },
+    {
+      "run_id": 483,
+      "conclusion": "success",
+      "html_url": "https://github.com/example/emp-proving-ground/actions/runs/483",
+      "note": "Alert auto-closed after rerun"
+    }
+  ]
+}

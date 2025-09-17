@@ -13,5 +13,3 @@ def write_events_jsonl(events: list[dict[str, object]], out_path: str) -> str:
         return out_path
     except Exception:
         return ""
-
-

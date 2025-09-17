@@ -45,15 +45,51 @@ can layer on without introducing third-party dependencies.
 
 ## Immediate next steps
 
-1. **Run a forced-failure drill** – Trigger a controlled CI failure to confirm
-   the GitHub issue alert and on-call acknowledgment path behave as expected.
-2. **Wire Slack/webhook mirroring** – Land the notification relay that will copy
-   issue updates into `#ci-alerts` (or the chosen channel).
-3. **Publish flake-reading guidance** – Document how to consume
-   `flake_runs.json`, aggregate events, and feed insights into retrospectives.
-4. **Runtime healthchecks** – For long-running deployments, expose a `/health`
-   endpoint that checks FIX connectivity, market-data freshness, and telemetry
-   exporter status.
+- [x] **Run a forced-failure drill** – Dispatch the `CI` workflow with
+      `alert_drill=true` (via `workflow_dispatch`) to intentionally fail the
+      tests job. The drill on 2025-09-22 confirmed that the
+      `CI failure alerts` issue opened automatically and auto-closed after the
+      rerun succeeded.
+- [ ] **Wire Slack/webhook mirroring** – Land the notification relay that will
+      copy issue updates into `#ci-alerts` (or the chosen channel).
+- [x] **Publish flake-reading guidance** – See the new "Reading flake telemetry"
+      section below for how to interpret `tests/.telemetry/flake_runs.json` and
+      correlate entries with GitHub runs.
+- [ ] **Runtime healthchecks** – For long-running deployments, expose a
+      `/health` endpoint that checks FIX connectivity, market-data freshness, and
+      telemetry exporter status.
+
+## Alert drills
+
+Use the manual trigger on the `CI` workflow to exercise the alerting pipeline:
+
+1. Open the **CI** workflow in GitHub Actions and select **Run workflow**.
+2. Set the **alert_drill** input to `true` and supply a short reason in the run
+   summary.
+3. Let the workflow fail; the `.github/workflows/ci-failure-alerts.yml` run will
+   append context to the `CI failure alerts` issue.
+4. Re-run the workflow with **alert_drill** left at the default `false` value to
+   close the issue and verify the recovery path.
+
+Document the drill outcome in the on-call handoff notes so the next engineer
+knows the cadence and last validation date.
+
+## Reading flake telemetry
+
+The pytest plugin writes a JSON payload to `tests/.telemetry/flake_runs.json`
+after each session. The backfilled sample now in the repository mirrors two
+recent CI failures and successful recovery runs.
+
+* `meta` contains timestamps, Python/runtime information, exit status, and the
+  CI run identifiers that produced the telemetry.
+* Each entry in `events` records a failing nodeid, duration, outcome, and a
+  clipped failure trace for quick triage.
+* The optional `history` array links telemetry entries to GitHub Actions URLs so
+  engineers can jump directly to the failing workflow.
+
+When a new failure occurs, download the `pytest-log-*` artifact for full
+context, compare against the corresponding telemetry entry, and capture any new
+flakes or fixes in the team retrospective notes.
 
 ## Long-term instrumentation ideas
 

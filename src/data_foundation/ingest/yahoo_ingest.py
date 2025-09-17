@@ -79,7 +79,7 @@ def store_duckdb(df: pd.DataFrame, db_path: Path, table: str = "daily_bars") -> 
     )
     # Bandit B608: parameterized query to avoid SQL injection
     con.execute(
-        f"DELETE FROM {safe_table} WHERE symbol IN ({','.join(['?']*len(df['symbol'].unique()))})",
+        f"DELETE FROM {safe_table} WHERE symbol IN ({','.join(['?'] * len(df['symbol'].unique()))})",
         list(df["symbol"].unique()),
     )
     con.register("tmp_df", df)

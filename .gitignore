@@ -95,7 +95,8 @@ ehthumbs.db
 Thumbs.db
 
 # Project specific
-tests/.telemetry/
+tests/.telemetry/*
+!tests/.telemetry/flake_runs.json
 data/
 experiments/
 logs/

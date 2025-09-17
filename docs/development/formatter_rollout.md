@@ -134,3 +134,20 @@ and ownership expectations.
   clean under `ruff format`. No edits were required, pytest stayed green, and the
   allowlist now enforces the package while `src/data_foundation/ingest/` lines up
   next alongside other high-churn data foundation modules.
+- 2025-09-22 – Stage 4 verified `src/data_foundation/ingest/` and
+  `src/data_foundation/persist/` under `ruff format`. The formatter only reflowed
+  docstrings and import blocks; no manual edits were required. Expanded the
+  allowlist to cover both packages and re-ran
+  `pytest tests/current/test_data_integration_smoke.py -q` to confirm behavior
+  remained stable ahead of sequencing the remaining data foundation modules.
+
+## Remaining Stage 4 sequencing (updated 2025-09-22)
+
+| Order | Target | Owner | Notes |
+| --- | --- | --- | --- |
+| 1 | `src/data_foundation/replay/` | Data Foundation | Shares fixtures with ingest/persist; run regression smoke tests while expanding the allowlist. |
+| 2 | `src/data_foundation/schemas.py`, `src/data_foundation/__init__.py` | Data Foundation | Low churn but imported broadly; coordinate with consumers before landing the formatting pass. |
+| 3 | `src/data_integration/dukascopy_ingestor.py`, `src/data_integration/persist/` | Market Data | Align with ingestion owners to avoid conflicts during feed updates. |
+| 4 | `src/operational/metrics.py`, `src/operational/metrics_registry.py` | Platform | High coupling with observability work; run `tests/current/test_operational_metrics_*` after formatting. |
+| 5 | `src/operational/state_store.py`, `src/operational/event_bus.py` | Platform | Touches async primitives; schedule with orchestrator regression coverage to keep flake noise low. |
+| 6 | `scripts/check_formatter_allowlist.py` and supporting `scripts/analysis/` helpers | Tooling | Format once Stage 4 directories stabilize so CI helpers match enforced style. |

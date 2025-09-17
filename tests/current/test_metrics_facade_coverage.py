@@ -81,7 +81,9 @@ class StubRegistry:
     def _key(name: str, labelnames: list[str] | None) -> tuple[str, tuple[str, ...] | None]:
         return (name, tuple(labelnames) if labelnames else None)
 
-    def get_counter(self, name: str, _desc: str, labelnames: list[str] | None = None) -> CounterStub:
+    def get_counter(
+        self, name: str, _desc: str, labelnames: list[str] | None = None
+    ) -> CounterStub:
         key = self._key(name, labelnames)
         if key not in self.counters:
             self.counters[key] = CounterStub(name)
@@ -94,7 +96,11 @@ class StubRegistry:
         return self.gauges[key]
 
     def get_histogram(
-        self, name: str, _desc: str, _buckets: list[float] | None = None, labelnames: list[str] | None = None
+        self,
+        name: str,
+        _desc: str,
+        _buckets: list[float] | None = None,
+        labelnames: list[str] | None = None,
     ) -> HistogramStub:
         key = self._key(name, labelnames)
         if key not in self.hists:
@@ -275,7 +281,8 @@ def test_why_wrappers(stub_registry: StubRegistry):
     metrics.set_why_feature("featB", False, labels=None)
     # Find the stub that recorded only the 'feature' label for featB and validate it observed 0.0
     candidates = [
-        s for s in stub_registry.gauges.values()
+        s
+        for s in stub_registry.gauges.values()
         if s.name == "why_feature_available" and {"feature": "featB"} in s.labels_calls
     ]
     assert candidates, "Expected why_feature_available stub for featB"
@@ -312,7 +319,9 @@ def test_start_metrics_server_no_prom(monkeypatch):
 
     real_import = builtins.__import__
 
-    def fake_import(name, *args, **kwargs):  # pragma: no cover - behavior validated by assertions below
+    def fake_import(
+        name, *args, **kwargs
+    ):  # pragma: no cover - behavior validated by assertions below
         if name == "prometheus_client":
             raise ImportError("prometheus_client unavailable")
         return real_import(name, *args, **kwargs)

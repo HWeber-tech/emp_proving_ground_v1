@@ -45,3 +45,23 @@ grows, the guardrail automatically expands.
 
 Check the modernization [roadmap](../roadmap.md) for the current stage status
 and ownership expectations.
+
+## Stage status – 2025-09-16 update
+
+- **Stage 0 – `tests/current/`**: Completed. `ruff format` was applied across the
+  regression suite, `tests/current/` is now listed in
+  `config/formatter/ruff_format_allowlist.txt`, and the test suite passed in
+  strict asyncio mode to confirm no behavioral drift.
+- **Stage 1 – `src/system/` & `src/core/configuration.py`**: Dry-run formatting
+  surfaced only cosmetic rewrites in `src/system/requirements_check.py`
+  (collapsing multi-line string appends). No manual guardrails were required,
+  so this slice is ready for the mechanical formatting PR immediately after
+  Stage 0 lands.
+
+### Stage 1 preparation notes
+
+- The requirements check CLI already enforces 88-character-friendly strings;
+  the diff produced by `ruff format` is limited to combining short `message.append`
+  calls into single lines.
+- No handwritten fixtures or generated assets live under `src/system/`; once
+  formatted, CI guardrails can extend the allowlist without additional skips.

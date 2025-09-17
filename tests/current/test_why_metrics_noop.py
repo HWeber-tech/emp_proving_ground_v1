@@ -6,4 +6,3 @@ def test_why_metrics_noop():
     set_why_signal("EURUSD", 0.1)
     set_why_conf("EURUSD", 0.9)
     set_why_feature("yields", True)
-

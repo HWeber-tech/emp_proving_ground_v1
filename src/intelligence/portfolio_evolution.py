@@ -18,7 +18,6 @@ from typing import TYPE_CHECKING, Dict, List, Mapping, Optional, Protocol, Seque
 import numpy as np
 
 if TYPE_CHECKING:  # pragma: no cover
-    import torch.nn as _nn
     from numpy.typing import NDArray
 
 logger = logging.getLogger(__name__)
@@ -565,7 +564,7 @@ class DiversificationMaximizer:
         correlation_matrix = self._build_correlation_matrix(portfolio)
         weighted_volatility = float(np.sum(weights * volatilities))
         portfolio_variance = float(
-            weights @ ((np.outer(volatilities, volatilities) * correlation_matrix)) @ weights
+            weights @ (np.outer(volatilities, volatilities) * correlation_matrix) @ weights
         )
         portfolio_volatility = float(np.sqrt(portfolio_variance))
         ratio = weighted_volatility / max(portfolio_volatility, 1e-6)
@@ -601,7 +600,7 @@ class DiversificationMaximizer:
         # Calculate portfolio volatility (simplified)
         correlation_matrix = self._build_correlation_matrix(portfolio)
         portfolio_variance = float(
-            weights @ ((np.outer(volatilities, volatilities) * correlation_matrix)) @ weights
+            weights @ (np.outer(volatilities, volatilities) * correlation_matrix) @ weights
         )
         portfolio_volatility = float(np.sqrt(portfolio_variance))
 

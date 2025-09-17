@@ -42,7 +42,9 @@ _NOOP_GAUGE = _NoopGauge()
 _T = TypeVar("_T")
 
 
-def _log_metric_failure(metric: str, error: Exception, *, repeated_level: int = logging.DEBUG) -> None:
+def _log_metric_failure(
+    metric: str, error: Exception, *, repeated_level: int = logging.DEBUG
+) -> None:
     """Log a metric failure once at warning level and thereafter at debug."""
 
     with _warned_lock:
@@ -56,7 +58,9 @@ def _log_metric_failure(metric: str, error: Exception, *, repeated_level: int = 
         _log.log(repeated_level, "Repeated failure updating metric '%s': %s", metric, error)
 
 
-def _call_metric(metric: str, action: Callable[[], _T], fallback: Callable[[], _T] | None = None) -> Optional[_T]:
+def _call_metric(
+    metric: str, action: Callable[[], _T], fallback: Callable[[], _T] | None = None
+) -> Optional[_T]:
     """Execute a metric action while logging failures once."""
 
     try:
@@ -83,7 +87,9 @@ class LazyGaugeProxy:
         if self._resolved is None:
             with self._lock:
                 if self._resolved is None:
-                    self._resolved = get_registry().get_gauge(self._name, self._desc, self._labelnames)
+                    self._resolved = get_registry().get_gauge(
+                        self._name, self._desc, self._labelnames
+                    )
         return self._resolved
 
     def set(self, value: float) -> None:
@@ -104,8 +110,12 @@ class LazyGaugeProxy:
 
 
 # Legacy globals (lazy; no metrics created at import time)
-fix_parity_mismatched_orders = LazyGaugeProxy("fix_parity_mismatched_orders", "Parity mismatched orders")
-fix_parity_mismatched_positions = LazyGaugeProxy("fix_parity_mismatched_positions", "Parity mismatched positions")
+fix_parity_mismatched_orders = LazyGaugeProxy(
+    "fix_parity_mismatched_orders", "Parity mismatched orders"
+)
+fix_parity_mismatched_positions = LazyGaugeProxy(
+    "fix_parity_mismatched_positions", "Parity mismatched positions"
+)
 
 
 # FIX/MD wrappers (all non-raising)
@@ -352,7 +362,9 @@ def set_why_conf(symbol: str, value: float) -> None:
     _call_metric("why_confidence.set", _action)
 
 
-def set_why_feature(name: str, value: float | bool, labels: Optional[Dict[str, str]] = None) -> None:
+def set_why_feature(
+    name: str, value: float | bool, labels: Optional[Dict[str, str]] = None
+) -> None:
     labelnames = ["feature"] + (sorted(labels.keys()) if labels else [])
     merged_labels = {**(labels or {}), "feature": name}
     gauge_value = 1.0 if bool(value) else 0.0
@@ -401,19 +413,25 @@ def start_metrics_server(port: Optional[int] = None) -> None:
         try:
             start_http_server(effective_port)
         except Exception as exc:  # pragma: no cover - depends on runtime environment
-            _log.warning("Failed to start metrics exporter on port %s: %s", effective_port, exc, exc_info=exc)
+            _log.warning(
+                "Failed to start metrics exporter on port %s: %s", effective_port, exc, exc_info=exc
+            )
             return
 
         _started = True
         _log.info("Prometheus metrics exporter started on port %s", effective_port)
+
 
 # ---- Core telemetry sink adapter registration (ports/adapters) ----
 # Provide static typing via TYPE_CHECKING while keeping runtime optional dependency.
 if TYPE_CHECKING:  # pragma: no cover
     from src.core.telemetry import MetricsSink as _MetricsSinkBase
 else:  # Runtime fallback base to avoid import-time failures
+
     class _MetricsSinkBase:
+        # Intentionally empty: mirrors the optional dependency for type compatibility.
         pass
+
 
 # Runtime import for the registration function
 _rt_set_metrics_sink: Optional[Callable[[_MetricsSinkBase], None]] = None
@@ -421,6 +439,7 @@ try:
     from src.core.telemetry import set_metrics_sink as _rt_set_metrics_sink
 except Exception:  # pragma: no cover
     _rt_set_metrics_sink = None
+
 
 class _RegistryMetricsSink:
     def set_gauge(self, name: str, value: float, labels: Optional[Dict[str, str]] = None) -> None:
@@ -435,7 +454,9 @@ class _RegistryMetricsSink:
 
         _call_metric(f"metrics_sink.{name}.set_gauge", _action)
 
-    def inc_counter(self, name: str, amount: float = 1.0, labels: Optional[Dict[str, str]] = None) -> None:
+    def inc_counter(
+        self, name: str, amount: float = 1.0, labels: Optional[Dict[str, str]] = None
+    ) -> None:
         labelnames: Optional[List[str]] = sorted(labels.keys()) if labels else None
 
         def _action() -> None:
@@ -454,7 +475,11 @@ class _RegistryMetricsSink:
         buckets: Optional[List[float]] = None,
         labels: Optional[Dict[str, str]] = None,
     ) -> None:
-        eff_buckets: List[float] = list(buckets) if buckets is not None else [0.005, 0.01, 0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10]
+        eff_buckets: List[float] = (
+            list(buckets)
+            if buckets is not None
+            else [0.005, 0.01, 0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10]
+        )
 
         def _action() -> None:
             if labels:
@@ -466,6 +491,7 @@ class _RegistryMetricsSink:
                 histogram.observe(float(value))
 
         _call_metric(f"metrics_sink.{name}.observe_histogram", _action)
+
 
 # Register the sink at runtime if available
 if _rt_set_metrics_sink is not None:  # pragma: no cover

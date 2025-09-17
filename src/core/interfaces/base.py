@@ -73,7 +73,7 @@ class RiskManager(Protocol):
     def propose_rebalance(
         self,
         positions: Mapping[str, float],
-        constraints: Mapping[str, object] | None = ...,
+        constraints: Mapping[str, object] | None = ...,  # API parity with legacy manager
     ) -> Mapping[str, float]: ...
 
     def update_limits(self, limits: Mapping[str, object]) -> None: ...

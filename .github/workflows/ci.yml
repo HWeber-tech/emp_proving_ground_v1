@@ -57,7 +57,7 @@ jobs:
           PYTHONPATH: ${{ github.workspace }}
         run: |
           set -euo pipefail
-          pytest tests/current --cov=src --cov-report=term -q | tee pytest.log
+          pytest tests/current --cov=src --cov-report=term -q --failure-metadata=pytest-failures.json | tee pytest.log
       - name: Publish pytest summary
         if: always()
         run: |
@@ -69,12 +69,23 @@ jobs:
               echo "pytest.log missing";
             fi
           } >> "$GITHUB_STEP_SUMMARY"
+      - name: Summarize flake metadata
+        if: always()
+        run: |
+          python scripts/flake_metadata_report.py --input pytest-failures.json --append-summary "$GITHUB_STEP_SUMMARY" || true
       - name: Upload pytest log
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: pytest-log-${{ github.run_id }}
           path: pytest.log
+          if-no-files-found: ignore
+      - name: Upload pytest failure metadata
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pytest-failures-${{ github.run_id }}
+          path: pytest-failures.json
           if-no-files-found: ignore
 
   backtest:

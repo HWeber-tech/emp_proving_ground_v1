@@ -9,3 +9,5 @@
 #
 # The allowlist starts empty; populate it incrementally as teams finish formatting
 # individual packages.
+
+tests/current/

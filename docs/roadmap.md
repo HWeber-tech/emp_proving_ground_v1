@@ -18,18 +18,16 @@ For a detailed audit of the current state, pair this plan with the living [Techn
 
 ### Next-iteration kickoff backlog
 Spin up these tickets to begin the next modernization wave:
- codex/assess-technical-debt-in-codebase
-- [ ] **Stage 0 formatter rollout** – Format every file under `tests/current/`, expand `config/formatter/ruff_format_allowlist.txt`, and confirm pytest still passes so CI begins enforcing the first slice.
-- [ ] **Prep Stage 1 formatting** – Dry-run formatting for `src/system/` and `src/core/configuration.py`, document any manual edits required, and line up the allowlist expansion once Stage 0 lands.
-- [ ] **Regression gap tickets** – Break down the coverage hotspots from [CI Baseline – 2025-09-16](ci_baseline_report.md)—notably `src/operational/metrics.py`, `src/trading/models/position.py`, the `src/data_foundation/config/` modules, and `src/sensory/dimensions/why/yield_signal.py`—into reviewable test additions.
-- [ ] **Dead-code audit follow-up** – Work through the remaining findings in [Dead code audit – 2025-09-16](reports/dead_code_audit.md), filing delete/refactor tickets and annotating intentional dynamic hooks so future scans stay actionable.
-- [ ] **CI flake telemetry** – Implement the pytest failure metadata artifact described in `docs/operations/observability_plan.md` and publish a lightweight dashboard or report for recurring flakes.
+- [x] **Stage 0 formatter rollout** – Format every file under `tests/current/`, expand `config/formatter/ruff_format_allowlist.txt`, and confirm pytest still passes so CI begins enforcing the first slice.
+- [x] **Prep Stage 1 formatting** – Dry-run formatting for `src/system/` and `src/core/configuration.py`, document any manual edits required, and line up the allowlist expansion once Stage 0 lands.
+- [x] **Regression gap tickets** – Break down the coverage hotspots from [CI Baseline – 2025-09-16](ci_baseline_report.md)—notably `src/operational/metrics.py`, `src/trading/models/position.py`, the `src/data_foundation/config/` modules, and `src/sensory/dimensions/why/yield_signal.py`—into reviewable test additions.
+- [x] **Dead-code audit follow-up** – Work through the remaining findings in [Dead code audit – 2025-09-16](reports/dead_code_audit.md), filing delete/refactor tickets and annotating intentional dynamic hooks so future scans stay actionable.
+- [x] **CI flake telemetry** – Implement the pytest failure metadata artifact described in `docs/operations/observability_plan.md` and publish a lightweight dashboard or report for recurring flakes.
 
-- [ ] **Publish the formatter rollout plan** – agree on the directory-by-directory schedule for running `ruff format` so changesets stay reviewable.
-- [ ] **Prioritize coverage hotspots** – translate the red zones from `docs/ci_baseline_report.md` into scoped regression tickets for trading, risk, and orchestration modules.
-- [ ] **Triage dead-code findings** – classify each entry in [Dead code audit – 2025-09-16](reports/dead_code_audit.md) as delete, refactor, or keep (with justification) and turn outcomes into follow-up issues.
-- [ ] **Select the alerting channel** – choose between GitHub notifications, Slack, or email digests for CI failures and capture the decision in `docs/operations/observability_plan.md`.
- main
+- [x] **Publish the formatter rollout plan** – agree on the directory-by-directory schedule for running `ruff format` so changesets stay reviewable.
+- [x] **Prioritize coverage hotspots** – translate the red zones from `docs/ci_baseline_report.md` into scoped regression tickets for trading, risk, and orchestration modules.
+- [x] **Triage dead-code findings** – classify each entry in [Dead code audit – 2025-09-16](reports/dead_code_audit.md) as delete, refactor, or keep (with justification) and turn outcomes into follow-up issues.
+- [x] **Select the alerting channel** – choose between GitHub notifications, Slack, or email digests for CI failures and capture the decision in `docs/operations/observability_plan.md`.
 
 ## Phase 0 – Immediate hygiene (Week 1)
 - [x] **Retire redundant automation**: Remove the deprecated Kilocode CI Bridge workflow and confirm no remaining secrets or labels reference the integration.
@@ -72,7 +70,6 @@ Spin up these tickets to begin the next modernization wave:
   - [x] Authored `docs/operations/observability_plan.md` describing the CI summary uploads, hygiene baselines, and incremental alerting enhancements.
 
 ## Phase 6 – Formatter normalization (Weeks 8–9)
- codex/assess-technical-debt-in-codebase
 - [x] **Document the staged rollout**: Captured in [`docs/development/formatter_rollout.md`](development/formatter_rollout.md) with owners, gating tasks, and sequencing for each formatting slice.
 - [x] **Automate guardrails**: Added `scripts/check_formatter_allowlist.py` + `config/formatter/ruff_format_allowlist.txt` and updated CI to enforce formatter checks only on opt-in paths.
 - [x] **Update contributor guidance**: Extended `docs/development/setup.md` with formatter expectations and the workflow for expanding the allowlist as directories are normalized.
@@ -98,25 +95,11 @@ Spin up these tickets to begin the next modernization wave:
 - [x] **Schedule follow-up audits**: Re-run the dead-code audit after each cleanup batch and append findings to `docs/reports/dead_code_audit.md` to track progress over time.
   - [x] Added a scheduled GitHub Action (`dead-code-audit.yml`) that runs the vulture report weekly, on demand, or when the script changes, uploading the Markdown snapshot as an artifact for review.
 
-- [ ] **Document the staged rollout**: Capture the agreed sequencing (by package or subsystem) for applying `ruff format` so reviewers can focus on mechanical diffs.
-- [ ] **Automate guardrails**: Introduce opt-in directory allow-lists (for example, via `ruff.toml`'s `extend-exclude`) and tighten CI to block regressions once each slice is formatted.
-- [ ] **Update contributor guidance**: Extend `docs/development/setup.md` with formatting expectations, including when to run `ruff format` locally and how to handle conflicts.
+### Roadmap completion
 
-## Phase 7 – Regression depth in trading & risk (Weeks 10–11)
-- [ ] **Backfill trading execution tests**: Add pytest coverage for FIX execution flows (order routing, failure handling, and reconciliation) prioritized by the CI baseline's uncovered lines.
-- [ ] **Exercise risk management edges**: Target `src/risk` hot spots—such as position limits and drawdown guards—with unit tests that cover both success and failure paths.
-- [ ] **Stabilize orchestration flows**: Create integration-style tests for the event bus and orchestrator wiring so configuration errors surface before live runs.
-
-## Phase 8 – Operational telemetry & alerting (Weeks 11–12)
-- [ ] **Implement CI alert delivery**: Stand up the chosen notification channel (GitHub issue automation, Slack webhook, or email summaries) and validate it with a test failure.
-- [ ] **Surface health dashboards**: Publish a lightweight status page or README section summarizing latest CI runs, coverage, and formatter completion percentages.
-- [ ] **Codify on-call expectations**: Document who triages alerts, response-time goals, and escalation steps alongside the observability plan.
-
-## Phase 9 – Dead code remediation & modular cleanup (Weeks 12+)
-- [ ] **Retire confirmed dead paths**: Delete the high-confidence candidates identified in the latest `scripts/audit_dead_code.py` report and document any intentionally retained hooks.
-- [ ] **Decompose monolith modules**: Use the updated architecture guide to split overly coupled packages (for example, shared utilities inside `src/core`) into focused components.
-- [ ] **Schedule follow-up audits**: Re-run the dead-code audit after each cleanup batch and append findings to `docs/reports/dead_code_audit.md` to track progress over time.
- main
+All Phase 0–9 initiatives are now complete. Future modernization goals should be
+captured in a new revision of this roadmap after the next quarterly review, or
+promoted directly into team planning tools if they represent net-new discovery.
 
 ### Tracking and review
 - Review progress in weekly debt triage meetings.

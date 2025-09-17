@@ -95,6 +95,6 @@ def test_no_import_time_logs_in_mi_modules(caplog: pytest.LogCaptureFixture):
 
     # Check there are no indicative log messages
     forbidden = ("Starting", "Configured logging")
-    assert all(
-        not any(frag in rec.getMessage() for frag in forbidden) for rec in caplog.records
-    ), "Import-time log side effects detected in MI modules"
+    assert all(not any(frag in rec.getMessage() for frag in forbidden) for rec in caplog.records), (
+        "Import-time log side effects detected in MI modules"
+    )

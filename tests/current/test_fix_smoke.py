@@ -36,8 +36,10 @@ def test_fix_mock_roundtrip(monkeypatch):
 
     # Send a dummy order
     initiator = mgr.get_initiator("trade")
+
     class Order:
         cl_ord_id = "ABC123"
+
     assert initiator.send_message(Order())
 
     # Drain a bit
@@ -51,5 +53,3 @@ def test_fix_mock_roundtrip(monkeypatch):
     # Expect both New (150='0') and Fill (150='F') across messages
     exec_types = {m.get(150) for m in trade_msgs if m.get(35) == b"8"}
     assert b"0" in exec_types and b"F" in exec_types
-
-

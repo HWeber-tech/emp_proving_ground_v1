@@ -269,7 +269,7 @@ class RiskManagerImpl(RiskManagerProtocol):
     def propose_rebalance(
         self,
         positions: Mapping[str, float],
-        constraints: Mapping[str, object] | None = None,
+        constraints: Mapping[str, object] | None = None,  # kept for interface parity
     ) -> Mapping[str, float]:
         # Minimal adapter: preserve existing allocations (no-op)
         return dict(positions)

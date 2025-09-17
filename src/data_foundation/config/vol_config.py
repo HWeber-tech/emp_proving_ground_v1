@@ -11,6 +11,8 @@ from src.sensory.what.volatility_engine import VolConfig
 class _YAMLProtocol(Protocol):
     def safe_load(self, stream: object) -> object: ...
 
+    # NOTE: ``stream`` mirrors the PyYAML API even though call sites pass file handles.
+
 
 # Attempt to import PyYAML but fall back gracefully if unavailable.  Expose a
 # module-level ``yaml`` symbol so tests can monkeypatch it like they do for the

@@ -13,6 +13,8 @@ src/core/configuration.py
 src/data_foundation/config/
 src/data_foundation/ingest/
 src/data_foundation/persist/
+src/data_foundation/replay/
+src/data_foundation/schemas.py
 src/sensory/
 src/system/
 src/trading/execution/

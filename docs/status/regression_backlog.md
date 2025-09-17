@@ -14,6 +14,9 @@ coverage improvements alongside formatter progress.
 | REG-004 | FIX execution adapters | Validate mock start-up failures and initiator fallbacks without live credentials. | Trading | Done | `tests/current/test_fix_manager_failures.py`. |
 | REG-005 | Orchestration compose wiring | Smoke test optional module degradation and adapter registration. | Platform | In progress | Extend `tests/current/test_orchestration_compose.py` with degraded-module assertions. |
 | REG-006 | Sensory WHY yield signal | Scenario coverage for flattening/steepening transitions and confidence scaling. | Sensory | Queued | Add direction/curvature assertions around `YieldSlopeTracker.signal()`. |
+| REG-007 | `src/trading/execution/execution_engine.py` | Partial fills, retries, and reconciliation regression coverage. | Trading | Done | `tests/current/test_execution_engine.py`. |
+| REG-008 | `src/risk/risk_manager_impl.py` | Drawdown throttling and risk limit updates regression coverage. | Trading | Done | `tests/current/test_risk_manager_impl.py`. |
+| REG-009 | `src/trading/models/order.py` | Property-based invariants around order mutation flows. | Trading | Done | `tests/current/test_order_model_properties.py`. |
 
 ## Next steps
 

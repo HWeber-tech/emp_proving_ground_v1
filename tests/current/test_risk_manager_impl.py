@@ -52,6 +52,35 @@ async def test_calculate_position_size_applies_kelly_fraction() -> None:
 
 
 @pytest.mark.asyncio
+async def test_calculate_position_size_throttles_during_drawdown_and_recovers() -> None:
+    manager = RiskManagerImpl(initial_balance=10_000)
+    signal = {"symbol": "EURUSD", "confidence": 0.65, "stop_loss_pct": 0.01}
+
+    baseline = await manager.calculate_position_size(signal)
+    manager.update_account_balance(7_500)  # Trigger max configured drawdown.
+    drawdown = await manager.calculate_position_size(signal)
+    manager.update_account_balance(11_000)  # New peak should restore full risk budget.
+    recovery = await manager.calculate_position_size(signal)
+
+    assert baseline == pytest.approx(9_500.0)
+    assert drawdown == pytest.approx(1_781.25, rel=1e-6)
+    assert recovery == pytest.approx(10_450.0)
+
+
+@pytest.mark.asyncio
+async def test_calculate_position_size_respects_updated_risk_limits() -> None:
+    manager = RiskManagerImpl(initial_balance=15_000)
+    signal = {"symbol": "EURUSD", "confidence": 0.7, "stop_loss_pct": 0.02}
+
+    baseline = await manager.calculate_position_size(signal)
+    manager.update_limits({"max_position_risk": 0.01})
+    constrained = await manager.calculate_position_size(signal)
+
+    assert baseline == pytest.approx(8_250.0)
+    assert constrained == pytest.approx(4_125.0)
+
+
+@pytest.mark.asyncio
 async def test_calculate_position_size_handles_exception() -> None:
     manager = RiskManagerImpl(initial_balance=10_000)
 

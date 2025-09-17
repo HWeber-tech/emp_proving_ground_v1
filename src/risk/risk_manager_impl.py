@@ -66,8 +66,37 @@ class RiskManagerImpl(RiskManagerProtocol):
         # Track current positions
         self.positions: Dict[str, PositionEntry] = {}
         self.account_balance: float = _to_float(initial_balance)
+        self.peak_balance: float = self.account_balance
+        # Risk per trade constant used across validation and sizing routines.
+        self._risk_per_trade: float = 0.02
+        # Drawdown multiplier throttles exposure during recoveries (1.0 == full risk).
+        self._drawdown_multiplier: float = 1.0
+
+        self._recompute_drawdown_multiplier()
 
         logger.info(f"RiskManagerImpl initialized with balance: ${self.account_balance:.2f}")
+
+    def _recompute_drawdown_multiplier(self) -> None:
+        """Adjust exposure multiplier based on drawdown severity."""
+        if self.peak_balance <= 0:
+            self._drawdown_multiplier = 1.0
+            return
+
+        drawdown = max(0.0, (self.peak_balance - self.account_balance) / self.peak_balance)
+
+        if self.config.max_drawdown <= 0:
+            # Avoid division by zero – treat as unlimited headroom.
+            self._drawdown_multiplier = 1.0
+            return
+
+        normalized = max(0.0, min(1.0, drawdown / self.config.max_drawdown))
+        # Preserve at least a quarter of the baseline risk budget so automation can recover.
+        self._drawdown_multiplier = max(0.25, 1.0 - normalized)
+
+    def _compute_risk_budget(self) -> float:
+        """Return the dollar risk budget after drawdown throttling."""
+        baseline_risk = min(self._risk_per_trade, self.config.max_position_risk)
+        return self.account_balance * baseline_risk * self._drawdown_multiplier
 
     async def validate_position(self, position: PositionInput) -> bool:
         """
@@ -94,9 +123,8 @@ class RiskManagerImpl(RiskManagerProtocol):
                 return False
 
             # Basic risk check: risk per trade capped by config
-            risk_per_trade = 0.02  # 2% risk per trade
-            risk_amount = size * risk_per_trade
-            max_allowed_risk = self.account_balance * self.config.max_position_risk
+            risk_amount = size * self._risk_per_trade
+            max_allowed_risk = self._compute_risk_budget()
 
             is_valid = risk_amount <= max_allowed_risk
 
@@ -138,9 +166,8 @@ class RiskManagerImpl(RiskManagerProtocol):
             b = avg_win / max(avg_loss, 1e-9)
             kelly_fraction = max(0.0, min(1.0, win_rate - (1.0 - win_rate) / b))
 
-            # Calculate position size based on risk
-            risk_per_trade = 0.02  # 2% risk per trade
-            position_size = (self.account_balance * risk_per_trade) / max(stop_loss_pct, 1e-9)
+            risk_budget = self._compute_risk_budget()
+            position_size = risk_budget / max(stop_loss_pct, 1e-9)
 
             # Apply Kelly fraction
             final_size = position_size * kelly_fraction
@@ -161,7 +188,14 @@ class RiskManagerImpl(RiskManagerProtocol):
             new_balance: New account balance
         """
         self.account_balance = _to_float(new_balance)
-        logger.info(f"Account balance updated: ${self.account_balance:.2f}")
+        self.peak_balance = max(self.peak_balance, self.account_balance)
+        self._recompute_drawdown_multiplier()
+        logger.info(
+            "Account balance updated: $%.2f (peak: $%.2f, drawdown multiplier: %.2f)",
+            self.account_balance,
+            self.peak_balance,
+            self._drawdown_multiplier,
+        )
 
     def add_position(self, symbol: str, size: float | Decimal, entry_price: float | Decimal) -> None:
         """
@@ -280,6 +314,7 @@ class RiskManagerImpl(RiskManagerProtocol):
             self.config.max_position_risk = _to_float(limits["max_position_risk"])  # type: ignore[arg-type]
         if "max_drawdown" in limits:
             self.config.max_drawdown = _to_float(limits["max_drawdown"])  # type: ignore[arg-type]
+        self._recompute_drawdown_multiplier()
 
 
 # Factory function for easy instantiation

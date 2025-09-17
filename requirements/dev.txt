@@ -15,5 +15,6 @@ scipy-stubs==1.16.2.0
 pytest==8.4.1
 pytest-asyncio==1.2.0
 pytest-cov==7.0.0
+hypothesis==6.112.0
 vulture==2.11
 

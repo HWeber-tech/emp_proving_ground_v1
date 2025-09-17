@@ -5,6 +5,11 @@ on:
   push:
     branches: [ main ]
   workflow_dispatch:
+    inputs:
+      alert_drill:
+        description: "Set to true to intentionally fail the workflow and validate CI failure alerts."
+        required: false
+        default: "false"
 
 jobs:
   policy:
@@ -76,6 +81,11 @@ jobs:
           name: pytest-log-${{ github.run_id }}
           path: pytest.log
           if-no-files-found: ignore
+      - name: Alert drill failure sentinel
+        if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.alert_drill == 'true' }}
+        run: |
+          echo "Intentionally failing CI to exercise the failure-alert workflow."
+          exit 1
 
   backtest:
     runs-on: ubuntu-latest

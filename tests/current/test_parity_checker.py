@@ -125,7 +125,6 @@ def test_compare_order_fields_reports_differences() -> None:
 def test_check_positions_detects_missing_and_mismatched(
     monkeypatch: pytest.MonkeyPatch, metrics_sink: _RecordingSink
 ) -> None:
-    from src.trading.monitoring import parity_checker as parity_module
     from src.trading.monitoring import portfolio_tracker as tracker_module
 
     class _StubPortfolioTracker:

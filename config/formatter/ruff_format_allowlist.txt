@@ -11,6 +11,8 @@
 # individual packages.
 src/core/configuration.py
 src/data_foundation/config/
+src/data_foundation/ingest/
+src/data_foundation/persist/
 src/sensory/
 src/system/
 src/trading/execution/

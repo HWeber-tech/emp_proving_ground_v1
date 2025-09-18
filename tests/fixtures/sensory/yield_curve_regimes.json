@@ -1,0 +1,14 @@
+{
+  "flattening": {
+    "tenors": {"2Y": 0.031, "10Y": 0.033, "30Y": 0.034},
+    "expectations": {"slope": 0.002, "direction": 1.0, "confidence": 0.31}
+  },
+  "steepening": {
+    "tenors": {"2Y": 0.028, "10Y": 0.042, "30Y": 0.049},
+    "expectations": {"slope": 0.014, "direction": 1.0, "confidence": 0.7}
+  },
+  "inversion": {
+    "tenors": {"2Y": 0.046, "10Y": 0.039, "30Y": 0.041},
+    "expectations": {"slope": -0.007, "direction": -1.0, "confidence": 0.35}
+  }
+}

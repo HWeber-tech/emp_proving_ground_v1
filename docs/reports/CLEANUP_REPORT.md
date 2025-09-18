@@ -145,7 +145,7 @@ Dead code candidates (first 100):
 -  src\operational\md_capture.py
 -  src\operational\metrics.py
 -  src\operational\mock_fix.py
--  src\operational\state_store.py
+-  src\operational\state_store\__init__.py
 -  src\risk\risk_manager_impl.py
 -  src\sensory\signals.py
 -  src\sensory\anomaly\anomaly_sensor.py

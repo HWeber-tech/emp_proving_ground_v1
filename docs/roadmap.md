@@ -22,19 +22,23 @@ spikes, execution tickets, or milestone reviews.
 ## Way forward
 
 ### 30-day outcomes (Now)
-- Land Stage 4 formatting PRs for `src/data_integration/`, `src/operational/`, and
-  `src/performance/`, retire the related allowlist entries, and circulate the
-  allowlist-removal RFC for review.
-- Chain orchestration, execution, and risk modules in an end-to-end regression
-  scenario, record the resulting coverage deltas in
-  [`docs/status/ci_health.md`](status/ci_health.md), and prep sensory fixtures for the
-  follow-on slice.
-- Document the Slack/webhook rollout plan, stand up the telemetry summary sourced
-  from `tests/.telemetry/flake_runs.json`, and publish the quarterly alert-drill
-  cadence.
-- Ship the first `src/core/state_store.py` decomposition PR, map follow-on deletions
-  in `src/core/performance/` and `src/core/risk/`, and refresh affected docs and
-  examples.
+- ✅ Landed Stage 4 formatting PRs for `src/data_integration/`, `src/operational/`,
+  and `src/performance/`, circulated the
+  [allowlist-retirement RFC](rfcs/RFC_formatter_allowlist_retirement.md), and
+  documented the remaining guard removal plan.
+- ✅ Chained orchestration, execution, and risk modules in an end-to-end regression
+  (`tests/current/test_orchestration_execution_risk_integration.py`), recorded the
+  coverage/telemetry deltas in
+  [`docs/status/ci_health.md`](status/ci_health.md), and staged sensory fixtures for
+  the WHY regression follow-on.
+- ✅ Documented the Slack/webhook rollout plan, shipped the telemetry summary CLI
+  sourced from `tests/.telemetry/flake_runs.json`, and published the quarterly
+  alert-drill cadence.
+- ✅ Shipped the first `src/core/state_store.py` decomposition PR (introducing
+  `src/operational/state_store/` adapters), mapped follow-on deletions in
+  `src/core/performance/` and `src/core/risk/` (see
+  [`docs/reports/state_store_decomposition_followups.md`](reports/state_store_decomposition_followups.md)),
+  and refreshed affected docs and examples.
 
 ### 60-day outcomes (Next)
 - Stage 4 formatting now covers `src/data_integration/`, `src/operational/`, and
@@ -263,11 +267,11 @@ manual log digging or the deprecated Kilocode bridge.
 
 **Now**
 
-- [ ] Document the Slack/webhook integration plan (owners, secrets, rollout steps)
+- [x] Document the Slack/webhook integration plan (owners, secrets, rollout steps)
       directly in the observability plan and CI health snapshot.
-- [ ] Automate ingestion of `tests/.telemetry/flake_runs.json` into a lightweight
+- [x] Automate ingestion of `tests/.telemetry/flake_runs.json` into a lightweight
       dashboard or summary table that highlights retry frequency and failure types.
-- [ ] Publish the alert-drill calendar (quarterly cadence) and add a checklist for
+- [x] Publish the alert-drill calendar (quarterly cadence) and add a checklist for
       pre/post drill verification steps.
 
 **Next**
@@ -330,11 +334,11 @@ modules into maintainable components.
 
 **Now**
 
-- [ ] Decompose `src/core/state_store.py` by extracting persistence adapters and
+- [x] Decompose `src/core/state_store.py` by extracting persistence adapters and
       documenting the new interfaces.
-- [ ] Triage `src/core/performance/` and `src/core/risk/` helpers for deletion or
+- [x] Triage `src/core/performance/` and `src/core/risk/` helpers for deletion or
       consolidation, mapping dependencies before submitting PRs.
-- [ ] Align relevant docs and examples after each deletion/refactor so onboarding
+- [x] Align relevant docs and examples after each deletion/refactor so onboarding
       material stays current.
 
 **Next**

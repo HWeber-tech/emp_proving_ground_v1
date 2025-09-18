@@ -13,10 +13,11 @@ pipeline remains healthy at a glance.
 | Coverage (pytest `--cov`) | 76% (from [CI Baseline – 2025-09-16](../ci_baseline_report.md)) | Update when the coverage target moves. |
 | Formatter rollout | Stage 4 enforces `src/sensory/`, all data foundation modules (`config/`, `ingest/`, `persist/`, `replay/`, `schemas.py`), and the `src/data_integration/`, `src/operational/`, and `src/performance/` directories; the briefing now tracks follow-up tooling work. | Guarded by `scripts/check_formatter_allowlist.py`; focus on formatting the helper scripts and planning the allowlist retirement. |
 | Risk guardrail coverage | Drawdown throttling, Kelly sizing, and limit updates now exercised via `tests/current/test_risk_manager_impl.py` | Extend to FIX execution/risk integration paths next. |
-| Execution engine coverage | Partial fills, retries, and reconciliation flows locked in by `tests/current/test_execution_engine.py` | Chain the execution engine into orchestration end-to-end smoke tests. |
+| Execution engine coverage | Partial fills, retries, and reconciliation flows locked in by `tests/current/test_execution_engine.py` and exercised end-to-end via `tests/current/test_orchestration_execution_risk_integration.py`. | Track reconciliation snapshots in future regression runs. |
+| Orchestration ⇄ risk ⇄ execution | `tests/current/test_orchestration_execution_risk_integration.py` runs the orchestrator stubs through risk sizing and the execution engine, emitting telemetry on the event bus. | Extend to include sensory fixtures once the WHY regression slice lands. |
 | Data foundation config coverage | YAML loader fallbacks and overrides regression-tested via `tests/current/test_data_foundation_config_loading.py` | Keep expanding toward operational metrics and sensory signal hotspots. |
 | Operational metrics coverage | FIX/WHY telemetry sanitization and guardrails enforced in `tests/current/test_operational_metrics_sanitization.py` | Fold orchestration smoke tests into the suite to cover adapter wiring. |
-| Pytest flake telemetry | `tests/.telemetry/flake_runs.json` emitted each run (repository copy currently mirrors CI runs #482–#483 for historical context) | Override with `PYTEST_FLAKE_LOG` or `--flake-log-file`; upload alongside `pytest.log` and follow the observability plan for drill cadence. |
+| Pytest flake telemetry | `tests/.telemetry/flake_runs.json` emitted each run (repository copy currently mirrors CI runs #482–#483 for historical context); summarise via `python tools/telemetry/summarize_flakes.py`. | Override with `PYTEST_FLAKE_LOG` or `--flake-log-file`; upload alongside `pytest.log` and follow the observability plan for drill cadence. |
 | Open CI alerts | Check the automatically managed **CI failure alerts** issue | Created/closed by `.github/workflows/ci-failure-alerts.yml`. |
 
 ## Where to look when something fails
@@ -29,6 +30,17 @@ pipeline remains healthy at a glance.
    mirrored in the step summary.
 3. **CI baseline report** – The baseline in [`docs/ci_baseline_report.md`](../ci_baseline_report.md)
    lists historical hotspots and still-relevant remediation tickets.
+
+## Telemetry summary
+
+| Metric | Value |
+| --- | --- |
+| Session start | 1726612800.0 |
+| Session end | 1726612860.0 |
+| Exit status | 1 (failure) |
+| Recorded events | 2 |
+| Failing tests | `tests/current/test_fix_manager_failures.py::test_recoverable_disconnect`, `tests/current/test_operational_metrics_logging.py::test_metric_payload_shape` |
+| Recent runs | #482 failure, #483 success |
 
 ## Maintenance checklist
 

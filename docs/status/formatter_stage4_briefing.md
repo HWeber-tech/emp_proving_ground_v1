@@ -14,7 +14,7 @@ keep CI green throughout the rollout.
 
 - `src/operational/metrics.py`
 - `src/operational/metrics_registry.py`
-- `src/operational/state_store.py`
+- `src/operational/state_store/`
 - `src/operational/event_bus.py`
 - `src/performance/vectorized_indicators.py`
 - `src/performance/__init__.py`

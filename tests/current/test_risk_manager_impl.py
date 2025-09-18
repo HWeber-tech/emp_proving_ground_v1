@@ -151,6 +151,16 @@ def test_calculate_portfolio_risk_aggregates_and_delegates(monkeypatch: pytest.M
     assert snapshot["assessed_risk"] == pytest.approx(200.0)
 
 
+def test_calculate_portfolio_risk_uses_real_risk_manager_defaults() -> None:
+    manager = RiskManagerImpl(initial_balance=10_000)
+    manager.add_position("EURUSD", 1_000, 1.1)
+
+    snapshot = manager.calculate_portfolio_risk()
+
+    # RealRiskManager should surface the per-position breach (1000 vs 200 budget).
+    assert snapshot["assessed_risk"] == pytest.approx(5.0)
+
+
 def test_get_position_risk_handles_unknown_symbol() -> None:
     manager = RiskManagerImpl(initial_balance=10_000)
 

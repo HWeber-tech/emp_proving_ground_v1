@@ -22,14 +22,19 @@ spikes, execution tickets, or milestone reviews.
 ## Way forward
 
 ### 30-day outcomes (Now)
-- Expand Stage 4 formatter enforcement through the remaining data foundation
-  packages (`replay/`, `schemas.py`) and socialise the diffs ahead of the rollout PRs.
-- Draft targeted regression scenarios for execution/risk modules so upcoming tests
-  cover partial fills, reconciliation, and drawdown recoveries.
-- Capture the alert-drill cadence, webhook design, and flake-ingestion workflow in the
-  observability plan while keeping GitHub issue automation healthy.
-- Break apart the highest-fanin `src/core/` modules to shrink the backlog surfaced in
-  the latest dead-code audit.
+- Land Stage 4 formatting PRs for `src/data_integration/`, `src/operational/`, and
+  `src/performance/`, retire the related allowlist entries, and circulate the
+  allowlist-removal RFC for review.
+- Chain orchestration, execution, and risk modules in an end-to-end regression
+  scenario, record the resulting coverage deltas in
+  [`docs/status/ci_health.md`](status/ci_health.md), and prep sensory fixtures for the
+  follow-on slice.
+- Document the Slack/webhook rollout plan, stand up the telemetry summary sourced
+  from `tests/.telemetry/flake_runs.json`, and publish the quarterly alert-drill
+  cadence.
+- Ship the first `src/core/state_store.py` decomposition PR, map follow-on deletions
+  in `src/core/performance/` and `src/core/risk/`, and refresh affected docs and
+  examples.
 
 ### 60-day outcomes (Next)
 - Stage 4 formatting now covers `src/data_integration/`, `src/operational/`, and

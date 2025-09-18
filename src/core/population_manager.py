@@ -377,3 +377,11 @@ class PopulationManager(IPopulationManager):
             return provider.mutate(working, "gaussian", new_params)
         except Exception:
             return genome
+
+
+def create_population_manager(
+    population_size: int = 100, cache_ttl: int = 300
+) -> PopulationManager:
+    """Factory helper mirroring legacy construction patterns."""
+
+    return PopulationManager(population_size=population_size, cache_ttl=cache_ttl)

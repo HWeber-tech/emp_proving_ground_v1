@@ -33,6 +33,68 @@ Phase 6–9 roadmap streams.
 - Foundational guardrails (pinned toolchain, policy enforcement, configuration
   alignment) are stable and should be protected as the remaining work lands.
 
+## High-risk focus areas (0–3 month horizon)
+
+1. **Monolithic runtime entrypoint.** `main.py` blends configuration loading,
+   ingestion orchestration, FIX lifecycle management, and long-lived loops
+   without dependency boundaries. It injects `src/` into `sys.path`, constructs
+   global singletons, and sleeps in a hot loop, making it impossible to reuse
+   components in services or tests.
+   - *Impact*: brittle deployments, no graceful shutdown, high blast radius for
+     any change.
+   - *Immediate actions*: extract a dependency-injected application builder,
+     separate ingestion versus live-trading CLIs, and publish rollback/shutdown
+     drills so operations can adopt the new topology.
+
+2. **Async task lifecycle hazards.** Multiple modules call
+   `asyncio.create_task` without supervision, and the FIX adapters spin new
+   event loops inside callbacks to push messages across threads.
+   - *Impact*: background tasks leak, cancellation fails to propagate, and the
+     runtime can deadlock or drop work under load.
+   - *Immediate actions*: inventory background task creation, migrate into
+     structured groups (`asyncio.TaskGroup` or a supervised manager), and add
+     regression tests that assert graceful shutdown.
+
+3. **Hollow risk management.** `RiskManager` dynamically imports configuration
+   but only validates that `size` and `entry_price` are positive. Tiered limits,
+   drawdown guards, leverage controls, and exposure caps already exist in
+   `RiskConfig` but are ignored.
+   - *Impact*: production runs without safety rails, exposing capital and
+     compliance risk.
+   - *Immediate actions*: design a deterministic risk API, implement enforcement
+     for each `RiskConfig` field, document escalation/override flows, and cover
+     the logic with unit/integration tests.
+
+4. **Namespace drift and failing validation.** Public exports such as
+   `src/core/__init__.py` advertise helpers like `get_risk_manager` that do not
+   exist, and `system_validation_report.json` shows 0/10 checks passing.
+   - *Impact*: downstream consumers cannot trust the API, and the validation
+     suite signals that “Phase 3” capabilities exist in name only.
+   - *Immediate actions*: clean the exports, deprecate or restore missing
+     symbols, and triage each validation failure into an owned ticket with
+     acceptance tests.
+
+## Medium-risk & emerging debt (3–6 month horizon)
+
+- **Testing scope divergence.** Pytest only runs `tests/current/`; the quarantined
+  suites hide unknown regressions. Action: re-enable suites incrementally with
+  feature flags, and capture coverage deltas in `docs/status/ci_health.md`.
+- **Dependency surface bloat.** The runtime depends on full Dash/Plotly stacks and
+  Pydantic v1 even when unused in production. Action: audit imports, split optional
+  extras, and roadmap a Pydantic v2 migration.
+- **Documentation void.** The primary `README.md` and operational docs lag the
+  evolving runtime, complicating onboarding and governance. Action: align the
+  README, architecture reality guide, and operator runbooks with the runtime
+  hardening initiative.
+
+## Long-horizon remediation roadmap
+
+| Timeline | Outcomes | Focus areas |
+| --- | --- | --- |
+| **0–3 months (Stabilise)** | Runtime entrypoints, async lifecycles, and risk enforcement are trustworthy. | Runtime builder design/rollout, supervised task management, system validation triage, and risk policy implementation paired with updated operator docs. |
+| **3–6 months (Harden & modularise)** | Runtime services become resilient with first-class telemetry and broader regression coverage. | Replace ad-hoc event loops, expand pytest scope (legacy/integration/load), instrument FIX/orchestrator bridges, and embed governance for safety config reviews. |
+| **6–12 months (Evolve)** | The platform supports scale and regulatory scrutiny. | Configuration-as-code for risk, optional dependency rationalisation (Pydantic v2, UI stacks), continuous system validation dashboards/alerts, and SBOM/reporting integration. |
+
 ## Heat map (Q3 2025)
 
 | Area | Risk | Signals | Mitigation path | Confidence |

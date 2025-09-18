@@ -49,6 +49,17 @@ spikes, execution tickets, or milestone reviews.
   frequency, and formatter coverage trends from CI artifacts.
 - Publish the first modularisation PRs for `src/core/` and related helpers, pairing
   them with updated docs and examples.
+- Extract a dependency-injected runtime builder from `main.py`, publish dedicated
+  CLIs for ingestion versus live trading, and capture shutdown hooks plus rollback
+  procedures in the docs.
+- Triage every failing check in `system_validation_report.json`, produce tracked
+  remediation tickets with owners, and record acceptance tests for each fix.
+- Ship onboarding updates – refresh `README.md`, architecture notes, and operator
+  runbooks so the runtime builder, regression programme, and validation plan are
+  easy to adopt by the broader team.
+- Partner with compliance/operations to define a lightweight review workflow for
+  safety/risk configuration changes and sketch the observability additions required
+  for FIX adapters and the Phase 3 orchestrator.
 
 ### 90-day considerations (Later)
 - Replace the formatter allowlist guard with repo-wide `ruff format` enforcement in CI
@@ -59,6 +70,22 @@ spikes, execution tickets, or milestone reviews.
   infrastructure in the next roadmap revision.
 - Keep recurring dead-code audits on a predictable cadence and automate ticket
   creation for anything that survives more than two passes.
+- Replace fire-and-forget async tasks with supervised groups, eliminate ad-hoc event
+  loops in FIX adapters, and add regression coverage for graceful shutdown paths.
+- Re-implement `RiskManager` against `RiskConfig`, exercising tiered limits,
+  drawdown guards, and leverage controls with automated tests and documentation.
+- Clean up public exports (for example `src/core/__init__.py`), restoring or
+  deprecating missing symbols so downstream consumers rely on a coherent API.
+- Re-enable the quarantined pytest suites, track coverage deltas alongside
+  reliability metrics, and surface the combined status in the CI health dashboard.
+
+## Long-horizon remediation plan
+
+| Timeline | Outcomes | Key workstreams |
+| --- | --- | --- |
+| **0–3 months (Stabilise)** | Runtime entrypoints untangled, validation baseline back to green, and risk controls enforce existing policies. | - Build an application builder with clear ingestion/live-trading CLIs and rehearsed rollback steps.<br>- Inventory background tasks, migrate them into supervised groups, and add shutdown/regression coverage.<br>- Map every failing `system_validation_report.json` check to an owned ticket with acceptance tests.<br>- Document the risk enforcement plan and operator playbooks so onboarding keeps pace with the refactor. |
+| **3–6 months (Harden & modularise)** | Async adapters, FIX bridges, and orchestration loops become resilient services with first-class telemetry. | - Replace ad-hoc event loops with structured async bridges and reconnect/backoff logic.<br>- Broaden regression/testing scope (legacy suites, load scenarios) while capturing coverage trends.<br>- Publish runtime and observability runbooks that describe steady-state metrics and failure drills.<br>- Align governance: document the safety config review workflow and embed it into the release checklist. |
+| **6–12 months (Evolve)** | Runtime components support scaling and regulatory scrutiny with policy versioning and continuous validation. | - Introduce configuration-as-code for risk policies, including audit history and multi-tier deployment support.<br>- Evaluate carving FIX/orchestration into separately deployable services with health endpoints and metrics.<br>- Establish continuous system validation (dashboards, alerts, and chaos drills) to guard against regression drift.<br>- Rationalise optional dependencies (UI stacks, Pydantic v2 migration) and publish SBOM artefacts. |
 
 ## Portfolio snapshot
 
@@ -68,6 +95,7 @@ spikes, execution tickets, or milestone reviews.
 | Regression depth in trading & risk | 7 | Coverage hotspots wrapped in deterministic regression suites. | Regression suites now cover execution-engine partial fills/retries, risk drawdown recovery, and property-based order mutations alongside the existing FIX, config, and orchestration smoke tests. | Capture coverage deltas in `docs/status/ci_health.md` and plan the orchestration + risk end-to-end scenario. |
 | Operational telemetry & alerting | 8 | CI failures surface automatically with actionable context. | GitHub issue automation is live, alert drills run via the `alert_drill` dispatch, and flake telemetry is stored in git. Slack/webhook mirroring and dashboards remain open. | Document the webhook rollout plan, schedule quarterly drills, and surface telemetry trends in the CI health dashboard. |
 | Dead code remediation & modular cleanup | 9 | Dead-code audit remains actionable and high-fanin modules are decomposed. | Latest audit triage logged; unused imports removed. Structural decomposition for `src/core/` families and supporting docs are still outstanding. | Deliver the first decomposition PR (targeting `src/core/state_store.py` dependents) with updated documentation and audit sign-off. |
+| Runtime orchestration & risk hardening | 10 | Runtime entrypoints, async lifecycles, and safety controls are production-ready. | Technical debt review identified monolithic orchestration, unsupervised async tasks, hollow risk enforcement, and API drift. | Deliver the runtime builder design, async supervision migration map, risk enforcement roadmap, API cleanup checklist, and observability/governance playbook (Week 4). |
 
 ## Active modernization streams
 
@@ -367,6 +395,100 @@ modules into maintainable components.
 - Log each audit pass, decisions made, and resulting PRs in the audit report.
 - Track module fan-in or fan-out metrics where available to measure decomposition
   impact.
+
+### Initiative 5 – Runtime orchestration & risk hardening (Phase 10)
+
+**Mission** – Harden the live-trading runtime by carving clear service boundaries,
+supervising async workloads, and enforcing the risk policies that already exist in
+configuration.
+
+**Definition of done**
+
+- `main.py` replaced by a dependency-injected application builder with discrete
+  entrypoints for ingestion and live trading plus documented shutdown hooks.
+- Background services supervised via structured task groups with deterministic
+  cancellation and shutdown tests.
+- `RiskManager` enforces `RiskConfig` inputs (position sizing, leverage, drawdown,
+  exposure) with regression coverage and documentation updates.
+- Operator playbooks, architecture notes, and the top-level `README.md` reflect the
+  new runtime builder, task supervision story, and rollback procedures.
+- Safety and risk configuration changes flow through a documented review workflow
+  with compliance/operations sign-off and audit breadcrumbs.
+- All system validation checks in `system_validation_report.json` passing in CI,
+  with dashboards highlighting drift.
+- Public API exports (for example `src/core/__init__.py`) cleaned up so advertised
+  symbols exist, are documented, or are intentionally deprecated.
+
+**Key context**
+
+- `main.py`
+- `src/risk/risk_manager_impl.py`
+- `src/core/__init__.py`
+- `src/brokers/fix/` adapters and sensory orchestrators
+- `system_validation_report.json`
+- `README.md`, `docs/ARCHITECTURE_REALITY.md`, and future runtime/runbook drafts
+
+**Recent progress**
+
+- Technical debt assessment documented the monolithic runtime, unsupervised async
+  tasks, and ineffective risk enforcement.
+- Preliminary regression suites now touch execution-engine partial fills and risk
+  drawdown recovery, providing scaffolding for broader runtime coverage.
+- Formatter and modular cleanup work reduced noise around `src/core/` so runtime
+  refactors can proceed with less churn.
+
+**Now**
+
+- [ ] Draft a runtime builder and shutdown sequence design that separates ingestion
+      and trading workloads, including testing strategy and rollout plan.
+- [ ] Inventory `asyncio.create_task` usage across brokers, sensory organs, and
+      orchestrators, documenting supervision gaps and proposed `TaskGroup`
+      migrations.
+- [ ] Map `RiskConfig` parameters to required enforcement logic, outlining tests,
+      documentation updates, and telemetry hooks.
+- [ ] Define the compliance/operations review workflow for safety configuration
+      changes and catalogue the observability gaps in FIX/orchestrator adapters.
+
+**Next**
+
+- [ ] Implement the application builder with dedicated CLIs, integrate structured
+      shutdown hooks, and add smoke tests for restart flows.
+- [ ] Replace ad-hoc event loops in FIX adapters with supervised async bridges or
+      executor shims, validating graceful shutdown in regression suites.
+- [ ] Rebuild `RiskManager` to honor leverage, exposure, and drawdown limits with
+      deterministic pytest coverage and updated operator guides.
+- [ ] Deliver structured logging, metrics, and health checks for the runtime
+      builder, FIX bridges, and orchestrators; record steady-state expectations in
+      the runbook.
+
+**Later**
+
+- [ ] Evaluate carving FIX and orchestration adapters into separately deployable
+      services with health checks and metrics once the builder lands.
+- [ ] Extend system validation into continuous monitoring (dashboards, alerts) so
+      drift is caught immediately.
+- [ ] Introduce configuration-as-code or policy-versioning workflows once risk
+      enforcement stabilizes.
+- [ ] Capture audit trails for runtime configuration changes and integrate them
+      with SBOM/policy reporting as part of the compliance toolkit.
+
+**Risks & watchpoints**
+
+- Runtime refactors can destabilize trading loops – insist on feature flags and
+  rollback plans for each landing.
+- Async supervision changes may expose latent race conditions; schedule paired
+  regression runs and soak tests.
+- Risk guardrail reimplementation could block orders if misconfigured – document
+  defaults and provide sandbox rehearsals before rollout.
+
+**Telemetry**
+
+- Track runtime validation status and shutdown test coverage alongside existing CI
+  health metrics.
+- Record risk enforcement outcomes (violations caught, config versions) to prove
+  guardrails are active.
+- Capture namespace cleanup deltas (removed/added exports) in changelogs for
+  downstream consumers.
 
 ## Completed phases (0–5)
 

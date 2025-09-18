@@ -12,6 +12,7 @@ Features:
 - Efficient storage in Parquet format
 - Automatic retry and error handling
 """
+
 from __future__ import annotations
 
 import gzip

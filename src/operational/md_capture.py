@@ -5,6 +5,7 @@ Recorder attaches to GenuineFIXManager market data callbacks and writes JSONL
 snapshots. Replayer reads JSONL and replays to a supplied callback with a
 speed factor.
 """
+
 from __future__ import annotations
 
 import json
@@ -17,6 +18,7 @@ from typing import Callable, Optional, Protocol
 def _serialize_order_book(symbol: str, order_book: object) -> dict[str, object]:
     def side(entries: list[object]) -> list[tuple[float, float]]:
         return [(float(getattr(e, "price")), float(getattr(e, "size"))) for e in entries]
+
     return {
         "t": datetime.utcnow().isoformat(),
         "symbol": symbol,
@@ -33,11 +35,13 @@ class MarketDataRecorder:
 
     class _ManagerProto(Protocol):
         def add_market_data_callback(self, cb: Callable[[str, object], None]) -> None: ...
+
     def attach_to_manager(self, manager: _ManagerProto) -> None:
         def on_md(symbol: str, order_book: object) -> None:
             rec = _serialize_order_book(symbol, order_book)
             self._fh.write(json.dumps(rec) + "\n")
             self._fh.flush()
+
         manager.add_market_data_callback(on_md)
 
     def close(self) -> None:
@@ -52,10 +56,14 @@ class MarketDataReplayer:
         self.in_path = in_path
         self.speed = max(0.0, speed)
 
-    def replay(self, callback: Callable[[str, dict[str, object]], None], max_events: Optional[int] = None,
-               feature_writer: Optional[Callable[[str, dict[str, object]], None]] = None) -> int:
+    def replay(
+        self,
+        callback: Callable[[str, dict[str, object]], None],
+        max_events: Optional[int] = None,
+        feature_writer: Optional[Callable[[str, dict[str, object]], None]] = None,
+    ) -> int:
         """Replay captured MD to callback(symbol, order_book_like_dict).
-        
+
         Returns number of events emitted.
         """
         if not os.path.exists(self.in_path):
@@ -93,5 +101,3 @@ class MarketDataReplayer:
                 except Exception:
                     continue
         return emitted
-
-

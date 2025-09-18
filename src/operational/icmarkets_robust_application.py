@@ -2,6 +2,7 @@
 Robust IC Markets FIX Application
 Production-ready implementation with error handling and session management
 """
+
 from __future__ import annotations
 
 import logging
@@ -20,8 +21,7 @@ from src.core.types import JSONObject
 
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
@@ -34,6 +34,7 @@ class ICMConfigProtocol(Protocol):
     def validate_config(self) -> None: ...
     def _get_host(self) -> str: ...
     def _get_port(self, session_type: str) -> int: ...
+
 
 class _FixMessageLike(Protocol):
     def get(self, tag: int) -> bytes | str | None: ...
@@ -74,6 +75,7 @@ __all__ = [
 @dataclass
 class MarketDataEntry:
     """Represents a market data entry."""
+
     symbol: str
     bid: Optional[float] = None
     ask: Optional[float] = None
@@ -89,6 +91,7 @@ class MarketDataEntry:
 @dataclass
 class OrderStatusUpdate:
     """Represents an order status update."""
+
     cl_ord_id: str
     order_id: str
     symbol: str
@@ -194,7 +197,7 @@ class ConnectionRecoveryManager:
 
     def get_retry_delay(self) -> float:
         """Calculate exponential backoff delay."""
-        return self.retry_delay * (2.0 ** self.connection_attempts)
+        return self.retry_delay * (2.0**self.connection_attempts)
 
     def record_success(self) -> None:
         """Record successful connection."""
@@ -233,7 +236,9 @@ class ICMarketsRobustConnection:
         """Connect with automatic retry and recovery."""
         while self.recovery_manager.should_retry():
             try:
-                logger.info(f"Attempting {self.session_type} connection (attempt {self.recovery_manager.connection_attempts + 1})")
+                logger.info(
+                    f"Attempting {self.session_type} connection (attempt {self.recovery_manager.connection_attempts + 1})"
+                )
 
                 # Create SSL context
                 context = ssl.create_default_context()
@@ -253,7 +258,9 @@ class ICMarketsRobustConnection:
                 self.ssl_socket = ssl_sock
 
                 # Connect
-                ssl_sock.connect((self.config._get_host(), self.config._get_port(self.session_type)))
+                ssl_sock.connect(
+                    (self.config._get_host(), self.config._get_port(self.session_type))
+                )
 
                 # Send logon
                 if self._send_logon():
@@ -262,11 +269,15 @@ class ICMarketsRobustConnection:
                     self.running = True
 
                     # Start receiver thread
-                    self.receiver_thread = threading.Thread(target=self._receive_messages, daemon=True)
+                    self.receiver_thread = threading.Thread(
+                        target=self._receive_messages, daemon=True
+                    )
                     self.receiver_thread.start()
 
                     # Start heartbeat thread
-                    self.heartbeat_thread = threading.Thread(target=self._heartbeat_loop, daemon=True)
+                    self.heartbeat_thread = threading.Thread(
+                        target=self._heartbeat_loop, daemon=True
+                    )
                     self.heartbeat_thread.start()
 
                     logger.info(f"{self.session_type} connection established successfully")
@@ -321,6 +332,7 @@ class ICMarketsRobustConnection:
             return False
 
         return False
+
     def _send_heartbeat(self) -> None:
         """Send heartbeat message."""
         try:
@@ -539,11 +551,15 @@ class ICMarketsRobustManager:
     def get_status(self) -> JSONObject:
         """Get comprehensive system status."""
         return {
-            'price_connected': self.price_connection.is_connected() if self.price_connection else False,
-            'trade_connected': self.trade_connection.is_connected() if self.trade_connection else False,
-            'running': self.running,
-            'market_data_count': len(self.market_data),
-            'order_count': len(self.orders)
+            "price_connected": self.price_connection.is_connected()
+            if self.price_connection
+            else False,
+            "trade_connected": self.trade_connection.is_connected()
+            if self.trade_connection
+            else False,
+            "running": self.running,
+            "market_data_count": len(self.market_data),
+            "order_count": len(self.orders),
         }
 
     def stop(self) -> None:

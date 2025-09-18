@@ -5,6 +5,11 @@ Stage 4 formatter rollout across the operational and performance directories.
 Share it with anyone preparing PRs so we avoid conflicting freeze windows and
 keep CI green throughout the rollout.
 
+> **Status update (2025-09-24):** `src/data_integration/`, `src/operational/`, and
+> `src/performance/` are now enrolled in the formatter allowlist following the
+> rehearsed Stage 4 slices. Retain this briefing for historical context and any
+> follow-up work on tooling or contributor guidance.
+
 ## Scope
 
 - `src/operational/metrics.py`

@@ -146,13 +146,14 @@ and ownership expectations.
   stayed green. Published `docs/status/formatter_stage4_briefing.md` so the
   operational/performance slices have owners, reviewer rotations, and freeze
   windows ahead of formatting.
+- 2025-09-24 – Stage 4 normalized `src/data_integration/`, `src/operational/`, and
+  `src/performance/` via `ruff format`. Expanded the allowlist to enforce the
+  directories and reran targeted pytest suites covering operational metrics,
+  orchestration composition, and vectorized performance helpers before updating
+  the roadmap and CI health snapshots.
 
-## Remaining Stage 4 sequencing (updated 2025-09-23)
+## Remaining Stage 4 sequencing (updated 2025-09-24)
 
 | Order | Target | Owner | Notes |
 | --- | --- | --- | --- |
-| 1 | `src/data_integration/dukascopy_ingestor.py`, `src/data_integration/persist/` | Market Data | Align with ingestion owners to avoid conflicts during feed updates. |
-| 2 | `src/operational/metrics.py`, `src/operational/metrics_registry.py` | Platform | Follow the freeze window and reviewer rota captured in `docs/status/formatter_stage4_briefing.md`; rerun `tests/current/test_operational_metrics_*`. |
-| 3 | `src/performance/vectorized_indicators.py`, `src/performance/__init__.py` | Performance | Use the Stage 4 briefing checklist for reviewer assignments and validation. |
-| 4 | `src/operational/state_store.py`, `src/operational/event_bus.py` | Platform | Touches async primitives; schedule with orchestrator regression coverage to keep flake noise low. |
-| 5 | `scripts/check_formatter_allowlist.py` and supporting `scripts/analysis/` helpers | Tooling | Format once Stage 4 directories stabilize so CI helpers match enforced style. |
+| 1 | `scripts/check_formatter_allowlist.py` and supporting `scripts/analysis/` helpers | Tooling | Format once Stage 4 directories stabilize so CI helpers match enforced style. |

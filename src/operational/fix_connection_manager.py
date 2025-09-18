@@ -96,11 +96,7 @@ class FIXConnectionManager:
                     "FIX_TRADE_PASSWORD",
                 )
             )
-            use_mock = bool(
-                force_mock or
-                (GenuineFIXManager is None) or
-                (not creds_present)
-            )
+            use_mock = bool(force_mock or (GenuineFIXManager is None) or (not creds_present))
 
             if use_mock:
                 if MockFIXManager is None:
@@ -142,7 +138,9 @@ class FIXConnectionManager:
                         except RuntimeError:
                             loop = None
                         if loop and loop.is_running():
-                            loop.call_soon_threadsafe(lambda: asyncio.create_task(self._price_app._put(msg)))
+                            loop.call_soon_threadsafe(
+                                lambda: asyncio.create_task(self._price_app._put(msg))
+                            )
                         else:
                             # Fallback: create a temporary loop to enqueue
                             _loop = asyncio.new_event_loop()
@@ -165,7 +163,9 @@ class FIXConnectionManager:
                         11: order_info.cl_ord_id.encode("utf-8"),
                     }
                     if exec_type:
-                        msg[150] = exec_type.encode("utf-8") if isinstance(exec_type, str) else exec_type
+                        msg[150] = (
+                            exec_type.encode("utf-8") if isinstance(exec_type, str) else exec_type
+                        )
 
                     if self._trade_app._queue is not None:
                         try:
@@ -173,7 +173,9 @@ class FIXConnectionManager:
                         except RuntimeError:
                             loop = None
                         if loop and loop.is_running():
-                            loop.call_soon_threadsafe(lambda: asyncio.create_task(self._trade_app._put(msg)))
+                            loop.call_soon_threadsafe(
+                                lambda: asyncio.create_task(self._trade_app._put(msg))
+                            )
                         else:
                             _loop = asyncio.new_event_loop()
                             try:
@@ -214,5 +216,3 @@ class FIXConnectionManager:
         if session == "trade":
             return self._initiator
         return None
-
-

@@ -32,8 +32,8 @@ spikes, execution tickets, or milestone reviews.
   the latest dead-code audit.
 
 ### 60-day outcomes (Next)
-- Extend Stage 4 formatting to `src/operational/` and `src/performance/`, then retire
-  the allowlist once data foundation, operational, and performance slices stay green.
+- Stage 4 formatting now covers `src/data_integration/`, `src/operational/`, and
+  `src/performance/`; retire the allowlist once the slices stay green in CI.
 - Land cross-cutting regression suites that chain the orchestration runtime through
   FIX execution and risk managers with deterministic fixtures.
 - Stand up a lightweight telemetry dashboard that visualises drill history, flake
@@ -55,7 +55,7 @@ spikes, execution tickets, or milestone reviews.
 
 | Initiative | Phase | Outcome we need | Current status | Next checkpoint |
 | --- | --- | --- | --- | --- |
-| Formatter normalization | 6 | Repository passes `ruff format --check .` without relying on an allowlist. | Stage 4 enforces `src/sensory/`, all formatted data foundation packages (`config/`, `ingest/`, `persist/`, `replay/`, and `schemas.py`), and now ships an operational/performance briefing to coordinate the remaining slices. | Operational/performance formatting PRs rehearsed per the Stage 4 briefing (Week 3). |
+| Formatter normalization | 6 | Repository passes `ruff format --check .` without relying on an allowlist. | Stage 4 enforces `src/sensory/`, all data foundation packages, and the `src/data_integration/`, `src/operational/`, and `src/performance/` directories; only tooling helpers remain outside the formatter guard. | Format `scripts/check_formatter_allowlist.py` helpers and plan the allowlist retirement (Week 4). |
 | Regression depth in trading & risk | 7 | Coverage hotspots wrapped in deterministic regression suites. | Regression suites now cover execution-engine partial fills/retries, risk drawdown recovery, and property-based order mutations alongside the existing FIX, config, and orchestration smoke tests. | Capture coverage deltas in `docs/status/ci_health.md` and plan the orchestration + risk end-to-end scenario. |
 | Operational telemetry & alerting | 8 | CI failures surface automatically with actionable context. | GitHub issue automation is live, alert drills run via the `alert_drill` dispatch, and flake telemetry is stored in git. Slack/webhook mirroring and dashboards remain open. | Document the webhook rollout plan, schedule quarterly drills, and surface telemetry trends in the CI health dashboard. |
 | Dead code remediation & modular cleanup | 9 | Dead-code audit remains actionable and high-fanin modules are decomposed. | Latest audit triage logged; unused imports removed. Structural decomposition for `src/core/` families and supporting docs are still outstanding. | Deliver the first decomposition PR (targeting `src/core/state_store.py` dependents) with updated documentation and audit sign-off. |
@@ -111,9 +111,10 @@ spikes, execution tickets, or milestone reviews.
 
 **Next**
 
-- [ ] Land the operational/performance formatting PRs with paired allowlist updates
-      and focused pytest runs covering `src/operational/metrics.py` and
-      `src/performance/vectorized_indicators.py`.
+- [x] Land the data integration, operational, and performance formatting PRs with
+      paired allowlist updates and focused pytest runs covering
+      `src/operational/metrics.py`, `src/performance/vectorized_indicators.py`, and
+      the ingestion slices.
 - [ ] Collapse the remaining allowlist entries and wire `ruff format --check .` into
       the main CI workflow once the Stage 4 backlog clears.
 - [ ] Update contributor docs (`setup.md`, PR checklist) to describe the new default

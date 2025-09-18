@@ -7,6 +7,7 @@ Implements a minimal interface used by FIXConnectionManager:
 - start()/stop()
 - trade_connection.send_message_and_track(msg)
 """
+
 from __future__ import annotations
 
 import threading
@@ -21,6 +22,7 @@ class _MockTradeConnection:
     def send_message_and_track(self, msg: object) -> bool:
         # Respect optional flags on msg for reject/cancel flows
         if getattr(msg, "reject", False):
+
             def _emit_reject() -> None:
                 info: object = type("OrderInfo", (), {})()
                 # dynamic attributes set for callbacks that inspect them
@@ -31,10 +33,12 @@ class _MockTradeConnection:
                         cb(info)
                     except Exception:
                         pass
+
             threading.Thread(target=_emit_reject, daemon=True).start()
             return True
 
         if getattr(msg, "cancel", False):
+
             def _emit_cancel() -> None:
                 info: object = type("OrderInfo", (), {})()
                 setattr(info, "cl_ord_id", str(getattr(msg, "cl_ord_id", "TEST")))
@@ -44,6 +48,7 @@ class _MockTradeConnection:
                         cb(info)
                     except Exception:
                         pass
+
             threading.Thread(target=_emit_cancel, daemon=True).start()
             return True
 
@@ -57,6 +62,7 @@ class _MockTradeConnection:
                     cb(info)
                 except Exception:
                     pass
+
         def _emit_partial() -> None:
             time.sleep(0.05)
             info: object = type("OrderInfo", (), {})()
@@ -67,6 +73,7 @@ class _MockTradeConnection:
                     cb(info)
                 except Exception:
                     pass
+
         def _emit_fill() -> None:
             time.sleep(0.1)
             info: object = type("OrderInfo", (), {})()
@@ -77,10 +84,12 @@ class _MockTradeConnection:
                     cb(info)
                 except Exception:
                     pass
+
         threading.Thread(target=_emit_new, daemon=True).start()
         threading.Thread(target=_emit_partial, daemon=True).start()
         threading.Thread(target=_emit_fill, daemon=True).start()
         return True
+
 
 class MockFIXManager:
     def __init__(self) -> None:
@@ -97,6 +106,7 @@ class MockFIXManager:
 
     def start(self) -> bool:
         self._running = True
+
         # Emit a tiny market data tick in background repeatedly for a short period
         def _emit_md_loop() -> None:
             t0 = time.time()
@@ -110,10 +120,9 @@ class MockFIXManager:
                     except Exception:
                         pass
                 time.sleep(0.05)
+
         threading.Thread(target=_emit_md_loop, daemon=True).start()
         return True
 
     def stop(self) -> None:
         self._running = False
-
-

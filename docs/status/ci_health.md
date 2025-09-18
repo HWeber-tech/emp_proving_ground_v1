@@ -11,7 +11,7 @@ pipeline remains healthy at a glance.
 | --- | --- | --- |
 | Last successful run | Refer to the GitHub Actions **CI** workflow page | Capture the run URL in team status updates. |
 | Coverage (pytest `--cov`) | 76% (from [CI Baseline – 2025-09-16](../ci_baseline_report.md)) | Update when the coverage target moves. |
-| Formatter rollout | Stage 4 enforces `src/sensory/` plus all formatted data foundation modules (`config/`, `ingest/`, `persist/`, `replay/`, and `schemas.py`); operational/performance sequencing captured in `docs/status/formatter_stage4_briefing.md` | Guarded by `scripts/check_formatter_allowlist.py`; rehearse operational/performance slices before collapsing the allowlist. |
+| Formatter rollout | Stage 4 enforces `src/sensory/`, all data foundation modules (`config/`, `ingest/`, `persist/`, `replay/`, `schemas.py`), and the `src/data_integration/`, `src/operational/`, and `src/performance/` directories; the briefing now tracks follow-up tooling work. | Guarded by `scripts/check_formatter_allowlist.py`; focus on formatting the helper scripts and planning the allowlist retirement. |
 | Risk guardrail coverage | Drawdown throttling, Kelly sizing, and limit updates now exercised via `tests/current/test_risk_manager_impl.py` | Extend to FIX execution/risk integration paths next. |
 | Execution engine coverage | Partial fills, retries, and reconciliation flows locked in by `tests/current/test_execution_engine.py` | Chain the execution engine into orchestration end-to-end smoke tests. |
 | Data foundation config coverage | YAML loader fallbacks and overrides regression-tested via `tests/current/test_data_foundation_config_loading.py` | Keep expanding toward operational metrics and sensory signal hotspots. |

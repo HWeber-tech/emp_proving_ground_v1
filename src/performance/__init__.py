@@ -64,6 +64,7 @@ def __getattr__(name: str) -> Any:
     # Lazy import to reduce import-time cost; preserves legacy public path.
     if name == "VectorizedIndicators":
         from .vectorized_indicators import VectorizedIndicators
+
         return VectorizedIndicators
     raise AttributeError(name)
 

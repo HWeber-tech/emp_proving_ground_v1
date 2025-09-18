@@ -56,16 +56,19 @@ class RiskManagerImpl(RiskManagerProtocol):
         Args:
             initial_balance: Starting account balance
         """
+        initial_balance_float = _to_float(initial_balance)
+
         self.config = RealRiskConfig(
             max_position_risk=0.02,  # 2% max risk per position
             max_drawdown=0.25,       # 25% max drawdown
+            equity=initial_balance_float,
         )
 
         self.risk_manager = RealRiskManager(self.config)
 
         # Track current positions
         self.positions: Dict[str, PositionEntry] = {}
-        self.account_balance: float = _to_float(initial_balance)
+        self.account_balance: float = initial_balance_float
         self.peak_balance: float = self.account_balance
         # Risk per trade constant used across validation and sizing routines.
         self._risk_per_trade: float = 0.02
@@ -73,6 +76,8 @@ class RiskManagerImpl(RiskManagerProtocol):
         self._drawdown_multiplier: float = 1.0
 
         self._recompute_drawdown_multiplier()
+
+        self.risk_manager.update_equity(self.account_balance)
 
         logger.info(f"RiskManagerImpl initialized with balance: ${self.account_balance:.2f}")
 
@@ -190,6 +195,7 @@ class RiskManagerImpl(RiskManagerProtocol):
         self.account_balance = _to_float(new_balance)
         self.peak_balance = max(self.peak_balance, self.account_balance)
         self._recompute_drawdown_multiplier()
+        self.risk_manager.update_equity(self.account_balance)
         logger.info(
             "Account balance updated: $%.2f (peak: $%.2f, drawdown multiplier: %.2f)",
             self.account_balance,

@@ -42,43 +42,53 @@ class ValidationFramework:
 
     async def validate_component_integration(self) -> ValidationResult:
         """Validate that all components integrate correctly."""
+        integrator = None
         try:
-            # Test basic imports
+            from src.integration.component_integrator_impl import ComponentIntegratorImpl
 
-            # Test component instantiation
-            components = []
+            integrator = ComponentIntegratorImpl()
+            initialized = await integrator.initialize()
 
-            # Test strategy instantiation
-            try:
-                from src.core.strategy.templates.moving_average import (  # noqa: I001
-                    MovingAverageStrategy,
-                )
+            expected_components = {
+                "what_sensor",
+                "when_sensor",
+                "anomaly_sensor",
+                "strategy_engine",
+                "execution_engine",
+                "evolution_engine",
+                "risk_manager",
+                "system_config",
+                "audit_trail",
+            }
 
-                strategy = MovingAverageStrategy(strategy_id="diag", symbols=["EURUSD"], params={})
-                components.append("MovingAverageStrategy")
-            except ImportError:
-                pass
+            available = {
+                name
+                for name in integrator.list_components()
+                if not integrator.is_alias(name)
+            }
 
-            # Test market analyzer
-            try:
-                from src.sensory.what.what_sensor import WhatSensor
+            satisfied = expected_components & available
+            missing = sorted(expected_components - satisfied)
+            integration_score = len(satisfied) / len(expected_components)
 
-                analyzer = WhatSensor()
-                components.append("WhatSensor")
-            except ImportError as e:
-                print(f"WhatSensor import failed: {e}")
-                pass
-
-            # Calculate integration score
-            integration_score = len(components) / 3.0  # 3 expected components
+            details = (
+                f"Available components: {sorted(available)}"
+                if not missing
+                else f"Missing components: {missing}"
+            )
 
             return ValidationResult(
                 test_name="component_integration",
-                passed=integration_score >= 0.8,
+                passed=initialized and not missing,
                 value=integration_score,
-                threshold=0.8,
+                threshold=1.0,
                 unit="integration_score",
-                details=f"Successfully integrated {len(components)} components: {', '.join(components)}",
+                details=details,
+                metadata={
+                    "initialized": initialized,
+                    "available": sorted(available),
+                    "missing": missing,
+                },
             )
 
         except Exception as e:
@@ -86,10 +96,16 @@ class ValidationFramework:
                 test_name="component_integration",
                 passed=False,
                 value=0.0,
-                threshold=0.8,
+                threshold=1.0,
                 unit="integration_score",
                 details=f"Component integration failed: {str(e)}",
             )
+        finally:
+            if integrator is not None:
+                try:
+                    await integrator.shutdown()
+                except Exception:
+                    logger.debug("Failed to shutdown integrator after validation", exc_info=True)
 
     async def validate_data_integrity(self) -> ValidationResult:
         """Validate data integrity across all data sources."""
@@ -272,17 +288,15 @@ class ValidationFramework:
         try:
             # Test system stability
             test_iterations = 100
-            success_count = 0
 
-            for i in range(test_iterations):
-                try:
-                    # Simulate system operation
-                    import time
+            async def _simulate_operation(_: int) -> bool:
+                await asyncio.sleep(0.001)
+                return True
 
-                    time.sleep(0.001)  # Simulate processing
-                    success_count += 1
-                except Exception:
-                    pass
+            results = await asyncio.gather(
+                *[asyncio.create_task(_simulate_operation(i)) for i in range(test_iterations)]
+            )
+            success_count = sum(1 for r in results if r)
 
             stability_score = success_count / test_iterations
 

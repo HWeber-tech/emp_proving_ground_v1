@@ -27,28 +27,43 @@ class ComponentIntegratorImpl(ComponentIntegrator):
         self.components: Dict[str, object] = {}
         self.dependencies: Dict[str, List[str]] = {}
         self.initialized = False
+        self._aliases: Dict[str, str] = {}
+        self._initialization_failures: Dict[str, str] = {}
 
     async def initialize(self) -> bool:
         """Initialize all components."""
-        try:
-            logger.info("Initializing component integrator...")
+        logger.info("Initializing component integrator...")
+        self._initialization_failures.clear()
 
-            # Initialize components in dependency order
-            await self._initialize_sensory_system()
-            await self._initialize_trading_system()
-            await self._initialize_evolution_system()
-            await self._initialize_risk_system()
-            await self._initialize_governance_system()
+        overall_success = True
+        for label, initializer in (
+            ("sensory", self._initialize_sensory_system),
+            ("trading", self._initialize_trading_system),
+            ("evolution", self._initialize_evolution_system),
+            ("risk", self._initialize_risk_system),
+            ("governance", self._initialize_governance_system),
+        ):
+            try:
+                success = await initializer()
+            except Exception as exc:  # pragma: no cover - defensive
+                success = False
+                self._initialization_failures[label] = str(exc)
+                logger.exception("%s subsystem initialization raised an exception", label)
+            if not success:
+                overall_success = False
+                self._initialization_failures.setdefault(label, "initialization failed")
 
-            self.initialized = True
+        self.initialized = overall_success
+        if overall_success:
             logger.info("Component integrator initialized successfully")
-            return True
+        else:
+            logger.warning(
+                "Component integrator initialized with failures: %s",
+                ", ".join(sorted(self._initialization_failures)),
+            )
+        return overall_success
 
-        except Exception as e:
-            logger.error(f"Failed to initialize component integrator: {e}")
-            return False
-
-    async def _initialize_sensory_system(self) -> None:
+    async def _initialize_sensory_system(self) -> bool:
         """Initialize sensory system components."""
         try:
             # New 4D+1 scaffolding (what/when/anomaly via simple sensors)
@@ -60,12 +75,20 @@ class ComponentIntegratorImpl(ComponentIntegrator):
             self.components["when_sensor"] = WhenSensor()
             self.components["anomaly_sensor"] = AnomalySensor()
 
+            # Maintain backward-compatible aliases expected by legacy validators
+            self._register_component_alias("what_sensor", "what_organ")
+            self._register_component_alias("when_sensor", "when_organ")
+            self._register_component_alias("anomaly_sensor", "anomaly_organ")
+
             logger.info("Sensory system components initialized")
+            return True
 
         except Exception as e:
             logger.warning(f"Failed to initialize sensory system: {e}")
+            self._initialization_failures["sensory"] = str(e)
+            return False
 
-    async def _initialize_trading_system(self) -> None:
+    async def _initialize_trading_system(self) -> bool:
         """Initialize trading system components."""
         try:
             from src.core.strategy.engine import StrategyEngine as StrategyEngineImpl
@@ -75,11 +98,14 @@ class ComponentIntegratorImpl(ComponentIntegrator):
             self.components["execution_engine"] = ExecutionEngine()
 
             logger.info("Trading system components initialized")
+            return True
 
         except Exception as e:
             logger.warning(f"Failed to initialize trading system: {e}")
+            self._initialization_failures["trading"] = str(e)
+            return False
 
-    async def _initialize_evolution_system(self) -> None:
+    async def _initialize_evolution_system(self) -> bool:
         """Initialize evolution system components."""
         try:
             from src.core.evolution.engine import EvolutionConfig, EvolutionEngine
@@ -87,11 +113,14 @@ class ComponentIntegratorImpl(ComponentIntegrator):
             self.components["evolution_engine"] = EvolutionEngine(EvolutionConfig())
 
             logger.info("Evolution system components initialized")
+            return True
 
         except Exception as e:
             logger.warning(f"Failed to initialize evolution system: {e}")
+            self._initialization_failures["evolution"] = str(e)
+            return False
 
-    async def _initialize_risk_system(self) -> None:
+    async def _initialize_risk_system(self) -> bool:
         """Initialize risk management components."""
         try:
             # Consolidated risk manager (single source of truth)
@@ -99,10 +128,13 @@ class ComponentIntegratorImpl(ComponentIntegrator):
 
             self.components["risk_manager"] = RiskManager()
             logger.info("Risk system components initialized (core.risk.manager)")
+            return True
         except Exception as e:
             logger.warning(f"Failed to initialize risk system: {e}")
+            self._initialization_failures["risk"] = str(e)
+            return False
 
-    async def _initialize_governance_system(self) -> None:
+    async def _initialize_governance_system(self) -> bool:
         """Initialize governance components."""
         try:
             from src.governance.audit_trail import AuditTrail
@@ -112,9 +144,12 @@ class ComponentIntegratorImpl(ComponentIntegrator):
             self.components["audit_trail"] = AuditTrail()
 
             logger.info("Governance system components initialized")
+            return True
 
         except Exception as e:
             logger.warning(f"Failed to initialize governance system: {e}")
+            self._initialization_failures["governance"] = str(e)
+            return False
 
     async def shutdown(self) -> bool:
         """Shutdown all components gracefully."""
@@ -131,6 +166,7 @@ class ComponentIntegratorImpl(ComponentIntegrator):
                 logger.info(f"Shutdown {component_name}")
 
             self.components.clear()
+            self._aliases.clear()
             self.initialized = False
             logger.info("Component integrator shutdown complete")
             return True
@@ -146,6 +182,34 @@ class ComponentIntegratorImpl(ComponentIntegrator):
     def list_components(self) -> List[str]:
         """List all available components."""
         return list(self.components.keys())
+
+    def _register_component_alias(self, source: str, alias: str) -> None:
+        """Register an alternate name for an initialized component."""
+        component = self.components.get(source)
+        if component is None:
+            logger.debug(
+                "Skipping alias registration for %s -> %s because source is missing",
+                source,
+                alias,
+            )
+            return
+
+        existing = self.components.get(alias)
+        if existing is not None and existing is not component:
+            logger.warning(
+                "Alias %s already mapped to a different component (%s)",
+                alias,
+                type(existing).__name__,
+            )
+            return
+
+        self.components[alias] = component
+        self._aliases[alias] = source
+
+    def is_alias(self, name: str) -> bool:
+        """Return True when the component name is an alias of another component."""
+
+        return name in self._aliases
 
     def get_component_status(self) -> JSONObject:
         """Get status of all components as JSON object."""
@@ -171,6 +235,8 @@ class ComponentIntegratorImpl(ComponentIntegrator):
 
             # Test component availability
             for name, component in self.components.items():
+                if self.is_alias(name):
+                    continue
                 validation_results[name] = {
                     "available": component is not None,
                     "type": type(component).__name__,
@@ -188,14 +254,24 @@ class ComponentIntegratorImpl(ComponentIntegrator):
                 }
 
             # Test data flow
-            if "what_organ" in self.components and "strategy_engine" in self.components:
-                validation_results["data_flow"] = {"available": True, "test_passed": True}
+            sensory_key = None
+            if "what_sensor" in self.components:
+                sensory_key = "what_sensor"
+            elif "what_organ" in self.components:
+                sensory_key = "what_organ"
+
+            if sensory_key and "strategy_engine" in self.components:
+                validation_results["data_flow"] = {
+                    "available": True,
+                    "test_passed": True,
+                    "source": sensory_key,
+                }
 
             return {
                 "timestamp": datetime.now().isoformat(),
                 "status": "success",
                 "components": validation_results,
-                "total_components": len(self.components),
+                "total_components": len(validation_results),
             }
 
         except Exception as e:

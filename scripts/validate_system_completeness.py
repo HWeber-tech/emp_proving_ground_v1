@@ -141,14 +141,20 @@ class SystemValidator:
         # Test component integrator
         try:
             from src.integration.component_integrator_impl import ComponentIntegratorImpl
+
             integrator = ComponentIntegratorImpl()
-            results['component_integrator_functionality'] = True
-            logger.info("✅ Component integrator functionality validated")
-            
+            initialized = await integrator.initialize()
+            results['component_integrator_functionality'] = initialized
+            if initialized:
+                logger.info("✅ Component integrator functionality validated")
+            else:
+                logger.error("❌ Component integrator initialization incomplete")
+            await integrator.shutdown()
+
         except Exception as e:
             results['component_integrator_functionality'] = False
             logger.error(f"❌ Component integrator functionality failed: {e}")
-            
+
         return results
         
     async def validate_system_integration(self) -> Dict[str, bool]:
@@ -158,17 +164,24 @@ class SystemValidator:
         try:
             # Test basic system integration
             from src.integration.component_integrator_impl import ComponentIntegratorImpl
-            
+
             integrator = ComponentIntegratorImpl()
-            components = integrator.list_components()
-            
-            results['system_integration'] = len(components) > 0
-            logger.info(f"✅ System integration validated - {len(components)} components available")
-            
+            initialized = await integrator.initialize()
+            components = [
+                name for name in integrator.list_components() if not integrator.is_alias(name)
+            ]
+
+            results['system_integration'] = initialized and len(components) > 0
+            logger.info(
+                "✅ System integration validated - %d components available",
+                len(components),
+            )
+            await integrator.shutdown()
+
         except Exception as e:
             results['system_integration'] = False
             logger.error(f"❌ System integration failed: {e}")
-            
+
         return results
         
     async def run_comprehensive_validation(self) -> Dict[str, Any]:

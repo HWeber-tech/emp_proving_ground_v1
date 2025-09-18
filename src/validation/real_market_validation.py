@@ -108,9 +108,41 @@ class RealMarketValidationFramework:
             ],
         }
 
+    def _missing_real_adapters(
+        self,
+        require_market_data: bool = False,
+        require_anomaly: bool = False,
+        require_regime: bool = False,
+    ) -> List[str]:
+        missing: List[str] = []
+        if require_market_data and isinstance(self.market_data, NoOpMarketDataGateway):
+            missing.append("market_data_gateway")
+        if require_anomaly and isinstance(self.anomaly_detector, NoOpAnomalyDetector):
+            missing.append("anomaly_detector")
+        if require_regime and isinstance(self.regime_classifier, NoOpRegimeClassifier):
+            missing.append("regime_classifier")
+        return missing
+
     async def validate_anomaly_detection_accuracy(self) -> RealMarketValidationResult:
         """Validate anomaly detection against known market manipulation events"""
         try:
+            missing = self._missing_real_adapters(
+                require_market_data=True, require_anomaly=True
+            )
+            if missing:
+                return RealMarketValidationResult(
+                    test_name="anomaly_detection_accuracy",
+                    passed=False,
+                    value=0.0,
+                    threshold=0.7,
+                    unit="f1_score",
+                    details=(
+                        "Real market validation requires configured adapters: "
+                        + ", ".join(missing)
+                    ),
+                    historical_data={"missing_adapters": missing},
+                )
+
             total_events = 0
             detected_events = 0
             false_positives = 0
@@ -214,6 +246,23 @@ class RealMarketValidationFramework:
     async def validate_regime_classification_accuracy(self) -> RealMarketValidationResult:
         """Validate regime classification against known market regimes"""
         try:
+            missing = self._missing_real_adapters(
+                require_market_data=True, require_regime=True
+            )
+            if missing:
+                return RealMarketValidationResult(
+                    test_name="regime_classification_accuracy",
+                    passed=False,
+                    value=0.0,
+                    threshold=0.8,
+                    unit="accuracy",
+                    details=(
+                        "Real market validation requires configured adapters: "
+                        + ", ".join(missing)
+                    ),
+                    historical_data={"missing_adapters": missing},
+                )
+
             # Test with 2020 COVID crash data
             start_date = datetime(2020, 2, 1)
             end_date = datetime(2020, 5, 1)
@@ -305,6 +354,21 @@ class RealMarketValidationFramework:
     async def validate_real_performance_metrics(self) -> RealMarketValidationResult:
         """Validate actual performance metrics with real data"""
         try:
+            missing = self._missing_real_adapters(require_market_data=True)
+            if missing:
+                return RealMarketValidationResult(
+                    test_name="real_performance_metrics",
+                    passed=False,
+                    value=0.0,
+                    threshold=1.0,
+                    unit="boolean",
+                    details=(
+                        "Real market validation requires configured adapters: "
+                        + ", ".join(missing)
+                    ),
+                    historical_data={"missing_adapters": missing},
+                )
+
             # Test with recent EURUSD data
             end_date = datetime.now()
             start_date = end_date - timedelta(days=30)
@@ -400,6 +464,21 @@ class RealMarketValidationFramework:
     async def validate_sharpe_ratio_calculation(self) -> RealMarketValidationResult:
         """Validate Sharpe ratio calculation with real trading data"""
         try:
+            missing = self._missing_real_adapters(require_market_data=True)
+            if missing:
+                return RealMarketValidationResult(
+                    test_name="sharpe_ratio_calculation",
+                    passed=False,
+                    value=0.0,
+                    threshold=1.0,
+                    unit="sharpe_ratio",
+                    details=(
+                        "Real market validation requires configured adapters: "
+                        + ", ".join(missing)
+                    ),
+                    historical_data={"missing_adapters": missing},
+                )
+
             # Get 1 year of S&P 500 data
             end_date = datetime.now()
             start_date = end_date - timedelta(days=365)
@@ -464,6 +543,21 @@ class RealMarketValidationFramework:
     async def validate_max_drawdown_calculation(self) -> RealMarketValidationResult:
         """Validate maximum drawdown calculation with real data"""
         try:
+            missing = self._missing_real_adapters(require_market_data=True)
+            if missing:
+                return RealMarketValidationResult(
+                    test_name="max_drawdown_calculation",
+                    passed=False,
+                    value=0.0,
+                    threshold=-0.5,
+                    unit="percentage",
+                    details=(
+                        "Real market validation requires configured adapters: "
+                        + ", ".join(missing)
+                    ),
+                    historical_data={"missing_adapters": missing},
+                )
+
             # Get COVID crash data
             start_date = datetime(2020, 2, 1)
             end_date = datetime(2020, 5, 1)

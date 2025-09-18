@@ -5,8 +5,10 @@ from __future__ import annotations
 from datetime import datetime
 
 import pytest
-from hypothesis import given
-from hypothesis import strategies as st
+
+hypothesis = pytest.importorskip("hypothesis")
+given = hypothesis.given
+st = hypothesis.strategies
 
 from src.trading.models.order import Order, OrderStatus, OrderType
 

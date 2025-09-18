@@ -56,7 +56,7 @@
 56 - Fully type callbacks and queues in [src/operational/mock_fix.py](src/operational/mock_fix.py:1) and [src/operational/fix_connection_manager.py](src/operational/fix_connection_manager.py:1)
 57 - Remove “unused type: ignore” and fix generics for asyncio.Queue in [src/operational/fix_connection_manager.py](src/operational/fix_connection_manager.py:1)
 58 - Refactor message assembly payloads in [src/operational/fix_connection_manager.py](src/operational/fix_connection_manager.py:1) to TypedDicts
-59 - Add return annotations and fix None misuse in [src/operational/state_store.py](src/operational/state_store.py:1)
+59 - Add return annotations and fix None misuse in [src/operational/state_store/adapters.py](src/operational/state_store/adapters.py:1)
 60 - Add type annotation to health history and fully type health check results in [src/operational/health_monitor.py](src/operational/health_monitor.py:1)
 61 - Use pandas and psutil stubs correctly within [src/operational/health_monitor.py](src/operational/health_monitor.py:1) and add concrete return types
 62 - Fix _serialize_order_book and inner functions with concrete typed payloads in [src/operational/md_capture.py](src/operational/md_capture.py:1)

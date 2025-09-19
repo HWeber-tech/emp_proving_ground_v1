@@ -16,6 +16,9 @@ def test_fix_manager_handles_failed_mock_start(
     monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
     class FailingMock:
+        def __init__(self, *_, **__):
+            return None
+
         def add_market_data_callback(self, _cb):
             return None
 

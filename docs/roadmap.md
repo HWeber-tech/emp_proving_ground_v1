@@ -1,9 +1,38 @@
 # Modernization Roadmap
 
 This roadmap orchestrates the remaining modernization work for the EMP Professional
-Predator codebase. Pair it with the living
+Predator codebase and reframes the backlog through the lens of the
+`EMP_ENCYCLOPEDIA_v2.3_CANONICAL.md` concept blueprint. Pair it with the living
 [Technical Debt Assessment](technical_debt_assessment.md) when planning discovery
 spikes, execution tickets, or milestone reviews.
+
+## Concept alignment context pack
+
+Use these artefacts as the substrate for context-aware planning, ticket grooming,
+and code reviews:
+
+- **Concept blueprint** – `EMP_ENCYCLOPEDIA_v2.3_CANONICAL.md` (truth-first draft of
+  the five-layer architecture, compliance posture, and commercialization journeys).
+- **Reality snapshot** – [`system_validation_report.json`](../system_validation_report.json)
+  and [`docs/technical_debt_assessment.md`](technical_debt_assessment.md) for the
+  current engineering baseline.
+- **Delta log** – This roadmap plus the quarterly architecture notes capture how the
+  implementation is evolving toward the concept claims.
+
+### Promises vs. implementation gaps
+
+| Concept promise | Current state | Roadmap response |
+| --- | --- | --- |
+| Tiered data backbone with TimescaleDB, Redis, Kafka, and Spark orchestration once we outgrow the 1 GB bootstrap footprint. | Tier‑0 relies on DuckDB/CSV helpers; Yahoo ingest returns placeholders and there is no orchestration for professional data tiers. | Stand up a production-ready ingest slice with TimescaleDB persistence, Redis caching, and Kafka streaming, then wire orchestration that can flip between bootstrap and institutional tiers. |
+| 4D+1 sensory cortex delivering superhuman perception with WHY/HOW/WHAT/WHEN/ANOMALY working together. | Only WHY/WHAT/WHEN have lightweight heuristics, ANOMALY is a stub, and HOW is absent from the default runtime. | Build the HOW organ, connect anomaly detection, and upgrade existing sensors with calibrated macro/order-flow data feeds. |
+| Evolutionary intelligence that adapts live strategies through genetic evolution and meta-learning. | Tier‑2 evolution mode throws `NotImplementedError`; genomes are stubs and trading decisions remain static thresholds. | Implement population management, realistic genomes, and fitness evaluation; make Tier‑2 executable behind feature flags. |
+| Institutional execution, risk, and compliance with OMS/EMS connectivity plus regulatory workflows (MiFID II, Dodd‑Frank, KYC/AML). | Execution is an in-memory simulator, risk checks are minimal, and compliance layers are no-ops. | Deliver FIX/EMS bridges, expand risk controls, and prototype compliance workflows with audit persistence. |
+| Operational readiness with monitoring, alerting, security, and disaster recovery suitable for higher tiers. | Bootstrap control center aggregates telemetry but broader ops/security tooling is missing. | Design the monitoring stack, access controls, and backup routines aligned with the concept doc’s operational maturity targets. |
+| Commercial roadmap that validates the €250 → institutional journey and 95 % cost savings. | Bootstrap monitor assumes a $100 000 paper account; there is no empirical ROI model or cost tracking. | Instrument cost/fee models, track ROI experiments, and align marketing claims with evidence. |
+
+> **Context engineering tip:** When drafting epics or writing code, pull the relevant
+> concept excerpt into the issue description and link the gap table row. This keeps
+> discussions anchored to the documented intent.
 
 ## Execution rhythm
 
@@ -22,82 +51,140 @@ spikes, execution tickets, or milestone reviews.
 ## Way forward
 
 ### 30-day outcomes (Now)
-- ✅ Landed Stage 4 formatting PRs for `src/data_integration/`, `src/operational/`,
-  and `src/performance/`, circulated the
-  [allowlist-retirement RFC](rfcs/RFC_formatter_allowlist_retirement.md), and
-  documented the remaining guard removal plan.
-- ✅ Chained orchestration, execution, and risk modules in an end-to-end regression
-  (`tests/current/test_orchestration_execution_risk_integration.py`), recorded the
-  coverage/telemetry deltas in
-  [`docs/status/ci_health.md`](status/ci_health.md), and staged sensory fixtures for
-  the WHY regression follow-on.
-- ✅ Documented the Slack/webhook rollout plan, shipped the telemetry summary CLI
-  sourced from `tests/.telemetry/flake_runs.json`, and published the quarterly
-  alert-drill cadence.
-- ✅ Shipped the first `src/core/state_store.py` decomposition PR (introducing
-  `src/operational/state_store/` adapters), mapped follow-on deletions in
-  `src/core/performance/` and `src/core/risk/` (see
-  [`docs/reports/state_store_decomposition_followups.md`](reports/state_store_decomposition_followups.md)),
-  and refreshed affected docs and examples.
+- Draft alignment briefs for the five major gap areas (data backbone, sensory
+  cortex, evolution engine, institutional risk/compliance, operational readiness)
+  that translate encyclopedia promises into actionable epics and acceptance
+  criteria.
+- Ship the “concept context pack” – issue templates, pull request checklists, and
+  architecture notes that quote `EMP_ENCYCLOPEDIA_v2.3_CANONICAL.md` sections next
+  to current code references so contributors inherit the same narrative.
+- Prototype a TimescaleDB-backed ingest slice fed by the existing Yahoo bootstrap
+  downloader to exercise migrations, connection pooling, and state-store wiring.
+- Add scaffolding tests or notebooks that demonstrate how the new ingest slice will
+  be queried by sensors and risk modules once Redis/Kafka are introduced.
+- Adjust public-facing docs (README, roadmap preface, launch deck) to clarify that
+  v2.3 is a concept draft with hypotheses awaiting validation.
 
 ### 60-day outcomes (Next)
-- Stage 4 formatting now covers `src/data_integration/`, `src/operational/`, and
-  `src/performance/`; retire the allowlist once the slices stay green in CI.
-- Land cross-cutting regression suites that chain the orchestration runtime through
-  FIX execution and risk managers with deterministic fixtures.
-- Stand up a lightweight telemetry dashboard that visualises drill history, flake
-  frequency, and formatter coverage trends from CI artifacts.
-- Publish the first modularisation PRs for `src/core/` and related helpers, pairing
-  them with updated docs and examples.
-- Extract a dependency-injected runtime builder from `main.py`, publish dedicated
-  CLIs for ingestion versus live trading, and capture shutdown hooks plus rollback
-  procedures in the docs.
-- Triage every failing check in `system_validation_report.json`, produce tracked
-  remediation tickets with owners, and record acceptance tests for each fix.
-- Ship onboarding updates – refresh `README.md`, architecture notes, and operator
-  runbooks so the runtime builder, regression programme, and validation plan are
-  easy to adopt by the broader team.
-- Partner with compliance/operations to define a lightweight review workflow for
-  safety/risk configuration changes and sketch the observability additions required
-  for FIX adapters and the Phase 3 orchestrator.
+- Land the first production-grade ingest vertical: TimescaleDB persistence, Redis
+  caching for hot symbols, and a Kafka topic that mirrors intraday updates into the
+  runtime event bus.
+- Deliver a minimally viable HOW organ and revive the ANOMALY sensor so the default
+  runtime exercises all five dimensions with calibrated thresholds and audit logs.
+- Replace the stub genome provider with a small but real genome catalogue sourced
+  from historical strategies; wire population management into the evolution engine
+  behind a feature flag.
+- Publish compliance starter kits – MiFID II/Dodd-Frank control matrices, KYC/AML
+  workflow outlines, and audit storage requirements mapped to existing interfaces.
+- Extend operational telemetry by defining monitoring SLOs, alert channels, and
+  backup/restore drills for the new data services.
 
 ### 90-day considerations (Later)
-- Replace the formatter allowlist guard with repo-wide `ruff format` enforcement in CI
-  and pre-commit once the backlog is cleared.
-- Graduate the regression program into scenario and load testing after the core
-  coverage gaps close.
-- Evaluate runtime (non-CI) observability requirements and budget for any additional
-  infrastructure in the next roadmap revision.
-- Keep recurring dead-code audits on a predictable cadence and automate ticket
-  creation for anything that survives more than two passes.
-- Replace fire-and-forget async tasks with supervised groups, eliminate ad-hoc event
-  loops in FIX adapters, and add regression coverage for graceful shutdown paths.
-- Re-implement `RiskManager` against `RiskConfig`, exercising tiered limits,
-  drawdown guards, and leverage controls with automated tests and documentation.
-- Clean up public exports (for example `src/core/__init__.py`), restoring or
-  deprecating missing symbols so downstream consumers rely on a coherent API.
-- Re-enable the quarantined pytest suites, track coverage deltas alongside
-  reliability metrics, and surface the combined status in the CI health dashboard.
+- Graduate the data backbone by stress-testing Kafka/Spark batch jobs, documenting
+  failover procedures, and proving that ingest tiers can switch without downtime.
+- Expand sensory/evolution validation with live-paper trading experiments, anomaly
+  drift monitoring, and feedback loops that tune strategy genomes automatically.
+- Deliver the first broker/FIX integration pilot complete with supervised async
+  lifecycles, expanded risk gates, compliance checkpoints, and observability hooks.
+- Publish ROI instrumentation – track fee savings, infrastructure spend, and
+  capital efficiency so the €250 → institutional journey is grounded in evidence.
+- Update marketing and onboarding assets once the above pilots demonstrate the
+  promised capabilities.
+
+## Document-driven high-impact streams
+
+These streams translate the encyclopedia ambitions into execution tracks. Each
+stream should keep the concept excerpts, current-state references, and acceptance
+criteria together inside its epic template so engineers inherit the same context.
+
+### Stream A – Institutional data backbone
+
+**Mission** – Replace the bootstrap-only ingest helpers with tier-aware, resilient
+data services (TimescaleDB, Redis, Kafka, Spark) that can scale alongside clients.
+
+**Key deliverables**
+
+- TimescaleDB schema design (markets, macro, alternative data) with migration
+  automation and retention policies documented.
+- Redis caching strategy for hot symbols, limits, and session state, including
+  eviction policies and observability hooks.
+- Kafka topics that replicate intraday updates into the runtime event bus and feed
+  downstream Spark jobs for batch analytics.
+- Orchestration logic capable of switching between bootstrap and institutional tiers
+  with confidence checks, rollback steps, and operator documentation.
+- Validation suites (pytest + notebooks) that prove ingest freshness, latency, and
+  recovery times meet agreed SLOs.
+
+**Dependencies & context** – Coordinate with existing state-store refactors,
+deployment automation, and the ops telemetry initiative to ensure new services are
+monitored from day one.
+
+### Stream B – 4D+1 sensory cortex & evolution engine
+
+**Mission** – Deliver all five sensory organs with calibrated data feeds and revive
+the evolution engine so strategies adapt continuously and surface anomaly insights.
+
+**Key deliverables**
+
+- HOW organ implementation focused on order-flow/microstructure or execution-cost
+  analytics, with dependency injection for new data feeds.
+- Anomaly detection service connected to the runtime bus, leveraging statistical or
+  ML detectors with explainability hooks.
+- Upgraded WHY/WHAT/WHEN heuristics that ingest macro data, news sentiment, and
+  technical signals via the new data backbone.
+- Evolution engine enhancements: real genome catalogue, population lifecycle,
+  fitness evaluation metrics, and experiment logging for auditability.
+- Integration tests and evaluation harnesses that compare sensor outputs against
+  historical benchmarks and flag drift.
+
+**Dependencies & context** – Needs the data backbone, risk/compliance input on
+acceptable automated adaptations, and collaboration with the research team for
+feature sourcing.
+
+### Stream C – Execution, risk, compliance, and ops readiness
+
+**Mission** – Graduate from the in-memory simulator to institutional-grade
+execution and governance with supervised async lifecycles and documented controls.
+
+**Key deliverables**
+
+- FIX/EMS adapter pilot with retry/backoff, drop-copy ingestion, and reconciling
+  ledgers.
+- Expanded risk engine enforcing tiered limits, drawdown guards, leverage checks,
+  and configurable rule sets stored in version-controlled policy files.
+- Compliance starter kits turned into executable workflows: KYC/AML checklist,
+  MiFID II transaction reporting drafts, audit-trail persistence, and operator
+  review cadences.
+- Operational hardening: monitoring SLOs, alert routing, security controls,
+  credential rotation playbooks, backup/restore runbooks.
+- Evidence log demonstrating ROI metrics, cost savings, and institutional readiness
+  improvements for stakeholder communications.
+
+**Dependencies & context** – Builds on Streams A/B, the observability roadmap, and
+ongoing documentation updates to keep operators and compliance informed.
 
 ## Long-horizon remediation plan
 
 | Timeline | Outcomes | Key workstreams |
 | --- | --- | --- |
-| **0–3 months (Stabilise)** | Runtime entrypoints untangled, validation baseline back to green, and risk controls enforce existing policies. | - Build an application builder with clear ingestion/live-trading CLIs and rehearsed rollback steps.<br>- Inventory background tasks, migrate them into supervised groups, and add shutdown/regression coverage.<br>- Map every failing `system_validation_report.json` check to an owned ticket with acceptance tests.<br>- Document the risk enforcement plan and operator playbooks so onboarding keeps pace with the refactor. |
-| **3–6 months (Harden & modularise)** | Async adapters, FIX bridges, and orchestration loops become resilient services with first-class telemetry. | - Replace ad-hoc event loops with structured async bridges and reconnect/backoff logic.<br>- Broaden regression/testing scope (legacy suites, load scenarios) while capturing coverage trends.<br>- Publish runtime and observability runbooks that describe steady-state metrics and failure drills.<br>- Align governance: document the safety config review workflow and embed it into the release checklist. |
-| **6–12 months (Evolve)** | Runtime components support scaling and regulatory scrutiny with policy versioning and continuous validation. | - Introduce configuration-as-code for risk policies, including audit history and multi-tier deployment support.<br>- Evaluate carving FIX/orchestration into separately deployable services with health endpoints and metrics.<br>- Establish continuous system validation (dashboards, alerts, and chaos drills) to guard against regression drift.<br>- Rationalise optional dependencies (UI stacks, Pydantic v2 migration) and publish SBOM artefacts. |
+| **0–3 months (Align & prototype)** | Concept promises decomposed into epics, first production data slice live, and sensory/evolution scaffolds in place. | - Publish alignment briefs and context packs linking encyclopedia excerpts to code gaps.<br>- Deploy the TimescaleDB prototype with ingest smoke tests and Redis/Kafka design notes.<br>- Implement HOW organ skeleton, revive anomaly hooks, and replace stub genomes with historical seeds.<br>- Clarify compliance tone in public docs and capture validation hypotheses for ROI claims. |
+| **3–6 months (Build & integrate)** | Data backbone reliable in CI/staging, sensors and evolution engine operating on new feeds, compliance workflows documented. | - Harden TimescaleDB/Redis/Kafka services with monitoring, backups, and orchestration toggles.<br>- Finish 4D+1 sensor uplift, integrate anomaly analytics, and run paper-trading evolution experiments.<br>- Deliver compliance starter kits, risk policy files, and operational telemetry for new services.<br>- Begin FIX/EMS adapter pilot with supervised async patterns and reconciliation tests. |
+| **6–12 months (Institutionalise)** | Execution stack, risk controls, and compliance workflows withstand institutional scrutiny with evidence-backed ROI. | - Expand into Spark batch analytics, tiered deployment automation, and failover drills.<br>- Onboard real broker integrations with audit trails, policy versioning, and continuous validation dashboards.<br>- Track ROI metrics (cost savings, capital efficiency) and iterate marketing claims based on data.<br>- Prepare external audits or partner reviews leveraging the evidence log and documentation corpus. |
 
 ## Portfolio snapshot
 
 | Initiative | Phase | Outcome we need | Current status | Next checkpoint |
 | --- | --- | --- | --- | --- |
-| Formatter normalization | 6 | Repository passes `ruff format --check .` without relying on an allowlist. | Stage 4 enforces `src/sensory/`, all data foundation packages, and the `src/data_integration/`, `src/operational/`, and `src/performance/` directories; only tooling helpers remain outside the formatter guard. | Format `scripts/check_formatter_allowlist.py` helpers and plan the allowlist retirement (Week 4). |
-| Regression depth in trading & risk | 7 | Coverage hotspots wrapped in deterministic regression suites. | Regression suites now cover execution-engine partial fills/retries, risk drawdown recovery, and property-based order mutations alongside the existing FIX, config, and orchestration smoke tests. | Capture coverage deltas in `docs/status/ci_health.md` and plan the orchestration + risk end-to-end scenario. |
-| Operational telemetry & alerting | 8 | CI failures surface automatically with actionable context. | GitHub issue automation is live, alert drills run via the `alert_drill` dispatch, and flake telemetry is stored in git. Slack/webhook mirroring and dashboards remain open. | Document the webhook rollout plan, schedule quarterly drills, and surface telemetry trends in the CI health dashboard. |
-| Dead code remediation & modular cleanup | 9 | Dead-code audit remains actionable and high-fanin modules are decomposed. | Latest audit triage logged; unused imports removed. Structural decomposition for `src/core/` families and supporting docs are still outstanding. | Deliver the first decomposition PR (targeting `src/core/state_store.py` dependents) with updated documentation and audit sign-off. |
-| Runtime orchestration & risk hardening | 10 | Runtime entrypoints, async lifecycles, and safety controls are production-ready. | Technical debt review identified monolithic orchestration, unsupervised async tasks, hollow risk enforcement, and API drift. | Deliver the runtime builder design, async supervision migration map, risk enforcement roadmap, API cleanup checklist, and observability/governance playbook (Week 4). |
+| Institutional data backbone | A | Bootstrap ingest upgraded to TimescaleDB + Redis + Kafka with switchable tiers and recovery drills documented. | TimescaleDB prototype underway; Redis/Kafka designs captured in alignment briefs; DuckDB/CSV helpers still power production runs. | Ship the prototype ingest slice with smoke tests and publish orchestration switch design (Week 4). |
+| Sensory cortex & evolution uplift | B | All five sensory organs online with calibrated feeds and the evolution engine managing real genomes under feature flags. | WHY/WHAT/WHEN heuristics live; HOW absent; ANOMALY stubbed; evolution Tier‑2 disabled. Alignment brief drafted with data requirements. | Implement HOW organ skeleton, anomaly scaffolding, and seed genomes; integrate into staging runtime (Week 6). |
+| Execution, risk, compliance, ops readiness | C | Broker/FIX integration pilot operating with expanded risk controls, compliance workflows, and observability. | In-memory simulator still primary path; compliance/audit shims empty; risk checks minimal. Compliance starter kit outline drafted. | Finalise risk policy file format, document compliance workflows, and begin FIX adapter spike (Week 8). |
+| Supporting modernization (formatter, regression, telemetry) | Legacy | Foundational hygiene remains green while high-impact streams ramp up. | Formatter Stage 4 landed, regression suites expanded, telemetry automation live; follow-on cleanups pending. | Keep CI health snapshot current and scope maintenance tickets so core teams stay unblocked. |
 
 ## Active modernization streams
+
+Legacy initiatives below remain in flight to keep the repo healthy while the
+document-driven streams ramp. Treat them as supporting tracks—ensure they stay
+green but do not let them crowd out the higher leverage work above.
 
 ### Initiative 1 – Formatter normalization (Phase 6)
 

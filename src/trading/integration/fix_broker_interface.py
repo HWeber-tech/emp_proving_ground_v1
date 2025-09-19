@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from contextlib import suppress
 from datetime import datetime
 
 # Add typing for callbacks and awaitables
@@ -43,26 +44,52 @@ class FIXBrokerInterface:
         self._order_update_listeners: list[
             Callable[[str, dict[str, Any]], None] | Callable[[str, dict[str, Any]], Awaitable[None]]
         ] = []  # callbacks taking (order_id: str, update: dict[str, Any])
+        self._trade_task: asyncio.Task[Any] | None = None
 
     async def start(self) -> None:
         """Start the broker interface."""
+        if self.running:
+            return
+
         self.running = True
         logger.info("FIX broker interface started")
 
         # Start message processing
-        asyncio.create_task(self._process_trade_messages())
+        self._trade_task = asyncio.create_task(
+            self._process_trade_messages(),
+            name="fix-broker-trade-feed",
+        )
 
     async def stop(self) -> None:
         """Stop the broker interface."""
+        if not self.running:
+            return
+
         self.running = False
+        task = self._trade_task
+        if task is not None:
+            task.cancel()
+            with suppress(asyncio.CancelledError):
+                await task
+        self._trade_task = None
         logger.info("FIX broker interface stopped")
 
     async def _process_trade_messages(self) -> None:
         """Process trade messages from the queue."""
-        while self.running:
-            try:
-                # Get message from queue
-                message = await self.trade_queue.get()
+        try:
+            while True:
+                try:
+                    message = await self.trade_queue.get()
+                except asyncio.CancelledError:
+                    break
+
+                if not self.running:
+                    if message is None:
+                        break
+                    continue
+
+                if message is None:
+                    continue
 
                 # Process based on message type
                 msg_type = message.get(35)
@@ -72,8 +99,10 @@ class FIXBrokerInterface:
                 elif msg_type == b"9":  # Order Cancel Reject
                     await self._handle_order_cancel_reject(message)
 
-            except Exception as e:
-                logger.error(f"Error processing trade message: {e}")
+        except asyncio.CancelledError:
+            logger.debug("FIX broker trade task cancelled")
+        except Exception as e:
+            logger.error(f"Error processing trade message: {e}")
 
     async def _handle_execution_report(self, message: Any) -> None:
         """Handle execution report messages from FIX.

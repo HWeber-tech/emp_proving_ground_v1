@@ -1,248 +1,121 @@
 #!/usr/bin/env python3
-"""
-EMP v4.0 Professional Predator - Master Switch Integration
-
-Complete system with configurable protocol selection (FIX vs OpenAPI)
-This is the final integration of Sprint 1: The Professional Upgrade
-"""
+"""Professional Predator runtime entrypoint with explicit lifecycle management."""
 
 import argparse
 import asyncio
 import logging
 import sys
-from datetime import datetime
 from pathlib import Path
 
-# Add src to path
-sys.path.insert(0, str(Path(__file__).parent))
-
-from typing import Optional
-
-from src.core.event_bus import EventBus
-from src.governance.safety_manager import SafetyManager
-from src.governance.system_config import SystemConfig
-from src.operational.fix_connection_manager import FIXConnectionManager
-
-# Protocol-specific components (FIX-only)
-from src.sensory.organs.fix_sensory_organ import FIXSensoryOrgan
-from src.sensory.what.what_sensor import WhatSensor
-from src.sensory.when.when_sensor import WhenSensor
-from src.sensory.why.why_sensor import WhySensor
-from src.trading.integration.fix_broker_interface import FIXBrokerInterface
+from src.governance.system_config import EmpTier, SystemConfig
+from src.runtime.predator_app import ProfessionalPredatorApp, build_professional_predator_app
 
 logger = logging.getLogger(__name__)
 
 
-class EMPProfessionalPredator:
-    """Professional-grade trading system with configurable protocol selection."""
-    
-    def __init__(self):
-        # Initialize configuration and event bus immediately to avoid Optional typing ambiguity
-        self.config: SystemConfig = SystemConfig()
-        self.event_bus: EventBus = EventBus()
+async def _run_tier0_ingest(
+    app: ProfessionalPredatorApp,
+    *,
+    symbols_csv: str,
+    db_path: str,
+) -> None:
+    """Execute Tier-0 ingest and fan out data through the configured sensors."""
 
-        self.fix_connection_manager = None
-        self.sensory_organ = None
-        self.broker_interface = None
-        self.running = False
-        # Sensors (present in repository)
-        self.why_sensor = WhySensor()
-        self.what_sensor = WhatSensor()
-        self.when_sensor = WhenSensor()
-        
-    async def initialize(self, config_path: Optional[str] = None):
-        """Initialize the professional predator system."""
-        try:
-            logger.info("🚀 Initializing EMP v4.0 Professional Predator")
+    from src.data_foundation.ingest.yahoo_ingest import fetch_daily_bars, store_duckdb
 
-            # Configuration and event bus already initialized in __init__
-            logger.info("✅ Configuration loaded: EMP v4.0 Professional Predator")
-            logger.info(f"🔧 Protocol: {self.config.connection_protocol}")
-            logger.info(f"🧰 Run mode: {getattr(self.config, 'run_mode', 'paper')}")
+    symbols = [s.strip() for s in symbols_csv.split(",") if s.strip()]
+    if not symbols:
+        logger.info("No symbols supplied for Tier-0 ingest; skipping")
+        return
 
-            # Safety guardrails
-            SafetyManager.from_config(self.config).enforce()
+    logger.info("📥 Tier-0 ingest for %s", symbols)
+    sensor_items = list(app.sensors.items())
+    destination = Path(db_path)
 
-            # Tier selection log
-            logger.info(f"🏷️ Tier selected: {getattr(self.config, 'emp_tier', 'tier_0')}")
+    def _ingest() -> tuple[int, int]:
+        df = fetch_daily_bars(symbols)
+        if df.empty:
+            return 0, 0
 
-            # Setup protocol-specific components with safety guardrails
-            await self._setup_live_components()
+        store_duckdb(df, destination)
 
-            logger.info("🎉 Professional Predator initialization complete")
+        total_signals = 0
+        for name, sensor in sensor_items:
+            try:
+                signals = sensor.process(df)
+            except Exception as exc:  # pragma: no cover - defensive logging
+                logger.warning("Sensor %s failed during Tier-0 ingest: %s", name, exc)
+            else:
+                total_signals += len(signals)
 
-        except Exception as e:
-            logger.error(f"❌ Error initializing Professional Predator: {e}")
-            raise
-            
-    async def _setup_live_components(self):
-        """Dynamically sets up sensory and trading layers based on protocol."""
-        logger.info(f"🔧 Setting up LIVE components using '{self.config.connection_protocol}' protocol")
-        
-        if self.config.connection_protocol == "fix":
-            # --- SETUP FOR PROFESSIONAL FIX PROTOCOL ---
-            logger.info("🎯 Configuring FIX protocol components")
-            
-            # 1. Start the FIX Connection Manager
-            self.fix_connection_manager = FIXConnectionManager(self.config)
-            self.fix_connection_manager.start_sessions()
-            
-            # 2. Create message queues for thread-safe communication
-            price_queue = asyncio.Queue()
-            trade_queue = asyncio.Queue()
-            
-            # 3. Configure FIX applications with queues
-            price_app = self.fix_connection_manager.get_application("price")
-            trade_app = self.fix_connection_manager.get_application("trade")
-            
-            if price_app:
-                price_app.set_message_queue(price_queue)
-            if trade_app:
-                trade_app.set_message_queue(trade_queue)
-            
-            # 4. Instantiate FIX-based components
-            self.sensory_organ = FIXSensoryOrgan(self.event_bus, price_queue, self.config)
-            self.broker_interface = FIXBrokerInterface(
-                self.event_bus, 
-                trade_queue, 
-                self.fix_connection_manager.get_initiator("trade")
-            )
-            
-            logger.info("✅ FIX components configured successfully")
-            
-        elif self.config.connection_protocol == "openapi":
-            # OpenAPI has been removed per project policy. Use FIX exclusively.
-            raise ValueError(
-                "OpenAPI connectivity is disabled. Set CONNECTION_PROTOCOL=fix and follow docs/fix_api guides."
-            )
-            
-        else:
-            raise ValueError(f"❌ Unsupported connection protocol: {self.config.connection_protocol}")
-        
-        # 5. Inject chosen components into protocol-agnostic managers
-        # Note: These would be integrated with the actual system managers
-        logger.info(f"✅ Successfully configured {self.sensory_organ.__class__.__name__} and {self.broker_interface.__class__.__name__}")
-    
-    def _enforce_guardrails(self) -> None:
-        # Deprecated: guardrails moved to SafetyManager
-        SafetyManager.from_config(self.config).enforce()
-        
-    async def run(self):
-        """Run the professional predator system."""
-        try:
-            self.running = True
-            logger.info("🎯 Professional Predator system started")
-            
-            # Display system status
-            summary = await self.get_system_summary()
-            logger.info("📊 System Summary:")
-            for key, value in summary.items():
-                logger.info(f"  {key}: {value}")
-                
-            logger.info("🎉 Professional Predator running successfully!")
-            
-            # Keep running for monitoring
-            while self.running:
-                await asyncio.sleep(60)  # Check every minute
-                
-        except KeyboardInterrupt:
-            logger.info("⏹️ Received shutdown signal")
-        except Exception as e:
-            logger.error(f"❌ Professional Predator error: {e}")
-        finally:
-            await self.shutdown()
-            
-    async def shutdown(self):
-        """Shutdown the professional predator system."""
-        try:
-            logger.info("🛑 Shutting down Professional Predator")
-            self.running = False
-            
-            if self.fix_connection_manager:
-                self.fix_connection_manager.stop_sessions()
-                logger.info("✅ FIX connections stopped")
-                
-            if self.event_bus:
-                logger.info("✅ Event bus shutdown")
-                
-            logger.info("✅ Professional Predator shutdown complete")
-        except Exception as e:
-            logger.error(f"❌ Shutdown error: {e}")
-            
-    async def get_system_summary(self) -> dict:
-        """Get comprehensive system summary."""
-        return {
-            'version': '4.0',
-            'protocol': self.config.connection_protocol,
-            'status': 'RUNNING',
-            'timestamp': datetime.now().isoformat(),
-            'components': {
-                'sensory_organ': self.sensory_organ.__class__.__name__ if self.sensory_organ else None,
-                'broker_interface': self.broker_interface.__class__.__name__ if self.broker_interface else None,
-                'fix_manager': 'FIXConnectionManager' if self.fix_connection_manager else None
-            }
-        }
+        return len(df), total_signals
+
+    try:
+        rows, signal_count = await asyncio.to_thread(_ingest)
+    except Exception as exc:  # pragma: no cover - defensive logging
+        logger.warning("Tier-0 ingest failed (continuing): %s", exc)
+        return
+
+    if rows:
+        logger.info("✅ Stored %s rows to %s", rows, db_path)
+    logger.info("🧠 Signals produced: count=%s", signal_count)
 
 
-async def main():
+async def main() -> None:
     """Main entry point for Professional Predator."""
-    # Configure logging
+
     logging.basicConfig(
         level=logging.INFO,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     )
-    # Enforce scientific stack integrity at runtime (fail-fast if missing/mismatched)
+
     from src.system.requirements_check import assert_scientific_stack
+
     assert_scientific_stack()
-    
-    # CLI
-    parser = argparse.ArgumentParser(description='EMP Professional Predator')
-    parser.add_argument('--skip-ingest', action='store_true', help='Skip Tier-0 data ingestion at startup')
-    parser.add_argument('--symbols', type=str, default='EURUSD,GBPUSD', help='Comma-separated symbols for Tier-0 ingest')
-    parser.add_argument('--db', type=str, default='data/tier0.duckdb', help='DuckDB path for Tier-0 ingest')
+
+    parser = argparse.ArgumentParser(description="EMP Professional Predator")
+    parser.add_argument("--skip-ingest", action="store_true", help="Skip Tier-0 data ingestion at startup")
+    parser.add_argument("--symbols", type=str, default="EURUSD,GBPUSD", help="Comma-separated symbols for Tier-0 ingest")
+    parser.add_argument("--db", type=str, default="data/tier0.duckdb", help="DuckDB path for Tier-0 ingest")
     args, _ = parser.parse_known_args()
 
-    # Create and run Professional Predator
-    system = EMPProfessionalPredator()
-    
     try:
-        await system.initialize()
+        app = await build_professional_predator_app(config=SystemConfig.from_env())
+    except Exception:
+        logger.exception("❌ Error initializing Professional Predator")
+        raise
 
-        # Branch on tier
-        emp_tier = getattr(system.config, 'emp_tier', 'tier_0')
-        logger.info(f"Tier behavior: {emp_tier}")
-        if emp_tier == 'tier_0' and not args.skip_ingest:
-            try:
-                from pathlib import Path
+    try:
+        async with app:
+            summary = app.summary()
+            logger.info("📊 System Summary:")
+            for key, value in summary.items():
+                if key == "components" and isinstance(value, dict):
+                    logger.info("  components:")
+                    for comp_key, comp_val in value.items():
+                        logger.info("    %s: %s", comp_key, comp_val)
+                else:
+                    logger.info("  %s: %s", key, value)
 
-                from src.data_foundation.ingest.yahoo_ingest import fetch_daily_bars, store_duckdb
-                symbols = [s.strip() for s in args.symbols.split(',') if s.strip()]
-                logger.info(f"📥 Tier-0 ingest for {symbols}")
-                df = fetch_daily_bars(symbols)
-                if not df.empty:
-                    store_duckdb(df, Path(args.db))
-                    logger.info(f"✅ Stored {len(df)} rows to {args.db}")
-                    # Run 4D+1 sensors and integrate
-                    try:
-                        signals = []
-                        for sensor in [system.why_sensor, system.what_sensor, system.when_sensor]:
-                            if sensor:
-                                signals.extend(sensor.process(df))
-                        logger.info(f"🧠 Signals produced: count={len(signals)}")
-                    except Exception as e:
-                        logger.warning(f"Sensor integration failed: {e}")
-            except Exception as e:
-                logger.warning(f"Tier-0 ingest failed (continuing): {e}")
-        elif emp_tier == 'tier_1':
-            logger.info("🧩 Tier-1 (Timescale/Redis) not implemented yet")
-        elif emp_tier == 'tier_2':
-            raise NotImplementedError("Tier-2 evolutionary mode is not yet supported")
+            tier = app.config.tier
+            if tier is EmpTier.tier_0 and not args.skip_ingest:
+                await _run_tier0_ingest(app, symbols_csv=args.symbols, db_path=args.db)
+            elif tier is EmpTier.tier_1:
+                logger.info("🧩 Tier-1 (Timescale/Redis) not implemented yet")
+            elif tier is EmpTier.tier_2:
+                raise NotImplementedError("Tier-2 evolutionary mode is not yet supported")
 
-        await system.run()
-    except Exception as e:
-        logger.error(f"❌ Professional Predator failed: {e}")
-        sys.exit(1)
+            await app.run_forever()
+    except asyncio.CancelledError:
+        logger.info("⏹️ Received cancellation signal")
+        raise
+    except Exception:
+        logger.exception("❌ Professional Predator failed")
+        raise
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except Exception:
+        sys.exit(1)

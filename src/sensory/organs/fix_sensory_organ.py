@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from contextlib import suppress
 from datetime import datetime
 from typing import Any
 
@@ -31,26 +32,52 @@ class FIXSensoryOrgan:
         self.running = False
         self.market_data: dict[str, dict[str, Any]] = {}
         self.symbols: list[str] = []
+        self._price_task: asyncio.Task[Any] | None = None
 
     async def start(self) -> None:
         """Start the sensory organ."""
+        if self.running:
+            return
+
         self.running = True
         logger.info("FIX sensory organ started")
 
         # Start message processing
-        asyncio.create_task(self._process_price_messages())
+        self._price_task = asyncio.create_task(
+            self._process_price_messages(),
+            name="fix-sensory-price-feed",
+        )
 
     async def stop(self) -> None:
         """Stop the sensory organ."""
+        if not self.running:
+            return
+
         self.running = False
+        task = self._price_task
+        if task is not None:
+            task.cancel()
+            with suppress(asyncio.CancelledError):
+                await task
+        self._price_task = None
         logger.info("FIX sensory organ stopped")
 
     async def _process_price_messages(self) -> None:
         """Process price messages from the queue."""
-        while self.running:
-            try:
-                # Get message from queue
-                message = await self.price_queue.get()
+        try:
+            while True:
+                try:
+                    message = await self.price_queue.get()
+                except asyncio.CancelledError:
+                    break
+
+                if not self.running:
+                    if message is None:
+                        break
+                    continue
+
+                if message is None:
+                    continue
 
                 # Process based on message type
                 msg_type = message.get(35)
@@ -60,8 +87,10 @@ class FIXSensoryOrgan:
                 elif msg_type == b"X":  # MarketDataIncrementalRefresh
                     await self._handle_market_data_incremental(message)
 
-            except Exception as e:
-                logger.error(f"Error processing price message: {e}")
+        except asyncio.CancelledError:
+            logger.debug("FIX sensory organ price task cancelled")
+        except Exception as e:
+            logger.error(f"Error processing price message: {e}")
 
     async def _handle_market_data_snapshot(self, message: Any) -> None:
         """Handle market data snapshot messages."""

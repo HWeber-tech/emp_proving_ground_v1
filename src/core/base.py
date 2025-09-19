@@ -60,6 +60,7 @@ class DimensionalReading:
     signal_strength: float
     confidence: float = 0.0
     regime: MarketRegime = MarketRegime.UNKNOWN
+    timestamp: datetime | None = None
     context: dict[str, object] = field(default_factory=dict)
     data_quality: float = 1.0
     processing_time_ms: float = 0.0

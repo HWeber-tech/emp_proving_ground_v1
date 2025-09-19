@@ -29,6 +29,8 @@ class EmpEnvironment(StrEnum):
 
 
 class ConnectionProtocol(StrEnum):
+    bootstrap = "bootstrap"
+    paper = "paper"
     fix = "fix"
 
 
@@ -99,7 +101,7 @@ class SystemConfig:
     environment: EmpEnvironment = EmpEnvironment.demo
     tier: EmpTier = EmpTier.tier_0
     confirm_live: bool = False
-    connection_protocol: ConnectionProtocol = ConnectionProtocol.fix
+    connection_protocol: ConnectionProtocol = ConnectionProtocol.bootstrap
     extras: dict[str, str] = field(default_factory=lambda: {})
 
     # Backward-compatible string views for legacy comparisons
@@ -214,9 +216,16 @@ class SystemConfig:
 
         # CONNECTION_PROTOCOL
         raw_cp = env.get("CONNECTION_PROTOCOL")
-        if raw_cp is not None and not _is_valid_enum_value(raw_cp, ConnectionProtocol):
+        cp_aliases: Mapping[str, ConnectionProtocol] = {
+            "mock": ConnectionProtocol.bootstrap,
+            "bootstrap": ConnectionProtocol.bootstrap,
+            "paper": ConnectionProtocol.paper,
+        }
+        if raw_cp is not None and not _is_valid_enum_value(raw_cp, ConnectionProtocol, cp_aliases):
             _mark_invalid("CONNECTION_PROTOCOL", raw_cp, base.connection_protocol.value)
-        connection_protocol = _coerce_enum(raw_cp, ConnectionProtocol, base.connection_protocol)
+        connection_protocol = _coerce_enum(
+            raw_cp, ConnectionProtocol, base.connection_protocol, cp_aliases
+        )
 
         # Include all other non-recognized env entries in extras (stringify values)
         for k, v in env.items():
@@ -259,8 +268,15 @@ class SystemConfig:
             confirm_live = _coerce_bool(v_cl, confirm_live)
         if "connection_protocol" in overrides:
             v_cp = overrides["connection_protocol"]
+            cp_aliases = {
+                "mock": ConnectionProtocol.bootstrap,
+                "bootstrap": ConnectionProtocol.bootstrap,
+                "paper": ConnectionProtocol.paper,
+            }
             connection_protocol = (
-                v_cp if isinstance(v_cp, ConnectionProtocol) else _coerce_enum(v_cp, ConnectionProtocol, connection_protocol)
+                v_cp
+                if isinstance(v_cp, ConnectionProtocol)
+                else _coerce_enum(v_cp, ConnectionProtocol, connection_protocol, cp_aliases)
             )
         if "extras" in overrides:
             new_extras = overrides["extras"]

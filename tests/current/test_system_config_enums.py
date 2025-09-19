@@ -16,7 +16,7 @@ def test_defaults_match_ci():
     assert cfg.run_mode is RunMode.paper
     assert cfg.environment is EmpEnvironment.demo
     assert cfg.tier is EmpTier.tier_0
-    assert cfg.connection_protocol is ConnectionProtocol.fix
+    assert cfg.connection_protocol is ConnectionProtocol.bootstrap
     assert cfg.confirm_live is False
 
 
@@ -26,14 +26,14 @@ def test_case_insensitive_and_aliases():
         "EMP_ENVIRONMENT": "DEMO",
         "EMP_TIER": "Tier-1",
         "CONFIRM_LIVE": "True",
-        "CONNECTION_PROTOCOL": "FIX",
+        "CONNECTION_PROTOCOL": "mock",
     }
     cfg = SystemConfig.from_env(env)
     assert cfg.run_mode is RunMode.paper
     assert cfg.environment is EmpEnvironment.demo
     assert cfg.tier is EmpTier.tier_1
     assert cfg.confirm_live is True
-    assert cfg.connection_protocol is ConnectionProtocol.fix
+    assert cfg.connection_protocol is ConnectionProtocol.bootstrap
 
 
 def test_bad_values_fallback():
@@ -69,7 +69,7 @@ def test_to_env_roundtrip():
         environment=EmpEnvironment.staging,
         tier=EmpTier.tier_2,
         confirm_live=True,
-        connection_protocol=ConnectionProtocol.fix,
+        connection_protocol=ConnectionProtocol.paper,
     )
     env = cfg.to_env()
     cfg2 = SystemConfig.from_env(env)
@@ -77,7 +77,7 @@ def test_to_env_roundtrip():
     assert cfg2.environment is EmpEnvironment.staging
     assert cfg2.tier is EmpTier.tier_2
     assert cfg2.confirm_live is True
-    assert cfg2.connection_protocol is ConnectionProtocol.fix
+    assert cfg2.connection_protocol is ConnectionProtocol.paper
 
 
 def test_string_views():

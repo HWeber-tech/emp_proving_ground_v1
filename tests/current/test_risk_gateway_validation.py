@@ -1,0 +1,163 @@
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from datetime import datetime, timedelta, timezone
+from decimal import Decimal
+from typing import Any, Mapping
+
+import pytest
+
+from src.core.base import MarketData
+from src.core.event_bus import EventBus
+from src.core.risk.position_sizing import position_size
+from src.trading.liquidity.depth_aware_prober import DepthAwareLiquidityProber
+from src.trading.monitoring.portfolio_monitor import InMemoryRedis, PortfolioMonitor
+from src.trading.risk.risk_gateway import RiskGateway
+
+
+class DummyStrategyRegistry:
+    def __init__(self, *, active: bool = True) -> None:
+        self._active = active
+
+    def get_strategy(self, strategy_id: str) -> Mapping[str, Any] | None:  # pragma: no cover - exercised in tests
+        return {"status": "active" if self._active else "inactive"}
+
+
+class DummyLiquidityProber:
+    def __init__(self, score: float = 0.85) -> None:
+        self.score = score
+        self.last_probe: tuple[str, list[float], str] | None = None
+
+    async def probe_liquidity(self, symbol: str, price_levels: list[float], side: str):
+        self.last_probe = (symbol, price_levels, side)
+        return {price: 2.0 for price in price_levels}
+
+    def calculate_liquidity_confidence_score(self, probe_results, intended_volume: float) -> float:
+        return self.score
+
+    def get_probe_summary(self, probe_results) -> Mapping[str, Any]:
+        return {
+            "total_levels": len(probe_results),
+            "total_liquidity": sum(probe_results.values()),
+        }
+
+
+@dataclass
+class Intent:
+    symbol: str
+    quantity: Decimal
+    side: str = "BUY"
+    price: Decimal = Decimal("1.1000")
+    confidence: float = 0.9
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+
+@pytest.fixture()
+def portfolio_monitor() -> PortfolioMonitor:
+    event_bus = EventBus()
+    monitor = PortfolioMonitor(event_bus, InMemoryRedis())
+    monitor.portfolio["cash"] = 1000.0
+    monitor.portfolio["daily_pnl"] = 0.0
+    monitor.portfolio["open_positions"] = {}
+    return monitor
+
+
+@pytest.mark.asyncio()
+async def test_risk_gateway_rejects_when_drawdown_exceeded(portfolio_monitor: PortfolioMonitor) -> None:
+    registry = DummyStrategyRegistry(active=True)
+    gateway = RiskGateway(
+        strategy_registry=registry,
+        position_sizer=None,
+        portfolio_monitor=portfolio_monitor,
+        max_daily_drawdown=0.05,
+    )
+
+    state = portfolio_monitor.get_state()
+    state["current_daily_drawdown"] = 0.12
+
+    result = await gateway.validate_trade_intent(Intent("EURUSD", Decimal("1")), state)
+
+    assert result is None
+    last_decision = gateway.get_last_decision()
+    assert last_decision is not None
+    assert last_decision.get("reason") == "max_drawdown_exceeded"
+
+
+@pytest.mark.asyncio()
+async def test_risk_gateway_clips_position_and_adds_liquidity_metadata(
+    portfolio_monitor: PortfolioMonitor,
+) -> None:
+    registry = DummyStrategyRegistry(active=True)
+    liquidity_prober = DummyLiquidityProber(score=0.9)
+    gateway = RiskGateway(
+        strategy_registry=registry,
+        position_sizer=position_size,
+        portfolio_monitor=portfolio_monitor,
+        risk_per_trade=Decimal("0.001"),
+        max_open_positions=5,
+        liquidity_prober=liquidity_prober,
+        liquidity_probe_threshold=1.0,
+        min_liquidity_confidence=0.2,
+    )
+
+    intent = Intent("GBPUSD", Decimal("5"))
+    intent.metadata["stop_loss_pct"] = 0.5
+
+    state = portfolio_monitor.get_state()
+    state["current_daily_drawdown"] = 0.0
+
+    validated = await gateway.validate_trade_intent(intent, state)
+
+    assert validated is intent
+    assert liquidity_prober.last_probe is not None
+    # Risk gateway should clip down to recommended size from position sizing
+    assert intent.quantity == Decimal("2")
+    assessment = intent.metadata.get("risk_assessment", {})
+    assert assessment.get("liquidity_confidence") == pytest.approx(0.9)
+    assert gateway.get_last_decision().get("status") == "approved"
+
+
+@pytest.mark.asyncio()
+async def test_risk_gateway_rejects_on_insufficient_liquidity(
+    portfolio_monitor: PortfolioMonitor,
+) -> None:
+    registry = DummyStrategyRegistry(active=True)
+    liquidity_prober = DepthAwareLiquidityProber(max_history=4)
+
+    now = datetime.now(timezone.utc)
+    for depth in (40.0, 35.0):
+        liquidity_prober.record_snapshot(
+            "EURUSD",
+            MarketData(
+                symbol="EURUSD",
+                timestamp=now,
+                close=1.0998,
+                volume=150.0,
+                depth=depth,
+                spread=0.0003,
+                order_imbalance=-0.5,
+                data_quality=0.55,
+            ),
+        )
+        now += timedelta(seconds=1)
+
+    gateway = RiskGateway(
+        strategy_registry=registry,
+        position_sizer=None,
+        portfolio_monitor=portfolio_monitor,
+        liquidity_prober=liquidity_prober,
+        liquidity_probe_threshold=10.0,
+        min_liquidity_confidence=0.6,
+    )
+
+    state = portfolio_monitor.get_state()
+    state["current_daily_drawdown"] = 0.0
+
+    intent = Intent("EURUSD", Decimal("1000"), confidence=0.95)
+
+    result = await gateway.validate_trade_intent(intent, state)
+
+    assert result is None
+    decision = gateway.get_last_decision()
+    assert decision is not None
+    assert decision.get("reason") == "insufficient_liquidity"

@@ -5,6 +5,7 @@ import asyncio
 import inspect
 import logging
 from datetime import datetime
+from decimal import Decimal
 from types import MappingProxyType
 from typing import Any, Awaitable, Callable, Dict, Mapping, Optional, Protocol, Sequence, TYPE_CHECKING
 
@@ -17,6 +18,7 @@ from src.sensory.what.what_sensor import WhatSensor
 from src.sensory.when.when_sensor import WhenSensor
 from src.sensory.why.why_sensor import WhySensor
 from src.trading.integration.fix_broker_interface import FIXBrokerInterface
+from src.runtime.bootstrap_runtime import BootstrapRuntime
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
     import pandas as pd
@@ -238,6 +240,17 @@ class ProfessionalPredatorApp:
         if self.broker_interface and hasattr(self.broker_interface, "running"):
             components["broker_running"] = bool(getattr(self.broker_interface, "running"))
 
+        if self.sensory_organ and hasattr(self.sensory_organ, "status"):
+            try:
+                status_payload = getattr(self.sensory_organ, "status")()
+            except Exception:  # pragma: no cover - diagnostics should not fail summary
+                status_payload = None
+            if status_payload is not None:
+                if isinstance(status_payload, Mapping):
+                    components["sensory_status"] = dict(status_payload)
+                else:
+                    components["sensory_status"] = status_payload
+
         queue_metrics: Dict[str, Dict[str, int]] = {}
         if self.fix_connection_manager:
             price_app = self.fix_connection_manager.get_application("price")
@@ -293,6 +306,87 @@ def _ensure_fix_components(
     return fix_connection_manager, sensory_organ, broker_interface
 
 
+def _default_sensors() -> Dict[str, MarketDataSensor]:
+    return {
+        "why": WhySensor(),
+        "what": WhatSensor(),
+        "when": WhenSensor(),
+    }
+
+
+def _extra_float(extras: Mapping[str, str], key: str, default: float) -> float:
+    raw = extras.get(key)
+    if raw is None:
+        return default
+    try:
+        return float(raw)
+    except (TypeError, ValueError):
+        return default
+
+
+def _extra_int(extras: Mapping[str, str], key: str, default: int | None) -> int | None:
+    raw = extras.get(key)
+    if raw is None:
+        return default
+    try:
+        return int(str(raw))
+    except (TypeError, ValueError):
+        return default
+
+
+def _extra_decimal(extras: Mapping[str, str], key: str, default: Decimal) -> Decimal:
+    raw = extras.get(key)
+    if raw is None:
+        return default
+    try:
+        return Decimal(str(raw))
+    except Exception:
+        return default
+
+
+def _extra_symbols(extras: Mapping[str, str], key: str) -> list[str]:
+    raw = extras.get(key)
+    if not raw:
+        return []
+    return [token.strip() for token in str(raw).split(",") if token.strip()]
+
+
+def _build_bootstrap_runtime(config: SystemConfig, bus: EventBus) -> BootstrapRuntime:
+    extras = config.extras or {}
+    symbols = _extra_symbols(extras, "BOOTSTRAP_SYMBOLS") or ["EURUSD"]
+    tick_interval = _extra_float(extras, "BOOTSTRAP_TICK_INTERVAL", 2.5)
+    max_ticks = _extra_int(extras, "BOOTSTRAP_MAX_TICKS", None)
+    buy_threshold = _extra_float(extras, "BOOTSTRAP_BUY_THRESHOLD", 0.25)
+    sell_threshold = _extra_float(extras, "BOOTSTRAP_SELL_THRESHOLD", 0.25)
+    quantity = _extra_decimal(extras, "BOOTSTRAP_ORDER_SIZE", Decimal("1"))
+    stop_loss_pct = _extra_float(extras, "BOOTSTRAP_STOP_LOSS_PCT", 0.01)
+    risk_per_trade = _extra_float(extras, "BOOTSTRAP_RISK_PER_TRADE", 0.02)
+    max_positions = _extra_int(extras, "BOOTSTRAP_MAX_POSITIONS", 5) or 5
+    max_drawdown = _extra_float(extras, "BOOTSTRAP_MAX_DRAWDOWN", 0.1)
+    initial_equity = _extra_float(extras, "BOOTSTRAP_INITIAL_EQUITY", 100_000.0)
+    min_confidence = _extra_float(extras, "BOOTSTRAP_MIN_CONFIDENCE", 0.05)
+    min_liq_conf = _extra_float(extras, "BOOTSTRAP_MIN_LIQ_CONF", 0.25)
+    strategy_id = extras.get("BOOTSTRAP_STRATEGY_ID", "bootstrap-strategy")
+
+    return BootstrapRuntime(
+        event_bus=bus,
+        symbols=symbols,
+        tick_interval=tick_interval,
+        max_ticks=max_ticks,
+        strategy_id=strategy_id,
+        buy_threshold=buy_threshold,
+        sell_threshold=sell_threshold,
+        requested_quantity=quantity,
+        stop_loss_pct=stop_loss_pct,
+        risk_per_trade=risk_per_trade,
+        max_open_positions=max_positions,
+        max_daily_drawdown=max_drawdown,
+        initial_equity=initial_equity,
+        min_intent_confidence=min_confidence,
+        min_liquidity_confidence=min_liq_conf,
+    )
+
+
 async def build_professional_predator_app(
     *,
     config: Optional[SystemConfig] = None,
@@ -306,28 +400,34 @@ async def build_professional_predator_app(
     # Enforce guardrails before instantiating live components
     SafetyManager.from_config(cfg).enforce()
 
-    if cfg.connection_protocol != ConnectionProtocol.fix:
-        raise ValueError(
-            f"Unsupported connection protocol: {cfg.connection_protocol.value}. "
-            "Set CONNECTION_PROTOCOL=fix and follow docs/fix_api guides."
+    sensors = _default_sensors()
+
+    if cfg.connection_protocol is ConnectionProtocol.fix:
+        fix_manager, sensory_organ, broker_interface = _ensure_fix_components(cfg, bus)
+        app = ProfessionalPredatorApp(
+            config=cfg,
+            event_bus=bus,
+            sensory_organ=sensory_organ,
+            broker_interface=broker_interface,
+            fix_connection_manager=fix_manager,
+            sensors=sensors,
         )
+        app.add_cleanup_callback(fix_manager.stop_sessions)
+        return app
 
-    fix_manager, sensory_organ, broker_interface = _ensure_fix_components(cfg, bus)
+    if cfg.connection_protocol in (ConnectionProtocol.bootstrap, ConnectionProtocol.paper):
+        runtime = _build_bootstrap_runtime(cfg, bus)
+        app = ProfessionalPredatorApp(
+            config=cfg,
+            event_bus=bus,
+            sensory_organ=runtime,
+            broker_interface=None,
+            fix_connection_manager=None,
+            sensors=sensors,
+        )
+        return app
 
-    sensors: Dict[str, MarketDataSensor] = {
-        "why": WhySensor(),
-        "what": WhatSensor(),
-        "when": WhenSensor(),
-    }
-
-    app = ProfessionalPredatorApp(
-        config=cfg,
-        event_bus=bus,
-        sensory_organ=sensory_organ,
-        broker_interface=broker_interface,
-        fix_connection_manager=fix_manager,
-        sensors=sensors,
+    raise ValueError(
+        f"Unsupported connection protocol: {cfg.connection_protocol.value}. "
+        "Supported protocols: bootstrap, paper, fix."
     )
-
-    app.add_cleanup_callback(fix_manager.stop_sessions)
-    return app

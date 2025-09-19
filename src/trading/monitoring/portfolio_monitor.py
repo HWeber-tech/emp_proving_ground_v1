@@ -8,10 +8,13 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from datetime import datetime
-from typing import Optional, TypedDict, cast
+from datetime import date, datetime
+from typing import Any, Mapping, MutableMapping, Optional, Protocol, TypedDict, cast
 
-import redis
+try:  # pragma: no cover - fallback when redis not installed
+    import redis
+except Exception:  # pragma: no cover
+    redis = None  # type: ignore
 
 try:
     from src.core.events import ExecutionReport  # legacy
@@ -22,18 +25,54 @@ from src.core.event_bus import EventBus
 logger = logging.getLogger(__name__)
 
 
-class Position(TypedDict):
-    quantity: int
+def _as_float(value: object, default: float = 0.0) -> float:
+    try:
+        return float(value)
+    except Exception:
+        return default
+
+
+class Position(TypedDict, total=False):
+    quantity: float
     avg_price: float
     current_value: float
+    last_price: float
 
 
-class PortfolioState(TypedDict):
+class PortfolioState(TypedDict, total=False):
     cash: float
     open_positions: dict[str, Position]
     daily_pnl: float
     total_pnl: float
+    realized_pnl: float
+    unrealized_pnl: float
     last_updated: str
+    open_positions_count: int
+    equity: float
+    current_daily_drawdown: float
+    peak_equity: float
+    daily_equity_start: float
+    daily_reset_date: str
+
+
+class RedisLike(Protocol):
+    def get(self, key: str) -> object | None: ...
+
+    def set(self, key: str, value: object) -> object | None: ...
+
+
+class InMemoryRedis:
+    """Tiny in-memory Redis lookalike for offline/bootstrap environments."""
+
+    def __init__(self) -> None:
+        self._store: dict[str, object] = {}
+
+    def get(self, key: str) -> object | None:
+        return self._store.get(key)
+
+    def set(self, key: str, value: object) -> object:
+        self._store[key] = value
+        return value
 
 
 class PortfolioMonitor:
@@ -42,11 +81,18 @@ class PortfolioMonitor:
     Provides crash-resilient portfolio management
     """
 
-    def __init__(self, event_bus: EventBus, redis_client: redis.Redis):
+    def __init__(self, event_bus: EventBus, redis_client: RedisLike | None = None):
         self.event_bus = event_bus
-        self.redis_client = redis_client
+        self.redis_client: RedisLike = redis_client or InMemoryRedis()
         self.redis_key = "emp:portfolio_state"
         self.portfolio: PortfolioState = self._load_initial_state()
+        self._synthetic_position_holds = 0
+        self._daily_baseline_equity: float = 0.0
+        self._peak_equity: float = 0.0
+        self._last_reset_date: date = datetime.utcnow().date()
+
+        self._ensure_state_defaults()
+        self._update_pnl()
 
         # Subscribe to execution reports
         self.event_bus.subscribe("execution.report", self.on_execution_report)
@@ -88,6 +134,110 @@ class PortfolioMonitor:
         logger.info("Initialized with default portfolio state")
         return default_state
 
+    def _ensure_state_defaults(self) -> None:
+        """Normalise persisted state and seed derived metrics."""
+
+        cash = _as_float(self.portfolio.get("cash"), default=100000.0)
+        self.portfolio["cash"] = cash
+
+        raw_positions = self.portfolio.get("open_positions") or {}
+        normalised_positions: dict[str, Position] = {}
+        if isinstance(raw_positions, Mapping):
+            for raw_symbol, payload in raw_positions.items():
+                symbol = str(raw_symbol)
+                if not isinstance(payload, Mapping):
+                    continue
+                quantity = _as_float(payload.get("quantity"), default=0.0)
+                avg_price = _as_float(payload.get("avg_price"), default=0.0)
+                last_price = _as_float(payload.get("last_price"), default=avg_price)
+                normalised_positions[symbol] = {
+                    "quantity": quantity,
+                    "avg_price": avg_price,
+                    "last_price": last_price,
+                    "current_value": quantity * last_price,
+                }
+        self.portfolio["open_positions"] = normalised_positions
+
+        now = datetime.utcnow()
+        reset_marker = self.portfolio.get("daily_reset_date")
+        if isinstance(reset_marker, str):
+            try:
+                self._last_reset_date = datetime.fromisoformat(reset_marker).date()
+            except ValueError:
+                self._last_reset_date = now.date()
+        else:
+            self._last_reset_date = now.date()
+        self.portfolio["daily_reset_date"] = self._last_reset_date.isoformat()
+
+        equity, unrealized = self._revalue_positions()
+        realized = _as_float(self.portfolio.get("realized_pnl"), default=0.0)
+
+        self.portfolio["realized_pnl"] = float(realized)
+        self.portfolio["unrealized_pnl"] = float(unrealized)
+        self.portfolio["equity"] = float(equity)
+
+        baseline = _as_float(self.portfolio.get("daily_equity_start"), default=equity)
+        self._daily_baseline_equity = baseline
+        self.portfolio["daily_equity_start"] = float(baseline)
+
+        peak_equity = _as_float(self.portfolio.get("peak_equity"), default=equity)
+        self._peak_equity = max(peak_equity, equity)
+        self.portfolio["peak_equity"] = float(self._peak_equity)
+
+        self.portfolio.setdefault("daily_pnl", 0.0)
+        self.portfolio["total_pnl"] = float(realized + unrealized)
+        self.portfolio.setdefault("current_daily_drawdown", 0.0)
+
+    def _ensure_daily_reset(self, *, now: datetime | None = None) -> None:
+        """Reset daily metrics when the calendar day rolls over."""
+
+        current_time = now or datetime.utcnow()
+        current_date = current_time.date()
+        if self._last_reset_date == current_date:
+            return
+
+        equity, _ = self._revalue_positions()
+        self._daily_baseline_equity = equity
+        self._peak_equity = equity
+        self._last_reset_date = current_date
+        self.portfolio.update(
+            {
+                "daily_pnl": 0.0,
+                "daily_equity_start": float(equity),
+                "daily_reset_date": current_date.isoformat(),
+                "peak_equity": float(equity),
+            }
+        )
+
+    def _revalue_positions(self) -> tuple[float, float]:
+        """Return (equity, unrealized_pnl) using the latest known prices."""
+
+        cash = _as_float(self.portfolio.get("cash"), default=0.0)
+        total_value = cash
+        unrealized = 0.0
+        positions = self.portfolio.get("open_positions") or {}
+        if not isinstance(positions, MutableMapping):
+            return cash, 0.0
+
+        for symbol, position in list(positions.items()):
+            if not isinstance(position, MutableMapping):
+                continue
+            quantity = _as_float(position.get("quantity"), default=0.0)
+            avg_price = _as_float(position.get("avg_price"), default=0.0)
+            if abs(quantity) <= 1e-12:
+                position["quantity"] = 0.0
+                position["current_value"] = 0.0
+                position["last_price"] = avg_price
+                continue
+            last_price = _as_float(position.get("last_price"), default=avg_price)
+            position["last_price"] = last_price
+            position_value = quantity * last_price
+            position["current_value"] = position_value
+            total_value += position_value
+            unrealized += (last_price - avg_price) * quantity
+
+        return total_value, unrealized
+
     def _save_state_to_redis(self) -> None:
         """Persist current portfolio state to Redis"""
         try:
@@ -103,45 +253,65 @@ class PortfolioMonitor:
         try:
             logger.info(f"Processing execution report: {event}")
 
-            # Update cash based on trade
-            if event.side == "BUY":
-                self.portfolio["cash"] -= event.quantity * event.price
-            else:  # SELL
-                self.portfolio["cash"] += event.quantity * event.price
+            self._ensure_daily_reset()
 
-            # Update positions
-            symbol = event.symbol
-            if symbol not in self.portfolio["open_positions"]:
-                self.portfolio["open_positions"][symbol] = {
-                    "quantity": 0,
+            side = str(getattr(event, "side", "BUY")).upper()
+            quantity = _as_float(getattr(event, "quantity", 0.0), default=0.0)
+            price = _as_float(getattr(event, "price", 0.0), default=0.0)
+            symbol = str(getattr(event, "symbol", "UNKNOWN") or "UNKNOWN")
+
+            if quantity <= 0:
+                logger.info("Ignoring execution report with non-positive quantity")
+                self._update_pnl()
+                self._save_state_to_redis()
+                return
+
+            positions = self.portfolio.setdefault("open_positions", {})
+            position = positions.get(symbol)
+            if position is None:
+                position = {
+                    "quantity": 0.0,
                     "avg_price": 0.0,
                     "current_value": 0.0,
+                    "last_price": price,
                 }
+                positions[symbol] = position
 
-            position = self.portfolio["open_positions"][symbol]
+            existing_qty = _as_float(position.get("quantity"), default=0.0)
+            avg_price = _as_float(position.get("avg_price"), default=price)
 
-            if event.side == "BUY":
-                # Calculate new average price for buys
-                total_value = (position["quantity"] * position["avg_price"]) + (
-                    event.quantity * event.price
-                )
-                position["quantity"] += event.quantity
-                position["avg_price"] = (
-                    total_value / position["quantity"] if position["quantity"] > 0 else 0.0
-                )
-            else:  # SELL
-                position["quantity"] -= event.quantity
-                if position["quantity"] <= 0:
-                    # Position closed
-                    del self.portfolio["open_positions"][symbol]
+            if side == "BUY":
+                executed_qty = quantity
+                cash = _as_float(self.portfolio.get("cash"), default=0.0) - executed_qty * price
+                self.portfolio["cash"] = cash
+                total_value = existing_qty * avg_price + executed_qty * price
+                new_qty = existing_qty + executed_qty
+                if new_qty > 0:
+                    position["quantity"] = new_qty
+                    position["avg_price"] = total_value / new_qty
                 else:
-                    # Update position value
-                    position["current_value"] = position["quantity"] * event.price
+                    position["quantity"] = 0.0
+                    position["avg_price"] = price
+                position["last_price"] = price
+                position["current_value"] = position["quantity"] * price
+            else:
+                executed_qty = quantity if existing_qty <= 0 else min(existing_qty, quantity)
+                cash = _as_float(self.portfolio.get("cash"), default=0.0) + executed_qty * price
+                self.portfolio["cash"] = cash
+                realized_delta = (price - avg_price) * executed_qty
+                realized_total = _as_float(self.portfolio.get("realized_pnl"), default=0.0)
+                self.portfolio["realized_pnl"] = float(realized_total + realized_delta)
 
-            # Update P&L calculations
+                new_qty = existing_qty - executed_qty
+                if new_qty <= 0:
+                    positions.pop(symbol, None)
+                else:
+                    position["quantity"] = new_qty
+                    position["last_price"] = price
+                    position["current_value"] = new_qty * price
+
+            # Update derived metrics and persist state
             self._update_pnl()
-
-            # Persist state
             self._save_state_to_redis()
 
             logger.info(f"Portfolio updated: {self.portfolio}")
@@ -150,13 +320,71 @@ class PortfolioMonitor:
             logger.error(f"Error processing execution report: {e}")
 
     def _update_pnl(self) -> None:
-        """Update P&L calculations"""
-        # This is a simplified P&L calculation
-        # In a real system, this would use current market prices
+        """Recompute derived P&L and drawdown statistics."""
 
+        equity, unrealized = self._revalue_positions()
+        realized = _as_float(self.portfolio.get("realized_pnl"), default=0.0)
+
+        self._peak_equity = max(self._peak_equity, equity)
+
+        if self._daily_baseline_equity <= 0.0:
+            daily_pnl = 0.0
+            daily_drawdown = 0.0
+        else:
+            daily_pnl = equity - self._daily_baseline_equity
+            daily_drawdown = max(
+                0.0, (self._daily_baseline_equity - equity) / self._daily_baseline_equity
+            )
+
+        self.portfolio.update(
+            {
+                "equity": float(equity),
+                "unrealized_pnl": float(unrealized),
+                "total_pnl": float(realized + unrealized),
+                "daily_pnl": float(daily_pnl),
+                "current_daily_drawdown": float(daily_drawdown),
+                "daily_equity_start": float(self._daily_baseline_equity),
+                "peak_equity": float(self._peak_equity),
+            }
+        )
+
+    def get_state(self) -> PortfolioState:
+        """Return a defensive copy of the portfolio state with derived metrics."""
+
+        self._ensure_daily_reset()
+        self._update_pnl()
+
+        snapshot = cast(PortfolioState, json.loads(json.dumps(self.portfolio)))
+        snapshot["open_positions"] = cast(
+            dict[str, Position], dict(self.portfolio.get("open_positions", {}))
+        )
+        snapshot["last_updated"] = self.portfolio.get(
+            "last_updated", datetime.utcnow().isoformat()
+        )
+        snapshot["cash"] = float(self.portfolio.get("cash", 0.0))
+        snapshot["daily_pnl"] = float(self.portfolio.get("daily_pnl", 0.0))
+        snapshot["total_pnl"] = float(self.portfolio.get("total_pnl", 0.0))
+        snapshot["realized_pnl"] = float(self.portfolio.get("realized_pnl", 0.0))
+        snapshot["unrealized_pnl"] = float(self.portfolio.get("unrealized_pnl", 0.0))
+        snapshot["equity"] = float(self.portfolio.get("equity", 0.0))
+        snapshot["open_positions_count"] = self.get_open_position_count()
+        snapshot["current_daily_drawdown"] = float(
+            self.portfolio.get("current_daily_drawdown", 0.0)
+        )
+        snapshot["peak_equity"] = float(
+            self.portfolio.get("peak_equity", snapshot["equity"])
+        )
+        snapshot["daily_equity_start"] = float(
+            self.portfolio.get("daily_equity_start", self._daily_baseline_equity)
+        )
+        snapshot["daily_reset_date"] = self.portfolio.get(
+            "daily_reset_date", self._last_reset_date.isoformat()
+        )
+        return snapshot
+
+    # Backwards compatible alias
     def get_portfolio(self) -> dict[str, object]:
-        """Get current portfolio state"""
-        return cast(dict[str, object], self.portfolio.copy())
+        return cast(dict[str, object], self.get_state())
 
     def get_position(self, symbol: str) -> Optional[dict[str, object]]:
         """Get position for a specific symbol"""
@@ -164,13 +392,64 @@ class PortfolioMonitor:
 
     def get_total_value(self) -> float:
         """Calculate total portfolio value (cash + positions)"""
-        total_value: float = self.portfolio["cash"]
+        self._ensure_daily_reset()
+        self._update_pnl()
+        return float(self.portfolio.get("equity", 0.0))
 
-        # Add position values (using last known prices)
-        for symbol, position in self.portfolio["open_positions"].items():
-            total_value += float(position["current_value"])
+    def get_open_position_count(self) -> int:
+        """Return open position count including reserved synthetic slots."""
 
-        return float(total_value)
+        return len(self.portfolio["open_positions"]) + self._synthetic_position_holds
+
+    def reserve_position(
+        self, symbol: str, quantity: float, price: float | None = None
+    ) -> None:
+        """Reserve or extend an open position prior to execution."""
+
+        self._ensure_daily_reset()
+
+        position = self.portfolio["open_positions"].setdefault(
+            symbol,
+            {
+                "quantity": 0.0,
+                "avg_price": price or 0.0,
+                "current_value": 0.0,
+                "last_price": price or 0.0,
+            },
+        )
+        existing_qty = _as_float(position.get("quantity"), default=0.0)
+        new_qty = existing_qty + float(quantity)
+        position["quantity"] = new_qty
+
+        reference_price = price if price is not None else _as_float(position.get("avg_price"), 0.0)
+        if reference_price and new_qty > 0:
+            prior_value = existing_qty * _as_float(position.get("avg_price"), reference_price)
+            position["avg_price"] = (prior_value + float(quantity) * reference_price) / new_qty
+            position["current_value"] = new_qty * reference_price
+            position["last_price"] = reference_price
+
+        self._update_pnl()
+        self._save_state_to_redis()
+
+    def release_position(self, symbol: str, quantity: float) -> None:
+        """Release reserved quantity after fills or cancellations."""
+
+        position = self.portfolio["open_positions"].get(symbol)
+        if not position:
+            return
+
+        position["quantity"] = float(position.get("quantity", 0.0)) - float(quantity)
+        if position["quantity"] <= 0:
+            self.portfolio["open_positions"].pop(symbol, None)
+
+        self._update_pnl()
+        self._save_state_to_redis()
+
+    def increment_positions(self) -> None:
+        """Legacy compatibility shim used by older TradingManager code."""
+
+        self._synthetic_position_holds += 1
+        self._save_state_to_redis()
 
     def reset_portfolio(self) -> None:
         """Reset portfolio to initial state"""
@@ -181,6 +460,20 @@ class PortfolioMonitor:
             "total_pnl": 0.0,
             "last_updated": datetime.now().isoformat(),
         }
+        self._daily_baseline_equity = 100000.0
+        self._peak_equity = 100000.0
+        self._last_reset_date = datetime.utcnow().date()
+        self.portfolio.update(
+            {
+                "realized_pnl": 0.0,
+                "unrealized_pnl": 0.0,
+                "equity": 100000.0,
+                "current_daily_drawdown": 0.0,
+                "daily_equity_start": 100000.0,
+                "daily_reset_date": self._last_reset_date.isoformat(),
+                "peak_equity": 100000.0,
+            }
+        )
         self._save_state_to_redis()
         logger.info("Portfolio reset to initial state")
 

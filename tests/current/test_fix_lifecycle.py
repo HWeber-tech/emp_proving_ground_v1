@@ -1,14 +1,16 @@
 import asyncio
 import os
 
-from src.governance.system_config import SystemConfig
+from src.governance.system_config import ConnectionProtocol, SystemConfig
 from src.operational.fix_connection_manager import FIXConnectionManager
 from src.operational.mock_fix import MockExecutionStep
 
 
 def test_fix_only_protocol_enforced():
     cfg = SystemConfig()
-    assert cfg.connection_protocol == "fix"
+    assert cfg.connection_protocol == ConnectionProtocol.bootstrap
+    cfg_fix = cfg.with_updated(connection_protocol="fix")
+    assert cfg_fix.connection_protocol is ConnectionProtocol.fix
 
 
 async def _drain(q: asyncio.Queue, timeout=1.0):

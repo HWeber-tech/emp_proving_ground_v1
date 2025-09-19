@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any, Dict
 
 from src.core.base import DimensionalReading, MarketData
+from src.sensory.enhanced._shared import safe_timestamp
 from src.core.base import MarketRegime as MarketRegime
 
 __all__ = ["TechnicalRealityEngine"]
@@ -44,4 +45,5 @@ class TechnicalRealityEngine:
             context=context,
             data_quality=1.0,
             processing_time_ms=0.0,
+            timestamp=safe_timestamp(data),
         )

@@ -9,6 +9,7 @@ import sys
 from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
+from shutil import which
 from textwrap import indent
 
 
@@ -31,8 +32,15 @@ UNREACHABLE_PATTERN = re.compile(
 def run_vulture() -> tuple[list[dict[str, object]], int, str]:
     """Execute vulture and return parsed findings along with metadata."""
 
+    executable = "vulture"
+    if which(executable) is None:
+        raise SystemExit(
+            "vulture executable not found. Install developer dependencies with "
+            "`pip install -r requirements/dev.txt` and retry."
+        )
+
     cmd = [
-        "vulture",
+        executable,
         str(ROOT / "src"),
         str(ROOT / "tests"),
         "--min-confidence",

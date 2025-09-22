@@ -49,12 +49,19 @@ class AnomalyIntelligenceEngine:
                 processing_time_ms=0.0,
                 timestamp=timestamp,
             )
-            extras = {"baseline": float(baseline), "dispersion": float(dispersion), "latest": float(latest)}
+            extras = {
+                "baseline": float(baseline),
+                "dispersion": float(dispersion),
+                "latest": float(latest),
+            }
             return build_legacy_payload(reading, source="sensory.anomaly", extras=extras)
 
         market_data = ensure_market_data(data)
         price_base = abs(float(getattr(market_data, "open", 0.0))) or 1.0
-        move = abs(float(getattr(market_data, "close", price_base)) - float(getattr(market_data, "open", price_base)))
+        move = abs(
+            float(getattr(market_data, "close", price_base))
+            - float(getattr(market_data, "open", price_base))
+        )
         volume = float(getattr(market_data, "volume", 0.0))
         volatility = float(getattr(market_data, "volatility", 0.0))
         spread = float(getattr(market_data, "spread", 0.0))

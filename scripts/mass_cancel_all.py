@@ -9,16 +9,16 @@ import sys
 
 from dotenv import load_dotenv
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from src.governance.system_config import SystemConfig
 from src.operational.fix_connection_manager import FIXConnectionManager
 
 
 async def main() -> int:
-    load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '..', '.env'))
+    load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), "..", ".env"))
     cfg = SystemConfig()
-    if str(cfg.run_mode).lower() != 'paper':
+    if str(cfg.run_mode).lower() != "paper":
         print("Aborting: RUN_MODE must be 'paper' for demo execution.")
         return 1
 
@@ -44,12 +44,10 @@ async def main() -> int:
         mgr.stop_sessions()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     try:
         rc = asyncio.run(main())
         sys.exit(rc)
     except KeyboardInterrupt:
         print("Interrupted")
         sys.exit(1)
-
-

@@ -9,15 +9,18 @@ from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Any, Mapping, Sequence
 
+from src.config.risk.risk_config import RiskConfig
 from src.core.base import MarketData
 from src.core.event_bus import EventBus
+from src.data_foundation.cache import ManagedRedisCache, RedisCachePolicy, wrap_managed_cache
 from src.data_foundation.fabric.historical_connector import HistoricalReplayConnector
 from src.data_foundation.fabric.market_data_fabric import MarketDataConnector, MarketDataFabric
 from src.operations.bootstrap_control_center import BootstrapControlCenter
+from src.operations.roi import RoiCostModel
 from src.orchestration.bootstrap_stack import BootstrapSensoryPipeline, BootstrapTradingStack
 from src.trading.execution.paper_execution import ImmediateFillExecutionAdapter
 from src.trading.liquidity.depth_aware_prober import DepthAwareLiquidityProber
-from src.trading.monitoring.portfolio_monitor import InMemoryRedis, PortfolioMonitor
+from src.trading.monitoring.portfolio_monitor import PortfolioMonitor, RedisLike
 from src.trading.trading_manager import TradingManager
 
 logger = logging.getLogger(__name__)
@@ -91,14 +94,17 @@ class BootstrapRuntime:
         sell_threshold: float = 0.25,
         requested_quantity: Decimal | float = Decimal("1"),
         stop_loss_pct: float = 0.01,
-        risk_per_trade: float = 0.02,
+        risk_per_trade: float | None = None,
         max_open_positions: int = 5,
-        max_daily_drawdown: float = 0.1,
+        max_daily_drawdown: float | None = None,
         initial_equity: float = 100_000.0,
         min_intent_confidence: float = 0.05,
         min_liquidity_confidence: float = 0.25,
         liquidity_prober: DepthAwareLiquidityProber | None = None,
         evolution_orchestrator: Any | None = None,
+        redis_client: RedisLike | None = None,
+        roi_cost_model: RoiCostModel | None = None,
+        risk_config: RiskConfig | None = None,
     ) -> None:
         self.event_bus = event_bus
         self.symbols = [s.strip() for s in (symbols or ["EURUSD"]) if s and s.strip()]
@@ -113,19 +119,39 @@ class BootstrapRuntime:
         self.running = False
         self._last_error: Exception | None = None
 
-        resolved_connectors: dict[str, MarketDataConnector]
+        resolved_connectors: dict[str, MarketDataConnector] = {}
         if connectors:
-            resolved_connectors = {str(k): v for k, v in connectors.items()}
-        else:
-            resolved_connectors = {
-                "historical_replay": HistoricalReplayConnector(_generate_bootstrap_series(self.symbols))
-            }
+            resolved_connectors.update({str(k): v for k, v in connectors.items()})
+        if "historical_replay" not in resolved_connectors:
+            resolved_connectors["historical_replay"] = HistoricalReplayConnector(
+                _generate_bootstrap_series(self.symbols)
+            )
 
         self.fabric = MarketDataFabric(resolved_connectors)
         self.pipeline = BootstrapSensoryPipeline(self.fabric)
 
         self.liquidity_prober = liquidity_prober or DepthAwareLiquidityProber()
         self.evolution_orchestrator = evolution_orchestrator
+
+        if isinstance(redis_client, ManagedRedisCache):
+            cache_client = redis_client
+        else:
+            default_policy = RedisCachePolicy.bootstrap_defaults()
+            cache_client = wrap_managed_cache(
+                redis_client, policy=default_policy, bootstrap=redis_client is None
+            )
+
+        self.redis_client = cache_client
+
+        base_risk_per_trade = risk_per_trade if risk_per_trade is not None else 0.02
+        base_drawdown = max_daily_drawdown if max_daily_drawdown is not None else 0.1
+        resolved_risk_config = risk_config or RiskConfig(
+            max_risk_per_trade_pct=Decimal(str(base_risk_per_trade)),
+            max_total_exposure_pct=Decimal("0.5"),
+            max_leverage=Decimal("10.0"),
+            max_drawdown_pct=Decimal(str(base_drawdown)),
+            min_position_size=1,
+        )
 
         self.trading_manager = TradingManager(
             event_bus=event_bus,
@@ -135,10 +161,12 @@ class BootstrapRuntime:
             risk_per_trade=risk_per_trade,
             max_open_positions=max_open_positions,
             max_daily_drawdown=max_daily_drawdown,
-            redis_client=InMemoryRedis(),
+            redis_client=cache_client,
             liquidity_prober=self.liquidity_prober,
             min_intent_confidence=min_intent_confidence,
             min_liquidity_confidence=min_liquidity_confidence,
+            roi_cost_model=roi_cost_model,
+            risk_config=resolved_risk_config,
         )
         self.portfolio_monitor: PortfolioMonitor = self.trading_manager.portfolio_monitor
         self.execution_engine = ImmediateFillExecutionAdapter(self.portfolio_monitor)
@@ -180,9 +208,18 @@ class BootstrapRuntime:
             "last_error": self._last_error.__class__.__name__ if self._last_error else None,
             "telemetry": telemetry,
         }
-        vision_summary = telemetry.get("vision_alignment") if isinstance(telemetry, Mapping) else None
+        vision_summary = (
+            telemetry.get("vision_alignment") if isinstance(telemetry, Mapping) else None
+        )
         if isinstance(vision_summary, Mapping):
             status["vision_alignment"] = vision_summary
+        if hasattr(self.pipeline, "audit_trail"):
+            try:
+                audit = self.pipeline.audit_trail(limit=5)
+            except Exception:  # pragma: no cover - diagnostics must not break status
+                audit = []
+            if audit:
+                status["sensor_audit"] = audit
         return status
 
     async def start(self) -> None:

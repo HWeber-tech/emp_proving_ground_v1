@@ -9,12 +9,15 @@ Optimized for performance with Redis caching integration.
 from __future__ import annotations
 
 import logging
+import os
+import time
 from typing import Callable, Dict, List, Optional, cast
 
 import numpy as np
 
 from src.core.genome import get_genome_provider
 from src.core.performance.market_data_cache import get_global_cache
+from src.genome.catalogue import GenomeCatalogue, load_default_catalogue
 
 from .interfaces import DecisionGenome, IPopulationManager
 
@@ -24,7 +27,14 @@ logger = logging.getLogger(__name__)
 class PopulationManager(IPopulationManager):
     """High-performance population manager with caching support."""
 
-    def __init__(self, population_size: int = 100, cache_ttl: int = 300):
+    def __init__(
+        self,
+        population_size: int = 100,
+        cache_ttl: int = 300,
+        *,
+        use_catalogue: bool | None = None,
+        catalogue: GenomeCatalogue | None = None,
+    ):
         """
         Initialize population manager.
 
@@ -38,15 +48,34 @@ class PopulationManager(IPopulationManager):
         self.generation = 0
         self.cache = get_global_cache()
         self._cache_key_prefix = "population"
+        self._catalogue_flag: bool | None = use_catalogue
+        self._catalogue: GenomeCatalogue | None = catalogue
+        self._catalogue_summary: Dict[str, object] | None = None
+        self._catalogue_seeded_at: float | None = None
+        self._seed_source: str = "factory"
 
     def initialize_population(self, genome_factory: Callable) -> None:
         """Initialize population with new genomes."""
         logger.info(f"Initializing population with {self.population_size} genomes")
         provider = get_genome_provider()
-        self.population = [
-            cast(DecisionGenome, provider.from_legacy(genome_factory()))
-            for _ in range(self.population_size)
-        ]
+        self.population = []
+
+        catalogue_seeded = False
+        catalogue = self._get_catalogue()
+        if catalogue is not None:
+            seeded = self._seed_from_catalogue(provider, catalogue)
+            if seeded:
+                catalogue_seeded = True
+                self.population = seeded
+
+        if not catalogue_seeded:
+            self.population = [
+                cast(DecisionGenome, provider.from_legacy(genome_factory()))
+                for _ in range(self.population_size)
+            ]
+            self._catalogue_summary = None
+            self._catalogue_seeded_at = None
+            self._seed_source = "factory"
         self.generation = 0
         self._cache_population_stats()
 
@@ -83,7 +112,7 @@ class PopulationManager(IPopulationManager):
     def get_population_statistics(self) -> dict[str, object]:
         """Get statistics about the current population."""
         if not self.population:
-            return {
+            stats = {
                 "generation": self.generation,
                 "population_size": 0,
                 "average_fitness": 0.0,
@@ -91,7 +120,11 @@ class PopulationManager(IPopulationManager):
                 "worst_fitness": 0.0,
                 "fitness_std": 0.0,
                 "species_distribution": {},
+                "seed_source": self._seed_source,
             }
+            if self._catalogue_summary:
+                stats["catalogue"] = dict(self._catalogue_summary)
+            return stats
 
         fitness_values = [(g.fitness or 0.0) for g in self.population]
 
@@ -101,7 +134,7 @@ class PopulationManager(IPopulationManager):
             species = genome.species_type or "generic"
             species_count[species] = species_count.get(species, 0) + 1
 
-        return {
+        stats = {
             "generation": self.generation,
             "population_size": len(self.population),
             "average_fitness": float(np.mean(fitness_values)),
@@ -109,7 +142,11 @@ class PopulationManager(IPopulationManager):
             "worst_fitness": float(np.min(fitness_values)) if fitness_values else 0.0,
             "fitness_std": float(np.std(fitness_values)) if fitness_values else 0.0,
             "species_distribution": species_count,
+            "seed_source": self._seed_source,
         }
+        if self._catalogue_summary:
+            stats["catalogue"] = dict(self._catalogue_summary)
+        return stats
 
     def advance_generation(self) -> None:
         """Increment the generation counter."""
@@ -167,11 +204,20 @@ class PopulationManager(IPopulationManager):
 
     def _generate_initial_population(self) -> None:
         """Generate initial population of genomes."""
+        catalogue = self._get_catalogue()
+        provider = get_genome_provider()
+
+        if catalogue is not None:
+            seeded = self._seed_from_catalogue(provider, catalogue)
+            if seeded:
+                self.population.extend(seeded)
+                logger.info("Seeded %s genomes from catalogue %s", len(seeded), catalogue.name)
+                return
+
         try:
             import random
 
             logger.info(f"Generating initial population of {self.population_size} genomes")
-            provider = get_genome_provider()
 
             for i in range(self.population_size):
                 params = {
@@ -198,7 +244,58 @@ class PopulationManager(IPopulationManager):
 
         except Exception as e:
             logger.error(f"Failed to generate initial population: {e}")
-            self.population = []
+
+    # ------------------------------------------------------------------
+    # Catalogue helpers
+    # ------------------------------------------------------------------
+
+    def _resolve_catalogue_flag(self) -> bool:
+        if self._catalogue_flag is not None:
+            return self._catalogue_flag
+        raw = os.environ.get("EVOLUTION_USE_CATALOGUE")
+        if raw is None:
+            self._catalogue_flag = False
+            return False
+        normalised = raw.strip().lower()
+        self._catalogue_flag = normalised in {"1", "true", "yes", "on"}
+        return self._catalogue_flag
+
+    def _get_catalogue(self) -> GenomeCatalogue | None:
+        if not self._resolve_catalogue_flag():
+            return None
+        if self._catalogue is None:
+            try:
+                self._catalogue = load_default_catalogue()
+            except Exception as exc:
+                logger.error("Failed to load genome catalogue: %s", exc)
+                self._catalogue_flag = False
+                return None
+        return self._catalogue
+
+    def _seed_from_catalogue(
+        self, provider: object, catalogue: GenomeCatalogue
+    ) -> list[DecisionGenome]:
+        try:
+            seeds = catalogue.sample(self.population_size)
+        except Exception as exc:
+            logger.error("Sampling catalogue genomes failed: %s", exc)
+            return []
+
+        resolved: list[DecisionGenome] = []
+        for genome in seeds:
+            try:
+                resolved_genome = cast(DecisionGenome, provider.from_legacy(genome))
+            except Exception:
+                resolved_genome = cast(DecisionGenome, genome)
+            resolved.append(resolved_genome)
+
+        self._catalogue_summary = catalogue.metadata()
+        self._catalogue_summary["entries"] = catalogue.describe_entries()
+        seeded_at = time.time()
+        self._catalogue_summary["seeded_at"] = seeded_at
+        self._catalogue_seeded_at = seeded_at
+        self._seed_source = "catalogue"
+        return resolved
 
     def evolve_population(self, market_data: Dict, performance_metrics: Dict) -> None:
         """Evolve the population based on market data and performance."""

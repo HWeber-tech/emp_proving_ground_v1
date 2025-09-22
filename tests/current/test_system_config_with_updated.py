@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from src.governance.system_config import (
     ConnectionProtocol,
+    DataBackboneMode,
     EmpEnvironment,
     EmpTier,
     RunMode,
@@ -16,6 +17,7 @@ def test_with_updated_accepts_strings_and_copies_extras() -> None:
         tier=EmpTier.tier_0,
         confirm_live=False,
         connection_protocol=ConnectionProtocol.fix,
+        data_backbone_mode=DataBackboneMode.bootstrap,
         extras={"legacy": "value"},
     )
 
@@ -25,6 +27,7 @@ def test_with_updated_accepts_strings_and_copies_extras() -> None:
         tier="tier-2",
         confirm_live="yes",
         connection_protocol="fix",
+        data_backbone_mode="institutional",
         extras={"new": "1"},
     )
 
@@ -34,6 +37,7 @@ def test_with_updated_accepts_strings_and_copies_extras() -> None:
     assert updated.tier is EmpTier.tier_2
     assert updated.confirm_live is True
     assert updated.connection_protocol is ConnectionProtocol.fix
+    assert updated.data_backbone_mode is DataBackboneMode.institutional
     assert updated.extras == {"new": "1"}
     assert base.extras == {"legacy": "value"}
 
@@ -45,15 +49,22 @@ def test_with_updated_invalid_values_fallback_to_existing() -> None:
         tier=EmpTier.tier_1,
         confirm_live=False,
         connection_protocol=ConnectionProtocol.fix,
+        data_backbone_mode=DataBackboneMode.bootstrap,
     )
 
-    updated = base.with_updated(run_mode="??", confirm_live="maybe", connection_protocol="http")
+    updated = base.with_updated(
+        run_mode="??",
+        confirm_live="maybe",
+        connection_protocol="http",
+        data_backbone_mode="unsupported",
+    )
 
     assert updated.run_mode is base.run_mode
     assert updated.confirm_live is base.confirm_live
     assert updated.connection_protocol is base.connection_protocol
     assert updated.environment is base.environment
     assert updated.tier is base.tier
+    assert updated.data_backbone_mode is base.data_backbone_mode
     assert updated.extras == base.extras
 
 
@@ -66,6 +77,7 @@ def test_with_updated_accepts_enum_instances() -> None:
         tier=EmpTier.tier_2,
         confirm_live=True,
         connection_protocol=ConnectionProtocol.fix,
+        data_backbone_mode=DataBackboneMode.institutional,
     )
 
     assert updated.run_mode is RunMode.live
@@ -73,9 +85,11 @@ def test_with_updated_accepts_enum_instances() -> None:
     assert updated.tier is EmpTier.tier_2
     assert updated.confirm_live is True
     assert updated.connection_protocol is ConnectionProtocol.fix
+    assert updated.data_backbone_mode is DataBackboneMode.institutional
 
     # Original instance remains unchanged
     assert base.run_mode is RunMode.paper
     assert base.environment is EmpEnvironment.demo
     assert base.tier is EmpTier.tier_0
     assert base.confirm_live is False
+    assert base.data_backbone_mode is DataBackboneMode.bootstrap

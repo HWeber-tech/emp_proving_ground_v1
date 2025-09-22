@@ -131,9 +131,7 @@ class _FIXApplicationAdapter:
             queue.put_nowait(message)
         except asyncio.QueueFull:
             self._dropped += 1
-            logger.warning(
-                "FIX %s queue is full; dropping message", self._session_type
-            )
+            logger.warning("FIX %s queue is full; dropping message", self._session_type)
         else:
             self._delivered += 1
 
@@ -370,9 +368,7 @@ class FIXConnectionManager:
 
                     order_type_value = getattr(order_info, "order_type", None)
                     if (order_type_value in (None, "")) and exec_record:
-                        candidate_ord_type = (
-                            exec_record.get("order_type") if exec_record else None
-                        )
+                        candidate_ord_type = exec_record.get("order_type") if exec_record else None
                         if isinstance(candidate_ord_type, (str, bytes)):
                             order_type_value = candidate_ord_type
                     order_type_bytes = _encode_text(order_type_value)
@@ -381,9 +377,7 @@ class FIXConnectionManager:
 
                     time_in_force_value = getattr(order_info, "time_in_force", None)
                     if (time_in_force_value in (None, "")) and exec_record:
-                        candidate_tif = (
-                            exec_record.get("time_in_force") if exec_record else None
-                        )
+                        candidate_tif = exec_record.get("time_in_force") if exec_record else None
                         if isinstance(candidate_tif, (str, bytes)):
                             time_in_force_value = candidate_tif
                     time_in_force_bytes = _encode_text(time_in_force_value)
@@ -463,9 +457,7 @@ class FIXConnectionManager:
 
                     comm_type_value = getattr(order_info, "comm_type", None)
                     if (comm_type_value in (None, "")) and exec_record:
-                        candidate_comm_type = (
-                            exec_record.get("comm_type") if exec_record else None
-                        )
+                        candidate_comm_type = exec_record.get("comm_type") if exec_record else None
                         if isinstance(candidate_comm_type, (str, bytes)):
                             comm_type_value = candidate_comm_type
                     comm_type_bytes = _encode_text(comm_type_value)
@@ -474,9 +466,7 @@ class FIXConnectionManager:
 
                     currency_value = getattr(order_info, "currency", None)
                     if (currency_value in (None, "")) and exec_record:
-                        candidate_currency = (
-                            exec_record.get("currency") if exec_record else None
-                        )
+                        candidate_currency = exec_record.get("currency") if exec_record else None
                         if isinstance(candidate_currency, (str, bytes)):
                             currency_value = candidate_currency
                     currency_bytes = _encode_text(currency_value)
@@ -527,14 +517,10 @@ class FIXConnectionManager:
                     if order_capacity_bytes:
                         msg[528] = order_capacity_bytes
 
-                    customer_or_firm_value = getattr(
-                        order_info, "customer_or_firm", None
-                    )
+                    customer_or_firm_value = getattr(order_info, "customer_or_firm", None)
                     if (customer_or_firm_value in (None, "")) and exec_record:
                         candidate_customer = (
-                            exec_record.get("customer_or_firm")
-                            if exec_record
-                            else None
+                            exec_record.get("customer_or_firm") if exec_record else None
                         )
                         if isinstance(candidate_customer, (str, bytes)):
                             customer_or_firm_value = candidate_customer
@@ -554,9 +540,7 @@ class FIXConnectionManager:
                     ord_rej_reason_value = getattr(order_info, "ord_rej_reason", None)
                     if (ord_rej_reason_value in (None, "")) and exec_record:
                         candidate_reason = (
-                            exec_record.get("ord_rej_reason")
-                            if exec_record
-                            else None
+                            exec_record.get("ord_rej_reason") if exec_record else None
                         )
                         if isinstance(candidate_reason, (str, bytes)):
                             ord_rej_reason_value = candidate_reason

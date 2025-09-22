@@ -228,8 +228,8 @@ def write_dot(out_dot: Path, edges: Dict[str, Set[str]], nodes: Optional[Set[str
     out_dot.parent.mkdir(parents=True, exist_ok=True)
     with out_dot.open("w", encoding="utf-8", newline="\n") as fh:
         fh.write("digraph emp_deps {\n")
-        fh.write('  rankdir=LR;\n')
-        fh.write('  node [shape=box, fontsize=10];\n')
+        fh.write("  rankdir=LR;\n")
+        fh.write("  node [shape=box, fontsize=10];\n")
         # emit nodes explicitly (helps with isolated nodes)
         all_nodes: Set[str] = set(nodes or set(edges.keys()))
         for src, dsts in edges.items():

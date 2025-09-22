@@ -5,6 +5,7 @@ Load Tester
 
 Tests system performance under load conditions.
 """
+
 from __future__ import annotations
 
 import asyncio

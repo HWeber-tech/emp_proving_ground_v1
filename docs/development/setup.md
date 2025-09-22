@@ -28,20 +28,10 @@ python -m src.system.requirements_check
 
 The command exits non-zero if any library is missing or below the documented floor and prints the
 detected versions so upgrades can be recorded in `requirements/base.txt`.
- codex/assess-technical-debt-in-codebase
 
 ## Formatting expectations
 
-Ruff owns both linting and formatting. Follow the staged rollout captured in
-[`formatter_rollout.md`](formatter_rollout.md):
-
-1. Run `ruff format` on any file that already appears in the
-   `config/formatter/ruff_format_allowlist.txt` allowlist before committing.
-2. When you finish normalizing a new directory, add it to the allowlist and run
-   `python scripts/check_formatter_allowlist.py` locally to mirror the CI guard.
-3. Use `ruff check --select I` to tidy import ordering in directories that have
-   not yet been fully formatted so upcoming rollouts generate cleaner diffs.
-
-CI fails if any allowlisted path diverges from the formatter output, so keep the
-allowlist and your local environment in sync.
- main
+Ruff owns both linting and formatting. The formatter now runs repo-wide, so run
+`ruff format` before committing and double-check with `ruff format --check .`
+locally if you are uncertain. CI enforces the same guard during the lint job.
+Use `ruff check --select I` to tidy imports after formatting if needed.

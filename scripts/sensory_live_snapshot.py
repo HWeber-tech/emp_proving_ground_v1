@@ -40,7 +40,7 @@ def _synthetic_md(symbol: str, prev_close: float | None) -> MarketData:
         volume=vol,
         bid=bid,
         ask=ask,
-        source="mock"
+        source="mock",
     )
 
 
@@ -49,7 +49,9 @@ async def main() -> int:
     if args.metrics:
         start_metrics_server()
 
-    instrument_meta = InstrumentMeta(symbol=args.symbol, pip_size=0.0001, lot_size=100000, timezone="UTC")
+    instrument_meta = InstrumentMeta(
+        symbol=args.symbol, pip_size=0.0001, lot_size=100000, timezone="UTC"
+    )
     orchestrator = MasterOrchestrator(instrument_meta)
 
     prev_close = None
@@ -67,7 +69,9 @@ async def main() -> int:
             reg = getattr(result.regime, "value", str(result.regime))
             why_contrib = result.dimensional_contributions.get("WHY", 0.0)
             what_contrib = result.dimensional_contributions.get("WHAT", 0.0)
-            print(f"[{ts}] {args.symbol} sig={sig} conf={conf} reg={reg} WHY={why_contrib:.3f} WHAT={what_contrib:.3f}")
+            print(
+                f"[{ts}] {args.symbol} sig={sig} conf={conf} reg={reg} WHY={why_contrib:.3f} WHAT={what_contrib:.3f}"
+            )
             await asyncio.sleep(max(0.0, args.interval))
             n += 1
     except KeyboardInterrupt:
@@ -77,5 +81,3 @@ async def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(asyncio.run(main()))
-
-

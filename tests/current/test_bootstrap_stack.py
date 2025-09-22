@@ -2,10 +2,12 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
+from decimal import Decimal
 from typing import Any, Mapping
 
 import pytest
 
+from src.config.risk.risk_config import RiskConfig
 from src.core.event_bus import EventBus
 from src.data_foundation import HistoricalReplayConnector, MarketDataFabric
 from src.orchestration.bootstrap_stack import (
@@ -83,6 +85,11 @@ async def test_bootstrap_pipeline_generates_snapshots() -> None:
     assert snapshot.symbol == "EURUSD"
     assert isinstance(snapshot.synthesis.unified_score, float)
     assert pipeline.history["EURUSD"]
+    audit = pipeline.audit_trail(limit=1)
+    assert audit
+    entry = audit[0]
+    assert entry["symbol"] == "EURUSD"
+    assert set(entry["dimensions"].keys()) == {"WHY", "HOW", "WHAT", "WHEN", "ANOMALY"}
 
 
 @pytest.mark.asyncio()
@@ -95,24 +102,30 @@ async def test_bootstrap_trading_stack_executes_trade() -> None:
     portfolio_monitor = PortfolioMonitor(event_bus, InMemoryRedis())
     execution_adapter = ImmediateFillExecutionAdapter(portfolio_monitor)
     liquidity_prober = DepthAwareLiquidityProber()
+    risk_config = RiskConfig(
+        max_risk_per_trade_pct=Decimal("0.02"),
+        max_drawdown_pct=Decimal("0.1"),
+        min_position_size=1,
+    )
     trading_manager = TradingManager(
         event_bus=event_bus,
         strategy_registry=DummyStrategyRegistry(),
         execution_engine=execution_adapter,
         initial_equity=100000.0,
-        risk_per_trade=0.02,
+        risk_per_trade=None,
         max_open_positions=5,
-        max_daily_drawdown=0.1,
+        max_daily_drawdown=None,
         redis_client=InMemoryRedis(),
         liquidity_prober=liquidity_prober,
+        risk_config=risk_config,
     )
 
     stack = BootstrapTradingStack(
         pipeline,
         trading_manager,
         strategy_id="bootstrap-alpha",
-        buy_threshold=0.15,
-        sell_threshold=0.15,
+        buy_threshold=0.05,
+        sell_threshold=0.05,
         requested_quantity=Decimal("2"),
         stop_loss_pct=0.01,
         liquidity_prober=liquidity_prober,
@@ -120,10 +133,14 @@ async def test_bootstrap_trading_stack_executes_trade() -> None:
 
     await stack.evaluate_tick("EURUSD")  # warm-up tick
     result = await stack.evaluate_tick("EURUSD")
+    assert result["intent"] is not None
     assert result["decision"] is not None
-    assert result["decision"]["status"] == "approved"
+    assert result["decision"].get("status") == "approved"
     assert execution_adapter.fills
     position_state = portfolio_monitor.get_state()["open_positions"].get("EURUSD")
     assert position_state is not None
     assert position_state["quantity"] > 0
     assert result["liquidity_summary"] is not None
+    policy_snapshot = trading_manager.get_last_policy_snapshot()
+    assert policy_snapshot is not None
+    assert policy_snapshot.symbol == "EURUSD"

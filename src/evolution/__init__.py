@@ -18,15 +18,30 @@ from src.core.evolution.engine import EvolutionConfig, EvolutionEngine
 from src.core.evolution.fitness import FitnessEvaluator
 from src.core.evolution.operators import *  # noqa: F401,F403
 from src.core.evolution.population import Population
+from src.evolution.catalogue_telemetry import (
+    EvolutionCatalogueEntrySnapshot,
+    EvolutionCatalogueSnapshot,
+    build_catalogue_snapshot,
+)
+from src.evolution.lineage_telemetry import (
+    EvolutionLineageSnapshot,
+    build_lineage_snapshot,
+)
+
 _ = None  # Legacy facade: re-export core evolution interfaces
 
 __version__ = "1.1.0"
 __author__ = "EMP System"
-__description__ = "Evolution Layer - Genetic Programming and Evolution (core-consolidated)" 
+__description__ = "Evolution Layer - Genetic Programming and Evolution (core-consolidated)"
 
 __all__ = [
-    'EvolutionEngine',
-    'EvolutionConfig',
-    'FitnessEvaluator',
-    'Population',
+    "EvolutionEngine",
+    "EvolutionConfig",
+    "FitnessEvaluator",
+    "Population",
+    "EvolutionCatalogueEntrySnapshot",
+    "EvolutionCatalogueSnapshot",
+    "build_catalogue_snapshot",
+    "EvolutionLineageSnapshot",
+    "build_lineage_snapshot",
 ]

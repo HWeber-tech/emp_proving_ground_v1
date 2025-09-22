@@ -5,6 +5,7 @@ Intelligence Validator
 
 Validates the accuracy of intelligence components.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass

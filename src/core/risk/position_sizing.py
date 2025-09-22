@@ -15,5 +15,3 @@ def position_size(balance: Decimal, risk_per_trade: Decimal, stop_loss_pct: Deci
     risk_amount = balance * risk_per_trade
     denom = max(Decimal("1e-9"), stop_loss_pct)
     return risk_amount / denom
-
-

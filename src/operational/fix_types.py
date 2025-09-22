@@ -71,8 +71,7 @@ class OrderExecutionRecord(Protocol):
         self,
         key: str,
         default: str | bytes | float | None = None,
-    ) -> str | bytes | float | None:
-        ...
+    ) -> str | bytes | float | None: ...
 
 
 class OrderInfoProtocol(Protocol):
@@ -93,13 +92,9 @@ class FIXManagerProtocol(Protocol):
 
     trade_connection: FIXTradeConnectionProtocol | None
 
-    def add_market_data_callback(
-        self, cb: Callable[[str, OrderBookProtocol], None]
-    ) -> None:
-        ...
+    def add_market_data_callback(self, cb: Callable[[str, OrderBookProtocol], None]) -> None: ...
 
-    def add_order_callback(self, cb: Callable[[OrderInfoProtocol], None]) -> None:
-        ...
+    def add_order_callback(self, cb: Callable[[OrderInfoProtocol], None]) -> None: ...
 
     def start(self) -> bool: ...
 

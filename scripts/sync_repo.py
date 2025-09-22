@@ -2,6 +2,7 @@
 """
 Script to synchronize the repository with all the critical fixes.
 """
+
 import subprocess
 import sys
 
@@ -24,19 +25,20 @@ def run_command(cmd, description):
             print(f"stderr: {e.stderr}")
         return False
 
+
 def main():
     """Main synchronization process."""
     print("🔄 Synchronizing EMP Proving Ground Repository")
     print("=" * 50)
-    
+
     # Check git status
     if not run_command("git status", "Check git status"):
         return False
-    
+
     # Add all changes
     if not run_command("git add -A", "Add all changes to staging"):
         return False
-    
+
     # Commit changes
     commit_msg = """Critical repository fixes and synchronization
 
@@ -45,20 +47,21 @@ def main():
 - Added GitHub Actions CI workflow to prevent future fundamental errors
 - Verified system is runnable and all modules import correctly
 - Repository is now operational and ready for Phase 2 development"""
-    
+
     if not run_command(f'git commit -m "{commit_msg}"', "Commit critical fixes"):
         return False
-    
+
     # Push to remote
     if not run_command("git push origin main", "Push changes to remote repository"):
         return False
-    
+
     print("\n🎉 Repository synchronization completed successfully!")
     print("✅ All critical fixes have been committed and pushed")
     print("✅ Repository is now operational and ready for development")
-    
+
     return True
+
 
 if __name__ == "__main__":
     success = main()
-    sys.exit(0 if success else 1) 
+    sys.exit(0 if success else 1)

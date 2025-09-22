@@ -9,6 +9,7 @@ This service:
 3. Makes predictions with probability outputs
 4. Handles async inference
 """
+
 from __future__ import annotations
 
 import asyncio

@@ -11,6 +11,7 @@ Where:
 - difficulty_level can be a string: {"easy","medium","hard","extreme"} or a float in [0,1]
 - target_strategies is accepted for backward-compat but not required by the canonical shape
 """
+
 from __future__ import annotations
 
 import uuid

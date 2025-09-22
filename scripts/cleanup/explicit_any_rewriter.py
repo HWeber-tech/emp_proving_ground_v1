@@ -98,7 +98,9 @@ def qual_to_target(qual: str) -> str | None:
 
 
 def is_name_like_any(node: cst.CSTNode) -> bool:
-    return m.matches(node, m.Name("Any")) or m.matches(node, m.Attribute(value=m.Name("typing"), attr=m.Name("Any")))
+    return m.matches(node, m.Name("Any")) or m.matches(
+        node, m.Attribute(value=m.Name("typing"), attr=m.Name("Any"))
+    )
 
 
 def make_name_or_attr(name: str) -> cst.BaseExpression:
@@ -135,6 +137,7 @@ class Stats:
 # ---------------------------
 # Transformer
 # ---------------------------
+
 
 class AnyRewriter(cst.CSTTransformer):
     def __init__(self, stats: Stats):
@@ -188,7 +191,11 @@ class AnyRewriter(cst.CSTTransformer):
         cabc_existing: set[str] = set()
 
         for stmt in updated_node.body:
-            if isinstance(stmt, cst.SimpleStatementLine) and stmt.body and isinstance(stmt.body[0], cst.ImportFrom):
+            if (
+                isinstance(stmt, cst.SimpleStatementLine)
+                and stmt.body
+                and isinstance(stmt.body[0], cst.ImportFrom)
+            ):
                 imp: cst.ImportFrom = stmt.body[0]
                 # from typing import ...
                 if isinstance(imp.module, cst.Name) and imp.module.value == "typing":
@@ -211,7 +218,10 @@ class AnyRewriter(cst.CSTTransformer):
                         continue
                     continue
                 # from collections.abc import ...
-                if isinstance(imp.module, cst.Attribute) and dotted_name(imp.module) == "collections.abc":
+                if (
+                    isinstance(imp.module, cst.Attribute)
+                    and dotted_name(imp.module) == "collections.abc"
+                ):
                     has_cabc_import = True
                     if isinstance(imp.names, cst.ImportStar):
                         new_body.append(stmt)
@@ -222,7 +232,9 @@ class AnyRewriter(cst.CSTTransformer):
                             cabc_existing.add(alias.name.value)
                             kept_aliases.append(alias)  # keep existing
                     # We'll possibly add missing names later
-                    new_body.append(cst.SimpleStatementLine([imp.with_changes(names=tuple(kept_aliases))]))  # type: ignore[arg-type]
+                    new_body.append(
+                        cst.SimpleStatementLine([imp.with_changes(names=tuple(kept_aliases))])
+                    )  # type: ignore[arg-type]
                     continue
             new_body.append(stmt)
 
@@ -244,7 +256,9 @@ class AnyRewriter(cst.CSTTransformer):
 
     # ---- Core: rewrite annotations only ----
 
-    def leave_Annotation(self, original_node: cst.Annotation, updated_node: cst.Annotation) -> cst.Annotation:
+    def leave_Annotation(
+        self, original_node: cst.Annotation, updated_node: cst.Annotation
+    ) -> cst.Annotation:
         # Bare Any -> object in any annotation context
         if is_name_like_any(updated_node.annotation):
             self.stats.inc("Any -> object")
@@ -302,7 +316,9 @@ class AnyRewriter(cst.CSTTransformer):
                 key_t, val_t = slices
                 if self._is_str_type(key_t) and is_name_like_any(val_t):
                     self.stats.inc("Dict[str, Any] -> dict[str, object]")
-                    return make_subscript("dict", [cst.Name("str"), to_object_node()]), True or changed_inner
+                    return make_subscript(
+                        "dict", [cst.Name("str"), to_object_node()]
+                    ), True or changed_inner
 
             if target in ("Dict",) and len(slices) == 2:
                 key_t, val_t = slices
@@ -358,8 +374,14 @@ class AnyRewriter(cst.CSTTransformer):
                         for s in inner.slice:
                             assert isinstance(s.slice, cst.Index)
                             inner_slices.append(s.slice.value)
-                        if len(inner_slices) == 2 and self._is_str_type(inner_slices[0]) and is_name_like_any(inner_slices[1]):
-                            self.stats.inc("Optional[Dict[str, Any]] -> Optional[dict[str, object]]")
+                        if (
+                            len(inner_slices) == 2
+                            and self._is_str_type(inner_slices[0])
+                            and is_name_like_any(inner_slices[1])
+                        ):
+                            self.stats.inc(
+                                "Optional[Dict[str, Any]] -> Optional[dict[str, object]]"
+                            )
                             new_inner = make_subscript("dict", [cst.Name("str"), to_object_node()])
                             return make_subscript("Optional", [new_inner]), True
 
@@ -402,7 +424,9 @@ class AnyRewriter(cst.CSTTransformer):
 
             # For any other subscript, ensure inner changes propagate
             if changed_inner:
-                return expr.with_changes(slice=[cst.SubscriptElement(slice=cst.Index(value=s)) for s in slices]), True
+                return expr.with_changes(
+                    slice=[cst.SubscriptElement(slice=cst.Index(value=s)) for s in slices]
+                ), True
             return expr, False
 
         # Bare Any → object in *args/**kwargs only
@@ -443,6 +467,7 @@ class AnyRewriter(cst.CSTTransformer):
 # ---------------------------
 # Runner
 # ---------------------------
+
 
 @dataclass
 class Config:
@@ -514,13 +539,33 @@ def rewrite_file(path: Path, cfg: Config, stats: Stats) -> tuple[bool, str]:
 def parse_args(argv: list[str]) -> Config:
     ap = argparse.ArgumentParser(description="Rewrite trivial explicit Any patterns using LibCST.")
     # New interface: --dir, --glob, --include, --exclude, --jobs, --apply
-    ap.add_argument("--apply", action="store_true", help="Apply changes in-place (default: dry-run; prints diffs).")
-    ap.add_argument("--dir", dest="dirs", action="append", default=None, help="Directory to scan (may be specified multiple times).")
-    ap.add_argument("--glob", dest="globs", action="append", default=None, help='fnmatch-style pattern(s), e.g. "src/core/**/*.py".')
+    ap.add_argument(
+        "--apply",
+        action="store_true",
+        help="Apply changes in-place (default: dry-run; prints diffs).",
+    )
+    ap.add_argument(
+        "--dir",
+        dest="dirs",
+        action="append",
+        default=None,
+        help="Directory to scan (may be specified multiple times).",
+    )
+    ap.add_argument(
+        "--glob",
+        dest="globs",
+        action="append",
+        default=None,
+        help='fnmatch-style pattern(s), e.g. "src/core/**/*.py".',
+    )
     ap.add_argument("--include", default=None, help="Include regex (optional).")
-    ap.add_argument("--exclude", default=DEFAULT_EXCLUDE, help=f"Exclude regex. Default: {DEFAULT_EXCLUDE!r}")
+    ap.add_argument(
+        "--exclude", default=DEFAULT_EXCLUDE, help=f"Exclude regex. Default: {DEFAULT_EXCLUDE!r}"
+    )
     ap.add_argument("--backup", action="store_true", help="Write .bak files when applying changes.")
-    ap.add_argument("--jobs", type=int, default=1, help="Parallelism for dry-run scanning (no parallel writes).")
+    ap.add_argument(
+        "--jobs", type=int, default=1, help="Parallelism for dry-run scanning (no parallel writes)."
+    )
     # Back-compat: allow positional --paths if provided
     ap.add_argument("--paths", nargs="*", default=None, help="Deprecated; prefer --dir/--glob.")
     args = ap.parse_args(argv)
@@ -611,7 +656,9 @@ def main(argv: list[str]) -> int:
 
     # Summary footer (requested by spec)
     print("\n--- Summary Footer ---")
-    print(f"Scanned: {len(paths)}, Changed: {changed_files}, Rules: {sum(stats.replacements.values())} total")
+    print(
+        f"Scanned: {len(paths)}, Changed: {changed_files}, Rules: {sum(stats.replacements.values())} total"
+    )
     if stats.replacements:
         for k, v in sorted(stats.replacements.items(), key=lambda kv: (-kv[1], kv[0])):
             print(f"  {k}: {v}")

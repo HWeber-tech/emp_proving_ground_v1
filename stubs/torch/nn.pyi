@@ -22,7 +22,16 @@ class Dropout(Module):
     def __init__(self, p: float = ...) -> None: ...
 
 class LSTM(Module):
-    def __init__(self, input_size: int, hidden_size: int, num_layers: int = ..., bias: bool = ..., batch_first: bool = ..., dropout: float = ..., bidirectional: bool = ...) -> None: ...
+    def __init__(
+        self,
+        input_size: int,
+        hidden_size: int,
+        num_layers: int = ...,
+        bias: bool = ...,
+        batch_first: bool = ...,
+        dropout: float = ...,
+        bidirectional: bool = ...,
+    ) -> None: ...
 
 class CrossEntropyLoss(Module):
     def __init__(self) -> None: ...

@@ -35,6 +35,7 @@ def _coerce_numeric_mapping(mapping: Any) -> dict[str, float]:
         # Try to get object-like attributes; fallback to empty
         try:
             from typing import cast as _cast
+
             items = vars(_cast(Any, mapping)).items()
         except Exception:
             return result
@@ -58,6 +59,7 @@ def _force_str_list(value: Any) -> list[str]:
     try:
         out: list[str] = []
         from typing import cast as _cast
+
         for item in list(_cast(Any, value)):
             out.append(str(item))
         return out
@@ -136,6 +138,7 @@ class DecisionGenome:
                 # Try object-like attr access
                 try:
                     from typing import cast as _cast
+
                     data = dict(vars(_cast(Any, data)))
                 except Exception:
                     data = {}

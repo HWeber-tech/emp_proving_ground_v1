@@ -203,7 +203,9 @@ class PatternMemory:
                 )
 
             await self.state_store.set(
-                self._memory_key, json.dumps(memory_data), expire=86400  # 24 hours
+                self._memory_key,
+                json.dumps(memory_data),
+                expire=86400,  # 24 hours
             )
 
         except Exception as e:

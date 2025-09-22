@@ -47,9 +47,7 @@ def test_mock_fix_emits_enriched_order_info_and_telemetry():
     )
 
     partials = [
-        info
-        for info in received
-        if info.executions and info.executions[-1].get("exec_type") == "1"
+        info for info in received if info.executions and info.executions[-1].get("exec_type") == "1"
     ]
     assert partials
     partial = partials[0]
@@ -58,9 +56,7 @@ def test_mock_fix_emits_enriched_order_info_and_telemetry():
     assert partial.leaves_qty == pytest.approx(2.0)
 
     fills = [
-        info
-        for info in received
-        if info.executions and info.executions[-1].get("exec_type") == "F"
+        info for info in received if info.executions and info.executions[-1].get("exec_type") == "F"
     ]
     assert fills
     fill = fills[0]
@@ -91,8 +87,7 @@ def test_mock_fix_emits_enriched_order_info_and_telemetry():
     sequences = [
         event.details.get("sequence")
         for event in telemetry
-        if event.event == "order_execution"
-        and event.details.get("cl_ord_id") == "ORD1"
+        if event.event == "order_execution" and event.details.get("cl_ord_id") == "ORD1"
     ]
     assert sequences[:3] == [1, 2, 3]
 
@@ -175,8 +170,7 @@ def test_mock_fix_generates_order_and_exec_ids():
     telemetry = [
         event
         for event in manager.snapshot_telemetry()
-        if event.event == "order_execution"
-        and event.details.get("cl_ord_id") == "ORD-IDS"
+        if event.event == "order_execution" and event.details.get("cl_ord_id") == "ORD-IDS"
     ]
     assert {event.details.get("order_id") for event in telemetry} == {order_id}
     assert [event.details.get("exec_id") for event in telemetry][:3] == exec_ids[:3]
@@ -184,8 +178,7 @@ def test_mock_fix_generates_order_and_exec_ids():
     received_event = next(
         event
         for event in manager.snapshot_telemetry()
-        if event.event == "order_received"
-        and event.details.get("cl_ord_id") == "ORD-IDS"
+        if event.event == "order_received" and event.details.get("cl_ord_id") == "ORD-IDS"
     )
     assert received_event.details.get("order_id") == order_id
 
@@ -310,19 +303,13 @@ def test_mock_fix_emits_timestamp_metadata():
 
     time_updates = [info for info in updates if info.cl_ord_id == "ORD-TIME"]
     assert time_updates
-    ack = next(
-        info for info in time_updates if info.executions[-1].get("exec_type") == "0"
-    )
+    ack = next(info for info in time_updates if info.executions[-1].get("exec_type") == "0")
     assert ack.transact_time == "20240101-00:00:00.000"
     assert ack.sending_time == "20240101-00:00:01.000"
-    partial = next(
-        info for info in time_updates if info.executions[-1].get("exec_type") == "1"
-    )
+    partial = next(info for info in time_updates if info.executions[-1].get("exec_type") == "1")
     assert partial.transact_time == "20240101-00:00:02.000"
     assert partial.sending_time == partial.transact_time
-    fill = next(
-        info for info in time_updates if info.executions[-1].get("exec_type") == "F"
-    )
+    fill = next(info for info in time_updates if info.executions[-1].get("exec_type") == "F")
     assert fill.transact_time == "20240101-00:00:00.000"
     assert fill.sending_time == "20240101-00:00:03.000"
 
@@ -330,8 +317,7 @@ def test_mock_fix_emits_timestamp_metadata():
     time_events = [
         event
         for event in telemetry
-        if event.event == "order_execution"
-        and event.details.get("cl_ord_id") == "ORD-TIME"
+        if event.event == "order_execution" and event.details.get("cl_ord_id") == "ORD-TIME"
     ]
     assert any(
         event.details.get("exec_type") == "1"
@@ -344,9 +330,7 @@ def test_mock_fix_emits_timestamp_metadata():
         for event in time_events
     )
 
-    default_updates = [
-        info for info in updates if info.cl_ord_id == "ORD-NOOVERRIDE"
-    ]
+    default_updates = [info for info in updates if info.cl_ord_id == "ORD-NOOVERRIDE"]
     assert default_updates
     assert all(isinstance(info.transact_time, str) for info in default_updates)
     assert all(info.transact_time for info in default_updates)
@@ -418,7 +402,8 @@ def test_mock_fix_applies_order_capacity_and_customer_flags():
         event
         for event in manager.snapshot_telemetry()
         if event.event == "order_execution"
-        and event.details.get("cl_ord_id") in {
+        and event.details.get("cl_ord_id")
+        in {
             "ORD-CAP-DEF",
             "ORD-CAP-OVR",
             "ORD-CAP-CONF",
@@ -426,20 +411,17 @@ def test_mock_fix_applies_order_capacity_and_customer_flags():
     ]
     assert telemetry
     assert any(
-        event.details.get("order_capacity") == "A"
-        and event.details.get("customer_or_firm") == "1"
+        event.details.get("order_capacity") == "A" and event.details.get("customer_or_firm") == "1"
         for event in telemetry
         if event.details.get("cl_ord_id") == "ORD-CAP-DEF"
     )
     assert any(
-        event.details.get("order_capacity") == "G"
-        and event.details.get("customer_or_firm") == "0"
+        event.details.get("order_capacity") == "G" and event.details.get("customer_or_firm") == "0"
         for event in telemetry
         if event.details.get("cl_ord_id") == "ORD-CAP-OVR"
     )
     assert any(
-        event.details.get("order_capacity") == "R"
-        and event.details.get("customer_or_firm") == "2"
+        event.details.get("order_capacity") == "R" and event.details.get("customer_or_firm") == "2"
         for event in telemetry
         if event.details.get("cl_ord_id") == "ORD-CAP-CONF"
     )
@@ -533,8 +515,7 @@ def test_mock_fix_tracks_order_metadata_fields():
     completion_event = next(
         event
         for event in telemetry
-        if event.event == "order_complete"
-        and event.details.get("cl_ord_id") == "ORD-META"
+        if event.event == "order_complete" and event.details.get("cl_ord_id") == "ORD-META"
     )
     assert completion_event.details.get("account") == "ACCT-123"
     assert completion_event.details.get("order_type") == "2"
@@ -561,23 +542,15 @@ def test_mock_fix_applies_default_order_metadata():
     finally:
         manager.stop()
 
-    fills = [
-        info
-        for info in updates
-        if info.cl_ord_id == "ORD-DEFAULT" and info.ord_status == "2"
-    ]
+    fills = [info for info in updates if info.cl_ord_id == "ORD-DEFAULT" and info.ord_status == "2"]
     assert fills
     fill = fills[-1]
     assert fill.account == "DEFAULT-ACC"
     assert fill.order_type == "2"
     assert fill.time_in_force == "1"
-    assert {exec.get("account") for exec in fill.executions if exec} == {
-        "DEFAULT-ACC"
-    }
+    assert {exec.get("account") for exec in fill.executions if exec} == {"DEFAULT-ACC"}
     assert {exec.get("order_type") for exec in fill.executions if exec} == {"2"}
-    assert {
-        exec.get("time_in_force") for exec in fill.executions if exec
-    } == {"1"}
+    assert {exec.get("time_in_force") for exec in fill.executions if exec} == {"1"}
 
     history = manager.get_order_history("ORD-DEFAULT")
     assert history
@@ -589,8 +562,7 @@ def test_mock_fix_applies_default_order_metadata():
     exec_events = [
         event
         for event in telemetry
-        if event.event == "order_execution"
-        and event.details.get("cl_ord_id") == "ORD-DEFAULT"
+        if event.event == "order_execution" and event.details.get("cl_ord_id") == "ORD-DEFAULT"
     ]
     assert exec_events
     assert exec_events[-1].details.get("account") == "DEFAULT-ACC"
@@ -600,8 +572,7 @@ def test_mock_fix_applies_default_order_metadata():
     completion = next(
         event
         for event in telemetry
-        if event.event == "order_complete"
-        and event.details.get("cl_ord_id") == "ORD-DEFAULT"
+        if event.event == "order_complete" and event.details.get("cl_ord_id") == "ORD-DEFAULT"
     )
     assert completion.details.get("account") == "DEFAULT-ACC"
     assert completion.details.get("order_type") == "2"
@@ -618,9 +589,7 @@ def test_mock_fix_configures_order_defaults():
 
     try:
         assert manager.start()
-        manager.configure_order_defaults(
-            account="PRIME", order_type="1", time_in_force="3"
-        )
+        manager.configure_order_defaults(account="PRIME", order_type="1", time_in_force="3")
         assert manager.trade_connection.send_message_and_track(
             SimpleNamespace(cl_ord_id="ORD-PRIME", quantity=2.0, price=1.1)
         )
@@ -634,22 +603,19 @@ def test_mock_fix_configures_order_defaults():
         manager.stop()
 
     prime_fill = next(
-        info
-        for info in updates
-        if info.cl_ord_id == "ORD-PRIME" and info.ord_status == "2"
+        info for info in updates if info.cl_ord_id == "ORD-PRIME" and info.ord_status == "2"
     )
     assert prime_fill.account == "PRIME"
     assert prime_fill.order_type == "1"
     assert prime_fill.time_in_force == "3"
 
     second_fill = next(
-        info
-        for info in updates
-        if info.cl_ord_id == "ORD-SECOND" and info.ord_status == "2"
+        info for info in updates if info.cl_ord_id == "ORD-SECOND" and info.ord_status == "2"
     )
     assert second_fill.account == "SECONDARY"
     assert second_fill.order_type == "1"
     assert second_fill.time_in_force is None
+
 
 def test_mock_fix_execution_plan_overrides_order_metadata():
     manager = MockFIXManager(
@@ -696,18 +662,14 @@ def test_mock_fix_execution_plan_overrides_order_metadata():
         manager.stop()
 
     partial = next(
-        info
-        for info in updates
-        if info.cl_ord_id == "META-PLAN" and info.ord_status == "1"
+        info for info in updates if info.cl_ord_id == "META-PLAN" and info.ord_status == "1"
     )
     assert partial.account == "STEP-ACC"
     assert partial.order_type == "4"
     assert partial.time_in_force == "3"
 
     fill = next(
-        info
-        for info in updates
-        if info.cl_ord_id == "META-PLAN" and info.ord_status == "2"
+        info for info in updates if info.cl_ord_id == "META-PLAN" and info.ord_status == "2"
     )
     assert fill.account == "FINAL-ACC"
     assert fill.order_type == "5"
@@ -727,8 +689,7 @@ def test_mock_fix_execution_plan_overrides_order_metadata():
     completion = next(
         event
         for event in telemetry
-        if event.event == "order_complete"
-        and event.details.get("cl_ord_id") == "META-PLAN"
+        if event.event == "order_complete" and event.details.get("cl_ord_id") == "META-PLAN"
     )
     assert completion.details.get("account") == "FINAL-ACC"
     assert completion.details.get("order_type") == "5"
@@ -768,8 +729,7 @@ def test_mock_fix_allows_order_and_exec_id_overrides():
     telemetry = [
         event
         for event in manager.snapshot_telemetry()
-        if event.event == "order_execution"
-        and event.details.get("cl_ord_id") == "ORD-CUSTOM"
+        if event.event == "order_execution" and event.details.get("cl_ord_id") == "ORD-CUSTOM"
     ]
     assert {event.details.get("order_id") for event in telemetry} == {"ORDER-XYZ"}
     assert [event.details.get("exec_id") for event in telemetry][:3] == exec_ids[:3]
@@ -802,9 +762,9 @@ def test_mock_fix_wait_utilities():
             predicate=lambda event: event.details.get("exec_type") == "F",
             timeout=1.0,
         )
-        assert (
-            manager.wait_for_telemetry("nonexistent", timeout=0.01) is False
-        ), "Unexpected telemetry for nonexistent event"
+        assert manager.wait_for_telemetry("nonexistent", timeout=0.01) is False, (
+            "Unexpected telemetry for nonexistent event"
+        )
     finally:
         manager.stop()
 
@@ -949,18 +909,14 @@ def test_mock_fix_manual_updates_override_order_metadata():
         manager.stop()
 
     partial = next(
-        info
-        for info in updates
-        if info.cl_ord_id == "MANUAL-META" and info.ord_status == "1"
+        info for info in updates if info.cl_ord_id == "MANUAL-META" and info.ord_status == "1"
     )
     assert partial.account == "MANUAL-ACC"
     assert partial.order_type == "3"
     assert partial.time_in_force == "4"
 
     fill = next(
-        info
-        for info in updates
-        if info.cl_ord_id == "MANUAL-META" and info.ord_status == "2"
+        info for info in updates if info.cl_ord_id == "MANUAL-META" and info.ord_status == "2"
     )
     assert fill.account == "FINAL-ACC"
     assert fill.order_type == "5"
@@ -980,8 +936,7 @@ def test_mock_fix_manual_updates_override_order_metadata():
     completion = next(
         event
         for event in telemetry
-        if event.event == "order_complete"
-        and event.details.get("cl_ord_id") == "MANUAL-META"
+        if event.event == "order_complete" and event.details.get("cl_ord_id") == "MANUAL-META"
     )
     assert completion.details.get("account") == "FINAL-ACC"
     assert completion.details.get("order_type") == "5"
@@ -1050,10 +1005,7 @@ def test_mock_fix_allows_order_replacement_with_execution_plan():
     assert history[-2]["last_qty"] == pytest.approx(1.0)
 
     replace_updates = [info for info in updates if info.cl_ord_id == "ORD-NEW"]
-    assert [
-        info.executions[-1].get("exec_type")
-        for info in replace_updates[:3]
-    ] == ["5", "1", "F"]
+    assert [info.executions[-1].get("exec_type") for info in replace_updates[:3]] == ["5", "1", "F"]
 
     telemetry = manager.snapshot_telemetry()
     replace_received = next(
@@ -1099,8 +1051,7 @@ def test_mock_fix_propagates_text_and_reasons():
         assert manager.wait_for_idle(timeout=1.0)
         assert manager.wait_for_telemetry(
             "order_execution",
-            predicate=lambda event: event.details.get("cl_ord_id")
-            in {"ORD-REJECT", "ORD-CANCEL"},
+            predicate=lambda event: event.details.get("cl_ord_id") in {"ORD-REJECT", "ORD-CANCEL"},
             count=2,
             timeout=1.0,
         )
@@ -1116,11 +1067,17 @@ def test_mock_fix_propagates_text_and_reasons():
     assert cancel_info.cancel_reason == "0"
     assert cancel_info.text == "Canceled for testing"
 
-    telemetry = [event for event in manager.snapshot_telemetry() if event.event == "order_execution"]
-    reject_event = next(event for event in telemetry if event.details.get("cl_ord_id") == "ORD-REJECT")
+    telemetry = [
+        event for event in manager.snapshot_telemetry() if event.event == "order_execution"
+    ]
+    reject_event = next(
+        event for event in telemetry if event.details.get("cl_ord_id") == "ORD-REJECT"
+    )
     assert reject_event.details.get("ord_rej_reason") == "99"
     assert reject_event.details.get("text") == "Rejected for testing"
-    cancel_event = next(event for event in telemetry if event.details.get("cl_ord_id") == "ORD-CANCEL")
+    cancel_event = next(
+        event for event in telemetry if event.details.get("cl_ord_id") == "ORD-CANCEL"
+    )
     assert cancel_event.details.get("cancel_reason") == "0"
     assert cancel_event.details.get("text") == "Canceled for testing"
 
@@ -1170,8 +1127,7 @@ def test_mock_fix_allows_per_order_partial_ratio_override():
     ratio_events = [
         event.details.get("partial_fill_ratio")
         for event in telemetry
-        if event.event == "order_received"
-        and event.details.get("cl_ord_id") == "ORD-RATIO"
+        if event.event == "order_received" and event.details.get("cl_ord_id") == "ORD-RATIO"
     ]
     assert ratio_events
     assert ratio_events[0] == pytest.approx(0.25)
@@ -1231,8 +1187,7 @@ def test_mock_fix_custom_execution_plan_controls_flow():
     exec_sequence = [
         event.details.get("exec_type")
         for event in manager.snapshot_telemetry()
-        if event.event == "order_execution"
-        and event.details.get("cl_ord_id") == "ORD-PLAN"
+        if event.event == "order_execution" and event.details.get("cl_ord_id") == "ORD-PLAN"
     ]
     assert exec_sequence[:4] == ["0", "1", "1", "F"]
 
@@ -1270,16 +1225,13 @@ def test_mock_fix_tracks_average_price():
         info for info in updates if info.cl_ord_id == "ORD-AVG" and info.ord_status == "1"
     )
     assert partial.avg_px == pytest.approx(1.0)
-    fill = next(
-        info for info in updates if info.cl_ord_id == "ORD-AVG" and info.ord_status == "2"
-    )
+    fill = next(info for info in updates if info.cl_ord_id == "ORD-AVG" and info.ord_status == "2")
     assert fill.avg_px == pytest.approx(1.1)
 
     telemetry = [
         event
         for event in manager.snapshot_telemetry()
-        if event.event == "order_execution"
-        and event.details.get("cl_ord_id") == "ORD-AVG"
+        if event.event == "order_execution" and event.details.get("cl_ord_id") == "ORD-AVG"
     ]
     partial_event = next(event for event in telemetry if event.details.get("exec_type") == "1")
     assert partial_event.details.get("avg_px") == pytest.approx(1.0)
@@ -1311,18 +1263,14 @@ def test_mock_fix_tracks_commission_metadata():
         manager.stop()
 
     partial = next(
-        info
-        for info in updates
-        if info.cl_ord_id == "ORD-COMM" and info.ord_status == "1"
+        info for info in updates if info.cl_ord_id == "ORD-COMM" and info.ord_status == "1"
     )
     assert partial.last_commission == pytest.approx(0.25)
     assert partial.cum_commission == pytest.approx(0.25)
     assert partial.comm_type == "ABS"
     assert partial.currency == "USD"
 
-    fill = next(
-        info for info in updates if info.cl_ord_id == "ORD-COMM" and info.ord_status == "2"
-    )
+    fill = next(info for info in updates if info.cl_ord_id == "ORD-COMM" and info.ord_status == "2")
     assert fill.last_commission == pytest.approx(0.25)
     assert fill.cum_commission == pytest.approx(0.50)
     assert fill.comm_type == "ABS"
@@ -1406,8 +1354,7 @@ def test_mock_fix_commission_overrides_and_config_updates():
     plan_complete = next(
         event
         for event in telemetry_snapshot
-        if event.event == "order_complete"
-        and event.details.get("cl_ord_id") == "PLAN-COMM"
+        if event.event == "order_complete" and event.details.get("cl_ord_id") == "PLAN-COMM"
     )
     assert plan_complete.details.get("cum_commission") == pytest.approx(1.0)
     assert plan_complete.details.get("last_commission") == pytest.approx(0.6)
@@ -1415,9 +1362,7 @@ def test_mock_fix_commission_overrides_and_config_updates():
     assert plan_complete.details.get("currency") == "EUR"
 
     default_fill = next(
-        info
-        for info in updates
-        if info.cl_ord_id == "DEFAULT-COMM" and info.ord_status == "2"
+        info for info in updates if info.cl_ord_id == "DEFAULT-COMM" and info.ord_status == "2"
     )
     assert default_fill.last_commission == pytest.approx(0.75)
     assert default_fill.cum_commission == pytest.approx(1.5)
@@ -1550,6 +1495,8 @@ def test_mock_fix_settlement_overrides_and_config_updates():
         assert default_info.settle_date == "20240606"
     finally:
         manager.stop()
+
+
 def test_mock_fix_supports_fill_price_override_on_message():
     manager = MockFIXManager(
         market_data_interval=0.01,
@@ -1579,23 +1526,16 @@ def test_mock_fix_supports_fill_price_override_on_message():
         manager.stop()
 
     partial = next(
-        info
-        for info in received
-        if info.cl_ord_id == "ORD-PX" and info.ord_status == "1"
+        info for info in received if info.cl_ord_id == "ORD-PX" and info.ord_status == "1"
     )
     assert partial.last_px == pytest.approx(1.45)
-    fill = next(
-        info
-        for info in received
-        if info.cl_ord_id == "ORD-PX" and info.ord_status == "2"
-    )
+    fill = next(info for info in received if info.cl_ord_id == "ORD-PX" and info.ord_status == "2")
     assert fill.last_px == pytest.approx(1.45)
 
     telemetry = [
         event
         for event in manager.snapshot_telemetry()
-        if event.event == "order_execution"
-        and event.details.get("cl_ord_id") == "ORD-PX"
+        if event.event == "order_execution" and event.details.get("cl_ord_id") == "ORD-PX"
     ]
     partial_event = next(event for event in telemetry if event.details.get("exec_type") == "1")
     assert partial_event.details.get("last_px") == pytest.approx(1.45)
@@ -1641,8 +1581,7 @@ def test_mock_fix_execution_plan_allows_price_overrides():
     telemetry = [
         event
         for event in manager.snapshot_telemetry()
-        if event.event == "order_execution"
-        and event.details.get("cl_ord_id") == "ORD-PXPLAN"
+        if event.event == "order_execution" and event.details.get("cl_ord_id") == "ORD-PXPLAN"
     ]
     partial_event = next(event for event in telemetry if event.details.get("exec_type") == "1")
     assert partial_event.details.get("last_px") == pytest.approx(1.42)
@@ -1660,9 +1599,7 @@ def test_mock_fix_execution_plan_supports_id_overrides():
     manager.add_order_callback(updates.append)
 
     plan = [
-        MockExecutionStep(
-            exec_type="0", delay=0.0, order_id="PLAN-ORDER", exec_id="PLAN-NEW"
-        ),
+        MockExecutionStep(exec_type="0", delay=0.0, order_id="PLAN-ORDER", exec_id="PLAN-NEW"),
         MockExecutionStep(exec_type="F", quantity=2.0, delay=0.0, exec_id="PLAN-FILL"),
     ]
 
@@ -1688,8 +1625,7 @@ def test_mock_fix_execution_plan_supports_id_overrides():
     telemetry = [
         event
         for event in manager.snapshot_telemetry()
-        if event.event == "order_execution"
-        and event.details.get("cl_ord_id") == "ORD-PLAN-IDS"
+        if event.event == "order_execution" and event.details.get("cl_ord_id") == "ORD-PLAN-IDS"
     ]
     exec_ids = [event.details.get("exec_id") for event in telemetry]
     assert exec_ids[:2] == ["PLAN-NEW", "PLAN-FILL"]
@@ -1726,9 +1662,7 @@ def test_mock_fix_execution_plan_supports_ratio_steps():
     finally:
         manager.stop()
 
-    order_updates = [
-        info for info in updates if info.cl_ord_id == "ORD-RATIO-PLAN"
-    ]
+    order_updates = [info for info in updates if info.cl_ord_id == "ORD-RATIO-PLAN"]
     assert [info.ord_status for info in order_updates] == ["0", "1", "1", "2"]
 
     partials = [info for info in order_updates if info.ord_status == "1"]
@@ -1754,8 +1688,7 @@ def test_mock_fix_execution_plan_supports_ratio_steps():
     telemetry = [
         event
         for event in manager.snapshot_telemetry()
-        if event.event == "order_execution"
-        and event.details.get("cl_ord_id") == "ORD-RATIO-PLAN"
+        if event.event == "order_execution" and event.details.get("cl_ord_id") == "ORD-RATIO-PLAN"
     ]
     partial_qtys = [
         event.details.get("last_qty")
@@ -1763,9 +1696,7 @@ def test_mock_fix_execution_plan_supports_ratio_steps():
         if event.details.get("exec_type") == "1"
     ]
     assert partial_qtys[:2] == pytest.approx([4.0, 2.0])
-    fill_event = next(
-        event for event in telemetry if event.details.get("exec_type") == "F"
-    )
+    fill_event = next(event for event in telemetry if event.details.get("exec_type") == "F")
     assert fill_event.details.get("last_qty") == pytest.approx(2.0)
 
 
@@ -1800,21 +1731,11 @@ def test_mock_fix_execution_plan_supports_repeated_steps():
     finally:
         manager.stop()
 
-    order_updates = [
-        info for info in updates if info.cl_ord_id == "ORD-REPEAT-PLAN"
-    ]
-    exec_types = [
-        info.executions[-1].get("exec_type")
-        for info in order_updates
-        if info.executions
-    ]
+    order_updates = [info for info in updates if info.cl_ord_id == "ORD-REPEAT-PLAN"]
+    exec_types = [info.executions[-1].get("exec_type") for info in order_updates if info.executions]
     assert exec_types == ["0", "1", "1", "1", "1", "F"]
 
-    partials = [
-        info
-        for info in order_updates
-        if info.executions[-1].get("exec_type") == "1"
-    ]
+    partials = [info for info in order_updates if info.executions[-1].get("exec_type") == "1"]
     assert [partial.last_qty for partial in partials] == [
         pytest.approx(1.5),
         pytest.approx(1.5),
@@ -1828,11 +1749,7 @@ def test_mock_fix_execution_plan_supports_repeated_steps():
         pytest.approx(5.25),
     ]
 
-    fill = next(
-        info
-        for info in order_updates
-        if info.executions[-1].get("exec_type") == "F"
-    )
+    fill = next(info for info in order_updates if info.executions[-1].get("exec_type") == "F")
     assert fill.last_qty == pytest.approx(0.75)
     assert fill.cum_qty == pytest.approx(6.0)
     assert fill.leaves_qty == pytest.approx(0.0)
@@ -1882,7 +1799,9 @@ def test_mock_fix_market_data_plan_emits_custom_levels():
     _, book1 = snapshots[1]
     assert book1.bids[0].price == pytest.approx(1.02)
 
-    telemetry = [event for event in manager.snapshot_telemetry() if event.event == "market_data_snapshot"]
+    telemetry = [
+        event for event in manager.snapshot_telemetry() if event.event == "market_data_snapshot"
+    ]
     assert telemetry[0].details.get("snapshot_index") == 0
     assert telemetry[0].details.get("bid") == pytest.approx(1.0)
     assert telemetry[0].details.get("plan_index") == 0
@@ -1916,7 +1835,9 @@ def test_mock_fix_market_data_plan_can_loop():
         manager.stop()
 
     assert len(snapshots) >= 3
-    telemetry = [event for event in manager.snapshot_telemetry() if event.event == "market_data_snapshot"]
+    telemetry = [
+        event for event in manager.snapshot_telemetry() if event.event == "market_data_snapshot"
+    ]
     assert len(telemetry) >= 3
     assert all(event.details.get("plan_index") == 0 for event in telemetry[:3])
 
@@ -1951,9 +1872,7 @@ def test_mock_fix_tracks_active_orders_and_completion_events():
         assert "ORD-ACTIVE" in manager.list_active_order_ids()
 
         snapshots = manager.snapshot_active_orders()
-        active_snapshot = next(
-            info for info in snapshots if info.cl_ord_id == "ORD-ACTIVE"
-        )
+        active_snapshot = next(info for info in snapshots if info.cl_ord_id == "ORD-ACTIVE")
         assert active_snapshot.ord_status == "0"
         assert active_snapshot.orig_qty == pytest.approx(4.0)
         assert active_snapshot.leaves_qty == pytest.approx(4.0)
@@ -1968,16 +1887,14 @@ def test_mock_fix_tracks_active_orders_and_completion_events():
         )
 
         partial_snapshot = next(
-            info for info in manager.snapshot_active_orders()
-            if info.cl_ord_id == "ORD-ACTIVE"
+            info for info in manager.snapshot_active_orders() if info.cl_ord_id == "ORD-ACTIVE"
         )
         assert partial_snapshot.ord_status == "1"
         assert partial_snapshot.leaves_qty == pytest.approx(2.0)
 
         partial_snapshot.leaves_qty = -1.0
         refreshed_snapshot = next(
-            info for info in manager.snapshot_active_orders()
-            if info.cl_ord_id == "ORD-ACTIVE"
+            info for info in manager.snapshot_active_orders() if info.cl_ord_id == "ORD-ACTIVE"
         )
         assert refreshed_snapshot.leaves_qty == pytest.approx(2.0)
 
@@ -1991,8 +1908,7 @@ def test_mock_fix_tracks_active_orders_and_completion_events():
     completion_events = [
         event
         for event in manager.snapshot_telemetry()
-        if event.event == "order_complete"
-        and event.details.get("cl_ord_id") == "ORD-ACTIVE"
+        if event.event == "order_complete" and event.details.get("cl_ord_id") == "ORD-ACTIVE"
     ]
     assert completion_events
     completion = completion_events[0]
@@ -2164,4 +2080,3 @@ def test_mock_fix_trade_date_overrides_and_config_updates():
         and event.details.get("trade_date") in {"20240111", "20240112"}
         for event in telemetry
     )
-

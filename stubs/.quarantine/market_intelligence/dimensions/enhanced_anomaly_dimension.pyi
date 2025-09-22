@@ -7,4 +7,6 @@ from typing import Any, Dict, Iterable
 # This .pyi takes precedence over the .py and eliminates duplicate-module loading.
 
 class AnomalyIntelligenceEngine:
-    def analyze_anomaly_intelligence(self, series: list[float] | Iterable[float] | None) -> Dict[str, Any]: ...
+    def analyze_anomaly_intelligence(
+        self, series: list[float] | Iterable[float] | None
+    ) -> Dict[str, Any]: ...

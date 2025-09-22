@@ -8,7 +8,9 @@ from itertools import islice
 from typing import Any, Deque, Iterable, Mapping
 
 from src.governance.vision_alignment import VisionAlignmentReport
+from src.operations.roi import format_roi_markdown as format_roi_summary
 from src.orchestration.bootstrap_stack import SensorySnapshot
+from src.trading.risk.policy_telemetry import format_policy_markdown
 
 
 def _as_float(value: object, default: float = 0.0) -> float:
@@ -134,6 +136,42 @@ class BootstrapControlCenter:
         if vision_summary:
             overview["vision_alignment"] = vision_summary
 
+        if hasattr(self.trading_manager, "get_last_risk_snapshot"):
+            try:
+                snapshot_obj = self.trading_manager.get_last_risk_snapshot()  # type: ignore[attr-defined]
+            except Exception:  # pragma: no cover - diagnostics only
+                snapshot_obj = None
+            if snapshot_obj is not None:
+                try:
+                    overview["risk_posture"] = snapshot_obj.as_dict()  # type: ignore[attr-defined]
+                except AttributeError:
+                    if isinstance(snapshot_obj, Mapping):
+                        overview["risk_posture"] = dict(snapshot_obj)
+
+        if hasattr(self.trading_manager, "get_last_policy_snapshot"):
+            try:
+                policy_obj = self.trading_manager.get_last_policy_snapshot()  # type: ignore[attr-defined]
+            except Exception:  # pragma: no cover - diagnostics only
+                policy_obj = None
+            if policy_obj is not None:
+                try:
+                    overview["risk_policy"] = policy_obj.as_dict()  # type: ignore[attr-defined]
+                except AttributeError:
+                    if isinstance(policy_obj, Mapping):
+                        overview["risk_policy"] = dict(policy_obj)
+
+        if hasattr(self.trading_manager, "get_last_roi_snapshot"):
+            try:
+                roi_obj = self.trading_manager.get_last_roi_snapshot()  # type: ignore[attr-defined]
+            except Exception:  # pragma: no cover - diagnostics only
+                roi_obj = None
+            if roi_obj is not None:
+                try:
+                    overview["roi_posture"] = roi_obj.as_dict()  # type: ignore[attr-defined]
+                except AttributeError:
+                    if isinstance(roi_obj, Mapping):
+                        overview["roi_posture"] = dict(roi_obj)
+
         return overview
 
     # ------------------------------------------------------------------
@@ -165,14 +203,52 @@ class BootstrapControlCenter:
             return {"limits": {}, "telemetry": {}, "last_decision": None}
 
         limits = gateway.get_risk_limits() if hasattr(gateway, "get_risk_limits") else {}
-        last_decision = gateway.get_last_decision() if hasattr(gateway, "get_last_decision") else None
+        last_decision = (
+            gateway.get_last_decision() if hasattr(gateway, "get_last_decision") else None
+        )
 
-        limits_payload = dict(limits) if isinstance(limits, Mapping) else {"limits": {}, "telemetry": {}}
+        limits_payload = (
+            dict(limits) if isinstance(limits, Mapping) else {"limits": {}, "telemetry": {}}
+        )
+        snapshot: Mapping[str, Any] | None = None
+        if hasattr(self.trading_manager, "get_last_risk_snapshot"):
+            try:
+                snapshot_obj = self.trading_manager.get_last_risk_snapshot()  # type: ignore[attr-defined]
+            except Exception:  # pragma: no cover - defensive surface
+                snapshot_obj = None
+            if snapshot_obj is not None:
+                try:
+                    snapshot = snapshot_obj.as_dict()  # type: ignore[attr-defined]
+                except AttributeError:
+                    snapshot = dict(snapshot_obj) if isinstance(snapshot_obj, Mapping) else None
+
+        policy_block: Mapping[str, Any] | None = None
+        if hasattr(self.trading_manager, "get_last_policy_snapshot"):
+            try:
+                policy_obj = self.trading_manager.get_last_policy_snapshot()  # type: ignore[attr-defined]
+            except Exception:  # pragma: no cover - diagnostics only
+                policy_obj = None
+            if policy_obj is not None:
+                try:
+                    policy_snapshot = policy_obj.as_dict()  # type: ignore[attr-defined]
+                    policy_markdown = format_policy_markdown(policy_obj)  # type: ignore[arg-type]
+                except AttributeError:
+                    policy_snapshot = dict(policy_obj) if isinstance(policy_obj, Mapping) else None
+                    policy_markdown = None
+                if policy_snapshot is not None:
+                    block: dict[str, Any] = {"snapshot": policy_snapshot}
+                    if policy_markdown:
+                        block["markdown"] = policy_markdown
+                    policy_block = block
 
         return {
             "limits": dict(limits_payload.get("limits", {})),
             "telemetry": dict(limits_payload.get("telemetry", {})),
-            "last_decision": dict(last_decision) if isinstance(last_decision, Mapping) else last_decision,
+            "last_decision": dict(last_decision)
+            if isinstance(last_decision, Mapping)
+            else last_decision,
+            "snapshot": dict(snapshot) if isinstance(snapshot, Mapping) else None,
+            "policy": policy_block,
         }
 
     def _build_intelligence_section(self) -> Mapping[str, Any]:
@@ -224,7 +300,33 @@ class BootstrapControlCenter:
             "unrealized_pnl": _as_float(portfolio.get("unrealized_pnl"), default=0.0),
             "total_pnl": _as_float(portfolio.get("total_pnl"), default=0.0),
             "equity": _as_float(portfolio.get("equity"), default=0.0),
+            **self._build_roi_section(),
         }
+
+    def _build_roi_section(self) -> Mapping[str, Any]:
+        if not hasattr(self.trading_manager, "get_last_roi_snapshot"):
+            return {}
+
+        try:
+            roi_obj = self.trading_manager.get_last_roi_snapshot()  # type: ignore[attr-defined]
+        except Exception:  # pragma: no cover - diagnostics only
+            roi_obj = None
+        if roi_obj is None:
+            return {}
+
+        try:
+            roi_dict = roi_obj.as_dict()  # type: ignore[attr-defined]
+            roi_markdown = format_roi_summary(roi_obj)  # type: ignore[arg-type]
+        except AttributeError:
+            roi_dict = dict(roi_obj) if isinstance(roi_obj, Mapping) else None
+            roi_markdown = None
+        if roi_dict is None:
+            return {}
+
+        payload: dict[str, Any] = {"roi": {"snapshot": roi_dict}}
+        if roi_markdown:
+            payload["roi"]["markdown"] = roi_markdown
+        return payload
 
     def _build_evolution_section(self) -> Mapping[str, Any]:
         orchestrator = self.evolution_orchestrator

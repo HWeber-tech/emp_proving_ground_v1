@@ -13,5 +13,5 @@ class Adam(Optimizer):
         betas: tuple[float, float] = ...,
         eps: float = ...,
         weight_decay: float = ...,
-        amsgrad: bool = ...
+        amsgrad: bool = ...,
     ) -> None: ...

@@ -25,11 +25,11 @@ from typing import Dict, List, Optional, Set, Tuple
 
 @dataclass(frozen=True)
 class Occurrence:
-    name: str           # definition name
-    kind: str           # "class" or "function"
-    path: str           # POSIX-style relative path
-    line: int           # 1-based line number
-    domain: str         # inferred domain (e.g., "risk", "evolution", "strategy")
+    name: str  # definition name
+    kind: str  # "class" or "function"
+    path: str  # POSIX-style relative path
+    line: int  # 1-based line number
+    domain: str  # inferred domain (e.g., "risk", "evolution", "strategy")
 
 
 DEFAULT_EXCLUDE_DIRS: Set[str] = {
@@ -119,7 +119,9 @@ def parse_python(source: str, filename: str) -> Optional[ast.AST]:
         return None
 
 
-def extract_defs(tree: ast.AST, file_path: Path, domain: str, ignore_private: bool) -> Tuple[List[Occurrence], List[Occurrence]]:
+def extract_defs(
+    tree: ast.AST, file_path: Path, domain: str, ignore_private: bool
+) -> Tuple[List[Occurrence], List[Occurrence]]:
     classes: List[Occurrence] = []
     functions: List[Occurrence] = []
     # Only module-level defs (no nested methods/functions)
@@ -159,7 +161,9 @@ def scan_root(
     exclude_dirs: Optional[Set[str]] = None,
     ignore_private: bool = True,
 ) -> Tuple[Dict[str, List[Occurrence]], Dict[str, List[Occurrence]]]:
-    exclude = set(d.lower() for d in (exclude_dirs or set())) | set(d.lower() for d in DEFAULT_EXCLUDE_DIRS)
+    exclude = set(d.lower() for d in (exclude_dirs or set())) | set(
+        d.lower() for d in DEFAULT_EXCLUDE_DIRS
+    )
     class_map: Dict[str, List[Occurrence]] = defaultdict(list)
     func_map: Dict[str, List[Occurrence]] = defaultdict(list)
 
@@ -186,7 +190,9 @@ def scan_root(
     return class_map, func_map
 
 
-def filter_duplicates(map_: Dict[str, List[Occurrence]], min_count: int) -> Dict[str, List[Occurrence]]:
+def filter_duplicates(
+    map_: Dict[str, List[Occurrence]], min_count: int
+) -> Dict[str, List[Occurrence]]:
     return {name: occs for name, occs in map_.items() if len(occs) >= min_count}
 
 
@@ -274,9 +280,7 @@ def write_json(
             name: {
                 "count": len(occs),
                 "domains": unique_domains(occs),
-                "occurrences": [
-                    {"path": o.path, "line": o.line, "domain": o.domain} for o in occs
-                ],
+                "occurrences": [{"path": o.path, "line": o.line, "domain": o.domain} for o in occs],
             }
             for name, occs in classes_dup.items()
         },
@@ -284,9 +288,7 @@ def write_json(
             name: {
                 "count": len(occs),
                 "domains": unique_domains(occs),
-                "occurrences": [
-                    {"path": o.path, "line": o.line, "domain": o.domain} for o in occs
-                ],
+                "occurrences": [{"path": o.path, "line": o.line, "domain": o.domain} for o in occs],
             }
             for name, occs in functions_dup.items()
         },
@@ -308,13 +310,27 @@ def write_json(
 
 
 def main(argv: Optional[List[str]] = None) -> int:
-    parser = argparse.ArgumentParser(description="Scan for duplicate class/function names and emit CSV/JSON reports.")
+    parser = argparse.ArgumentParser(
+        description="Scan for duplicate class/function names and emit CSV/JSON reports."
+    )
     parser.add_argument("--root", default="src", help="Root directory to scan (default: src)")
-    parser.add_argument("--out", default="docs/reports", help="Output directory for reports (default: docs/reports)")
-    parser.add_argument("--min-count", type=int, default=2, help="Minimum duplicates threshold (default: 2)")
-    parser.add_argument("--include-tests", action="store_true", help="Include tests directories (default: False)")
-    parser.add_argument("--include-private", action="store_true", help="Include private names (starting with _) (default: False)")
-    parser.add_argument("--top", type=int, default=20, help="Top N names to include in JSON summary (default: 20)")
+    parser.add_argument(
+        "--out", default="docs/reports", help="Output directory for reports (default: docs/reports)"
+    )
+    parser.add_argument(
+        "--min-count", type=int, default=2, help="Minimum duplicates threshold (default: 2)"
+    )
+    parser.add_argument(
+        "--include-tests", action="store_true", help="Include tests directories (default: False)"
+    )
+    parser.add_argument(
+        "--include-private",
+        action="store_true",
+        help="Include private names (starting with _) (default: False)",
+    )
+    parser.add_argument(
+        "--top", type=int, default=20, help="Top N names to include in JSON summary (default: 20)"
+    )
     args = parser.parse_args(argv)
 
     root = Path(args.root).resolve()

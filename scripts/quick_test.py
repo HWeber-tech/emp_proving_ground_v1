@@ -9,10 +9,7 @@ import os
 print("Testing Microstructure Verification Tool Structure...")
 
 # Check files exist
-files_to_check = [
-    'scripts/verify_microstructure.py',
-    'docs/v4_reality_check_report.md'
-]
+files_to_check = ["scripts/verify_microstructure.py", "docs/v4_reality_check_report.md"]
 
 all_exist = True
 for file_path in files_to_check:

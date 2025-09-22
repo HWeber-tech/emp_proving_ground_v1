@@ -12,6 +12,7 @@ Design goals:
 - Avoid import-time side effects (no logging/I/O/thread starts)
 - Keep heavy imports localized inside functions/methods
 """
+
 from __future__ import annotations
 
 import logging

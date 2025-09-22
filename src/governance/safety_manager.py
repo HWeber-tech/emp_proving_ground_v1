@@ -23,7 +23,9 @@ class SafetyContext:
 
 class SafetyManager:
     def __init__(self, run_mode: str, confirm_live: bool, kill_switch_path: Optional[str]):
-        self._ctx = SafetyContext(run_mode=run_mode, confirm_live=confirm_live, kill_switch_path=kill_switch_path)
+        self._ctx = SafetyContext(
+            run_mode=run_mode, confirm_live=confirm_live, kill_switch_path=kill_switch_path
+        )
 
     @classmethod
     def from_config(cls, config: Mapping[str, object]) -> "SafetyManager":
@@ -41,9 +43,9 @@ class SafetyManager:
         if self._ctx.kill_switch_path:
             try:
                 if os.path.exists(self._ctx.kill_switch_path):
-                    raise RuntimeError(f"Kill-switch engaged at {self._ctx.kill_switch_path}. Aborting.")
+                    raise RuntimeError(
+                        f"Kill-switch engaged at {self._ctx.kill_switch_path}. Aborting."
+                    )
             except Exception:
                 # If path check fails, default to allowing startup; callers may log a warning
                 pass
-
-

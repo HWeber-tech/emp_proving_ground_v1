@@ -43,6 +43,7 @@ QUARANTINE = REPO_ROOT / "stubs" / ".quarantine"
 MYPY_SNAPSHOTS = REPO_ROOT / "mypy_snapshots"
 MYPY_INI = REPO_ROOT / "mypy.ini"
 
+
 # Dataclass for units
 @dataclass
 class Unit:
@@ -51,15 +52,18 @@ class Unit:
     src_path: Path  # current location under stubs/src or file path
     rel_id: str  # identifier used in artifacts, e.g., 'core' or 'example.pyi'
 
+
 # Timestamp function
 def ts_utc() -> str:
     # Example: 2025-08-27T14-41-55Z (no colons for filesystem safety)
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H-%M-%SZ")
 
+
 # Ensure directories function
 def ensure_dirs() -> None:
     MYPY_SNAPSHOTS.mkdir(parents=True, exist_ok=True)
     QUARANTINE.mkdir(parents=True, exist_ok=True)
+
 
 # Shell quote function
 def sh_quote(p: Path | str) -> str:
@@ -67,6 +71,7 @@ def sh_quote(p: Path | str) -> str:
     if re.search(r"[^\\w@%+=:,./-]", s):
         return "'" + s.replace("'", "'\\\\''") + "'"
     return s
+
 
 # Run mypy and capture function
 def run_mypy_and_capture(snapshot_txt: Path) -> Tuple[int, str]:
@@ -83,6 +88,7 @@ def run_mypy_and_capture(snapshot_txt: Path) -> Tuple[int, str]:
     combined = (proc.stdout or "") + (proc.stderr or "")
     snapshot_txt.write_text(combined, encoding="utf-8")
     return proc.returncode, combined
+
 
 # Parse mypy summary function
 def parse_mypy_summary(text: str) -> Tuple[Optional[int], str]:
@@ -108,8 +114,11 @@ def parse_mypy_summary(text: str) -> Tuple[Optional[int], str]:
         summary_line = "mypy completed, exit_code=unknown"
     return n, summary_line
 
+
 # Write summary function
-def write_summary(summary_path: Path, exit_code: int, summary_line: str, parsed_errors: Optional[int]) -> None:
+def write_summary(
+    summary_path: Path, exit_code: int, summary_line: str, parsed_errors: Optional[int]
+) -> None:
     """
     Write small summary file.
     """
@@ -118,6 +127,7 @@ def write_summary(summary_path: Path, exit_code: int, summary_line: str, parsed_
     else:
         text = f"{summary_line}\\nexit_code={exit_code}\\nparsed_errors=unparsed\\n"
     summary_path.write_text(text, encoding="utf-8")
+
 
 # Discover units function
 def discover_units() -> List[Unit]:
@@ -139,6 +149,7 @@ def discover_units() -> List[Unit]:
 
     return units
 
+
 # Count files in path function
 def count_files_in_path(path: Path) -> int:
     if path.is_file():
@@ -149,11 +160,15 @@ def count_files_in_path(path: Path) -> int:
             total += 1
     return total
 
+
 # Write inventory function
 def write_inventory(units: List[Unit], ts: str) -> None:
     inv_txt = MYPY_SNAPSHOTS / f"stubs_inventory_{ts}.txt"
     inv_csv = MYPY_SNAPSHOTS / f"stubs_inventory_{ts}.csv"
-    with inv_txt.open("w", encoding="utf-8") as txt, inv_csv.open("w", encoding="utf-8", newline="") as csvf:
+    with (
+        inv_txt.open("w", encoding="utf-8") as txt,
+        inv_csv.open("w", encoding="utf-8", newline="") as csvf,
+    ):
         writer = csv.writer(csvf)
         writer.writerow(["unit_path", "files", "count"])
         for u in units:
@@ -161,6 +176,7 @@ def write_inventory(units: List[Unit], ts: str) -> None:
             unit_path = f"{STUBS_SRC.relative_to(REPO_ROOT)}/{u.rel_id}"
             txt.write(f"{unit_path}\\tfiles={cnt}\\n")
             writer.writerow([unit_path, "files", cnt])
+
 
 # Restore if quarantined function
 def restore_if_quarantined(units: List[Unit]) -> None:
@@ -179,6 +195,7 @@ def restore_if_quarantined(units: List[Unit]) -> None:
             if q_file.is_file() and not src_dest.exists():
                 src_dest.parent.mkdir(parents=True, exist_ok=True)
                 shutil.move(str(q_file), str(src_dest))
+
 
 # Move unit to quarantine function
 def move_unit_to_quarantine(u: Unit) -> None:
@@ -205,6 +222,7 @@ def move_unit_to_quarantine(u: Unit) -> None:
             dst.parent.mkdir(parents=True, exist_ok=True)
             shutil.move(str(src), str(dst))
 
+
 # Restore unit from quarantine function
 def restore_unit_from_quarantine(u: Unit) -> None:
     src = QUARANTINE / u.rel_id
@@ -212,6 +230,7 @@ def restore_unit_from_quarantine(u: Unit) -> None:
     if src.exists() and not dst.exists():
         dst.parent.mkdir(parents=True, exist_ok=True)
         shutil.move(str(src), str(dst))
+
 
 # Ranked offenders CSV from output function
 def ranked_offenders_csv_from_output(text: str, path: Path) -> None:
@@ -238,14 +257,17 @@ def ranked_offenders_csv_from_output(text: str, path: Path) -> None:
         for p, c in sorted(counts.items(), key=lambda kv: kv[1], reverse=True):
             w.writerow([p, c])
 
+
 # Append line function
 def append_line(path: Path, line: str) -> None:
     with path.open("a", encoding="utf-8") as f:
         f.write(line + "\\n")
 
+
 # Sanitize unit function
 def sanitize_unit(s: str) -> str:
     return re.sub(r"[^A-Za-z0-9_.-]+", "_", s)
+
 
 # Main function
 def main() -> int:
@@ -259,7 +281,10 @@ def main() -> int:
     baseline_summary = MYPY_SNAPSHOTS / f"stubs_audit_baseline_summary_{ts}.txt"
     write_summary(baseline_summary, exit_code, baseline_summary_line, n0)
     if n0 is None:
-        print("Warning: Could not parse baseline error count; using exit code as proxy.", file=sys.stderr)
+        print(
+            "Warning: Could not parse baseline error count; using exit code as proxy.",
+            file=sys.stderr,
+        )
         n0 = exit_code if exit_code >= 0 else 0
 
     # Step 2: Inventory
@@ -274,7 +299,9 @@ def main() -> int:
     kept_txt = MYPY_SNAPSHOTS / f"stubs_kept_{ts}.txt"
     with decisions_csv.open("w", encoding="utf-8", newline="") as f:
         w = csv.writer(f)
-        w.writerow(["unit", "action", "baseline_errors", "trial_errors", "delta", "trial_artifact_path"])
+        w.writerow(
+            ["unit", "action", "baseline_errors", "trial_errors", "delta", "trial_artifact_path"]
+        )
 
     removed_count = 0
     kept_count = 0
@@ -306,7 +333,9 @@ def main() -> int:
         # Record decision row
         with decisions_csv.open("a", encoding="utf-8", newline="") as f:
             w = csv.writer(f)
-            w.writerow([u.rel_id, action, n0, n1, delta, str(trial_artifact.relative_to(REPO_ROOT))])
+            w.writerow(
+                [u.rel_id, action, n0, n1, delta, str(trial_artifact.relative_to(REPO_ROOT))]
+            )
 
     # Step 4: Finalize
     post_txt = MYPY_SNAPSHOTS / f"stubs_audit_post_{ts}.txt"
@@ -321,8 +350,11 @@ def main() -> int:
     # Final console summary
     total_units = len(units)
     delta_total = (n_post or 0) - (n0 or 0)
-    print(f"Units evaluated={total_units}, removed={removed_count}, kept={kept_count}, baseline_errors={n0}, final_errors={n_post}, delta_total={delta_total}")
+    print(
+        f"Units evaluated={total_units}, removed={removed_count}, kept={kept_count}, baseline_errors={n0}, final_errors={n_post}, delta_total={delta_total}"
+    )
     return 0
+
 
 # Main execution
 if __name__ == "__main__":

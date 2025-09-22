@@ -89,7 +89,7 @@ class MetaCognitionEngine:
             await self._store_learning_assessment(learning_signal.trade_id, assessment)
 
             logger.debug(
-                f"Learning quality assessment: {overall_quality:.2f}, " f"Adapt: {should_adapt}"
+                f"Learning quality assessment: {overall_quality:.2f}, Adapt: {should_adapt}"
             )
 
             return assessment

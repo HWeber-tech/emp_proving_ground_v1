@@ -148,7 +148,9 @@ class DepthAwareLiquidityProber:
 
         return max(0.0, min(1.0, score))
 
-    def get_probe_summary(self, probe_results: Mapping[float, float]) -> Mapping[str, float | int | str | None]:
+    def get_probe_summary(
+        self, probe_results: Mapping[float, float]
+    ) -> Mapping[str, float | int | str | None]:
         total = sum(_to_float(v, default=0.0) for v in probe_results.values())
         levels = list(probe_results.keys())
         peak_level = None

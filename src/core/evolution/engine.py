@@ -17,6 +17,7 @@ class EvolutionConfig:
     crossover_rate: float = 0.8
     mutation_rate: float = 0.1
     max_generations: int = 100
+    use_catalogue: bool | None = None
 
 
 @dataclass
@@ -40,8 +41,12 @@ class EvolutionEngine:
         population_manager: PopulationManagerProtocol | None = None,
     ) -> None:
         self.config = config or EvolutionConfig()
-        self._population_manager: PopulationManagerProtocol = population_manager or PopulationManagerImpl(
-            population_size=self.config.population_size
+        self._population_manager: PopulationManagerProtocol = (
+            population_manager
+            or PopulationManagerImpl(
+                population_size=self.config.population_size,
+                use_catalogue=self.config.use_catalogue,
+            )
         )
         self._initialized = False
         self._genome_counter = 0
@@ -227,7 +232,9 @@ class EvolutionEngine:
         if not isinstance(genome, DecisionGenome):
             genome = cast(DecisionGenome, provider.from_legacy(genome))
 
-        parent_ids = [getattr(parent, "id", "") for parent in parents if getattr(parent, "id", None)]
+        parent_ids = [
+            getattr(parent, "id", "") for parent in parents if getattr(parent, "id", None)
+        ]
         genome = self._apply_parent_metadata(genome, parent_ids, generation)
         self._normalize_genome(genome)
         try:

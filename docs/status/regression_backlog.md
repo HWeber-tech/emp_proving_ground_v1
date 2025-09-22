@@ -13,15 +13,15 @@ coverage improvements alongside formatter progress.
 | REG-003 | `src/operational/metrics.py` | Sanitize FIX and WHY telemetry, enforce negative guards, and bound confidence metrics. | Platform | Done | `tests/current/test_operational_metrics_sanitization.py`. |
 | REG-004 | FIX execution adapters | Validate mock start-up failures and initiator fallbacks without live credentials. | Trading | Done | `tests/current/test_fix_manager_failures.py`. |
 | REG-005 | Orchestration compose wiring | Smoke test optional module degradation and adapter registration. | Platform | Done | `tests/current/test_orchestration_execution_risk_integration.py` chains orchestration stubs through risk sizing and execution telemetry. |
-| REG-006 | Sensory WHY yield signal | Scenario coverage for flattening/steepening transitions and confidence scaling. | Sensory | Ready | Fixtures staged in `tests/fixtures/sensory/yield_curve_regimes.json` for follow-on assertions around `YieldSlopeTracker.signal()`. |
+| REG-006 | Sensory WHY yield signal | Scenario coverage for flattening/steepening transitions and confidence scaling. | Sensory | Done | `tests/sensory/test_why_yield.py::test_yield_slope_tracker_signal_regimes` exercises flattening/steepening/inversion fixtures. |
 | REG-007 | `src/trading/execution/execution_engine.py` | Partial fills, retries, and reconciliation regression coverage. | Trading | Done | `tests/current/test_execution_engine.py`. |
 | REG-008 | `src/risk/risk_manager_impl.py` | Drawdown throttling and risk limit updates regression coverage. | Trading | Done | `tests/current/test_risk_manager_impl.py`. |
 | REG-009 | `src/trading/models/order.py` | Property-based invariants around order mutation flows. | Trading | Done | `tests/current/test_order_model_properties.py`. |
 
 ## Next steps
 
-- Coordinate owners for REG-005/REG-006 in the sprint planning session and link
-  resulting PRs back to this table.
+- Highlight the closed REG-006 coverage in the next sprint review so teams adopt
+  the shared fixtures when refining WHY sensor heuristics.
 - Capture coverage deltas in [`docs/status/ci_health.md`](ci_health.md) after
   each ticket lands to keep telemetry in sync with regression progress.
 - Drop a short summary into the weekly status update once REG-005 closes so the

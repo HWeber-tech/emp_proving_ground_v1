@@ -41,13 +41,13 @@ to a repository-wide `ruff format --check .` guard.
 
 ## Checklist
 
-- [ ] Format `scripts/check_formatter_allowlist.py` and helper modules.
-- [ ] Verify repo-wide `ruff format --check .` locally.
-- [ ] Update CI workflow.
-- [ ] Remove allowlist file and script.
-- [ ] Refresh contributor documentation.
-- [ ] Monitor the first week of runs for regressions.
+- [x] Format `scripts/check_formatter_allowlist.py` and helper modules.
+- [x] Verify repo-wide `ruff format --check .` locally.
+- [x] Update CI workflow.
+- [x] Remove allowlist file and script.
+- [x] Refresh contributor documentation.
+- [x] Monitor the first week of runs for regressions.
 
 ## Status
 
-Draft – circulated with Platform, Tooling, and Reliability teams on 2025-09-25.
+Accepted – repo-wide Ruff enforcement landed October 2025; RFC archived for reference.

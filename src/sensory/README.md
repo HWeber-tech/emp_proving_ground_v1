@@ -213,8 +213,12 @@ session_weight = london_weight + ny_weight + asian_weight
 # Economic news proximity
 news_proximity = exp(-minutes_to_news / 60)
 
-# Option gamma exposure (placeholder)
-gamma_impact = 0.0  # TODO: Implement gamma strike analysis
+# Option gamma exposure with strike analysis
+gamma_summary = analyzer.summarise(option_positions, spot_price=current_price)
+gamma_impact = gamma_summary.impact_score
+pin_strike = (
+    gamma_summary.primary_strike.strike if gamma_summary.primary_strike else None
+)
 
 # Final WHEN signal
 when_signal = (session_weight * 0.5) + (news_proximity * 0.5) + (gamma_impact * 0.0)

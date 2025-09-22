@@ -13,7 +13,9 @@ def main() -> int:
     try:
         import pytest  # type: ignore
     except Exception:
-        print("pytest is required. Install with: pip install -r requirements/dev.txt or pip install pytest")
+        print(
+            "pytest is required. Install with: pip install -r requirements/dev.txt or pip install pytest"
+        )
         return 2
 
     args = ["-q"]
@@ -27,5 +29,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-
-

@@ -68,22 +68,32 @@ def summarize_failures(classes: Dict[str, Any], disallowed_funcs: Dict[str, Any]
             print(f"    * {name}: {data.get('count', 0)}", file=sys.stderr)
     if disallowed_funcs:
         print(f"- Duplicate function groups (disallowed): {len(disallowed_funcs)}", file=sys.stderr)
-        for name, data in sorted(disallowed_funcs.items(), key=lambda kv: -kv[1].get("count", 0))[:20]:
+        for name, data in sorted(disallowed_funcs.items(), key=lambda kv: -kv[1].get("count", 0))[
+            :20
+        ]:
             print(f"    * {name}: {data.get('count', 0)}", file=sys.stderr)
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Fail CI if new duplicate classes/functions are introduced.")
+    parser = argparse.ArgumentParser(
+        description="Fail CI if new duplicate classes/functions are introduced."
+    )
     parser.add_argument("--root", default="src", help="Root directory to scan (default: src)")
-    parser.add_argument("--out", default="docs/reports", help="Output directory for reports (default: docs/reports)")
-    parser.add_argument("--min-count", type=int, default=2, help="Duplicates threshold for grouping (default: 2)")
+    parser.add_argument(
+        "--out", default="docs/reports", help="Output directory for reports (default: docs/reports)"
+    )
+    parser.add_argument(
+        "--min-count", type=int, default=2, help="Duplicates threshold for grouping (default: 2)"
+    )
     parser.add_argument(
         "--allow-func",
         action="append",
         default=["main"],
         help="Allow-listed duplicate function names (can be provided multiple times). Default: main",
     )
-    parser.add_argument("--skip-run", action="store_true", help="Skip running the scanner (use existing report)")
+    parser.add_argument(
+        "--skip-run", action="store_true", help="Skip running the scanner (use existing report)"
+    )
     args = parser.parse_args(argv)
 
     root = Path(args.root).resolve()

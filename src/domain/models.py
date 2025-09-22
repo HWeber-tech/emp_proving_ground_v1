@@ -22,6 +22,7 @@ if TYPE_CHECKING:
 
 class ExecutionReport(BaseModel):
     """Execution report for trade confirmations"""
+
     event_id: str
     timestamp: datetime
     source: str

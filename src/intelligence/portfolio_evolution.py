@@ -564,7 +564,7 @@ class DiversificationMaximizer:
         correlation_matrix = self._build_correlation_matrix(portfolio)
         weighted_volatility = float(np.sum(weights * volatilities))
         portfolio_variance = float(
-            weights @ ((np.outer(volatilities, volatilities) * correlation_matrix)) @ weights
+            weights @ (np.outer(volatilities, volatilities) * correlation_matrix) @ weights
         )
         portfolio_volatility = float(np.sqrt(portfolio_variance))
         ratio = weighted_volatility / max(portfolio_volatility, 1e-6)
@@ -600,7 +600,7 @@ class DiversificationMaximizer:
         # Calculate portfolio volatility (simplified)
         correlation_matrix = self._build_correlation_matrix(portfolio)
         portfolio_variance = float(
-            weights @ ((np.outer(volatilities, volatilities) * correlation_matrix)) @ weights
+            weights @ (np.outer(volatilities, volatilities) * correlation_matrix) @ weights
         )
         portfolio_volatility = float(np.sqrt(portfolio_variance))
 

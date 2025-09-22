@@ -44,7 +44,9 @@ SKIP_DIRS: Set[str] = {
 DEFAULT_ROOT = "src"
 DEFAULT_MAP = os.path.join("docs", "development", "import_rewrite_map.yaml")
 
-DEFAULT_ALLOWED_FILES: List[str] = []  # intentionally empty; prefer explicit --allow-file flags in CI
+DEFAULT_ALLOWED_FILES: List[
+    str
+] = []  # intentionally empty; prefer explicit --allow-file flags in CI
 
 
 def eprint(*args: Any, **kwargs: Any) -> None:
@@ -180,7 +182,9 @@ def analyze_file_for_legacy_imports(
     try:
         tree = ast.parse(text)
     except SyntaxError as ex:
-        eprint(f"[WARN] SyntaxError in {rel_to_repo(file_path)} at line {getattr(ex, 'lineno', '?')}: {ex.msg}")
+        eprint(
+            f"[WARN] SyntaxError in {rel_to_repo(file_path)} at line {getattr(ex, 'lineno', '?')}: {ex.msg}"
+        )
         return []
     except Exception as ex:
         eprint(f"[WARN] Failed to parse AST for {rel_to_repo(file_path)}: {ex}")
@@ -211,12 +215,26 @@ def main() -> int:
     parser = argparse.ArgumentParser(
         description="Guard that flags legacy imports based on declarative mapping 'sources'."
     )
-    parser.add_argument("--root", default=DEFAULT_ROOT, help="Root directory to search (default: src)")
-    parser.add_argument("--map", dest="map_path", default=DEFAULT_MAP, help="Path to mapping file (default: docs/development/import_rewrite_map.yaml)")
-    parser.add_argument("--allow-file", action="append", default=[], help="Repo-relative path to allow legacy imports (repeatable)")
+    parser.add_argument(
+        "--root", default=DEFAULT_ROOT, help="Root directory to search (default: src)"
+    )
+    parser.add_argument(
+        "--map",
+        dest="map_path",
+        default=DEFAULT_MAP,
+        help="Path to mapping file (default: docs/development/import_rewrite_map.yaml)",
+    )
+    parser.add_argument(
+        "--allow-file",
+        action="append",
+        default=[],
+        help="Repo-relative path to allow legacy imports (repeatable)",
+    )
     parser.add_argument("--fail", action="store_true", help="Exit non-zero if violations are found")
     parser.add_argument("--verbose", action="store_true", help="Print per-file details")
-    parser.add_argument("--no-default-allow", action="store_true", help="Disable default allow-list for this run")
+    parser.add_argument(
+        "--no-default-allow", action="store_true", help="Disable default allow-list for this run"
+    )
 
     args = parser.parse_args()
 

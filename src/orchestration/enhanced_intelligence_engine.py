@@ -198,9 +198,15 @@ class ContextualFusionEngine:
         self._how: EnhancedEngineProto = cast(
             EnhancedEngineProto, cast(Any, InstitutionalIntelligenceEngine)()
         )
-        self._what: EnhancedEngineProto = cast(EnhancedEngineProto, cast(Any, TechnicalRealityEngine)())
-        self._when: EnhancedEngineProto = cast(EnhancedEngineProto, cast(Any, ChronalIntelligenceEngine)())
-        self._anomaly: EnhancedEngineProto = cast(EnhancedEngineProto, cast(Any, AnomalyIntelligenceEngine)())
+        self._what: EnhancedEngineProto = cast(
+            EnhancedEngineProto, cast(Any, TechnicalRealityEngine)()
+        )
+        self._when: EnhancedEngineProto = cast(
+            EnhancedEngineProto, cast(Any, ChronalIntelligenceEngine)()
+        )
+        self._anomaly: EnhancedEngineProto = cast(
+            EnhancedEngineProto, cast(Any, AnomalyIntelligenceEngine)()
+        )
 
         # Public state used in tests
         self.current_readings: Dict[str, DimensionalReading] = {}
@@ -255,7 +261,9 @@ class ContextualFusionEngine:
         intel_level = (
             IntelligenceLevel.HIGH
             if conf > 0.7
-            else IntelligenceLevel.MEDIUM if conf > 0.4 else IntelligenceLevel.LOW
+            else IntelligenceLevel.MEDIUM
+            if conf > 0.4
+            else IntelligenceLevel.LOW
         )
 
         # Compose simple narrative text

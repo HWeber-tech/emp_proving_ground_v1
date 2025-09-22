@@ -3,10 +3,22 @@
 from __future__ import annotations
 
 import inspect
+from collections import deque
 from dataclasses import dataclass, field
 from datetime import datetime
 from decimal import Decimal
-from typing import Any, Awaitable, Callable, Dict, List, Mapping, MutableMapping, Optional, TYPE_CHECKING
+from itertools import islice
+from typing import (
+    Any,
+    Awaitable,
+    Callable,
+    Dict,
+    List,
+    Mapping,
+    MutableMapping,
+    Optional,
+    TYPE_CHECKING,
+)
 
 from src.core.base import MarketData
 from src.data_foundation.fabric.market_data_fabric import MarketDataFabric
@@ -39,6 +51,7 @@ class BootstrapSensoryPipeline:
         self.fusion_engine = fusion_engine or ContextualFusionEngine()
         self.history: Dict[str, List[SensorySnapshot]] = {}
         self._listeners: list[Callable[[SensorySnapshot], Awaitable[None] | None]] = []
+        self._audit_trail: deque[dict[str, Any]] = deque(maxlen=128)
 
     def register_listener(
         self, listener: Callable[[SensorySnapshot], Awaitable[None] | None]
@@ -59,6 +72,8 @@ class BootstrapSensoryPipeline:
         snapshot = SensorySnapshot(symbol=symbol, market_data=market_data, synthesis=synthesis)
         self.history.setdefault(symbol, []).append(snapshot)
 
+        self._record_audit_entry(symbol, synthesis)
+
         for listener in list(self._listeners):
             try:
                 outcome = listener(snapshot)
@@ -69,6 +84,32 @@ class BootstrapSensoryPipeline:
                 continue
 
         return snapshot
+
+    def _record_audit_entry(self, symbol: str, synthesis: Synthesis) -> None:
+        readings = getattr(self.fusion_engine, "current_readings", {})
+        if not readings:
+            return
+
+        dimensions: dict[str, dict[str, Any]] = {}
+        for name, reading in readings.items():
+            dimensions[name] = {
+                "signal": float(getattr(reading, "signal_strength", 0.0)),
+                "confidence": float(getattr(reading, "confidence", 0.0)),
+                "regime": getattr(getattr(reading, "regime", None), "name", None),
+                "data_quality": float(getattr(reading, "data_quality", 0.0)),
+            }
+
+        entry = {
+            "symbol": symbol,
+            "generated_at": datetime.utcnow().isoformat(),
+            "unified_score": float(synthesis.unified_score),
+            "confidence": float(synthesis.confidence),
+            "dimensions": dimensions,
+        }
+        self._audit_trail.appendleft(entry)
+
+    def audit_trail(self, limit: int = 5) -> list[Mapping[str, Any]]:
+        return [dict(item) for item in islice(self._audit_trail, 0, max(0, limit))]
 
 
 @dataclass
@@ -117,6 +158,7 @@ class BootstrapTradingStack:
         self.control_center = control_center
 
         if liquidity_prober is not None:
+
             async def _record(snapshot: SensorySnapshot) -> None:
                 try:
                     liquidity_prober.record_snapshot(snapshot.symbol, snapshot.market_data)
@@ -126,9 +168,7 @@ class BootstrapTradingStack:
 
             self.pipeline.register_listener(_record)
 
-    async def evaluate_tick(
-        self, symbol: str, *, as_of: datetime | None = None
-    ) -> dict[str, Any]:
+    async def evaluate_tick(self, symbol: str, *, as_of: datetime | None = None) -> dict[str, Any]:
         snapshot = await self.pipeline.process_tick(symbol, as_of=as_of)
         unified_score = float(snapshot.synthesis.unified_score)
 

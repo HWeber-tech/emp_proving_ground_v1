@@ -19,21 +19,32 @@ from __future__ import annotations
 from ._event_bus_impl import AsyncEventBus as AsyncEventBus
 from ._event_bus_impl import Event as Event  # noqa: F401
 from ._event_bus_impl import EventBus as EventBus
+from ._event_bus_impl import EventBusStatistics as EventBusStatistics
 from ._event_bus_impl import SubscriptionHandle as SubscriptionHandle
 from ._event_bus_impl import TopicBus as TopicBus
 from ._event_bus_impl import event_bus as event_bus
 from ._event_bus_impl import get_global_bus as get_global_bus
 from ._event_bus_impl import publish_event as publish_event
+from ._event_bus_impl import set_event_bus_tracer as set_event_bus_tracer
 from ._event_bus_impl import start_event_bus as start_event_bus
 from ._event_bus_impl import stop_event_bus as stop_event_bus
 from ._event_bus_impl import subscribe_to_event as subscribe_to_event
 from ._event_bus_impl import unsubscribe_from_event as unsubscribe_from_event
+from src.observability.tracing import (
+    EventBusTracer,
+    NullEventBusTracer,
+    OpenTelemetryEventBusTracer,
+    OpenTelemetrySettings,
+    configure_event_bus_tracer,
+    parse_opentelemetry_settings,
+)
 
 __all__ = [
     "Event",
     "SubscriptionHandle",
     "AsyncEventBus",
     "EventBus",
+    "EventBusStatistics",
     "TopicBus",
     "event_bus",
     "get_global_bus",
@@ -42,4 +53,11 @@ __all__ = [
     "unsubscribe_from_event",
     "start_event_bus",
     "stop_event_bus",
+    "EventBusTracer",
+    "NullEventBusTracer",
+    "OpenTelemetryEventBusTracer",
+    "OpenTelemetrySettings",
+    "configure_event_bus_tracer",
+    "parse_opentelemetry_settings",
+    "set_event_bus_tracer",
 ]

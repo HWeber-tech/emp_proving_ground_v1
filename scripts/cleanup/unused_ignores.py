@@ -18,6 +18,7 @@ Notes:
 - Behavior-preserving: only remove the token and immediate extra whitespace, keep other comment text.
 - Limit edits to lines flagged by mypy unused-ignores.
 """
+
 from __future__ import annotations
 
 import csv
@@ -54,6 +55,7 @@ UNUSED_IGNORE_RE = re.compile(
 # Regex to remove the token "# type: ignore" optionally with bracketed codes
 IGNORE_TOKEN_RE = re.compile(r"(?:\s*#\s*type:\s*ignore(?:\[[^\]]*\])?)")
 
+
 # ... existing code ...
 def find_cmd(name: str) -> str:
     for d in VENV_DIRS:
@@ -68,8 +70,11 @@ def find_cmd(name: str) -> str:
         raise FileNotFoundError(f"Required tool not found: {name}")
     return found
 
+
 # ... existing code ...
-def run_cmd(cmd: List[str], cwd: Path | None = None, allow_error: bool = False) -> subprocess.CompletedProcess:
+def run_cmd(
+    cmd: List[str], cwd: Path | None = None, allow_error: bool = False
+) -> subprocess.CompletedProcess:
     proc = subprocess.run(
         cmd,
         cwd=str(cwd) if cwd else None,
@@ -81,12 +86,14 @@ def run_cmd(cmd: List[str], cwd: Path | None = None, allow_error: bool = False) 
         raise RuntimeError(f"Command failed ({proc.returncode}): {shlex.join(cmd)}\n{proc.stdout}")
     return proc
 
+
 # ... existing code ...
 def timestamp_utc() -> str:
     # Use Python to generate the same TS as `date -u +'%Y-%m-%dT%H-%M-%SZ'`
     from datetime import datetime, timezone
 
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H-%M-%SZ")
+
 
 @dataclass
 class Artifacts:
@@ -99,6 +106,7 @@ class Artifacts:
     final_sum: Path
     changed_list: Path
     edits_csv: Path
+
 
 # ... existing code ...
 def build_artifacts(ts: str) -> Artifacts:
@@ -115,10 +123,12 @@ def build_artifacts(ts: str) -> Artifacts:
         edits_csv=SNAP_DIR / f"unused_ignores_edits_{ts}.csv",
     )
 
+
 # ... existing code ...
 def write_csv_header(path: Path, header: Iterable[str]) -> None:
     with path.open("w", newline="", encoding="utf-8") as f:
         csv.writer(f).writerow(list(header))
+
 
 # ... existing code ...
 def append_edits_rows(edits_csv: Path, rows: List[Tuple[str, str, str, str]]) -> None:
@@ -129,6 +139,7 @@ def append_edits_rows(edits_csv: Path, rows: List[Tuple[str, str, str, str]]) ->
             w.writerow(["path", "line_before", "line_after", "status"])
         for row in rows:
             w.writerow(row)
+
 
 # ... existing code ...
 def parse_unused_ignores(txt: str) -> List[Tuple[str, int, str]]:
@@ -142,6 +153,7 @@ def parse_unused_ignores(txt: str) -> List[Tuple[str, int, str]]:
             results.append((p, ln, msg))
     return results
 
+
 # ... existing code ...
 def group_by_file(lines: List[Tuple[str, int, str]]) -> Dict[str, List[int]]:
     files: Dict[str, List[int]] = {}
@@ -150,6 +162,7 @@ def group_by_file(lines: List[Tuple[str, int, str]]) -> Dict[str, List[int]]:
     for p in list(files):
         files[p] = sorted(set(files[p]))
     return files
+
 
 # ... existing code ...
 def remove_ignore_token_from_line(line: str) -> Tuple[str, bool]:
@@ -167,10 +180,12 @@ def remove_ignore_token_from_line(line: str) -> Tuple[str, bool]:
     new_line = re.sub(r"\s+#", " #", new_line)
     return new_line, True
 
+
 # ... existing code ...
 def run_mypy_on_file(mypy_bin: str, path: Path) -> int:
     proc = run_cmd([mypy_bin, "--config-file", MYPY_CONFIG, str(path)], allow_error=True)
     return proc.returncode
+
 
 # ... existing code ...
 def process_file(
@@ -220,6 +235,7 @@ def process_file(
     append_edits_rows(edits_csv, edits_rows)
     return changed_any
 
+
 # ... existing code ...
 def main() -> int:
     # Tool resolution
@@ -229,16 +245,16 @@ def main() -> int:
         black_bin = find_cmd("black")
         isort_bin = find_cmd("isort")
     except FileNotFoundError as e:
-        sys.stderr.write(
-            f"{e}\nInstall dependencies from requirements/dev.txt and retry.\n"
-        )
+        sys.stderr.write(f"{e}\nInstall dependencies from requirements/dev.txt and retry.\n")
         return 1
 
     ts = timestamp_utc()
     artifacts = build_artifacts(ts)
 
     # Step 2: pre-run mypy with --warn-unused-ignores
-    pre_proc = run_cmd([mypy_bin, "--config-file", MYPY_CONFIG, "--warn-unused-ignores"], allow_error=True)
+    pre_proc = run_cmd(
+        [mypy_bin, "--config-file", MYPY_CONFIG, "--warn-unused-ignores"], allow_error=True
+    )
     artifacts.pre_txt.write_text(pre_proc.stdout, encoding="utf-8")
 
     unused = parse_unused_ignores(pre_proc.stdout)
@@ -251,7 +267,9 @@ def main() -> int:
 
     # Write unique changed files list
     changed_files: List[str] = sorted({p for p, _, _ in unused})
-    artifacts.changed_list.write_text("\n".join(changed_files) + ("\n" if changed_files else ""), encoding="utf-8")
+    artifacts.changed_list.write_text(
+        "\n".join(changed_files) + ("\n" if changed_files else ""), encoding="utf-8"
+    )
 
     # Step 3-4: apply minimal edits with per-file validation
     files_to_lines = group_by_file(unused)
@@ -275,7 +293,9 @@ def main() -> int:
             sys.stderr.write(f"Skipping {fp} due to error: {e}\n")
 
     # Step 5: post-run mypy with --warn-unused-ignores
-    post_proc = run_cmd([mypy_bin, "--config-file", MYPY_CONFIG, "--warn-unused-ignores"], allow_error=True)
+    post_proc = run_cmd(
+        [mypy_bin, "--config-file", MYPY_CONFIG, "--warn-unused-ignores"], allow_error=True
+    )
     artifacts.post_txt.write_text(post_proc.stdout, encoding="utf-8")
 
     post_unused = parse_unused_ignores(post_proc.stdout)
@@ -310,7 +330,9 @@ def main() -> int:
     for line in final_proc.stdout.splitlines():
         if re.search(r"Found \d+ errors? in \d+ files?", line):
             summary_line = line.strip()
-    artifacts.final_sum.write_text((summary_line or "No mypy summary line detected.") + "\n", encoding="utf-8")
+    artifacts.final_sum.write_text(
+        (summary_line or "No mypy summary line detected.") + "\n", encoding="utf-8"
+    )
 
     # Emit artifacts list to stdout for convenience
     print("ARTIFACTS:")
@@ -324,6 +346,7 @@ def main() -> int:
     print(str(artifacts.edits_csv))
 
     return 0
+
 
 # ... existing code ...
 if __name__ == "__main__":

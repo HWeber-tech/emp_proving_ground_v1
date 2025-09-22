@@ -215,7 +215,8 @@ def calculate_trading_metrics(trades_history: Sequence[Mapping[str, object]]) ->
 
     if "entry_time" in trades_df.columns and "exit_time" in trades_df.columns:
         trades_df = trades_df.assign(
-            duration=pd.to_datetime(trades_df["exit_time"]) - pd.to_datetime(trades_df["entry_time"])
+            duration=pd.to_datetime(trades_df["exit_time"])
+            - pd.to_datetime(trades_df["entry_time"])
         )
         duration_mean = cast(pd.Timedelta, trades_df["duration"].mean())
         avg_trade_duration = float(duration_mean.total_seconds() / 3600)
@@ -235,7 +236,7 @@ def calculate_trading_metrics(trades_history: Sequence[Mapping[str, object]]) ->
 
 
 def calculate_strategy_performance(
-    raw_strategy_performance: Mapping[str, Mapping[str, object]]
+    raw_strategy_performance: Mapping[str, Mapping[str, object]],
 ) -> dict[str, dict[str, object]]:
     """Summarize per-strategy metrics in a stable dictionary."""
 
@@ -263,7 +264,7 @@ def calculate_strategy_performance(
 
 
 def calculate_regime_performance(
-    raw_regime_performance: Mapping[str, Mapping[str, object]]
+    raw_regime_performance: Mapping[str, Mapping[str, object]],
 ) -> dict[str, dict[str, object]]:
     """Summarize performance by market regime."""
 
@@ -288,7 +289,7 @@ def calculate_regime_performance(
 
 
 def calculate_correlation_matrix(
-    strategy_performance: Mapping[str, Mapping[str, object]]
+    strategy_performance: Mapping[str, Mapping[str, object]],
 ) -> pd.DataFrame:
     """Return a correlation matrix between strategies based on average returns."""
 

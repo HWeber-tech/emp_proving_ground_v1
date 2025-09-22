@@ -11,16 +11,17 @@ import logging
 from datetime import date, datetime
 from typing import Any, Mapping, MutableMapping, Optional, Protocol, TypedDict, cast
 
-try:  # pragma: no cover - fallback when redis not installed
-    import redis
-except Exception:  # pragma: no cover
-    redis = None  # type: ignore
-
 try:
     from src.core.events import ExecutionReport  # legacy
 except Exception:  # pragma: no cover
     ExecutionReport = object
-from src.core.event_bus import EventBus
+from src.core.event_bus import Event, EventBus, get_global_bus
+from src.data_foundation.cache import (
+    InMemoryRedis,
+    ManagedRedisCache,
+    RedisCachePolicy,
+    wrap_managed_cache,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -60,31 +61,33 @@ class RedisLike(Protocol):
 
     def set(self, key: str, value: object) -> object | None: ...
 
-
-class InMemoryRedis:
-    """Tiny in-memory Redis lookalike for offline/bootstrap environments."""
-
-    def __init__(self) -> None:
-        self._store: dict[str, object] = {}
-
-    def get(self, key: str) -> object | None:
-        return self._store.get(key)
-
-    def set(self, key: str, value: object) -> object:
-        self._store[key] = value
-        return value
+    def metrics(self, *, reset: bool = False) -> Mapping[str, object]: ...
 
 
 class PortfolioMonitor:
-    """
-    Stateful portfolio monitor that persists state to Redis
-    Provides crash-resilient portfolio management
-    """
+    """Stateful portfolio monitor with Redis-backed persistence and telemetry."""
 
-    def __init__(self, event_bus: EventBus, redis_client: RedisLike | None = None):
+    def __init__(
+        self,
+        event_bus: EventBus,
+        redis_client: RedisLike | None = None,
+        *,
+        cache_policy: RedisCachePolicy | None = None,
+    ) -> None:
         self.event_bus = event_bus
-        self.redis_client: RedisLike = redis_client or InMemoryRedis()
+
+        if cache_policy is None and redis_client is None:
+            policy = RedisCachePolicy.bootstrap_defaults()
+            managed = wrap_managed_cache(None, policy=policy, bootstrap=True)
+        else:
+            policy = cache_policy or RedisCachePolicy.institutional_defaults()
+            managed = wrap_managed_cache(redis_client, policy=policy)
+
+        self.redis_client: ManagedRedisCache = managed
+        self.cache_policy = managed.policy
         self.redis_key = "emp:portfolio_state"
+        self._cache_metrics_topic = "telemetry.cache"
+
         self.portfolio: PortfolioState = self._load_initial_state()
         self._synthetic_position_holds = 0
         self._daily_baseline_equity: float = 0.0
@@ -93,6 +96,7 @@ class PortfolioMonitor:
 
         self._ensure_state_defaults()
         self._update_pnl()
+        self._publish_cache_metrics(reason="initial_load")
 
         # Subscribe to execution reports
         self.event_bus.subscribe("execution.report", self.on_execution_report)
@@ -133,6 +137,55 @@ class PortfolioMonitor:
         }
         logger.info("Initialized with default portfolio state")
         return default_state
+
+    def _publish_cache_metrics(self, *, reason: str) -> None:
+        metrics_fn = getattr(self.redis_client, "metrics", None)
+        if not callable(metrics_fn):
+            return
+
+        try:
+            snapshot = metrics_fn()
+        except Exception:  # pragma: no cover - defensive logging
+            logger.debug("Failed to retrieve cache metrics", exc_info=True)
+            return
+
+        if not isinstance(snapshot, Mapping):
+            snapshot = dict(snapshot or {})
+
+        payload: dict[str, object] = dict(snapshot)
+        payload["cache_key"] = self.redis_key
+        payload["reason"] = reason
+
+        event = Event(
+            type=self._cache_metrics_topic,
+            payload=payload,
+            source="portfolio_monitor",
+        )
+
+        published = False
+        publish_from_sync = getattr(self.event_bus, "publish_from_sync", None)
+        is_running = getattr(self.event_bus, "is_running", lambda: False)
+        if callable(publish_from_sync) and callable(is_running) and is_running():
+            try:
+                result = publish_from_sync(event)
+                published = result is not None
+            except Exception:  # pragma: no cover
+                logger.debug("Local event bus publish failed", exc_info=True)
+
+        if not published:
+            try:
+                topic_bus = get_global_bus()
+                topic_bus.publish_sync(
+                    self._cache_metrics_topic,
+                    payload,
+                    source="portfolio_monitor",
+                )
+                published = True
+            except Exception:  # pragma: no cover - background bus optional
+                logger.debug("Global cache telemetry publish failed", exc_info=True)
+
+        if not published:
+            logger.debug("Cache metrics emission skipped for reason %s", reason)
 
     def _ensure_state_defaults(self) -> None:
         """Normalise persisted state and seed derived metrics."""
@@ -247,6 +300,8 @@ class PortfolioMonitor:
             logger.debug("Portfolio state saved to Redis")
         except Exception as e:
             logger.error(f"Failed to save state to Redis: {e}")
+        else:
+            self._publish_cache_metrics(reason="persist_state")
 
     async def on_execution_report(self, event: ExecutionReport) -> None:
         """Handle execution reports and update portfolio state"""
@@ -358,9 +413,7 @@ class PortfolioMonitor:
         snapshot["open_positions"] = cast(
             dict[str, Position], dict(self.portfolio.get("open_positions", {}))
         )
-        snapshot["last_updated"] = self.portfolio.get(
-            "last_updated", datetime.utcnow().isoformat()
-        )
+        snapshot["last_updated"] = self.portfolio.get("last_updated", datetime.utcnow().isoformat())
         snapshot["cash"] = float(self.portfolio.get("cash", 0.0))
         snapshot["daily_pnl"] = float(self.portfolio.get("daily_pnl", 0.0))
         snapshot["total_pnl"] = float(self.portfolio.get("total_pnl", 0.0))
@@ -371,9 +424,7 @@ class PortfolioMonitor:
         snapshot["current_daily_drawdown"] = float(
             self.portfolio.get("current_daily_drawdown", 0.0)
         )
-        snapshot["peak_equity"] = float(
-            self.portfolio.get("peak_equity", snapshot["equity"])
-        )
+        snapshot["peak_equity"] = float(self.portfolio.get("peak_equity", snapshot["equity"]))
         snapshot["daily_equity_start"] = float(
             self.portfolio.get("daily_equity_start", self._daily_baseline_equity)
         )
@@ -401,9 +452,7 @@ class PortfolioMonitor:
 
         return len(self.portfolio["open_positions"]) + self._synthetic_position_holds
 
-    def reserve_position(
-        self, symbol: str, quantity: float, price: float | None = None
-    ) -> None:
+    def reserve_position(self, symbol: str, quantity: float, price: float | None = None) -> None:
         """Reserve or extend an open position prior to execution."""
 
         self._ensure_daily_reset()
@@ -483,8 +532,8 @@ if __name__ == "__main__":
     import asyncio
 
     async def test_portfolio_monitor() -> None:
-        # Setup Redis connection
-        redis_client = redis.Redis(host="localhost", port=6379, db=0)
+        # Setup Redis connection (in-memory for demonstration)
+        redis_client = InMemoryRedis()
 
         # Create event bus
         event_bus = EventBus()

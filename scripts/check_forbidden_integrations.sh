@@ -28,12 +28,29 @@ if [ "${#EXISTING_TARGETS[@]}" -eq 0 ]; then
 fi
 
 echo "Scanning ${EXISTING_TARGETS[*]} for forbidden integrations..."
+ codex/assess-technical-debt-in-ci-workflows-7cy9fp
+PYTHON_BIN=${PYTHON:-}
+if [ -z "$PYTHON_BIN" ]; then
+  if command -v python3 >/dev/null 2>&1; then
+    PYTHON_BIN=$(command -v python3)
+  elif command -v python >/dev/null 2>&1; then
+    PYTHON_BIN=$(command -v python)
+  else
+    echo "Unable to locate a Python interpreter. Install Python 3 (or set \$PYTHON) to run the forbidden integration check." >&2
+    exit 1
+  fi
+fi
+
+MATCHES=$(
+"$PYTHON_BIN" - "$FORBIDDEN_REGEX" "${EXISTING_TARGETS[@]}" <<'PY'
+
  codex/assess-technical-debt-in-ci-workflows-jurxls
 
  codex/assess-technical-debt-in-ci-workflows-que3tv
  main
 MATCHES=$(
 python - "$FORBIDDEN_REGEX" "${EXISTING_TARGETS[@]}" <<'PY'
+ main
 import re
 import sys
 from pathlib import Path
@@ -53,11 +70,17 @@ extensions = {
     ".ini",
     ".yml",
     ".yaml",
+ codex/assess-technical-debt-in-ci-workflows-7cy9fp
+    ".md",
+    ".mdx",
+    ".rst",
+
  codex/assess-technical-debt-in-ci-workflows-jurxls
     ".md",
     ".mdx",
     ".rst",
 
+ main
  main
 }
 
@@ -99,6 +122,8 @@ if matches:
 PY
 )
 
+ codex/assess-technical-debt-in-ci-workflows-7cy9fp
+
  codex/assess-technical-debt-in-ci-workflows-jurxls
 
 
@@ -117,6 +142,7 @@ FILE_PATTERNS=(
 
 MATCHES=$(grep -RniE "$FORBIDDEN_REGEX" --binary-files=without-match "${FILE_PATTERNS[@]}" -- "${EXISTING_TARGETS[@]}" || true)
 
+ main
  main
  main
 ALLOWLIST_PATTERNS=(

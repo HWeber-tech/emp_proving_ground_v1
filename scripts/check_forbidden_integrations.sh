@@ -28,7 +28,10 @@ if [ "${#EXISTING_TARGETS[@]}" -eq 0 ]; then
 fi
 
 echo "Scanning ${EXISTING_TARGETS[*]} for forbidden integrations..."
+ codex/assess-technical-debt-in-ci-workflows-1er73t
+
  codex/assess-technical-debt-in-ci-workflows-7cy9fp
+ main
 PYTHON_BIN=${PYTHON:-}
 if [ -z "$PYTHON_BIN" ]; then
   if command -v python3 >/dev/null 2>&1; then
@@ -43,6 +46,8 @@ fi
 
 MATCHES=$(
 "$PYTHON_BIN" - "$FORBIDDEN_REGEX" "${EXISTING_TARGETS[@]}" <<'PY'
+ codex/assess-technical-debt-in-ci-workflows-1er73t
+
 
  codex/assess-technical-debt-in-ci-workflows-jurxls
 
@@ -50,6 +55,7 @@ MATCHES=$(
  main
 MATCHES=$(
 python - "$FORBIDDEN_REGEX" "${EXISTING_TARGETS[@]}" <<'PY'
+ main
  main
 import re
 import sys
@@ -70,6 +76,15 @@ extensions = {
     ".ini",
     ".yml",
     ".yaml",
+ codex/assess-technical-debt-in-ci-workflows-1er73t
+    ".md",
+    ".mdx",
+    ".rst",
+}
+
+root = Path.cwd()
+matches = []
+
  codex/assess-technical-debt-in-ci-workflows-7cy9fp
     ".md",
     ".mdx",
@@ -86,6 +101,7 @@ extensions = {
 
 root = Path.cwd()
 matches: list[str] = []
+ main
 
 
 def iter_files(base: Path):
@@ -122,6 +138,8 @@ if matches:
 PY
 )
 
+ codex/assess-technical-debt-in-ci-workflows-1er73t
+
  codex/assess-technical-debt-in-ci-workflows-7cy9fp
 
  codex/assess-technical-debt-in-ci-workflows-jurxls
@@ -142,6 +160,7 @@ FILE_PATTERNS=(
 
 MATCHES=$(grep -RniE "$FORBIDDEN_REGEX" --binary-files=without-match "${FILE_PATTERNS[@]}" -- "${EXISTING_TARGETS[@]}" || true)
 
+ main
  main
  main
  main

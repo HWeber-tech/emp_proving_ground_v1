@@ -1,7 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+ codex/assess-technical-debt-in-ci-workflows-h53fj9
 FORBIDDEN_REGEX='(?i)(ctrader[-_]?open[-_]?api|ctraderapi\\.com|connect\\.icmarkets\\.com|ctrader_open_api|swagger|spotware|real_ctrader_interface|from\\s+fastapi|import\\s+fastapi|import\\s+uvicorn)'
+
+ codex/assess-technical-debt-in-ci-workflows-34cv3v
+FORBIDDEN_REGEX='(?i)(ctrader[-_]?open[-_]?api|ctraderapi\\.com|connect\\.icmarkets\\.com|ctrader_open_api|swagger|spotware|real_ctrader_interface|from\\s+fastapi|import\\s+fastapi|import\\s+uvicorn)'
+
+FORBIDDEN_REGEX='(ctrader_open_api|swagger|spotware|real_ctrader_interface|from\\s+fastapi|import\\s+fastapi|import\\s+uvicorn)'
+ main
+ main
 
 if [ "$#" -gt 0 ]; then
   TARGETS=("$@")
@@ -28,6 +36,7 @@ if [ "${#EXISTING_TARGETS[@]}" -eq 0 ]; then
 fi
 
 echo "Scanning ${EXISTING_TARGETS[*]} for forbidden integrations..."
+ codex/assess-technical-debt-in-ci-workflows-h53fj9
 PYTHON_BIN=""
 PYTHON_CANDIDATE=${PYTHON:-}
 if [ -n "$PYTHON_CANDIDATE" ]; then
@@ -40,6 +49,19 @@ if [ -n "$PYTHON_CANDIDATE" ]; then
   fi
 fi
 
+
+ codex/assess-technical-debt-in-ci-workflows-34cv3v
+
+ codex/assess-technical-debt-in-ci-workflows-2jce40
+
+ codex/assess-technical-debt-in-ci-workflows-1er73t
+
+ codex/assess-technical-debt-in-ci-workflows-7cy9fp
+ main
+ main
+ main
+PYTHON_BIN=${PYTHON:-}
+ main
 if [ -z "$PYTHON_BIN" ]; then
   if command -v python3 >/dev/null 2>&1; then
     PYTHON_BIN=$(command -v python3)
@@ -53,6 +75,26 @@ fi
 
 MATCHES=$(
 "$PYTHON_BIN" - "$FORBIDDEN_REGEX" "${EXISTING_TARGETS[@]}" <<'PY'
+ codex/assess-technical-debt-in-ci-workflows-h53fj9
+
+ codex/assess-technical-debt-in-ci-workflows-34cv3v
+
+ codex/assess-technical-debt-in-ci-workflows-2jce40
+
+ codex/assess-technical-debt-in-ci-workflows-1er73t
+
+
+ codex/assess-technical-debt-in-ci-workflows-jurxls
+
+ codex/assess-technical-debt-in-ci-workflows-que3tv
+ main
+MATCHES=$(
+python - "$FORBIDDEN_REGEX" "${EXISTING_TARGETS[@]}" <<'PY'
+ main
+ main
+ main
+ main
+ main
 import re
 import sys
 from pathlib import Path
@@ -72,6 +114,16 @@ extensions = {
     ".ini",
     ".yml",
     ".yaml",
+ codex/assess-technical-debt-in-ci-workflows-h53fj9
+
+ codex/assess-technical-debt-in-ci-workflows-34cv3v
+
+ codex/assess-technical-debt-in-ci-workflows-2jce40
+
+ codex/assess-technical-debt-in-ci-workflows-1er73t
+ main
+ main
+ main
     ".md",
     ".mdx",
     ".rst",
@@ -80,6 +132,33 @@ extensions = {
 root = Path.cwd()
 matches = []
 
+ codex/assess-technical-debt-in-ci-workflows-h53fj9
+
+ codex/assess-technical-debt-in-ci-workflows-34cv3v
+
+ codex/assess-technical-debt-in-ci-workflows-2jce40
+
+ codex/assess-technical-debt-in-ci-workflows-7cy9fp
+    ".md",
+    ".mdx",
+    ".rst",
+
+ codex/assess-technical-debt-in-ci-workflows-jurxls
+    ".md",
+    ".mdx",
+    ".rst",
+
+ main
+ main
+}
+
+root = Path.cwd()
+matches: list[str] = []
+ main
+
+ main
+ main
+ main
 
 def iter_files(base: Path):
     if base.is_file():
@@ -115,6 +194,41 @@ if matches:
 PY
 )
 
+ codex/assess-technical-debt-in-ci-workflows-h53fj9
+
+ codex/assess-technical-debt-in-ci-workflows-34cv3v
+
+ codex/assess-technical-debt-in-ci-workflows-2jce40
+
+ codex/assess-technical-debt-in-ci-workflows-1er73t
+
+ codex/assess-technical-debt-in-ci-workflows-7cy9fp
+
+ codex/assess-technical-debt-in-ci-workflows-jurxls
+
+
+FILE_PATTERNS=(
+  '--include=*.py'
+  '--include=*.pyi'
+  '--include=*.ipynb'
+  '--include=*.sh'
+  '--include=*.txt'
+  '--include=*.toml'
+  '--include=*.cfg'
+  '--include=*.ini'
+  '--include=*.yml'
+  '--include=*.yaml'
+)
+
+MATCHES=$(grep -RniE "$FORBIDDEN_REGEX" --binary-files=without-match "${FILE_PATTERNS[@]}" -- "${EXISTING_TARGETS[@]}" || true)
+
+ main
+ main
+ main
+ main
+ main
+ main
+ main
 ALLOWLIST_PATTERNS=(
   '^scripts/check_forbidden_integrations.sh:'
   '^scripts/phase1_deduplication.py:'

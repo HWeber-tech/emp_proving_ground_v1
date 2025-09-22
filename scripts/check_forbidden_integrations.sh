@@ -1,10 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+ codex/assess-technical-debt-in-ci-workflows-h53fj9
+FORBIDDEN_REGEX='(?i)(ctrader[-_]?open[-_]?api|ctraderapi\\.com|connect\\.icmarkets\\.com|ctrader_open_api|swagger|spotware|real_ctrader_interface|from\\s+fastapi|import\\s+fastapi|import\\s+uvicorn)'
+
  codex/assess-technical-debt-in-ci-workflows-34cv3v
 FORBIDDEN_REGEX='(?i)(ctrader[-_]?open[-_]?api|ctraderapi\\.com|connect\\.icmarkets\\.com|ctrader_open_api|swagger|spotware|real_ctrader_interface|from\\s+fastapi|import\\s+fastapi|import\\s+uvicorn)'
 
 FORBIDDEN_REGEX='(ctrader_open_api|swagger|spotware|real_ctrader_interface|from\\s+fastapi|import\\s+fastapi|import\\s+uvicorn)'
+ main
  main
 
 if [ "$#" -gt 0 ]; then
@@ -32,6 +36,20 @@ if [ "${#EXISTING_TARGETS[@]}" -eq 0 ]; then
 fi
 
 echo "Scanning ${EXISTING_TARGETS[*]} for forbidden integrations..."
+ codex/assess-technical-debt-in-ci-workflows-h53fj9
+PYTHON_BIN=""
+PYTHON_CANDIDATE=${PYTHON:-}
+if [ -n "$PYTHON_CANDIDATE" ]; then
+  if [ -x "$PYTHON_CANDIDATE" ]; then
+    PYTHON_BIN="$PYTHON_CANDIDATE"
+  elif command -v "$PYTHON_CANDIDATE" >/dev/null 2>&1; then
+    PYTHON_BIN=$(command -v "$PYTHON_CANDIDATE")
+  else
+    echo "The specified \$PYTHON ('$PYTHON_CANDIDATE') is not an executable; falling back to interpreter auto-detection." >&2
+  fi
+fi
+
+
  codex/assess-technical-debt-in-ci-workflows-34cv3v
 
  codex/assess-technical-debt-in-ci-workflows-2jce40
@@ -43,6 +61,7 @@ echo "Scanning ${EXISTING_TARGETS[*]} for forbidden integrations..."
  main
  main
 PYTHON_BIN=${PYTHON:-}
+ main
 if [ -z "$PYTHON_BIN" ]; then
   if command -v python3 >/dev/null 2>&1; then
     PYTHON_BIN=$(command -v python3)
@@ -56,6 +75,8 @@ fi
 
 MATCHES=$(
 "$PYTHON_BIN" - "$FORBIDDEN_REGEX" "${EXISTING_TARGETS[@]}" <<'PY'
+ codex/assess-technical-debt-in-ci-workflows-h53fj9
+
  codex/assess-technical-debt-in-ci-workflows-34cv3v
 
  codex/assess-technical-debt-in-ci-workflows-2jce40
@@ -69,6 +90,7 @@ MATCHES=$(
  main
 MATCHES=$(
 python - "$FORBIDDEN_REGEX" "${EXISTING_TARGETS[@]}" <<'PY'
+ main
  main
  main
  main
@@ -92,11 +114,14 @@ extensions = {
     ".ini",
     ".yml",
     ".yaml",
+ codex/assess-technical-debt-in-ci-workflows-h53fj9
+
  codex/assess-technical-debt-in-ci-workflows-34cv3v
 
  codex/assess-technical-debt-in-ci-workflows-2jce40
 
  codex/assess-technical-debt-in-ci-workflows-1er73t
+ main
  main
  main
     ".md",
@@ -106,6 +131,8 @@ extensions = {
 
 root = Path.cwd()
 matches = []
+
+ codex/assess-technical-debt-in-ci-workflows-h53fj9
 
  codex/assess-technical-debt-in-ci-workflows-34cv3v
 
@@ -129,6 +156,7 @@ root = Path.cwd()
 matches: list[str] = []
  main
 
+ main
  main
  main
 
@@ -166,6 +194,8 @@ if matches:
 PY
 )
 
+ codex/assess-technical-debt-in-ci-workflows-h53fj9
+
  codex/assess-technical-debt-in-ci-workflows-34cv3v
 
  codex/assess-technical-debt-in-ci-workflows-2jce40
@@ -192,6 +222,7 @@ FILE_PATTERNS=(
 
 MATCHES=$(grep -RniE "$FORBIDDEN_REGEX" --binary-files=without-match "${FILE_PATTERNS[@]}" -- "${EXISTING_TARGETS[@]}" || true)
 
+ main
  main
  main
  main

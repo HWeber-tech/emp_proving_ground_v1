@@ -10,6 +10,11 @@ If you need to review historical decisions, consult the commit history prior to
 the FIX policy shift. For day-to-day work follow
 [`docs/policies/integration_policy.md`](policies/integration_policy.md) and the
 FIX playbooks in `docs/fix_api/`.
+ codex/assess-technical-debt-in-ci-workflows-h53fj9
+
+The legacy text intentionally remains absent to avoid suggesting that the
+OpenAPI tooling is still supported.
+
 
  codex/assess-technical-debt-in-ci-workflows-34cv3v
 The legacy text intentionally remains absent to avoid suggesting that the
@@ -204,4 +209,5 @@ For API-specific issues:
 For tool-specific issues:
 - Check logs in `logs/microstructure_verification.log`
 - Enable debug logging: `LOG_LEVEL=DEBUG python scripts/verify_microstructure.py`
+ main
  main

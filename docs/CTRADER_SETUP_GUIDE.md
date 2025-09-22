@@ -1,14 +1,19 @@
-# [Legacy] IC Markets cTrader API Setup Guide (OpenAPI)
+# Legacy OpenAPI Setup Guide (Retired)
 
-> **Status:** Legacy – deprecated in FIX-only builds.
-> Follow the [Integration Policy](policies/integration_policy.md) and use
-> the FIX guides in `docs/fix_api/` for supported connectivity.
+> **Status:** Deprecated – retained only to signpost the FIX-only policy.
 
-## Prerequisites
+The previous version of this document described how to bootstrap the
+third-party OpenAPI integration. That pathway has been removed in favour of the
+FIX connectivity stack that now powers every supported workflow.
 
-1. **IC Markets cTrader Account**
-   - Demo account (recommended for testing)
-   - Live account (for production)
+If you need to review historical decisions, consult the commit history prior to
+the FIX policy shift. For day-to-day work follow
+[`docs/policies/integration_policy.md`](policies/integration_policy.md) and the
+FIX playbooks in `docs/fix_api/`.
+
+ codex/assess-technical-debt-in-ci-workflows-34cv3v
+The legacy text intentionally remains absent to avoid suggesting that the
+OpenAPI tooling is still supported.
 
 2. **Python Environment**
    - Python 3.8+
@@ -199,3 +204,4 @@ For API-specific issues:
 For tool-specific issues:
 - Check logs in `logs/microstructure_verification.log`
 - Enable debug logging: `LOG_LEVEL=DEBUG python scripts/verify_microstructure.py`
+ main

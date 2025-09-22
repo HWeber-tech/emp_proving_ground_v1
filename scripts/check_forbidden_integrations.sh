@@ -1,7 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+ codex/assess-technical-debt-in-ci-workflows-34cv3v
+FORBIDDEN_REGEX='(?i)(ctrader[-_]?open[-_]?api|ctraderapi\\.com|connect\\.icmarkets\\.com|ctrader_open_api|swagger|spotware|real_ctrader_interface|from\\s+fastapi|import\\s+fastapi|import\\s+uvicorn)'
+
 FORBIDDEN_REGEX='(ctrader_open_api|swagger|spotware|real_ctrader_interface|from\\s+fastapi|import\\s+fastapi|import\\s+uvicorn)'
+ main
 
 if [ "$#" -gt 0 ]; then
   TARGETS=("$@")
@@ -28,11 +32,14 @@ if [ "${#EXISTING_TARGETS[@]}" -eq 0 ]; then
 fi
 
 echo "Scanning ${EXISTING_TARGETS[*]} for forbidden integrations..."
+ codex/assess-technical-debt-in-ci-workflows-34cv3v
+
  codex/assess-technical-debt-in-ci-workflows-2jce40
 
  codex/assess-technical-debt-in-ci-workflows-1er73t
 
  codex/assess-technical-debt-in-ci-workflows-7cy9fp
+ main
  main
  main
 PYTHON_BIN=${PYTHON:-}
@@ -49,6 +56,8 @@ fi
 
 MATCHES=$(
 "$PYTHON_BIN" - "$FORBIDDEN_REGEX" "${EXISTING_TARGETS[@]}" <<'PY'
+ codex/assess-technical-debt-in-ci-workflows-34cv3v
+
  codex/assess-technical-debt-in-ci-workflows-2jce40
 
  codex/assess-technical-debt-in-ci-workflows-1er73t
@@ -60,6 +69,7 @@ MATCHES=$(
  main
 MATCHES=$(
 python - "$FORBIDDEN_REGEX" "${EXISTING_TARGETS[@]}" <<'PY'
+ main
  main
  main
  main
@@ -82,9 +92,12 @@ extensions = {
     ".ini",
     ".yml",
     ".yaml",
+ codex/assess-technical-debt-in-ci-workflows-34cv3v
+
  codex/assess-technical-debt-in-ci-workflows-2jce40
 
  codex/assess-technical-debt-in-ci-workflows-1er73t
+ main
  main
     ".md",
     ".mdx",
@@ -93,6 +106,8 @@ extensions = {
 
 root = Path.cwd()
 matches = []
+
+ codex/assess-technical-debt-in-ci-workflows-34cv3v
 
  codex/assess-technical-debt-in-ci-workflows-2jce40
 
@@ -114,6 +129,7 @@ root = Path.cwd()
 matches: list[str] = []
  main
 
+ main
  main
 
 def iter_files(base: Path):
@@ -150,6 +166,8 @@ if matches:
 PY
 )
 
+ codex/assess-technical-debt-in-ci-workflows-34cv3v
+
  codex/assess-technical-debt-in-ci-workflows-2jce40
 
  codex/assess-technical-debt-in-ci-workflows-1er73t
@@ -174,6 +192,7 @@ FILE_PATTERNS=(
 
 MATCHES=$(grep -RniE "$FORBIDDEN_REGEX" --binary-files=without-match "${FILE_PATTERNS[@]}" -- "${EXISTING_TARGETS[@]}" || true)
 
+ main
  main
  main
  main

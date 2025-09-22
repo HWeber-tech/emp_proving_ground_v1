@@ -28,6 +28,7 @@ if [ "${#EXISTING_TARGETS[@]}" -eq 0 ]; then
 fi
 
 echo "Scanning ${EXISTING_TARGETS[*]} for forbidden integrations..."
+ codex/assess-technical-debt-in-ci-workflows-que3tv
 MATCHES=$(
 python - "$FORBIDDEN_REGEX" "${EXISTING_TARGETS[@]}" <<'PY'
 import re
@@ -89,6 +90,23 @@ if matches:
 PY
 )
 
+
+FILE_PATTERNS=(
+  '--include=*.py'
+  '--include=*.pyi'
+  '--include=*.ipynb'
+  '--include=*.sh'
+  '--include=*.txt'
+  '--include=*.toml'
+  '--include=*.cfg'
+  '--include=*.ini'
+  '--include=*.yml'
+  '--include=*.yaml'
+)
+
+MATCHES=$(grep -RniE "$FORBIDDEN_REGEX" --binary-files=without-match "${FILE_PATTERNS[@]}" -- "${EXISTING_TARGETS[@]}" || true)
+
+ main
 ALLOWLIST_PATTERNS=(
   '^scripts/check_forbidden_integrations.sh:'
   '^scripts/phase1_deduplication.py:'

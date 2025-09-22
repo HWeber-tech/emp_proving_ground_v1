@@ -194,7 +194,7 @@ if response.status_code == 200:
 
 For API-specific issues:
 - IC Markets Support: https://help.icmarkets.com/
-- cTrader OpenAPI Documentation: https://ctrader-api-docs.spotware.com/
+- cTrader OpenAPI Documentation: consult the official cTrader developer portal via https://ctrader.com/developers/
 
 For tool-specific issues:
 - Check logs in `logs/microstructure_verification.log`

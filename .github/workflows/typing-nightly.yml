@@ -6,6 +6,11 @@ on:
     - cron: "0 2 * * *"
   workflow_dispatch:
 
+permissions:
+  contents: read
+  actions: write
+  issues: write
+
 jobs:
   mypy:
     runs-on: ubuntu-latest
@@ -55,6 +60,7 @@ jobs:
           exit ${ERR}
 
       - name: Upload artifacts
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: typing-nightly-${{ env.TS }}
@@ -62,4 +68,117 @@ jobs:
             mypy_snapshot_${{ env.TS }}*.txt
             mypy_summary_${{ env.TS }}*.txt
             mypy_ranked_offenders_${{ env.TS }}*.csv
+
+  alerts:
+    needs: mypy
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Open or update typing failure issue
+        if: ${{ needs.mypy.result == 'failure' }}
+        uses: actions/github-script@v7
+        env:
+          RUN_ID: ${{ github.run_id }}
+          RUN_NUMBER: ${{ github.run_number }}
+          WORKFLOW: ${{ github.workflow }}
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const title = 'Typing nightly failures';
+            const runId = process.env.RUN_ID;
+            const runNumber = process.env.RUN_NUMBER;
+            const workflowName = process.env.WORKFLOW;
+            const summary = `${workflowName} run #${runNumber}`;
+            const runUrl = `https://github.com/${owner}/${repo}/actions/runs/${runId}`;
+            const body = [
+              '### Nightly typing check failed',
+              `- **Run**: ${summary}`,
+              `- **View run**: ${runUrl}`,
+              '',
+              'This issue is automatically updated when the nightly mypy workflow fails.',
+            ].join('\n');
+
+            const issues = await github.paginate(github.rest.issues.listForRepo, {
+              owner,
+              repo,
+              state: 'open',
+              per_page: 100,
+            });
+            const existing = issues.find(issue => issue.title === title);
+            const label = 'typing-nightly';
+
+            try {
+              await github.rest.issues.getLabel({ owner, repo, name: label });
+            } catch (error) {
+              if (error.status === 404) {
+                await github.rest.issues.createLabel({
+                  owner,
+                  repo,
+                  name: label,
+                  color: '0E8A16',
+                  description: 'Nightly typing workflow failures',
+                });
+              } else {
+                throw error;
+              }
+            }
+
+            if (existing) {
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number: existing.number,
+                body,
+              });
+            } else {
+              await github.rest.issues.create({
+                owner,
+                repo,
+                title,
+                body: `${body}\n\nClose this issue once typing is healthy again.`,
+                labels: [label],
+              });
+            }
+      - name: Close typing failure issue
+        if: ${{ needs.mypy.result == 'success' }}
+        uses: actions/github-script@v7
+        env:
+          RUN_ID: ${{ github.run_id }}
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const title = 'Typing nightly failures';
+            const runId = process.env.RUN_ID;
+            const runUrl = `https://github.com/${owner}/${repo}/actions/runs/${runId}`;
+            const issues = await github.paginate(github.rest.issues.listForRepo, {
+              owner,
+              repo,
+              state: 'open',
+              per_page: 100,
+            });
+            const existing = issues.find(issue => issue.title === title);
+            if (!existing) {
+              core.info('No open typing failure issue found.');
+              return;
+            }
+            await github.rest.issues.createComment({
+              owner,
+              repo,
+              issue_number: existing.number,
+              body: [
+                '### Nightly typing recovered',
+                `- **View run**: ${runUrl}`,
+                '',
+                'Closing automated alert.',
+              ].join('\n'),
+            });
+            await github.rest.issues.update({
+              owner,
+              repo,
+              issue_number: existing.number,
+              state: 'closed',
+            });
 

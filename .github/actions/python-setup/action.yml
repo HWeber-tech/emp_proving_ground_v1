@@ -6,6 +6,7 @@ runs:
     - name: Checkout
       uses: actions/checkout@v4
     - name: Setup Python
+      id: setup-python
       uses: actions/setup-python@v5
       with:
         python-version: '3.11'
@@ -13,8 +14,22 @@ runs:
         cache-dependency-path: |
           requirements/base.txt
           requirements/dev.txt
+    - name: Restore virtualenv
+      id: cache-venv
+      uses: actions/cache@v4
+      with:
+        path: .venv
+        key: venv-${{ runner.os }}-py${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('requirements/dev.txt') }}
     - name: Install dev dependencies
+      if: steps.cache-venv.outputs.cache-hit != 'true'
       shell: bash
       run: |
         set -euo pipefail
+        python -m venv .venv
+        source .venv/bin/activate
+        python -m pip install --upgrade pip
         pip install -r requirements/dev.txt
+    - name: Activate virtualenv
+      shell: bash
+      run: |
+        echo "${{ github.workspace }}/.venv/bin" >> "$GITHUB_PATH"

@@ -62,9 +62,7 @@ class ValidationFramework:
             }
 
             available = {
-                name
-                for name in integrator.list_components()
-                if not integrator.is_alias(name)
+                name for name in integrator.list_components() if not integrator.is_alias(name)
             }
 
             satisfied = expected_components & available
@@ -394,7 +392,7 @@ class ValidationFramework:
             "results": [r.to_dict() for r in results],
             "summary": {
                 "status": "PASSED" if passed >= 6 else "FAILED",  # Allow 2 failures
-                "message": f"{passed}/{total} validations passed ({passed/total:.1%} success rate)",
+                "message": f"{passed}/{total} validations passed ({passed / total:.1%} success rate)",
             },
         }
 

@@ -140,9 +140,7 @@ def write_summary(
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--snapshot", required=True, help="Path to mypy snapshot file")
-    parser.add_argument(
-        "--summary-out", required=True, help="Path to write summary text file"
-    )
+    parser.add_argument("--summary-out", required=True, help="Path to write summary text file")
     args = parser.parse_args(argv)
 
     snapshot_path = Path(args.snapshot)

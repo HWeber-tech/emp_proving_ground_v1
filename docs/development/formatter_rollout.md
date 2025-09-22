@@ -1,9 +1,23 @@
 # Ruff Formatter Rollout Plan
 
-The repository still contains hundreds of legacy files that do not pass
-`ruff format`. Rather than landing one giant, review-hostile reformat, we will
-normalize the tree in staged slices. Each slice enrolls a directory (or focused
-module) in formatter enforcement once it has been manually cleaned up.
+> **Status:** The formatter rollout completed with repo-wide enforcement in
+> October 2025. `ruff format --check .` now runs in CI, the allowlist is retired,
+> and Ruff is the sole formatter.
+
+## Current status
+
+- `ruff format --check .` runs during the CI lint job and must pass before merges.
+- Contributors should run `ruff format` locally (or `ruff format <path>`) before
+  committing; no allowlist updates are required.
+- `python -m tools.telemetry.update_ci_metrics --formatter-mode global` records
+  formatter telemetry for dashboards alongside coverage data.
+- Black/isort configuration has been removed; Ruff owns formatting and import
+  ordering.
+
+The remainder of this document is preserved as a historical record of the staged
+rollout for future reference.
+
+## Historical slicing strategy
 
 ## Slicing strategy
 
@@ -19,7 +33,10 @@ Stages can proceed in parallel as long as each owner keeps their PRs focused and
 communicates any mechanical churn that will affect neighbors (for example shared
 fixtures or import paths).
 
-## Opting a directory into enforcement
+## Opting a directory into enforcement (historical)
+
+*Historical note:* These steps describe the retired allowlist workflow and are
+retained for teams auditing the staged rollout.
 
 1. Run `ruff format <path>` locally and ensure the diff only contains mechanical
    whitespace/import updates.
@@ -34,7 +51,10 @@ The CI workflow now calls `scripts/check_formatter_allowlist.py`, which reads th
 allowlist and executes `ruff format --check` for every entry. As the allowlist
 grows, the guardrail automatically expands.
 
-## Contributor workflow updates
+## Contributor workflow updates (historical)
+
+*Historical note:* Prior to repo-wide enforcement, contributors followed the
+guidance below when the allowlist was still active.
 
 * Run `ruff format` before opening a PR when you touch a file that already lives
   in the allowlist. CI will fail if the formatter drifted.
@@ -43,8 +63,8 @@ grows, the guardrail automatically expands.
 * Use review comments or PR descriptions to flag any surprising manual fixes so
   later stages can avoid repeat work.
 
-Check the modernization [roadmap](../roadmap.md) for the current stage status
-and ownership expectations.
+Check the modernization [roadmap](../roadmap.md) for the final status and
+remaining telemetry follow-ups.
 
 ## Rollout change log
 
@@ -152,8 +172,7 @@ and ownership expectations.
   orchestration composition, and vectorized performance helpers before updating
   the roadmap and CI health snapshots.
 
-## Remaining Stage 4 sequencing (updated 2025-09-24)
+## Post-rollout follow-up
 
-| Order | Target | Owner | Notes |
-| --- | --- | --- | --- |
-| 1 | `scripts/check_formatter_allowlist.py` and supporting `scripts/analysis/` helpers | Tooling | Format once Stage 4 directories stabilize so CI helpers match enforced style. |
+- The tooling helpers and telemetry now default to global enforcement; monitor
+  CI for regressions and refresh the modernization dashboards as new data lands.

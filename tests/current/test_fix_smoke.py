@@ -84,7 +84,6 @@ def test_fix_mock_roundtrip(monkeypatch):
     assert any(m.get(204) == b"1" for m in fills)
 
 
-
 def test_fix_mock_uses_config_defaults(monkeypatch):
     monkeypatch.setenv("EMP_USE_MOCK_FIX", "1")
     from src.operational.fix_connection_manager import FIXConnectionManager

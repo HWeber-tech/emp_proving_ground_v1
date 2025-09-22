@@ -91,7 +91,9 @@ def run_mypy() -> Tuple[int, List[str]]:
     stubs_dir = ROOT / "stubs"
     if stubs_dir.exists():
         candidate_paths.append(str(stubs_dir))
-    env["MYPYPATH"] = os.pathsep.join(candidate_paths + ([env["MYPYPATH"]] if "MYPYPATH" in env and env["MYPYPATH"] else []))
+    env["MYPYPATH"] = os.pathsep.join(
+        candidate_paths + ([env["MYPYPATH"]] if "MYPYPATH" in env and env["MYPYPATH"] else [])
+    )
 
     try:
         proc = subprocess.run(
@@ -107,8 +109,8 @@ def run_mypy() -> Tuple[int, List[str]]:
         guidance = (
             f"Unable to execute {MYPY_BIN}.\n"
             "Ensure the mypy virtualenv exists and mypy is installed:\n"
-            f"  python -m venv {ROOT/'.venv_mypy'}\n"
-            f"  {ROOT/'.venv_mypy/bin/pip'} install mypy\n"
+            f"  python -m venv {ROOT / '.venv_mypy'}\n"
+            f"  {ROOT / '.venv_mypy/bin/pip'} install mypy\n"
         )
         print(guidance, file=sys.stderr)
         return 127, []
@@ -137,7 +139,9 @@ def parse_mypy_lines(lines: Iterable[str]) -> List[MypyItem]:
         level = gd["level"]
         message = gd["message"].strip()
         code = gd.get("code")
-        items.append(MypyItem(file=file, line=line_no, column=col, level=level, message=message, code=code))
+        items.append(
+            MypyItem(file=file, line=line_no, column=col, level=level, message=message, code=code)
+        )
     return items
 
 

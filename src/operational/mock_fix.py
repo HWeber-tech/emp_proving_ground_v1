@@ -45,8 +45,7 @@ def _clone_order_info(info: "MockOrderInfo") -> "MockOrderInfo":
     """Return a detached copy of the provided order info container."""
 
     executions = tuple(
-        _clone_execution(cast(ExecutionRecordPayload, execution))
-        for execution in info.executions
+        _clone_execution(cast(ExecutionRecordPayload, execution)) for execution in info.executions
     )
     return replace(
         info,
@@ -122,9 +121,7 @@ class _TelemetryRecorder:
 
     def record(self, event: str, **details: object) -> None:
         with self._condition:
-            self._events.append(
-                TelemetryEvent(timestamp=time.time(), event=event, details=details)
-            )
+            self._events.append(TelemetryEvent(timestamp=time.time(), event=event, details=details))
             self._condition.notify_all()
 
     def snapshot(self) -> list[TelemetryEvent]:
@@ -253,9 +250,7 @@ def _coerce_optional_float(
         return default
 
 
-def _coerce_optional_str(
-    value: object | None, *, default: str | None = None
-) -> str | None:
+def _coerce_optional_str(value: object | None, *, default: str | None = None) -> str | None:
     if value is None:
         return default
     if isinstance(value, (bytes, bytearray)):
@@ -370,18 +365,17 @@ def _coerce_order_book_level(value: object) -> MockOrderBookLevel | None:
         )
     if isinstance(value, Mapping):
         price = _coerce_float(
-            cast(SupportsFloat | str | None,
-                 value.get("price")
-                 or value.get("px")
-                 or value.get("bid")
-                 or value.get("ask")),
+            cast(
+                SupportsFloat | str | None,
+                value.get("price") or value.get("px") or value.get("bid") or value.get("ask"),
+            ),
             default=0.0,
         )
         size = _coerce_float(
-            cast(SupportsFloat | str | None,
-                 value.get("size")
-                 or value.get("qty")
-                 or value.get("quantity")),
+            cast(
+                SupportsFloat | str | None,
+                value.get("size") or value.get("qty") or value.get("quantity"),
+            ),
             default=0.0,
         )
         return MockOrderBookLevel(price=price, size=size)
@@ -423,10 +417,7 @@ def _normalize_market_data_side(levels: object) -> tuple[MockOrderBookLevel, ...
 
 
 def _levels_to_telemetry(levels: Sequence[MockOrderBookLevel]) -> list[dict[str, float]]:
-    return [
-        {"price": level.price, "size": level.size}
-        for level in levels
-    ]
+    return [{"price": level.price, "size": level.size} for level in levels]
 
 
 @dataclass(slots=True)
@@ -535,9 +526,7 @@ class _MockTradeConnection(FIXTradeConnectionProtocol):
             commission_default = 0.0
         self._default_commission = commission_default
         self._default_commission_type = _coerce_optional_str(default_commission_type)
-        self._default_commission_currency = _coerce_optional_str(
-            default_commission_currency
-        )
+        self._default_commission_currency = _coerce_optional_str(default_commission_currency)
         self._default_settle_type = _coerce_optional_str(default_settle_type)
         self._default_settle_date = _coerce_optional_fix_date(
             cast(object | None, default_settle_date)
@@ -546,12 +535,8 @@ class _MockTradeConnection(FIXTradeConnectionProtocol):
             cast(object | None, default_trade_date)
         )
         self._default_order_capacity = _coerce_optional_str(default_order_capacity)
-        self._default_customer_or_firm = _coerce_optional_str(
-            default_customer_or_firm
-        )
-        self._order_id_prefix = (
-            _coerce_optional_str(order_id_prefix) or "MOCK-ORD"
-        )
+        self._default_customer_or_firm = _coerce_optional_str(default_customer_or_firm)
+        self._order_id_prefix = _coerce_optional_str(order_id_prefix) or "MOCK-ORD"
         padding = _coerce_positive_int(order_id_padding, minimum=1)
         self._order_id_padding = padding if padding is not None else 6
         start_value = _coerce_positive_int(order_id_start, minimum=1)
@@ -625,11 +610,7 @@ class _MockTradeConnection(FIXTradeConnectionProtocol):
                 if info is not None:
                     snapshots.append(_clone_order_info(info))
                     continue
-                avg_px = (
-                    state.filled_notional / state.cum_qty
-                    if state.cum_qty > 0.0
-                    else 0.0
-                )
+                avg_px = state.filled_notional / state.cum_qty if state.cum_qty > 0.0 else 0.0
                 snapshots.append(
                     MockOrderInfo(
                         cl_ord_id=state.cl_ord_id,
@@ -712,9 +693,7 @@ class _MockTradeConnection(FIXTradeConnectionProtocol):
                         if state.time_in_force is None:
                             state.time_in_force = tif_value
             if order_capacity is not _MISSING:
-                capacity_value = _coerce_optional_str(
-                    cast(object | None, order_capacity)
-                )
+                capacity_value = _coerce_optional_str(cast(object | None, order_capacity))
                 self._default_order_capacity = capacity_value
                 for state in self._orders.values():
                     if capacity_value is None:
@@ -723,9 +702,7 @@ class _MockTradeConnection(FIXTradeConnectionProtocol):
                     elif state.order_capacity is None:
                         state.order_capacity = capacity_value
             if customer_or_firm is not _MISSING:
-                cust_value = _coerce_optional_str(
-                    cast(object | None, customer_or_firm)
-                )
+                cust_value = _coerce_optional_str(cast(object | None, customer_or_firm))
                 self._default_customer_or_firm = cust_value
                 for state in self._orders.values():
                     if cust_value is None:
@@ -774,9 +751,7 @@ class _MockTradeConnection(FIXTradeConnectionProtocol):
                     elif state.settle_type is None:
                         state.settle_type = settle_type_value
             if settle_date is not _MISSING:
-                settle_date_value = _coerce_optional_fix_date(
-                    cast(object | None, settle_date)
-                )
+                settle_date_value = _coerce_optional_fix_date(cast(object | None, settle_date))
                 self._default_settle_date = settle_date_value
                 for state in self._orders.values():
                     if settle_date_value is None:
@@ -785,9 +760,7 @@ class _MockTradeConnection(FIXTradeConnectionProtocol):
                     elif state.settle_date is None:
                         state.settle_date = settle_date_value
             if trade_date is not _MISSING:
-                trade_date_value = _coerce_optional_fix_date(
-                    cast(object | None, trade_date)
-                )
+                trade_date_value = _coerce_optional_fix_date(cast(object | None, trade_date))
                 self._default_trade_date = trade_date_value
                 for state in self._orders.values():
                     if trade_date_value is None:
@@ -883,12 +856,8 @@ class _MockTradeConnection(FIXTradeConnectionProtocol):
         comm_type_value = _coerce_optional_str(comm_type)
         currency_value = _coerce_optional_str(currency)
         settle_type_value = _coerce_optional_str(settle_type)
-        settle_date_value = _coerce_optional_fix_date(
-            cast(object | None, settle_date)
-        )
-        trade_date_value = _coerce_optional_fix_date(
-            cast(object | None, trade_date)
-        )
+        settle_date_value = _coerce_optional_fix_date(cast(object | None, settle_date))
+        trade_date_value = _coerce_optional_fix_date(cast(object | None, trade_date))
         order_capacity_value = _coerce_optional_str(order_capacity)
         customer_or_firm_value = _coerce_optional_str(customer_or_firm)
 
@@ -921,24 +890,18 @@ class _MockTradeConnection(FIXTradeConnectionProtocol):
             self._clear_state(cl_ord_id)
         return True
 
-    def _resolve_order_id(
-        self, state: _OrderState, override: str | None = None
-    ) -> str:
+    def _resolve_order_id(self, state: _OrderState, override: str | None = None) -> str:
         if override:
             if state.order_id != override:
                 state.order_id = override
                 state.exec_sequence = self._exec_sequence_start
         if not state.order_id:
             sequence = next(self._order_id_sequence)
-            state.order_id = (
-                f"{self._order_id_prefix}-{sequence:0{self._order_id_padding}d}"
-            )
+            state.order_id = f"{self._order_id_prefix}-{sequence:0{self._order_id_padding}d}"
             state.exec_sequence = self._exec_sequence_start
         return state.order_id
 
-    def _next_exec_id(
-        self, state: _OrderState, *, override: str | None = None
-    ) -> str:
+    def _next_exec_id(self, state: _OrderState, *, override: str | None = None) -> str:
         state.exec_sequence += 1
         if override:
             return override
@@ -1016,12 +979,8 @@ class _MockTradeConnection(FIXTradeConnectionProtocol):
         )
         symbol = _coerce_optional_str(_get_field("symbol"), default="TEST") or "TEST"
         side = _coerce_optional_str(_get_field("side"), default="1") or "1"
-        qty = _coerce_float(
-            cast(SupportsFloat | str | None, _get_field("quantity", "last_qty"))
-        )
-        px = _coerce_float(
-            cast(SupportsFloat | str | None, _get_field("price", "last_px"))
-        )
+        qty = _coerce_float(cast(SupportsFloat | str | None, _get_field("quantity", "last_qty")))
+        px = _coerce_float(cast(SupportsFloat | str | None, _get_field("price", "last_px")))
         ratio_override = _coerce_ratio(
             cast(
                 SupportsFloat | str | bytes | None,
@@ -1034,9 +993,7 @@ class _MockTradeConnection(FIXTradeConnectionProtocol):
                 _get_field("mock_fill_price", "fill_price", "last_px"),
             )
         )
-        order_id_override = _coerce_optional_str(
-            _get_field("mock_order_id", "order_id")
-        )
+        order_id_override = _coerce_optional_str(_get_field("mock_order_id", "order_id"))
         exec_prefix_override = _coerce_optional_str(
             _get_field("mock_exec_id_prefix", "exec_id_prefix")
         )
@@ -1046,12 +1003,8 @@ class _MockTradeConnection(FIXTradeConnectionProtocol):
         cancel_reason_override = _coerce_optional_str(
             _get_field("mock_cancel_reason", "cancel_reason")
         )
-        reject_text_override = _coerce_optional_str(
-            _get_field("mock_reject_text", "reject_text")
-        )
-        cancel_text_override = _coerce_optional_str(
-            _get_field("mock_cancel_text", "cancel_text")
-        )
+        reject_text_override = _coerce_optional_str(_get_field("mock_reject_text", "reject_text"))
+        cancel_text_override = _coerce_optional_str(_get_field("mock_cancel_text", "cancel_text"))
         generic_text_override = _coerce_optional_str(_get_field("mock_text", "text"))
         if reject_text_override is None:
             reject_text_override = generic_text_override
@@ -1065,9 +1018,7 @@ class _MockTradeConnection(FIXTradeConnectionProtocol):
         )
         if sending_time_override is None:
             sending_time_override = transact_time_override
-        account_override = _coerce_optional_str(
-            _get_field("mock_account", "account", "acct")
-        )
+        account_override = _coerce_optional_str(_get_field("mock_account", "account", "acct"))
         order_type_override = _coerce_optional_str(
             _get_field("mock_order_type", "order_type", "ord_type", "orderType")
         )
@@ -1113,12 +1064,8 @@ class _MockTradeConnection(FIXTradeConnectionProtocol):
                 "comm_type",
             )
         )
-        currency_override = _coerce_optional_str(
-            _get_field("mock_currency", "currency")
-        )
-        settle_type_override = _coerce_optional_str(
-            _get_field("mock_settle_type", "settle_type")
-        )
+        currency_override = _coerce_optional_str(_get_field("mock_currency", "currency"))
+        settle_type_override = _coerce_optional_str(_get_field("mock_settle_type", "settle_type"))
         settle_date_override = _coerce_optional_fix_date(
             _get_field("mock_settle_date", "settle_date", "settleDate")
         )
@@ -1145,9 +1092,7 @@ class _MockTradeConnection(FIXTradeConnectionProtocol):
                 self._completed_history.pop(cl_ord_id, None)
                 self._completed_info.pop(cl_ord_id, None)
                 account_value = (
-                    account_override
-                    if account_override is not None
-                    else self._default_account
+                    account_override if account_override is not None else self._default_account
                 )
                 order_type_value = (
                     order_type_override
@@ -1208,9 +1153,7 @@ class _MockTradeConnection(FIXTradeConnectionProtocol):
                     partial_fill_ratio=ratio_override,
                     fill_price_override=price_override,
                     auto_complete=(
-                        auto_complete_override
-                        if auto_complete_override is not None
-                        else True
+                        auto_complete_override if auto_complete_override is not None else True
                     ),
                     order_id=order_id_override,
                     exec_id_prefix=exec_prefix_override,
@@ -1225,9 +1168,7 @@ class _MockTradeConnection(FIXTradeConnectionProtocol):
                     time_in_force=time_in_force_value,
                     commission_default=commission_default,
                     commission_total=(
-                        commission_total_override
-                        if commission_total_override is not None
-                        else 0.0
+                        commission_total_override if commission_total_override is not None else 0.0
                     ),
                     comm_type=comm_type_value,
                     currency=currency_value,
@@ -1281,69 +1222,42 @@ class _MockTradeConnection(FIXTradeConnectionProtocol):
                     state.order_type = self._default_order_type
                 if time_in_force_override is not None:
                     state.time_in_force = time_in_force_override
-                elif (
-                    state.time_in_force is None
-                    and self._default_time_in_force is not None
-                ):
+                elif state.time_in_force is None and self._default_time_in_force is not None:
                     state.time_in_force = self._default_time_in_force
                 if commission_override is not None:
                     state.commission_default = commission_override
-                elif (
-                    state.commission_default is None
-                    and self._default_commission is not None
-                ):
+                elif state.commission_default is None and self._default_commission is not None:
                     state.commission_default = self._default_commission
                 if commission_total_override is not None:
                     state.commission_total = commission_total_override
                     state.last_commission = commission_total_override
                 if comm_type_override is not None:
                     state.comm_type = comm_type_override
-                elif (
-                    state.comm_type is None
-                    and self._default_commission_type is not None
-                ):
+                elif state.comm_type is None and self._default_commission_type is not None:
                     state.comm_type = self._default_commission_type
                 if currency_override is not None:
                     state.currency = currency_override
-                elif (
-                    state.currency is None
-                    and self._default_commission_currency is not None
-                ):
+                elif state.currency is None and self._default_commission_currency is not None:
                     state.currency = self._default_commission_currency
                 if settle_type_override is not None:
                     state.settle_type = settle_type_override
-                elif (
-                    state.settle_type is None
-                    and self._default_settle_type is not None
-                ):
+                elif state.settle_type is None and self._default_settle_type is not None:
                     state.settle_type = self._default_settle_type
                 if settle_date_override is not None:
                     state.settle_date = settle_date_override
-                elif (
-                    state.settle_date is None
-                    and self._default_settle_date is not None
-                ):
+                elif state.settle_date is None and self._default_settle_date is not None:
                     state.settle_date = self._default_settle_date
                 if trade_date_override is not None:
                     state.trade_date = trade_date_override
-                elif (
-                    state.trade_date is None
-                    and self._default_trade_date is not None
-                ):
+                elif state.trade_date is None and self._default_trade_date is not None:
                     state.trade_date = self._default_trade_date
                 if order_capacity_override is not None:
                     state.order_capacity = order_capacity_override
-                elif (
-                    state.order_capacity is None
-                    and self._default_order_capacity is not None
-                ):
+                elif state.order_capacity is None and self._default_order_capacity is not None:
                     state.order_capacity = self._default_order_capacity
                 if customer_or_firm_override is not None:
                     state.customer_or_firm = customer_or_firm_override
-                elif (
-                    state.customer_or_firm is None
-                    and self._default_customer_or_firm is not None
-                ):
+                elif state.customer_or_firm is None and self._default_customer_or_firm is not None:
                     state.customer_or_firm = self._default_customer_or_firm
                 if auto_complete_override is not None:
                     state.auto_complete = auto_complete_override
@@ -1453,10 +1367,7 @@ class _MockTradeConnection(FIXTradeConnectionProtocol):
             if time_in_force_override is not None:
                 time_in_force_value = time_in_force_override
                 state.time_in_force = time_in_force_override
-            elif (
-                time_in_force_value is None
-                and self._default_time_in_force is not None
-            ):
+            elif time_in_force_value is None and self._default_time_in_force is not None:
                 time_in_force_value = self._default_time_in_force
                 state.time_in_force = time_in_force_value
             settle_type_value = state.settle_type
@@ -1471,14 +1382,10 @@ class _MockTradeConnection(FIXTradeConnectionProtocol):
             )
             order_id = self._resolve_order_id(state, order_id_override)
             exec_id = self._next_exec_id(state, override=exec_id_override)
-            transact_time_value = (
-                transact_time_override if transact_time_override else None
-            )
+            transact_time_value = transact_time_override if transact_time_override else None
             if transact_time_value is None:
                 transact_time_value = state.transact_time_override
-            sending_time_value = (
-                sending_time_override if sending_time_override else None
-            )
+            sending_time_value = sending_time_override if sending_time_override else None
             if sending_time_value is None:
                 sending_time_value = state.sending_time_override
             generated_time: str | None = None
@@ -1561,20 +1468,14 @@ class _MockTradeConnection(FIXTradeConnectionProtocol):
             if currency_override is not None:
                 currency_result = currency_override
                 state.currency = currency_override
-            elif (
-                currency_result is None
-                and self._default_commission_currency is not None
-            ):
+            elif currency_result is None and self._default_commission_currency is not None:
                 currency_result = self._default_commission_currency
                 state.currency = currency_result
 
             if settle_type_override is not None:
                 settle_type_value = settle_type_override
                 state.settle_type = settle_type_override
-            elif (
-                settle_type_value is None
-                and self._default_settle_type is not None
-            ):
+            elif settle_type_value is None and self._default_settle_type is not None:
                 settle_type_value = self._default_settle_type
                 state.settle_type = settle_type_value
 
@@ -1594,20 +1495,14 @@ class _MockTradeConnection(FIXTradeConnectionProtocol):
             if order_capacity_override is not None:
                 order_capacity_value = order_capacity_override
                 state.order_capacity = order_capacity_override
-            elif (
-                order_capacity_value is None
-                and self._default_order_capacity is not None
-            ):
+            elif order_capacity_value is None and self._default_order_capacity is not None:
                 order_capacity_value = self._default_order_capacity
                 state.order_capacity = order_capacity_value
 
             if customer_or_firm_override is not None:
                 customer_or_firm_value = customer_or_firm_override
                 state.customer_or_firm = customer_or_firm_override
-            elif (
-                customer_or_firm_value is None
-                and self._default_customer_or_firm is not None
-            ):
+            elif customer_or_firm_value is None and self._default_customer_or_firm is not None:
                 customer_or_firm_value = self._default_customer_or_firm
                 state.customer_or_firm = customer_or_firm_value
 
@@ -1619,9 +1514,7 @@ class _MockTradeConnection(FIXTradeConnectionProtocol):
                 commission_increment = max(state.commission_default, 0.0)
 
             if commission_increment != 0.0 or commission_override is not None:
-                state.commission_total = max(
-                    state.commission_total + commission_increment, 0.0
-                )
+                state.commission_total = max(state.commission_total + commission_increment, 0.0)
                 state.last_commission = commission_increment
             else:
                 state.last_commission = 0.0
@@ -1678,9 +1571,7 @@ class _MockTradeConnection(FIXTradeConnectionProtocol):
         if customer_or_firm_value is not None:
             execution["customer_or_firm"] = customer_or_firm_value
         state.history.append(execution)
-        executions_tuple = tuple(
-            _clone_execution(payload) for payload in state.history
-        )
+        executions_tuple = tuple(_clone_execution(payload) for payload in state.history)
         info = MockOrderInfo(
             cl_ord_id=state.cl_ord_id,
             executions=cast(Sequence[OrderExecutionRecord], executions_tuple),
@@ -1723,9 +1614,7 @@ class _MockTradeConnection(FIXTradeConnectionProtocol):
             state = self._orders.pop(cl_ord_id, None)
             if state is None:
                 return
-            history_snapshot = tuple(
-                _clone_execution(payload) for payload in state.history
-            )
+            history_snapshot = tuple(_clone_execution(payload) for payload in state.history)
             self._completed_history[cl_ord_id] = history_snapshot
             if state.last_info is not None:
                 self._completed_info[cl_ord_id] = _clone_order_info(state.last_info)
@@ -1956,11 +1845,7 @@ class _MockTradeConnection(FIXTradeConnectionProtocol):
             order_id = raw.get("order_id") or raw.get("mock_order_id")
             exec_id = raw.get("exec_id") or raw.get("mock_exec_id")
             account = raw.get("account") or raw.get("mock_account")
-            order_type = (
-                raw.get("order_type")
-                or raw.get("mock_order_type")
-                or raw.get("ord_type")
-            )
+            order_type = raw.get("order_type") or raw.get("mock_order_type") or raw.get("ord_type")
             time_in_force = (
                 raw.get("time_in_force")
                 or raw.get("mock_time_in_force")
@@ -1971,37 +1856,21 @@ class _MockTradeConnection(FIXTradeConnectionProtocol):
             ord_rej_reason = raw.get("ord_rej_reason") or raw.get("reject_reason")
             cancel_reason = raw.get("cancel_reason")
             transact_time = (
-                raw.get("transact_time")
-                or raw.get("transactTime")
-                or raw.get("mock_transact_time")
+                raw.get("transact_time") or raw.get("transactTime") or raw.get("mock_transact_time")
             )
             sending_time = (
-                raw.get("sending_time")
-                or raw.get("sendingTime")
-                or raw.get("mock_sending_time")
+                raw.get("sending_time") or raw.get("sendingTime") or raw.get("mock_sending_time")
             )
-            commission = (
-                raw.get("commission")
-                or raw.get("fee")
-                or raw.get("last_commission")
-            )
+            commission = raw.get("commission") or raw.get("fee") or raw.get("last_commission")
             comm_type = raw.get("comm_type") or raw.get("commission_type")
             currency = raw.get("currency")
             settle_type = raw.get("settle_type") or raw.get("mock_settle_type")
             settle_date = (
-                raw.get("settle_date")
-                or raw.get("settleDate")
-                or raw.get("mock_settle_date")
+                raw.get("settle_date") or raw.get("settleDate") or raw.get("mock_settle_date")
             )
-            trade_date = (
-                raw.get("trade_date")
-                or raw.get("tradeDate")
-                or raw.get("mock_trade_date")
-            )
+            trade_date = raw.get("trade_date") or raw.get("tradeDate") or raw.get("mock_trade_date")
             order_capacity = (
-                raw.get("order_capacity")
-                or raw.get("mock_order_capacity")
-                or raw.get("capacity")
+                raw.get("order_capacity") or raw.get("mock_order_capacity") or raw.get("capacity")
             )
             customer_or_firm = (
                 raw.get("customer_or_firm")
@@ -2121,15 +1990,11 @@ class _MockTradeConnection(FIXTradeConnectionProtocol):
                 quantity_ratio_attr = getattr(raw, "ratio", sentinel)
             if quantity_ratio_attr is sentinel:
                 quantity_ratio_attr = getattr(raw, "proportion", None)
-            quantity_ratio = (
-                None if quantity_ratio_attr is sentinel else quantity_ratio_attr
-            )
+            quantity_ratio = None if quantity_ratio_attr is sentinel else quantity_ratio_attr
             remaining_ratio_attr = getattr(raw, "remaining_ratio", sentinel)
             if remaining_ratio_attr is sentinel:
                 remaining_ratio_attr = getattr(raw, "remaining_proportion", None)
-            remaining_ratio = (
-                None if remaining_ratio_attr is sentinel else remaining_ratio_attr
-            )
+            remaining_ratio = None if remaining_ratio_attr is sentinel else remaining_ratio_attr
             repeat_attr = getattr(raw, "repeat", sentinel)
             if repeat_attr is sentinel:
                 repeat_attr = getattr(raw, "repetitions", sentinel)
@@ -2143,9 +2008,7 @@ class _MockTradeConnection(FIXTradeConnectionProtocol):
             return None
 
         exec_text = str(exec_type).upper()
-        qty_value = _coerce_optional_float(
-            cast(SupportsFloat | str | bytes | None, quantity)
-        )
+        qty_value = _coerce_optional_float(cast(SupportsFloat | str | bytes | None, quantity))
         if qty_value is not None:
             qty_value = max(qty_value, 0.0)
         delay_value = _coerce_optional_float(
@@ -2155,9 +2018,7 @@ class _MockTradeConnection(FIXTradeConnectionProtocol):
         if delay_value is None:
             delay_value = self._execution_interval
         delay_value = max(delay_value, 0.0)
-        price_value = _coerce_optional_float(
-            cast(SupportsFloat | str | bytes | None, price)
-        )
+        price_value = _coerce_optional_float(cast(SupportsFloat | str | bytes | None, price))
         order_id_value = _coerce_optional_str(order_id)
         exec_id_value = _coerce_optional_str(exec_id)
         account_value = _coerce_optional_str(account)
@@ -2176,9 +2037,7 @@ class _MockTradeConnection(FIXTradeConnectionProtocol):
         sending_time_value = _coerce_optional_str(sending_time)
         if sending_time_value is None:
             sending_time_value = transact_time_value
-        repeat_value = _coerce_repetition(
-            cast(SupportsFloat | str | bytes | None, repeat)
-        )
+        repeat_value = _coerce_repetition(cast(SupportsFloat | str | bytes | None, repeat))
         if repeat_value is None:
             repeat_value = 1
 
@@ -2311,6 +2170,7 @@ class _MockTradeConnection(FIXTradeConnectionProtocol):
 
         # Respect optional flags on msg for reject/cancel flows
         if getattr(msg, "reject", False):
+
             def _emit_reject() -> None:
                 info = self._build_order_info(state, "8")  # Reject
                 self._dispatch(info, "8")
@@ -2320,6 +2180,7 @@ class _MockTradeConnection(FIXTradeConnectionProtocol):
             return True
 
         if getattr(msg, "cancel", False):
+
             def _emit_cancel() -> None:
                 info = self._build_order_info(state, "4")  # Canceled
                 self._dispatch(info, "4")
@@ -2436,13 +2297,7 @@ class _MockTradeConnection(FIXTradeConnectionProtocol):
                         )
                         if completed:
                             break
-                        if (
-                            step.delay > 0.0
-                            and (
-                                iteration < repetitions - 1
-                                or idx < last_index
-                            )
-                        ):
+                        if step.delay > 0.0 and (iteration < repetitions - 1 or idx < last_index):
                             self._sleep(step.delay)
                     if completed:
                         break
@@ -2450,10 +2305,7 @@ class _MockTradeConnection(FIXTradeConnectionProtocol):
                 if (
                     not completed
                     and state.auto_complete
-                    and not any(
-                        step.exec_type in {"F", "4", "8"}
-                        for step in execution_plan
-                    )
+                    and not any(step.exec_type in {"F", "4", "8"} for step in execution_plan)
                 ):
                     remaining_qty = self._estimate_remaining_qty(state)
                     if remaining_qty > 0.0:
@@ -2554,9 +2406,7 @@ class MockFIXManager:
         )
         self.trade_connection = self._trade_connection
 
-    def _coerce_market_data_step(
-        self, raw: object
-    ) -> _ResolvedMarketDataStep | None:
+    def _coerce_market_data_step(self, raw: object) -> _ResolvedMarketDataStep | None:
         if isinstance(raw, _ResolvedMarketDataStep):
             return raw
         bids_obj: object | None = None
@@ -2866,12 +2716,8 @@ class MockFIXManager:
         order_type_value = _coerce_optional_str(order_type)
         time_in_force_value = _coerce_optional_str(time_in_force)
         settle_type_value = _coerce_optional_str(settle_type)
-        settle_date_value = _coerce_optional_fix_date(
-            cast(object | None, settle_date)
-        )
-        trade_date_value = _coerce_optional_fix_date(
-            cast(object | None, trade_date)
-        )
+        settle_date_value = _coerce_optional_fix_date(cast(object | None, settle_date))
+        trade_date_value = _coerce_optional_fix_date(cast(object | None, trade_date))
         order_capacity_value = _coerce_optional_str(order_capacity)
         customer_or_firm_value = _coerce_optional_str(customer_or_firm)
         return self._trade_connection.emit_order_update(
@@ -2979,9 +2825,7 @@ class MockFIXManager:
 
         return self._telemetry.wait_for(_matches, count=count, timeout=timeout)
 
-    def wait_for_order_completion(
-        self, cl_ord_id: str, timeout: float | None = None
-    ) -> bool:
+    def wait_for_order_completion(self, cl_ord_id: str, timeout: float | None = None) -> bool:
         """Block until ``cl_ord_id`` emits an ``order_complete`` telemetry event."""
 
         return self.wait_for_telemetry(

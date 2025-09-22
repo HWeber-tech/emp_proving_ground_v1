@@ -1,4 +1,3 @@
-
 """
 Competitive Intelligence System
 Identify and counter competing algorithmic traders.

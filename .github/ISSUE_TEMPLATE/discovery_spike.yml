@@ -1,0 +1,50 @@
+name: "Discovery spike"
+description: "Time-boxed research anchored to the concept blueprint."
+title: "[Spike] <investigation topic>"
+labels:
+  - roadmap
+  - discovery
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ### Discovery guardrails
+        Spikes are capped at 4–8 hours and must close with written findings that execution tickets can inherit. Ground the investigation in the relevant concept promise and roadmap gap.
+  - type: textarea
+    id: question
+    attributes:
+      label: Hypothesis / question to answer
+      description: "Frame the research objective and link the concept excerpt that motivates it."
+      placeholder: "`EMP_ENCYCLOPEDIA_v2.3_CANONICAL.md#...` excerpt + hypothesis"
+      render: markdown
+    validations:
+      required: true
+  - type: textarea
+    id: reality
+    attributes:
+      label: Current signals / blockers
+      description: "Summarise the code, telemetry, or operational gaps that triggered this spike."
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Time box & deliverables
+      description: "Define the time budget, artefacts to produce (notes, diagrams, prototypes), and the decision this spike should unblock."
+      placeholder: "8h — produce draft schema options + decision matrix"
+    validations:
+      required: true
+  - type: textarea
+    id: exit
+    attributes:
+      label: Exit criteria / hand-off
+      description: "List the follow-up tickets or documentation updates expected once the spike concludes."
+  - type: checkboxes
+    id: spike_checklist
+    attributes:
+      label: Before starting
+      options:
+        - label: Concept excerpt pasted into this ticket
+          required: true
+        - label: Time box agreed with reviewer/lead
+          required: true

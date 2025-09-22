@@ -64,9 +64,7 @@ class HistoricalReplayConnector:
             self._series[symbol] = normalised
             self._indices[symbol] = 0
 
-    async def fetch(
-        self, symbol: str, *, as_of: datetime | None = None
-    ) -> ConnectorResult:
+    async def fetch(self, symbol: str, *, as_of: datetime | None = None) -> ConnectorResult:
         series = self._series.get(symbol)
         if not series:
             return None

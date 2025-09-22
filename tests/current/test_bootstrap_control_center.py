@@ -2,10 +2,12 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
+from decimal import Decimal
 from typing import Any, Mapping
 
 import pytest
 
+from src.config.risk.risk_config import RiskConfig
 from src.core.event_bus import EventBus
 from src.data_foundation import HistoricalReplayConnector, MarketDataFabric
 from src.operations.bootstrap_control_center import BootstrapControlCenter
@@ -100,17 +102,23 @@ async def test_control_center_compiles_telemetry_report() -> None:
     portfolio_monitor = PortfolioMonitor(event_bus, InMemoryRedis())
     execution_adapter = ImmediateFillExecutionAdapter(portfolio_monitor)
     liquidity_prober = DepthAwareLiquidityProber()
+    risk_config = RiskConfig(
+        max_risk_per_trade_pct=Decimal("0.02"),
+        max_drawdown_pct=Decimal("0.1"),
+        min_position_size=1,
+    )
     trading_manager = TradingManager(
         event_bus=event_bus,
         strategy_registry=DummyStrategyRegistry(),
         execution_engine=execution_adapter,
         initial_equity=100000.0,
-        risk_per_trade=0.02,
+        risk_per_trade=None,
         max_open_positions=5,
-        max_daily_drawdown=0.1,
+        max_daily_drawdown=None,
         redis_client=InMemoryRedis(),
         liquidity_prober=liquidity_prober,
         min_intent_confidence=0.0,
+        risk_config=risk_config,
     )
 
     orchestrator = DummyEvolutionOrchestrator()
@@ -142,7 +150,12 @@ async def test_control_center_compiles_telemetry_report() -> None:
 
     assert report["portfolio"]["equity"] > 0
     assert report["risk"]["limits"]["max_open_positions"] == 5
+    assert report["risk"]["snapshot"]["status"] in {"ok", "warn", "alert"}
+    assert report["risk"]["policy"] is not None
+    assert report["risk"]["policy"]["snapshot"]["symbol"] == "EURUSD"
     assert report["performance"]["fills"] >= 1
+    assert "roi" in report["performance"]
+    assert report["performance"]["roi"]["snapshot"]["status"] in {"ahead", "tracking", "at_risk"}
     assert report["decisions"]["recent"]
     assert report["intelligence"]["narrative"] in {"BULLISH", "BEARISH", "NEUTRAL", "VOLATILE"}
     assert report["liquidity"]["summary"].get("evaluated_levels") is not None
@@ -154,5 +167,8 @@ async def test_control_center_compiles_telemetry_report() -> None:
     overview = control_center.overview()
     assert overview["equity"] == report["performance"]["equity"]
     assert overview["last_decision"] is not None
+    assert overview["risk_posture"]["status"] in {"ok", "warn", "alert"}
+    assert overview["risk_policy"]["symbol"] == "EURUSD"
+    assert overview["roi_posture"]["status"] in {"ahead", "tracking", "at_risk"}
     assert overview["evolution"]["generations"] == orchestrator.telemetry["total_generations"]
     assert overview["vision_alignment"]["status"] in {"ready", "progressing", "gap"}

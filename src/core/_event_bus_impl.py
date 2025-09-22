@@ -20,7 +20,20 @@ import time
 import warnings
 from concurrent.futures import TimeoutError as FuturesTimeoutError
 from dataclasses import dataclass, field
-from typing import Any, Awaitable, Callable, Dict, Optional, Set, Tuple, cast
+from typing import (
+    Any,
+    Awaitable,
+    Callable,
+    Dict,
+    Mapping,
+    Optional,
+    Protocol,
+    Set,
+    Tuple,
+    cast,
+)
+
+from src.observability.tracing import EventBusTracer, NullEventBusTracer
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +55,52 @@ class SubscriptionHandle:
     handler: Callable[[Event], Awaitable[None]] | Callable[[Event], None]
 
 
+@dataclass(frozen=True)
+class EventBusStatistics:
+    """Point-in-time diagnostics for the event bus."""
+
+    running: bool
+    loop_running: bool
+    queue_size: int
+    queue_capacity: int | None
+    subscriber_count: int
+    topic_subscribers: dict[str, int]
+    published_events: int
+    dropped_events: int
+    handler_errors: int
+    last_event_timestamp: float | None
+    last_error_timestamp: float | None
+    started_at: float | None
+    uptime_seconds: float | None
+
+
+class TaskFactory(Protocol):
+    """Callable responsible for spawning background tasks."""
+
+    def __call__(
+        self,
+        coro: Awaitable[Any],
+        *,
+        name: str | None = None,
+        metadata: Mapping[str, Any] | None = None,
+    ) -> asyncio.Task[Any]: ...
+
+
+def _default_task_factory(
+    coro: Awaitable[Any],
+    *,
+    name: str | None = None,
+    metadata: Mapping[str, Any] | None = None,
+) -> asyncio.Task[Any]:
+    """Spawn tasks using :func:`asyncio.create_task`.
+
+    ``metadata`` is accepted for compatibility with :class:`TaskSupervisor`
+    integrations but ignored by the default factory.
+    """
+
+    return asyncio.create_task(coro, name=name)
+
+
 class AsyncEventBus:
     """
     Canonical async-first event bus.
@@ -54,7 +113,12 @@ class AsyncEventBus:
     - start()/stop() manage internal worker lifecycle
     """
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        *,
+        task_factory: TaskFactory | None = None,
+        tracer: EventBusTracer | None = None,
+    ) -> None:
         self._subscribers: Dict[
             str, Set[Callable[[Event], None] | Callable[[Event], Awaitable[None]]]
         ] = {}
@@ -70,6 +134,8 @@ class AsyncEventBus:
         self._queue: asyncio.Queue[Event] = asyncio.Queue()
         self._worker_task: Optional[asyncio.Task[None]] = None
         self._loop: Optional[asyncio.AbstractEventLoop] = None
+        self._task_factory: TaskFactory = task_factory or _default_task_factory
+        self._tracer: EventBusTracer = tracer or NullEventBusTracer()
 
         # Warn-once flags
         self._warned_not_running_publish: bool = False
@@ -79,6 +145,13 @@ class AsyncEventBus:
 
         # Protects subscribe/unsubscribe maps from concurrent access across threads (handles only)
         self._lock = threading.Lock()
+        self._metrics_lock = threading.Lock()
+        self._published_events_total: int = 0
+        self._dropped_events_total: int = 0
+        self._handler_errors_total: int = 0
+        self._last_event_timestamp: float | None = None
+        self._last_error_timestamp: float | None = None
+        self._started_wall_time: float | None = None
 
     def subscribe(
         self,
@@ -127,8 +200,20 @@ class AsyncEventBus:
             if not self._warned_not_running_publish:
                 self._warned_not_running_publish = True
                 logger.warning("AsyncEventBus.publish called while bus not running; event dropped")
+            self._record_dropped_event()
             return
-        await self._queue.put(event)
+        metadata = {
+            "mode": "async",
+            "queue_size": self._queue.qsize(),
+            "subscriber_count": self._subscriber_count(event.type),
+        }
+        with self._tracer.publish_span(
+            event_type=event.type,
+            event_source=event.source,
+            metadata=metadata,
+        ):
+            self._record_published_event(event)
+            await self._queue.put(event)
 
     def publish_from_sync(self, event: Event) -> int | None:
         """
@@ -145,17 +230,28 @@ class AsyncEventBus:
                 logger.warning(
                     "AsyncEventBus.publish_from_sync called while loop/bus not running; no-op"
                 )
+            self._record_dropped_event()
             return None
         try:
-            # Return number of handlers scheduled at time of enqueue (legacy-compatible semantics)
-            with self._lock:
-                scheduled_count = len(self._subscribers.get(event.type, set()))
-            loop.call_soon_threadsafe(self._queue.put_nowait, event)
+            scheduled_count = self._subscriber_count(event.type)
+            metadata = {
+                "mode": "sync",
+                "queue_size": self._queue.qsize(),
+                "subscriber_count": scheduled_count,
+            }
+            with self._tracer.publish_span(
+                event_type=event.type,
+                event_source=event.source,
+                metadata=metadata,
+            ):
+                loop.call_soon_threadsafe(self._queue.put_nowait, event)
+                self._record_published_event(event)
             return scheduled_count
         except RuntimeError:
             if not self._warned_loop_issue_sync:
                 self._warned_loop_issue_sync = True
                 logger.warning("AsyncEventBus.publish_from_sync loop issue; returning None")
+            self._record_dropped_event()
             return None
 
     async def start(self) -> None:
@@ -165,8 +261,14 @@ class AsyncEventBus:
             return
         self._loop = asyncio.get_running_loop()
         self._running = True
-        self._worker_task = asyncio.create_task(self._worker(), name="AsyncEventBusWorker")
+        self._worker_task = self._spawn_task(
+            self._worker(),
+            name="AsyncEventBusWorker",
+            metadata={"component": "event_bus", "task": "worker"},
+        )
         logger.info("AsyncEventBus started")
+        with self._metrics_lock:
+            self._started_wall_time = time.time()
 
     async def stop(self) -> None:
         """Stop worker loop."""
@@ -183,6 +285,8 @@ class AsyncEventBus:
                 pass
         self._worker_task = None
         logger.info("AsyncEventBus stopped")
+        with self._metrics_lock:
+            self._started_wall_time = None
 
     def is_running(self) -> bool:
         return self._running
@@ -225,27 +329,149 @@ class AsyncEventBus:
             return 0
 
         tasks: list[asyncio.Task[Any]] = []
+        dispatch_latency_ms = max((time.time() - event.timestamp) * 1000.0, 0.0)
         for handler in handlers_snapshot:
-            coro = self._invoke_handler(handler, event)
-            tasks.append(asyncio.create_task(coro))
+            handler_description = self._describe_handler(handler)
+            coro = self._invoke_handler(handler, event, handler_description, dispatch_latency_ms)
+            tasks.append(
+                self._spawn_task(
+                    coro,
+                    name=f"event-handler:{event.type}",
+                    metadata={
+                        "component": "event_bus",
+                        "task": "handler",
+                        "event_type": event.type,
+                        "handler": handler_description,
+                        "dispatch_lag_ms": dispatch_latency_ms,
+                    },
+                )
+            )
 
         results = await asyncio.gather(*tasks, return_exceptions=True)
         for h, res in zip(handlers_snapshot, results):
             if isinstance(res, Exception):
                 # Log explicitly at ERROR level (not relying on active exc state for logger.exception)
                 logger.error("Error in handler %r for event type %s", h, event.type)
+                self._record_handler_error()
         return len(handlers_snapshot)
 
     async def _invoke_handler(
-        self, handler: Callable[[Event], None] | Callable[[Event], Awaitable[None]], event: Event
+        self,
+        handler: Callable[[Event], None] | Callable[[Event], Awaitable[None]],
+        event: Event,
+        handler_description: str,
+        dispatch_lag_ms: float,
     ) -> None:
+        metadata = {"dispatch_lag_ms": dispatch_lag_ms}
+        with self._tracer.handler_span(
+            event_type=event.type,
+            handler_name=handler_description,
+            metadata=metadata,
+        ):
+            try:
+                result = handler(event)
+                if asyncio.iscoroutine(result):
+                    await result
+            except Exception:
+                # Log and do not bubble exceptions from handlers
+                logger.error(
+                    "Error in handler %s for event type %s",
+                    handler_description,
+                    event.type,
+                )
+                self._record_handler_error()
+
+    def _record_published_event(self, event: Event) -> None:
+        with self._metrics_lock:
+            self._published_events_total += 1
+            self._last_event_timestamp = event.timestamp
+
+    def _record_dropped_event(self) -> None:
+        with self._metrics_lock:
+            self._dropped_events_total += 1
+
+    def _record_handler_error(self) -> None:
+        with self._metrics_lock:
+            self._handler_errors_total += 1
+            self._last_error_timestamp = time.time()
+
+    def set_task_factory(self, task_factory: TaskFactory | None) -> None:
+        """Override the task factory used for worker and handler tasks."""
+
+        self._task_factory = task_factory or _default_task_factory
+
+    def set_tracer(self, tracer: EventBusTracer | None) -> None:
+        """Override the tracer used for publish and handler spans."""
+
+        self._tracer = tracer or NullEventBusTracer()
+
+    def _spawn_task(
+        self,
+        coro: Awaitable[Any],
+        *,
+        name: str | None = None,
+        metadata: Mapping[str, Any] | None = None,
+    ) -> asyncio.Task[Any]:
         try:
-            result = handler(event)
-            if asyncio.iscoroutine(result):
-                await result
-        except Exception:
-            # Log and do not bubble exceptions from handlers
-            logger.error("Error in handler %r for event type %s", handler, event.type)
+            return self._task_factory(coro, name=name, metadata=metadata)
+        except TypeError:
+            # Support legacy factories that only accept (coro, name)
+            return self._task_factory(coro, name=name)  # type: ignore[misc]
+
+    @staticmethod
+    def _describe_handler(
+        handler: Callable[[Event], None] | Callable[[Event], Awaitable[None]],
+    ) -> str:
+        try:
+            description = repr(handler)
+        except Exception:  # pragma: no cover - defensive
+            return "<handler>"
+        if len(description) > 120:
+            return f"{description[:117]}..."
+        return description
+
+    def _subscriber_count(self, event_type: str) -> int:
+        with self._lock:
+            handlers = self._subscribers.get(event_type)
+            return len(handlers) if handlers else 0
+
+    def get_statistics(self) -> EventBusStatistics:
+        """Return a diagnostic snapshot of the current event bus state."""
+
+        with self._lock:
+            topic_counts: dict[str, int] = {
+                topic: len(handlers) for topic, handlers in self._subscribers.items()
+            }
+
+        with self._metrics_lock:
+            published_total = self._published_events_total
+            dropped_total = self._dropped_events_total
+            handler_errors = self._handler_errors_total
+            last_event_ts = self._last_event_timestamp
+            last_error_ts = self._last_error_timestamp
+            started_wall_time = self._started_wall_time
+
+        loop_running = self._loop is not None and self._loop.is_running()
+        queue_capacity = self._queue.maxsize if self._queue.maxsize > 0 else None
+        uptime_seconds: float | None = None
+        if started_wall_time is not None and self._running and loop_running:
+            uptime_seconds = max(time.time() - started_wall_time, 0.0)
+
+        return EventBusStatistics(
+            running=self._running,
+            loop_running=loop_running,
+            queue_size=self._queue.qsize(),
+            queue_capacity=queue_capacity,
+            subscriber_count=sum(topic_counts.values()),
+            topic_subscribers=topic_counts,
+            published_events=published_total,
+            dropped_events=dropped_total,
+            handler_errors=handler_errors,
+            last_event_timestamp=last_event_ts,
+            last_error_timestamp=last_error_ts,
+            started_at=started_wall_time,
+            uptime_seconds=uptime_seconds,
+        )
 
 
 # Export alias for continuity
@@ -283,21 +509,34 @@ class TopicBus:
         loop = self._bus._loop
         if not self._bus.is_running() or loop is None or not loop.is_running():
             logger.warning("TopicBus.publish_sync called while bus not running; no-op")
+            self._bus._record_dropped_event()
             return None
 
         event = Event(type=topic, payload=payload, source=source, timestamp=time.time())
-        # Synchronously fan out on the event loop thread to preserve legacy semantics.
-        try:
-            fut = asyncio.run_coroutine_threadsafe(self._bus._fanout_event(event), loop)
-            count = fut.result(timeout=2.0)
-            # Ensure an int is returned
-            return int(count)
-        except FuturesTimeoutError:
-            logger.warning("TopicBus.publish_sync timed out waiting for handler fan-out")
-            return 0
-        except Exception:
-            logger.exception("TopicBus.publish_sync unexpected error during fan-out")
-            return 0
+        subscriber_count = self._bus._subscriber_count(topic)
+        metadata = {
+            "mode": "topic_sync",
+            "queue_size": self._bus._queue.qsize(),
+            "subscriber_count": subscriber_count,
+        }
+        with self._bus._tracer.publish_span(
+            event_type=topic,
+            event_source=source,
+            metadata=metadata,
+        ):
+            self._bus._record_published_event(event)
+            # Synchronously fan out on the event loop thread to preserve legacy semantics.
+            try:
+                fut = asyncio.run_coroutine_threadsafe(self._bus._fanout_event(event), loop)
+                count = fut.result(timeout=2.0)
+                # Ensure an int is returned
+                return int(count)
+            except FuturesTimeoutError:
+                logger.warning("TopicBus.publish_sync timed out waiting for handler fan-out")
+                return 0
+            except Exception:
+                logger.exception("TopicBus.publish_sync unexpected error during fan-out")
+                return 0
 
     def subscribe_topic(
         self,
@@ -420,6 +659,10 @@ def get_global_bus() -> TopicBus:
 
 
 # Convenience functions reusing the global AsyncEventBus singleton (re-exported by operational shims)
+def set_event_bus_tracer(tracer: EventBusTracer | None) -> None:
+    event_bus.set_tracer(tracer)
+
+
 async def publish_event(event: Event) -> None:
     await event_bus.publish(event)
 

@@ -41,9 +41,7 @@ def pytest_pyfunc_call(pyfuncitem: pytest.Function) -> bool | None:
     provided_args = pyfuncitem.funcargs
     signature = inspect.signature(test_obj)
     bound_args = {
-        name: provided_args[name]
-        for name in signature.parameters
-        if name in provided_args
+        name: provided_args[name] for name in signature.parameters if name in provided_args
     }
 
     asyncio.run(test_obj(**bound_args))

@@ -21,9 +21,11 @@ def test_integration_smoke_explicit_env():
     assert str(cfg.tier) == "tier_0"
     assert str(cfg.connection_protocol) == "fix"
     assert cfg.confirm_live is False
+    assert str(cfg.data_backbone_mode) == "bootstrap"
 
     # String view properties for backward compatibility
     assert cfg.run_mode_str == "paper"
     assert cfg.environment_str == "demo"
     assert cfg.tier_str == "tier_0"
     assert cfg.connection_protocol_str == "fix"
+    assert cfg.data_backbone_mode_str == "bootstrap"

@@ -9,8 +9,10 @@ class RiskConfig:
     """Minimal RiskConfig placeholder to satisfy type imports.
     Real configuration is provided dynamically from src.config.risk.risk_config at runtime.
     """
+
     def __init__(self) -> None:
         pass
+
 
 def _risk_cfg(sym: str) -> Any:
     return getattr(importlib.import_module("src.config.risk.risk_config"), sym)

@@ -81,7 +81,10 @@ def find_duplicates(files: List[str]) -> Dict[str, Dict[str, List[str]]]:
 
 
 def summarize_by_category(dups: Dict[str, Dict[str, List[str]]]) -> Dict[str, Dict[str, int]]:
-    summary: Dict[str, Dict[str, int]] = {"classes": defaultdict(int), "functions": defaultdict(int)}
+    summary: Dict[str, Dict[str, int]] = {
+        "classes": defaultdict(int),
+        "functions": defaultdict(int),
+    }
     for name, paths in dups.get("classes", {}).items():
         summary["classes"][categorize(name)] += 1
     for name, paths in dups.get("functions", {}).items():
@@ -109,5 +112,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-
-

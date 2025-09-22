@@ -16,6 +16,7 @@ if ROOT not in sys.path:
 
 # Enforce scientific stack integrity early (fail-fast if missing/mismatched)
 from src.system.requirements_check import assert_scientific_stack  # noqa: E402
+
 assert_scientific_stack()
 
 from src.data_foundation.replay.multidim_replayer import MultiDimReplayer  # noqa: E402
@@ -23,9 +24,11 @@ from src.data_foundation.replay.multidim_replayer import MultiDimReplayer  # noq
 try:
     from src.sensory.dimensions.microstructure import RollingMicrostructure  # type: ignore[reportMissingImports]  # legacy
 except Exception:
+
     class RollingMicrostructure:  # type: ignore
         def __init__(self, window: int = 50):
             self.window = window
+
         def update(self, bids, asks):
             # Minimal placeholder features used by downstream logic
             mid = 0.0
@@ -40,10 +43,14 @@ except Exception:
                 "microprice": mid,
                 "top_imbalance": 0.0,
             }
+
+
 from src.data_foundation.persist.parquet_writer import write_events_parquet  # noqa: E402
 
 
-def macro_proximity_signal(mins_since: float | None, mins_to_next: float | None) -> tuple[float, float]:
+def macro_proximity_signal(
+    mins_since: float | None, mins_to_next: float | None
+) -> tuple[float, float]:
     # Minimal placeholder: low confidence unless near events
     try:
         if mins_since is None and mins_to_next is None:
@@ -55,11 +62,14 @@ def macro_proximity_signal(mins_since: float | None, mins_to_next: float | None)
         return sig, conf
     except Exception:
         return 0.0, 0.0
+
+
 try:
     from src.sensory.dimensions.what.volatility_engine import vol_signal  # type: ignore[reportMissingImports]  # legacy
 except Exception:
     import math
     from dataclasses import dataclass
+
     @dataclass
     class _VolSig:
         sigma_ann: float
@@ -69,11 +79,17 @@ except Exception:
     def vol_signal(symbol: str, ts: str, rv_window, daily_returns) -> _VolSig:  # type: ignore
         try:
             vals = [float(x) for x in (rv_window or []) if x is not None]
-            sigma = (math.sqrt(sum(v*v for v in vals) / len(vals)) * math.sqrt(252*12)) if vals else 0.1
+            sigma = (
+                (math.sqrt(sum(v * v for v in vals) / len(vals)) * math.sqrt(252 * 12))
+                if vals
+                else 0.1
+            )
         except Exception:
             sigma = 0.1
-        regime = 'normal'
+        regime = "normal"
         return _VolSig(sigma_ann=float(sigma), regime=regime, sizing_multiplier=1.0)
+
+
 from src.data_foundation.config.execution_config import load_execution_config  # noqa: E402
 from src.data_foundation.config.risk_portfolio_config import load_portfolio_risk_config  # noqa: E402
 from src.data_foundation.config.sizing_config import load_sizing_config  # noqa: E402
@@ -93,16 +109,30 @@ def parse_args():
     p.add_argument("--file", required=True)
     p.add_argument("--symbol", default="EURUSD")
     p.add_argument("--macro-file", default="", help="Optional macro JSONL file to merge")
-    p.add_argument("--yields-file", default="", help="Optional yields JSONL file to merge (for slope)")
-    p.add_argument("--force-regime", default="", help="Force regime label for gating tests (e.g., storm)")
+    p.add_argument(
+        "--yields-file", default="", help="Optional yields JSONL file to merge (for slope)"
+    )
+    p.add_argument(
+        "--force-regime", default="", help="Force regime label for gating tests (e.g., storm)"
+    )
     # Execution calibration
-    p.add_argument("--slippage-bps", type=float, default=0.5, help="Per-trade slippage in basis points")
-    p.add_argument("--fee-bps", type=float, default=0.1, help="Per-trade transaction cost in basis points")
+    p.add_argument(
+        "--slippage-bps", type=float, default=0.5, help="Per-trade slippage in basis points"
+    )
+    p.add_argument(
+        "--fee-bps", type=float, default=0.1, help="Per-trade transaction cost in basis points"
+    )
     # WHY overrides
     p.add_argument("--why-weight-macro", type=float, default=None, help="Override WHY macro weight")
-    p.add_argument("--why-weight-yields", type=float, default=None, help="Override WHY yields weight")
-    p.add_argument("--disable-why-macro", action="store_true", help="Disable macro proximity in WHY")
-    p.add_argument("--disable-why-yields", action="store_true", help="Disable yield features in WHY")
+    p.add_argument(
+        "--why-weight-yields", type=float, default=None, help="Override WHY yields weight"
+    )
+    p.add_argument(
+        "--disable-why-macro", action="store_true", help="Disable macro proximity in WHY"
+    )
+    p.add_argument(
+        "--disable-why-yields", action="store_true", help="Disable yield features in WHY"
+    )
     p.add_argument("--speed", type=float, default=100.0)
     p.add_argument("--limit", type=int, default=5000)
     p.add_argument("--out-dir", default="docs/reports/backtests")
@@ -113,8 +143,10 @@ def parse_args():
 
 def main() -> int:
     args = parse_args()
-    logging.basicConfig(level=getattr(logging, args.log_level.upper(), logging.INFO),
-                        format="%(asctime)s %(levelname)s %(message)s")
+    logging.basicConfig(
+        level=getattr(logging, args.log_level.upper(), logging.INFO),
+        format="%(asctime)s %(levelname)s %(message)s",
+    )
     log = logging.getLogger("backtest")
     r = RollingMicrostructure(window=50)
     ytracker = YieldSlopeTracker()
@@ -159,7 +191,17 @@ def main() -> int:
     last_mid = None
 
     def on_md_event(e: dict):
-        nonlocal pos, pnl, peak, max_dd, last_macro_minutes, next_macro_minutes, last_mid, total_cost, total_abs_exposure, total_usd_beta
+        nonlocal \
+            pos, \
+            pnl, \
+            peak, \
+            max_dd, \
+            last_macro_minutes, \
+            next_macro_minutes, \
+            last_mid, \
+            total_cost, \
+            total_abs_exposure, \
+            total_usd_beta
         ob = {"bids": e.get("bids", []), "asks": e.get("asks", [])}
         bids = ob.get("bids", [])
         asks = ob.get("asks", [])
@@ -209,7 +251,14 @@ def main() -> int:
             daily_returns.append(r_ret)
             rv_window.append(r_ret)
             # keep ~60m window for 5m bars
-            max_rv_len = max(1, int(60 / max(1, vol_cfg.bar_interval_minutes) * (vol_cfg.bar_interval_minutes / vol_cfg.bar_interval_minutes)))
+            max_rv_len = max(
+                1,
+                int(
+                    60
+                    / max(1, vol_cfg.bar_interval_minutes)
+                    * (vol_cfg.bar_interval_minutes / vol_cfg.bar_interval_minutes)
+                ),
+            )
             if len(rv_window) > max_rv_len:
                 rv_window.pop(0)
         last_mid = mid if mid else last_mid
@@ -222,7 +271,12 @@ def main() -> int:
         f["what_confidence"] = what_conf
         # Volatility signal (Tier-0)
         try:
-            vs = vol_signal(args.symbol, f["timestamp"], rv_window[-12:] if len(rv_window) >= 12 else rv_window, daily_returns[-500:])
+            vs = vol_signal(
+                args.symbol,
+                f["timestamp"],
+                rv_window[-12:] if len(rv_window) >= 12 else rv_window,
+                daily_returns[-500:],
+            )
             f["sigma_ann"] = vs.sigma_ann
             f["regime"] = vs.regime
             f["sizing_multiplier"] = vs.sizing_multiplier
@@ -235,12 +289,14 @@ def main() -> int:
             f["regime"] = args.force_regime
         # Composite signal (confidence-weighted)
         # WHY composite with weights
-        why_w_total = (why_cfg.weight_macro if macro_conf > 0 else 0.0) + (why_cfg.weight_yields if y_conf > 0 else 0.0)
+        why_w_total = (why_cfg.weight_macro if macro_conf > 0 else 0.0) + (
+            why_cfg.weight_yields if y_conf > 0 else 0.0
+        )
         why_comp = 0.0
         if why_w_total > 0:
             why_comp = (
-                (macro_sig * macro_conf * why_cfg.weight_macro) +
-                (y_sig * y_conf * why_cfg.weight_yields)
+                (macro_sig * macro_conf * why_cfg.weight_macro)
+                + (y_sig * y_conf * why_cfg.weight_yields)
             ) / why_w_total
         f["why_composite_signal"] = why_comp
         # Final composite across WHAT and WHY
@@ -270,7 +326,13 @@ def main() -> int:
                 rng = size_cfg.sigma_ceiling - size_cfg.sigma_floor
                 sigma_scale = max(0.4, 1.0 - (sigma - size_cfg.sigma_floor) / (rng or 1.0) * 0.6)
             reg = f.get("regime", "normal")
-            reg_mult = size_cfg.regime_multipliers.get(str(reg), size_cfg.regime_multipliers.get("normal", 0.8)) if size_cfg.regime_multipliers else 0.8
+            reg_mult = (
+                size_cfg.regime_multipliers.get(
+                    str(reg), size_cfg.regime_multipliers.get("normal", 0.8)
+                )
+                if size_cfg.regime_multipliers
+                else 0.8
+            )
             tentative_exposure = comp * size_cfg.k_exposure * conf_scale * sigma_scale * reg_mult
         except Exception:
             pass
@@ -289,7 +351,9 @@ def main() -> int:
                 exposure *= 0.5
             # Aggregate cap (abs exposure sum)
             desired_abs = abs(exposure)
-            allowed_abs = apply_aggregate_cap(total_abs_exposure, prisk_cfg.aggregate_cap, desired_abs)
+            allowed_abs = apply_aggregate_cap(
+                total_abs_exposure, prisk_cfg.aggregate_cap, desired_abs
+            )
             if allowed_abs < desired_abs - 1e-12:
                 exposure = (exposure / (desired_abs or 1.0)) * allowed_abs
             # USD beta cap
@@ -308,7 +372,9 @@ def main() -> int:
             target = base_dir * (abs(f.get("target_exposure", comp)) or 1.0)
             # Apply regime gate: block entries in blocked regime
             try:
-                if vol_cfg.use_regime_gate and f.get("regime") == getattr(vol_cfg, "block_regime", "storm"):
+                if vol_cfg.use_regime_gate and f.get("regime") == getattr(
+                    vol_cfg, "block_regime", "storm"
+                ):
                     if getattr(vol_cfg, "gate_mode", "block") == "attenuate":
                         # reduce exposure instead of blocking: mark as fractional pos in features
                         att = float(getattr(vol_cfg, "attenuation_factor", 0.3))
@@ -326,9 +392,11 @@ def main() -> int:
                         spread=float(f.get("spread", 0.0)),
                         top_imbalance=float(f.get("top_imbalance", 0.0)),
                         sigma_ann=float(f.get("sigma_ann", 0.0) or 0.0),
-                        size_ratio=min(1.0, abs(target - pos))
+                        size_ratio=min(1.0, abs(target - pos)),
                     )
-                    trade_bps = estimate_slippage_bps(ctx, exec_cfg) + estimate_commission_bps(exec_cfg)
+                    trade_bps = estimate_slippage_bps(ctx, exec_cfg) + estimate_commission_bps(
+                        exec_cfg
+                    )
                 except Exception:
                     trade_bps = 0.0
                 trade_cost = abs(target - pos) * mid * (trade_bps / 1e4)
@@ -342,9 +410,15 @@ def main() -> int:
             f["pnl"] = pnl
             f["cum_cost"] = total_cost
             # Update portfolio trackers
-            total_abs_exposure = min(prisk_cfg.aggregate_cap if prisk_cfg else 999.0,
-                                     max(0.0, total_abs_exposure - abs(pos) + abs(target)))
-            total_usd_beta = total_usd_beta - usd_beta_sign(args.symbol, pos) + usd_beta_sign(args.symbol, target)
+            total_abs_exposure = min(
+                prisk_cfg.aggregate_cap if prisk_cfg else 999.0,
+                max(0.0, total_abs_exposure - abs(pos) + abs(target)),
+            )
+            total_usd_beta = (
+                total_usd_beta
+                - usd_beta_sign(args.symbol, pos)
+                + usd_beta_sign(args.symbol, target)
+            )
         feats.append(f)
 
     def on_macro_event(e: dict):
@@ -379,21 +453,31 @@ def main() -> int:
             return
 
     ypath = args.yields_file or None
-    emitted = MultiDimReplayer(md_path=args.file, macro_path=args.macro_file or None, yields_path=ypath).replay(
-        on_md=on_md_event, on_macro=on_macro_event, on_yield=on_yield_event, limit=args.limit
-    )
+    emitted = MultiDimReplayer(
+        md_path=args.file, macro_path=args.macro_file or None, yields_path=ypath
+    ).replay(on_md=on_md_event, on_macro=on_macro_event, on_yield=on_yield_event, limit=args.limit)
     os.makedirs(args.out_dir, exist_ok=True)
     # Write WHY/feature artifacts (CSV + JSONL)
     if feats:
         csv_path = os.path.join(args.out_dir, "why_features.csv")
         jsonl_path = os.path.join(args.out_dir, "why_features.jsonl")
         fields = [
-            "timestamp", "symbol",
-            "composite_signal", "why_composite_signal", "what_signal",
-            "why_macro_signal", "why_yield_signal", "why_yield_slope_2s10s", "why_yield_slope_5s30s",
-            "why_yield_curvature_2_10_30", "why_yield_parallel_shift",
-            "sigma_ann", "regime", "pos_attenuation",
-            "pnl", "cum_cost"
+            "timestamp",
+            "symbol",
+            "composite_signal",
+            "why_composite_signal",
+            "what_signal",
+            "why_macro_signal",
+            "why_yield_signal",
+            "why_yield_slope_2s10s",
+            "why_yield_slope_5s30s",
+            "why_yield_curvature_2_10_30",
+            "why_yield_parallel_shift",
+            "sigma_ann",
+            "regime",
+            "pos_attenuation",
+            "pnl",
+            "cum_cost",
         ]
         try:
             with open(csv_path, "w", newline="", encoding="utf-8") as fh:
@@ -433,19 +517,25 @@ def main() -> int:
     md.append(f"- **Events**: {emitted}\n")
     md.append(f"- **PnL**: {pnl:.6f}\n")
     md.append(f"- **Max DD**: {max_dd:.6f}\n")
-    md.append(f"- **Regimes**: calm={regimes['calm']}, normal={regimes['normal']}, storm={regimes['storm']}\n")
+    md.append(
+        f"- **Regimes**: calm={regimes['calm']}, normal={regimes['normal']}, storm={regimes['storm']}\n"
+    )
     # Attenuation summary
     if feats:
-        atten_vals = [f.get("pos_attenuation") for f in feats if f.get("pos_attenuation") is not None]
+        atten_vals = [
+            f.get("pos_attenuation") for f in feats if f.get("pos_attenuation") is not None
+        ]
         if atten_vals:
             atten_pct = 100.0 * len(atten_vals) / len(feats)
             atten_avg = sum(atten_vals) / len(atten_vals)
             md.append(f"- **Attenuated samples**: {atten_pct:.2f}% (avg factor {atten_avg:.3f})\n")
     # WHY feature summary
     if feats:
+
         def mean_key(k: str):
             vals = [f[k] for f in feats if f.get(k) is not None]
             return (sum(vals) / len(vals)) if vals else None
+
         why_avg = mean_key("why_composite_signal")
         s21 = mean_key("why_yield_slope_2s10s")
         s530 = mean_key("why_yield_slope_5s30s")
@@ -465,5 +555,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-
-

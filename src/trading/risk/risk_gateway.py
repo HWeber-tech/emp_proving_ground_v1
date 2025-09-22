@@ -19,6 +19,8 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Any, Callable, Mapping, MutableMapping, Optional, Protocol, cast
 
+from .risk_policy import RiskPolicy, RiskPolicyDecision
+
 
 logger = logging.getLogger(__name__)
 
@@ -28,16 +30,13 @@ class SupportsLiquidityProbing(Protocol):
 
     async def probe_liquidity(
         self, symbol: str, price_levels: list[float], side: str
-    ) -> Mapping[float, float]:
-        ...
+    ) -> Mapping[float, float]: ...
 
     def calculate_liquidity_confidence_score(
         self, probe_results: Mapping[float, float], intended_volume: float
-    ) -> float:
-        ...
+    ) -> float: ...
 
-    def get_probe_summary(self, probe_results: Mapping[float, float]) -> Mapping[str, Any]:
-        ...
+    def get_probe_summary(self, probe_results: Mapping[float, float]) -> Mapping[str, Any]: ...
 
 
 class SupportsStrategyRegistry(Protocol):
@@ -138,6 +137,7 @@ class RiskGateway:
         liquidity_prober: SupportsLiquidityProbing | None = None,
         liquidity_probe_threshold: float = 1.0,
         min_liquidity_confidence: float = 0.3,
+        risk_policy: RiskPolicy | None = None,
     ) -> None:
         self.strategy_registry = strategy_registry
         self.position_sizer = position_sizer
@@ -150,6 +150,7 @@ class RiskGateway:
         self.liquidity_prober = liquidity_prober
         self.liquidity_probe_threshold = float(liquidity_probe_threshold)
         self.min_liquidity_confidence = float(min_liquidity_confidence)
+        self.risk_policy = risk_policy
 
         self.telemetry: dict[str, Any] = {
             "total_checks": 0,
@@ -157,6 +158,7 @@ class RiskGateway:
             "rejected": 0,
             "last_decision": None,
         }
+        self._last_policy_decision: RiskPolicyDecision | None = None
 
     # ------------------------------------------------------------------
     # Public API
@@ -167,6 +169,7 @@ class RiskGateway:
         """Return an enriched intent if all risk checks pass, otherwise ``None``."""
 
         self.telemetry["total_checks"] += 1
+        self._last_policy_decision = None
         decision: dict[str, Any] = {
             "timestamp": datetime.utcnow().isoformat(),
             "symbol": _extract_attr(intent, "symbol", default="UNKNOWN"),
@@ -185,11 +188,13 @@ class RiskGateway:
             )
             if confidence < self.min_intent_confidence:
                 decision.update(status="rejected", reason="low_confidence")
-                decision["checks"].append({
-                    "name": "confidence_floor",
-                    "value": confidence,
-                    "threshold": self.min_intent_confidence,
-                })
+                decision["checks"].append(
+                    {
+                        "name": "confidence_floor",
+                        "value": confidence,
+                        "threshold": self.min_intent_confidence,
+                    }
+                )
                 return self._reject(decision)
 
             portfolio_state = portfolio_state or {}
@@ -203,6 +208,34 @@ class RiskGateway:
 
             adjusted_quantity = self._apply_position_sizing(intent, portfolio_state, decision)
 
+            market_price = self._extract_price(intent, portfolio_state)
+            stop_loss_pct = self._extract_stop_loss_pct(intent, portfolio_state, market_price)
+
+            policy_metadata: Mapping[str, Any] | None = None
+            if self.risk_policy is not None:
+                policy_decision: RiskPolicyDecision = self.risk_policy.evaluate(
+                    symbol=decision["symbol"],
+                    quantity=float(adjusted_quantity),
+                    price=market_price,
+                    stop_loss_pct=stop_loss_pct,
+                    portfolio_state=portfolio_state,
+                )
+                self._last_policy_decision = policy_decision
+                decision["checks"].extend(policy_decision.checks)
+                policy_metadata = policy_decision.metadata
+                decision["policy"] = {
+                    "approved": policy_decision.approved,
+                    "reason": policy_decision.reason,
+                    "metadata": dict(policy_decision.metadata),
+                    "violations": list(policy_decision.violations),
+                }
+                if not policy_decision.approved:
+                    decision.update(
+                        status="rejected",
+                        reason=policy_decision.reason or "policy_violation",
+                    )
+                    return self._reject(decision)
+
             liquidity_summary: Mapping[str, Any] | None = None
             liquidity_score: float | None = None
             if self.liquidity_prober and adjusted_quantity >= self.liquidity_probe_threshold:
@@ -213,13 +246,21 @@ class RiskGateway:
                     decision.update(status="rejected", reason="insufficient_liquidity")
                     return self._reject(decision)
 
-            self._enrich_intent(intent, adjusted_quantity, liquidity_score, decision)
+            self._enrich_intent(
+                intent,
+                adjusted_quantity,
+                liquidity_score,
+                decision,
+                policy_metadata=policy_metadata,
+            )
 
             if liquidity_summary:
-                decision["checks"].append({
-                    "name": "liquidity_probe",
-                    "summary": dict(liquidity_summary),
-                })
+                decision["checks"].append(
+                    {
+                        "name": "liquidity_probe",
+                        "summary": dict(liquidity_summary),
+                    }
+                )
 
             decision.update(status="approved", quantity=float(adjusted_quantity))
             self.telemetry["approved"] += 1
@@ -242,12 +283,21 @@ class RiskGateway:
             "min_liquidity_confidence": self.min_liquidity_confidence,
             "risk_per_trade": float(self.risk_per_trade),
         }
+        if self.risk_policy is not None:
+            limits.update(self.risk_policy.limit_snapshot())
+            if self.risk_policy.research_mode:
+                limits["research_mode"] = True
         return {"limits": limits, "telemetry": dict(self.telemetry)}
 
     def get_last_decision(self) -> Mapping[str, Any] | None:
         """Expose the most recent risk decision record."""
 
         return cast(Optional[Mapping[str, Any]], self.telemetry.get("last_decision"))
+
+    def get_last_policy_decision(self) -> RiskPolicyDecision | None:
+        """Return the last evaluated :class:`RiskPolicyDecision`, if available."""
+
+        return self._last_policy_decision
 
     # ------------------------------------------------------------------
     # Internal helpers
@@ -353,9 +403,7 @@ class RiskGateway:
         if quantity <= recommended:
             return quantity
 
-        logger.info(
-            "RiskGateway clipping position size from %s to %s", quantity, recommended
-        )
+        logger.info("RiskGateway clipping position size from %s to %s", quantity, recommended)
         return recommended
 
     async def _run_liquidity_probe(
@@ -368,10 +416,16 @@ class RiskGateway:
         side = str(_extract_attr(intent, "side", "direction", default="buy")).lower()
         market_price = self._extract_price(intent, {}) or 0.0
         spread = max(market_price * 0.001, 0.0005)
-        price_levels = [
-            market_price + spread * offset if side.startswith("buy") else market_price - spread * offset
-            for offset in range(-2, 3)
-        ] if market_price else []
+        price_levels = (
+            [
+                market_price + spread * offset
+                if side.startswith("buy")
+                else market_price - spread * offset
+                for offset in range(-2, 3)
+            ]
+            if market_price
+            else []
+        )
 
         if not price_levels:
             price_levels = [0.0]
@@ -397,6 +451,8 @@ class RiskGateway:
         quantity: Decimal,
         liquidity_score: float | None,
         decision: Mapping[str, Any],
+        *,
+        policy_metadata: Mapping[str, Any] | None = None,
     ) -> None:
         _set_attr(intent, quantity, "quantity", "size", "volume")
 
@@ -407,10 +463,20 @@ class RiskGateway:
             assessment = dict(assessment)
             metadata["risk_assessment"] = assessment
 
-        assessment.update({
-            "checks": list(decision.get("checks", [])),
-            "final_quantity": float(quantity),
-        })
+        assessment.update(
+            {
+                "checks": list(decision.get("checks", [])),
+                "final_quantity": float(quantity),
+            }
+        )
+        if policy_metadata:
+            policy_section = assessment.get("policy")
+            if isinstance(policy_section, Mapping):
+                merged = dict(policy_section)
+                merged.update(policy_metadata)
+                assessment["policy"] = merged
+            else:
+                assessment["policy"] = dict(policy_metadata)
         if liquidity_score is not None:
             assessment["liquidity_confidence"] = float(liquidity_score)
 
@@ -425,12 +491,14 @@ class RiskGateway:
                 # Persist enrichment for frozen dataclasses by rebuilding
                 if getattr(intent, "__dataclass_params__", None).frozen:  # type: ignore[attr-defined]
                     data = asdict(intent)
-                    data.update({
-                        "metadata": metadata,
-                        "liquidity_confidence_score": liquidity_score,
-                        "quantity": quantity,
-                        "size": quantity,
-                    })
+                    data.update(
+                        {
+                            "metadata": metadata,
+                            "liquidity_confidence_score": liquidity_score,
+                            "quantity": quantity,
+                            "size": quantity,
+                        }
+                    )
                     # dataclasses.replace would be cleaner but may not support arbitrary attrs
                     for field, value in data.items():
                         try:
@@ -439,4 +507,3 @@ class RiskGateway:
                             pass
             except Exception:  # pragma: no cover
                 pass
-

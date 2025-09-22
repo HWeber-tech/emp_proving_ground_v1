@@ -5,6 +5,7 @@ Performance Benchmarker
 
 Benchmarks system performance against Phase 2 requirements.
 """
+
 from __future__ import annotations
 
 import time

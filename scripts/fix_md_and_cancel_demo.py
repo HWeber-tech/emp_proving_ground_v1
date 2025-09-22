@@ -9,14 +9,14 @@ import sys
 
 from dotenv import load_dotenv
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from src.governance.system_config import SystemConfig
 from src.operational.fix_connection_manager import FIXConnectionManager
 
 
 async def main(symbol: str = "EURUSD", side: str = "BUY", qty: float = 1000.0) -> int:
-    load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '..', '.env'))
+    load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), "..", ".env"))
     cfg = SystemConfig()
     if str(cfg.run_mode).lower() != "paper":
         print("Aborting: RUN_MODE must be 'paper' for demo execution.")
@@ -43,8 +43,8 @@ async def main(symbol: str = "EURUSD", side: str = "BUY", qty: float = 1000.0) -
 
         # Use direct message for limit order (OrdType=2)
         now_utc = _dt.now(_tz.utc)
-        cl_id = f"LIM_{int(now_utc.timestamp()*1000)}"
-        price = 0.5 if side.upper()=="BUY" else 2.0  # far from FX spot to avoid fill
+        cl_id = f"LIM_{int(now_utc.timestamp() * 1000)}"
+        price = 0.5 if side.upper() == "BUY" else 2.0  # far from FX spot to avoid fill
         msg = simplefix.FixMessage()
         msg.append_pair(8, "FIX.4.4")
         msg.append_pair(35, "D")  # NewOrderSingle
@@ -55,7 +55,7 @@ async def main(symbol: str = "EURUSD", side: str = "BUY", qty: float = 1000.0) -
         msg.append_pair(11, cl_id)
         # Symbol numeric (EURUSD assumed 1)
         msg.append_pair(55, "1")
-        msg.append_pair(54, "1" if side.upper()=="BUY" else "2")
+        msg.append_pair(54, "1" if side.upper() == "BUY" else "2")
         msg.append_pair(38, str(qty))
         msg.append_pair(40, "2")  # Limit
         msg.append_pair(44, str(price))  # Price
@@ -69,12 +69,14 @@ async def main(symbol: str = "EURUSD", side: str = "BUY", qty: float = 1000.0) -
 
         # Emulate a minimal NEW wait (demo may need to register)
         await asyncio.sleep(1.0)
+
         # Wrap order object stub for downstream cancel code
         class _Order:
             def __init__(self, cl, oid=None):
                 self.cl_ord_id = cl
                 self.order_id = oid
-                self.status = type("S", (), {"value":"0"})()  # New
+                self.status = type("S", (), {"value": "0"})()  # New
+
         order = _Order(cl_id)
         if not order:
             print("Order failed")
@@ -83,7 +85,7 @@ async def main(symbol: str = "EURUSD", side: str = "BUY", qty: float = 1000.0) -
 
         # Optional: Order Status Request gate (belt-and-suspenders)
         # Send via manager helper (omits 55, includes 54)
-        manager.send_order_status_request(order.cl_ord_id, "1" if side.upper()=="BUY" else "2")
+        manager.send_order_status_request(order.cl_ord_id, "1" if side.upper() == "BUY" else "2")
         await asyncio.sleep(0.3)
 
         # Attempt cancel if NEW or PARTIAL (delay briefly)
@@ -91,6 +93,7 @@ async def main(symbol: str = "EURUSD", side: str = "BUY", qty: float = 1000.0) -
             # minimal settle for demo; reduce if not needed
             await asyncio.sleep(0.3)
             import simplefix
+
             # First attempt: 11/41 only
             cncl_id_1 = f"CNCL_{order.cl_ord_id}"
             msg1 = simplefix.FixMessage()
@@ -107,9 +110,9 @@ async def main(symbol: str = "EURUSD", side: str = "BUY", qty: float = 1000.0) -
             # brief wait for response
             await asyncio.sleep(0.7)
             # Retry once with OrderID only if last business reject indicates ORDER_NOT_FOUND
-            rej = getattr(manager, 'last_business_reject', None)
-            if rej and 'ORDER_NOT_FOUND' in str(rej):
-                if getattr(order, 'order_id', None):
+            rej = getattr(manager, "last_business_reject", None)
+            if rej and "ORDER_NOT_FOUND" in str(rej):
+                if getattr(order, "order_id", None):
                     cncl_id_2 = f"CNCL2_{order.cl_ord_id}"
                     msg2 = simplefix.FixMessage()
                     msg2.append_pair(8, "FIX.4.4")
@@ -139,5 +142,3 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         print("Interrupted")
         sys.exit(1)
-
-

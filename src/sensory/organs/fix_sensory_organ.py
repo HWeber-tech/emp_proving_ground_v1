@@ -9,15 +9,24 @@ import asyncio
 import logging
 from contextlib import suppress
 from datetime import datetime
-from typing import Any
+from typing import Any, Awaitable, Callable, Optional
 
 logger = logging.getLogger(__name__)
+
+
+TaskFactory = Callable[[Awaitable[Any], Optional[str]], asyncio.Task[Any]]
 
 
 class FIXSensoryOrgan:
     """Processes market data from FIX protocol."""
 
-    def __init__(self, event_bus: Any, price_queue: Any, config: dict[str, Any]) -> None:
+    def __init__(
+        self,
+        event_bus: Any,
+        price_queue: Any,
+        config: dict[str, Any],
+        task_factory: TaskFactory | None = None,
+    ) -> None:
         """
         Initialize FIX sensory organ.
 
@@ -33,6 +42,7 @@ class FIXSensoryOrgan:
         self.market_data: dict[str, dict[str, Any]] = {}
         self.symbols: list[str] = []
         self._price_task: asyncio.Task[Any] | None = None
+        self._task_factory = task_factory
 
     async def start(self) -> None:
         """Start the sensory organ."""
@@ -43,7 +53,7 @@ class FIXSensoryOrgan:
         logger.info("FIX sensory organ started")
 
         # Start message processing
-        self._price_task = asyncio.create_task(
+        self._price_task = self._spawn_task(
             self._process_price_messages(),
             name="fix-sensory-price-feed",
         )
@@ -91,6 +101,11 @@ class FIXSensoryOrgan:
             logger.debug("FIX sensory organ price task cancelled")
         except Exception as e:
             logger.error(f"Error processing price message: {e}")
+
+    def _spawn_task(self, coro: Awaitable[Any], *, name: str | None = None) -> asyncio.Task[Any]:
+        if self._task_factory is not None:
+            return self._task_factory(coro, name)
+        return asyncio.create_task(coro, name=name)
 
     async def _handle_market_data_snapshot(self, message: Any) -> None:
         """Handle market data snapshot messages."""

@@ -16,10 +16,11 @@ def run_command(cmd):
         print(f"Error: {e}")
         return False
 
+
 def main():
     """Install dependencies with compatibility fixes."""
     print("Installing dependencies with compatibility fixes...")
-    
+
     # Install core dependencies first
     core_deps = [
         "numpy>=1.21.0,<2.0.0",
@@ -29,7 +30,7 @@ def main():
         "seaborn>=0.11.0,<1.0.0",
         "plotly>=5.0.0,<6.0.0",
     ]
-    
+
     # Install MLOps dependencies
     mlops_deps = [
         "mlflow>=2.8.0,<4.0.0",
@@ -40,7 +41,7 @@ def main():
         "lightgbm>=3.3.0,<5.0.0",
         "optuna>=3.0.0,<5.0.0",
     ]
-    
+
     # Install other dependencies
     other_deps = [
         # OpenAPI/FastAPI removed per FIX-only policy
@@ -62,18 +63,19 @@ def main():
         "mypy>=0.910,<2.0.0",
         "ruff>=0.5.4,<1.0.0",
     ]
-    
+
     all_deps = core_deps + mlops_deps + other_deps
-    
+
     for dep in all_deps:
         print(f"Installing {dep}...")
         if not run_command(f"{sys.executable} -m pip install {dep}"):
             print(f"Warning: Failed to install {dep}, continuing...")
-    
+
     print("\n✅ Dependency installation completed!")
     print("\nNote: cTrader API needs manual installation:")
     print("1. Download from: https://ctrader.com/developers/api")
     print("2. Install the downloaded wheel file manually")
+
 
 if __name__ == "__main__":
     main()

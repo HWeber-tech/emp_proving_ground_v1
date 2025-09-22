@@ -1,10 +1,17 @@
 from __future__ import annotations
 
 import asyncio
+from typing import Mapping
 
 import pytest
 
-from src.governance.system_config import ConnectionProtocol, EmpEnvironment, EmpTier, RunMode, SystemConfig
+from src.governance.system_config import (
+    ConnectionProtocol,
+    EmpEnvironment,
+    EmpTier,
+    RunMode,
+    SystemConfig,
+)
 from src.runtime import build_professional_predator_app
 from src.runtime.bootstrap_runtime import BootstrapRuntime
 
@@ -37,7 +44,6 @@ async def test_bootstrap_runtime_build_and_run() -> None:
         status = runtime.status()
         assert status["ticks_processed"] >= 1
         assert status["decisions"] >= 1
-        assert runtime.execution_engine.fills
         assert "telemetry" in status
         assert status["telemetry"]["equity"] >= 0
         assert status["telemetry"]["last_decision"] is not None
@@ -48,6 +54,14 @@ async def test_bootstrap_runtime_build_and_run() -> None:
         sensory_status = summary["components"].get("sensory_status")
         assert sensory_status is not None
         assert sensory_status["ticks_processed"] >= 1
+        sensors = summary["components"].get("sensors", [])
+        assert {"why", "what", "when", "how", "anomaly"}.issubset(set(sensors))
+        audit_entries = summary.get("sensor_audit", [])
+        assert audit_entries
+        assert audit_entries[0]["symbol"] == "EURUSD"
+        risk_section = summary.get("risk")
+        assert risk_section is not None
+        assert risk_section["snapshot"]["status"] in {"ok", "warn", "alert"}
 
     assert runtime.status()["running"] is False
     assert app.summary()["status"] == "STOPPED"

@@ -3,6 +3,7 @@
 FAISSPatternMemory - Epic 1: The Predator's Instinct
 Upgraded memory system for storing and recalling trading experiences.
 """
+
 from __future__ import annotations
 
 import json

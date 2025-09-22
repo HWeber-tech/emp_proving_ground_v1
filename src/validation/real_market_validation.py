@@ -32,6 +32,7 @@ from src.core.regime import NoOpRegimeClassifier, RegimeClassifier, RegimeResult
 if TYPE_CHECKING:
     from src.core.interfaces import DecisionGenome as DecisionGenome  # noqa: F401
 else:
+
     class DecisionGenome:
         pass
 
@@ -126,9 +127,7 @@ class RealMarketValidationFramework:
     async def validate_anomaly_detection_accuracy(self) -> RealMarketValidationResult:
         """Validate anomaly detection against known market manipulation events"""
         try:
-            missing = self._missing_real_adapters(
-                require_market_data=True, require_anomaly=True
-            )
+            missing = self._missing_real_adapters(require_market_data=True, require_anomaly=True)
             if missing:
                 return RealMarketValidationResult(
                     test_name="anomaly_detection_accuracy",
@@ -137,8 +136,7 @@ class RealMarketValidationFramework:
                     threshold=0.7,
                     unit="f1_score",
                     details=(
-                        "Real market validation requires configured adapters: "
-                        + ", ".join(missing)
+                        "Real market validation requires configured adapters: " + ", ".join(missing)
                     ),
                     historical_data={"missing_adapters": missing},
                 )
@@ -246,9 +244,7 @@ class RealMarketValidationFramework:
     async def validate_regime_classification_accuracy(self) -> RealMarketValidationResult:
         """Validate regime classification against known market regimes"""
         try:
-            missing = self._missing_real_adapters(
-                require_market_data=True, require_regime=True
-            )
+            missing = self._missing_real_adapters(require_market_data=True, require_regime=True)
             if missing:
                 return RealMarketValidationResult(
                     test_name="regime_classification_accuracy",
@@ -257,8 +253,7 @@ class RealMarketValidationFramework:
                     threshold=0.8,
                     unit="accuracy",
                     details=(
-                        "Real market validation requires configured adapters: "
-                        + ", ".join(missing)
+                        "Real market validation requires configured adapters: " + ", ".join(missing)
                     ),
                     historical_data={"missing_adapters": missing},
                 )
@@ -363,8 +358,7 @@ class RealMarketValidationFramework:
                     threshold=1.0,
                     unit="boolean",
                     details=(
-                        "Real market validation requires configured adapters: "
-                        + ", ".join(missing)
+                        "Real market validation requires configured adapters: " + ", ".join(missing)
                     ),
                     historical_data={"missing_adapters": missing},
                 )
@@ -473,8 +467,7 @@ class RealMarketValidationFramework:
                     threshold=1.0,
                     unit="sharpe_ratio",
                     details=(
-                        "Real market validation requires configured adapters: "
-                        + ", ".join(missing)
+                        "Real market validation requires configured adapters: " + ", ".join(missing)
                     ),
                     historical_data={"missing_adapters": missing},
                 )
@@ -552,8 +545,7 @@ class RealMarketValidationFramework:
                     threshold=-0.5,
                     unit="percentage",
                     details=(
-                        "Real market validation requires configured adapters: "
-                        + ", ".join(missing)
+                        "Real market validation requires configured adapters: " + ", ".join(missing)
                     ),
                     historical_data={"missing_adapters": missing},
                 )
@@ -742,7 +734,7 @@ class RealMarketValidationFramework:
             "results": [r.to_dict() for r in results],
             "summary": {
                 "status": "PASSED" if passed >= 5 else "FAILED",  # Allow 1 failure
-                "message": f"{passed}/{total} validations passed ({passed/total:.1%} success rate)",
+                "message": f"{passed}/{total} validations passed ({passed / total:.1%} success rate)",
             },
             "historical_events_tested": len(self.known_market_events),
             "data_sources_validated": ["MarketDataGateway"],

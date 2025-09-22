@@ -27,8 +27,11 @@ from src.core.regime import NoOpRegimeClassifier, RegimeClassifier
 if TYPE_CHECKING:
     from src.core.interfaces import DecisionGenome as DecisionGenome  # noqa: F401
 else:
+
     class DecisionGenome:
         pass
+
+
 from src.core.risk_ports import NoOpRiskManager, RiskConfigDecl, RiskManagerPort
 
 logging.basicConfig(level=logging.INFO)
@@ -333,7 +336,7 @@ class SimplePhase2DValidator:
             "real_success_criteria": real_criteria,
             "status": "PASSED" if passed >= 3 and real_criteria["all_passed"] else "FAILED",
             "summary": {
-                "message": f"{passed}/{total} integration tests passed ({passed/total:.1%} success rate)",
+                "message": f"{passed}/{total} integration tests passed ({passed / total:.1%} success rate)",
                 "real_criteria_status": "ALL MET" if real_criteria["all_passed"] else "SOME FAILED",
             },
         }

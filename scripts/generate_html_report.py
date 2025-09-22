@@ -69,13 +69,25 @@ def main() -> int:
         with open(args.csv, "r", encoding="utf-8") as fh:
             rr = list(csv.DictReader(fh))[-100:]
             for d in rr:
-                pnltable.append("<tr><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>".format(
-                    d.get("timestamp", ""), d.get("pnl", ""), d.get("cum_cost", ""), d.get("regime", "")
-                ))
+                pnltable.append(
+                    "<tr><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>".format(
+                        d.get("timestamp", ""),
+                        d.get("pnl", ""),
+                        d.get("cum_cost", ""),
+                        d.get("regime", ""),
+                    )
+                )
     except Exception:
         pass
     from datetime import datetime
-    html = HTML_TMPL.format(headers="".join(headers), rows="\n".join(rows), rowcount=len(rows), now=datetime.utcnow().isoformat(), pnltable="\n".join(pnltable))
+
+    html = HTML_TMPL.format(
+        headers="".join(headers),
+        rows="\n".join(rows),
+        rowcount=len(rows),
+        now=datetime.utcnow().isoformat(),
+        pnltable="\n".join(pnltable),
+    )
     os.makedirs(os.path.dirname(args.out), exist_ok=True)
     with open(args.out, "w", encoding="utf-8") as fh:
         fh.write(html)
@@ -85,5 +97,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-
-

@@ -208,7 +208,7 @@ class NoOpGenomeProvider:
                 else (lambda o, k, d=None: getattr(o, k, d))
             )
             return _CoreGenomeStub(
-                id=str(get(obj, "id", f"noop_{int(time.time()*1000)}")),
+                id=str(get(obj, "id", f"noop_{int(time.time() * 1000)}")),
                 parameters=_coerce_numeric_mapping(get(obj, "parameters", {}) or {}),
                 fitness=None,
                 generation=int(get(obj, "generation", 0) or 0),
@@ -225,7 +225,7 @@ class NoOpGenomeProvider:
                 created_at=float(get(obj, "created_at", time.time()) or time.time()),
             )
         except Exception:
-            return _CoreGenomeStub(id=f"noop_{int(time.time()*1000)}")
+            return _CoreGenomeStub(id=f"noop_{int(time.time() * 1000)}")
 
     def to_legacy_view(self, genome: object) -> Dict[str, Any] | Any:
         try:

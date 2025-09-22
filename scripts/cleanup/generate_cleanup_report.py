@@ -37,6 +37,7 @@ def main() -> int:
     # Also write to root reports directory per project policy
     try:
         import os
+
         os.makedirs("reports", exist_ok=True)
         with open("reports/CLEANUP_REPORT.md", "w", encoding="utf-8") as fh2:
             fh2.write(report)
@@ -48,5 +49,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-
-

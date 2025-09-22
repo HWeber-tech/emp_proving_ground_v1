@@ -8,6 +8,7 @@ against market scenarios and report survival and performance metrics.
 It is designed to serve as the single source of truth for 'StrategyTester'
 and to be consumed by shims in intelligence/thinking layers.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass

@@ -36,10 +36,7 @@ class InstitutionalIntelligenceEngine:
         volatility_drag = tanh(max(0.0, volatility) * 4.0)
 
         institutional_bias = (
-            0.5 * participation
-            + 0.25 * imbalance_score
-            + 0.2 * liquidity
-            - 0.15 * volatility_drag
+            0.5 * participation + 0.25 * imbalance_score + 0.2 * liquidity - 0.15 * volatility_drag
         )
         signal_strength = clamp(institutional_bias, -1.0, 1.0)
 

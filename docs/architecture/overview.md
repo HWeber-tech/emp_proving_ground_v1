@@ -14,7 +14,7 @@ themselves without spelunking through legacy material.
 | **Sensory** | Adapters that translate FIX market data and institutional feeds into normalized events placed on the bus. | `src/sensory/organs/dimensions/institutional_tracker.py`, `src/sensory/vendor/np_pd_shims.py` |
 | **Thinking** | Signal processing and analytical pipelines that consume normalized events to detect opportunities. | `src/thinking/analysis/correlation_analyzer.py`, `src/thinking/patterns/trend_detector.py` |
 | **Trading** | Portfolio state, order models, execution engines, and risk guards that convert decisions into FIX instructions. | `src/trading/execution/fix_executor.py`, `src/trading/models.py`, `src/risk/risk_manager_impl.py` |
-| **Orchestration & Operational** | Runtime glue that composes the system, loads configuration, enforces policy, and exposes observability endpoints. | `main.py`, `src/orchestration/compose.py`, `src/operational/*` |
+| **Orchestration & Operational** | Runtime glue that composes the system, loads configuration, enforces policy, and exposes observability endpoints. | `main.py`, `src/runtime/runtime_builder.py`, `src/orchestration/compose.py`, `src/operational/*` |
 
 Dependencies flow downward only; each layer consumes services from layers below
 it and communicates up-stack via domain events.  Import-linter contracts in

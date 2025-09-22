@@ -32,6 +32,7 @@ try:
     from src.genome.models.genome import DecisionGenome as __DecisionGenome
     from src.genome.models.genome import mutate as __mutate
     from src.genome.models.genome import new_genome as __new_genome
+
     _DecisionGenome = __DecisionGenome  # type: ignore[assignment]
     _mutate = __mutate
     _new_genome = __new_genome
@@ -194,7 +195,7 @@ class GenomeProviderAdapter:
             if hasattr(genome, "with_updated") and callable(getattr(genome, "with_updated")):
                 return genome.with_updated(parameters=updated, mutation_history=mh)
             # Construct fallback copy preserving basic metadata if possible
-            gid = getattr(genome, "id", f"fallback_{int(time.time()*1000)}")
+            gid = getattr(genome, "id", f"fallback_{int(time.time() * 1000)}")
             species = getattr(genome, "species_type", None)
             return _FallbackGenome(
                 id=str(gid),
@@ -226,7 +227,7 @@ class GenomeProviderAdapter:
                 else (lambda o, k, d=None: getattr(o, k, d))
             )
             return _FallbackGenome(
-                id=str(get(obj, "id", f"fallback_{int(time.time()*1000)}")),
+                id=str(get(obj, "id", f"fallback_{int(time.time() * 1000)}")),
                 parameters=_coerce_float_map(get(obj, "parameters", {}) or {}),
                 fitness=None,
                 generation=int(get(obj, "generation", 0) or 0),
@@ -241,7 +242,7 @@ class GenomeProviderAdapter:
                 created_at=float(get(obj, "created_at", time.time()) or time.time()),
             )
         except Exception:
-            return _FallbackGenome(id=f"fallback_{int(time.time()*1000)}")
+            return _FallbackGenome(id=f"fallback_{int(time.time() * 1000)}")
 
     def to_legacy_view(self, genome: Any) -> Dict[str, Any] | Any:
         try:

@@ -18,6 +18,9 @@ import simplefix
 logger = logging.getLogger(__name__)
 
 
+TaskFactory = Callable[[Awaitable[Any], Optional[str]], asyncio.Task[Any]]
+
+
 class FIXBrokerInterface:
     """Interface between FIX protocol and trading system.
 
@@ -27,7 +30,14 @@ class FIXBrokerInterface:
     (e.g., order lifecycle/position trackers) can react to updates.
     """
 
-    def __init__(self, event_bus: Any, trade_queue: Any, fix_initiator: Any) -> None:
+    def __init__(
+        self,
+        event_bus: Any,
+        trade_queue: Any,
+        fix_initiator: Any,
+        *,
+        task_factory: TaskFactory | None = None,
+    ) -> None:
         """
         Initialize FIX broker interface.
 
@@ -45,6 +55,7 @@ class FIXBrokerInterface:
             Callable[[str, dict[str, Any]], None] | Callable[[str, dict[str, Any]], Awaitable[None]]
         ] = []  # callbacks taking (order_id: str, update: dict[str, Any])
         self._trade_task: asyncio.Task[Any] | None = None
+        self._task_factory = task_factory
 
     async def start(self) -> None:
         """Start the broker interface."""
@@ -55,7 +66,7 @@ class FIXBrokerInterface:
         logger.info("FIX broker interface started")
 
         # Start message processing
-        self._trade_task = asyncio.create_task(
+        self._trade_task = self._spawn_task(
             self._process_trade_messages(),
             name="fix-broker-trade-feed",
         )
@@ -103,6 +114,11 @@ class FIXBrokerInterface:
             logger.debug("FIX broker trade task cancelled")
         except Exception as e:
             logger.error(f"Error processing trade message: {e}")
+
+    def _spawn_task(self, coro: Awaitable[Any], *, name: str | None = None) -> asyncio.Task[Any]:
+        if self._task_factory is not None:
+            return self._task_factory(coro, name)
+        return asyncio.create_task(coro, name=name)
 
     async def _handle_execution_report(self, message: Any) -> None:
         """Handle execution report messages from FIX.

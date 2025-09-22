@@ -17,6 +17,7 @@ This façade preserves:
 
 Example/CLI code removed to avoid import-time side effects.
 """
+
 from __future__ import annotations
 
 import logging

@@ -28,9 +28,7 @@ class MarketDataConnector(Protocol):
     name: str
     priority: int
 
-    async def fetch(
-        self, symbol: str, *, as_of: datetime | None = None
-    ) -> ConnectorResult: ...
+    async def fetch(self, symbol: str, *, as_of: datetime | None = None) -> ConnectorResult: ...
 
 
 @dataclass
@@ -38,15 +36,14 @@ class CallableConnector:
     """Adapter that turns plain callables into :class:`MarketDataConnector` objects."""
 
     name: str
-    func: Callable[
-        [str, datetime | None], ConnectorResult | Awaitable[ConnectorResult]
-    ] | Callable[[str], ConnectorResult | Awaitable[ConnectorResult]]
+    func: (
+        Callable[[str, datetime | None], ConnectorResult | Awaitable[ConnectorResult]]
+        | Callable[[str], ConnectorResult | Awaitable[ConnectorResult]]
+    )
     priority: int = 100
     timeout: float | None = None
 
-    async def fetch(
-        self, symbol: str, *, as_of: datetime | None = None
-    ) -> ConnectorResult:
+    async def fetch(self, symbol: str, *, as_of: datetime | None = None) -> ConnectorResult:
         try:
             result = self.func(symbol, as_of)  # type: ignore[arg-type]
         except TypeError:
@@ -116,11 +113,7 @@ class MarketDataFabric:
         now = datetime.now(timezone.utc)
         self.telemetry.total_requests += 1
         entry = self._cache.get(symbol)
-        if (
-            use_cache
-            and entry is not None
-            and now - entry.fetched_at <= self.cache_ttl
-        ):
+        if use_cache and entry is not None and now - entry.fetched_at <= self.cache_ttl:
             self.telemetry.cache_hits += 1
             return entry.data
 
@@ -178,7 +171,9 @@ class MarketDataFabric:
             return entry.data
 
         raise RuntimeError(
-            f"No market data available for {symbol}: {last_error!r}" if last_error else f"No data for {symbol}"
+            f"No market data available for {symbol}: {last_error!r}"
+            if last_error
+            else f"No data for {symbol}"
         )
 
     def get_diagnostics(self) -> Dict[str, Any]:
@@ -210,9 +205,7 @@ class MarketDataFabric:
         self._cache.pop(symbol, None)
 
     @staticmethod
-    def _coerce_market_data(
-        result: ConnectorResult, symbol: str
-    ) -> MarketData | None:
+    def _coerce_market_data(result: ConnectorResult, symbol: str) -> MarketData | None:
         if result is None:
             return None
         if isinstance(result, MarketData):

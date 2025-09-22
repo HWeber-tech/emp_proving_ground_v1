@@ -49,6 +49,36 @@ def fetch_daily_bars(symbols: list[str], days: int = 60) -> pd.DataFrame:
     return pd.concat(frames, ignore_index=True)
 
 
+def fetch_intraday_trades(symbols: list[str], days: int = 2, interval: str = "1m") -> pd.DataFrame:
+    """Fetch intraday bars from Yahoo and reshape them into trade-like records."""
+
+    end = datetime.utcnow()
+    start = end - timedelta(days=days)
+    frames: list[pd.DataFrame] = []
+    for sym in symbols:
+        df = cast(
+            pd.DataFrame,
+            yf.download(
+                sym,
+                start=start.strftime("%Y-%m-%d"),
+                end=end.strftime("%Y-%m-%d"),
+                interval=interval,
+                progress=False,
+            ),
+        )
+        if df.empty:
+            continue
+        df = df.reset_index().rename(columns={"Datetime": "timestamp"})
+        df = df.rename(columns={"Close": "price", "Volume": "size"})
+        df["symbol"] = sym
+        df["exchange"] = "YAHOO"
+        df["conditions"] = "HISTORICAL"
+        frames.append(df[["timestamp", "symbol", "price", "size", "exchange", "conditions"]].copy())
+    if not frames:
+        return pd.DataFrame()
+    return pd.concat(frames, ignore_index=True)
+
+
 def store_duckdb(df: pd.DataFrame, db_path: Path, table: str = "daily_bars") -> None:
     try:
         import duckdb

@@ -14,23 +14,49 @@ class RealRiskConfig:
     The configuration mirrors the simplified knobs exposed by ``RiskManagerImpl``
     and keeps defaults intentionally conservative so that the manager can be
     instantiated without bespoke wiring during tests.
+
+    ``max_drawdown`` is retained for backwards compatibility but callers should
+    prefer ``max_total_exposure`` when providing new configuration payloads.
     """
 
     max_position_risk: float = 0.02
     """Maximum allowed risk as a fraction of equity for any single position."""
 
+    max_total_exposure: float = 0.25
+    """Maximum aggregate exposure tolerated before flagging elevated risk."""
+
     max_drawdown: float = 0.25
-    """Maximum aggregate drawdown tolerated before flagging elevated risk."""
+    """Legacy alias for ``max_total_exposure`` used by older call sites."""
+
+    max_leverage: float = 10.0
+    """Maximum tolerated gross leverage relative to equity."""
 
     equity: float = 10000.0
     """Baseline account equity used when computing risk budgets."""
+
+    def __post_init__(self) -> None:
+        """Normalise configuration values for downstream calculations."""
+
+        if self.max_total_exposure <= 0 and self.max_drawdown > 0:
+            self.max_total_exposure = float(self.max_drawdown)
+        if self.max_total_exposure <= 0:
+            self.max_total_exposure = 0.25
+        if self.max_position_risk <= 0:
+            self.max_position_risk = 0.02
+        if self.max_leverage <= 0:
+            self.max_leverage = 10.0
+        if self.equity < 0:
+            self.equity = 0.0
 
 
 class RealRiskManager:
     """Concrete portfolio risk assessor used by :class:`RiskManagerImpl`.
 
     The implementation keeps track of account equity and evaluates incoming
-    position dictionaries against three simple guardrails:
+    position dictionaries against three simple guardrails. The inputs are
+    risk-weighted exposures (for example, position notional multiplied by the
+    configured stop-loss fraction) so the resulting score reflects utilisation
+    of the risk budget rather than raw position size.
 
     * per-position exposure relative to ``max_position_risk``
     * aggregate exposure relative to ``max_drawdown``
@@ -49,6 +75,7 @@ class RealRiskManager:
             "position_ratio": 0.0,
             "total_ratio": 0.0,
             "gross_leverage": 0.0,
+            "leverage_ratio": 0.0,
             "risk_score": 0.0,
         }
 
@@ -67,7 +94,8 @@ class RealRiskManager:
         """Return a scalar risk score for the supplied positions.
 
         Args:
-            positions: Mapping of symbol to notional exposure.
+            positions: Mapping of symbol to risk-weighted exposure (e.g. notional
+                multiplied by stop-loss percentage).
 
         Returns:
             Maximum utilization of the configured risk budgets. ``0.0`` denotes
@@ -94,6 +122,7 @@ class RealRiskManager:
                 "position_ratio": 0.0,
                 "total_ratio": 0.0,
                 "gross_leverage": 0.0,
+                "leverage_ratio": 0.0,
                 "risk_score": 0.0,
             }
             return 0.0
@@ -105,15 +134,16 @@ class RealRiskManager:
         per_position_budget = self._resolve_budget(
             self.config.max_position_risk, equity, max_exposure
         )
-        total_budget = self._resolve_budget(
-            self.config.max_drawdown, equity, total_exposure
-        )
+        total_budget = self._resolve_budget(self.config.max_total_exposure, equity, total_exposure)
 
         position_ratio = max_exposure / per_position_budget if per_position_budget else 0.0
         total_ratio = total_exposure / total_budget if total_budget else 0.0
         gross_leverage = total_exposure / equity if equity > 0 else total_exposure
 
-        risk_score = float(max(position_ratio, total_ratio, gross_leverage))
+        leverage_limit = float(self.config.max_leverage)
+        leverage_ratio = gross_leverage / leverage_limit if leverage_limit > 0 else gross_leverage
+
+        risk_score = float(max(position_ratio, total_ratio, leverage_ratio))
 
         self._last_snapshot = {
             "total_exposure": total_exposure,
@@ -121,6 +151,7 @@ class RealRiskManager:
             "position_ratio": position_ratio,
             "total_ratio": total_ratio,
             "gross_leverage": gross_leverage,
+            "leverage_ratio": leverage_ratio,
             "risk_score": risk_score,
         }
 

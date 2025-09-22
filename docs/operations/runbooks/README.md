@@ -1,0 +1,19 @@
+# Operational runbooks
+
+These runbooks translate the institutional data backbone roadmap into
+step-by-step procedures for on-call engineers.  Each playbook references the
+telemetry surfaces that the runtime builder and professional summary expose so
+operators can react with the same context that appears in the modernization
+briefs and CI health snapshot.
+
+## Available runbooks
+
+- [Redis cache outage](redis_cache_outage.md) – Detects degraded cache health,
+  captures metrics from `ManagedRedisCache`, and walks through switching to the
+  bootstrap fallback while institutional Redis is restored.
+- [Kafka ingest offset recovery](kafka_ingest_offset_recovery.md) – Guides the
+  ingest event bridge through consumer lag diagnosis, manual offset commits, and
+  replay validation using the Kafka telemetry helpers.
+
+Keep these documents close to the institutional data backbone alignment brief so
+runbooks, roadmap status, and acceptance hooks evolve together.

@@ -92,9 +92,7 @@ class StrategyAnalyzer:
                 "metadata": {"analysis_type": "comprehensive"},
             }
 
-            logger.debug(
-                f"Analyzed strategy {target_strategy}: " f"{len(metrics)} metrics calculated"
-            )
+            logger.debug(f"Analyzed strategy {target_strategy}: {len(metrics)} metrics calculated")
 
             return analysis
 
@@ -214,7 +212,7 @@ class WeaknessDetector:
             new_weaknesses = self._detect_new_weaknesses(behavior_profile)
             weaknesses.extend(new_weaknesses)
 
-            logger.debug(f"Found {len(weaknesses)} weaknesses: " f"{', '.join(weaknesses)}")
+            logger.debug(f"Found {len(weaknesses)} weaknesses: {', '.join(weaknesses)}")
 
             return weaknesses
 
@@ -393,7 +391,7 @@ class ExploitDeveloper:
                 if exploit:
                     exploits.append(exploit)
 
-            logger.debug(f"Developed {len(exploits)} exploits " f"for strategy {target_strategy}")
+            logger.debug(f"Developed {len(exploits)} exploits for strategy {target_strategy}")
 
             return exploits
 
@@ -656,7 +654,9 @@ class RedTeamAI:
                 )
                 key = f"{self._exploit_history_key}:{strategy_id}:{eid}"
                 await self.state_store.set(
-                    key, str(_to_mapping(exploit)), expire=86400 * 30  # 30 days
+                    key,
+                    str(_to_mapping(exploit)),
+                    expire=86400 * 30,  # 30 days
                 )
 
         except Exception as e:

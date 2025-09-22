@@ -87,12 +87,8 @@ def test_fix_reject_and_cancel():
     assert any(m.get(37) for m in can_msgs if m.get(35) == b"8")
     assert any(m.get(17) for m in can_msgs if m.get(35) == b"8")
     assert any(m.get(58) == b"Canceled for lifecycle" for m in can_msgs if m.get(35) == b"8")
-    assert any(
-        m.get(60) == b"20240102-00:00:00.000" for m in can_msgs if m.get(35) == b"8"
-    )
-    assert any(
-        m.get(52) == b"20240102-00:00:01.000" for m in can_msgs if m.get(35) == b"8"
-    )
+    assert any(m.get(60) == b"20240102-00:00:00.000" for m in can_msgs if m.get(35) == b"8")
+    assert any(m.get(52) == b"20240102-00:00:01.000" for m in can_msgs if m.get(35) == b"8")
     assert any(m.get(75) == b"20240103" for m in can_msgs if m.get(35) == b"8")
 
     # Partial should also appear due to mock
@@ -144,16 +140,12 @@ def test_fix_reject_and_cancel():
 
     assert initiator.send_message(RatioPlan())
     ratio_msgs = loop.run_until_complete(_drain(trade_q, timeout=0.5))
-    ratio_partials = [
-        m for m in ratio_msgs if m.get(35) == b"8" and m.get(150) == b"1"
-    ]
+    ratio_partials = [m for m in ratio_msgs if m.get(35) == b"8" and m.get(150) == b"1"]
     assert ratio_partials
     ratio_partial_last_qtys = {m.get(32) for m in ratio_partials}
     assert b"4" in ratio_partial_last_qtys
     assert b"2" in ratio_partial_last_qtys
-    ratio_fills = [
-        m for m in ratio_msgs if m.get(35) == b"8" and m.get(150) == b"F"
-    ]
+    ratio_fills = [m for m in ratio_msgs if m.get(35) == b"8" and m.get(150) == b"F"]
     assert ratio_fills
     assert any(m.get(32) == b"2" for m in ratio_fills)
     assert any(m.get(14) == b"8" for m in ratio_fills)
@@ -184,17 +176,13 @@ def test_fix_reject_and_cancel():
 
     assert initiator.send_message(MetadataPlan())
     metadata_msgs = loop.run_until_complete(_drain(trade_q, timeout=0.5))
-    metadata_partials = [
-        m for m in metadata_msgs if m.get(35) == b"8" and m.get(150) == b"1"
-    ]
+    metadata_partials = [m for m in metadata_msgs if m.get(35) == b"8" and m.get(150) == b"1"]
     assert metadata_partials
     assert any(m.get(1) == b"PLAN-ACC" for m in metadata_partials)
     assert any(m.get(40) == b"3" for m in metadata_partials)
     assert any(m.get(59) == b"2" for m in metadata_partials)
 
-    metadata_fills = [
-        m for m in metadata_msgs if m.get(35) == b"8" and m.get(150) == b"F"
-    ]
+    metadata_fills = [m for m in metadata_msgs if m.get(35) == b"8" and m.get(150) == b"F"]
     assert metadata_fills
     assert any(m.get(1) == b"PLAN-FINAL" for m in metadata_fills)
     assert any(m.get(40) == b"4" for m in metadata_fills)

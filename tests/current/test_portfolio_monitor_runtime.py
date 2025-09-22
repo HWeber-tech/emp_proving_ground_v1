@@ -4,7 +4,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from src.core.event_bus import EventBus
+from src.core.event_bus import EventBus, get_global_bus
 from src.trading.monitoring.portfolio_monitor import InMemoryRedis, PortfolioMonitor
 
 
@@ -68,3 +68,22 @@ async def test_portfolio_monitor_updates_pnl_and_drawdown() -> None:
     assert state["daily_pnl"] == pytest.approx(-200.0)
     assert state["current_daily_drawdown"] == pytest.approx(0.002, rel=1e-6)
     assert state["peak_equity"] == pytest.approx(101000.0)
+
+
+def test_portfolio_monitor_emits_cache_metrics_events() -> None:
+    global_bus = get_global_bus()
+    captured: list[dict[str, object]] = []
+
+    handle = global_bus.subscribe_topic(
+        "telemetry.cache", lambda _topic, payload: captured.append(dict(payload))
+    )
+    try:
+        monitor = PortfolioMonitor(EventBus(), InMemoryRedis())
+        monitor._save_state_to_redis()
+    finally:
+        global_bus.unsubscribe(handle)
+
+    assert captured, "Expected cache telemetry to be published"
+    latest = captured[-1]
+    assert latest["cache_key"] == "emp:portfolio_state"
+    assert "hits" in latest and "misses" in latest

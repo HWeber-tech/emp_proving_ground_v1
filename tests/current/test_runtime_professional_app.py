@@ -1,11 +1,14 @@
 import asyncio
 from contextlib import suppress
+from datetime import UTC, datetime
 
 import pytest
 
 from src.core.event_bus import EventBus
 from src.governance.system_config import SystemConfig
+from src.operations.fix_pilot import FixPilotComponent, FixPilotSnapshot, FixPilotStatus
 from src.runtime.predator_app import ProfessionalPredatorApp
+from src.runtime.task_supervisor import TaskSupervisor
 from src.sensory.organs.fix_sensory_organ import FIXSensoryOrgan
 from src.trading.integration.fix_broker_interface import FIXBrokerInterface
 
@@ -89,6 +92,50 @@ class _StubBroker:
         self._trade_task = None
 
 
+class _StubPilot:
+    def __init__(self, sensory: _StubSensory, broker: _StubBroker) -> None:
+        self.sensory = sensory
+        self.broker = broker
+        self.started = 0
+        self.stopped = 0
+        self._snapshot = FixPilotSnapshot(
+            status=FixPilotStatus.passed,
+            timestamp=datetime.now(tz=UTC),
+            components=(
+                FixPilotComponent(name="sessions", status=FixPilotStatus.passed, details={}),
+            ),
+            metadata={},
+        )
+
+    async def start(self) -> None:
+        self.started += 1
+        self.sensory.running = True
+        self.broker.running = True
+
+    async def stop(self) -> None:
+        self.stopped += 1
+        self.sensory.running = False
+        self.broker.running = False
+
+    def snapshot(self) -> FixPilotSnapshot:
+        return self._snapshot
+
+    async def start(self) -> None:
+        self.started += 1
+        self.running = True
+        self._trade_task = asyncio.create_task(asyncio.sleep(0.01))
+
+    async def stop(self) -> None:
+        self.stopped += 1
+        self.running = False
+        task = self._trade_task
+        if task is not None:
+            task.cancel()
+            with suppress(asyncio.CancelledError):
+                await task
+        self._trade_task = None
+
+
 class _StubBus:
     def __init__(self) -> None:
         self.events = []
@@ -140,26 +187,70 @@ async def test_professional_predator_app_lifecycle_tracks_components():
 @pytest.mark.asyncio
 async def test_fix_sensory_organ_start_stop_awaits_worker():
     queue: asyncio.Queue = asyncio.Queue()
-    organ = FIXSensoryOrgan(_StubBus(), queue, config={})
+    supervisor = TaskSupervisor(namespace="test-sensory")
+
+    def factory(coro, name=None):
+        return supervisor.create(coro, name=name)
+
+    organ = FIXSensoryOrgan(_StubBus(), queue, config={}, task_factory=factory)
 
     await organ.start()
     task = getattr(organ, "_price_task")
     assert isinstance(task, asyncio.Task)
+    assert supervisor.active_count == 1
 
     await organ.stop()
     assert getattr(organ, "_price_task") is None
     assert organ.running is False
+    assert supervisor.active_count == 0
 
 
 @pytest.mark.asyncio
 async def test_fix_broker_interface_start_stop_awaits_worker():
     queue: asyncio.Queue = asyncio.Queue()
-    broker = FIXBrokerInterface(_StubBus(), queue, fix_initiator=object())
+    supervisor = TaskSupervisor(namespace="test-broker")
+
+    def factory(coro, name=None):
+        return supervisor.create(coro, name=name)
+
+    broker = FIXBrokerInterface(_StubBus(), queue, fix_initiator=object(), task_factory=factory)
 
     await broker.start()
     task = getattr(broker, "_trade_task")
     assert isinstance(task, asyncio.Task)
+    assert supervisor.active_count == 1
 
     await broker.stop()
     assert getattr(broker, "_trade_task") is None
     assert broker.running is False
+    assert supervisor.active_count == 0
+
+
+@pytest.mark.asyncio
+async def test_professional_predator_app_with_fix_pilot_summary():
+    config = SystemConfig()
+    event_bus = EventBus()
+    sensory = _StubSensory()
+    broker = _StubBroker()
+    fix_manager = _StubFixManager()
+
+    app = ProfessionalPredatorApp(
+        config=config,
+        event_bus=event_bus,
+        sensory_organ=sensory,
+        broker_interface=broker,
+        fix_connection_manager=fix_manager,
+        sensors={"stub": _StubSensor()},
+    )
+    pilot = _StubPilot(sensory, broker)
+    app.attach_fix_pilot(pilot)
+
+    await app.start()
+    assert pilot.started == 1
+
+    app.record_fix_pilot_snapshot(pilot.snapshot())
+    summary = app.summary()
+    assert summary["components"]["fix_pilot"]["status"] == FixPilotStatus.passed.value
+
+    await app.shutdown()
+    assert pilot.stopped == 1

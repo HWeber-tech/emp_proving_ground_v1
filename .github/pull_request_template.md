@@ -1,28 +1,24 @@
-# Title
-Batch10: typing/import hygiene progress and CI enhancements
+# Summary
+- _Bullets summarising the change set. Keep them implementation-focused and reference modules/files._
 
-## Summary
-- Batch10 fix3–fix14 toward zero-error typing baseline
-- Consolidate and protect zero-error baseline
-- Add nightly typing job and full-repo PR job
+## Concept alignment
+- **Concept excerpt:** _Quote or link the relevant section of `EMP_ENCYCLOPEDIA_v2.3_CANONICAL.md` or another concept artefact that promises the capability you are touching._
+- **Reality gap:** _Link the code/tests/logs that demonstrate the current shortfall._
+- **Alignment brief / roadmap item:** _Reference the brief and roadmap bullet this PR advances (e.g. `docs/context/alignment_briefs/institutional_data_backbone.md`, `docs/roadmap.md#30-day-outcomes`)._
 
-## Links and artifacts
-- Latest clean snapshot: [mypy_snapshots/mypy_summary_2025-08-27T09-43-50Z.txt](mypy_snapshots/mypy_summary_2025-08-27T09-43-50Z.txt:1)
-- PR typing workflow: [typing.yml](.github/workflows/typing.yml:1)
-- Nightly typing workflow: [typing-nightly.yml](.github/workflows/typing-nightly.yml:1)
-- Reference docs: [typing_recipes.md](docs/development/typing_recipes.md:1), [pre_commit.md](docs/development/pre_commit.md:1)
+## Implementation notes
+- _Call out architectural decisions, feature flags, migrations, and how this change threads through the tiered runtimes._
+- _Document any telemetry, alerting, or runbook updates made (or still pending)._ 
 
-## Validation checklist
-- [ ] pre-commit run clean (ruff, black, isort, mypy changed-files)
-- [ ] typing.yml: changed-files job green
-- [ ] typing.yml: full-repo mypy-full job green with artifacts uploaded
-- [ ] static-analysis workflow green (ruff/import-linter)
-- [ ] tests workflow green
+## Validation
+- _List the commands, notebooks, or dashboards that validate this work (pytest, mypy, notebooks, manual drills, etc.). Include direct output or links._
+- _Capture ingest freshness/latency metrics or other SLO signals if they moved._
 
-## Risk and rollout
-- Behavior-preserving edits only (≤5 edits/file typical) and import hygiene adjustments
-- Rollback/mitigation: revert PR; nightly typing continues to guard baseline
+## Rollout & follow-up
+- _Detail rollout sequencing, feature-flag toggles, coordination needed with other streams, and explicit follow-up issues to open._
 
-## Post-merge actions
-- [ ] Enable branch protection with required checks (see [branch_protection.md](docs/development/branch_protection.md:1))
-- [ ] Tag release (see [release_checklist.md](docs/development/release_checklist.md:1))
+## Reviewer checklist
+- [ ] Concept excerpt quoted/linked and the gap statement is concrete.
+- [ ] Validation evidence attached (tests, notebooks, telemetry screenshots/logs).
+- [ ] Observability / runbook impact noted.
+- [ ] Follow-up tickets filed (or confirmed unnecessary).

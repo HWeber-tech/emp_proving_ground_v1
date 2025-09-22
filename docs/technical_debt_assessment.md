@@ -13,14 +13,9 @@ Phase 6–9 roadmap streams.
 
 ## Executive summary
 
-- Formatter rollout is underway: Stages 0–2 normalized `tests/current/`,
-  `src/system/`, `src/core/configuration.py`, `src/trading/execution/`, and
-  `src/trading/models/`; Stage 3 covers the entire
-  `src/sensory/organs/dimensions/` package (including `__init__.py`, `utils.py`,
-  `what_organ.py`, `when_organ.py`, `why_organ.py`, and all previously formatted
-  organs), and Stage 4 now enforces the entire `src/sensory/` tree alongside
-  `src/data_foundation/config/` via the collapsed allowlist, with ingest/persist
-  slices staged next.
+- Formatter rollout is complete: `ruff format --check .` now runs repo-wide in CI,
+  the allowlist/script pair has been removed, and Ruff owns formatting/import
+  ordering across every package.
 - Test coverage is serviceable but brittle around trading execution, risk
   controls, and orchestration wiring; new position lifecycle, data foundation
   config loader, operational metrics sanitization, and FIX mock failure tests
@@ -35,15 +30,16 @@ Phase 6–9 roadmap streams.
 
 ## High-risk focus areas (0–3 month horizon)
 
-1. **Monolithic runtime entrypoint.** `main.py` blends configuration loading,
-   ingestion orchestration, FIX lifecycle management, and long-lived loops
-   without dependency boundaries. It injects `src/` into `sys.path`, constructs
-   global singletons, and sleeps in a hot loop, making it impossible to reuse
-   components in services or tests.
+1. **Runtime entrypoint refactor.** The legacy `main.py` blended configuration
+   loading, ingestion orchestration, FIX lifecycle management, and long-lived
+   loops without dependency boundaries. `src/runtime/runtime_builder.py` now
+   encapsulates ingestion/trading workloads behind `RuntimeApplication`, but the
+   CLI, FIX adapters, and shutdown runbooks still need to adopt the new
+   abstraction end to end.
    - *Impact*: brittle deployments, no graceful shutdown, high blast radius for
-     any change.
-   - *Immediate actions*: extract a dependency-injected application builder,
-     separate ingestion versus live-trading CLIs, and publish rollback/shutdown
+     components that have yet to migrate to the builder.
+   - *Immediate actions*: finish wiring CLIs and runbooks through the builder,
+     retire ad-hoc task creation in the FIX stack, and document rollback/shutdown
      drills so operations can adopt the new topology.
 
 2. **Async task lifecycle hazards.** Multiple modules call
@@ -52,8 +48,12 @@ Phase 6–9 roadmap streams.
    - *Impact*: background tasks leak, cancellation fails to propagate, and the
      runtime can deadlock or drop work under load.
    - *Immediate actions*: inventory background task creation, migrate into
-     structured groups (`asyncio.TaskGroup` or a supervised manager), and add
-     regression tests that assert graceful shutdown.
+      structured groups (`asyncio.TaskGroup` or a supervised manager), and add
+      regression tests that assert graceful shutdown. The new
+      `TaskSupervisor` centralises runtime task tracking and cancellation for the
+      Professional Predator app, and FIX adapters plus the event bus worker/fan-out
+      loops now register under the supervisor so shutdown sweeps background tasks
+      cleanly.【F:src/runtime/task_supervisor.py†L1-L152】【F:src/runtime/predator_app.py†L95-L303】【F:src/core/_event_bus_impl.py†L1-L420】【F:tests/runtime/test_task_supervisor.py†L1-L64】【F:tests/current/test_event_bus_task_supervision.py†L1-L78】
 
 3. **Hollow risk management.** `RiskManager` dynamically imports configuration
    but only validates that `size` and `entry_price` are positive. Tiered limits,
@@ -63,7 +63,12 @@ Phase 6–9 roadmap streams.
      compliance risk.
    - *Immediate actions*: design a deterministic risk API, implement enforcement
      for each `RiskConfig` field, document escalation/override flows, and cover
-     the logic with unit/integration tests.
+     the logic with unit/integration tests. TradingManager now instantiates a
+     shared risk policy that applies `RiskConfig` thresholds to every trade,
+     enriches gateway decisions with policy metadata, streams `telemetry.risk.policy`
+     events with Markdown summaries, and ships with regression tests covering
+     exposure caps, research-mode relaxations, and integration via the risk
+     gateway and runtime surfaces.
 
 4. **Namespace drift and failing validation.** Public exports such as
    `src/core/__init__.py` advertise helpers like `get_risk_manager` that do not
@@ -108,32 +113,22 @@ Phase 6–9 roadmap streams.
 
 ## Stream scorecards
 
-### Phase 6 – Formatter normalization (High exposure)
+### Phase 6 – Formatter normalization (Complete)
 
-- **Risk profile** – `ruff format --check .` still fails across hundreds of files,
-  so the pipeline leans on `config/formatter/ruff_format_allowlist.txt` (now
-  covering `tests/current/`, `src/system/`, `src/core/configuration.py`,
-  `src/trading/execution/`, `src/trading/models/`, the full `src/sensory/`
-  tree, and `src/data_foundation/config/` via a handful of directory entries) to
-  prevent regressions.
-- **Leading indicators** – Allowlist size, directories recorded in
-  [`docs/development/formatter_rollout.md`](development/formatter_rollout.md), and
-  formatter progress snapshots inside [`docs/status/ci_health.md`](status/ci_health.md).
+- **Risk profile** – `ruff format --check .` passes repo-wide and now runs in CI;
+  Ruff owns formatting/import ordering and the legacy allowlist/script helpers
+  have been removed.
+- **Leading indicators** – Formatter trend entries in
+  [`tests/.telemetry/ci_metrics.json`](../tests/.telemetry/ci_metrics.json) now
+  record `mode="global"`, and [`docs/development/formatter_rollout.md`](development/formatter_rollout.md)
+  captures the historical rollout.
 - **Immediate actions**
-  - Broadcast the new `src/sensory/` and `src/data_foundation/config/`
-    enforcement and keep `scripts/check_formatter_allowlist.py` green after each
-    allowlist update.
-  - Prep the `src/data_foundation/ingest/` and `src/data_foundation/persist/`
-    slices for formatting, capturing manual edits (if any) and scheduling reviews
-    alongside regression coverage owners.
-  - Land each Stage 4 package with a paired allowlist update, pytest run, and
-    rollout documentation refresh so the guardrail covers newly formatted code
-    without masking regressions.
-- **Path to done** – Sequence remaining directories by churn, merge slices in quick
-  succession, shrink the allowlist to empty, and update contributor guidance so
-  Ruff becomes the single formatting tool.
-- **Blockers** – Coordination with high-churn branches and generated assets that
-  must remain excluded.
+  - Keep CI telemetry fresh via `python -m tools.telemetry.update_ci_metrics --formatter-mode global`.
+  - Ensure contributor docs (`docs/development/setup.md`) continue to emphasise
+    running `ruff format` locally before commits.
+- **Path to done** – Treat formatter enforcement as baseline hygiene; monitor CI
+  lint runs and metrics for regressions.
+- **Blockers** – None; continue monitoring as part of regular hygiene reviews.
 
 ### Phase 7 – Regression depth in trading & risk (High exposure)
 
@@ -212,7 +207,7 @@ Phase 6–9 roadmap streams.
 
 - Update [`docs/status/ci_health.md`](status/ci_health.md) after each formatter
   slice, regression batch, or alerting milestone.
-- Track formatter allowlist size, coverage deltas, flake counts, and dead-code
+- Track formatter telemetry trendlines, coverage deltas, flake counts, and dead-code
   backlog inside weekly debt triage notes.
 - Revisit this assessment quarterly (or after completing any Phase 6–9 milestone)
   to record improvements, reprioritize emerging risks, and refresh onboarding

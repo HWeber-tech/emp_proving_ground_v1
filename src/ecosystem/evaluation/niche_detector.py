@@ -6,6 +6,7 @@ Niche Detection System
 Identifies and segments market conditions into distinct niches where
 specialized predator strategies can excel.
 """
+
 from __future__ import annotations
 
 import asyncio

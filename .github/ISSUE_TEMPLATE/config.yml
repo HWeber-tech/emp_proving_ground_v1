@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Roadmap & alignment briefs
+    url: https://github.com/empirical-org/emp_proving_ground_v1/tree/work/docs
+    about: "Review the roadmap, alignment briefs, and sprint context packs before opening new requests."

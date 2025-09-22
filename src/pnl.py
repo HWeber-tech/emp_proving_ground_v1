@@ -204,11 +204,7 @@ class EnhancedPosition:
         )
 
         # Check if we're past swap time and it's a new day
-        if (
-            current_time >= swap_time
-            and current_time.date() > self.last_swap_time.date()
-        ):
-
+        if current_time >= swap_time and current_time.date() > self.last_swap_time.date():
             # Apply appropriate swap rate
             if self.quantity > 0:  # Long position
                 long_rate = float(getattr(instrument, "long_swap_rate", 0.0))

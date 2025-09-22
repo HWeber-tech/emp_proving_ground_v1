@@ -1,4 +1,5 @@
 """Typed, Enum-based SystemConfig with safe environment coercion and no import-time side effects."""
+
 from __future__ import annotations
 
 import logging
@@ -37,12 +38,20 @@ class ConnectionProtocol(StrEnum):
 E = TypeVar("E", bound=StrEnum)
 
 
+class DataBackboneMode(StrEnum):
+    """Selectable data backbone implementations for ingest and caching."""
+
+    bootstrap = "bootstrap"
+    institutional = "institutional"
+
+
 class SystemConfigUpdate(TypedDict, total=False):
     run_mode: RunMode | str
     environment: EmpEnvironment | str
     tier: EmpTier | str
     confirm_live: bool | str | int
     connection_protocol: ConnectionProtocol | str
+    data_backbone_mode: DataBackboneMode | str
     extras: dict[str, str]
 
 
@@ -102,6 +111,7 @@ class SystemConfig:
     tier: EmpTier = EmpTier.tier_0
     confirm_live: bool = False
     connection_protocol: ConnectionProtocol = ConnectionProtocol.bootstrap
+    data_backbone_mode: DataBackboneMode = DataBackboneMode.bootstrap
     extras: dict[str, str] = field(default_factory=lambda: {})
 
     # Backward-compatible string views for legacy comparisons
@@ -126,6 +136,10 @@ class SystemConfig:
     def emp_tier(self) -> str:  # legacy alias, string view
         return self.tier.value
 
+    @property
+    def data_backbone_mode_str(self) -> str:
+        return self.data_backbone_mode.value
+
     def to_dict(self) -> dict[str, object]:
         """Export a dict representation with enum values as strings."""
         return {
@@ -134,6 +148,7 @@ class SystemConfig:
             "tier": self.tier.value,
             "confirm_live": self.confirm_live,
             "connection_protocol": self.connection_protocol.value,
+            "data_backbone_mode": self.data_backbone_mode.value,
             "extras": dict(self.extras),
         }
 
@@ -145,6 +160,7 @@ class SystemConfig:
             "EMP_TIER": self.tier.value,
             "CONFIRM_LIVE": "true" if self.confirm_live else "false",
             "CONNECTION_PROTOCOL": self.connection_protocol.value,
+            "DATA_BACKBONE_MODE": self.data_backbone_mode.value,
         }
 
     @classmethod
@@ -167,10 +183,35 @@ class SystemConfig:
         base = defaults if defaults is not None else cls()
         extras: dict[str, str] = dict(base.extras) if base.extras else {}
 
-        recognized_keys = {"RUN_MODE", "EMP_ENVIRONMENT", "EMP_TIER", "CONFIRM_LIVE", "CONNECTION_PROTOCOL"}
+        recognized_keys = {
+            "RUN_MODE",
+            "EMP_ENVIRONMENT",
+            "EMP_TIER",
+            "CONFIRM_LIVE",
+            "CONNECTION_PROTOCOL",
+            "DATA_BACKBONE_MODE",
+        }
+
+        def _infer_data_backbone_mode(current: DataBackboneMode) -> DataBackboneMode:
+            """Infer backbone mode if credentials for institutional services are present."""
+
+            indicator_keys = (
+                "REDIS_URL",
+                "REDIS_HOST",
+                "KAFKA_BROKERS",
+                "KAFKA_BOOTSTRAP_SERVERS",
+                "KAFKA_URL",
+            )
+            for key in indicator_keys:
+                raw_indicator = env.get(key)
+                if raw_indicator and str(raw_indicator).strip():
+                    return DataBackboneMode.institutional
+            return current
 
         # Prepare helpers for validity checks
-        def _is_valid_enum_value(raw: str | None, enum_type: type[E], aliases: Mapping[str, E] | None = None) -> bool:
+        def _is_valid_enum_value(
+            raw: str | None, enum_type: type[E], aliases: Mapping[str, E] | None = None
+        ) -> bool:
             if raw is None:
                 return False  # absence is not "invalid", it's "unset"
             normalized = raw.strip().lower().replace("-", "_")
@@ -181,7 +222,9 @@ class SystemConfig:
 
         def _mark_invalid(key: str, raw_value: str, fallback_desc: str) -> None:
             extras[f"{key}_invalid"] = raw_value
-            logger.debug("Invalid %s value %r; falling back to default %s", key, raw_value, fallback_desc)
+            logger.debug(
+                "Invalid %s value %r; falling back to default %s", key, raw_value, fallback_desc
+            )
 
         # RUN_MODE
         raw_run_mode = env.get("RUN_MODE")
@@ -209,7 +252,18 @@ class SystemConfig:
         raw_confirm_live = env.get("CONFIRM_LIVE")
         if raw_confirm_live is not None:
             normalized_bool = str(raw_confirm_live).strip().lower().replace("-", "_")
-            valid_bool = normalized_bool in {"1", "true", "yes", "y", "on", "0", "false", "no", "n", "off"}
+            valid_bool = normalized_bool in {
+                "1",
+                "true",
+                "yes",
+                "y",
+                "on",
+                "0",
+                "false",
+                "no",
+                "n",
+                "off",
+            }
             if not valid_bool:
                 _mark_invalid("CONFIRM_LIVE", raw_confirm_live, str(base.confirm_live).lower())
         confirm_live = _coerce_bool(raw_confirm_live, base.confirm_live)
@@ -227,6 +281,13 @@ class SystemConfig:
             raw_cp, ConnectionProtocol, base.connection_protocol, cp_aliases
         )
 
+        raw_backbone = env.get("DATA_BACKBONE_MODE")
+        if raw_backbone is not None and not _is_valid_enum_value(raw_backbone, DataBackboneMode):
+            _mark_invalid("DATA_BACKBONE_MODE", raw_backbone, base.data_backbone_mode.value)
+        data_backbone_mode = _coerce_enum(raw_backbone, DataBackboneMode, base.data_backbone_mode)
+        if raw_backbone is None:
+            data_backbone_mode = _infer_data_backbone_mode(data_backbone_mode)
+
         # Include all other non-recognized env entries in extras (stringify values)
         for k, v in env.items():
             if k not in recognized_keys:
@@ -238,6 +299,7 @@ class SystemConfig:
             tier=tier,
             confirm_live=confirm_live,
             connection_protocol=connection_protocol,
+            data_backbone_mode=data_backbone_mode,
             extras=extras,
         )
 
@@ -252,6 +314,7 @@ class SystemConfig:
         tier = self.tier
         confirm_live = self.confirm_live
         connection_protocol = self.connection_protocol
+        data_backbone_mode = self.data_backbone_mode
         extras: dict[str, str] = dict(self.extras)  # deep copy for simple dict[str, str]
 
         if "run_mode" in overrides:
@@ -259,7 +322,11 @@ class SystemConfig:
             run_mode = v_rm if isinstance(v_rm, RunMode) else _coerce_enum(v_rm, RunMode, run_mode)
         if "environment" in overrides:
             v_env = overrides["environment"]
-            environment = v_env if isinstance(v_env, EmpEnvironment) else _coerce_enum(v_env, EmpEnvironment, environment)
+            environment = (
+                v_env
+                if isinstance(v_env, EmpEnvironment)
+                else _coerce_enum(v_env, EmpEnvironment, environment)
+            )
         if "tier" in overrides:
             v_tier = overrides["tier"]
             tier = v_tier if isinstance(v_tier, EmpTier) else _coerce_enum(v_tier, EmpTier, tier)
@@ -278,6 +345,13 @@ class SystemConfig:
                 if isinstance(v_cp, ConnectionProtocol)
                 else _coerce_enum(v_cp, ConnectionProtocol, connection_protocol, cp_aliases)
             )
+        if "data_backbone_mode" in overrides:
+            v_bb = overrides["data_backbone_mode"]
+            data_backbone_mode = (
+                v_bb
+                if isinstance(v_bb, DataBackboneMode)
+                else _coerce_enum(v_bb, DataBackboneMode, data_backbone_mode)
+            )
         if "extras" in overrides:
             new_extras = overrides["extras"]
             extras = dict(new_extras) if isinstance(new_extras, dict) else extras
@@ -288,6 +362,7 @@ class SystemConfig:
             tier=tier,
             confirm_live=confirm_live,
             connection_protocol=connection_protocol,
+            data_backbone_mode=data_backbone_mode,
             extras=extras,
         )
 
@@ -298,4 +373,5 @@ __all__ = [
     "EmpTier",
     "EmpEnvironment",
     "ConnectionProtocol",
+    "DataBackboneMode",
 ]

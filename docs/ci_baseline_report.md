@@ -9,7 +9,7 @@ command mirrors the jobs wired into `.github/workflows/ci.yml` so future executi
 | --- | --- | --- |
 | `./scripts/check_forbidden_integrations.sh` | ✅ | No OpenAPI, FastAPI, or cTrader references detected in `src/` or `tests/current/`. |
 | `ruff check .` | ✅ | Linting succeeded with the current Ruff ruleset. |
-| `ruff format --check .` | ❌ | Formatting gate failed; Ruff would reformat 235 files spanning runtime code, tests, and stub packages. |
+| `ruff format --check .` | ✅ | Formatter guard passes; repo-wide Ruff enforcement replaced the staged allowlist rollout. |
 | `mypy --config-file mypy.ini src` | ✅ | Static typing passed; only informational reminders about unchecked bodies appeared for legacy functions. |
 | `pytest tests/current --cov=src --cov-report=term -q` | ✅ | 100 tests passed (2 skipped). Overall coverage sits at 76.04%, clearing the 70% threshold in the configuration. |
 
@@ -28,6 +28,7 @@ suite from scratch.
 
 ## Formatting debt follow-up
 
-Because `ruff format --check .` still fails, Phase 2 should include a strategy for wholesale formatting (for example, staged
-module batches or codemod-assisted rewrites) so future pipelines can enable the formatter gate without touching hundreds of
-files in one PR.
+The staged formatter rollout concluded with repo-wide Ruff enforcement. Use the
+historical playbook in [`docs/development/formatter_rollout.md`](development/formatter_rollout.md)
+if future modules need similar treatment, and keep CI telemetry fresh via
+`python -m tools.telemetry.update_ci_metrics --formatter-mode global`.

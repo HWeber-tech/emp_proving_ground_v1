@@ -106,6 +106,7 @@ def find_orphans(graph: Dict[str, Set[str]]) -> Set[str]:
     orphans = {n for n in all_nodes if all(n not in outs for outs in graph.values())}
     # Keep top-level packages
     filtered = {o for o in orphans if not o.endswith("__init__")}
+
     # Filter legacy shims
     def _excluded(name: str) -> bool:
         try:
@@ -113,6 +114,7 @@ def find_orphans(graph: Dict[str, Set[str]]) -> Set[str]:
             return any(n.startswith(prefix) for prefix in EXCLUDE_PREFIXES)
         except Exception:
             return False
+
     return {o for o in filtered if not _excluded(o)}
 
 
@@ -135,5 +137,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-
-

@@ -55,6 +55,11 @@ and code reviews:
   cortex, evolution engine, institutional risk/compliance, operational readiness)
   that translate encyclopedia promises into actionable epics and acceptance
   criteria.
+  - Data backbone brief: [`docs/context/alignment_briefs/institutional_data_backbone.md`](context/alignment_briefs/institutional_data_backbone.md).
+  - Sensory cortex brief: [`docs/context/alignment_briefs/sensory_cortex.md`](context/alignment_briefs/sensory_cortex.md).
+  - Evolution brief: [`docs/context/alignment_briefs/evolution_engine.md`](context/alignment_briefs/evolution_engine.md).
+  - Risk & compliance brief: [`docs/context/alignment_briefs/institutional_risk_compliance.md`](context/alignment_briefs/institutional_risk_compliance.md).
+  - Operational readiness brief: [`docs/context/alignment_briefs/operational_readiness.md`](context/alignment_briefs/operational_readiness.md).
 - Ship the “concept context pack” – issue templates, pull request checklists, and
   architecture notes that quote `EMP_ENCYCLOPEDIA_v2.3_CANONICAL.md` sections next
   to current code references so contributors inherit the same narrative.
@@ -62,6 +67,29 @@ and code reviews:
   downloader to exercise migrations, connection pooling, and state-store wiring.
 - Add scaffolding tests or notebooks that demonstrate how the new ingest slice will
   be queried by sensors and risk modules once Redis/Kafka are introduced.
+  - `TimescaleReader` smoke tests (`tests/data_foundation/test_timescale_ingest.py`) now document the daily, intraday, and macro
+    query paths against the institutional tables, keeping the read-side contract visible while Redis/Kafka land.
+- Stream ingest health telemetry into the runtime bus so CI and operators inherit freshness and completeness checks as soon as the Timescale pipelines execute.
+  - `evaluate_ingest_health` transforms orchestrator results into health reports, publishes them on the `telemetry.ingest.health` channel, and mirrors the payloads to Kafka via `KafkaIngestHealthPublisher` so streaming consumers receive the same telemetry snapshot.【F:src/data_foundation/ingest/health.py†L1-L197】【F:src/runtime/runtime_builder.py†L445-L653】【F:src/data_foundation/streaming/kafka_stream.py†L338-L470】【F:tests/data_foundation/test_kafka_stream.py†L74-L190】
+- `summarise_ingest_metrics` now distils ingest outcomes into a `telemetry.ingest.metrics` payload so dashboards and CI health reports can track total rows, freshness, and symbol coverage per dimension alongside the health grades.【F:src/data_foundation/ingest/metrics.py†L1-L88】【F:src/runtime/runtime_builder.py†L577-L593】【F:tests/data_foundation/test_ingest_metrics.py†L1-L45】
+  - `KafkaIngestMetricsPublisher` mirrors the same metrics snapshots to Kafka when institutional brokers/topics are configured, keeping event-bus subscribers and external streaming consumers aligned on ingest totals and freshness.【F:src/data_foundation/streaming/kafka_stream.py†L1022-L1135】【F:src/runtime/runtime_builder.py†L752-L843】【F:tests/data_foundation/test_kafka_stream.py†L360-L520】
+  - `evaluate_ingest_quality` grades coverage and freshness into a reusable score published on `telemetry.ingest.quality`, giving the roadmap’s CI health report visibility into density gaps, while `KafkaIngestQualityPublisher` mirrors the payloads for downstream telemetry stacks.【F:src/data_foundation/ingest/quality.py†L1-L208】【F:src/runtime/runtime_builder.py†L649-L706】【F:src/data_foundation/streaming/kafka_stream.py†L1126-L1287】【F:tests/data_foundation/test_ingest_quality.py†L1-L60】【F:tests/data_foundation/test_kafka_stream.py†L200-L310】
+  - `build_ingest_observability_snapshot` fuses metrics, health findings, recovery recommendations, and failover decisions into a single `telemetry.ingest.observability` payload logged by the runtime so CI dashboards inherit one authoritative ingest summary per run.【F:src/data_foundation/ingest/observability.py†L1-L211】【F:src/runtime/runtime_builder.py†L624-L635】【F:tests/data_foundation/test_ingest_observability.py†L1-L110】
+  - `execute_spark_export_plan` exports Timescale slices into Spark-friendly CSV/JSONL datasets with optional partitioning, writes per-job manifests, and the runtime publishes `telemetry.ingest.spark_exports` while recording the snapshot in professional summaries for operators.【F:src/data_foundation/batch/spark_export.py†L1-L233】【F:src/runtime/runtime_builder.py†L657-L866】【F:src/runtime/predator_app.py†L1-L520】【F:tests/data_foundation/test_spark_export.py†L1-L129】【F:tests/data_foundation/test_ingest_journal.py†L360-L438】【F:tests/runtime/test_professional_app_timescale.py†L1-L620】
+  - `evaluate_ingest_trends` analyses Timescale ingest journal history into `telemetry.ingest.trends` snapshots so dashboards and runtime summaries surface momentum, row-count drops, and freshness regressions alongside health, metrics, and quality feeds.【F:src/operations/ingest_trends.py†L1-L240】【F:src/runtime/runtime_builder.py†L900-L1090】【F:src/runtime/predator_app.py†L680-L735】【F:tests/operations/test_ingest_trends.py†L1-L90】【F:tests/runtime/test_professional_app_timescale.py†L240-L330】
+  - `evaluate_data_backbone_readiness` now records Spark export snapshots as a readiness component so operators see batch export coverage alongside ingest health, quality, and failover telemetry.【F:src/operations/data_backbone.py†L15-L360】【F:src/runtime/runtime_builder.py†L657-L1160】【F:tests/operations/test_data_backbone.py†L1-L150】
+  - `evaluate_data_retention` inspects Timescale daily, intraday, and macro tables to confirm institutional retention windows, publishes `telemetry.data_backbone.retention`, and records the markdown snapshot inside professional runtime summaries so operators can audit historical coverage alongside other backbone feeds.【F:src/operations/retention.py†L1-L192】【F:src/runtime/runtime_builder.py†L1060-L1210】【F:src/runtime/predator_app.py†L150-L360】【F:tests/operations/test_data_retention.py†L1-L118】【F:tests/runtime/test_professional_app_timescale.py†L640-L700】
+  - `evaluate_cache_health` grades Redis cache configuration and hit/miss telemetry into a `telemetry.cache.health` snapshot so operators can confirm namespaces, hit rates, and eviction pressure directly from runtime logs and summaries.【F:src/operations/cache_health.py†L1-L191】【F:src/runtime/runtime_builder.py†L608-L741】【F:tests/runtime/test_professional_app_timescale.py†L300-L346】
+  - `evaluate_data_backbone_readiness` combines ingest health, quality, recovery, backup posture, Redis/Kafka wiring, and scheduler state into a `telemetry.data_backbone.readiness` snapshot recorded by the runtime and published on the event bus so operators inherit a single institutional readiness surface.【F:src/operations/data_backbone.py†L1-L320】【F:src/runtime/runtime_builder.py†L600-L900】【F:src/runtime/predator_app.py†L200-L430】【F:tests/runtime/test_runtime_builder.py†L160-L280】【F:tests/runtime/test_professional_app_timescale.py†L395-L460】
+  - `evaluate_kafka_readiness` folds connection summaries, topic provisioning reports, publisher availability, and consumer lag telemetry into `telemetry.kafka.readiness`, and the runtime builder now publishes plus records the snapshot so professional summaries display streaming posture next to ingest and cross-region readiness feeds.【F:src/operations/kafka_readiness.py†L1-L213】【F:src/runtime/runtime_builder.py†L600-L930】【F:src/runtime/predator_app.py†L200-L400】【F:tests/operations/test_kafka_readiness.py†L1-L97】【F:tests/runtime/test_runtime_builder.py†L665-L782】【F:tests/runtime/test_professional_app_timescale.py†L1116-L1160】
+- `evaluate_data_backbone_validation` cross-checks Timescale connection settings, Redis/Kafka expectations, and scheduler telemetry to publish `telemetry.data_backbone.validation`, log markdown summaries, and surface the latest validation snapshot in the professional runtime so operators can confirm institutional toggles before ingest executes.【F:src/operations/data_backbone.py†L120-L320】【F:src/runtime/runtime_builder.py†L650-L760】【F:src/runtime/predator_app.py†L150-L370】【F:tests/operations/test_data_backbone.py†L120-L220】【F:tests/runtime/test_runtime_builder.py†L180-L280】【F:tests/runtime/test_professional_app_timescale.py†L395-L460】
+- `tools/telemetry/export_data_backbone_snapshots.py` packages readiness, validation, retention, ingest trend/scheduler, and Kafka posture blocks from the professional runtime summary into a JSON feed so Grafana/DataDog dashboards and runbooks ingest the backbone state without scraping Markdown. pytest covers the exporter success path plus missing-section guardrails.【F:tools/telemetry/export_data_backbone_snapshots.py†L1-L147】【F:tests/tools/test_data_backbone_export.py†L1-L74】
+  - Timescale ingest now short-circuits when validation fails, emitting failure snapshots, publishing the degraded readiness to the event bus, and invoking the DuckDB fallback so institutional runs never proceed with a misconfigured backbone.【F:src/runtime/runtime_builder.py†L700-L780】【F:tests/data_foundation/test_ingest_journal.py†L300-L374】
+  - `evaluate_professional_readiness` fuses the data backbone snapshot, backup posture, ingest SLOs, failover decisions, and recovery recommendations into `telemetry.operational.readiness`, recording the latest snapshot on the runtime so dashboards inherit a single professional-tier readiness surface alongside event-bus telemetry.【F:src/operations/professional_readiness.py†L1-L190】【F:src/runtime/runtime_builder.py†L360-L873】【F:src/runtime/predator_app.py†L1-L470】【F:tests/operations/test_professional_readiness.py†L1-L120】【F:tests/runtime/test_professional_app_timescale.py†L1-L320】
+  - `TimescaleIngestScheduler` and the runtime wiring now replay the ingest plan on configurable intervals, using extras to turn on background runs, jitter, and failure guardrails so institutional tiers keep Timescale data fresh without manual triggers.【F:src/data_foundation/ingest/scheduler.py†L1-L137】【F:src/data_foundation/ingest/configuration.py†L1-L210】【F:src/runtime/runtime_builder.py†L845-L869】【F:tests/data_foundation/test_ingest_scheduler.py†L1-L78】【F:tests/data_foundation/test_timescale_config.py†L120-L170】
+  - `TimescaleIngestJournal` persists every orchestrated run (status, rows, freshness, metadata) into the shared Timescale cluster so operators and dashboards can audit ingest history directly from the institutional datastore, and `_record_ingest_journal` wires the runtime to log each run after health evaluation.【F:src/data_foundation/persist/timescale.py†L1-L720】【F:src/runtime/runtime_builder.py†L347-L437】【F:tests/data_foundation/test_ingest_journal.py†L1-L200】
+  - `plan_ingest_recovery` now evaluates degraded ingest runs, extends lookbacks for missing symbols, and replays targeted slices before failover kicks in. Recovery attempts merge into the aggregated ingest metrics, health payloads, and Timescale journal metadata so operators can track automatic retries directly from telemetry.【F:src/data_foundation/ingest/recovery.py†L1-L152】【F:src/runtime/runtime_builder.py†L484-L570】【F:tests/data_foundation/test_ingest_recovery.py†L1-L95】【F:tests/data_foundation/test_ingest_journal.py†L120-L197】
+  - `ProfessionalPredatorApp.summary()` now surfaces the most recent ingest journal entries and per-dimension statuses so operators can review institutional ingest health directly from the runtime without shell access.【F:src/runtime/predator_app.py†L220-L317】【F:tests/runtime/test_professional_app_timescale.py†L120-L196】
 - Adjust public-facing docs (README, roadmap preface, launch deck) to clarify that
   v2.3 is a concept draft with hypotheses awaiting validation.
 
@@ -69,25 +97,227 @@ and code reviews:
 - Land the first production-grade ingest vertical: TimescaleDB persistence, Redis
   caching for hot symbols, and a Kafka topic that mirrors intraday updates into the
   runtime event bus.
+  - Redis cache plumbing now powers `TimescaleQueryCache`, serialising reader results into ManagedRedis namespaces and wiring the professional runtime’s Timescale connectors through the shared cache; pytest covers cache hits, TTL expirations, and runtime integration for institutional runs. The [Redis cache outage runbook](operations/runbooks/redis_cache_outage.md) gives on-call engineers the recovery playbook that matches the telemetry blocks exposed in the runtime summary.【F:src/data_foundation/cache/timescale_query_cache.py†L1-L190】【F:src/data_foundation/fabric/timescale_connector.py†L1-L160】【F:src/runtime/predator_app.py†L320-L520】【F:tests/data_foundation/test_timescale_cache.py†L1-L160】【F:docs/operations/runbooks/redis_cache_outage.md†L1-L60】
+  - Timescale market-data connectors now enrich each fetch with macro bias and confidence derived from stored macro events via `TimescaleMacroEventService`, giving sensors institutional macro telemetry alongside price data.【F:src/data_foundation/services/macro_events.py†L1-L226】【F:src/data_foundation/fabric/timescale_connector.py†L1-L164】【F:src/runtime/predator_app.py†L420-L470】【F:tests/data_foundation/test_timescale_connectors.py†L1-L150】
+- Kafka streaming scaffolding now publishes ingest metadata via
+    `KafkaIngestEventPublisher`, while `EventBusIngestPublisher` mirrors the same
+    payloads onto `telemetry.ingest` so runtimes can subscribe before Kafka
+    consumers exist.【F:src/data_foundation/streaming/kafka_stream.py†L1-L225】【F:src/data_foundation/ingest/telemetry.py†L1-L168】【F:tests/data_foundation/test_timescale_ingest.py†L180-L256】【F:tests/data_foundation/test_ingest_publishers.py†L1-L132】
+  - `KafkaIngestEventConsumer` now replays configured ingest topics onto the runtime
+    event bus when institutional mode is active, giving Tier‑1 deployments Kafka
+    telemetry without bespoke bridges and exercising the background task wiring in
+    the professional runtime. Offset management is baked in with
+    `KAFKA_INGEST_CONSUMER_COMMIT_ON_PUBLISH` and
+    `KAFKA_INGEST_CONSUMER_COMMIT_ASYNC` toggles so operators can disable
+    auto-commit and rely on the bridge for manual acknowledgements while still
+    mirroring events onto the runtime bus. The [Kafka ingest offset recovery runbook](operations/runbooks/kafka_ingest_offset_recovery.md) captures the manual procedure for advancing group offsets and verifying lag telemetry when the consumer falls behind.【F:src/data_foundation/streaming/kafka_stream.py†L1452-L1756】【F:tests/data_foundation/test_kafka_stream.py†L320-L660】【F:src/runtime/predator_app.py†L500-L540】【F:docs/operations/runbooks/kafka_ingest_offset_recovery.md†L1-L66】
+    The consumer can also emit `telemetry.kafka.lag` snapshots by invoking
+    `capture_consumer_lag`, publishing per-partition offsets, aggregated lag
+    totals, and metadata on a configurable cadence so Kafka lag observability
+    lands alongside ingest payloads; pytest covers the probe contract and interval
+    guardrails.【F:src/data_foundation/streaming/kafka_stream.py†L259-L415】【F:src/data_foundation/streaming/kafka_stream.py†L1700-L1919】【F:tests/data_foundation/test_kafka_stream.py†L453-L564】
+  - `backfill_ingest_dimension_to_kafka` replays Timescale snapshots into configured ingest topics with explicit backfill metadata so fresh environments inherit historical ingest telemetry, and pytest coverage documents the replay payload alongside topic validation.【F:src/data_foundation/streaming/kafka_stream.py†L460-L620】【F:tests/data_foundation/test_kafka_stream.py†L340-L420】
+  - `KafkaTopicProvisioner` now auto-creates ingest topics when `KAFKA_INGEST_AUTO_CREATE_TOPICS` is set, logging summaries in the runtime, capturing metadata via `build_institutional_ingest_config`, and exercising the provisioning logic with admin-client fakes in pytest. The new offset runbook closes the outstanding operational guidance for this slice.【F:src/data_foundation/streaming/kafka_stream.py†L226-L470】【F:src/data_foundation/ingest/configuration.py†L1-L210】【F:src/runtime/runtime_builder.py†L752-L806】【F:tests/data_foundation/test_kafka_stream.py†L60-L360】【F:tests/data_foundation/test_timescale_config.py†L1-L160】【F:docs/operations/runbooks/kafka_ingest_offset_recovery.md†L1-L66】
+- `decide_ingest_failover` inspects ingest health reports, publishes `telemetry.ingest.failover` events, and triggers the DuckDB bootstrap replay when required Timescale slices fail so institutional runs inherit a documented rollback path.【F:src/data_foundation/ingest/failover.py†L1-L120】【F:src/runtime/runtime_builder.py†L618-L650】【F:tests/data_foundation/test_ingest_failover.py†L1-L120】
+  - `execute_failover_drill` mutates recent ingest results to simulate Timescale outages, confirms failover policies, publishes `telemetry.ingest.failover_drill`, and records Markdown summaries on the professional runtime so operators can rehearse the DuckDB fallback without manual intervention.【F:src/operations/failover_drill.py†L1-L213】【F:src/runtime/runtime_builder.py†L1015-L1072】【F:src/runtime/predator_app.py†L145-L180】【F:tests/operations/test_failover_drill.py†L1-L88】【F:tests/runtime/test_professional_app_timescale.py†L610-L650】
+  - `evaluate_cross_region_failover` compares primary ingest runs with replica history, grades scheduler readiness, and publishes `telemetry.ingest.cross_region_failover` snapshots so operators can rehearse cross-region cutover directly from runtime summaries and event bus telemetry.【F:src/operations/cross_region_failover.py†L1-L238】【F:src/runtime/runtime_builder.py†L900-L1165】【F:src/runtime/predator_app.py†L180-L340】【F:tests/operations/test_cross_region_failover.py†L1-L130】【F:tests/runtime/test_runtime_builder.py†L250-L360】
+- Sprint brief translating this outcome into reviewable tickets: [`docs/context/sprint_briefs/next_sprint_redis_kafka_toggle.md`](context/sprint_briefs/next_sprint_redis_kafka_toggle.md).
 - Deliver a minimally viable HOW organ and revive the ANOMALY sensor so the default
   runtime exercises all five dimensions with calibrated thresholds and audit logs.
+  - `HowSensor` now wraps the institutional intelligence engine, exposing liquidity,
+    participation, and volatility telemetry with documented warn/alert thresholds
+    while `AnomalySensor` upgrades the anomaly path with sequence-driven detection
+    and market-data fallbacks. Both sensors emit structured audit metadata consumed
+    during Tier‑0 ingest and runtime summaries.【F:src/sensory/how/how_sensor.py†L1-L121】【F:src/sensory/anomaly/anomaly_sensor.py†L1-L116】【F:tests/sensory/test_how_anomaly_sensors.py†L1-L73】
+  - `BootstrapSensoryPipeline` and the Professional Predator runtime now retain the
+    fused dimensional readings as an audit trail so operators and CI can inspect the
+    last decisions alongside the HOW/ANOMALY outputs directly from the runtime
+    summary.【F:src/orchestration/bootstrap_stack.py†L24-L126】【F:src/runtime/bootstrap_runtime.py†L150-L189】【F:src/runtime/predator_app.py†L220-L303】【F:tests/current/test_bootstrap_runtime_integration.py†L34-L64】
+  - `evaluate_sensory_drift` condenses the audit history into
+    `telemetry.sensory.drift` snapshots, logging Markdown summaries, publishing the
+    feed on the runtime event bus, and surfacing the latest snapshot inside
+    `ProfessionalPredatorApp.summary()` so operators can track WHY/HOW drift as
+    institutional ingest runs land.【F:src/operations/sensory_drift.py†L1-L215】【F:src/runtime/runtime_builder.py†L960-L1062】【F:src/runtime/predator_app.py†L320-L360】【F:tests/operations/test_sensory_drift.py†L1-L64】【F:tests/runtime/test_professional_app_timescale.py†L720-L780】
+  - `WhenSensor` now fuses session overlap intensity, macro-event proximity, and
+    option gamma posture through the reusable `GammaExposureAnalyzer` helpers so
+    the WHEN organ reflects dealer pin risk. The analyzer surfaces dominant
+    strike profiles that bubble the pinned strike into runtime metadata, and
+    pytest coverage documents the impact scoring and strike breakdown
+    contract.【F:src/sensory/when/when_sensor.py†L89-L143】【F:src/sensory/when/gamma_exposure.py†L213-L244】【F:tests/sensory/test_when_gamma.py†L36-L83】
+  - `WhySensor` now blends realized volatility heuristics with yield-curve
+    analytics from `YieldSlopeTracker`, emitting richer metadata for operators
+    and recording the new regression coverage in `tests/sensory/test_why_yield.py`.
+    The snapshot highlights inversion risk, slopes, and macro bias so the WHY
+    organ keeps pace with the upgraded data backbone.【F:src/sensory/why/why_sensor.py†L1-L104】【F:src/sensory/dimensions/why/yield_signal.py†L1-L116】【F:tests/sensory/test_why_yield.py†L19-L85】
 - Replace the stub genome provider with a small but real genome catalogue sourced
   from historical strategies; wire population management into the evolution engine
   behind a feature flag.
+  - The institutional genome catalogue now lives in `src/genome/catalogue.py`,
+    exposing metadata, sampling helpers, and calibrated entries spanning trend,
+    carry, liquidity, volatility, and macro overlays. `PopulationManager` and the
+    evolution engine seed populations from the catalogue when
+    `EvolutionConfig.use_catalogue` or the `EVOLUTION_USE_CATALOGUE` flag is set,
+    reporting catalogue metadata through population statistics. Pytest coverage
+    documents catalogue sampling and feature-flagged seeding for reviewers and
+    operators.【F:src/genome/catalogue.py†L1-L221】【F:src/core/population_manager.py†L1-L420】【F:src/core/evolution/engine.py†L1-L120】【F:tests/evolution/test_genome_catalogue.py†L1-L27】【F:tests/current/test_population_manager_catalogue.py†L1-L39】
+  - `EvolutionCycleOrchestrator` now records catalogue snapshots, exposes them via
+    `catalogue_snapshot`, and publishes `telemetry.evolution.catalogue` events so
+    runtime dashboards and CI health checks can confirm seeded populations while
+    pytest covers the telemetry payload and event bus fan-out.【F:src/orchestration/evolution_cycle.py†L150-L360】【F:tests/current/test_evolution_orchestrator.py†L1-L170】【F:tests/evolution/test_catalogue_snapshot.py†L1-L43】
+  - `EvolutionLineageSnapshot` captures champion lineage (parents, mutation history,
+    species drift) and publishes `telemetry.evolution.lineage` alongside the
+    orchestrator telemetry so governance can audit how champions evolve away from
+    their seeded catalogue entries.【F:src/evolution/lineage_telemetry.py†L1-L165】【F:src/orchestration/evolution_cycle.py†L120-L392】【F:tests/evolution/test_lineage_snapshot.py†L1-L74】【F:tests/current/test_evolution_orchestrator.py†L1-L190】
+  - Strategy registry persistence now captures catalogue provenance for every champion
+    and the compliance workflow checklist surfaces a "Strategy governance" block that
+    consumes the registry summary so approvals reference the seeded desk templates.
+    【F:src/governance/strategy_registry.py†L1-L420】【F:src/compliance/workflow.py†L1-L760】【F:tests/governance/test_strategy_registry.py†L1-L60】【F:tests/compliance/test_compliance_workflow.py†L1-L140】
 - Publish compliance starter kits – MiFID II/Dodd-Frank control matrices, KYC/AML
   workflow outlines, and audit storage requirements mapped to existing interfaces.
+  - `evaluate_compliance_workflows` distils trade compliance and KYC telemetry into
+    MiFID II, Dodd-Frank, and audit trail checklists, publishes
+    `telemetry.compliance.workflow`, and records Markdown summaries inside the
+    professional runtime so operators inherit executable starter kits alongside
+    readiness feeds.【F:src/compliance/workflow.py†L1-L392】【F:src/runtime/runtime_builder.py†L1200-L1336】【F:src/runtime/predator_app.py†L1-L520】【F:tests/compliance/test_compliance_workflow.py†L1-L98】【F:tests/runtime/test_professional_app_timescale.py†L200-L320】【F:tests/runtime/test_runtime_builder.py†L160-L240】
+- The trade compliance monitor now enforces policy thresholds for execution reports,
+  publishes `telemetry.compliance.trade` snapshots on the event bus, and records audit
+  entries so runtime summaries expose regulatory guardrails alongside ingest telemetry.
+  `TimescaleComplianceJournal` persists every snapshot into the `telemetry.compliance.audit`
+  table so institutional deployments inherit a durable compliance trail, and the professional
+  runtime surfaces the latest journal entry for operators and dashboards.
+  【F:src/compliance/trade_compliance.py†L1-L420】【F:src/data_foundation/persist/timescale.py†L1-L900】【F:src/runtime/predator_app.py†L560-L700】【F:tests/compliance/test_trade_compliance.py†L1-L160】【F:tests/data_foundation/test_timescale_compliance_journal.py†L1-L44】【F:tests/runtime/test_professional_app_timescale.py†L232-L308】
+- `evaluate_compliance_readiness` fuses trade-compliance and KYC telemetry into a
+  `telemetry.compliance.readiness` snapshot published after each institutional ingest run,
+  logging Markdown summaries, updating the runtime status block, and giving operators a
+  single view of regulatory posture alongside data backbone and professional readiness feeds.
+  【F:src/operations/compliance_readiness.py†L1-L237】【F:src/runtime/runtime_builder.py†L1200-L1288】【F:src/runtime/predator_app.py†L52-L216】【F:tests/operations/test_compliance_readiness.py†L1-L76】【F:tests/runtime/test_runtime_builder.py†L150-L228】
+- `KycAmlMonitor` evaluates onboarding dossiers, grades risk posture, and publishes
+  `telemetry.compliance.kyc` snapshots with Markdown summaries while optionally journaling
+  to Timescale's `telemetry.compliance_kyc` table. The professional runtime wires the monitor
+  through feature flags, exposes the latest case snapshot inside `summary()`, and pytest covers
+  both the monitor contract and Timescale journal round-trips so institutional KYC/AML posture is
+  observable alongside trade compliance feeds.【F:src/compliance/kyc.py†L1-L332】【F:src/data_foundation/persist/timescale.py†L920-L1265】【F:src/runtime/predator_app.py†L80-L390】【F:tests/compliance/test_kyc_monitor.py†L1-L70】【F:tests/data_foundation/test_timescale_compliance_journal.py†L1-L78】【F:tests/runtime/test_professional_app_timescale.py†L200-L308】
+- `tools.telemetry.export_risk_compliance_snapshots` packages risk telemetry, execution readiness,
+  compliance readiness/workflow blocks, and Timescale journal statistics into a governance-friendly
+  JSON bundle, reusing the journal aggregation helpers with dedicated CLI regression coverage so
+  reviewers can export evidence without manual SQL.【F:tools/telemetry/export_risk_compliance_snapshots.py†L1-L308】【F:src/data_foundation/persist/timescale.py†L1211-L2163】【F:tests/tools/test_risk_compliance_export.py†L1-L113】【F:tests/data_foundation/test_timescale_compliance_journal.py†L57-L206】【F:tests/data_foundation/test_timescale_execution_journal.py†L86-L123】
+- Publish risk posture telemetry so operators can see drawdown, open-position, and
+  liquidity guardrails alongside compliance and ingest feeds. `evaluate_risk_posture`
+  converts portfolio monitor state and risk-gateway checks into `telemetry.risk.posture`
+  snapshots, `TradingManager` logs the markdown summary, and the runtime exposes the
+  feed through `ProfessionalPredatorApp.summary()` for dashboards and runbooks.
+  【F:src/risk/telemetry.py†L1-L247】【F:src/trading/trading_manager.py†L1-L240】【F:src/runtime/predator_app.py†L200-L320】【F:tests/risk/test_risk_telemetry.py†L1-L102】【F:tests/current/test_bootstrap_runtime_integration.py†L1-L70】
+- Harden TradingManager with a reusable risk policy so `RiskConfig` limits govern
+  minimum position sizes, aggregate exposure, leverage, and stop-loss enforcement
+  before trades reach execution. The policy enriches gateway decisions with policy
+  metadata, blocks violations outside research mode, and is covered by dedicated
+  unit tests alongside new risk gateway regression scenarios.
+  【F:src/trading/risk/risk_policy.py†L1-L214】【F:src/trading/trading_manager.py†L44-L210】【F:tests/trading/test_risk_policy.py†L1-L103】【F:tests/current/test_risk_gateway_validation.py†L1-L170】
+  - `build_policy_snapshot` emits structured policy decision telemetry on
+    `telemetry.risk.policy`, and the runtime surfaces the latest decision with
+    Markdown summaries in control-centre and runtime reports so operators can
+    audit individual trade approvals alongside aggregate risk posture.
+    【F:src/trading/risk/policy_telemetry.py†L1-L195】【F:src/trading/trading_manager.py†L44-L360】【F:src/operations/bootstrap_control_center.py†L1-L260】【F:src/runtime/predator_app.py†L1-L360】【F:tests/trading/test_risk_policy_telemetry.py†L1-L109】
 - Extend operational telemetry by defining monitoring SLOs, alert channels, and
   backup/restore drills for the new data services.
+  - `evaluate_ingest_slos` now converts ingest metrics and health reports into an
+    operational SLO snapshot, merges default alert routes with extras-defined
+    overrides, and publishes the payload on `telemetry.operational.slos` so the
+    runtime logs actionable markdown plus event-bus telemetry for ops drills.
+    【F:src/operations/slo.py†L1-L206】【F:src/runtime/runtime_builder.py†L240-L333】【F:src/data_foundation/ingest/configuration.py†L1-L244】【F:tests/operations/test_slo.py†L1-L70】【F:tests/data_foundation/test_timescale_config.py†L1-L220】
+  - `RuntimeHealthServer` exposes `/health` with FIX connectivity, market-data
+    freshness, and telemetry exporter checks, and the runtime builder now starts
+    the server automatically so operators and probes inherit a single health
+    endpoint with configurable thresholds.【F:src/runtime/healthcheck.py†L1-L258】【F:src/runtime/runtime_builder.py†L1816-L1863】【F:tests/runtime/test_healthcheck.py†L1-L170】
+  - `evaluate_event_bus_health` grades queue depth, dropped events, and handler
+    failures into a reusable snapshot, publishes `telemetry.event_bus.health`,
+    and records the markdown summary in the professional runtime so operators
+    can audit event delivery alongside ingest and cache telemetry. The runtime now
+    routes the event bus worker and fan-out tasks through the shared
+    `TaskSupervisor`, keeping background loops cancellable and exposing them in
+    professional summaries for operators.【F:src/operations/event_bus_health.py†L1-L220】【F:src/runtime/runtime_builder.py†L1872-L1916】【F:src/runtime/predator_app.py†L200-L420】【F:src/core/_event_bus_impl.py†L1-L420】【F:tests/operations/test_event_bus_health.py†L1-L82】【F:tests/current/test_event_bus_task_supervision.py†L1-L78】【F:tests/runtime/test_professional_app_timescale.py†L200-L360】
+  - OpenTelemetry tracing can now be toggled via `OTEL_*` extras; the runtime
+    calls `configure_event_bus_tracer` and threads the resulting tracer through
+    `AsyncEventBus`, capturing queue depth and dispatch lag attributes on every
+    publish/handler span so distributed traces reflect event bus behaviour. The
+    same settings feed a runtime tracer that wraps startup/shutdown callbacks,
+    workload execution, and the Timescale ingest orchestrator, recording
+    metadata for plan evaluation, fallback drills, and ingest success inside
+    distributed traces.【F:src/observability/tracing.py†L1-L244】【F:src/runtime/predator_app.py†L1560-L1610】【F:src/runtime/runtime_builder.py†L250-L408】【F:src/runtime/runtime_builder.py†L1996-L2320】【F:tests/core/test_event_bus_tracing.py†L1-L118】【F:tests/runtime/test_runtime_tracing.py†L1-L134】
+  - `evaluate_system_validation` parses the concept-aligned
+    `system_validation_report.json`, converts check outcomes into a
+    `telemetry.operational.system_validation` snapshot, logs markdown summaries,
+    and records the latest report block in professional runtime summaries so
+    operators can see validation posture next to readiness feeds.【F:src/operations/system_validation.py†L1-L230】【F:src/runtime/runtime_builder.py†L1905-L1950】【F:src/runtime/predator_app.py†L120-L360】【F:tests/operations/test_system_validation.py†L1-L120】【F:tests/runtime/test_professional_app_timescale.py†L400-L455】【F:tests/runtime/test_runtime_builder.py†L200-L360】
+  - `export_operational_snapshots` surfaces professional readiness, security,
+    incident response, and system validation blocks through
+    `tools/telemetry/export_operational_snapshots.py`, emitting a JSON payload
+    that dashboards can ingest directly instead of scraping Markdown summaries.
+    pytest exercises the happy path, missing-section warnings, and the
+    `--allow-missing` override.【F:tools/telemetry/export_operational_snapshots.py†L1-L143】【F:tests/tools/test_operational_export.py†L1-L86】
+  - `evaluate_security_posture` grades MFA coverage, credential and secrets
+    rotation, incident drills, intrusion detection, and TLS posture into a
+    reusable snapshot, publishes `telemetry.operational.security`, and records
+    the markdown summary on the professional runtime so operators inherit an
+    institutional security feed alongside existing readiness blocks.
+    【F:src/operations/security.py†L1-L318】【F:src/runtime/runtime_builder.py†L1090-L1280】【F:src/runtime/predator_app.py†L120-L340】【F:tests/operations/test_security.py†L1-L120】【F:tests/runtime/test_runtime_builder.py†L120-L240】【F:tests/runtime/test_professional_app_timescale.py†L140-L260】
+  - `evaluate_incident_response` consolidates runbook coverage, responder
+    rosters, training cadence, and postmortem backlog telemetry into
+    `telemetry.operational.incident_response`, publishes Markdown summaries, and
+    records the snapshot inside professional runtime summaries so operators can
+    audit incident readiness alongside security, cache, and execution feeds.
+    【F:src/operations/incident_response.py†L1-L233】【F:src/runtime/runtime_builder.py†L2160-L2215】【F:src/runtime/predator_app.py†L260-L360】【F:tests/operations/test_incident_response.py†L1-L108】【F:tests/runtime/test_runtime_builder.py†L360-L520】【F:tests/runtime/test_professional_app_timescale.py†L520-L600】
+  - `evaluate_backup_readiness` inspects Timescale backup policies and recent
+    telemetry to publish `telemetry.operational.backups`, log markdown summaries,
+    and surface the latest snapshot inside `ProfessionalPredatorApp.summary()` so
+    operators can audit backup posture alongside ingest health and SLO feeds.
+    【F:src/operations/backup.py†L1-L206】【F:src/runtime/runtime_builder.py†L300-L360】【F:src/runtime/predator_app.py†L260-L380】【F:tests/operations/test_backup.py†L1-L80】【F:tests/runtime/test_professional_app_timescale.py†L160-L220】
+  - `evaluate_execution_readiness` fuses order fill rates, rejection rates,
+    latency, drop-copy metrics, and connection health into an execution snapshot,
+    publishes `telemetry.operational.execution`, and records the block in
+    professional runtime summaries so operators can audit execution posture
+    alongside ingest, risk, and compliance telemetry.
+    【F:src/operations/execution.py†L1-L430】【F:src/runtime/runtime_builder.py†L1700-L1840】【F:src/runtime/predator_app.py†L200-L360】【F:tests/operations/test_execution.py†L1-L110】【F:tests/runtime/test_professional_app_timescale.py†L360-L420】
+  - `TimescaleExecutionJournal` persists execution readiness snapshots into the
+    `telemetry.execution_snapshots` table and `ProfessionalPredatorApp.summary()`
+    now surfaces recent and latest execution records so operators can audit
+    institutional execution history alongside live readiness telemetry.
+    【F:src/data_foundation/persist/timescale.py†L900-L1290】【F:src/runtime/predator_app.py†L200-L760】【F:tests/data_foundation/test_timescale_execution_journal.py†L1-L91】【F:tests/runtime/test_professional_app_timescale.py†L400-L460】
 
 ### 90-day considerations (Later)
 - Graduate the data backbone by stress-testing Kafka/Spark batch jobs, documenting
   failover procedures, and proving that ingest tiers can switch without downtime.
+  - `execute_spark_stress_drill` now exercises Spark export plans through
+    configurable cycles, enforces warn/fail thresholds, publishes
+    `telemetry.ingest.spark_stress`, and records markdown-backed summaries inside
+    the professional runtime so operators can rehearse batch resilience alongside
+    ingest telemetry.【F:src/operations/spark_stress.py†L1-L166】【F:src/runtime/runtime_builder.py†L774-L1256】【F:tests/operations/test_spark_stress.py†L1-L87】【F:tests/runtime/test_professional_app_timescale.py†L740-L813】
 - Expand sensory/evolution validation with live-paper trading experiments, anomaly
   drift monitoring, and feedback loops that tune strategy genomes automatically.
+  - `evaluate_evolution_experiments` aggregates paper-trading experiment logs and ROI posture into `telemetry.evolution.experiments`, with the trading manager recording experiment events, the runtime builder publishing the snapshot, and professional summaries exposing the markdown block alongside ingest telemetry.【F:src/operations/evolution_experiments.py†L1-L248】【F:src/trading/trading_manager.py†L1-L320】【F:src/runtime/runtime_builder.py†L1959-L2118】【F:src/runtime/predator_app.py†L320-L918】【F:tests/operations/test_evolution_experiments.py†L1-L114】【F:tests/trading/test_trading_manager_execution.py†L1-L140】【F:tests/runtime/test_professional_app_timescale.py†L820-L908】
+  - `evaluate_evolution_tuning` fuses experiment and strategy telemetry into actionable recommendations, publishes `telemetry.evolution.tuning`, and records the markdown summary inside the professional runtime so operators can review automated tuning guidance alongside experiment metrics.【F:src/operations/evolution_tuning.py†L1-L443】【F:src/runtime/runtime_builder.py†L2566-L2649】【F:src/runtime/predator_app.py†L229-L515】【F:src/runtime/predator_app.py†L1098-L1104】【F:tests/operations/test_evolution_tuning.py†L1-L172】【F:tests/runtime/test_professional_app_timescale.py†L1298-L1338】
 - Deliver the first broker/FIX integration pilot complete with supervised async
   lifecycles, expanded risk gates, compliance checkpoints, and observability hooks.
+  - `FixIntegrationPilot` now supervises FIX session lifecycles, binds message queues,
+    refreshes broker initiators, and exposes runtime snapshots that track queue metrics,
+    order activity, and compliance summaries for downstream evaluators.【F:src/runtime/fix_pilot.py†L1-L210】
+  - `evaluate_fix_pilot` grades the pilot state against configurable policy thresholds,
+    renders Markdown summaries, and publishes `telemetry.execution.fix_pilot` snapshots
+    alongside execution readiness, with regression coverage for state evaluation and
+    runtime orchestration flows.【F:src/operations/fix_pilot.py†L1-L240】【F:src/runtime/runtime_builder.py†L2040-L2130】【F:tests/runtime/test_fix_pilot.py†L1-L190】【F:tests/operations/test_fix_pilot_ops.py†L1-L80】
+  - `FixDropcopyReconciler` connects the FIX drop-copy session to the pilot, reconciles
+    broker order state, and reports backlog or mismatch issues through runtime summaries
+    and fix-pilot telemetry with dedicated regression coverage.【F:src/runtime/fix_dropcopy.py†L1-L228】【F:src/runtime/predator_app.py†L1112-L1690】【F:tests/runtime/test_fix_dropcopy.py†L1-L60】
 - Publish ROI instrumentation – track fee savings, infrastructure spend, and
   capital efficiency so the €250 → institutional journey is grounded in evidence.
+  - ROI telemetry now lives in `evaluate_roi_posture`, wiring the trading manager,
+    control centre, and runtime summary to publish `telemetry.operational.roi`
+    snapshots with markdown summaries while pytest locks the cost model contract.
+    【F:src/operations/roi.py†L1-L164】【F:src/trading/trading_manager.py†L1-L280】【F:src/operations/bootstrap_control_center.py†L1-L320】【F:src/runtime/predator_app.py†L400-L720】【F:tests/operations/test_roi.py†L1-L80】
+  - Strategy performance telemetry now aggregates trading-manager experiment events
+    and ROI snapshots into `telemetry.strategy.performance`, publishes Markdown summaries,
+    and records the latest block in professional runtime summaries so desks can monitor
+    execution/rejection mix per strategy alongside ROI posture.【F:src/operations/strategy_performance.py†L1-L537】【F:src/runtime/runtime_builder.py†L2240-L2298】【F:src/runtime/predator_app.py†L91-L986】【F:tests/runtime/test_runtime_builder.py†L281-L523】【F:tests/runtime/test_professional_app_timescale.py†L217-L265】
 - Update marketing and onboarding assets once the above pilots demonstrate the
   promised capabilities.
 
@@ -175,10 +405,12 @@ ongoing documentation updates to keep operators and compliance informed.
 
 | Initiative | Phase | Outcome we need | Current status | Next checkpoint |
 | --- | --- | --- | --- | --- |
-| Institutional data backbone | A | Bootstrap ingest upgraded to TimescaleDB + Redis + Kafka with switchable tiers and recovery drills documented. | TimescaleDB prototype underway; Redis/Kafka designs captured in alignment briefs; DuckDB/CSV helpers still power production runs. | Ship the prototype ingest slice with smoke tests and publish orchestration switch design (Week 4). |
-| Sensory cortex & evolution uplift | B | All five sensory organs online with calibrated feeds and the evolution engine managing real genomes under feature flags. | WHY/WHAT/WHEN heuristics live; HOW absent; ANOMALY stubbed; evolution Tier‑2 disabled. Alignment brief drafted with data requirements. | Implement HOW organ skeleton, anomaly scaffolding, and seed genomes; integrate into staging runtime (Week 6). |
-| Execution, risk, compliance, ops readiness | C | Broker/FIX integration pilot operating with expanded risk controls, compliance workflows, and observability. | In-memory simulator still primary path; compliance/audit shims empty; risk checks minimal. Compliance starter kit outline drafted. | Finalise risk policy file format, document compliance workflows, and begin FIX adapter spike (Week 8). |
-| Supporting modernization (formatter, regression, telemetry) | Legacy | Foundational hygiene remains green while high-impact streams ramp up. | Formatter Stage 4 landed, regression suites expanded, telemetry automation live; follow-on cleanups pending. | Keep CI health snapshot current and scope maintenance tickets so core teams stay unblocked. |
+| Institutional data backbone | A | Bootstrap ingest upgraded to TimescaleDB + Redis + Kafka with switchable tiers and recovery drills documented. | Timescale ingest, Redis caching, Kafka streaming, Spark exports, and readiness telemetry ship through the professional runtime, with bootstrap/institutional toggles proven in CI. | Cross-region failover rehearsal and automated scheduler cutover using the failover drill plus readiness feeds (Q3). |
+| Sensory cortex & evolution uplift | B | All five sensory organs online with calibrated feeds and the evolution engine managing real genomes under feature flags. | HOW/WHY/WHEN/ANOMALY organs now publish calibrated telemetry; drift monitoring, catalogue seeding, lineage snapshots, and evolution experiments run behind feature flags. | Extend live-paper experiments and automated tuning loops powered by the evolution experiment telemetry (Q3). |
+| Execution, risk, compliance, ops readiness | C | Broker/FIX integration pilot operating with expanded risk controls, compliance workflows, and observability. | FIX pilot supervision, execution readiness, risk policy telemetry, and compliance workflows/monitors ship with persistent Timescale journals and runtime summaries. | Expand broker connectivity with drop-copy ingestion and reconciliation for the FIX pilot (Q3). |
+| Supporting modernization (formatter, regression, telemetry) | Legacy | Foundational hygiene remains green while high-impact streams ramp up. | Formatter rollout, coverage/formatter metrics automation, and flake telemetry keep hygiene signals green while modernization streams land. | Collapse the remaining formatter allowlist and feed CI telemetry into deployment dashboards (Q3). |
+
+> **Automation:** Run `python -m tools.roadmap.snapshot` to regenerate this table from the current repository state. The CLI also exposes a JSON feed for dashboards via `python -m tools.roadmap.snapshot --format json`.
 
 ## Active modernization streams
 
@@ -206,22 +438,15 @@ green but do not let them crowd out the higher leverage work above.
 
 **Key context**
 
-- `scripts/check_formatter_allowlist.py`
-- `config/formatter/ruff_format_allowlist.txt`
-- [`docs/development/formatter_rollout.md`](development/formatter_rollout.md)
-- [`docs/development/setup.md`](development/setup.md)
-- [`docs/status/ci_health.md`](status/ci_health.md) – formatter progress snapshots
+- [`docs/development/formatter_rollout.md`](development/formatter_rollout.md) – historical rollout log
+- [`docs/development/setup.md`](development/setup.md) – contributor workflow
+- [`docs/status/ci_health.md`](status/ci_health.md) – formatter telemetry trendlines
 
 **Recent progress**
 
-- Stage 3 completed for `src/sensory/organs/dimensions/` with pytest remaining green.
-- Stage 4 now enforces `src/sensory/` and the `src/data_foundation/config/`,
-  `src/data_foundation/ingest/`, and `src/data_foundation/persist/` packages.
-- Formatter sequencing notes updated in the rollout guide with owner assignments and
-  merge windows.
-- `src/data_foundation/replay/` and `src/data_foundation/schemas.py` normalized under
-  `ruff format`, and the Stage 4 operational/performance briefing now coordinates
-  owners, reviewers, and freeze windows.
+- Repo-wide Ruff enforcement landed; the allowlist/script workflow was retired and CI now runs `ruff format --check .`.
+- Stage 4 directories (`src/data_integration/`, `src/operational/`, `src/performance/`) were formatted with telemetry/documentation refreshed to reflect the new guard.
+- Formatter sequencing notes remain in the rollout guide for historical reference alongside updated contributor docs.
 
 **Now**
 
@@ -236,12 +461,11 @@ green but do not let them crowd out the higher leverage work above.
 **Next**
 
 - [x] Land the data integration, operational, and performance formatting PRs with
-      paired allowlist updates and focused pytest runs covering
-      `src/operational/metrics.py`, `src/performance/vectorized_indicators.py`, and
-      the ingestion slices.
-- [ ] Collapse the remaining allowlist entries and wire `ruff format --check .` into
+      focused pytest runs covering `src/operational/metrics.py`,
+      `src/performance/vectorized_indicators.py`, and the ingestion slices.
+- [x] Collapse the remaining allowlist entries and wire `ruff format --check .` into
       the main CI workflow once the Stage 4 backlog clears.
-- [ ] Update contributor docs (`setup.md`, PR checklist) to describe the new default
+- [x] Update contributor docs (`setup.md`, PR checklist) to describe the new default
       formatter workflow and local tooling expectations.
 
 **Delivery checkpoints**
@@ -252,7 +476,7 @@ green but do not let them crowd out the higher leverage work above.
 
 **Later**
 
-- [ ] Retire the allowlist guard and remove redundant formatters (for example,
+- [x] Retire the allowlist guard and remove redundant formatters (for example,
       Black) once Ruff owns enforcement end-to-end.
 
 **Risks & watchpoints**
@@ -266,7 +490,7 @@ green but do not let them crowd out the higher leverage work above.
 
 **Telemetry**
 
-- Track formatted-directory count and allowlist size in the CI health snapshot.
+- Track formatter and coverage trendlines in `tests/.telemetry/ci_metrics.json` and surface updates in the CI health snapshot.
 - Flag the rollout timeline in retrospectives so future contributors understand the
   historical sequencing.
 
@@ -322,12 +546,18 @@ that guard trading execution, risk controls, and orchestration wiring.
 
 **Next**
 
-- [ ] Chain orchestration, execution, and risk modules in an end-to-end scenario test
-      that verifies event bus wiring and fallback behavior.
+- [x] Chain orchestration, execution, and risk modules in an end-to-end scenario test
+      that verifies event bus wiring and fallback behavior. `tests/current/test_orchestration_execution_risk_integration.py`
+      now drives the bootstrap trading stack against the async event bus, records
+      risk/policy/ROI telemetry fan-out, and proves trades still execute when the bus is
+      offline by asserting local snapshots keep advancing while events are dropped.【F:tests/current/test_orchestration_execution_risk_integration.py†L117-L284】
 - [ ] Record coverage deltas in the CI health snapshot after each regression landing
       and alert on regressions outside agreed thresholds.
-- [ ] Expand sensory regression focus to `src/sensory/dimensions/why/yield_signal.py`
-      with fixtures derived from historical market data.
+- [x] Expand sensory regression focus to `src/sensory/dimensions/why/yield_signal.py`
+      with fixtures derived from historical market data. `tests/sensory/test_why_yield.py`
+      now covers inversion detection and the upgraded WHY sensor blend of macro
+      and yield-curve telemetry, keeping the roadmap’s sensory regression slice
+      anchored to executable tests.【F:tests/sensory/test_why_yield.py†L19-L85】
 
 **Later**
 
@@ -391,10 +621,16 @@ manual log digging or the deprecated Kilocode bridge.
 
 **Next**
 
-- [ ] Deliver the Slack/webhook bridge once credentials are provisioned and run a
-      forced-failure drill to validate the end-to-end flow.
-- [ ] Expand telemetry capture to include coverage trendlines and formatter adoption
-      metrics with references in CI artifacts.
+- [x] Deliver the Slack/webhook bridge once credentials are provisioned and run a
+      forced-failure drill to validate the end-to-end flow. The
+      `notify-slack` job in `.github/workflows/ci-failure-alerts.yml` mirrors the
+      managed alert issue into `#ci-alerts` when the `SLACK_CI_WEBHOOK` secret is
+      present, and the September drill confirmed delivery.
+- [x] Expand telemetry capture to include coverage trendlines and formatter adoption
+      metrics with references in CI artifacts. `tools/telemetry/update_ci_metrics.py`
+      ingests coverage XML and the Ruff allowlist to append trend entries to
+      `tests/.telemetry/ci_metrics.json`, and pytest exercises the CLI plus JSON
+      contract so CI dashboards can surface the new telemetry.【F:tools/telemetry/update_ci_metrics.py†L1-L80】【F:tools/telemetry/ci_metrics.py†L1-L148】【F:tests/tools/test_ci_metrics.py†L1-L133】【F:tests/.telemetry/ci_metrics.json†L1-L4】
 - [ ] Evaluate whether runtime (non-CI) observability hooks belong in this initiative
       or a follow-on roadmap.
 
@@ -491,8 +727,9 @@ configuration.
 
 **Definition of done**
 
-- `main.py` replaced by a dependency-injected application builder with discrete
-  entrypoints for ingestion and live trading plus documented shutdown hooks.
+- `main.py` backed by a dependency-injected application builder (`src/runtime/runtime_builder.py`)
+  with discrete entrypoints for ingestion and live trading plus documented shutdown
+  hooks.
 - Background services supervised via structured task groups with deterministic
   cancellation and shutdown tests.
 - `RiskManager` enforces `RiskConfig` inputs (position sizing, leverage, drawdown,
@@ -508,7 +745,7 @@ configuration.
 
 **Key context**
 
-- `main.py`
+- `main.py`, `src/runtime/runtime_builder.py`
 - `src/risk/risk_manager_impl.py`
 - `src/core/__init__.py`
 - `src/brokers/fix/` adapters and sensory orchestrators
@@ -526,27 +763,42 @@ configuration.
 
 **Now**
 
-- [ ] Draft a runtime builder and shutdown sequence design that separates ingestion
-      and trading workloads, including testing strategy and rollout plan.
-- [ ] Inventory `asyncio.create_task` usage across brokers, sensory organs, and
-      orchestrators, documenting supervision gaps and proposed `TaskGroup`
-      migrations.
-- [ ] Map `RiskConfig` parameters to required enforcement logic, outlining tests,
-      documentation updates, and telemetry hooks.
+- [x] Draft a runtime builder and shutdown sequence design that separates ingestion
+      and trading workloads, including testing strategy and rollout plan.【F:src/runtime/runtime_builder.py†L76-L898】【F:tests/runtime/test_runtime_builder.py†L1-L118】
+- [x] Inventory `asyncio.create_task` usage across brokers, sensory organs, and
+      orchestrators, introducing a reusable `TaskSupervisor` so runtime
+      background work funnels through managed cancellation and logging instead
+      of ad-hoc tasks.【F:src/runtime/task_supervisor.py†L1-L152】【F:src/runtime/predator_app.py†L95-L261】【F:tests/runtime/test_task_supervisor.py†L1-L64】
+- [x] Map `RiskConfig` parameters to required enforcement logic, outlining tests,
+      documentation updates, and telemetry hooks. `RiskManagerImpl` now accepts
+      canonical `RiskConfig` inputs, enforces mandatory stop losses, min/max
+      sizing, and aggregates exposure/leverage through `RealRiskManager` while
+      regression suites cover the new guardrails and sizing bounds.
+      【F:src/risk/risk_manager_impl.py†L1-L360】【F:src/risk/real_risk_manager.py†L1-L170】【F:tests/current/test_risk_manager_impl.py†L1-L200】【F:tests/current/test_real_risk_manager.py†L1-L120】
 - [ ] Define the compliance/operations review workflow for safety configuration
       changes and catalogue the observability gaps in FIX/orchestrator adapters.
 
 **Next**
 
-- [ ] Implement the application builder with dedicated CLIs, integrate structured
-      shutdown hooks, and add smoke tests for restart flows.
-- [ ] Replace ad-hoc event loops in FIX adapters with supervised async bridges or
-      executor shims, validating graceful shutdown in regression suites.
+- [x] Implement the application builder with dedicated CLIs, integrate structured
+      shutdown hooks, and add smoke tests for restart flows. The new `emp-runtime`
+      CLI exposes `summary`, `run`, `ingest-once`, and `restart` subcommands that
+      wrap `RuntimeApplication`, handle signal-aware shutdowns/timeouts, and let
+      operators rehearse restart cycles without bespoke scripts; pytest covers JSON
+      summaries, trading suppression, and restart sequencing to keep the contract
+      locked in CI.【F:src/runtime/cli.py†L1-L258】【F:tests/runtime/test_runtime_cli.py†L1-L88】
+- [x] Replace ad-hoc event loops in FIX adapters with supervised task factories so
+      FIX sensory, broker, and drop-copy workers register with the runtime
+      `TaskSupervisor` and exit cleanly; pytest now asserts supervisor tracking in
+      the pilot, drop-copy, and professional runtime suites.
 - [ ] Rebuild `RiskManager` to honor leverage, exposure, and drawdown limits with
       deterministic pytest coverage and updated operator guides.
-- [ ] Deliver structured logging, metrics, and health checks for the runtime
+- [x] Deliver structured logging, metrics, and health checks for the runtime
       builder, FIX bridges, and orchestrators; record steady-state expectations in
-      the runbook.
+      the runbook. Structured logging now flows through `configure_structured_logging`
+      and the runtime builder extras (`RUNTIME_LOG_STRUCTURED`, `RUNTIME_LOG_LEVEL`,
+      `RUNTIME_LOG_CONTEXT`) so operators can enable JSON logs without code
+      changes.【F:src/observability/logging.py†L1-L122】【F:src/runtime/runtime_builder.py†L1838-L1877】【F:tests/observability/test_logging.py†L1-L74】【F:tests/runtime/test_runtime_builder.py†L600-L676】
 
 **Later**
 
@@ -556,8 +808,12 @@ configuration.
       drift is caught immediately.
 - [ ] Introduce configuration-as-code or policy-versioning workflows once risk
       enforcement stabilizes.
-- [ ] Capture audit trails for runtime configuration changes and integrate them
-      with SBOM/policy reporting as part of the compliance toolkit.
+- [x] Capture audit trails for runtime configuration changes and integrate them
+      with SBOM/policy reporting as part of the compliance toolkit. The new
+      configuration audit module grades run-mode, tier, and credential shifts,
+      publishes `telemetry.runtime.configuration`, and stores markdown snapshots
+      on the professional runtime while Timescale persistence keeps a durable
+      journal for audits.【F:src/operations/configuration_audit.py†L1-L308】【F:src/runtime/runtime_builder.py†L1-L260】【F:src/runtime/predator_app.py†L1-L400】【F:src/data_foundation/persist/timescale.py†L1-L2150】【F:tests/operations/test_configuration_audit.py†L1-L94】【F:tests/data_foundation/test_timescale_configuration_journal.py†L1-L47】【F:tests/runtime/test_professional_app_timescale.py†L1-L200】
 
 **Risks & watchpoints**
 

@@ -48,12 +48,14 @@ class MarketAnalyzer(ThinkingPattern):
         try:
             # Perform performance analysis
             performance_result = self.performance_analyzer.analyze_performance(
-                [], initial_capital=100000.0  # Empty trade history for signal-based analysis
+                [],
+                initial_capital=100000.0,  # Empty trade history for signal-based analysis
             )
 
             # Perform risk analysis
             risk_result = self.risk_analyzer.analyze_risk(
-                [], market_data=None  # Empty trade history for signal-based analysis
+                [],
+                market_data=None,  # Empty trade history for signal-based analysis
             )
 
             # Combine analysis results

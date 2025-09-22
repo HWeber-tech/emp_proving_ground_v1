@@ -97,9 +97,7 @@ class VisionAlignmentReport:
                 "readiness": round(readiness, 3),
                 "status": summary_status,
                 "layers_ready": sum(1 for layer in layers if layer.status() == "ready"),
-                "layers_progressing": sum(
-                    1 for layer in layers if layer.status() == "progressing"
-                ),
+                "layers_progressing": sum(1 for layer in layers if layer.status() == "progressing"),
             },
             "layers": [layer.as_payload() for layer in layers],
             "strengths": strengths,
@@ -265,7 +263,9 @@ class VisionAlignmentReport:
             gaps.append("Enable adaptive fusion diagnostics")
 
         evidence = {
-            "adaptive_weights": dict(adaptive_weights) if isinstance(adaptive_weights, Mapping) else {},
+            "adaptive_weights": dict(adaptive_weights)
+            if isinstance(adaptive_weights, Mapping)
+            else {},
             "pattern_count": pattern_count,
         }
         if isinstance(diagnostics, Mapping):
@@ -305,9 +305,7 @@ class VisionAlignmentReport:
 
         coverage = 0.35
         strengths: list[str] = []
-        gaps: list[str] = [
-            "Wire evolutionary telemetry into governance reports"
-        ]
+        gaps: list[str] = ["Wire evolutionary telemetry into governance reports"]
 
         if orchestrator is None:
             coverage = 0.3
@@ -343,16 +341,18 @@ class VisionAlignmentReport:
         evidence: dict[str, Any] = {}
 
         risk_gateway = getattr(trading_manager, "risk_gateway", None) if trading_manager else None
-        portfolio_monitor = getattr(trading_manager, "portfolio_monitor", None) if trading_manager else None
-        execution_engine = getattr(trading_manager, "execution_engine", None) if trading_manager else None
+        portfolio_monitor = (
+            getattr(trading_manager, "portfolio_monitor", None) if trading_manager else None
+        )
+        execution_engine = (
+            getattr(trading_manager, "execution_engine", None) if trading_manager else None
+        )
 
         if risk_gateway is not None:
             coverage += 0.25
             strengths.append("risk gateway enforcing encyclopedia limits")
             limits = (
-                risk_gateway.get_risk_limits()
-                if hasattr(risk_gateway, "get_risk_limits")
-                else None
+                risk_gateway.get_risk_limits() if hasattr(risk_gateway, "get_risk_limits") else None
             )
             if isinstance(limits, Mapping):
                 evidence["risk_limits"] = limits
@@ -409,4 +409,3 @@ class VisionAlignmentReport:
                     seen.add(item)
                     unique.append(item)
         return unique
-

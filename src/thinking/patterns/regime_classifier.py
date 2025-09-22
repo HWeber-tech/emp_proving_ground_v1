@@ -5,6 +5,7 @@ EMP Regime Classifier v1.1
 Market regime classification and detection for the thinking layer.
 Migrated from sensory layer to thinking layer where cognitive functions belong.
 """
+
 from __future__ import annotations
 
 import logging

@@ -25,8 +25,10 @@ except Exception:  # pragma: no cover
     # Provide tiny runtime stubs to avoid rebinding type names to None
     class PopulationManager:  # type: ignore[no-redef]
         def __init__(self, *args: object, **kwargs: object) -> None: ...
+
     class SensoryOrgan:  # type: ignore[no-redef]
         def __init__(self, *args: object, **kwargs: object) -> None: ...
+
     class RiskManager:  # type: ignore[no-redef]
         def __init__(self, *args: object, **kwargs: object) -> None: ...
 

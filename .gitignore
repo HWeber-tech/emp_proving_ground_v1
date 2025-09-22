@@ -97,6 +97,7 @@ Thumbs.db
 # Project specific
 tests/.telemetry/*
 !tests/.telemetry/flake_runs.json
+!tests/.telemetry/ci_metrics.json
 data/
 experiments/
 logs/

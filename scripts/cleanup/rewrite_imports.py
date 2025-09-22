@@ -82,15 +82,15 @@ class MappingIndex:
 @dataclass
 class FileEdit:
     start_line: int  # 1-based inclusive
-    end_line: int    # 1-based inclusive
-    new_text: str    # text to replace the [start_line-1:end_line] block
+    end_line: int  # 1-based inclusive
+    new_text: str  # text to replace the [start_line-1:end_line] block
 
 
 @dataclass
 class Summary:
     changed_files: List[str]
     per_mapping_hits: Dict[int, int]
-    unresolved_star_imports: List[str]          # messages "file:line module"
+    unresolved_star_imports: List[str]  # messages "file:line module"
     unresolved_legacy_plain_imports: List[str]  # messages "file:line module"
     warnings: List[str]
 
@@ -200,7 +200,9 @@ def build_mapping_index(mapping: Dict[str, Any]) -> MappingIndex:
                 # Prefer first-declared wildcard if duplicates exist
                 star_by_source.setdefault(src, entry)
 
-    return MappingIndex(by_source=by_source, star_by_source=star_by_source, all_sources=all_sources, entries=entries)
+    return MappingIndex(
+        by_source=by_source, star_by_source=star_by_source, all_sources=all_sources, entries=entries
+    )
 
 
 def should_skip_dir(dirname: str, include_docs: bool) -> bool:
@@ -292,9 +294,7 @@ def analyze_and_rewrite_file(
         )
         return None, [], unresolved_star_warnings, unresolved_plain_warnings, general_warnings
     except Exception as ex:
-        general_warnings.append(
-            f"[WARN] Failed to parse AST for {rel_to_repo(file_path)}: {ex}"
-        )
+        general_warnings.append(f"[WARN] Failed to parse AST for {rel_to_repo(file_path)}: {ex}")
         return None, [], unresolved_star_warnings, unresolved_plain_warnings, general_warnings
 
     lines = original_text.splitlines(keepends=True)
@@ -338,11 +338,15 @@ def analyze_and_rewrite_file(
                     )
                     per_mapping_hits[star_entry.id] = per_mapping_hits.get(star_entry.id, 0) + 1
                     if verbose:
-                        print(f"[REWRITE] {loc_label(node)}: from {module_name} import * -> from {star_entry.target_module} import *")
+                        print(
+                            f"[REWRITE] {loc_label(node)}: from {module_name} import * -> from {star_entry.target_module} import *"
+                        )
                 else:
                     # Warn only when star-import targets a legacy module per mapping sources
                     if is_legacy_module(module_name):
-                        unresolved_star_warnings.append(f"{loc_label(node)} star-import from legacy module '{module_name}'")
+                        unresolved_star_warnings.append(
+                            f"{loc_label(node)} star-import from legacy module '{module_name}'"
+                        )
                 continue
 
             # Symbol imports
@@ -368,7 +372,9 @@ def analyze_and_rewrite_file(
                     new_name = a.name
                     asname = a.asname
                     grouped.setdefault(wildcard_entry.target_module, []).append((new_name, asname))
-                per_mapping_hits[wildcard_entry.id] = per_mapping_hits.get(wildcard_entry.id, 0) + len(node.names)
+                per_mapping_hits[wildcard_entry.id] = per_mapping_hits.get(
+                    wildcard_entry.id, 0
+                ) + len(node.names)
                 changed = True
             else:
                 # Symbol-level mappings
@@ -445,8 +451,10 @@ def analyze_and_rewrite_file(
                     per_mapping_hits[star_entry.id] = per_mapping_hits.get(star_entry.id, 0) + 1
                     any_changed = True
                     if verbose:
-                        print(f"[REWRITE] {rel_to_repo(file_path)}:{node.lineno} import {mod}{' as '+asname if asname else ''} "
-                              f"-> import {star_entry.target_module}{' as '+asname if asname else ''}")
+                        print(
+                            f"[REWRITE] {rel_to_repo(file_path)}:{node.lineno} import {mod}{' as ' + asname if asname else ''} "
+                            f"-> import {star_entry.target_module}{' as ' + asname if asname else ''}"
+                        )
                 else:
                     # If there is any mapping for this module but not wildcard, warn (symbol-level mapping)
                     if mod in index.by_source and mod not in index.star_by_source:
@@ -495,7 +503,13 @@ def analyze_and_rewrite_file(
         # No effective change in content
         return None, [], unresolved_star_warnings, unresolved_plain_warnings, general_warnings
 
-    return new_text, edits_sorted, unresolved_star_warnings, unresolved_plain_warnings, general_warnings
+    return (
+        new_text,
+        edits_sorted,
+        unresolved_star_warnings,
+        unresolved_plain_warnings,
+        general_warnings,
+    )
 
 
 def iter_python_files(root: str, include_docs: bool, excludes: Sequence[str]) -> Iterable[str]:
@@ -582,15 +596,44 @@ def main() -> int:
     parser = argparse.ArgumentParser(
         description="Automated AST-based import rewrite tool. See module docstring for behavior details."
     )
-    parser.add_argument("--root", default=DEFAULT_ROOT, help="Root directory to search (default: src)")
-    parser.add_argument("--map", dest="map_path", default=DEFAULT_MAP, help="Path to mapping file (default: docs/development/import_rewrite_map.yaml)")
-    parser.add_argument("--dry-run", action="store_true", help="Don't write changes; print intended edits and summary")
-    parser.add_argument("--strict", action="store_true", help="Fail (non-zero) if unresolved legacy imports/star-imports remain")
-    parser.add_argument("--exclude", action="append", default=[], help="Glob pattern to exclude (repeatable)")
-    parser.add_argument("--include-docs", action="store_true", help="Include docs/**/*.py (code examples) in the search")
+    parser.add_argument(
+        "--root", default=DEFAULT_ROOT, help="Root directory to search (default: src)"
+    )
+    parser.add_argument(
+        "--map",
+        dest="map_path",
+        default=DEFAULT_MAP,
+        help="Path to mapping file (default: docs/development/import_rewrite_map.yaml)",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Don't write changes; print intended edits and summary",
+    )
+    parser.add_argument(
+        "--strict",
+        action="store_true",
+        help="Fail (non-zero) if unresolved legacy imports/star-imports remain",
+    )
+    parser.add_argument(
+        "--exclude", action="append", default=[], help="Glob pattern to exclude (repeatable)"
+    )
+    parser.add_argument(
+        "--include-docs",
+        action="store_true",
+        help="Include docs/**/*.py (code examples) in the search",
+    )
     backup_group = parser.add_mutually_exclusive_group()
-    backup_group.add_argument("--backup", dest="backup", action="store_true", default=True, help="Create .orig backups (default)")
-    backup_group.add_argument("--no-backup", dest="backup", action="store_false", help="Disable .orig backups")
+    backup_group.add_argument(
+        "--backup",
+        dest="backup",
+        action="store_true",
+        default=True,
+        help="Create .orig backups (default)",
+    )
+    backup_group.add_argument(
+        "--no-backup", dest="backup", action="store_false", help="Disable .orig backups"
+    )
     parser.add_argument("--verbose", action="store_true", help="Print per-file details")
 
     args = parser.parse_args()
@@ -607,13 +650,15 @@ def main() -> int:
     # Iterate files
     files_iter = list(iter_python_files(args.root, args.include_docs, args.exclude))
     for fpath in files_iter:
-        new_text, edits, unresolved_star_w, unresolved_plain_w, general_w = analyze_and_rewrite_file(
-            fpath,
-            index,
-            per_mapping_hits,
-            args.strict,
-            args.exclude,
-            args.verbose,
+        new_text, edits, unresolved_star_w, unresolved_plain_w, general_w = (
+            analyze_and_rewrite_file(
+                fpath,
+                index,
+                per_mapping_hits,
+                args.strict,
+                args.exclude,
+                args.verbose,
+            )
         )
         unresolved_star.extend(unresolved_star_w)
         unresolved_plain.extend(unresolved_plain_w)
@@ -630,7 +675,7 @@ def main() -> int:
             for ed in edits:
                 print(
                     f"  - Replace lines {ed.start_line}-{ed.end_line} with:\n"
-                    + "\n".join(f"    {ln}" for ln in ed.new_text.rstrip('\n').split('\n'))
+                    + "\n".join(f"    {ln}" for ln in ed.new_text.rstrip("\n").split("\n"))
                 )
         else:
             try:

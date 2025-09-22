@@ -10,7 +10,7 @@ import os
 import sys
 
 # Add src to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from src.governance.system_config import SystemConfig
 from src.trading.integration.fix_broker_interface import FIXBrokerInterface
@@ -18,6 +18,7 @@ from src.trading.integration.fix_broker_interface import FIXBrokerInterface
 
 class DummyInitiator:
     """Dummy initiator that captures messages instead of sending to broker."""
+
     def __init__(self):
         self.sent_messages = []
 
@@ -54,9 +55,9 @@ async def main(symbol: str = "EURUSD", side: str = "BUY", qty: float = 0.01) -> 
 
     # Simulate an execution report (fill)
     exec_report = {
-        35: b"8",        # ExecutionReport
+        35: b"8",  # ExecutionReport
         11: order_id.encode("utf-8"),
-        150: b"F",       # ExecType=Fill
+        150: b"F",  # ExecType=Fill
     }
     await trade_queue.put(exec_report)
 
@@ -79,6 +80,3 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         print("Interrupted")
         sys.exit(1)
-
-
-

@@ -5,6 +5,7 @@ Memory Profiler
 
 Profiles memory usage for Phase 2 validation.
 """
+
 from __future__ import annotations
 
 import gc

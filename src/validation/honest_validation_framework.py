@@ -28,6 +28,7 @@ from src.core.regime import NoOpRegimeClassifier, RegimeClassifier, RegimeResult
 if TYPE_CHECKING:
     from src.core.interfaces import DecisionGenome as DecisionGenome  # noqa: F401
 else:
+
     class DecisionGenome:
         pass
 

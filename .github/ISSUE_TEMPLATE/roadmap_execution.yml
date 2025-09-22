@@ -1,0 +1,76 @@
+name: "Roadmap execution ticket"
+description: "Translate a roadmap/alignment brief outcome into an executable change."
+title: "[Stream] <concise outcome>"
+labels:
+  - roadmap
+  - execution
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ### Context checklist
+        Reference the concept excerpt, alignment brief, and roadmap bullet that drive this work. Keep the narrative tightly coupled so reviewers inherit the same context.
+  - type: textarea
+    id: concept
+    attributes:
+      label: Concept excerpt / promise
+      description: "Quote or link the relevant section from EMP_ENCYCLOPEDIA_v2.3_CANONICAL.md (or companion briefs) that this ticket advances."
+      placeholder: "`EMP_ENCYCLOPEDIA_v2.3_CANONICAL.md#<section>` — excerpt + intent"
+      render: markdown
+    validations:
+      required: true
+  - type: textarea
+    id: reality_gap
+    attributes:
+      label: Reality snapshot / evidence of gap
+      description: "Link to code, telemetry, or validation artefacts that show the gap still exists."
+      placeholder: "`src/...` line references, failing tests, dashboards, logs"
+    validations:
+      required: true
+  - type: dropdown
+    id: alignment_brief
+    attributes:
+      label: Alignment brief
+      description: "Which context pack anchors the acceptance criteria?"
+      options:
+        - docs/context/alignment_briefs/institutional_data_backbone.md
+        - docs/context/alignment_briefs/<other>
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Desired outcome / Definition of Done
+      description: "Describe the concrete behaviour change, including telemetry, documentation, and runbook deliverables."
+      placeholder: "• Code paths touched\n• Tests / validation hooks\n• Telemetry updates"
+    validations:
+      required: true
+  - type: textarea
+    id: validation
+    attributes:
+      label: Validation plan
+      description: "List the tests, notebooks, dashboards, or drills required to declare this ticket done."
+      placeholder: "pytest …, notebooks, CI dashboards"
+    validations:
+      required: true
+  - type: textarea
+    id: telemetry
+    attributes:
+      label: Telemetry / observability impact
+      description: "Call out metrics, alerts, and dashboards to create or update."
+      placeholder: "Timescale ingest freshness, Redis hit ratio, Kafka lag, etc."
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Dependencies & sequencing
+      description: "List upstream/downstream tickets, feature flags, and coordination points."
+  - type: checkboxes
+    id: review
+    attributes:
+      label: Ready for execution checklist
+      options:
+        - label: Concept excerpt copied into the ticket
+          required: true
+        - label: Validation hooks enumerated and owned
+          required: true
+        - label: Telemetry / runbook updates accounted for

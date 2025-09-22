@@ -39,7 +39,9 @@ async def main() -> int:
         try:
             msg = await asyncio.wait_for(price_q.get(), timeout=0.25)
             now = datetime.utcnow()
-            print(f"[MD] {now.isoformat()} type={msg.get(35)} entries={len(msg.get('entries', []))}")
+            print(
+                f"[MD] {now.isoformat()} type={msg.get(35)} entries={len(msg.get('entries', []))}"
+            )
             last = now
         except Exception:
             await asyncio.sleep(0.05)
@@ -48,5 +50,3 @@ async def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(asyncio.run(main()))
-
-

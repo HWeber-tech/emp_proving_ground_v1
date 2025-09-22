@@ -163,10 +163,18 @@ class RealPortfolioMonitor:
                     position.size,
                     position.entry_price,
                     position.current_price,
-                    getattr(position.status, "value", position.status if position.status is not None else "OPEN"),
+                    getattr(
+                        position.status,
+                        "value",
+                        position.status if position.status is not None else "OPEN",
+                    ),
                     position.stop_loss,
                     position.take_profit,
-                    (position.entry_time.isoformat() if isinstance(position.entry_time, datetime) else datetime.now().isoformat()),
+                    (
+                        position.entry_time.isoformat()
+                        if isinstance(position.entry_time, datetime)
+                        else datetime.now().isoformat()
+                    ),
                     position.realized_pnl,
                     position.unrealized_pnl,
                 ),
@@ -346,7 +354,6 @@ class RealPortfolioMonitor:
         except Exception as e:
             logger.error(f"Error storing snapshot: {e}")
 
-
     @staticmethod
     def _make_performance_metrics(
         *,
@@ -387,7 +394,7 @@ class RealPortfolioMonitor:
             end_date=now,
             last_updated=now,
         )
-    
+
     def get_performance_metrics(self) -> PerformanceMetrics:
         """Calculate performance metrics"""
         try:

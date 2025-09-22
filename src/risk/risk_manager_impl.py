@@ -15,15 +15,18 @@ import asyncio
 
 from src.core.types import JSONObject
 from src.core.interfaces import RiskManager as RiskManagerProtocol
+from src.config.risk.risk_config import RiskConfig
 from src.risk.real_risk_manager import RealRiskManager, RealRiskConfig
 
 logger = logging.getLogger(__name__)
 
 __all__ = ["RiskManagerImpl", "PositionEntry"]
 
+
 def _to_float(v: float | Decimal) -> float:
     """Coerce float|Decimal to float at API boundaries."""
     return float(v)
+
 
 class PositionEntry(TypedDict):
     symbol: NotRequired[str]  # stored in dict key; optional here
@@ -31,16 +34,21 @@ class PositionEntry(TypedDict):
     entry_price: float
     entry_time: datetime
     current_price: NotRequired[float]
+    stop_loss_pct: NotRequired[float]
+
 
 class PositionInput(TypedDict):
     symbol: str
     size: float | Decimal
     entry_price: float | Decimal
+    stop_loss_pct: NotRequired[float | Decimal]
+
 
 class SignalInput(TypedDict):
     symbol: str
     confidence: float
     stop_loss_pct: float | Decimal
+
 
 class RiskManagerImpl(RiskManagerProtocol):
     """
@@ -49,18 +57,32 @@ class RiskManagerImpl(RiskManagerProtocol):
     to the canonical RealRiskManager where applicable.
     """
 
-    def __init__(self, initial_balance: float | Decimal = 10000.0) -> None:
+    def __init__(
+        self,
+        initial_balance: float | Decimal = 10000.0,
+        risk_config: RiskConfig | None = None,
+    ) -> None:
         """
         Initialize the risk manager with configuration.
 
         Args:
             initial_balance: Starting account balance
+            risk_config: Optional canonical risk configuration overrides
         """
         initial_balance_float = _to_float(initial_balance)
 
+        self._risk_config = risk_config or RiskConfig()
+
+        self._min_position_size = float(self._risk_config.min_position_size)
+        self._max_position_size = float(self._risk_config.max_position_size)
+        self._mandatory_stop_loss = bool(self._risk_config.mandatory_stop_loss)
+        self._research_mode = bool(self._risk_config.research_mode)
+
         self.config = RealRiskConfig(
-            max_position_risk=0.02,  # 2% max risk per position
-            max_drawdown=0.25,       # 25% max drawdown
+            max_position_risk=float(self._risk_config.max_risk_per_trade_pct),
+            max_total_exposure=float(self._risk_config.max_total_exposure_pct),
+            max_drawdown=float(self._risk_config.max_drawdown_pct),
+            max_leverage=float(self._risk_config.max_leverage),
             equity=initial_balance_float,
         )
 
@@ -71,7 +93,7 @@ class RiskManagerImpl(RiskManagerProtocol):
         self.account_balance: float = initial_balance_float
         self.peak_balance: float = self.account_balance
         # Risk per trade constant used across validation and sizing routines.
-        self._risk_per_trade: float = 0.02
+        self._risk_per_trade: float = float(self._risk_config.max_risk_per_trade_pct)
         # Drawdown multiplier throttles exposure during recoveries (1.0 == full risk).
         self._drawdown_multiplier: float = 1.0
 
@@ -103,6 +125,31 @@ class RiskManagerImpl(RiskManagerProtocol):
         baseline_risk = min(self._risk_per_trade, self.config.max_position_risk)
         return self.account_balance * baseline_risk * self._drawdown_multiplier
 
+    def _resolve_position_price(self, entry: PositionEntry) -> float:
+        """Resolve the current price for a tracked position."""
+
+        current = entry.get("current_price")
+        if current is not None:
+            resolved = _to_float(current)
+            if resolved > 0:
+                return resolved
+        return max(0.0, _to_float(entry.get("entry_price", 0.0)))
+
+    def _resolve_position_stop_loss(self, entry: PositionEntry) -> float:
+        """Resolve the effective stop-loss percentage for a tracked position."""
+
+        raw = entry.get("stop_loss_pct", self._risk_per_trade)
+        resolved = _to_float(raw)
+        return resolved if resolved > 0 else self._risk_per_trade
+
+    def _compute_position_risk(self, entry: PositionEntry) -> float:
+        """Compute risk exposure for a stored position."""
+
+        price = self._resolve_position_price(entry)
+        stop_loss = self._resolve_position_stop_loss(entry)
+        size = entry.get("size", 0.0)
+        return max(0.0, _to_float(size)) * price * stop_loss
+
     async def validate_position(self, position: PositionInput) -> bool:
         """
         Validate if position meets risk criteria.
@@ -117,6 +164,8 @@ class RiskManagerImpl(RiskManagerProtocol):
             symbol = position.get("symbol", "")
             size = _to_float(position.get("size", 0.0))
             entry_price = _to_float(position.get("entry_price", 0.0))
+            raw_stop_loss = position.get("stop_loss_pct")
+            stop_loss_pct = _to_float(raw_stop_loss) if raw_stop_loss is not None else 0.0
 
             # Validate basic parameters
             if size <= 0:
@@ -127,11 +176,53 @@ class RiskManagerImpl(RiskManagerProtocol):
                 logger.warning(f"Invalid entry price: {entry_price}")
                 return False
 
+            if size < self._min_position_size:
+                logger.warning(
+                    "Position below configured minimum size: %s < %s",
+                    size,
+                    self._min_position_size,
+                )
+                return False
+
+            if size > self._max_position_size:
+                logger.warning(
+                    "Position exceeds configured maximum size: %s > %s",
+                    size,
+                    self._max_position_size,
+                )
+                return False
+
+            if self._mandatory_stop_loss and not self._research_mode and stop_loss_pct <= 0:
+                logger.warning("Stop loss missing while mandatory stop losses enabled")
+                return False
+
+            effective_stop_loss = stop_loss_pct if stop_loss_pct > 0 else self._risk_per_trade
+
             # Basic risk check: risk per trade capped by config
-            risk_amount = size * self._risk_per_trade
+            risk_amount = size * entry_price * effective_stop_loss
             max_allowed_risk = self._compute_risk_budget()
 
+            if max_allowed_risk <= 0:
+                logger.warning("Risk budget unavailable; rejecting position for %s", symbol)
+                return False
+
             is_valid = risk_amount <= max_allowed_risk
+
+            # Evaluate aggregate exposure impact when within local budget.
+            if is_valid:
+                projected_risk: Dict[str, float] = {
+                    sym: self._compute_position_risk(pos) for sym, pos in self.positions.items()
+                }
+                projected_risk[symbol] = projected_risk.get(symbol, 0.0) + risk_amount
+                aggregate_risk = self.risk_manager.assess_risk(projected_risk)
+                if aggregate_risk > 1.0:
+                    snapshot = self.risk_manager.last_snapshot
+                    logger.warning(
+                        "Position rejected due to aggregate risk breach: %s (snapshot=%s)",
+                        symbol,
+                        snapshot,
+                    )
+                    return False
 
             if is_valid:
                 logger.info(f"Position validated: {symbol} size={size}")
@@ -158,7 +249,7 @@ class RiskManagerImpl(RiskManagerProtocol):
             # Extract signal parameters
             symbol = signal.get("symbol", "")
             confidence = float(signal.get("confidence", 0.5))
-            stop_loss_pct = _to_float(signal.get("stop_loss_pct", 0.05))
+            stop_loss_pct = max(_to_float(signal.get("stop_loss_pct", 0.05)), 1e-9)
 
             # Calculate win rate based on confidence
             win_rate = max(0.1, min(0.9, confidence))
@@ -172,14 +263,22 @@ class RiskManagerImpl(RiskManagerProtocol):
             kelly_fraction = max(0.0, min(1.0, win_rate - (1.0 - win_rate) / b))
 
             risk_budget = self._compute_risk_budget()
-            position_size = risk_budget / max(stop_loss_pct, 1e-9)
+            position_size = risk_budget / stop_loss_pct
 
             # Apply Kelly fraction
             final_size = position_size * kelly_fraction
 
-            logger.info(f"Calculated position size: {symbol} size={final_size:.2f}")
+            # Enforce configured boundaries.
+            bounded_size = max(self._min_position_size, min(self._max_position_size, final_size))
 
-            return max(1000.0, final_size)
+            logger.info(
+                "Calculated position size: %s size=%.2f (bounded to %.2f)",
+                symbol,
+                final_size,
+                bounded_size,
+            )
+
+            return max(self._min_position_size, bounded_size)
 
         except Exception as e:
             logger.error(f"Error calculating position size: {e}")
@@ -203,7 +302,13 @@ class RiskManagerImpl(RiskManagerProtocol):
             self._drawdown_multiplier,
         )
 
-    def add_position(self, symbol: str, size: float | Decimal, entry_price: float | Decimal) -> None:
+    def add_position(
+        self,
+        symbol: str,
+        size: float | Decimal,
+        entry_price: float | Decimal,
+        stop_loss_pct: float | Decimal | None = None,
+    ) -> None:
         """
         Add a new position to track.
 
@@ -211,12 +316,20 @@ class RiskManagerImpl(RiskManagerProtocol):
             symbol: Trading symbol
             size: Position size
             entry_price: Entry price
+            stop_loss_pct: Optional configured stop loss for aggregate risk checks
         """
-        self.positions[symbol] = {
+        entry: PositionEntry = {
             "size": _to_float(size),
             "entry_price": _to_float(entry_price),
             "entry_time": datetime.now(),
         }
+
+        if stop_loss_pct is not None:
+            entry["stop_loss_pct"] = max(0.0, _to_float(stop_loss_pct))
+        else:
+            entry["stop_loss_pct"] = self._risk_per_trade
+
+        self.positions[symbol] = entry
 
         logger.info(f"Position added: {symbol} size={size} price={entry_price}")
 
@@ -239,8 +352,8 @@ class RiskManagerImpl(RiskManagerProtocol):
             JSON object with current risk metrics
         """
         # Delegate to RealRiskManager for a portfolio-level assessment (if any)
-        positions_sizes = {s: p["size"] for s, p in self.positions.items()}
-        assessed_risk = self.risk_manager.assess_risk(positions_sizes)
+        risk_map = {s: self._compute_position_risk(p) for s, p in self.positions.items()}
+        assessed_risk = self.risk_manager.assess_risk(risk_map)
 
         summary: JSONObject = {
             "account_balance": self.account_balance,
@@ -259,9 +372,11 @@ class RiskManagerImpl(RiskManagerProtocol):
             JSON object with portfolio risk metrics
         """
         total_size = sum(p["size"] for p in self.positions.values())
-        # Simple aggregate: 2% risk per position size
-        total_risk_amount = sum(p["size"] * 0.02 for p in self.positions.values())
-        assessed_risk = self.risk_manager.assess_risk({s: p["size"] for s, p in self.positions.items()})
+        projected_risk = {
+            sym: self._compute_position_risk(pos) for sym, pos in self.positions.items()
+        }
+        total_risk_amount = sum(projected_risk.values())
+        assessed_risk = self.risk_manager.assess_risk(projected_risk)
 
         return {
             "total_size": total_size,
@@ -290,7 +405,7 @@ class RiskManagerImpl(RiskManagerProtocol):
             "size": position["size"],
             "entry_price": position["entry_price"],
             "current_price": current_price,
-            "risk_amount": position["size"] * 0.02,  # 2% risk
+            "risk_amount": self._compute_position_risk(position),
         }
 
     # Protocol-compliant methods (src.core.interfaces.RiskManager)
@@ -316,10 +431,43 @@ class RiskManagerImpl(RiskManagerProtocol):
 
     def update_limits(self, limits: Mapping[str, object]) -> None:
         # Accept float|Decimal, coerce using _to_float
-        if "max_position_risk" in limits:
-            self.config.max_position_risk = _to_float(limits["max_position_risk"])  # type: ignore[arg-type]
+        if "max_position_risk" in limits or "max_risk_per_trade_pct" in limits:
+            candidate = limits.get("max_risk_per_trade_pct", limits.get("max_position_risk", 0.0))
+            resolved = max(0.0, _to_float(candidate))
+            if resolved > 0:
+                self._risk_per_trade = resolved
+                self.config.max_position_risk = resolved
+
         if "max_drawdown" in limits:
-            self.config.max_drawdown = _to_float(limits["max_drawdown"])  # type: ignore[arg-type]
+            drawdown = max(0.0, _to_float(limits["max_drawdown"]))
+            self.config.max_drawdown = drawdown
+            if drawdown > 0:
+                self.config.max_total_exposure = drawdown
+
+        if "max_total_exposure_pct" in limits:
+            total_exposure = max(0.0, _to_float(limits["max_total_exposure_pct"]))
+            if total_exposure > 0:
+                self.config.max_total_exposure = total_exposure
+                self.config.max_drawdown = total_exposure
+
+        if "max_leverage" in limits:
+            leverage = max(0.0, _to_float(limits["max_leverage"]))
+            if leverage > 0:
+                self.config.max_leverage = leverage
+
+        if "min_position_size" in limits:
+            self._min_position_size = max(0.0, _to_float(limits["min_position_size"]))
+
+        if "max_position_size" in limits:
+            candidate_max = max(0.0, _to_float(limits["max_position_size"]))
+            self._max_position_size = max(candidate_max, self._min_position_size)
+
+        if "mandatory_stop_loss" in limits:
+            self._mandatory_stop_loss = bool(limits["mandatory_stop_loss"])
+
+        if "research_mode" in limits:
+            self._research_mode = bool(limits["research_mode"])
+
         self._recompute_drawdown_multiplier()
 
 
@@ -336,7 +484,9 @@ def create_risk_manager(initial_balance: float | Decimal = 10000.0) -> RiskManag
     """
     return RiskManagerImpl(initial_balance)
 
+
 if __name__ == "__main__":
+
     async def main() -> None:
         # Test the implementation
         print("Testing RiskManagerImpl...")
@@ -348,6 +498,7 @@ if __name__ == "__main__":
             "symbol": "EURUSD",
             "size": 10000.0,
             "entry_price": 1.1000,
+            "stop_loss_pct": 0.02,
         }
 
         is_valid = await risk_manager.validate_position(position)

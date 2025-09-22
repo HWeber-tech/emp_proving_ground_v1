@@ -7,6 +7,7 @@ from typing import Any, Dict
 
 import pytest
 
+from src.config.risk.risk_config import RiskConfig
 from src.risk.risk_manager_impl import RiskManagerImpl
 
 
@@ -30,10 +31,10 @@ async def test_validate_position_enforces_max_risk() -> None:
     manager = RiskManagerImpl(initial_balance=5_000)
 
     within_limits = await manager.validate_position(
-        {"symbol": "EURUSD", "size": 4_000, "entry_price": 1.1}
+        {"symbol": "EURUSD", "size": 4_000, "entry_price": 1.1, "stop_loss_pct": 0.02}
     )
     breaching_limits = await manager.validate_position(
-        {"symbol": "EURUSD", "size": 6_000, "entry_price": 1.1}
+        {"symbol": "EURUSD", "size": 6_000, "entry_price": 1.1, "stop_loss_pct": 0.02}
     )
 
     assert within_limits is True
@@ -100,6 +101,64 @@ def test_update_limits_accepts_decimal_inputs() -> None:
 
     assert manager.config.max_position_risk == pytest.approx(0.05)
     assert manager.config.max_drawdown == pytest.approx(0.4)
+    assert manager.config.max_total_exposure == pytest.approx(0.4)
+
+
+@pytest.mark.asyncio
+async def test_validate_position_requires_stop_loss() -> None:
+    manager = RiskManagerImpl(initial_balance=10_000)
+
+    result = await manager.validate_position(
+        {"symbol": "EURUSD", "size": 2_000, "entry_price": 1.1}
+    )
+
+    assert result is False
+
+
+@pytest.mark.asyncio
+async def test_validate_position_allows_research_mode_without_stop_loss() -> None:
+    config = RiskConfig(research_mode=True)
+    manager = RiskManagerImpl(initial_balance=10_000, risk_config=config)
+
+    result = await manager.validate_position(
+        {"symbol": "EURUSD", "size": 2_000, "entry_price": 1.1}
+    )
+
+    assert result is True
+
+
+@pytest.mark.asyncio
+async def test_validate_position_rejects_total_exposure_breach() -> None:
+    config = RiskConfig(
+        max_total_exposure_pct=Decimal("0.003"),
+        max_drawdown_pct=Decimal("0.003"),
+        max_risk_per_trade_pct=Decimal("0.01"),
+        min_position_size=500,
+        max_position_size=200_000,
+    )
+    manager = RiskManagerImpl(initial_balance=100_000, risk_config=config)
+    manager.add_position("EURUSD", 9_000, 1.1, stop_loss_pct=0.02)
+
+    allowed = await manager.validate_position(
+        {"symbol": "EURUSD", "size": 500, "entry_price": 1.1, "stop_loss_pct": 0.02}
+    )
+    rejected = await manager.validate_position(
+        {"symbol": "EURUSD", "size": 6_000, "entry_price": 1.1, "stop_loss_pct": 0.02}
+    )
+
+    assert allowed is True
+    assert rejected is False
+
+
+@pytest.mark.asyncio
+async def test_calculate_position_size_respects_maximums() -> None:
+    config = RiskConfig(max_position_size=5_000, min_position_size=1_000)
+    manager = RiskManagerImpl(initial_balance=100_000, risk_config=config)
+    signal = {"symbol": "EURUSD", "confidence": 0.9, "stop_loss_pct": 0.01}
+
+    size = await manager.calculate_position_size(signal)
+
+    assert size == pytest.approx(5_000.0)
 
 
 def test_evaluate_portfolio_risk_converts_values(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -132,7 +191,7 @@ def test_get_risk_summary_reports_positions(monkeypatch: pytest.MonkeyPatch) -> 
     assert summary["account_balance"] == pytest.approx(10_000.0)
     assert summary["positions"] == pytest.approx(1.0)
     assert summary["tracked_positions"] == ["EURUSD"]
-    assert summary["assessed_risk"] == {"total": 1_000.0}
+    assert summary["assessed_risk"] == {"total": 24.0}
 
 
 def test_calculate_portfolio_risk_aggregates_and_delegates(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -147,8 +206,8 @@ def test_calculate_portfolio_risk_aggregates_and_delegates(monkeypatch: pytest.M
     snapshot = manager.calculate_portfolio_risk()
 
     assert snapshot["total_size"] == pytest.approx(2_000.0)
-    assert snapshot["risk_amount"] == pytest.approx(40.0)  # 2% of each position size aggregated
-    assert snapshot["assessed_risk"] == pytest.approx(200.0)
+    assert snapshot["risk_amount"] == pytest.approx(45.0)
+    assert snapshot["assessed_risk"] == pytest.approx(4.5)
 
 
 def test_calculate_portfolio_risk_uses_real_risk_manager_defaults() -> None:
@@ -157,8 +216,9 @@ def test_calculate_portfolio_risk_uses_real_risk_manager_defaults() -> None:
 
     snapshot = manager.calculate_portfolio_risk()
 
-    # RealRiskManager should surface the per-position breach (1000 vs 200 budget).
-    assert snapshot["assessed_risk"] == pytest.approx(5.0)
+    # RealRiskManager should surface the per-position utilisation of the configured budgets.
+    assert snapshot["risk_amount"] == pytest.approx(22.0)
+    assert snapshot["assessed_risk"] == pytest.approx(0.11, rel=1e-6)
 
 
 def test_get_position_risk_handles_unknown_symbol() -> None:
@@ -178,7 +238,7 @@ def test_get_position_risk_reports_tracked_position() -> None:
     assert metrics["size"] == pytest.approx(1_000.0)
     assert metrics["entry_price"] == pytest.approx(1.1)
     assert metrics["current_price"] == pytest.approx(1.3)
-    assert metrics["risk_amount"] == pytest.approx(20.0)
+    assert metrics["risk_amount"] == pytest.approx(26.0)
 
 
 def test_propose_rebalance_returns_copy() -> None:

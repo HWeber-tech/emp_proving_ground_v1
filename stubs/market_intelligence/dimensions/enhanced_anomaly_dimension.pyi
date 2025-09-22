@@ -6,4 +6,6 @@ from typing import Any, Dict, Iterable
 # Do NOT import from src.* here to prevent duplicate module path detection.
 
 class AnomalyIntelligenceEngine:
-    def analyze_anomaly_intelligence(self, series: list[float] | Iterable[float] | None) -> Dict[str, Any]: ...
+    def analyze_anomaly_intelligence(
+        self, series: list[float] | Iterable[float] | None
+    ) -> Dict[str, Any]: ...

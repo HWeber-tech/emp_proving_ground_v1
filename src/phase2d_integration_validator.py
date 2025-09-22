@@ -40,9 +40,15 @@ class Phase2DIntegrationValidatorLegacy:
 
     def __init__(self) -> None:
         adapters = compose_validation_adapters()
-        self.market_data: MarketDataGateway = adapters.get("market_data_gateway", NoOpMarketDataGateway())
-        self.anomaly_detector: AnomalyDetector = adapters.get("anomaly_detector", NoOpAnomalyDetector())
-        self.regime_classifier: RegimeClassifier = adapters.get("regime_classifier", NoOpRegimeClassifier())
+        self.market_data: MarketDataGateway = adapters.get(
+            "market_data_gateway", NoOpMarketDataGateway()
+        )
+        self.anomaly_detector: AnomalyDetector = adapters.get(
+            "anomaly_detector", NoOpAnomalyDetector()
+        )
+        self.regime_classifier: RegimeClassifier = adapters.get(
+            "regime_classifier", NoOpRegimeClassifier()
+        )
         self.risk_manager: RiskManagerPort = adapters.get("risk_manager", NoOpRiskManager())
         self._modern = ModernPhase2DIntegrationValidator(
             market_data_gateway=self.market_data,
@@ -95,7 +101,11 @@ class Phase2DIntegrationValidatorLegacy:
         try:
             results = await self._modern.run_all_tests()
             # Ensure final summary exists
-            if not any(r.get("test_name") == "phase2d_integration_summary" for r in results if isinstance(r, dict)):
+            if not any(
+                r.get("test_name") == "phase2d_integration_summary"
+                for r in results
+                if isinstance(r, dict)
+            ):
                 passed_count = sum(1 for r in results if isinstance(r, dict) and r.get("passed"))
                 total_count = len([r for r in results if isinstance(r, dict) and "test_name" in r])
                 results.append(
@@ -140,7 +150,14 @@ async def main() -> int:
     except Exception:
         pass
 
-    summary = next((r for r in results if isinstance(r, dict) and r.get("test_name") == "phase2d_integration_summary"), None)
+    summary = next(
+        (
+            r
+            for r in results
+            if isinstance(r, dict) and r.get("test_name") == "phase2d_integration_summary"
+        ),
+        None,
+    )
     ok = bool(summary and summary.get("passed"))
     return 0 if ok else 1
 

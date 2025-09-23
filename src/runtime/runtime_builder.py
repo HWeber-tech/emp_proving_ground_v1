@@ -17,7 +17,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 from collections.abc import Mapping as MappingABC
-from typing import Awaitable, Callable, Mapping, MutableMapping, Sequence, cast
+from typing import Any, Awaitable, Callable, Mapping, MutableMapping, Sequence, cast
 from uuid import uuid4
 
 from src.core.event_bus import Event, EventBus, get_global_bus
@@ -55,6 +55,7 @@ from src.data_foundation.ingest.recovery import (
 )
 from src.data_foundation.ingest.scheduler import IngestSchedulerState, TimescaleIngestScheduler
 from src.data_foundation.ingest.scheduler_telemetry import (
+    IngestSchedulerSnapshot,
     build_scheduler_snapshot,
     publish_scheduler_snapshot,
 )

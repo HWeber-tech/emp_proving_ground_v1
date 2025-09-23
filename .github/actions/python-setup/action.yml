@@ -1,20 +1,75 @@
 name: Python setup
-description: Setup Python 3.11 with pip cache and install dev dependencies.
+description: Setup Python with cached virtualenv and configurable dependency groups.
+inputs:
+  python-version:
+    description: Python version to install.
+    default: '3.11'
+  requirements:
+    description: Primary requirements file to install.
+    default: requirements/dev.txt
+  extra-requirements:
+    description: >-
+      Additional requirements files to install (newline separated). Leave blank to
+      install only the primary requirements file.
+    required: false
 runs:
   using: composite
   steps:
     - name: Checkout
       uses: actions/checkout@v4
     - name: Setup Python
+      id: setup-python
       uses: actions/setup-python@v5
       with:
-        python-version: '3.11'
+        python-version: ${{ inputs.python-version }}
         cache: pip
         cache-dependency-path: |
-          requirements/base.txt
-          requirements/dev.txt
-    - name: Install dev dependencies
+          ${{ inputs.requirements }}
+          ${{ inputs.extra-requirements }}
+    - name: Compute requirements hash
+      id: requirements-hash
       shell: bash
       run: |
         set -euo pipefail
-        pip install -r requirements/dev.txt
+
+        mapfile -t files < <(printf '%s\n' "${{ inputs.requirements }}" "${{ inputs.extra-requirements }}" | sed '/^\s*$/d')
+
+        if [ "${#files[@]}" -eq 0 ]; then
+          echo "::error ::No requirements files supplied to python-setup action." >&2
+          exit 1
+        fi
+
+        for file in "${files[@]}"; do
+          if [ ! -f "$file" ]; then
+            echo "::error ::Requirements file '$file' not found." >&2
+            exit 1
+          fi
+        done
+
+        hash=$(cat "${files[@]}" | sha256sum | cut -d' ' -f1)
+        echo "files=${files[*]}" >>"$GITHUB_OUTPUT"
+        echo "hash=${hash}" >>"$GITHUB_OUTPUT"
+    - name: Restore virtualenv
+      id: cache-venv
+      uses: actions/cache@v4
+      with:
+        path: .venv
+        key: venv-${{ runner.os }}-py${{ steps.setup-python.outputs.python-version }}-${{ steps.requirements-hash.outputs.hash }}
+    - name: Install dependencies
+      if: steps.cache-venv.outputs.cache-hit != 'true'
+      shell: bash
+      run: |
+        set -euo pipefail
+        python -m venv .venv
+        source .venv/bin/activate
+        python -m pip install --upgrade pip
+
+        while IFS= read -r req; do
+          if [ -n "$req" ]; then
+            pip install -r "$req"
+          fi
+        done < <(printf '%s\n' "${{ inputs.requirements }}" "${{ inputs.extra-requirements }}" | sed '/^\s*$/d')
+    - name: Activate virtualenv
+      shell: bash
+      run: |
+        echo "${{ github.workspace }}/.venv/bin" >> "$GITHUB_PATH"

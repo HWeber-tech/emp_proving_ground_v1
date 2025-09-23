@@ -2,26 +2,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 SCANNER="${SCRIPT_DIR}/check_forbidden_integrations.py"
-CODEX_TOOL="${REPO_ROOT}/codex/assess-technical-debt-in-ci-workflows"
-
-try_codex_scan() {
-  if [[ -x "${CODEX_TOOL}" ]]; then
-    exec "${CODEX_TOOL}" "$@"
-  fi
-
-  # Some setups inject a random suffix into the codex helper path. Honour that
-  # convention by checking for the longest matching executable before giving up.
-  shopt -s nullglob
-  local candidates=("${CODEX_TOOL}"*)
-  shopt -u nullglob
-  for candidate in "${candidates[@]}"; do
-    if [[ -x "${candidate}" ]]; then
-      exec "${candidate}" "$@"
-    fi
-  done
-}
 
 resolve_python() {
   local candidate="$1"
@@ -31,10 +12,11 @@ resolve_python() {
 
   local resolved=""
   if [[ "$candidate" == */* ]]; then
-    if [[ ! -f "$candidate" || ! -x "$candidate" ]]; then
+    if [[ -f "$candidate" && -x "$candidate" ]]; then
+      resolved="$candidate"
+    else
       return 1
     fi
-    resolved="$candidate"
   else
     resolved="$(command -v "$candidate" 2>/dev/null || true)"
     if [[ -z "$resolved" ]]; then
@@ -42,14 +24,15 @@ resolve_python() {
     fi
   fi
 
-  if ! "$resolved" -V >/dev/null 2>&1; then
-    return 1
+  if "$resolved" -V >/dev/null 2>&1; then
+    printf '%s\n' "$resolved"
+    return 0
   fi
 
-  printf '%s\n' "$resolved"
+  return 1
 }
 
-try_python_scan() {
+run_python_scan() {
   local python_candidates=()
   if [[ -n "${PYTHON:-}" ]]; then
     python_candidates+=("${PYTHON}")
@@ -62,6 +45,7 @@ try_python_scan() {
     if [[ -n "$resolved" ]]; then
       exec "$resolved" "$SCANNER" "$@"
     fi
+
     if [[ -n "${PYTHON:-}" && "$candidate" == "${PYTHON}" ]]; then
       echo "Ignoring invalid \$PYTHON override '${PYTHON}'." >&2
     fi
@@ -74,5 +58,4 @@ EOWARN
   exit 1
 }
 
-try_codex_scan "$@"
-try_python_scan "$@"
+run_python_scan "$@"

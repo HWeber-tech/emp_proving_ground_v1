@@ -3,6 +3,28 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCANNER="${SCRIPT_DIR}/check_forbidden_integrations.py"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+
+invoke_codex_wrapper() {
+  shopt -s nullglob
+  local wrappers=(
+    "${REPO_ROOT}/codex/assess-technical-debt-in-ci-workflows"
+    "${REPO_ROOT}/codex/assess-technical-debt-in-ci-workflows-"*
+  )
+  shopt -u nullglob
+
+  local wrapper=""
+  for candidate in "${wrappers[@]}"; do
+    if [[ -f "$candidate" && -x "$candidate" ]]; then
+      wrapper="$candidate"
+      break
+    fi
+  done
+
+  if [[ -n "$wrapper" ]]; then
+    exec "$wrapper" "$SCANNER" "$@"
+  fi
+}
 
 resolve_python() {
   local candidate="$1"
@@ -58,4 +80,5 @@ EOWARN
   exit 1
 }
 
+invoke_codex_wrapper "$@"
 run_python_scan "$@"

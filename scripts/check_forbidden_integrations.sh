@@ -2,6 +2,9 @@
 set -euo pipefail
 
  codex/assess-technical-debt-in-ci-workflows
+
+ codex/assess-technical-debt-in-ci-workflows
+ main
 FORBIDDEN_REGEX='(?i)(ctrader[-_]?open[-_]?api|ctraderapi\\.com|connect\\.icmarkets\\.com|ctrader_open_api|swagger|spotware|real_ctrader_interface|from\\s+fastapi|import\\s+fastapi|import\\s+uvicorn)'
 
 resolve_python() {
@@ -12,24 +15,118 @@ resolve_python() {
     return 1
   fi
 
+ codex/assess-technical-debt-in-ci-workflows
+  # Direct paths (contain a slash) must point to an executable file.
+  if [[ "$candidate" == */* ]]; then
+    if [ -x "$candidate" ] && [ ! -d "$candidate" ]; then
+
   # Direct path (includes slash) must exist, be executable, and not be a directory.
   if [ -x "$candidate" ] && [ ! -d "$candidate" ]; then
     if "$candidate" -V >/dev/null 2>&1; then
+ main
       printf '%s' "$candidate"
       return 0
     fi
     return 1
   fi
 
+ codex/assess-technical-debt-in-ci-workflows
+  # Otherwise resolve through PATH.
+  if resolved=$(command -v "$candidate" 2>/dev/null); then
+    if [ -x "$resolved" ] && [ ! -d "$resolved" ]; then
+
   # Otherwise, attempt PATH resolution.
   if command -v "$candidate" >/dev/null 2>&1; then
     resolved=$(command -v "$candidate") || return 1
     if [ -x "$resolved" ] && [ ! -d "$resolved" ] && "$resolved" -V >/dev/null 2>&1; then
+ main
       printf '%s' "$resolved"
       return 0
     fi
   fi
 
+  return 1
+}
+
+ codex/assess-technical-debt-in-ci-workflows
+try_python_scan() {
+  local candidate="$1"
+  shift
+  local resolved
+  local output
+
+  resolved=$(resolve_python "$candidate") || return 1
+  RESOLVED_PYTHON="$resolved"
+
+  if output=$("$resolved" - "$@" <<'PY' 2>&1
+import re
+import sys
+from pathlib import Path
+
+
+pattern = re.compile(sys.argv[1])
+targets = sys.argv[2:]
+
+extensions = {
+    ".py",
+    ".pyi",
+    ".ipynb",
+    ".sh",
+    ".txt",
+    ".toml",
+    ".cfg",
+    ".ini",
+    ".yml",
+    ".yaml",
+    ".md",
+    ".mdx",
+    ".rst",
+}
+
+root = Path.cwd()
+matches = []
+
+
+def iter_files(base: Path):
+    if base.is_file():
+        yield base
+        return
+    for candidate in base.rglob("*"):
+        if candidate.is_file():
+            yield candidate
+
+
+for target in targets:
+    base = Path(target)
+    if not base.exists():
+        continue
+    for candidate in iter_files(base):
+        if candidate.suffix.lower() not in extensions:
+            continue
+        try:
+            text_stream = candidate.open("r", encoding="utf-8", errors="ignore")
+        except OSError:
+            continue
+        with text_stream as handle:
+            for lineno, line in enumerate(handle, start=1):
+                if pattern.search(line):
+                    try:
+                        rel_path = candidate.resolve().relative_to(root)
+                    except ValueError:
+                        rel_path = candidate
+                    matches.append(f"{rel_path.as_posix()}:{lineno}:{line.rstrip()}".rstrip())
+
+if matches:
+    sys.stdout.write("\n".join(matches))
+PY
+  ); then
+    SCAN_RESULT="$output"
+    SCAN_ERROR=""
+    return 0
+  fi
+
+  SCAN_RESULT=""
+  SCAN_ERROR="$output"
   return 1
 }
 
@@ -40,6 +137,7 @@ FORBIDDEN_REGEX='(?i)(ctrader[-_]?open[-_]?api|ctraderapi\\.com|connect\\.icmark
 FORBIDDEN_REGEX='(?i)(ctrader[-_]?open[-_]?api|ctraderapi\\.com|connect\\.icmarkets\\.com|ctrader_open_api|swagger|spotware|real_ctrader_interface|from\\s+fastapi|import\\s+fastapi|import\\s+uvicorn)'
 
 FORBIDDEN_REGEX='(ctrader_open_api|swagger|spotware|real_ctrader_interface|from\\s+fastapi|import\\s+fastapi|import\\s+uvicorn)'
+ main
  main
  main
  main
@@ -72,26 +170,62 @@ echo "Scanning ${EXISTING_TARGETS[*]} for forbidden integrations..."
  codex/assess-technical-debt-in-ci-workflows
 PYTHON_BIN=""
 PYTHON_CANDIDATE=${PYTHON:-}
+RESOLVED_PYTHON=""
+SCAN_RESULT=""
+SCAN_ERROR=""
+
+if [ -n "$PYTHON_CANDIDATE" ]; then
+  if try_python_scan "$PYTHON_CANDIDATE" "$FORBIDDEN_REGEX" "${EXISTING_TARGETS[@]}"; then
+    PYTHON_BIN="$RESOLVED_PYTHON"
+    MATCHES="$SCAN_RESULT"
+  else
+    echo "The specified \$PYTHON ('$PYTHON_CANDIDATE') could not execute the forbidden integration scan; falling back to auto-detection." >&2
+    if [ -n "$SCAN_ERROR" ]; then
+      while IFS= read -r line; do
+        printf '    %s\n' "$line" >&2
+      done <<<"$SCAN_ERROR"
+    fi
+
+ codex/assess-technical-debt-in-ci-workflows
+PYTHON_BIN=""
+PYTHON_CANDIDATE=${PYTHON:-}
 
 if [ -n "$PYTHON_CANDIDATE" ]; then
   if resolved=$(resolve_python "$PYTHON_CANDIDATE"); then
     PYTHON_BIN="$resolved"
   else
     echo "The specified \$PYTHON ('$PYTHON_CANDIDATE') is not an executable Python interpreter; falling back to auto-detection." >&2
+ main
   fi
 fi
 
 if [ -z "$PYTHON_BIN" ]; then
+ codex/assess-technical-debt-in-ci-workflows
+  for fallback in python3 python3.12 python3.11 python3.10 python; do
+    if try_python_scan "$fallback" "$FORBIDDEN_REGEX" "${EXISTING_TARGETS[@]}"; then
+      PYTHON_BIN="$RESOLVED_PYTHON"
+      MATCHES="$SCAN_RESULT"
+
   for fallback in python3 python; do
     if resolved=$(resolve_python "$fallback"); then
       PYTHON_BIN="$resolved"
+ main
       break
     fi
   done
 fi
 
 if [ -z "$PYTHON_BIN" ]; then
+ codex/assess-technical-debt-in-ci-workflows
+  echo "Unable to locate a functional Python interpreter. Install Python 3 (or set \$PYTHON) to run the forbidden integration check." >&2
+  if [ -n "$SCAN_ERROR" ]; then
+    while IFS= read -r line; do
+      printf '    %s\n' "$line" >&2
+    done <<<"$SCAN_ERROR"
+  fi
+
   echo "Unable to locate a Python interpreter. Install Python 3 (or set \$PYTHON) to run the forbidden integration check." >&2
+ main
   exit 1
 
  codex/assess-technical-debt-in-ci-workflows-h53fj9
@@ -372,6 +506,29 @@ if matches:
     sys.stdout.write("\n".join(matches))
 PY
 )
+
+ALLOWLIST_PATTERNS=(
+  '^scripts/check_forbidden_integrations.sh:'
+  '^scripts/phase1_deduplication.py:'
+)
+
+if [ -n "$MATCHES" ]; then
+  FILTERED_MATCHES="$MATCHES"
+  for pattern in "${ALLOWLIST_PATTERNS[@]}"; do
+    FILTERED_MATCHES=$(printf '%s\n' "$FILTERED_MATCHES" | grep -Ev "$pattern" || true)
+  done
+
+  if [ -n "$FILTERED_MATCHES" ]; then
+    echo "Forbidden references detected:" >&2
+    echo "$FILTERED_MATCHES" >&2
+    exit 1
+  fi
+
+  echo "All detected references are allow-listed." >&2
+  exit 0
+fi
+
+MATCHES="$SCAN_RESULT"
 
 ALLOWLIST_PATTERNS=(
   '^scripts/check_forbidden_integrations.sh:'

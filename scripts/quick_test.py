@@ -1,48 +1,28 @@
 #!/usr/bin/env python3
-"""
-Quick verification of the microstructure tool
-"""
+"""Stub notifier for the retired OpenAPI tooling quick check."""
 
-import importlib.util
-import os
+from __future__ import annotations
 
-print("Testing Microstructure Verification Tool Structure...")
+import sys
+from textwrap import dedent
 
-# Check files exist
-files_to_check = ["scripts/verify_microstructure.py", "docs/v4_reality_check_report.md"]
 
-all_exist = True
-for file_path in files_to_check:
-    if os.path.exists(file_path):
-        print(f"✅ {file_path} exists")
-    else:
-        print(f"❌ {file_path} missing")
-        all_exist = False
+MESSAGE = dedent(
+    """
+    The quick-test harness for the OpenAPI tooling has been removed. The project
+    enforces a FIX-only policy and no longer bundles the legacy verifier or its
+    documentation set.
 
-# Test imports availability without importing modules (avoids F401)
-if importlib.util.find_spec("pandas") is not None:
-    print("✅ pandas available")
-else:
-    print("❌ pandas not available")
-    all_exist = False
+    Use the FIX smoke tests and verification scripts described in
+    docs/policies/integration_policy.md instead.
+    """
+)
 
-if importlib.util.find_spec("argparse") is not None:
-    print("✅ argparse available")
-else:
-    print("❌ argparse not available")
-    all_exist = False
 
-if importlib.util.find_spec("dotenv") is not None:
-    print("✅ dotenv available")
-else:
-    print("❌ dotenv not available")
-    all_exist = False
+def main() -> int:
+    sys.stderr.write(MESSAGE)
+    return 1
 
-if all_exist:
-    print("\n🎉 Tool structure verified successfully!")
-    print("\n📋 Ready to use:")
-    print("   1. Set up .env file with cTrader credentials")
-    print("   2. Run: python scripts/verify_microstructure.py")
-    print("   3. Check docs/v4_reality_check_report.md for results")
-else:
-    print("\n💥 Some components missing")
+
+if __name__ == "__main__":
+    raise SystemExit(main())

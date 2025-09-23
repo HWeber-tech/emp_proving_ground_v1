@@ -1,43 +1,40 @@
-# Dead code audit – 2025-09-22 10:45 UTC
+# Dead code audit – 2025-09-17 14:18 UTC
 
 *Generated via `vulture src tests --min-confidence 80 --sort-by-size`.*
 
 ## Summary
 
-- **Total candidates**: 21
+- **Total candidates**: 5
 - **Command exit status**: vulture exited with status 3; review stderr below.
-- **By symbol type**: 21 variable(s)
-- **Top modules**: `src.operational.metrics_registry` (3), `tests.observability.test_logging` (3), `tests.runtime.test_runtime_cli` (3), `src.runtime.predator_app` (2), `tests.tools.test_data_backbone_export` (2)
+- **By symbol type**: 5 variable(s)
+- **Top modules**: `src.operational.metrics_registry` (3), `src.core.interfaces.base` (1), `src.risk.risk_manager_impl` (1)
 
 ## Top candidates
 
 | Confidence | Size | Type | Module | Object | Line |
 | --- | --- | --- | --- | --- | --- |
 | 100 | 1 | variable | src.core.interfaces.base | constraints | 76 |
-| 100 | 1 | variable | src.data_foundation.streaming.kafka_stream | request_timeout | 427 |
+| 100 | 1 | variable | src.operational.metrics_registry | documentation | 66 |
 | 100 | 1 | variable | src.operational.metrics_registry | documentation | 69 |
 | 100 | 1 | variable | src.operational.metrics_registry | documentation | 75 |
-| 100 | 1 | variable | src.operational.metrics_registry | documentation | 83 |
-| 100 | 1 | variable | src.risk.risk_manager_impl | constraints | 427 |
-| 100 | 1 | variable | src.runtime.predator_app | exc_type | 250 |
-| 100 | 1 | variable | src.runtime.predator_app | tb | 250 |
-| 100 | 1 | variable | tests.data_foundation.test_kafka_stream | request_timeout | 153 |
-| 100 | 1 | variable | tests.observability.test_logging | reset_logging | 38 |
-| 100 | 1 | variable | tests.observability.test_logging | reset_logging | 61 |
-| 100 | 1 | variable | tests.observability.test_logging | reset_logging | 76 |
-| 100 | 1 | variable | tests.runtime.test_runtime_cli | cli_env | 29 |
-| 100 | 1 | variable | tests.runtime.test_runtime_cli | cli_env | 51 |
-| 100 | 1 | variable | tests.runtime.test_runtime_cli | cli_env | 68 |
-| 100 | 1 | variable | tests.tools.test_data_backbone_export | exc_type | 17 |
-| 100 | 1 | variable | tests.tools.test_data_backbone_export | tb | 17 |
-| 100 | 1 | variable | tests.tools.test_operational_export | exc_type | 19 |
-| 100 | 1 | variable | tests.tools.test_operational_export | tb | 19 |
-| 100 | 1 | variable | tests.tools.test_risk_compliance_export | exc_type | 17 |
+| 100 | 1 | variable | src.risk.risk_manager_impl | constraints | 272 |
 
 ## Observations
 
 - Vulture heuristics can report false positives, especially for dynamic imports, registry lookups, or symbols referenced exclusively via strings.
 - Review candidates with module owners before deleting code; prioritize entries with high confidence, large size, and no associated tests.
+
+## Triage notes – 2025-09-22
+
+- `src.core.interfaces.base:RiskManager.propose_rebalance(constraints)` – parameter name kept for clarity;
+  Protocol definition mirrors concrete implementations that expect the keyword.
+- `src.operational.metrics_registry.CounterCtor/GaugeCtor/HistogramCtor` – `documentation` argument is required by the Prometheus
+  constructors and retained; tracked as a known false positive in the audit log to keep future scans focused on real issues.
+- `src.risk.risk_manager_impl.RiskManagerImpl.propose_rebalance(constraints)` – parameter preserved to match the public port even
+  though the current adapter performs a no-op rebalance.
+- Removed historical false positives: unused `_nn` type import in
+  `src/intelligence/portfolio_evolution.py` and the unused `parity_module`
+  import in `tests/current/test_parity_checker.py` (see Git history for details).
 
 ## Next steps
 

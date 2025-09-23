@@ -1,4 +1,7 @@
-"""Dependency installation script with compatibility fixes."""
+#!/usr/bin/env python3
+"""
+Dependency installation script with compatibility fixes.
+"""
 
 import subprocess
 import sys
@@ -69,10 +72,9 @@ def main():
             print(f"Warning: Failed to install {dep}, continuing...")
 
     print("\n✅ Dependency installation completed!")
-    print(
-        "\nReminder: The OpenAPI toolchain has been removed. Review the FIX setup "
-        "guides in docs/fix_api/ for the supported runtime dependencies."
-    )
+    print("\nNote: cTrader API needs manual installation:")
+    print("1. Download from: https://ctrader.com/developers/api")
+    print("2. Install the downloaded wheel file manually")
 
 
 if __name__ == "__main__":

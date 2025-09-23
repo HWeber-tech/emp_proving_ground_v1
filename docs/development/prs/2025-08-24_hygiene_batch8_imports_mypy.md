@@ -63,7 +63,7 @@ Batch8 fix1 validations are green; import rewrites have been applied per the map
   - import-linter -c [contracts/importlinter.ini](contracts/importlinter.ini:1)
 
 - Policy scan (preflight):
-  - ./scripts/check_forbidden_integrations.sh
+  - grep -RniE '(ctrader_open_api|swagger|spotware|real_ctrader_interface|from[[:space:]]+fastapi|import[[:space:]]+fastapi|import[[:space:]]+uvicorn)' -- src tests/current || true
 
 ## CI expectations
 

@@ -24,7 +24,10 @@ class MarketDataDeduplicator:
         # Files known to contain MarketData classes
         files_to_backup = [
             "src/trading/models.py",
-            "src/trading/integration/fix_broker_interface.py",
+            "src/trading/mock_ctrader_interface.py",
+            "src/trading/integration/real_ctrader_interface.py",
+            "src/trading/integration/mock_ctrader_interface.py",
+            "src/trading/integration/ctrader_interface.py",
             "src/sensory/core/base.py",
             "src/data.py",
             "src/core/events.py",
@@ -115,10 +118,13 @@ class MarketDataDeduplicator:
 The following files were updated to use the unified MarketData class:
 
 1. **src/trading/models.py** - Removed duplicate MarketData class
-2. **src/trading/integration/fix_broker_interface.py** - Removed duplicate MarketData class
-3. **src/sensory/core/base.py** - Removed duplicate MarketData class
-4. **src/data.py** - Removed duplicate MarketData class
-5. **src/core/events.py** - Removed duplicate MarketData class
+2. **src/trading/mock_ctrader_interface.py** - Removed duplicate MarketData class
+3. **src/trading/integration/real_ctrader_interface.py** - Removed duplicate MarketData class
+4. **src/trading/integration/mock_ctrader_interface.py** - Removed duplicate MarketData class
+5. **src/trading/integration/ctrader_interface.py** - Removed duplicate MarketData class
+6. **src/sensory/core/base.py** - Removed duplicate MarketData class
+7. **src/data.py** - Removed duplicate MarketData class
+8. **src/core/events.py** - Removed duplicate MarketData class
 
 ## Migration Steps
 1. ✅ Created unified MarketData class in src/core/market_data.py
@@ -153,7 +159,10 @@ cp backup/phase1_deduplication/backup_{self.timestamp}/* src/
         # Files to process
         files_to_process = [
             "src/trading/models.py",
-            "src/trading/integration/fix_broker_interface.py",
+            "src/trading/mock_ctrader_interface.py",
+            "src/trading/integration/real_ctrader_interface.py",
+            "src/trading/integration/mock_ctrader_interface.py",
+            "src/trading/integration/ctrader_interface.py",
             "src/sensory/core/base.py",
             "src/data.py",
             "src/core/events.py",

@@ -55,6 +55,7 @@ from src.data_foundation.ingest.recovery import (
 )
 from src.data_foundation.ingest.scheduler import IngestSchedulerState, TimescaleIngestScheduler
 from src.data_foundation.ingest.scheduler_telemetry import (
+    IngestSchedulerSnapshot,
     build_scheduler_snapshot,
     publish_scheduler_snapshot,
 )

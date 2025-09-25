@@ -1,9 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Simple, fully-local forbidden integration guard. We intentionally avoid
-# delegating to the legacy codex wrapper because that helper is not present in
-# this repository and attempting to execute it triggers exit 127 failures in CI.
+LEGACY_WRAPPER="codex/assess-technical-debt-in-ci-workflows"
+
+if command -v "$LEGACY_WRAPPER" >/dev/null 2>&1; then
+  exec "$LEGACY_WRAPPER" check-forbidden-integrations "$@"
+elif [ -x "$LEGACY_WRAPPER" ]; then
+  exec "$LEGACY_WRAPPER" check-forbidden-integrations "$@"
+fi
+
 FORBIDDEN_REGEX='(ctrader_open_api|swagger|spotware|real_ctrader_interface|from[[:space:]]+fastapi|import[[:space:]]+fastapi|import[[:space:]]+uvicorn)'
 
 if [ "$#" -gt 0 ]; then

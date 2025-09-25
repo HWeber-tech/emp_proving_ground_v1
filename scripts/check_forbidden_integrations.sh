@@ -1,6 +1,17 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+ codex/assess-technical-debt-in-ci-workflows-mf1u4y
+LEGACY_WRAPPER="codex/assess-technical-debt-in-ci-workflows"
+
+if command -v "$LEGACY_WRAPPER" >/dev/null 2>&1; then
+  exec "$LEGACY_WRAPPER" check-forbidden-integrations "$@"
+elif [ -x "$LEGACY_WRAPPER" ]; then
+  exec "$LEGACY_WRAPPER" check-forbidden-integrations "$@"
+fi
+
+FORBIDDEN_REGEX='(ctrader_open_api|swagger|spotware|real_ctrader_interface|from[[:space:]]+fastapi|import[[:space:]]+fastapi|import[[:space:]]+uvicorn)'
+
  codex/assess-technical-debt-in-ci-workflows
 # Some CI harnesses inject a bogus $PYTHON override that points at a
 # non-existent codex helper. Trying to execute the missing file produces a
@@ -168,6 +179,7 @@ FORBIDDEN_REGEX='(?i)(ctrader[-_]?open[-_]?api|ctraderapi\\.com|connect\\.icmark
 FORBIDDEN_REGEX='(?i)(ctrader[-_]?open[-_]?api|ctraderapi\\.com|connect\\.icmarkets\\.com|ctrader_open_api|swagger|spotware|real_ctrader_interface|from\\s+fastapi|import\\s+fastapi|import\\s+uvicorn)'
 
 FORBIDDEN_REGEX='(ctrader_open_api|swagger|spotware|real_ctrader_interface|from\\s+fastapi|import\\s+fastapi|import\\s+uvicorn)'
+ main
  main
  main
  main

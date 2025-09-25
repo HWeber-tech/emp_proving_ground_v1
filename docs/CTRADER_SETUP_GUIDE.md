@@ -20,6 +20,11 @@ OpenAPI tooling is still supported.
 The legacy text intentionally remains absent to avoid suggesting that the
 OpenAPI tooling is still supported.
 
+ codex/assess-technical-debt-in-ci-workflows
+
+The legacy text intentionally remains absent to avoid suggesting that the
+OpenAPI tooling is still supported.
+
  codex/assess-technical-debt-in-ci-workflows-h53fj9
 
 The legacy text intentionally remains absent to avoid suggesting that the
@@ -219,6 +224,7 @@ For API-specific issues:
 For tool-specific issues:
 - Check logs in `logs/microstructure_verification.log`
 - Enable debug logging: `LOG_LEVEL=DEBUG python scripts/verify_microstructure.py`
+ main
  main
  main
  main

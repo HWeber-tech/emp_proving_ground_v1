@@ -2,8 +2,22 @@
 set -euo pipefail
 
  codex/assess-technical-debt-in-ci-workflows
+# Some CI harnesses inject a bogus $PYTHON override that points at a
+# non-existent codex helper. Trying to execute the missing file produces a
+# confusing "command not found" error before we have a chance to fall back to a
+# real interpreter. Guard against this by clearing the override when it refers
+# to a path that is not present so the resolver can progress to the usual
+# detection logic.
+if [[ -n "${PYTHON:-}" && "${PYTHON}" == */* && ! -e "${PYTHON}" ]]; then
+  echo "Ignoring missing \$PYTHON override '${PYTHON}'." >&2
+  unset PYTHON
+fi
+
 
  codex/assess-technical-debt-in-ci-workflows
+
+ codex/assess-technical-debt-in-ci-workflows
+ main
  main
 FORBIDDEN_REGEX='(?i)(ctrader[-_]?open[-_]?api|ctraderapi\\.com|connect\\.icmarkets\\.com|ctrader_open_api|swagger|spotware|real_ctrader_interface|from\\s+fastapi|import\\s+fastapi|import\\s+uvicorn)'
 
@@ -20,9 +34,15 @@ resolve_python() {
   if [[ "$candidate" == */* ]]; then
     if [ -x "$candidate" ] && [ ! -d "$candidate" ]; then
 
+ codex/assess-technical-debt-in-ci-workflows
+  # Direct paths (contain a slash) must point to an executable file.
+  if [[ "$candidate" == */* ]]; then
+    if [ -x "$candidate" ] && [ ! -d "$candidate" ]; then
+
   # Direct path (includes slash) must exist, be executable, and not be a directory.
   if [ -x "$candidate" ] && [ ! -d "$candidate" ]; then
     if "$candidate" -V >/dev/null 2>&1; then
+ main
  main
       printf '%s' "$candidate"
       return 0
@@ -35,10 +55,16 @@ resolve_python() {
   if resolved=$(command -v "$candidate" 2>/dev/null); then
     if [ -x "$resolved" ] && [ ! -d "$resolved" ]; then
 
+ codex/assess-technical-debt-in-ci-workflows
+  # Otherwise resolve through PATH.
+  if resolved=$(command -v "$candidate" 2>/dev/null); then
+    if [ -x "$resolved" ] && [ ! -d "$resolved" ]; then
+
   # Otherwise, attempt PATH resolution.
   if command -v "$candidate" >/dev/null 2>&1; then
     resolved=$(command -v "$candidate") || return 1
     if [ -x "$resolved" ] && [ ! -d "$resolved" ] && "$resolved" -V >/dev/null 2>&1; then
+ main
  main
       printf '%s' "$resolved"
       return 0
@@ -49,6 +75,9 @@ resolve_python() {
 }
 
  codex/assess-technical-debt-in-ci-workflows
+
+ codex/assess-technical-debt-in-ci-workflows
+ main
 try_python_scan() {
   local candidate="$1"
   shift
@@ -129,6 +158,8 @@ PY
   SCAN_ERROR="$output"
   return 1
 }
+ codex/assess-technical-debt-in-ci-workflows
+
 
  codex/assess-technical-debt-in-ci-workflows-h53fj9
 FORBIDDEN_REGEX='(?i)(ctrader[-_]?open[-_]?api|ctraderapi\\.com|connect\\.icmarkets\\.com|ctrader_open_api|swagger|spotware|real_ctrader_interface|from\\s+fastapi|import\\s+fastapi|import\\s+uvicorn)'
@@ -137,6 +168,7 @@ FORBIDDEN_REGEX='(?i)(ctrader[-_]?open[-_]?api|ctraderapi\\.com|connect\\.icmark
 FORBIDDEN_REGEX='(?i)(ctrader[-_]?open[-_]?api|ctraderapi\\.com|connect\\.icmarkets\\.com|ctrader_open_api|swagger|spotware|real_ctrader_interface|from\\s+fastapi|import\\s+fastapi|import\\s+uvicorn)'
 
 FORBIDDEN_REGEX='(ctrader_open_api|swagger|spotware|real_ctrader_interface|from\\s+fastapi|import\\s+fastapi|import\\s+uvicorn)'
+ main
  main
  main
  main
@@ -168,6 +200,9 @@ fi
 
 echo "Scanning ${EXISTING_TARGETS[*]} for forbidden integrations..."
  codex/assess-technical-debt-in-ci-workflows
+
+ codex/assess-technical-debt-in-ci-workflows
+ main
 PYTHON_BIN=""
 PYTHON_CANDIDATE=${PYTHON:-}
 RESOLVED_PYTHON=""
@@ -185,6 +220,8 @@ if [ -n "$PYTHON_CANDIDATE" ]; then
         printf '    %s\n' "$line" >&2
       done <<<"$SCAN_ERROR"
     fi
+ codex/assess-technical-debt-in-ci-workflows
+
 
  codex/assess-technical-debt-in-ci-workflows
 PYTHON_BIN=""
@@ -196,19 +233,26 @@ if [ -n "$PYTHON_CANDIDATE" ]; then
   else
     echo "The specified \$PYTHON ('$PYTHON_CANDIDATE') is not an executable Python interpreter; falling back to auto-detection." >&2
  main
+ main
   fi
 fi
 
 if [ -z "$PYTHON_BIN" ]; then
  codex/assess-technical-debt-in-ci-workflows
+
+ codex/assess-technical-debt-in-ci-workflows
+ main
   for fallback in python3 python3.12 python3.11 python3.10 python; do
     if try_python_scan "$fallback" "$FORBIDDEN_REGEX" "${EXISTING_TARGETS[@]}"; then
       PYTHON_BIN="$RESOLVED_PYTHON"
       MATCHES="$SCAN_RESULT"
+ codex/assess-technical-debt-in-ci-workflows
+
 
   for fallback in python3 python; do
     if resolved=$(resolve_python "$fallback"); then
       PYTHON_BIN="$resolved"
+ main
  main
       break
     fi
@@ -217,14 +261,20 @@ fi
 
 if [ -z "$PYTHON_BIN" ]; then
  codex/assess-technical-debt-in-ci-workflows
+
+ codex/assess-technical-debt-in-ci-workflows
+ main
   echo "Unable to locate a functional Python interpreter. Install Python 3 (or set \$PYTHON) to run the forbidden integration check." >&2
   if [ -n "$SCAN_ERROR" ]; then
     while IFS= read -r line; do
       printf '    %s\n' "$line" >&2
     done <<<"$SCAN_ERROR"
   fi
+ codex/assess-technical-debt-in-ci-workflows
+
 
   echo "Unable to locate a Python interpreter. Install Python 3 (or set \$PYTHON) to run the forbidden integration check." >&2
+ main
  main
   exit 1
 
@@ -506,6 +556,29 @@ if matches:
     sys.stdout.write("\n".join(matches))
 PY
 )
+
+ALLOWLIST_PATTERNS=(
+  '^scripts/check_forbidden_integrations.sh:'
+  '^scripts/phase1_deduplication.py:'
+)
+
+if [ -n "$MATCHES" ]; then
+  FILTERED_MATCHES="$MATCHES"
+  for pattern in "${ALLOWLIST_PATTERNS[@]}"; do
+    FILTERED_MATCHES=$(printf '%s\n' "$FILTERED_MATCHES" | grep -Ev "$pattern" || true)
+  done
+
+  if [ -n "$FILTERED_MATCHES" ]; then
+    echo "Forbidden references detected:" >&2
+    echo "$FILTERED_MATCHES" >&2
+    exit 1
+  fi
+
+  echo "All detected references are allow-listed." >&2
+  exit 0
+fi
+
+MATCHES="$SCAN_RESULT"
 
 ALLOWLIST_PATTERNS=(
   '^scripts/check_forbidden_integrations.sh:'

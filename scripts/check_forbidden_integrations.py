@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Scan the repository for forbidden integration references."""
+
 from __future__ import annotations
 
 import argparse
@@ -79,7 +80,8 @@ class Match:
 
 def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Search the repository for references to forbidden integrations.")
+        description="Search the repository for references to forbidden integrations."
+    )
     parser.add_argument(
         "targets",
         nargs="*",

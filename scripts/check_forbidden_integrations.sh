@@ -2,7 +2,20 @@
 set -euo pipefail
 
  codex/assess-technical-debt-in-ci-workflows-q81m3f
+ codex/assess-technical-debt-in-ci-workflows-q81m3f
 DEFAULT_TARGETS=(src tests/current)
+
+ codex/assess-technical-debt-in-ci-workflows-mf1u4y
+LEGACY_WRAPPER="codex/assess-technical-debt-in-ci-workflows"
+
+if command -v "$LEGACY_WRAPPER" >/dev/null 2>&1; then
+  exec "$LEGACY_WRAPPER" check-forbidden-integrations "$@"
+elif [ -x "$LEGACY_WRAPPER" ]; then
+  exec "$LEGACY_WRAPPER" check-forbidden-integrations "$@"
+fi
+
+FORBIDDEN_REGEX='(ctrader_open_api|swagger|spotware|real_ctrader_interface|from[[:space:]]+fastapi|import[[:space:]]+fastapi|import[[:space:]]+uvicorn)'
+ main
 
  codex/assess-technical-debt-in-ci-workflows
 # Some CI harnesses inject a bogus $PYTHON override that points at a

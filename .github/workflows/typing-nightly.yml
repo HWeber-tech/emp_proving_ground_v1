@@ -15,6 +15,7 @@ jobs:
   mypy:
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
       - uses: ./.github/actions/python-setup
 
       - name: Guard: disallow [tool.mypy] in pyproject.toml

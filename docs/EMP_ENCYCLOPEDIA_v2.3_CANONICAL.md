@@ -7721,8 +7721,6 @@ sudo -u ${EMP_USER} ${EMP_DIR}/venv/bin/pip install \
     yfinance \
     alpha-vantage \
     requests \
-    fastapi \
-    uvicorn \
     pydantic \
     sqlalchemy \
     duckdb \
@@ -7797,7 +7795,7 @@ Type=simple
 User=${EMP_USER}
 WorkingDirectory=${EMP_DIR}
 Environment=PATH=${EMP_DIR}/venv/bin
-ExecStart=${EMP_DIR}/venv/bin/python -m uvicorn main:app --host 0.0.0.0 --port 8000
+ExecStart=${EMP_DIR}/venv/bin/python main.py
 Restart=always
 RestartSec=10
 
@@ -7861,29 +7859,23 @@ sudo -u ${EMP_USER} crontab -l 2>/dev/null | {
 # Create main application file
 log "Creating main application file..."
 sudo -u ${EMP_USER} tee ${EMP_DIR}/main.py > /dev/null <<'EOF'
-# Note: Previous OpenAPI/FastAPI examples are deprecated in this FIX-only build.
-import uvicorn
+"""EMP Trading System bootstrap stub for FIX-only deployments."""
 
-app = FastAPI(title="EMP Trading System", version="2.3.0")
+from __future__ import annotations
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+import asyncio
+from datetime import datetime
 
-@app.get("/")
-async def root():
-    return {"message": "EMP Trading System v2.3.0", "status": "running"}
 
-@app.get("/health")
-async def health():
-    return {"status": "healthy", "version": "2.3.0"}
+async def main() -> None:
+    """Entry point placeholder until the production runtime is wired."""
+    print("EMP Trading System v2.3.0 bootstrap")
+    print(f"Started at {datetime.utcnow().isoformat()}Z")
+    print("Configure FIX components and services here when available.")
+
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    asyncio.run(main())
 EOF
 
 # Set permissions
@@ -7901,10 +7893,10 @@ sudo systemctl start emp
 log "Verifying installation..."
 sleep 5
 
-if curl -k -s https://localhost/health | grep -q "healthy"; then
-    log "✅ EMP system is running successfully!"
+if sudo systemctl is-active --quiet emp; then
+    log "✅ EMP service entered FIX bootstrap mode successfully."
 else
-    error "❌ EMP system failed to start properly"
+    error "❌ EMP service failed to reach the active state"
 fi
 
 log "🎉 EMP Tier 0 Bootstrap setup completed successfully!"

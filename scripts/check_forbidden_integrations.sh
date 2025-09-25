@@ -3,19 +3,6 @@ set -euo pipefail
 
 FORBIDDEN_REGEX='(ctrader_open_api|swagger|spotware|real_ctrader_interface|from[[:space:]]+fastapi|import[[:space:]]+fastapi|import[[:space:]]+uvicorn)'
 
-# Some historical branches still attempted to execute a helper located in a
-# "codex/assess-technical-debt-in-ci-workflows*" path before running the local
-# policy checks.  When that helper is absent (the common case in this repo), the
-# script would crash with `command not found`.  Detect the helper first and only
-# delegate when an executable exists so merges with those branches no longer
-# break the guard.
-if [ -d codex ]; then
-  if WRAPPER=$(find codex -maxdepth 1 -type f -name 'assess-technical-debt-in-ci-workflows*' -perm -u+x | head -n1); then
-    echo "Delegating forbidden integration scan to $WRAPPER" >&2
-    exec "$WRAPPER" "$@"
-  fi
-fi
-
 if [ "$#" -gt 0 ]; then
   TARGETS=("$@")
 else

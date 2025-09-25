@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+ codex/assess-technical-debt-in-ci-workflows-q81m3f
+ codex/assess-technical-debt-in-ci-workflows-q81m3f
+DEFAULT_TARGETS=(src tests/current)
+
  codex/assess-technical-debt-in-ci-workflows-mf1u4y
 LEGACY_WRAPPER="codex/assess-technical-debt-in-ci-workflows"
 
@@ -11,6 +15,7 @@ elif [ -x "$LEGACY_WRAPPER" ]; then
 fi
 
 FORBIDDEN_REGEX='(ctrader_open_api|swagger|spotware|real_ctrader_interface|from[[:space:]]+fastapi|import[[:space:]]+fastapi|import[[:space:]]+uvicorn)'
+ main
 
  codex/assess-technical-debt-in-ci-workflows
 # Some CI harnesses inject a bogus $PYTHON override that points at a
@@ -189,6 +194,9 @@ FORBIDDEN_REGEX='(ctrader_open_api|swagger|spotware|real_ctrader_interface|from\
 if [ "$#" -gt 0 ]; then
   TARGETS=("$@")
 else
+ codex/assess-technical-debt-in-ci-workflows-q81m3f
+  TARGETS=("${DEFAULT_TARGETS[@]}")
+
   TARGETS=(
     "src"
     "tests"
@@ -196,12 +204,13 @@ else
     "docs"
     "tools"
   )
+ main
 fi
 
 EXISTING_TARGETS=()
-for path in "${TARGETS[@]}"; do
-  if [ -e "$path" ]; then
-    EXISTING_TARGETS+=("$path")
+for target in "${TARGETS[@]}"; do
+  if [ -e "$target" ]; then
+    EXISTING_TARGETS+=("$target")
   fi
 done
 
@@ -209,6 +218,15 @@ if [ "${#EXISTING_TARGETS[@]}" -eq 0 ]; then
   echo "No scan targets exist; skipping forbidden integration check."
   exit 0
 fi
+
+ codex/assess-technical-debt-in-ci-workflows-q81m3f
+if command -v python3 >/dev/null 2>&1; then
+  PYTHON_BIN=python3
+elif command -v python >/dev/null 2>&1; then
+  PYTHON_BIN=python
+else
+  echo "Unable to locate python interpreter to run forbidden integration scan." >&2
+  exit 127
 
 echo "Scanning ${EXISTING_TARGETS[*]} for forbidden integrations..."
  codex/assess-technical-debt-in-ci-workflows
@@ -634,6 +652,48 @@ if [ -n "$MATCHES" ]; then
 
   echo "All detected references are allow-listed." >&2
   exit 0
+ main
 fi
 
-echo "No forbidden references found."
+"$PYTHON_BIN" - "${EXISTING_TARGETS[@]}" <<'PY'
+import sys
+import re
+from pathlib import Path
+
+PATTERN = re.compile(
+    r"(ctrader_open_api|swagger|spotware|real_ctrader_interface|from\s+fastapi|import\s+fastapi|import\s+uvicorn)",
+    re.IGNORECASE,
+)
+
+
+def iter_targets(paths):
+    for raw in paths:
+        path = Path(raw)
+        if path.is_file():
+            yield path
+        elif path.is_dir():
+            for child in path.rglob('*'):
+                if child.is_file():
+                    yield child
+
+
+matches = []
+for file_path in iter_targets(sys.argv[1:]):
+    try:
+        with file_path.open('r', encoding='utf-8', errors='ignore') as handle:
+            for line_number, line in enumerate(handle, start=1):
+                if PATTERN.search(line):
+                    matches.append(
+                        f"{file_path.as_posix()}:{line_number}:{line.strip()}".rstrip(':')
+                    )
+    except (OSError, UnicodeDecodeError):
+        continue
+
+if matches:
+    print("Forbidden references detected:", file=sys.stderr)
+    for entry in matches:
+        print(entry, file=sys.stderr)
+    sys.exit(1)
+
+print("No forbidden references found.")
+PY

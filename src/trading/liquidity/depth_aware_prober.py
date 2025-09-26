@@ -5,7 +5,7 @@ from collections import deque
 from dataclasses import dataclass
 from datetime import datetime
 from threading import RLock
-from typing import Deque, Dict, Iterable, Mapping
+from typing import Deque, Dict, Iterable, Mapping, SupportsFloat, cast
 
 from src.core.base import MarketData
 
@@ -13,10 +13,24 @@ __all__ = ["DepthAwareLiquidityProber"]
 
 
 def _to_float(value: object, default: float = 0.0) -> float:
-    try:
+    if isinstance(value, (int, float)):
         return float(value)
-    except Exception:
-        return default
+    if isinstance(value, str):
+        try:
+            return float(value)
+        except ValueError:
+            return default
+    if isinstance(value, (bytes, bytearray)):
+        try:
+            return float(bytes(value).decode("utf-8"))
+        except (ValueError, UnicodeDecodeError):
+            return default
+    if hasattr(value, "__float__"):
+        try:
+            return float(cast(SupportsFloat, value))
+        except (TypeError, ValueError):
+            return default
+    return default
 
 
 @dataclass

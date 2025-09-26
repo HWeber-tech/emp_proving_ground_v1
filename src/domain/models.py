@@ -10,7 +10,7 @@ from __future__ import annotations
 from datetime import datetime
 from decimal import Decimal
 from importlib import import_module
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from pydantic import BaseModel
 
@@ -63,7 +63,7 @@ def __getattr__(name: str) -> Any:
         obj = getattr(mod, attr)
     except Exception:
         # Minimal shim class to satisfy hasattr(importer, name) and construction
-        obj = type(name, (), {})  # type: ignore[type-arg]
+        obj = cast(Any, type(name, (), {}))
 
     globals()[name] = obj
     return obj

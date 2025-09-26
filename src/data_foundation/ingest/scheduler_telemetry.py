@@ -138,7 +138,7 @@ def _latest_activity(state: IngestSchedulerState | None) -> datetime | None:
         return None
     for attr in ("last_success_at", "last_completed_at", "last_started_at"):
         moment = getattr(state, attr)
-        if moment is not None:
+        if isinstance(moment, datetime):
             return moment
     return None
 

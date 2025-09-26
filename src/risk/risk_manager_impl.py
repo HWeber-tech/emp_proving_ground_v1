@@ -17,15 +17,17 @@ from src.core.types import JSONObject
 from src.core.interfaces import RiskManager as RiskManagerProtocol
 from src.config.risk.risk_config import RiskConfig
 from src.risk.real_risk_manager import RealRiskManager, RealRiskConfig
+from src.core.coercion import coerce_float
 
 logger = logging.getLogger(__name__)
 
 __all__ = ["RiskManagerImpl", "PositionEntry"]
 
 
-def _to_float(v: float | Decimal) -> float:
-    """Coerce float|Decimal to float at API boundaries."""
-    return float(v)
+def _to_float(value: object | None, *, default: float = 0.0) -> float:
+    """Coerce heterogeneous inputs to ``float`` at API boundaries."""
+
+    return coerce_float(value, default=default)
 
 
 class PositionEntry(TypedDict):

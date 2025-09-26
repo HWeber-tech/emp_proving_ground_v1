@@ -42,34 +42,38 @@ class HowSensor:
         confidence = self._config.clamp_confidence(getattr(reading, "confidence", 0.0))
         context = dict(getattr(reading, "context", {}) or {})
 
-        telemetry = {
+        telemetry: dict[str, float] = {
             "liquidity": float(reading_adapter.get("liquidity", 0.0)),
             "participation": float(reading_adapter.get("participation", 0.0)),
             "imbalance": float(reading_adapter.get("imbalance", 0.0)),
             "volatility_drag": float(reading_adapter.get("volatility_drag", 0.0)),
         }
 
-        metadata: dict[str, Any] = {
-            "source": "sensory.how",
-            "regime": getattr(getattr(reading, "regime", None), "name", None),
-            "thresholds": {
-                "warn": self._config.warn_threshold,
-                "alert": self._config.alert_threshold,
-            },
-            "audit": {
-                "signal": signal_strength,
-                "confidence": confidence,
-                "context": context,
-                **telemetry,
-            },
+        audit: dict[str, object] = {
+            "signal": signal_strength,
+            "confidence": confidence,
+            "context": context,
+        }
+        audit.update({name: metric_value for name, metric_value in telemetry.items()})
+
+        thresholds: dict[str, float] = {
+            "warn": self._config.warn_threshold,
+            "alert": self._config.alert_threshold,
         }
 
-        value = {
+        metadata: dict[str, object] = {
+            "source": "sensory.how",
+            "regime": getattr(getattr(reading, "regime", None), "name", None),
+            "thresholds": thresholds,
+            "audit": audit,
+        }
+
+        value: dict[str, object] = {
             "strength": signal_strength,
             "confidence": confidence,
             "context": context,
-            **telemetry,
         }
+        value.update({name: metric_value for name, metric_value in telemetry.items()})
         return [
             SensorSignal(
                 signal_type="HOW",
@@ -98,12 +102,13 @@ class HowSensor:
         return payload
 
     def _default_signal(self, *, confidence: float) -> SensorSignal:
-        metadata = {
+        thresholds: dict[str, float] = {
+            "warn": self._config.warn_threshold,
+            "alert": self._config.alert_threshold,
+        }
+        metadata: dict[str, object] = {
             "source": "sensory.how",
-            "thresholds": {
-                "warn": self._config.warn_threshold,
-                "alert": self._config.alert_threshold,
-            },
+            "thresholds": thresholds,
             "audit": {"signal": 0.0, "confidence": confidence},
         }
         return SensorSignal(

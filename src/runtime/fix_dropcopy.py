@@ -8,9 +8,9 @@ from collections import deque
 from contextlib import suppress
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Any, Awaitable, Callable, Mapping, MutableMapping, Optional
+from typing import Any, Callable, Coroutine, Mapping, MutableMapping, Optional
 
-from src.core.event_bus import Event, EventBus, get_global_bus
+from src.core.event_bus import Event, EventBus, TopicBus, get_global_bus
 
 logger = logging.getLogger(__name__)
 
@@ -74,7 +74,7 @@ class DropcopyEvent:
         return {key: value for key, value in payload.items() if value is not None}
 
 
-TaskFactory = Callable[[Awaitable[Any], Optional[str]], asyncio.Task[Any]]
+TaskFactory = Callable[[Coroutine[Any, Any, Any], Optional[str]], asyncio.Task[Any]]
 
 
 class FixDropcopyReconciler:
@@ -91,7 +91,8 @@ class FixDropcopyReconciler:
         logger: logging.Logger | None = None,
         task_factory: TaskFactory | None = None,
     ) -> None:
-        self.event_bus = event_bus or get_global_bus()
+        bus = event_bus or get_global_bus()
+        self.event_bus: EventBus | TopicBus = bus
         self._broker_order_lookup = broker_order_lookup
         self._channel = channel
         self._logger = logger or logging.getLogger(__name__)
@@ -147,12 +148,18 @@ class FixDropcopyReconciler:
                 self._unmatched_reports.append(event.as_dict())
             self._events.append(event)
 
+            payload = event.as_dict()
             try:
-                self.event_bus.emit_nowait(Event(self._channel, event.as_dict()))
+                if isinstance(self.event_bus, TopicBus):
+                    self.event_bus.publish_sync(self._channel, payload)
+                else:
+                    await self.event_bus.publish(Event(self._channel, payload))
             except Exception:  # pragma: no cover - diagnostics only
                 self._logger.debug("Failed to publish drop-copy event", exc_info=True)
 
-    def _spawn_task(self, coro: Awaitable[Any], *, name: str | None = None) -> asyncio.Task[Any]:
+    def _spawn_task(
+        self, coro: Coroutine[Any, Any, Any], *, name: str | None = None
+    ) -> asyncio.Task[Any]:
         if self._task_factory is not None:
             return self._task_factory(coro, name)
         return asyncio.create_task(coro, name=name)
@@ -229,7 +236,18 @@ class FixDropcopyReconciler:
     def _normalise_message(self, message: Any) -> DropcopyEvent | None:
         payload: MutableMapping[int, object] = {}
         if isinstance(message, Mapping):
-            payload.update(message)  # type: ignore[arg-type]
+            for raw_key, value in message.items():
+                key: int | None
+                if isinstance(raw_key, int):
+                    key = raw_key
+                else:
+                    try:
+                        key = int(str(raw_key))
+                    except (TypeError, ValueError):
+                        key = None
+                if key is None:
+                    continue
+                payload[key] = value
         elif hasattr(message, "get"):
             for tag in (11, 17, 31, 32, 39, 150, 151, 14):
                 try:

@@ -16,6 +16,7 @@ try:
 except Exception:  # pragma: no cover
     ExecutionReport = object
 from src.core.event_bus import Event, EventBus, get_global_bus
+from src.core.coercion import coerce_float
 from src.data_foundation.cache import (
     InMemoryRedis,
     ManagedRedisCache,
@@ -25,12 +26,11 @@ from src.data_foundation.cache import (
 
 logger = logging.getLogger(__name__)
 
+__all__ = ["PortfolioMonitor", "RedisLike", "InMemoryRedis"]
+
 
 def _as_float(value: object, default: float = 0.0) -> float:
-    try:
-        return float(value)
-    except Exception:
-        return default
+    return coerce_float(value, default=default)
 
 
 class Position(TypedDict, total=False):

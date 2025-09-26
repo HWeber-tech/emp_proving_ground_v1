@@ -241,7 +241,7 @@ def evaluate_ingest_slos(
 
     slos = tuple([summary_record, *slo_records])
 
-    snapshot_metadata = {"ingest_health": health_report.status.value}
+    snapshot_metadata: dict[str, object] = {"ingest_health": health_report.status.value}
     if metadata:
         snapshot_metadata.update({str(k): v for k, v in metadata.items()})
 

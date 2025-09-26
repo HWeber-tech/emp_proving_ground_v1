@@ -245,7 +245,7 @@ def _coerce_optional_float(
         except Exception:
             return default
     try:
-        return float(value)  # type: ignore[arg-type]
+        return float(value)
     except (TypeError, ValueError):
         return default
 
@@ -327,7 +327,7 @@ def _coerce_positive_int(
         except Exception:
             return None
     try:
-        number = int(float(value))  # type: ignore[arg-type]
+        number = int(float(value))
     except (TypeError, ValueError):
         return None
     if number < minimum:

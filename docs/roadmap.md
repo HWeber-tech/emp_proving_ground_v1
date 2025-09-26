@@ -857,3 +857,16 @@ debugging regressions or planning follow-up work.
   adjust priorities based on emerging risks or product requirements.
 - Note material updates in commit messages so change history explains why items
   moved or definitions shifted.
+
+## Coding guidance for the recovery programme
+
+Carry these practices into every ticket so CI stays green while we work through the backlog:
+
+- **Treat `mypy` as a design partner.** Run targeted checks locally before committing and lean on the [strict package list](mypy.ini) to decide which modules must pass cleanly today. Capture each sweep inside [`docs/mypy_status_log.md`](mypy_status_log.md) so the roadmap reflects current error counts.【F:mypy.ini†L1-L28】【F:docs/mypy_status_log.md†L1-L89】
+- **Prefer typed coercion helpers over ad-hoc casts.** Reuse the shared numeric utilities and mapping coercers so heterogeneous telemetry payloads remain safe without `# type: ignore` clutter.【F:src/core/coercion.py†L1-L180】【F:src/risk/telemetry.py†L1-L247】
+- **Stabilise optional dependencies with shims.** Keep Redis, Kafka, and OpenTelemetry imports behind typed interfaces or stub packages, and mirror any runtime fallback in the corresponding `.pyi` files to stop drift between implementation and static analysis.【F:src/data_foundation/cache/redis_cache.py†L1-L240】【F:src/data_foundation/streaming/kafka_stream.py†L1-L1919】【F:stubs/redis/__init__.pyi†L1-L23】【F:docs/mypy_playbooks.md†L1-L131】
+- **Document the intent next to the code.** When you normalise telemetry payloads or tighten protocols, update the recovery plan, backlog inventory, or relevant runbook in the same change so future sweeps inherit the reasoning.【F:docs/ci_recovery_plan.md†L1-L132】【F:docs/mypy_backlog_inventory.md†L1-L85】【F:docs/operations/runbooks/kafka_ingest_offset_recovery.md†L1-L66】
+- **Retire ignores aggressively.** Replace broad `# type: ignore` markers with precise fixes or annotated casts, and log any unavoidable exceptions with the error code plus a follow-up entry in the backlog. Use [`docs/mypy_conventions.md`](mypy_conventions.md) and [`docs/mypy_playbooks.md`](mypy_playbooks.md) as the canonical references for acceptable suppressions.【F:docs/mypy_conventions.md†L1-L70】【F:docs/mypy_playbooks.md†L1-L131】
+- **Engineer for async determinism.** Ensure task factories accept coroutines, awaitable flows return concrete payload types, and long-lived tasks are supervised so type hints mirror actual runtime guarantees.【F:src/runtime/task_supervisor.py†L1-L220】【F:src/runtime/runtime_builder.py†L1-L2320】【F:src/trading/integration/fix_broker_interface.py†L1-L210】
+
+> **Implementation tip:** When a sweep touches multiple packages, stage commits by subsystem (e.g. cache, telemetry, runtime) and include the relevant roadmap checklist link in each message. This keeps reviewers anchored to the plan while the backlog burns down.

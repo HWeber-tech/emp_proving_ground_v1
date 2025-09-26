@@ -8,6 +8,7 @@ from enum import Enum
 from typing import Mapping, MutableMapping, Sequence
 
 from src.core.event_bus import Event, EventBus, get_global_bus
+from src.core.coercion import coerce_int
 
 
 class WorkflowTaskStatus(Enum):
@@ -203,8 +204,8 @@ def _extract_kyc_details(
         return details
 
     mapping = dict(summary)
-    details["open_cases"] = int(mapping.get("open_cases") or 0)
-    details["escalations"] = int(mapping.get("escalations") or 0)
+    details["open_cases"] = coerce_int(mapping.get("open_cases"), default=0)
+    details["escalations"] = coerce_int(mapping.get("escalations"), default=0)
 
     recent = mapping.get("recent")
     if isinstance(recent, Sequence):
@@ -269,8 +270,8 @@ def _build_mifid_workflow(trade: Mapping[str, object]) -> ComplianceWorkflowChec
         )
 
     status_label = str(trade.get("status") or "")
-    failed_checks = int(trade.get("failed_checks") or 0)
-    critical_failures = int(trade.get("critical_failures") or 0)
+    failed_checks = coerce_int(trade.get("failed_checks"), default=0)
+    critical_failures = coerce_int(trade.get("critical_failures"), default=0)
     policy_name = trade.get("policy_name")
 
     if status_label == "fail" or critical_failures:
@@ -309,7 +310,7 @@ def _build_mifid_workflow(trade: Mapping[str, object]) -> ComplianceWorkflowChec
     overall = _combine_status(overall, txn_task.status)
 
     journal_present = bool(trade.get("journal_present"))
-    history_length = int(trade.get("history_length") or 0)
+    history_length = coerce_int(trade.get("history_length"), default=0)
     if journal_present:
         rec_status = WorkflowTaskStatus.completed
         rec_summary = "Compliance journal persistence enabled"
@@ -383,7 +384,7 @@ def _build_dodd_frank_workflow(trade: Mapping[str, object]) -> ComplianceWorkflo
         )
 
     status_label = str(trade.get("status") or "")
-    failed_checks = int(trade.get("failed_checks") or 0)
+    failed_checks = coerce_int(trade.get("failed_checks"), default=0)
     totals = trade.get("daily_totals")
     if not isinstance(totals, Mapping):
         totals = {}
@@ -420,7 +421,7 @@ def _build_dodd_frank_workflow(trade: Mapping[str, object]) -> ComplianceWorkflo
     tasks.append(large_task)
     overall = _combine_status(overall, large_task.status)
 
-    history_length = int(trade.get("history_length") or 0)
+    history_length = coerce_int(trade.get("history_length"), default=0)
     if history_length >= 5:
         audit_status = WorkflowTaskStatus.completed
         audit_summary = "Historical compliance snapshots retained"
@@ -501,12 +502,12 @@ def _build_kyc_workflow(kyc: Mapping[str, object]) -> ComplianceWorkflowChecklis
             metadata={"monitor_active": False},
         )
 
-    open_cases = int(kyc.get("open_cases") or 0)
-    escalations = int(kyc.get("escalations") or 0)
-    outstanding = int(kyc.get("outstanding_items") or 0)
-    watchlist_hits = int(kyc.get("watchlist_hits") or 0)
-    alerts = int(kyc.get("alerts") or 0)
-    recent_count = int(kyc.get("recent_count") or 0)
+    open_cases = coerce_int(kyc.get("open_cases"), default=0)
+    escalations = coerce_int(kyc.get("escalations"), default=0)
+    outstanding = coerce_int(kyc.get("outstanding_items"), default=0)
+    watchlist_hits = coerce_int(kyc.get("watchlist_hits"), default=0)
+    alerts = coerce_int(kyc.get("alerts"), default=0)
+    recent_count = coerce_int(kyc.get("recent_count"), default=0)
     risk_rating = str(kyc.get("risk_rating") or "")
 
     if escalations:
@@ -605,7 +606,7 @@ def _build_audit_workflow(
         if trade.get("journal_present"):
             trade_status = WorkflowTaskStatus.completed
             trade_summary = "Trade compliance journal retained in Timescale"
-        elif int(trade.get("history_length") or 0):
+        elif coerce_int(trade.get("history_length"), default=0):
             trade_status = WorkflowTaskStatus.in_progress
             trade_summary = "Snapshots captured but journal persistence disabled"
         else:
@@ -633,7 +634,7 @@ def _build_audit_workflow(
         if kyc.get("journal_present"):
             kyc_status = WorkflowTaskStatus.completed
             kyc_summary = "KYC case journal retained in Timescale"
-        elif int(kyc.get("open_cases") or 0):
+        elif coerce_int(kyc.get("open_cases"), default=0):
             kyc_status = WorkflowTaskStatus.in_progress
             kyc_summary = "Open cases without Timescale journaling"
         else:
@@ -717,11 +718,17 @@ def _build_strategy_governance_workflow(
             metadata={},
         )
 
-    seeded = int(registry.get("catalogue_seeded") or 0)
-    missing = int(registry.get("catalogue_missing_provenance") or 0)
-    approved = int(registry.get("approved_count") or 0)
-    total = int(registry.get("total_strategies") or 0)
-    catalogue_versions = list(registry.get("catalogue_versions") or [])
+    seeded = coerce_int(registry.get("catalogue_seeded"), default=0)
+    missing = coerce_int(registry.get("catalogue_missing_provenance"), default=0)
+    approved = coerce_int(registry.get("approved_count"), default=0)
+    total = coerce_int(registry.get("total_strategies"), default=0)
+    versions_raw = registry.get("catalogue_versions")
+    if isinstance(versions_raw, Sequence) and not isinstance(
+        versions_raw, (str, bytes, bytearray)
+    ):
+        catalogue_versions = [str(version) for version in versions_raw]
+    else:
+        catalogue_versions = []
 
     if seeded == 0:
         provenance_status = WorkflowTaskStatus.todo

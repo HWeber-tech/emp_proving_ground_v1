@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Iterable, Mapping, Sequence
 
 from src.core.event_bus import Event, EventBus, get_global_bus
+from src.core.coercion import coerce_float, coerce_int
 
 logger = logging.getLogger(__name__)
 
@@ -53,16 +54,12 @@ def _parse_timestamp(value: object | None) -> datetime:
 
 
 def _coerce_success_rate(passed_checks: int, total_checks: int, explicit: object | None) -> float:
-    if explicit is not None:
-        try:
-            rate = float(explicit)
-        except (TypeError, ValueError):
-            rate = None
-        else:
-            if rate > 1.0:
-                rate = rate / 100.0
-            if rate >= 0:
-                return min(rate, 1.0)
+    rate = coerce_float(explicit, default=None)
+    if rate is not None:
+        if rate > 1.0:
+            rate = rate / 100.0
+        if rate >= 0:
+            return min(rate, 1.0)
     if total_checks <= 0:
         return 0.0
     return max(0.0, min(1.0, passed_checks / max(1, total_checks)))
@@ -133,14 +130,13 @@ class SystemValidationSnapshot:
             f"- Checks passed: {self.passed_checks}/{self.total_checks}",
             f"- Success rate: {self.success_rate:.2%}",
         ]
-        validator = self.metadata.get("validator") if isinstance(self.metadata, Mapping) else None
-        if validator:
-            lines.append(f"- Validator: {validator}")
-        summary_message = None
         if isinstance(self.metadata, Mapping):
+            validator = self.metadata.get("validator")
+            if validator:
+                lines.append(f"- Validator: {validator}")
             summary_message = self.metadata.get("summary_message")
-        if summary_message:
-            lines.append(f"- Summary: {summary_message}")
+            if summary_message:
+                lines.append(f"- Summary: {summary_message}")
         if self.checks:
             lines.append("")
             lines.append("**Checks:**")
@@ -161,13 +157,13 @@ def _extract_checks(results: object | None) -> Iterable[SystemValidationCheck]:
     if isinstance(results, Mapping):
         for name, value in results.items():
             message = None
-            metadata: Mapping[str, object] = {}
+            metadata_dict: dict[str, object] = {}
             passed = bool(value)
             if isinstance(value, Mapping):
                 passed = bool(value.get("passed", value.get("status", value)))
                 if "message" in value:
                     message = str(value["message"])
-                metadata = {
+                metadata_dict = {
                     key: val
                     for key, val in value.items()
                     if key not in {"passed", "status", "message"}
@@ -176,7 +172,7 @@ def _extract_checks(results: object | None) -> Iterable[SystemValidationCheck]:
                 name=str(name),
                 passed=passed,
                 message=message,
-                metadata=metadata,
+                metadata=metadata_dict,
             )
     elif isinstance(results, Sequence):
         for entry in results:
@@ -185,7 +181,7 @@ def _extract_checks(results: object | None) -> Iterable[SystemValidationCheck]:
             name = str(entry.get("name") or entry.get("check") or "unknown")
             passed = bool(entry.get("passed", entry.get("status")))
             message = entry.get("message")
-            metadata = {
+            metadata_dict = {
                 key: value
                 for key, value in entry.items()
                 if key not in {"name", "check", "passed", "status", "message"}
@@ -194,7 +190,7 @@ def _extract_checks(results: object | None) -> Iterable[SystemValidationCheck]:
                 name=name,
                 passed=passed,
                 message=str(message) if message is not None else None,
-                metadata=metadata,
+                metadata=metadata_dict,
             )
 
 
@@ -204,7 +200,8 @@ def evaluate_system_validation(
     metadata: Mapping[str, object] | None = None,
 ) -> SystemValidationSnapshot:
     checks = tuple(_extract_checks(report.get("results") or report.get("checks")))
-    total_checks = int(report.get("total_checks") or len(checks))
+    total_checks_value = coerce_int(report.get("total_checks"), default=None)
+    total_checks = total_checks_value if total_checks_value is not None else len(checks)
     if total_checks < len(checks):
         total_checks = len(checks)
     if not checks and total_checks > 0:
@@ -216,7 +213,12 @@ def evaluate_system_validation(
                 for name, value in raw_results.items()
             )
             total_checks = len(checks)
-    passed_checks = int(report.get("passed_checks") or sum(1 for check in checks if check.passed))
+    passed_checks_value = coerce_int(report.get("passed_checks"), default=None)
+    passed_checks = (
+        passed_checks_value
+        if passed_checks_value is not None
+        else sum(1 for check in checks if check.passed)
+    )
     failed_checks = max(0, total_checks - passed_checks)
     success_rate = _coerce_success_rate(passed_checks, total_checks, report.get("success_rate"))
 

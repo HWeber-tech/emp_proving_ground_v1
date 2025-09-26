@@ -5,7 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import StrEnum
-from typing import Mapping, MutableMapping, Sequence
+from numbers import Real
+from typing import Any, Mapping, MutableMapping, Sequence, cast
 
 from src.core.event_bus import Event, EventBus
 
@@ -85,18 +86,30 @@ def _normalise_status(value: object) -> PolicyCheckStatus:
 
 
 def _coerce_float(value: object | None) -> float | None:
+    """Best-effort conversion of ``value`` into ``float``."""
+
     if value is None:
         return None
-    try:
+    if isinstance(value, Real):
         return float(value)
+    if isinstance(value, str):
+        candidate = value.strip()
+        if not candidate:
+            return None
+        try:
+            return float(candidate)
+        except ValueError:
+            return None
+    try:
+        return float(cast(Any, value))
     except (TypeError, ValueError):
         return None
 
 
 def _coerce_mapping(value: object) -> Mapping[str, object]:
     if isinstance(value, Mapping):
-        return value
-    if isinstance(value, Sequence):
+        return cast(Mapping[str, object], value)
+    if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
         return {str(index): element for index, element in enumerate(value)}
     if value is None:
         return {}
@@ -117,27 +130,35 @@ def build_policy_snapshot(
     for entry in decision.checks:
         if not isinstance(entry, Mapping):
             continue
+        entry_mapping = cast(Mapping[str, object], entry)
         metadata: MutableMapping[str, object] = {}
-        extra = entry.get("extra")
+        extra = entry_mapping.get("extra")
         if isinstance(extra, Mapping):
-            metadata.update(extra)
+            metadata.update(cast(Mapping[str, object], extra))
         for key in ("ratio", "resolved_price", "projected_total_exposure"):
-            if key in entry and key not in metadata:
-                metadata[key] = entry[key]  # type: ignore[index]
+            value = entry_mapping.get(key)
+            if value is not None and key not in metadata:
+                metadata[key] = value
         checks.append(
             RiskPolicyCheckSnapshot(
-                name=str(entry.get("name", "unknown")),
-                status=_normalise_status(entry.get("status")),
-                value=_coerce_float(entry.get("value")),
-                threshold=_coerce_float(entry.get("threshold")),
+                name=str(entry_mapping.get("name", "unknown")),
+                status=_normalise_status(entry_mapping.get("status")),
+                value=_coerce_float(entry_mapping.get("value")),
+                threshold=_coerce_float(entry_mapping.get("threshold")),
                 metadata=dict(metadata) if metadata else {},
             )
         )
 
-    limits = policy.limit_snapshot() if policy is not None else {}
-    metadata = dict(decision.metadata)
-    symbol = str(metadata.get("symbol", "UNKNOWN"))
-    research_mode = bool(metadata.get("research_mode", getattr(policy, "research_mode", False)))
+    limits: Mapping[str, float]
+    if policy is not None:
+        limits = policy.limit_snapshot()
+    else:
+        limits = cast(Mapping[str, float], {})
+    decision_metadata: dict[str, object] = dict(decision.metadata)
+    symbol = str(decision_metadata.get("symbol", "UNKNOWN"))
+    research_mode = bool(
+        decision_metadata.get("research_mode", getattr(policy, "research_mode", False))
+    )
 
     return RiskPolicyEvaluationSnapshot(
         symbol=symbol,
@@ -146,7 +167,7 @@ def build_policy_snapshot(
         generated_at=timestamp,
         checks=tuple(checks),
         policy_limits=limits,
-        metadata=metadata,
+        metadata=decision_metadata,
         violations=tuple(decision.violations),
         research_mode=research_mode,
     )
@@ -167,12 +188,13 @@ def format_policy_markdown(snapshot: RiskPolicyEvaluationSnapshot) -> str:
         limit_parts = [f"{key}={value}" for key, value in snapshot.policy_limits.items()]
         lines.append("**Limits:** " + ", ".join(limit_parts))
     if snapshot.metadata:
-        equity = snapshot.metadata.get("equity")
-        projected = snapshot.metadata.get("projected_total_exposure")
+        equity = _coerce_float(snapshot.metadata.get("equity"))
+        projected = _coerce_float(snapshot.metadata.get("projected_total_exposure"))
         if equity is not None or projected is not None:
             lines.append(
                 "**Exposure:** equity={:,.2f} projected={:,.2f}".format(
-                    float(equity or 0.0), float(projected or 0.0)
+                    equity if equity is not None else 0.0,
+                    projected if projected is not None else 0.0,
                 )
             )
     if snapshot.research_mode:

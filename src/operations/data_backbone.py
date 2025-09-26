@@ -331,11 +331,11 @@ def evaluate_data_backbone_validation(
         if scheduler_snapshot is None:
             scheduler_status = BackboneStatus.fail
             scheduler_summary = "Scheduler telemetry unavailable"
-            scheduler_metadata = {"enabled": context.scheduler_enabled}
+            scheduler_metadata: dict[str, object] = {"enabled": context.scheduler_enabled}
         else:
             scheduler_status = _scheduler_status_to_backbone(scheduler_snapshot.status)
             scheduler_summary = "Scheduler telemetry captured"
-            scheduler_metadata = scheduler_snapshot.as_dict()
+            scheduler_metadata = dict(scheduler_snapshot.as_dict())
         checks.append(
             BackboneComponentSnapshot(
                 name="scheduler",
@@ -346,7 +346,9 @@ def evaluate_data_backbone_validation(
         )
         overall = _combine_status(overall, scheduler_status)
 
-    snapshot_metadata = dict(metadata) if metadata else {}
+    snapshot_metadata: dict[str, object] = {}
+    if isinstance(metadata, Mapping):
+        snapshot_metadata.update(dict(metadata))
     snapshot_metadata.setdefault("plan_dimensions", planned)
     snapshot_metadata.setdefault("kafka_topics", list(context.kafka_topics))
     snapshot_metadata.setdefault("redis_namespace", context.redis_namespace)
@@ -380,7 +382,8 @@ def evaluate_data_backbone_readiness(
     overall = BackboneStatus.ok
     context = context or BackboneRuntimeContext()
 
-    plan_metadata = ingest_config.metadata.get("plan") if ingest_config.metadata else None
+    plan_metadata_obj = ingest_config.metadata.get("plan") if ingest_config.metadata else None
+    plan_metadata = plan_metadata_obj if isinstance(plan_metadata_obj, Mapping) else None
     planned_dimensions = _planned_dimensions(plan_metadata)
     if ingest_config.should_run:
         summary = (

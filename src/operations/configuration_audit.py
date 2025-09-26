@@ -131,7 +131,9 @@ def evaluate_configuration_audit(
 
     baseline_template = SystemConfig().to_dict()
     current_config = _normalise_config(current, baseline=baseline_template)
-    previous_config = _normalise_config(previous, baseline=baseline_template) if previous else None
+    previous_config = (
+        _normalise_config(previous, baseline=baseline_template) if previous else None
+    )
 
     moment = applied_at or datetime.now(tz=UTC)
     status = ConfigurationAuditStatus.passed
@@ -246,7 +248,7 @@ def _normalise_config(
     baseline_copy: dict[str, object] = {
         key: value for key, value in baseline.items() if key != "extras"
     }
-    baseline_extras = dict(baseline.get("extras", {}))
+    baseline_extras = _extract_extras(baseline)
 
     if isinstance(config, SystemConfig):
         payload = config.to_dict()
@@ -277,14 +279,7 @@ def _normalise_config(
     }
 
     extras_raw = payload.get("extras", baseline_extras)
-    extras: dict[str, str] = {}
-    if isinstance(extras_raw, Mapping):
-        for key, value in extras_raw.items():
-            key_text = str(key)
-            if value is None:
-                extras[key_text] = ""
-            else:
-                extras[key_text] = str(value)
+    extras = _coerce_extras_mapping(extras_raw, default=baseline_extras)
 
     result["extras"] = extras
     return result
@@ -330,8 +325,8 @@ def _diff_extras(
     previous_config: Mapping[str, object] | None,
     current_config: Mapping[str, object],
 ) -> dict[str, object]:
-    prev_extras = dict(previous_config.get("extras", {})) if previous_config else {}
-    curr_extras = dict(current_config.get("extras", {}))
+    prev_extras = _extract_extras(previous_config)
+    curr_extras = _extract_extras(current_config)
 
     added = sorted(set(curr_extras) - set(prev_extras))
     removed = sorted(set(prev_extras) - set(curr_extras))
@@ -343,10 +338,10 @@ def _diff_extras(
 
     for key in added:
         severity = _extras_change_severity(key, curr_extras[key])
-        register(f"extras.{key}", None, curr_extras[key], severity, note="added key")
+        register(f"extras.{key}", None, curr_extras[key], severity, "added key")
     for key in removed:
         severity = _extras_change_severity(key, None)
-        register(f"extras.{key}", prev_extras[key], None, severity, note="removed key")
+        register(f"extras.{key}", prev_extras[key], None, severity, "removed key")
     for key in updated:
         severity = _extras_change_severity(key, curr_extras[key])
         register(
@@ -354,7 +349,7 @@ def _diff_extras(
             prev_extras[key],
             curr_extras[key],
             severity,
-            note="updated value",
+            "updated value",
         )
 
     return {
@@ -398,6 +393,28 @@ def _format_value(value: object | None) -> str:
     if not text:
         return "``"
     return f"`{text}`"
+
+
+def _coerce_extras_mapping(
+    extras_raw: object,
+    *,
+    default: Mapping[str, str] | None = None,
+) -> dict[str, str]:
+    extras: dict[str, str] = {}
+    if isinstance(extras_raw, Mapping):
+        for key, value in extras_raw.items():
+            key_text = str(key)
+            extras[key_text] = "" if value is None else str(value)
+        return extras
+    if default is not None:
+        return dict(default)
+    return extras
+
+
+def _extract_extras(source: Mapping[str, object] | None) -> dict[str, str]:
+    if source is None:
+        return {}
+    return _coerce_extras_mapping(source.get("extras"), default={})
 
 
 __all__ = [

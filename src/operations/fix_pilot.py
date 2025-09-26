@@ -8,7 +8,7 @@ from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Mapping, MutableMapping, Sequence
 
-from src.core.event_bus import Event, EventBus, get_global_bus
+from src.core.event_bus import Event, EventBus, TopicBus, get_global_bus
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
@@ -202,16 +202,19 @@ def evaluate_fix_pilot(
 
     queue_details: MutableMapping[str, object] = {}
     queue_status = FixPilotStatus.passed
+    queue_issues: list[str] = []
     for name, metrics in state.queue_metrics.items():
         queue_details[name] = dict(metrics)
         drops = int(metrics.get("dropped", 0))
         delivered = int(metrics.get("delivered", 0))
         if drops > policy.max_queue_drops:
             queue_status = _escalate(queue_status, FixPilotStatus.warn)
-            queue_details.setdefault("issues", []).append(f"{name} dropped {drops} messages")
+            queue_issues.append(f"{name} dropped {drops} messages")
         if policy.warn_on_idle_queues and delivered == 0:
             queue_status = _escalate(queue_status, FixPilotStatus.warn)
-            queue_details.setdefault("issues", []).append(f"{name} delivered 0 events")
+            queue_issues.append(f"{name} delivered 0 events")
+    if queue_issues:
+        queue_details["issues"] = queue_issues
     components.append(
         FixPilotComponent(name="queues", status=queue_status, details=dict(queue_details))
     )
@@ -248,6 +251,7 @@ def evaluate_fix_pilot(
         "running": state.dropcopy_running,
         "backlog": state.dropcopy_backlog,
     }
+    dropcopy_issues: list[str] = []
     if state.last_dropcopy_event is not None:
         dropcopy_details["last_event"] = dict(state.last_dropcopy_event)
     reconciliation = (
@@ -259,30 +263,28 @@ def evaluate_fix_pilot(
         dropcopy_details["reconciliation"] = reconciliation
     if not state.dropcopy_running:
         dropcopy_status = FixPilotStatus.warn
-        dropcopy_details.setdefault("issues", []).append("listener stopped")
+        dropcopy_issues.append("listener stopped")
         if policy.require_dropcopy:
             dropcopy_status = FixPilotStatus.fail
     if state.dropcopy_backlog > policy.max_dropcopy_backlog:
         dropcopy_status = _escalate(dropcopy_status, FixPilotStatus.warn)
-        dropcopy_details.setdefault("issues", []).append(
+        dropcopy_issues.append(
             f"backlog {state.dropcopy_backlog} > {policy.max_dropcopy_backlog}"
         )
     missing_orders = reconciliation.get("orders_without_dropcopy")
     if isinstance(missing_orders, Sequence) and missing_orders:
         severity = FixPilotStatus.fail if policy.require_dropcopy else FixPilotStatus.warn
         dropcopy_status = _escalate(dropcopy_status, severity)
-        dropcopy_details.setdefault("issues", []).append(
-            f"missing dropcopy for {len(missing_orders)} orders"
-        )
+        dropcopy_issues.append(f"missing dropcopy for {len(missing_orders)} orders")
     mismatches = reconciliation.get("status_mismatches")
     if isinstance(mismatches, Sequence) and mismatches:
         dropcopy_status = _escalate(
             dropcopy_status,
             FixPilotStatus.fail if policy.require_dropcopy else FixPilotStatus.warn,
         )
-        dropcopy_details.setdefault("issues", []).append(
-            f"status mismatch for {len(mismatches)} orders"
-        )
+        dropcopy_issues.append(f"status mismatch for {len(mismatches)} orders")
+    if dropcopy_issues:
+        dropcopy_details["issues"] = dropcopy_issues
     components.append(
         FixPilotComponent(name="dropcopy", status=dropcopy_status, details=dict(dropcopy_details))
     )
@@ -308,7 +310,7 @@ def format_fix_pilot_markdown(snapshot: FixPilotSnapshot) -> str:
 
 
 def publish_fix_pilot_snapshot(
-    event_bus: EventBus | None,
+    event_bus: EventBus | TopicBus | None,
     snapshot: FixPilotSnapshot,
     *,
     channel: str = "telemetry.execution.fix_pilot",
@@ -317,7 +319,11 @@ def publish_fix_pilot_snapshot(
 
     bus = event_bus or get_global_bus()
     try:
-        bus.emit_nowait(Event(channel, snapshot.as_dict()))
+        payload = snapshot.as_dict()
+        if isinstance(bus, TopicBus):
+            bus.publish(channel, payload)
+        else:
+            bus.publish_from_sync(Event(channel, payload))
     except Exception:  # pragma: no cover - diagnostics only
         logger.debug("Failed to publish FIX pilot snapshot", exc_info=True)
 

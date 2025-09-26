@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+from collections.abc import Awaitable, Generator, Mapping
 from datetime import datetime
-from typing import Any, Mapping
+from typing import Any
 
 from src.core.base import DimensionalReading, MarketData
 
 
-def ensure_market_data(payload: MarketData | Mapping[str, Any] | None) -> MarketData:
+def ensure_market_data(payload: object | None) -> MarketData:
     """Return a :class:`MarketData` instance for heterogeneous payloads."""
     if isinstance(payload, MarketData):
         return payload
@@ -17,7 +18,10 @@ def ensure_market_data(payload: MarketData | Mapping[str, Any] | None) -> Market
                 candidate[str(key)] = value
             except Exception:
                 continue
-        return MarketData(**candidate)
+        try:
+            return MarketData(**candidate)
+        except TypeError:
+            return MarketData()
     return MarketData()
 
 
@@ -38,7 +42,7 @@ def safe_timestamp(data: MarketData) -> datetime:
     return datetime.utcnow()
 
 
-class ReadingAdapter(dict):
+class ReadingAdapter(dict[str, Any], Awaitable[DimensionalReading]):
     """Hybrid container exposing dict semantics and awaitable access."""
 
     __slots__ = ("_reading",)
@@ -53,13 +57,14 @@ class ReadingAdapter(dict):
         except AttributeError as exc:  # pragma: no cover - defensive
             raise AttributeError(name) from exc
 
-    def __await__(self):
-        async def _coro():
+    def __await__(self) -> Generator[Any, None, DimensionalReading]:
+        async def _coro() -> DimensionalReading:
             return self._reading
 
         return _coro().__await__()
 
-    def __hash__(self) -> int:
+    def __hash__(self) -> int:  # type: ignore[override]
+        """Make adapters hashable for use in asyncio.gather task sets."""
         return id(self)
 
     @property

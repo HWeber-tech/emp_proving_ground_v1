@@ -45,7 +45,7 @@ class TradingSignal:
     confidence: float = 0.5
     timestamp: Optional[datetime] = None
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if self.timestamp is None:
             self.timestamp = datetime.now()
 
@@ -61,7 +61,7 @@ class PortfolioSnapshot:
     realized_pnl: float
     timestamp: Optional[datetime] = None
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if self.timestamp is None:
             self.timestamp = datetime.now()
 

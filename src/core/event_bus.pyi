@@ -2,13 +2,21 @@ from __future__ import annotations
 
 import asyncio
 
-from typing import Awaitable, Callable, ContextManager, Mapping, Protocol
+from typing import Any, Awaitable, Callable, ContextManager, Coroutine, Mapping, Protocol, TypeVar
 
 class Event:
     type: str
     payload: dict[str, object] | object
     timestamp: float
     source: str | None
+
+    def __init__(
+        self,
+        type: str,
+        payload: dict[str, object] | object | None = ...,
+        timestamp: float | None = ...,
+        source: str | None = ...,
+    ) -> None: ...
 
 class SubscriptionHandle:
     id: int
@@ -30,14 +38,17 @@ class EventBusStatistics:
     started_at: float | None
     uptime_seconds: float | None
 
+_T = TypeVar("_T")
+
+
 class TaskFactory(Protocol):
     def __call__(
         self,
-        coro: Awaitable[object],
+        coro: Coroutine[Any, Any, _T],
         *,
         name: str | None = ...,
         metadata: Mapping[str, object] | None = ...,
-    ) -> asyncio.Task[object]: ...
+    ) -> asyncio.Task[_T]: ...
 
 class EventBusTracer(Protocol):
     def publish_span(

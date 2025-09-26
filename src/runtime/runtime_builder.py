@@ -20,6 +20,7 @@ from collections.abc import Mapping as MappingABC
 from typing import Any, Awaitable, Callable, Mapping, MutableMapping, Sequence, cast
 from uuid import uuid4
 
+from src.core.coercion import coerce_float
 from src.core.event_bus import Event, EventBus, get_global_bus
 from src.observability.logging import configure_structured_logging
 from src.observability.tracing import NullRuntimeTracer, RuntimeTracer
@@ -32,6 +33,7 @@ from src.data_foundation.cache.redis_cache import InMemoryRedis, ManagedRedisCac
 from src.data_foundation.ingest.configuration import (
     InstitutionalIngestConfig,
     TimescaleFailoverDrillSettings,
+    TimescaleRetentionSettings,
     TimescaleSparkStressSettings,
     build_institutional_ingest_config,
 )
@@ -68,7 +70,10 @@ from src.data_foundation.ingest.quality import (
     IngestQualityStatus,
     evaluate_ingest_quality,
 )
-from src.data_foundation.ingest.timescale_pipeline import TimescaleBackboneOrchestrator
+from src.data_foundation.ingest.timescale_pipeline import (
+    TimescaleBackboneOrchestrator,
+    TimescaleBackbonePlan,
+)
 from src.data_foundation.ingest.yahoo_ingest import fetch_daily_bars, store_duckdb
 from src.data_foundation.persist.timescale import (
     TimescaleConnectionSettings,
@@ -176,6 +181,7 @@ from src.operations.configuration_audit import (
 )
 from src.operations.retention import (
     DataRetentionSnapshot,
+    RetentionPolicy,
     RetentionStatus,
     evaluate_data_retention,
     format_data_retention_markdown,
@@ -233,6 +239,53 @@ from src.runtime.predator_app import ProfessionalPredatorApp
 
 
 logger = logging.getLogger(__name__)
+
+
+_RETENTION_TABLES: dict[str, tuple[str, str]] = {
+    "daily_bars": ("market_data", "daily_bars"),
+    "intraday_trades": ("market_data", "intraday_trades"),
+    "macro_events": ("macro_data", "events"),
+}
+
+
+def _plan_dimensions(plan: TimescaleBackbonePlan) -> list[str]:
+    dimensions: list[str] = []
+    if plan.daily is not None:
+        dimensions.append("daily_bars")
+    if plan.intraday is not None:
+        dimensions.append("intraday_trades")
+    if plan.macro is not None:
+        dimensions.append("macro_events")
+    return dimensions
+
+
+def _build_retention_policies(
+    settings: TimescaleRetentionSettings,
+) -> tuple[RetentionPolicy, ...]:
+    policies: list[RetentionPolicy] = []
+    for policy in settings.policies:
+        schema, table = _RETENTION_TABLES.get(policy.dimension, ("public", policy.dimension))
+        policies.append(
+            RetentionPolicy(
+                dimension=policy.dimension,
+                schema=schema,
+                table=table,
+                target_days=policy.target_days,
+                minimum_days=policy.minimum_days,
+                optional=policy.optional,
+            )
+        )
+    return tuple(policies)
+
+
+def _normalise_ingest_plan_metadata(value: object) -> list[str]:
+    if isinstance(value, MappingABC):
+        return [str(key) for key in value.keys()]
+    if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
+        return [str(item) for item in value]
+    if value is None:
+        return []
+    return [str(value)]
 
 
 StartupCallback = Callable[[], Awaitable[None] | None]
@@ -1228,10 +1281,10 @@ async def _execute_timescale_ingest(
                 try:
                     retention_snapshot = evaluate_data_retention(
                         engine,
-                        ingest_config.retention.policies,
+                        _build_retention_policies(ingest_config.retention),
                         metadata={
                             "ingest_status": health_report.status.value,
-                            "dimensions": [job.dimension for job in ingest_config.plan.jobs],
+                            "dimensions": _plan_dimensions(ingest_config.plan),
                         },
                     )
                 except Exception:  # pragma: no cover - diagnostics only
@@ -1707,11 +1760,9 @@ async def _execute_timescale_ingest(
                 exc_info=True,
             )
 
-    plan_metadata = backbone_snapshot.metadata.get("plan")
-    if isinstance(plan_metadata, MappingABC):
-        ingest_plan = list(plan_metadata.keys())
-    else:
-        ingest_plan = plan_metadata
+    ingest_plan = _normalise_ingest_plan_metadata(
+        backbone_snapshot.metadata.get("plan")
+    )
 
     readiness_metadata = {
         "recovery_attempts": len(recovery_steps),
@@ -2016,7 +2067,7 @@ def build_professional_runtime_application(
             async def _run_institutional() -> None:
                 plan_metadata: dict[str, object] = {
                     "ingest.should_run": ingest_config.should_run,
-                    "ingest.plan_dimensions": len(ingest_config.plan),
+                    "ingest.plan_dimensions": len(_plan_dimensions(ingest_config.plan)),
                 }
                 if ingest_config.reason:
                     plan_metadata["ingest.reason"] = ingest_config.reason
@@ -2099,14 +2150,14 @@ def build_professional_runtime_application(
                     extras_mapping,
                 )
                 if kafka_settings.configured:
-                    summary = kafka_settings.summary(redacted=True)
+                    kafka_summary_text = kafka_settings.summary(redacted=True)
                     if kafka_publisher is None:
                         logger.warning(
                             "Kafka ingest configuration detected but publisher disabled; check topics or dependencies (%s)",
-                            summary,
+                            kafka_summary_text,
                         )
                     else:
-                        logger.info("Kafka ingest publisher ready: %s", summary)
+                        logger.info("Kafka ingest publisher ready: %s", kafka_summary_text)
                     if kafka_health_publisher is None:
                         logger.info(
                             "Kafka ingest health publisher not configured; set KAFKA_INGEST_HEALTH_TOPIC to enable",
@@ -2263,7 +2314,7 @@ def build_professional_runtime_application(
                     kafka_readiness_recorder = getattr(app, "record_kafka_readiness_snapshot", None)
 
                     execution_metadata: dict[str, object] = {
-                        "ingest.plan_dimensions": len(ingest_config.plan),
+                        "ingest.plan_dimensions": len(_plan_dimensions(ingest_config.plan)),
                         "ingest.kafka_publishers": len(kafka_publishers),
                         "ingest.kafka_topics": len(kafka_topic_names),
                         "ingest.redis_configured": redis_configured,
@@ -2348,7 +2399,7 @@ def build_professional_runtime_application(
                     kyc_monitor = getattr(app, "kyc_monitor", None)
                     if kyc_monitor is not None:
                         try:
-                            kyc_summary = kyc_monitor.summary()  # type: ignore[union-attr]
+                            kyc_summary = kyc_monitor.summary()
                         except Exception:  # pragma: no cover - diagnostics only
                             logger.debug(
                                 "Failed to build KYC summary for readiness",
@@ -2357,11 +2408,12 @@ def build_professional_runtime_application(
 
                     strategy_registry_summary: Mapping[str, object] | None = None
                     strategy_registry = getattr(app, "strategy_registry", None)
-                    if strategy_registry is not None and hasattr(
-                        strategy_registry, "get_registry_summary"
-                    ):
+                    get_registry_summary = getattr(
+                        strategy_registry, "get_registry_summary", None
+                    )
+                    if callable(get_registry_summary):
                         try:
-                            strategy_registry_summary = strategy_registry.get_registry_summary()  # type: ignore[union-attr]
+                            strategy_registry_summary = get_registry_summary()
                         except Exception:  # pragma: no cover - diagnostics only
                             logger.debug("Failed to summarise strategy registry", exc_info=True)
 
@@ -2464,11 +2516,10 @@ def build_professional_runtime_application(
 
                     execution_stats: Mapping[str, object] | None = None
                     trading_manager = getattr(app.sensory_organ, "trading_manager", None)
-                    if trading_manager is not None and hasattr(
-                        trading_manager, "get_execution_stats"
-                    ):
+                    get_execution_stats = getattr(trading_manager, "get_execution_stats", None)
+                    if callable(get_execution_stats):
                         try:
-                            execution_stats = trading_manager.get_execution_stats()  # type: ignore[attr-defined]
+                            execution_stats = get_execution_stats()
                         except Exception:  # pragma: no cover - diagnostics only
                             logger.debug(
                                 "Failed to capture execution stats from trading manager",
@@ -2477,17 +2528,22 @@ def build_professional_runtime_application(
 
                     drop_copy_metrics: Mapping[str, object] | None = None
                     drop_copy_active: bool | None = None
+                    trade_app: Any | None = None
                     fix_manager = getattr(app, "fix_connection_manager", None)
                     if fix_manager is not None:
-                        try:
-                            trade_app = fix_manager.get_application("trade")  # type: ignore[attr-defined]
-                        except Exception:  # pragma: no cover - diagnostics only
-                            logger.debug(
-                                "Failed to resolve FIX trade application for execution telemetry",
-                                exc_info=True,
-                            )
+                        get_application = getattr(fix_manager, "get_application", None)
+                        if callable(get_application):
+                            try:
+                                trade_app = get_application("trade")
+                            except Exception:  # pragma: no cover - diagnostics only
+                                logger.debug(
+                                    "Failed to resolve FIX trade application for execution telemetry",
+                                    exc_info=True,
+                                )
+                                trade_app = None
+                        else:
                             trade_app = None
-                        if trade_app is not None:
+                    if trade_app is not None:
                             try:
                                 drop_copy_metrics = trade_app.get_queue_metrics()
                             except Exception:  # pragma: no cover - diagnostics only
@@ -2821,26 +2877,18 @@ def build_professional_runtime_application(
                             drift_metadata["latest_symbol"] = str(symbol)
 
                         unified_score_value = latest_entry.get("unified_score")
-                        try:
-                            if unified_score_value is not None:
-                                drift_metadata["latest_unified_score"] = float(unified_score_value)
-                        except (TypeError, ValueError):
-                            try:
-                                drift_metadata["latest_unified_score"] = float(
-                                    str(unified_score_value)
-                                )
-                            except (TypeError, ValueError):
-                                drift_metadata.pop("latest_unified_score", None)
+                        unified_score = coerce_float(unified_score_value, default=None)
+                        if unified_score is not None:
+                            drift_metadata["latest_unified_score"] = unified_score
+                        else:
+                            drift_metadata.pop("latest_unified_score", None)
 
                         confidence_value = latest_entry.get("confidence")
-                        try:
-                            if confidence_value is not None:
-                                drift_metadata["latest_confidence"] = float(confidence_value)
-                        except (TypeError, ValueError):
-                            try:
-                                drift_metadata["latest_confidence"] = float(str(confidence_value))
-                            except (TypeError, ValueError):
-                                drift_metadata.pop("latest_confidence", None)
+                        confidence = coerce_float(confidence_value, default=None)
+                        if confidence is not None:
+                            drift_metadata["latest_confidence"] = confidence
+                        else:
+                            drift_metadata.pop("latest_confidence", None)
 
                         drift_snapshot = evaluate_sensory_drift(
                             sensory_audit_entries,

@@ -6,7 +6,7 @@ import asyncio
 import logging
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Any, Awaitable, Mapping, MutableMapping, Sequence
+from typing import Any, Coroutine, Mapping, MutableMapping, Sequence, TypeVar
 
 __all__ = ["TaskSupervisor", "TaskSnapshot"]
 
@@ -40,6 +40,9 @@ class _TrackedTask:
     metadata: Mapping[str, Any] | None
 
 
+_T = TypeVar("_T")
+
+
 class TaskSupervisor:
     """Track background asyncio tasks and coordinate graceful shutdown."""
 
@@ -70,17 +73,17 @@ class TaskSupervisor:
 
     def create(
         self,
-        coro: Awaitable[Any],
+        coro: Coroutine[Any, Any, _T],
         *,
         name: str | None = None,
         metadata: Mapping[str, Any] | None = None,
-    ) -> asyncio.Task[Any]:
+    ) -> asyncio.Task[_T]:
         """Create and track a background task."""
 
         if self._closing:
             raise RuntimeError("TaskSupervisor is shutting down; cannot create new tasks")
 
-        task = asyncio.create_task(coro, name=name)
+        task: asyncio.Task[_T] = asyncio.create_task(coro, name=name)
         self._register(task, metadata)
         return task
 

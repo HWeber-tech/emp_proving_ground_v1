@@ -23,16 +23,58 @@ import os
 import time
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from typing import Any, Iterable, Mapping, Sequence
+from typing import Any, Iterable, Mapping, Sequence, cast
 from uuid import uuid4
 
 import json
 
 import pandas as pd
 from sqlalchemy import create_engine, text
-from sqlalchemy.engine import Connection, Engine
+from sqlalchemy.engine import Connection, Engine, Row, RowMapping
+
+from src.core.coercion import coerce_float, coerce_int
 
 logger = logging.getLogger(__name__)
+
+_JSON_INPUT_TYPES = (str, bytes, bytearray)
+
+
+def _ensure_mapping(
+    row: Mapping[str, Any] | RowMapping | Row[Any],
+) -> dict[str, Any]:
+    if isinstance(row, Mapping):
+        return {str(key): row[key] for key in row}
+    if isinstance(row, RowMapping):
+        return {str(key): row[key] for key in row}
+    if isinstance(row, Row):
+        return {str(key): row._mapping[key] for key in row._mapping}
+    raise TypeError("Row must provide mapping access")
+
+
+def _load_json_payload(raw: object) -> object | None:
+    if isinstance(raw, _JSON_INPUT_TYPES):
+        text_value = raw.decode("utf-8") if isinstance(raw, (bytes, bytearray)) else raw
+        try:
+            loaded: object = json.loads(text_value)
+            return loaded
+        except json.JSONDecodeError:
+            logger.debug("Failed to decode JSON payload", exc_info=True)
+            return None
+    return None
+
+
+def _load_json_mapping(raw: object) -> dict[str, Any]:
+    payload = _load_json_payload(raw)
+    if isinstance(payload, Mapping):
+        return {str(key): payload[key] for key in payload}
+    return {}
+
+
+def _load_json_sequence(raw: object) -> list[Any]:
+    payload = _load_json_payload(raw)
+    if isinstance(payload, Sequence) and not isinstance(payload, _JSON_INPUT_TYPES):
+        return list(payload)
+    return []
 
 
 # ---------------------------------------------------------------------------
@@ -599,7 +641,7 @@ def _prepare_daily_bar_records(
     frame = frame[ordered]
     frame = frame.where(pd.notnull(frame), None)
 
-    records = frame.to_dict("records")
+    records = cast(list[dict[str, object]], frame.to_dict("records"))
     for record in records:
         ts_value = record.get("ts")
         if isinstance(ts_value, pd.Timestamp):
@@ -650,7 +692,7 @@ def _prepare_intraday_trade_records(
     frame = frame[ordered]
     frame = frame.where(pd.notnull(frame), None)
 
-    records = frame.to_dict("records")
+    records = cast(list[dict[str, object]], frame.to_dict("records"))
     for record in records:
         ts_value = record.get("ts")
         if isinstance(ts_value, pd.Timestamp):
@@ -706,7 +748,7 @@ def _prepare_macro_event_records(
     frame = frame[ordered]
     frame = frame.where(pd.notnull(frame), None)
 
-    records = frame.to_dict("records")
+    records = cast(list[dict[str, object]], frame.to_dict("records"))
     for record in records:
         ts_value = record.get("ts")
         if isinstance(ts_value, pd.Timestamp):
@@ -842,52 +884,30 @@ class TimescaleIngestRunRecord:
         return payload
 
     @classmethod
-    def from_row(cls, row) -> "TimescaleIngestRunRecord":  # pragma: no cover - simple glue
-        mapping = row._mapping if hasattr(row, "_mapping") else row
-        metadata_raw = mapping.get("metadata")
-        metadata: Mapping[str, object]
-        if metadata_raw:
-            try:
-                decoded = json.loads(metadata_raw)
-                metadata = decoded if isinstance(decoded, dict) else {}
-            except json.JSONDecodeError:
-                metadata = {}
-        else:
-            metadata = {}
+    def from_row(
+        cls, row: Mapping[str, Any] | Row[Any] | RowMapping
+    ) -> "TimescaleIngestRunRecord":  # pragma: no cover - simple glue
+        mapping = _ensure_mapping(row)
 
-        symbols_raw = mapping.get("symbols")
-        symbols: tuple[str, ...] = tuple()
-        if symbols_raw:
-            try:
-                decoded_symbols = json.loads(symbols_raw)
-                if isinstance(decoded_symbols, list):
-                    symbols = tuple(str(item) for item in decoded_symbols)
-            except json.JSONDecodeError:
-                symbols = tuple()
+        metadata = _load_json_mapping(mapping.get("metadata"))
+        symbols_payload = _load_json_sequence(mapping.get("symbols"))
+        symbols = tuple(str(item) for item in symbols_payload if item is not None)
 
-        freshness = mapping.get("freshness_seconds")
-        if freshness is not None:
-            try:
-                freshness = float(freshness)
-            except (TypeError, ValueError):
-                freshness = None
+        freshness = coerce_float(mapping.get("freshness_seconds"))
+        duration = coerce_float(mapping.get("ingest_duration_seconds"))
 
-        duration = mapping.get("ingest_duration_seconds")
-        if duration is not None:
-            try:
-                duration = float(duration)
-            except (TypeError, ValueError):
-                duration = None
+        source_raw = mapping.get("source")
+        source = str(source_raw) if source_raw is not None else None
 
         return cls(
             run_id=str(mapping["run_id"]),
             dimension=str(mapping["dimension"]),
             status=str(mapping["status"]),
-            rows_written=int(mapping["rows_written"]),
+            rows_written=coerce_int(mapping.get("rows_written"), default=0),
             freshness_seconds=freshness,
             ingest_duration_seconds=duration,
             executed_at=_coerce_timestamp(mapping["executed_at"]),
-            source=str(mapping["source"]) if mapping.get("source") is not None else None,
+            source=source,
             symbols=symbols,
             metadata=metadata,
         )
@@ -1062,28 +1082,20 @@ class TimescaleComplianceAuditRecord:
         }
 
     @classmethod
-    def from_row(cls, row) -> "TimescaleComplianceAuditRecord":  # pragma: no cover - simple glue
-        mapping = row._mapping if hasattr(row, "_mapping") else row
+    def from_row(
+        cls, row: Mapping[str, Any] | Row[Any] | RowMapping
+    ) -> "TimescaleComplianceAuditRecord":  # pragma: no cover - simple glue
+        mapping = _ensure_mapping(row)
 
-        def _load_json(raw: object, default: Any) -> Any:
-            if raw in (None, ""):
-                return default
-            try:
-                return json.loads(raw)
-            except (TypeError, json.JSONDecodeError):
-                return default
-
-        violations_raw = _load_json(mapping.get("violations"), [])
+        violations_raw = _load_json_sequence(mapping.get("violations"))
         violations = tuple(str(item) for item in violations_raw if item is not None)
 
-        checks_raw = _load_json(mapping.get("checks"), [])
-        checks = [dict(item) for item in checks_raw if isinstance(item, dict)]
+        checks_raw = _load_json_sequence(mapping.get("checks"))
+        checks = [dict(item) for item in checks_raw if isinstance(item, Mapping)]
 
-        totals_raw = _load_json(mapping.get("totals"), {})
-        totals = totals_raw if isinstance(totals_raw, dict) else {}
+        totals = _load_json_mapping(mapping.get("totals"))
 
-        snapshot_raw = _load_json(mapping.get("snapshot"), {})
-        snapshot = snapshot_raw if isinstance(snapshot_raw, dict) else {}
+        snapshot = _load_json_mapping(mapping.get("snapshot"))
 
         intent_raw = mapping.get("intent_id")
         passed_raw = mapping.get("passed")
@@ -1469,30 +1481,19 @@ class TimescaleKycCaseRecord:
         return payload
 
     @classmethod
-    def from_row(cls, row) -> "TimescaleKycCaseRecord":  # pragma: no cover - glue
-        mapping = row._mapping if hasattr(row, "_mapping") else row
+    def from_row(
+        cls, row: Mapping[str, Any] | Row[Any] | RowMapping
+    ) -> "TimescaleKycCaseRecord":  # pragma: no cover - glue
+        mapping = _ensure_mapping(row)
 
-        def _load_json(raw: object, default: Any) -> Any:
-            if raw in (None, ""):
-                return default
-            try:
-                return json.loads(raw)
-            except (TypeError, json.JSONDecodeError):
-                return default
+        watchlist_raw = _load_json_sequence(mapping.get("watchlist_hits"))
+        outstanding_raw = _load_json_sequence(mapping.get("outstanding_items"))
+        checklist_raw = _load_json_sequence(mapping.get("checklist"))
+        alerts_raw = _load_json_sequence(mapping.get("alerts"))
+        metadata_raw = _load_json_mapping(mapping.get("metadata"))
+        snapshot_raw = _load_json_mapping(mapping.get("snapshot"))
 
-        watchlist_raw = _load_json(mapping.get("watchlist_hits"), [])
-        outstanding_raw = _load_json(mapping.get("outstanding_items"), [])
-        checklist_raw = _load_json(mapping.get("checklist"), [])
-        alerts_raw = _load_json(mapping.get("alerts"), [])
-        metadata_raw = _load_json(mapping.get("metadata"), {})
-        snapshot_raw = _load_json(mapping.get("snapshot"), {})
-
-        risk_score = mapping.get("risk_score")
-        if isinstance(risk_score, str):
-            try:
-                risk_score = float(risk_score)
-            except ValueError:
-                risk_score = None
+        risk_score = coerce_float(mapping.get("risk_score"))
 
         return cls(
             event_id=str(mapping["event_id"]),
@@ -1502,12 +1503,12 @@ class TimescaleKycCaseRecord:
             entity_type=str(mapping.get("entity_type") or "client"),
             status=str(mapping.get("status") or "UNKNOWN"),
             risk_rating=str(mapping.get("risk_rating") or "UNKNOWN"),
-            risk_score=float(risk_score) if risk_score is not None else None,
+            risk_score=risk_score,
             watchlist_hits=tuple(str(item) for item in watchlist_raw if item is not None),
             outstanding_items=tuple(str(item) for item in outstanding_raw if item is not None),
-            checklist=tuple(dict(item) for item in checklist_raw if isinstance(item, dict)),
+            checklist=tuple(dict(item) for item in checklist_raw if isinstance(item, Mapping)),
             alerts=tuple(str(item) for item in alerts_raw if item is not None),
-            metadata=metadata_raw if isinstance(metadata_raw, dict) else {},
+            metadata=metadata_raw,
             recorded_at=_coerce_timestamp(mapping.get("recorded_at")),
             last_review_at=_coerce_timestamp(mapping.get("last_review_at"))
             if mapping.get("last_review_at") is not None
@@ -1728,11 +1729,15 @@ class TimescaleExecutionSnapshotRecord:
         *,
         strategy_id: str | None = None,
     ) -> "TimescaleExecutionSnapshotRecord":
-        payload: Mapping[str, Any]
-        if hasattr(snapshot, "as_dict"):
-            payload = snapshot.as_dict()  # type: ignore[assignment]
+        payload_candidate = getattr(snapshot, "as_dict", None)
+        if callable(payload_candidate):
+            raw_payload = payload_candidate()
+            if isinstance(raw_payload, Mapping):
+                payload = dict(raw_payload)
+            else:  # pragma: no cover - defensive
+                raise TypeError("Execution snapshot as_dict() must return a Mapping")
         elif isinstance(snapshot, Mapping):
-            payload = snapshot
+            payload = dict(snapshot)
         else:  # pragma: no cover - defensive
             raise TypeError("Execution snapshot must provide as_dict() or Mapping interface")
 
@@ -1753,10 +1758,17 @@ class TimescaleExecutionSnapshotRecord:
         state_payload = payload.get("state")
         if isinstance(state_payload, Mapping):
             state = dict(state_payload)
-        elif hasattr(getattr(snapshot, "state", None), "as_dict"):
-            state = snapshot.state.as_dict()  # type: ignore[assignment]
         else:
-            state = {}
+            state_attr = getattr(snapshot, "state", None)
+            as_dict = getattr(state_attr, "as_dict", None)
+            if callable(as_dict):
+                state_candidate = as_dict()
+                if isinstance(state_candidate, Mapping):
+                    state = dict(state_candidate)
+                else:
+                    state = {}
+            else:
+                state = {}
 
         metadata_raw = payload.get("metadata")
         metadata: Mapping[str, Any]
@@ -1795,11 +1807,8 @@ class TimescaleExecutionSnapshotRecord:
         drop_copy_lag_seconds = _as_float("drop_copy_lag_seconds")
 
         def _as_int(key: str) -> int:
-            value = state.get(key) or payload.get(key)
-            try:
-                return int(value)
-            except (TypeError, ValueError):
-                return 0
+            value = state.get(key) if key in state else payload.get(key)
+            return coerce_int(value, default=0)
 
         orders_submitted = _as_int("orders_submitted")
         orders_executed = _as_int("orders_executed")
@@ -1928,45 +1937,31 @@ class TimescaleExecutionSnapshotRecord:
         }
 
     @classmethod
-    def from_row(cls, row) -> "TimescaleExecutionSnapshotRecord":  # pragma: no cover - glue
-        mapping = row._mapping if hasattr(row, "_mapping") else row
+    def from_row(
+        cls, row: Mapping[str, Any] | Row[Any] | RowMapping
+    ) -> "TimescaleExecutionSnapshotRecord":  # pragma: no cover - glue
+        mapping = _ensure_mapping(row)
 
-        def _load_json(raw: object, default: Any) -> Any:
-            if raw in (None, ""):
-                return default
-            try:
-                return json.loads(raw)
-            except (TypeError, json.JSONDecodeError):
-                return default
-
-        sessions_raw = _load_json(mapping.get("sessions_active"), [])
-        issues_raw = _load_json(mapping.get("issues"), [])
-        policy_raw = _load_json(mapping.get("policy"), {})
-        state_raw = _load_json(mapping.get("state"), {})
-        metadata_raw = _load_json(mapping.get("metadata"), {})
+        sessions_raw = _load_json_sequence(mapping.get("sessions_active"))
+        issues_raw = _load_json_sequence(mapping.get("issues"))
+        policy_raw = _load_json_mapping(mapping.get("policy"))
+        state_raw = _load_json_mapping(mapping.get("state"))
+        metadata_raw = _load_json_mapping(mapping.get("metadata"))
 
         return cls(
             snapshot_id=str(mapping["snapshot_id"]),
             service=str(mapping.get("service") or "execution"),
             status=str(mapping.get("status") or "unknown"),
             recorded_at=_coerce_timestamp(mapping.get("recorded_at")),
-            orders_submitted=int(mapping.get("orders_submitted") or 0),
-            orders_executed=int(mapping.get("orders_executed") or 0),
-            orders_failed=int(mapping.get("orders_failed") or 0),
-            pending_orders=int(mapping.get("pending_orders") or 0),
-            avg_latency_ms=float(mapping["avg_latency_ms"])
-            if mapping.get("avg_latency_ms") is not None
-            else None,
-            max_latency_ms=float(mapping["max_latency_ms"])
-            if mapping.get("max_latency_ms") is not None
-            else None,
-            fill_rate=float(mapping["fill_rate"]) if mapping.get("fill_rate") is not None else None,
-            failure_rate=float(mapping["failure_rate"])
-            if mapping.get("failure_rate") is not None
-            else None,
-            drop_copy_lag_seconds=float(mapping["drop_copy_lag_seconds"])
-            if mapping.get("drop_copy_lag_seconds") is not None
-            else None,
+            orders_submitted=coerce_int(mapping.get("orders_submitted"), default=0),
+            orders_executed=coerce_int(mapping.get("orders_executed"), default=0),
+            orders_failed=coerce_int(mapping.get("orders_failed"), default=0),
+            pending_orders=coerce_int(mapping.get("pending_orders"), default=0),
+            avg_latency_ms=coerce_float(mapping.get("avg_latency_ms")),
+            max_latency_ms=coerce_float(mapping.get("max_latency_ms")),
+            fill_rate=coerce_float(mapping.get("fill_rate")),
+            failure_rate=coerce_float(mapping.get("failure_rate")),
+            drop_copy_lag_seconds=coerce_float(mapping.get("drop_copy_lag_seconds")),
             drop_copy_active=bool(mapping["drop_copy_active"])
             if mapping.get("drop_copy_active") is not None
             else None,
@@ -2334,31 +2329,26 @@ class TimescaleConfigurationAuditRecord:
         )
 
     @classmethod
-    def from_row(cls, row) -> "TimescaleConfigurationAuditRecord":  # pragma: no cover - simple glue
-        mapping = row._mapping if hasattr(row, "_mapping") else row
-
-        def _load_json(raw: object, default: Any) -> Any:
-            if raw in (None, ""):
-                return default
-            try:
-                return json.loads(raw)
-            except (TypeError, json.JSONDecodeError):
-                return default
+    def from_row(
+        cls, row: Mapping[str, Any] | Row[Any] | RowMapping
+    ) -> "TimescaleConfigurationAuditRecord":  # pragma: no cover - simple glue
+        mapping = _ensure_mapping(row)
 
         applied_at = _coerce_timestamp(mapping.get("applied_at"))
         severity = str(mapping.get("severity") or "pass")
 
-        changes_raw = _load_json(mapping.get("changes"), [])
+        changes_raw = _load_json_sequence(mapping.get("changes"))
         change_entries = [dict(item) for item in changes_raw if isinstance(item, Mapping)]
 
-        current_raw = _load_json(mapping.get("current_config"), {})
-        current_config = dict(current_raw) if isinstance(current_raw, Mapping) else {}
+        current_config = _load_json_mapping(mapping.get("current_config"))
+        previous_candidate = _load_json_payload(mapping.get("previous_config"))
+        previous_config = (
+            dict(previous_candidate)
+            if isinstance(previous_candidate, Mapping)
+            else None
+        )
 
-        previous_raw = _load_json(mapping.get("previous_config"), None)
-        previous_config = dict(previous_raw) if isinstance(previous_raw, Mapping) else None
-
-        metadata_raw = _load_json(mapping.get("metadata"), {})
-        metadata = dict(metadata_raw) if isinstance(metadata_raw, Mapping) else {}
+        metadata = _load_json_mapping(mapping.get("metadata"))
 
         return cls(
             snapshot_id=str(mapping.get("snapshot_id") or uuid4()),
@@ -2408,10 +2398,15 @@ class TimescaleConfigurationAuditJournal:
         self._logger = logging.getLogger(f"{__name__}.TimescaleConfigurationAuditJournal")
 
     def record_snapshot(self, snapshot: Mapping[str, Any] | Any) -> dict[str, Any]:
-        if hasattr(snapshot, "as_dict"):
-            payload = snapshot.as_dict()  # type: ignore[assignment]
+        as_dict = getattr(snapshot, "as_dict", None)
+        if callable(as_dict):
+            candidate = as_dict()
+            if isinstance(candidate, Mapping):
+                payload = dict(candidate)
+            else:  # pragma: no cover - defensive
+                raise TypeError("snapshot as_dict() must return a mapping")
         elif isinstance(snapshot, Mapping):
-            payload = snapshot
+            payload = dict(snapshot)
         else:
             raise TypeError("snapshot must be a mapping or expose as_dict()")
 

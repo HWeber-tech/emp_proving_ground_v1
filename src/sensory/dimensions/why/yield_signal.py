@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field
-from typing import Iterable, Mapping
+from collections.abc import Iterable, Mapping
 
 
 def _clamp(value: float, lower: float, upper: float) -> float:
@@ -25,8 +25,8 @@ class YieldSignalSnapshot:
     regime: str
     tenors: dict[str, float] = field(default_factory=dict)
 
-    def as_dict(self) -> dict[str, float | None]:
-        payload: dict[str, float | None] = {
+    def as_dict(self) -> dict[str, float | str | None]:
+        payload: dict[str, float | str | None] = {
             "direction": float(self.direction),
             "confidence": float(self.confidence),
             "slope_2s10s": self.slope_2s10s,
@@ -70,8 +70,11 @@ class YieldSlopeTracker:
             return
 
     def update_many(
-        self, entries: Mapping[str, float | int | str | None] | Iterable[tuple[str, float]]
+        self,
+        entries: Mapping[str, float | int | str | None]
+        | Iterable[tuple[str, float | int | str | None]],
     ) -> None:
+        iterator: Iterable[tuple[str, float | int | str | None]]
         if isinstance(entries, Mapping):
             iterator = entries.items()
         else:

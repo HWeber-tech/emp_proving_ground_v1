@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from collections.abc import Iterable
 from typing import Awaitable, Callable, Mapping
 
 from aiohttp import web
@@ -99,6 +100,14 @@ def _ingest_component(
         if component.name == name:
             return component.metadata
     return None
+
+
+def _coerce_str_tuple(value: object | None) -> tuple[str, ...]:
+    if value is None:
+        return tuple()
+    if isinstance(value, Iterable) and not isinstance(value, (str, bytes, bytearray)):
+        return tuple(str(item) for item in value)
+    return (str(value),)
 
 
 def evaluate_runtime_health(
@@ -234,8 +243,10 @@ def evaluate_runtime_health(
     bus_running = bool(getattr(event_bus, "is_running", lambda: False)()) if event_bus else False
     kafka_metadata = _ingest_component(snapshot, "kafka_streaming")
     kafka_expected = kafka_metadata is not None
-    publishers = tuple(kafka_metadata.get("publishers", ())) if kafka_metadata else tuple()
-    topics = tuple(kafka_metadata.get("topics", ())) if kafka_metadata else tuple()
+    publishers = (
+        _coerce_str_tuple(kafka_metadata.get("publishers")) if kafka_metadata else tuple()
+    )
+    topics = _coerce_str_tuple(kafka_metadata.get("topics")) if kafka_metadata else tuple()
     telemetry_status = RuntimeHealthStatus.OK
     telemetry_summary = "telemetry exporters online"
     if not bus_running:

@@ -68,24 +68,24 @@ def _ensure_metadata(intent: Any) -> MutableMapping[str, Any]:
     """Return a mutable metadata mapping for ``intent`` and attach one if needed."""
 
     if isinstance(intent, MutableMapping):
-        meta = intent.get("metadata")
-        if isinstance(meta, MutableMapping):
-            return meta
-        meta = {}
-        intent["metadata"] = meta
-        return meta
+        existing_meta = intent.get("metadata")
+        if isinstance(existing_meta, MutableMapping):
+            return existing_meta
+        meta_map: dict[str, Any] = {}
+        intent["metadata"] = meta_map
+        return meta_map
 
-    meta = getattr(intent, "metadata", None)
-    if isinstance(meta, MutableMapping):
-        return meta
+    meta_attr = getattr(intent, "metadata", None)
+    if isinstance(meta_attr, MutableMapping):
+        return meta_attr
 
     # Attach a new metadata mapping for objects lacking one
-    meta_map: dict[str, Any] = {}
+    new_meta: dict[str, Any] = {}
     try:
-        setattr(intent, "metadata", meta_map)
+        setattr(intent, "metadata", new_meta)
     except Exception:  # pragma: no cover - best effort when attribute blocked
         pass
-    return meta_map
+    return new_meta
 
 
 def _extract_attr(intent: Any, *names: str, default: Any = None) -> Any:
@@ -180,7 +180,8 @@ class RiskGateway:
         try:
             if not self._check_strategy(decision["strategy_id"]):
                 decision.update(status="rejected", reason="strategy_disabled")
-                return self._reject(decision)
+                self._reject(decision)
+                return None
 
             quantity = self._extract_quantity(intent)
             confidence = _as_float(
@@ -195,16 +196,19 @@ class RiskGateway:
                         "threshold": self.min_intent_confidence,
                     }
                 )
-                return self._reject(decision)
+                self._reject(decision)
+                return None
 
             portfolio_state = portfolio_state or {}
             if not self._check_drawdown(portfolio_state, decision):
                 decision.update(status="rejected", reason="max_drawdown_exceeded")
-                return self._reject(decision)
+                self._reject(decision)
+                return None
 
             if not self._check_open_positions(portfolio_state, decision):
                 decision.update(status="rejected", reason="too_many_open_positions")
-                return self._reject(decision)
+                self._reject(decision)
+                return None
 
             adjusted_quantity = self._apply_position_sizing(intent, portfolio_state, decision)
 
@@ -234,7 +238,8 @@ class RiskGateway:
                         status="rejected",
                         reason=policy_decision.reason or "policy_violation",
                     )
-                    return self._reject(decision)
+                    self._reject(decision)
+                    return None
 
             liquidity_summary: Mapping[str, Any] | None = None
             liquidity_score: float | None = None
@@ -244,7 +249,8 @@ class RiskGateway:
                 )
                 if liquidity_score is not None and liquidity_score < self.min_liquidity_confidence:
                     decision.update(status="rejected", reason="insufficient_liquidity")
-                    return self._reject(decision)
+                    self._reject(decision)
+                    return None
 
             self._enrich_intent(
                 intent,
@@ -270,7 +276,8 @@ class RiskGateway:
         except Exception as exc:  # pragma: no cover - defensive logging path
             logger.exception("RiskGateway encountered unexpected error: %s", exc)
             decision.update(status="rejected", reason="exception", error=str(exc))
-            return self._reject(decision)
+            self._reject(decision)
+            return None
 
     def get_risk_limits(self) -> dict[str, Any]:
         """Return a snapshot of configured limits and recent telemetry."""
@@ -488,9 +495,10 @@ class RiskGateway:
 
         if is_dataclass(intent):
             try:
-                # Persist enrichment for frozen dataclasses by rebuilding
-                if getattr(intent, "__dataclass_params__", None).frozen:  # type: ignore[attr-defined]
-                    data = asdict(intent)
+                params = getattr(intent, "__dataclass_params__", None)
+                is_frozen = bool(getattr(params, "frozen", False))
+                if is_frozen:
+                    data: dict[str, Any] = asdict(cast(Any, intent))
                     data.update(
                         {
                             "metadata": metadata,
@@ -499,7 +507,6 @@ class RiskGateway:
                             "size": quantity,
                         }
                     )
-                    # dataclasses.replace would be cleaner but may not support arbitrary attrs
                     for field, value in data.items():
                         try:
                             setattr(intent, field, value)

@@ -15,7 +15,7 @@ from typing import Callable, Dict, List, Optional, cast
 
 import numpy as np
 
-from src.core.genome import get_genome_provider
+from src.core.genome import GenomeProvider, get_genome_provider
 from src.core.performance.market_data_cache import get_global_cache
 from src.genome.catalogue import GenomeCatalogue, load_default_catalogue
 
@@ -273,7 +273,7 @@ class PopulationManager(IPopulationManager):
         return self._catalogue
 
     def _seed_from_catalogue(
-        self, provider: object, catalogue: GenomeCatalogue
+        self, provider: GenomeProvider, catalogue: GenomeCatalogue
     ) -> list[DecisionGenome]:
         try:
             seeds = catalogue.sample(self.population_size)
@@ -289,10 +289,11 @@ class PopulationManager(IPopulationManager):
                 resolved_genome = cast(DecisionGenome, genome)
             resolved.append(resolved_genome)
 
-        self._catalogue_summary = catalogue.metadata()
-        self._catalogue_summary["entries"] = catalogue.describe_entries()
+        summary: dict[str, object] = dict(catalogue.metadata())
+        summary["entries"] = catalogue.describe_entries()
         seeded_at = time.time()
-        self._catalogue_summary["seeded_at"] = seeded_at
+        summary["seeded_at"] = seeded_at
+        self._catalogue_summary = summary
         self._catalogue_seeded_at = seeded_at
         self._seed_source = "catalogue"
         return resolved

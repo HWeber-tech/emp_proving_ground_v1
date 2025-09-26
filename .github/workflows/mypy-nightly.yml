@@ -1,0 +1,38 @@
+name: mypy-nightly
+
+on:
+  schedule:
+    - cron: '0 5 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  nightly-mypy:
+    name: Nightly mypy enforcement
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - uses: ./.github/actions/python-setup
+      - name: Verify mypy configuration
+        run: |
+          set -euo pipefail
+          if grep -n '^\[tool\.mypy\]' pyproject.toml >/dev/null 2>&1; then
+            echo "[tool.mypy] found in pyproject.toml; use mypy.ini"; exit 1; fi
+          test -f mypy.ini || { echo "mypy.ini missing"; exit 1; }
+      - name: Run mypy against full source tree
+        env:
+          MYPY_FORCE_COLOR: '1'
+        run: |
+          set -euo pipefail
+          mypy --config-file mypy.ini src 2>&1 | tee mypy-report.txt
+      - name: Upload mypy report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-mypy-report-${{ github.run_id }}
+          path: mypy-report.txt
+          if-no-files-found: error

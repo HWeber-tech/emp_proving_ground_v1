@@ -12,12 +12,14 @@ from typing import (
     Any,
     Awaitable,
     Callable,
+    Coroutine,
     Dict,
     Mapping,
     Optional,
     Protocol,
     Sequence,
     TYPE_CHECKING,
+    cast,
 )
 
 from src.compliance.kyc import KycAmlMonitor
@@ -68,7 +70,7 @@ from src.governance.audit_logger import AuditLogger
 from src.governance.safety_manager import SafetyManager
 from src.governance.strategy_registry import StrategyRegistry
 from src.governance.system_config import ConnectionProtocol, DataBackboneMode, EmpTier, SystemConfig
-from src.operational.fix_connection_manager import FIXConnectionManager
+from src.operational.fix_connection_manager import FIXConnectionManager, SystemConfigProtocol
 from src.operations.backup import BackupReadinessSnapshot, format_backup_markdown
 from src.compliance.workflow import ComplianceWorkflowSnapshot
 from src.operations.compliance_readiness import ComplianceReadinessSnapshot
@@ -163,6 +165,44 @@ if TYPE_CHECKING:  # pragma: no cover - typing only
 logger = logging.getLogger(__name__)
 
 
+def _call_manager_method(manager: Any, method_name: str) -> Any:
+    target = getattr(manager, method_name, None)
+    if not callable(target):
+        return None
+    try:
+        return target()
+    except Exception:  # pragma: no cover - diagnostics only
+        return None
+
+
+def _snapshot_to_dict(snapshot: Any) -> dict[str, Any] | None:
+    if snapshot is None:
+        return None
+
+    as_dict = getattr(snapshot, "as_dict", None)
+    if callable(as_dict):
+        try:
+            payload = as_dict()
+        except Exception:  # pragma: no cover - diagnostics only
+            payload = None
+        if isinstance(payload, Mapping):
+            return dict(payload)
+
+    if isinstance(snapshot, Mapping):
+        return dict(snapshot)
+
+    return None
+
+
+def _format_snapshot_markdown(
+    formatter: Callable[[Any], str | None], snapshot: Any
+) -> str | None:
+    try:
+        return formatter(snapshot)
+    except Exception:  # pragma: no cover - diagnostics only
+        return None
+
+
 CleanupCallback = Callable[[], Awaitable[None] | None]
 
 
@@ -170,6 +210,9 @@ class MarketDataSensor(Protocol):
     """Protocol describing the narrow interface used by Tier-0 ingestion."""
 
     def process(self, df: "pd.DataFrame") -> Sequence["SensorSignal"]: ...
+
+
+SensoryRuntime = FIXSensoryOrgan | BootstrapRuntime
 
 
 class ProfessionalPredatorApp:
@@ -180,7 +223,7 @@ class ProfessionalPredatorApp:
         *,
         config: SystemConfig,
         event_bus: EventBus,
-        sensory_organ: Optional[FIXSensoryOrgan],
+        sensory_organ: SensoryRuntime | None,
         broker_interface: Optional[FIXBrokerInterface],
         fix_connection_manager: Optional[FIXConnectionManager],
         sensors: Mapping[str, MarketDataSensor],
@@ -194,7 +237,7 @@ class ProfessionalPredatorApp:
     ) -> None:
         self.config = config
         self.event_bus = event_bus
-        self.sensory_organ = sensory_organ
+        self.sensory_organ: SensoryRuntime | None = sensory_organ
         self.broker_interface = broker_interface
         self.fix_connection_manager = fix_connection_manager
         self._sensors = dict(sensors)
@@ -260,7 +303,7 @@ class ProfessionalPredatorApp:
         self._cleanup_callbacks.append(callback)
 
     def create_background_task(
-        self, coro: Awaitable[Any], *, name: Optional[str] = None
+        self, coro: Coroutine[Any, Any, Any], *, name: Optional[str] = None
     ) -> asyncio.Task[Any]:
         return self._task_supervisor.create(coro, name=name)
 
@@ -380,7 +423,7 @@ class ProfessionalPredatorApp:
         """Store the latest execution readiness snapshot."""
 
         self._last_execution_snapshot = snapshot
-        journal = getattr(self, "execution_journal", None)
+        journal: TimescaleExecutionJournal | None = getattr(self, "execution_journal", None)
         if journal is not None:
             try:
                 journal.record_snapshot(snapshot, strategy_id=self._resolve_strategy_id())
@@ -714,9 +757,9 @@ class ProfessionalPredatorApp:
                 )
             else:
                 try:
-                    journal = TimescaleIngestJournal(engine)
-                    recent = journal.fetch_recent(limit=5)
-                    latest = journal.fetch_latest_by_dimension()
+                    ingest_journal = TimescaleIngestJournal(engine)
+                    recent = ingest_journal.fetch_recent(limit=5)
+                    latest = ingest_journal.fetch_latest_by_dimension()
                     ingest_journal_summary = {
                         "recent": [record.as_dict() for record in recent],
                         "latest_status": {
@@ -850,67 +893,52 @@ class ProfessionalPredatorApp:
             except Exception:  # pragma: no cover - diagnostics only
                 self._logger.debug("Failed to build compliance summary", exc_info=True)
 
-        if getattr(self, "kyc_monitor", None) is not None:
+        kyc_monitor = getattr(self, "kyc_monitor", None)
+        if kyc_monitor is not None:
             try:
-                summary_payload["kyc"] = self.kyc_monitor.summary()  # type: ignore[union-attr]
+                summary_payload["kyc"] = kyc_monitor.summary()
             except Exception:  # pragma: no cover - diagnostics only
                 self._logger.debug("Failed to build KYC summary", exc_info=True)
 
         trading_manager = getattr(self.sensory_organ, "trading_manager", None)
-        if trading_manager is not None and hasattr(trading_manager, "get_last_risk_snapshot"):
-            try:
-                snapshot_obj = trading_manager.get_last_risk_snapshot()  # type: ignore[attr-defined]
-            except Exception:  # pragma: no cover - diagnostics only
-                snapshot_obj = None
-            if snapshot_obj is not None:
-                try:
-                    snapshot_dict = snapshot_obj.as_dict()  # type: ignore[attr-defined]
-                    markdown = format_risk_markdown(snapshot_obj)  # type: ignore[arg-type]
-                except AttributeError:
-                    snapshot_dict = (
-                        dict(snapshot_obj) if isinstance(snapshot_obj, Mapping) else None
-                    )
-                    markdown = None
-                if snapshot_dict is not None:
-                    summary_payload["risk"] = {"snapshot": snapshot_dict}
-                    if markdown:
-                        summary_payload["risk"]["markdown"] = markdown
+        if trading_manager is not None:
+            snapshot_obj = _call_manager_method(trading_manager, "get_last_risk_snapshot")
+            snapshot_dict = _snapshot_to_dict(snapshot_obj)
+            risk_markdown = (
+                _format_snapshot_markdown(format_risk_markdown, snapshot_obj)
+                if snapshot_obj is not None
+                else None
+            )
+            if snapshot_dict is not None:
+                summary_payload["risk"] = {"snapshot": snapshot_dict}
+                if risk_markdown:
+                    summary_payload["risk"]["markdown"] = risk_markdown
 
-        if trading_manager is not None and hasattr(trading_manager, "get_last_policy_snapshot"):
-            try:
-                policy_obj = trading_manager.get_last_policy_snapshot()  # type: ignore[attr-defined]
-            except Exception:  # pragma: no cover - diagnostics only
-                policy_obj = None
-            if policy_obj is not None:
-                try:
-                    policy_snapshot = policy_obj.as_dict()  # type: ignore[attr-defined]
-                    policy_markdown = format_policy_markdown(policy_obj)  # type: ignore[arg-type]
-                except AttributeError:
-                    policy_snapshot = dict(policy_obj) if isinstance(policy_obj, Mapping) else None
-                    policy_markdown = None
-                if policy_snapshot is not None:
-                    risk_section = summary_payload.setdefault("risk", {})
-                    policy_block: dict[str, Any] = {"snapshot": policy_snapshot}
-                    if policy_markdown:
-                        policy_block["markdown"] = policy_markdown
-                    risk_section["policy"] = policy_block
+            policy_obj = _call_manager_method(trading_manager, "get_last_policy_snapshot")
+            policy_snapshot = _snapshot_to_dict(policy_obj)
+            policy_markdown = (
+                _format_snapshot_markdown(format_policy_markdown, policy_obj)
+                if policy_obj is not None
+                else None
+            )
+            if policy_snapshot is not None:
+                risk_section = summary_payload.setdefault("risk", {})
+                policy_block: dict[str, Any] = {"snapshot": policy_snapshot}
+                if policy_markdown:
+                    policy_block["markdown"] = policy_markdown
+                risk_section["policy"] = policy_block
 
-        if trading_manager is not None and hasattr(trading_manager, "get_last_roi_snapshot"):
-            try:
-                roi_obj = trading_manager.get_last_roi_snapshot()  # type: ignore[attr-defined]
-            except Exception:  # pragma: no cover - diagnostics only
-                roi_obj = None
-            if roi_obj is not None:
-                try:
-                    roi_dict = roi_obj.as_dict()  # type: ignore[attr-defined]
-                    roi_markdown = format_roi_summary(roi_obj)  # type: ignore[arg-type]
-                except AttributeError:
-                    roi_dict = dict(roi_obj) if isinstance(roi_obj, Mapping) else None
-                    roi_markdown = None
-                if roi_dict is not None:
-                    summary_payload["roi"] = {"snapshot": roi_dict}
-                    if roi_markdown:
-                        summary_payload["roi"]["markdown"] = roi_markdown
+            roi_obj = _call_manager_method(trading_manager, "get_last_roi_snapshot")
+            roi_dict = _snapshot_to_dict(roi_obj)
+            roi_markdown = (
+                _format_snapshot_markdown(format_roi_summary, roi_obj)
+                if roi_obj is not None
+                else None
+            )
+            if roi_dict is not None:
+                summary_payload["roi"] = {"snapshot": roi_dict}
+                if roi_markdown:
+                    summary_payload["roi"]["markdown"] = roi_markdown
 
         if self._last_execution_snapshot is not None:
             execution_snapshot = self._last_execution_snapshot
@@ -920,7 +948,7 @@ class ProfessionalPredatorApp:
                 execution_payload["markdown"] = markdown
             summary_payload["execution"] = execution_payload
 
-        journal = getattr(self, "execution_journal", None)
+        journal: TimescaleExecutionJournal | None = getattr(self, "execution_journal", None)
         if journal is not None:
             try:
                 service_filter = None
@@ -955,9 +983,11 @@ class ProfessionalPredatorApp:
             summary_payload["backups"] = backup_payload
 
         if self._last_backbone_validation_snapshot is not None:
-            validation_snapshot = self._last_backbone_validation_snapshot
-            validation_payload: dict[str, object] = {"snapshot": validation_snapshot.as_dict()}
-            markdown = validation_snapshot.to_markdown()
+            backbone_validation_snapshot = self._last_backbone_validation_snapshot
+            validation_payload: dict[str, object] = {
+                "snapshot": backbone_validation_snapshot.as_dict()
+            }
+            markdown = backbone_validation_snapshot.to_markdown()
             if markdown:
                 validation_payload["markdown"] = markdown
             summary_payload["data_backbone_validation"] = validation_payload
@@ -1027,12 +1057,14 @@ class ProfessionalPredatorApp:
             summary_payload["event_bus"] = event_bus_payload
 
         if self._last_system_validation_snapshot is not None:
-            validation_snapshot = self._last_system_validation_snapshot
-            validation_payload: dict[str, object] = {"snapshot": validation_snapshot.as_dict()}
-            markdown = format_system_validation_markdown(validation_snapshot)
+            system_validation_snapshot = self._last_system_validation_snapshot
+            system_validation_payload: dict[str, object] = {
+                "snapshot": system_validation_snapshot.as_dict()
+            }
+            markdown = format_system_validation_markdown(system_validation_snapshot)
             if markdown:
-                validation_payload["markdown"] = markdown
-            summary_payload["system_validation"] = validation_payload
+                system_validation_payload["markdown"] = markdown
+            summary_payload["system_validation"] = system_validation_payload
 
         if self._last_sensory_drift_snapshot is not None:
             drift_snapshot = self._last_sensory_drift_snapshot
@@ -1121,7 +1153,7 @@ def _ensure_fix_components(
     config: SystemConfig,
     event_bus: EventBus,
     *,
-    task_factory: Callable[[Awaitable[Any], Optional[str]], asyncio.Task[Any]] | None = None,
+    task_factory: Callable[[Coroutine[Any, Any, Any], Optional[str]], asyncio.Task[Any]] | None = None,
 ) -> tuple[FIXConnectionManager, FIXSensoryOrgan, FIXBrokerInterface]:
     logger = logging.getLogger(__name__)
     logger.info(
@@ -1129,7 +1161,8 @@ def _ensure_fix_components(
     )
     logger.info("🎯 Configuring FIX protocol components")
 
-    fix_connection_manager = FIXConnectionManager(config)
+    fix_config = cast(SystemConfigProtocol, config)
+    fix_connection_manager = FIXConnectionManager(fix_config)
 
     price_queue: asyncio.Queue[Any] = asyncio.Queue()
     trade_queue: asyncio.Queue[Any] = asyncio.Queue()
@@ -1141,7 +1174,12 @@ def _ensure_fix_components(
     if trade_app:
         trade_app.set_message_queue(trade_queue)
 
-    sensory_organ = FIXSensoryOrgan(event_bus, price_queue, config, task_factory=task_factory)
+    sensory_organ = FIXSensoryOrgan(
+        event_bus,
+        price_queue,
+        config.to_dict(),
+        task_factory=task_factory,
+    )
     broker_interface = FIXBrokerInterface(
         event_bus,
         trade_queue,
@@ -1577,7 +1615,9 @@ async def build_professional_predator_app(
     task_supervisor = TaskSupervisor(namespace="professional-runtime")
 
     def _task_factory(
-        coro: Awaitable[Any], name: str | None = None, metadata: Mapping[str, Any] | None = None
+        coro: Coroutine[Any, Any, Any],
+        name: str | None = None,
+        metadata: Mapping[str, Any] | None = None,
     ) -> asyncio.Task[Any]:
         return task_supervisor.create(coro, name=name, metadata=metadata)
 
@@ -1599,7 +1639,7 @@ async def build_professional_predator_app(
                 logger.debug("Failed to update event bus tracer", exc_info=True)
 
     # Enforce guardrails before instantiating live components
-    SafetyManager.from_config(cfg).enforce()
+    SafetyManager.from_config(cfg.to_dict()).enforce()
 
     sensors = _default_sensors()
     compliance_monitor = _build_trade_compliance_monitor(cfg, bus)

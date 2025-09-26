@@ -14,6 +14,7 @@ from .timescale_pipeline import (
     TimescaleBackbonePlan,
 )
 from ..persist.timescale import TimescaleIngestResult
+from ..schemas import MacroEvent
 
 
 @dataclass(frozen=True)
@@ -138,21 +139,22 @@ def _build_macro_recovery(
     plan: MacroEventIngestPlan,
     missing_symbols: Sequence[str] | tuple[str, ...],
 ) -> MacroEventIngestPlan:
-    events: Sequence[object] | None = plan.events
+    events = plan.events
+    filtered_events: Sequence[MacroEvent | Mapping[str, object]] | None = events
     if events is not None and missing_symbols:
         targets = {symbol for symbol in missing_symbols if symbol}
         if targets:
-            filtered: list[object] = []
+            filtered: list[MacroEvent | Mapping[str, object]] = []
             for event in events:
                 name = _extract_event_name(event)
                 if not targets or name in targets:
                     filtered.append(event)
             if filtered:
-                events = tuple(filtered)
+                filtered_events = tuple(filtered)
     return MacroEventIngestPlan(
         start=plan.start,
         end=plan.end,
-        events=events,
+        events=filtered_events,
         source=plan.source,
     )
 

@@ -25,6 +25,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: ./.github/actions/python-setup
       - name: Ruff (lint)
         run: ruff check .
@@ -37,6 +39,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: ./.github/actions/python-setup
       - name: Guard single mypy source
         run: |
@@ -44,10 +48,33 @@ jobs:
           if grep -n '^\[tool\.mypy\]' pyproject.toml >/dev/null 2>&1; then
             echo "[tool.mypy] found in pyproject.toml; use mypy.ini"; exit 1; fi
           test -f mypy.ini || { echo "mypy.ini missing"; exit 1; }
+      - name: Determine changed Python files
+        id: changed-python
+        uses: tj-actions/changed-files@v41
+        with:
+          files: |
+            src/**/*.py
+
+      - name: Strict mypy on changed Python files
+        if: steps.changed-python.outputs.any_changed == 'true'
+        env:
+          CHANGED_PYTHON_FILES: ${{ steps.changed-python.outputs.all_changed_files }}
+        run: |
+          set -euo pipefail
+          python tools/run_mypy_strict_on_changed.py
       - name: mypy
         env:
           MYPY_FORCE_COLOR: '1'
-        run: mypy --config-file mypy.ini src
+        run: |
+          set -euo pipefail
+          mypy --config-file mypy.ini src 2>&1 | tee mypy-report.txt
+      - name: Upload mypy backlog report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mypy-report-${{ github.run_id }}
+          path: mypy-report.txt
+          if-no-files-found: error
       - name: Upload typing snapshot
         if: always()
         uses: actions/upload-artifact@v4

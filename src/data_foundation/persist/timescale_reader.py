@@ -19,7 +19,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Sequence
+from typing import Sequence, cast
 
 import pandas as pd
 from sqlalchemy.engine import Engine
@@ -346,7 +346,7 @@ class TimescaleReader:
         if isinstance(value, pd.Timestamp):
             if pd.isna(value):
                 return None
-            return value.to_pydatetime()
+            return cast(datetime, value.to_pydatetime())
         if isinstance(value, datetime):
             return value
         return None

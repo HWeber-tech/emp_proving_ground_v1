@@ -15,6 +15,7 @@ except Exception:  # pragma: no cover
     redis = None  # type: ignore
 
 from src.config.risk.risk_config import RiskConfig as TradingRiskConfig
+from src.core.coercion import coerce_float, coerce_int
 from src.risk.telemetry import (
     RiskTelemetrySnapshot,
     evaluate_risk_posture,
@@ -204,18 +205,19 @@ class TradingManager:
                 notional = abs(float(quantity)) * abs(float(price))
 
                 start = time.perf_counter()
-                self._execution_stats["orders_submitted"] = (
-                    int(self._execution_stats["orders_submitted"]) + 1
+                current_submitted = coerce_int(
+                    self._execution_stats.get("orders_submitted"), default=0
                 )
+                self._execution_stats["orders_submitted"] = current_submitted + 1
                 try:
                     result = await self.execution_engine.process_order(validated_intent)
                 except Exception as exc:
                     logger.exception("Execution engine error for trade intent %s", event_id)
                     self._record_execution_failure(exc)
                     decision = self._get_last_risk_decision()
-                    metadata = {"error": str(exc)}
+                    failure_metadata: dict[str, object] = {"error": str(exc)}
                     if notional:
-                        metadata["notional"] = float(notional)
+                        failure_metadata["notional"] = float(notional)
                     confidence = self._extract_confidence(validated_intent)
                     if confidence is None:
                         confidence = base_confidence
@@ -226,7 +228,7 @@ class TradingManager:
                         symbol=symbol,
                         confidence=confidence,
                         notional=notional,
-                        metadata=metadata,
+                        metadata=failure_metadata,
                         decision=decision,
                     )
                 else:
@@ -240,9 +242,9 @@ class TradingManager:
                         if notional > 0:
                             self._roi_executed_trades += 1
                             self._roi_total_notional += notional
-                        metadata = {
-                            "latency_ms": latency_ms,
-                            "notional": notional,
+                        success_metadata: dict[str, object] = {
+                            "latency_ms": float(latency_ms),
+                            "notional": float(notional),
                             "quantity": float(quantity),
                             "price": float(price),
                         }
@@ -253,16 +255,16 @@ class TradingManager:
                             symbol=symbol,
                             confidence=confidence,
                             notional=notional,
-                            metadata=metadata,
+                            metadata=success_metadata,
                             decision=decision,
                         )
                     else:
                         error_reason = str(
                             self._execution_stats.get("last_error") or "execution_failed"
                         )
-                        metadata = {"reason": error_reason}
+                        fallback_metadata: dict[str, object] = {"reason": error_reason}
                         if notional:
-                            metadata["notional"] = float(notional)
+                            fallback_metadata["notional"] = float(notional)
                         self._record_experiment_event(
                             event_id=event_id,
                             status="failed",
@@ -270,7 +272,7 @@ class TradingManager:
                             symbol=symbol,
                             confidence=confidence,
                             notional=notional,
-                            metadata=metadata,
+                            metadata=fallback_metadata,
                             decision=decision,
                         )
 
@@ -280,16 +282,16 @@ class TradingManager:
                 reason = None
                 if isinstance(decision, Mapping):
                     reason = decision.get("reason")
-                metadata: dict[str, Any] = {}
+                rejection_metadata: dict[str, object] = {}
                 if reason:
-                    metadata["reason"] = reason
+                    rejection_metadata["reason"] = reason
                 self._record_experiment_event(
                     event_id=event_id,
                     status="rejected",
                     strategy_id=strategy_id,
                     symbol=base_symbol,
                     confidence=base_confidence,
-                    metadata=metadata or None,
+                    metadata=rejection_metadata or None,
                     decision=decision,
                 )
 
@@ -306,15 +308,18 @@ class TradingManager:
             self._record_execution_failure("execution_engine_returned_false")
             return
 
-        samples = int(self._execution_stats["latency_samples"])
-        total_latency = float(self._execution_stats["total_latency_ms"])
-        max_latency = float(self._execution_stats["max_latency_ms"])
+        samples = coerce_int(self._execution_stats.get("latency_samples"), default=0)
+        total_latency = coerce_float(
+            self._execution_stats.get("total_latency_ms"), default=0.0
+        )
+        max_latency = coerce_float(self._execution_stats.get("max_latency_ms"), default=0.0)
 
         samples += 1
         total_latency += float(latency_ms)
         max_latency = max(max_latency, float(latency_ms))
 
-        self._execution_stats["orders_executed"] = int(self._execution_stats["orders_executed"]) + 1
+        executed = coerce_int(self._execution_stats.get("orders_executed"), default=0)
+        self._execution_stats["orders_executed"] = executed + 1
         self._execution_stats["latency_samples"] = samples
         self._execution_stats["total_latency_ms"] = total_latency
         self._execution_stats["max_latency_ms"] = max_latency
@@ -325,7 +330,8 @@ class TradingManager:
     def _record_execution_failure(self, error: Exception | str) -> None:
         """Record a failed execution attempt."""
 
-        self._execution_stats["orders_failed"] = int(self._execution_stats["orders_failed"]) + 1
+        failed = coerce_int(self._execution_stats.get("orders_failed"), default=0)
+        self._execution_stats["orders_failed"] = failed + 1
         self._execution_stats["last_error"] = str(error)
         self._execution_stats["last_successful_order"] = None
 
@@ -376,8 +382,8 @@ class TradingManager:
         """Return execution telemetry derived from the configured engine."""
 
         stats: dict[str, object] = dict(self._execution_stats)
-        samples = int(stats.get("latency_samples", 0))
-        total_latency = float(stats.get("total_latency_ms", 0.0))
+        samples = coerce_int(stats.get("latency_samples"), default=0)
+        total_latency = coerce_float(stats.get("total_latency_ms"), default=0.0)
         stats["avg_latency_ms"] = total_latency / samples if samples > 0 else None
 
         engine = getattr(self, "execution_engine", None)
@@ -415,12 +421,13 @@ class TradingManager:
     def get_experiment_events(self, limit: int | None = None) -> list[Mapping[str, Any]]:
         """Expose the recent paper-trading experiment events."""
 
-        events = list(self._experiment_events)
+        events: list[Mapping[str, Any]] = [dict(event) for event in self._experiment_events]
         if limit is None:
             return events
-        if limit <= 0:
+        count = int(limit)
+        if count <= 0:
             return []
-        return events[: int(limit)]
+        return events[: min(len(events), count)]
 
     async def start(self) -> None:
         """Start the TradingManager and subscribe to trade intents."""
@@ -552,32 +559,20 @@ class TradingManager:
         for attr in ("price", "limit_price", "entry_price"):
             value = getattr(intent, attr, None)
             if value is not None:
-                try:
-                    return float(value)
-                except Exception:
-                    continue
+                coerced = coerce_float(value)
+                if coerced is not None:
+                    return coerced
         if isinstance(intent, dict):
             for key in ("price", "limit_price", "entry_price"):
                 if key in intent:
-                    try:
-                        return float(intent[key])
-                    except Exception:
-                        continue
-        try:
-            return float(portfolio_state.get("current_price", 0.0))
-        except Exception:
-            return 0.0
+                    coerced = coerce_float(intent[key])
+                    if coerced is not None:
+                        return coerced
+        return coerce_float(portfolio_state.get("current_price", 0.0), default=0.0)
 
     @staticmethod
     def _coerce_float(value: Any) -> float | None:
-        if isinstance(value, (int, float)):
-            return float(value)
-        if value is None:
-            return None
-        try:
-            return float(str(value))
-        except (TypeError, ValueError):
-            return None
+        return coerce_float(value)
 
     async def _emit_risk_snapshot(self) -> None:
         """Compute and publish the latest risk posture telemetry."""

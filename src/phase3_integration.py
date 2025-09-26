@@ -249,15 +249,15 @@ async def main():
         "outcome": {"pnl": 0.01, "win": True},
     }
 
-    strategy_population = []  # Would be populated with real strategies
-    species_populations = {
+    strategy_population: list[Any] = []  # Would be populated with real strategies
+    species_populations: dict[str, list[Any]] = {
         "stalker": [],
         "ambusher": [],
         "pack_hunter": [],
         "scavenger": [],
         "alpha": [],
     }
-    performance_history = {
+    performance_history: dict[str, list[float]] = {
         "returns": [0.01, 0.02, -0.01, 0.03, 0.01],
         "sharpe_ratios": [1.5, 1.8, 1.2, 2.1, 1.6],
     }

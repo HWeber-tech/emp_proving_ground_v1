@@ -11,7 +11,35 @@ genomes seeded a run.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Iterable, Mapping, Sequence
+from typing import Iterable, Mapping, Sequence, TypeGuard
+
+
+def _is_numeric_like(value: object) -> TypeGuard[int | float | str]:
+    """Return True for values that can be losslessly coerced via float()."""
+
+    return isinstance(value, (int, float, str)) and value is not True and value is not False
+
+
+def _coerce_int_value(value: object, *, default: int = 0) -> int:
+    """Best-effort conversion to ``int`` handling numeric strings and floats."""
+
+    if _is_numeric_like(value):
+        try:
+            return int(float(value))
+        except ValueError:
+            return default
+    return default
+
+
+def _coerce_float_value(value: object, *, default: float | None = 0.0) -> float | None:
+    """Best-effort conversion to ``float`` handling numeric strings."""
+
+    if _is_numeric_like(value):
+        try:
+            return float(value)
+        except ValueError:
+            return default
+    return default
 
 
 def _coerce_int_mapping(payload: Mapping[str, object] | None) -> dict[str, int]:
@@ -19,9 +47,12 @@ def _coerce_int_mapping(payload: Mapping[str, object] | None) -> dict[str, int]:
     if not isinstance(payload, Mapping):
         return result
     for key, value in payload.items():
-        try:
-            result[str(key)] = int(value)  # type: ignore[arg-type]
-        except Exception:
+        if _is_numeric_like(value):
+            try:
+                result[str(key)] = int(float(value))
+            except ValueError:
+                continue
+        else:
             continue
     return result
 
@@ -31,9 +62,12 @@ def _coerce_float_mapping(payload: Mapping[str, object] | None) -> dict[str, flo
     if not isinstance(payload, Mapping):
         return result
     for key, value in payload.items():
-        try:
-            result[str(key)] = float(value)  # type: ignore[arg-type]
-        except Exception:
+        if _is_numeric_like(value):
+            try:
+                result[str(key)] = float(value)
+            except ValueError:
+                continue
+        else:
             continue
     return result
 
@@ -147,18 +181,16 @@ def build_catalogue_snapshot(
         return None
 
     seed_source = str(population_stats.get("seed_source", "unknown"))
-    generation = int(float(population_stats.get("generation", 0) or 0))
-    population_size = int(float(population_stats.get("population_size", 0) or 0))
-    species_distribution = _coerce_int_mapping(
-        population_stats.get("species_distribution")
-        if isinstance(population_stats, Mapping)
-        else {}
-    )
+    generation = _coerce_int_value(population_stats.get("generation"))
+    population_size = _coerce_int_value(population_stats.get("population_size"))
+    species_raw = population_stats.get("species_distribution")
+    species_distribution = _coerce_int_mapping(species_raw if isinstance(species_raw, Mapping) else None)
 
     catalogue_name = str(catalogue_raw.get("name", "unknown"))
     catalogue_version = str(catalogue_raw.get("version", "unknown"))
-    catalogue_size = int(float(catalogue_raw.get("size", 0) or 0))
-    catalogue_species = _coerce_int_mapping(catalogue_raw.get("species"))
+    catalogue_size = _coerce_int_value(catalogue_raw.get("size"))
+    species_payload = catalogue_raw.get("species")
+    catalogue_species = _coerce_int_mapping(species_payload if isinstance(species_payload, Mapping) else None)
     source_notes_iter = catalogue_raw.get("source_notes")
     source_notes = (
         tuple(str(note) for note in source_notes_iter)
@@ -166,11 +198,8 @@ def build_catalogue_snapshot(
         else ()
     )
     seeded_at = None
-    try:
-        raw_seeded = catalogue_raw.get("seeded_at")
-        seeded_at = float(raw_seeded) if raw_seeded is not None else None
-    except Exception:
-        seeded_at = None
+    raw_seeded = catalogue_raw.get("seeded_at")
+    seeded_at = _coerce_float_value(raw_seeded, default=None) if raw_seeded is not None else None
 
     entries_raw = catalogue_raw.get("entries")
     entries: list[EvolutionCatalogueEntrySnapshot] = []
@@ -181,7 +210,7 @@ def build_catalogue_snapshot(
             identifier = str(entry_obj.get("id", ""))
             name = str(entry_obj.get("name", identifier))
             species = str(entry_obj.get("species", ""))
-            generation_val = int(float(entry_obj.get("generation", 0) or 0))
+            generation_val = _coerce_int_value(entry_obj.get("generation"))
             tags = _coerce_tags(entry_obj.get("tags"))
             metrics = _coerce_float_mapping(entry_obj.get("performance_metrics"))
             entries.append(

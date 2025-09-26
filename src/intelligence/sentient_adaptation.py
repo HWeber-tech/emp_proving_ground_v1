@@ -141,7 +141,7 @@ MetaCognitionEngine = MetaCognitionEngineImpl
 class SentientAdaptationEngine:
     """Main engine for real-time adaptation and learning."""
 
-    def __init__(self, episodic_memory: Optional[EpisodicMemorySystem] = None):
+    def __init__(self, episodic_memory: Optional[EpisodicMemorySystem] = None) -> None:
         # Initialize with minimal configs to satisfy component contracts
         self.real_time_learner = RealTimeLearningEngine(
             {

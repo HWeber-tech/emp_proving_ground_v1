@@ -179,10 +179,15 @@ class BootstrapTradingStack:
             side = "SELL"
 
         if side is None:
-            result = {"snapshot": snapshot, "intent": None, "decision": None, "status": "skipped"}
-            self.decisions.append(result)
-            self._notify_control_center(snapshot, result)
-            return result
+            skip_result: dict[str, object | None] = {
+                "snapshot": snapshot,
+                "intent": None,
+                "decision": None,
+                "status": "skipped",
+            }
+            self.decisions.append(skip_result)
+            self._notify_control_center(snapshot, skip_result)
+            return skip_result
 
         market_price = float(getattr(snapshot.market_data, "close", snapshot.market_data.mid_price))
         intent = PaperTradeIntent(
@@ -213,16 +218,16 @@ class BootstrapTradingStack:
                     liquidity_summary = check.get("summary")
                     break
 
-        result = {
+        result_payload: dict[str, object | None] = {
             "snapshot": snapshot,
             "intent": intent,
             "decision": decision,
             "status": "submitted",
             "liquidity_summary": liquidity_summary,
         }
-        self.decisions.append(result)
-        self._notify_control_center(snapshot, result)
-        return result
+        self.decisions.append(result_payload)
+        self._notify_control_center(snapshot, result_payload)
+        return result_payload
 
     def _notify_control_center(self, snapshot: SensorySnapshot, result: Mapping[str, Any]) -> None:
         if self.control_center is not None:

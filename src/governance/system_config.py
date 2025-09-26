@@ -178,7 +178,7 @@ class SystemConfig:
           <KEY>_invalid: "<raw>"
         - Include all other non-recognized env entries into extras
         """
-        env = env if env is not None else os.environ  # read only here
+        source_env: Mapping[str, str] = os.environ if env is None else env
 
         base = defaults if defaults is not None else cls()
         extras: dict[str, str] = dict(base.extras) if base.extras else {}
@@ -203,7 +203,7 @@ class SystemConfig:
                 "KAFKA_URL",
             )
             for key in indicator_keys:
-                raw_indicator = env.get(key)
+                raw_indicator = source_env.get(key)
                 if raw_indicator and str(raw_indicator).strip():
                     return DataBackboneMode.institutional
             return current
@@ -227,19 +227,19 @@ class SystemConfig:
             )
 
         # RUN_MODE
-        raw_run_mode = env.get("RUN_MODE")
+        raw_run_mode = source_env.get("RUN_MODE")
         if raw_run_mode is not None and not _is_valid_enum_value(raw_run_mode, RunMode):
             _mark_invalid("RUN_MODE", raw_run_mode, base.run_mode.value)
         run_mode = _coerce_enum(raw_run_mode, RunMode, base.run_mode)
 
         # EMP_ENVIRONMENT
-        raw_env = env.get("EMP_ENVIRONMENT")
+        raw_env = source_env.get("EMP_ENVIRONMENT")
         if raw_env is not None and not _is_valid_enum_value(raw_env, EmpEnvironment):
             _mark_invalid("EMP_ENVIRONMENT", raw_env, base.environment.value)
         environment = _coerce_enum(raw_env, EmpEnvironment, base.environment)
 
         # EMP_TIER (add aliases for 'tier-1' and normalized 'tier_1')
-        raw_tier = env.get("EMP_TIER")
+        raw_tier = source_env.get("EMP_TIER")
         tier_aliases: Mapping[str, EmpTier] = {
             "tier-1": EmpTier.tier_1,
             "tier_1": EmpTier.tier_1,
@@ -249,7 +249,7 @@ class SystemConfig:
         tier = _coerce_enum(raw_tier, EmpTier, base.tier, tier_aliases)
 
         # CONFIRM_LIVE
-        raw_confirm_live = env.get("CONFIRM_LIVE")
+        raw_confirm_live = source_env.get("CONFIRM_LIVE")
         if raw_confirm_live is not None:
             normalized_bool = str(raw_confirm_live).strip().lower().replace("-", "_")
             valid_bool = normalized_bool in {
@@ -269,7 +269,7 @@ class SystemConfig:
         confirm_live = _coerce_bool(raw_confirm_live, base.confirm_live)
 
         # CONNECTION_PROTOCOL
-        raw_cp = env.get("CONNECTION_PROTOCOL")
+        raw_cp = source_env.get("CONNECTION_PROTOCOL")
         cp_aliases: Mapping[str, ConnectionProtocol] = {
             "mock": ConnectionProtocol.bootstrap,
             "bootstrap": ConnectionProtocol.bootstrap,
@@ -281,7 +281,7 @@ class SystemConfig:
             raw_cp, ConnectionProtocol, base.connection_protocol, cp_aliases
         )
 
-        raw_backbone = env.get("DATA_BACKBONE_MODE")
+        raw_backbone = source_env.get("DATA_BACKBONE_MODE")
         if raw_backbone is not None and not _is_valid_enum_value(raw_backbone, DataBackboneMode):
             _mark_invalid("DATA_BACKBONE_MODE", raw_backbone, base.data_backbone_mode.value)
         data_backbone_mode = _coerce_enum(raw_backbone, DataBackboneMode, base.data_backbone_mode)
@@ -289,7 +289,7 @@ class SystemConfig:
             data_backbone_mode = _infer_data_backbone_mode(data_backbone_mode)
 
         # Include all other non-recognized env entries in extras (stringify values)
-        for k, v in env.items():
+        for k, v in source_env.items():
             if k not in recognized_keys:
                 extras[k] = str(v)
 

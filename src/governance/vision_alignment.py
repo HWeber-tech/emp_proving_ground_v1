@@ -91,21 +91,30 @@ class VisionAlignmentReport:
         gaps = self._collect_unique(it.gaps for it in layers)
         strengths = self._collect_unique(it.strengths for it in layers)
 
+        summary: dict[str, Any] = {
+            "readiness": round(readiness, 3),
+            "status": summary_status,
+            "layers_ready": sum(1 for layer in layers if layer.status() == "ready"),
+            "layers_progressing": sum(
+                1 for layer in layers if layer.status() == "progressing"
+            ),
+        }
+
         return {
             "encyclopedia_version": self.encyclopedia_version,
-            "summary": {
-                "readiness": round(readiness, 3),
-                "status": summary_status,
-                "layers_ready": sum(1 for layer in layers if layer.status() == "ready"),
-                "layers_progressing": sum(1 for layer in layers if layer.status() == "progressing"),
-            },
+            "summary": summary,
             "layers": [layer.as_payload() for layer in layers],
             "strengths": strengths,
             "gaps": gaps,
         }
 
     def summary(self) -> Mapping[str, Any]:
-        return self.build()["summary"]
+        report = self.build()
+        summary = report.get("summary")
+        if isinstance(summary, Mapping):
+            return dict(summary)
+        empty: dict[str, Any] = {}
+        return empty
 
     # ------------------------------------------------------------------
     # Layer assessors

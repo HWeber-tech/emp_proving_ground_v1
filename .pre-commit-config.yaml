@@ -17,3 +17,11 @@ repos:
     hooks:
       - id: isort
         args: [--check-only]
+  - repo: local
+    hooks:
+      - id: mypy-changed-files
+        name: mypy (changed files)
+        entry: mypy --config-file mypy.ini
+        language: system
+        types: [python]
+        pass_filenames: true

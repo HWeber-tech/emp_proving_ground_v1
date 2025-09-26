@@ -212,10 +212,11 @@ class IncidentResponseSnapshot:
         backlog = self.metadata.get("postmortem_backlog_hours")
         if isinstance(backlog, (int, float)):
             lines.append(f"- Postmortem backlog (hours): {backlog:.1f}")
-        if self.metadata.get("context"):
+        context = self.metadata.get("context")
+        if isinstance(context, Mapping):
             lines.append("")
             lines.append("**Context:**")
-            for key, value in sorted(self.metadata["context"].items()):
+            for key, value in sorted(context.items()):
                 lines.append(f"- {key}: {value}")
         if self.issues:
             lines.append("")

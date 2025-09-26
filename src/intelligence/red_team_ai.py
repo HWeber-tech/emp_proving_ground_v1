@@ -58,7 +58,7 @@ def _is_callable(x: object) -> TypeGuard[SupportsCall]:
 
 
 class _LazySymbol:
-    def __init__(self, mod_path: str, attr: str):
+    def __init__(self, mod_path: str, attr: str) -> None:
         self._mod_path = mod_path
         self._attr = attr
 
@@ -1018,7 +1018,7 @@ class RedTeamAILegacy:
 
 
 # Example usage and testing
-async def test_red_team_ai():
+async def test_red_team_ai() -> None:
     """Test the Red Team AI system (example)."""
     red_team = RedTeamAILegacy()
 

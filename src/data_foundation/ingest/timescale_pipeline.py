@@ -153,7 +153,7 @@ class TimescaleBackboneOrchestrator:
                         dimension="daily_bars", source=plan.daily.source
                     )
                 else:
-                    df = fetch_daily(symbols, days=plan.daily.lookback_days)
+                    df = fetch_daily(symbols, plan.daily.lookback_days)
                     metadata["fetched_rows"] = int(len(df))
                     if df.empty:
                         result = TimescaleIngestResult.empty(

@@ -11,7 +11,10 @@ import logging
 import random
 from typing import Any, cast
 
-from src.core.interfaces import DecisionGenome, IMutationStrategy
+# NOTE: Import from the defining module instead of the package re-export so that
+# mypy can resolve the Protocol attributes when strict mode is enabled for
+# src.core.evolution.*.
+from src.core.interfaces.base import DecisionGenome, IMutationStrategy
 
 logger = logging.getLogger(__name__)
 
@@ -118,15 +121,14 @@ class GaussianMutation(IMutationStrategy):
             "sentiment_weight",
             "economic_weight",
         ]
-        mutated_any = False
         for weight_name in sensory_weights:
             if random.random() < mutation_rate:
+                sensory = cast(Any, mutated).sensory
                 setattr(
-                    mutated.sensory,
+                    sensory,
                     weight_name,
-                    self._mutate_parameter(getattr(mutated.sensory, weight_name), 0.0, 1.0),
+                    self._mutate_parameter(getattr(sensory, weight_name), 0.0, 1.0),
                 )
-                mutated_any = True
 
         # Mutate thinking weights (ensure they sum to 1.0)
         thinking_weights = [
@@ -137,12 +139,12 @@ class GaussianMutation(IMutationStrategy):
         ]
         for weight_name in thinking_weights:
             if random.random() < mutation_rate:
+                thinking = cast(Any, mutated).thinking
                 setattr(
-                    mutated.thinking,
+                    thinking,
                     weight_name,
-                    self._mutate_parameter(getattr(mutated.thinking, weight_name), 0.0, 1.0),
+                    self._mutate_parameter(getattr(thinking, weight_name), 0.0, 1.0),
                 )
-                mutated_any = True
 
         # Normalize weights after mutation
         _m._normalize_weights()

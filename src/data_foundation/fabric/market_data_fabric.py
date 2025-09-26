@@ -4,9 +4,10 @@ import asyncio
 import inspect
 import logging
 from collections import defaultdict
+from collections.abc import Awaitable as AwaitableABC
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
-from typing import Any, Awaitable, Callable, Dict, Mapping, Optional, Protocol
+from typing import Any, Awaitable, Callable, Dict, Mapping, Optional, Protocol, cast
 
 from src.core.base import MarketData
 
@@ -20,6 +21,7 @@ __all__ = [
 logger = logging.getLogger(__name__)
 
 ConnectorResult = Optional[MarketData | Mapping[str, Any]]
+AwaitableResult = ConnectorResult | Awaitable[ConnectorResult]
 
 
 class MarketDataConnector(Protocol):
@@ -37,20 +39,32 @@ class CallableConnector:
 
     name: str
     func: (
-        Callable[[str, datetime | None], ConnectorResult | Awaitable[ConnectorResult]]
-        | Callable[[str], ConnectorResult | Awaitable[ConnectorResult]]
+        Callable[[str, datetime | None], AwaitableResult]
+        | Callable[[str], AwaitableResult]
     )
     priority: int = 100
     timeout: float | None = None
+    _call: Callable[[str, datetime | None], AwaitableResult] = field(init=False)
+
+    def __post_init__(self) -> None:
+        signature = inspect.signature(self.func)
+        params = signature.parameters
+        if len(params) >= 2:
+            self._call = cast(Callable[[str, datetime | None], AwaitableResult], self.func)
+        else:
+            bare = cast(Callable[[str], AwaitableResult], self.func)
+
+            def call(symbol: str, as_of: datetime | None) -> AwaitableResult:
+                return bare(symbol)
+
+            self._call = call
 
     async def fetch(self, symbol: str, *, as_of: datetime | None = None) -> ConnectorResult:
-        try:
-            result = self.func(symbol, as_of)  # type: ignore[arg-type]
-        except TypeError:
-            result = self.func(symbol)  # type: ignore[misc]
-        if inspect.isawaitable(result):
-            return await result
-        return result
+        result = self._call(symbol, as_of)
+        if isinstance(result, AwaitableABC):
+            awaited = await cast(Awaitable[ConnectorResult], result)
+            return awaited
+        return cast(ConnectorResult, result)
 
 
 @dataclass

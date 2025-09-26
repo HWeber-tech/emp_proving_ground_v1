@@ -8,6 +8,7 @@ from enum import Enum
 from typing import Mapping, MutableMapping, Sequence
 
 from src.core.event_bus import Event, EventBus, get_global_bus
+from src.core.coercion import coerce_int
 
 
 class ComplianceReadinessStatus(Enum):
@@ -90,6 +91,12 @@ def _coerce_mapping(value: object) -> MutableMapping[str, object]:
     return {}
 
 
+def _coerce_sequence(value: object) -> Sequence[object]:
+    if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
+        return value
+    return ()
+
+
 def _extract_trade_component(
     summary: Mapping[str, object] | None,
 ) -> ComplianceReadinessComponent:
@@ -103,12 +110,14 @@ def _extract_trade_component(
 
     last_snapshot = _coerce_mapping(summary.get("last_snapshot"))
     policy = _coerce_mapping(summary.get("policy"))
-    history: Sequence[object] | None = summary.get("history")  # type: ignore[assignment]
+    history_value = summary.get("history")
+    history: tuple[object, ...] = tuple(_coerce_sequence(history_value)) if history_value else tuple()
 
     status_label = str(last_snapshot.get("status") or "").lower()
+    raw_checks = last_snapshot.get("checks")
     checks = [
         _coerce_mapping(check)
-        for check in last_snapshot.get("checks", [])  # type: ignore[arg-type]
+        for check in _coerce_sequence(raw_checks)
         if isinstance(check, Mapping)
     ]
     failed_checks = [check for check in checks if not bool(check.get("passed"))]
@@ -138,7 +147,7 @@ def _extract_trade_component(
         "critical_failures": len(critical_failures),
     }
 
-    if isinstance(history, Sequence) and history:
+    if history:
         metadata["history_samples"] = min(len(history), 5)
 
     daily_totals = summary.get("daily_totals")
@@ -185,9 +194,9 @@ def _extract_kyc_component(
     last_snapshot = _coerce_mapping(summary.get("last_snapshot"))
     risk_rating = str(last_snapshot.get("risk_rating") or "").upper()
     status_label = str(last_snapshot.get("status") or "").upper()
-    outstanding = list(last_snapshot.get("outstanding_items", []) or [])
-    watchlist = list(last_snapshot.get("watchlist_hits", []) or [])
-    alerts = list(last_snapshot.get("alerts", []) or [])
+    outstanding = list(_coerce_sequence(last_snapshot.get("outstanding_items")))
+    watchlist = list(_coerce_sequence(last_snapshot.get("watchlist_hits")))
+    alerts = list(_coerce_sequence(last_snapshot.get("alerts")))
 
     status = ComplianceReadinessStatus.ok
     if status_label in {"ESCALATED", "REJECTED", "BLOCKED", "SUSPENDED"}:
@@ -201,8 +210,8 @@ def _extract_kyc_component(
     elif outstanding or alerts:
         status = ComplianceReadinessStatus.warn
 
-    open_cases = int(summary.get("open_cases", 0) or 0)
-    escalations = int(summary.get("escalations", 0) or 0)
+    open_cases = coerce_int(summary.get("open_cases"), default=0) or 0
+    escalations = coerce_int(summary.get("escalations"), default=0) or 0
     if status is ComplianceReadinessStatus.ok:
         if open_cases or escalations:
             status = ComplianceReadinessStatus.warn
@@ -271,7 +280,9 @@ def evaluate_compliance_readiness(
         components.append(kyc_component)
         overall = _combine_status(overall, kyc_component.status)
 
-    snapshot_metadata = dict(metadata or {})
+    snapshot_metadata: dict[str, object] = {}
+    if isinstance(metadata, Mapping):
+        snapshot_metadata.update(dict(metadata))
     snapshot_metadata.setdefault("components", [component.name for component in components])
 
     return ComplianceReadinessSnapshot(

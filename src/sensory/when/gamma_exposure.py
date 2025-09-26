@@ -188,8 +188,17 @@ class GammaExposureAnalyzer:
 
         spot_price = float(max(self._config.minimum_spot, inferred_spot))
 
-        open_interest = pd.to_numeric(df.get("open_interest", 1.0), errors="coerce").fillna(1.0)
-        multiplier = pd.to_numeric(df.get("contract_multiplier", 1.0), errors="coerce").fillna(1.0)
+        open_interest_raw = df.get("open_interest")
+        if isinstance(open_interest_raw, pd.Series):
+            open_interest = pd.to_numeric(open_interest_raw, errors="coerce").fillna(1.0)
+        else:
+            open_interest = pd.Series(1.0, index=df.index, dtype=float)
+
+        multiplier_raw = df.get("contract_multiplier")
+        if isinstance(multiplier_raw, pd.Series):
+            multiplier = pd.to_numeric(multiplier_raw, errors="coerce").fillna(1.0)
+        else:
+            multiplier = pd.Series(1.0, index=df.index, dtype=float)
 
         weighted_gamma = df["gamma"].to_numpy(dtype=float) * open_interest.to_numpy(dtype=float)
         weighted_gamma = weighted_gamma * multiplier.to_numpy(dtype=float)
@@ -213,7 +222,8 @@ class GammaExposureAnalyzer:
             }
         )
         grouped = (
-            strike_frame.groupby("strike", as_index=False)["weighted_gamma"].sum()
+            strike_frame.groupby("strike", as_index=False)
+            .agg(weighted_gamma=("weighted_gamma", "sum"))
             if not strike_frame.empty
             else pd.DataFrame(columns=["strike", "weighted_gamma"])
         )
@@ -225,16 +235,19 @@ class GammaExposureAnalyzer:
             grouped["abs_gamma"] = grouped["weighted_gamma"].abs()
             grouped["distance"] = (grouped["strike"] - spot_price).abs()
             grouped["share"] = grouped["abs_gamma"] / total_abs_gamma
-            grouped = grouped.sort_values(by=["abs_gamma", "distance"], ascending=[False, True])
+            grouped = grouped.sort_values(["abs_gamma", "distance"], ascending=[False, True])
+            top_rows = grouped.head(5)[
+                ["strike", "weighted_gamma", "abs_gamma", "distance", "share"]
+            ].to_numpy(dtype=float)
             dominant_strikes = tuple(
                 GammaStrikeProfile(
-                    strike=float(row.strike),
-                    net_gamma=float(row.weighted_gamma),
-                    abs_gamma=float(row.abs_gamma),
-                    distance=float(row.distance),
-                    share_of_total=float(row.share),
+                    strike=float(strike),
+                    net_gamma=float(weighted_gamma_value),
+                    abs_gamma=float(abs_gamma_value),
+                    distance=float(distance_value),
+                    share_of_total=float(share_value),
                 )
-                for row in grouped.head(5).itertuples(index=False)
+                for strike, weighted_gamma_value, abs_gamma_value, distance_value, share_value in top_rows.tolist()
             )
 
         below_gamma = float(weighted_gamma[df["strike"].to_numpy(dtype=float) < spot_price].sum())

@@ -18,8 +18,11 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from datetime import UTC, datetime
-from typing import Sequence, cast
+from datetime import UTC, date, datetime, timedelta
+from typing import Any, Mapping, Sequence, cast
+
+SqlScalar = str | bytes | date | datetime | timedelta | int | float
+SqlParam = SqlScalar | tuple[SqlScalar, ...]
 
 import pandas as pd
 from sqlalchemy.engine import Engine
@@ -233,10 +236,10 @@ class TimescaleReader:
                 limit=limit,
                 dialect=dialect,
             )
-            frame = pd.read_sql_query(sql, conn, params=params)
+            frame = pd.read_sql_query(sql, conn, params=cast(Mapping[str, Any], params))
 
         if frame.empty:
-            empty_frame = pd.DataFrame(columns=columns)
+            empty_frame = pd.DataFrame(columns=list(columns))
             return TimescaleQueryResult(
                 dimension=dimension,
                 frame=empty_frame,
@@ -322,8 +325,8 @@ class TimescaleReader:
         end: datetime | None,
         limit: int | None,
         dialect: str,
-    ) -> dict[str, object]:
-        params: dict[str, object] = {}
+    ) -> dict[str, SqlParam]:
+        params: dict[str, SqlParam] = {}
         start_bound = self._coerce_bound(start, dialect)
         end_bound = self._coerce_bound(end, dialect)
         if start_bound is not None:
@@ -335,7 +338,7 @@ class TimescaleReader:
 
         if symbols:
             if dialect == "postgresql":
-                params["symbols"] = list(symbols)
+                params["symbols"] = tuple(symbols)
             else:
                 params.update({f"symbol_{idx}": symbol for idx, symbol in enumerate(symbols)})
 

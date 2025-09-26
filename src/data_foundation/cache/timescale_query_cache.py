@@ -90,7 +90,19 @@ def _serialise_frame(frame: pd.DataFrame) -> str:
 
 def _deserialise_frame(payload: Mapping[str, object]) -> pd.DataFrame:
     if "data" in payload and "columns" in payload:
-        frame = pd.DataFrame(**payload)
+        data_obj = payload.get("data")
+        columns_obj = payload.get("columns")
+        index_obj = payload.get("index")
+        if not isinstance(columns_obj, Sequence) or isinstance(columns_obj, (str, bytes)):
+            raise ValueError("Expected column labels to be a sequence of column names")
+        columns = [str(column) for column in columns_obj]
+
+        if not isinstance(data_obj, Sequence) or isinstance(data_obj, (str, bytes)):
+            raise ValueError("Expected frame data to be a sequence of rows")
+        rows = [cast(Sequence[object] | Mapping[str, object], row) for row in data_obj]
+        frame = pd.DataFrame(rows, columns=columns)
+        if isinstance(index_obj, Sequence) and not isinstance(index_obj, (str, bytes)):
+            frame.index = pd.Index(index_obj)
     else:
         text = payload.get("frame")
         if not isinstance(text, str):

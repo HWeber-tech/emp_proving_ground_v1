@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from typing import cast
 
 import pandas as pd
 
@@ -50,13 +51,19 @@ class WhySensor:
                     mapping[column] = str(tenor)
         self._yield_columns = mapping
 
-    def _extract_yields(self, row: Mapping[str, object]) -> Mapping[str, float | str | None]:
+    def _extract_yields(
+        self, row: Mapping[str, object] | pd.Series
+    ) -> Mapping[str, float | str | None]:
+        if isinstance(row, pd.Series):
+            mapping_row = cast(Mapping[str, object], row.to_dict())
+        else:
+            mapping_row = row
         tracker = YieldSlopeTracker()
         for column, tenor in self._yield_columns.items():
-            value = _coerce_curve_value(row.get(column))
+            value = _coerce_curve_value(mapping_row.get(column))
             tracker.update(tenor, value)
 
-        raw_curve = row.get("yield_curve")
+        raw_curve = mapping_row.get("yield_curve")
         if isinstance(raw_curve, Mapping):
             entries: list[tuple[str, float | int | str | None]] = []
             for raw_tenor, raw_value in raw_curve.items():

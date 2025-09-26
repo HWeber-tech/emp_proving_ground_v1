@@ -77,7 +77,16 @@ class WhenSensor:
             return [self._default_signal(confidence=0.05)]
 
         row = df.iloc[-1]
-        timestamp = pd.to_datetime(row.get("timestamp"), utc=True, errors="coerce")
+        timestamp_value = row.get("timestamp")
+        if isinstance(timestamp_value, pd.Timestamp):
+            timestamp = timestamp_value
+        elif isinstance(timestamp_value, datetime):
+            timestamp = pd.Timestamp(timestamp_value)
+        elif timestamp_value is None:
+            timestamp = None
+        else:
+            parsed = pd.to_datetime(str(timestamp_value), utc=True, errors="coerce")
+            timestamp = parsed if isinstance(parsed, pd.Timestamp) else None
         if timestamp is None or pd.isna(timestamp):
             return [self._default_signal(confidence=0.05)]
         if timestamp.tzinfo is None:

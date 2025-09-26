@@ -135,6 +135,20 @@ def _initiative_definitions() -> Sequence[InitiativeDefinition]:
                 _require_module_attr(
                     "operations.data_backbone", "evaluate_data_backbone_readiness"
                 ),
+                _require_module_attr(
+                    "data_foundation.ingest.metrics", "summarise_ingest_metrics"
+                ),
+                _require_module_attr(
+                    "data_foundation.ingest.quality", "evaluate_ingest_quality"
+                ),
+                _require_module_attr(
+                    "data_foundation.ingest.observability",
+                    "build_ingest_observability_snapshot",
+                ),
+                _require_module_attr("operations.ingest_trends", "evaluate_ingest_trends"),
+                _require_module_attr(
+                    "operations.data_backbone", "evaluate_data_backbone_validation"
+                ),
             ),
         ),
         InitiativeDefinition(
@@ -180,6 +194,14 @@ def _initiative_definitions() -> Sequence[InitiativeDefinition]:
                 _require_module_attr("trading.risk.risk_policy", "RiskPolicy"),
                 _require_module_attr(
                     "operations.professional_readiness", "evaluate_professional_readiness"
+                ),
+                _require_module_attr("operations.backup", "evaluate_backup_readiness"),
+                _require_module_attr("operations.event_bus_health", "evaluate_event_bus_health"),
+                _require_module_attr("operations.slo", "evaluate_ingest_slos"),
+                _require_module_attr("operations.system_validation", "evaluate_system_validation"),
+                _require_module_attr("operations.kafka_readiness", "evaluate_kafka_readiness"),
+                _require_module_attr(
+                    "operations.data_backbone", "evaluate_data_backbone_validation"
                 ),
             ),
         ),

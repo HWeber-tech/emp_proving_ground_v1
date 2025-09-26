@@ -14,8 +14,6 @@ jobs:
     name: Nightly mypy enforcement
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
       - uses: ./.github/actions/python-setup
       - name: Verify mypy configuration
         run: |

@@ -18,7 +18,6 @@ permissions:
 jobs:
   policy:
     uses: ./.github/workflows/forbidden-integrations.yml@main
-    secrets: inherit
 
   lint:
     runs-on: ubuntu-latest

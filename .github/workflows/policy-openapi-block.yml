@@ -8,4 +8,3 @@ on:
 jobs:
   block-openapi:
     uses: ./.github/workflows/forbidden-integrations.yml@main
-    secrets: inherit

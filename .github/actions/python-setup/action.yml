@@ -5,6 +5,8 @@ runs:
   steps:
     - name: Checkout
       uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
     - name: Setup Python
       id: setup-python
       uses: actions/setup-python@v5
@@ -19,9 +21,9 @@ runs:
       uses: actions/cache@v4
       with:
         path: .venv
-        key: venv-${{ runner.os }}-py${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('requirements/dev.txt') }}
+        key: venv-${{ runner.os }}-py${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('requirements/base.txt', 'requirements/dev.txt') }}
     - name: Install dev dependencies
-      if: steps.cache-venv.outputs.cache-hit != 'true'
+      if: steps['cache-venv'].outputs['cache-hit'] != 'true'
       shell: bash
       run: |
         set -euo pipefail

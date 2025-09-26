@@ -61,127 +61,133 @@ Note on prior mismatch: The earlier plan referenced `src.execution.paper_broker`
 
 ## PART II: HIGH‑IMPACT DEVELOPMENT PRIORITIES
 
-### TIER 1: IMMEDIATE HIGH‑IMPACT (Week 1‑2)
-**Goal:** Transform from framework to functional trading system
+### Phased Delivery Horizon (10–12 Weeks)
+To reflect the true scope of institutional-grade trading components, the roadmap is now organized into three phases. Each phase spans multiple weeks and is intended to be completed iteratively with continuous testing and documentation. Tasks are decomposed into granular work items so progress can be tracked and parallelized across contributors.
 
-#### Priority 1A: Solidify Execution Infrastructure (2 days)
-**Impact:** 🔥🔥🔥 **CRITICAL** — Enables actual trading  
-**Effort:** Low/Medium (leverage existing FIX interface)
+### PHASE 1 (WEEKS 1–4): CORE TRADING READINESS
+**Goal:** Transform the framework into a robust paper-trading stack with institutional hygiene.
 
-- Use `src/trading/integration/fix_broker_interface.py` as the single broker abstraction.
-- Add lightweight order lifecycle and position tracking in `src/trading/order_management/`:
-  - `order_lifecycle.py` — new order state machine integrating with `FIXBrokerInterface`
-  - `position_tracker.py` — portfolio exposure, realized/unrealized P&L
-- Ensure estimators in `src/trading/execution/execution_model.py` are plumbed into pre‑trade checks.
-- Provide a “paper” path via `scripts/paper_trade_dry_run.py` (dummy initiator; no live sends).
+#### Workstream 1A: Execution Lifecycle & Position Management (~2 weeks)
+**Impact:** 🔥🔥🔥 **CRITICAL** — Enables trustworthy order handling
 
-**Expected Outcome:** Full end‑to‑end capability from signal → risk checks → order → status updates → position and P&L tracking.
+- [ ] Extend `src/trading/integration/fix_broker_interface.py` with explicit callbacks for order acknowledgements, fills, cancels, and rejects.
+- [ ] Implement `src/trading/order_management/order_state_machine.py` covering New → Acknowledged → Partially Filled → Filled/Cancelled/Rejected transitions with FIX event parity tests.
+- [ ] Build `src/trading/order_management/position_tracker.py` with:
+  - [ ] Real-time exposure by instrument/account
+  - [ ] Realized & unrealized PnL with FIFO/LIFO modes
+  - [ ] Daily reconciliation script against broker state (reuse dummy initiator for paper sim)
+- [ ] Wire the execution estimator in `src/trading/execution/execution_model.py` into pre-trade checks (slippage, market impact, notional caps).
+- [ ] Add CLI workflow (`scripts/order_lifecycle_dry_run.py`) that replays FIX logs and asserts state transitions.
 
-#### Priority 1B: Advanced Strategy Implementation (3 days)
-**Impact:** 🔥🔥🔥 **CRITICAL** — Moves beyond basic moving averages  
-**Effort:** Medium (leverage existing strategy framework)
+**Acceptance:** Dry-run captures 100% FIX events, discrepancies trigger alerts, and nightly reconciliation report is generated.
 
-Components to implement:
-- **Volatility Engine (GARCH → regime‑aware)** — conditions sizing/entries
-- **Mean Reversion** — Bollinger, z‑score, pairs
-- **Momentum** — Breakout detection, trend following
-- **Multi‑Timeframe Analysis** — Cascade signals across timeframes
+#### Workstream 1B: Risk & Capital Protection (~1.5 weeks)
+**Impact:** 🔥🔥 **HIGH** — Prevents catastrophic losses
 
-**Expected Outcome:** Professional‑grade strategy library with proven alpha generation.
+- [ ] Introduce `src/risk/analytics/var.py` supporting historical, parametric, and Monte Carlo VaR with configurable windows.
+- [ ] Implement `src/risk/analytics/expected_shortfall.py` and integrate with order sizing guardrails.
+- [ ] Add position sizing adapters:
+  - [ ] Kelly fraction module with drawdown caps
+  - [ ] Volatility-target sizing fed by realized/GARCH volatility inputs
+  - [ ] Portfolio exposure limits by sector/asset class (config-driven)
+- [ ] Embed drawdown circuit breakers into `src/risk/manager.py` with unit tests simulating equity curve shocks.
+- [ ] Produce automated risk report artifact (Markdown/JSON) for CI artifacts.
 
-#### Priority 1C: Enhanced Risk Management (2 days)
-**Impact:** 🔥🔥 **HIGH** — Protects capital and enables scaling  
-**Effort:** Medium (extend existing risk framework)
+**Acceptance:** Pre-trade checks block orders breaching VaR/ES or exposure limits; regression suite validates guardrails.
 
-Components to implement:
-- **VaR/ES** — Historical, parametric, Monte Carlo
-- **Position Sizing** — Kelly criterion, risk parity, volatility targeting
-- **Drawdown Protection** — Dynamic reduction, circuit breakers
-- **Portfolio Risk** — Correlations, sector exposure limits
+#### Workstream 1C: Operational Hygiene & Visibility (~1 week)
+**Impact:** 🔥🔥 **HIGH** — Surfaces trading health earlier
 
-**Expected Outcome:** Institutional‑grade risk management protecting capital.
+- [ ] Stand up PnL & exposure dashboard (streamlit or textual CLI) backed by `position_tracker` outputs.
+- [ ] Centralize logging via `structlog` with correlation IDs for each order.
+- [ ] Expand monitoring hooks to emit metrics to Prometheus-compatible format.
+- [ ] Document operational runbooks in `/docs/runbooks/` and update encyclopedia cross-references.
+- [ ] Ensure paper-trading mode (`scripts/paper_trade_dry_run.py`) logs parity with live flow (no new paper broker abstraction required).
 
-### TIER 2: ADVANCED INTELLIGENCE (Week 3‑4)
-**Goal:** Implement sophisticated market perception and adaptation
+**Acceptance:** Operators can observe intraday PnL and order health; runbooks cover recovery steps; logging/tests cover happy-path and failure-path scenarios.
 
-#### Priority 2A: Enhanced 4D+1 Sensory Cortex (5 days)
-**Impact:** 🔥🔥 **HIGH** — Differentiates from basic systems  
-**Effort:** High (requires domain expertise)
+### PHASE 2 (WEEKS 5–8): STRATEGY EXPANSION & ADAPTIVE INTELLIGENCE
+**Goal:** Deliver a validated alpha library and evolutionary proof-of-concept while keeping core stability.
 
-HOW dimension enhancements:
-- Order flow analysis — Bid/ask imbalance, volume profile
-- ICT patterns — Order blocks, fair value gaps, liquidity sweeps
-- Institutional footprint — Large order detection, smart‑money tracking
+#### Workstream 2A: Strategy Increment (decomposed stories; ~2 weeks)
+**Impact:** 🔥🔥🔥 **CRITICAL** — Diversifies alpha sources
 
-WHAT dimension enhancements:
-- Pattern recognition — Harmonics, Elliott, S/R structure
-- ML classification — Regime detection, pattern strength scoring
-- Technical indicators — Advanced oscillators, custom composites
+- **Volatility Toolkit**
+  - [ ] Implement `src/strategies/signals/garch_volatility.py` with parameterized ARCH/GARCH models.
+  - [ ] Create volatility-regime classifier feeding risk sizing.
+- **Mean Reversion Set**
+  - [ ] Bollinger Band breakout/mean reversion strategy with configurable bands.
+  - [ ] Pair-trading z-score spread model with cointegration tests.
+  - [ ] Unit & integration tests covering signal generation, entry/exit, and conflicts with risk rules.
+- **Momentum & Breakout**
+  - [ ] Multi-timeframe momentum stack (e.g., 15m/1h/1d) with confirmation logic.
+  - [ ] Donchian/ATR breakout module and trailing stop handler.
+- **Strategy Integration**
+  - [ ] Update strategy registry/config templates.
+  - [ ] Add scenario backtests demonstrating uplift vs baseline MA strategy.
 
-WHEN dimension enhancements:
-- Session analysis — London/NY/Asian characteristics
-- Volatility forecasting — GARCH, realized vol
-- Timing optimization — Optimal entry/exit micro‑timing
+**Acceptance:** Each strategy passes unit/integration tests, is documented, and can be toggled via configuration.
 
-WHY dimension enhancements:
-- Economic indicators — GDP, inflation, employment
-- News sentiment — Real‑time news analysis and sentiment scoring
-- Causal inference — Event‑driven market movement analysis
+#### Workstream 2B: Evolution Engine Iteration (~1.5 weeks)
+**Impact:** 🔥🔥 **HIGH** — Enables continuous improvement without overcommitting
 
-**Expected Outcome:** Multi‑dimensional market intelligence exceeding human perception.
+- [ ] Define minimal genome schema for moving-average crossover parameters and risk toggles.
+- [ ] Implement fitness evaluation focusing on Sharpe, Sortino, and max drawdown (multi-objective aggregated via weighted score).
+- [ ] Add crossover/mutation operators with guardrails to prevent invalid configurations.
+- [ ] Run offline GA experiments (not real-time) and store results artifacts for reproducibility.
+- [ ] Document follow-on backlog (speciation, Pareto-front) for later phases.
 
-#### Priority 2B: Genetic Algorithm Evolution (3 days)
-**Impact:** 🔥🔥 **HIGH** — Enables continuous improvement  
-**Effort:** Medium (extend existing evolution framework)
+**Acceptance:** GA can evolve MA crossover parameters outperforming baseline in controlled backtest; results are reproducible from CI artifacts.
 
-Components to implement:
-- Strategy genome encoding — Parameters and rule representation
-- Fitness evaluation — Multi‑objective (return, Sharpe, drawdown)
-- Genetic operators — Crossover, mutation, selection algorithms
-- Population management — Diversity, elitism, speciation
+#### Workstream 2C: Sensory Cortex Enhancements (targeted; ~1.5 weeks)
+**Impact:** 🔥🔥 **HIGH** — Focus on actionable data rather than exhaustive research
 
-**Expected Outcome:** Self‑evolving strategies that improve without human intervention.
+- [ ] Prioritize HOW-dimension improvements aligned with execution (order book imbalance, volume profile snapshots).
+- [ ] Add WHEN-dimension session analytics feeding strategy scheduling.
+- [ ] Defer deep ICT/ML research to Phase 3 backlog but capture requirements in documentation.
+- [ ] Ensure new sensors emit structured data consumed by strategies and risk modules.
+- [ ] Expand tests to validate sensor outputs over historical datasets.
 
-### TIER 3: PRODUCTION READINESS (Week 5‑6)
-**Goal:** Deploy production‑ready system with monitoring and scaling
+**Acceptance:** Strategies consume new sensory inputs; CI verifies data integrity; backlog explicitly records deferred advanced analytics.
 
-#### Priority 3A: Advanced Data Integration (3 days)
-**Impact:** 🔥 **MEDIUM** — Enhances data quality and coverage  
-**Effort:** Medium (leverage existing data foundation)
+### PHASE 3 (WEEKS 9–12): PRODUCTION HARDENING & ADVANCED ANALYTICS
+**Goal:** Prepare for live deployment while layering sophisticated intelligence incrementally.
 
-Components to implement:
-- Multi‑source aggregation — Yahoo Finance, Alpha Vantage, FRED
-- Data quality management — Outliers, missing data handling
-- Real‑time processing — Streaming pipeline, low‑latency processing
-- Alternative data — Social sentiment, satellite/web sources
+#### Workstream 3A: Data & Market Microstructure (~2 weeks)
+**Impact:** 🔥🔥 **HIGH** — Improves execution edge
 
-**Expected Outcome:** Comprehensive, high‑quality data feeding all components.
+- [ ] Multi-source aggregation (Yahoo, Alpha Vantage, FRED) with data-quality validators.
+- [ ] Introduce streaming ingestion adapters with latency benchmarks.
+- [ ] Incorporate selected ICT-style sensors (fair value gaps, liquidity sweeps) once validated by strategies.
+- [ ] Build anomaly detection for data feed breaks and false ticks.
+- [ ] Update documentation on data lineage and quality SLA.
 
-#### Priority 3B: Monitoring and Operations (2 days)
-**Impact:** 🔥 **MEDIUM** — Enables reliable production operation  
-**Effort:** Low (extend existing monitoring)
+#### Workstream 3B: Monitoring, Alerting & Deployment (~1.5 weeks)
+**Impact:** 🔥🔥 **HIGH** — Moves toward production readiness earlier than previously planned
 
-Components to implement:
-- Performance monitoring — Real‑time P&L, drawdown, Sharpe
-- System health — CPU, memory, latency monitoring
-- Alert system — Email/SMS alerts for critical events
-- Logging and audit — Comprehensive trade and system logging
+- [ ] Extend Prometheus/Grafana dashboards (or textual equivalents) for PnL, risk, latency, and system health.
+- [ ] Implement alerting rules (email/SMS/webhook) for risk breaches and system failures.
+- [ ] Harden Docker/K8s manifests with environment-specific overrides and secrets management guidance.
+- [ ] Automate smoke tests and deployment scripts targeting Oracle Cloud (or equivalent) with rollback plan.
+- [ ] Capture infrastructure-as-code runbook in `/docs/deployment/`.
 
-**Expected Outcome:** Production‑ready system with professional monitoring.
+#### Workstream 3C: Advanced Research Backlog (ongoing within phase)
+**Impact:** 🔥 **MEDIUM** — Provides roadmap continuity without overcommitting timelines
 
-#### Priority 3C: Cloud Deployment (1 day)
-**Impact:** 🔥 **MEDIUM** — Enables 24/7 operation  
-**Effort:** Low (leverage Docker setup)
+- [ ] Document future GA extensions (speciation, Pareto fronts, live evolution) with prerequisites.
+- [ ] Outline roadmap for NLP/news sentiment ingestion including data governance considerations.
+- [ ] Define success metrics for causal inference and ML classifiers before implementation.
 
-Components to implement:
-- Oracle Cloud deployment — Automated scripts
-- Environment management — Dev/staging/production
-- Backup and recovery — Automated backups, DR
-- Security hardening — Firewall, encryption, access controls
+**Acceptance:** Production stack can be deployed with monitoring & alerting; research backlog is explicit and sequenced for future iterations.
 
-**Expected Outcome:** Scalable, secure cloud deployment ready for live trading.
+### Recurring Quality & Tooling Workstreams (All Phases)
+To maintain velocity without sacrificing reliability, every feature story must include:
 
----
+- [ ] Unit tests, integration tests, and, where feasible, property-based tests.
+- [ ] CI pipeline updates to execute new tests and publish artifacts (risk reports, GA results, dashboards).
+- [ ] Documentation updates (docs site + EMP Encyclopedia references) shipped with the code change.
+- [ ] Code quality checks (linting, type checking, formatting) enforced through CI gates.
+- [ ] Retrospective of defects/alerts feeding into backlog grooming.
 
 ## PART III: ENCYCLOPEDIA ALIGNMENT STRATEGY
 
@@ -211,158 +217,82 @@ Roadmap follows the encyclopedia's Tier‑0 bootstrap approach:
 
 ## PART IV: TECHNICAL IMPLEMENTATION DETAILS
 
-### Week 1‑2: Foundation Completion
+### Phase 1 Playbook (Weeks 1–4)
+**Objective:** Stand up reliable execution, risk, and observability plumbing that can survive daily paper trading.
 
-#### Day 1‑2: Execution Hardening (FIX‑only)
-```python
-# src/trading/integration/fix_broker_interface.py
-# Usage pattern (paper via DummyInitiator)
-order_id = await broker.place_market_order(symbol="EURUSD", side="BUY", quantity=0.01)
-status = broker.get_order_status(order_id)
-```
+#### Milestone 1A (Weeks 1–2): Order Lifecycle + Position Control
+- Implement order state machine and reconciliation CLI from Workstream 1A.
+- Expand unit tests around FIX event ingestion, including failure injection cases.
+- Integrate nightly reconciliation workflow into CI (GitHub Actions artifact upload).
+- Document broker interaction patterns and paper/live toggles.
 
-```python
-# src/trading/order_management/position_tracker.py  (to add)
-class PositionTracker:
-    def __init__(self):
-        self.positions = {}
-        self.realized_pnl = 0.0
-        self.unrealized_pnl = 0.0
-```
+**Exit Criteria:** All FIX events reconciled during 48 h paper simulation; no orphan positions; CI publishes reconciliation report.
 
-- Integrate `src/trading/execution/liquidity_prober.py` and `execution_model.py` to populate `ExecContext` (spread, imbalance, sigma, size) and compute slippage/fees pre‑trade.
-- Add risk gates: VaR/ES budget checks, kill‑switch, and broker bracket SL/TP scaling.
-- Implement position reconciliation against broker state (periodic) and emit drift alerts.
+#### Milestone 1B (Weeks 3–4): Risk Analytics + Ops Visibility
+- Deliver VaR/ES modules, volatility-target sizing, and circuit breakers with automated tests.
+- Launch streaming/textual PnL dashboard backed by `position_tracker` outputs.
+- Standardize logging/metrics schema and wire into observability stack.
+- Update runbooks and encyclopedia entries reflecting new operational flows.
 
-Acceptance criteria:
-- 24 h dry‑run: zero broker rejections; all ack/fill/cancel events captured on the event bus
-- Risk gate: blocks orders when VaR/ES thresholds exceeded; emits audit events
-- Reconciliation: no unresolved position deltas after two cycles; alert if any
+**Exit Criteria:** Risk gates prevent limit breaches in simulation, dashboard reflects live positions, docs/runbooks reviewed and merged.
 
-#### Day 3‑5: Advanced Strategy Library
-```python
-# src/strategies/volatility_engine.py  (new)
-class VolatilityEngine:
-    def forecast_volatility(self, returns):
-        ...  # GARCH(1,1) / regime‑aware
-```
+### Phase 2 Playbook (Weeks 5–8)
+**Objective:** Add validated alpha sources and evolutionary adaptation while protecting Phase 1 stability.
 
-- Regime gates: prefer mean‑reversion in calm regimes; breakout/momentum in storm regimes.
-- Vol‑scaled sizing: use `σ̂_t` to throttle position size and adjust SL/TP distance.
-- Walk‑forward validation: backtest ΔSharpe ≥ +0.1 vs baseline to promote changes.
+#### Milestone 2A (Weeks 5–6): Strategy Drops
+- Ship volatility, mean-reversion, and momentum strategies as independent, toggleable modules.
+- Achieve passing unit/integration tests and reproducible backtest reports for each strategy.
+- Ensure strategies consume new sensory inputs where relevant and respect risk gates.
 
-#### Day 6‑7: Enhanced Risk Management
-```python
-# src/core/risk/advanced_risk.py  (new)
-class AdvancedRiskManager:
-    def calculate_var(self, portfolio, confidence: float = 0.05) -> float:
-        ...
-    def optimize_position_size(self, signal, portfolio) -> float:
-        ...
-```
+#### Milestone 2B (Weeks 7–8): Evolution & Sensor Enhancements
+- Release GA proof-of-concept optimizing MA crossover parameters with reproducible experiment artifacts.
+- Add prioritized sensory upgrades (order book imbalance, session analytics) feeding strategies.
+- Capture backlog tickets for deferred advanced analytics and GA enhancements.
 
-- Implement Historical/Parametric/Monte‑Carlo VaR and Expected Shortfall; expose API for pre‑trade checks.
-- Position sizing policies: Kelly (capped), vol targeting, risk parity.
-- Portfolio‑level constraints: correlation caps and sector exposure limits.
+**Exit Criteria:** GA POC demonstrates uplift over baseline on held-out data; new sensors pass data-integrity tests; documentation updated.
 
-### Week 3‑4: Advanced Intelligence
+### Phase 3 Playbook (Weeks 9–12)
+**Objective:** Harden the stack for staged live deployment and expand microstructure intelligence responsibly.
 
-#### Day 8‑12: Enhanced Sensory Cortex
-```python
-# src/sensory/how/order_flow_analyzer.py  (new)
-class OrderFlowAnalyzer:
-    def analyze_bid_ask_imbalance(self, order_book) -> float:
-        ...
-```
+#### Milestone 3A: Data + Microstructure Reliability
+- Implement multi-source data ingestion with validation harness and latency benchmarks.
+- Roll out targeted ICT-style analytics only after strategy validation; document findings.
+- Add anomaly detection for feed outages and publish operator alerts.
 
-- ICT microstructure: order blocks, fair value gaps (FVG), liquidity sweeps, BOS/CHOCH, breaker blocks.
-- Multi‑factor detection combining price/volume/order book where available; confidence scoring.
+#### Milestone 3B: Deployment, Monitoring, and Alerts
+- Extend dashboards/alerts to Prometheus/Grafana (or textual equivalent) with paging rules.
+- Harden deployment scripts and IaC assets for Oracle Cloud (or alternative) with rollback and smoke tests.
+- Perform readiness review covering security, backups, and compliance logs.
 
-#### Day 13‑15: Genetic Algorithm Evolution
-```python
-# src/core/evolution/genetic_optimizer.py  (new)
-class GeneticOptimizer:
-    def evolve_strategies(self, population):
-        ...
-```
-
-- Encoding: parameter/rule genome with constraints and mutation masks.
-- Fitness: multi‑objective (return, Sharpe, max‑DD, turnover, tail risk); dominance ranking.
-- Operators: tournament selection, adaptive crossover/mutation, elitism; maintain diversity/speciation.
-
-Acceptance criteria:
-- Stable Pareto front across 5+ generations; ≥ 10% elitism; ≥ 20% diversity retention.
-- Out‑of‑sample improvement vs baseline with walk‑forward evaluation.
-
-### Week 5‑6: Production Readiness
-
-#### Day 16‑18: Advanced Data Integration
-```python
-# src/data_foundation/multi_source_aggregator.py  (new)
-class MultiSourceAggregator:
-    def aggregate_data(self, sources):
-        ...
-```
-
-- DataQualityValidator: missing data checks, price anomaly detection, session/DST/time‑zone normalization.
-- Source selection policy: prefer primary (IC Markets FIX) for FX/CFD; Yahoo/Alpha Vantage as backup.
-
-#### Day 19‑20: Monitoring and Operations
-```python
-# src/operations/performance_monitor.py  (new)
-class PerformanceMonitor:
-    def track_pnl(self, trades):
-        ...
-```
-
-- Tier‑0: statsd textfile metrics; basic email alerts; defer Prometheus to higher tiers.
-- Security hardening: UFW allow 4001/tcp (FIX) and 443/tcp (HTTPS); deny other inbound by default.
-
-#### Day 21: Cloud Deployment
-```bash
-# deployment/deploy.sh
-#!/bin/bash
-set -euo pipefail
-docker build -t emp-trading .
-docker push emp-trading:latest
-# Deploy to Oracle Cloud with monitoring
-```
+**Exit Criteria:** Staging deployment succeeds end-to-end; monitoring/alerting exercises documented; backlog triage captured for post-phase iteration.
 
 ---
 
 ## PART V: SUCCESS METRICS AND VALIDATION
 
 ### Technical Metrics
-- **Imports**: 100% success (core, sensory, trading/execution, FIX integration)
-- **Test Coverage**: 11/11 → expand to 50+ tests (comprehensive)
-- **Code Quality**: Professional → Production‑ready (institutional grade)
-- **Performance**: Basic → Optimized (sub‑100ms latency target)
+- **Imports:** Maintain 100% success across core modules.
+- **Test Coverage:** Grow from 11/11 baseline to 80%+ coverage for new modules, including execution/risk/strategy tests.
+- **CI Reliability:** Keep main branch green; add nightly backtest workflow with <1% failure rate.
+- **Performance:** Target sub-100 ms order routing in simulation; publish latency benchmarks per release.
 
 ### Trading Performance Metrics
-- **Strategy Count**: 1 (MA crossover) → 10+ (diversified portfolio)
-- **Risk Management**: Basic → Advanced (VaR/ES, position sizing)
-- **Data Sources**: 1 (Yahoo) → 5+ (multi‑source aggregation)
-- **Execution**: Manual → Automated (FIX paper/live integration)
+- **Strategy Breadth:** Expand from 1 baseline strategy to ≥6 validated strategies with distinct edges.
+- **Risk Controls:** Enforce VaR/ES, drawdown, and exposure limits across all simulations.
+- **Data Quality:** Achieve 99.5%+ clean data rate via validation harness; auto-flag anomalies.
+- **Execution Readiness:** Demonstrate 5-day continuous paper trading with zero unresolved discrepancies.
 
 ### Business Metrics
-- **Time to Market**: 6 weeks (from current state to live trading)
-- **Development Cost**: €0 (using existing resources and free infrastructure)
-- **Expected ROI**: 150–300% annually (based on strategy backtests)
-- **Scalability**: Individual → Institutional (modular architecture)
+- **Time to Market:** 10–12 week roadmap to production-ready pilot instead of the prior 6-week sprint.
+- **Operational Load:** <4 h/week maintenance thanks to dashboards, alerts, and runbooks.
+- **Cost Profile:** Continue €0 infrastructure spend using free tiers; document incremental costs before upgrades.
+- **Return Hypothesis:** Validate alpha via risk-adjusted metrics (Sharpe > 1.0, max DD < 10%) before capital allocation.
 
-### Validation gates (encyclopedia-aligned)
-- Gate 1: Paper trading profitable (≥ 2 weeks), Sharpe > 1.0, max drawdown < 10%
-- Gate 2: Live trading profitability with micro‑lots (€100+ net P&L), all risk limits respected
-- Gate 3: IC Markets VPS qualification (15 lots traded)
-- Gate 4: Consistent profitability (3 months), operational SLOs met
-
-### Execution SLOs and latency
-- Target order_to_fill latency < 100ms; realistic retail FIX expectation 5–20ms
-- 24 h demo: zero rejected orders due to broker constraints (price/size/flags)
-
-### Tier‑0 monitoring (resource‑light)
-- Metrics via statsd textfile exporter (≤ 5MB footprint); defer Prometheus at Tier‑0
-- Email alerting for kill switch, max‑DD breach, connectivity loss
+### Validation Gates (Encyclopedia-Aligned)
+1. **Gate 1 — Paper Trading Readiness:** 2-week profitable simulation with all risk gates passing CI checks.
+2. **Gate 2 — Controlled Live Pilot:** Micro-lot trading with automated reconciliations and alert coverage.
+3. **Gate 3 — Scaling Review:** Evaluate GA outputs, strategy portfolio correlation, and infrastructure capacity.
+4. **Gate 4 — Institutional Audit:** Confirm compliance logging, backup/restoration drills, and monitoring SLAs.
 
 ---
 
@@ -390,33 +320,35 @@ docker push emp-trading:latest
 
 ## PART VII: IMMEDIATE NEXT STEPS
 
-### This Week (High‑Impact Quick Wins)
-1. Harden FIX paper‑trade path (`scripts/paper_trade_dry_run.py`); add order/position tracking
-2. Add Volatility Engine (GARCH baseline) and tests
-3. Enhance Risk Management (VaR + sizing) and tests
+### Next 2 Weeks (Kickstarting Phase 1)
+1. Implement order state machine + position tracker skeleton and add regression tests.
+2. Wire reconciliation CLI into CI and capture first paper-trading artifact.
+3. Introduce VaR/ES analytics module with unit tests and integrate into risk checks.
+4. Draft operational runbook updates and align encyclopedia references.
 
-### Next Week (Advanced Features)
-1. Expand Strategy Library (mean‑reversion, momentum)
-2. Enhance Sensory Cortex (advanced HOW/WHAT)
-3. Implement Genetic Evolution (encoding, operators, fitness)
+### Weeks 3–4 (Completing Phase 1)
+1. Launch PnL/exposure dashboard powered by new telemetry feeds.
+2. Add volatility-target sizing and drawdown circuit breakers.
+3. Harden structured logging/metrics and configure alert thresholds for paper mode.
+4. Validate nightly reconciliation stability and close any FIX parity gaps.
 
-### Month 2 (Production Readiness)
-1. Advanced Data Integration (multi‑source)
-2. Monitoring and Operations (observability, alerts)
-3. Cloud Deployment (Oracle infra)
-4. Performance Optimization (latency/throughput)
+### Phase 2 Preparation (Backlog Grooming)
+1. Break down strategy implementations into individual issues with acceptance tests.
+2. Define GA experiment protocol and artifact storage path.
+3. Prioritize sensory enhancements based on execution and strategy needs.
+4. Schedule documentation and test coverage tasks alongside each feature.
 
 ---
 
 ## CONCLUSION
 
-The EMP repository is well positioned for high‑impact development. With green tests, a robust FIX‑only execution model, and a comprehensive architectural foundation, we can rapidly implement the encyclopedia's vision.
+The EMP repository retains its strong architectural foundation, and the roadmap now reflects the depth required for institutional-quality trading. Extending the plan to a 10–12 week phased program, decomposing workstreams, and embedding quality gates ensures improvements are achievable, testable, and well-documented.
 
-**The next 6 weeks will transform the EMP from a promising framework into a production‑ready, institutional‑grade algorithmic trading system that embodies the encyclopedia’s antifragile principles.**
+**By following this phased roadmap we can evolve EMP from a robust framework into a production-ready, antifragile trading platform while preserving code quality and operational excellence.**
 
 **Key Success Factors:**
-- ✅ **Solid Foundation**: Clean, professional codebase ready for enhancement
-- ✅ **Clear Roadmap**: Prioritized development with measurable outcomes
-- ✅ **Risk Management**: Conservative progression with validation at each stage
-- ✅ **Cost Efficiency**: Leveraging existing work and free infrastructure
-- ✅ **Encyclopedia Alignment**: Following a proven blueprint for success
+- ✅ **Solid Foundation:** Clean, professional codebase ready for enhancement
+- ✅ **Phase-Aligned Roadmap:** Realistic milestones with measurable outcomes
+- ✅ **Quality Discipline:** Tests, CI, documentation, and monitoring built into every story
+- ✅ **Risk Awareness:** Conservative progression with validation gates before capital deployment
+- ✅ **Encyclopedia Alignment:** Roadmap tasks trace directly to EMP Encyclopedia vision

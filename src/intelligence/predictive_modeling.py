@@ -20,7 +20,8 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Any, Dict
+from collections.abc import Callable
+from typing import Any, Dict, cast
 
 logger = logging.getLogger(__name__)
 
@@ -39,11 +40,11 @@ __all__ = list(_LAZY_EXPORTS.keys()) + ["ScenarioOutcome"]
 
 
 class _LazySymbol:
-    def __init__(self, mod_path: str, attr: str):
+    def __init__(self, mod_path: str, attr: str) -> None:
         self._mod_path = mod_path
         self._attr = attr
 
-    def _resolve(self):
+    def _resolve(self) -> object:
         # Ensure canonical thinking.* chain exposes ThinkingException on first resolution.
         try:
             import src.core.exceptions as _excmod
@@ -63,11 +64,12 @@ class _LazySymbol:
         globals()[self._attr] = obj
         return obj
 
-    def __getattr__(self, item: str):
+    def __getattr__(self, item: str) -> object:
         return getattr(self._resolve(), item)
 
-    def __call__(self, *args, **kwargs):
-        return self._resolve()(*args, **kwargs)
+    def __call__(self, *args: object, **kwargs: object) -> object:
+        target = cast(Callable[..., object], self._resolve())
+        return target(*args, **kwargs)
 
     def __repr__(self) -> str:
         return f"<LazySymbol {self._mod_path}:{self._attr}>"

@@ -429,7 +429,7 @@ class TradeComplianceMonitor:
 
         return TradeComplianceSnapshot(
             trade_id=trade_id,
-            intent_id=_as_str(intent_id, default=None) if intent_id is not None else None,
+            intent_id=_as_str(intent_id) if intent_id is not None else None,
             symbol=symbol,
             side=side,
             quantity=quantity,

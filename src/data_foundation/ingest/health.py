@@ -232,7 +232,7 @@ def evaluate_ingest_health(
         checks.append(check)
         overall = _escalate(overall, status)
 
-    report_metadata = {
+    report_metadata: dict[str, object] = {
         "planned_dimensions": sorted(planned),
         "observed_dimensions": sorted(observed_dimensions),
     }

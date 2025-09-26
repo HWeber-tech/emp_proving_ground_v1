@@ -24,12 +24,14 @@ from typing import (
     Any,
     Awaitable,
     Callable,
+    Coroutine,
     Dict,
     Mapping,
     Optional,
     Protocol,
     Set,
     Tuple,
+    TypeVar,
     cast,
 )
 
@@ -74,24 +76,27 @@ class EventBusStatistics:
     uptime_seconds: float | None
 
 
+_T = TypeVar("_T")
+
+
 class TaskFactory(Protocol):
     """Callable responsible for spawning background tasks."""
 
     def __call__(
         self,
-        coro: Awaitable[Any],
+        coro: Coroutine[Any, Any, _T],
         *,
         name: str | None = None,
         metadata: Mapping[str, Any] | None = None,
-    ) -> asyncio.Task[Any]: ...
+    ) -> asyncio.Task[_T]: ...
 
 
 def _default_task_factory(
-    coro: Awaitable[Any],
+    coro: Coroutine[Any, Any, _T],
     *,
     name: str | None = None,
     metadata: Mapping[str, Any] | None = None,
-) -> asyncio.Task[Any]:
+) -> asyncio.Task[_T]:
     """Spawn tasks using :func:`asyncio.create_task`.
 
     ``metadata`` is accepted for compatibility with :class:`TaskSupervisor`
@@ -407,7 +412,7 @@ class AsyncEventBus:
 
     def _spawn_task(
         self,
-        coro: Awaitable[Any],
+        coro: Coroutine[Any, Any, Any],
         *,
         name: str | None = None,
         metadata: Mapping[str, Any] | None = None,
@@ -416,7 +421,17 @@ class AsyncEventBus:
             return self._task_factory(coro, name=name, metadata=metadata)
         except TypeError:
             # Support legacy factories that only accept (coro, name)
-            return self._task_factory(coro, name=name)  # type: ignore[misc]
+            legacy_factory = cast(
+                Callable[[Coroutine[Any, Any, Any]], asyncio.Task[Any]],
+                self._task_factory,
+            )
+            task = legacy_factory(coro)
+            if name is not None:
+                try:
+                    task.set_name(name)
+                except Exception:  # pragma: no cover - defensive fallback
+                    pass
+            return task
 
     @staticmethod
     def _describe_handler(

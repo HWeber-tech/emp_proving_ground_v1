@@ -33,11 +33,11 @@ try:
     from src.genome.models.genome import mutate as __mutate
     from src.genome.models.genome import new_genome as __new_genome
 
-    _DecisionGenome = __DecisionGenome  # type: ignore[assignment]
+    _DecisionGenome = __DecisionGenome
     _mutate = __mutate
     _new_genome = __new_genome
 except Exception:
-    _DecisionGenome = None  # type: ignore[assignment]
+    _DecisionGenome = None
     _mutate = None
     _new_genome = None
 

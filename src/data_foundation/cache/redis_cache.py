@@ -5,15 +5,26 @@ from __future__ import annotations
 import logging
 import os
 import time
+from importlib import import_module
 from collections import OrderedDict
 from dataclasses import dataclass, field
-from typing import Any, Callable, Iterable, Mapping, MutableMapping
+from typing import Any, Callable, Iterable, Mapping, MutableMapping, Protocol, cast
 from urllib.parse import urlparse
 
+_redis_mod: object | None
 try:  # pragma: no cover - redis optional in bootstrap environments
-    import redis
+    _redis_mod = import_module("redis")
 except Exception:  # pragma: no cover - keep module importable without redis
-    redis = None  # type: ignore[assignment]
+    _redis_mod = None
+
+
+class _RedisModule(Protocol):
+    def from_url(self, url: str, **options: Any) -> Any: ...
+
+    def Redis(self, **options: Any) -> Any: ...
+
+
+redis: _RedisModule | None = cast("_RedisModule | None", _redis_mod)
 
 logger = logging.getLogger(__name__)
 
@@ -296,12 +307,20 @@ class InMemoryRedis:
 
     def __init__(self) -> None:
         self._store: dict[str, Any] = {}
+        self._hits = 0
+        self._misses = 0
+        self._sets = 0
 
     def get(self, key: str) -> Any | None:
+        if key in self._store:
+            self._hits += 1
+        else:
+            self._misses += 1
         return self._store.get(key)
 
     def set(self, key: str, value: Any) -> Any:
         self._store[key] = value
+        self._sets += 1
         return value
 
     def delete(self, *keys: str) -> int:
@@ -311,6 +330,21 @@ class InMemoryRedis:
                 removed += 1
                 del self._store[key]
         return removed
+
+    def metrics(self, *, reset: bool = False) -> CacheMetrics:
+        snapshot = CacheMetrics(
+            hits=self._hits,
+            misses=self._misses,
+            evictions=0,
+            expirations=0,
+            invalidations=0,
+            namespace="emp:inmemory",
+            sets=self._sets,
+            keys=len(self._store),
+        )
+        if reset:
+            self._hits = self._misses = self._sets = 0
+        return snapshot
 
 
 class ManagedRedisCache:

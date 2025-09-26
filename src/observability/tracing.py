@@ -4,34 +4,60 @@ import logging
 import threading
 from contextlib import nullcontext
 from dataclasses import dataclass
-from typing import Any, ContextManager, Mapping, MutableMapping, Protocol, TYPE_CHECKING
+from typing import (
+    Any,
+    ContextManager,
+    Mapping,
+    MutableMapping,
+    Protocol,
+    Sequence,
+    TYPE_CHECKING,
+    cast,
+)
+
+trace: Any
+SpanKind: Any
+OTLPSpanExporter: Any
+Resource: Any
+TracerProvider: Any
+BatchSpanProcessor: Any
+ConsoleSpanExporter: Any
+SimpleSpanProcessor: Any
 
 try:  # pragma: no cover - exercised via runtime import
-    from opentelemetry import trace  # type: ignore[import-not-found]
-    from opentelemetry.exporter.otlp.proto.http.trace_exporter import (  # type: ignore[import-not-found]
-        OTLPSpanExporter,
+    from opentelemetry import trace as _trace
+    from opentelemetry.exporter.otlp.proto.http.trace_exporter import (
+        OTLPSpanExporter as _OTLPSpanExporter,
     )
-    from opentelemetry.sdk.resources import Resource  # type: ignore[import-not-found]
-    from opentelemetry.sdk.trace import TracerProvider  # type: ignore[import-not-found]
-    from opentelemetry.sdk.trace.export import (  # type: ignore[import-not-found]
-        BatchSpanProcessor,
-        ConsoleSpanExporter,
-        SimpleSpanProcessor,
+    from opentelemetry.sdk.resources import Resource as _Resource
+    from opentelemetry.sdk.trace import TracerProvider as _TracerProvider
+    from opentelemetry.sdk.trace.export import (
+        BatchSpanProcessor as _BatchSpanProcessor,
+        ConsoleSpanExporter as _ConsoleSpanExporter,
+        SimpleSpanProcessor as _SimpleSpanProcessor,
     )
-    from opentelemetry.trace import SpanKind  # type: ignore[import-not-found]
+    from opentelemetry.trace import SpanKind as _SpanKind
 except ModuleNotFoundError:  # pragma: no cover - dependency optional in minimal environments
-    trace = None  # type: ignore[assignment]
+    trace = cast(Any, None)
 
     class _FallbackSpanKind:
         INTERNAL = None
 
-    SpanKind = _FallbackSpanKind  # type: ignore[assignment]
-    OTLPSpanExporter = None  # type: ignore[assignment]
-    Resource = None  # type: ignore[assignment]
-    TracerProvider = object  # type: ignore[assignment]
-    BatchSpanProcessor = ConsoleSpanExporter = SimpleSpanProcessor = object  # type: ignore[assignment]
+    SpanKind = cast(Any, _FallbackSpanKind)
+    OTLPSpanExporter = cast(Any, None)
+    Resource = cast(Any, None)
+    TracerProvider = cast(Any, object)
+    BatchSpanProcessor = ConsoleSpanExporter = SimpleSpanProcessor = cast(Any, object)
     _OPENTELEMETRY_AVAILABLE = False
 else:  # pragma: no cover - exercised in environments with OpenTelemetry installed
+    trace = _trace
+    SpanKind = _SpanKind
+    OTLPSpanExporter = _OTLPSpanExporter
+    Resource = _Resource
+    TracerProvider = _TracerProvider
+    BatchSpanProcessor = _BatchSpanProcessor
+    ConsoleSpanExporter = _ConsoleSpanExporter
+    SimpleSpanProcessor = _SimpleSpanProcessor
     _OPENTELEMETRY_AVAILABLE = True
 
 DEFAULT_SPAN_KIND = getattr(SpanKind, "INTERNAL", None)
@@ -39,9 +65,20 @@ DEFAULT_SPAN_KIND = getattr(SpanKind, "INTERNAL", None)
 _MISSING_DEPENDENCY_LOGGED = False
 
 if TYPE_CHECKING:  # pragma: no cover - import for type checking only
-    from opentelemetry.trace import Tracer  # type: ignore[import-not-found]
+    from opentelemetry.trace import Tracer
 else:  # pragma: no cover - runtime fallback when dependency missing
-    Tracer = Any  # type: ignore[assignment]
+    Tracer = Any
+
+ResourceAttributeValue = (
+    str
+    | bool
+    | int
+    | float
+    | Sequence[str]
+    | Sequence[bool]
+    | Sequence[int]
+    | Sequence[float]
+)
 
 logger = logging.getLogger(__name__)
 
@@ -313,7 +350,9 @@ def _configure_tracer_provider(settings: OpenTelemetrySettings) -> Tracer | None
             _MISSING_DEPENDENCY_LOGGED = True
         return None
 
-    resource_attributes: dict[str, object] = {"service.name": settings.service_name}
+    resource_attributes: dict[str, ResourceAttributeValue] = {
+        "service.name": settings.service_name
+    }
     if settings.environment:
         resource_attributes["deployment.environment"] = settings.environment
 
@@ -327,7 +366,7 @@ def _configure_tracer_provider(settings: OpenTelemetrySettings) -> Tracer | None
         if settings.endpoint:
             exporter = OTLPSpanExporter(
                 endpoint=settings.endpoint,
-                headers=settings.headers,
+                headers=dict(settings.headers) if settings.headers is not None else None,
                 timeout=settings.timeout,
             )
             new_provider.add_span_processor(BatchSpanProcessor(exporter))

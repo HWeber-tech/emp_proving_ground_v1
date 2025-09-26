@@ -9,7 +9,7 @@ import os
 import time
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from typing import Any, Callable, Mapping, MutableMapping, Protocol, Sequence
+from typing import Any, Callable, Mapping, MutableMapping, Protocol, Sequence, cast
 
 from src.core.event_bus import Event, EventBus, get_global_bus
 
@@ -17,7 +17,7 @@ from ..ingest.health import IngestHealthReport
 from ..ingest.metrics import IngestMetricsSnapshot
 from ..ingest.quality import IngestQualityReport
 from ..persist.timescale import TimescaleConnectionSettings, TimescaleIngestResult
-from ..persist.timescale_reader import TimescaleReader
+from ..persist.timescale_reader import TimescaleQueryResult, TimescaleReader
 
 logger = logging.getLogger(__name__)
 
@@ -519,7 +519,7 @@ class KafkaTopicProvisioner:
         new_topic_factory = self._new_topic_factory
         if admin_factory is None or new_topic_factory is None:
             try:
-                from confluent_kafka.admin import AdminClient, NewTopic  # type: ignore
+                from confluent_kafka.admin import AdminClient, NewTopic
             except Exception:  # pragma: no cover - optional dependency
                 notes.append("confluent_kafka unavailable; cannot provision topics")
                 self._logger.warning(
@@ -531,14 +531,20 @@ class KafkaTopicProvisioner:
                 )
 
             if admin_factory is None:
-                admin_factory = lambda config: AdminClient(config)
+                def _default_admin_factory(config: Mapping[str, Any]) -> KafkaAdminClientLike:
+                    return cast(KafkaAdminClientLike, AdminClient(config))
+
+                admin_factory = _default_admin_factory
             if new_topic_factory is None:
-                new_topic_factory = lambda spec: NewTopic(
-                    spec.name,
-                    num_partitions=int(spec.partitions),
-                    replication_factor=int(spec.replication_factor),
-                    config=dict(spec.config or {}),
-                )
+                def _default_new_topic_factory(spec: KafkaTopicSpec) -> Any:
+                    return NewTopic(
+                        spec.name,
+                        num_partitions=int(spec.partitions),
+                        replication_factor=int(spec.replication_factor),
+                        config=dict(spec.config or {}),
+                    )
+
+                new_topic_factory = _default_new_topic_factory
 
         admin = admin_factory(self._settings.admin_config())
 
@@ -580,8 +586,9 @@ class KafkaTopicProvisioner:
         failed: dict[str, str] = {}
         for name, future in _iter_topic_results(futures):
             try:
-                if hasattr(future, "result"):
-                    future.result()  # type: ignore[call-arg]
+                result_fn = getattr(future, "result", None)
+                if callable(result_fn):
+                    result_fn()
                 created.append(name)
             except Exception as exc:  # pragma: no cover - defensive logging
                 failed[name] = str(exc)
@@ -725,7 +732,7 @@ def create_ingest_event_publisher(
 
     if producer_factory is None:
         try:
-            from confluent_kafka import Producer  # type: ignore
+            from confluent_kafka import Producer
         except Exception:  # pragma: no cover - depends on optional package
             logger.warning(
                 "Kafka ingest requested (%s) but confluent_kafka is not installed;"
@@ -734,8 +741,10 @@ def create_ingest_event_publisher(
             )
             return None
 
-        def producer_factory(config: Mapping[str, Any]) -> KafkaProducerLike:  # type: ignore[no-redef]
-            return Producer(config)
+        def _default_producer_factory(config: Mapping[str, Any]) -> KafkaProducerLike:
+            return cast(KafkaProducerLike, Producer(config))
+
+        producer_factory = _default_producer_factory
 
     producer = settings.create_producer(factory=producer_factory)
     if producer is None:
@@ -1143,7 +1152,7 @@ def _fetch_timescale_dimension(
     start: datetime | None,
     end: datetime | None,
     limit: int | None,
-):
+) -> TimescaleQueryResult:
     if dimension == "daily_bars":
         return reader.fetch_daily_bars(symbols=identifiers, start=start, end=end, limit=limit)
     if dimension == "intraday_trades":
@@ -1506,7 +1515,7 @@ def create_ingest_health_publisher(
 
     if producer_factory is None:
         try:
-            from confluent_kafka import Producer  # type: ignore
+            from confluent_kafka import Producer
         except Exception:  # pragma: no cover - optional dependency
             logger.warning(
                 "Kafka ingest health requested (%s) but confluent_kafka is not installed; skipping",
@@ -1514,8 +1523,10 @@ def create_ingest_health_publisher(
             )
             return None
 
-        def producer_factory(config: Mapping[str, Any]) -> KafkaProducerLike:  # type: ignore[no-redef]
-            return Producer(config)
+        def _default_producer_factory(config: Mapping[str, Any]) -> KafkaProducerLike:
+            return cast(KafkaProducerLike, Producer(config))
+
+        producer_factory = _default_producer_factory
 
     producer = settings.create_producer(factory=producer_factory)
     if producer is None:
@@ -1570,7 +1581,7 @@ def create_ingest_metrics_publisher(
 
     if producer_factory is None:
         try:
-            from confluent_kafka import Producer  # type: ignore
+            from confluent_kafka import Producer
         except Exception:  # pragma: no cover - optional dependency
             logger.warning(
                 "Kafka ingest metrics requested (%s) but confluent_kafka is not installed; skipping",
@@ -1578,8 +1589,10 @@ def create_ingest_metrics_publisher(
             )
             return None
 
-        def producer_factory(config: Mapping[str, Any]) -> KafkaProducerLike:  # type: ignore[no-redef]
-            return Producer(config)
+        def _default_producer_factory(config: Mapping[str, Any]) -> KafkaProducerLike:
+            return cast(KafkaProducerLike, Producer(config))
+
+        producer_factory = _default_producer_factory
 
     producer = settings.create_producer(factory=producer_factory)
     if producer is None:
@@ -1637,7 +1650,7 @@ def create_ingest_quality_publisher(
 
     if producer_factory is None:
         try:
-            from confluent_kafka import Producer  # type: ignore
+            from confluent_kafka import Producer
         except Exception:  # pragma: no cover - optional dependency
             logger.warning(
                 "Kafka ingest quality requested (%s) but confluent_kafka is not installed; skipping",
@@ -1645,8 +1658,10 @@ def create_ingest_quality_publisher(
             )
             return None
 
-        def producer_factory(config: Mapping[str, Any]) -> KafkaProducerLike:  # type: ignore[no-redef]
-            return Producer(config)
+        def _default_producer_factory(config: Mapping[str, Any]) -> KafkaProducerLike:
+            return cast(KafkaProducerLike, Producer(config))
+
+        producer_factory = _default_producer_factory
 
     producer = settings.create_producer(factory=producer_factory)
     if producer is None:
@@ -1876,9 +1891,11 @@ class KafkaIngestEventConsumer:
             ((), {}),
         )
 
+        commit_fn = cast(Callable[..., object], commit)
+
         for args, kwargs in attempts:
             try:
-                commit(*args, **kwargs)  # type: ignore[misc]
+                commit_fn(*args, **kwargs)
                 return
             except TypeError:
                 continue
@@ -2010,7 +2027,7 @@ def create_ingest_event_consumer(
 
     if consumer_factory is None:
         try:
-            from confluent_kafka import Consumer  # type: ignore
+            from confluent_kafka import Consumer
         except Exception:  # pragma: no cover - optional dependency guard
             logger.warning(
                 "Kafka ingest consumer requested (%s) but confluent_kafka is not installed; skipping",
@@ -2018,8 +2035,10 @@ def create_ingest_event_consumer(
             )
             return None
 
-        def consumer_factory(config: Mapping[str, Any]) -> KafkaConsumerLike:  # type: ignore[no-redef]
-            return Consumer(config)
+        def _default_consumer_factory(config: Mapping[str, Any]) -> KafkaConsumerLike:
+            return cast(KafkaConsumerLike, Consumer(config))
+
+        consumer_factory = _default_consumer_factory
 
     consumer = settings.create_consumer(
         factory=consumer_factory,

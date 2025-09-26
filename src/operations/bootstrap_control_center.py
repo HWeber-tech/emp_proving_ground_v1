@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections import deque
 from datetime import datetime
 from itertools import islice
-from typing import Any, Deque, Iterable, Mapping
+from typing import Any, Callable, Deque, Iterable, Mapping
 
 from src.governance.vision_alignment import VisionAlignmentReport
 from src.operations.roi import format_roi_markdown as format_roi_summary
@@ -14,10 +14,75 @@ from src.trading.risk.policy_telemetry import format_policy_markdown
 
 
 def _as_float(value: object, default: float = 0.0) -> float:
-    try:
+    if isinstance(value, (int, float)):
         return float(value)
-    except Exception:
-        return default
+    if isinstance(value, str):
+        try:
+            return float(value.strip())
+        except ValueError:
+            return default
+    return default
+
+
+def _normalise_champion_payload(candidate: object | None) -> dict[str, Any] | None:
+    if candidate is None:
+        return None
+    method = getattr(candidate, "as_payload", None)
+    if callable(method):
+        try:
+            payload = method()
+        except Exception:  # pragma: no cover - defensive logging surface
+            return {"genome_id": getattr(candidate, "genome_id", None)}
+        if isinstance(payload, Mapping):
+            return dict(payload)
+        return {"raw": payload}
+    if isinstance(candidate, Mapping):
+        return dict(candidate)
+    return {"genome_id": getattr(candidate, "genome_id", None)}
+
+
+def _call_trading_manager_method(trading_manager: Any, method_name: str) -> Any:
+    """Invoke ``method_name`` on ``trading_manager`` if available."""
+
+    target = getattr(trading_manager, method_name, None)
+    if not callable(target):
+        return None
+    try:
+        return target()
+    except Exception:  # pragma: no cover - diagnostics only
+        return None
+
+
+def _coerce_snapshot_mapping(snapshot: Any) -> Mapping[str, Any] | None:
+    """Convert snapshot-like objects to mappings for downstream formatting."""
+
+    if snapshot is None:
+        return None
+
+    as_dict = getattr(snapshot, "as_dict", None)
+    if callable(as_dict):
+        try:
+            payload = as_dict()
+        except Exception:  # pragma: no cover - diagnostics only
+            payload = None
+        if isinstance(payload, Mapping):
+            return dict(payload)
+
+    if isinstance(snapshot, Mapping):
+        return dict(snapshot)
+
+    return None
+
+
+def _format_optional_markdown(
+    formatter: Callable[[Any], str | None], snapshot: Any
+) -> str | None:
+    """Best-effort markdown rendering for snapshot payloads."""
+
+    try:
+        return formatter(snapshot)
+    except Exception:  # pragma: no cover - diagnostics only
+        return None
 
 
 class BootstrapControlCenter:
@@ -120,7 +185,7 @@ class BootstrapControlCenter:
 
         latest = next(iter(self._history), None)
 
-        overview = {
+        overview: dict[str, Any] = {
             "equity": _as_float(portfolio_state.get("equity"), default=0.0),
             "realized_pnl": _as_float(portfolio_state.get("realized_pnl"), default=0.0),
             "unrealized_pnl": _as_float(portfolio_state.get("unrealized_pnl"), default=0.0),
@@ -136,41 +201,26 @@ class BootstrapControlCenter:
         if vision_summary:
             overview["vision_alignment"] = vision_summary
 
-        if hasattr(self.trading_manager, "get_last_risk_snapshot"):
-            try:
-                snapshot_obj = self.trading_manager.get_last_risk_snapshot()  # type: ignore[attr-defined]
-            except Exception:  # pragma: no cover - diagnostics only
-                snapshot_obj = None
-            if snapshot_obj is not None:
-                try:
-                    overview["risk_posture"] = snapshot_obj.as_dict()  # type: ignore[attr-defined]
-                except AttributeError:
-                    if isinstance(snapshot_obj, Mapping):
-                        overview["risk_posture"] = dict(snapshot_obj)
+        snapshot_obj = _call_trading_manager_method(
+            self.trading_manager, "get_last_risk_snapshot"
+        )
+        snapshot_mapping = _coerce_snapshot_mapping(snapshot_obj)
+        if snapshot_mapping is not None:
+            overview["risk_posture"] = snapshot_mapping
 
-        if hasattr(self.trading_manager, "get_last_policy_snapshot"):
-            try:
-                policy_obj = self.trading_manager.get_last_policy_snapshot()  # type: ignore[attr-defined]
-            except Exception:  # pragma: no cover - diagnostics only
-                policy_obj = None
-            if policy_obj is not None:
-                try:
-                    overview["risk_policy"] = policy_obj.as_dict()  # type: ignore[attr-defined]
-                except AttributeError:
-                    if isinstance(policy_obj, Mapping):
-                        overview["risk_policy"] = dict(policy_obj)
+        policy_obj = _call_trading_manager_method(
+            self.trading_manager, "get_last_policy_snapshot"
+        )
+        policy_mapping = _coerce_snapshot_mapping(policy_obj)
+        if policy_mapping is not None:
+            overview["risk_policy"] = policy_mapping
 
-        if hasattr(self.trading_manager, "get_last_roi_snapshot"):
-            try:
-                roi_obj = self.trading_manager.get_last_roi_snapshot()  # type: ignore[attr-defined]
-            except Exception:  # pragma: no cover - diagnostics only
-                roi_obj = None
-            if roi_obj is not None:
-                try:
-                    overview["roi_posture"] = roi_obj.as_dict()  # type: ignore[attr-defined]
-                except AttributeError:
-                    if isinstance(roi_obj, Mapping):
-                        overview["roi_posture"] = dict(roi_obj)
+        roi_obj = _call_trading_manager_method(
+            self.trading_manager, "get_last_roi_snapshot"
+        )
+        roi_mapping = _coerce_snapshot_mapping(roi_obj)
+        if roi_mapping is not None:
+            overview["roi_posture"] = roi_mapping
 
         return overview
 
@@ -210,36 +260,26 @@ class BootstrapControlCenter:
         limits_payload = (
             dict(limits) if isinstance(limits, Mapping) else {"limits": {}, "telemetry": {}}
         )
-        snapshot: Mapping[str, Any] | None = None
-        if hasattr(self.trading_manager, "get_last_risk_snapshot"):
-            try:
-                snapshot_obj = self.trading_manager.get_last_risk_snapshot()  # type: ignore[attr-defined]
-            except Exception:  # pragma: no cover - defensive surface
-                snapshot_obj = None
-            if snapshot_obj is not None:
-                try:
-                    snapshot = snapshot_obj.as_dict()  # type: ignore[attr-defined]
-                except AttributeError:
-                    snapshot = dict(snapshot_obj) if isinstance(snapshot_obj, Mapping) else None
+        snapshot_obj = _call_trading_manager_method(
+            self.trading_manager, "get_last_risk_snapshot"
+        )
+        snapshot = _coerce_snapshot_mapping(snapshot_obj)
 
+        policy_obj = _call_trading_manager_method(
+            self.trading_manager, "get_last_policy_snapshot"
+        )
+        policy_snapshot = _coerce_snapshot_mapping(policy_obj)
+        policy_markdown = (
+            _format_optional_markdown(format_policy_markdown, policy_obj)
+            if policy_obj is not None
+            else None
+        )
         policy_block: Mapping[str, Any] | None = None
-        if hasattr(self.trading_manager, "get_last_policy_snapshot"):
-            try:
-                policy_obj = self.trading_manager.get_last_policy_snapshot()  # type: ignore[attr-defined]
-            except Exception:  # pragma: no cover - diagnostics only
-                policy_obj = None
-            if policy_obj is not None:
-                try:
-                    policy_snapshot = policy_obj.as_dict()  # type: ignore[attr-defined]
-                    policy_markdown = format_policy_markdown(policy_obj)  # type: ignore[arg-type]
-                except AttributeError:
-                    policy_snapshot = dict(policy_obj) if isinstance(policy_obj, Mapping) else None
-                    policy_markdown = None
-                if policy_snapshot is not None:
-                    block: dict[str, Any] = {"snapshot": policy_snapshot}
-                    if policy_markdown:
-                        block["markdown"] = policy_markdown
-                    policy_block = block
+        if policy_snapshot is not None:
+            block: dict[str, Any] = {"snapshot": policy_snapshot}
+            if policy_markdown:
+                block["markdown"] = policy_markdown
+            policy_block = block
 
         return {
             "limits": dict(limits_payload.get("limits", {})),
@@ -304,22 +344,14 @@ class BootstrapControlCenter:
         }
 
     def _build_roi_section(self) -> Mapping[str, Any]:
-        if not hasattr(self.trading_manager, "get_last_roi_snapshot"):
-            return {}
-
-        try:
-            roi_obj = self.trading_manager.get_last_roi_snapshot()  # type: ignore[attr-defined]
-        except Exception:  # pragma: no cover - diagnostics only
-            roi_obj = None
+        roi_obj = _call_trading_manager_method(
+            self.trading_manager, "get_last_roi_snapshot"
+        )
         if roi_obj is None:
             return {}
 
-        try:
-            roi_dict = roi_obj.as_dict()  # type: ignore[attr-defined]
-            roi_markdown = format_roi_summary(roi_obj)  # type: ignore[arg-type]
-        except AttributeError:
-            roi_dict = dict(roi_obj) if isinstance(roi_obj, Mapping) else None
-            roi_markdown = None
+        roi_dict = _coerce_snapshot_mapping(roi_obj)
+        roi_markdown = _format_optional_markdown(format_roi_summary, roi_obj)
         if roi_dict is None:
             return {}
 
@@ -334,7 +366,7 @@ class BootstrapControlCenter:
             return {}
 
         telemetry = getattr(orchestrator, "telemetry", {})
-        champion = getattr(orchestrator, "champion", None)
+        champion: object | None = getattr(orchestrator, "champion", None)
         stats = getattr(orchestrator, "population_statistics", {})
 
         if isinstance(telemetry, Mapping):
@@ -342,14 +374,7 @@ class BootstrapControlCenter:
         else:
             telemetry_payload = {"raw": telemetry}
 
-        if hasattr(champion, "as_payload"):
-            champion_payload = champion.as_payload()
-        elif isinstance(champion, Mapping):
-            champion_payload = dict(champion)
-        elif champion is None:
-            champion_payload = None
-        else:
-            champion_payload = {"genome_id": getattr(champion, "genome_id", None)}
+        champion_payload = _normalise_champion_payload(champion)
 
         population = dict(stats) if isinstance(stats, Mapping) else {}
 
@@ -364,15 +389,8 @@ class BootstrapControlCenter:
         if orchestrator is None:
             return {}
 
-        champion = getattr(orchestrator, "champion", None)
-        if hasattr(champion, "as_payload"):
-            payload = champion.as_payload()
-        elif isinstance(champion, Mapping):
-            payload = dict(champion)
-        elif champion is None:
-            payload = {}
-        else:
-            payload = {"genome_id": getattr(champion, "genome_id", None)}
+        champion: object | None = getattr(orchestrator, "champion", None)
+        payload = _normalise_champion_payload(champion) or {}
 
         telemetry = getattr(orchestrator, "telemetry", {})
         total_generations = None

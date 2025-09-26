@@ -5,14 +5,14 @@ from __future__ import annotations
 import asyncio
 import logging
 from datetime import UTC, datetime
-from typing import Callable
+from typing import Callable, cast
 
 import pandas as pd
 
 from src.core.base import MarketData
 
 from ..cache import TimescaleQueryCache
-from ..persist.timescale_reader import TimescaleReader
+from ..persist.timescale_reader import TimescaleQueryResult, TimescaleReader
 from ..services.macro_events import TimescaleMacroEventService
 from .market_data_fabric import ConnectorResult
 
@@ -23,7 +23,7 @@ def _to_datetime(value: object) -> datetime | None:
     if isinstance(value, pd.Timestamp):
         if pd.isna(value):
             return None
-        return value.to_pydatetime()
+        return cast(datetime, value.to_pydatetime())
     if isinstance(value, datetime):
         return value
     return None
@@ -68,7 +68,7 @@ class _TimescaleConnectorBase:
         start: datetime | None,
         end: datetime | None,
         limit: int | None,
-    ):
+    ) -> TimescaleQueryResult:
         if self._cache is not None and self._cache.enabled:
             return self._cache.fetch_daily_bars(symbols=symbols, start=start, end=end, limit=limit)
         return self._reader.fetch_daily_bars(symbols=symbols, start=start, end=end, limit=limit)
@@ -80,7 +80,7 @@ class _TimescaleConnectorBase:
         start: datetime | None,
         end: datetime | None,
         limit: int | None,
-    ):
+    ) -> TimescaleQueryResult:
         if self._cache is not None and self._cache.enabled:
             return self._cache.fetch_intraday_trades(
                 symbols=symbols, start=start, end=end, limit=limit

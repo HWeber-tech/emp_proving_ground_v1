@@ -15,7 +15,7 @@ import logging
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from hashlib import sha256
-from typing import Callable, Mapping, Sequence
+from typing import Any, Callable, Mapping, Sequence, cast
 
 import pandas as pd
 
@@ -37,9 +37,13 @@ def _normalise_datetime(value: object) -> datetime | None:
     if isinstance(value, pd.Timestamp):
         if pd.isna(value):
             return None
-        if value.tzinfo is None:
-            value = value.tz_localize("UTC")
-        return value.tz_convert("UTC").to_pydatetime()
+        timestamp = value
+        if timestamp.tzinfo is None:
+            timestamp = timestamp.tz_localize("UTC")
+        converted = timestamp.tz_convert("UTC").to_pydatetime()
+        if isinstance(converted, datetime):
+            return converted
+        return None
     if isinstance(value, datetime):
         if value.tzinfo is None:
             return value.replace(tzinfo=UTC)
@@ -70,7 +74,7 @@ def _parse_datetime(value: object) -> datetime | None:
     return _normalise_datetime(parsed)
 
 
-def _render_signature(payload: Mapping[str, object]) -> str:
+def _render_signature(payload: Mapping[str, object]) -> tuple[str, str]:
     parts = [f"{key}={payload[key]}" for key in sorted(payload)]
     raw = "|".join(parts)
     digest = sha256(raw.encode("utf-8")).hexdigest()[:24]
@@ -80,7 +84,8 @@ def _render_signature(payload: Mapping[str, object]) -> str:
 def _serialise_frame(frame: pd.DataFrame) -> str:
     if frame.empty:
         return json.dumps({"columns": list(frame.columns), "index": [], "data": []})
-    return frame.to_json(orient="split", date_format="iso", date_unit="ns")
+    serialised = frame.to_json(orient="split", date_format="iso", date_unit="ns")
+    return serialised if isinstance(serialised, str) else str(serialised)
 
 
 def _deserialise_frame(payload: Mapping[str, object]) -> pd.DataFrame:
@@ -113,7 +118,7 @@ def _serialise_result(result: TimescaleQueryResult, signature: str, raw_signatur
 
 
 def _deserialise_result(serialised: str) -> TimescaleQueryResult:
-    data = json.loads(serialised)
+    data = cast("dict[str, Any]", json.loads(serialised))
     frame_payload = data.get("frame")
     if isinstance(frame_payload, str):
         frame = pd.read_json(frame_payload, orient="split")
@@ -171,13 +176,13 @@ class TimescaleQueryCache:
         extra: Mapping[str, object] | None = None,
     ) -> TimescaleQueryResult:
         if self.cache is None:
-            kwargs = {
-                subject_param: subjects,
+            call_kwargs: dict[str, object | None] = {
+                subject_param: list(subjects) if subjects is not None else None,
                 "start": start,
                 "end": end,
                 "limit": limit,
             }
-            return fetcher(**kwargs)  # type: ignore[misc]
+            return fetcher(**call_kwargs)
 
         canonical_subjects = _normalise_subjects(subjects)
         signature_payload: dict[str, object] = {
@@ -208,13 +213,13 @@ class TimescaleQueryCache:
                 )
                 self.cache.delete(cache_key)
 
-        kwargs = {
-            subject_param: subjects,
+        call_kwargs = {
+            subject_param: list(subjects) if subjects is not None else None,
             "start": start,
             "end": end,
             "limit": limit,
         }
-        result = fetcher(**kwargs)  # type: ignore[misc]
+        result = fetcher(**call_kwargs)
         try:
             payload = _serialise_result(result, signature, raw_signature)
             self.cache.set(cache_key, payload)

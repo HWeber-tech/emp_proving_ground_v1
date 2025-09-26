@@ -7,7 +7,7 @@ from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Mapping, MutableMapping, Sequence
 
-from src.core.event_bus import Event, EventBus
+from src.core.event_bus import Event, EventBus, get_global_bus
 from src.data_foundation.ingest.configuration import KafkaReadinessSettings
 from src.data_foundation.streaming.kafka_stream import (
     KafkaConnectionSettings,
@@ -305,4 +305,17 @@ def publish_kafka_readiness(event_bus: EventBus, snapshot: KafkaReadinessSnapsho
         payload=snapshot.as_dict(),
         source="operations.kafka_readiness",
     )
-    event_bus.publish(event)
+
+    publish_from_sync = getattr(event_bus, "publish_from_sync", None)
+    if callable(publish_from_sync) and event_bus.is_running():
+        try:
+            publish_from_sync(event)
+            return
+        except Exception:  # pragma: no cover - defensive log suppressed
+            pass
+
+    try:
+        bus = get_global_bus()
+        bus.publish_sync(event.type, event.payload, source=event.source)
+    except Exception:  # pragma: no cover - fallback best effort
+        pass

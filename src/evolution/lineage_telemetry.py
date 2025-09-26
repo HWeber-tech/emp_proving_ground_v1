@@ -2,13 +2,28 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field, is_dataclass
 from typing import Any, Mapping, Sequence, Tuple, TYPE_CHECKING
 
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
     from src.core.evolution.engine import EvolutionSummary
     from src.orchestration.evolution_cycle import ChampionRecord
+
+
+def _coerce_int(value: object, *, default: int = 0) -> int:
+    """Return an integer for stats payload fields, tolerating strings."""
+
+    if isinstance(value, bool):
+        return int(value)
+    if isinstance(value, (int, float)):
+        return int(value)
+    if isinstance(value, str):
+        try:
+            return int(float(value))
+        except ValueError:
+            return default
+    return default
 
 
 def _normalize_sequence(values: Sequence[Any] | None, *, max_items: int) -> tuple[Any, ...]:
@@ -29,12 +44,11 @@ def _summary_to_mapping(summary: "EvolutionSummary | Mapping[str, Any] | None") 
         return {}
     if isinstance(summary, Mapping):
         return {str(key): value for key, value in summary.items()}
-    try:  # dataclasses and pydantic models expose ``model_dump``/``dict`` helpers
-        from dataclasses import asdict
-
-        return asdict(summary)  # type: ignore[arg-type]
-    except Exception:
-        pass
+    if is_dataclass(summary):
+        try:
+            return {str(key): value for key, value in asdict(summary).items()}
+        except Exception:
+            return {}
     try:
         to_dict = getattr(summary, "dict", None)
         if callable(to_dict):
@@ -173,10 +187,10 @@ def build_lineage_snapshot(
     if isinstance(raw_catalogue, Mapping):
         catalogue = {str(key): value for key, value in raw_catalogue.items()}
 
-    generation = int(stats.get("generation", 0))
+    generation = _coerce_int(stats.get("generation", 0))
     if summary:
         summary_mapping = _summary_to_mapping(summary)
-        generation = int(summary_mapping.get("generation", generation))
+        generation = _coerce_int(summary_mapping.get("generation", generation), default=generation)
     else:
         summary_mapping = {}
 

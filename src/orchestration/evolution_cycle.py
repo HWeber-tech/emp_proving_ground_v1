@@ -75,7 +75,7 @@ class FitnessReport:
     metadata: MutableMapping[str, Any] = field(default_factory=dict)
 
     def as_payload(self) -> dict[str, Any]:
-        payload = {
+        payload: dict[str, Any] = {
             "fitness_score": float(self.fitness_score),
             "max_drawdown": float(self.max_drawdown),
             "sharpe_ratio": float(self.sharpe_ratio),
@@ -364,7 +364,7 @@ class EvolutionCycleOrchestrator:
             return payload
 
         data: Mapping[str, Any]
-        if is_dataclass(payload):
+        if is_dataclass(payload) and not isinstance(payload, type):
             data = asdict(payload)
         elif isinstance(payload, Mapping):
             data = payload

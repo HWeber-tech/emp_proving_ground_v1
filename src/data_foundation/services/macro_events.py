@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
+from numbers import Real
 from typing import Mapping, Sequence
 
 import math
@@ -80,9 +81,16 @@ class MacroEventRecord:
                 return value.replace(tzinfo=UTC)
             return value.astimezone(UTC)
         if isinstance(value, pd.Timestamp):
-            if value.tzinfo is None:
-                return value.to_pydatetime().replace(tzinfo=UTC)
-            return value.to_pydatetime().astimezone(UTC)
+            if pd.isna(value):
+                return datetime.now(tz=UTC)
+            timestamp = value
+            if timestamp.tzinfo is None:
+                timestamp = timestamp.tz_localize("UTC")
+            converted = timestamp.tz_convert("UTC").to_pydatetime()
+            if isinstance(converted, datetime):
+                if converted.tzinfo is None:
+                    return converted.replace(tzinfo=UTC)
+                return converted.astimezone(UTC)
         return datetime.now(tz=UTC)
 
     @classmethod
@@ -113,12 +121,25 @@ class MacroEventRecord:
 
 
 def _safe_float(value: object) -> float | None:
-    try:
-        if value is None or (isinstance(value, float) and math.isnan(value)):
-            return None
-        return float(value)
-    except (TypeError, ValueError):
+    if value is None:
         return None
+    if isinstance(value, Real):
+        numeric = float(value)
+        if math.isnan(numeric):
+            return None
+        return numeric
+    if isinstance(value, str):
+        text = value.strip()
+        if not text:
+            return None
+        try:
+            numeric = float(text)
+        except ValueError:
+            return None
+        if math.isnan(numeric):
+            return None
+        return numeric
+    return None
 
 
 @dataclass(frozen=True)
@@ -314,12 +335,15 @@ class TimescaleMacroEventService:
 
 
 def _event_delta(record: MacroEventRecord) -> float:
-    if record.actual is not None and record.forecast not in (None, 0.0):
-        baseline = record.forecast if record.forecast not in (None, 0.0) else 1.0
-        return _clamp((record.actual - record.forecast) / baseline)
-    if record.actual is not None and record.previous not in (None, 0.0):
-        baseline = record.previous if record.previous not in (None, 0.0) else 1.0
-        return _clamp((record.actual - record.previous) / baseline)
+    actual = record.actual
+    forecast = record.forecast
+    previous = record.previous
+    if actual is not None and forecast is not None:
+        baseline = forecast if forecast != 0.0 else 1.0
+        return _clamp((actual - forecast) / baseline)
+    if actual is not None and previous is not None:
+        baseline = previous if previous != 0.0 else 1.0
+        return _clamp((actual - previous) / baseline)
     return 0.0
 
 

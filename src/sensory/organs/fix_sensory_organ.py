@@ -9,12 +9,12 @@ import asyncio
 import logging
 from contextlib import suppress
 from datetime import datetime
-from typing import Any, Awaitable, Callable, Optional
+from typing import Any, Callable, Coroutine, Optional
 
 logger = logging.getLogger(__name__)
 
 
-TaskFactory = Callable[[Awaitable[Any], Optional[str]], asyncio.Task[Any]]
+TaskFactory = Callable[[Coroutine[Any, Any, Any], Optional[str]], asyncio.Task[Any]]
 
 
 class FIXSensoryOrgan:
@@ -102,7 +102,7 @@ class FIXSensoryOrgan:
         except Exception as e:
             logger.error(f"Error processing price message: {e}")
 
-    def _spawn_task(self, coro: Awaitable[Any], *, name: str | None = None) -> asyncio.Task[Any]:
+    def _spawn_task(self, coro: Coroutine[Any, Any, Any], *, name: str | None = None) -> asyncio.Task[Any]:
         if self._task_factory is not None:
             return self._task_factory(coro, name)
         return asyncio.create_task(coro, name=name)

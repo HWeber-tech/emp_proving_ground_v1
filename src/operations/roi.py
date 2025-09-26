@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from enum import StrEnum
 from typing import Mapping
 
+from src.core.coercion import coerce_float
 from src.core.event_bus import Event, EventBus
 
 
@@ -110,13 +111,6 @@ class RoiTelemetrySnapshot:
 _MIN_DAY_FRACTION = 1.0 / 24.0  # Treat sub-hour windows conservatively.
 
 
-def _safe_float(value: object, default: float = 0.0) -> float:
-    try:
-        return float(value)
-    except (TypeError, ValueError):
-        return default
-
-
 def evaluate_roi_posture(
     portfolio_state: Mapping[str, object],
     cost_model: RoiCostModel,
@@ -134,8 +128,10 @@ def evaluate_roi_posture(
     elapsed = (as_of - period_start).total_seconds()
     days_active = max(elapsed / 86400.0, _MIN_DAY_FRACTION)
 
-    equity = _safe_float(portfolio_state.get("equity"), cost_model.initial_capital)
-    gross_pnl = _safe_float(portfolio_state.get("total_pnl"), equity - cost_model.initial_capital)
+    equity = coerce_float(portfolio_state.get("equity"), default=cost_model.initial_capital)
+    gross_pnl = coerce_float(
+        portfolio_state.get("total_pnl"), default=equity - cost_model.initial_capital
+    )
 
     fees_flat = float(executed_trades) * cost_model.broker_fee_flat
     fees_bps = float(total_notional) * (cost_model.broker_fee_bps / 10_000.0)

@@ -75,7 +75,7 @@ class AnomalySensor:
         context = dict(getattr(reading, "context", {}) or {})
         mode = mode_override or reading_adapter.get("mode", "sequence")
 
-        metadata = {
+        metadata: dict[str, object] = {
             "source": "sensory.anomaly",
             "mode": mode,
             "thresholds": {
@@ -92,7 +92,7 @@ class AnomalySensor:
             },
         }
 
-        value = {
+        value: dict[str, object] = {
             "strength": signal_strength,
             "confidence": confidence,
             "context": context,
@@ -105,7 +105,7 @@ class AnomalySensor:
         )
 
     def _default_signal(self) -> SensorSignal:
-        metadata = {
+        metadata: dict[str, object] = {
             "source": "sensory.anomaly",
             "thresholds": {
                 "warn": self._config.warn_threshold,

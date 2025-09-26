@@ -96,17 +96,18 @@ class WhenSensor:
         )
         gamma_impact = gamma_summary.impact_score
         primary_strike = gamma_summary.primary_strike
-        dominant_profiles = [
-            {
-                "strike": profile.strike,
-                "net_gamma": profile.net_gamma,
-                "abs_gamma": profile.abs_gamma,
-                "share_of_total": profile.share_of_total,
-                "distance": profile.distance,
-                "side": profile.side,
-            }
-            for profile in gamma_summary.dominant_strikes
-        ]
+        dominant_profiles: list[dict[str, object]] = []
+        for profile in gamma_summary.dominant_strikes:
+            dominant_profiles.append(
+                {
+                    "strike": float(profile.strike),
+                    "net_gamma": float(profile.net_gamma),
+                    "abs_gamma": float(profile.abs_gamma),
+                    "share_of_total": float(profile.share_of_total),
+                    "distance": float(profile.distance),
+                    "side": profile.side,
+                }
+            )
 
         w_session, w_news, w_gamma = self._config._normalised_weights()
         strength = w_session * session_intensity + w_news * news_proximity + w_gamma * gamma_impact
@@ -117,24 +118,26 @@ class WhenSensor:
             min(1.0, sum(confidence_components) / (len(confidence_components) + 0.5)),
         )
 
-        metadata = {
+        components: dict[str, object] = {
+            "session_intensity": float(session_intensity),
+            "news_proximity": float(news_proximity),
+            "gamma_impact": float(gamma_impact),
+            "gamma_pin_risk": float(gamma_summary.pin_risk_score),
+            "gamma_pressure": float(gamma_summary.gamma_pressure),
+            "gamma_flip_risk": bool(gamma_summary.flip_risk),
+            "gamma_pin_strike": float(primary_strike.strike) if primary_strike else None,
+        }
+        gamma_snapshot: dict[str, object] = {
+            "as_of": gamma_summary.as_of.isoformat(),
+            "symbol": gamma_summary.symbol,
+            "net_gamma": float(gamma_summary.net_gamma),
+            "total_abs_gamma": float(gamma_summary.total_abs_gamma),
+            "near_gamma": float(gamma_summary.near_gamma),
+        }
+        metadata: dict[str, object] = {
             "source": "sensory.when",
-            "components": {
-                "session_intensity": session_intensity,
-                "news_proximity": news_proximity,
-                "gamma_impact": gamma_impact,
-                "gamma_pin_risk": gamma_summary.pin_risk_score,
-                "gamma_pressure": gamma_summary.gamma_pressure,
-                "gamma_flip_risk": gamma_summary.flip_risk,
-                "gamma_pin_strike": primary_strike.strike if primary_strike else None,
-            },
-            "gamma_snapshot": {
-                "as_of": gamma_summary.as_of.isoformat(),
-                "symbol": gamma_summary.symbol,
-                "net_gamma": gamma_summary.net_gamma,
-                "total_abs_gamma": gamma_summary.total_abs_gamma,
-                "near_gamma": gamma_summary.near_gamma,
-            },
+            "components": components,
+            "gamma_snapshot": gamma_snapshot,
             "gamma_dominant_strikes": dominant_profiles,
         }
 
@@ -219,9 +222,14 @@ class WhenSensor:
         return GammaExposureSummary.empty(as_of=as_of, symbol=symbol, spot_price=spot_price)
 
     def _default_signal(self, *, confidence: float) -> SensorSignal:
-        metadata = {
+        components: dict[str, object] = {
+            "session_intensity": 0.0,
+            "news_proximity": 0.0,
+            "gamma_impact": 0.0,
+        }
+        metadata: dict[str, object] = {
             "source": "sensory.when",
-            "components": {"session_intensity": 0.0, "news_proximity": 0.0, "gamma_impact": 0.0},
+            "components": components,
         }
         return SensorSignal(
             signal_type="WHEN",

@@ -11,6 +11,7 @@ from uuid import uuid4
 
 from src.core.event_bus import Event, EventBus, get_global_bus
 from src.governance.audit_logger import AuditLogger
+from src.core.coercion import coerce_float, coerce_int
 
 logger = logging.getLogger(__name__)
 
@@ -51,13 +52,6 @@ def _coerce_datetime(value: Any, default: datetime | None = None) -> datetime | 
             return parsed.replace(tzinfo=UTC)
         return parsed.astimezone(UTC)
     return default
-
-
-def _coerce_float(value: Any, default: float = 0.0) -> float:
-    try:
-        return float(value)
-    except Exception:
-        return default
 
 
 def _as_list(value: Any) -> list[str]:
@@ -210,7 +204,7 @@ class KycAmlMonitor:
         watchlist_hits = tuple(_as_list(payload.get("watchlist_hits")))
         alerts = tuple(_as_list(payload.get("alerts")))
 
-        risk_score = _coerce_float(payload.get("risk_score"), 0.0)
+        risk_score = coerce_float(payload.get("risk_score"), default=0.0)
         risk_rating = str(payload.get("risk_rating") or "").upper()
         if not risk_rating:
             risk_rating = self._grade_risk(risk_score, outstanding, watchlist_hits)
@@ -226,11 +220,10 @@ class KycAmlMonitor:
                 "ESCALATED" if escalated else ("REVIEW_REQUIRED" if outstanding else "APPROVED")
             )
 
-        last_review = _coerce_datetime(payload.get("last_reviewed_at"), observed)
+        last_review = _coerce_datetime(payload.get("last_reviewed_at"), observed) or observed
         review_frequency_days = payload.get("review_frequency_days")
-        try:
-            frequency = int(review_frequency_days)
-        except Exception:
+        frequency = coerce_int(review_frequency_days, default=365)
+        if frequency <= 0:
             frequency = 365
         next_due = _coerce_datetime(payload.get("next_review_due"))
         if next_due is None and last_review is not None:

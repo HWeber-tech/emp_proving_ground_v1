@@ -356,7 +356,7 @@ def publish_cross_region_snapshot(
 ) -> None:
     """Publish the snapshot on the ingest telemetry channel."""
 
-    event_bus.publish(
+    event_bus.publish_from_sync(
         Event(
             type="telemetry.ingest.cross_region_failover",
             payload=snapshot.as_dict(),

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Mapping
+from collections.abc import Mapping
 
 import pandas as pd
 
@@ -26,6 +26,19 @@ def _clamp(value: float, lower: float, upper: float) -> float:
     return max(lower, min(upper, value))
 
 
+def _coerce_curve_value(value: object) -> float | int | str | None:
+    if value is None:
+        return None
+    if isinstance(value, (int, float, str)):
+        return value
+    if isinstance(value, bytes):
+        try:
+            return value.decode()
+        except Exception:  # pragma: no cover - defensive decoding
+            return None
+    return None
+
+
 class WhySensor:
     """Macro proxy sensor (WHY dimension) with yield-curve awareness."""
 
@@ -37,15 +50,20 @@ class WhySensor:
                     mapping[column] = str(tenor)
         self._yield_columns = mapping
 
-    def _extract_yields(self, row: Mapping[str, object]) -> dict[str, float | str | None]:
+    def _extract_yields(self, row: Mapping[str, object]) -> Mapping[str, float | str | None]:
         tracker = YieldSlopeTracker()
         for column, tenor in self._yield_columns.items():
-            value = row.get(column)
+            value = _coerce_curve_value(row.get(column))
             tracker.update(tenor, value)
 
         raw_curve = row.get("yield_curve")
         if isinstance(raw_curve, Mapping):
-            tracker.update_many(raw_curve)  # type: ignore[arg-type]
+            entries: list[tuple[str, float | int | str | None]] = []
+            for raw_tenor, raw_value in raw_curve.items():
+                if not isinstance(raw_tenor, str):
+                    continue
+                entries.append((raw_tenor, _coerce_curve_value(raw_value)))
+            tracker.update_many(entries)
 
         return tracker.snapshot().as_dict()
 
@@ -76,7 +94,7 @@ class WhySensor:
             base_strength = 0.25 if slope > 0 else 0.05
             base_confidence = 0.55
 
-        yield_snapshot_dict = self._extract_yields(last_row)
+        yield_snapshot_dict = dict(self._extract_yields(last_row))
         yield_direction = float(yield_snapshot_dict.get("direction", 0.0) or 0.0)
         yield_confidence = float(yield_snapshot_dict.get("confidence", 0.0) or 0.0)
         slope_2s10s = yield_snapshot_dict.get("slope_2s10s")
@@ -97,7 +115,7 @@ class WhySensor:
             1.0,
         )
 
-        metadata = {
+        metadata: dict[str, object] = {
             "volatility": vol,
             "price_slope": slope,
             "macro_bias": macro_bias,
@@ -106,10 +124,15 @@ class WhySensor:
             "yield_curve": yield_snapshot_dict,
         }
 
+        value: dict[str, object] = {
+            "strength": float(combined_strength),
+            "confidence": float(combined_confidence),
+        }
+
         return [
             SensorSignal(
                 signal_type="WHY",
-                value={"strength": float(combined_strength)},
+                value=value,
                 confidence=float(combined_confidence),
                 metadata=metadata,
             )

@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from typing import Mapping
+
+from core.coercion import coerce_float, coerce_int
 
 from .failover import IngestFailoverDecision
 from .health import IngestHealthCheck, IngestHealthReport, IngestHealthStatus
@@ -12,10 +14,57 @@ from .metrics import IngestMetricsSnapshot
 from .recovery import IngestRecoveryRecommendation
 
 
+def _normalise_mapping(mapping: Mapping[str, object] | None) -> dict[str, object]:
+    if mapping is None:
+        return {}
+    return {str(key): value for key, value in mapping.items()}
+
+
 def _normalise_metadata(mapping: Mapping[str, object] | None) -> dict[str, object]:
     if not mapping:
         return {}
-    return {str(key): value for key, value in mapping.items()}
+    return _normalise_mapping(mapping)
+
+
+def _coerce_optional_str(value: object | None) -> str | None:
+    if value is None:
+        return None
+    if isinstance(value, str):
+        candidate = value.strip()
+        return candidate or None
+    return None
+
+
+def _coerce_symbols(value: object | None, *, fallback: Iterable[str] = ()) -> tuple[str, ...]:
+    sequence: Iterable[object]
+    if isinstance(value, Mapping):
+        sequence = value.values()
+    elif isinstance(value, Iterable) and not isinstance(value, (str, bytes, bytearray)):
+        sequence = value
+    else:
+        sequence = fallback
+    symbols: list[str] = []
+    for symbol in sequence:
+        if symbol is None:
+            continue
+        candidate = str(symbol).strip()
+        if candidate:
+            symbols.append(candidate)
+    return tuple(symbols)
+
+
+def _iter_metric_records(payload: object | None) -> list[dict[str, object]]:
+    if payload is None:
+        return []
+    if isinstance(payload, Mapping):
+        return [_normalise_mapping(payload)]
+    if isinstance(payload, Iterable) and not isinstance(payload, (str, bytes, bytearray)):
+        records: list[dict[str, object]] = []
+        for item in payload:
+            if isinstance(item, Mapping):
+                records.append(_normalise_mapping(item))
+        return records
+    return []
 
 
 @dataclass(frozen=True)
@@ -115,14 +164,31 @@ class IngestObservabilitySnapshot:
             lines.append(f"- Failover triggered: **{flag}**{detail}")
         summary = self.recovery_summary()
         if summary is not None:
-            reasons = summary.get("reasons") or {}
-            formatted_reasons = "; ".join(f"{dim}: {msg}" for dim, msg in reasons.items())
-            if formatted_reasons:
-                lines.append(f"- Recovery plan reasons: {formatted_reasons}")
+            reasons_payload = summary.get("reasons")
+            if isinstance(reasons_payload, Mapping):
+                formatted_reasons = "; ".join(
+                    f"{str(dimension)}: {str(message)}"
+                    for dimension, message in reasons_payload.items()
+                    if dimension and message
+                )
+                if formatted_reasons:
+                    lines.append(f"- Recovery plan reasons: {formatted_reasons}")
             plan_summary = summary.get("plan")
-            if plan_summary:
-                planned = ", ".join(sorted(plan_summary.keys()))
-                lines.append(f"- Recovery plan dimensions: {planned}")
+            if isinstance(plan_summary, Mapping):
+                planned = ", ".join(
+                    sorted(str(dimension) for dimension in plan_summary.keys() if dimension)
+                )
+                if planned:
+                    lines.append(f"- Recovery plan dimensions: {planned}")
+            missing_symbols = summary.get("missing_symbols")
+            if isinstance(missing_symbols, Mapping):
+                formatted_missing = "; ".join(
+                    f"{str(dimension)}: {', '.join(sorted(_coerce_symbols(symbols)))}"
+                    for dimension, symbols in missing_symbols.items()
+                    if symbols
+                )
+                if formatted_missing:
+                    lines.append(f"- Missing symbols: {formatted_missing}")
         lines.extend(
             [
                 "",
@@ -154,7 +220,7 @@ def _merge_metadata(*payloads: Mapping[str, object] | None) -> dict[str, object]
     for payload in payloads:
         if not payload:
             continue
-        merged.update({str(key): value for key, value in payload.items()})
+        merged.update(_normalise_mapping(payload))
     return merged
 
 
@@ -166,13 +232,17 @@ def _dimension_from_health(
     freshness = check.freshness_seconds
     duration = check.ingest_duration_seconds
     observed = tuple(check.observed_symbols)
-    source = None
+    source: str | None = None
     if metric is not None:
-        rows = int(metric.get("rows", rows))
-        freshness = metric.get("freshness_seconds", freshness)
-        duration = metric.get("ingest_duration_seconds", duration)
-        observed = tuple(metric.get("symbols", observed))
-        source = metric.get("source")
+        rows = coerce_int(metric.get("rows"), default=rows)
+        freshness_candidate = coerce_float(metric.get("freshness_seconds"))
+        if freshness_candidate is not None:
+            freshness = freshness_candidate
+        duration_candidate = coerce_float(metric.get("ingest_duration_seconds"))
+        if duration_candidate is not None:
+            duration = duration_candidate
+        observed = _coerce_symbols(metric.get("symbols"), fallback=observed)
+        source = _coerce_optional_str(metric.get("source"))
     return IngestObservabilityDimension(
         dimension=check.dimension,
         status=check.status,
@@ -189,15 +259,17 @@ def _dimension_from_health(
 
 
 def _dimension_from_metric(metric: Mapping[str, object]) -> IngestObservabilityDimension:
+    dimension_obj = metric.get("dimension")
+    dimension = str(dimension_obj) if dimension_obj is not None else "unknown"
     return IngestObservabilityDimension(
-        dimension=str(metric.get("dimension")),
+        dimension=dimension,
         status=IngestHealthStatus.ok,
-        rows=int(metric.get("rows", 0)),
-        freshness_seconds=metric.get("freshness_seconds"),
+        rows=coerce_int(metric.get("rows"), default=0),
+        freshness_seconds=coerce_float(metric.get("freshness_seconds")),
         message="Metric recorded without health check",
-        observed_symbols=tuple(metric.get("symbols", tuple())),
-        ingest_duration_seconds=metric.get("ingest_duration_seconds"),
-        source=metric.get("source"),
+        observed_symbols=_coerce_symbols(metric.get("symbols")),
+        ingest_duration_seconds=coerce_float(metric.get("ingest_duration_seconds")),
+        source=_coerce_optional_str(metric.get("source")),
     )
 
 
@@ -212,11 +284,18 @@ def build_ingest_observability_snapshot(
     """Merge ingest metrics, health, and recovery/failover metadata."""
 
     metrics_payload = metrics.as_dict()
-    metrics_by_dimension = {
-        metric["dimension"]: metric
-        for metric in metrics_payload.get("dimensions", [])
-        if metric.get("dimension")
-    }
+    raw_dimensions = metrics_payload.get("dimensions")
+    metric_records = _iter_metric_records(raw_dimensions)
+
+    metrics_by_dimension: dict[str, Mapping[str, object]] = {}
+    for record in metric_records:
+        name_obj = record.get("dimension")
+        if not name_obj:
+            continue
+        name = str(name_obj)
+        if not name:
+            continue
+        metrics_by_dimension[name] = record
 
     dimensions: list[IngestObservabilityDimension] = []
     seen: set[str] = set()
@@ -226,8 +305,11 @@ def build_ingest_observability_snapshot(
         dimensions.append(_dimension_from_health(check, metric_payload))
         seen.add(check.dimension)
 
-    for metric in metrics_payload.get("dimensions", []):
-        name = metric.get("dimension")
+    for metric in metric_records:
+        name_obj = metric.get("dimension")
+        if not name_obj:
+            continue
+        name = str(name_obj)
         if not name or name in seen:
             continue
         dimensions.append(_dimension_from_metric(metric))

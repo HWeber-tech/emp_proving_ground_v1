@@ -249,10 +249,11 @@ def execute_spark_export_plan(
     job_results: list[SparkExportJobResult] = []
     status = SparkExportStatus.ok
 
+    jobs_manifest: list[dict[str, object]] = []
     manifest: dict[str, object] = {
         "generated_at": generated_at.isoformat(),
         "format": plan.format.value,
-        "jobs": [],
+        "jobs": jobs_manifest,
     }
 
     for job in plan.jobs:
@@ -316,13 +317,14 @@ def execute_spark_export_plan(
             continue
 
         job_metadata = _create_job_metadata(query_result)
-        job_metadata["partitions"] = [str(path) for path in paths]
+        partitions: list[str] = [str(path) for path in paths]
+        job_metadata["partitions"] = partitions
         manifest_entry = {
             "dimension": job.dimension,
-            "paths": list(job_metadata["partitions"]),
+            "paths": list(partitions),
             "rowcount": query_result.rowcount,
         }
-        manifest["jobs"].append(manifest_entry)
+        jobs_manifest.append(manifest_entry)
 
         if plan.include_metadata:
             metadata_path = base_dir / "_metadata.json"

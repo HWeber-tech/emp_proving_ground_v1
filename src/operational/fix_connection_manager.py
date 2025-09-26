@@ -103,7 +103,7 @@ def _encode_numeric(value: SupportsFloat | str | bytes | None) -> bytes | None:
         except Exception:
             return None
     try:
-        number = float(value)  # type: ignore[arg-type]
+        number = float(value)
     except (TypeError, ValueError):
         return None
     text = f"{number:.10g}"

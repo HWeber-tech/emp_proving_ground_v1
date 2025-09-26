@@ -1,16 +1,27 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Mapping
+from numbers import Real
+from typing import Any, Mapping, cast
 
 from src.config.risk.risk_config import RiskConfig
 
 
 def _as_float(value: object | None, default: float = 0.0) -> float:
-    try:
-        if value is None:
-            return default
+    if value is None:
+        return default
+    if isinstance(value, Real):
         return float(value)
+    if isinstance(value, str):
+        candidate = value.strip()
+        if not candidate:
+            return default
+        try:
+            return float(candidate)
+        except ValueError:
+            return default
+    try:
+        return float(cast(Any, value))
     except (TypeError, ValueError):
         return default
 

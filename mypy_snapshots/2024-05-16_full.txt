@@ -1,0 +1,1107 @@
+src/sensory/dimensions/why/yield_signal.py:37: error: Dict entry 7 has incompatible type "str": "str"; expected "str":
+"float | None"  [dict-item]
+                "regime": self.regime,
+                ^~~~~~~~~~~~~~~~~~~~~
+src/sensory/dimensions/why/yield_signal.py:78: error: Incompatible types in assignment (expression has type
+"Iterable[tuple[str, float]]", variable has type "ItemsView[str, float | int | str | None] | ItemsView[Any, Any]")  [assignment]
+                iterator = entries
+                           ^~~~~~~
+src/governance/vision_alignment.py:108: error: Returning Any from function declared to return "Mapping[str, Any]" 
+[no-any-return]
+            return self.build()["summary"]
+            ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/operations/backup.py:100: error: "object" has no attribute "get"  [attr-defined]
+                providers = self.metadata.get("policy", {}).get("providers")
+                            ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/operations/backup.py:103: error: "object" has no attribute "get"  [attr-defined]
+                storage = self.metadata.get("policy", {}).get("storage_location")
+                          ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/operations/backup.py:240: error: Unsupported target for indexed assignment ("object")  [index]
+            metadata_payload["state"]["last_backup_at"] = latest_backup.isoformat()
+            ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/operations/backup.py:242: error: Unsupported target for indexed assignment ("object")  [index]
+            metadata_payload["state"]["last_restore_test_at"] = state.last_restore_test_at.isoformat()
+            ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/trading/liquidity/depth_aware_prober.py:17: error: Argument 1 to "float" has incompatible type "object"; expected
+"str | Buffer | SupportsFloat | SupportsIndex"  [arg-type]
+            return float(value)
+                         ^~~~~
+src/sensory/why/why_sensor.py:44: error: Argument 2 to "update" of "YieldSlopeTracker" has incompatible type "object"; expected
+"float | int | str | None"  [arg-type]
+                tracker.update(tenor, value)
+                                      ^~~~~
+src/sensory/why/why_sensor.py:48: error: Unused "type: ignore" comment  [unused-ignore]
+                tracker.update_many(raw_curve)  # type: ignore[arg-type]
+                ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/sensory/why/why_sensor.py:50: error: Incompatible return value type (got "dict[str, float | None]", expected
+"dict[str, float | str | None]")  [return-value]
+            return tracker.snapshot().as_dict()
+                   ^~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/sensory/why/why_sensor.py:50: note: "dict" is invariant -- see https://mypy.readthedocs.io/en/stable/common_issues.html#variance
+src/sensory/why/why_sensor.py:50: note: Consider using "Mapping" instead, which is covariant in the value type
+src/sensory/enhanced/_shared.py:41: error: Missing type parameters for generic type "dict"  [type-arg]
+    class ReadingAdapter(dict):
+                         ^
+src/sensory/enhanced/_shared.py:56: error: Function is missing a return type annotation  [no-untyped-def]
+        def __await__(self):
+        ^
+src/sensory/enhanced/_shared.py:57: error: Function is missing a return type annotation  [no-untyped-def]
+            async def _coro():
+            ^
+src/sensory/enhanced/_shared.py:62: error: Signature of "__hash__" incompatible with supertype "dict"  [override]
+        def __hash__(self) -> int:
+        ^
+src/sensory/enhanced/_shared.py:62: note:      Superclass:
+src/sensory/enhanced/_shared.py:62: note:          None
+src/sensory/enhanced/_shared.py:62: note:      Subclass:
+src/sensory/enhanced/_shared.py:62: note:          def __hash__(self) -> int
+src/sensory/enhanced/anomaly_dimension.py:59: error: Argument 1 to "ensure_market_data" has incompatible type
+"Any | Mapping[str, Any] | bytes | Mapping[Any, Any] | str | None"; expected "MarketData | Mapping[str, Any] | None"  [arg-type]
+            market_data = ensure_market_data(data)
+                                             ^~~~
+src/governance/system_config.py:206: error: Item "None" of "Mapping[str, str] | None" has no attribute "get"  [union-attr]
+                    raw_indicator = env.get(key)
+                                    ^~~~~~~
+src/trading/risk/risk_policy.py:13: error: Argument 1 to "float" has incompatible type "object"; expected
+"str | Buffer | SupportsFloat | SupportsIndex"  [arg-type]
+            return float(value)
+                         ^~~~~
+src/sensory/how/how_sensor.py:113: error: Argument "metadata" to "SensorSignal" has incompatible type
+"dict[str, Collection[str]]"; expected "dict[str, object] | None"  [arg-type]
+                metadata=metadata,
+                         ^~~~~~~~
+src/sensory/how/how_sensor.py:113: note: "dict" is invariant -- see https://mypy.readthedocs.io/en/stable/common_issues.html#variance
+src/sensory/how/how_sensor.py:113: note: Consider using "Mapping" instead, which is covariant in the value type
+src/sensory/anomaly/anomaly_sensor.py:121: error: Argument "metadata" to "SensorSignal" has incompatible type
+"dict[str, Collection[str]]"; expected "dict[str, object] | None"  [arg-type]
+                metadata=metadata,
+                         ^~~~~~~~
+src/sensory/anomaly/anomaly_sensor.py:121: note: "dict" is invariant -- see https://mypy.readthedocs.io/en/stable/common_issues.html#variance
+src/sensory/anomaly/anomaly_sensor.py:121: note: Consider using "Mapping" instead, which is covariant in the value type
+src/trading/risk/risk_gateway.py:74: error: Need type annotation for "meta" (hint: "meta': dict[<type>, <type>] = ...") 
+[var-annotated]
+            meta = {}
+            ^~~~
+src/trading/risk/risk_gateway.py:78: error: Incompatible types in assignment (expression has type "Any | None", variable has
+type "dict[Any, Any]")  [assignment]
+        meta = getattr(intent, "metadata", None)
+               ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/trading/risk/risk_gateway.py:183: error: "_reject" of "RiskGateway" does not return a value (it only ever returns None) 
+[func-returns-value]
+                    return self._reject(decision)
+                           ^~~~~~~~~~~~~~~~~~~~~~
+src/trading/risk/risk_gateway.py:198: error: "_reject" of "RiskGateway" does not return a value (it only ever returns None) 
+[func-returns-value]
+                    return self._reject(decision)
+                           ^~~~~~~~~~~~~~~~~~~~~~
+src/trading/risk/risk_gateway.py:203: error: "_reject" of "RiskGateway" does not return a value (it only ever returns None) 
+[func-returns-value]
+                    return self._reject(decision)
+                           ^~~~~~~~~~~~~~~~~~~~~~
+src/trading/risk/risk_gateway.py:207: error: "_reject" of "RiskGateway" does not return a value (it only ever returns None) 
+[func-returns-value]
+                    return self._reject(decision)
+                           ^~~~~~~~~~~~~~~~~~~~~~
+src/trading/risk/risk_gateway.py:237: error: "_reject" of "RiskGateway" does not return a value (it only ever returns None) 
+[func-returns-value]
+                        return self._reject(decision)
+                               ^~~~~~~~~~~~~~~~~~~~~~
+src/trading/risk/risk_gateway.py:247: error: "_reject" of "RiskGateway" does not return a value (it only ever returns None) 
+[func-returns-value]
+                        return self._reject(decision)
+                               ^~~~~~~~~~~~~~~~~~~~~~
+src/trading/risk/risk_gateway.py:273: error: "_reject" of "RiskGateway" does not return a value (it only ever returns None) 
+[func-returns-value]
+                return self._reject(decision)
+                       ^~~~~~~~~~~~~~~~~~~~~~
+src/trading/risk/risk_gateway.py:492: error: Unused "type: ignore" comment  [unused-ignore]
+                    if getattr(intent, "__dataclass_params__", None).frozen:  # type: ignore[attr-defined]
+                    ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/trading/risk/risk_gateway.py:492: error: Item "None" of "Any | None" has no attribute "frozen"  [union-attr]
+                    if getattr(intent, "__dataclass_params__", None).frozen:  # type: ignore[attr-defined]
+                       ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/trading/risk/risk_gateway.py:492: note: Error code "union-attr" not covered by "type: ignore" comment
+src/trading/risk/risk_gateway.py:493: error: Argument 1 to "asdict" has incompatible type
+"DataclassInstance | type[DataclassInstance]"; expected "DataclassInstance"  [arg-type]
+                        data = asdict(intent)
+                                      ^~~~~~
+src/trading/integration/fix_broker_interface.py:121: error: Argument 1 to "create_task" has incompatible type "Awaitable[Any]";
+expected "Generator[Any, None, Any] | Coroutine[Any, Any, Any]"  [arg-type]
+            return asyncio.create_task(coro, name=name)
+                                       ^~~~
+src/sensory/organs/fix_sensory_organ.py:108: error: Argument 1 to "create_task" has incompatible type "Awaitable[Any]";
+expected "Generator[Any, None, Any] | Coroutine[Any, Any, Any]"  [arg-type]
+            return asyncio.create_task(coro, name=name)
+                                       ^~~~
+src/runtime/task_supervisor.py:83: error: Need type annotation for "task"  [var-annotated]
+            task = asyncio.create_task(coro, name=name)
+                   ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/runtime/task_supervisor.py:83: error: Argument 1 to "create_task" has incompatible type "Awaitable[Any]"; expected
+"Generator[Any, None, Never] | Coroutine[Any, Any, Never]"  [arg-type]
+            task = asyncio.create_task(coro, name=name)
+                                       ^~~~
+src/data_foundation/fabric/market_data_fabric.py:48: error: Unused "type: ignore" comment  [unused-ignore]
+                result = self.func(symbol, as_of)  # type: ignore[arg-type]
+                ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/data_foundation/fabric/market_data_fabric.py:48: error: Too many arguments  [call-arg]
+                result = self.func(symbol, as_of)  # type: ignore[arg-type]
+                         ^~~~~~~~~~~~~~~~~~~~~~~~
+src/data_foundation/fabric/market_data_fabric.py:48: note: Error code "call-arg" not covered by "type: ignore" comment
+src/data_foundation/fabric/market_data_fabric.py:50: error: Unused "type: ignore" comment  [unused-ignore]
+                result = self.func(symbol)  # type: ignore[misc]
+                ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/data_foundation/fabric/market_data_fabric.py:50: error: Too few arguments  [call-arg]
+                result = self.func(symbol)  # type: ignore[misc]
+                         ^~~~~~~~~~~~~~~~~
+src/data_foundation/fabric/market_data_fabric.py:50: note: Error code "call-arg" not covered by "type: ignore" comment
+src/trading/risk/policy_telemetry.py:91: error: Argument 1 to "float" has incompatible type "object"; expected
+"str | Buffer | SupportsFloat | SupportsIndex"  [arg-type]
+            return float(value)
+                         ^~~~~
+src/trading/risk/policy_telemetry.py:126: error: Unused "type: ignore" comment  [unused-ignore]
+                    metadata[key] = entry[key]  # type: ignore[index]
+                    ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/trading/risk/policy_telemetry.py:175: error: Argument 1 to "float" has incompatible type "object"; expected
+"str | Buffer | SupportsFloat | SupportsIndex"  [arg-type]
+                        float(equity or 0.0), float(projected or 0.0)
+                              ^~~~~~~~~~~~~
+src/runtime/fix_dropcopy.py:151: error: Item "AsyncEventBus" of "AsyncEventBus | TopicBus" has no attribute "emit_nowait" 
+[union-attr]
+                    self.event_bus.emit_nowait(Event(self._channel, event.as_dict()))
+                    ^~~~~~~~~~~~~~~~~~~~~~~~~~
+src/runtime/fix_dropcopy.py:151: error: Item "TopicBus" of "AsyncEventBus | TopicBus" has no attribute "emit_nowait" 
+[union-attr]
+                    self.event_bus.emit_nowait(Event(self._channel, event.as_dict()))
+                    ^~~~~~~~~~~~~~~~~~~~~~~~~~
+src/runtime/fix_dropcopy.py:158: error: Argument 1 to "create_task" has incompatible type "Awaitable[Any]"; expected
+"Generator[Any, None, Any] | Coroutine[Any, Any, Any]"  [arg-type]
+            return asyncio.create_task(coro, name=name)
+                                       ^~~~
+src/risk/telemetry.py:107: error: Argument 1 to "float" has incompatible type "object"; expected
+"str | Buffer | SupportsFloat | SupportsIndex"  [arg-type]
+            return float(value)
+                         ^~~~~
+src/risk/telemetry.py:116: error: No overload variant of "int" matches argument type "object"  [call-overload]
+            return int(value)
+                   ^~~~~~~~~~
+src/risk/telemetry.py:116: note: Possible overload variants:
+src/risk/telemetry.py:116: note:     def __new__(cls, str | Buffer | SupportsInt | SupportsIndex | SupportsTrunc = ..., /) -> int
+src/risk/telemetry.py:116: note:     def __new__(cls, str | bytes | bytearray, /, base: SupportsIndex) -> int
+src/risk/telemetry.py:153: error: Incompatible types in assignment (expression has type "float | None", variable has type
+"float")  [assignment]
+        current = _safe_float(value)
+                  ^~~~~~~~~~~~~~~~~~
+src/risk/telemetry.py:236: error: "object" has no attribute "__iter__"; maybe "__dir__" or "__str__"? (not iterable) 
+[attr-defined]
+        for raw in decision.get("checks", []):
+                   ^~~~~~~~~~~~~~~~~~~~~~~~~~
+src/risk/telemetry.py:252: error: "object" has no attribute "__iter__"; maybe "__dir__" or "__str__"? (not iterable) 
+[attr-defined]
+        for raw in decision.get("checks", []):
+                   ^~~~~~~~~~~~~~~~~~~~~~~~~~
+src/risk/telemetry.py:294: error: Argument 1 to "_normalise_limits" has incompatible type "object"; expected
+"Mapping[str, object] | None"  [arg-type]
+            _normalise_limits(limits_payload.get("limits"))
+                              ^~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/risk/telemetry.py:299: error: Argument 1 to "_normalise_telemetry" has incompatible type "object"; expected
+"Mapping[str, object] | None"  [arg-type]
+            _normalise_telemetry(limits_payload.get("telemetry"))
+                                 ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/risk/telemetry.py:383: error: Incompatible types in string interpolation (expression has type "object", placeholder has
+type "int | float")  [str-format]
+                "**Exposure:** long={:,.2f} short={:,.2f}".format(
+                ^
+src/operations/system_validation.py:58: error: Argument 1 to "float" has incompatible type "object"; expected
+"str | Buffer | SupportsFloat | SupportsIndex"  [arg-type]
+                rate = float(explicit)
+                             ^~~~~~~~
+src/operations/system_validation.py:62: error: Unsupported operand types for < ("float" and "None")  [operator]
+                if rate > 1.0:
+                   ^
+src/operations/system_validation.py:62: note: Left operand is of type "float | None"
+src/operations/system_validation.py:63: error: Unsupported operand types for / ("None" and "float")  [operator]
+                    rate = rate / 100.0
+                           ^
+src/operations/system_validation.py:63: note: Left operand is of type "float | None"
+src/operations/system_validation.py:64: error: Unsupported operand types for <= ("int" and "None")  [operator]
+                if rate >= 0:
+                   ^
+src/operations/system_validation.py:64: note: Left operand is of type "float | None"
+src/operations/system_validation.py:65: error: Value of type variable "SupportsRichComparisonT" of "min" cannot be
+"float | None"  [type-var]
+                    return min(rate, 1.0)
+                           ^~~~~~~~~~~~~~
+src/operations/system_validation.py:65: error: Incompatible return value type (got "float | None", expected "float") 
+[return-value]
+                    return min(rate, 1.0)
+                           ^~~~~~~~~~~~~~
+src/operations/system_validation.py:207: error: No overload variant of "int" matches argument type "object"  [call-overload]
+        total_checks = int(report.get("total_checks") or len(checks))
+                       ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/operations/system_validation.py:207: note: Possible overload variants:
+src/operations/system_validation.py:207: note:     def __new__(cls, str | Buffer | SupportsInt | SupportsIndex | SupportsTrunc = ..., /) -> int
+src/operations/system_validation.py:207: note:     def __new__(cls, str | bytes | bytearray, /, base: SupportsIndex) -> int
+src/operations/system_validation.py:219: error: No overload variant of "int" matches argument type "object"  [call-overload]
+        passed_checks = int(report.get("passed_checks") or sum(1 for check in checks if check.passed))
+                        ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/operations/system_validation.py:219: note: Possible overload variants:
+src/operations/system_validation.py:219: note:     def __new__(cls, str | Buffer | SupportsInt | SupportsIndex | SupportsTrunc = ..., /) -> int
+src/operations/system_validation.py:219: note:     def __new__(cls, str | bytes | bytearray, /, base: SupportsIndex) -> int
+src/operations/roi.py:115: error: Argument 1 to "float" has incompatible type "object"; expected
+"str | Buffer | SupportsFloat | SupportsIndex"  [arg-type]
+            return float(value)
+                         ^~~~~
+src/operations/incident_response.py:218: error: "object" has no attribute "items"  [attr-defined]
+                for key, value in sorted(self.metadata["context"].items()):
+                                         ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/operations/configuration_audit.py:249: error: No overload variant of "dict" matches argument type "object"  [call-overload]
+        baseline_extras = dict(baseline.get("extras", {}))
+                          ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/operations/configuration_audit.py:249: note: Possible overload variants:
+src/operations/configuration_audit.py:249: note:     def [_KT, _VT] __init__(self) -> dict[_KT, _VT]
+src/operations/configuration_audit.py:249: note:     def [_KT, _VT] __init__(self, **kwargs: _VT) -> dict[str, _VT]
+src/operations/configuration_audit.py:249: note:     def [_KT, _VT] __init__(self, SupportsKeysAndGetItem[_KT, _VT], /) -> dict[_KT, _VT]
+src/operations/configuration_audit.py:249: note:     def [_KT, _VT] __init__(self, SupportsKeysAndGetItem[str, _VT], /, **kwargs: _VT) -> dict[str, _VT]
+src/operations/configuration_audit.py:249: note:     def [_KT, _VT] __init__(self, Iterable[tuple[_KT, _VT]], /) -> dict[_KT, _VT]
+src/operations/configuration_audit.py:249: note:     def [_KT, _VT] __init__(self, Iterable[tuple[str, _VT]], /, **kwargs: _VT) -> dict[str, _VT]
+src/operations/configuration_audit.py:249: note:     def [_KT, _VT] __init__(self, Iterable[list[str]], /) -> dict[str, str]
+src/operations/configuration_audit.py:249: note:     def [_KT, _VT] __init__(self, Iterable[list[bytes]], /) -> dict[bytes, bytes]
+src/operations/configuration_audit.py:333: error: No overload variant of "dict" matches argument type "object"  [call-overload]
+        prev_extras = dict(previous_config.get("extras", {})) if previous_config else {}
+                      ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/operations/configuration_audit.py:333: note: Possible overload variants:
+src/operations/configuration_audit.py:333: note:     def [_KT, _VT] __init__(self) -> dict[_KT, _VT]
+src/operations/configuration_audit.py:333: note:     def [_KT, _VT] __init__(self, **kwargs: _VT) -> dict[str, _VT]
+src/operations/configuration_audit.py:333: note:     def [_KT, _VT] __init__(self, SupportsKeysAndGetItem[_KT, _VT], /) -> dict[_KT, _VT]
+src/operations/configuration_audit.py:333: note:     def [_KT, _VT] __init__(self, SupportsKeysAndGetItem[str, _VT], /, **kwargs: _VT) -> dict[str, _VT]
+src/operations/configuration_audit.py:333: note:     def [_KT, _VT] __init__(self, Iterable[tuple[_KT, _VT]], /) -> dict[_KT, _VT]
+src/operations/configuration_audit.py:333: note:     def [_KT, _VT] __init__(self, Iterable[tuple[str, _VT]], /, **kwargs: _VT) -> dict[str, _VT]
+src/operations/configuration_audit.py:333: note:     def [_KT, _VT] __init__(self, Iterable[list[str]], /) -> dict[str, str]
+src/operations/configuration_audit.py:333: note:     def [_KT, _VT] __init__(self, Iterable[list[bytes]], /) -> dict[bytes, bytes]
+src/operations/configuration_audit.py:334: error: No overload variant of "dict" matches argument type "object"  [call-overload]
+        curr_extras = dict(current_config.get("extras", {}))
+                      ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/operations/configuration_audit.py:334: note: Possible overload variants:
+src/operations/configuration_audit.py:334: note:     def [_KT, _VT] __init__(self) -> dict[_KT, _VT]
+src/operations/configuration_audit.py:334: note:     def [_KT, _VT] __init__(self, **kwargs: _VT) -> dict[str, _VT]
+src/operations/configuration_audit.py:334: note:     def [_KT, _VT] __init__(self, SupportsKeysAndGetItem[_KT, _VT], /) -> dict[_KT, _VT]
+src/operations/configuration_audit.py:334: note:     def [_KT, _VT] __init__(self, SupportsKeysAndGetItem[str, _VT], /, **kwargs: _VT) -> dict[str, _VT]
+src/operations/configuration_audit.py:334: note:     def [_KT, _VT] __init__(self, Iterable[tuple[_KT, _VT]], /) -> dict[_KT, _VT]
+src/operations/configuration_audit.py:334: note:     def [_KT, _VT] __init__(self, Iterable[tuple[str, _VT]], /, **kwargs: _VT) -> dict[str, _VT]
+src/operations/configuration_audit.py:334: note:     def [_KT, _VT] __init__(self, Iterable[list[str]], /) -> dict[str, str]
+src/operations/configuration_audit.py:334: note:     def [_KT, _VT] __init__(self, Iterable[list[bytes]], /) -> dict[bytes, bytes]
+src/operations/configuration_audit.py:346: error: Unexpected keyword argument "note"  [call-arg]
+            register(f"extras.{key}", None, curr_extras[key], severity, note="added key")
+            ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/operations/configuration_audit.py:349: error: Unexpected keyword argument "note"  [call-arg]
+            register(f"extras.{key}", prev_extras[key], None, severity, note="removed key")
+            ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/operations/configuration_audit.py:352: error: Unexpected keyword argument "note"  [call-arg]
+            register(
+            ^
+src/operations/compliance_readiness.py:111: error: "object" has no attribute "__iter__"; maybe "__dir__" or "__str__"? (not
+iterable)  [attr-defined]
+            for check in last_snapshot.get("checks", [])  # type: ignore[arg-type]
+                         ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/operations/compliance_readiness.py:111: note: Error code "attr-defined" not covered by "type: ignore" comment
+src/operations/compliance_readiness.py:188: error: No overload variant of "list" matches argument type "object" 
+[call-overload]
+        outstanding = list(last_snapshot.get("outstanding_items", []) or [])
+                      ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/operations/compliance_readiness.py:188: note: Possible overload variants:
+src/operations/compliance_readiness.py:188: note:     def [_T] __init__(self) -> list[_T]
+src/operations/compliance_readiness.py:188: note:     def [_T] __init__(self, Iterable[_T], /) -> list[_T]
+src/operations/compliance_readiness.py:189: error: No overload variant of "list" matches argument type "object" 
+[call-overload]
+        watchlist = list(last_snapshot.get("watchlist_hits", []) or [])
+                    ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/operations/compliance_readiness.py:189: note: Possible overload variants:
+src/operations/compliance_readiness.py:189: note:     def [_T] __init__(self) -> list[_T]
+src/operations/compliance_readiness.py:189: note:     def [_T] __init__(self, Iterable[_T], /) -> list[_T]
+src/operations/compliance_readiness.py:190: error: No overload variant of "list" matches argument type "object" 
+[call-overload]
+        alerts = list(last_snapshot.get("alerts", []) or [])
+                 ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/operations/compliance_readiness.py:190: note: Possible overload variants:
+src/operations/compliance_readiness.py:190: note:     def [_T] __init__(self) -> list[_T]
+src/operations/compliance_readiness.py:190: note:     def [_T] __init__(self, Iterable[_T], /) -> list[_T]
+src/operations/compliance_readiness.py:204: error: No overload variant of "int" matches argument type "object"  [call-overload]
+        open_cases = int(summary.get("open_cases", 0) or 0)
+                     ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/operations/compliance_readiness.py:204: note: Possible overload variants:
+src/operations/compliance_readiness.py:204: note:     def __new__(cls, str | Buffer | SupportsInt | SupportsIndex | SupportsTrunc = ..., /) -> int
+src/operations/compliance_readiness.py:204: note:     def __new__(cls, str | bytes | bytearray, /, base: SupportsIndex) -> int
+src/operations/compliance_readiness.py:205: error: No overload variant of "int" matches argument type "object"  [call-overload]
+        escalations = int(summary.get("escalations", 0) or 0)
+                      ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/operations/compliance_readiness.py:205: note: Possible overload variants:
+src/operations/compliance_readiness.py:205: note:     def __new__(cls, str | Buffer | SupportsInt | SupportsIndex | SupportsTrunc = ..., /) -> int
+src/operations/compliance_readiness.py:205: note:     def __new__(cls, str | bytes | bytearray, /, base: SupportsIndex) -> int
+src/data_foundation/persist/timescale_reader.py:349: error: Returning Any from function declared to return "datetime | None" 
+[no-any-return]
+                return value.to_pydatetime()
+                ^~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/data_foundation/persist/timescale.py:610: error: Returning Any from function declared to return "list[dict[str, object]]" 
+[no-any-return]
+        return records
+        ^~~~~~~~~~~~~~
+src/data_foundation/persist/timescale.py:661: error: Returning Any from function declared to return "list[dict[str, object]]" 
+[no-any-return]
+        return records
+        ^~~~~~~~~~~~~~
+src/data_foundation/persist/timescale.py:717: error: Returning Any from function declared to return "list[dict[str, object]]" 
+[no-any-return]
+        return records
+        ^~~~~~~~~~~~~~
+src/data_foundation/persist/timescale.py:845: error: Function is missing a type annotation for one or more arguments 
+[no-untyped-def]
+        def from_row(cls, row) -> "TimescaleIngestRunRecord":  # pragma: no cover - simple glue
+        ^
+src/data_foundation/persist/timescale.py:1065: error: Function is missing a type annotation for one or more arguments 
+[no-untyped-def]
+        def from_row(cls, row) -> "TimescaleComplianceAuditRecord":  # pragma: no cover - simple glue
+        ^
+src/data_foundation/persist/timescale.py:1072: error: Argument 1 to "loads" has incompatible type "object"; expected
+"str | bytes | bytearray"  [arg-type]
+                    return json.loads(raw)
+                                      ^~~
+src/data_foundation/persist/timescale.py:1472: error: Function is missing a type annotation for one or more arguments 
+[no-untyped-def]
+        def from_row(cls, row) -> "TimescaleKycCaseRecord":  # pragma: no cover - glue
+        ^
+src/data_foundation/persist/timescale.py:1479: error: Argument 1 to "loads" has incompatible type "object"; expected
+"str | bytes | bytearray"  [arg-type]
+                    return json.loads(raw)
+                                      ^~~
+src/data_foundation/persist/timescale.py:1733: error: Unused "type: ignore" comment  [unused-ignore]
+                payload = snapshot.as_dict()  # type: ignore[assignment]
+                ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/data_foundation/persist/timescale.py:1757: error: Unused "type: ignore" comment  [unused-ignore]
+                state = snapshot.state.as_dict()  # type: ignore[assignment]
+                ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/data_foundation/persist/timescale.py:1800: error: Argument 1 to "int" has incompatible type "Any | None"; expected
+"str | Buffer | SupportsInt | SupportsIndex | SupportsTrunc"  [arg-type]
+                    return int(value)
+                               ^~~~~
+src/data_foundation/persist/timescale.py:1931: error: Function is missing a type annotation for one or more arguments 
+[no-untyped-def]
+        def from_row(cls, row) -> "TimescaleExecutionSnapshotRecord":  # pragma: no cover - glue
+        ^
+src/data_foundation/persist/timescale.py:1938: error: Argument 1 to "loads" has incompatible type "object"; expected
+"str | bytes | bytearray"  [arg-type]
+                    return json.loads(raw)
+                                      ^~~
+src/data_foundation/persist/timescale.py:2337: error: Function is missing a type annotation for one or more arguments 
+[no-untyped-def]
+        def from_row(cls, row) -> "TimescaleConfigurationAuditRecord":  # pragma: no cover - simple glue
+        ^
+src/data_foundation/persist/timescale.py:2344: error: Argument 1 to "loads" has incompatible type "object"; expected
+"str | bytes | bytearray"  [arg-type]
+                    return json.loads(raw)
+                                      ^~~
+src/data_foundation/persist/timescale.py:2412: error: Unused "type: ignore" comment  [unused-ignore]
+                payload = snapshot.as_dict()  # type: ignore[assignment]
+                ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/data_foundation/ingest/scheduler_telemetry.py:142: error: Returning Any from function declared to return "datetime | None" 
+[no-any-return]
+                return moment
+                ^~~~~~~~~~~~~
+src/compliance/workflow.py:206: error: No overload variant of "int" matches argument type "object"  [call-overload]
+        details["open_cases"] = int(mapping.get("open_cases") or 0)
+                                ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/compliance/workflow.py:206: note: Possible overload variants:
+src/compliance/workflow.py:206: note:     def __new__(cls, str | Buffer | SupportsInt | SupportsIndex | SupportsTrunc = ..., /) -> int
+src/compliance/workflow.py:206: note:     def __new__(cls, str | bytes | bytearray, /, base: SupportsIndex) -> int
+src/compliance/workflow.py:207: error: No overload variant of "int" matches argument type "object"  [call-overload]
+        details["escalations"] = int(mapping.get("escalations") or 0)
+                                 ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/compliance/workflow.py:207: note: Possible overload variants:
+src/compliance/workflow.py:207: note:     def __new__(cls, str | Buffer | SupportsInt | SupportsIndex | SupportsTrunc = ..., /) -> int
+src/compliance/workflow.py:207: note:     def __new__(cls, str | bytes | bytearray, /, base: SupportsIndex) -> int
+src/compliance/workflow.py:272: error: No overload variant of "int" matches argument type "object"  [call-overload]
+        failed_checks = int(trade.get("failed_checks") or 0)
+                        ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/compliance/workflow.py:272: note: Possible overload variants:
+src/compliance/workflow.py:272: note:     def __new__(cls, str | Buffer | SupportsInt | SupportsIndex | SupportsTrunc = ..., /) -> int
+src/compliance/workflow.py:272: note:     def __new__(cls, str | bytes | bytearray, /, base: SupportsIndex) -> int
+src/compliance/workflow.py:273: error: No overload variant of "int" matches argument type "object"  [call-overload]
+        critical_failures = int(trade.get("critical_failures") or 0)
+                            ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/compliance/workflow.py:273: note: Possible overload variants:
+src/compliance/workflow.py:273: note:     def __new__(cls, str | Buffer | SupportsInt | SupportsIndex | SupportsTrunc = ..., /) -> int
+src/compliance/workflow.py:273: note:     def __new__(cls, str | bytes | bytearray, /, base: SupportsIndex) -> int
+src/compliance/workflow.py:312: error: No overload variant of "int" matches argument type "object"  [call-overload]
+        history_length = int(trade.get("history_length") or 0)
+                         ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/compliance/workflow.py:312: note: Possible overload variants:
+src/compliance/workflow.py:312: note:     def __new__(cls, str | Buffer | SupportsInt | SupportsIndex | SupportsTrunc = ..., /) -> int
+src/compliance/workflow.py:312: note:     def __new__(cls, str | bytes | bytearray, /, base: SupportsIndex) -> int
+src/compliance/workflow.py:386: error: No overload variant of "int" matches argument type "object"  [call-overload]
+        failed_checks = int(trade.get("failed_checks") or 0)
+                        ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/compliance/workflow.py:386: note: Possible overload variants:
+src/compliance/workflow.py:386: note:     def __new__(cls, str | Buffer | SupportsInt | SupportsIndex | SupportsTrunc = ..., /) -> int
+src/compliance/workflow.py:386: note:     def __new__(cls, str | bytes | bytearray, /, base: SupportsIndex) -> int
+src/compliance/workflow.py:423: error: No overload variant of "int" matches argument type "object"  [call-overload]
+        history_length = int(trade.get("history_length") or 0)
+                         ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/compliance/workflow.py:423: note: Possible overload variants:
+src/compliance/workflow.py:423: note:     def __new__(cls, str | Buffer | SupportsInt | SupportsIndex | SupportsTrunc = ..., /) -> int
+src/compliance/workflow.py:423: note:     def __new__(cls, str | bytes | bytearray, /, base: SupportsIndex) -> int
+src/compliance/workflow.py:504: error: No overload variant of "int" matches argument type "object"  [call-overload]
+        open_cases = int(kyc.get("open_cases") or 0)
+                     ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/compliance/workflow.py:504: note: Possible overload variants:
+src/compliance/workflow.py:504: note:     def __new__(cls, str | Buffer | SupportsInt | SupportsIndex | SupportsTrunc = ..., /) -> int
+src/compliance/workflow.py:504: note:     def __new__(cls, str | bytes | bytearray, /, base: SupportsIndex) -> int
+src/compliance/workflow.py:505: error: No overload variant of "int" matches argument type "object"  [call-overload]
+        escalations = int(kyc.get("escalations") or 0)
+                      ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/compliance/workflow.py:505: note: Possible overload variants:
+src/compliance/workflow.py:505: note:     def __new__(cls, str | Buffer | SupportsInt | SupportsIndex | SupportsTrunc = ..., /) -> int
+src/compliance/workflow.py:505: note:     def __new__(cls, str | bytes | bytearray, /, base: SupportsIndex) -> int
+src/compliance/workflow.py:506: error: No overload variant of "int" matches argument type "object"  [call-overload]
+        outstanding = int(kyc.get("outstanding_items") or 0)
+                      ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/compliance/workflow.py:506: note: Possible overload variants:
+src/compliance/workflow.py:506: note:     def __new__(cls, str | Buffer | SupportsInt | SupportsIndex | SupportsTrunc = ..., /) -> int
+src/compliance/workflow.py:506: note:     def __new__(cls, str | bytes | bytearray, /, base: SupportsIndex) -> int
+src/compliance/workflow.py:507: error: No overload variant of "int" matches argument type "object"  [call-overload]
+        watchlist_hits = int(kyc.get("watchlist_hits") or 0)
+                         ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/compliance/workflow.py:507: note: Possible overload variants:
+src/compliance/workflow.py:507: note:     def __new__(cls, str | Buffer | SupportsInt | SupportsIndex | SupportsTrunc = ..., /) -> int
+src/compliance/workflow.py:507: note:     def __new__(cls, str | bytes | bytearray, /, base: SupportsIndex) -> int
+src/compliance/workflow.py:508: error: No overload variant of "int" matches argument type "object"  [call-overload]
+        alerts = int(kyc.get("alerts") or 0)
+                 ^~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/compliance/workflow.py:508: note: Possible overload variants:
+src/compliance/workflow.py:508: note:     def __new__(cls, str | Buffer | SupportsInt | SupportsIndex | SupportsTrunc = ..., /) -> int
+src/compliance/workflow.py:508: note:     def __new__(cls, str | bytes | bytearray, /, base: SupportsIndex) -> int
+src/compliance/workflow.py:509: error: No overload variant of "int" matches argument type "object"  [call-overload]
+        recent_count = int(kyc.get("recent_count") or 0)
+                       ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/compliance/workflow.py:509: note: Possible overload variants:
+src/compliance/workflow.py:509: note:     def __new__(cls, str | Buffer | SupportsInt | SupportsIndex | SupportsTrunc = ..., /) -> int
+src/compliance/workflow.py:509: note:     def __new__(cls, str | bytes | bytearray, /, base: SupportsIndex) -> int
+src/compliance/workflow.py:608: error: No overload variant of "int" matches argument type "object"  [call-overload]
+            elif int(trade.get("history_length") or 0):
+                 ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/compliance/workflow.py:608: note: Possible overload variants:
+src/compliance/workflow.py:608: note:     def __new__(cls, str | Buffer | SupportsInt | SupportsIndex | SupportsTrunc = ..., /) -> int
+src/compliance/workflow.py:608: note:     def __new__(cls, str | bytes | bytearray, /, base: SupportsIndex) -> int
+src/compliance/workflow.py:636: error: No overload variant of "int" matches argument type "object"  [call-overload]
+            elif int(kyc.get("open_cases") or 0):
+                 ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/compliance/workflow.py:636: note: Possible overload variants:
+src/compliance/workflow.py:636: note:     def __new__(cls, str | Buffer | SupportsInt | SupportsIndex | SupportsTrunc = ..., /) -> int
+src/compliance/workflow.py:636: note:     def __new__(cls, str | bytes | bytearray, /, base: SupportsIndex) -> int
+src/compliance/workflow.py:720: error: No overload variant of "int" matches argument type "object"  [call-overload]
+        seeded = int(registry.get("catalogue_seeded") or 0)
+                 ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/compliance/workflow.py:720: note: Possible overload variants:
+src/compliance/workflow.py:720: note:     def __new__(cls, str | Buffer | SupportsInt | SupportsIndex | SupportsTrunc = ..., /) -> int
+src/compliance/workflow.py:720: note:     def __new__(cls, str | bytes | bytearray, /, base: SupportsIndex) -> int
+src/compliance/workflow.py:721: error: No overload variant of "int" matches argument type "object"  [call-overload]
+        missing = int(registry.get("catalogue_missing_provenance") or 0)
+                  ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/compliance/workflow.py:721: note: Possible overload variants:
+src/compliance/workflow.py:721: note:     def __new__(cls, str | Buffer | SupportsInt | SupportsIndex | SupportsTrunc = ..., /) -> int
+src/compliance/workflow.py:721: note:     def __new__(cls, str | bytes | bytearray, /, base: SupportsIndex) -> int
+src/compliance/workflow.py:722: error: No overload variant of "int" matches argument type "object"  [call-overload]
+        approved = int(registry.get("approved_count") or 0)
+                   ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/compliance/workflow.py:722: note: Possible overload variants:
+src/compliance/workflow.py:722: note:     def __new__(cls, str | Buffer | SupportsInt | SupportsIndex | SupportsTrunc = ..., /) -> int
+src/compliance/workflow.py:722: note:     def __new__(cls, str | bytes | bytearray, /, base: SupportsIndex) -> int
+src/compliance/workflow.py:723: error: No overload variant of "int" matches argument type "object"  [call-overload]
+        total = int(registry.get("total_strategies") or 0)
+                ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/compliance/workflow.py:723: note: Possible overload variants:
+src/compliance/workflow.py:723: note:     def __new__(cls, str | Buffer | SupportsInt | SupportsIndex | SupportsTrunc = ..., /) -> int
+src/compliance/workflow.py:723: note:     def __new__(cls, str | bytes | bytearray, /, base: SupportsIndex) -> int
+src/compliance/workflow.py:724: error: No overload variant of "list" matches argument type "object"  [call-overload]
+        catalogue_versions = list(registry.get("catalogue_versions") or [])
+                             ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/compliance/workflow.py:724: note: Possible overload variants:
+src/compliance/workflow.py:724: note:     def [_T] __init__(self) -> list[_T]
+src/compliance/workflow.py:724: note:     def [_T] __init__(self, Iterable[_T], /) -> list[_T]
+src/compliance/trade_compliance.py:432: error: Argument "default" to "_as_str" has incompatible type "None"; expected "str" 
+[arg-type]
+                intent_id=_as_str(intent_id, default=None) if intent_id is not None else None,
+                                                     ^~~~
+src/compliance/kyc.py:232: error: Argument 1 to "int" has incompatible type "Any | None"; expected
+"str | Buffer | SupportsInt | SupportsIndex | SupportsTrunc"  [arg-type]
+                frequency = int(review_frequency_days)
+                                ^~~~~~~~~~~~~~~~~~~~~
+src/compliance/kyc.py:260: error: Argument "last_reviewed_at" to "KycCaseSnapshot" has incompatible type "datetime | None";
+expected "datetime"  [arg-type]
+                last_reviewed_at=last_review,
+                                 ^~~~~~~~~~~
+src/operations/fix_pilot.py:211: error: "object" has no attribute "append"  [attr-defined]
+                queue_details.setdefault("issues", []).append(f"{name} dropped {drops} messages")
+                ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/operations/fix_pilot.py:214: error: "object" has no attribute "append"  [attr-defined]
+                queue_details.setdefault("issues", []).append(f"{name} delivered 0 events")
+                ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/operations/fix_pilot.py:262: error: "object" has no attribute "append"  [attr-defined]
+            dropcopy_details.setdefault("issues", []).append("listener stopped")
+            ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/operations/fix_pilot.py:267: error: "object" has no attribute "append"  [attr-defined]
+            dropcopy_details.setdefault("issues", []).append(
+            ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/operations/fix_pilot.py:274: error: "object" has no attribute "append"  [attr-defined]
+            dropcopy_details.setdefault("issues", []).append(
+            ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/operations/fix_pilot.py:283: error: "object" has no attribute "append"  [attr-defined]
+            dropcopy_details.setdefault("issues", []).append(
+            ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/operations/fix_pilot.py:320: error: Item "AsyncEventBus" of "AsyncEventBus | TopicBus" has no attribute "emit_nowait" 
+[union-attr]
+            bus.emit_nowait(Event(channel, snapshot.as_dict()))
+            ^~~~~~~~~~~~~~~
+src/operations/fix_pilot.py:320: error: Item "TopicBus" of "AsyncEventBus | TopicBus" has no attribute "emit_nowait" 
+[union-attr]
+            bus.emit_nowait(Event(channel, snapshot.as_dict()))
+            ^~~~~~~~~~~~~~~
+src/data_foundation/ingest/timescale_pipeline.py:156: error: Unexpected keyword argument "days"  [call-arg]
+                        df = fetch_daily(symbols, days=plan.daily.lookback_days)
+                             ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/data_foundation/batch/spark_export.py:322: error: No overload variant of "list" matches argument type "object" 
+[call-overload]
+                "paths": list(job_metadata["partitions"]),
+                         ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/data_foundation/batch/spark_export.py:322: note: Possible overload variants:
+src/data_foundation/batch/spark_export.py:322: note:     def [_T] __init__(self) -> list[_T]
+src/data_foundation/batch/spark_export.py:322: note:     def [_T] __init__(self, Iterable[_T], /) -> list[_T]
+src/data_foundation/batch/spark_export.py:325: error: "object" has no attribute "append"  [attr-defined]
+            manifest["jobs"].append(manifest_entry)
+            ^~~~~~~~~~~~~~~~~~~~~~~
+src/sensory/when/when_sensor.py:154: error: Argument "metadata" to "SensorSignal" has incompatible type
+"dict[str, Collection[Collection[str]]]"; expected "dict[str, object] | None"  [arg-type]
+                    metadata=metadata,
+                             ^~~~~~~~
+src/sensory/when/when_sensor.py:154: note: "dict" is invariant -- see https://mypy.readthedocs.io/en/stable/common_issues.html#variance
+src/sensory/when/when_sensor.py:154: note: Consider using "Mapping" instead, which is covariant in the value type
+src/sensory/when/when_sensor.py:230: error: Argument "metadata" to "SensorSignal" has incompatible type
+"dict[str, Collection[str]]"; expected "dict[str, object] | None"  [arg-type]
+                metadata=metadata,
+                         ^~~~~~~~
+src/sensory/when/when_sensor.py:230: note: "dict" is invariant -- see https://mypy.readthedocs.io/en/stable/common_issues.html#variance
+src/sensory/when/when_sensor.py:230: note: Consider using "Mapping" instead, which is covariant in the value type
+src/operations/evolution_tuning.py:257: error: Incompatible types in assignment (expression has type
+"StrategyPerformanceStatus | None", variable has type "StrategyPerformanceStatus")  [assignment]
+                strat_status = _extract_status(entry.get("status"))
+                               ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/intelligence/red_team_ai.py:1026: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+src/intelligence/red_team_ai.py:1035: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+src/intelligence/red_team_ai.py:1043: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+src/data_foundation/ingest/health.py:240: error: Value expression in dictionary comprehension has incompatible type "object";
+expected type "list[str]"  [misc]
+            report_metadata.update({str(k): v for k, v in metadata.items()})
+                                            ^
+src/data_foundation/ingest/health.py:247: error: Argument "metadata" to "IngestHealthReport" has incompatible type
+"dict[str, list[str]]"; expected "dict[str, object]"  [arg-type]
+            metadata=report_metadata,
+                     ^~~~~~~~~~~~~~~
+src/data_foundation/ingest/health.py:247: note: "dict" is invariant -- see https://mypy.readthedocs.io/en/stable/common_issues.html#variance
+src/data_foundation/ingest/health.py:247: note: Consider using "Mapping" instead, which is covariant in the value type
+src/data_foundation/cache/timescale_query_cache.py:42: error: Returning Any from function declared to return "datetime | None" 
+[no-any-return]
+            return value.tz_convert("UTC").to_pydatetime()
+            ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/data_foundation/cache/timescale_query_cache.py:42: error: "object" has no attribute "tz_convert"  [attr-defined]
+            return value.tz_convert("UTC").to_pydatetime()
+                   ^~~~~~~~~~~~~~~~
+src/data_foundation/cache/timescale_query_cache.py:77: error: Incompatible return value type (got "tuple[str, str]", expected
+"str")  [return-value]
+        return f"timescale:{digest}", raw
+               ^~~~~~~~~~~~~~~~~~~~~~~~~~
+src/data_foundation/cache/timescale_query_cache.py:83: error: Returning Any from function declared to return "str" 
+[no-any-return]
+        return frame.to_json(orient="split", date_format="iso", date_unit="ns")
+        ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/data_foundation/cache/timescale_query_cache.py:180: error: Unused "type: ignore" comment  [unused-ignore]
+                return fetcher(**kwargs)  # type: ignore[misc]
+                ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/data_foundation/cache/timescale_query_cache.py:193: error: Unpacking a string is disallowed  [misc]
+            signature, raw_signature = _render_signature(signature_payload)
+                                       ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/data_foundation/cache/timescale_query_cache.py:194: error: Cannot determine type of "signature"  [has-type]
+            cache_key = f"timescale:{dimension}:{signature}"  # namespace applied by ManagedRedisCache
+                        ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/data_foundation/cache/timescale_query_cache.py:217: error: Unused "type: ignore" comment  [unused-ignore]
+            result = fetcher(**kwargs)  # type: ignore[misc]
+            ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/data_foundation/cache/timescale_query_cache.py:219: error: Cannot determine type of "signature"  [has-type]
+                payload = _serialise_result(result, signature, raw_signature)
+                                                    ^~~~~~~~~
+src/data_foundation/cache/timescale_query_cache.py:219: error: Cannot determine type of "raw_signature"  [has-type]
+                payload = _serialise_result(result, signature, raw_signature)
+                                                               ^~~~~~~~~~~~~
+src/risk/risk_manager_impl.py:436: error: Argument 1 to "_to_float" has incompatible type "object"; expected "float | Decimal" 
+[arg-type]
+                resolved = max(0.0, _to_float(candidate))
+                                              ^~~~~~~~~
+src/risk/risk_manager_impl.py:442: error: Argument 1 to "_to_float" has incompatible type "object"; expected "float | Decimal" 
+[arg-type]
+                drawdown = max(0.0, _to_float(limits["max_drawdown"]))
+                                              ^~~~~~~~~~~~~~~~~~~~~~
+src/risk/risk_manager_impl.py:448: error: Argument 1 to "_to_float" has incompatible type "object"; expected "float | Decimal" 
+[arg-type]
+                total_exposure = max(0.0, _to_float(limits["max_total_exposure_pct"]))
+                                                    ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/risk/risk_manager_impl.py:454: error: Argument 1 to "_to_float" has incompatible type "object"; expected "float | Decimal" 
+[arg-type]
+                leverage = max(0.0, _to_float(limits["max_leverage"]))
+                                              ^~~~~~~~~~~~~~~~~~~~~~
+src/risk/risk_manager_impl.py:459: error: Argument 1 to "_to_float" has incompatible type "object"; expected "float | Decimal" 
+[arg-type]
+                self._min_position_size = max(0.0, _to_float(limits["min_position_size"]))
+                                                             ^~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/risk/risk_manager_impl.py:462: error: Argument 1 to "_to_float" has incompatible type "object"; expected "float | Decimal" 
+[arg-type]
+                candidate_max = max(0.0, _to_float(limits["max_position_size"]))
+                                                   ^~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/operations/slo.py:246: error: Value expression in dictionary comprehension has incompatible type "object"; expected type
+"str"  [misc]
+            snapshot_metadata.update({str(k): v for k, v in metadata.items()})
+                                              ^
+src/operations/slo.py:253: error: Argument "metadata" to "OperationalSLOSnapshot" has incompatible type "dict[str, str]";
+expected "dict[str, object]"  [arg-type]
+            metadata=snapshot_metadata,
+                     ^~~~~~~~~~~~~~~~~
+src/operations/slo.py:253: note: "dict" is invariant -- see https://mypy.readthedocs.io/en/stable/common_issues.html#variance
+src/operations/slo.py:253: note: Consider using "Mapping" instead, which is covariant in the value type
+src/data_foundation/services/macro_events.py:84: error: Returning Any from function declared to return "datetime" 
+[no-any-return]
+                    return value.to_pydatetime().replace(tzinfo=UTC)
+                    ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/data_foundation/services/macro_events.py:85: error: Returning Any from function declared to return "datetime" 
+[no-any-return]
+                return value.to_pydatetime().astimezone(UTC)
+                ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/data_foundation/services/macro_events.py:119: error: Argument 1 to "float" has incompatible type "object"; expected
+"str | Buffer | SupportsFloat | SupportsIndex"  [arg-type]
+            return float(value)
+                         ^~~~~
+src/data_foundation/services/macro_events.py:319: error: Unsupported operand types for / ("float" and "None")  [operator]
+            return _clamp((record.actual - record.forecast) / baseline)
+                          ^
+src/data_foundation/services/macro_events.py:319: note: Right operand is of type "float | None"
+src/data_foundation/services/macro_events.py:319: error: Unsupported operand types for - ("float" and "None")  [operator]
+            return _clamp((record.actual - record.forecast) / baseline)
+                           ^
+src/data_foundation/services/macro_events.py:322: error: Unsupported operand types for / ("float" and "None")  [operator]
+            return _clamp((record.actual - record.previous) / baseline)
+                          ^
+src/data_foundation/services/macro_events.py:322: note: Right operand is of type "float | None"
+src/data_foundation/services/macro_events.py:322: error: Unsupported operand types for - ("float" and "None")  [operator]
+            return _clamp((record.actual - record.previous) / baseline)
+                           ^
+src/trading/monitoring/portfolio_monitor.py:31: error: Argument 1 to "float" has incompatible type "object"; expected
+"str | Buffer | SupportsFloat | SupportsIndex"  [arg-type]
+            return float(value)
+                         ^~~~~
+src/trading/monitoring/portfolio_monitor.py:542: error: Argument 2 to "PortfolioMonitor" has incompatible type "InMemoryRedis";
+expected "RedisLike | None"  [arg-type]
+            monitor = PortfolioMonitor(event_bus, redis_client)
+                                                  ^~~~~~~~~~~~
+src/trading/monitoring/portfolio_monitor.py:542: note: "InMemoryRedis" is missing following "RedisLike" protocol member:
+src/trading/monitoring/portfolio_monitor.py:542: note:     metrics
+src/trading/monitoring/portfolio_monitor.py:560: error: Argument 2 to "PortfolioMonitor" has incompatible type "InMemoryRedis";
+expected "RedisLike | None"  [arg-type]
+            new_monitor = PortfolioMonitor(event_bus, redis_client)
+                                                      ^~~~~~~~~~~~
+src/trading/monitoring/portfolio_monitor.py:560: note: "InMemoryRedis" is missing following "RedisLike" protocol member:
+src/trading/monitoring/portfolio_monitor.py:560: note:     metrics
+src/data_foundation/streaming/kafka_stream.py:522: error: Unused "type: ignore" comment  [unused-ignore]
+                    from confluent_kafka.admin import AdminClient, NewTopic  # type: ignore
+                    ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/data_foundation/streaming/kafka_stream.py:584: error: Unused "type: ignore" comment  [unused-ignore]
+                        future.result()  # type: ignore[call-arg]
+                        ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/data_foundation/streaming/kafka_stream.py:728: error: Unused "type: ignore" comment  [unused-ignore]
+                from confluent_kafka import Producer  # type: ignore
+                ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/data_foundation/streaming/kafka_stream.py:737: error: Unused "type: ignore" comment  [unused-ignore]
+            def producer_factory(config: Mapping[str, Any]) -> KafkaProducerLike:  # type: ignore[no-redef]
+            ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/data_foundation/streaming/kafka_stream.py:738: error: Returning Any from function declared to return "KafkaProducerLike" 
+[no-any-return]
+                return Producer(config)
+                ^~~~~~~~~~~~~~~~~~~~~~~
+src/data_foundation/streaming/kafka_stream.py:1138: error: Function is missing a return type annotation  [no-untyped-def]
+    def _fetch_timescale_dimension(
+    ^
+src/data_foundation/streaming/kafka_stream.py:1509: error: Unused "type: ignore" comment  [unused-ignore]
+                from confluent_kafka import Producer  # type: ignore
+                ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/data_foundation/streaming/kafka_stream.py:1517: error: Unused "type: ignore" comment  [unused-ignore]
+            def producer_factory(config: Mapping[str, Any]) -> KafkaProducerLike:  # type: ignore[no-redef]
+            ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/data_foundation/streaming/kafka_stream.py:1518: error: Returning Any from function declared to return "KafkaProducerLike" 
+[no-any-return]
+                return Producer(config)
+                ^~~~~~~~~~~~~~~~~~~~~~~
+src/data_foundation/streaming/kafka_stream.py:1573: error: Unused "type: ignore" comment  [unused-ignore]
+                from confluent_kafka import Producer  # type: ignore
+                ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/data_foundation/streaming/kafka_stream.py:1581: error: Unused "type: ignore" comment  [unused-ignore]
+            def producer_factory(config: Mapping[str, Any]) -> KafkaProducerLike:  # type: ignore[no-redef]
+            ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/data_foundation/streaming/kafka_stream.py:1582: error: Returning Any from function declared to return "KafkaProducerLike" 
+[no-any-return]
+                return Producer(config)
+                ^~~~~~~~~~~~~~~~~~~~~~~
+src/data_foundation/streaming/kafka_stream.py:1640: error: Unused "type: ignore" comment  [unused-ignore]
+                from confluent_kafka import Producer  # type: ignore
+                ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/data_foundation/streaming/kafka_stream.py:1648: error: Unused "type: ignore" comment  [unused-ignore]
+            def producer_factory(config: Mapping[str, Any]) -> KafkaProducerLike:  # type: ignore[no-redef]
+            ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/data_foundation/streaming/kafka_stream.py:1649: error: Returning Any from function declared to return "KafkaProducerLike" 
+[no-any-return]
+                return Producer(config)
+                ^~~~~~~~~~~~~~~~~~~~~~~
+src/data_foundation/streaming/kafka_stream.py:1881: error: Unused "type: ignore" comment  [unused-ignore]
+                    commit(*args, **kwargs)  # type: ignore[misc]
+                    ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/data_foundation/streaming/kafka_stream.py:2013: error: Unused "type: ignore" comment  [unused-ignore]
+                from confluent_kafka import Consumer  # type: ignore
+                ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/data_foundation/streaming/kafka_stream.py:2021: error: Unused "type: ignore" comment  [unused-ignore]
+            def consumer_factory(config: Mapping[str, Any]) -> KafkaConsumerLike:  # type: ignore[no-redef]
+            ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/data_foundation/streaming/kafka_stream.py:2022: error: Returning Any from function declared to return "KafkaConsumerLike" 
+[no-any-return]
+                return Consumer(config)
+                ^~~~~~~~~~~~~~~~~~~~~~~
+src/data_foundation/fabric/timescale_connector.py:26: error: Returning Any from function declared to return "datetime | None" 
+[no-any-return]
+            return value.to_pydatetime()
+            ^~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/data_foundation/fabric/timescale_connector.py:64: error: Function is missing a return type annotation  [no-untyped-def]
+        def _fetch_daily_bars(
+        ^
+src/data_foundation/fabric/timescale_connector.py:76: error: Function is missing a return type annotation  [no-untyped-def]
+        def _fetch_intraday_trades(
+        ^
+src/trading/trading_manager.py:24: error: Module "src.trading.monitoring.portfolio_monitor" does not explicitly export
+attribute "InMemoryRedis"  [attr-defined]
+    from src.trading.monitoring.portfolio_monitor import InMemoryRedis, PortfolioMonitor
+    ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/trading/trading_manager.py:208: error: No overload variant of "int" matches argument type "object"  [call-overload]
+                        int(self._execution_stats["orders_submitted"]) + 1
+                        ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/trading/trading_manager.py:208: note: Possible overload variants:
+src/trading/trading_manager.py:208: note:     def __new__(cls, str | Buffer | SupportsInt | SupportsIndex | SupportsTrunc = ..., /) -> int
+src/trading/trading_manager.py:208: note:     def __new__(cls, str | bytes | bytearray, /, base: SupportsIndex) -> int
+src/trading/trading_manager.py:218: error: Incompatible types in assignment (expression has type "float", target has type
+"str")  [assignment]
+                            metadata["notional"] = float(notional)
+                                                   ^~~~~~~~~~~~~~~
+src/trading/trading_manager.py:244: error: Dict entry 0 has incompatible type "str": "float"; expected "str": "str" 
+[dict-item]
+                                "latency_ms": latency_ms,
+                                ^~~~~~~~~~~~~~~~~~~~~~~~
+src/trading/trading_manager.py:245: error: Dict entry 1 has incompatible type "str": "float"; expected "str": "str" 
+[dict-item]
+                                "notional": notional,
+                                ^~~~~~~~~~~~~~~~~~~~
+src/trading/trading_manager.py:246: error: Dict entry 2 has incompatible type "str": "float"; expected "str": "str" 
+[dict-item]
+                                "quantity": float(quantity),
+                                ^~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/trading/trading_manager.py:247: error: Dict entry 3 has incompatible type "str": "float"; expected "str": "str" 
+[dict-item]
+                                "price": float(price),
+                                ^~~~~~~~~~~~~~~~~~~~~
+src/trading/trading_manager.py:265: error: Incompatible types in assignment (expression has type "float", target has type
+"str")  [assignment]
+                                metadata["notional"] = float(notional)
+                                                       ^~~~~~~~~~~~~~~
+src/trading/trading_manager.py:283: error: Name "metadata" already defined on line 216  [no-redef]
+                    metadata: dict[str, Any] = {}
+                    ^~~~~~~~
+src/trading/trading_manager.py:309: error: No overload variant of "int" matches argument type "object"  [call-overload]
+            samples = int(self._execution_stats["latency_samples"])
+                      ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/trading/trading_manager.py:309: note: Possible overload variants:
+src/trading/trading_manager.py:309: note:     def __new__(cls, str | Buffer | SupportsInt | SupportsIndex | SupportsTrunc = ..., /) -> int
+src/trading/trading_manager.py:309: note:     def __new__(cls, str | bytes | bytearray, /, base: SupportsIndex) -> int
+src/trading/trading_manager.py:310: error: Argument 1 to "float" has incompatible type "object"; expected
+"str | Buffer | SupportsFloat | SupportsIndex"  [arg-type]
+            total_latency = float(self._execution_stats["total_latency_ms"])
+                                  ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/trading/trading_manager.py:311: error: Argument 1 to "float" has incompatible type "object"; expected
+"str | Buffer | SupportsFloat | SupportsIndex"  [arg-type]
+            max_latency = float(self._execution_stats["max_latency_ms"])
+                                ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/trading/trading_manager.py:317: error: No overload variant of "int" matches argument type "object"  [call-overload]
+            self._execution_stats["orders_executed"] = int(self._execution_stats["orders_executed"]) + 1
+                                                       ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/trading/trading_manager.py:317: note: Possible overload variants:
+src/trading/trading_manager.py:317: note:     def __new__(cls, str | Buffer | SupportsInt | SupportsIndex | SupportsTrunc = ..., /) -> int
+src/trading/trading_manager.py:317: note:     def __new__(cls, str | bytes | bytearray, /, base: SupportsIndex) -> int
+src/trading/trading_manager.py:328: error: No overload variant of "int" matches argument type "object"  [call-overload]
+            self._execution_stats["orders_failed"] = int(self._execution_stats["orders_failed"]) + 1
+                                                     ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/trading/trading_manager.py:328: note: Possible overload variants:
+src/trading/trading_manager.py:328: note:     def __new__(cls, str | Buffer | SupportsInt | SupportsIndex | SupportsTrunc = ..., /) -> int
+src/trading/trading_manager.py:328: note:     def __new__(cls, str | bytes | bytearray, /, base: SupportsIndex) -> int
+src/trading/trading_manager.py:379: error: No overload variant of "int" matches argument type "object"  [call-overload]
+            samples = int(stats.get("latency_samples", 0))
+                      ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/trading/trading_manager.py:379: note: Possible overload variants:
+src/trading/trading_manager.py:379: note:     def __new__(cls, str | Buffer | SupportsInt | SupportsIndex | SupportsTrunc = ..., /) -> int
+src/trading/trading_manager.py:379: note:     def __new__(cls, str | bytes | bytearray, /, base: SupportsIndex) -> int
+src/trading/trading_manager.py:380: error: Argument 1 to "float" has incompatible type "object"; expected
+"str | Buffer | SupportsFloat | SupportsIndex"  [arg-type]
+            total_latency = float(stats.get("total_latency_ms", 0.0))
+                                  ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/trading/trading_manager.py:420: error: Incompatible return value type (got "list[dict[str, Any]]", expected
+"list[Mapping[str, Any]]")  [return-value]
+                return events
+                       ^~~~~~
+src/trading/trading_manager.py:420: note: "list" is invariant -- see https://mypy.readthedocs.io/en/stable/common_issues.html#variance
+src/trading/trading_manager.py:420: note: Consider using "Sequence" instead, which is covariant
+src/trading/trading_manager.py:420: note: Perhaps you need a type annotation for "events"? Suggestion: "list[Mapping[str, Any]]"
+src/trading/trading_manager.py:423: error: Incompatible return value type (got "list[dict[str, Any]]", expected
+"list[Mapping[str, Any]]")  [return-value]
+            return events[: int(limit)]
+                   ^~~~~~~~~~~~~~~~~~~~
+src/trading/trading_manager.py:423: note: "list" is invariant -- see https://mypy.readthedocs.io/en/stable/common_issues.html#variance
+src/trading/trading_manager.py:423: note: Consider using "Sequence" instead, which is covariant
+src/operations/kafka_readiness.py:308: error: Value of type "Coroutine[Any, Any, None]" must be used  [unused-coroutine]
+        event_bus.publish(event)
+        ^~~~~~~~~~~~~~~~~~~~~~~~
+src/operations/kafka_readiness.py:308: note: Are you missing an await?
+src/operations/cross_region_failover.py:359: error: Value of type "Coroutine[Any, Any, None]" must be used  [unused-coroutine]
+        event_bus.publish(
+        ^
+src/operations/cross_region_failover.py:359: note: Are you missing an await?
+src/orchestration/bootstrap_stack.py:218: error: Dict entry 1 has incompatible type "str": "PaperTradeIntent"; expected "str":
+"str | SensorySnapshot | None"  [dict-item]
+                "intent": intent,
+                ^~~~~~~~~~~~~~~~
+src/orchestration/bootstrap_stack.py:219: error: Dict entry 2 has incompatible type "str": "Mapping[str, Any] | None"; expected
+"str": "str | SensorySnapshot | None"  [dict-item]
+                "decision": decision,
+                ^~~~~~~~~~~~~~~~~~~~
+src/operations/bootstrap_control_center.py:18: error: Argument 1 to "float" has incompatible type "object"; expected
+"str | Buffer | SupportsFloat | SupportsIndex"  [arg-type]
+            return float(value)
+                         ^~~~~
+src/operations/bootstrap_control_center.py:133: error: Incompatible types in assignment (expression has type
+"Mapping[str, Any]", target has type "float | dict[str, Any] | None")  [assignment]
+                overview["evolution"] = evolution_overview
+                                        ^~~~~~~~~~~~~~~~~~
+src/operations/bootstrap_control_center.py:137: error: Incompatible types in assignment (expression has type
+"Mapping[str, Any]", target has type "float | dict[str, Any] | None")  [assignment]
+                overview["vision_alignment"] = vision_summary
+                                               ^~~~~~~~~~~~~~
+src/operations/bootstrap_control_center.py:346: error: Item "None" of "Any | None" has no attribute "as_payload"  [union-attr]
+                champion_payload = champion.as_payload()
+                                   ^~~~~~~~~~~~~~~~~~~
+src/operations/bootstrap_control_center.py:369: error: Item "None" of "Any | None" has no attribute "as_payload"  [union-attr]
+                payload = champion.as_payload()
+                          ^~~~~~~~~~~~~~~~~~~
+src/data_foundation/ingest/recovery.py:155: error: Argument "events" to "MacroEventIngestPlan" has incompatible type
+"Sequence[object] | None"; expected "Sequence[MacroEvent | Mapping[str, object]] | None"  [arg-type]
+            events=events,
+                   ^~~~~~
+src/operations/data_backbone.py:338: error: Incompatible types in assignment (expression has type "dict[str, object]", variable
+has type "dict[str, bool]")  [assignment]
+                scheduler_metadata = scheduler_snapshot.as_dict()
+                                     ^~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/operations/data_backbone.py:384: error: Argument 1 to "_planned_dimensions" has incompatible type "object"; expected
+"Mapping[str, object] | None"  [arg-type]
+        planned_dimensions = _planned_dimensions(plan_metadata)
+                                                 ^~~~~~~~~~~~~
+src/observability/tracing.py:28: error: Cannot assign to a type  [misc]
+        SpanKind = _FallbackSpanKind  # type: ignore[assignment]
+        ^~~~~~~~
+src/observability/tracing.py:28: note: Error code "misc" not covered by "type: ignore" comment
+src/observability/tracing.py:29: error: Cannot assign to a type  [misc]
+        OTLPSpanExporter = None  # type: ignore[assignment]
+        ^~~~~~~~~~~~~~~~
+src/observability/tracing.py:29: note: Error code "misc" not covered by "type: ignore" comment
+src/observability/tracing.py:30: error: Cannot assign to a type  [misc]
+        Resource = None  # type: ignore[assignment]
+        ^~~~~~~~
+src/observability/tracing.py:30: note: Error code "misc" not covered by "type: ignore" comment
+src/observability/tracing.py:31: error: Cannot assign to a type  [misc]
+        TracerProvider = object  # type: ignore[assignment]
+        ^~~~~~~~~~~~~~
+src/observability/tracing.py:31: note: Error code "misc" not covered by "type: ignore" comment
+src/observability/tracing.py:32: error: Cannot assign to a type  [misc]
+        BatchSpanProcessor = ConsoleSpanExporter = SimpleSpanProcessor = object  # type: ignore[assignment]
+        ^~~~~~~~~~~~~~~~~~
+src/observability/tracing.py:32: note: Error code "misc" not covered by "type: ignore" comment
+src/observability/tracing.py:325: error: Argument 1 to "create" of "Resource" has incompatible type "dict[str, object]";
+expected "Mapping[str, str | bool | int | float | Sequence[str] | Sequence[bool] | Sequence[int] | Sequence[float]] | None" 
+[arg-type]
+            new_provider = TracerProvider(resource=Resource.create(resource_attributes))
+                                                                   ^~~~~~~~~~~~~~~~~~~
+src/observability/tracing.py:330: error: Argument "headers" to "OTLPSpanExporter" has incompatible type
+"Mapping[str, str] | None"; expected "dict[str, str] | None"  [arg-type]
+                    headers=settings.headers,
+                            ^~~~~~~~~~~~~~~~
+src/data_foundation/ingest/observability.py:119: error: "object" has no attribute "items"  [attr-defined]
+                formatted_reasons = "; ".join(f"{dim}: {msg}" for dim, msg in reasons.items())
+                                                                              ^~~~~~~~~~~~~
+src/data_foundation/ingest/observability.py:124: error: "object" has no attribute "keys"  [attr-defined]
+                    planned = ", ".join(sorted(plan_summary.keys()))
+                                               ^~~~~~~~~~~~~~~~~
+src/data_foundation/ingest/observability.py:171: error: No overload variant of "int" matches argument type "object" 
+[call-overload]
+            rows = int(metric.get("rows", rows))
+                   ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/data_foundation/ingest/observability.py:171: note: Possible overload variants:
+src/data_foundation/ingest/observability.py:171: note:     def __new__(cls, str | Buffer | SupportsInt | SupportsIndex | SupportsTrunc = ..., /) -> int
+src/data_foundation/ingest/observability.py:171: note:     def __new__(cls, str | bytes | bytearray, /, base: SupportsIndex) -> int
+src/data_foundation/ingest/observability.py:172: error: Incompatible types in assignment (expression has type "object",
+variable has type "float | None")  [assignment]
+            freshness = metric.get("freshness_seconds", freshness)
+                        ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/data_foundation/ingest/observability.py:173: error: Incompatible types in assignment (expression has type "object",
+variable has type "float | None")  [assignment]
+            duration = metric.get("ingest_duration_seconds", duration)
+                       ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/data_foundation/ingest/observability.py:174: error: Argument 1 to "tuple" has incompatible type "object"; expected
+"Iterable[str]"  [arg-type]
+            observed = tuple(metric.get("symbols", observed))
+                             ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/data_foundation/ingest/observability.py:186: error: Argument "source" to "IngestObservabilityDimension" has incompatible
+type "object"; expected "str | None"  [arg-type]
+            source=source,
+                   ^~~~~~
+src/data_foundation/ingest/observability.py:195: error: No overload variant of "int" matches argument type "object" 
+[call-overload]
+            rows=int(metric.get("rows", 0)),
+                 ^~~~~~~~~~~~~~~~~~~~~~~~~~
+src/data_foundation/ingest/observability.py:195: note: Possible overload variants:
+src/data_foundation/ingest/observability.py:195: note:     def __new__(cls, str | Buffer | SupportsInt | SupportsIndex | SupportsTrunc = ..., /) -> int
+src/data_foundation/ingest/observability.py:195: note:     def __new__(cls, str | bytes | bytearray, /, base: SupportsIndex) -> int
+src/data_foundation/ingest/observability.py:196: error: Argument "freshness_seconds" to "IngestObservabilityDimension" has
+incompatible type "object"; expected "float | None"  [arg-type]
+            freshness_seconds=metric.get("freshness_seconds"),
+                              ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/data_foundation/ingest/observability.py:198: error: Argument 1 to "tuple" has incompatible type "object"; expected
+"Iterable[str]"  [arg-type]
+            observed_symbols=tuple(metric.get("symbols", tuple())),
+                                   ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/data_foundation/ingest/observability.py:199: error: Argument "ingest_duration_seconds" to "IngestObservabilityDimension"
+has incompatible type "object"; expected "float | None"  [arg-type]
+            ingest_duration_seconds=metric.get("ingest_duration_seconds"),
+                                    ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/data_foundation/ingest/observability.py:200: error: Argument "source" to "IngestObservabilityDimension" has incompatible
+type "object"; expected "str | None"  [arg-type]
+            source=metric.get("source"),
+                   ^~~~~~~~~~~~~~~~~~~~
+src/data_foundation/ingest/observability.py:217: error: "object" has no attribute "__iter__"; maybe "__dir__" or "__str__"?
+(not iterable)  [attr-defined]
+            for metric in metrics_payload.get("dimensions", [])
+                          ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/data_foundation/ingest/observability.py:229: error: "object" has no attribute "__iter__"; maybe "__dir__" or "__str__"?
+(not iterable)  [attr-defined]
+        for metric in metrics_payload.get("dimensions", []):
+                      ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/core/_event_bus_impl.py:101: error: Argument 1 to "create_task" has incompatible type "Awaitable[Any]"; expected
+"Generator[Any, None, Any] | Coroutine[Any, Any, Any]"  [arg-type]
+        return asyncio.create_task(coro, name=name)
+                                   ^~~~
+src/runtime/predator_app.py:873: error: Incompatible types in assignment (expression has type "None", variable has type "str") 
+[assignment]
+                        markdown = None
+                                   ^~~~
+src/runtime/predator_app.py:923: error: Incompatible types in assignment (expression has type "Any | None", variable has type
+"TimescaleIngestJournal")  [assignment]
+            journal = getattr(self, "execution_journal", None)
+                      ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/runtime/predator_app.py:931: error: Unexpected keyword argument "service" for "fetch_recent" of "TimescaleIngestJournal" 
+[call-arg]
+                    recent_records = journal.fetch_recent(
+                                     ^
+src/runtime/predator_app.py:1031: error: Name "validation_payload" already defined on line 959  [no-redef]
+                validation_payload: dict[str, object] = {"snapshot": validation_snapshot.as_dict()}
+                ^~~~~~~~~~~~~~~~~~
+src/data_foundation/persist/timescale.py:2205: note: "fetch_recent" of "TimescaleIngestJournal" defined here
+src/runtime/predator_app.py:931: error: Unexpected keyword argument "strategy_id" for "fetch_recent" of
+"TimescaleIngestJournal"  [call-arg]
+                    recent_records = journal.fetch_recent(
+                                     ^
+src/runtime/predator_app.py:938: error: "TimescaleIngestJournal" has no attribute "fetch_latest"  [attr-defined]
+                    latest_record = journal.fetch_latest(
+                                    ^~~~~~~~~~~~~~~~~~~~
+src/runtime/predator_app.py:1030: error: Incompatible types in assignment (expression has type "SystemValidationSnapshot",
+variable has type "DataBackboneValidationSnapshot")  [assignment]
+                validation_snapshot = self._last_system_validation_snapshot
+                                      ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/runtime/predator_app.py:1032: error: Argument 1 to "format_system_validation_markdown" has incompatible type
+"DataBackboneValidationSnapshot"; expected "SystemValidationSnapshot"  [arg-type]
+                markdown = format_system_validation_markdown(validation_snapshot)
+                                                             ^~~~~~~~~~~~~~~~~~~
+src/runtime/predator_app.py:1132: error: Argument 1 to "FIXConnectionManager" has incompatible type "SystemConfig"; expected
+"SystemConfigProtocol"  [arg-type]
+        fix_connection_manager = FIXConnectionManager(config)
+                                                      ^~~~~~
+src/runtime/predator_app.py:1144: error: Argument 3 to "FIXSensoryOrgan" has incompatible type "SystemConfig"; expected
+"dict[str, Any]"  [arg-type]
+        sensory_organ = FIXSensoryOrgan(event_bus, price_queue, config, task_factory=task_factory)
+                                                                ^~~~~~
+src/runtime/predator_app.py:1602: error: Argument 1 to "from_config" of "SafetyManager" has incompatible type "SystemConfig";
+expected "Mapping[str, object]"  [arg-type]
+        SafetyManager.from_config(cfg).enforce()
+                                  ^~~
+src/runtime/predator_app.py:1691: error: Argument "sensory_organ" to "ProfessionalPredatorApp" has incompatible type
+"BootstrapRuntime"; expected "FIXSensoryOrgan | None"  [arg-type]
+                sensory_organ=runtime,
+                              ^~~~~~~
+src/runtime/healthcheck.py:237: error: Need type annotation for "publishers"  [var-annotated]
+        publishers = tuple(kafka_metadata.get("publishers", ())) if kafka_metadata else tuple()
+                     ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/runtime/healthcheck.py:237: error: Argument 1 to "tuple" has incompatible type "object"; expected "Iterable[Never]" 
+[arg-type]
+        publishers = tuple(kafka_metadata.get("publishers", ())) if kafka_metadata else tuple()
+                           ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/runtime/healthcheck.py:238: error: Need type annotation for "topics"  [var-annotated]
+        topics = tuple(kafka_metadata.get("topics", ())) if kafka_metadata else tuple()
+                 ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/runtime/healthcheck.py:238: error: Argument 1 to "tuple" has incompatible type "object"; expected "Iterable[Never]" 
+[arg-type]
+        topics = tuple(kafka_metadata.get("topics", ())) if kafka_metadata else tuple()
+                       ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/runtime/runtime_builder.py:1231: error: Argument 2 to "evaluate_data_retention" has incompatible type
+"tuple[TimescaleRetentionPolicySettings, ...]"; expected "Sequence[RetentionPolicy]"  [arg-type]
+                            ingest_config.retention.policies,
+                            ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/runtime/runtime_builder.py:1234: error: "TimescaleBackbonePlan" has no attribute "jobs"  [attr-defined]
+                                "dimensions": [job.dimension for job in ingest_config.plan.jobs],
+                                                                        ^~~~~~~~~~~~~~~~~~~~~~~
+src/runtime/runtime_builder.py:1710: error: Incompatible types in assignment (expression has type "object", variable has type
+"dict[str, object]")  [assignment]
+        plan_metadata = backbone_snapshot.metadata.get("plan")
+                        ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/runtime/runtime_builder.py:2019: error: Argument 1 to "len" has incompatible type "TimescaleBackbonePlan"; expected "Sized"
+ [arg-type]
+                        "ingest.plan_dimensions": len(ingest_config.plan),
+                                                      ^~~~~~~~~~~~~~~~~~
+src/runtime/runtime_builder.py:2102: error: Incompatible types in assignment (expression has type "str", variable has type
+"KafkaTopicProvisioningSummary")  [assignment]
+                        summary = kafka_settings.summary(redacted=True)
+                                  ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/runtime/runtime_builder.py:2266: error: Argument 1 to "len" has incompatible type "TimescaleBackbonePlan"; expected "Sized"
+ [arg-type]
+                            "ingest.plan_dimensions": len(ingest_config.plan),
+                                                          ^~~~~~~~~~~~~~~~~~
+src/runtime/runtime_builder.py:2826: error: Argument 1 to "float" has incompatible type "object"; expected
+"str | Buffer | SupportsFloat | SupportsIndex"  [arg-type]
+                                    drift_metadata["latest_unified_score"] = float(unified_score_value)
+                                                                                   ^~~~~~~~~~~~~~~~~~~
+src/runtime/runtime_builder.py:2838: error: Argument 1 to "float" has incompatible type "object"; expected
+"str | Buffer | SupportsFloat | SupportsIndex"  [arg-type]
+                                    drift_metadata["latest_confidence"] = float(confidence_value)
+                                                                                ^~~~~~~~~~~~~~~~
+Found 259 errors in 56 files (checked 437 source files)

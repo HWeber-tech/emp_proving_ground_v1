@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from enum import StrEnum
-from typing import Mapping
+from typing import Iterable, Mapping
 
 
 class BackupStatus(StrEnum):
@@ -97,12 +97,16 @@ class BackupReadinessSnapshot:
         if self.next_backup_due_at is not None:
             lines.append(f"- Next backup due: {self.next_backup_due_at.isoformat()}")
         if self.metadata:
-            providers = self.metadata.get("policy", {}).get("providers")
-            if providers:
-                lines.append(f"- Providers: {', '.join(providers)}")
-            storage = self.metadata.get("policy", {}).get("storage_location")
-            if storage:
-                lines.append(f"- Storage: {storage}")
+            policy_metadata = self.metadata.get("policy")
+            if isinstance(policy_metadata, Mapping):
+                providers = policy_metadata.get("providers")
+                if isinstance(providers, Iterable):
+                    formatted = [str(provider) for provider in providers]
+                    if formatted:
+                        lines.append(f"- Providers: {', '.join(formatted)}")
+                storage = policy_metadata.get("storage_location")
+                if storage:
+                    lines.append(f"- Storage: {storage}")
         if self.issues:
             lines.append("")
             lines.append("**Issues:**")
@@ -218,28 +222,31 @@ def evaluate_backup_readiness(
             status = _escalate(status, BackupStatus.warn)
             issues.append("Last restore drill completed with warnings")
 
-    metadata_payload: dict[str, object] = {
-        "policy": {
-            "enabled": policy.enabled,
-            "expected_frequency_seconds": expected_frequency,
-            "warn_after_seconds": warn_after,
-            "fail_after_seconds": fail_after,
-            "retention_days": policy.retention_days,
-            "minimum_retention_days": policy.minimum_retention_days,
-            "restore_test_interval_days": policy.restore_test_interval_days,
-            "providers": list(policy.providers),
-            "storage_location": policy.storage_location,
-        },
-        "state": {
-            "last_backup_status": state.last_backup_status,
-            "last_restore_status": state.last_restore_status,
-            "recorded_failures": list(state.recorded_failures),
-        },
+    policy_payload: dict[str, object] = {
+        "enabled": policy.enabled,
+        "expected_frequency_seconds": expected_frequency,
+        "warn_after_seconds": warn_after,
+        "fail_after_seconds": fail_after,
+        "retention_days": policy.retention_days,
+        "minimum_retention_days": policy.minimum_retention_days,
+        "restore_test_interval_days": policy.restore_test_interval_days,
+        "providers": list(policy.providers),
+        "storage_location": policy.storage_location,
+    }
+    state_payload: dict[str, object] = {
+        "last_backup_status": state.last_backup_status,
+        "last_restore_status": state.last_restore_status,
+        "recorded_failures": list(state.recorded_failures),
     }
     if latest_backup is not None:
-        metadata_payload["state"]["last_backup_at"] = latest_backup.isoformat()
+        state_payload["last_backup_at"] = latest_backup.isoformat()
     if state.last_restore_test_at is not None:
-        metadata_payload["state"]["last_restore_test_at"] = state.last_restore_test_at.isoformat()
+        state_payload["last_restore_test_at"] = state.last_restore_test_at.isoformat()
+
+    metadata_payload: dict[str, object] = {
+        "policy": policy_payload,
+        "state": state_payload,
+    }
     if metadata:
         metadata_payload["context"] = dict(metadata)
 

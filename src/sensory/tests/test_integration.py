@@ -37,6 +37,15 @@ from orchestration.enhanced_intelligence_engine import ContextualFusionEngine
 
 # Import system components
 from core.base import DimensionalReading, MarketData
+from sensory.enhanced._shared import ReadingAdapter
+
+
+def _to_dimensional_reading(
+    candidate: DimensionalReading | ReadingAdapter,
+) -> DimensionalReading:
+    if isinstance(candidate, ReadingAdapter):
+        return candidate.reading
+    return candidate
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -192,7 +201,9 @@ class TestDimensionalEngines:
         engine = AnomalyIntelligenceEngine()
 
         # Test basic analysis
-        reading = await engine.analyze_anomaly_intelligence(sample_market_data)
+        reading = _to_dimensional_reading(
+            engine.analyze_anomaly_intelligence(sample_market_data)
+        )
 
         assert isinstance(reading, DimensionalReading)
         assert reading.dimension == "ANOMALY"
@@ -229,7 +240,9 @@ class TestDimensionalEngines:
                 elif name == "WHEN":
                     reading = await engine.analyze_temporal_intelligence(market_data)
                 elif name == "ANOMALY":
-                    reading = await engine.analyze_anomaly_intelligence(market_data)
+                    reading = _to_dimensional_reading(
+                        engine.analyze_anomaly_intelligence(market_data)
+                    )
 
                 readings[name] = reading
 
@@ -252,7 +265,9 @@ class TestDimensionalEngines:
 
         # Feed data to anomaly engine
         for market_data in anomalous_data:
-            reading = await anomaly_engine.analyze_anomaly_intelligence(market_data)
+            reading = _to_dimensional_reading(
+                anomaly_engine.analyze_anomaly_intelligence(market_data)
+            )
             anomaly_readings.append(reading.value)
 
         # Should detect some anomalies

@@ -254,7 +254,7 @@ def evaluate_evolution_tuning(
             reject_rate = float(entry.get("rejection_rate", 0.0))
             failure_rate = float(entry.get("failure_rate", 0.0))
             avg_confidence = _extract_float(entry.get("avg_confidence"))
-            strat_status = _extract_status(entry.get("status"))
+            strat_status = _extract_status(entry.get("status")) or StrategyPerformanceStatus.normal
             strat_metadata = entry.get("metadata", {}) if isinstance(entry, Mapping) else {}
 
         action: str | None = None

@@ -7,4 +7,4 @@ on:
 
 jobs:
   block-openapi:
-    uses: ./.github/workflows/forbidden-integrations.yml
+    uses: ./.github/workflows/forbidden-integrations.yml@main

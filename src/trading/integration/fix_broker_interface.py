@@ -11,6 +11,7 @@ from contextlib import suppress
 from datetime import datetime
 
 # Add typing for callbacks and awaitables
+from collections import defaultdict
 from typing import Any, Awaitable, Callable, Coroutine, Optional
 
 import simplefix
@@ -19,6 +20,17 @@ logger = logging.getLogger(__name__)
 
 
 TaskFactory = Callable[[Coroutine[Any, Any, Any], Optional[str]], asyncio.Task[Any]]
+OrderEventCallback = Callable[[str, dict[str, Any]], None] | Callable[[str, dict[str, Any]], Awaitable[None]]
+
+ORDER_EVENT_TYPES = {
+    "order_update",
+    "acknowledged",
+    "partial_fill",
+    "filled",
+    "cancelled",
+    "rejected",
+    "cancel_rejected",
+}
 
 
 class FIXBrokerInterface:
@@ -51,9 +63,8 @@ class FIXBrokerInterface:
         self.fix_initiator = fix_initiator
         self.running = False
         self.orders: dict[str, dict[str, object]] = {}
-        self._order_update_listeners: list[
-            Callable[[str, dict[str, Any]], None] | Callable[[str, dict[str, Any]], Awaitable[None]]
-        ] = []  # callbacks taking (order_id: str, update: dict[str, Any])
+        self._order_update_listeners: list[OrderEventCallback] = []  # deprecated path
+        self._event_callbacks: dict[str, list[OrderEventCallback]] = defaultdict(list)
         self._trade_task: asyncio.Task[Any] | None = None
         self._task_factory = task_factory
 
@@ -230,14 +241,18 @@ class FIXBrokerInterface:
                 logger.debug(f"Event bus emit failed: {emit_err}")
 
             # Notify local listeners
-            for callback in list(self._order_update_listeners):
-                try:
-                    if asyncio.iscoroutinefunction(callback):
-                        await callback(order_id, update_payload)
-                    else:
-                        callback(order_id, update_payload)
-                except Exception as cb_err:
-                    logger.warning(f"Order update listener error: {cb_err}")
+            await self._notify_listeners("order_update", order_id, update_payload)
+
+            exec_event_map = {
+                "0": "acknowledged",
+                "1": "partial_fill",
+                "2": "filled",
+                "4": "cancelled",
+                "8": "rejected",
+            }
+            event_type = exec_event_map.get(exec_type)
+            if event_type:
+                await self._notify_listeners(event_type, order_id, update_payload)
 
         except Exception as e:
             logger.error(f"Error handling execution report: {e}")
@@ -252,10 +267,19 @@ class FIXBrokerInterface:
                 logger.warning(f"Order cancel rejected for {order_id}: {reject_reason}")
 
                 # Emit event for system
-                await self.event_bus.emit(
-                    "order_cancel_rejected",
-                    {"order_id": order_id, "reason": reject_reason, "timestamp": datetime.utcnow()},
-                )
+                payload = {
+                    "order_id": order_id,
+                    "reason": reject_reason,
+                    "timestamp": datetime.utcnow(),
+                }
+
+                if self.event_bus and hasattr(self.event_bus, "emit"):
+                    await self.event_bus.emit(
+                        "order_cancel_rejected",
+                        payload,
+                    )
+
+                await self._notify_listeners("cancel_rejected", order_id, payload)
 
         except Exception as e:
             logger.error(f"Error handling order cancel reject: {e}")
@@ -370,9 +394,7 @@ class FIXBrokerInterface:
     # --- Listener registration -------------------------------------------------
     def add_order_update_listener(
         self,
-        callback: (
-            Callable[[str, dict[str, Any]], None] | Callable[[str, dict[str, Any]], Awaitable[None]]
-        ),
+        callback: OrderEventCallback,
     ) -> bool:
         """Register a callback to receive order update notifications.
 
@@ -380,21 +402,66 @@ class FIXBrokerInterface:
         """
         try:
             self._order_update_listeners.append(callback)
+            self._event_callbacks["order_update"].append(callback)
             return True
         except Exception:
             return False
 
     def remove_order_update_listener(
         self,
-        callback: (
-            Callable[[str, dict[str, Any]], None] | Callable[[str, dict[str, Any]], Awaitable[None]]
-        ),
+        callback: OrderEventCallback,
     ) -> bool:
         """Unregister a previously added callback."""
         try:
             if callback in self._order_update_listeners:
                 self._order_update_listeners.remove(callback)
+            if callback in self._event_callbacks.get("order_update", []):
+                self._event_callbacks["order_update"].remove(callback)
                 return True
             return False
         except Exception:
             return False
+
+    # --- New event registration API -------------------------------------
+    def add_event_listener(self, event_type: str, callback: OrderEventCallback) -> bool:
+        """Register a callback for a specific order lifecycle event."""
+
+        if event_type not in ORDER_EVENT_TYPES:
+            raise ValueError(f"Unsupported order event type: {event_type}")
+        try:
+            self._event_callbacks[event_type].append(callback)
+            return True
+        except Exception:
+            return False
+
+    def remove_event_listener(self, event_type: str, callback: OrderEventCallback) -> bool:
+        """Remove a previously registered event listener."""
+
+        if event_type not in ORDER_EVENT_TYPES:
+            return False
+        try:
+            callbacks = self._event_callbacks.get(event_type, [])
+            if callback in callbacks:
+                callbacks.remove(callback)
+                return True
+            return False
+        except Exception:
+            return False
+
+    async def _notify_listeners(
+        self,
+        event_type: str,
+        order_id: str,
+        payload: dict[str, Any],
+    ) -> None:
+        callbacks = list(self._event_callbacks.get(event_type, ()))
+        for callback in callbacks:
+            try:
+                if asyncio.iscoroutinefunction(callback):
+                    await callback(order_id, payload)
+                else:
+                    callback(order_id, payload)
+            except Exception as cb_err:
+                logger.warning(
+                    "Order %s listener error for event %s: %s", order_id, event_type, cb_err
+                )

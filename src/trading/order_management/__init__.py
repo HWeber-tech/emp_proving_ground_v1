@@ -17,6 +17,8 @@ from .order_state_machine import (
     OrderLifecycleSnapshot,
     OrderStateMachine,
 )
+from .event_journal import OrderEventJournal, InMemoryOrderEventJournal
+from .lifecycle_processor import OrderLifecycleProcessor
 
 __all__ = [
     "PnLMode",
@@ -32,4 +34,7 @@ __all__ = [
     "OrderState",
     "OrderLifecycleSnapshot",
     "OrderStateMachine",
+    "OrderEventJournal",
+    "InMemoryOrderEventJournal",
+    "OrderLifecycleProcessor",
 ]

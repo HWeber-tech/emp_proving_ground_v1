@@ -147,24 +147,23 @@ class FIXBrokerInterface:
             exec_type = message.get(150).decode() if message.get(150) else None
             last_qty_raw = message.get(32)
             last_px_raw = message.get(31)
-            last_qty = None
-            last_px = None
-            try:
-                if last_qty_raw is not None:
-                    last_qty = float(
-                        last_qty_raw.decode()
-                        if isinstance(last_qty_raw, (bytes, bytearray))
-                        else last_qty_raw
-                    )
-                if last_px_raw is not None:
-                    last_px = float(
-                        last_px_raw.decode()
-                        if isinstance(last_px_raw, (bytes, bytearray))
-                        else last_px_raw
-                    )
-            except Exception:
-                # Non-fatal; continue without qty/px
-                pass
+            cum_qty_raw = message.get(14)
+            leaves_qty_raw = message.get(151)
+
+            def _as_float(value: Any) -> float | None:
+                if value is None:
+                    return None
+                try:
+                    if isinstance(value, (bytes, bytearray)):
+                        value = value.decode()
+                    return float(value)
+                except (TypeError, ValueError):
+                    return None
+
+            last_qty = _as_float(last_qty_raw)
+            last_px = _as_float(last_px_raw)
+            cum_qty = _as_float(cum_qty_raw)
+            leaves_qty = _as_float(leaves_qty_raw)
 
             if not order_id or not exec_type:
                 return
@@ -207,6 +206,8 @@ class FIXBrokerInterface:
                     float(prev_avg_obj) if isinstance(prev_avg_obj, (int, float)) else None
                 )
                 new_filled = float(prev_filled) + float(last_qty)
+                if cum_qty is not None and cum_qty >= 0:
+                    new_filled = max(new_filled, float(cum_qty))
                 if last_px is not None:
                     if prev_avg is None or prev_filled <= 0.0:
                         new_avg: float = float(last_px)
@@ -219,6 +220,10 @@ class FIXBrokerInterface:
                         )
                     order_state["avg_px"] = new_avg
                 order_state["filled_qty"] = new_filled
+            if cum_qty is not None:
+                order_state["filled_qty"] = cum_qty
+            if leaves_qty is not None:
+                order_state["leaves_qty"] = leaves_qty
 
             self.orders[order_id] = order_state
 
@@ -232,6 +237,13 @@ class FIXBrokerInterface:
                 "side": order_state.get("side"),
                 "timestamp": datetime.utcnow(),
             }
+
+            update_payload["last_qty"] = last_qty
+            update_payload["last_px"] = last_px
+            if cum_qty is not None:
+                update_payload["cum_qty"] = cum_qty
+            if leaves_qty is not None:
+                update_payload["leaves_qty"] = leaves_qty
 
             # Emit event for system (if compatible bus provided)
             try:

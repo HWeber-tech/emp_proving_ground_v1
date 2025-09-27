@@ -311,3 +311,38 @@ async def test_validate_position_handles_exception() -> None:
     result = await manager.validate_position(CrashingMapping())
 
     assert result is False
+
+
+@pytest.mark.asyncio
+async def test_validate_position_respects_sector_limits() -> None:
+    config = RiskConfig(
+        max_risk_per_trade_pct=Decimal("0.05"),
+        sector_exposure_limits={"FX": Decimal("0.01")},
+        instrument_sector_map={"EURUSD": "FX", "GBPUSD": "FX"},
+    )
+    manager = RiskManagerImpl(initial_balance=100_000, risk_config=config)
+    manager.add_position("EURUSD", 40_000, 1.1, stop_loss_pct=0.02)
+
+    within_limit = await manager.validate_position(
+        {"symbol": "GBPUSD", "size": 5_000, "entry_price": 1.2, "stop_loss_pct": 0.02}
+    )
+    breaching = await manager.validate_position(
+        {"symbol": "GBPUSD", "size": 10_000, "entry_price": 1.2, "stop_loss_pct": 0.02}
+    )
+
+    assert within_limit is True
+    assert breaching is False
+
+
+def test_check_risk_thresholds_honours_sector_budgets() -> None:
+    config = RiskConfig(
+        sector_exposure_limits={"FX": Decimal("0.01")},
+        instrument_sector_map={"EURUSD": "FX"},
+    )
+    manager = RiskManagerImpl(initial_balance=100_000, risk_config=config)
+    manager.add_position("EURUSD", 50_000, 1.1, stop_loss_pct=0.02)
+
+    assert manager.check_risk_thresholds() is False
+
+    manager.update_limits({"sector_exposure_limits": {"FX": 0.03}})
+    assert manager.check_risk_thresholds() is True

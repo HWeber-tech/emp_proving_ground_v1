@@ -109,7 +109,7 @@ To reflect the true scope of institutional-grade trading components, the roadmap
 - [ ] Add position sizing adapters:
   - [x] Kelly fraction module with drawdown caps (`src/core/risk/position_sizing.py`, `RiskManagerImpl._recompute_drawdown_multiplier`)
   - [x] Volatility-target sizing fed by realized/GARCH volatility inputs (`src/risk/analytics/volatility_target.py`, `RiskManagerImpl.target_allocation_from_volatility`)
-  - [ ] Portfolio exposure limits by sector/asset class (config-driven)
+- [x] Portfolio exposure limits by sector/asset class (config-driven)
 - [x] Embed drawdown circuit breakers into `src/risk/manager.py` with unit tests simulating equity curve shocks.
 - [x] Produce automated risk report artifact (Markdown/JSON) for CI artifacts (`scripts/generate_risk_report.py`).
 - [ ] Backfill encyclopedia Tier-0/Tier-1 risk scenarios as pytest parametrized cases to validate guardrail behavior.

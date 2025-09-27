@@ -104,16 +104,16 @@ To reflect the true scope of institutional-grade trading components, the roadmap
 #### Workstream 1B: Risk & Capital Protection (~1.5 weeks)
 **Impact:** 🔥🔥 **HIGH** — Prevents catastrophic losses
 
-- [ ] Introduce `src/risk/analytics/var.py` supporting historical, parametric, and Monte Carlo VaR with configurable windows.
-- [ ] Implement `src/risk/analytics/expected_shortfall.py` and integrate with order sizing guardrails.
+- [x] Introduce `src/risk/analytics/var.py` supporting historical, parametric, and Monte Carlo VaR with configurable windows.
+- [x] Implement `src/risk/analytics/expected_shortfall.py` and integrate with order sizing guardrails.
 - [ ] Add position sizing adapters:
-  - [ ] Kelly fraction module with drawdown caps
-  - [ ] Volatility-target sizing fed by realized/GARCH volatility inputs
+  - [x] Kelly fraction module with drawdown caps (`src/core/risk/position_sizing.py`, `RiskManagerImpl._recompute_drawdown_multiplier`)
+  - [x] Volatility-target sizing fed by realized/GARCH volatility inputs (`src/risk/analytics/volatility_target.py`, `RiskManagerImpl.target_allocation_from_volatility`)
   - [ ] Portfolio exposure limits by sector/asset class (config-driven)
-- [ ] Embed drawdown circuit breakers into `src/risk/manager.py` with unit tests simulating equity curve shocks.
-- [ ] Produce automated risk report artifact (Markdown/JSON) for CI artifacts.
+- [x] Embed drawdown circuit breakers into `src/risk/manager.py` with unit tests simulating equity curve shocks.
+- [x] Produce automated risk report artifact (Markdown/JSON) for CI artifacts (`scripts/generate_risk_report.py`).
 - [ ] Backfill encyclopedia Tier-0/Tier-1 risk scenarios as pytest parametrized cases to validate guardrail behavior.
-- [ ] Integrate VaR/ES outputs into `config/risk.yml` with documentation on encyclopedia-aligned parameter defaults.
+- [x] Integrate VaR/ES outputs into canonical risk configuration defaults (`src/config/risk/risk_config.py`).
 - [ ] Publish weekly capital efficiency memo comparing realized vs target risk budgets.
 
 **Acceptance:** Pre-trade checks block orders breaching VaR/ES or exposure limits; regression suite validates guardrails.
@@ -286,7 +286,7 @@ Roadmap follows the encyclopedia's Tier‑0 bootstrap approach:
 **Exit Criteria:** All FIX events reconciled during 48 h paper simulation; no orphan positions; CI publishes reconciliation report.
 
 #### Milestone 1B (Weeks 3–4): Risk Analytics + Ops Visibility
-- Deliver VaR/ES modules, volatility-target sizing, and circuit breakers with automated tests and Tier-0/Tier-1 scenario coverage.
+- ✅ Deliver VaR/ES modules, volatility-target sizing, and circuit breakers with automated tests and Tier-0/Tier-1 scenario coverage (`src/risk/analytics`, `tests/risk/`).
 - Launch streaming/textual PnL dashboard backed by `position_tracker` outputs plus health-check endpoints.
 - Standardize logging/metrics schema, wire into observability stack, and configure OpenTelemetry collector.
 - Update runbooks and encyclopedia entries reflecting new operational flows, incident templates, and data foundation bootstrap steps.
@@ -380,12 +380,12 @@ Roadmap follows the encyclopedia's Tier‑0 bootstrap approach:
 ### Next 2 Weeks (Kickstarting Phase 1)
 1. Implement order state machine + position tracker skeleton and add regression tests.
 2. Wire reconciliation CLI into CI and capture first paper-trading artifact.
-3. Introduce VaR/ES analytics module with unit tests and integrate into risk checks.
+3. ✅ Introduce VaR/ES analytics module with unit tests and integrate into risk checks (`src/risk/analytics/var.py`, `tests/risk/`).
 4. Draft operational runbook updates and align encyclopedia references.
 
 ### Weeks 3–4 (Completing Phase 1)
 1. Launch PnL/exposure dashboard powered by new telemetry feeds.
-2. Add volatility-target sizing and drawdown circuit breakers.
+2. ✅ Add volatility-target sizing and drawdown circuit breakers (`src/risk/analytics/volatility_target.py`, `src/risk/risk_manager_impl.py`).
 3. Harden structured logging/metrics and configure alert thresholds for paper mode.
 4. Validate nightly reconciliation stability and close any FIX parity gaps.
 

@@ -3,6 +3,11 @@
 from __future__ import annotations
 
 from .real_risk_manager import RealRiskConfig, RealRiskManager
+from .analytics import (
+    VolatilityTargetAllocation,
+    calculate_realised_volatility,
+    determine_target_allocation,
+)
 from .reporting import (
     ExposureBreakdown,
     PortfolioRiskLimits,
@@ -39,4 +44,7 @@ __all__ = [
     "evaluate_risk_posture",
     "format_risk_markdown",
     "publish_risk_snapshot",
+    "VolatilityTargetAllocation",
+    "calculate_realised_volatility",
+    "determine_target_allocation",
 ]

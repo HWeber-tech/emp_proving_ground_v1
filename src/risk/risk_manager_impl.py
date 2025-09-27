@@ -7,11 +7,11 @@ Provides risk management capabilities with position sizing and validation,
 aligned to canonical imports and types.
 """
 
-import logging
-from typing import Dict, TypedDict, NotRequired, Mapping, Sequence
-from decimal import Decimal
-from datetime import datetime
 import asyncio
+import logging
+from datetime import datetime
+from decimal import Decimal
+from typing import Dict, Mapping, NotRequired, Sequence, TypedDict
 
 from src.core.types import JSONObject
 from src.core.interfaces import RiskManager as RiskManagerProtocol
@@ -25,6 +25,8 @@ from src.risk.analytics import (
     compute_parametric_expected_shortfall,
     compute_parametric_var,
 )
+from src.risk.manager import CircuitBreakerEvent, DrawdownCircuitBreaker
+from src.risk.sizing import kelly_position_size
 
 logger = logging.getLogger(__name__)
 
@@ -103,6 +105,13 @@ class RiskManagerImpl(RiskManagerProtocol):
         self.peak_balance: float = self.account_balance
         # Risk per trade constant used across validation and sizing routines.
         self._risk_per_trade: float = float(self._risk_config.max_risk_per_trade_pct)
+        # Drawdown circuit breaker orchestrates roadmap throttling behaviour.
+        self._circuit_breaker = DrawdownCircuitBreaker(
+            max_drawdown=float(self._risk_config.max_drawdown_pct),
+            floor=0.25,
+            cooldown_steps=5,
+        )
+        self._last_circuit_event: CircuitBreakerEvent | None = None
         # Drawdown multiplier throttles exposure during recoveries (1.0 == full risk).
         self._drawdown_multiplier: float = 1.0
         # Market risk analytics configuration (can be overridden via ``update_limits``).
@@ -117,20 +126,10 @@ class RiskManagerImpl(RiskManagerProtocol):
 
     def _recompute_drawdown_multiplier(self) -> None:
         """Adjust exposure multiplier based on drawdown severity."""
-        if self.peak_balance <= 0:
-            self._drawdown_multiplier = 1.0
-            return
-
-        drawdown = max(0.0, (self.peak_balance - self.account_balance) / self.peak_balance)
-
-        if self.config.max_drawdown <= 0:
-            # Avoid division by zero – treat as unlimited headroom.
-            self._drawdown_multiplier = 1.0
-            return
-
-        normalized = max(0.0, min(1.0, drawdown / self.config.max_drawdown))
-        # Preserve at least a quarter of the baseline risk budget so automation can recover.
-        self._drawdown_multiplier = max(0.25, 1.0 - normalized)
+        self.peak_balance = max(self.peak_balance, self.account_balance)
+        event = self._circuit_breaker.record(self.account_balance)
+        self._drawdown_multiplier = event.scaling_factor
+        self._last_circuit_event = event
 
     def _compute_risk_budget(self) -> float:
         """Return the dollar risk budget after drawdown throttling."""
@@ -228,6 +227,10 @@ class RiskManagerImpl(RiskManagerProtocol):
             stop_loss_pct = _to_float(raw_stop_loss) if raw_stop_loss is not None else 0.0
 
             # Validate basic parameters
+            if self._circuit_breaker.should_halt_trading():
+                logger.warning("Drawdown circuit breaker active; rejecting new risk")
+                return False
+
             if size <= 0:
                 logger.warning(f"Invalid position size: {size}")
                 return False
@@ -322,27 +325,32 @@ class RiskManagerImpl(RiskManagerProtocol):
             b = avg_win / max(avg_loss, 1e-9)
             kelly_fraction = max(0.0, min(1.0, win_rate - (1.0 - win_rate) / b))
 
-            risk_budget = self._compute_risk_budget()
-            position_size = risk_budget / stop_loss_pct
+            payoff_ratio = avg_win / max(avg_loss, 1e-9)
+            risk_fraction = min(self._risk_per_trade, self.config.max_position_risk)
 
-            # Apply Kelly fraction
-            final_size = position_size * kelly_fraction
-
-            # Enforce configured boundaries.
-            bounded_size = max(self._min_position_size, min(self._max_position_size, final_size))
-
-            logger.info(
-                "Calculated position size: %s size=%.2f (bounded to %.2f)",
-                symbol,
-                final_size,
-                bounded_size,
+            final_size = kelly_position_size(
+                self.account_balance,
+                risk_fraction,
+                stop_loss_pct,
+                win_rate=win_rate,
+                payoff_ratio=payoff_ratio,
+                drawdown_multiplier=self._drawdown_multiplier,
+                min_size=self._min_position_size,
+                max_size=self._max_position_size,
             )
 
-            return max(self._min_position_size, bounded_size)
+            logger.info(
+                "Calculated position size: %s size=%.2f (multiplier=%.2f)",
+                symbol,
+                final_size,
+                self._drawdown_multiplier,
+            )
+
+            return final_size
 
         except Exception as e:
             logger.error(f"Error calculating position size: {e}")
-            return 1000.0  # Default minimum position
+            return float(self._min_position_size)  # Default minimum position
 
     def update_account_balance(self, new_balance: float | Decimal) -> None:
         """
@@ -427,6 +435,13 @@ class RiskManagerImpl(RiskManagerProtocol):
             "assessed_risk": assessed_risk,
         }
 
+        if self._last_circuit_event is not None:
+            summary["circuit_breaker"] = {
+                "state": self._last_circuit_event.state.value,
+                "scaling_factor": self._drawdown_multiplier,
+                "triggered": self._last_circuit_event.triggered,
+            }
+
         if returns is not None:
             try:
                 summary["market_risk"] = self.assess_market_risk(
@@ -473,6 +488,12 @@ class RiskManagerImpl(RiskManagerProtocol):
                 logger.warning("Market risk computation skipped: %s", exc)
 
         return metrics
+
+    @property
+    def circuit_breaker_event(self) -> CircuitBreakerEvent | None:
+        """Expose the last recorded circuit breaker event for telemetry hooks."""
+
+        return self._last_circuit_event
 
     def get_position_risk(self, symbol: str) -> JSONObject:
         """
@@ -521,6 +542,7 @@ class RiskManagerImpl(RiskManagerProtocol):
 
     def update_limits(self, limits: Mapping[str, object]) -> None:
         # Accept float|Decimal, coerce using _to_float
+        drawdown_updated = False
         if "max_position_risk" in limits or "max_risk_per_trade_pct" in limits:
             candidate = limits.get("max_risk_per_trade_pct", limits.get("max_position_risk", 0.0))
             resolved = max(0.0, _to_float(candidate))
@@ -533,12 +555,14 @@ class RiskManagerImpl(RiskManagerProtocol):
             self.config.max_drawdown = drawdown
             if drawdown > 0:
                 self.config.max_total_exposure = drawdown
+            drawdown_updated = True
 
         if "max_total_exposure_pct" in limits:
             total_exposure = max(0.0, _to_float(limits["max_total_exposure_pct"]))
             if total_exposure > 0:
                 self.config.max_total_exposure = total_exposure
                 self.config.max_drawdown = total_exposure
+                drawdown_updated = True
 
         if "max_leverage" in limits:
             leverage = max(0.0, _to_float(limits["max_leverage"]))
@@ -573,6 +597,17 @@ class RiskManagerImpl(RiskManagerProtocol):
                     self._var_simulations = candidate_simulations
             except (TypeError, ValueError):
                 logger.warning("Ignoring invalid var_simulations override")
+
+        if drawdown_updated:
+            self._circuit_breaker = DrawdownCircuitBreaker(
+                max_drawdown=self.config.max_drawdown,
+                warn_threshold=self._circuit_breaker.warn_threshold,
+                floor=self._circuit_breaker.floor,
+                cooldown_steps=self._circuit_breaker.cooldown_steps,
+                recovery_ratio=self._circuit_breaker.recovery_ratio,
+            )
+            self._last_circuit_event = self._circuit_breaker.record(self.account_balance)
+            self._drawdown_multiplier = self._last_circuit_event.scaling_factor
 
         self._recompute_drawdown_multiplier()
 

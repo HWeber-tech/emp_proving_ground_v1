@@ -3,4 +3,20 @@ portfolio_risk:
   aggregate_cap: 2.0
   usd_beta_cap: 1.5
   var95_cap: 0.02
+  sector_limits:
+    macro_fx: 3.0
+    technology: 1.5
+  asset_class_limits:
+    currencies: 3.0
+    equities: 1.5
+  instrument_classification:
+    EURUSD:
+      sector: macro_fx
+      asset_class: currencies
+    GBPUSD:
+      sector: macro_fx
+      asset_class: currencies
+    AAPL:
+      sector: technology
+      asset_class: equities
 

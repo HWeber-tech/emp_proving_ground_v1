@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from numbers import Real
 from typing import Any, Mapping, cast
 
@@ -70,6 +70,37 @@ def _locate_position(state: Mapping[str, object], symbol: str) -> Mapping[str, o
     return None
 
 
+def _normalise_symbol(symbol: object) -> str:
+    if isinstance(symbol, str):
+        return symbol.strip().upper()
+    return str(symbol).upper()
+
+
+def _compute_bucket_exposures(
+    positions: object,
+    symbol_buckets: Mapping[str, str],
+) -> dict[str, float]:
+    if not symbol_buckets:
+        return {}
+    if not isinstance(positions, Mapping):
+        return {}
+
+    exposures: dict[str, float] = {}
+    default_bucket = symbol_buckets.get("*")
+    for raw_symbol, payload in positions.items():
+        if not isinstance(payload, Mapping):
+            continue
+        symbol_key = _normalise_symbol(raw_symbol)
+        bucket = symbol_buckets.get(symbol_key, default_bucket)
+        if not bucket:
+            continue
+        qty = abs(_as_float(payload.get("quantity"), default=0.0))
+        price = _resolve_position_price(payload)
+        if qty and price:
+            exposures[bucket] = exposures.get(bucket, 0.0) + qty * price
+    return exposures
+
+
 @dataclass(frozen=True)
 class RiskPolicyDecision:
     """Result of evaluating a potential trade against policy limits."""
@@ -93,9 +124,21 @@ class RiskPolicy:
     max_position_size: float
     mandatory_stop_loss: bool
     research_mode: bool
+    bucket_exposure_limits: Mapping[str, float] = field(default_factory=dict)
+    symbol_buckets: Mapping[str, str] = field(default_factory=dict)
 
     @classmethod
     def from_config(cls, config: RiskConfig) -> "RiskPolicy":
+        bucket_limits = {
+            bucket: float(limit)
+            for bucket, limit in config.bucket_exposure_limits.items()
+            if bucket
+        }
+        symbol_buckets = {
+            _normalise_symbol(symbol): bucket
+            for symbol, bucket in config.instrument_buckets.items()
+            if bucket
+        }
         return cls(
             max_risk_per_trade_pct=float(config.max_risk_per_trade_pct),
             max_total_exposure_pct=float(config.max_total_exposure_pct),
@@ -105,12 +148,14 @@ class RiskPolicy:
             max_position_size=float(config.max_position_size),
             mandatory_stop_loss=bool(config.mandatory_stop_loss),
             research_mode=bool(config.research_mode),
+            bucket_exposure_limits=bucket_limits,
+            symbol_buckets=symbol_buckets,
         )
 
     def limit_snapshot(self) -> Mapping[str, float]:
         """Return a serialisable snapshot of configured policy limits."""
 
-        return {
+        snapshot: dict[str, float] = {
             "max_total_exposure_pct": self.max_total_exposure_pct,
             "max_leverage": self.max_leverage,
             "max_risk_per_trade_pct": self.max_risk_per_trade_pct,
@@ -118,6 +163,12 @@ class RiskPolicy:
             "max_position_size": self.max_position_size,
             "max_drawdown_pct": self.max_drawdown_pct,
         }
+        if self.bucket_exposure_limits:
+            snapshot.update({
+                f"bucket_limit::{bucket}": limit
+                for bucket, limit in self.bucket_exposure_limits.items()
+            })
+        return snapshot
 
     def evaluate(
         self,
@@ -186,6 +237,12 @@ class RiskPolicy:
         metadata["current_total_exposure"] = total_exposure
         metadata["existing_position_notional"] = existing_notional
 
+        bucket_exposures = _compute_bucket_exposures(
+            portfolio_state.get("open_positions"), self.symbol_buckets
+        )
+        if bucket_exposures:
+            metadata["bucket_exposures"] = dict(bucket_exposures)
+
         projected_quantity = existing_quantity + quantity
         projected_notional = abs(projected_quantity) * max(resolved_price, 0.0)
         metadata["projected_notional"] = projected_notional
@@ -195,6 +252,13 @@ class RiskPolicy:
 
         exposure_increase = max(0.0, projected_notional - existing_notional)
         metadata["exposure_increase"] = exposure_increase
+
+        symbol_bucket = None
+        if self.symbol_buckets:
+            symbol_bucket = self.symbol_buckets.get(_normalise_symbol(symbol))
+            if symbol_bucket is None:
+                symbol_bucket = self.symbol_buckets.get("*")
+        metadata["bucket"] = symbol_bucket
 
         stop_loss = max(0.0, float(stop_loss_pct))
         metadata["stop_loss_pct"] = stop_loss
@@ -263,6 +327,35 @@ class RiskPolicy:
             self.max_drawdown_pct,
             status=drawdown_status,
         )
+
+        if symbol_bucket and symbol_bucket in self.bucket_exposure_limits:
+            bucket_limit_pct = self.bucket_exposure_limits[symbol_bucket]
+            bucket_cap = equity * bucket_limit_pct
+            current_bucket = bucket_exposures.get(symbol_bucket, 0.0)
+            projected_bucket = max(0.0, current_bucket - existing_notional) + projected_notional
+            bucket_increase = max(0.0, projected_bucket - current_bucket)
+
+            metadata["bucket_limit_pct"] = bucket_limit_pct
+            metadata["bucket_cap"] = bucket_cap
+            metadata["current_bucket_exposure"] = current_bucket
+            metadata["projected_bucket_exposure"] = projected_bucket
+            metadata["bucket_exposure_increase"] = bucket_increase
+
+            bucket_status = "ok"
+            bucket_ratio = None
+            if bucket_cap > 0:
+                bucket_ratio = projected_bucket / bucket_cap
+                if projected_bucket > bucket_cap:
+                    bucket_status = "violation"
+                elif bucket_ratio >= 0.8 and bucket_increase > 0:
+                    bucket_status = "warn"
+            _record(
+                f"policy.bucket_exposure.{symbol_bucket}",
+                projected_bucket,
+                bucket_cap,
+                status=bucket_status,
+                extra={"ratio": bucket_ratio},
+            )
 
         approved = not violations and exposure_status != "violation" and risk_status != "violation"
         reason = violations[0] if violations else None

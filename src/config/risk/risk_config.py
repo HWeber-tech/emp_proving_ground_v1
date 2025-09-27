@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from decimal import Decimal
+from typing import Dict
 
 from pydantic import BaseModel, Field, validator
 
@@ -57,6 +58,14 @@ class RiskConfig(BaseModel):
         default=Decimal("1.0"),
         description="Annualisation factor applied to realised volatility",
     )
+    bucket_exposure_limits: Dict[str, Decimal] = Field(
+        default_factory=dict,
+        description="Per-bucket exposure limits expressed as a fraction of equity",
+    )
+    instrument_buckets: Dict[str, str] = Field(
+        default_factory=dict,
+        description="Mapping of instrument symbols to exposure buckets",
+    )
 
     @validator(
         "max_risk_per_trade_pct",
@@ -80,6 +89,25 @@ class RiskConfig(BaseModel):
         if v <= 0:
             raise ValueError("Annualisation factor must be positive")
         return v
+
+    @validator("bucket_exposure_limits", each_item=True)
+    def validate_bucket_limits(cls, v: Decimal) -> Decimal:
+        if v <= 0 or v > 1:
+            raise ValueError("Bucket exposure limits must be between 0 and 1")
+        return v
+
+    @validator("instrument_buckets", pre=True)
+    def validate_instrument_buckets(cls, value: Dict[str, str]) -> Dict[str, str]:
+        if value is None:
+            return {}
+        if not isinstance(value, dict):
+            raise TypeError("instrument_buckets must be a mapping of symbol to bucket")
+        cleaned: Dict[str, str] = {}
+        for symbol, bucket in value.items():
+            if not symbol:
+                continue
+            cleaned[symbol.strip()] = str(bucket).strip()
+        return cleaned
 
 
 __all__ = ["RiskConfig"]

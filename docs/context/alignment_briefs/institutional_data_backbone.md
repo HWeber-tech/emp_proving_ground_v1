@@ -74,6 +74,10 @@
    - Link schema drafts, migration notebooks, and failure drills from the brief to keep discovery artefacts centralized.
    - **Status:** Roadmap-aligned issue forms and an updated pull-request template now live under `.github/`, prompting authors to quote the concept blueprint, reality gap, validation hooks, and telemetry updates for every change.【F:.github/ISSUE_TEMPLATE/roadmap_execution.yml†L1-L98】【F:.github/pull_request_template.md†L1-L78】
 
+3. **Roadmap guardrails**
+   - Extend `tools.roadmap.snapshot` so the modernization status check imports ingest metrics, quality, observability, trend, retention, cache health, and validation helpers plus the backbone telemetry exporter, surfacing regressions when those modules disappear or rename.【F:docs/roadmap.md†L70-L90】
+   - **Status:** The snapshot CLI now requires those modules alongside the ingest recovery, failover decision, spark export plan, failover drill, spark stress drill, and cross-region evaluators, causing the readiness dashboard to fail fast if resiliency or telemetry helpers disappear. Regression tests assert the full guardrail evidence set so CI flags any missing orchestrator, recovery, or exporter helpers immediately.【F:tools/roadmap/snapshot.py†L125-L175】【F:tests/tools/test_roadmap_snapshot.py†L12-L83】
+
 ### Next (60-day outlook)
 
 3. **Redis hot-path cache**

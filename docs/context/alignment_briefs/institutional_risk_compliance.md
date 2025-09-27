@@ -40,7 +40,13 @@ checklists) so future tickets inherit the same story the roadmap and encyclopedi
 ### Now (30-day outlook)
 
 1. **Surface audit evidence** – Extend the CI health snapshot and roadmap portfolio table with compliance journal counts and
-   execution readiness status so documentation mirrors the runtime evidence.【F:docs/status/ci_health.md†L150-L240】【F:tools/roadmap/snapshot.py†L78-L150】
+   execution readiness status so documentation mirrors the runtime evidence. The roadmap snapshot guardrail now imports the
+   risk/compliance exporter plus the Timescale execution, compliance, and KYC journals so the modernization dashboard fails when
+   audit evidence disappears, and regression tests assert the entire operational evidence set so CI flags missing telemetry or
+   journal modules immediately. The guardrail now also requires the ROI and strategy-performance evaluators so profitability
+   telemetry stays visible alongside risk and compliance snapshots during portfolio checks, and it now pulls in the risk posture
+   evaluator alongside the policy telemetry exporter so risk decision evidence can’t disappear unnoticed in the portfolio
+   snapshot.【F:docs/status/ci_health.md†L150-L240】【F:tools/roadmap/snapshot.py†L216-L255】【F:tests/tools/test_roadmap_snapshot.py†L77-L160】
 2. **Context-pack the FIX pilot** – Publish a companion brief summarising `FixIntegrationPilot`, drop-copy reconciliation, and
    execution telemetry hooks so future tickets inherit the compliance context.【F:src/runtime/fix_pilot.py†L1-L210】【F:src/runtime/fix_dropcopy.py†L1-L220】
 3. **Runtime summary enhancements** – Add a composite “risk & compliance posture” block to `ProfessionalPredatorApp.summary()`

@@ -56,6 +56,11 @@ back to the concept promises. This document keeps ongoing work anchored to the r
    high-value operational blocks to JSON (with pytest coverage). Next step: wire the JSON output into the shared observability
    dashboard job so the data lands alongside CI metrics.【F:tools/telemetry/export_operational_snapshots.py†L1-L143】【F:tests/tools/test_operational_export.py†L1-L86】
 
+4. **Roadmap guardrail** – Update `tools.roadmap.snapshot` so the modernization portfolio check imports backup, event bus,
+   SLO, system validation, Kafka readiness, backbone validation, ROI, strategy-performance, risk posture, policy telemetry, and
+   the operational snapshot exporter, causing the dashboard to fail fast if operational telemetry disappears. Regression coverage
+   now asserts the full operational evidence set to keep the portfolio guardrail aligned with the brief.【F:tools/roadmap/snapshot.py†L216-L255】【F:tests/tools/test_roadmap_snapshot.py†L77-L160】
+
 ### Next (60-day outlook)
 
 1. **Cross-region rehearsal schedule** – Encode drill cadence into the runtime extras and add a scheduler task that records

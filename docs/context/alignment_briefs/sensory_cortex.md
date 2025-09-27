@@ -45,7 +45,9 @@ slipping away from the concept intent.【F:docs/EMP_ENCYCLOPEDIA_v2.3_CANONICAL.
 2. **Consolidate sensory posture** – Add a runtime summary helper (and pytest coverage) that aggregates HOW/WHEN/WHY/ANOMALY
    strengths plus drift severity into a single block for operators rehearsing incidents.【F:src/runtime/predator_app.py†L524-L1064】【F:tests/runtime/test_professional_app_timescale.py†L1188-L1224】
 3. **Capture cortex metrics in roadmap CLI** – Extend `tools.roadmap.snapshot` with a requirement that imports
-   `operations.sensory_drift` so the automation fails fast if the telemetry surface regresses.【F:tools/roadmap/snapshot.py†L59-L147】
+   `operations.sensory_drift` so the automation fails fast if the telemetry surface regresses, with regression coverage locking
+   the full sensory/evolution guardrail set so portfolio snapshots stay honest. The guardrail now also requires the evolution
+   experiment and tuning evaluators so feedback-loop telemetry remains visible in the portfolio snapshot.【F:tools/roadmap/snapshot.py†L188-L200】【F:tests/tools/test_roadmap_snapshot.py†L57-L104】
 
 ### Next (60-day outlook)
 

@@ -77,6 +77,7 @@ and code reviews:
   - `build_ingest_observability_snapshot` fuses metrics, health findings, recovery recommendations, and failover decisions into a single `telemetry.ingest.observability` payload logged by the runtime so CI dashboards inherit one authoritative ingest summary per run.【F:src/data_foundation/ingest/observability.py†L1-L211】【F:src/runtime/runtime_builder.py†L624-L635】【F:tests/data_foundation/test_ingest_observability.py†L1-L110】
   - `execute_spark_export_plan` exports Timescale slices into Spark-friendly CSV/JSONL datasets with optional partitioning, writes per-job manifests, and the runtime publishes `telemetry.ingest.spark_exports` while recording the snapshot in professional summaries for operators.【F:src/data_foundation/batch/spark_export.py†L1-L233】【F:src/runtime/runtime_builder.py†L657-L866】【F:src/runtime/predator_app.py†L1-L520】【F:tests/data_foundation/test_spark_export.py†L1-L129】【F:tests/data_foundation/test_ingest_journal.py†L360-L438】【F:tests/runtime/test_professional_app_timescale.py†L1-L620】
   - `evaluate_ingest_trends` analyses Timescale ingest journal history into `telemetry.ingest.trends` snapshots so dashboards and runtime summaries surface momentum, row-count drops, and freshness regressions alongside health, metrics, and quality feeds.【F:src/operations/ingest_trends.py†L1-L240】【F:src/runtime/runtime_builder.py†L900-L1090】【F:src/runtime/predator_app.py†L680-L735】【F:tests/operations/test_ingest_trends.py†L1-L90】【F:tests/runtime/test_professional_app_timescale.py†L240-L330】
+  - The roadmap snapshot CLI now imports the ingest metrics, quality, observability, trend, retention, cache health, recovery, and failover helpers—plus the spark export plan, failover drill, spark stress drill, cross-region evaluator, and backbone telemetry exporter—so modernization status pages fail fast whenever resiliency or telemetry surfaces regress.【F:tools/roadmap/snapshot.py†L125-L175】 Regression coverage exercises the full guardrail evidence set so CI fails if any ingest, recovery, or telemetry helper disappears.【F:tests/tools/test_roadmap_snapshot.py†L12-L83】
   - `evaluate_data_backbone_readiness` now records Spark export snapshots as a readiness component so operators see batch export coverage alongside ingest health, quality, and failover telemetry.【F:src/operations/data_backbone.py†L15-L360】【F:src/runtime/runtime_builder.py†L657-L1160】【F:tests/operations/test_data_backbone.py†L1-L150】
   - `evaluate_data_retention` inspects Timescale daily, intraday, and macro tables to confirm institutional retention windows, publishes `telemetry.data_backbone.retention`, and records the markdown snapshot inside professional runtime summaries so operators can audit historical coverage alongside other backbone feeds.【F:src/operations/retention.py†L1-L192】【F:src/runtime/runtime_builder.py†L1060-L1210】【F:src/runtime/predator_app.py†L150-L360】【F:tests/operations/test_data_retention.py†L1-L118】【F:tests/runtime/test_professional_app_timescale.py†L640-L700】
   - `evaluate_cache_health` grades Redis cache configuration and hit/miss telemetry into a `telemetry.cache.health` snapshot so operators can confirm namespaces, hit rates, and eviction pressure directly from runtime logs and summaries.【F:src/operations/cache_health.py†L1-L191】【F:src/runtime/runtime_builder.py†L608-L741】【F:tests/runtime/test_professional_app_timescale.py†L300-L346】
@@ -283,6 +284,11 @@ and code reviews:
     now surfaces recent and latest execution records so operators can audit
     institutional execution history alongside live readiness telemetry.
     【F:src/data_foundation/persist/timescale.py†L900-L1290】【F:src/runtime/predator_app.py†L200-L760】【F:tests/data_foundation/test_timescale_execution_journal.py†L1-L91】【F:tests/runtime/test_professional_app_timescale.py†L400-L460】
+  - The roadmap snapshot CLI now requires the risk/compliance exporter and
+    Timescale execution/compliance/KYC journals so modernization dashboards fail
+    fast when audit evidence disappears from the portfolio snapshot, and
+    regression tests assert the complete operational guardrail set that backs the
+    portfolio status.【F:tools/roadmap/snapshot.py†L216-L255】【F:tests/tools/test_roadmap_snapshot.py†L77-L138】
 
 ### 90-day considerations (Later)
 - Graduate the data backbone by stress-testing Kafka/Spark batch jobs, documenting
@@ -296,6 +302,7 @@ and code reviews:
   drift monitoring, and feedback loops that tune strategy genomes automatically.
   - `evaluate_evolution_experiments` aggregates paper-trading experiment logs and ROI posture into `telemetry.evolution.experiments`, with the trading manager recording experiment events, the runtime builder publishing the snapshot, and professional summaries exposing the markdown block alongside ingest telemetry.【F:src/operations/evolution_experiments.py†L1-L248】【F:src/trading/trading_manager.py†L1-L320】【F:src/runtime/runtime_builder.py†L1959-L2118】【F:src/runtime/predator_app.py†L320-L918】【F:tests/operations/test_evolution_experiments.py†L1-L114】【F:tests/trading/test_trading_manager_execution.py†L1-L140】【F:tests/runtime/test_professional_app_timescale.py†L820-L908】
   - `evaluate_evolution_tuning` fuses experiment and strategy telemetry into actionable recommendations, publishes `telemetry.evolution.tuning`, and records the markdown summary inside the professional runtime so operators can review automated tuning guidance alongside experiment metrics.【F:src/operations/evolution_tuning.py†L1-L443】【F:src/runtime/runtime_builder.py†L2566-L2649】【F:src/runtime/predator_app.py†L229-L515】【F:src/runtime/predator_app.py†L1098-L1104】【F:tests/operations/test_evolution_tuning.py†L1-L172】【F:tests/runtime/test_professional_app_timescale.py†L1298-L1338】
+  - The roadmap snapshot CLI now requires the evolution experiment and tuning evaluators so modernization dashboards fail fast when the feedback-loop telemetry regresses, and regression tests lock the full sensory/evolution guardrail evidence set.【F:tools/roadmap/snapshot.py†L188-L200】【F:tests/tools/test_roadmap_snapshot.py†L57-L104】
 - Deliver the first broker/FIX integration pilot complete with supervised async
   lifecycles, expanded risk gates, compliance checkpoints, and observability hooks.
   - `FixIntegrationPilot` now supervises FIX session lifecycles, binds message queues,
@@ -314,10 +321,12 @@ and code reviews:
     control centre, and runtime summary to publish `telemetry.operational.roi`
     snapshots with markdown summaries while pytest locks the cost model contract.
     【F:src/operations/roi.py†L1-L164】【F:src/trading/trading_manager.py†L1-L280】【F:src/operations/bootstrap_control_center.py†L1-L320】【F:src/runtime/predator_app.py†L400-L720】【F:tests/operations/test_roi.py†L1-L80】
-  - Strategy performance telemetry now aggregates trading-manager experiment events
-    and ROI snapshots into `telemetry.strategy.performance`, publishes Markdown summaries,
-    and records the latest block in professional runtime summaries so desks can monitor
-    execution/rejection mix per strategy alongside ROI posture.【F:src/operations/strategy_performance.py†L1-L537】【F:src/runtime/runtime_builder.py†L2240-L2298】【F:src/runtime/predator_app.py†L91-L986】【F:tests/runtime/test_runtime_builder.py†L281-L523】【F:tests/runtime/test_professional_app_timescale.py†L217-L265】
+- Strategy performance telemetry now aggregates trading-manager experiment events
+  and ROI snapshots into `telemetry.strategy.performance`, publishes Markdown summaries,
+  and records the latest block in professional runtime summaries so desks can monitor
+  execution/rejection mix per strategy alongside ROI posture.【F:src/operations/strategy_performance.py†L1-L537】【F:src/runtime/runtime_builder.py†L2240-L2298】【F:src/runtime/predator_app.py†L91-L986】【F:tests/runtime/test_runtime_builder.py†L281-L523】【F:tests/runtime/test_professional_app_timescale.py†L217-L265】
+- The roadmap snapshot CLI now requires the ROI and strategy-performance evaluators so modernization dashboards fail fast when profitability telemetry disappears, and regression coverage asserts the expanded operational guardrail set that backs the portfolio snapshot.【F:tools/roadmap/snapshot.py†L216-L233】【F:tests/tools/test_roadmap_snapshot.py†L77-L142】
+- The roadmap snapshot CLI now also requires the risk posture evaluator and policy telemetry exporter so modernization dashboards fail fast when risk decision evidence disappears, and regression coverage locks the broader execution and compliance guardrail set that feeds the portfolio snapshot.【F:tools/roadmap/snapshot.py†L234-L237】【F:tests/tools/test_roadmap_snapshot.py†L87-L160】
 - Update marketing and onboarding assets once the above pilots demonstrate the
   promised capabilities.
 

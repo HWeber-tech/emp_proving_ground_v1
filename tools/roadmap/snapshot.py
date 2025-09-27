@@ -135,6 +135,47 @@ def _initiative_definitions() -> Sequence[InitiativeDefinition]:
                 _require_module_attr(
                     "operations.data_backbone", "evaluate_data_backbone_readiness"
                 ),
+                _require_module_attr(
+                    "data_foundation.batch.spark_export", "execute_spark_export_plan"
+                ),
+                _require_module_attr(
+                    "data_foundation.ingest.metrics", "summarise_ingest_metrics"
+                ),
+                _require_module_attr(
+                    "data_foundation.ingest.quality", "evaluate_ingest_quality"
+                ),
+                _require_module_attr(
+                    "data_foundation.ingest.observability",
+                    "build_ingest_observability_snapshot",
+                ),
+                _require_module_attr("operations.ingest_trends", "evaluate_ingest_trends"),
+                _require_module_attr(
+                    "operations.data_backbone", "evaluate_data_backbone_validation"
+                ),
+                _require_module_attr(
+                    "operations.retention", "evaluate_data_retention"
+                ),
+                _require_module_attr(
+                    "operations.cache_health", "evaluate_cache_health"
+                ),
+                _require_module_attr(
+                    "data_foundation.ingest.recovery", "plan_ingest_recovery"
+                ),
+                _require_module_attr(
+                    "data_foundation.ingest.failover", "decide_ingest_failover"
+                ),
+                _require_module_attr(
+                    "operations.failover_drill", "execute_failover_drill"
+                ),
+                _require_module_attr(
+                    "operations.cross_region_failover", "evaluate_cross_region_failover"
+                ),
+                _require_module_attr(
+                    "operations.spark_stress", "execute_spark_stress_drill"
+                ),
+                _require_module_attr(
+                    "tools.telemetry.export_data_backbone_snapshots", "main"
+                ),
             ),
         ),
         InitiativeDefinition(
@@ -157,6 +198,12 @@ def _initiative_definitions() -> Sequence[InitiativeDefinition]:
                 _require_module_attr("operations.sensory_drift", "evaluate_sensory_drift"),
                 _require_module_attr("evolution.lineage_telemetry", "EvolutionLineageSnapshot"),
                 _require_module_attr("genome.catalogue", "load_default_catalogue"),
+                _require_module_attr(
+                    "operations.evolution_experiments", "evaluate_evolution_experiments"
+                ),
+                _require_module_attr(
+                    "operations.evolution_tuning", "evaluate_evolution_tuning"
+                ),
             ),
         ),
         InitiativeDefinition(
@@ -180,6 +227,37 @@ def _initiative_definitions() -> Sequence[InitiativeDefinition]:
                 _require_module_attr("trading.risk.risk_policy", "RiskPolicy"),
                 _require_module_attr(
                     "operations.professional_readiness", "evaluate_professional_readiness"
+                ),
+                _require_module_attr("operations.backup", "evaluate_backup_readiness"),
+                _require_module_attr("operations.event_bus_health", "evaluate_event_bus_health"),
+                _require_module_attr("operations.slo", "evaluate_ingest_slos"),
+                _require_module_attr("operations.system_validation", "evaluate_system_validation"),
+                _require_module_attr("operations.kafka_readiness", "evaluate_kafka_readiness"),
+                _require_module_attr("operations.roi", "evaluate_roi_posture"),
+                _require_module_attr(
+                    "operations.strategy_performance", "evaluate_strategy_performance"
+                ),
+                _require_module_attr("risk.telemetry", "evaluate_risk_posture"),
+                _require_module_attr(
+                    "trading.risk.policy_telemetry", "build_policy_snapshot"
+                ),
+                _require_module_attr(
+                    "operations.data_backbone", "evaluate_data_backbone_validation"
+                ),
+                _require_module_attr(
+                    "data_foundation.persist.timescale", "TimescaleComplianceJournal"
+                ),
+                _require_module_attr(
+                    "data_foundation.persist.timescale", "TimescaleKycJournal"
+                ),
+                _require_module_attr(
+                    "data_foundation.persist.timescale", "TimescaleExecutionJournal"
+                ),
+                _require_module_attr(
+                    "tools.telemetry.export_operational_snapshots", "main"
+                ),
+                _require_module_attr(
+                    "tools.telemetry.export_risk_compliance_snapshots", "main"
                 ),
             ),
         ),

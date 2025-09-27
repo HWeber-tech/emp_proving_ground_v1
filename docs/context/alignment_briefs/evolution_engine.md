@@ -93,6 +93,10 @@ validation artefacts.
   through the runtime builder, and records the markdown block in professional
   summaries so operators can review automated tuning recommendations during
   runbooks and postmortems.【F:src/operations/evolution_tuning.py†L1-L443】【F:src/runtime/runtime_builder.py†L2566-L2649】【F:src/runtime/predator_app.py†L229-L515】【F:src/runtime/predator_app.py†L1098-L1104】【F:tests/operations/test_evolution_tuning.py†L1-L172】【F:tests/runtime/test_professional_app_timescale.py†L1298-L1338】
+- The roadmap snapshot guardrail now imports both evaluators so the portfolio
+  automation fails fast whenever experiment or tuning telemetry disappears, and
+  regression coverage asserts the expanded sensory/evolution evidence set.
+  【F:tools/roadmap/snapshot.py†L188-L200】【F:tests/tools/test_roadmap_snapshot.py†L57-L104】
 
 ## Validation hooks
 

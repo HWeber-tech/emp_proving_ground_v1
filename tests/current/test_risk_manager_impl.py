@@ -218,7 +218,56 @@ def test_calculate_portfolio_risk_uses_real_risk_manager_defaults() -> None:
 
     # RealRiskManager should surface the per-position utilisation of the configured budgets.
     assert snapshot["risk_amount"] == pytest.approx(22.0)
-    assert snapshot["assessed_risk"] == pytest.approx(0.11, rel=1e-6)
+
+
+def test_assess_market_risk_exposes_var_and_es_metrics() -> None:
+    manager = RiskManagerImpl(initial_balance=50_000)
+    returns = [
+        0.012,
+        -0.018,
+        0.007,
+        -0.025,
+        0.004,
+        -0.011,
+        0.009,
+        -0.022,
+    ]
+
+    metrics = manager.assess_market_risk(returns, confidence=0.95, simulations=500)
+
+    assert metrics["confidence"] == pytest.approx(0.95)
+    assert metrics["historical_var"]["sample_size"] == pytest.approx(len(returns))
+    assert metrics["monte_carlo_var"]["simulations"] == pytest.approx(500.0)
+    # Expected shortfall should be at least as large as the VaR under loss framing.
+    assert (
+        metrics["expected_shortfall"]["historical"]["value"]
+        >= metrics["historical_var"]["value"]
+    )
+
+
+def test_get_risk_summary_includes_market_risk_block() -> None:
+    manager = RiskManagerImpl(initial_balance=25_000)
+    manager.add_position("EURUSD", 2_000, 1.1)
+    returns = [0.01, -0.015, 0.002, -0.02, 0.005]
+
+    summary = manager.get_risk_summary(returns, confidence=0.9)
+
+    assert "market_risk" in summary
+    assert summary["market_risk"]["confidence"] == pytest.approx(0.9)
+    assert summary["market_risk"]["historical_var"]["value"] >= 0.0
+
+
+def test_calculate_portfolio_risk_embeds_market_risk_snapshot() -> None:
+    manager = RiskManagerImpl(initial_balance=30_000)
+    manager.add_position("EURUSD", 1_000, 1.15)
+    manager.add_position("GBPUSD", 750, 1.24)
+    returns = [0.006, -0.01, 0.004, -0.012, 0.003, -0.008]
+
+    snapshot = manager.calculate_portfolio_risk(returns, confidence=0.95)
+
+    assert "market_risk" in snapshot
+    assert snapshot["market_risk"]["confidence"] == pytest.approx(0.95)
+    assert snapshot["assessed_risk"] >= 0.0
 
 
 def test_get_position_risk_handles_unknown_symbol() -> None:

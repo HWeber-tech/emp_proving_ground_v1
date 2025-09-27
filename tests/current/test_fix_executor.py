@@ -39,6 +39,12 @@ async def test_execute_order_updates_position_and_history() -> None:
     history_entry = executor.execution_history[-1]
     assert history_entry["order_id"] == "ABC123"
     assert history_entry["status"] == OrderStatus.FILLED.value
+    assert history_entry["lifecycle_status"] == OrderStatus.FILLED.value
+    assert history_entry["position_net_quantity"] == pytest.approx(order.quantity)
+
+    snapshot = executor.get_order_snapshot(order.order_id)
+    assert snapshot is not None
+    assert getattr(snapshot.status, "value", snapshot.status) == OrderStatus.FILLED.value
 
 
 @pytest.mark.asyncio

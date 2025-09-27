@@ -8,17 +8,53 @@ from __future__ import annotations
 import asyncio
 import logging
 from contextlib import suppress
-from datetime import datetime
+from datetime import datetime, timezone
 
 # Add typing for callbacks and awaitables
 from typing import Any, Awaitable, Callable, Coroutine, Optional
 
 import simplefix
 
+from ..order_management.order_state_machine import (
+    OrderEventType,
+    OrderLifecycle,
+)
+
 logger = logging.getLogger(__name__)
 
 
 TaskFactory = Callable[[Coroutine[Any, Any, Any], Optional[str]], asyncio.Task[Any]]
+
+
+def _utc_now() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def _decode_str(value: Any) -> Optional[str]:
+    if value is None:
+        return None
+    if isinstance(value, (bytes, bytearray)):
+        try:
+            return value.decode()
+        except Exception:  # pragma: no cover - defensive
+            return None
+    return str(value)
+
+
+def _coerce_float(value: Any) -> Optional[float]:
+    if value is None:
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, (bytes, bytearray)):
+        try:
+            return float(value.decode())
+        except Exception:  # pragma: no cover - defensive
+            return None
+    try:
+        return float(value)
+    except Exception:  # pragma: no cover - defensive
+        return None
 
 
 class FIXBrokerInterface:
@@ -50,7 +86,7 @@ class FIXBrokerInterface:
         self.trade_queue = trade_queue
         self.fix_initiator = fix_initiator
         self.running = False
-        self.orders: dict[str, dict[str, object]] = {}
+        self.orders: dict[str, OrderLifecycle] = {}
         self._order_update_listeners: list[
             Callable[[str, dict[str, Any]], None] | Callable[[str, dict[str, Any]], Awaitable[None]]
         ] = []  # callbacks taking (order_id: str, update: dict[str, Any])
@@ -160,66 +196,56 @@ class FIXBrokerInterface:
 
             logger.info(f"Execution report for order {order_id}: {exec_type}")
 
-            # Update in-memory order state
-            order_state = self.orders.get(
-                order_id,
-                {
-                    "symbol": None,
-                    "side": None,
-                    "quantity": 0.0,
-                    "status": "UNKNOWN",
-                    "timestamp": datetime.utcnow(),
-                    "filled_qty": 0.0,
-                    "avg_px": None,
-                },
-            )
+            symbol = _decode_str(message.get(55))
+            side_tag = _decode_str(message.get(54))
+            side = None
+            if side_tag == "1":
+                side = "BUY"
+            elif side_tag == "2":
+                side = "SELL"
 
-            # Map ExecType to status string
-            status_map = {
-                "0": "ACKNOWLEDGED",
-                "1": "PARTIALLY_FILLED",
-                "2": "FILLED",
-                "4": "CANCELLED",
-                "8": "REJECTED",
-            }
-            new_status = status_map.get(exec_type, order_state.get("status", "UNKNOWN"))
-            order_state["status"] = new_status
-
-            if last_qty is not None and last_qty > 0:
-                # Update running filled quantity and average price
-                filled_val = order_state.get("filled_qty", 0.0)
-                prev_filled: float = (
-                    float(filled_val) if isinstance(filled_val, (int, float)) else 0.0
+            lifecycle = self.orders.get(order_id)
+            if lifecycle is None:
+                lifecycle = OrderLifecycle(
+                    order_id,
+                    quantity=_coerce_float(message.get(38)),
+                    symbol=symbol,
+                    side=side,
+                    created_at=_utc_now(),
                 )
-                prev_avg_obj = order_state.get("avg_px")
-                prev_avg: Optional[float] = (
-                    float(prev_avg_obj) if isinstance(prev_avg_obj, (int, float)) else None
-                )
-                new_filled = float(prev_filled) + float(last_qty)
-                if last_px is not None:
-                    if prev_avg is None or prev_filled <= 0.0:
-                        new_avg: float = float(last_px)
-                    else:
-                        total_value: float = float(prev_avg) * float(prev_filled) + float(
-                            last_px
-                        ) * float(last_qty)
-                        new_avg = (
-                            float(total_value / new_filled) if new_filled > 0.0 else float(prev_avg)
-                        )
-                    order_state["avg_px"] = new_avg
-                order_state["filled_qty"] = new_filled
+                self.orders[order_id] = lifecycle
+            else:
+                if lifecycle.symbol is None and symbol is not None:
+                    lifecycle.symbol = symbol
+                if lifecycle.side is None and side is not None:
+                    lifecycle.side = side
+                if (
+                    lifecycle.initial_quantity is None
+                    and (order_qty := _coerce_float(message.get(38))) is not None
+                ):
+                    lifecycle.set_initial_quantity(order_qty)
 
-            self.orders[order_id] = order_state
+            leaves_qty_raw = message.get(151)
+            reason = _decode_str(message.get(58)) or _decode_str(message.get(103))
+
+            try:
+                snapshot = lifecycle.apply_fix_execution(
+                    exec_type,
+                    last_qty=last_qty,
+                    last_px=last_px,
+                    leaves_qty=leaves_qty_raw,
+                    reason=reason,
+                    timestamp=_utc_now(),
+                )
+            except Exception as exc:
+                logger.error(f"Error applying execution report for {order_id}: {exc}")
+                return
 
             update_payload = {
-                "order_id": order_id,
+                **snapshot.to_dict(),
                 "exec_type": exec_type,
-                "status": order_state.get("status"),
-                "filled_qty": order_state.get("filled_qty"),
-                "avg_px": order_state.get("avg_px"),
-                "symbol": order_state.get("symbol"),
-                "side": order_state.get("side"),
-                "timestamp": datetime.utcnow(),
+                "last_qty": last_qty,
+                "last_px": last_px,
             }
 
             # Emit event for system (if compatible bus provided)
@@ -245,8 +271,8 @@ class FIXBrokerInterface:
     async def _handle_order_cancel_reject(self, message: Any) -> None:
         """Handle order cancel reject messages."""
         try:
-            order_id = message.get(11).decode() if message.get(11) else None
-            reject_reason = message.get(58).decode() if message.get(58) else "Unknown"
+            order_id = _decode_str(message.get(11))
+            reject_reason = _decode_str(message.get(58)) or "Unknown"
 
             if order_id:
                 logger.warning(f"Order cancel rejected for {order_id}: {reject_reason}")
@@ -254,7 +280,7 @@ class FIXBrokerInterface:
                 # Emit event for system
                 await self.event_bus.emit(
                     "order_cancel_rejected",
-                    {"order_id": order_id, "reason": reject_reason, "timestamp": datetime.utcnow()},
+                    {"order_id": order_id, "reason": reject_reason, "timestamp": _utc_now()},
                 )
 
         except Exception as e:
@@ -286,7 +312,7 @@ class FIXBrokerInterface:
                 # If risk check fails, proceed conservatively without blocking
                 pass
             # Generate order ID
-            order_id = f"ORD_{int(datetime.utcnow().timestamp() * 1000)}"
+            order_id = f"ORD_{int(_utc_now().timestamp() * 1000)}"
 
             # Create order message
             msg = simplefix.FixMessage()
@@ -297,23 +323,22 @@ class FIXBrokerInterface:
             msg.append_pair(54, "1" if side.upper() == "BUY" else "2")  # Side
             msg.append_pair(38, str(quantity))  # OrderQty
             msg.append_pair(40, "1")  # OrdType = Market
-            msg.append_pair(
-                60, datetime.utcnow().strftime("%Y%m%d-%H:%M:%S.%f")[:-3]
-            )  # TransactTime
+            msg.append_pair(60, _utc_now().strftime("%Y%m%d-%H:%M:%S.%f")[:-3])  # TransactTime
 
             # Send order
             if self.fix_initiator:
                 self.fix_initiator.send_message(msg)
                 logger.info(f"Market order placed: {side} {quantity} {symbol} (ID: {order_id})")
 
-                # Store order
-                self.orders[order_id] = {
-                    "symbol": symbol,
-                    "side": side,
-                    "quantity": quantity,
-                    "status": "PENDING",
-                    "timestamp": datetime.utcnow(),
-                }
+                lifecycle = OrderLifecycle(
+                    order_id,
+                    quantity=quantity,
+                    symbol=symbol,
+                    side=side.upper(),
+                    created_at=_utc_now(),
+                )
+                lifecycle.apply_event(OrderEventType.ACKNOWLEDGED, timestamp=_utc_now())
+                self.orders[order_id] = lifecycle
 
                 return order_id
         except Exception as e:
@@ -344,6 +369,16 @@ class FIXBrokerInterface:
             if self.fix_initiator:
                 self.fix_initiator.send_message(msg)
                 logger.info(f"Order cancel requested: {order_id}")
+                lifecycle = self.orders.get(order_id)
+                if lifecycle is not None:
+                    try:
+                        lifecycle.apply_event(
+                            OrderEventType.CANCELLED,
+                            timestamp=_utc_now(),
+                            reason="ClientCancelRequest",
+                        )
+                    except Exception:
+                        pass
                 return True
 
         except Exception as e:
@@ -361,11 +396,18 @@ class FIXBrokerInterface:
         Returns:
             Order status dictionary or None
         """
-        return self.orders.get(order_id)
+        lifecycle = self.orders.get(order_id)
+        if lifecycle is None:
+            return None
+        snapshot = lifecycle.snapshot()
+        return snapshot.to_dict()
 
     def get_all_orders(self) -> dict[str, dict[str, object]]:
         """Get all orders."""
-        return self.orders.copy()
+        return {
+            order_id: lifecycle.snapshot().to_dict()
+            for order_id, lifecycle in self.orders.items()
+        }
 
     # --- Listener registration -------------------------------------------------
     def add_order_update_listener(

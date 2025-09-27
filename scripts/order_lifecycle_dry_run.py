@@ -24,6 +24,7 @@ def _load_orders(path: Path) -> Iterable[OrderMetadata]:
             symbol=str(entry["symbol"]),
             side=str(entry["side"]).upper(),
             quantity=float(entry["quantity"]),
+            account=str(entry.get("account")) if entry.get("account") is not None else None,
         )
 
 

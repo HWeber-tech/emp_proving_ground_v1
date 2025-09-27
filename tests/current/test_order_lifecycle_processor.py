@@ -8,6 +8,7 @@ from src.trading.order_management import (
     OrderMetadata,
     OrderStateError,
     OrderStatus,
+    PositionTracker,
 )
 
 
@@ -38,12 +39,22 @@ def lifecycle_processor() -> tuple[OrderLifecycleProcessor, InMemoryOrderEventJo
     return processor, journal
 
 
+@pytest.fixture
+def lifecycle_processor_with_tracker(
+) -> tuple[OrderLifecycleProcessor, InMemoryOrderEventJournal, PositionTracker]:
+    journal = InMemoryOrderEventJournal()
+    tracker = PositionTracker()
+    processor = OrderLifecycleProcessor(journal=journal, position_tracker=tracker)
+    return processor, journal, tracker
+
+
 def _register(processor: OrderLifecycleProcessor) -> str:
     metadata = OrderMetadata(
         order_id="ABC-123",
         symbol="EUR/USD",
         side="BUY",
         quantity=100,
+        account="SIM",
     )
     processor.register_order(metadata)
     return metadata.order_id
@@ -72,6 +83,8 @@ def test_ack_and_fill_flow(lifecycle_processor: tuple[OrderLifecycleProcessor, I
         "partial_fill",
         "filled",
     ]
+    assert journal.records[-1]["snapshot"]["symbol"] == "EUR/USD"
+    assert journal.records[-1]["snapshot"]["account"] == "SIM"
 
 
 def test_cancel_flow(lifecycle_processor: tuple[OrderLifecycleProcessor, InMemoryOrderEventJournal]) -> None:
@@ -112,3 +125,23 @@ def test_broker_attachment_dispatches_events(lifecycle_processor: tuple[OrderLif
     assert len(journal.records) == 3
     processor.detach_broker()
     assert all(not callbacks for callbacks in broker.callbacks.values())
+
+
+def test_position_tracker_updates(
+    lifecycle_processor_with_tracker: tuple[
+        OrderLifecycleProcessor,
+        InMemoryOrderEventJournal,
+        PositionTracker,
+    ]
+) -> None:
+    processor, _journal, tracker = lifecycle_processor_with_tracker
+    order_id = _register(processor)
+
+    processor.apply_acknowledgement(order_id)
+    processor.apply_partial_fill(order_id, {"last_qty": "25", "last_px": "1.001"})
+    processor.apply_fill(order_id, {"cum_qty": "100", "last_px": "1.002"})
+
+    snapshot = tracker.get_position_snapshot("EUR/USD", account="SIM")
+    assert snapshot.net_quantity == pytest.approx(100)
+    assert snapshot.realized_pnl == pytest.approx(0.0, abs=1e-9)
+    assert snapshot.account == "SIM"

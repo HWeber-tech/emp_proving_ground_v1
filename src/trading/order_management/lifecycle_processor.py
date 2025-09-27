@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Iterable, Optional
+from typing import Callable, Iterable, Optional
 
 from .event_journal import OrderEventJournal
 from .order_state_machine import (
@@ -14,6 +14,7 @@ from .order_state_machine import (
     OrderStateError,
     OrderStateMachine,
 )
+from .position_tracker import PositionTracker
 
 try:  # pragma: no cover - optional import for type checking only
     from ..integration.fix_broker_interface import FIXBrokerInterface
@@ -35,10 +36,14 @@ class OrderLifecycleProcessor:
         *,
         journal: Optional[OrderEventJournal] = None,
         state_machine: Optional[OrderStateMachine] = None,
+        position_tracker: PositionTracker | None = None,
+        account_resolver: Callable[[OrderMetadata], str | None] | None = None,
     ) -> None:
         self._journal = journal
         self._state_machine = state_machine or OrderStateMachine()
         self._attached_broker: Optional[FIXBrokerInterface] = None
+        self._position_tracker = position_tracker
+        self._account_resolver = account_resolver
 
     # ------------------------------------------------------------------
     @property
@@ -49,6 +54,14 @@ class OrderLifecycleProcessor:
         """Register a new order with the underlying state machine."""
 
         return self._state_machine.register_order(metadata)
+
+    # ------------------------------------------------------------------
+    def _resolve_account(self, metadata: OrderMetadata) -> str | None:
+        if metadata.account:
+            return metadata.account
+        if self._account_resolver is not None:
+            return self._account_resolver(metadata)
+        return None
 
     # ------------------------------------------------------------------
     def attach_broker(self, broker: FIXBrokerInterface) -> None:
@@ -84,8 +97,9 @@ class OrderLifecycleProcessor:
         """Convert a broker payload into an execution event and apply it."""
 
         event = OrderExecutionEvent.from_broker_payload(order_id, payload)
-        self._state_machine.apply_event(event)
+        state = self._state_machine.apply_event(event)
         snapshot = self._state_machine.snapshot(event.order_id)
+        self._update_position_tracker(state, event, snapshot)
         if self._journal is not None:
             self._journal.append(event, snapshot)
         return snapshot
@@ -120,3 +134,38 @@ class OrderLifecycleProcessor:
     def apply_reject(self, order_id: str, payload: dict[str, object] | None = None) -> OrderLifecycleSnapshot:
         payload = {"exec_type": "8", **(payload or {})}
         return self.handle_broker_payload(order_id, payload)
+
+    # ------------------------------------------------------------------
+    def _update_position_tracker(
+        self,
+        state: OrderState,
+        event: OrderExecutionEvent,
+        snapshot: OrderLifecycleSnapshot,
+    ) -> None:
+        tracker = self._position_tracker
+        if tracker is None:
+            return
+
+        if event.event_type not in {"partial_fill", "filled"}:
+            if event.last_price is not None:
+                tracker.update_mark_price(state.metadata.symbol, float(event.last_price))
+            return
+
+        fill_quantity = state.last_fill_quantity
+        if fill_quantity <= 0:
+            return
+
+        price = event.last_price or state.last_fill_price or snapshot.average_fill_price
+        if price is None:
+            logger.debug("Skipping fill without price for %s", state.metadata.order_id)
+            return
+
+        signed_quantity = fill_quantity if state.metadata.side == "BUY" else -fill_quantity
+        tracker.record_fill(
+            state.metadata.symbol,
+            signed_quantity,
+            float(price),
+            account=self._resolve_account(state.metadata),
+        )
+
+        tracker.update_mark_price(state.metadata.symbol, float(price))

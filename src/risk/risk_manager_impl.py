@@ -8,7 +8,7 @@ aligned to canonical imports and types.
 """
 
 import logging
-from typing import Dict, TypedDict, NotRequired, Mapping, Sequence
+from typing import Dict, TypedDict, NotRequired, Mapping, Sequence, Iterable
 from decimal import Decimal
 from datetime import datetime
 import asyncio
@@ -24,6 +24,9 @@ from src.risk.analytics import (
     compute_monte_carlo_var,
     compute_parametric_expected_shortfall,
     compute_parametric_var,
+    determine_target_allocation,
+    calculate_realised_volatility,
+    VolatilityTargetAllocation,
 )
 
 logger = logging.getLogger(__name__)
@@ -108,6 +111,17 @@ class RiskManagerImpl(RiskManagerProtocol):
         # Market risk analytics configuration (can be overridden via ``update_limits``).
         self._var_confidence: float = 0.99
         self._var_simulations: int = 10000
+        # Volatility-target sizing configuration sourced from ``RiskConfig``.
+        self._target_volatility: float = float(
+            self._risk_config.target_volatility_pct
+        )
+        self._volatility_window: int = int(self._risk_config.volatility_window)
+        self._max_volatility_leverage: float = float(
+            self._risk_config.max_volatility_leverage
+        )
+        self._vol_annualisation: float = float(
+            self._risk_config.volatility_annualisation_factor
+        )
 
         self._recompute_drawdown_multiplier()
 
@@ -343,6 +357,61 @@ class RiskManagerImpl(RiskManagerProtocol):
         except Exception as e:
             logger.error(f"Error calculating position size: {e}")
             return 1000.0  # Default minimum position
+
+    def target_allocation_from_volatility(
+        self,
+        returns: Sequence[float] | Iterable[float],
+        *,
+        target_volatility: float | None = None,
+        window: int | None = None,
+        capital: float | None = None,
+        max_leverage: float | None = None,
+        annualisation_factor: float | None = None,
+    ) -> VolatilityTargetAllocation:
+        """Compute a volatility-target allocation for the provided returns."""
+
+        resolved_target = (
+            float(target_volatility)
+            if target_volatility is not None
+            else self._target_volatility
+        )
+        resolved_window = int(window or self._volatility_window)
+        resolved_capital = (
+            float(capital) if capital is not None else self.account_balance
+        )
+        resolved_leverage_cap = (
+            float(max_leverage)
+            if max_leverage is not None
+            else self._max_volatility_leverage
+        )
+        resolved_annualisation = (
+            float(annualisation_factor)
+            if annualisation_factor is not None
+            else self._vol_annualisation
+        )
+
+        realised = calculate_realised_volatility(
+            returns,
+            window=resolved_window,
+            annualisation_factor=resolved_annualisation,
+        )
+        allocation = determine_target_allocation(
+            capital=resolved_capital,
+            target_volatility=resolved_target,
+            realised_volatility=realised,
+            max_leverage=resolved_leverage_cap,
+        )
+        logger.debug(
+            "Volatility target allocation computed",
+            extra={
+                "returns_window": resolved_window,
+                "target_volatility": resolved_target,
+                "realised_volatility": allocation.realised_volatility,
+                "leverage": allocation.leverage,
+                "target_notional": allocation.target_notional,
+            },
+        )
+        return allocation
 
     def update_account_balance(self, new_balance: float | Decimal) -> None:
         """

@@ -64,6 +64,22 @@ Note on prior mismatch: The earlier plan referenced `src.execution.paper_broker`
 ### Phased Delivery Horizon (10–12 Weeks)
 To reflect the true scope of institutional-grade trading components, the roadmap is now organized into three phases. Each phase spans multiple weeks and is intended to be completed iteratively with continuous testing and documentation. Tasks are decomposed into granular work items so progress can be tracked and parallelized across contributors.
 
+## Roadmap (Executable Checklist)
+
+### Phase 1 — Trading Core (Weeks 1–4)
+
+#### 1A. Execution Lifecycle
+- [ ] Extend `src/trading/integration/fix_broker_interface.py` with callbacks for order acknowledgements, fills, cancels, and rejects.
+- [ ] Implement `src/trading/order_management/order_state_machine.py` to cover New → Acknowledged → Partially Filled → Filled/Cancelled/Rejected transitions with FIX parity tests.
+- [ ] Build `src/trading/order_management/position_tracker.py` that tracks:
+  - [ ] Real-time exposure by instrument and account.
+  - [ ] Realized and unrealized PnL with selectable FIFO/LIFO modes.
+  - [ ] Nightly reconciliation against broker state using the paper trading initiator.
+- [ ] Wire the execution estimator in `src/trading/execution/execution_model.py` into slippage, market impact, and notional cap pre-trade checks.
+- [ ] Ship `scripts/order_lifecycle_dry_run.py` to replay FIX logs and assert state transitions end-to-end.
+
+> **Exit Criteria:** Dry-run captures 100% of FIX events, raises alerts for discrepancies, and produces a nightly reconciliation report stored in CI artifacts.
+
 ### PHASE 1 (WEEKS 1–4): CORE TRADING READINESS
 **Goal:** Transform the framework into a robust paper-trading stack with institutional hygiene.
 
@@ -78,6 +94,10 @@ To reflect the true scope of institutional-grade trading components, the roadmap
   - [ ] Daily reconciliation script against broker state (reuse dummy initiator for paper sim)
 - [ ] Wire the execution estimator in `src/trading/execution/execution_model.py` into pre-trade checks (slippage, market impact, notional caps).
 - [ ] Add CLI workflow (`scripts/order_lifecycle_dry_run.py`) that replays FIX logs and asserts state transitions.
+- [ ] Persist FIX events into an append-only event journal (`data_foundation/events/order_events.parquet`) for replay and audit parity.
+- [ ] Implement dead-letter handling that quarantines malformed FIX messages and surfaces alerts to the ops dashboard.
+- [ ] Capture latency metrics (acknowledgement, fill, cancel) and publish per-venue benchmarks for encyclopedia alignment.
+- [ ] Produce order lifecycle sequence diagrams in `/docs/runbooks/execution_lifecycle.md` mapped to encyclopedia chapters 10 & 24.
 
 **Acceptance:** Dry-run captures 100% FIX events, discrepancies trigger alerts, and nightly reconciliation report is generated.
 
@@ -92,6 +112,9 @@ To reflect the true scope of institutional-grade trading components, the roadmap
   - [ ] Portfolio exposure limits by sector/asset class (config-driven)
 - [ ] Embed drawdown circuit breakers into `src/risk/manager.py` with unit tests simulating equity curve shocks.
 - [ ] Produce automated risk report artifact (Markdown/JSON) for CI artifacts.
+- [ ] Backfill encyclopedia Tier-0/Tier-1 risk scenarios as pytest parametrized cases to validate guardrail behavior.
+- [ ] Integrate VaR/ES outputs into `config/risk.yml` with documentation on encyclopedia-aligned parameter defaults.
+- [ ] Publish weekly capital efficiency memo comparing realized vs target risk budgets.
 
 **Acceptance:** Pre-trade checks block orders breaching VaR/ES or exposure limits; regression suite validates guardrails.
 
@@ -103,8 +126,23 @@ To reflect the true scope of institutional-grade trading components, the roadmap
 - [ ] Expand monitoring hooks to emit metrics to Prometheus-compatible format.
 - [ ] Document operational runbooks in `/docs/runbooks/` and update encyclopedia cross-references.
 - [ ] Ensure paper-trading mode (`scripts/paper_trade_dry_run.py`) logs parity with live flow (no new paper broker abstraction required).
+- [ ] Mirror encyclopedia's "Operations Nerve Center" by adding health-check endpoints for FIX, data feeds, and risk engines.
+- [ ] Add incident postmortem template aligned with Encyclopedia Appendix F and store under `/docs/runbooks/templates/`.
+- [ ] Wire structured logs into a local OpenTelemetry collector with exporters defined in `config/observability/`.
 
 **Acceptance:** Operators can observe intraday PnL and order health; runbooks cover recovery steps; logging/tests cover happy-path and failure-path scenarios.
+
+#### Workstream 1D: Data Foundation Hardening (~1 week, parallelizable)
+**Impact:** 🔥🔥 **HIGH** — Ensures sensory cortex receives clean, encyclopedia-grade data
+
+- [ ] Normalize historical OHLCV ingestion via `src/data_foundation/pipelines/pricing_pipeline.py` with configurable vendors (Yahoo, Alpha Vantage, FRED).
+- [ ] Implement reference data loader for instruments, sessions, and holidays referenced in Encyclopedia Layer 1 specs.
+- [ ] Add data quality validators (missing candles, stale prices, split/dividend adjustments) with alerts feeding Workstream 1C dashboard.
+- [ ] Cache normalized datasets in `data_foundation/cache/` with retention policies documented for Tier-0 bootstrap.
+- [ ] Ship `scripts/data_bootstrap.py` to hydrate local env and CI with canonical fixtures used by sensors and strategies.
+- [ ] Cross-link encyclopedia tables for free-vs-premium data trade-offs within `/docs/runbooks/data_foundation.md`.
+
+**Acceptance:** Canonical datasets load without manual intervention; validators surface anomalies; encyclopedia data lineage references stay in sync with implementation.
 
 ### PHASE 2 (WEEKS 5–8): STRATEGY EXPANSION & ADAPTIVE INTELLIGENCE
 **Goal:** Deliver a validated alpha library and evolutionary proof-of-concept while keeping core stability.
@@ -125,6 +163,10 @@ To reflect the true scope of institutional-grade trading components, the roadmap
 - **Strategy Integration**
   - [ ] Update strategy registry/config templates.
   - [ ] Add scenario backtests demonstrating uplift vs baseline MA strategy.
+- **Alpha Ops**
+  - [ ] Document encyclopedia-aligned playbooks for each strategy archetype, including regime suitability.
+  - [ ] Register feature importance & diagnostics pipeline in `src/strategies/analytics/performance_attribution.py`.
+  - [ ] Store canonical backtest artifacts (equity curve, risk metrics, configs) under `artifacts/strategies/` for reproducibility.
 
 **Acceptance:** Each strategy passes unit/integration tests, is documented, and can be toggled via configuration.
 
@@ -136,6 +178,9 @@ To reflect the true scope of institutional-grade trading components, the roadmap
 - [ ] Add crossover/mutation operators with guardrails to prevent invalid configurations.
 - [ ] Run offline GA experiments (not real-time) and store results artifacts for reproducibility.
 - [ ] Document follow-on backlog (speciation, Pareto-front) for later phases.
+- [ ] Integrate GA experiment runner with encyclopedia "Evolution Lab" conventions, including seed logging and reproducibility manifest.
+- [ ] Publish experiment leaderboard (top genomes, metrics, configs) as Markdown table auto-generated in `/docs/research/evolution_lab.md`.
+- [ ] Cross-wire GA outputs into strategy registry via feature flags to enable supervised promotion into paper trading.
 
 **Acceptance:** GA can evolve MA crossover parameters outperforming baseline in controlled backtest; results are reproducible from CI artifacts.
 
@@ -147,6 +192,9 @@ To reflect the true scope of institutional-grade trading components, the roadmap
 - [ ] Defer deep ICT/ML research to Phase 3 backlog but capture requirements in documentation.
 - [ ] Ensure new sensors emit structured data consumed by strategies and risk modules.
 - [ ] Expand tests to validate sensor outputs over historical datasets.
+- [ ] Implement WHY-dimension narrative hooks (economic calendar sentiment, macro regime flags) using encyclopedia cues.
+- [ ] Stand up anomaly detection harness comparing sensor drifts vs baseline expectation windows.
+- [ ] Synchronize sensor metadata catalog in `/docs/sensory_registry.md` with encyclopedia Layer 2 tables.
 
 **Acceptance:** Strategies consume new sensory inputs; CI verifies data integrity; backlog explicitly records deferred advanced analytics.
 
@@ -161,6 +209,9 @@ To reflect the true scope of institutional-grade trading components, the roadmap
 - [ ] Incorporate selected ICT-style sensors (fair value gaps, liquidity sweeps) once validated by strategies.
 - [ ] Build anomaly detection for data feed breaks and false ticks.
 - [ ] Update documentation on data lineage and quality SLA.
+- [ ] Implement encyclopedia-aligned "Market Microstructure Observatory" notebooks showcasing liquidity/volume profiling studies.
+- [ ] Add market regime classifier blending volatility, liquidity, and sentiment signals for execution model selection.
+- [ ] Archive microstructure datasets in tiered storage (hot/cold) with retention guidance per encyclopedia cost matrix.
 
 #### Workstream 3B: Monitoring, Alerting & Deployment (~1.5 weeks)
 **Impact:** 🔥🔥 **HIGH** — Moves toward production readiness earlier than previously planned
@@ -170,6 +221,9 @@ To reflect the true scope of institutional-grade trading components, the roadmap
 - [ ] Harden Docker/K8s manifests with environment-specific overrides and secrets management guidance.
 - [ ] Automate smoke tests and deployment scripts targeting Oracle Cloud (or equivalent) with rollback plan.
 - [ ] Capture infrastructure-as-code runbook in `/docs/deployment/`.
+- [ ] Establish encyclopedia "Ops Command" checklist covering daily start/stop, failover, and audit logging rotations.
+- [ ] Integrate dependency vulnerability scanning (e.g., `pip-audit`, `trivy`) into CI with exemption workflow documented.
+- [ ] Simulate disaster recovery drill restoring from latest backups and log results under `/docs/deployment/drills/`.
 
 #### Workstream 3C: Advanced Research Backlog (ongoing within phase)
 **Impact:** 🔥 **MEDIUM** — Provides roadmap continuity without overcommitting timelines
@@ -177,6 +231,9 @@ To reflect the true scope of institutional-grade trading components, the roadmap
 - [ ] Document future GA extensions (speciation, Pareto fronts, live evolution) with prerequisites.
 - [ ] Outline roadmap for NLP/news sentiment ingestion including data governance considerations.
 - [ ] Define success metrics for causal inference and ML classifiers before implementation.
+- [ ] Map encyclopedia Tier-2/Tier-3 vision items to JIRA/issue tracker epics with sequencing notes.
+- [ ] Capture research debt register (open questions, data gaps) and review monthly.
+- [ ] Produce quarterly "Frontier Research" brief summarizing experimentation outcomes vs encyclopedia hypotheses.
 
 **Acceptance:** Production stack can be deployed with monitoring & alerting; research backlog is explicit and sequenced for future iterations.
 
@@ -222,17 +279,17 @@ Roadmap follows the encyclopedia's Tier‑0 bootstrap approach:
 
 #### Milestone 1A (Weeks 1–2): Order Lifecycle + Position Control
 - Implement order state machine and reconciliation CLI from Workstream 1A.
-- Expand unit tests around FIX event ingestion, including failure injection cases.
-- Integrate nightly reconciliation workflow into CI (GitHub Actions artifact upload).
-- Document broker interaction patterns and paper/live toggles.
+- Expand unit tests around FIX event ingestion, including failure injection cases and event journal replays.
+- Integrate nightly reconciliation workflow into CI (GitHub Actions artifact upload) with latency benchmark artifacts.
+- Document broker interaction patterns and paper/live toggles alongside encyclopedia sequence diagrams.
 
 **Exit Criteria:** All FIX events reconciled during 48 h paper simulation; no orphan positions; CI publishes reconciliation report.
 
 #### Milestone 1B (Weeks 3–4): Risk Analytics + Ops Visibility
-- Deliver VaR/ES modules, volatility-target sizing, and circuit breakers with automated tests.
-- Launch streaming/textual PnL dashboard backed by `position_tracker` outputs.
-- Standardize logging/metrics schema and wire into observability stack.
-- Update runbooks and encyclopedia entries reflecting new operational flows.
+- Deliver VaR/ES modules, volatility-target sizing, and circuit breakers with automated tests and Tier-0/Tier-1 scenario coverage.
+- Launch streaming/textual PnL dashboard backed by `position_tracker` outputs plus health-check endpoints.
+- Standardize logging/metrics schema, wire into observability stack, and configure OpenTelemetry collector.
+- Update runbooks and encyclopedia entries reflecting new operational flows, incident templates, and data foundation bootstrap steps.
 
 **Exit Criteria:** Risk gates prevent limit breaches in simulation, dashboard reflects live positions, docs/runbooks reviewed and merged.
 
@@ -240,14 +297,14 @@ Roadmap follows the encyclopedia's Tier‑0 bootstrap approach:
 **Objective:** Add validated alpha sources and evolutionary adaptation while protecting Phase 1 stability.
 
 #### Milestone 2A (Weeks 5–6): Strategy Drops
-- Ship volatility, mean-reversion, and momentum strategies as independent, toggleable modules.
-- Achieve passing unit/integration tests and reproducible backtest reports for each strategy.
-- Ensure strategies consume new sensory inputs where relevant and respect risk gates.
+- Ship volatility, mean-reversion, and momentum strategies as independent, toggleable modules with encyclopedia playbooks.
+- Achieve passing unit/integration tests, feature attribution diagnostics, and reproducible backtest reports for each strategy.
+- Ensure strategies consume new sensory inputs where relevant, respect risk gates, and publish artifacts to `artifacts/strategies/`.
 
 #### Milestone 2B (Weeks 7–8): Evolution & Sensor Enhancements
-- Release GA proof-of-concept optimizing MA crossover parameters with reproducible experiment artifacts.
-- Add prioritized sensory upgrades (order book imbalance, session analytics) feeding strategies.
-- Capture backlog tickets for deferred advanced analytics and GA enhancements.
+- Release GA proof-of-concept optimizing MA crossover parameters with reproducible experiment artifacts and leaderboard docs.
+- Add prioritized sensory upgrades (order book imbalance, session analytics, WHY hooks) feeding strategies.
+- Capture backlog tickets for deferred advanced analytics and GA enhancements plus anomaly detection coverage.
 
 **Exit Criteria:** GA POC demonstrates uplift over baseline on held-out data; new sensors pass data-integrity tests; documentation updated.
 
@@ -255,14 +312,14 @@ Roadmap follows the encyclopedia's Tier‑0 bootstrap approach:
 **Objective:** Harden the stack for staged live deployment and expand microstructure intelligence responsibly.
 
 #### Milestone 3A: Data + Microstructure Reliability
-- Implement multi-source data ingestion with validation harness and latency benchmarks.
-- Roll out targeted ICT-style analytics only after strategy validation; document findings.
-- Add anomaly detection for feed outages and publish operator alerts.
+- Implement multi-source data ingestion with validation harness, latency benchmarks, and tiered storage retention policies.
+- Roll out targeted ICT-style analytics only after strategy validation; document findings via "Market Microstructure Observatory" notebooks.
+- Add anomaly detection for feed outages, publish operator alerts, and log regime classifier outcomes.
 
 #### Milestone 3B: Deployment, Monitoring, and Alerts
-- Extend dashboards/alerts to Prometheus/Grafana (or textual equivalent) with paging rules.
-- Harden deployment scripts and IaC assets for Oracle Cloud (or alternative) with rollback and smoke tests.
-- Perform readiness review covering security, backups, and compliance logs.
+- Extend dashboards/alerts to Prometheus/Grafana (or textual equivalent) with paging rules and encyclopedia Ops Command checklist.
+- Harden deployment scripts and IaC assets for Oracle Cloud (or alternative) with rollback, smoke tests, and vulnerability scanning.
+- Perform readiness review covering security, backups, compliance logs, and disaster recovery drills documentation.
 
 **Exit Criteria:** Staging deployment succeeds end-to-end; monitoring/alerting exercises documented; backlog triage captured for post-phase iteration.
 

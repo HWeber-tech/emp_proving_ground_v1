@@ -8,7 +8,7 @@ aligned to canonical imports and types.
 """
 
 import logging
-from typing import Dict, TypedDict, NotRequired, Mapping
+from typing import Dict, TypedDict, NotRequired, Mapping, Sequence
 from decimal import Decimal
 from datetime import datetime
 import asyncio
@@ -18,6 +18,13 @@ from src.core.interfaces import RiskManager as RiskManagerProtocol
 from src.config.risk.risk_config import RiskConfig
 from src.risk.real_risk_manager import RealRiskManager, RealRiskConfig
 from src.core.coercion import coerce_float
+from src.risk.analytics import (
+    compute_historical_expected_shortfall,
+    compute_historical_var,
+    compute_monte_carlo_var,
+    compute_parametric_expected_shortfall,
+    compute_parametric_var,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -98,6 +105,9 @@ class RiskManagerImpl(RiskManagerProtocol):
         self._risk_per_trade: float = float(self._risk_config.max_risk_per_trade_pct)
         # Drawdown multiplier throttles exposure during recoveries (1.0 == full risk).
         self._drawdown_multiplier: float = 1.0
+        # Market risk analytics configuration (can be overridden via ``update_limits``).
+        self._var_confidence: float = 0.99
+        self._var_simulations: int = 10000
 
         self._recompute_drawdown_multiplier()
 
@@ -151,6 +161,54 @@ class RiskManagerImpl(RiskManagerProtocol):
         stop_loss = self._resolve_position_stop_loss(entry)
         size = entry.get("size", 0.0)
         return max(0.0, _to_float(size)) * price * stop_loss
+
+    def assess_market_risk(
+        self,
+        returns: Sequence[float],
+        *,
+        confidence: float | None = None,
+        simulations: int | None = None,
+    ) -> JSONObject:
+        """Evaluate market risk using VaR and Expected Shortfall estimators."""
+
+        resolved_confidence = (
+            float(confidence)
+            if confidence is not None
+            else float(self._var_confidence)
+        )
+        resolved_simulations = int(simulations or self._var_simulations)
+
+        historical_var = compute_historical_var(
+            returns, confidence=resolved_confidence
+        )
+        parametric_var = compute_parametric_var(
+            returns, confidence=resolved_confidence
+        )
+        monte_carlo_var = compute_monte_carlo_var(
+            returns,
+            confidence=resolved_confidence,
+            simulations=resolved_simulations,
+        )
+        historical_es = compute_historical_expected_shortfall(
+            returns, confidence=resolved_confidence
+        )
+        parametric_es = compute_parametric_expected_shortfall(
+            returns, confidence=resolved_confidence
+        )
+
+        return {
+            "confidence": resolved_confidence,
+            "historical_var": historical_var.as_dict(),
+            "parametric_var": parametric_var.as_dict(),
+            "monte_carlo_var": {
+                **monte_carlo_var.as_dict(),
+                "simulations": float(resolved_simulations),
+            },
+            "expected_shortfall": {
+                "historical": historical_es.as_dict(),
+                "parametric": parametric_es.as_dict(),
+            },
+        }
 
     async def validate_position(self, position: PositionInput) -> bool:
         """
@@ -346,7 +404,12 @@ class RiskManagerImpl(RiskManagerProtocol):
         if symbol in self.positions:
             self.positions[symbol]["current_price"] = _to_float(current_price)
 
-    def get_risk_summary(self) -> JSONObject:
+    def get_risk_summary(
+        self,
+        returns: Sequence[float] | None = None,
+        *,
+        confidence: float | None = None,
+    ) -> JSONObject:
         """
         Get comprehensive risk summary.
 
@@ -364,9 +427,23 @@ class RiskManagerImpl(RiskManagerProtocol):
             "assessed_risk": assessed_risk,
         }
 
+        if returns is not None:
+            try:
+                summary["market_risk"] = self.assess_market_risk(
+                    returns,
+                    confidence=confidence,
+                )
+            except ValueError as exc:
+                logger.warning("Market risk computation skipped: %s", exc)
+
         return summary
 
-    def calculate_portfolio_risk(self) -> JSONObject:
+    def calculate_portfolio_risk(
+        self,
+        returns: Sequence[float] | None = None,
+        *,
+        confidence: float | None = None,
+    ) -> JSONObject:
         """
         Calculate current portfolio risk metrics.
 
@@ -380,11 +457,22 @@ class RiskManagerImpl(RiskManagerProtocol):
         total_risk_amount = sum(projected_risk.values())
         assessed_risk = self.risk_manager.assess_risk(projected_risk)
 
-        return {
+        metrics: JSONObject = {
             "total_size": total_size,
             "risk_amount": total_risk_amount,
             "assessed_risk": assessed_risk,
         }
+
+        if returns is not None:
+            try:
+                metrics["market_risk"] = self.assess_market_risk(
+                    returns,
+                    confidence=confidence,
+                )
+            except ValueError as exc:
+                logger.warning("Market risk computation skipped: %s", exc)
+
+        return metrics
 
     def get_position_risk(self, symbol: str) -> JSONObject:
         """
@@ -469,6 +557,22 @@ class RiskManagerImpl(RiskManagerProtocol):
 
         if "research_mode" in limits:
             self._research_mode = bool(limits["research_mode"])
+
+        if "var_confidence" in limits:
+            try:
+                candidate_confidence = float(limits["var_confidence"])
+                if 0.0 < candidate_confidence < 1.0:
+                    self._var_confidence = candidate_confidence
+            except (TypeError, ValueError):
+                logger.warning("Ignoring invalid var_confidence override")
+
+        if "var_simulations" in limits:
+            try:
+                candidate_simulations = int(limits["var_simulations"])
+                if candidate_simulations > 0:
+                    self._var_simulations = candidate_simulations
+            except (TypeError, ValueError):
+                logger.warning("Ignoring invalid var_simulations override")
 
         self._recompute_drawdown_multiplier()
 

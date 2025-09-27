@@ -5,10 +5,10 @@ from datetime import datetime, timezone
 import pytest
 
 from src.trading.order_management import (
+    LifecycleStatus,
     OrderEventType,
     OrderLifecycle,
     OrderStateError,
-    OrderStatus,
     PositionTracker,
 )
 
@@ -23,7 +23,7 @@ def test_order_lifecycle_partial_fill_flow() -> None:
     lifecycle = OrderLifecycle("ORD-1", quantity=10, symbol="EURUSD", side="BUY", created_at=_ts(9))
 
     snapshot = lifecycle.apply_event(OrderEventType.ACKNOWLEDGED, timestamp=_ts(9))
-    assert snapshot.status is OrderStatus.ACKNOWLEDGED
+    assert snapshot.status is LifecycleStatus.ACKNOWLEDGED
 
     snapshot = lifecycle.apply_event(
         OrderEventType.PARTIAL_FILL,
@@ -32,7 +32,7 @@ def test_order_lifecycle_partial_fill_flow() -> None:
         price=1.1,
         leaves_quantity=6,
     )
-    assert snapshot.status is OrderStatus.PARTIALLY_FILLED
+    assert snapshot.status is LifecycleStatus.PARTIALLY_FILLED
     assert snapshot.filled_quantity == pytest.approx(4.0)
     assert snapshot.remaining_quantity == pytest.approx(6.0)
     assert snapshot.average_price == pytest.approx(1.1)
@@ -44,7 +44,7 @@ def test_order_lifecycle_partial_fill_flow() -> None:
         price=1.2,
         leaves_quantity=3,
     )
-    assert snapshot.status is OrderStatus.PARTIALLY_FILLED
+    assert snapshot.status is LifecycleStatus.PARTIALLY_FILLED
     assert snapshot.filled_quantity == pytest.approx(7.0)
     assert snapshot.remaining_quantity == pytest.approx(3.0)
     assert snapshot.average_price == pytest.approx((4 * 1.1 + 3 * 1.2) / 7)
@@ -56,7 +56,7 @@ def test_order_lifecycle_partial_fill_flow() -> None:
         price=1.15,
         leaves_quantity=0,
     )
-    assert snapshot.status is OrderStatus.FILLED
+    assert snapshot.status is LifecycleStatus.FILLED
     assert snapshot.remaining_quantity == pytest.approx(0.0)
     assert snapshot.filled_quantity == pytest.approx(10.0)
 
@@ -66,12 +66,12 @@ def test_order_lifecycle_cancel_and_reject() -> None:
     lifecycle.apply_event(OrderEventType.ACKNOWLEDGED, timestamp=_ts(9))
     snapshot = lifecycle.apply_event(OrderEventType.CANCELLED, timestamp=_ts(10), leaves_quantity=5)
 
-    assert snapshot.status is OrderStatus.CANCELLED
+    assert snapshot.status is LifecycleStatus.CANCELLED
     assert snapshot.remaining_quantity == pytest.approx(5.0)
 
     rejected = OrderLifecycle("ORD-3", quantity=2, symbol="MSFT", side="BUY", created_at=_ts(9))
     snapshot = rejected.apply_event(OrderEventType.REJECTED, timestamp=_ts(9), reason="NoLiquidity")
-    assert snapshot.status is OrderStatus.REJECTED
+    assert snapshot.status is LifecycleStatus.REJECTED
     assert snapshot.remaining_quantity == pytest.approx(0.0)
 
 
@@ -87,14 +87,14 @@ def test_order_lifecycle_invalid_transition() -> None:
 @pytest.mark.parametrize(
     "exec_type,expected_status",
     [
-        ("0", OrderStatus.ACKNOWLEDGED),
-        ("1", OrderStatus.PARTIALLY_FILLED),
-        ("2", OrderStatus.FILLED),
-        ("4", OrderStatus.CANCELLED),
-        ("8", OrderStatus.REJECTED),
+        ("0", LifecycleStatus.ACKNOWLEDGED),
+        ("1", LifecycleStatus.PARTIALLY_FILLED),
+        ("2", LifecycleStatus.FILLED),
+        ("4", LifecycleStatus.CANCELLED),
+        ("8", LifecycleStatus.REJECTED),
     ],
 )
-def test_order_lifecycle_apply_fix_execution(exec_type: str, expected_status: OrderStatus) -> None:
+def test_order_lifecycle_apply_fix_execution(exec_type: str, expected_status: LifecycleStatus) -> None:
     lifecycle = OrderLifecycle("ORD-5", quantity=10, symbol="EURUSD", side="BUY", created_at=_ts(9))
 
     snapshot = lifecycle.apply_fix_execution(

@@ -15,7 +15,7 @@ from enum import Enum
 from typing import Any, Iterable, Mapping, Optional
 
 __all__ = [
-    "OrderStatus",
+    "LifecycleStatus",
     "OrderEventType",
     "OrderEvent",
     "OrderLifecycleSnapshot",
@@ -28,7 +28,7 @@ class OrderStateError(RuntimeError):
     """Raised when an invalid state transition is attempted."""
 
 
-class OrderStatus(str, Enum):
+class LifecycleStatus(str, Enum):
     """Enumerates the canonical states for an order lifecycle."""
 
     NEW = "NEW"
@@ -81,7 +81,7 @@ class OrderLifecycleSnapshot:
     """Immutable view of the current order lifecycle state."""
 
     order_id: str
-    status: OrderStatus
+    status: LifecycleStatus
     filled_quantity: float
     remaining_quantity: float
     average_price: Optional[float]
@@ -120,29 +120,29 @@ _FIX_EXEC_TYPE_TO_EVENT: dict[str, OrderEventType] = {
     "8": OrderEventType.REJECTED,
 }
 
-_ALLOWED_TRANSITIONS: Mapping[OrderStatus, set[OrderStatus]] = {
-    OrderStatus.NEW: {
-        OrderStatus.ACKNOWLEDGED,
-        OrderStatus.PARTIALLY_FILLED,
-        OrderStatus.FILLED,
-        OrderStatus.CANCELLED,
-        OrderStatus.REJECTED,
+_ALLOWED_TRANSITIONS: Mapping[LifecycleStatus, set[LifecycleStatus]] = {
+    LifecycleStatus.NEW: {
+        LifecycleStatus.ACKNOWLEDGED,
+        LifecycleStatus.PARTIALLY_FILLED,
+        LifecycleStatus.FILLED,
+        LifecycleStatus.CANCELLED,
+        LifecycleStatus.REJECTED,
     },
-    OrderStatus.ACKNOWLEDGED: {
-        OrderStatus.ACKNOWLEDGED,
-        OrderStatus.PARTIALLY_FILLED,
-        OrderStatus.FILLED,
-        OrderStatus.CANCELLED,
-        OrderStatus.REJECTED,
+    LifecycleStatus.ACKNOWLEDGED: {
+        LifecycleStatus.ACKNOWLEDGED,
+        LifecycleStatus.PARTIALLY_FILLED,
+        LifecycleStatus.FILLED,
+        LifecycleStatus.CANCELLED,
+        LifecycleStatus.REJECTED,
     },
-    OrderStatus.PARTIALLY_FILLED: {
-        OrderStatus.PARTIALLY_FILLED,
-        OrderStatus.FILLED,
-        OrderStatus.CANCELLED,
+    LifecycleStatus.PARTIALLY_FILLED: {
+        LifecycleStatus.PARTIALLY_FILLED,
+        LifecycleStatus.FILLED,
+        LifecycleStatus.CANCELLED,
     },
-    OrderStatus.FILLED: set(),
-    OrderStatus.CANCELLED: set(),
-    OrderStatus.REJECTED: set(),
+    LifecycleStatus.FILLED: set(),
+    LifecycleStatus.CANCELLED: set(),
+    LifecycleStatus.REJECTED: set(),
 }
 
 _FILL_EPSILON = 1e-9
@@ -190,7 +190,7 @@ class OrderLifecycle:
         self.side = side
         self._created_at = _ensure_utc(created_at)
         self._updated_at = self._created_at
-        self._status = OrderStatus.NEW
+        self._status = LifecycleStatus.NEW
         self._filled_quantity = 0.0
         self._average_price: Optional[float] = None
         self._last_leaves: Optional[float] = None
@@ -200,7 +200,7 @@ class OrderLifecycle:
         self._record_event(OrderEventType.NEW, timestamp=self._created_at)
 
     @property
-    def status(self) -> OrderStatus:
+    def status(self) -> LifecycleStatus:
         return self._status
 
     @property
@@ -255,7 +255,7 @@ class OrderLifecycle:
             self._last_leaves = max(leaves_quantity, 0.0)
         return event
 
-    def _validate_transition(self, target_status: OrderStatus) -> None:
+    def _validate_transition(self, target_status: LifecycleStatus) -> None:
         if self._status == target_status:
             return
         allowed = _ALLOWED_TRANSITIONS[self._status]
@@ -316,15 +316,15 @@ class OrderLifecycle:
         leaves = leaves_quantity
 
         target_status = {
-            OrderEventType.NEW: OrderStatus.NEW,
-            OrderEventType.ACKNOWLEDGED: OrderStatus.ACKNOWLEDGED,
-            OrderEventType.PARTIAL_FILL: OrderStatus.PARTIALLY_FILLED,
-            OrderEventType.FILL: OrderStatus.FILLED,
-            OrderEventType.CANCELLED: OrderStatus.CANCELLED,
-            OrderEventType.REJECTED: OrderStatus.REJECTED,
+            OrderEventType.NEW: LifecycleStatus.NEW,
+            OrderEventType.ACKNOWLEDGED: LifecycleStatus.ACKNOWLEDGED,
+            OrderEventType.PARTIAL_FILL: LifecycleStatus.PARTIALLY_FILLED,
+            OrderEventType.FILL: LifecycleStatus.FILLED,
+            OrderEventType.CANCELLED: LifecycleStatus.CANCELLED,
+            OrderEventType.REJECTED: LifecycleStatus.REJECTED,
         }[event_type]
 
-        if self._status in {OrderStatus.FILLED, OrderStatus.CANCELLED, OrderStatus.REJECTED}:
+        if self._status in {LifecycleStatus.FILLED, LifecycleStatus.CANCELLED, LifecycleStatus.REJECTED}:
             raise OrderStateError(f"Order lifecycle already terminal: {self._status.value}")
 
         if event_type in {OrderEventType.CANCELLED, OrderEventType.REJECTED} and leaves is None:
@@ -340,7 +340,7 @@ class OrderLifecycle:
                         and self._initial_quantity - self._filled_quantity <= _FILL_EPSILON
                     ))
             ):
-                target_status = OrderStatus.FILLED
+                target_status = LifecycleStatus.FILLED
 
         self._validate_transition(target_status)
         self._status = target_status

@@ -9,12 +9,12 @@ from .position_tracker import (
     PositionTracker,
 )
 from .order_state_machine import (
+    LifecycleStatus,
     OrderEvent,
     OrderEventType,
     OrderLifecycle,
     OrderLifecycleSnapshot,
     OrderStateError,
-    OrderStatus,
 )
 
 __all__ = [
@@ -29,5 +29,5 @@ __all__ = [
     "OrderLifecycle",
     "OrderLifecycleSnapshot",
     "OrderStateError",
-    "OrderStatus",
+    "LifecycleStatus",
 ]

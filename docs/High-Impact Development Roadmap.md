@@ -94,6 +94,7 @@ To reflect the true scope of institutional-grade trading components, the roadmap
   - [ ] Daily reconciliation script against broker state (reuse dummy initiator for paper sim)
 - [ ] Wire the execution estimator in `src/trading/execution/execution_model.py` into pre-trade checks (slippage, market impact, notional caps).
 - [ ] Add CLI workflow (`scripts/order_lifecycle_dry_run.py`) that replays FIX logs and asserts state transitions.
+- [x] Provide nightly reconciliation CLI (`scripts/reconcile_positions.py`) that replays the journal and compares broker balances.
 - [ ] Persist FIX events into an append-only event journal (`data_foundation/events/order_events.parquet`) for replay and audit parity.
 - [ ] Implement dead-letter handling that quarantines malformed FIX messages and surfaces alerts to the ops dashboard.
 - [ ] Capture latency metrics (acknowledgement, fill, cancel) and publish per-venue benchmarks for encyclopedia alignment.

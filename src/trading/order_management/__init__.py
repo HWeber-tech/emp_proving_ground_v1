@@ -19,6 +19,12 @@ from .order_state_machine import (
 )
 from .event_journal import OrderEventJournal, InMemoryOrderEventJournal
 from .lifecycle_processor import OrderLifecycleProcessor
+from .reconciliation import (
+    load_order_journal_records,
+    load_broker_positions,
+    replay_order_events,
+    report_to_dict,
+)
 
 __all__ = [
     "PnLMode",
@@ -37,4 +43,8 @@ __all__ = [
     "OrderEventJournal",
     "InMemoryOrderEventJournal",
     "OrderLifecycleProcessor",
+    "load_order_journal_records",
+    "load_broker_positions",
+    "replay_order_events",
+    "report_to_dict",
 ]

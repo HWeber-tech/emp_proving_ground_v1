@@ -80,6 +80,8 @@ FIXBrokerInterface --(2)--> FIX Venue
 3. **Reconciliation**
    - Invoke `PositionTracker.generate_reconciliation_report` nightly using
      broker-provided balances.
+   - Run `scripts/reconcile_positions.py --broker nightly_broker.json` to
+     replay the journal and emit discrepancies for operator review.
    - Investigate discrepancies surfaced in the dashboard totals and journal
      events.
 4. **Incident Response**

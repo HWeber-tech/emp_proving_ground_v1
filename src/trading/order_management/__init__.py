@@ -17,16 +17,15 @@ from .position_tracker import (
     ReconciliationReport,
 )
 
-_LIFECYCLE_EXPORTS = [
+__all__ = [
+    # Order lifecycle exports
     "LifecycleStatus",
     "OrderEvent",
     "OrderEventType",
     "OrderLifecycle",
     "OrderLifecycleSnapshot",
     "OrderStateError",
-]
-
-_POSITION_EXPORTS = [
+    # Position tracking exports
     "PnLMode",
     "PositionLot",
     "PositionSnapshot",
@@ -34,5 +33,3 @@ _POSITION_EXPORTS = [
     "ReconciliationDifference",
     "ReconciliationReport",
 ]
-
-__all__ = [*_LIFECYCLE_EXPORTS, *_POSITION_EXPORTS]

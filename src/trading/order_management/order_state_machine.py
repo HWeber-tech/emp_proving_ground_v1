@@ -70,10 +70,13 @@ class OrderMetadata:
     symbol: str
     side: Literal["BUY", "SELL"]
     quantity: float
+    account: str | None = None
 
     def __post_init__(self) -> None:  # pragma: no cover - dataclass guard
         if self.quantity <= 0:
             raise ValueError("quantity must be positive")
+        if self.side not in {"BUY", "SELL"}:
+            raise ValueError("side must be either 'BUY' or 'SELL'")
 
 
 @dataclass(slots=True, frozen=True)
@@ -158,6 +161,8 @@ class OrderState:
     average_fill_price: Optional[float] = None
     last_event: Optional[ExecutionEventType] = None
     last_update: datetime = field(default_factory=_utc_now)
+    last_fill_quantity: float = 0.0
+    last_fill_price: Optional[float] = None
     events: list[OrderExecutionEvent] = field(default_factory=list)
 
     @property
@@ -174,6 +179,10 @@ class OrderLifecycleSnapshot:
     """Read-only representation of an order state."""
 
     order_id: str
+    symbol: str
+    side: Literal["BUY", "SELL"]
+    order_quantity: float
+    account: str | None
     status: OrderStatus
     filled_quantity: float
     remaining_quantity: float
@@ -235,6 +244,8 @@ class OrderStateMachine:
                 f"Cannot acknowledge order in state {state.status}"
             )
         state.status = OrderStatus.ACKNOWLEDGED
+        state.last_fill_quantity = 0.0
+        state.last_fill_price = None
 
     def _apply_fill(self, state: OrderState, event: OrderExecutionEvent) -> None:
         if state.status not in {
@@ -283,6 +294,9 @@ class OrderStateMachine:
         else:
             state.status = OrderStatus.PARTIALLY_FILLED
 
+        state.last_fill_quantity = increment
+        state.last_fill_price = event.last_price or state.average_fill_price
+
     def _apply_cancel(self, state: OrderState, event: OrderExecutionEvent) -> None:
         if state.status in TERMINAL_STATES:
             if state.status != OrderStatus.CANCELLED:
@@ -299,6 +313,8 @@ class OrderStateMachine:
                 f"Cannot cancel order in state {state.status}"
             )
         state.status = OrderStatus.CANCELLED
+        state.last_fill_quantity = 0.0
+        state.last_fill_price = None
 
     def _apply_reject(self, state: OrderState, event: OrderExecutionEvent) -> None:
         if state.status in TERMINAL_STATES and state.status != OrderStatus.REJECTED:
@@ -310,6 +326,8 @@ class OrderStateMachine:
                 f"Cannot reject order in state {state.status}"
             )
         state.status = OrderStatus.REJECTED
+        state.last_fill_quantity = 0.0
+        state.last_fill_price = None
 
     # -- inspection -------------------------------------------------------
     def snapshot(self, order_id: str) -> OrderLifecycleSnapshot:
@@ -318,6 +336,10 @@ class OrderStateMachine:
             raise OrderStateError(f"Unknown order {order_id}")
         return OrderLifecycleSnapshot(
             order_id=order_id,
+            symbol=state.metadata.symbol,
+            side=state.metadata.side,
+            order_quantity=state.metadata.quantity,
+            account=state.metadata.account,
             status=state.status,
             filled_quantity=state.filled_quantity,
             remaining_quantity=state.remaining_quantity,

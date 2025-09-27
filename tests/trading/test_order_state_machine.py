@@ -19,7 +19,7 @@ def _ts() -> datetime:
 
 def test_order_state_machine_full_fill_flow() -> None:
     machine = OrderStateMachine()
-    machine.register_order(OrderMetadata("ORD1", "EURUSD", "BUY", 10))
+    machine.register_order(OrderMetadata("ORD1", "EURUSD", "BUY", 10, account="SIM"))
 
     state = machine.apply_event(
         OrderExecutionEvent(
@@ -30,6 +30,7 @@ def test_order_state_machine_full_fill_flow() -> None:
         )
     )
     assert state.status is OrderStatus.ACKNOWLEDGED
+    assert state.last_fill_quantity == 0
 
     state = machine.apply_event(
         OrderExecutionEvent(
@@ -45,6 +46,8 @@ def test_order_state_machine_full_fill_flow() -> None:
     assert state.status is OrderStatus.PARTIALLY_FILLED
     assert pytest.approx(state.filled_quantity) == 4
     assert pytest.approx(state.average_fill_price or 0.0) == 101.0
+    assert pytest.approx(state.last_fill_quantity) == 4
+    assert pytest.approx(state.last_fill_price or 0.0) == 101.0
 
     state = machine.apply_event(
         OrderExecutionEvent(
@@ -64,6 +67,14 @@ def test_order_state_machine_full_fill_flow() -> None:
     assert pytest.approx(state.average_fill_price or 0.0, rel=1e-9) == pytest.approx(
         (4 * 101 + 6 * 102) / 10
     )
+    assert pytest.approx(state.last_fill_quantity) == 6
+    assert pytest.approx(state.last_fill_price or 0.0) == 102.0
+
+    snapshot = machine.snapshot("ORD1")
+    assert snapshot.symbol == "EURUSD"
+    assert snapshot.side == "BUY"
+    assert snapshot.order_quantity == 10
+    assert snapshot.account == "SIM"
 
 
 def test_order_state_machine_rejects_invalid_progression() -> None:

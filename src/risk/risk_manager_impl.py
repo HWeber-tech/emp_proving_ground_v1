@@ -8,8 +8,8 @@ aligned to canonical imports and types.
 """
 
 import logging
-from typing import Dict, TypedDict, NotRequired, Mapping, Sequence, Iterable
-from decimal import Decimal
+from typing import Dict, Iterable, Mapping, NotRequired, Sequence, TypedDict
+from decimal import Decimal, InvalidOperation
 from datetime import datetime
 import asyncio
 
@@ -32,6 +32,9 @@ from src.risk.analytics import (
 logger = logging.getLogger(__name__)
 
 __all__ = ["RiskManagerImpl", "PositionEntry"]
+
+
+_SECTOR_EPSILON = 1e-9
 
 
 def _to_float(value: object | None, *, default: float = 0.0) -> float:
@@ -122,6 +125,20 @@ class RiskManagerImpl(RiskManagerProtocol):
         self._vol_annualisation: float = float(
             self._risk_config.volatility_annualisation_factor
         )
+        self._instrument_sector_map: Dict[str, str] = {
+            str(symbol).upper(): str(sector)
+            for symbol, sector in getattr(
+                self._risk_config, "instrument_sector_map", {}
+            ).items()
+            if sector
+        }
+        self._sector_limits: Dict[str, float] = {}
+        for sector, limit in getattr(
+            self._risk_config, "sector_exposure_limits", {}
+        ).items():
+            resolved = max(0.0, _to_float(limit))
+            if resolved > 0.0:
+                self._sector_limits[str(sector)] = resolved
 
         self._recompute_drawdown_multiplier()
 
@@ -175,6 +192,41 @@ class RiskManagerImpl(RiskManagerProtocol):
         stop_loss = self._resolve_position_stop_loss(entry)
         size = entry.get("size", 0.0)
         return max(0.0, _to_float(size)) * price * stop_loss
+
+    # -- sector exposure helpers --------------------------------------------
+    def _resolve_sector(self, symbol: str) -> str | None:
+        if not symbol:
+            return None
+        return self._instrument_sector_map.get(str(symbol).upper())
+
+    def _sector_budget(self, sector: str) -> float | None:
+        limit = self._sector_limits.get(sector)
+        if limit is None:
+            return None
+        budget = self.account_balance * limit
+        return max(0.0, budget)
+
+    def _compute_sector_risk(self, sector: str) -> float:
+        risk = 0.0
+        for symbol, entry in self.positions.items():
+            if self._resolve_sector(symbol) == sector:
+                risk += self._compute_position_risk(entry)
+        return risk
+
+    def _sector_exposure_snapshot(self) -> Dict[str, Dict[str, float]]:
+        snapshot: Dict[str, Dict[str, float]] = {}
+        for sector, limit in self._sector_limits.items():
+            budget = self.account_balance * limit
+            exposure = self._compute_sector_risk(sector)
+            utilisation = 0.0
+            if budget > 0:
+                utilisation = exposure / budget
+            snapshot[sector] = {
+                "budget": budget,
+                "exposure": exposure,
+                "utilisation": utilisation,
+            }
+        return snapshot
 
     def assess_market_risk(
         self,
@@ -297,6 +349,30 @@ class RiskManagerImpl(RiskManagerProtocol):
                         snapshot,
                     )
                     return False
+
+            if is_valid:
+                sector = self._resolve_sector(symbol)
+                if sector is not None:
+                    sector_budget = self._sector_budget(sector)
+                    if sector_budget is not None:
+                        current_exposure = self._compute_sector_risk(sector)
+                        projected_exposure = current_exposure + risk_amount
+                        if sector_budget <= 0.0 and projected_exposure > _SECTOR_EPSILON:
+                            logger.warning(
+                                "Position rejected due to sector %s limit with zero budget", sector
+                            )
+                            return False
+                        if (
+                            sector_budget > 0.0
+                            and projected_exposure - sector_budget > _SECTOR_EPSILON
+                        ):
+                            utilisation = projected_exposure / sector_budget
+                            logger.warning(
+                                "Position rejected due to sector %s exposure breach: %.2f%% utilised",
+                                sector,
+                                utilisation * 100.0,
+                            )
+                            return False
 
             if is_valid:
                 logger.info(f"Position validated: {symbol} size={size}")
@@ -496,6 +572,9 @@ class RiskManagerImpl(RiskManagerProtocol):
             "assessed_risk": assessed_risk,
         }
 
+        if self._sector_limits:
+            summary["sector_exposure"] = self._sector_exposure_snapshot()
+
         if returns is not None:
             try:
                 summary["market_risk"] = self.assess_market_risk(
@@ -506,6 +585,40 @@ class RiskManagerImpl(RiskManagerProtocol):
                 logger.warning("Market risk computation skipped: %s", exc)
 
         return summary
+
+    def check_risk_thresholds(self) -> bool:
+        """Return ``True`` when portfolio and sector risk remain within limits."""
+
+        risk_map = {sym: self._compute_position_risk(pos) for sym, pos in self.positions.items()}
+        score = self.risk_manager.assess_risk(risk_map)
+        if score > 1.0 + _SECTOR_EPSILON:
+            logger.warning("Aggregate risk score %.3f breaches configured limits", score)
+            return False
+
+        if not self._sector_limits:
+            return True
+
+        for sector, snapshot in self._sector_exposure_snapshot().items():
+            exposure = snapshot["exposure"]
+            budget = snapshot["budget"]
+            if budget <= 0.0:
+                if exposure > _SECTOR_EPSILON:
+                    logger.warning(
+                        "Sector %s exposure %.2f exceeds zero budget", sector, exposure
+                    )
+                    return False
+                continue
+            if exposure - budget > _SECTOR_EPSILON:
+                utilisation = exposure / budget
+                logger.warning(
+                    "Sector %s exposure %.2f exceeds budget %.2f (utilisation %.2f%%)",
+                    sector,
+                    exposure,
+                    budget,
+                    utilisation * 100.0,
+                )
+                return False
+        return True
 
     def calculate_portfolio_risk(
         self,
@@ -531,6 +644,9 @@ class RiskManagerImpl(RiskManagerProtocol):
             "risk_amount": total_risk_amount,
             "assessed_risk": assessed_risk,
         }
+
+        if self._sector_limits:
+            metrics["sector_exposure"] = self._sector_exposure_snapshot()
 
         if returns is not None:
             try:
@@ -642,6 +758,36 @@ class RiskManagerImpl(RiskManagerProtocol):
                     self._var_simulations = candidate_simulations
             except (TypeError, ValueError):
                 logger.warning("Ignoring invalid var_simulations override")
+
+        if "instrument_sector_map" in limits:
+            mapping = limits["instrument_sector_map"]
+            if isinstance(mapping, Mapping):
+                normalised: Dict[str, str] = {}
+                for symbol, sector in mapping.items():
+                    if not sector:
+                        continue
+                    normalised[str(symbol).upper()] = str(sector)
+                self._instrument_sector_map = normalised
+                try:
+                    self._risk_config.instrument_sector_map = normalised
+                except Exception:  # pragma: no cover - defensive guard
+                    logger.debug("RiskConfig instrument_sector_map update failed; retaining local state")
+
+        if "sector_exposure_limits" in limits:
+            exposures = limits["sector_exposure_limits"]
+            if isinstance(exposures, Mapping):
+                updated: Dict[str, float] = {}
+                for sector, limit in exposures.items():
+                    resolved = max(0.0, _to_float(limit))
+                    if resolved > 0.0:
+                        updated[str(sector)] = resolved
+                self._sector_limits = updated
+                try:
+                    self._risk_config.sector_exposure_limits = {
+                        key: Decimal(str(value)) for key, value in updated.items()
+                    }
+                except (ValueError, InvalidOperation):  # pragma: no cover - defensive
+                    logger.warning("Ignoring invalid sector exposure override")
 
         self._recompute_drawdown_multiplier()
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from decimal import Decimal
+from typing import Dict
 
 from pydantic import BaseModel, Field, validator
 
@@ -57,6 +58,14 @@ class RiskConfig(BaseModel):
         default=Decimal("1.0"),
         description="Annualisation factor applied to realised volatility",
     )
+    instrument_sector_map: Dict[str, str] = Field(
+        default_factory=dict,
+        description="Mapping of instrument symbol to sector or asset class identifier",
+    )
+    sector_exposure_limits: Dict[str, Decimal] = Field(
+        default_factory=dict,
+        description="Maximum fraction of equity allocatable to each sector or asset class",
+    )
 
     @validator(
         "max_risk_per_trade_pct",
@@ -79,6 +88,12 @@ class RiskConfig(BaseModel):
     def validate_annualisation(cls, v: Decimal) -> Decimal:
         if v <= 0:
             raise ValueError("Annualisation factor must be positive")
+        return v
+
+    @validator("sector_exposure_limits", each_item=True)
+    def validate_sector_limits(cls, v: Decimal) -> Decimal:
+        if v <= 0 or v > 1:
+            raise ValueError("Sector exposure limits must be between 0 and 1")
         return v
 
 

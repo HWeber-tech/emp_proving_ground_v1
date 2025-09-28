@@ -194,7 +194,7 @@ To reflect the true scope of institutional-grade trading components, the roadmap
 - [ ] Ensure new sensors emit structured data consumed by strategies and risk modules.
 - [ ] Expand tests to validate sensor outputs over historical datasets.
 - [ ] Implement WHY-dimension narrative hooks (economic calendar sentiment, macro regime flags) using encyclopedia cues.
-- [ ] Stand up anomaly detection harness comparing sensor drifts vs baseline expectation windows.
+- [x] Stand up anomaly detection harness comparing sensor drifts vs baseline expectation windows (see `src/sensory/monitoring/sensor_drift.py` and `scripts/check_sensor_drift.py`).
 - [x] Synchronize sensor metadata catalog in `/docs/sensory_registry.md` with encyclopedia Layer 2 tables (auto-generated via `python -m tools.sensory.registry`).
 
 **Acceptance:** Strategies consume new sensory inputs; CI verifies data integrity; backlog explicitly records deferred advanced analytics.

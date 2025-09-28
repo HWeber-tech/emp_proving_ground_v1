@@ -174,10 +174,10 @@ To reflect the true scope of institutional-grade trading components, the roadmap
 #### Workstream 2B: Evolution Engine Iteration (~1.5 weeks)
 **Impact:** 🔥🔥 **HIGH** — Enables continuous improvement without overcommitting
 
-- [ ] Define minimal genome schema for moving-average crossover parameters and risk toggles.
-- [ ] Implement fitness evaluation focusing on Sharpe, Sortino, and max drawdown (multi-objective aggregated via weighted score).
-- [ ] Add crossover/mutation operators with guardrails to prevent invalid configurations.
-- [ ] Run offline GA experiments (not real-time) and store results artifacts for reproducibility.
+- [x] Define minimal genome schema for moving-average crossover parameters and risk toggles.
+- [x] Implement fitness evaluation focusing on Sharpe, Sortino, and max drawdown (multi-objective aggregated via weighted score).
+- [x] Add crossover/mutation operators with guardrails to prevent invalid configurations.
+- [x] Run offline GA experiments (not real-time) and store results artifacts for reproducibility.
 - [ ] Document follow-on backlog (speciation, Pareto-front) for later phases.
 - [ ] Integrate GA experiment runner with encyclopedia "Evolution Lab" conventions, including seed logging and reproducibility manifest.
 - [ ] Publish experiment leaderboard (top genomes, metrics, configs) as Markdown table auto-generated in `/docs/research/evolution_lab.md`.

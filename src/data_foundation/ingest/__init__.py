@@ -39,6 +39,17 @@ __all__ = [
     "build_scheduler_snapshot",
     "format_scheduler_markdown",
     "publish_scheduler_snapshot",
+    "AggregationMetadata",
+    "AggregationResult",
+    "CoverageValidator",
+    "CrossSourceDriftValidator",
+    "DataQualityFinding",
+    "DataQualitySeverity",
+    "MultiSourceAggregator",
+    "ProviderContribution",
+    "ProviderSnapshot",
+    "ProviderSpec",
+    "StalenessValidator",
 ]
 
 
@@ -76,6 +87,17 @@ _MODULE_MAP = {
     "build_scheduler_snapshot": "src.data_foundation.ingest.scheduler_telemetry",
     "format_scheduler_markdown": "src.data_foundation.ingest.scheduler_telemetry",
     "publish_scheduler_snapshot": "src.data_foundation.ingest.scheduler_telemetry",
+    "AggregationMetadata": "src.data_foundation.ingest.multi_source",
+    "AggregationResult": "src.data_foundation.ingest.multi_source",
+    "CoverageValidator": "src.data_foundation.ingest.multi_source",
+    "CrossSourceDriftValidator": "src.data_foundation.ingest.multi_source",
+    "DataQualityFinding": "src.data_foundation.ingest.multi_source",
+    "DataQualitySeverity": "src.data_foundation.ingest.multi_source",
+    "MultiSourceAggregator": "src.data_foundation.ingest.multi_source",
+    "ProviderContribution": "src.data_foundation.ingest.multi_source",
+    "ProviderSnapshot": "src.data_foundation.ingest.multi_source",
+    "ProviderSpec": "src.data_foundation.ingest.multi_source",
+    "StalenessValidator": "src.data_foundation.ingest.multi_source",
 }
 
 

@@ -32,6 +32,7 @@ def test_evaluate_fix_pilot_pass():
     components = {comp.name: comp for comp in snapshot.components}
     assert "broker" in components
     assert components["dropcopy"].status is FixPilotStatus.passed
+    assert "orders" in components
     markdown = format_fix_pilot_markdown(snapshot)
     assert "FIX Pilot Status" in markdown
 
@@ -61,3 +62,4 @@ def test_evaluate_fix_pilot_warn_and_fail():
     assert components["queues"].status is FixPilotStatus.warn
     assert components["compliance"].status is FixPilotStatus.warn
     assert components["dropcopy"].status is FixPilotStatus.warn
+    assert "orders" in components

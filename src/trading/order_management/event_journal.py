@@ -89,6 +89,12 @@ class OrderEventJournal:
         with self._dead_letter_path.open("a", encoding="utf-8") as fh:
             fh.write(json.dumps(record, default=str) + "\n")
 
+    @property
+    def path(self) -> Path:
+        """Path to the primary journal artefact."""
+
+        return self._path
+
     # ------------------------------------------------------------------
     def _append_parquet(self, record: Dict[str, Any]) -> None:
         assert self._pd is not None

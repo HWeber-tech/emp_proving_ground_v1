@@ -9,6 +9,7 @@ from src.operations.fix_pilot import FixPilotPolicy, FixPilotStatus, evaluate_fi
 from src.runtime.fix_dropcopy import FixDropcopyReconciler
 from src.runtime.fix_pilot import FixIntegrationPilot, FixPilotState
 from src.runtime.task_supervisor import TaskSupervisor
+from src.trading.order_management import OrderMetadata
 
 
 class _StubAdapter:
@@ -84,9 +85,25 @@ class _StubBroker(_StubComponent):
         self.trade_queue = self.queue
         self.fix_initiator = None
         self.orders = {"ORD-1": {"status": "ACK"}}
+        self.listeners: dict[str, list] = {}
 
     def get_all_orders(self):
         return dict(self.orders)
+
+    def add_event_listener(self, event_type: str, callback):
+        self.listeners.setdefault(event_type, []).append(callback)
+        return True
+
+    def remove_event_listener(self, event_type: str, callback):
+        callbacks = self.listeners.get(event_type, [])
+        if callback in callbacks:
+            callbacks.remove(callback)
+            return True
+        return False
+
+    def emit(self, event_type: str, order_id: str, payload: dict):
+        for callback in list(self.listeners.get(event_type, [])):
+            callback(order_id, payload)
 
 
 class _StubComplianceMonitor:
@@ -130,6 +147,11 @@ async def test_fix_integration_pilot_start_stop_and_snapshot():
     await dropcopy.dropcopy_queue.put({11: b"ORD-1", 150: b"0", 39: b"ACK"})
     await asyncio.sleep(0)
 
+    assert pilot.lifecycle_processor is not None
+    order = OrderMetadata(order_id="ORD-2", symbol="EURUSD", side="BUY", quantity=1.0)
+    pilot.lifecycle_processor.register_order(order)
+    broker.emit("acknowledged", order.order_id, {"exec_type": "0"})
+
     state = pilot.snapshot()
     assert state.sessions_started is True
     assert state.sensory_running is True
@@ -140,6 +162,23 @@ async def test_fix_integration_pilot_start_stop_and_snapshot():
     assert state.dropcopy_running is True
     assert state.dropcopy_backlog == 0
     assert state.dropcopy_reconciliation is not None
+    assert len(state.open_orders) == 1
+    assert state.open_orders[0]["status"] == "ACKNOWLEDGED"
+
+    broker.emit(
+        "filled",
+        order.order_id,
+        {"exec_type": "2", "last_qty": 1.0, "last_px": 1.2345},
+    )
+    filled_state = pilot.snapshot()
+    assert not filled_state.open_orders
+    assert filled_state.positions
+    position = filled_state.positions[0]
+    assert position["symbol"] == "EURUSD"
+    assert position["net_quantity"] == pytest.approx(1.0)
+    assert position["exposure"] == pytest.approx(1.2345)
+    assert filled_state.total_exposure == pytest.approx(1.2345)
+    assert filled_state.order_journal_path is not None
 
     await pilot.stop()
     assert manager.stopped == 1

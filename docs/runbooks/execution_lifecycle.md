@@ -32,6 +32,11 @@ simulation flows.
 6. **PnL & Exposure Dashboard (`scripts/pnl_exposure_dashboard.py`)**
    - Replays the journal to present snapshot exposure totals per Chapter 24
      operational guidelines.
+7. **Fix Integration Pilot (`src/runtime/fix_pilot.py`)**
+   - Automatically attaches the lifecycle processor and position tracker to the
+     FIX broker interface.
+   - Publishes aggregated open order, exposure, and journal metadata for
+     operational telemetry.
 
 ## Sequence Diagram
 

@@ -19,6 +19,8 @@ from ._shared import (
 
 SUMMARY_MARKER_START = "<!-- HIGH_IMPACT_SUMMARY:START -->"
 SUMMARY_MARKER_END = "<!-- HIGH_IMPACT_SUMMARY:END -->"
+PORTFOLIO_MARKER_START = "<!-- HIGH_IMPACT_PORTFOLIO:START -->"
+PORTFOLIO_MARKER_END = "<!-- HIGH_IMPACT_PORTFOLIO:END -->"
 
 
 @dataclass(frozen=True)
@@ -521,31 +523,53 @@ def format_portfolio_json(statuses: Iterable[StreamStatus]) -> str:
     return json.dumps(portfolio.as_dict(), indent=2)
 
 
-def _inject_summary_table(existing: str, table: str) -> str:
-    """Replace the summary table between the configured markers."""
+def _replace_between_markers(
+    existing: str, *, start: str, end: str, payload: str
+) -> str:
+    """Replace the text between two markers with ``payload``."""
 
     try:
-        start_index = existing.index(SUMMARY_MARKER_START)
+        start_index = existing.index(start)
     except ValueError as exc:  # pragma: no cover - defensive guard
         raise ValueError(
-            "Summary document missing HIGH_IMPACT_SUMMARY start marker"
+            f"Summary document missing start marker: {start!r}"
         ) from exc
 
     try:
-        end_index = existing.index(SUMMARY_MARKER_END, start_index)
+        end_index = existing.index(end, start_index)
     except ValueError as exc:  # pragma: no cover - defensive guard
         raise ValueError(
-            "Summary document missing HIGH_IMPACT_SUMMARY end marker"
+            f"Summary document missing end marker: {end!r}"
         ) from exc
 
-    end_marker_index = end_index + len(SUMMARY_MARKER_END)
+    end_marker_index = end_index + len(end)
 
     before = existing[:start_index]
     after = existing[end_marker_index:]
-    replacement = (
-        f"{SUMMARY_MARKER_START}\n{table}\n{SUMMARY_MARKER_END}"
-    )
+    replacement = f"{start}\n{payload}\n{end}"
     return f"{before}{replacement}{after}"
+
+
+def _inject_summary_table(existing: str, table: str) -> str:
+    """Replace the summary table between the configured markers."""
+
+    return _replace_between_markers(
+        existing,
+        start=SUMMARY_MARKER_START,
+        end=SUMMARY_MARKER_END,
+        payload=table,
+    )
+
+
+def _inject_portfolio_summary(existing: str, summary: str) -> str:
+    """Replace the portfolio narrative between the configured markers."""
+
+    return _replace_between_markers(
+        existing,
+        start=PORTFOLIO_MARKER_START,
+        end=PORTFOLIO_MARKER_END,
+        payload=summary,
+    )
 
 
 def refresh_docs(
@@ -578,6 +602,8 @@ def refresh_docs(
     summary_text = summary_path.read_text(encoding="utf-8")
     table = format_markdown(statuses)
     updated_summary = _inject_summary_table(summary_text, table)
+    portfolio_block = format_portfolio_summary(statuses)
+    updated_summary = _inject_portfolio_summary(updated_summary, portfolio_block)
     if not updated_summary.endswith("\n"):
         updated_summary = f"{updated_summary}\n"
     summary_path.write_text(updated_summary, encoding="utf-8")

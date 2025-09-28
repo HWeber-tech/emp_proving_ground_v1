@@ -59,6 +59,26 @@ class StreamStatus:
     missing: tuple[str, ...]
 
 
+@dataclass(frozen=True)
+class PortfolioStatus:
+    """Aggregate view across the high-impact roadmap streams."""
+
+    total_streams: int
+    ready: int
+    attention_needed: int
+    streams: tuple[StreamStatus, ...]
+
+    def as_dict(self) -> dict[str, object]:
+        """Return a JSON-serialisable representation of the portfolio."""
+
+        return {
+            "total_streams": self.total_streams,
+            "ready": self.ready,
+            "attention_needed": self.attention_needed,
+            "streams": [asdict(status) for status in self.streams],
+        }
+
+
 def _stream_definitions() -> Sequence[StreamDefinition]:
     return (
         StreamDefinition(
@@ -266,6 +286,20 @@ def evaluate_streams(selected_streams: Sequence[str] | None = None) -> list[Stre
 
     root = repo_root()
     return [definition.evaluate(root) for definition in definitions]
+
+
+def summarise_portfolio(statuses: Iterable[StreamStatus]) -> PortfolioStatus:
+    """Return aggregate status counts for the high-impact roadmap portfolio."""
+
+    stream_statuses = tuple(statuses)
+    ready = sum(1 for status in stream_statuses if status.status == "Ready")
+    attention = len(stream_statuses) - ready
+    return PortfolioStatus(
+        total_streams=len(stream_statuses),
+        ready=ready,
+        attention_needed=attention,
+        streams=stream_statuses,
+    )
 
 
 def format_markdown(statuses: Iterable[StreamStatus]) -> str:

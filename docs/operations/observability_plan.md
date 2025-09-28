@@ -65,7 +65,13 @@ can layer on without introducing third-party dependencies.
   honouring optional `RUNTIME_LOG_LEVEL` and `RUNTIME_LOG_CONTEXT` overrides so
   operators can tag deployments without code changes. Tests cover the formatter
   contract and ensure the runtime builder wires the extras into the handler
-  configuration.【F:src/observability/logging.py†L1-L122】【F:src/runtime/runtime_builder.py†L1838-L1877】【F:tests/observability/test_logging.py†L1-L74】【F:tests/runtime/test_runtime_builder.py†L600-L676】
+  configuration.【F:src/observability/logging.py†L1-L218】【F:src/runtime/runtime_builder.py†L1838-L1895】【F:tests/observability/test_logging.py†L1-L154】【F:tests/runtime/test_runtime_builder.py†L600-L676】
+* **OpenTelemetry log export** – When `RUNTIME_LOG_OTEL_ENABLED` extras are set,
+  the runtime loads `config/observability/logging.yaml`, forces OTLP export on,
+  and registers an OpenTelemetry handler so structured logs stream into the
+  local collector alongside JSON output. Tests patch the handler wiring to
+  confirm the exporter path is invoked and the YAML loader honours headers,
+  compression, and resource attributes.【F:config/observability/logging.yaml†L1-L12】【F:src/observability/logging.py†L88-L198】【F:src/runtime/runtime_builder.py†L1860-L1895】【F:tests/observability/test_logging.py†L80-L154】
 * **Execution readiness telemetry** – `evaluate_execution_readiness` publishes
   `telemetry.operational.execution` with fill rates, rejection trends, latency,
   and drop-copy metrics, and the professional runtime records the markdown

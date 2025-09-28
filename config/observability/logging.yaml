@@ -1,0 +1,14 @@
+opentelemetry:
+  enabled: true
+  endpoint: "http://localhost:4318/v1/logs"
+  timeout: 5
+  insecure: true
+  compression: gzip
+  headers:
+    x-emp-collector-token: local-dev
+  resource:
+    service.name: emp-professional-runtime
+    service.namespace: emp
+    service.instance.id: local-dev
+    deployment.environment: development
+    emp.component: runtime

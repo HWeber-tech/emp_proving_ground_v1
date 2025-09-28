@@ -3,11 +3,16 @@ from __future__ import annotations
 import io
 import json
 import logging
+from pathlib import Path
 from typing import Iterator
 
 import pytest
 
-from src.observability.logging import configure_structured_logging
+from src.observability.logging import (
+    OpenTelemetryLoggingSettings,
+    configure_structured_logging,
+    load_opentelemetry_logging_settings,
+)
 
 
 @pytest.fixture()
@@ -90,3 +95,71 @@ def test_configure_structured_logging_idempotent(reset_logging: Iterator[None]) 
         )
         == 1
     )
+
+
+def test_configure_structured_logging_invokes_otel(reset_logging: Iterator[None], monkeypatch: pytest.MonkeyPatch) -> None:
+    stream = io.StringIO()
+    settings = OpenTelemetryLoggingSettings(enabled=True, endpoint="http://collector")
+    calls: dict[str, object] = {}
+
+    def _fake_initialise(
+        provided_settings: OpenTelemetryLoggingSettings,
+        level: int,
+        root_logger: logging.Logger,
+    ) -> logging.Handler | None:
+        calls["called"] = (provided_settings, level, root_logger)
+        handler = logging.StreamHandler(stream)
+        handler.set_name("emp-otel-logger")
+        return handler
+
+    monkeypatch.setattr("src.observability.logging._initialise_otel_logging", _fake_initialise)
+
+    configure_structured_logging(component="runtime", stream=stream, otel_settings=settings)
+
+    assert "called" in calls
+    called_settings, called_level, _ = calls["called"]  # type: ignore[misc]
+    assert called_settings is settings
+    assert called_level == logging.INFO
+
+
+def test_configure_structured_logging_skips_otel(reset_logging: Iterator[None], monkeypatch: pytest.MonkeyPatch) -> None:
+    invoked = False
+
+    def _unexpected(*args: object, **kwargs: object) -> None:
+        nonlocal invoked
+        invoked = True
+
+    monkeypatch.setattr("src.observability.logging._initialise_otel_logging", _unexpected)
+
+    configure_structured_logging(component="runtime", stream=io.StringIO())
+
+    assert not invoked
+
+
+def test_load_opentelemetry_logging_settings(tmp_path: Path) -> None:
+    config_path = tmp_path / "logging.yaml"
+    config_path.write_text(
+        """
+opentelemetry:
+  enabled: false
+  endpoint: http://example
+  timeout: 15
+  insecure: false
+  compression: gzip
+  headers:
+    Authorization: secret
+  resource:
+    service.name: emp-test
+    deployment.environment: test
+""".strip(),
+        encoding="utf-8",
+    )
+
+    settings = load_opentelemetry_logging_settings(config_path)
+    assert settings.enabled is False
+    assert settings.endpoint == "http://example"
+    assert settings.timeout == 15
+    assert settings.insecure is False
+    assert settings.compression == "gzip"
+    assert settings.headers == {"Authorization": "secret"}
+    assert settings.resource_attributes["service.name"] == "emp-test"

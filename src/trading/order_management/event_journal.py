@@ -69,6 +69,22 @@ class OrderEventJournal:
             "average_fill_price": snapshot.average_fill_price,
             "last_event": snapshot.last_event,
             "last_update": snapshot.last_update.isoformat(),
+            "created_at": snapshot.created_at.isoformat(),
+            "acknowledged_at": snapshot.acknowledged_at.isoformat()
+            if snapshot.acknowledged_at
+            else None,
+            "first_fill_at": snapshot.first_fill_at.isoformat()
+            if snapshot.first_fill_at
+            else None,
+            "final_fill_at": snapshot.final_fill_at.isoformat()
+            if snapshot.final_fill_at
+            else None,
+            "cancelled_at": snapshot.cancelled_at.isoformat()
+            if snapshot.cancelled_at
+            else None,
+            "rejected_at": snapshot.rejected_at.isoformat()
+            if snapshot.rejected_at
+            else None,
         }
         if extra:
             record.update(extra)
@@ -150,6 +166,12 @@ class InMemoryOrderEventJournal(OrderEventJournal):
                 "remaining_quantity": snapshot.remaining_quantity,
                 "average_fill_price": snapshot.average_fill_price,
                 "last_event": snapshot.last_event,
+                "created_at": snapshot.created_at,
+                "acknowledged_at": snapshot.acknowledged_at,
+                "first_fill_at": snapshot.first_fill_at,
+                "final_fill_at": snapshot.final_fill_at,
+                "cancelled_at": snapshot.cancelled_at,
+                "rejected_at": snapshot.rejected_at,
             },
         }
         if extra:

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 import pytest
 
 from src.trading.order_management import (
@@ -10,6 +12,7 @@ from src.trading.order_management import (
     OrderStatus,
     PositionTracker,
 )
+from src.trading.order_management.monitoring import LatencyMetrics
 
 
 class DummyBroker:
@@ -32,11 +35,28 @@ class DummyBroker:
             callback(order_id, payload)
 
 
+class CaptureMonitor:
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, LatencyMetrics]] = []
+
+    def record_transition(self, state, event, snapshot):  # type: ignore[override]
+        metrics = LatencyMetrics(
+            ack_latency=0.1 if state.acknowledged_at else None,
+            first_fill_latency=0.2 if state.first_fill_at else None,
+            final_fill_latency=0.3 if state.final_fill_at else None,
+            cancel_latency=0.4 if state.cancelled_at else None,
+            reject_latency=0.5 if state.rejected_at else None,
+        )
+        self.calls.append((event.event_type, metrics))
+        return metrics
+
+
 @pytest.fixture
-def lifecycle_processor() -> tuple[OrderLifecycleProcessor, InMemoryOrderEventJournal]:
+def lifecycle_processor() -> tuple[OrderLifecycleProcessor, InMemoryOrderEventJournal, CaptureMonitor]:
     journal = InMemoryOrderEventJournal()
-    processor = OrderLifecycleProcessor(journal=journal)
-    return processor, journal
+    monitor = CaptureMonitor()
+    processor = OrderLifecycleProcessor(journal=journal, latency_monitor=monitor)
+    return processor, journal, monitor
 
 
 @pytest.fixture
@@ -44,7 +64,9 @@ def lifecycle_processor_with_tracker(
 ) -> tuple[OrderLifecycleProcessor, InMemoryOrderEventJournal, PositionTracker]:
     journal = InMemoryOrderEventJournal()
     tracker = PositionTracker()
-    processor = OrderLifecycleProcessor(journal=journal, position_tracker=tracker)
+    processor = OrderLifecycleProcessor(
+        journal=journal, position_tracker=tracker, latency_monitor=CaptureMonitor()
+    )
     return processor, journal, tracker
 
 
@@ -55,13 +77,16 @@ def _register(processor: OrderLifecycleProcessor) -> str:
         side="BUY",
         quantity=100,
         account="SIM",
+        created_at=datetime(2025, 1, 1, tzinfo=timezone.utc),
     )
     processor.register_order(metadata)
     return metadata.order_id
 
 
-def test_ack_and_fill_flow(lifecycle_processor: tuple[OrderLifecycleProcessor, InMemoryOrderEventJournal]) -> None:
-    processor, journal = lifecycle_processor
+def test_ack_and_fill_flow(
+    lifecycle_processor: tuple[OrderLifecycleProcessor, InMemoryOrderEventJournal, CaptureMonitor]
+) -> None:
+    processor, journal, monitor = lifecycle_processor
     order_id = _register(processor)
 
     snap = processor.apply_acknowledgement(order_id)
@@ -85,35 +110,50 @@ def test_ack_and_fill_flow(lifecycle_processor: tuple[OrderLifecycleProcessor, I
     ]
     assert journal.records[-1]["snapshot"]["symbol"] == "EUR/USD"
     assert journal.records[-1]["snapshot"]["account"] == "SIM"
+    assert [event for event, _metrics in monitor.calls] == [
+        "acknowledged",
+        "partial_fill",
+        "filled",
+    ]
 
 
-def test_cancel_flow(lifecycle_processor: tuple[OrderLifecycleProcessor, InMemoryOrderEventJournal]) -> None:
-    processor, journal = lifecycle_processor
+def test_cancel_flow(
+    lifecycle_processor: tuple[OrderLifecycleProcessor, InMemoryOrderEventJournal, CaptureMonitor]
+) -> None:
+    processor, journal, monitor = lifecycle_processor
     order_id = _register(processor)
 
     processor.apply_acknowledgement(order_id)
     snap = processor.apply_cancel(order_id)
     assert snap.status is OrderStatus.CANCELLED
     assert [record["event"]["event_type"] for record in journal.records][-1] == "cancelled"
+    assert monitor.calls[-1][0] == "cancelled"
 
 
-def test_reject_from_pending(lifecycle_processor: tuple[OrderLifecycleProcessor, InMemoryOrderEventJournal]) -> None:
-    processor, journal = lifecycle_processor
+def test_reject_from_pending(
+    lifecycle_processor: tuple[OrderLifecycleProcessor, InMemoryOrderEventJournal, CaptureMonitor]
+) -> None:
+    processor, journal, monitor = lifecycle_processor
     order_id = _register(processor)
 
     snap = processor.apply_reject(order_id, {"text": "Invalid price"})
     assert snap.status is OrderStatus.REJECTED
     assert journal.records[-1]["event"]["event_type"] == "rejected"
+    assert monitor.calls[-1][0] == "rejected"
 
 
-def test_unknown_order_raises_error(lifecycle_processor: tuple[OrderLifecycleProcessor, InMemoryOrderEventJournal]) -> None:
-    processor, _ = lifecycle_processor
+def test_unknown_order_raises_error(
+    lifecycle_processor: tuple[OrderLifecycleProcessor, InMemoryOrderEventJournal, CaptureMonitor]
+) -> None:
+    processor, _, _monitor = lifecycle_processor
     with pytest.raises(OrderStateError):
         processor.apply_acknowledgement("does-not-exist")
 
 
-def test_broker_attachment_dispatches_events(lifecycle_processor: tuple[OrderLifecycleProcessor, InMemoryOrderEventJournal]) -> None:
-    processor, journal = lifecycle_processor
+def test_broker_attachment_dispatches_events(
+    lifecycle_processor: tuple[OrderLifecycleProcessor, InMemoryOrderEventJournal, CaptureMonitor]
+) -> None:
+    processor, journal, monitor = lifecycle_processor
     order_id = _register(processor)
     broker = DummyBroker()
 
@@ -125,6 +165,11 @@ def test_broker_attachment_dispatches_events(lifecycle_processor: tuple[OrderLif
     assert len(journal.records) == 3
     processor.detach_broker()
     assert all(not callbacks for callbacks in broker.callbacks.values())
+    assert [event for event, _metrics in monitor.calls] == [
+        "acknowledged",
+        "partial_fill",
+        "filled",
+    ]
 
 
 def test_position_tracker_updates(

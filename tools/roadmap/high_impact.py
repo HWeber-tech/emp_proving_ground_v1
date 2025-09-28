@@ -524,6 +524,22 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="Update the status documentation files in docs/status/",
     )
     parser.add_argument(
+        "--summary-path",
+        type=Path,
+        help=(
+            "Optional path to the summary markdown file when refreshing docs. "
+            "Defaults to docs/status/high_impact_roadmap.md"
+        ),
+    )
+    parser.add_argument(
+        "--detail-path",
+        type=Path,
+        help=(
+            "Optional path to the detailed markdown file when refreshing docs. "
+            "Defaults to docs/status/high_impact_roadmap_detail.md"
+        ),
+    )
+    parser.add_argument(
         "--stream",
         action="append",
         dest="streams",
@@ -539,7 +555,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     except ValueError as exc:
         parser.error(str(exc))
     if args.refresh_docs:
-        refresh_docs(statuses)
+        refresh_docs(
+            statuses,
+            summary_path=args.summary_path,
+            detail_path=args.detail_path,
+        )
     if args.format == "json":
         output = format_json(statuses)
     elif args.format == "detail":

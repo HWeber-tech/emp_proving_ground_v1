@@ -3,6 +3,7 @@ from __future__ import annotations
 import io
 import json
 import logging
+from pathlib import Path
 
 import pytest
 
@@ -10,6 +11,7 @@ from src.observability.tracing import OpenTelemetrySettings
 from src.operational.structured_logging import (
     configure_structlog,
     get_logger,
+    load_structlog_otel_settings,
     order_logging_context,
 )
 
@@ -69,6 +71,56 @@ def test_order_logging_context_supports_custom_correlation_id() -> None:
     assert record["event"] == "fill"
     assert record["order_id"] == "ORD-456"
     assert record["correlation_id"] == "chain-1"
+
+
+def test_load_structlog_otel_settings_translates_profile(tmp_path: Path) -> None:
+    config_path = tmp_path / "logging.yaml"
+    config_path.write_text(
+        """
+opentelemetry:
+  enabled: true
+  endpoint: "http://collector:4318/v1/logs"
+  timeout: 3.5
+  headers:
+    Authorization: Bearer token
+  resource:
+    service.name: emp-local-runtime
+    deployment.environment: local-dev
+""",
+        encoding="utf-8",
+    )
+
+    settings = load_structlog_otel_settings(config_path)
+
+    assert settings.enabled is True
+    assert settings.logs_endpoint == "http://collector:4318/v1/logs"
+    assert settings.logs_timeout == 3.5
+    assert settings.logs_headers == {"Authorization": "Bearer token"}
+    assert settings.service_name == "emp-local-runtime"
+    assert settings.environment == "local-dev"
+
+
+def test_load_structlog_otel_settings_applies_defaults(tmp_path: Path) -> None:
+    config_path = tmp_path / "logging.yaml"
+    config_path.write_text(
+        """
+enabled: true
+endpoint: "http://localhost:4318/v1/logs"
+""",
+        encoding="utf-8",
+    )
+
+    settings = load_structlog_otel_settings(
+        config_path,
+        default_service_name="default-service",
+        default_environment="demo-env",
+    )
+
+    assert settings.enabled is True
+    assert settings.service_name == "default-service"
+    assert settings.environment == "demo-env"
+    assert settings.logs_endpoint == "http://localhost:4318/v1/logs"
+    assert settings.logs_headers is None
 
 
 @pytest.mark.skipif(not _OTEL_LOGGING_AVAILABLE, reason="OpenTelemetry logging SDK not installed")

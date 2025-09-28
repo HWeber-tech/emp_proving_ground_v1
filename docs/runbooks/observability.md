@@ -36,6 +36,22 @@ instrumentation is enabled, so every JSON log record is forwarded to the
 collector in addition to stdout. The runtime reuses the same configuration for
 tracing so spans and log events share correlation identifiers out of the box.
 
+### Shortcut via observability profiles
+
+Instead of exporting individual `OTEL_*` variables you can point the runtime at
+`config/observability/logging.yaml` (or a custom profile) using the
+`STRUCTLOG_OTEL_CONFIG` extra:
+
+```bash
+export STRUCTLOG_OTEL_CONFIG=default  # resolves to config/observability/logging.yaml
+python main.py
+```
+
+The profile loader translates the YAML schema used by the observability
+runbooks into the runtime's OpenTelemetry settings. Resource attributes defined
+in the profile (for example, `service.name` and `deployment.environment`) are
+propagated automatically so downstream dashboards receive consistent metadata.
+
 ## Verifying Delivery
 
 1. Launch `python main.py` in a separate terminal once the collector is running.

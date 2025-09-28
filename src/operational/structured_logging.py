@@ -11,12 +11,14 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 import logging
+from pathlib import Path
 import threading
 from typing import Any, Iterable, Iterator
 
 import structlog
 
 from src.observability.tracing import OpenTelemetrySettings
+from src.observability.logging import load_opentelemetry_logging_settings
 
 try:  # pragma: no cover - optional dependency in minimal environments
     from opentelemetry._logs import get_logger_provider, set_logger_provider
@@ -38,6 +40,7 @@ BoundLogger = structlog.stdlib.BoundLogger
 
 __all__ = [
     "configure_structlog",
+    "load_structlog_otel_settings",
     "get_logger",
     "order_logging_context",
     "bind_context",
@@ -190,6 +193,63 @@ def configure_structlog(
     )
 
     _CONFIGURED = True
+
+
+def load_structlog_otel_settings(
+    path: str | Path,
+    *,
+    default_service_name: str = "emp-professional-runtime",
+    default_environment: str | None = None,
+) -> OpenTelemetrySettings:
+    """Load OpenTelemetry settings for structlog exporters from a YAML profile.
+
+    The helper bridges the observability logging profiles stored under
+    :mod:`config/observability/` with the :func:`configure_structlog`
+    instrumentation by translating the ``logging.yaml`` schema into the
+    :class:`~src.observability.tracing.OpenTelemetrySettings` structure used by
+    the runtime entrypoint.
+
+    Args:
+        path: Path to a YAML configuration compatible with
+            :func:`src.observability.logging.load_opentelemetry_logging_settings`.
+        default_service_name: Service name applied when the profile does not
+            define a ``service.name`` resource attribute.
+        default_environment: Deployment environment applied when the profile
+            omits ``deployment.environment``.
+
+    Returns:
+        An :class:`OpenTelemetrySettings` instance ready to be passed to
+        :func:`configure_structlog`.
+    """
+
+    logging_settings = load_opentelemetry_logging_settings(path)
+
+    resource = logging_settings.resource_attributes
+    service_name = str(resource.get("service.name", default_service_name))
+    environment_value = resource.get("deployment.environment")
+    if environment_value is None:
+        environment = default_environment
+    else:
+        environment = str(environment_value)
+
+    logs_headers = dict(logging_settings.headers)
+    if not logs_headers:
+        headers_mapping: dict[str, str] | None = None
+    else:
+        headers_mapping = logs_headers
+
+    return OpenTelemetrySettings(
+        enabled=logging_settings.enabled,
+        service_name=service_name,
+        environment=environment,
+        endpoint=None,
+        headers=None,
+        timeout=None,
+        console_exporter=False,
+        logs_endpoint=logging_settings.endpoint,
+        logs_headers=headers_mapping,
+        logs_timeout=logging_settings.timeout,
+    )
 
 
 def _ensure_configured() -> None:

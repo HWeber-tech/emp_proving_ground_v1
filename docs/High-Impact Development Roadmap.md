@@ -115,7 +115,7 @@ To reflect the true scope of institutional-grade trading components, the roadmap
 - [x] Produce automated risk report artifact (Markdown/JSON) for CI artifacts (`scripts/generate_risk_report.py`).
 - [x] Backfill encyclopedia Tier-0/Tier-1 risk scenarios as pytest parametrized cases to validate guardrail behavior.
 - [x] Integrate VaR/ES outputs into canonical risk configuration defaults (`src/config/risk/risk_config.py`).
-- [ ] Publish weekly capital efficiency memo comparing realized vs target risk budgets.
+- [x] Publish weekly capital efficiency memo comparing realized vs target risk budgets.
 
 **Acceptance:** Pre-trade checks block orders breaching VaR/ES or exposure limits; regression suite validates guardrails.
 
@@ -141,7 +141,7 @@ To reflect the true scope of institutional-grade trading components, the roadmap
 - [x] Add data quality validators (missing candles, stale prices, split/dividend adjustments) with alerts feeding Workstream 1C dashboard.
 - [x] Cache normalized datasets in `data_foundation/cache/` with retention policies documented for Tier-0 bootstrap.
 - [x] Ship `scripts/data_bootstrap.py` to hydrate local env and CI with canonical fixtures used by sensors and strategies.
-- [ ] Cross-link encyclopedia tables for free-vs-premium data trade-offs within `/docs/runbooks/data_foundation.md`.
+- [x] Cross-link encyclopedia tables for free-vs-premium data trade-offs within `/docs/runbooks/data_foundation.md`.
 
 **Acceptance:** Canonical datasets load without manual intervention; validators surface anomalies; encyclopedia data lineage references stay in sync with implementation.
 

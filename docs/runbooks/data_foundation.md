@@ -65,3 +65,19 @@ data stores.
 All artefacts are Git-ignored and regenerated on demand; the runbook ensures a
 repeatable workflow for onboarding new venues or data vendors without drifting
 from the encyclopedia baseline.
+
+## Encyclopedia Cross-References
+
+The EMP Encyclopedia outlines which data vendors underpin the free Tier-0
+bootstrap versus premium professional feeds. Cross-linking these tables keeps
+runbook guidance aligned with the canonical operating model:
+
+- Tier-0 free sources (Yahoo, Alpha Vantage, FRED) and their rate limits guide
+  default bootstrap expectations.【F:docs/EMP_ENCYCLOPEDIA_v2.3_CANONICAL.md†L6864-L6881】
+- Tier-1/Tier-2 premium feeds (IC Markets FIX, Alpha Vantage Premium, Refinitiv,
+  Bloomberg) establish the upgrade path operators should plan for when moving
+  beyond bootstrap mode.【F:docs/EMP_ENCYCLOPEDIA_v2.3_CANONICAL.md†L6882-L6903】
+
+Operators updating vendor configurations should reference these tables when
+raising change requests so budgeting, latency targets, and entitlement checks
+match the encyclopedia narrative.

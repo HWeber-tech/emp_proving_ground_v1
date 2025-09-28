@@ -205,7 +205,7 @@ To reflect the true scope of institutional-grade trading components, the roadmap
 #### Workstream 3A: Data & Market Microstructure (~2 weeks)
 **Impact:** 🔥🔥 **HIGH** — Improves execution edge
 
-- [ ] Multi-source aggregation (Yahoo, Alpha Vantage, FRED) with data-quality validators.
+- [x] Multi-source aggregation (Yahoo, Alpha Vantage, FRED) with data-quality validators via `src/data_foundation/ingest/multi_source.py`.
 - [ ] Introduce streaming ingestion adapters with latency benchmarks.
 - [ ] Incorporate selected ICT-style sensors (fair value gaps, liquidity sweeps) once validated by strategies.
 - [ ] Build anomaly detection for data feed breaks and false ticks.

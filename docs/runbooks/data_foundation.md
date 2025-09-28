@@ -29,6 +29,59 @@ poetry run python scripts/data_bootstrap.py \
 The command prints a JSON summary with dataset location, row counts, and any
 quality issues raised by the pipeline validators.
 
+## Multi-source Aggregator
+
+* Module: `src/data_foundation/ingest/multi_source.py`
+
+The `MultiSourceAggregator` coordinates Yahoo Finance, Alpha Vantage, and FRED
+fetchers so Tier-0 bootstrap datasets inherit the same schema and quality
+checks.  Each provider is declared via a `ProviderSpec` that references a fetch
+callable.  The aggregator normalises the resulting frames (UTC timestamps,
+uppercase symbols), stitches gaps in priority order, and executes the
+roadmap-required validators:
+
+- `CoverageValidator` – ensures each symbol hits minimum bar coverage over the
+  requested window.
+- `StalenessValidator` – checks the freshest observation versus the requested
+  end timestamp.
+- `CrossSourceDriftValidator` – surfaces price divergence between providers for
+  overlapping candles.
+
+Usage inside notebooks or scripts mirrors the following pattern:
+
+```python
+from datetime import datetime, timedelta, timezone
+
+from src.data_foundation.ingest.multi_source import (
+    CoverageValidator,
+    CrossSourceDriftValidator,
+    MultiSourceAggregator,
+    ProviderSpec,
+    StalenessValidator,
+)
+
+aggregator = MultiSourceAggregator(
+    providers=[
+        ProviderSpec("yahoo", fetch=yahoo_fetch),
+        ProviderSpec("alpha_vantage", fetch=alpha_fetch),
+        ProviderSpec("fred", fetch=fred_fetch),
+    ],
+    validators=[
+        CoverageValidator(frequency="1D"),
+        StalenessValidator(max_staleness=timedelta(days=2)),
+        CrossSourceDriftValidator(tolerance=0.01),
+    ],
+)
+
+result = aggregator.aggregate(["EURUSD"], start=datetime(2024, 1, 1, tzinfo=timezone.utc), end=datetime.now(timezone.utc))
+dataset = result.data
+quality = result.quality_findings
+```
+
+The returned `AggregationResult` includes the consolidated dataframe, per-provider
+snapshots, and validator findings so CI pipelines and dashboards can publish the
+same diagnostics captured in the roadmap checklist.
+
 ## Reference Data Loader
 
 * Module: `src/data_foundation/reference/reference_data_loader.py`

@@ -66,3 +66,12 @@
 - operations.configuration_audit.evaluate_configuration_audit
 - operations.system_validation.evaluate_system_validation
 - operations.slo.evaluate_ingest_slos
+- operations.event_bus_health.evaluate_event_bus_health
+- operations.failover_drill.execute_failover_drill
+- trading.order_management.lifecycle_processor.OrderLifecycleProcessor
+- trading.order_management.position_tracker.PositionTracker
+- trading.order_management.event_journal.OrderEventJournal
+- trading.order_management.reconciliation.replay_order_events
+- scripts/order_lifecycle_dry_run.py
+- scripts/reconcile_positions.py
+- docs/runbooks/execution_lifecycle.md

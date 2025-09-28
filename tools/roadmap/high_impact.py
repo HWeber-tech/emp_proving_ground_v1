@@ -13,6 +13,7 @@ from ._shared import (
     evaluate_requirements,
     repo_root,
     require_module_attr,
+    require_path,
 )
 
 
@@ -205,6 +206,28 @@ def _stream_definitions() -> Sequence[StreamDefinition]:
                     "operations.system_validation", "evaluate_system_validation"
                 ),
                 require_module_attr("operations.slo", "evaluate_ingest_slos"),
+                require_module_attr(
+                    "operations.event_bus_health", "evaluate_event_bus_health"
+                ),
+                require_module_attr(
+                    "operations.failover_drill", "execute_failover_drill"
+                ),
+                require_module_attr(
+                    "trading.order_management.lifecycle_processor",
+                    "OrderLifecycleProcessor",
+                ),
+                require_module_attr(
+                    "trading.order_management.position_tracker", "PositionTracker"
+                ),
+                require_module_attr(
+                    "trading.order_management.event_journal", "OrderEventJournal"
+                ),
+                require_module_attr(
+                    "trading.order_management.reconciliation", "replay_order_events"
+                ),
+                require_path("scripts/order_lifecycle_dry_run.py"),
+                require_path("scripts/reconcile_positions.py"),
+                require_path("docs/runbooks/execution_lifecycle.md"),
             ),
         ),
     )

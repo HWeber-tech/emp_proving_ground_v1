@@ -453,6 +453,13 @@ def _format_json(statuses: Iterable[StreamStatus]) -> str:
     return format_json(statuses)
 
 
+def format_portfolio_json(statuses: Iterable[StreamStatus]) -> str:
+    """Return a JSON payload describing aggregate portfolio health."""
+
+    portfolio = summarise_portfolio(statuses)
+    return json.dumps(portfolio.as_dict(), indent=2)
+
+
 def _inject_summary_table(existing: str, table: str) -> str:
     """Replace the summary table between the configured markers."""
 
@@ -522,7 +529,14 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--format",
-        choices=("markdown", "json", "detail", "summary", "attention"),
+        choices=(
+            "markdown",
+            "json",
+            "detail",
+            "summary",
+            "attention",
+            "portfolio-json",
+        ),
         default="markdown",
         help="Output format (default: markdown table)",
     )
@@ -581,6 +595,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         output = format_portfolio_summary(statuses)
     elif args.format == "attention":
         output = format_attention(statuses)
+    elif args.format == "portfolio-json":
+        output = format_portfolio_json(statuses)
     else:
         output = format_markdown(statuses)
 

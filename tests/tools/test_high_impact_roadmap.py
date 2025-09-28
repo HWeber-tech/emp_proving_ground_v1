@@ -128,6 +128,15 @@ def test_json_format_includes_evidence() -> None:
     assert payload[0]["evidence"], "expected evidence list in JSON output"
 
 
+def test_portfolio_json_format_includes_counts() -> None:
+    statuses = high_impact.evaluate_streams()
+    payload = json.loads(high_impact.format_portfolio_json(statuses))
+
+    assert payload["total_streams"] == len(statuses)
+    assert payload["ready"] == len(statuses)
+    assert payload["attention_needed"] == 0
+
+
 def test_cli_supports_json_format(capsys: pytest.CaptureFixture[str]) -> None:
     exit_code = high_impact.main(["--format", "json"])
     assert exit_code == 0
@@ -145,6 +154,17 @@ def test_cli_attention_format_handles_ready_streams(capsys: pytest.CaptureFixtur
     out, err = capsys.readouterr()
     assert not err
     assert "All streams are Ready" in out
+
+
+def test_cli_supports_portfolio_json(capsys: pytest.CaptureFixture[str]) -> None:
+    exit_code = high_impact.main(["--format", "portfolio-json"])
+
+    assert exit_code == 0
+
+    out, err = capsys.readouterr()
+    assert not err
+    payload = json.loads(out)
+    assert payload["ready"] >= 0
 
 
 def test_evaluate_streams_can_filter() -> None:

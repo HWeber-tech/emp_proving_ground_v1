@@ -20,6 +20,12 @@ For an at-a-glance rollup of the portfolio, render the summary view:
 python -m tools.roadmap.high_impact --format summary
 ```
 
+For dashboards that only need aggregate counts, export the portfolio JSON view:
+
+```bash
+python -m tools.roadmap.high_impact --format portfolio-json
+```
+
 When triaging gaps, render the attention report to list any missing
 requirements:
 

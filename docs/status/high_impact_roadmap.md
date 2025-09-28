@@ -14,6 +14,12 @@ To focus on specific streams, provide one or more ``--stream`` flags:
 python -m tools.roadmap.high_impact --stream "Stream A – Institutional data backbone" --format detail
 ```
 
+For an at-a-glance rollup of the portfolio, render the summary view:
+
+```bash
+python -m tools.roadmap.high_impact --format summary
+```
+
 To update both this summary and the detailed evidence companion file in one
 shot, use the refresh flag:
 

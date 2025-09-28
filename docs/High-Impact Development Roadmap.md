@@ -113,7 +113,7 @@ To reflect the true scope of institutional-grade trading components, the roadmap
 - [x] Portfolio exposure limits by sector/asset class (config-driven)
 - [x] Embed drawdown circuit breakers into `src/risk/manager.py` with unit tests simulating equity curve shocks.
 - [x] Produce automated risk report artifact (Markdown/JSON) for CI artifacts (`scripts/generate_risk_report.py`).
-- [ ] Backfill encyclopedia Tier-0/Tier-1 risk scenarios as pytest parametrized cases to validate guardrail behavior.
+- [x] Backfill encyclopedia Tier-0/Tier-1 risk scenarios as pytest parametrized cases to validate guardrail behavior.
 - [x] Integrate VaR/ES outputs into canonical risk configuration defaults (`src/config/risk/risk_config.py`).
 - [ ] Publish weekly capital efficiency memo comparing realized vs target risk budgets.
 
@@ -124,10 +124,10 @@ To reflect the true scope of institutional-grade trading components, the roadmap
 
 - [x] Stand up PnL & exposure dashboard (streamlit or textual CLI) backed by `position_tracker` outputs.
 - [x] Centralize logging via `structlog` with correlation IDs for each order.
-- [ ] Expand monitoring hooks to emit metrics to Prometheus-compatible format.
-- [ ] Document operational runbooks in `/docs/runbooks/` and update encyclopedia cross-references.
-- [ ] Ensure paper-trading mode (`scripts/paper_trade_dry_run.py`) logs parity with live flow (no new paper broker abstraction required).
-- [ ] Mirror encyclopedia's "Operations Nerve Center" by adding health-check endpoints for FIX, data feeds, and risk engines.
+- [x] Expand monitoring hooks to emit metrics to Prometheus-compatible format.
+- [x] Document operational runbooks in `/docs/runbooks/` and update encyclopedia cross-references.
+- [x] Ensure paper-trading mode (`scripts/paper_trade_dry_run.py`) logs parity with live flow (no new paper broker abstraction required).
+- [x] Mirror encyclopedia's "Operations Nerve Center" by adding health-check endpoints for FIX, data feeds, and risk engines.
 - [x] Add incident postmortem template aligned with Encyclopedia Appendix F and store under `/docs/runbooks/templates/`.
 - [ ] Wire structured logs into a local OpenTelemetry collector with exporters defined in `config/observability/`.
 

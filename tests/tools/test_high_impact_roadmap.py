@@ -155,6 +155,20 @@ def test_evaluate_streams_can_filter() -> None:
     assert status.stream == "Stream A – Institutional data backbone"
 
 
+def test_evaluate_streams_preserves_requested_order() -> None:
+    statuses = high_impact.evaluate_streams(
+        [
+            "Stream C – Execution, risk, compliance, ops readiness",
+            "Stream A – Institutional data backbone",
+        ]
+    )
+
+    assert [status.stream for status in statuses] == [
+        "Stream C – Execution, risk, compliance, ops readiness",
+        "Stream A – Institutional data backbone",
+    ]
+
+
 def test_cli_rejects_unknown_stream(capsys: pytest.CaptureFixture[str]) -> None:
     with pytest.raises(SystemExit) as excinfo:
         high_impact.main(["--stream", "unknown stream"])

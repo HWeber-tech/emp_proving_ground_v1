@@ -270,19 +270,32 @@ def evaluate_streams(selected_streams: Sequence[str] | None = None) -> list[Stre
 
     definitions = list(_stream_definitions())
     if selected_streams:
-        requested = {name.strip() for name in selected_streams if name and name.strip()}
-        if not requested:
+        cleaned = [
+            name.strip()
+            for name in selected_streams
+            if name and name.strip()
+        ]
+        if not cleaned:
             definitions = []
         else:
+            ordered_names: list[str] = []
+            seen: set[str] = set()
+            for name in cleaned:
+                if name not in seen:
+                    ordered_names.append(name)
+                    seen.add(name)
+
             known = {definition.stream for definition in definitions}
-            unknown = sorted(requested - known)
+            unknown = [name for name in ordered_names if name not in known]
             if unknown:
                 raise ValueError(
                     "Unknown stream(s): " + ", ".join(unknown)
                 )
-            definitions = [
-                definition for definition in definitions if definition.stream in requested
-            ]
+
+            definitions_by_name = {
+                definition.stream: definition for definition in definitions
+            }
+            definitions = [definitions_by_name[name] for name in ordered_names]
 
     root = repo_root()
     return [definition.evaluate(root) for definition in definitions]

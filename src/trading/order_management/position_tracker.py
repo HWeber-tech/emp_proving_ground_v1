@@ -12,7 +12,7 @@ from __future__ import annotations
 from collections import deque
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Deque, Dict, Iterable, Literal, Mapping, MutableMapping, Optional, Tuple
+from typing import TYPE_CHECKING, Deque, Dict, Iterable, Literal, Mapping, MutableMapping, Optional, Tuple
 
 PnLMode = Literal["fifo", "lifo"]
 
@@ -27,6 +27,10 @@ __all__ = [
 
 
 _EPSILON = 1e-12
+
+
+if TYPE_CHECKING:
+    from .monitoring.pnl_metrics import PositionMetricsPublisher
 
 
 def _utc_now() -> datetime:
@@ -199,6 +203,7 @@ class PositionTracker:
         *,
         pnl_mode: PnLMode = "fifo",
         default_account: str = "PRIMARY",
+        metrics_publisher: "PositionMetricsPublisher" | None = None,
     ) -> None:
         if pnl_mode not in ("fifo", "lifo"):
             raise ValueError("pnl_mode must be either 'fifo' or 'lifo'")
@@ -206,6 +211,7 @@ class PositionTracker:
         self._default_account = default_account
         self._positions: Dict[Tuple[str, str], _TrackedPosition] = {}
         self._marks: MutableMapping[str, tuple[float, datetime]] = {}
+        self._metrics_publisher = metrics_publisher
 
     # --- internal utilities ----------------------------------------------
     def _resolve_account(self, account: Optional[str]) -> str:
@@ -280,7 +286,10 @@ class PositionTracker:
         if fees:
             position.fees += fees
 
-        return self.get_position_snapshot(symbol, account=account_id)
+        snapshot = self.get_position_snapshot(symbol, account=account_id)
+        self._publish_snapshot(snapshot)
+        self._publish_account_metrics(account_id)
+        return snapshot
 
     def update_mark_price(
         self,
@@ -295,6 +304,12 @@ class PositionTracker:
         if mark_time.tzinfo is None:
             mark_time = mark_time.replace(tzinfo=timezone.utc)
         self._marks[symbol] = (price, mark_time)
+
+        accounts_to_update = [account for account, sym in self._positions if sym == symbol]
+        for account_id in accounts_to_update:
+            snapshot = self.get_position_snapshot(symbol, account=account_id)
+            self._publish_snapshot(snapshot)
+            self._publish_account_metrics(account_id)
 
     def get_position_snapshot(
         self,
@@ -420,6 +435,31 @@ class PositionTracker:
             timestamp=timestamp,
             account=account_id,
             differences=tuple(differences),
+        )
+
+    # --- metrics helpers ---------------------------------------------------
+    def _publish_snapshot(self, snapshot: "PositionSnapshot") -> None:
+        publisher = self._metrics_publisher
+        if publisher is None:
+            return
+        publisher.publish(snapshot)
+
+    def _publish_account_metrics(self, account_id: str) -> None:
+        publisher = self._metrics_publisher
+        if publisher is None:
+            return
+
+        snapshots = list(self.iter_positions(account=account_id))
+        total_exposure = sum(s.exposure or 0.0 for s in snapshots if s.exposure is not None)
+        total_realized = sum(s.realized_pnl for s in snapshots)
+        unrealized_values = [s.unrealized_pnl for s in snapshots if s.unrealized_pnl is not None]
+        total_unrealized = sum(unrealized_values) if unrealized_values else None
+
+        publisher.publish_account_totals(
+            account=account_id,
+            total_exposure=total_exposure,
+            total_realized_pnl=total_realized,
+            total_unrealized_pnl=total_unrealized,
         )
 
     def accounts(self) -> Tuple[str, ...]:

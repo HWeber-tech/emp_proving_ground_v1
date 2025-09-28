@@ -200,6 +200,40 @@ def format_markdown(statuses: Iterable[StreamStatus]) -> str:
     return "\n".join(lines)
 
 
+def format_detail(statuses: Iterable[StreamStatus]) -> str:
+    """Return a richer Markdown report for dashboards and docs."""
+
+    lines: list[str] = [
+        "# High-impact roadmap status",
+        "",
+    ]
+    for status in statuses:
+        lines.extend(
+            [
+                f"## {status.stream}",
+                "",
+                f"**Status:** {status.status}",
+                "",
+                f"**Summary:** {status.summary}",
+                "",
+                f"**Next checkpoint:** {status.next_checkpoint}",
+                "",
+            ]
+        )
+
+        if status.evidence:
+            lines.append("**Evidence:**")
+            lines.extend(f"- {item}" for item in status.evidence)
+            lines.append("")
+
+        if status.missing:
+            lines.append("**Missing:**")
+            lines.extend(f"- {item}" for item in status.missing)
+            lines.append("")
+
+    return "\n".join(lines).rstrip()
+
+
 def _format_json(statuses: Iterable[StreamStatus]) -> str:
     return json.dumps([asdict(status) for status in statuses], indent=2)
 
@@ -210,17 +244,28 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--format",
-        choices=("markdown", "json"),
+        choices=("markdown", "json", "detail"),
         default="markdown",
         help="Output format (default: markdown table)",
+    )
+    parser.add_argument(
+        "--output",
+        type=Path,
+        help="Optional path where the report should be written",
     )
     args = parser.parse_args(argv)
 
     statuses = evaluate_streams()
     if args.format == "json":
         output = _format_json(statuses)
+    elif args.format == "detail":
+        output = format_detail(statuses)
     else:
         output = format_markdown(statuses)
+
+    if args.output:
+        args.output.write_text(output, encoding="utf-8")
+
     print(output)
     return 0
 

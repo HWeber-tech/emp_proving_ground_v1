@@ -19,7 +19,10 @@ def _ts() -> datetime:
 
 def test_order_state_machine_full_fill_flow() -> None:
     machine = OrderStateMachine()
-    machine.register_order(OrderMetadata("ORD1", "EURUSD", "BUY", 10, account="SIM"))
+    created_at = _ts()
+    machine.register_order(
+        OrderMetadata("ORD1", "EURUSD", "BUY", 10, account="SIM", created_at=created_at)
+    )
 
     state = machine.apply_event(
         OrderExecutionEvent(
@@ -31,6 +34,8 @@ def test_order_state_machine_full_fill_flow() -> None:
     )
     assert state.status is OrderStatus.ACKNOWLEDGED
     assert state.last_fill_quantity == 0
+    assert state.acknowledged_at == _ts()
+    assert state.created_at == created_at
 
     state = machine.apply_event(
         OrderExecutionEvent(
@@ -48,6 +53,7 @@ def test_order_state_machine_full_fill_flow() -> None:
     assert pytest.approx(state.average_fill_price or 0.0) == 101.0
     assert pytest.approx(state.last_fill_quantity) == 4
     assert pytest.approx(state.last_fill_price or 0.0) == 101.0
+    assert state.first_fill_at == _ts()
 
     state = machine.apply_event(
         OrderExecutionEvent(
@@ -69,12 +75,17 @@ def test_order_state_machine_full_fill_flow() -> None:
     )
     assert pytest.approx(state.last_fill_quantity) == 6
     assert pytest.approx(state.last_fill_price or 0.0) == 102.0
+    assert state.final_fill_at == _ts()
 
     snapshot = machine.snapshot("ORD1")
     assert snapshot.symbol == "EURUSD"
     assert snapshot.side == "BUY"
     assert snapshot.order_quantity == 10
     assert snapshot.account == "SIM"
+    assert snapshot.created_at == created_at
+    assert snapshot.acknowledged_at == _ts()
+    assert snapshot.first_fill_at == _ts()
+    assert snapshot.final_fill_at == _ts()
 
 
 def test_order_state_machine_rejects_invalid_progression() -> None:

@@ -71,12 +71,16 @@ class OrderMetadata:
     side: Literal["BUY", "SELL"]
     quantity: float
     account: str | None = None
+    created_at: datetime | None = None
+    venue: str | None = None
 
     def __post_init__(self) -> None:  # pragma: no cover - dataclass guard
         if self.quantity <= 0:
             raise ValueError("quantity must be positive")
         if self.side not in {"BUY", "SELL"}:
             raise ValueError("side must be either 'BUY' or 'SELL'")
+        if self.created_at is not None and self.created_at.tzinfo is None:
+            object.__setattr__(self, "created_at", self.created_at.replace(tzinfo=timezone.utc))
 
 
 @dataclass(slots=True, frozen=True)
@@ -164,6 +168,12 @@ class OrderState:
     last_fill_quantity: float = 0.0
     last_fill_price: Optional[float] = None
     events: list[OrderExecutionEvent] = field(default_factory=list)
+    created_at: datetime = field(default_factory=_utc_now)
+    acknowledged_at: Optional[datetime] = None
+    first_fill_at: Optional[datetime] = None
+    final_fill_at: Optional[datetime] = None
+    cancelled_at: Optional[datetime] = None
+    rejected_at: Optional[datetime] = None
 
     @property
     def remaining_quantity(self) -> float:
@@ -189,6 +199,12 @@ class OrderLifecycleSnapshot:
     average_fill_price: Optional[float]
     last_event: Optional[ExecutionEventType]
     last_update: datetime
+    created_at: datetime
+    acknowledged_at: Optional[datetime]
+    first_fill_at: Optional[datetime]
+    final_fill_at: Optional[datetime]
+    cancelled_at: Optional[datetime]
+    rejected_at: Optional[datetime]
 
 
 class OrderStateMachine:
@@ -203,7 +219,8 @@ class OrderStateMachine:
     def register_order(self, metadata: OrderMetadata) -> OrderState:
         if metadata.order_id in self._orders:
             raise OrderStateError(f"Order {metadata.order_id} already registered")
-        state = OrderState(metadata=metadata)
+        created = metadata.created_at or _utc_now()
+        state = OrderState(metadata=metadata, created_at=created, last_update=created)
         self._orders[metadata.order_id] = state
         return state
 
@@ -246,6 +263,8 @@ class OrderStateMachine:
         state.status = OrderStatus.ACKNOWLEDGED
         state.last_fill_quantity = 0.0
         state.last_fill_price = None
+        if state.acknowledged_at is None:
+            state.acknowledged_at = event.timestamp
 
     def _apply_fill(self, state: OrderState, event: OrderExecutionEvent) -> None:
         if state.status not in {
@@ -291,11 +310,14 @@ class OrderStateMachine:
         if remaining <= self._quantity_epsilon:
             state.status = OrderStatus.FILLED
             state.filled_quantity = min(state.metadata.quantity, state.filled_quantity)
+            state.final_fill_at = event.timestamp
         else:
             state.status = OrderStatus.PARTIALLY_FILLED
 
         state.last_fill_quantity = increment
         state.last_fill_price = event.last_price or state.average_fill_price
+        if increment > 0 and state.first_fill_at is None:
+            state.first_fill_at = event.timestamp
 
     def _apply_cancel(self, state: OrderState, event: OrderExecutionEvent) -> None:
         if state.status in TERMINAL_STATES:
@@ -315,6 +337,8 @@ class OrderStateMachine:
         state.status = OrderStatus.CANCELLED
         state.last_fill_quantity = 0.0
         state.last_fill_price = None
+        if state.cancelled_at is None:
+            state.cancelled_at = event.timestamp
 
     def _apply_reject(self, state: OrderState, event: OrderExecutionEvent) -> None:
         if state.status in TERMINAL_STATES and state.status != OrderStatus.REJECTED:
@@ -328,6 +352,8 @@ class OrderStateMachine:
         state.status = OrderStatus.REJECTED
         state.last_fill_quantity = 0.0
         state.last_fill_price = None
+        if state.rejected_at is None:
+            state.rejected_at = event.timestamp
 
     # -- inspection -------------------------------------------------------
     def snapshot(self, order_id: str) -> OrderLifecycleSnapshot:
@@ -346,6 +372,12 @@ class OrderStateMachine:
             average_fill_price=state.average_fill_price,
             last_event=state.last_event,
             last_update=state.last_update,
+            created_at=state.created_at,
+            acknowledged_at=state.acknowledged_at,
+            first_fill_at=state.first_fill_at,
+            final_fill_at=state.final_fill_at,
+            cancelled_at=state.cancelled_at,
+            rejected_at=state.rejected_at,
         )
 
     def iter_open_orders(self) -> Iterable[OrderLifecycleSnapshot]:

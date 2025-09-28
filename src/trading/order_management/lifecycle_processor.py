@@ -14,6 +14,7 @@ from .order_state_machine import (
     OrderStateMachine,
 )
 from .position_tracker import PositionTracker
+from .monitoring import OrderLatencyMonitor
 
 try:  # pragma: no cover - optional import for type checking only
     from ..integration.fix_broker_interface import FIXBrokerInterface
@@ -39,12 +40,14 @@ class OrderLifecycleProcessor:
         state_machine: Optional[OrderStateMachine] = None,
         position_tracker: PositionTracker | None = None,
         account_resolver: Callable[[OrderMetadata], str | None] | None = None,
+        latency_monitor: OrderLatencyMonitor | None = None,
     ) -> None:
         self._journal = journal
         self._state_machine = state_machine or OrderStateMachine()
         self._attached_broker: Optional[FIXBrokerInterface] = None
         self._position_tracker = position_tracker
         self._account_resolver = account_resolver
+        self._latency_monitor = latency_monitor
 
     # ------------------------------------------------------------------
     @property
@@ -114,6 +117,8 @@ class OrderLifecycleProcessor:
         state = self._state_machine.apply_event(event)
         snapshot = self._state_machine.snapshot(event.order_id)
         self._update_position_tracker(state, event, snapshot)
+        if self._latency_monitor is not None:
+            self._latency_monitor.record_transition(state, event, snapshot)
         if self._journal is not None:
             self._journal.append(event, snapshot)
         return snapshot

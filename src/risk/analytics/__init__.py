@@ -14,6 +14,12 @@ from .volatility_target import (
     calculate_realised_volatility,
     determine_target_allocation,
 )
+from .volatility_regime import (
+    VolatilityRegime,
+    VolatilityRegimeAssessment,
+    VolatilityRegimeThresholds,
+    classify_volatility_regime,
+)
 
 __all__ = [
     "compute_historical_var",
@@ -24,4 +30,8 @@ __all__ = [
     "VolatilityTargetAllocation",
     "calculate_realised_volatility",
     "determine_target_allocation",
+    "VolatilityRegime",
+    "VolatilityRegimeAssessment",
+    "VolatilityRegimeThresholds",
+    "classify_volatility_regime",
 ]

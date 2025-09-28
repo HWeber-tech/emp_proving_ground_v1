@@ -153,7 +153,7 @@ To reflect the true scope of institutional-grade trading components, the roadmap
 
 - **Volatility Toolkit**
   - [x] Implement `src/strategies/signals/garch_volatility.py` with parameterized ARCH/GARCH models.
-  - [ ] Create volatility-regime classifier feeding risk sizing.
+  - [x] Create volatility-regime classifier feeding risk sizing.
 - **Mean Reversion Set**
   - [ ] Bollinger Band breakout/mean reversion strategy with configurable bands.
   - [x] Pair-trading z-score spread model with cointegration tests.

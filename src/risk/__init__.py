@@ -5,7 +5,11 @@ from __future__ import annotations
 from .real_risk_manager import RealRiskConfig, RealRiskManager
 from .analytics import (
     VolatilityTargetAllocation,
+    VolatilityRegime,
+    VolatilityRegimeAssessment,
+    VolatilityRegimeThresholds,
     calculate_realised_volatility,
+    classify_volatility_regime,
     determine_target_allocation,
 )
 from .reporting import (
@@ -47,4 +51,8 @@ __all__ = [
     "VolatilityTargetAllocation",
     "calculate_realised_volatility",
     "determine_target_allocation",
+    "VolatilityRegime",
+    "VolatilityRegimeAssessment",
+    "VolatilityRegimeThresholds",
+    "classify_volatility_regime",
 ]

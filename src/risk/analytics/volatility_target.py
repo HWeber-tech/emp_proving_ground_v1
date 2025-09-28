@@ -12,6 +12,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Iterable, Sequence
 
+from typing_extensions import Self
+
 import numpy as np
 
 __all__ = [
@@ -29,8 +31,10 @@ class VolatilityTargetAllocation:
     leverage: float
     target_volatility: float
     realised_volatility: float
+    volatility_regime: str | None = None
+    risk_multiplier: float | None = None
 
-    def as_dict(self) -> dict[str, float]:
+    def as_dict(self) -> dict[str, float | str | None]:
         """Return a JSON-serialisable representation of the allocation."""
 
         return {
@@ -38,7 +42,28 @@ class VolatilityTargetAllocation:
             "leverage": self.leverage,
             "target_volatility": self.target_volatility,
             "realised_volatility": self.realised_volatility,
+            "volatility_regime": self.volatility_regime,
+            "risk_multiplier": self.risk_multiplier,
         }
+
+    def with_adjustment(
+        self,
+        *,
+        target_notional: float | None = None,
+        leverage: float | None = None,
+        volatility_regime: str | None = None,
+        risk_multiplier: float | None = None,
+    ) -> Self:
+        """Return a copy updated with the supplied adjustments."""
+
+        return VolatilityTargetAllocation(
+            target_notional=target_notional if target_notional is not None else self.target_notional,
+            leverage=leverage if leverage is not None else self.leverage,
+            target_volatility=self.target_volatility,
+            realised_volatility=self.realised_volatility,
+            volatility_regime=volatility_regime if volatility_regime is not None else self.volatility_regime,
+            risk_multiplier=risk_multiplier if risk_multiplier is not None else self.risk_multiplier,
+        )
 
 
 def _normalise_series(

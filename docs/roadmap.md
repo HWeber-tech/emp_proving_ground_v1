@@ -328,6 +328,10 @@ These streams translate the encyclopedia ambitions into execution tracks. Each
 stream should keep the concept excerpts, current-state references, and acceptance
 criteria together inside its epic template so engineers inherit the same context.
 
+> **Automation:** Run `python -m tools.roadmap.high_impact` to inspect the
+> readiness of the document-driven streams or `python -m tools.roadmap.high_impact
+> --format json` for dashboards.
+
 ### Stream A – Institutional data backbone
 
 **Mission** – Replace the bootstrap-only ingest helpers with tier-aware, resilient

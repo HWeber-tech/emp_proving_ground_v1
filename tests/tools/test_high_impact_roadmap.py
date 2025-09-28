@@ -1,0 +1,53 @@
+"""Tests for the high-impact roadmap evaluation CLI."""
+
+from __future__ import annotations
+
+import json
+
+import pytest
+
+from tools.roadmap import high_impact
+
+
+def _status_map() -> dict[str, high_impact.StreamStatus]:
+    return {status.stream: status for status in high_impact.evaluate_streams()}
+
+
+def test_streams_marked_ready() -> None:
+    statuses = _status_map()
+
+    assert set(statuses) == {
+        "Stream A – Institutional data backbone",
+        "Stream B – Sensory cortex & evolution uplift",
+        "Stream C – Execution, risk, compliance, ops readiness",
+    }
+
+    for status in statuses.values():
+        assert status.status == "Ready"
+        assert status.missing == ()
+        assert status.evidence, "expected evidence for ready streams"
+
+
+def test_markdown_formatter_outputs_table() -> None:
+    statuses = high_impact.evaluate_streams()
+    markdown = high_impact.format_markdown(statuses)
+
+    assert markdown.splitlines()[0] == "| Stream | Status | Summary | Next checkpoint |"
+    assert "Stream A – Institutional data backbone" in markdown
+
+
+def test_json_format_includes_evidence() -> None:
+    statuses = high_impact.evaluate_streams()
+    payload = json.loads(high_impact._format_json(statuses))
+
+    assert isinstance(payload, list)
+    assert payload[0]["evidence"], "expected evidence list in JSON output"
+
+
+def test_cli_supports_json_format(capsys: pytest.CaptureFixture[str]) -> None:
+    exit_code = high_impact.main(["--format", "json"])
+    assert exit_code == 0
+    out, err = capsys.readouterr()
+    assert not err
+    decoded = json.loads(out)
+    assert decoded[0]["status"] == "Ready"

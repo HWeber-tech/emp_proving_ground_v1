@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import logging
 from typing import Callable, Iterable, Optional
 
 from .event_journal import OrderEventJournal
@@ -21,9 +20,11 @@ try:  # pragma: no cover - optional import for type checking only
 except Exception:  # pragma: no cover - avoid import errors at runtime
     FIXBrokerInterface = object  # type: ignore
 
+from src.operational.structured_logging import get_logger, order_logging_context
+
 __all__ = ["OrderLifecycleProcessor"]
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class OrderLifecycleProcessor:
@@ -79,7 +80,7 @@ class OrderLifecycleProcessor:
             try:
                 broker.remove_event_listener(event_type, self._handle_broker_event)
             except Exception:  # pragma: no cover - defensive
-                logger.debug("Failed to remove %s listener", event_type)
+                logger.debug("lifecycle_listener_detach_failed", event_type=event_type)
         self._attached_broker = None
 
     # ------------------------------------------------------------------
@@ -89,7 +90,8 @@ class OrderLifecycleProcessor:
         except OrderStateError as exc:
             if self._journal is not None:
                 self._journal.append_error(payload, reason=str(exc))
-            logger.warning("Rejected order event for %s: %s", order_id, exc)
+            with order_logging_context(order_id):
+                logger.warning("order_event_rejected", error=str(exc))
 
     def handle_broker_payload(
         self, order_id: str, payload: dict
@@ -157,7 +159,8 @@ class OrderLifecycleProcessor:
 
         price = event.last_price or state.last_fill_price or snapshot.average_fill_price
         if price is None:
-            logger.debug("Skipping fill without price for %s", state.metadata.order_id)
+            with order_logging_context(state.metadata.order_id):
+                logger.debug("order_fill_without_price_skipped")
             return
 
         signed_quantity = fill_quantity if state.metadata.side == "BUY" else -fill_quantity

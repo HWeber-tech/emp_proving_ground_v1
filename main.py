@@ -15,8 +15,10 @@ from src.runtime.runtime_builder import (
     build_professional_runtime_application,
 )
 
+from src.operational.structured_logging import configure_structlog, get_logger
 
-logger = logging.getLogger(__name__)
+
+logger = get_logger(__name__)
 
 __all__ = ["_execute_timescale_ingest", "main"]
 
@@ -24,10 +26,7 @@ __all__ = ["_execute_timescale_ingest", "main"]
 async def main() -> None:
     """Main entry point for Professional Predator."""
 
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    )
+    configure_structlog(level=logging.INFO)
 
     from src.system.requirements_check import assert_scientific_stack
 

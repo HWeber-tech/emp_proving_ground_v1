@@ -110,6 +110,14 @@ def _stream_definitions() -> Sequence[StreamDefinition]:
                     "data_foundation.ingest.failover",
                     "decide_ingest_failover",
                 ),
+                require_module_attr(
+                    "operations.backup",
+                    "evaluate_backup_readiness",
+                ),
+                require_module_attr(
+                    "operations.spark_stress",
+                    "execute_spark_stress_drill",
+                ),
             ),
         ),
         StreamDefinition(
@@ -132,6 +140,7 @@ def _stream_definitions() -> Sequence[StreamDefinition]:
                     "sensory.when.gamma_exposure", "GammaExposureAnalyzer"
                 ),
                 require_module_attr("sensory.why.why_sensor", "WhySensor"),
+                require_module_attr("sensory.what.what_sensor", "WhatSensor"),
                 require_module_attr(
                     "operations.sensory_drift", "evaluate_sensory_drift"
                 ),

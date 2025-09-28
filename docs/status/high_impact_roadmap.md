@@ -60,3 +60,11 @@ python -m tools.roadmap.high_impact --format detail --output docs/status/high_im
 
 The command produces a stream-by-stream summary that includes the captured
 evidence list for each initiative.
+
+To persist the attention view alongside these reports, provide an explicit
+destination (or rely on the default location under `docs/status/`):
+
+```bash
+python -m tools.roadmap.high_impact --refresh-docs \
+  --attention-path docs/status/high_impact_roadmap_attention.md
+```

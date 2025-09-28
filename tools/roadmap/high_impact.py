@@ -485,6 +485,7 @@ def refresh_docs(
     *,
     summary_path: Path | None = None,
     detail_path: Path | None = None,
+    attention_path: Path | None = None,
 ) -> None:
     """Refresh the roadmap status documentation files.
 
@@ -502,6 +503,9 @@ def refresh_docs(
     root = repo_root()
     summary_path = summary_path or root / "docs/status/high_impact_roadmap.md"
     detail_path = detail_path or root / "docs/status/high_impact_roadmap_detail.md"
+    attention_path = (
+        attention_path or root / "docs/status/high_impact_roadmap_attention.md"
+    )
 
     summary_text = summary_path.read_text(encoding="utf-8")
     table = format_markdown(statuses)
@@ -514,6 +518,11 @@ def refresh_docs(
     if not detail_text.endswith("\n"):
         detail_text = f"{detail_text}\n"
     detail_path.write_text(detail_text, encoding="utf-8")
+
+    attention_text = format_attention(statuses)
+    if not attention_text.endswith("\n"):
+        attention_text = f"{attention_text}\n"
+    attention_path.write_text(attention_text, encoding="utf-8")
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -553,6 +562,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         ),
     )
     parser.add_argument(
+        "--attention-path",
+        type=Path,
+        help=(
+            "Optional path to the attention markdown file when refreshing docs. "
+            "Defaults to docs/status/high_impact_roadmap_attention.md"
+        ),
+    )
+    parser.add_argument(
         "--stream",
         action="append",
         dest="streams",
@@ -572,6 +589,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             statuses,
             summary_path=args.summary_path,
             detail_path=args.detail_path,
+            attention_path=args.attention_path,
         )
     if args.format == "json":
         output = format_json(statuses)

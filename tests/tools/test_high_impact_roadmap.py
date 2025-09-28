@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import pytest
 
@@ -51,3 +52,27 @@ def test_cli_supports_json_format(capsys: pytest.CaptureFixture[str]) -> None:
     assert not err
     decoded = json.loads(out)
     assert decoded[0]["status"] == "Ready"
+
+
+def test_detail_formatter_includes_evidence() -> None:
+    statuses = high_impact.evaluate_streams()
+    report = high_impact.format_detail(statuses)
+
+    assert "# High-impact roadmap status" in report
+    assert "**Evidence:**" in report
+    assert "Stream A" in report
+
+
+def test_cli_writes_output_file(tmp_path: Path) -> None:
+    destination = tmp_path / "report.md"
+    exit_code = high_impact.main([
+        "--format",
+        "detail",
+        "--output",
+        str(destination),
+    ])
+
+    assert exit_code == 0
+    assert destination.exists()
+    content = destination.read_text(encoding="utf-8")
+    assert "High-impact roadmap status" in content

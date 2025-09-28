@@ -48,6 +48,27 @@ def test_stream_b_lists_all_sensory_organs() -> None:
     }.issubset(status.evidence)
 
 
+def test_stream_c_covers_execution_lifecycle_artifacts() -> None:
+    status = _status_map()[
+        "Stream C – Execution, risk, compliance, ops readiness"
+    ]
+
+    expected_entries = {
+        "operations.event_bus_health.evaluate_event_bus_health",
+        "operations.failover_drill.execute_failover_drill",
+        "trading.order_management.lifecycle_processor.OrderLifecycleProcessor",
+        "trading.order_management.position_tracker.PositionTracker",
+        "trading.order_management.event_journal.OrderEventJournal",
+        "trading.order_management.reconciliation.replay_order_events",
+        "scripts/order_lifecycle_dry_run.py",
+        "scripts/reconcile_positions.py",
+        "docs/runbooks/execution_lifecycle.md",
+    }
+
+    for entry in expected_entries:
+        assert entry in status.evidence, f"missing {entry}"
+
+
 def test_markdown_formatter_outputs_table() -> None:
     statuses = high_impact.evaluate_streams()
     markdown = high_impact.format_markdown(statuses)

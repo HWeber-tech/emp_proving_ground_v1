@@ -34,6 +34,15 @@ shot, use the refresh flag:
 python -m tools.roadmap.high_impact --refresh-docs
 ```
 
+When writing to alternate locations (for example in CI workspaces), provide
+explicit paths for the summary and detail files:
+
+```bash
+python -m tools.roadmap.high_impact --refresh-docs \
+  --summary-path /tmp/high_impact_summary.md \
+  --detail-path /tmp/high_impact_detail.md
+```
+
 <!-- HIGH_IMPACT_SUMMARY:START -->
 | Stream | Status | Summary | Next checkpoint |
 | --- | --- | --- | --- |

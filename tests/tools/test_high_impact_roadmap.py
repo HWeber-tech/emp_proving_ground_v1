@@ -203,6 +203,44 @@ def test_cli_writes_output_file(tmp_path: Path) -> None:
     assert "High-impact roadmap status" in content
 
 
+def test_cli_refresh_docs_accepts_custom_paths(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    summary = tmp_path / "summary.md"
+    detail = tmp_path / "detail.md"
+    summary.write_text(
+        (
+            "Lead-in\n\n"
+            "<!-- HIGH_IMPACT_SUMMARY:START -->\n"
+            "outdated table\n"
+            "<!-- HIGH_IMPACT_SUMMARY:END -->\n"
+        ),
+        encoding="utf-8",
+    )
+    detail.write_text("outdated\n", encoding="utf-8")
+
+    exit_code = high_impact.main(
+        [
+            "--refresh-docs",
+            "--summary-path",
+            str(summary),
+            "--detail-path",
+            str(detail),
+        ]
+    )
+
+    assert exit_code == 0
+    out, err = capsys.readouterr()
+    assert not err
+    assert "Stream A – Institutional data backbone" in out
+
+    updated_summary = summary.read_text(encoding="utf-8")
+    assert "Stream A – Institutional data backbone" in updated_summary
+    assert updated_summary.startswith("Lead-in")
+
+    updated_detail = detail.read_text(encoding="utf-8")
+    assert updated_detail.startswith("# High-impact roadmap status")
+    assert updated_detail.endswith("\n")
+
+
 def test_refresh_docs_updates_summary_and_detail(tmp_path: Path) -> None:
     summary = tmp_path / "summary.md"
     detail = tmp_path / "detail.md"

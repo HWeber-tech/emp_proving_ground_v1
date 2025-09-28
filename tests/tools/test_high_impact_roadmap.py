@@ -274,6 +274,7 @@ def test_cli_writes_output_file(tmp_path: Path) -> None:
 def test_cli_refresh_docs_accepts_custom_paths(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     summary = tmp_path / "summary.md"
     detail = tmp_path / "detail.md"
+    attention = tmp_path / "attention.md"
     summary.write_text(
         (
             "Lead-in\n\n"
@@ -292,6 +293,8 @@ def test_cli_refresh_docs_accepts_custom_paths(tmp_path: Path, capsys: pytest.Ca
             str(summary),
             "--detail-path",
             str(detail),
+            "--attention-path",
+            str(attention),
         ]
     )
 
@@ -308,10 +311,15 @@ def test_cli_refresh_docs_accepts_custom_paths(tmp_path: Path, capsys: pytest.Ca
     assert updated_detail.startswith("# High-impact roadmap status")
     assert updated_detail.endswith("\n")
 
+    updated_attention = attention.read_text(encoding="utf-8")
+    assert updated_attention.startswith("# High-impact roadmap attention")
+    assert updated_attention.endswith("\n")
+
 
 def test_refresh_docs_updates_summary_and_detail(tmp_path: Path) -> None:
     summary = tmp_path / "summary.md"
     detail = tmp_path / "detail.md"
+    attention = tmp_path / "attention.md"
     summary.write_text(
         (
             "Header\n\n"
@@ -325,7 +333,12 @@ def test_refresh_docs_updates_summary_and_detail(tmp_path: Path) -> None:
     detail.write_text("outdated\n", encoding="utf-8")
 
     statuses = high_impact.evaluate_streams()
-    high_impact.refresh_docs(statuses, summary_path=summary, detail_path=detail)
+    high_impact.refresh_docs(
+        statuses,
+        summary_path=summary,
+        detail_path=detail,
+        attention_path=attention,
+    )
 
     updated_summary = summary.read_text(encoding="utf-8")
     assert "Header" in updated_summary
@@ -335,6 +348,10 @@ def test_refresh_docs_updates_summary_and_detail(tmp_path: Path) -> None:
     updated_detail = detail.read_text(encoding="utf-8")
     assert updated_detail.startswith("# High-impact roadmap status")
     assert updated_detail.endswith("\n")
+
+    updated_attention = attention.read_text(encoding="utf-8")
+    assert updated_attention.startswith("# High-impact roadmap attention")
+    assert updated_attention.endswith("\n")
 
 
 def test_refresh_docs_requires_markers(tmp_path: Path) -> None:

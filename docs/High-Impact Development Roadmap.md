@@ -166,7 +166,7 @@ To reflect the true scope of institutional-grade trading components, the roadmap
   - [ ] Add scenario backtests demonstrating uplift vs baseline MA strategy.
 - **Alpha Ops**
   - [ ] Document encyclopedia-aligned playbooks for each strategy archetype, including regime suitability.
-  - [ ] Register feature importance & diagnostics pipeline in `src/strategies/analytics/performance_attribution.py`.
+  - [x] Register feature importance & diagnostics pipeline in `src/trading/strategies/analytics/performance_attribution.py`.
   - [ ] Store canonical backtest artifacts (equity curve, risk metrics, configs) under `artifacts/strategies/` for reproducibility.
 
 **Acceptance:** Each strategy passes unit/integration tests, is documented, and can be toggled via configuration.

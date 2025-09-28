@@ -2,6 +2,12 @@
 
 from __future__ import annotations
 
+from .analytics import (
+    AttributionResult,
+    FeatureContribution,
+    compute_performance_attribution,
+    result_to_dataframe,
+)
 from .mean_reversion import MeanReversionStrategy, MeanReversionStrategyConfig
 from .models import StrategyAction, StrategySignal
 from .momentum import MomentumStrategy, MomentumStrategyConfig
@@ -15,6 +21,8 @@ from .signals import (
 from .volatility_breakout import VolatilityBreakoutConfig, VolatilityBreakoutStrategy
 
 __all__ = [
+    "AttributionResult",
+    "FeatureContribution",
     "GARCHCalibrationError",
     "GARCHVolatilityConfig",
     "GARCHVolatilityResult",
@@ -28,5 +36,7 @@ __all__ = [
     "StrategySignal",
     "VolatilityBreakoutConfig",
     "VolatilityBreakoutStrategy",
+    "compute_performance_attribution",
     "compute_garch_volatility",
+    "result_to_dataframe",
 ]

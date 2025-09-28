@@ -19,7 +19,22 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Any, Callable, Mapping, MutableMapping, Optional, Protocol, cast
 
+from src.data_foundation.config.execution_config import (
+    ExecutionConfig,
+    ExecutionRiskLimits,
+    load_execution_config,
+)
+from src.trading.execution.execution_model import (
+    ExecContext,
+    estimate_commission_bps,
+    estimate_slippage_bps,
+)
 from .risk_policy import RiskPolicy, RiskPolicyDecision
+
+try:  # pragma: no cover - metrics optional in certain runtimes
+    from src.operational import metrics as operational_metrics
+except Exception:  # pragma: no cover
+    operational_metrics = None  # type: ignore[assignment]
 
 
 logger = logging.getLogger(__name__)
@@ -138,6 +153,7 @@ class RiskGateway:
         liquidity_probe_threshold: float = 1.0,
         min_liquidity_confidence: float = 0.3,
         risk_policy: RiskPolicy | None = None,
+        execution_config: ExecutionConfig | None = None,
     ) -> None:
         self.strategy_registry = strategy_registry
         self.position_sizer = position_sizer
@@ -151,6 +167,7 @@ class RiskGateway:
         self.liquidity_probe_threshold = float(liquidity_probe_threshold)
         self.min_liquidity_confidence = float(min_liquidity_confidence)
         self.risk_policy = risk_policy
+        self._execution_config = execution_config or load_execution_config()
 
         self.telemetry: dict[str, Any] = {
             "total_checks": 0,
@@ -241,6 +258,25 @@ class RiskGateway:
                     self._reject(decision)
                     return None
 
+            execution_assessment = self._evaluate_execution_cost(
+                intent,
+                float(adjusted_quantity),
+                market_price,
+                portfolio_state,
+            )
+            decision["checks"].extend(execution_assessment["checks"])
+            if execution_assessment["metadata"]:
+                decision.setdefault("execution", {}).update(
+                    execution_assessment["metadata"]
+                )
+            if execution_assessment["breaches"]:
+                decision.update(
+                    status="rejected",
+                    reason=execution_assessment["reason"],
+                )
+                self._reject(decision)
+                return None
+
             liquidity_summary: Mapping[str, Any] | None = None
             liquidity_score: float | None = None
             if self.liquidity_prober and adjusted_quantity >= self.liquidity_probe_threshold:
@@ -312,6 +348,14 @@ class RiskGateway:
     def _reject(self, decision: Mapping[str, Any]) -> None:
         self.telemetry["rejected"] += 1
         self.telemetry["last_decision"] = dict(decision)
+        reason = str(decision.get("reason") or "")
+        symbol = str(decision.get("symbol") or "")
+        if operational_metrics is not None:
+            safe_reason = reason or "unknown"
+            try:
+                operational_metrics.inc_pretrade_denial(symbol, safe_reason)
+            except Exception:  # pragma: no cover - metrics layer optional
+                logger.debug("Failed to emit pre-trade denial metric", exc_info=True)
         logger.info("RiskGateway rejected trade: %s", decision)
         return None
 
@@ -514,3 +558,131 @@ class RiskGateway:
                             pass
             except Exception:  # pragma: no cover
                 pass
+
+    def _evaluate_execution_cost(
+        self,
+        intent: Any,
+        quantity: float,
+        price: float,
+        portfolio_state: Mapping[str, Any],
+    ) -> Mapping[str, Any]:
+        metadata = _ensure_metadata(intent)
+        context = self._build_execution_context(metadata, portfolio_state, quantity, price)
+
+        execution_cfg = self._execution_config
+        limits: ExecutionRiskLimits | None = execution_cfg.limits
+
+        slippage_bps = estimate_slippage_bps(context, execution_cfg)
+        commission_bps = estimate_commission_bps(execution_cfg)
+        total_cost_bps = slippage_bps + commission_bps
+
+        notional = abs(quantity) * max(price, 0.0)
+        equity = self._resolve_equity_for_execution(portfolio_state)
+        notional_pct = (notional / equity) if equity > 0 else None
+        estimated_cost = notional * total_cost_bps / 10000 if notional else 0.0
+
+        checks: list[dict[str, Any]] = []
+        breaches: list[str] = []
+
+        def _record(name: str, value: float | None, threshold: float | None) -> None:
+            entry: dict[str, Any] = {
+                "name": name,
+                "value": value,
+                "threshold": threshold,
+            }
+            status = "info"
+            if threshold is not None and value is not None:
+                if value > threshold:
+                    status = "violation"
+                elif threshold > 0 and value / threshold >= 0.8:
+                    status = "warn"
+                else:
+                    status = "ok"
+            elif value is not None and threshold is None:
+                status = "info"
+            entry["status"] = status
+            if status == "violation":
+                breaches.append(name)
+            checks.append(entry)
+
+        limit_slippage = limits.max_slippage_bps if limits else None
+        limit_total = limits.max_total_cost_bps if limits else None
+        limit_notional = limits.max_notional_pct_of_equity if limits else None
+
+        _record("execution.slippage_bps", slippage_bps, limit_slippage)
+        _record("execution.total_cost_bps", total_cost_bps, limit_total)
+        _record("execution.notional_pct_of_equity", notional_pct, limit_notional)
+
+        execution_metadata = {
+            "slippage_bps": slippage_bps,
+            "commission_bps": commission_bps,
+            "total_cost_bps": total_cost_bps,
+            "notional": notional,
+            "estimated_cost": estimated_cost,
+            "notional_pct_of_equity": notional_pct,
+            "size_ratio": context.size_ratio,
+            "spread": context.spread,
+            "top_imbalance": context.top_imbalance,
+            "sigma_ann": context.sigma_ann,
+        }
+
+        metadata.setdefault("execution_risk", {}).update(execution_metadata)
+
+        return {
+            "checks": tuple(checks),
+            "metadata": execution_metadata,
+            "breaches": tuple(breaches),
+            "reason": "execution_risk",
+        }
+
+    def _build_execution_context(
+        self,
+        metadata: Mapping[str, Any],
+        portfolio_state: Mapping[str, Any],
+        quantity: float,
+        price: float,
+    ) -> ExecContext:
+        feature_source: Mapping[str, Any] | None = None
+        for key in ("execution_context", "microstructure", "market_microstructure"):
+            candidate = metadata.get(key)
+            if isinstance(candidate, Mapping):
+                feature_source = candidate
+                break
+
+        feature_source = feature_source or {}
+
+        spread = _as_float(feature_source.get("spread"), default=0.0)
+        if spread <= 0 and price > 0:
+            spread_bps = _as_float(feature_source.get("spread_bps"), default=0.0)
+            if spread_bps:
+                spread = price * spread_bps / 10000.0
+        if spread <= 0:
+            spread = _as_float(portfolio_state.get("current_spread"), default=0.0)
+
+        imbalance = _as_float(feature_source.get("liquidity_imbalance"), default=0.0)
+        if imbalance == 0.0:
+            imbalance = _as_float(feature_source.get("order_flow_imbalance"), default=0.0)
+
+        sigma_ann = _as_float(feature_source.get("sigma_ann"), default=0.0)
+        if sigma_ann == 0.0:
+            sigma_ann = _as_float(feature_source.get("price_volatility"), default=0.0)
+        if sigma_ann == 0.0:
+            sigma_ann = _as_float(feature_source.get("volatility"), default=0.0)
+
+        notional = abs(quantity) * max(price, 0.0)
+        equity = self._resolve_equity_for_execution(portfolio_state)
+        size_ratio = notional / equity if equity > 0 else abs(quantity)
+
+        return ExecContext(
+            spread=max(0.0, spread),
+            top_imbalance=imbalance,
+            sigma_ann=max(0.0, sigma_ann),
+            size_ratio=max(0.0, size_ratio),
+        )
+
+    def _resolve_equity_for_execution(self, portfolio_state: Mapping[str, Any]) -> float:
+        for key in ("equity", "cash", "account_equity", "total_equity"):
+            equity = _as_float(portfolio_state.get(key), default=0.0)
+            if equity > 0:
+                return equity
+        return 0.0

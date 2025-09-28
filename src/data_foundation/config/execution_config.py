@@ -21,9 +21,19 @@ class FeeModel:
 
 
 @dataclass
+class ExecutionRiskLimits:
+    """Thresholds applied to pre-trade execution checks."""
+
+    max_slippage_bps: float = 25.0
+    max_total_cost_bps: float = 35.0
+    max_notional_pct_of_equity: float = 0.25
+
+
+@dataclass
 class ExecutionConfig:
     slippage: SlippageModel = field(default_factory=SlippageModel)
     fees: FeeModel = field(default_factory=FeeModel)
+    limits: ExecutionRiskLimits = field(default_factory=ExecutionRiskLimits)
 
 
 yaml: object | None = None
@@ -45,6 +55,17 @@ def load_execution_config(path: Optional[str] = None) -> ExecutionConfig:
         ex = data.get("execution", data)
         sl = ex.get("slippage", {})
         fe = ex.get("fees", {})
+        limits_cfg = ex.get("limits") or {}
+        limits = None
+        if limits_cfg:
+            limits = ExecutionRiskLimits(
+                max_slippage_bps=float(limits_cfg.get("max_slippage_bps", 25.0)),
+                max_total_cost_bps=float(limits_cfg.get("max_total_cost_bps", 35.0)),
+                max_notional_pct_of_equity=float(
+                    limits_cfg.get("max_notional_pct_of_equity", 0.25)
+                ),
+            )
+
         return ExecutionConfig(
             slippage=SlippageModel(
                 base_bps=float(sl.get("base_bps", 0.2)),
@@ -54,6 +75,7 @@ def load_execution_config(path: Optional[str] = None) -> ExecutionConfig:
                 size_coef=float(sl.get("size_coef", 5.0)),
             ),
             fees=FeeModel(commission_bps=float(fe.get("commission_bps", 0.1))),
+            limits=limits or ExecutionRiskLimits(),
         )
     except Exception:
         return ExecutionConfig()

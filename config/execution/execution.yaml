@@ -7,4 +7,8 @@ execution:
     size_coef: 5.0
   fees:
     commission_bps: 0.1
+  limits:
+    max_slippage_bps: 25.0
+    max_total_cost_bps: 35.0
+    max_notional_pct_of_equity: 0.25
 

@@ -9,6 +9,7 @@ import logging
 import sys
 
 from src.governance.system_config import EmpTier, SystemConfig
+from src.observability.tracing import parse_opentelemetry_settings
 from src.runtime.predator_app import build_professional_predator_app
 from src.runtime.runtime_builder import (
     _execute_timescale_ingest,
@@ -26,7 +27,9 @@ __all__ = ["_execute_timescale_ingest", "main"]
 async def main() -> None:
     """Main entry point for Professional Predator."""
 
-    configure_structlog(level=logging.INFO)
+    config = SystemConfig.from_env()
+    otel_settings = parse_opentelemetry_settings(config.extras)
+    configure_structlog(level=logging.INFO, otel_settings=otel_settings)
 
     from src.system.requirements_check import assert_scientific_stack
 
@@ -53,7 +56,7 @@ async def main() -> None:
     args, _ = parser.parse_known_args()
 
     try:
-        app = await build_professional_predator_app(config=SystemConfig.from_env())
+        app = await build_professional_predator_app(config=config)
     except Exception:
         logger.exception("❌ Error initializing Professional Predator")
         raise

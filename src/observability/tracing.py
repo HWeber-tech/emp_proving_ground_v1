@@ -276,6 +276,9 @@ class OpenTelemetrySettings:
     headers: Mapping[str, str] | None = None
     timeout: float | None = None
     console_exporter: bool = False
+    logs_endpoint: str | None = None
+    logs_headers: Mapping[str, str] | None = None
+    logs_timeout: float | None = None
 
 
 def _coerce_bool(value: str | bool | None, *, default: bool) -> bool:
@@ -323,6 +326,15 @@ def parse_opentelemetry_settings(
         except (TypeError, ValueError):
             timeout = None
     console_exporter = _coerce_bool(mapping.get("OTEL_CONSOLE_EXPORTER"), default=False)
+    logs_endpoint = (mapping.get("OTEL_EXPORTER_OTLP_LOGS_ENDPOINT") or "").strip() or None
+    logs_headers = _parse_headers(mapping.get("OTEL_EXPORTER_OTLP_LOGS_HEADERS"))
+    logs_timeout_raw = mapping.get("OTEL_EXPORTER_OTLP_LOGS_TIMEOUT")
+    logs_timeout = None
+    if logs_timeout_raw:
+        try:
+            logs_timeout = float(logs_timeout_raw)
+        except (TypeError, ValueError):
+            logs_timeout = None
     return OpenTelemetrySettings(
         enabled=enabled,
         service_name=service_name or "emp-professional-runtime",
@@ -331,6 +343,9 @@ def parse_opentelemetry_settings(
         headers=headers,
         timeout=timeout,
         console_exporter=console_exporter,
+        logs_endpoint=logs_endpoint,
+        logs_headers=logs_headers,
+        logs_timeout=logs_timeout,
     )
 
 

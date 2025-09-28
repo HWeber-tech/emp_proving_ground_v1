@@ -11,9 +11,27 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 import logging
+import threading
 from typing import Any, Iterable, Iterator
 
 import structlog
+
+from src.observability.tracing import OpenTelemetrySettings
+
+try:  # pragma: no cover - optional dependency in minimal environments
+    from opentelemetry._logs import get_logger_provider, set_logger_provider
+    from opentelemetry.sdk._logs import LoggerProvider, LoggingHandler
+    from opentelemetry.sdk._logs.export import (
+        BatchLogRecordProcessor,
+        ConsoleLogExporter,
+    )
+    from opentelemetry.exporter.otlp.proto.http._log_exporter import OTLPLogExporter
+    from opentelemetry.sdk.resources import Resource
+except ModuleNotFoundError:  # pragma: no cover - optional dependency in minimal envs
+    get_logger_provider = set_logger_provider = None  # type: ignore[assignment]
+    LoggerProvider = LoggingHandler = None  # type: ignore[assignment]
+    BatchLogRecordProcessor = ConsoleLogExporter = OTLPLogExporter = None  # type: ignore[assignment]
+    Resource = None  # type: ignore[assignment]
 
 
 BoundLogger = structlog.stdlib.BoundLogger
@@ -28,14 +46,106 @@ __all__ = [
 
 
 _CONFIGURED = False
+_OTEL_WARNING_EMITTED = False
+_OTEL_LOCK = threading.Lock()
+
+_OTEL_LOGGING_AVAILABLE = bool(
+    LoggerProvider
+    and LoggingHandler
+    and BatchLogRecordProcessor
+    and OTLPLogExporter
+    and get_logger_provider
+    and set_logger_provider
+    and Resource
+)
+
+logger = logging.getLogger(__name__)
 
 
-def configure_structlog(*, level: int = logging.INFO, stream: Any | None = None) -> None:
+def _configure_otel_logging_handler(
+    *, level: int, settings: OpenTelemetrySettings
+) -> LoggingHandler | None:
+    """Configure an OpenTelemetry log handler when instrumentation is enabled."""
+
+    if not settings.enabled:
+        return None
+
+    global _OTEL_WARNING_EMITTED
+
+    if not _OTEL_LOGGING_AVAILABLE:
+        if not _OTEL_WARNING_EMITTED:
+            logger.warning(
+                "OpenTelemetry logging requested but dependencies are unavailable; "
+                "skipping structured log exporter",
+            )
+            _OTEL_WARNING_EMITTED = True
+        return None
+
+    assert LoggerProvider is not None
+    assert LoggingHandler is not None
+    assert BatchLogRecordProcessor is not None
+    assert OTLPLogExporter is not None
+    assert get_logger_provider is not None
+    assert set_logger_provider is not None
+    assert Resource is not None
+
+    resource_attributes: dict[str, str] = {"service.name": settings.service_name}
+    if settings.environment:
+        resource_attributes["deployment.environment"] = settings.environment
+
+    with _OTEL_LOCK:
+        provider = get_logger_provider()
+        if not isinstance(provider, LoggerProvider) or not getattr(
+            provider, "_emp_logging_configured", False
+        ):
+            provider = LoggerProvider(resource=Resource.create(resource_attributes))
+
+            endpoint = settings.logs_endpoint or settings.endpoint
+            headers = settings.logs_headers or settings.headers
+            timeout = (
+                settings.logs_timeout
+                if settings.logs_timeout is not None
+                else settings.timeout
+            )
+
+            if endpoint:
+                exporter = OTLPLogExporter(
+                    endpoint=endpoint,
+                    headers=dict(headers) if headers is not None else None,
+                    timeout=timeout,
+                )
+                provider.add_log_record_processor(BatchLogRecordProcessor(exporter))
+
+            if settings.console_exporter:
+                provider.add_log_record_processor(
+                    BatchLogRecordProcessor(ConsoleLogExporter())
+                )
+
+            set_logger_provider(provider)
+            setattr(provider, "_emp_logging_configured", True)
+            logger.info(
+                "OpenTelemetry logging enabled for service %s", settings.service_name
+            )
+
+        handler = LoggingHandler(level=level, logger_provider=provider)
+        handler.set_name("opentelemetry")
+        return handler
+
+
+def configure_structlog(
+    *,
+    level: int = logging.INFO,
+    stream: Any | None = None,
+    otel_settings: OpenTelemetrySettings | None = None,
+) -> None:
     """Configure ``structlog`` to emit JSON log lines with context variables.
 
     Args:
         level: Minimum logging level. Defaults to :data:`logging.INFO`.
         stream: Optional IO stream for the root handler, primarily used in tests.
+        otel_settings: Optional OpenTelemetry configuration. When provided and
+            instrumentation is enabled, structured log records are forwarded to
+            the configured collector alongside the standard stream handler.
     """
 
     global _CONFIGURED
@@ -60,6 +170,13 @@ def configure_structlog(*, level: int = logging.INFO, stream: Any | None = None)
     root_logger.handlers.clear()
     root_logger.addHandler(handler)
     root_logger.setLevel(level)
+
+    if otel_settings is not None:
+        otel_handler = _configure_otel_logging_handler(
+            level=level, settings=otel_settings
+        )
+        if otel_handler is not None:
+            root_logger.addHandler(otel_handler)
 
     structlog.configure(
         processors=[

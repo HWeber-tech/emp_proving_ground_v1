@@ -195,7 +195,7 @@ To reflect the true scope of institutional-grade trading components, the roadmap
 - [ ] Expand tests to validate sensor outputs over historical datasets.
 - [ ] Implement WHY-dimension narrative hooks (economic calendar sentiment, macro regime flags) using encyclopedia cues.
 - [ ] Stand up anomaly detection harness comparing sensor drifts vs baseline expectation windows.
-- [ ] Synchronize sensor metadata catalog in `/docs/sensory_registry.md` with encyclopedia Layer 2 tables.
+- [x] Synchronize sensor metadata catalog in `/docs/sensory_registry.md` with encyclopedia Layer 2 tables (auto-generated via `python -m tools.sensory.registry`).
 
 **Acceptance:** Strategies consume new sensory inputs; CI verifies data integrity; backlog explicitly records deferred advanced analytics.
 

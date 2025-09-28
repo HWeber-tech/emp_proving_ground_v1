@@ -20,6 +20,13 @@ For an at-a-glance rollup of the portfolio, render the summary view:
 python -m tools.roadmap.high_impact --format summary
 ```
 
+When triaging gaps, render the attention report to list any missing
+requirements:
+
+```bash
+python -m tools.roadmap.high_impact --format attention
+```
+
 To update both this summary and the detailed evidence companion file in one
 shot, use the refresh flag:
 

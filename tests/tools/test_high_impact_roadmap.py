@@ -87,6 +87,24 @@ def test_portfolio_summary_formatter_lists_counts() -> None:
     assert "Stream A – Institutional data backbone" in summary
 
 
+def test_attention_formatter_notes_missing_items() -> None:
+    status = high_impact.StreamStatus(
+        stream="Stream Ω",
+        status="Attention needed",
+        summary="Incomplete",
+        next_checkpoint="Ship everything",
+        evidence=("module.present",),
+        missing=("module.missing", "docs.todo"),
+    )
+
+    report = high_impact.format_attention([status])
+
+    assert report.startswith("# High-impact roadmap attention")
+    assert "Stream Ω" in report
+    assert "module.missing" in report
+    assert "module.present" in report
+
+
 def test_summarise_portfolio_counts_ready_streams() -> None:
     statuses = high_impact.evaluate_streams()
 
@@ -117,6 +135,16 @@ def test_cli_supports_json_format(capsys: pytest.CaptureFixture[str]) -> None:
     assert not err
     decoded = json.loads(out)
     assert decoded[0]["status"] == "Ready"
+
+
+def test_cli_attention_format_handles_ready_streams(capsys: pytest.CaptureFixture[str]) -> None:
+    exit_code = high_impact.main(["--format", "attention"])
+
+    assert exit_code == 0
+
+    out, err = capsys.readouterr()
+    assert not err
+    assert "All streams are Ready" in out
 
 
 def test_evaluate_streams_can_filter() -> None:

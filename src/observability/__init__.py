@@ -4,6 +4,8 @@ from .logging import (
     StructuredJsonFormatter,
     StructuredLogConfig,
     configure_structured_logging,
+    OpenTelemetryLoggingSettings,
+    load_opentelemetry_logging_settings,
 )
 from .tracing import (
     EventBusTracer,
@@ -22,6 +24,8 @@ __all__ = [
     "StructuredJsonFormatter",
     "StructuredLogConfig",
     "configure_structured_logging",
+    "OpenTelemetryLoggingSettings",
+    "load_opentelemetry_logging_settings",
     "EventBusTracer",
     "NullEventBusTracer",
     "NullRuntimeTracer",

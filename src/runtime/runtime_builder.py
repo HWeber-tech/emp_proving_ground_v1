@@ -13,7 +13,7 @@ import asyncio
 import inspect
 import json
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from pathlib import Path
 from collections.abc import Mapping as MappingABC
@@ -22,7 +22,11 @@ from uuid import uuid4
 
 from src.core.coercion import coerce_float
 from src.core.event_bus import Event, EventBus, get_global_bus
-from src.observability.logging import configure_structured_logging
+from src.observability.logging import (
+    OpenTelemetryLoggingSettings,
+    configure_structured_logging,
+    load_opentelemetry_logging_settings,
+)
 from src.observability.tracing import NullRuntimeTracer, RuntimeTracer
 from src.data_foundation.batch.spark_export import (
     SparkExportSnapshot,
@@ -1927,10 +1931,33 @@ def _configure_runtime_logging(config: SystemConfig) -> None:
                     type(parsed).__name__,
                 )
 
+    otel_settings: OpenTelemetryLoggingSettings | None = None
+    if _coerce_bool(extras.get("RUNTIME_LOG_OTEL_ENABLED"), False):
+        config_hint = extras.get("RUNTIME_LOG_OTEL_CONFIG") or "config/observability/logging.yaml"
+        config_path = Path(str(config_hint))
+        try:
+            loaded_settings = load_opentelemetry_logging_settings(config_path)
+        except FileNotFoundError:
+            logger.warning(
+                "OpenTelemetry logging requested but configuration file was not found",
+                extra={"otel.config_path": str(config_path)},
+            )
+        except ValueError as exc:
+            logger.warning(
+                "Failed to parse OpenTelemetry logging configuration: %s",
+                exc,
+                extra={"otel.config_path": str(config_path)},
+            )
+        else:
+            if not loaded_settings.enabled:
+                loaded_settings = replace(loaded_settings, enabled=True)
+            otel_settings = loaded_settings
+
     handler = configure_structured_logging(
         component="professional_runtime",
         level=level,
         static_fields=static_fields,
+        otel_settings=otel_settings,
     )
     logger.info(
         "Structured logging enabled for professional runtime",
@@ -1939,6 +1966,15 @@ def _configure_runtime_logging(config: SystemConfig) -> None:
             "logging.handler": getattr(handler, "name", ""),
         },
     )
+    if otel_settings and otel_settings.enabled:
+        logger.info(
+            "OpenTelemetry log export enabled",
+            extra={
+                "otel.endpoint": otel_settings.endpoint,
+                "otel.compression": otel_settings.compression or "none",
+                "otel.insecure": otel_settings.insecure,
+            },
+        )
 
 
 def _resolve_system_validation_snapshot(

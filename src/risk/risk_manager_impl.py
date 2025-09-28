@@ -28,6 +28,11 @@ from src.risk.analytics import (
     calculate_realised_volatility,
     VolatilityTargetAllocation,
 )
+from src.data_foundation.config.sizing_config import SizingConfig, load_sizing_config
+from src.trading.risk.market_regime_detector import (
+    MarketRegimeDetector,
+    MarketRegimeResult,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -76,6 +81,9 @@ class RiskManagerImpl(RiskManagerProtocol):
         self,
         initial_balance: float | Decimal = 10000.0,
         risk_config: RiskConfig | None = None,
+        *,
+        market_regime_detector: MarketRegimeDetector | None = None,
+        sizing_config: SizingConfig | None = None,
     ) -> None:
         """
         Initialize the risk manager with configuration.
@@ -111,6 +119,14 @@ class RiskManagerImpl(RiskManagerProtocol):
         self._risk_per_trade: float = float(self._risk_config.max_risk_per_trade_pct)
         # Drawdown multiplier throttles exposure during recoveries (1.0 == full risk).
         self._drawdown_multiplier: float = 1.0
+        # Regime multiplier throttles exposure based on volatility conditions.
+        self._regime_risk_multiplier: float = 1.0
+        self._last_regime: MarketRegimeResult | None = None
+        self._sizing_config: SizingConfig = sizing_config or load_sizing_config()
+        self._market_regime_detector = market_regime_detector or MarketRegimeDetector(
+            sizing_config=self._sizing_config
+        )
+        self.telemetry: Dict[str, object] = {}
         # Market risk analytics configuration (can be overridden via ``update_limits``).
         self._var_confidence: float = 0.99
         self._var_simulations: int = 10000
@@ -164,9 +180,15 @@ class RiskManagerImpl(RiskManagerProtocol):
         self._drawdown_multiplier = max(0.25, 1.0 - normalized)
 
     def _compute_risk_budget(self) -> float:
-        """Return the dollar risk budget after drawdown throttling."""
+        """Return the dollar risk budget after drawdown/regime throttling."""
+
         baseline_risk = min(self._risk_per_trade, self.config.max_position_risk)
-        return self.account_balance * baseline_risk * self._drawdown_multiplier
+        return (
+            self.account_balance
+            * baseline_risk
+            * self._drawdown_multiplier
+            * self._regime_risk_multiplier
+        )
 
     def _resolve_position_price(self, entry: PositionEntry) -> float:
         """Resolve the current price for a tracked position."""
@@ -506,6 +528,28 @@ class RiskManagerImpl(RiskManagerProtocol):
             self.peak_balance,
             self._drawdown_multiplier,
         )
+
+    def update_market_regime(
+        self, market_data: Mapping[str, object] | Sequence[float] | Iterable[float]
+    ) -> MarketRegimeResult:
+        """Ingest market data, classify the regime, and adjust risk throttles."""
+
+        result = self._market_regime_detector.detect_regime(market_data)
+        self._regime_risk_multiplier = max(0.0, float(result.risk_multiplier))
+        self.telemetry["last_regime"] = result.regime.value
+        self.telemetry["regime_confidence"] = result.confidence
+        self.telemetry["regime_blocked"] = result.blocked
+        self._last_regime = result
+        logger.info(
+            "market_regime_update",
+            extra={
+                "regime": result.regime.value,
+                "confidence": result.confidence,
+                "risk_multiplier": result.risk_multiplier,
+                "blocked": result.blocked,
+            },
+        )
+        return result
 
     def add_position(
         self,

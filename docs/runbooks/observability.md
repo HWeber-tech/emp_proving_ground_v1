@@ -49,3 +49,9 @@ tracing so spans and log events share correlation identifiers out of the box.
 
 Stop the collector (`Ctrl+C`) and unset the `OTEL_*` environment variables when
 finished to revert to local-only logging.
+
+## Related Runbooks
+
+* [Sensor Drift Monitoring](sensor_drift_monitoring.md) — evaluates sensory
+  windows for statistical drift and can be wired into CI using
+  `scripts/check_sensor_drift.py`.

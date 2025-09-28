@@ -435,16 +435,25 @@ def format_attention(statuses: Iterable[StreamStatus]) -> str:
 
 
 def format_json(statuses: Iterable[StreamStatus]) -> str:
-    """Return a JSON payload describing the stream statuses.
+    """Return a JSON payload describing the high-impact roadmap portfolio.
 
-    The high-impact roadmap report feeds both docs and automation.  External
-    tooling previously had to reach for the private ``_format_json`` helper to
-    reuse the CLI output.  Exposing this public helper keeps those consumers out
-    of the private namespace while preserving a single implementation shared by
-    the CLI and tests.
+    Earlier versions returned only the per-stream list, forcing downstream
+    automation to recompute overall readiness counts.  The roadmap is most
+    useful when both the stream evidence and the portfolio roll-up ship
+    together, so this formatter now mirrors the :class:`PortfolioStatus`
+    structure.  Existing consumers still receive the same stream payload under
+    the ``"streams"`` key while gaining the aggregate counts used in dashboards
+    and alerts.
     """
 
-    return json.dumps([asdict(status) for status in statuses], indent=2)
+    portfolio = summarise_portfolio(statuses)
+    portfolio_dict = portfolio.as_dict()
+    stream_payload = portfolio_dict.pop("streams", [])
+    payload = {
+        "portfolio": portfolio_dict,
+        "streams": stream_payload,
+    }
+    return json.dumps(payload, indent=2)
 
 
 def _format_json(statuses: Iterable[StreamStatus]) -> str:

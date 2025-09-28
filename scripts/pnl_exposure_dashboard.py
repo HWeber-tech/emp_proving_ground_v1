@@ -3,41 +3,15 @@
 from __future__ import annotations
 
 import argparse
-import json
 import sys
-from collections import defaultdict
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Iterable
 
 from src.trading.order_management import PositionSnapshot, PositionTracker
-
-
-def _load_event_records(path: Path) -> Iterable[dict[str, Any]]:
-    if path.suffix == ".parquet":
-        try:
-            import pandas as pd  # type: ignore
-        except Exception:  # pragma: no cover - optional dependency
-            fallback = path.with_suffix(path.suffix + ".jsonl")
-            if fallback.exists():
-                path = fallback
-            else:
-                raise RuntimeError(
-                    "Parquet support requires pandas/pyarrow; provide the JSONL fallback"
-                )
-        else:
-            df = pd.read_parquet(path)  # type: ignore[attr-defined]
-            return df.to_dict(orient="records")
-
-    if path.suffix.endswith(".jsonl") or path.name.endswith(".jsonl"):
-        with path.open("r", encoding="utf-8") as fh:
-            for line in fh:
-                line = line.strip()
-                if not line:
-                    continue
-                yield json.loads(line)
-        return
-
-    raise RuntimeError(f"Unsupported journal format for {path}")
+from src.trading.order_management.journal_loader import (
+    load_order_journal,
+    replay_journal_into_tracker,
+)
 
 
 def _format_number(value: float | None, *, precision: int = 2) -> str:
@@ -95,53 +69,6 @@ def _render_table(snapshots: Iterable[PositionSnapshot]) -> str:
     return "\n".join(lines)
 
 
-def _process_events(records: Iterable[dict[str, Any]], tracker: PositionTracker) -> None:
-    prior_filled: dict[str, float] = defaultdict(float)
-
-    for record in records:
-        event_type = str(record.get("event_type", ""))
-        if event_type not in {"partial_fill", "filled"}:
-            continue
-
-        order_id = str(record.get("order_id"))
-        if not order_id:
-            continue
-
-        symbol = record.get("symbol") or record.get("snapshot", {}).get("symbol")
-        if not symbol:
-            continue
-
-        side = str(record.get("side") or record.get("snapshot", {}).get("side") or "").upper()
-        if side not in {"BUY", "SELL"}:
-            continue
-
-        account = record.get("account") or record.get("snapshot", {}).get("account")
-
-        filled_quantity = float(record.get("filled_quantity") or record.get("snapshot", {}).get("filled_quantity") or 0.0)
-        prev_filled = prior_filled[order_id]
-        delta = max(filled_quantity - prev_filled, 0.0)
-        last_qty = record.get("last_quantity")
-        if delta <= 0 and last_qty is not None:
-            try:
-                delta = max(float(last_qty), 0.0)
-            except (TypeError, ValueError):  # pragma: no cover - defensive
-                delta = 0.0
-
-        if delta <= 0:
-            continue
-
-        price = record.get("last_price")
-        if price is None:
-            price = record.get("average_fill_price") or record.get("snapshot", {}).get("average_fill_price")
-        if price is None:
-            continue
-
-        signed_quantity = delta if side == "BUY" else -delta
-        tracker.record_fill(symbol=str(symbol), quantity=signed_quantity, price=float(price), account=account)
-        tracker.update_mark_price(str(symbol), float(price))
-        prior_filled[order_id] = filled_quantity if filled_quantity > prev_filled else prev_filled + delta
-
-
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -162,9 +89,9 @@ def main(argv: list[str] | None = None) -> int:
             print(f"Journal path {path} does not exist", file=sys.stderr)
             return 1
 
-    records = list(_load_event_records(path))
+    records = load_order_journal(path)
     tracker = PositionTracker()
-    _process_events(records, tracker)
+    replay_journal_into_tracker(records, tracker)
 
     snapshots = sorted(
         tracker.iter_positions(),

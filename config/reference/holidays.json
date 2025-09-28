@@ -1,0 +1,14 @@
+[
+  {
+    "date": "2025-01-01",
+    "name": "New Year's Day",
+    "venues": ["LONDON", "NEW_YORK", "TOKYO"],
+    "description": "Global markets closed for New Year observance."
+  },
+  {
+    "date": "2025-12-25",
+    "name": "Christmas Day",
+    "venues": ["LONDON", "NEW_YORK"],
+    "description": "Major Western venues closed; Tokyo operates half-day."
+  }
+]

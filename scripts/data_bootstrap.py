@@ -8,8 +8,8 @@ so all vendor implementations share a single validation and formatting path.
 Key features:
 * Supports live vendor fetches (default Yahoo) as well as deterministic file
   based sources for offline runs.
-* Emits canonical Parquet/CSV artefacts alongside JSON metadata so pipelines
-  and documentation can reference reproducible inputs.
+* Persists canonical Parquet/CSV artefacts via ``PricingCache`` with
+  retention-aware pruning so local and CI environments remain tidy.
 * Surfaces data-quality findings returned by the pricing pipeline and can
   optionally fail the run when critical issues are detected.
 """
@@ -32,6 +32,7 @@ from src.data_foundation.pipelines.pricing_pipeline import (
     PricingQualityIssue,
     PricingVendor,
 )
+from src.data_foundation.cache.pricing_cache import PricingCache
 
 
 class _FilePricingVendor:
@@ -77,38 +78,6 @@ def _parse_datetime(value: str | None) -> datetime | None:
     return parsed.astimezone(timezone.utc)
 
 
-def _write_dataframe(
-    frame: pd.DataFrame,
-    output_dir: Path,
-    *,
-    vendor: str,
-    interval: str,
-    preferred_format: str,
-) -> Path:
-    output_dir.mkdir(parents=True, exist_ok=True)
-    base_name = f"pricing_{vendor}_{interval}"
-
-    fmt = preferred_format.lower()
-    if fmt not in {"parquet", "csv"}:
-        raise ValueError(f"Unsupported output format: {preferred_format}")
-
-    if fmt == "parquet":
-        parquet_path = output_dir / f"{base_name}.parquet"
-        try:
-            frame.to_parquet(parquet_path, index=False)
-            return parquet_path
-        except Exception as exc:
-            print(
-                f"[WARN] Failed to write parquet ({exc}). Falling back to CSV.",
-                file=sys.stderr,
-            )
-            fmt = "csv"
-
-    csv_path = output_dir / f"{base_name}.csv"
-    frame.to_csv(csv_path, index=False)
-    return csv_path
-
-
 def _issues_payload(issues: Iterable[PricingQualityIssue]) -> list[Mapping[str, object]]:
     payload: list[Mapping[str, object]] = []
     for issue in issues:
@@ -129,7 +98,7 @@ def _write_json(path: Path, payload: Mapping[str, object]) -> None:
         json.dump(payload, fh, indent=2, sort_keys=True)
 
 
-def _run_pipeline(args: argparse.Namespace) -> PricingPipelineResult:
+def _run_pipeline(args: argparse.Namespace) -> tuple[PricingPipelineConfig, PricingPipelineResult]:
     symbols = _parse_symbols(args.symbols)
     config = PricingPipelineConfig(
         symbols=symbols,
@@ -146,7 +115,7 @@ def _run_pipeline(args: argparse.Namespace) -> PricingPipelineResult:
         vendor_registry[args.vendor] = _FilePricingVendor(Path(args.source_path))
 
     pipeline = PricingPipeline(vendor_registry=vendor_registry)
-    return pipeline.run(config)
+    return config, pipeline.run(config)
 
 
 def run(argv: list[str] | None = None) -> int:
@@ -187,14 +156,7 @@ def run(argv: list[str] | None = None) -> int:
         "--output",
         type=Path,
         default=Path("data_foundation/cache/pricing"),
-        help="Directory where artefacts will be written",
-    )
-    parser.add_argument(
-        "--format",
-        type=str,
-        choices=["parquet", "csv"],
-        default="parquet",
-        help="Preferred output dataset format",
+        help="Directory where cache artefacts will be written",
     )
     parser.add_argument(
         "--source-path",
@@ -215,6 +177,18 @@ def run(argv: list[str] | None = None) -> int:
         help="Optional explicit path for issues JSON (defaults to <output>/pricing_issues.json)",
     )
     parser.add_argument(
+        "--cache-retention-days",
+        type=int,
+        default=14,
+        help="Number of days of cached datasets to keep before pruning",
+    )
+    parser.add_argument(
+        "--cache-max-entries",
+        type=int,
+        default=None,
+        help="Optional hard cap on the number of cached datasets to retain",
+    )
+    parser.add_argument(
         "--fail-on-quality",
         action="store_true",
         help="Exit with status 2 if the pipeline reports error-severity issues",
@@ -223,40 +197,36 @@ def run(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     try:
-        result = _run_pipeline(args)
+        config, result = _run_pipeline(args)
     except Exception as exc:  # pragma: no cover - CLI level guard
         print(f"[ERROR] Failed to run pricing pipeline: {exc}", file=sys.stderr)
         return 1
 
-    dataset_path = _write_dataframe(
-        result.data,
-        args.output,
-        vendor=args.vendor,
-        interval=args.interval,
-        preferred_format=args.format,
+    cache = PricingCache(args.output)
+    entry = cache.store(
+        config,
+        result,
+        retention_days=args.cache_retention_days,
+        max_entries=args.cache_max_entries,
     )
 
-    metadata = {
-        "generated_at": datetime.now(timezone.utc).isoformat(),
-        "dataset_path": str(dataset_path),
-        "row_count": int(len(result.data)),
-        "symbols": list(result.symbols()),
-        "result_metadata": dict(result.metadata),
-    }
+    metadata_payload = dict(entry.metadata)
+    issues_payload = list(entry.issues_payload)
 
-    metadata_path = args.metadata_path or args.output / "pricing_metadata.json"
-    _write_json(metadata_path, metadata)
+    metadata_path = args.metadata_path or entry.metadata_path
+    if metadata_path != entry.metadata_path:
+        _write_json(metadata_path, metadata_payload)
 
-    issues_payload = _issues_payload(result.issues)
-    issues_path = args.issues_path or args.output / "pricing_issues.json"
-    _write_json(issues_path, {"issues": issues_payload})
+    issues_path = args.issues_path or entry.issues_path
+    if issues_path != entry.issues_path:
+        _write_json(issues_path, {"issues": issues_payload})
 
-    quality_errors = [issue for issue in result.issues if issue.severity.lower() == "error"]
+    quality_errors = [issue for issue in issues_payload if issue["severity"].lower() == "error"]
 
     summary = {
-        "dataset": str(dataset_path),
-        "rows": metadata["row_count"],
-        "symbols": metadata["symbols"],
+        "dataset": str(entry.dataset_path),
+        "rows": metadata_payload["rows"],
+        "symbols": metadata_payload["symbols"],
         "issues": issues_payload,
     }
     print(json.dumps(summary, indent=2))

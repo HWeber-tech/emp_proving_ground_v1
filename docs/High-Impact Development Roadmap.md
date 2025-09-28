@@ -156,8 +156,8 @@ To reflect the true scope of institutional-grade trading components, the roadmap
   - [ ] Create volatility-regime classifier feeding risk sizing.
 - **Mean Reversion Set**
   - [ ] Bollinger Band breakout/mean reversion strategy with configurable bands.
-  - [ ] Pair-trading z-score spread model with cointegration tests.
-  - [ ] Unit & integration tests covering signal generation, entry/exit, and conflicts with risk rules.
+  - [x] Pair-trading z-score spread model with cointegration tests.
+    - [x] Unit & integration tests covering signal generation, entry/exit, and conflicts with risk rules.
 - **Momentum & Breakout**
   - [ ] Multi-timeframe momentum stack (e.g., 15m/1h/1d) with confirmation logic.
   - [ ] Donchian/ATR breakout module and trailing stop handler.

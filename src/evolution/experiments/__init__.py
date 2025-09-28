@@ -10,6 +10,13 @@ from .ma_crossover_ga import (
     evaluate_genome_fitness,
     run_ga_experiment,
 )
+from .evolution_lab import (
+    EvolutionLabLeaderboardEntry,
+    EvolutionLabManifest,
+    EvolutionLabReport,
+    render_evolution_lab_markdown,
+    run_ma_crossover_lab,
+)
 
 __all__ = [
     "GARunConfig",
@@ -20,4 +27,9 @@ __all__ = [
     "MovingAverageGenomeBounds",
     "evaluate_genome_fitness",
     "run_ga_experiment",
+    "EvolutionLabManifest",
+    "EvolutionLabLeaderboardEntry",
+    "EvolutionLabReport",
+    "run_ma_crossover_lab",
+    "render_evolution_lab_markdown",
 ]

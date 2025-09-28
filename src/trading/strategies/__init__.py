@@ -11,6 +11,11 @@ from .analytics import (
 from .mean_reversion import MeanReversionStrategy, MeanReversionStrategyConfig
 from .models import StrategyAction, StrategySignal
 from .momentum import MomentumStrategy, MomentumStrategyConfig
+from .multi_timeframe_momentum import (
+    MultiTimeframeMomentumConfig,
+    MultiTimeframeMomentumStrategy,
+    TimeframeMomentumLegConfig,
+)
 from .pairs import PairTradingConfig, PairTradingStrategy
 from .signals import (
     GARCHCalibrationError,
@@ -28,6 +33,9 @@ __all__ = [
     "GARCHVolatilityResult",
     "MeanReversionStrategy",
     "MeanReversionStrategyConfig",
+    "MultiTimeframeMomentumConfig",
+    "MultiTimeframeMomentumStrategy",
+    "TimeframeMomentumLegConfig",
     "MomentumStrategy",
     "MomentumStrategyConfig",
     "PairTradingConfig",

@@ -159,7 +159,7 @@ To reflect the true scope of institutional-grade trading components, the roadmap
   - [x] Pair-trading z-score spread model with cointegration tests.
     - [x] Unit & integration tests covering signal generation, entry/exit, and conflicts with risk rules.
 - **Momentum & Breakout**
-  - [ ] Multi-timeframe momentum stack (e.g., 15m/1h/1d) with confirmation logic.
+  - [x] Multi-timeframe momentum stack (e.g., 15m/1h/1d) with confirmation logic.
   - [ ] Donchian/ATR breakout module and trailing stop handler.
 - **Strategy Integration**
   - [ ] Update strategy registry/config templates.

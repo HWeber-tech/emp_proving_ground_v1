@@ -76,7 +76,7 @@ To reflect the true scope of institutional-grade trading components, the roadmap
   - [ ] Realized and unrealized PnL with selectable FIFO/LIFO modes.
   - [ ] Nightly reconciliation against broker state using the paper trading initiator.
 - [ ] Wire the execution estimator in `src/trading/execution/execution_model.py` into slippage, market impact, and notional cap pre-trade checks.
-- [ ] Ship `scripts/order_lifecycle_dry_run.py` to replay FIX logs and assert state transitions end-to-end.
+- [x] Ship `scripts/order_lifecycle_dry_run.py` to replay FIX logs and assert state transitions end-to-end.
 
 > **Exit Criteria:** Dry-run captures 100% of FIX events, raises alerts for discrepancies, and produces a nightly reconciliation report stored in CI artifacts.
 
@@ -93,7 +93,7 @@ To reflect the true scope of institutional-grade trading components, the roadmap
   - [ ] Realized & unrealized PnL with FIFO/LIFO modes
   - [ ] Daily reconciliation script against broker state (reuse dummy initiator for paper sim)
 - [ ] Wire the execution estimator in `src/trading/execution/execution_model.py` into pre-trade checks (slippage, market impact, notional caps).
-- [ ] Add CLI workflow (`scripts/order_lifecycle_dry_run.py`) that replays FIX logs and asserts state transitions.
+- [x] Add CLI workflow (`scripts/order_lifecycle_dry_run.py`) that replays FIX logs and asserts state transitions.
 - [x] Provide nightly reconciliation CLI (`scripts/reconcile_positions.py`) that replays the journal and compares broker balances.
 - [ ] Persist FIX events into an append-only event journal (`data_foundation/events/order_events.parquet`) for replay and audit parity.
 - [ ] Implement dead-letter handling that quarantines malformed FIX messages and surfaces alerts to the ops dashboard.

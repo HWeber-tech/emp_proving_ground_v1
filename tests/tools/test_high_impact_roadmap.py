@@ -124,8 +124,9 @@ def test_json_format_includes_evidence() -> None:
     statuses = high_impact.evaluate_streams()
     payload = json.loads(high_impact.format_json(statuses))
 
-    assert isinstance(payload, list)
-    assert payload[0]["evidence"], "expected evidence list in JSON output"
+    assert isinstance(payload, dict)
+    assert payload["portfolio"]["ready"] == len(statuses)
+    assert payload["streams"][0]["evidence"], "expected evidence list in JSON output"
 
 
 def test_cli_supports_json_format(capsys: pytest.CaptureFixture[str]) -> None:
@@ -134,7 +135,8 @@ def test_cli_supports_json_format(capsys: pytest.CaptureFixture[str]) -> None:
     out, err = capsys.readouterr()
     assert not err
     decoded = json.loads(out)
-    assert decoded[0]["status"] == "Ready"
+    assert decoded["streams"][0]["status"] == "Ready"
+    assert decoded["portfolio"]["attention_needed"] == 0
 
 
 def test_cli_attention_format_handles_ready_streams(capsys: pytest.CaptureFixture[str]) -> None:

@@ -77,6 +77,21 @@ def test_markdown_formatter_outputs_table() -> None:
     assert "Stream A – Institutional data backbone" in markdown
 
 
+def test_summarise_portfolio_counts_ready_streams() -> None:
+    statuses = high_impact.evaluate_streams()
+
+    portfolio = high_impact.summarise_portfolio(statuses)
+
+    assert portfolio.total_streams == len(statuses)
+    assert portfolio.ready == len(statuses)
+    assert portfolio.attention_needed == 0
+    assert all(stream.status == "Ready" for stream in portfolio.streams)
+
+    payload = portfolio.as_dict()
+    assert payload["ready"] == portfolio.ready
+    assert len(payload["streams"]) == portfolio.total_streams
+
+
 def test_json_format_includes_evidence() -> None:
     statuses = high_impact.evaluate_streams()
     payload = json.loads(high_impact.format_json(statuses))

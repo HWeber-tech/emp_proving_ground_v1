@@ -1,8 +1,6 @@
-"""Trading strategy helpers and signal generators."""
+"""Signal generation utilities for strategy development."""
 
-from __future__ import annotations
-
-from .signals import (
+from .garch_volatility import (
     GARCHCalibrationError,
     GARCHVolatilityConfig,
     GARCHVolatilityResult,

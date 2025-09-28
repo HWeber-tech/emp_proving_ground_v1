@@ -4,34 +4,13 @@ from __future__ import annotations
 
 import argparse
 import json
-import importlib
-import sys
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Callable, Iterable, Sequence
+from typing import Iterable, Sequence
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
-SRC_PATH = REPO_ROOT / "src"
-
-if str(SRC_PATH) not in sys.path:
-    sys.path.insert(0, str(SRC_PATH))
-
-
-@dataclass(frozen=True)
-class Requirement:
-    """Executable requirement used to score roadmap initiatives."""
-
-    label: str
-    check: Callable[[Path], bool]
-
-    def evaluate(self, repo_root: Path) -> tuple[bool, str]:
-        try:
-            ok = bool(self.check(repo_root))
-        except Exception as exc:  # pragma: no cover - exercised via tests
-            return False, f"{self.label} ({exc.__class__.__name__}: {exc})"
-        if not ok:
-            return False, self.label
-        return True, self.label
+from ._shared import Requirement, repo_root as _shared_repo_root
+from ._shared import require_module_attr as _shared_require_module_attr
+from ._shared import require_path as _shared_require_path
 
 
 @dataclass(frozen=True)
@@ -83,26 +62,15 @@ class InitiativeStatus:
 
 
 def _repo_root() -> Path:
-    return Path(__file__).resolve().parents[2]
+    return _shared_repo_root()
 
 
 def _require_module_attr(module_name: str, attribute: str | None = None) -> Requirement:
-    label = module_name if attribute is None else f"{module_name}.{attribute}"
-
-    def check(_: Path) -> bool:
-        module = importlib.import_module(module_name)
-        if attribute is not None:
-            getattr(module, attribute)
-        return True
-
-    return Requirement(label=label, check=check)
+    return _shared_require_module_attr(module_name, attribute)
 
 
 def _require_path(relative_path: str) -> Requirement:
-    def check(repo_root: Path) -> bool:
-        return (repo_root / relative_path).exists()
-
-    return Requirement(label=relative_path, check=check)
+    return _shared_require_path(relative_path)
 
 
 def _initiative_definitions() -> Sequence[InitiativeDefinition]:

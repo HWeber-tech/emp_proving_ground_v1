@@ -8,6 +8,12 @@ before demos or reviews:
 python -m tools.roadmap.high_impact --format markdown
 ```
 
+To focus on specific streams, provide one or more ``--stream`` flags:
+
+```bash
+python -m tools.roadmap.high_impact --stream "Stream A – Institutional data backbone" --format detail
+```
+
 To update both this summary and the detailed evidence companion file in one
 shot, use the refresh flag:
 

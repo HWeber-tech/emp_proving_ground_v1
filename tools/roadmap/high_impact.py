@@ -210,11 +210,35 @@ def _stream_definitions() -> Sequence[StreamDefinition]:
     )
 
 
-def evaluate_streams() -> list[StreamStatus]:
-    """Return computed statuses for the high-impact roadmap streams."""
+def evaluate_streams(selected_streams: Sequence[str] | None = None) -> list[StreamStatus]:
+    """Return computed statuses for the high-impact roadmap streams.
+
+    Parameters
+    ----------
+    selected_streams:
+        Optional iterable of stream names to evaluate.  When omitted, all
+        streams are evaluated.  The names must match the ``stream`` field of the
+        :class:`StreamDefinition` entries.
+    """
+
+    definitions = list(_stream_definitions())
+    if selected_streams:
+        requested = {name.strip() for name in selected_streams if name and name.strip()}
+        if not requested:
+            definitions = []
+        else:
+            known = {definition.stream for definition in definitions}
+            unknown = sorted(requested - known)
+            if unknown:
+                raise ValueError(
+                    "Unknown stream(s): " + ", ".join(unknown)
+                )
+            definitions = [
+                definition for definition in definitions if definition.stream in requested
+            ]
 
     root = repo_root()
-    return [definition.evaluate(root) for definition in _stream_definitions()]
+    return [definition.evaluate(root) for definition in definitions]
 
 
 def format_markdown(statuses: Iterable[StreamStatus]) -> str:
@@ -372,9 +396,21 @@ def main(argv: Sequence[str] | None = None) -> int:
         action="store_true",
         help="Update the status documentation files in docs/status/",
     )
+    parser.add_argument(
+        "--stream",
+        action="append",
+        dest="streams",
+        help=(
+            "Limit evaluation to the given stream name. Provide multiple times to "
+            "include more than one stream."
+        ),
+    )
     args = parser.parse_args(argv)
 
-    statuses = evaluate_streams()
+    try:
+        statuses = evaluate_streams(args.streams)
+    except ValueError as exc:
+        parser.error(str(exc))
     if args.refresh_docs:
         refresh_docs(statuses)
     if args.format == "json":

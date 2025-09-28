@@ -13,9 +13,12 @@ from src.operations.data_backbone import (
     BackboneStatus,
     DataBackboneReadinessSnapshot,
 )
+from src.core.event_bus import Event
 from src.operations.professional_readiness import (
     ProfessionalReadinessStatus,
     evaluate_professional_readiness,
+    format_professional_readiness_markdown,
+    publish_professional_readiness_snapshot,
 )
 from src.operations.slo import OperationalSLOSnapshot, ServiceSLO, SLOStatus
 
@@ -135,8 +138,36 @@ def test_professional_readiness_markdown_lists_components() -> None:
         slo_snapshot=_slo_snapshot(SLOStatus.met),
     )
 
-    markdown = snapshot.to_markdown()
+    markdown = format_professional_readiness_markdown(snapshot)
     assert "data_backbone" in markdown
     assert "backups" in markdown
     assert "| ingest_slos | OK |" in markdown
     assert snapshot.as_dict()["status"] == "ok"
+
+
+class _StubEventBus:
+    def __init__(self) -> None:
+        self.events: list[Event] = []
+
+    def is_running(self) -> bool:  # pragma: no cover - trivial
+        return True
+
+    def publish_from_sync(self, event: Event) -> None:
+        self.events.append(event)
+
+
+def test_publish_professional_readiness_snapshot_uses_event_bus() -> None:
+    snapshot = evaluate_professional_readiness(
+        backbone_snapshot=_backbone_snapshot(BackboneStatus.ok),
+        backup_snapshot=_backup_snapshot(BackupStatus.ok),
+        slo_snapshot=_slo_snapshot(SLOStatus.met),
+    )
+
+    bus = _StubEventBus()
+    publish_professional_readiness_snapshot(bus, snapshot, source="unit_test")
+
+    assert len(bus.events) == 1
+    event = bus.events[0]
+    assert event.type == "telemetry.operational.readiness"
+    assert event.source == "unit_test"
+    assert event.payload["status"] == "ok"

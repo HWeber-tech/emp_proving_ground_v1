@@ -11,10 +11,13 @@ readiness signals.
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import Enum
 from typing import Mapping
+
+from src.core.event_bus import Event, EventBus, get_global_bus
 
 from src.data_foundation.ingest.failover import IngestFailoverDecision
 from src.data_foundation.ingest.recovery import IngestRecoveryRecommendation
@@ -24,6 +27,9 @@ from src.operations.data_backbone import (
     DataBackboneReadinessSnapshot,
 )
 from src.operations.slo import OperationalSLOSnapshot, SLOStatus
+
+
+logger = logging.getLogger(__name__)
 
 
 class ProfessionalReadinessStatus(Enum):
@@ -250,9 +256,53 @@ def evaluate_professional_readiness(
     )
 
 
+def format_professional_readiness_markdown(
+    snapshot: ProfessionalReadinessSnapshot,
+) -> str:
+    """Render a professional readiness snapshot as Markdown."""
+
+    return snapshot.to_markdown()
+
+
+def publish_professional_readiness_snapshot(
+    event_bus: EventBus,
+    snapshot: ProfessionalReadinessSnapshot,
+    *,
+    source: str = "operations.professional_readiness",
+) -> None:
+    """Publish the snapshot onto the runtime/global event buses."""
+
+    event = Event(
+        type="telemetry.operational.readiness",
+        payload=snapshot.as_dict(),
+        source=source,
+    )
+
+    publish_from_sync = getattr(event_bus, "publish_from_sync", None)
+    if callable(publish_from_sync) and event_bus.is_running():
+        try:
+            publish_from_sync(event)
+            return
+        except Exception:  # pragma: no cover - defensive logging
+            logger.debug(
+                "Failed to publish professional readiness via runtime event bus",
+                exc_info=True,
+            )
+
+    try:
+        topic_bus = get_global_bus()
+        topic_bus.publish_sync(event.type, event.payload, source=event.source)
+    except Exception:  # pragma: no cover - defensive logging
+        logger.debug(
+            "Professional readiness telemetry publish skipped", exc_info=True
+        )
+
+
 __all__ = [
     "ProfessionalReadinessComponent",
     "ProfessionalReadinessSnapshot",
     "ProfessionalReadinessStatus",
+    "format_professional_readiness_markdown",
+    "publish_professional_readiness_snapshot",
     "evaluate_professional_readiness",
 ]

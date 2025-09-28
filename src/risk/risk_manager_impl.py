@@ -19,14 +19,15 @@ from src.config.risk.risk_config import RiskConfig
 from src.risk.real_risk_manager import RealRiskManager, RealRiskConfig
 from src.core.coercion import coerce_float
 from src.risk.analytics import (
+    VolatilityTargetAllocation,
+    calculate_realised_volatility,
+    classify_volatility_regime,
     compute_historical_expected_shortfall,
     compute_historical_var,
     compute_monte_carlo_var,
     compute_parametric_expected_shortfall,
     compute_parametric_var,
     determine_target_allocation,
-    calculate_realised_volatility,
-    VolatilityTargetAllocation,
 )
 
 logger = logging.getLogger(__name__)
@@ -477,6 +478,22 @@ class RiskManagerImpl(RiskManagerProtocol):
             realised_volatility=realised,
             max_leverage=resolved_leverage_cap,
         )
+        regime_assessment = classify_volatility_regime(
+            returns,
+            target_volatility=resolved_target,
+            window=resolved_window,
+            annualisation_factor=resolved_annualisation,
+        )
+
+        multiplier = regime_assessment.risk_multiplier or 1.0
+        adjusted_leverage = min(allocation.leverage * multiplier, resolved_leverage_cap)
+        adjusted_notional = resolved_capital * adjusted_leverage
+        allocation = allocation.with_adjustment(
+            target_notional=adjusted_notional,
+            leverage=adjusted_leverage,
+            volatility_regime=regime_assessment.regime.value,
+            risk_multiplier=multiplier,
+        )
         logger.debug(
             "Volatility target allocation computed",
             extra={
@@ -485,6 +502,8 @@ class RiskManagerImpl(RiskManagerProtocol):
                 "realised_volatility": allocation.realised_volatility,
                 "leverage": allocation.leverage,
                 "target_notional": allocation.target_notional,
+                "volatility_regime": allocation.volatility_regime,
+                "risk_multiplier": allocation.risk_multiplier,
             },
         )
         return allocation

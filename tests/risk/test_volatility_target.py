@@ -48,3 +48,5 @@ def test_risk_manager_volatility_allocation_uses_overrides() -> None:
     assert allocation.realised_volatility == pytest.approx(realised)
     assert allocation.target_notional > 0.0
     assert allocation.target_notional <= 250_000 * 2.5 + 1e-6
+    assert allocation.volatility_regime is not None
+    assert allocation.risk_multiplier is not None

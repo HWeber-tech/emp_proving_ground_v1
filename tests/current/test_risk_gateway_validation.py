@@ -8,6 +8,10 @@ from typing import Any, Mapping
 import pytest
 
 from src.config.risk.risk_config import RiskConfig
+from src.data_foundation.config.execution_config import (
+    ExecutionConfig,
+    ExecutionRiskLimits,
+)
 from src.core.base import MarketData
 from src.core.event_bus import EventBus
 from src.core.risk.position_sizing import position_size
@@ -212,3 +216,52 @@ async def test_risk_gateway_rejects_on_policy_violation(
     policy_decision = gateway.get_last_policy_decision()
     assert policy_decision is not None
     assert "policy.min_position_size" in policy_decision.violations
+
+
+@pytest.mark.asyncio()
+async def test_risk_gateway_rejects_on_execution_risk(
+    portfolio_monitor: PortfolioMonitor,
+) -> None:
+    registry = DummyStrategyRegistry(active=True)
+    policy = RiskPolicy.from_config(RiskConfig(min_position_size=1))
+    execution_config = ExecutionConfig(
+        limits=ExecutionRiskLimits(
+            max_slippage_bps=10.0,
+            max_total_cost_bps=15.0,
+            max_notional_pct_of_equity=0.5,
+        )
+    )
+
+    gateway = RiskGateway(
+        strategy_registry=registry,
+        position_sizer=None,
+        portfolio_monitor=portfolio_monitor,
+        risk_policy=policy,
+        execution_config=execution_config,
+    )
+
+    state = portfolio_monitor.get_state()
+    state["equity"] = 100_000.0
+    state["current_daily_drawdown"] = 0.0
+
+    intent = Intent("USDJPY", Decimal("100"), price=Decimal("100"))
+    intent.metadata["microstructure"] = {
+        "spread": 0.8,
+        "liquidity_imbalance": 0.4,
+        "price_volatility": 0.3,
+    }
+
+    result = await gateway.validate_trade_intent(intent, state)
+
+    assert result is None
+    decision = gateway.get_last_decision()
+    assert decision is not None
+    assert decision.get("reason") == "execution_risk"
+    checks = decision.get("checks", [])
+    assert any(
+        check.get("name") == "execution.slippage_bps"
+        and check.get("status") == "violation"
+        for check in checks
+    )
+    exec_meta = intent.metadata.get("execution_risk", {})
+    assert exec_meta.get("slippage_bps", 0.0) > execution_config.limits.max_slippage_bps

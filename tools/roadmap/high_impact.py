@@ -384,6 +384,43 @@ def format_detail(statuses: Iterable[StreamStatus]) -> str:
     return "\n".join(lines).rstrip()
 
 
+def format_attention(statuses: Iterable[StreamStatus]) -> str:
+    """Highlight streams that still have missing requirements."""
+
+    lines: list[str] = [
+        "# High-impact roadmap attention",
+        "",
+    ]
+
+    needing_attention = [
+        status for status in statuses if status.missing
+    ]
+
+    if not needing_attention:
+        lines.append("All streams are Ready; no missing requirements.")
+        return "\n".join(lines).rstrip()
+
+    for status in needing_attention:
+        lines.extend(
+            [
+                f"## {status.stream}",
+                "",
+                f"*Status:* {status.status}",
+                "",
+                "**Missing requirements:**",
+            ]
+        )
+        lines.extend(f"- {item}" for item in status.missing)
+
+        if status.evidence:
+            lines.extend(["", "**Evidence captured:**"])
+            lines.extend(f"- {item}" for item in status.evidence)
+
+        lines.append("")
+
+    return "\n".join(lines).rstrip()
+
+
 def format_json(statuses: Iterable[StreamStatus]) -> str:
     """Return a JSON payload describing the stream statuses.
 
@@ -472,7 +509,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--format",
-        choices=("markdown", "json", "detail", "summary"),
+        choices=("markdown", "json", "detail", "summary", "attention"),
         default="markdown",
         help="Output format (default: markdown table)",
     )
@@ -509,6 +546,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         output = format_detail(statuses)
     elif args.format == "summary":
         output = format_portfolio_summary(statuses)
+    elif args.format == "attention":
+        output = format_attention(statuses)
     else:
         output = format_markdown(statuses)
 

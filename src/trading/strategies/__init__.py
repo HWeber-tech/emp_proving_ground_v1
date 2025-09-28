@@ -5,6 +5,7 @@ from __future__ import annotations
 from .mean_reversion import MeanReversionStrategy, MeanReversionStrategyConfig
 from .models import StrategyAction, StrategySignal
 from .momentum import MomentumStrategy, MomentumStrategyConfig
+from .pairs import PairTradingConfig, PairTradingStrategy
 from .signals import (
     GARCHCalibrationError,
     GARCHVolatilityConfig,
@@ -21,6 +22,8 @@ __all__ = [
     "MeanReversionStrategyConfig",
     "MomentumStrategy",
     "MomentumStrategyConfig",
+    "PairTradingConfig",
+    "PairTradingStrategy",
     "StrategyAction",
     "StrategySignal",
     "VolatilityBreakoutConfig",

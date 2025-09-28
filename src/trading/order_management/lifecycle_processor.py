@@ -51,6 +51,18 @@ class OrderLifecycleProcessor:
     def state_machine(self) -> OrderStateMachine:
         return self._state_machine
 
+    @property
+    def journal(self) -> OrderEventJournal | None:
+        """Return the backing journal used for lifecycle persistence."""
+
+        return self._journal
+
+    @property
+    def position_tracker(self) -> PositionTracker | None:
+        """Expose the shared position tracker, if configured."""
+
+        return self._position_tracker
+
     def register_order(self, metadata: OrderMetadata) -> OrderState:
         """Register a new order with the underlying state machine."""
 

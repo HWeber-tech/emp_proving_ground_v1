@@ -290,9 +290,30 @@ def evaluate_fix_pilot(
     )
     status = _escalate(status, dropcopy_status)
 
+    orders_details: MutableMapping[str, object] = {
+        "open_orders": len(state.open_orders),
+        "positions_tracked": len(state.positions),
+    }
+    if state.total_exposure is not None:
+        orders_details["total_exposure"] = state.total_exposure
+    if state.order_journal_path:
+        orders_details["journal"] = state.order_journal_path
+    components.append(
+        FixPilotComponent(name="orders", status=FixPilotStatus.passed, details=dict(orders_details))
+    )
+    status = _escalate(status, FixPilotStatus.passed)
+
     snapshot_metadata: dict[str, object] = {"policy": policy.as_dict()}
     if metadata:
         snapshot_metadata.update(dict(metadata))
+    if state.open_orders:
+        snapshot_metadata["open_orders"] = [dict(order) for order in state.open_orders]
+    if state.positions:
+        snapshot_metadata["positions"] = [dict(position) for position in state.positions]
+    if state.total_exposure is not None:
+        snapshot_metadata["total_exposure"] = state.total_exposure
+    if state.order_journal_path:
+        snapshot_metadata["order_journal_path"] = state.order_journal_path
 
     return FixPilotSnapshot(
         status=status,

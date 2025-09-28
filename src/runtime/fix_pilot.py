@@ -4,11 +4,17 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any, Mapping
 
 from src.runtime.task_supervisor import TaskSupervisor
+from src.trading.order_management import (
+    OrderEventJournal,
+    OrderLifecycleProcessor,
+    PositionTracker,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +36,10 @@ class FixPilotState:
     last_dropcopy_event: Mapping[str, Any] | None
     dropcopy_reconciliation: Mapping[str, Any] | None
     timestamp: datetime
+    open_orders: tuple[Mapping[str, Any], ...] = field(default_factory=tuple)
+    positions: tuple[Mapping[str, Any], ...] = field(default_factory=tuple)
+    total_exposure: float | None = None
+    order_journal_path: str | None = None
 
 
 class FixIntegrationPilot:
@@ -46,6 +56,9 @@ class FixIntegrationPilot:
         compliance_monitor: Any | None = None,
         trading_manager: Any | None = None,
         dropcopy_listener: Any | None = None,
+        lifecycle_processor: OrderLifecycleProcessor | None = None,
+        position_tracker: PositionTracker | None = None,
+        order_journal_path: str | Path | None = None,
         logger: logging.Logger | None = None,
     ) -> None:
         self.connection_manager = connection_manager
@@ -59,6 +72,30 @@ class FixIntegrationPilot:
         self._logger = logger or logging.getLogger(__name__)
         self._running = False
         self._sessions_started = False
+        tracker = position_tracker
+        if lifecycle_processor is None:
+            tracker = tracker or PositionTracker()
+            journal_path = Path(order_journal_path) if order_journal_path else Path(
+                "data_foundation/events/order_events.parquet"
+            )
+            journal = OrderEventJournal(journal_path)
+            lifecycle_processor = OrderLifecycleProcessor(
+                journal=journal,
+                position_tracker=tracker,
+            )
+            self._order_journal_path = str(journal.path)
+        else:
+            self._order_journal_path = None
+            journal = lifecycle_processor.journal
+            if journal is not None:
+                self._order_journal_path = str(journal.path)
+            if tracker is None:
+                tracker = lifecycle_processor.position_tracker
+            if order_journal_path is not None and self._order_journal_path is None:
+                self._order_journal_path = str(order_journal_path)
+
+        self.lifecycle_processor = lifecycle_processor
+        self.position_tracker = tracker
 
     async def start(self) -> None:
         if self._running:
@@ -70,6 +107,11 @@ class FixIntegrationPilot:
         await self._start_component(self.sensory_organ)
         await self._start_component(self.broker_interface)
         await self._start_component(self.dropcopy_listener)
+        if self.lifecycle_processor is not None:
+            try:
+                self.lifecycle_processor.attach_broker(self.broker_interface)
+            except Exception:  # pragma: no cover - diagnostics only
+                self._logger.exception("Failed to attach lifecycle processor")
         self._running = True
         self._logger.info("🎯 FIX integration pilot running")
 
@@ -78,6 +120,11 @@ class FixIntegrationPilot:
             self.connection_manager.stop_sessions()
             return
         self._logger.info("🛑 Stopping FIX integration pilot")
+        if self.lifecycle_processor is not None:
+            try:
+                self.lifecycle_processor.detach_broker()
+            except Exception:  # pragma: no cover - diagnostics only
+                self._logger.debug("Failed to detach lifecycle processor", exc_info=True)
         await self._stop_component(self.dropcopy_listener)
         await self._stop_component(self.broker_interface)
         await self._stop_component(self.sensory_organ)
@@ -164,6 +211,68 @@ class FixIntegrationPilot:
                     if isinstance(reconciliation, Mapping):
                         dropcopy_reconciliation = dict(reconciliation)
 
+        lifecycle = self.lifecycle_processor
+        tracker = self.position_tracker or (
+            lifecycle.position_tracker if lifecycle is not None else None
+        )
+
+        open_orders: list[Mapping[str, Any]] = []
+        if lifecycle is not None:
+            try:
+                for order in lifecycle.iter_open_orders():
+                    open_orders.append(
+                        {
+                            "order_id": order.order_id,
+                            "symbol": order.symbol,
+                            "side": order.side,
+                            "status": order.status.value,
+                            "order_quantity": order.order_quantity,
+                            "filled_quantity": order.filled_quantity,
+                            "remaining_quantity": order.remaining_quantity,
+                            "average_fill_price": order.average_fill_price,
+                            "last_event": order.last_event,
+                            "last_update": order.last_update.isoformat(),
+                        }
+                    )
+            except Exception:  # pragma: no cover - diagnostics only
+                self._logger.debug("Failed to capture open orders", exc_info=True)
+
+        positions: list[Mapping[str, Any]] = []
+        total_exposure: float | None = None
+        if tracker is not None:
+            try:
+                total_exposure = tracker.total_exposure()
+                for position in tracker.iter_positions():
+                    positions.append(
+                        {
+                            "symbol": position.symbol,
+                            "account": position.account,
+                            "net_quantity": position.net_quantity,
+                            "long_quantity": position.long_quantity,
+                            "short_quantity": position.short_quantity,
+                            "market_price": position.market_price,
+                            "average_long_price": position.average_long_price,
+                            "average_short_price": position.average_short_price,
+                            "realized_pnl": position.realized_pnl,
+                            "unrealized_pnl": position.unrealized_pnl,
+                            "exposure": position.exposure,
+                        }
+                    )
+            except Exception:  # pragma: no cover - diagnostics only
+                self._logger.debug(
+                    "Failed to capture position tracker state", exc_info=True
+                )
+                total_exposure = None
+                positions.clear()
+
+        journal_path = self._order_journal_path
+        if lifecycle is not None and lifecycle.journal is not None:
+            try:
+                journal_path = str(lifecycle.journal.path)
+                self._order_journal_path = journal_path
+            except Exception:  # pragma: no cover - diagnostics only
+                self._logger.debug("Failed to resolve order journal path", exc_info=True)
+
         return FixPilotState(
             sessions_started=self._sessions_started,
             sensory_running=bool(getattr(self.sensory_organ, "running", False)),
@@ -180,6 +289,10 @@ class FixIntegrationPilot:
             last_dropcopy_event=last_dropcopy,
             dropcopy_reconciliation=dropcopy_reconciliation,
             timestamp=datetime.now(tz=UTC),
+            open_orders=tuple(open_orders),
+            positions=tuple(positions),
+            total_exposure=total_exposure,
+            order_journal_path=journal_path,
         )
 
     # ------------------------------------------------------------------

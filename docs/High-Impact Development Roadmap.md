@@ -69,14 +69,14 @@ To reflect the true scope of institutional-grade trading components, the roadmap
 ### Phase 1 — Trading Core (Weeks 1–4)
 
 #### 1A. Execution Lifecycle
-- [ ] Extend `src/trading/integration/fix_broker_interface.py` with callbacks for order acknowledgements, fills, cancels, and rejects.
-- [ ] Implement `src/trading/order_management/order_state_machine.py` to cover New → Acknowledged → Partially Filled → Filled/Cancelled/Rejected transitions with FIX parity tests.
-- [ ] Build `src/trading/order_management/position_tracker.py` that tracks:
-  - [ ] Real-time exposure by instrument and account.
-  - [ ] Realized and unrealized PnL with selectable FIFO/LIFO modes.
-  - [ ] Nightly reconciliation against broker state using the paper trading initiator.
-- [ ] Wire the execution estimator in `src/trading/execution/execution_model.py` into slippage, market impact, and notional cap pre-trade checks.
-- [ ] Ship `scripts/order_lifecycle_dry_run.py` to replay FIX logs and assert state transitions end-to-end.
+- [x] Extend `src/trading/integration/fix_broker_interface.py` with callbacks for order acknowledgements, fills, cancels, and rejects.
+- [x] Implement `src/trading/order_management/order_state_machine.py` to cover New → Acknowledged → Partially Filled → Filled/Cancelled/Rejected transitions with FIX parity tests.
+- [x] Build `src/trading/order_management/position_tracker.py` that tracks:
+  - [x] Real-time exposure by instrument and account.
+  - [x] Realized and unrealized PnL with selectable FIFO/LIFO modes.
+  - [x] Nightly reconciliation against broker state using the paper trading initiator.
+- [x] Wire the execution estimator in `src/trading/execution/execution_model.py` into slippage, market impact, and notional cap pre-trade checks.
+- [x] Ship `scripts/order_lifecycle_dry_run.py` to replay FIX logs and assert state transitions end-to-end.
 
 > **Exit Criteria:** Dry-run captures 100% of FIX events, raises alerts for discrepancies, and produces a nightly reconciliation report stored in CI artifacts.
 
@@ -86,19 +86,19 @@ To reflect the true scope of institutional-grade trading components, the roadmap
 #### Workstream 1A: Execution Lifecycle & Position Management (~2 weeks)
 **Impact:** 🔥🔥🔥 **CRITICAL** — Enables trustworthy order handling
 
-- [ ] Extend `src/trading/integration/fix_broker_interface.py` with explicit callbacks for order acknowledgements, fills, cancels, and rejects.
-- [ ] Implement `src/trading/order_management/order_state_machine.py` covering New → Acknowledged → Partially Filled → Filled/Cancelled/Rejected transitions with FIX event parity tests.
-- [ ] Build `src/trading/order_management/position_tracker.py` with:
-  - [ ] Real-time exposure by instrument/account
-  - [ ] Realized & unrealized PnL with FIFO/LIFO modes
-  - [ ] Daily reconciliation script against broker state (reuse dummy initiator for paper sim)
-- [ ] Wire the execution estimator in `src/trading/execution/execution_model.py` into pre-trade checks (slippage, market impact, notional caps).
-- [ ] Add CLI workflow (`scripts/order_lifecycle_dry_run.py`) that replays FIX logs and asserts state transitions.
+- [x] Extend `src/trading/integration/fix_broker_interface.py` with explicit callbacks for order acknowledgements, fills, cancels, and rejects.
+- [x] Implement `src/trading/order_management/order_state_machine.py` covering New → Acknowledged → Partially Filled → Filled/Cancelled/Rejected transitions with FIX event parity tests.
+- [x] Build `src/trading/order_management/position_tracker.py` with:
+  - [x] Real-time exposure by instrument/account
+  - [x] Realized & unrealized PnL with FIFO/LIFO modes
+  - [x] Daily reconciliation script against broker state (reuse dummy initiator for paper sim)
+- [x] Wire the execution estimator in `src/trading/execution/execution_model.py` into pre-trade checks (slippage, market impact, notional caps).
+- [x] Add CLI workflow (`scripts/order_lifecycle_dry_run.py`) that replays FIX logs and asserts state transitions.
 - [x] Provide nightly reconciliation CLI (`scripts/reconcile_positions.py`) that replays the journal and compares broker balances.
-- [ ] Persist FIX events into an append-only event journal (`data_foundation/events/order_events.parquet`) for replay and audit parity.
-- [ ] Implement dead-letter handling that quarantines malformed FIX messages and surfaces alerts to the ops dashboard.
-- [ ] Capture latency metrics (acknowledgement, fill, cancel) and publish per-venue benchmarks for encyclopedia alignment.
-- [ ] Produce order lifecycle sequence diagrams in `/docs/runbooks/execution_lifecycle.md` mapped to encyclopedia chapters 10 & 24.
+- [x] Persist FIX events into an append-only event journal (`data_foundation/events/order_events.parquet`) for replay and audit parity.
+- [x] Implement dead-letter handling that quarantines malformed FIX messages and surfaces alerts to the ops dashboard.
+- [x] Capture latency metrics (acknowledgement, fill, cancel) and publish per-venue benchmarks for encyclopedia alignment.
+- [x] Produce order lifecycle sequence diagrams in `/docs/runbooks/execution_lifecycle.md` mapped to encyclopedia chapters 10 & 24.
 
 **Acceptance:** Dry-run captures 100% FIX events, discrepancies trigger alerts, and nightly reconciliation report is generated.
 
@@ -122,7 +122,7 @@ To reflect the true scope of institutional-grade trading components, the roadmap
 #### Workstream 1C: Operational Hygiene & Visibility (~1 week)
 **Impact:** 🔥🔥 **HIGH** — Surfaces trading health earlier
 
-- [ ] Stand up PnL & exposure dashboard (streamlit or textual CLI) backed by `position_tracker` outputs.
+- [x] Stand up PnL & exposure dashboard (streamlit or textual CLI) backed by `position_tracker` outputs.
 - [x] Centralize logging via `structlog` with correlation IDs for each order.
 - [ ] Expand monitoring hooks to emit metrics to Prometheus-compatible format.
 - [ ] Document operational runbooks in `/docs/runbooks/` and update encyclopedia cross-references.

@@ -68,6 +68,31 @@ class PortfolioStatus:
     attention_needed: int
     streams: tuple[StreamStatus, ...]
 
+    def ready_streams(self) -> tuple[StreamStatus, ...]:
+        """Return the streams marked as ready."""
+
+        return tuple(status for status in self.streams if status.status == "Ready")
+
+    def attention_streams(self) -> tuple[StreamStatus, ...]:
+        """Return the streams still needing attention."""
+
+        return tuple(status for status in self.streams if status.status != "Ready")
+
+    @property
+    def all_ready(self) -> bool:
+        """Return ``True`` when every stream has passed its requirements."""
+
+        return self.attention_needed == 0
+
+    def missing_requirements(self) -> dict[str, tuple[str, ...]]:
+        """Map stream names to the outstanding requirement labels."""
+
+        return {
+            status.stream: status.missing
+            for status in self.attention_streams()
+            if status.missing
+        }
+
     def as_dict(self) -> dict[str, object]:
         """Return a JSON-serialisable representation of the portfolio."""
 
@@ -76,6 +101,14 @@ class PortfolioStatus:
             "ready": self.ready,
             "attention_needed": self.attention_needed,
             "streams": [asdict(status) for status in self.streams],
+            "ready_streams": [status.stream for status in self.ready_streams()],
+            "attention_streams": [
+                status.stream for status in self.attention_streams()
+            ],
+            "missing_requirements": {
+                status.stream: list(status.missing)
+                for status in self.attention_streams()
+            },
         }
 
 
@@ -345,6 +378,25 @@ def format_portfolio_summary(statuses: Iterable[StreamStatus]) -> str:
         f"- Ready: {portfolio.ready}",
         f"- Attention needed: {portfolio.attention_needed}",
     ]
+
+    if portfolio.all_ready:
+        lines.extend([
+            "",
+            "All streams are Ready; no missing requirements.",
+        ])
+    elif portfolio.attention_streams():
+        lines.extend([
+            "",
+            "Streams needing attention:",
+        ])
+        for status in portfolio.attention_streams():
+            missing_count = len(status.missing)
+            lines.append(
+                f"- {status.stream} ({missing_count} missing requirement"
+                f"{'s' if missing_count != 1 else ''})"
+            )
+            for requirement in status.missing:
+                lines.append(f"  - {requirement}")
 
     if portfolio.streams:
         lines.extend(["", "## Streams", ""])

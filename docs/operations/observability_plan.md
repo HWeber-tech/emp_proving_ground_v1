@@ -231,7 +231,13 @@ flakes or fixes in the team retrospective notes.
   `AsyncEventBus` so spans carry queue depth and dispatch lag metadata for
   every event, and reuses the same tracer to wrap runtime startup/shutdown
   hooks, workload execution, and Timescale ingest orchestration so traces show
-  plan evaluation, fallback drills, and ingest success. 【F:src/observability/tracing.py†L1-L244】【F:src/runtime/predator_app.py†L1560-L1610】【F:src/runtime/runtime_builder.py†L250-L408】【F:src/runtime/runtime_builder.py†L1996-L2320】【F:tests/core/test_event_bus_tracing.py†L1-L118】【F:tests/runtime/test_runtime_tracing.py†L1-L134】
+  plan evaluation, fallback drills, and ingest success. 【F:src/observability/tracing.py†L1-L352】【F:src/runtime/predator_app.py†L1560-L1610】【F:src/runtime/runtime_builder.py†L250-L408】【F:src/runtime/runtime_builder.py†L1996-L2320】【F:tests/core/test_event_bus_tracing.py†L1-L192】【F:tests/runtime/test_runtime_tracing.py†L1-L134】
+* Structured logs are now exported via the same configuration. Set
+  `OTEL_EXPORTER_OTLP_LOGS_ENDPOINT` (and optional headers/timeouts) when
+  running the reference collector defined in `config/observability/` to forward
+  JSON log events alongside spans. `configure_structlog` automatically adds the
+  OTLP handler when instrumentation is enabled so operators see the identical
+  payload in both stdout and the OpenTelemetry pipeline. 【F:src/operational/structured_logging.py†L1-L164】【F:tests/operational/test_structured_logging.py†L1-L132】【F:config/observability/README.md†L1-L25】
 * Adopt GitHub's dependency review and code scanning alerts once the formatting
   backlog is addressed to avoid noisy signal during active cleanup.
 

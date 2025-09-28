@@ -123,6 +123,9 @@ def test_parse_opentelemetry_settings_parses_headers_and_timeout() -> None:
         "OTEL_EXPORTER_OTLP_ENDPOINT": "https://otel.example/v1/traces",
         "OTEL_EXPORTER_OTLP_HEADERS": "Authorization=Bearer token, X-Team=ops",
         "OTEL_EXPORTER_OTLP_TIMEOUT": "7.5",
+        "OTEL_EXPORTER_OTLP_LOGS_ENDPOINT": "https://otel.example/v1/logs",
+        "OTEL_EXPORTER_OTLP_LOGS_HEADERS": "X-Logs=enabled",
+        "OTEL_EXPORTER_OTLP_LOGS_TIMEOUT": "5.25",
         "OTEL_CONSOLE_EXPORTER": "false",
     }
     settings = parse_opentelemetry_settings(extras)
@@ -132,6 +135,9 @@ def test_parse_opentelemetry_settings_parses_headers_and_timeout() -> None:
     assert settings.endpoint == "https://otel.example/v1/traces"
     assert settings.headers == {"Authorization": "Bearer token", "X-Team": "ops"}
     assert settings.timeout == pytest.approx(7.5)
+    assert settings.logs_endpoint == "https://otel.example/v1/logs"
+    assert settings.logs_headers == {"X-Logs": "enabled"}
+    assert settings.logs_timeout == pytest.approx(5.25)
     assert settings.console_exporter is False
 
 

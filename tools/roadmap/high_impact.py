@@ -16,6 +16,10 @@ from ._shared import (
 )
 
 
+SUMMARY_MARKER_START = "<!-- HIGH_IMPACT_SUMMARY:START -->"
+SUMMARY_MARKER_END = "<!-- HIGH_IMPACT_SUMMARY:END -->"
+
+
 @dataclass(frozen=True)
 class StreamDefinition:
     """Definition describing a high-impact roadmap stream."""
@@ -276,6 +280,69 @@ def _format_json(statuses: Iterable[StreamStatus]) -> str:
     return format_json(statuses)
 
 
+def _inject_summary_table(existing: str, table: str) -> str:
+    """Replace the summary table between the configured markers."""
+
+    try:
+        start_index = existing.index(SUMMARY_MARKER_START)
+    except ValueError as exc:  # pragma: no cover - defensive guard
+        raise ValueError(
+            "Summary document missing HIGH_IMPACT_SUMMARY start marker"
+        ) from exc
+
+    try:
+        end_index = existing.index(SUMMARY_MARKER_END, start_index)
+    except ValueError as exc:  # pragma: no cover - defensive guard
+        raise ValueError(
+            "Summary document missing HIGH_IMPACT_SUMMARY end marker"
+        ) from exc
+
+    end_marker_index = end_index + len(SUMMARY_MARKER_END)
+
+    before = existing[:start_index]
+    after = existing[end_marker_index:]
+    replacement = (
+        f"{SUMMARY_MARKER_START}\n{table}\n{SUMMARY_MARKER_END}"
+    )
+    return f"{before}{replacement}{after}"
+
+
+def refresh_docs(
+    statuses: Sequence[StreamStatus] | None = None,
+    *,
+    summary_path: Path | None = None,
+    detail_path: Path | None = None,
+) -> None:
+    """Refresh the roadmap status documentation files.
+
+    The summary document retains its narrative wrapper and only replaces the
+    table that sits between the ``HIGH_IMPACT_SUMMARY`` markers.  The detail
+    document is overwritten with the richer report used by dashboards and
+    narrative status updates.
+    """
+
+    if statuses is None:
+        statuses = evaluate_streams()
+    else:
+        statuses = list(statuses)
+
+    root = repo_root()
+    summary_path = summary_path or root / "docs/status/high_impact_roadmap.md"
+    detail_path = detail_path or root / "docs/status/high_impact_roadmap_detail.md"
+
+    summary_text = summary_path.read_text(encoding="utf-8")
+    table = format_markdown(statuses)
+    updated_summary = _inject_summary_table(summary_text, table)
+    if not updated_summary.endswith("\n"):
+        updated_summary = f"{updated_summary}\n"
+    summary_path.write_text(updated_summary, encoding="utf-8")
+
+    detail_text = format_detail(statuses)
+    if not detail_text.endswith("\n"):
+        detail_text = f"{detail_text}\n"
+    detail_path.write_text(detail_text, encoding="utf-8")
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """Entry point for the high-impact roadmap CLI."""
 
@@ -291,9 +358,16 @@ def main(argv: Sequence[str] | None = None) -> int:
         type=Path,
         help="Optional path where the report should be written",
     )
+    parser.add_argument(
+        "--refresh-docs",
+        action="store_true",
+        help="Update the status documentation files in docs/status/",
+    )
     args = parser.parse_args(argv)
 
     statuses = evaluate_streams()
+    if args.refresh_docs:
+        refresh_docs(statuses)
     if args.format == "json":
         output = format_json(statuses)
     elif args.format == "detail":

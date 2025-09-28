@@ -8,11 +8,20 @@ before demos or reviews:
 python -m tools.roadmap.high_impact --format markdown
 ```
 
+To update both this summary and the detailed evidence companion file in one
+shot, use the refresh flag:
+
+```bash
+python -m tools.roadmap.high_impact --refresh-docs
+```
+
+<!-- HIGH_IMPACT_SUMMARY:START -->
 | Stream | Status | Summary | Next checkpoint |
 | --- | --- | --- | --- |
 | Stream A – Institutional data backbone | Ready | Timescale ingest, Redis caching, Kafka streaming, and Spark exports ship with readiness telemetry and failover tooling. | Exercise cross-region failover and automated scheduler cutover using the readiness feeds. |
 | Stream B – Sensory cortex & evolution uplift | Ready | All five sensory organs operate with drift telemetry and catalogue-backed evolution lineage exports. | Extend live-paper experiments and automated tuning loops using evolution telemetry. |
 | Stream C – Execution, risk, compliance, ops readiness | Ready | FIX pilots, risk/compliance workflows, ROI telemetry, and operational readiness publish evidence for operators. | Expand broker connectivity with drop-copy reconciliation and extend regulatory telemetry coverage. |
+<!-- HIGH_IMPACT_SUMMARY:END -->
 
 For narrative reports or dashboards, export the detailed format to a companion
 file:

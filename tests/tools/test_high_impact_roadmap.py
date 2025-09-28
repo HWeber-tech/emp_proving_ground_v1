@@ -76,3 +76,43 @@ def test_cli_writes_output_file(tmp_path: Path) -> None:
     assert destination.exists()
     content = destination.read_text(encoding="utf-8")
     assert "High-impact roadmap status" in content
+
+
+def test_refresh_docs_updates_summary_and_detail(tmp_path: Path) -> None:
+    summary = tmp_path / "summary.md"
+    detail = tmp_path / "detail.md"
+    summary.write_text(
+        (
+            "Header\n\n"
+            "<!-- HIGH_IMPACT_SUMMARY:START -->\n"
+            "old table\n"
+            "<!-- HIGH_IMPACT_SUMMARY:END -->\n\n"
+            "Footer\n"
+        ),
+        encoding="utf-8",
+    )
+    detail.write_text("outdated\n", encoding="utf-8")
+
+    statuses = high_impact.evaluate_streams()
+    high_impact.refresh_docs(statuses, summary_path=summary, detail_path=detail)
+
+    updated_summary = summary.read_text(encoding="utf-8")
+    assert "Header" in updated_summary
+    assert "Footer" in updated_summary
+    assert "| Stream A – Institutional data backbone |" in updated_summary
+
+    updated_detail = detail.read_text(encoding="utf-8")
+    assert updated_detail.startswith("# High-impact roadmap status")
+    assert updated_detail.endswith("\n")
+
+
+def test_refresh_docs_requires_markers(tmp_path: Path) -> None:
+    summary = tmp_path / "summary.md"
+    detail = tmp_path / "detail.md"
+    summary.write_text("missing markers\n", encoding="utf-8")
+    detail.write_text("outdated\n", encoding="utf-8")
+
+    statuses = high_impact.evaluate_streams()
+
+    with pytest.raises(ValueError):
+        high_impact.refresh_docs(statuses, summary_path=summary, detail_path=detail)

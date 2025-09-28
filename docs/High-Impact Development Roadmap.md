@@ -107,7 +107,7 @@ To reflect the true scope of institutional-grade trading components, the roadmap
 
 - [x] Introduce `src/risk/analytics/var.py` supporting historical, parametric, and Monte Carlo VaR with configurable windows.
 - [x] Implement `src/risk/analytics/expected_shortfall.py` and integrate with order sizing guardrails.
-- [ ] Add position sizing adapters:
+- [x] Add position sizing adapters:
   - [x] Kelly fraction module with drawdown caps (`src/core/risk/position_sizing.py`, `RiskManagerImpl._recompute_drawdown_multiplier`)
   - [x] Volatility-target sizing fed by realized/GARCH volatility inputs (`src/risk/analytics/volatility_target.py`, `RiskManagerImpl.target_allocation_from_volatility`)
 - [x] Portfolio exposure limits by sector/asset class (config-driven)
@@ -136,10 +136,10 @@ To reflect the true scope of institutional-grade trading components, the roadmap
 #### Workstream 1D: Data Foundation Hardening (~1 week, parallelizable)
 **Impact:** 🔥🔥 **HIGH** — Ensures sensory cortex receives clean, encyclopedia-grade data
 
-- [ ] Normalize historical OHLCV ingestion via `src/data_foundation/pipelines/pricing_pipeline.py` with configurable vendors (Yahoo, Alpha Vantage, FRED).
-- [ ] Implement reference data loader for instruments, sessions, and holidays referenced in Encyclopedia Layer 1 specs.
-- [ ] Add data quality validators (missing candles, stale prices, split/dividend adjustments) with alerts feeding Workstream 1C dashboard.
-- [ ] Cache normalized datasets in `data_foundation/cache/` with retention policies documented for Tier-0 bootstrap.
+- [x] Normalize historical OHLCV ingestion via `src/data_foundation/pipelines/pricing_pipeline.py` with configurable vendors (Yahoo, Alpha Vantage, FRED).
+- [x] Implement reference data loader for instruments, sessions, and holidays referenced in Encyclopedia Layer 1 specs.
+- [x] Add data quality validators (missing candles, stale prices, split/dividend adjustments) with alerts feeding Workstream 1C dashboard.
+- [x] Cache normalized datasets in `data_foundation/cache/` with retention policies documented for Tier-0 bootstrap.
 - [x] Ship `scripts/data_bootstrap.py` to hydrate local env and CI with canonical fixtures used by sensors and strategies.
 - [ ] Cross-link encyclopedia tables for free-vs-premium data trade-offs within `/docs/runbooks/data_foundation.md`.
 
@@ -155,12 +155,12 @@ To reflect the true scope of institutional-grade trading components, the roadmap
   - [x] Implement `src/strategies/signals/garch_volatility.py` with parameterized ARCH/GARCH models.
   - [x] Create volatility-regime classifier feeding risk sizing.
 - **Mean Reversion Set**
-  - [ ] Bollinger Band breakout/mean reversion strategy with configurable bands.
+  - [x] Bollinger Band breakout/mean reversion strategy with configurable bands.
   - [x] Pair-trading z-score spread model with cointegration tests.
     - [x] Unit & integration tests covering signal generation, entry/exit, and conflicts with risk rules.
 - **Momentum & Breakout**
   - [x] Multi-timeframe momentum stack (e.g., 15m/1h/1d) with confirmation logic.
-  - [ ] Donchian/ATR breakout module and trailing stop handler.
+  - [x] Donchian/ATR breakout module and trailing stop handler.
 - **Strategy Integration**
   - [ ] Update strategy registry/config templates.
   - [ ] Add scenario backtests demonstrating uplift vs baseline MA strategy.

@@ -298,7 +298,7 @@ Roadmap follows the encyclopedia's Tier‑0 bootstrap approach:
 **Objective:** Add validated alpha sources and evolutionary adaptation while protecting Phase 1 stability.
 
 #### Milestone 2A (Weeks 5–6): Strategy Drops
-- Ship volatility, mean-reversion, and momentum strategies as independent, toggleable modules with encyclopedia playbooks.
+- [x] Ship volatility, mean-reversion, and momentum strategies as independent, toggleable modules with encyclopedia playbooks (`MomentumStrategy`, `MeanReversionStrategy`, `VolatilityBreakoutStrategy`).
 - Achieve passing unit/integration tests, feature attribution diagnostics, and reproducible backtest reports for each strategy.
 - Ensure strategies consume new sensory inputs where relevant, respect risk gates, and publish artifacts to `artifacts/strategies/`.
 

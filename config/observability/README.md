@@ -29,3 +29,17 @@ log events and span data through the collector without additional setup. Update
 or extend this configuration when forwarding telemetry to other backends (for
 example, Tempo, Loki, or OpenSearch) by adding the relevant exporters under
 `config/observability/`.
+
+### Loading profiles via runtime extras
+
+To avoid managing individual environment variables you can ask the runtime to
+load the reference profile automatically:
+
+```bash
+export STRUCTLOG_OTEL_CONFIG=default  # or an absolute path to a custom YAML
+python main.py
+```
+
+Profiles inherit the schema documented above; when `default`, `local`, or
+`local-dev` is supplied the runtime resolves the path to
+`config/observability/logging.yaml`.

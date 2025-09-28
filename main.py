@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import logging
+from pathlib import Path
 import sys
 
 from src.governance.system_config import EmpTier, SystemConfig
@@ -16,7 +17,11 @@ from src.runtime.runtime_builder import (
     build_professional_runtime_application,
 )
 
-from src.operational.structured_logging import configure_structlog, get_logger
+from src.operational.structured_logging import (
+    configure_structlog,
+    get_logger,
+    load_structlog_otel_settings,
+)
 
 
 logger = get_logger(__name__)
@@ -29,6 +34,31 @@ async def main() -> None:
 
     config = SystemConfig.from_env()
     otel_settings = parse_opentelemetry_settings(config.extras)
+    if not otel_settings.enabled:
+        structlog_profile = config.extras.get("STRUCTLOG_OTEL_CONFIG")
+        if structlog_profile:
+            profile_hint = structlog_profile.strip()
+            if profile_hint.lower() in {"default", "local", "local-dev"}:
+                profile_path = Path("config/observability/logging.yaml")
+            else:
+                profile_path = Path(profile_hint)
+            try:
+                otel_settings = load_structlog_otel_settings(
+                    profile_path,
+                    default_service_name=otel_settings.service_name,
+                    default_environment=otel_settings.environment,
+                )
+            except FileNotFoundError:
+                logger.warning(
+                    "Structured logging OpenTelemetry profile not found",  # pragma: no cover - exercised via integration
+                    extra={"structlog.otel_config": str(profile_path)},
+                )
+            except ValueError as exc:
+                logger.warning(
+                    "Failed to load structlog OpenTelemetry profile: %s",  # pragma: no cover - defensive guard
+                    exc,
+                    extra={"structlog.otel_config": str(profile_path)},
+                )
     configure_structlog(level=logging.INFO, otel_settings=otel_settings)
 
     from src.system.requirements_check import assert_scientific_stack

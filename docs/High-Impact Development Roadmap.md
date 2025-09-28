@@ -129,7 +129,7 @@ To reflect the true scope of institutional-grade trading components, the roadmap
 - [x] Ensure paper-trading mode (`scripts/paper_trade_dry_run.py`) logs parity with live flow (no new paper broker abstraction required).
 - [x] Mirror encyclopedia's "Operations Nerve Center" by adding health-check endpoints for FIX, data feeds, and risk engines.
 - [x] Add incident postmortem template aligned with Encyclopedia Appendix F and store under `/docs/runbooks/templates/`.
-- [ ] Wire structured logs into a local OpenTelemetry collector with exporters defined in `config/observability/`.
+- [x] Wire structured logs into a local OpenTelemetry collector with exporters defined in `config/observability/`.
 
 **Acceptance:** Operators can observe intraday PnL and order health; runbooks cover recovery steps; logging/tests cover happy-path and failure-path scenarios.
 

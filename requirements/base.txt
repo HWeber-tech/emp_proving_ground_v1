@@ -46,6 +46,7 @@ yfinance>=0.1.70
 opentelemetry-api>=1.26.0
 opentelemetry-sdk>=1.26.0
 opentelemetry-exporter-otlp-proto-http>=1.26.0
+structlog>=24.1.0
 
 # FIX protocol integration
 simplefix>=1.0.17

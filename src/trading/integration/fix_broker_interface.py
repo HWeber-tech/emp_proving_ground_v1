@@ -6,7 +6,6 @@ Provides integration between FIX protocol and trading system
 from __future__ import annotations
 
 import asyncio
-import logging
 from contextlib import suppress
 from datetime import datetime
 
@@ -16,7 +15,9 @@ from typing import Any, Awaitable, Callable, Coroutine, Optional
 
 import simplefix
 
-logger = logging.getLogger(__name__)
+from src.operational.structured_logging import get_logger, order_logging_context
+
+logger = get_logger(__name__)
 
 
 TaskFactory = Callable[[Coroutine[Any, Any, Any], Optional[str]], asyncio.Task[Any]]
@@ -74,7 +75,7 @@ class FIXBrokerInterface:
             return
 
         self.running = True
-        logger.info("FIX broker interface started")
+        logger.info("fix_broker_started")
 
         # Start message processing
         self._trade_task = self._spawn_task(
@@ -94,7 +95,7 @@ class FIXBrokerInterface:
             with suppress(asyncio.CancelledError):
                 await task
         self._trade_task = None
-        logger.info("FIX broker interface stopped")
+        logger.info("fix_broker_stopped")
 
     async def _process_trade_messages(self) -> None:
         """Process trade messages from the queue."""
@@ -122,9 +123,9 @@ class FIXBrokerInterface:
                     await self._handle_order_cancel_reject(message)
 
         except asyncio.CancelledError:
-            logger.debug("FIX broker trade task cancelled")
+            logger.debug("fix_broker_trade_task_cancelled")
         except Exception as e:
-            logger.error(f"Error processing trade message: {e}")
+            logger.error("trade_message_processing_error", error=str(e))
 
     def _spawn_task(
         self, coro: Coroutine[Any, Any, Any], *, name: str | None = None
@@ -168,7 +169,8 @@ class FIXBrokerInterface:
             if not order_id or not exec_type:
                 return
 
-            logger.info(f"Execution report for order {order_id}: {exec_type}")
+            with order_logging_context(order_id, exec_type=exec_type) as order_log:
+                order_log.info("execution_report_received")
 
             # Update in-memory order state
             order_state = self.orders.get(
@@ -250,7 +252,8 @@ class FIXBrokerInterface:
                 if self.event_bus and hasattr(self.event_bus, "emit"):
                     await self.event_bus.emit("order_update", update_payload)
             except Exception as emit_err:
-                logger.debug(f"Event bus emit failed: {emit_err}")
+                with order_logging_context(order_id, exec_type=exec_type):
+                    logger.debug("event_bus_emit_failed", error=str(emit_err))
 
             # Notify local listeners
             await self._notify_listeners("order_update", order_id, update_payload)
@@ -267,7 +270,8 @@ class FIXBrokerInterface:
                 await self._notify_listeners(event_type, order_id, update_payload)
 
         except Exception as e:
-            logger.error(f"Error handling execution report: {e}")
+            with order_logging_context(order_id or "unknown"):
+                logger.error("execution_report_error", error=str(e))
 
     async def _handle_order_cancel_reject(self, message: Any) -> None:
         """Handle order cancel reject messages."""
@@ -276,7 +280,10 @@ class FIXBrokerInterface:
             reject_reason = message.get(58).decode() if message.get(58) else "Unknown"
 
             if order_id:
-                logger.warning(f"Order cancel rejected for {order_id}: {reject_reason}")
+                with order_logging_context(order_id, correlation_id=order_id):
+                    logger.warning(
+                        "order_cancel_rejected", reason=reject_reason
+                    )
 
                 # Emit event for system
                 payload = {
@@ -294,7 +301,8 @@ class FIXBrokerInterface:
                 await self._notify_listeners("cancel_rejected", order_id, payload)
 
         except Exception as e:
-            logger.error(f"Error handling order cancel reject: {e}")
+            with order_logging_context(order_id or "unknown"):
+                logger.error("order_cancel_reject_error", error=str(e))
 
     async def place_market_order(self, symbol: str, side: str, quantity: float) -> Optional[str]:
         """
@@ -316,7 +324,10 @@ class FIXBrokerInterface:
                 )
                 if risk_manager and hasattr(risk_manager, "check_risk_thresholds"):
                     if not risk_manager.check_risk_thresholds():
-                        logger.warning("Order blocked by risk thresholds (VaR/ES limits)")
+                        logger.warning(
+                            "order_blocked_by_risk_thresholds",
+                            reason="var_es_limit",
+                        )
                         return None
             except Exception:
                 # If risk check fails, proceed conservatively without blocking
@@ -340,7 +351,13 @@ class FIXBrokerInterface:
             # Send order
             if self.fix_initiator:
                 self.fix_initiator.send_message(msg)
-                logger.info(f"Market order placed: {side} {quantity} {symbol} (ID: {order_id})")
+                with order_logging_context(order_id) as order_log:
+                    order_log.info(
+                        "market_order_submitted",
+                        symbol=symbol,
+                        side=side.upper(),
+                        quantity=float(quantity),
+                    )
 
                 # Store order
                 self.orders[order_id] = {
@@ -353,7 +370,8 @@ class FIXBrokerInterface:
 
                 return order_id
         except Exception as e:
-            logger.error(f"Error placing market order: {e}")
+            with order_logging_context(locals().get("order_id", "unknown")):
+                logger.error("market_order_error", error=str(e))
             return None
         # If not sent (e.g., no fix_initiator), return None
         return None
@@ -379,11 +397,13 @@ class FIXBrokerInterface:
 
             if self.fix_initiator:
                 self.fix_initiator.send_message(msg)
-                logger.info(f"Order cancel requested: {order_id}")
+                with order_logging_context(order_id):
+                    logger.info("order_cancel_requested")
                 return True
 
         except Exception as e:
-            logger.error(f"Error canceling order: {e}")
+            with order_logging_context(order_id):
+                logger.error("order_cancel_error", error=str(e))
         # Ensure a bool is always returned
         return False
 
@@ -474,6 +494,8 @@ class FIXBrokerInterface:
                 else:
                     callback(order_id, payload)
             except Exception as cb_err:
-                logger.warning(
-                    "Order %s listener error for event %s: %s", order_id, event_type, cb_err
-                )
+                with order_logging_context(order_id, event_type=event_type):
+                    logger.warning(
+                        "order_event_listener_error",
+                        error=str(cb_err),
+                    )

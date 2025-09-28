@@ -123,7 +123,7 @@ To reflect the true scope of institutional-grade trading components, the roadmap
 **Impact:** 🔥🔥 **HIGH** — Surfaces trading health earlier
 
 - [ ] Stand up PnL & exposure dashboard (streamlit or textual CLI) backed by `position_tracker` outputs.
-- [ ] Centralize logging via `structlog` with correlation IDs for each order.
+- [x] Centralize logging via `structlog` with correlation IDs for each order.
 - [ ] Expand monitoring hooks to emit metrics to Prometheus-compatible format.
 - [ ] Document operational runbooks in `/docs/runbooks/` and update encyclopedia cross-references.
 - [ ] Ensure paper-trading mode (`scripts/paper_trade_dry_run.py`) logs parity with live flow (no new paper broker abstraction required).

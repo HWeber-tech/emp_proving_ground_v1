@@ -19,6 +19,8 @@
 - operations.data_backbone.evaluate_data_backbone_readiness
 - operations.ingest_trends.evaluate_ingest_trends
 - data_foundation.ingest.failover.decide_ingest_failover
+- operations.backup.evaluate_backup_readiness
+- operations.spark_stress.execute_spark_stress_drill
 
 ## Stream B – Sensory cortex & evolution uplift
 
@@ -33,6 +35,7 @@
 - sensory.anomaly.anomaly_sensor.AnomalySensor
 - sensory.when.gamma_exposure.GammaExposureAnalyzer
 - sensory.why.why_sensor.WhySensor
+- sensory.what.what_sensor.WhatSensor
 - operations.sensory_drift.evaluate_sensory_drift
 - genome.catalogue.load_default_catalogue
 - evolution.lineage_telemetry.EvolutionLineageSnapshot

@@ -29,6 +29,25 @@ def test_streams_marked_ready() -> None:
         assert status.evidence, "expected evidence for ready streams"
 
 
+def test_stream_a_includes_resilience_requirements() -> None:
+    status = _status_map()["Stream A – Institutional data backbone"]
+
+    assert "operations.backup.evaluate_backup_readiness" in status.evidence
+    assert "operations.spark_stress.execute_spark_stress_drill" in status.evidence
+
+
+def test_stream_b_lists_all_sensory_organs() -> None:
+    status = _status_map()["Stream B – Sensory cortex & evolution uplift"]
+
+    assert {
+        "sensory.how.how_sensor.HowSensor",
+        "sensory.anomaly.anomaly_sensor.AnomalySensor",
+        "sensory.when.gamma_exposure.GammaExposureAnalyzer",
+        "sensory.why.why_sensor.WhySensor",
+        "sensory.what.what_sensor.WhatSensor",
+    }.issubset(status.evidence)
+
+
 def test_markdown_formatter_outputs_table() -> None:
     statuses = high_impact.evaluate_streams()
     markdown = high_impact.format_markdown(statuses)

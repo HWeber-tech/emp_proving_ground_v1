@@ -49,6 +49,36 @@ python -m tools.roadmap.high_impact --refresh-docs \
   --detail-path /tmp/high_impact_detail.md
 ```
 
+<!-- HIGH_IMPACT_PORTFOLIO:START -->
+# High-impact roadmap summary
+
+- Total streams: 3
+- Ready: 3
+- Attention needed: 0
+
+All streams are Ready; no missing requirements.
+
+## Streams
+
+### Stream A – Institutional data backbone
+
+*Status:* Ready
+*Summary:* Timescale ingest, Redis caching, Kafka streaming, and Spark exports ship with readiness telemetry and failover tooling.
+*Next checkpoint:* Exercise cross-region failover and automated scheduler cutover using the readiness feeds.
+
+### Stream B – Sensory cortex & evolution uplift
+
+*Status:* Ready
+*Summary:* All five sensory organs operate with drift telemetry and catalogue-backed evolution lineage exports.
+*Next checkpoint:* Extend live-paper experiments and automated tuning loops using evolution telemetry.
+
+### Stream C – Execution, risk, compliance, ops readiness
+
+*Status:* Ready
+*Summary:* FIX pilots, risk/compliance workflows, ROI telemetry, and operational readiness publish evidence for operators.
+*Next checkpoint:* Expand broker connectivity with drop-copy reconciliation and extend regulatory telemetry coverage.
+<!-- HIGH_IMPACT_PORTFOLIO:END -->
+
 <!-- HIGH_IMPACT_SUMMARY:START -->
 | Stream | Status | Summary | Next checkpoint |
 | --- | --- | --- | --- |

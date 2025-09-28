@@ -278,6 +278,9 @@ def test_cli_refresh_docs_accepts_custom_paths(tmp_path: Path, capsys: pytest.Ca
     summary.write_text(
         (
             "Lead-in\n\n"
+            "<!-- HIGH_IMPACT_PORTFOLIO:START -->\n"
+            "outdated summary\n"
+            "<!-- HIGH_IMPACT_PORTFOLIO:END -->\n\n"
             "<!-- HIGH_IMPACT_SUMMARY:START -->\n"
             "outdated table\n"
             "<!-- HIGH_IMPACT_SUMMARY:END -->\n"
@@ -304,6 +307,7 @@ def test_cli_refresh_docs_accepts_custom_paths(tmp_path: Path, capsys: pytest.Ca
     assert "Stream A – Institutional data backbone" in out
 
     updated_summary = summary.read_text(encoding="utf-8")
+    assert "# High-impact roadmap summary" in updated_summary
     assert "Stream A – Institutional data backbone" in updated_summary
     assert updated_summary.startswith("Lead-in")
 
@@ -323,6 +327,9 @@ def test_refresh_docs_updates_summary_and_detail(tmp_path: Path) -> None:
     summary.write_text(
         (
             "Header\n\n"
+            "<!-- HIGH_IMPACT_PORTFOLIO:START -->\n"
+            "outdated summary\n"
+            "<!-- HIGH_IMPACT_PORTFOLIO:END -->\n\n"
             "<!-- HIGH_IMPACT_SUMMARY:START -->\n"
             "old table\n"
             "<!-- HIGH_IMPACT_SUMMARY:END -->\n\n"
@@ -343,6 +350,7 @@ def test_refresh_docs_updates_summary_and_detail(tmp_path: Path) -> None:
     updated_summary = summary.read_text(encoding="utf-8")
     assert "Header" in updated_summary
     assert "Footer" in updated_summary
+    assert "# High-impact roadmap summary" in updated_summary
     assert "| Stream A – Institutional data backbone |" in updated_summary
 
     updated_detail = detail.read_text(encoding="utf-8")
@@ -361,6 +369,18 @@ def test_refresh_docs_requires_markers(tmp_path: Path) -> None:
     detail.write_text("outdated\n", encoding="utf-8")
 
     statuses = high_impact.evaluate_streams()
+
+    with pytest.raises(ValueError):
+        high_impact.refresh_docs(statuses, summary_path=summary, detail_path=detail)
+
+    summary.write_text(
+        (
+            "<!-- HIGH_IMPACT_SUMMARY:START -->\n"
+            "table\n"
+            "<!-- HIGH_IMPACT_SUMMARY:END -->\n"
+        ),
+        encoding="utf-8",
+    )
 
     with pytest.raises(ValueError):
         high_impact.refresh_docs(statuses, summary_path=summary, detail_path=detail)

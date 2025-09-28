@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 import json
 from pathlib import Path
 import re
-from typing import Iterable, Mapping, Sequence
+from typing import Any, Iterable, Mapping, Sequence
 
 import numpy as np
 import yaml
@@ -113,6 +113,87 @@ class RiskReport:
         if self.limits is not None:
             data["limits"] = self.limits.to_dict()
         return data
+
+    @classmethod
+    def from_mapping(cls, mapping: Mapping[str, Any]) -> "RiskReport":
+        """Rehydrate a :class:`RiskReport` from a JSON-compatible mapping."""
+
+        def _get_float(key: str, *, default: float | None = None) -> float:
+            try:
+                value = mapping.get(key, default)
+                if value is None:
+                    raise KeyError(key)
+                return float(value)
+            except (TypeError, ValueError):  # pragma: no cover - defensive guard
+                raise ValueError(f"risk report field '{key}' must be numeric") from None
+
+        def _get_int(key: str) -> int:
+            value = mapping.get(key)
+            if value is None:
+                raise ValueError(f"risk report field '{key}' is required")
+            try:
+                return int(value)
+            except (TypeError, ValueError) as exc:  # pragma: no cover - defensive guard
+                raise ValueError(f"risk report field '{key}' must be an integer") from exc
+
+        generated_at_raw = mapping.get("generated_at")
+        if not isinstance(generated_at_raw, str):
+            raise ValueError("risk report field 'generated_at' must be an ISO timestamp")
+        try:
+            generated_at = datetime.fromisoformat(generated_at_raw)
+        except ValueError as exc:  # pragma: no cover - invalid timestamp guard
+            raise ValueError("risk report field 'generated_at' is not a valid ISO timestamp") from exc
+
+        exposures_payload = mapping.get("exposures", [])
+        exposures: list[ExposureBreakdown] = []
+        if exposures_payload:
+            if not isinstance(exposures_payload, Sequence):
+                raise ValueError("risk report field 'exposures' must be a sequence")
+            for entry in exposures_payload:
+                if not isinstance(entry, Mapping):
+                    raise ValueError("each exposure entry must be a mapping")
+                symbol = str(entry.get("symbol"))
+                notional_raw = entry.get("notional")
+                percentage_raw = entry.get("percentage")
+                if notional_raw is None or percentage_raw is None:
+                    raise ValueError("exposure entries require 'notional' and 'percentage'")
+                try:
+                    notional = float(notional_raw)
+                    percentage = float(percentage_raw)
+                except (TypeError, ValueError) as exc:
+                    raise ValueError("exposure fields must be numeric") from exc
+                exposures.append(
+                    ExposureBreakdown(symbol=symbol, notional=notional, percentage=percentage)
+                )
+
+        limits_payload = mapping.get("limits")
+        limits: PortfolioRiskLimits | None = None
+        if isinstance(limits_payload, Mapping):
+            limits = PortfolioRiskLimits.from_mapping(limits_payload)
+
+        breaches_payload = mapping.get("breaches", {})
+        if breaches_payload is None:
+            breaches = {}
+        elif isinstance(breaches_payload, Mapping):
+            breaches = dict(breaches_payload)
+        else:
+            raise ValueError("risk report field 'breaches' must be a mapping")
+
+        return cls(
+            generated_at=generated_at,
+            confidence=float(mapping.get("confidence", 0.0)),
+            sample_size=_get_int("sample_size"),
+            historical_var=_get_float("historical_var"),
+            parametric_var=_get_float("parametric_var"),
+            monte_carlo_var=_get_float("monte_carlo_var"),
+            monte_carlo_simulations=_get_int("monte_carlo_simulations"),
+            historical_expected_shortfall=_get_float("historical_expected_shortfall"),
+            parametric_expected_shortfall=_get_float("parametric_expected_shortfall"),
+            total_exposure=_get_float("total_exposure", default=0.0),
+            exposures=tuple(exposures),
+            breaches=breaches,
+            limits=limits,
+        )
 
 
 def _normalise_returns(returns: Sequence[float] | Iterable[float]) -> np.ndarray:

@@ -13,9 +13,11 @@ from .analytics import (
     determine_target_allocation,
 )
 from .reporting import (
+    BudgetUtilisation,
     ExposureBreakdown,
     PortfolioRiskLimits,
     RiskReport,
+    generate_capital_efficiency_memo,
     generate_risk_report,
     load_portfolio_limits,
     render_risk_report_json,
@@ -34,9 +36,11 @@ from .telemetry import (
 __all__ = [
     "RealRiskManager",
     "RealRiskConfig",
+    "BudgetUtilisation",
     "ExposureBreakdown",
     "PortfolioRiskLimits",
     "RiskReport",
+    "generate_capital_efficiency_memo",
     "generate_risk_report",
     "load_portfolio_limits",
     "render_risk_report_json",

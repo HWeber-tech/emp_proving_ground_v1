@@ -321,6 +321,35 @@ def format_markdown(statuses: Iterable[StreamStatus]) -> str:
     return "\n".join(lines)
 
 
+def format_portfolio_summary(statuses: Iterable[StreamStatus]) -> str:
+    """Return a narrative summary of the overall portfolio health."""
+
+    portfolio = summarise_portfolio(statuses)
+    lines = [
+        "# High-impact roadmap summary",
+        "",
+        f"- Total streams: {portfolio.total_streams}",
+        f"- Ready: {portfolio.ready}",
+        f"- Attention needed: {portfolio.attention_needed}",
+    ]
+
+    if portfolio.streams:
+        lines.extend(["", "## Streams", ""])
+        for status in portfolio.streams:
+            lines.extend(
+                [
+                    f"### {status.stream}",
+                    "",
+                    f"*Status:* {status.status}",
+                    f"*Summary:* {status.summary}",
+                    f"*Next checkpoint:* {status.next_checkpoint}",
+                    "",
+                ]
+            )
+
+    return "\n".join(lines).rstrip()
+
+
 def format_detail(statuses: Iterable[StreamStatus]) -> str:
     """Return a richer Markdown report for dashboards and docs."""
 
@@ -443,7 +472,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--format",
-        choices=("markdown", "json", "detail"),
+        choices=("markdown", "json", "detail", "summary"),
         default="markdown",
         help="Output format (default: markdown table)",
     )
@@ -478,6 +507,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         output = format_json(statuses)
     elif args.format == "detail":
         output = format_detail(statuses)
+    elif args.format == "summary":
+        output = format_portfolio_summary(statuses)
     else:
         output = format_markdown(statuses)
 

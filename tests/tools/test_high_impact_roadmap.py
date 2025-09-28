@@ -77,6 +77,16 @@ def test_markdown_formatter_outputs_table() -> None:
     assert "Stream A – Institutional data backbone" in markdown
 
 
+def test_portfolio_summary_formatter_lists_counts() -> None:
+    statuses = high_impact.evaluate_streams()
+    summary = high_impact.format_portfolio_summary(statuses)
+
+    assert summary.startswith("# High-impact roadmap summary")
+    assert "Total streams" in summary
+    assert "Ready" in summary
+    assert "Stream A – Institutional data backbone" in summary
+
+
 def test_summarise_portfolio_counts_ready_streams() -> None:
     statuses = high_impact.evaluate_streams()
 

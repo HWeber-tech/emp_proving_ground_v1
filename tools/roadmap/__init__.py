@@ -1,13 +1,16 @@
 """Roadmap utilities for assessing concept-to-code parity."""
 
-from .high_impact import StreamStatus, evaluate_streams, main as high_impact_main
-from .snapshot import (
-    InitiativeStatus,
-    evaluate_portfolio_snapshot,
-    main as snapshot_main,
-)
+from __future__ import annotations
 
-main = snapshot_main
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:  # pragma: no cover - import-time conveniences for type checkers
+    from .high_impact import StreamStatus, evaluate_streams, main as high_impact_main
+    from .snapshot import (
+        InitiativeStatus,
+        evaluate_portfolio_snapshot,
+        main as snapshot_main,
+    )
 
 __all__ = [
     "InitiativeStatus",
@@ -18,3 +21,46 @@ __all__ = [
     "high_impact_main",
     "main",
 ]
+
+
+def __getattr__(name: str) -> Any:
+    """Lazily import roadmap helpers to avoid module initialisation loops."""
+
+    from importlib import import_module
+
+    module_map = {
+        "InitiativeStatus": ("tools.roadmap.snapshot", "InitiativeStatus"),
+        "evaluate_portfolio_snapshot": (
+            "tools.roadmap.snapshot",
+            "evaluate_portfolio_snapshot",
+        ),
+        "snapshot_main": ("tools.roadmap.snapshot", "main"),
+        "StreamStatus": ("tools.roadmap.high_impact", "StreamStatus"),
+        "evaluate_streams": ("tools.roadmap.high_impact", "evaluate_streams"),
+        "high_impact_main": ("tools.roadmap.high_impact", "main"),
+        "main": ("tools.roadmap.snapshot", "main"),
+    }
+
+    target = module_map.get(name)
+    if target is None:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+    module = import_module(target[0])
+    attribute = getattr(module, target[1])
+
+    # Cache the resolved attribute to avoid repeated imports.
+    globals()[name] = attribute
+
+    # Keep the alias between ``main`` and ``snapshot_main`` in sync.
+    if name == "main" and "snapshot_main" not in globals():
+        globals()["snapshot_main"] = attribute
+    elif name == "snapshot_main" and "main" not in globals():
+        globals()["main"] = attribute
+
+    return attribute
+
+
+def __dir__() -> list[str]:
+    """Expose lazily-imported symbols through dir()."""
+
+    return sorted(__all__)

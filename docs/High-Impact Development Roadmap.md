@@ -128,7 +128,7 @@ To reflect the true scope of institutional-grade trading components, the roadmap
 - [ ] Document operational runbooks in `/docs/runbooks/` and update encyclopedia cross-references.
 - [ ] Ensure paper-trading mode (`scripts/paper_trade_dry_run.py`) logs parity with live flow (no new paper broker abstraction required).
 - [ ] Mirror encyclopedia's "Operations Nerve Center" by adding health-check endpoints for FIX, data feeds, and risk engines.
-- [ ] Add incident postmortem template aligned with Encyclopedia Appendix F and store under `/docs/runbooks/templates/`.
+- [x] Add incident postmortem template aligned with Encyclopedia Appendix F and store under `/docs/runbooks/templates/`.
 - [ ] Wire structured logs into a local OpenTelemetry collector with exporters defined in `config/observability/`.
 
 **Acceptance:** Operators can observe intraday PnL and order health; runbooks cover recovery steps; logging/tests cover happy-path and failure-path scenarios.
@@ -140,7 +140,7 @@ To reflect the true scope of institutional-grade trading components, the roadmap
 - [ ] Implement reference data loader for instruments, sessions, and holidays referenced in Encyclopedia Layer 1 specs.
 - [ ] Add data quality validators (missing candles, stale prices, split/dividend adjustments) with alerts feeding Workstream 1C dashboard.
 - [ ] Cache normalized datasets in `data_foundation/cache/` with retention policies documented for Tier-0 bootstrap.
-- [ ] Ship `scripts/data_bootstrap.py` to hydrate local env and CI with canonical fixtures used by sensors and strategies.
+- [x] Ship `scripts/data_bootstrap.py` to hydrate local env and CI with canonical fixtures used by sensors and strategies.
 - [ ] Cross-link encyclopedia tables for free-vs-premium data trade-offs within `/docs/runbooks/data_foundation.md`.
 
 **Acceptance:** Canonical datasets load without manual intervention; validators surface anomalies; encyclopedia data lineage references stay in sync with implementation.

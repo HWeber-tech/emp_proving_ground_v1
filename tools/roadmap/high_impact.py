@@ -115,6 +115,10 @@ def _stream_definitions() -> Sequence[StreamDefinition]:
                     "decide_ingest_failover",
                 ),
                 require_module_attr(
+                    "operations.cross_region_failover",
+                    "evaluate_cross_region_failover",
+                ),
+                require_module_attr(
                     "operations.backup",
                     "evaluate_backup_readiness",
                 ),

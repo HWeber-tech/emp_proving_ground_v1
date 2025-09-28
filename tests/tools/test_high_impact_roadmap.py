@@ -73,6 +73,24 @@ def test_cli_supports_json_format(capsys: pytest.CaptureFixture[str]) -> None:
     assert decoded[0]["status"] == "Ready"
 
 
+def test_evaluate_streams_can_filter() -> None:
+    [status] = high_impact.evaluate_streams(
+        ["Stream A – Institutional data backbone"]
+    )
+
+    assert status.stream == "Stream A – Institutional data backbone"
+
+
+def test_cli_rejects_unknown_stream(capsys: pytest.CaptureFixture[str]) -> None:
+    with pytest.raises(SystemExit) as excinfo:
+        high_impact.main(["--stream", "unknown stream"])
+
+    assert excinfo.value.code == 2
+    out, err = capsys.readouterr()
+    assert not out
+    assert "Unknown stream" in err
+
+
 def test_detail_formatter_includes_evidence() -> None:
     statuses = high_impact.evaluate_streams()
     report = high_impact.format_detail(statuses)

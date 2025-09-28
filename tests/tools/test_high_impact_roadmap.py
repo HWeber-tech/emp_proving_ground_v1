@@ -39,7 +39,7 @@ def test_markdown_formatter_outputs_table() -> None:
 
 def test_json_format_includes_evidence() -> None:
     statuses = high_impact.evaluate_streams()
-    payload = json.loads(high_impact._format_json(statuses))
+    payload = json.loads(high_impact.format_json(statuses))
 
     assert isinstance(payload, list)
     assert payload[0]["evidence"], "expected evidence list in JSON output"

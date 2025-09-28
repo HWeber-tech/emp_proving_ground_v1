@@ -257,8 +257,23 @@ def format_detail(statuses: Iterable[StreamStatus]) -> str:
     return "\n".join(lines).rstrip()
 
 
-def _format_json(statuses: Iterable[StreamStatus]) -> str:
+def format_json(statuses: Iterable[StreamStatus]) -> str:
+    """Return a JSON payload describing the stream statuses.
+
+    The high-impact roadmap report feeds both docs and automation.  External
+    tooling previously had to reach for the private ``_format_json`` helper to
+    reuse the CLI output.  Exposing this public helper keeps those consumers out
+    of the private namespace while preserving a single implementation shared by
+    the CLI and tests.
+    """
+
     return json.dumps([asdict(status) for status in statuses], indent=2)
+
+
+def _format_json(statuses: Iterable[StreamStatus]) -> str:
+    """Backward-compatible alias for :func:`format_json`."""
+
+    return format_json(statuses)
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -280,7 +295,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     statuses = evaluate_streams()
     if args.format == "json":
-        output = _format_json(statuses)
+        output = format_json(statuses)
     elif args.format == "detail":
         output = format_detail(statuses)
     else:

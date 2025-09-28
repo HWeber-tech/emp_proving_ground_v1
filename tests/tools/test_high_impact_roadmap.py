@@ -85,6 +85,7 @@ def test_portfolio_summary_formatter_lists_counts() -> None:
     assert "Total streams" in summary
     assert "Ready" in summary
     assert "Stream A – Institutional data backbone" in summary
+    assert "All streams are Ready" in summary
 
 
 def test_attention_formatter_notes_missing_items() -> None:
@@ -114,10 +115,19 @@ def test_summarise_portfolio_counts_ready_streams() -> None:
     assert portfolio.ready == len(statuses)
     assert portfolio.attention_needed == 0
     assert all(stream.status == "Ready" for stream in portfolio.streams)
+    assert portfolio.all_ready
+    assert portfolio.attention_streams() == ()
+    assert {
+        status.stream for status in portfolio.ready_streams()
+    } == {status.stream for status in statuses}
+    assert portfolio.missing_requirements() == {}
 
     payload = portfolio.as_dict()
     assert payload["ready"] == portfolio.ready
     assert len(payload["streams"]) == portfolio.total_streams
+    assert payload["ready_streams"]
+    assert payload["attention_streams"] == []
+    assert payload["missing_requirements"] == {}
 
 
 def test_json_format_includes_evidence() -> None:
@@ -186,6 +196,42 @@ def test_detail_formatter_includes_evidence() -> None:
     assert "# High-impact roadmap status" in report
     assert "**Evidence:**" in report
     assert "Stream A" in report
+
+
+def test_portfolio_summary_mentions_missing_requirements() -> None:
+    statuses = [
+        high_impact.StreamStatus(
+            stream="Stream Ω",
+            status="Attention needed",
+            summary="Incomplete",
+            next_checkpoint="Ship everything",
+            evidence=("module.present",),
+            missing=("module.missing", "docs.todo"),
+        ),
+        high_impact.StreamStatus(
+            stream="Stream Α",
+            status="Ready",
+            summary="All good",
+            next_checkpoint="Next",
+            evidence=("module.present",),
+            missing=(),
+        ),
+    ]
+
+    portfolio = high_impact.summarise_portfolio(statuses)
+
+    assert not portfolio.all_ready
+    assert [status.stream for status in portfolio.attention_streams()] == [
+        "Stream Ω"
+    ]
+    assert portfolio.missing_requirements() == {
+        "Stream Ω": ("module.missing", "docs.todo"),
+    }
+
+    summary = high_impact.format_portfolio_summary(statuses)
+    assert "Streams needing attention" in summary
+    assert "Stream Ω" in summary
+    assert "module.missing" in summary
 
 
 def test_cli_writes_output_file(tmp_path: Path) -> None:

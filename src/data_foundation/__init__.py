@@ -6,6 +6,12 @@ from .fabric.timescale_connector import (
     TimescaleDailyBarConnector,
     TimescaleIntradayTradeConnector,
 )
+from .pipelines import (
+    PricingPipeline,
+    PricingPipelineConfig,
+    PricingPipelineResult,
+    PricingQualityIssue,
+)
 from .services.macro_events import (
     MacroBiasResult,
     MacroEventRecord,
@@ -18,6 +24,10 @@ __all__ = [
     "MarketDataFabric",
     "TimescaleDailyBarConnector",
     "TimescaleIntradayTradeConnector",
+    "PricingPipeline",
+    "PricingPipelineConfig",
+    "PricingPipelineResult",
+    "PricingQualityIssue",
     "MacroBiasResult",
     "MacroEventRecord",
     "TimescaleMacroEventService",

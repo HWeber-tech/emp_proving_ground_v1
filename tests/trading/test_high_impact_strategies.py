@@ -8,6 +8,9 @@ from src.trading.strategies import (
     MeanReversionStrategyConfig,
     MomentumStrategy,
     MomentumStrategyConfig,
+    MultiTimeframeMomentumConfig,
+    MultiTimeframeMomentumStrategy,
+    TimeframeMomentumLegConfig,
     StrategySignal,
     VolatilityBreakoutConfig,
     VolatilityBreakoutStrategy,
@@ -16,6 +19,23 @@ from src.trading.strategies import (
 
 def _market(close: list[float]) -> dict[str, dict[str, list[float]]]:
     return {"EURUSD": {"close": close}}
+
+
+def _mtf_market(
+    *,
+    daily: list[float],
+    hourly: list[float],
+    fifteen_min: list[float],
+) -> dict[str, dict[str, object]]:
+    return {
+        "EURUSD": {
+            "close": daily,
+            "timeframes": {
+                "1h": {"close": hourly},
+                "15m": {"close": fifteen_min},
+            },
+        }
+    }
 
 
 @pytest.mark.asyncio
@@ -82,6 +102,94 @@ async def test_volatility_breakout_detects_price_channel_breach() -> None:
     assert signal.action == "BUY"
     assert signal.notional > 0.0
     assert signal.confidence > 0.0
+
+
+@pytest.mark.asyncio
+async def test_multi_timeframe_momentum_confirms_buy_signal() -> None:
+    config = MultiTimeframeMomentumConfig(
+        timeframes=(
+            TimeframeMomentumLegConfig("15m", lookback=4, weight=0.3, minimum_observations=6),
+            TimeframeMomentumLegConfig("1h", lookback=4, weight=0.3, minimum_observations=6),
+            TimeframeMomentumLegConfig("1d", lookback=4, weight=0.4, minimum_observations=6),
+        ),
+        entry_threshold=0.4,
+        confirmation_ratio=0.66,
+        target_volatility=0.12,
+        max_leverage=2.0,
+        volatility_timeframe="1d",
+        volatility_lookback=5,
+    )
+    strategy = MultiTimeframeMomentumStrategy("mtf", ["EURUSD"], capital=1_250_000, config=config)
+
+    market = _mtf_market(
+        daily=[1.00, 1.01, 1.015, 1.02, 1.025, 1.03, 1.035],
+        hourly=[1.000, 1.002, 1.004, 1.007, 1.010, 1.013, 1.016],
+        fifteen_min=[1.0000, 1.0006, 1.0012, 1.0020, 1.0027, 1.0035, 1.0044],
+    )
+
+    signal = await strategy.generate_signal(market, "EURUSD")
+
+    assert signal.action == "BUY"
+    assert signal.notional > 0.0
+    assert signal.confidence > 0.0
+    assert signal.metadata["support_ratio"] >= 2 / 3
+
+
+@pytest.mark.asyncio
+async def test_multi_timeframe_momentum_supports_sell_direction() -> None:
+    config = MultiTimeframeMomentumConfig(
+        timeframes=(
+            TimeframeMomentumLegConfig("15m", lookback=4, weight=0.2, minimum_observations=6),
+            TimeframeMomentumLegConfig("1h", lookback=4, weight=0.4, minimum_observations=6),
+            TimeframeMomentumLegConfig("1d", lookback=4, weight=0.4, minimum_observations=6),
+        ),
+        entry_threshold=0.35,
+        confirmation_ratio=0.6,
+        target_volatility=0.10,
+        max_leverage=1.75,
+    )
+    strategy = MultiTimeframeMomentumStrategy("mtf", ["EURUSD"], capital=900_000, config=config)
+
+    market = _mtf_market(
+        daily=[1.08, 1.07, 1.065, 1.06, 1.055, 1.05, 1.045],
+        hourly=[1.080, 1.078, 1.075, 1.072, 1.069, 1.066, 1.063],
+        fifteen_min=[1.0800, 1.0795, 1.0780, 1.0760, 1.0740, 1.0720, 1.0705],
+    )
+
+    signal = await strategy.generate_signal(market, "EURUSD")
+
+    assert signal.action == "SELL"
+    assert signal.notional < 0.0
+    assert signal.confidence > 0.0
+    assert signal.metadata["aggregate_score"] < 0.0
+
+
+@pytest.mark.asyncio
+async def test_multi_timeframe_momentum_handles_missing_timeframe() -> None:
+    config = MultiTimeframeMomentumConfig(
+        timeframes=(
+            TimeframeMomentumLegConfig("15m", lookback=4, weight=0.4, minimum_observations=6),
+            TimeframeMomentumLegConfig("1h", lookback=4, weight=0.3, minimum_observations=6),
+            TimeframeMomentumLegConfig("1d", lookback=4, weight=0.3, minimum_observations=6),
+        ),
+        entry_threshold=0.4,
+        confirmation_ratio=0.6,
+    )
+    strategy = MultiTimeframeMomentumStrategy("mtf", ["EURUSD"], capital=750_000, config=config)
+
+    market = {
+        "EURUSD": {
+            "close": [1.0, 1.01, 1.015, 1.02, 1.025, 1.03],
+            "timeframes": {
+                "1h": {"close": [1.0, 1.001, 1.002, 1.003, 1.004, 1.005]},
+            },
+        }
+    }
+
+    signal = await strategy.generate_signal(market, "EURUSD")
+
+    assert "15m" in " ".join(signal.metadata["issues"])
+    assert signal.metadata["issues"]
 
 
 @pytest.mark.asyncio

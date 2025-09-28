@@ -12,6 +12,12 @@ from .pipelines import (
     PricingPipelineResult,
     PricingQualityIssue,
 )
+from .reference import (
+    HolidayRecord,
+    InstrumentRecord,
+    ReferenceDataLoader,
+    TradingSession,
+)
 from .services.macro_events import (
     MacroBiasResult,
     MacroEventRecord,
@@ -28,6 +34,10 @@ __all__ = [
     "PricingPipelineConfig",
     "PricingPipelineResult",
     "PricingQualityIssue",
+    "ReferenceDataLoader",
+    "InstrumentRecord",
+    "TradingSession",
+    "HolidayRecord",
     "MacroBiasResult",
     "MacroEventRecord",
     "TimescaleMacroEventService",

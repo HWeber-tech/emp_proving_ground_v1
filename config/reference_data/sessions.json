@@ -1,0 +1,20 @@
+[
+  {
+    "session_id": "ICM_FX_DAY",
+    "venue": "ICM",
+    "timezone": "UTC",
+    "open_time": "00:05",
+    "close_time": "23:55",
+    "trading_days": ["Mon", "Tue", "Wed", "Thu", "Fri"],
+    "description": "IC Markets FX trading session (excludes weekend maintenance)"
+  },
+  {
+    "session_id": "LSE_CASH",
+    "venue": "LSE",
+    "timezone": "Europe/London",
+    "open_time": "08:00",
+    "close_time": "16:30",
+    "trading_days": ["Mon", "Tue", "Wed", "Thu", "Fri"],
+    "description": "London Stock Exchange cash session"
+  }
+]

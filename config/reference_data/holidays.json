@@ -1,0 +1,20 @@
+[
+  {
+    "calendar": "US_FED",
+    "date": "2025-01-01",
+    "name": "New Year's Day",
+    "venues": ["ICM", "LSE"]
+  },
+  {
+    "calendar": "US_FED",
+    "date": "2025-12-25",
+    "name": "Christmas Day",
+    "venues": ["ICM", "LSE"]
+  },
+  {
+    "calendar": "UK_BANK",
+    "date": "2025-12-26",
+    "name": "Boxing Day",
+    "venues": ["LSE"]
+  }
+]

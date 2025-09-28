@@ -1,0 +1,32 @@
+[
+  {
+    "symbol": "EURUSD",
+    "description": "Euro vs US Dollar",
+    "asset_class": "FX",
+    "currency": "USD",
+    "tick_size": "0.00001",
+    "lot_size": "100000",
+    "venue": "ICM",
+    "session": "ICM_FX_DAY"
+  },
+  {
+    "symbol": "XAUUSD",
+    "description": "Spot Gold vs US Dollar",
+    "asset_class": "METAL",
+    "currency": "USD",
+    "tick_size": "0.01",
+    "lot_size": "100",
+    "venue": "ICM",
+    "session": "ICM_FX_DAY"
+  },
+  {
+    "symbol": "GBPUSD",
+    "description": "British Pound vs US Dollar",
+    "asset_class": "FX",
+    "currency": "USD",
+    "tick_size": "0.0001",
+    "lot_size": "100000",
+    "venue": "ICM",
+    "session": "ICM_FX_DAY"
+  }
+]

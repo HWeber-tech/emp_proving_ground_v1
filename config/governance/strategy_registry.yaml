@@ -1,93 +1,83 @@
-# EMP Strategy Registry Configuration
-# Defines the registry structure and approval workflows
+# EMP Strategy Registry configuration (roadmap-aligned)
+# Mirrors the SQLite-backed registry implementation in
+# ``src/governance/strategy_registry.py`` and references the consolidated
+# strategy catalog used by testing and governance workflows.
 
 strategy_registry:
   name: "emp_strategy_registry"
-  version: "1.1.0"
-  
-  # Registry storage configuration
+  version: "1.2.0"
   storage:
-    type: "postgresql"
-    connection:
-      host: "localhost"
-      port: 5432
-      database: "emp_registry"
-      user: "emp_user"
-      password: "${EMP_DB_PASSWORD}"
-  
-  # Strategy approval workflow
+    type: "sqlite"
+    path: "artifacts/governance/strategy_registry.db"
+
+  bootstrap:
+    catalog_path: "config/trading/strategy_catalog.yaml"
+    enable_catalog_sync: true
+    statuses:
+      default: "approved"
+      experimental: "evolved"
+    provenance:
+      seed_source: "roadmap.phase2"
+      catalogue:
+        name: "emp_strategy_catalog"
+        version: "2025.03"
+
   approval_workflow:
     stages:
       - name: "validation"
         description: "Technical validation of strategy"
         required: true
         auto_approve: false
-        
       - name: "backtesting"
         description: "Historical performance validation"
         required: true
         auto_approve: false
-        
       - name: "simulation"
         description: "Simulation envelope testing"
         required: true
         auto_approve: false
-        
       - name: "human_review"
         description: "Human oversight and approval"
         required: true
         auto_approve: false
-        
       - name: "deployment"
         description: "Live deployment approval"
         required: true
         auto_approve: false
-  
-  # Strategy categories
+
   categories:
-    - name: "trend_following"
+    trend_following:
       description: "Trend following strategies"
       risk_level: "medium"
-      
-    - name: "mean_reversion"
+      strategies:
+        - "momentum"
+        - "multi_timeframe_momentum"
+    mean_reversion:
       description: "Mean reversion strategies"
       risk_level: "medium"
-      
-    - name: "momentum"
-      description: "Momentum strategies"
+      strategies:
+        - "mean_reversion"
+    breakout:
+      description: "Breakout strategies"
       risk_level: "high"
-      
-    - name: "arbitrage"
-      description: "Arbitrage strategies"
-      risk_level: "low"
-      
-    - name: "market_making"
-      description: "Market making strategies"
-      risk_level: "medium"
-  
-  # Risk limits per category
+      strategies:
+        - "volatility_breakout"
+
   risk_limits:
     trend_following:
-      max_position_size: 0.1
+      max_position_size: 0.10
       max_drawdown: 0.15
       max_leverage: 2.0
-      
     mean_reversion:
       max_position_size: 0.08
       max_drawdown: 0.12
       max_leverage: 1.5
-      
-    momentum:
+    breakout:
       max_position_size: 0.06
       max_drawdown: 0.10
-      max_leverage: 1.0
-      
-    arbitrage:
-      max_position_size: 0.15
-      max_drawdown: 0.08
-      max_leverage: 3.0
-      
-    market_making:
-      max_position_size: 0.05
-      max_drawdown: 0.05
-      max_leverage: 1.0 
+      max_leverage: 1.5
+
+  reporting:
+    telemetry_channel: "telemetry.strategy.registry"
+    publish_interval_seconds: 3600
+    enable_uplift_reporting: true

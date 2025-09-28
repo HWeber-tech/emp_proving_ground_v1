@@ -1,0 +1,262 @@
+{
+  "catalog_version": "2025.03",
+  "scenario_count": 4,
+  "strategies": [
+    {
+      "key": "momentum",
+      "identifier": "momentum_v1",
+      "name": "Momentum - Realised Volatility Sizing",
+      "class_name": "MomentumStrategy",
+      "enabled": true,
+      "capital": 1000000.0,
+      "parameters": {
+        "lookback": 20,
+        "entry_threshold": 0.55,
+        "target_volatility": 0.1,
+        "max_leverage": 2.0
+      },
+      "symbols": [
+        "EURUSD"
+      ],
+      "tags": [
+        "momentum",
+        "trend-following"
+      ],
+      "description": "Trend-following momentum module with realised-volatility\nsizing and configurable entry threshold.\n"
+    },
+    {
+      "key": "mean_reversion",
+      "identifier": "mean_rev_v1",
+      "name": "Mean Reversion - Bollinger Style",
+      "class_name": "MeanReversionStrategy",
+      "enabled": true,
+      "capital": 800000.0,
+      "parameters": {
+        "lookback": 30,
+        "zscore_entry": 0.9,
+        "target_volatility": 0.08,
+        "max_leverage": 1.5
+      },
+      "symbols": [
+        "EURUSD"
+      ],
+      "tags": [
+        "mean-reversion",
+        "bollinger"
+      ],
+      "description": "Contrarian Bollinger-band style mean reversion play with\nvolatility-target sizing and z-score gating.\n"
+    },
+    {
+      "key": "volatility_breakout",
+      "identifier": "vol_break_v1",
+      "name": "Volatility Breakout",
+      "class_name": "VolatilityBreakoutStrategy",
+      "enabled": true,
+      "capital": 600000.0,
+      "parameters": {
+        "breakout_lookback": 10,
+        "baseline_lookback": 30,
+        "price_channel_lookback": 10,
+        "volatility_multiplier": 1.05
+      },
+      "symbols": [
+        "EURUSD"
+      ],
+      "tags": [
+        "breakout",
+        "volatility"
+      ],
+      "description": "Adaptive breakout engine combining ATR style volatility and\nprice channel confirmation.  Targets explosive moves after\nlow-volatility regimes.\n"
+    },
+    {
+      "key": "multi_timeframe_momentum",
+      "identifier": "mtf_momentum_v1",
+      "name": "Multi-Timeframe Momentum",
+      "class_name": "MultiTimeframeMomentumStrategy",
+      "enabled": true,
+      "capital": 1200000.0,
+      "parameters": {
+        "entry_threshold": 0.45,
+        "confirmation_ratio": 0.6,
+        "target_volatility": 0.11,
+        "max_leverage": 2.0,
+        "volatility_timeframe": "1d",
+        "volatility_lookback": 20,
+        "timeframes": [
+          {
+            "timeframe": "15m",
+            "lookback": 8,
+            "weight": 0.25,
+            "minimum_observations": 10
+          },
+          {
+            "timeframe": "1h",
+            "lookback": 10,
+            "weight": 0.35,
+            "minimum_observations": 12
+          },
+          {
+            "timeframe": "1d",
+            "lookback": 12,
+            "weight": 0.4,
+            "minimum_observations": 14
+          }
+        ]
+      },
+      "symbols": [
+        "EURUSD"
+      ],
+      "tags": [
+        "momentum",
+        "multi-timeframe"
+      ],
+      "description": "Confirms directional conviction across 15m/1h/1d legs with\nconfigurable confirmation ratio and volatility targeting.\n"
+    }
+  ],
+  "results": [
+    {
+      "strategy_id": "momentum_v1",
+      "scenario_id": "trend_bull",
+      "expected_return": 0.019138755980861344,
+      "baseline_return": 0.0,
+      "uplift": 0.019138755980861344,
+      "direction": "BUY",
+      "leverage": 2.0
+    },
+    {
+      "strategy_id": "momentum_v1",
+      "scenario_id": "trend_bear",
+      "expected_return": 0.02471482889733867,
+      "baseline_return": 0.0,
+      "uplift": 0.02471482889733867,
+      "direction": "SELL",
+      "leverage": 2.0
+    },
+    {
+      "strategy_id": "momentum_v1",
+      "scenario_id": "mean_reversion",
+      "expected_return": -0.03321353265752216,
+      "baseline_return": 0.0,
+      "uplift": -0.03321353265752216,
+      "direction": "BUY",
+      "leverage": 0.587624039325392
+    },
+    {
+      "strategy_id": "momentum_v1",
+      "scenario_id": "volatility_breakout",
+      "expected_return": 0.0,
+      "baseline_return": 0.0,
+      "uplift": 0.0,
+      "direction": "BUY",
+      "leverage": 0.0
+    },
+    {
+      "strategy_id": "mean_rev_v1",
+      "scenario_id": "trend_bull",
+      "expected_return": -0.014354066985646008,
+      "baseline_return": 0.0,
+      "uplift": -0.014354066985646008,
+      "direction": "SELL",
+      "leverage": 1.5
+    },
+    {
+      "strategy_id": "mean_rev_v1",
+      "scenario_id": "trend_bear",
+      "expected_return": -0.018536121673004002,
+      "baseline_return": 0.0,
+      "uplift": -0.018536121673004002,
+      "direction": "BUY",
+      "leverage": 1.5
+    },
+    {
+      "strategy_id": "mean_rev_v1",
+      "scenario_id": "mean_reversion",
+      "expected_return": 0.02657082612601773,
+      "baseline_return": 0.0,
+      "uplift": 0.02657082612601773,
+      "direction": "SELL",
+      "leverage": 0.4700992314603136
+    },
+    {
+      "strategy_id": "mean_rev_v1",
+      "scenario_id": "volatility_breakout",
+      "expected_return": -0.02268309991499659,
+      "baseline_return": 0.0,
+      "uplift": -0.02268309991499659,
+      "direction": "SELL",
+      "leverage": 0.4082957984699401
+    },
+    {
+      "strategy_id": "vol_break_v1",
+      "scenario_id": "trend_bull",
+      "expected_return": 0.0,
+      "baseline_return": 0.0,
+      "uplift": 0.0,
+      "direction": "BUY",
+      "leverage": 0.0
+    },
+    {
+      "strategy_id": "vol_break_v1",
+      "scenario_id": "trend_bear",
+      "expected_return": 0.0,
+      "baseline_return": 0.0,
+      "uplift": 0.0,
+      "direction": "BUY",
+      "leverage": 0.0
+    },
+    {
+      "strategy_id": "vol_break_v1",
+      "scenario_id": "mean_reversion",
+      "expected_return": 0.0,
+      "baseline_return": 0.0,
+      "uplift": 0.0,
+      "direction": "BUY",
+      "leverage": 0.0
+    },
+    {
+      "strategy_id": "vol_break_v1",
+      "scenario_id": "volatility_breakout",
+      "expected_return": 0.02695314408369328,
+      "baseline_return": 0.0,
+      "uplift": 0.02695314408369328,
+      "direction": "BUY",
+      "leverage": 0.48515659350648077
+    },
+    {
+      "strategy_id": "mtf_momentum_v1",
+      "scenario_id": "trend_bull",
+      "expected_return": 0.0,
+      "baseline_return": 0.0,
+      "uplift": 0.0,
+      "direction": "BUY",
+      "leverage": 0.0
+    },
+    {
+      "strategy_id": "mtf_momentum_v1",
+      "scenario_id": "trend_bear",
+      "expected_return": 0.0,
+      "baseline_return": 0.0,
+      "uplift": 0.0,
+      "direction": "BUY",
+      "leverage": 0.0
+    },
+    {
+      "strategy_id": "mtf_momentum_v1",
+      "scenario_id": "mean_reversion",
+      "expected_return": 0.0,
+      "baseline_return": 0.0,
+      "uplift": 0.0,
+      "direction": "BUY",
+      "leverage": 0.0
+    },
+    {
+      "strategy_id": "mtf_momentum_v1",
+      "scenario_id": "volatility_breakout",
+      "expected_return": 0.11111111111111072,
+      "baseline_return": 0.0,
+      "uplift": 0.11111111111111072,
+      "direction": "BUY",
+      "leverage": 2.0
+    }
+  ]
+}

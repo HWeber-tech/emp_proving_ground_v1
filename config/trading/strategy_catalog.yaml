@@ -1,0 +1,118 @@
+# EMP Strategy Catalog - Phase 2 baseline
+# Defines the paper-trading ready strategies referenced by the
+# High-Impact Development Roadmap.  The catalog is intentionally
+# lightweight so it can be consumed from CI jobs and local tooling
+# without requiring a database connection.
+
+catalog:
+  version: "2025.03"
+  default_capital: 1000000.0
+  description: |
+    Canonical momentum, mean-reversion, and breakout strategies used
+    for regression testing and scenario backtesting.  The definitions
+    mirror the implementations in ``src/trading/strategies`` and are
+    referenced by governance tooling as well as offline analytics.
+  symbols:
+    default:
+      - "EURUSD"
+  baseline:
+    id: "baseline_ma"
+    short_window: 5
+    long_window: 18
+    risk_fraction: 0.25
+  strategies:
+    momentum:
+      id: "momentum_v1"
+      name: "Momentum - Realised Volatility Sizing"
+      enabled: true
+      class: "MomentumStrategy"
+      capital: 1000000.0
+      description: |
+        Trend-following momentum module with realised-volatility
+        sizing and configurable entry threshold.
+      parameters:
+        lookback: 20
+        entry_threshold: 0.55
+        target_volatility: 0.10
+        max_leverage: 2.0
+      tags:
+        - "momentum"
+        - "trend-following"
+    mean_reversion:
+      id: "mean_rev_v1"
+      name: "Mean Reversion - Bollinger Style"
+      enabled: true
+      class: "MeanReversionStrategy"
+      capital: 800000.0
+      description: |
+        Contrarian Bollinger-band style mean reversion play with
+        volatility-target sizing and z-score gating.
+      parameters:
+        lookback: 30
+        zscore_entry: 0.9
+        target_volatility: 0.08
+        max_leverage: 1.5
+      tags:
+        - "mean-reversion"
+        - "bollinger"
+    volatility_breakout:
+      id: "vol_break_v1"
+      name: "Volatility Breakout"
+      enabled: true
+      class: "VolatilityBreakoutStrategy"
+      capital: 600000.0
+      description: |
+        Adaptive breakout engine combining ATR style volatility and
+        price channel confirmation.  Targets explosive moves after
+        low-volatility regimes.
+      parameters:
+        breakout_lookback: 10
+        baseline_lookback: 30
+        price_channel_lookback: 10
+        volatility_multiplier: 1.05
+      tags:
+        - "breakout"
+        - "volatility"
+    multi_timeframe_momentum:
+      id: "mtf_momentum_v1"
+      name: "Multi-Timeframe Momentum"
+      enabled: true
+      class: "MultiTimeframeMomentumStrategy"
+      capital: 1200000.0
+      description: |
+        Confirms directional conviction across 15m/1h/1d legs with
+        configurable confirmation ratio and volatility targeting.
+      parameters:
+        entry_threshold: 0.45
+        confirmation_ratio: 0.6
+        target_volatility: 0.11
+        max_leverage: 2.0
+        volatility_timeframe: "1d"
+        volatility_lookback: 20
+        timeframes:
+          - timeframe: "15m"
+            lookback: 8
+            weight: 0.25
+            minimum_observations: 10
+          - timeframe: "1h"
+            lookback: 10
+            weight: 0.35
+            minimum_observations: 12
+          - timeframe: "1d"
+            lookback: 12
+            weight: 0.40
+            minimum_observations: 14
+      tags:
+        - "momentum"
+        - "multi-timeframe"
+  governance:
+    category_overrides:
+      momentum:
+        risk_level: "high"
+        review_stage: "quant"
+      mean_reversion:
+        risk_level: "medium"
+        review_stage: "risk"
+      breakout:
+        risk_level: "high"
+        review_stage: "quant"

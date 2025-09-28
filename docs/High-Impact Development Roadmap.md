@@ -162,12 +162,12 @@ To reflect the true scope of institutional-grade trading components, the roadmap
   - [x] Multi-timeframe momentum stack (e.g., 15m/1h/1d) with confirmation logic.
   - [x] Donchian/ATR breakout module and trailing stop handler.
 - **Strategy Integration**
-  - [ ] Update strategy registry/config templates.
-  - [ ] Add scenario backtests demonstrating uplift vs baseline MA strategy.
+  - [x] Update strategy registry/config templates.
+  - [x] Add scenario backtests demonstrating uplift vs baseline MA strategy.
 - **Alpha Ops**
-  - [ ] Document encyclopedia-aligned playbooks for each strategy archetype, including regime suitability.
+  - [x] Document encyclopedia-aligned playbooks for each strategy archetype, including regime suitability.
   - [x] Register feature importance & diagnostics pipeline in `src/trading/strategies/analytics/performance_attribution.py`.
-  - [ ] Store canonical backtest artifacts (equity curve, risk metrics, configs) under `artifacts/strategies/` for reproducibility.
+  - [x] Store canonical backtest artifacts (equity curve, risk metrics, configs) under `artifacts/strategies/` for reproducibility.
 
 **Acceptance:** Each strategy passes unit/integration tests, is documented, and can be toggled via configuration.
 

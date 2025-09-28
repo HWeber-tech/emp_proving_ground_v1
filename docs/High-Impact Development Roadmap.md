@@ -115,7 +115,7 @@ To reflect the true scope of institutional-grade trading components, the roadmap
 - [x] Produce automated risk report artifact (Markdown/JSON) for CI artifacts (`scripts/generate_risk_report.py`).
 - [x] Backfill encyclopedia Tier-0/Tier-1 risk scenarios as pytest parametrized cases to validate guardrail behavior.
 - [x] Integrate VaR/ES outputs into canonical risk configuration defaults (`src/config/risk/risk_config.py`).
-- [ ] Publish weekly capital efficiency memo comparing realized vs target risk budgets.
+- [x] Publish weekly capital efficiency memo comparing realized vs target risk budgets (see `scripts/generate_capital_efficiency_memo.py`).
 
 **Acceptance:** Pre-trade checks block orders breaching VaR/ES or exposure limits; regression suite validates guardrails.
 

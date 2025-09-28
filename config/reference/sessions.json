@@ -1,0 +1,29 @@
+{
+  "london_fx": {
+    "name": "London FX Core Session",
+    "timezone": "Europe/London",
+    "open_time": "07:00",
+    "close_time": "16:30",
+    "days": ["Mon", "Tue", "Wed", "Thu", "Fri"],
+    "venue": "LONDON",
+    "description": "Primary liquidity window for GBP and EUR pairs."
+  },
+  "new_york_fx": {
+    "name": "New York FX Session",
+    "timezone": "America/New_York",
+    "open_time": "08:00",
+    "close_time": "17:00",
+    "days": ["Mon", "Tue", "Wed", "Thu", "Fri"],
+    "venue": "NEW_YORK",
+    "description": "North American overlap session – highest USD liquidity."
+  },
+  "tokyo_fx": {
+    "name": "Tokyo FX Session",
+    "timezone": "Asia/Tokyo",
+    "open_time": "09:00",
+    "close_time": "18:00",
+    "days": ["Mon", "Tue", "Wed", "Thu", "Fri"],
+    "venue": "TOKYO",
+    "description": "Asian liquidity window – anchors pre-London positioning."
+  }
+}

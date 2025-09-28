@@ -79,12 +79,20 @@ def _stream_definitions() -> Sequence[StreamDefinition]:
                     "build_institutional_ingest_config",
                 ),
                 require_module_attr(
+                    "data_foundation.ingest.quality",
+                    "evaluate_ingest_quality",
+                ),
+                require_module_attr(
                     "data_foundation.cache.redis_cache",
                     "ManagedRedisCache",
                 ),
                 require_module_attr(
                     "data_foundation.streaming.kafka_stream",
                     "KafkaIngestEventPublisher",
+                ),
+                require_module_attr(
+                    "data_foundation.streaming.kafka_stream",
+                    "KafkaIngestQualityPublisher",
                 ),
                 require_module_attr(
                     "data_foundation.batch.spark_export",
@@ -134,6 +142,14 @@ def _stream_definitions() -> Sequence[StreamDefinition]:
                 require_module_attr(
                     "orchestration.evolution_cycle", "EvolutionCycleOrchestrator"
                 ),
+                require_module_attr(
+                    "operations.evolution_experiments",
+                    "evaluate_evolution_experiments",
+                ),
+                require_module_attr(
+                    "operations.evolution_tuning",
+                    "evaluate_evolution_tuning",
+                ),
             ),
         ),
         StreamDefinition(
@@ -169,6 +185,13 @@ def _stream_definitions() -> Sequence[StreamDefinition]:
                 ),
                 require_module_attr("compliance.trade_compliance", "TradeComplianceMonitor"),
                 require_module_attr("compliance.kyc", "KycAmlMonitor"),
+                require_module_attr(
+                    "operations.configuration_audit", "evaluate_configuration_audit"
+                ),
+                require_module_attr(
+                    "operations.system_validation", "evaluate_system_validation"
+                ),
+                require_module_attr("operations.slo", "evaluate_ingest_slos"),
             ),
         ),
     )

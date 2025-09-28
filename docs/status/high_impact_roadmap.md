@@ -33,6 +33,13 @@ requirements:
 python -m tools.roadmap.high_impact --format attention
 ```
 
+To feed dashboards that only need the missing requirements, emit the JSON
+attention view:
+
+```bash
+python -m tools.roadmap.high_impact --format attention-json
+```
+
 To update both this summary and the detailed evidence companion file in one
 shot, use the refresh flag:
 

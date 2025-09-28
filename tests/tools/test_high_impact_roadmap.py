@@ -139,6 +139,37 @@ def test_json_format_includes_evidence() -> None:
     assert payload["streams"][0]["evidence"], "expected evidence list in JSON output"
 
 
+def test_attention_json_format_includes_missing_requirements() -> None:
+    statuses = [
+        high_impact.StreamStatus(
+            stream="Stream Ω",
+            status="Attention needed",
+            summary="Incomplete",
+            next_checkpoint="Ship everything",
+            evidence=("module.present",),
+            missing=("module.missing", "docs.todo"),
+        ),
+        high_impact.StreamStatus(
+            stream="Stream Α",
+            status="Ready",
+            summary="All good",
+            next_checkpoint="Next",
+            evidence=("module.present",),
+            missing=(),
+        ),
+    ]
+
+    payload = json.loads(high_impact.format_attention_json(statuses))
+
+    assert payload["portfolio"]["attention_needed"] == 1
+    assert payload["portfolio"]["all_ready"] is False
+    assert payload["streams"][0]["stream"] == "Stream Ω"
+    assert payload["streams"][0]["missing"] == ["module.missing", "docs.todo"]
+    assert payload["missing_requirements"] == {
+        "Stream Ω": ["module.missing", "docs.todo"],
+    }
+
+
 def test_portfolio_json_format_includes_counts() -> None:
     statuses = high_impact.evaluate_streams()
     payload = json.loads(high_impact.format_portfolio_json(statuses))
@@ -177,6 +208,18 @@ def test_cli_supports_portfolio_json(capsys: pytest.CaptureFixture[str]) -> None
     assert not err
     payload = json.loads(out)
     assert payload["ready"] >= 0
+
+
+def test_cli_supports_attention_json(capsys: pytest.CaptureFixture[str]) -> None:
+    exit_code = high_impact.main(["--format", "attention-json"])
+
+    assert exit_code == 0
+
+    out, err = capsys.readouterr()
+    assert not err
+    payload = json.loads(out)
+    assert "portfolio" in payload
+    assert "streams" in payload
 
 
 def test_evaluate_streams_can_filter() -> None:

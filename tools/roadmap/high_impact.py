@@ -488,6 +488,38 @@ def format_attention(statuses: Iterable[StreamStatus]) -> str:
     return "\n".join(lines).rstrip()
 
 
+def format_attention_json(statuses: Iterable[StreamStatus]) -> str:
+    """Return a JSON payload focused on attention-required streams."""
+
+    portfolio = summarise_portfolio(statuses)
+    attention_streams = [
+        {
+            "stream": status.stream,
+            "status": status.status,
+            "summary": status.summary,
+            "next_checkpoint": status.next_checkpoint,
+            "missing": list(status.missing),
+            "evidence": list(status.evidence),
+        }
+        for status in portfolio.attention_streams()
+    ]
+
+    payload = {
+        "portfolio": {
+            "total_streams": portfolio.total_streams,
+            "ready": portfolio.ready,
+            "attention_needed": portfolio.attention_needed,
+            "all_ready": portfolio.all_ready,
+        },
+        "streams": attention_streams,
+        "missing_requirements": {
+            stream: list(requirements)
+            for stream, requirements in portfolio.missing_requirements().items()
+        },
+    }
+    return json.dumps(payload, indent=2)
+
+
 def format_json(statuses: Iterable[StreamStatus]) -> str:
     """Return a JSON payload describing the high-impact roadmap portfolio.
 
@@ -631,6 +663,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             "detail",
             "summary",
             "attention",
+            "attention-json",
             "portfolio-json",
         ),
         default="markdown",
@@ -700,6 +733,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         output = format_portfolio_summary(statuses)
     elif args.format == "attention":
         output = format_attention(statuses)
+    elif args.format == "attention-json":
+        output = format_attention_json(statuses)
     elif args.format == "portfolio-json":
         output = format_portfolio_json(statuses)
     else:

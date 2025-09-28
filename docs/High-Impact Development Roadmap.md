@@ -178,9 +178,9 @@ To reflect the true scope of institutional-grade trading components, the roadmap
 - [x] Implement fitness evaluation focusing on Sharpe, Sortino, and max drawdown (multi-objective aggregated via weighted score).
 - [x] Add crossover/mutation operators with guardrails to prevent invalid configurations.
 - [x] Run offline GA experiments (not real-time) and store results artifacts for reproducibility.
-- [ ] Document follow-on backlog (speciation, Pareto-front) for later phases.
-- [ ] Integrate GA experiment runner with encyclopedia "Evolution Lab" conventions, including seed logging and reproducibility manifest.
-- [ ] Publish experiment leaderboard (top genomes, metrics, configs) as Markdown table auto-generated in `/docs/research/evolution_lab.md`.
+- [x] Document follow-on backlog (speciation, Pareto-front) for later phases.
+- [x] Integrate GA experiment runner with encyclopedia "Evolution Lab" conventions, including seed logging and reproducibility manifest.
+- [x] Publish experiment leaderboard (top genomes, metrics, configs) as Markdown table auto-generated in `/docs/research/evolution_lab.md`.
 - [ ] Cross-wire GA outputs into strategy registry via feature flags to enable supervised promotion into paper trading.
 
 **Acceptance:** GA can evolve MA crossover parameters outperforming baseline in controlled backtest; results are reproducible from CI artifacts.

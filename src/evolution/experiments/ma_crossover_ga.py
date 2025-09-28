@@ -21,8 +21,9 @@ from __future__ import annotations
 
 import math
 import random
-from dataclasses import dataclass, field
-from typing import List, Sequence
+from dataclasses import asdict, dataclass, field
+from datetime import datetime, timezone
+from typing import Any, List, Mapping, Sequence
 
 import numpy as np
 import pandas as pd
@@ -196,6 +197,55 @@ class GARunResult:
                 }
             )
         return pd.DataFrame(rows)
+
+    def to_manifest(
+        self,
+        *,
+        experiment: str,
+        config: "GARunConfig",
+        dataset_name: str,
+        dataset_metadata: Mapping[str, Any] | None = None,
+        code_version: str | None = None,
+        notes: str | None = None,
+        replay_command: str | None = None,
+    ) -> dict[str, Any]:
+        """Serialize the run into a reproducibility manifest."""
+
+        leaderboard = [
+            {
+                "generation": generation,
+                "genome": asdict(genome),
+                "metrics": asdict(metrics),
+            }
+            for generation, (genome, metrics) in enumerate(
+                self.population_history, start=1
+            )
+        ]
+
+        manifest: dict[str, Any] = {
+            "experiment": experiment,
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "seed": config.seed,
+            "config": asdict(config),
+            "dataset": {
+                "name": dataset_name,
+                "metadata": dict(dataset_metadata or {}),
+            },
+            "best_genome": asdict(self.best_genome),
+            "best_metrics": asdict(self.best_metrics),
+            "leaderboard": leaderboard,
+            "generations": len(self.population_history),
+        }
+        if code_version:
+            manifest["code_version"] = code_version
+        if notes:
+            manifest["notes"] = notes
+        if replay_command:
+            manifest["replay"] = {
+                "command": replay_command,
+                "seed": config.seed,
+            }
+        return manifest
 
 
 def _compute_strategy_returns(prices: pd.Series, genome: MovingAverageGenome) -> pd.DataFrame:

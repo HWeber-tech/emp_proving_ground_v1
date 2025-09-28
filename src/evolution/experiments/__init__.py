@@ -10,6 +10,7 @@ from .ma_crossover_ga import (
     evaluate_genome_fitness,
     run_ga_experiment,
 )
+from .reporting import render_leaderboard_markdown
 
 __all__ = [
     "GARunConfig",
@@ -20,4 +21,5 @@ __all__ = [
     "MovingAverageGenomeBounds",
     "evaluate_genome_fitness",
     "run_ga_experiment",
+    "render_leaderboard_markdown",
 ]

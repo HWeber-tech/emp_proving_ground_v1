@@ -1,0 +1,372 @@
+{
+  "experiment": "ma_crossover_ga",
+  "generated_at": "2025-09-28T19:01:38.858760+00:00",
+  "seed": 2025,
+  "config": {
+    "population_size": 24,
+    "generations": 18,
+    "elite_count": 4,
+    "crossover_rate": 0.7,
+    "mutation_rate": 0.25,
+    "seed": 2025,
+    "bounds": {
+      "short_window": [
+        2,
+        30
+      ],
+      "long_window": [
+        20,
+        200
+      ],
+      "risk_fraction": [
+        0.05,
+        0.5
+      ],
+      "min_window_gap": 5
+    },
+    "weights": {
+      "sharpe": 0.6,
+      "sortino": 0.3,
+      "max_drawdown": 0.4,
+      "total_return": 0.2
+    }
+  },
+  "dataset": {
+    "name": "synthetic_trend_v1",
+    "metadata": {
+      "length": 512,
+      "seed": 2025,
+      "mean": 127.47177154401892,
+      "std": 17.18103231163238
+    }
+  },
+  "best_genome": {
+    "short_window": 8,
+    "long_window": 169,
+    "risk_fraction": 0.3565030203144767,
+    "use_var_guard": true,
+    "use_drawdown_guard": true
+  },
+  "best_metrics": {
+    "fitness": 4.165667107574013,
+    "sharpe": 3.91568847526744,
+    "sortino": 5.979874141270538,
+    "max_drawdown": 0.009619666390820982,
+    "total_return": 0.13069823294358307
+  },
+  "leaderboard": [
+    {
+      "generation": 1,
+      "genome": {
+        "short_window": 4,
+        "long_window": 170,
+        "risk_fraction": 0.2572779167019025,
+        "use_var_guard": true,
+        "use_drawdown_guard": false
+      },
+      "metrics": {
+        "fitness": 4.157552105637889,
+        "sharpe": 3.914154672145827,
+        "sortino": 5.977653952845896,
+        "max_drawdown": 0.006949739042736331,
+        "total_return": 0.0927150605685918
+      }
+    },
+    {
+      "generation": 2,
+      "genome": {
+        "short_window": 4,
+        "long_window": 170,
+        "risk_fraction": 0.2572779167019025,
+        "use_var_guard": true,
+        "use_drawdown_guard": false
+      },
+      "metrics": {
+        "fitness": 4.157552105637889,
+        "sharpe": 3.914154672145827,
+        "sortino": 5.977653952845896,
+        "max_drawdown": 0.006949739042736331,
+        "total_return": 0.0927150605685918
+      }
+    },
+    {
+      "generation": 3,
+      "genome": {
+        "short_window": 4,
+        "long_window": 170,
+        "risk_fraction": 0.25783429789284745,
+        "use_var_guard": true,
+        "use_drawdown_guard": false
+      },
+      "metrics": {
+        "fitness": 4.157587955816669,
+        "sharpe": 3.914154672145826,
+        "sortino": 5.977653952845896,
+        "max_drawdown": 0.006964726140521977,
+        "total_return": 0.09292428565806699
+      }
+    },
+    {
+      "generation": 4,
+      "genome": {
+        "short_window": 7,
+        "long_window": 173,
+        "risk_fraction": 0.2699413303727092,
+        "use_var_guard": true,
+        "use_drawdown_guard": false
+      },
+      "metrics": {
+        "fitness": 4.159677391785437,
+        "sharpe": 3.9237712446491995,
+        "sortino": 5.962777172547994,
+        "max_drawdown": 0.007290805151139978,
+        "total_return": 0.09748907645987925
+      }
+    },
+    {
+      "generation": 5,
+      "genome": {
+        "short_window": 19,
+        "long_window": 170,
+        "risk_fraction": 0.2925963088821628,
+        "use_var_guard": true,
+        "use_drawdown_guard": false
+      },
+      "metrics": {
+        "fitness": 4.159843375725967,
+        "sharpe": 3.9141546721458256,
+        "sortino": 5.977653952845896,
+        "max_drawdown": 0.007900741021111324,
+        "total_return": 0.10607341496573919
+      }
+    },
+    {
+      "generation": 6,
+      "genome": {
+        "short_window": 19,
+        "long_window": 170,
+        "risk_fraction": 0.2925963088821628,
+        "use_var_guard": true,
+        "use_drawdown_guard": false
+      },
+      "metrics": {
+        "fitness": 4.159843375725967,
+        "sharpe": 3.9141546721458256,
+        "sortino": 5.977653952845896,
+        "max_drawdown": 0.007900741021111324,
+        "total_return": 0.10607341496573919
+      }
+    },
+    {
+      "generation": 7,
+      "genome": {
+        "short_window": 7,
+        "long_window": 173,
+        "risk_fraction": 0.2925963088821628,
+        "use_var_guard": true,
+        "use_drawdown_guard": false
+      },
+      "metrics": {
+        "fitness": 4.161150821659696,
+        "sharpe": 3.9237712446491986,
+        "sortino": 5.962777172547992,
+        "max_drawdown": 0.007900741021110888,
+        "total_return": 0.10607609757112257
+      }
+    },
+    {
+      "generation": 8,
+      "genome": {
+        "short_window": 7,
+        "long_window": 173,
+        "risk_fraction": 0.2925963088821628,
+        "use_var_guard": true,
+        "use_drawdown_guard": false
+      },
+      "metrics": {
+        "fitness": 4.161150821659696,
+        "sharpe": 3.9237712446491986,
+        "sortino": 5.962777172547992,
+        "max_drawdown": 0.007900741021110888,
+        "total_return": 0.10607609757112257
+      }
+    },
+    {
+      "generation": 9,
+      "genome": {
+        "short_window": 7,
+        "long_window": 173,
+        "risk_fraction": 0.2925963088821628,
+        "use_var_guard": true,
+        "use_drawdown_guard": false
+      },
+      "metrics": {
+        "fitness": 4.161150821659696,
+        "sharpe": 3.9237712446491986,
+        "sortino": 5.962777172547992,
+        "max_drawdown": 0.007900741021110888,
+        "total_return": 0.10607609757112257
+      }
+    },
+    {
+      "generation": 10,
+      "genome": {
+        "short_window": 16,
+        "long_window": 173,
+        "risk_fraction": 0.2978734996667314,
+        "use_var_guard": false,
+        "use_drawdown_guard": false
+      },
+      "metrics": {
+        "fitness": 4.161495915698029,
+        "sharpe": 3.923771244649199,
+        "sortino": 5.962777172547993,
+        "max_drawdown": 0.008042774598283986,
+        "total_return": 0.10808563491712797
+      }
+    },
+    {
+      "generation": 11,
+      "genome": {
+        "short_window": 16,
+        "long_window": 173,
+        "risk_fraction": 0.2978734996667314,
+        "use_var_guard": false,
+        "use_drawdown_guard": false
+      },
+      "metrics": {
+        "fitness": 4.161495915698029,
+        "sharpe": 3.923771244649199,
+        "sortino": 5.962777172547993,
+        "max_drawdown": 0.008042774598283986,
+        "total_return": 0.10808563491712797
+      }
+    },
+    {
+      "generation": 12,
+      "genome": {
+        "short_window": 7,
+        "long_window": 169,
+        "risk_fraction": 0.29891859432092915,
+        "use_var_guard": true,
+        "use_drawdown_guard": false
+      },
+      "metrics": {
+        "fitness": 4.161851713611678,
+        "sharpe": 3.9156884752674395,
+        "sortino": 5.979874141270537,
+        "max_drawdown": 0.008070900982941618,
+        "total_return": 0.10852373231614854
+      }
+    },
+    {
+      "generation": 13,
+      "genome": {
+        "short_window": 6,
+        "long_window": 173,
+        "risk_fraction": 0.3458379676729636,
+        "use_var_guard": true,
+        "use_drawdown_guard": true
+      },
+      "metrics": {
+        "fitness": 4.164665264033106,
+        "sharpe": 3.9237712446491986,
+        "sortino": 5.962777172547992,
+        "max_drawdown": 0.009332970606968175,
+        "total_return": 0.12651276860988214
+      }
+    },
+    {
+      "generation": 14,
+      "genome": {
+        "short_window": 6,
+        "long_window": 169,
+        "risk_fraction": 0.3458379676729636,
+        "use_var_guard": true,
+        "use_drawdown_guard": true
+      },
+      "metrics": {
+        "fitness": 4.164953997196152,
+        "sharpe": 3.9156884752674395,
+        "sortino": 5.979874141270537,
+        "max_drawdown": 0.009332970606968362,
+        "total_return": 0.1265592894865739
+      }
+    },
+    {
+      "generation": 15,
+      "genome": {
+        "short_window": 6,
+        "long_window": 169,
+        "risk_fraction": 0.3458379676729636,
+        "use_var_guard": true,
+        "use_drawdown_guard": true
+      },
+      "metrics": {
+        "fitness": 4.164953997196152,
+        "sharpe": 3.9156884752674395,
+        "sortino": 5.979874141270537,
+        "max_drawdown": 0.009332970606968362,
+        "total_return": 0.1265592894865739
+      }
+    },
+    {
+      "generation": 16,
+      "genome": {
+        "short_window": 8,
+        "long_window": 169,
+        "risk_fraction": 0.3565030203144767,
+        "use_var_guard": true,
+        "use_drawdown_guard": true
+      },
+      "metrics": {
+        "fitness": 4.165667107574013,
+        "sharpe": 3.91568847526744,
+        "sortino": 5.979874141270538,
+        "max_drawdown": 0.009619666390820982,
+        "total_return": 0.13069823294358307
+      }
+    },
+    {
+      "generation": 17,
+      "genome": {
+        "short_window": 8,
+        "long_window": 169,
+        "risk_fraction": 0.3565030203144767,
+        "use_var_guard": true,
+        "use_drawdown_guard": true
+      },
+      "metrics": {
+        "fitness": 4.165667107574013,
+        "sharpe": 3.91568847526744,
+        "sortino": 5.979874141270538,
+        "max_drawdown": 0.009619666390820982,
+        "total_return": 0.13069823294358307
+      }
+    },
+    {
+      "generation": 18,
+      "genome": {
+        "short_window": 8,
+        "long_window": 169,
+        "risk_fraction": 0.3565030203144767,
+        "use_var_guard": true,
+        "use_drawdown_guard": true
+      },
+      "metrics": {
+        "fitness": 4.165667107574013,
+        "sharpe": 3.91568847526744,
+        "sortino": 5.979874141270538,
+        "max_drawdown": 0.009619666390820982,
+        "total_return": 0.13069823294358307
+      }
+    }
+  ],
+  "generations": 18,
+  "code_version": "ffdc0241fcc9af9531dc5d6bb4c4bd3488e8869d",
+  "notes": "Synthetic trending price series approximating Tier-0 bootstrap conditions. Use for regression testing of GA improvements.",
+  "replay": {
+    "command": "python scripts/generate_evolution_lab.py --seed 2025",
+    "seed": 2025
+  }
+}

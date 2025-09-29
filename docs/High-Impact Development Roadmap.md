@@ -209,7 +209,7 @@ To reflect the true scope of institutional-grade trading components, the roadmap
 - [x] Introduce streaming ingestion adapters with latency benchmarks.
 - [ ] Incorporate selected ICT-style sensors (fair value gaps, liquidity sweeps) once validated by strategies.
 - [x] Build anomaly detection for data feed breaks and false ticks.
-- [ ] Update documentation on data lineage and quality SLA.
+- [x] Update documentation on data lineage and quality SLA (`docs/deployment/data_lineage.md`).
 - [ ] Implement encyclopedia-aligned "Market Microstructure Observatory" notebooks showcasing liquidity/volume profiling studies.
 - [x] Add market regime classifier blending volatility, liquidity, and sentiment signals for execution model selection.
 - [ ] Archive microstructure datasets in tiered storage (hot/cold) with retention guidance per encyclopedia cost matrix.

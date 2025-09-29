@@ -160,6 +160,15 @@ All artefacts are Git-ignored and regenerated on demand; the runbook ensures a
 repeatable workflow for onboarding new venues or data vendors without drifting
 from the encyclopedia baseline.
 
+## Data Lineage & SLA Source of Truth
+
+Regulated deployments require auditable lineage of every dataset consumed by
+strategies and risk controls. Generate the authoritative markdown snapshot via
+`python scripts/generate_data_lineage.py`. The script populates
+`docs/deployment/data_lineage.md` with freshness, completeness, and retention
+expectations for each layer of the ingestion stack so operational reviews can
+reference a single, version-controlled document.
+
 ## Encyclopedia Cross-References
 
 The EMP Encyclopedia outlines which data vendors underpin the free Tier-0

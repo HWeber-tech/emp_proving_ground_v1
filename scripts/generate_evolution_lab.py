@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
@@ -13,6 +14,7 @@ import numpy as np
 import pandas as pd
 
 from src.evolution.experiments.ma_crossover_ga import GARunConfig, run_ga_experiment
+from src.evolution.experiments.promotion import maybe_promote_best_genome
 from src.evolution.experiments.reporting import render_leaderboard_markdown
 
 DEFAULT_DATASET_NAME = "synthetic_trend_v1"
@@ -161,13 +163,20 @@ def main() -> None:
         "- [ ] Evaluate Pareto-front selection for multi-objective fitness.\n"
         "- [ ] Swap synthetic datasets with live market snapshots for benchmarking.\n"
         "- [ ] Automate nightly leaderboard refresh with CI artifact publishing.\n"
-        "- [ ] Integrate promoted genomes into the strategy registry feature flags.\n"
+        "- [x] Integrate promoted genomes into the strategy registry feature flags (auto-promotion behind feature flag).\n"
     )
 
     doc_path.write_text(doc_content)
 
+    promoted = maybe_promote_best_genome(
+        manifest,
+        registry_path=os.environ.get("EVOLUTION_STRATEGY_REGISTRY_PATH"),
+    )
+
     print(f"Wrote manifest to {manifest_path}")
     print(f"Updated leaderboard at {doc_path}")
+    if promoted:
+        print("Promoted GA champion to strategy registry (feature flag enabled).")
 
 
 if __name__ == "__main__":

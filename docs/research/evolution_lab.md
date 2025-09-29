@@ -20,4 +20,4 @@ _Auto-generated on 2025-09-28 19:01:38Z using `scripts/generate_evolution_lab.py
 - [ ] Evaluate Pareto-front selection for multi-objective fitness.
 - [ ] Swap synthetic datasets with live market snapshots for benchmarking.
 - [ ] Automate nightly leaderboard refresh with CI artifact publishing.
-- [ ] Integrate promoted genomes into the strategy registry feature flags.
+- [x] Integrate promoted genomes into the strategy registry feature flags (see `src/evolution/experiments/promotion.py`).

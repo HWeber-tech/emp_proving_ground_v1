@@ -399,6 +399,14 @@ def format_markdown(statuses: Iterable[StreamStatus]) -> str:
     return "\n".join(lines)
 
 
+def _percentage(numerator: int, denominator: int) -> float:
+    """Return a percentage value guarding against division by zero."""
+
+    if denominator <= 0:
+        return 0.0
+    return 100.0 * numerator / denominator
+
+
 def format_portfolio_summary(statuses: Iterable[StreamStatus]) -> str:
     """Return a narrative summary of the overall portfolio health."""
 
@@ -443,6 +451,47 @@ def format_portfolio_summary(statuses: Iterable[StreamStatus]) -> str:
                     "",
                 ]
             )
+
+    return "\n".join(lines).rstrip()
+
+
+def format_progress(statuses: Iterable[StreamStatus]) -> str:
+    """Return a progress-oriented narrative for roadmap reviews."""
+
+    portfolio = summarise_portfolio(statuses)
+    total = portfolio.total_streams
+    ready = portfolio.ready
+    attention = portfolio.attention_needed
+    ready_pct = _percentage(ready, total)
+    attention_pct = _percentage(attention, total)
+    evidence_count = sum(len(status.evidence) for status in portfolio.streams)
+
+    lines = [
+        "# High-impact roadmap progress",
+        "",
+        f"*Ready streams:* {ready}/{total} ({ready_pct:.1f}%)",
+        f"*Attention needed:* {attention}/{total} ({attention_pct:.1f}%)",
+        f"*Evidence artifacts tracked:* {evidence_count}",
+    ]
+
+    if portfolio.streams:
+        lines.extend(["", "## Next checkpoints", ""])
+        for status in portfolio.streams:
+            lines.append(
+                f"- {status.stream}: {status.next_checkpoint}"
+            )
+
+    attention_streams = portfolio.attention_streams()
+    if attention_streams:
+        lines.extend(["", "## Attention focus", ""])
+        for status in attention_streams:
+            missing_count = len(status.missing)
+            lines.append(
+                f"- {status.stream} — {missing_count} missing requirement"
+                f"{'s' if missing_count != 1 else ''}:"
+            )
+            for requirement in status.missing:
+                lines.append(f"  - {requirement}")
 
     return "\n".join(lines).rstrip()
 
@@ -741,6 +790,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             "detail",
             "detail-json",
             "summary",
+            "progress",
             "attention",
             "attention-json",
             "portfolio-json",
@@ -838,6 +888,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         output = format_detail_json(statuses)
     elif args.format == "summary":
         output = format_portfolio_summary(statuses)
+    elif args.format == "progress":
+        output = format_progress(statuses)
     elif args.format == "attention":
         output = format_attention(statuses)
     elif args.format == "attention-json":

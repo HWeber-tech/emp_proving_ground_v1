@@ -376,10 +376,14 @@ def test_cli_writes_output_file(tmp_path: Path) -> None:
     assert "High-impact roadmap status" in content
 
 
-def test_cli_refresh_docs_accepts_custom_paths(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+def test_cli_refresh_docs_accepts_custom_paths(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
     summary = tmp_path / "summary.md"
     detail = tmp_path / "detail.md"
     attention = tmp_path / "attention.md"
+    portfolio_json = tmp_path / "portfolio.json"
+    attention_json = tmp_path / "attention.json"
     summary.write_text(
         (
             "Lead-in\n\n"
@@ -403,6 +407,10 @@ def test_cli_refresh_docs_accepts_custom_paths(tmp_path: Path, capsys: pytest.Ca
             str(detail),
             "--attention-path",
             str(attention),
+            "--portfolio-json-path",
+            str(portfolio_json),
+            "--attention-json-path",
+            str(attention_json),
         ]
     )
 
@@ -424,11 +432,19 @@ def test_cli_refresh_docs_accepts_custom_paths(tmp_path: Path, capsys: pytest.Ca
     assert updated_attention.startswith("# High-impact roadmap attention")
     assert updated_attention.endswith("\n")
 
+    portfolio_payload = json.loads(portfolio_json.read_text(encoding="utf-8"))
+    assert portfolio_payload["ready"] == portfolio_payload["total_streams"]
+
+    attention_payload = json.loads(attention_json.read_text(encoding="utf-8"))
+    assert attention_payload["portfolio"]["attention_needed"] == 0
+
 
 def test_refresh_docs_updates_summary_and_detail(tmp_path: Path) -> None:
     summary = tmp_path / "summary.md"
     detail = tmp_path / "detail.md"
     attention = tmp_path / "attention.md"
+    portfolio_json = tmp_path / "portfolio.json"
+    attention_json = tmp_path / "attention.json"
     summary.write_text(
         (
             "Header\n\n"
@@ -450,6 +466,8 @@ def test_refresh_docs_updates_summary_and_detail(tmp_path: Path) -> None:
         summary_path=summary,
         detail_path=detail,
         attention_path=attention,
+        portfolio_json_path=portfolio_json,
+        attention_json_path=attention_json,
     )
 
     updated_summary = summary.read_text(encoding="utf-8")
@@ -465,6 +483,12 @@ def test_refresh_docs_updates_summary_and_detail(tmp_path: Path) -> None:
     updated_attention = attention.read_text(encoding="utf-8")
     assert updated_attention.startswith("# High-impact roadmap attention")
     assert updated_attention.endswith("\n")
+
+    portfolio_payload = json.loads(portfolio_json.read_text(encoding="utf-8"))
+    assert portfolio_payload["ready_streams"]
+
+    attention_payload = json.loads(attention_json.read_text(encoding="utf-8"))
+    assert attention_payload["streams"] == []
 
 
 def test_refresh_docs_requires_markers(tmp_path: Path) -> None:

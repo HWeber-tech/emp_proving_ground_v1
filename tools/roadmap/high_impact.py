@@ -650,13 +650,17 @@ def refresh_docs(
     summary_path: Path | None = None,
     detail_path: Path | None = None,
     attention_path: Path | None = None,
+    portfolio_json_path: Path | None = None,
+    attention_json_path: Path | None = None,
 ) -> None:
     """Refresh the roadmap status documentation files.
 
     The summary document retains its narrative wrapper and only replaces the
     table that sits between the ``HIGH_IMPACT_SUMMARY`` markers.  The detail
     document is overwritten with the richer report used by dashboards and
-    narrative status updates.
+    narrative status updates.  When JSON destinations are provided (or the
+    defaults are used), the helper also emits the portfolio roll-up and the
+    attention-focused payload used by dashboards.
     """
 
     if statuses is None:
@@ -669,6 +673,14 @@ def refresh_docs(
     detail_path = detail_path or root / "docs/status/high_impact_roadmap_detail.md"
     attention_path = (
         attention_path or root / "docs/status/high_impact_roadmap_attention.md"
+    )
+    portfolio_json_path = (
+        portfolio_json_path
+        or root / "docs/status/high_impact_roadmap_portfolio.json"
+    )
+    attention_json_path = (
+        attention_json_path
+        or root / "docs/status/high_impact_roadmap_attention.json"
     )
 
     summary_text = summary_path.read_text(encoding="utf-8")
@@ -689,6 +701,18 @@ def refresh_docs(
     if not attention_text.endswith("\n"):
         attention_text = f"{attention_text}\n"
     attention_path.write_text(attention_text, encoding="utf-8")
+
+    if portfolio_json_path:
+        portfolio_payload = format_portfolio_json(statuses)
+        if not portfolio_payload.endswith("\n"):
+            portfolio_payload = f"{portfolio_payload}\n"
+        portfolio_json_path.write_text(portfolio_payload, encoding="utf-8")
+
+    if attention_json_path:
+        attention_payload = format_attention_json(statuses)
+        if not attention_payload.endswith("\n"):
+            attention_payload = f"{attention_payload}\n"
+        attention_json_path.write_text(attention_payload, encoding="utf-8")
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -745,6 +769,22 @@ def main(argv: Sequence[str] | None = None) -> int:
         ),
     )
     parser.add_argument(
+        "--portfolio-json-path",
+        type=Path,
+        help=(
+            "Optional path to the portfolio JSON file when refreshing docs. "
+            "Defaults to docs/status/high_impact_roadmap_portfolio.json"
+        ),
+    )
+    parser.add_argument(
+        "--attention-json-path",
+        type=Path,
+        help=(
+            "Optional path to the attention JSON file when refreshing docs. "
+            "Defaults to docs/status/high_impact_roadmap_attention.json"
+        ),
+    )
+    parser.add_argument(
         "--stream",
         action="append",
         dest="streams",
@@ -767,6 +807,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             summary_path=args.summary_path,
             detail_path=args.detail_path,
             attention_path=args.attention_path,
+            portfolio_json_path=args.portfolio_json_path,
+            attention_json_path=args.attention_json_path,
         )
     if args.format == "json":
         output = format_json(statuses)

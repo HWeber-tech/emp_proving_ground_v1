@@ -82,6 +82,47 @@ The returned `AggregationResult` includes the consolidated dataframe, per-provid
 snapshots, and validator findings so CI pipelines and dashboards can publish the
 same diagnostics captured in the roadmap checklist.
 
+## Streaming Latency Benchmarking
+
+* Module: `src/data_foundation/streaming/latency_benchmark.py`
+
+The `StreamingLatencyBenchmark` collects producer and consumer timestamps to
+measure end-to-end ingest latency without binding to a specific Kafka client.
+CI jobs and notebooks can record samples with `record()` or `extend()` and then
+call `summarise()` to obtain percentile statistics for dashboards or
+readiness reviews.  The resulting `LatencyBenchmarkReport` serialises cleanly to
+JSON so operators can archive latency regressions alongside ingest quality
+artifacts.
+
+Example usage when validating a new streaming consumer:
+
+```python
+from datetime import datetime, timezone
+
+from src.data_foundation.streaming import StreamingLatencyBenchmark
+
+benchmark = StreamingLatencyBenchmark()
+producer_ts = datetime.now(timezone.utc)
+
+# After consuming a payload...
+benchmark.record(producer_ts, dimension="daily_bars", metadata={"topic": "market.prices"})
+report = benchmark.summarise()
+print(report.as_dict())
+```
+
+## Feed Anomaly Detection
+
+* Module: `src/data_foundation/ingest/anomaly_detection.py`
+
+Roadmap Workstream 3A emphasises proactive detection of data feed breaks and
+false ticks.  The `detect_feed_anomalies` helper inspects
+`TimescaleIngestResult` snapshots to flag stalled or stale dimensions, while
+`detect_false_ticks` performs robust statistical checks (median + MAD) to
+identify outlier candles before they poison downstream analytics.  The
+functions return structured dataclasses that integrate with
+`evaluate_ingest_quality`, ensuring anomaly metadata propagates into CI
+artifacts and operational dashboards without bespoke glue code.
+
 ## Reference Data Loader
 
 * Module: `src/data_foundation/reference/reference_data_loader.py`

@@ -12,9 +12,11 @@
 - data_foundation.ingest.timescale_pipeline.TimescaleBackboneOrchestrator
 - data_foundation.ingest.configuration.build_institutional_ingest_config
 - data_foundation.ingest.quality.evaluate_ingest_quality
+- data_foundation.ingest.anomaly_detection.detect_feed_anomalies
 - data_foundation.cache.redis_cache.ManagedRedisCache
 - data_foundation.streaming.kafka_stream.KafkaIngestEventPublisher
 - data_foundation.streaming.kafka_stream.KafkaIngestQualityPublisher
+- data_foundation.streaming.latency_benchmark.StreamingLatencyBenchmark
 - data_foundation.batch.spark_export.execute_spark_export_plan
 - operations.data_backbone.evaluate_data_backbone_readiness
 - operations.ingest_trends.evaluate_ingest_trends

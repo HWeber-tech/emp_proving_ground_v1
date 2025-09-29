@@ -33,8 +33,7 @@
 
 **Next checkpoint:** Extend live-paper experiments and automated tuning loops using evolution telemetry.
 
-**Deferred (Phase 3 backlog):** Deep ICT/ML sensory research – requirements captured for prioritisation once microstructure
-streaming and production telemetry land.
+**Deferred (Phase 3 backlog):** Deep ICT/ML sensory research – requirements captured for prioritisation once microstructure streaming and production telemetry land.
 
 **Evidence:**
 - sensory.how.how_sensor.HowSensor
@@ -73,10 +72,10 @@ streaming and production telemetry land.
 - operations.system_validation.evaluate_system_validation
 - operations.slo.evaluate_ingest_slos
 - operations.event_bus_health.evaluate_event_bus_health
-- data_foundation.monitoring.feed_anomaly.analyse_feed
 - operations.feed_health.evaluate_feed_health
 - operations.failover_drill.execute_failover_drill
 - operations.alerts.build_default_alert_manager
+- data_foundation.monitoring.feed_anomaly.analyse_feed
 - risk.analytics.var.compute_parametric_var
 - risk.analytics.expected_shortfall.compute_historical_expected_shortfall
 - risk.analytics.volatility_target.determine_target_allocation

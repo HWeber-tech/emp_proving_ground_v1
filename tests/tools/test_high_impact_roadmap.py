@@ -290,6 +290,19 @@ def test_cli_supports_detail_json(capsys: pytest.CaptureFixture[str]) -> None:
     assert payload["streams"], "expected streams list in CLI detail JSON output"
 
 
+def test_cli_supports_progress_json(capsys: pytest.CaptureFixture[str]) -> None:
+    exit_code = high_impact.main(["--format", "progress-json"])
+
+    assert exit_code == 0
+
+    out, err = capsys.readouterr()
+    assert not err
+    payload = json.loads(out)
+    assert payload["total_streams"] == len(payload["streams"])
+    assert "ready_percent" in payload
+    assert "next_checkpoints" in payload
+
+
 def test_evaluate_streams_can_filter() -> None:
     [status] = high_impact.evaluate_streams(
         ["Stream A – Institutional data backbone"]
@@ -397,6 +410,18 @@ def test_progress_formatter_lists_missing_requirements() -> None:
     assert "Attention focus" in report
     assert "module.missing" in report
     assert "docs.todo" in report
+
+
+def test_progress_json_includes_metadata() -> None:
+    statuses = high_impact.evaluate_streams()
+    payload = json.loads(high_impact.format_progress_json(statuses))
+
+    assert payload["ready_streams"] >= 0
+    assert payload["attention_percent"] >= 0.0
+    assert len(payload["streams"]) == len(statuses)
+    for stream_payload in payload["streams"]:
+        assert "next_checkpoint" in stream_payload
+        assert "evidence_count" in stream_payload
 
 
 def test_cli_writes_output_file(tmp_path: Path) -> None:

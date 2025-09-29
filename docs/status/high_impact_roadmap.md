@@ -37,6 +37,13 @@ upcoming checkpoints, emit the progress report:
 python -m tools.roadmap.high_impact --format progress
 ```
 
+When dashboards require the same roll-up as structured data, emit the JSON
+variant:
+
+```bash
+python -m tools.roadmap.high_impact --format progress-json
+```
+
 For dashboards that only need aggregate counts, export the portfolio JSON view:
 
 ```bash

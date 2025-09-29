@@ -509,6 +509,55 @@ def format_progress(statuses: Iterable[StreamStatus]) -> str:
     return "\n".join(lines).rstrip()
 
 
+def format_progress_json(statuses: Iterable[StreamStatus]) -> str:
+    """Return a JSON payload mirroring :func:`format_progress`."""
+
+    portfolio = summarise_portfolio(statuses)
+    total = portfolio.total_streams
+    ready = portfolio.ready
+    attention = portfolio.attention_needed
+    ready_pct = _percentage(ready, total)
+    attention_pct = _percentage(attention, total)
+    evidence_count = sum(len(status.evidence) for status in portfolio.streams)
+
+    streams_payload = [
+        {
+            "stream": status.stream,
+            "status": status.status,
+            "summary": status.summary,
+            "next_checkpoint": status.next_checkpoint,
+            "evidence_count": len(status.evidence),
+            "missing_count": len(status.missing),
+            "missing_requirements": list(status.missing),
+        }
+        for status in portfolio.streams
+    ]
+
+    payload = {
+        "total_streams": total,
+        "ready_streams": ready,
+        "attention_needed": attention,
+        "ready_percent": ready_pct,
+        "attention_percent": attention_pct,
+        "evidence_count": evidence_count,
+        "streams": streams_payload,
+        "next_checkpoints": {
+            status.stream: status.next_checkpoint
+            for status in portfolio.streams
+        },
+        "attention_streams": [
+            {
+                "stream": status.stream,
+                "missing_count": len(status.missing),
+                "missing_requirements": list(status.missing),
+            }
+            for status in portfolio.attention_streams()
+        ],
+    }
+
+    return json.dumps(payload, indent=2)
+
+
 def format_detail(statuses: Iterable[StreamStatus]) -> str:
     """Return a richer Markdown report for dashboards and docs."""
 
@@ -809,6 +858,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             "detail-json",
             "summary",
             "progress",
+            "progress-json",
             "attention",
             "attention-json",
             "portfolio-json",
@@ -908,6 +958,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         output = format_portfolio_summary(statuses)
     elif args.format == "progress":
         output = format_progress(statuses)
+    elif args.format == "progress-json":
+        output = format_progress_json(statuses)
     elif args.format == "attention":
         output = format_attention(statuses)
     elif args.format == "attention-json":

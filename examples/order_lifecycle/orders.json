@@ -1,0 +1,16 @@
+[
+  {
+    "order_id": "SIM-001",
+    "symbol": "EURUSD",
+    "side": "BUY",
+    "quantity": 100000,
+    "account": "PRIMARY"
+  },
+  {
+    "order_id": "SIM-002",
+    "symbol": "EURUSD",
+    "side": "SELL",
+    "quantity": 40000,
+    "account": "PRIMARY"
+  }
+]

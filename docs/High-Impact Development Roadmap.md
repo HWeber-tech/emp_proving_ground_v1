@@ -380,7 +380,7 @@ Roadmap follows the encyclopedia's Tier‑0 bootstrap approach:
 
 ### Next 2 Weeks (Kickstarting Phase 1)
 1. Implement order state machine + position tracker skeleton and add regression tests.
-2. Wire reconciliation CLI into CI and capture first paper-trading artifact.
+2. ✅ Wire reconciliation CLI into CI and capture first paper-trading artifact (GitHub Actions `paper-trading` job uploads the nightly reconciliation bundle).
 3. ✅ Introduce VaR/ES analytics module with unit tests and integrate into risk checks (`src/risk/analytics/var.py`, `tests/risk/`).
 4. Draft operational runbook updates and align encyclopedia references.
 

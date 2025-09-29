@@ -142,6 +142,38 @@ jobs:
           path: pytest-full.log
           if-no-files-found: ignore
 
+  paper-trading:
+    runs-on: ubuntu-latest
+    needs: [tests]
+    steps:
+      - uses: ./.github/actions/python-setup
+      - name: Generate order lifecycle journal
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/order_lifecycle
+          python scripts/order_lifecycle_dry_run.py \
+            examples/order_lifecycle/orders.json \
+            examples/order_lifecycle/events.jsonl \
+            --journal artifacts/order_lifecycle/order_events.parquet
+      - name: Reconcile paper positions
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: |
+          set -euo pipefail
+          python scripts/reconcile_positions.py \
+            --journal artifacts/order_lifecycle/order_events.parquet \
+            --broker examples/order_lifecycle/broker.json \
+            --output artifacts/order_lifecycle/reconciliation_report.json \
+            --fail-on-discrepancy
+      - name: Upload paper trading artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: paper-trading-artifacts-${{ github.run_id }}
+          path: artifacts/order_lifecycle
+
   backtest:
     runs-on: ubuntu-latest
     if: github.event_name != 'pull_request' || contains(join(github.event.pull_request.labels.*.name, ','), 'ci:backtest')

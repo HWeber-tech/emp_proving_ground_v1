@@ -1,0 +1,5 @@
+{"order_id": "SIM-001", "exec_type": "0", "timestamp": "2025-01-02T00:00:00+00:00"}
+{"order_id": "SIM-001", "exec_type": "1", "last_qty": 60000, "last_px": 1.1050, "cum_qty": 60000, "timestamp": "2025-01-02T00:00:01+00:00"}
+{"order_id": "SIM-001", "exec_type": "2", "last_qty": 40000, "last_px": 1.1075, "cum_qty": 100000, "timestamp": "2025-01-02T00:00:02+00:00"}
+{"order_id": "SIM-002", "exec_type": "0", "timestamp": "2025-01-02T00:05:00+00:00"}
+{"order_id": "SIM-002", "exec_type": "2", "last_qty": 40000, "last_px": 1.1080, "cum_qty": 40000, "timestamp": "2025-01-02T00:05:01+00:00"}

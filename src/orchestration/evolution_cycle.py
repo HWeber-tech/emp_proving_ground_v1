@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import inspect
+import os
 from dataclasses import asdict, dataclass, field, is_dataclass
 from typing import (
     TYPE_CHECKING,
@@ -42,6 +43,27 @@ __all__ = [
 ]
 
 FitnessCallback = Callable[[DecisionGenome], Awaitable[Any] | Any]
+
+
+def _coerce_bool(value: str | bool | None, default: bool = False) -> bool:
+    """Best-effort coercion of environment flag values to ``bool``."""
+
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return default
+    normalised = value.strip().lower().replace("-", "_")
+    if normalised in {"1", "true", "yes", "on", "y"}:
+        return True
+    if normalised in {"0", "false", "no", "off", "n"}:
+        return False
+    return default
+
+
+def _env_flag(name: str, default: bool = False) -> bool:
+    """Resolve ``name`` from :mod:`os.environ` using permissive boolean parsing."""
+
+    return _coerce_bool(os.environ.get(name), default)
 
 
 class SupportsChampionRegistry(Protocol):
@@ -160,17 +182,24 @@ class EvolutionCycleOrchestrator:
         strategy_registry: SupportsChampionRegistry | None = None,
         genome_factory: Callable[[], DecisionGenome] | None = None,
         event_bus: EventBus | None = None,
+        register_champions: bool | None = None,
+        feature_flag_env: str = "EVOLUTION_PROMOTE_CHAMPIONS",
     ) -> None:
         self._engine = evolution_engine
         self._callback = evaluation_callback
         self._registry = strategy_registry
         self._genome_factory = genome_factory
         self._event_bus = event_bus
+        if register_champions is None:
+            register_champions = _env_flag(feature_flag_env, default=False)
+        self._register_champions = bool(register_champions)
+        self._registry_feature_flag = feature_flag_env
         self.telemetry: dict[str, Any] = {
             "total_generations": 0,
             "best_fitness": float("-inf"),
             "champion": None,
             "last_summary": None,
+            "registry_promotion_enabled": self._register_champions,
         }
         self._best_champion: ChampionRecord | None = None
         self._latest_catalogue_snapshot: EvolutionCatalogueSnapshot | None = None
@@ -210,6 +239,12 @@ class EvolutionCycleOrchestrator:
             self.telemetry.pop("catalogue", None)
 
         return EvolutionCycleResult(summary=summary, evaluations=evaluations, champion=champion)
+
+    @property
+    def registry_promotion_enabled(self) -> bool:
+        """Whether champions are persisted to the strategy registry."""
+
+        return self._register_champions
 
     async def _evaluate_population(
         self, population: Sequence[DecisionGenome]
@@ -284,7 +319,7 @@ class EvolutionCycleOrchestrator:
             return None
 
         registered = False
-        if self._registry is not None:
+        if self._registry is not None and self._register_champions:
             try:
                 provenance = self._build_catalogue_provenance(genome)
                 registry_payload = best_record.report.for_registry()
@@ -299,8 +334,12 @@ class EvolutionCycleOrchestrator:
                     registry_payload,
                     provenance=provenance,
                 )
+                if registered:
+                    self.telemetry["registry_promotion_enabled"] = True
             except Exception:  # pragma: no cover - registry failure guard
                 registered = False
+        elif self._registry is not None and not self._register_champions:
+            self.telemetry["registry_promotion_enabled"] = False
 
         champion = ChampionRecord(
             genome_id=best_record.genome_id,

@@ -33,7 +33,7 @@ def _score_parameters(genome: object) -> float:
 
 
 @pytest.mark.asyncio
-async def test_orchestrator_registers_champion_and_updates_registry(tmp_path):
+async def test_orchestrator_registers_champion_when_flag_enabled(tmp_path, monkeypatch):
     engine = EvolutionEngine(
         EvolutionConfig(
             population_size=6,
@@ -46,6 +46,8 @@ async def test_orchestrator_registers_champion_and_updates_registry(tmp_path):
     engine._rng.seed(7)  # type: ignore[attr-defined]
 
     registry = StrategyRegistry(db_path=str(tmp_path / "governance.db"))
+
+    monkeypatch.setenv("EVOLUTION_PROMOTE_CHAMPIONS", "true")
 
     async def evaluator(genome):
         score = _score_parameters(genome)
@@ -64,6 +66,7 @@ async def test_orchestrator_registers_champion_and_updates_registry(tmp_path):
         evaluator,
         strategy_registry=registry,
         event_bus=bus,
+        feature_flag_env="EVOLUTION_PROMOTE_CHAMPIONS",
     )
 
     result = await orchestrator.run_cycle()
@@ -112,6 +115,50 @@ async def test_orchestrator_registers_champion_and_updates_registry(tmp_path):
     summary = registry.get_registry_summary()
     assert summary["catalogue_seeded"] >= 1
     assert summary["catalogue_entry_count"] >= 1
+
+    registry.close()
+
+
+@pytest.mark.asyncio
+async def test_orchestrator_respects_registry_feature_flag(tmp_path, monkeypatch):
+    engine = EvolutionEngine(
+        EvolutionConfig(
+            population_size=5,
+            elite_count=2,
+            crossover_rate=0.6,
+            mutation_rate=0.2,
+            use_catalogue=True,
+        )
+    )
+    engine._rng.seed(3)  # type: ignore[attr-defined]
+
+    registry = StrategyRegistry(db_path=str(tmp_path / "flagged.db"))
+
+    monkeypatch.delenv("EVOLUTION_PROMOTE_CHAMPIONS", raising=False)
+
+    def evaluator(genome):
+        return {
+            "fitness_score": _score_parameters(genome) + 0.05,
+            "sharpe_ratio": 1.0,
+        }
+
+    orchestrator = EvolutionCycleOrchestrator(
+        engine,
+        evaluator,
+        strategy_registry=registry,
+        feature_flag_env="EVOLUTION_PROMOTE_CHAMPIONS",
+    )
+
+    result = await orchestrator.run_cycle()
+
+    champion = result.champion
+    assert champion is not None
+    assert champion.registered is False
+    assert orchestrator.registry_promotion_enabled is False
+    assert orchestrator.telemetry["registry_promotion_enabled"] is False
+    assert registry.get_strategy(champion.genome_id) is None
+
+    registry.close()
 
 
 @dataclass

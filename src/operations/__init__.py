@@ -88,6 +88,13 @@ from .event_bus_health import (
     format_event_bus_markdown,
     publish_event_bus_health,
 )
+from .feed_health import (
+    FeedAnomalyConfig,
+    FeedAnomalyReport,
+    FeedHealthStatus,
+    evaluate_feed_health,
+    publish_feed_health,
+)
 from .kafka_readiness import (
     KafkaReadinessComponent,
     KafkaReadinessSnapshot,
@@ -245,6 +252,11 @@ __all__ = [
     "evaluate_event_bus_health",
     "format_event_bus_markdown",
     "publish_event_bus_health",
+    "FeedAnomalyConfig",
+    "FeedAnomalyReport",
+    "FeedHealthStatus",
+    "evaluate_feed_health",
+    "publish_feed_health",
     "KafkaReadinessComponent",
     "KafkaReadinessSnapshot",
     "KafkaReadinessStatus",

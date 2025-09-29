@@ -13,6 +13,9 @@ from src.risk.analytics.volatility_target import (
     calculate_realised_volatility,
     determine_target_allocation,
 )
+from src.trading.strategies.signals.ict_microstructure import (
+    ICTMicrostructureAnalyzer,
+)
 
 from .models import StrategySignal
 
@@ -58,10 +61,14 @@ class VolatilityBreakoutStrategy(BaseStrategy):
         *,
         capital: float,
         config: VolatilityBreakoutConfig | None = None,
+        microstructure_analyzer: ICTMicrostructureAnalyzer | None = None,
     ) -> None:
         super().__init__(strategy_id=strategy_id, symbols=symbols)
         self._capital = float(capital)
         self._config = config or VolatilityBreakoutConfig()
+        self._microstructure_analyzer = (
+            microstructure_analyzer or ICTMicrostructureAnalyzer()
+        )
 
     async def generate_signal(
         self, market_data: Mapping[str, Any], symbol: str
@@ -132,6 +139,22 @@ class VolatilityBreakoutStrategy(BaseStrategy):
             "volatility_multiplier": self._config.volatility_multiplier,
             "target_volatility": self._config.target_volatility,
         }
+
+        if self._microstructure_analyzer is not None:
+            features = await self._microstructure_analyzer.summarise(market_data, symbol)
+            if features is not None:
+                alignment_score, breakdown = features.alignment_assessment(action)
+                microstructure_metadata = features.to_metadata()
+                microstructure_metadata["alignment"] = {
+                    "score": alignment_score,
+                    "breakdown": breakdown,
+                }
+                metadata["microstructure"] = microstructure_metadata
+                if action in {"BUY", "SELL"} and confidence > 0.0 and alignment_score != 0.0:
+                    adjustment = 1.0 + alignment_score * features.confidence * 0.25
+                    confidence = float(
+                        max(0.0, min(1.0, confidence * adjustment))
+                    )
 
         return StrategySignal(
             symbol=symbol,

@@ -69,6 +69,10 @@ shot, use the refresh flag:
 python -m tools.roadmap.high_impact --refresh-docs
 ```
 
+> **Note:** Refreshing documentation always evaluates the full portfolio. The
+> CLI rejects attempts to combine `--refresh-docs` with stream filters so the
+> published status pages cannot accidentally omit streams.
+
 When writing to alternate locations (for example in CI workspaces), provide
 explicit paths for the summary and detail files:
 

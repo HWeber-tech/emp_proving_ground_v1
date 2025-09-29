@@ -364,6 +364,37 @@ def test_portfolio_summary_mentions_missing_requirements() -> None:
     assert "module.missing" in summary
 
 
+def test_progress_formatter_includes_percentages() -> None:
+    statuses = high_impact.evaluate_streams()
+    report = high_impact.format_progress(statuses)
+
+    assert report.startswith("# High-impact roadmap progress")
+    assert "Ready streams" in report
+    assert "Attention needed" in report
+    for status in statuses:
+        assert status.stream in report
+        assert status.next_checkpoint in report
+
+
+def test_progress_formatter_lists_missing_requirements() -> None:
+    statuses = [
+        high_impact.StreamStatus(
+            stream="Stream Ω",
+            status="Attention needed",
+            summary="Incomplete",
+            next_checkpoint="Ship everything",
+            evidence=("module.present",),
+            missing=("module.missing", "docs.todo"),
+        ),
+    ]
+
+    report = high_impact.format_progress(statuses)
+
+    assert "Attention focus" in report
+    assert "module.missing" in report
+    assert "docs.todo" in report
+
+
 def test_cli_writes_output_file(tmp_path: Path) -> None:
     destination = tmp_path / "report.md"
     exit_code = high_impact.main([
@@ -492,6 +523,16 @@ def test_refresh_docs_updates_summary_and_detail(tmp_path: Path) -> None:
 
     attention_payload = json.loads(attention_json.read_text(encoding="utf-8"))
     assert attention_payload["streams"] == []
+
+
+def test_cli_supports_progress_format(capsys: pytest.CaptureFixture[str]) -> None:
+    exit_code = high_impact.main(["--format", "progress"])
+
+    assert exit_code == 0
+
+    out, err = capsys.readouterr()
+    assert not err
+    assert "High-impact roadmap progress" in out
 
 
 def test_refresh_docs_requires_markers(tmp_path: Path) -> None:

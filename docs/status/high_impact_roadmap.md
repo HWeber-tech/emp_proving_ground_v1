@@ -30,6 +30,13 @@ For an at-a-glance rollup of the portfolio, render the summary view:
 python -m tools.roadmap.high_impact --format summary
 ```
 
+When stakeholders need a narrative progress brief with percentages and
+upcoming checkpoints, emit the progress report:
+
+```bash
+python -m tools.roadmap.high_impact --format progress
+```
+
 For dashboards that only need aggregate counts, export the portfolio JSON view:
 
 ```bash

@@ -583,6 +583,43 @@ def test_cli_supports_progress_format(capsys: pytest.CaptureFixture[str]) -> Non
     assert "High-impact roadmap progress" in out
 
 
+def test_cli_supports_document_formats(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    document = tmp_path / "roadmap.md"
+    document.write_text(
+        """# High-impact roadmap\n\n- [x] Completed task\n- [ ] Outstanding item\n""",
+        encoding="utf-8",
+    )
+
+    exit_code = high_impact.main(
+        ["--format", "document", "--document", str(document), "--include-completed"]
+    )
+
+    assert exit_code == 0
+
+    out, err = capsys.readouterr()
+    assert not err
+    assert "# Roadmap tasks for roadmap.md" in out
+    assert "Outstanding item" in out
+    assert "Completed tasks" in out
+
+    capsys.readouterr()
+
+    exit_code = high_impact.main(
+        ["--format", "document-json", "--document", str(document)]
+    )
+
+    assert exit_code == 0
+
+    out, err = capsys.readouterr()
+    assert not err
+    payload = json.loads(out)
+    assert payload["total"] == 2
+    assert payload["remaining"] == 1
+    assert payload["remaining_tasks"][0]["description"] == "Outstanding item"
+
+
 def test_refresh_docs_requires_markers(tmp_path: Path) -> None:
     summary = tmp_path / "summary.md"
     detail = tmp_path / "detail.md"

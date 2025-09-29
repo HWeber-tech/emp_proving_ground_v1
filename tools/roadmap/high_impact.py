@@ -8,6 +8,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Iterable, Sequence
 
+from . import doc_tasks as roadmap_doc_tasks
 from ._shared import (
     Requirement,
     evaluate_requirements,
@@ -729,6 +730,25 @@ def format_portfolio_json(statuses: Iterable[StreamStatus]) -> str:
     return json.dumps(portfolio.as_dict(), indent=2)
 
 
+def _format_document_tasks(
+    *,
+    document: Path | None,
+    include_completed: bool,
+    as_json: bool,
+) -> str:
+    """Render checklist status for the roadmap source document."""
+
+    doc_path = document or roadmap_doc_tasks._default_document()
+    summary = roadmap_doc_tasks.summarise_document(doc_path)
+    if as_json:
+        return roadmap_doc_tasks.format_json(
+            summary, include_completed=include_completed
+        )
+    return roadmap_doc_tasks.format_markdown(
+        summary, include_completed=include_completed
+    )
+
+
 def _replace_between_markers(
     existing: str, *, start: str, end: str, payload: str
 ) -> str:
@@ -866,6 +886,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             "attention",
             "attention-json",
             "portfolio-json",
+            "document",
+            "document-json",
         ),
         default="markdown",
         help="Output format (default: markdown table)",
@@ -921,6 +943,22 @@ def main(argv: Sequence[str] | None = None) -> int:
         ),
     )
     parser.add_argument(
+        "--document",
+        type=Path,
+        help=(
+            "Optional path to the roadmap source document when using the "
+            "document formats (defaults to the repository's canonical copy)"
+        ),
+    )
+    parser.add_argument(
+        "--include-completed",
+        action="store_true",
+        help=(
+            "Include completed tasks when rendering document-focused output "
+            "formats"
+        ),
+    )
+    parser.add_argument(
         "--stream",
         action="append",
         dest="streams",
@@ -970,6 +1008,24 @@ def main(argv: Sequence[str] | None = None) -> int:
         output = format_attention_json(statuses)
     elif args.format == "portfolio-json":
         output = format_portfolio_json(statuses)
+    elif args.format == "document":
+        try:
+            output = _format_document_tasks(
+                document=args.document,
+                include_completed=args.include_completed,
+                as_json=False,
+            )
+        except FileNotFoundError as exc:
+            parser.error(f"Roadmap document not found: {exc}")
+    elif args.format == "document-json":
+        try:
+            output = _format_document_tasks(
+                document=args.document,
+                include_completed=args.include_completed,
+                as_json=True,
+            )
+        except FileNotFoundError as exc:
+            parser.error(f"Roadmap document not found: {exc}")
     else:
         output = format_markdown(statuses)
 

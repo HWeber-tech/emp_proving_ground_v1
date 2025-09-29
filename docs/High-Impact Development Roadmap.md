@@ -207,7 +207,7 @@ To reflect the true scope of institutional-grade trading components, the roadmap
 
 - [x] Multi-source aggregation (Yahoo, Alpha Vantage, FRED) with data-quality validators via `src/data_foundation/ingest/multi_source.py`.
 - [x] Introduce streaming ingestion adapters with latency benchmarks.
-- [ ] Incorporate selected ICT-style sensors (fair value gaps, liquidity sweeps) once validated by strategies.
+- [x] Incorporate selected ICT-style sensors (fair value gaps, liquidity sweeps) once validated by strategies (`ICTPatternAnalyzer`).
 - [x] Build anomaly detection for data feed breaks and false ticks.
 - [x] Update documentation on data lineage and quality SLA (`docs/deployment/data_lineage.md`).
 - [ ] Implement encyclopedia-aligned "Market Microstructure Observatory" notebooks showcasing liquidity/volume profiling studies.

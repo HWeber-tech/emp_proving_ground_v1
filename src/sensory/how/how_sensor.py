@@ -6,6 +6,7 @@ from typing import Any, Mapping
 import pandas as pd
 
 from src.sensory.enhanced.how_dimension import InstitutionalIntelligenceEngine
+from src.sensory.how.ict_patterns import ICTPatternAnalyzer, ICTPatternSnapshot
 from src.sensory.how.order_book_analytics import OrderBookAnalytics, OrderBookSnapshot
 from src.sensory.signals import SensorSignal
 
@@ -32,10 +33,12 @@ class HowSensor:
         config: HowSensorConfig | None = None,
         *,
         order_book_analytics: OrderBookAnalytics | None = None,
+        ict_analyzer: ICTPatternAnalyzer | None = None,
     ) -> None:
         self._engine = InstitutionalIntelligenceEngine()
         self._config = config or HowSensorConfig()
         self._order_book_analytics = order_book_analytics or OrderBookAnalytics()
+        self._ict_analyzer = ict_analyzer or ICTPatternAnalyzer()
 
     def process(
         self,
@@ -62,10 +65,16 @@ class HowSensor:
         }
 
         order_snapshot: OrderBookSnapshot | None = None
+        ict_snapshot: ICTPatternSnapshot | None = None
         if order_book is not None:
             order_snapshot = self._order_book_analytics.describe(order_book)
             if order_snapshot is not None:
                 telemetry.update(order_snapshot.as_dict())
+        if self._ict_analyzer is not None:
+            ict_snapshot = self._ict_analyzer.evaluate(df)
+            if ict_snapshot is not None:
+                ict_metrics = ict_snapshot.as_dict()
+                telemetry.update({f"ict_{key}": value for key, value in ict_metrics.items()})
 
         audit: dict[str, object] = {
             "signal": signal_strength,
@@ -87,6 +96,8 @@ class HowSensor:
         }
         if order_snapshot is not None:
             metadata["order_book"] = order_snapshot.as_dict()
+        if ict_snapshot is not None:
+            metadata["ict_patterns"] = ict_snapshot.as_dict()
 
         value: dict[str, object] = {
             "strength": signal_strength,

@@ -7,7 +7,9 @@ configuration surfaces. Regenerate via `python -m tools.sensory.registry`.
 
 Bridge the institutional HOW engine into the legacy sensory pipeline. The
 sensor now enriches telemetry with order book analytics (imbalance, value
-area, participation ratio) derived from `OrderBookAnalytics` snapshots.
+area, participation ratio) derived from `OrderBookAnalytics` snapshots and
+ICT microstructure detections (fair value gaps, liquidity sweeps) sourced from
+`ICTPatternAnalyzer`.
 
 ### Configuration
 

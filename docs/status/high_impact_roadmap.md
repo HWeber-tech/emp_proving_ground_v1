@@ -14,6 +14,13 @@ To focus on specific streams, provide one or more ``--stream`` flags:
 python -m tools.roadmap.high_impact --stream "Stream A – Institutional data backbone" --format detail
 ```
 
+When dashboards require the same evidence payloads in JSON form, use the
+``detail-json`` format:
+
+```bash
+python -m tools.roadmap.high_impact --format detail-json
+```
+
 For an at-a-glance rollup of the portfolio, render the summary view:
 
 ```bash

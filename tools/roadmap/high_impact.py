@@ -451,6 +451,30 @@ def format_detail(statuses: Iterable[StreamStatus]) -> str:
     return "\n".join(lines).rstrip()
 
 
+def format_detail_json(statuses: Iterable[StreamStatus]) -> str:
+    """Return a JSON payload with evidence for every stream."""
+
+    stream_statuses = tuple(statuses)
+    portfolio = summarise_portfolio(stream_statuses)
+
+    payload = {
+        "portfolio": portfolio.as_dict(),
+        "streams": [
+            {
+                "stream": status.stream,
+                "status": status.status,
+                "summary": status.summary,
+                "next_checkpoint": status.next_checkpoint,
+                "evidence": list(status.evidence),
+                "missing": list(status.missing),
+            }
+            for status in stream_statuses
+        ],
+    }
+
+    return json.dumps(payload, indent=2)
+
+
 def format_attention(statuses: Iterable[StreamStatus]) -> str:
     """Highlight streams that still have missing requirements."""
 
@@ -661,6 +685,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             "markdown",
             "json",
             "detail",
+            "detail-json",
             "summary",
             "attention",
             "attention-json",
@@ -729,6 +754,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         output = format_json(statuses)
     elif args.format == "detail":
         output = format_detail(statuses)
+    elif args.format == "detail-json":
+        output = format_detail_json(statuses)
     elif args.format == "summary":
         output = format_portfolio_summary(statuses)
     elif args.format == "attention":

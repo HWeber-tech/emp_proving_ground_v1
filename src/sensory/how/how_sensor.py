@@ -6,6 +6,7 @@ from typing import Any, Mapping
 import pandas as pd
 
 from src.sensory.enhanced.how_dimension import InstitutionalIntelligenceEngine
+from src.sensory.how.order_book_analytics import OrderBookAnalytics, OrderBookSnapshot
 from src.sensory.signals import SensorSignal
 
 __all__ = ["HowSensor", "HowSensorConfig"]
@@ -26,11 +27,22 @@ class HowSensorConfig:
 class HowSensor:
     """Bridge the institutional HOW engine into the legacy sensory pipeline."""
 
-    def __init__(self, config: HowSensorConfig | None = None) -> None:
+    def __init__(
+        self,
+        config: HowSensorConfig | None = None,
+        *,
+        order_book_analytics: OrderBookAnalytics | None = None,
+    ) -> None:
         self._engine = InstitutionalIntelligenceEngine()
         self._config = config or HowSensorConfig()
+        self._order_book_analytics = order_book_analytics or OrderBookAnalytics()
 
-    def process(self, df: pd.DataFrame | None) -> list[SensorSignal]:
+    def process(
+        self,
+        df: pd.DataFrame | None,
+        *,
+        order_book: pd.DataFrame | None = None,
+    ) -> list[SensorSignal]:
         if df is None or df.empty:
             return [self._default_signal(confidence=0.05)]
 
@@ -48,6 +60,12 @@ class HowSensor:
             "imbalance": float(reading_adapter.get("imbalance", 0.0)),
             "volatility_drag": float(reading_adapter.get("volatility_drag", 0.0)),
         }
+
+        order_snapshot: OrderBookSnapshot | None = None
+        if order_book is not None:
+            order_snapshot = self._order_book_analytics.describe(order_book)
+            if order_snapshot is not None:
+                telemetry.update(order_snapshot.as_dict())
 
         audit: dict[str, object] = {
             "signal": signal_strength,
@@ -67,6 +85,8 @@ class HowSensor:
             "thresholds": thresholds,
             "audit": audit,
         }
+        if order_snapshot is not None:
+            metadata["order_book"] = order_snapshot.as_dict()
 
         value: dict[str, object] = {
             "strength": signal_strength,

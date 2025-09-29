@@ -1,5 +1,16 @@
 """Operations layer utilities for runtime observability."""
 
+from .alerts import (
+    AlertChannel,
+    AlertDispatchResult,
+    AlertEvent,
+    AlertManager,
+    AlertRule,
+    AlertSeverity,
+    build_default_alert_manager,
+    default_alert_policy_config,
+    load_alert_policy,
+)
 from .backup import (
     BackupPolicy,
     BackupReadinessSnapshot,
@@ -168,6 +179,15 @@ from .strategy_performance import (
 )
 
 __all__ = [
+    "AlertChannel",
+    "AlertDispatchResult",
+    "AlertEvent",
+    "AlertManager",
+    "AlertRule",
+    "AlertSeverity",
+    "build_default_alert_manager",
+    "default_alert_policy_config",
+    "load_alert_policy",
     "BackupPolicy",
     "BackupReadinessSnapshot",
     "BackupState",

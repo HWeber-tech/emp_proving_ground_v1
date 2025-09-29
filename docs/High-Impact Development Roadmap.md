@@ -218,7 +218,7 @@ To reflect the true scope of institutional-grade trading components, the roadmap
 **Impact:** 🔥🔥 **HIGH** — Moves toward production readiness earlier than previously planned
 
 - [ ] Extend Prometheus/Grafana dashboards (or textual equivalents) for PnL, risk, latency, and system health.
-- [ ] Implement alerting rules (email/SMS/webhook) for risk breaches and system failures.
+- [x] Implement alerting rules (email/SMS/webhook) for risk breaches and system failures.
 - [ ] Harden Docker/K8s manifests with environment-specific overrides and secrets management guidance.
 - [ ] Automate smoke tests and deployment scripts targeting Oracle Cloud (or equivalent) with rollback plan.
 - [ ] Capture infrastructure-as-code runbook in `/docs/deployment/`.

@@ -272,6 +272,21 @@ def _stream_definitions() -> Sequence[StreamDefinition]:
                     "operations.failover_drill", "execute_failover_drill"
                 ),
                 require_module_attr(
+                    "risk.analytics.var", "compute_parametric_var"
+                ),
+                require_module_attr(
+                    "risk.analytics.expected_shortfall",
+                    "compute_historical_expected_shortfall",
+                ),
+                require_module_attr(
+                    "risk.analytics.volatility_target",
+                    "determine_target_allocation",
+                ),
+                require_module_attr(
+                    "risk.analytics.volatility_regime",
+                    "classify_volatility_regime",
+                ),
+                require_module_attr(
                     "trading.order_management.lifecycle_processor",
                     "OrderLifecycleProcessor",
                 ),
@@ -286,6 +301,7 @@ def _stream_definitions() -> Sequence[StreamDefinition]:
                 ),
                 require_path("scripts/order_lifecycle_dry_run.py"),
                 require_path("scripts/reconcile_positions.py"),
+                require_path("scripts/generate_risk_report.py"),
                 require_path("docs/runbooks/execution_lifecycle.md"),
             ),
         ),

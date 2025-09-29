@@ -211,7 +211,7 @@ To reflect the true scope of institutional-grade trading components, the roadmap
 - [ ] Build anomaly detection for data feed breaks and false ticks.
 - [ ] Update documentation on data lineage and quality SLA.
 - [ ] Implement encyclopedia-aligned "Market Microstructure Observatory" notebooks showcasing liquidity/volume profiling studies.
-- [ ] Add market regime classifier blending volatility, liquidity, and sentiment signals for execution model selection.
+- [x] Add market regime classifier blending volatility, liquidity, and sentiment signals for execution model selection.
 - [ ] Archive microstructure datasets in tiered storage (hot/cold) with retention guidance per encyclopedia cost matrix.
 
 #### Workstream 3B: Monitoring, Alerting & Deployment (~1.5 weeks)

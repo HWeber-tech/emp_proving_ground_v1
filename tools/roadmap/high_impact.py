@@ -302,6 +302,9 @@ def _stream_definitions() -> Sequence[StreamDefinition]:
                 require_module_attr(
                     "trading.order_management.reconciliation", "replay_order_events"
                 ),
+                require_module_attr(
+                    "trading.execution.market_regime", "classify_market_regime"
+                ),
                 require_path("scripts/order_lifecycle_dry_run.py"),
                 require_path("scripts/reconcile_positions.py"),
                 require_path("scripts/generate_risk_report.py"),

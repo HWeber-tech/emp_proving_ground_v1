@@ -181,7 +181,7 @@ To reflect the true scope of institutional-grade trading components, the roadmap
 - [x] Document follow-on backlog (speciation, Pareto-front) for later phases.
 - [x] Integrate GA experiment runner with encyclopedia "Evolution Lab" conventions, including seed logging and reproducibility manifest.
 - [x] Publish experiment leaderboard (top genomes, metrics, configs) as Markdown table auto-generated in `/docs/research/evolution_lab.md`.
-- [ ] Cross-wire GA outputs into strategy registry via feature flags to enable supervised promotion into paper trading.
+- [x] Cross-wire GA outputs into strategy registry via feature flags to enable supervised promotion into paper trading.
 
 **Acceptance:** GA can evolve MA crossover parameters outperforming baseline in controlled backtest; results are reproducible from CI artifacts.
 

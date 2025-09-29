@@ -6,6 +6,10 @@ from typing import Any, Mapping
 import pandas as pd
 
 from src.sensory.enhanced.how_dimension import InstitutionalIntelligenceEngine
+from src.sensory.how.order_book_imbalance import (
+    OrderBookImbalanceMetrics,
+    compute_order_book_imbalance,
+)
 from src.sensory.signals import SensorSignal
 
 __all__ = ["HowSensor", "HowSensorConfig"]
@@ -49,6 +53,17 @@ class HowSensor:
             "volatility_drag": float(reading_adapter.get("volatility_drag", 0.0)),
         }
 
+        order_book_metrics = payload.get("_order_book_metrics")
+        if isinstance(order_book_metrics, OrderBookImbalanceMetrics):
+            telemetry.update(
+                {
+                    "book_buy_volume": float(order_book_metrics.buy_volume),
+                    "book_sell_volume": float(order_book_metrics.sell_volume),
+                    "book_total_volume": float(order_book_metrics.total_volume),
+                    "book_levels": float(order_book_metrics.levels_evaluated),
+                }
+            )
+
         audit: dict[str, object] = {
             "signal": signal_strength,
             "confidence": confidence,
@@ -85,6 +100,7 @@ class HowSensor:
 
     def _build_market_payload(self, df: pd.DataFrame) -> Mapping[str, Any]:
         row = df.iloc[-1]
+        book_metrics = self._compute_order_book_metrics(row)
         payload = {
             "timestamp": row.get("timestamp"),
             "symbol": row.get("symbol", "UNKNOWN"),
@@ -99,7 +115,22 @@ class HowSensor:
             "order_imbalance": float(row.get("order_imbalance", 0.0) or 0.0),
             "data_quality": float(row.get("data_quality", 0.8) or 0.8),
         }
+        if book_metrics is not None:
+            existing_imbalance = row.get("order_imbalance")
+            if existing_imbalance is None or pd.isna(existing_imbalance):
+                payload["order_imbalance"] = float(book_metrics.imbalance)
+            payload["_order_book_metrics"] = book_metrics
         return payload
+
+    def _compute_order_book_metrics(
+        self, row: pd.Series
+    ) -> OrderBookImbalanceMetrics | None:
+        order_book = row.get("order_book_snapshot") or row.get("order_book")
+        if order_book is None:
+            return None
+
+        metrics = compute_order_book_imbalance(order_book, depth=5)
+        return metrics if metrics.has_volume else None
 
     def _default_signal(self, *, confidence: float) -> SensorSignal:
         thresholds: dict[str, float] = {

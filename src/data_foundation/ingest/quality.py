@@ -8,6 +8,7 @@ from enum import StrEnum
 from typing import Mapping
 
 from ..persist.timescale import TimescaleIngestResult
+from .anomaly_detection import detect_feed_anomalies
 from .health import DEFAULT_FRESHNESS_SLA_SECONDS
 from .timescale_pipeline import (
     DailyBarIngestPlan,
@@ -239,7 +240,7 @@ def evaluate_ingest_quality(
         slas.update({key: float(value) for key, value in freshness_sla.items()})
 
     observed_dimensions = set(results.keys()) | planned
-    checks: list[IngestQualityCheck] = []
+    check_payloads: list[dict[str, object]] = []
     overall_status = IngestQualityStatus.ok
     overall_score = 1.0
 
@@ -294,19 +295,22 @@ def evaluate_ingest_quality(
             messages.append(f"Freshness {freshness:.0f}s exceeds SLA {target:.0f}s")
 
         status = _quality_status(score, warn_threshold, error_threshold)
-        check = IngestQualityCheck(
-            dimension=dimension,
-            status=status,
-            score=round(score, 4),
-            observed_rows=result.rows_written,
-            expected_rows=expected_rows,
-            coverage_ratio=None if coverage_ratio is None else round(coverage_ratio, 4),
-            messages=tuple(messages),
-            metadata={
-                key: value for key, value in check_metadata.items() if value not in (None, [], {})
-            },
+        check_payloads.append(
+            {
+                "dimension": dimension,
+                "status": status,
+                "score": round(score, 4),
+                "observed_rows": result.rows_written,
+                "expected_rows": expected_rows,
+                "coverage_ratio": None if coverage_ratio is None else round(coverage_ratio, 4),
+                "messages": tuple(messages),
+                "metadata": {
+                    key: value
+                    for key, value in check_metadata.items()
+                    if value not in (None, [], {})
+                },
+            }
         )
-        checks.append(check)
         overall_status = _escalate(overall_status, status)
         overall_score = min(overall_score, score)
 
@@ -318,6 +322,46 @@ def evaluate_ingest_quality(
         report_metadata.update({str(key): value for key, value in metadata.items()})
 
     timestamp = generated_at or datetime.now(tz=UTC)
+
+    anomalies = detect_feed_anomalies(
+        results,
+        observed_dimensions=observed_dimensions,
+        stale_thresholds=freshness_sla,
+        now=timestamp,
+    )
+
+    if anomalies:
+        report_metadata["anomalies"] = [anomaly.as_dict() for anomaly in anomalies]
+        anomalies_by_dimension: dict[str, list[dict[str, object]]] = {}
+        for anomaly in anomalies:
+            anomalies_by_dimension.setdefault(anomaly.dimension, []).append(anomaly.as_dict())
+        for payload in check_payloads:
+            dimension = payload["dimension"]
+            entries = anomalies_by_dimension.get(dimension, [])
+            if not entries:
+                continue
+            messages = list(payload["messages"])
+            for entry in entries:
+                messages.append(entry["message"])
+            payload["messages"] = tuple(messages)
+            metadata_payload = dict(payload["metadata"])
+            metadata_payload.setdefault("anomalies", entries)
+            payload["metadata"] = metadata_payload
+
+    checks = [
+        IngestQualityCheck(
+            dimension=payload["dimension"],
+            status=payload["status"],
+            score=payload["score"],
+            observed_rows=payload["observed_rows"],
+            expected_rows=payload["expected_rows"],
+            coverage_ratio=payload["coverage_ratio"],
+            messages=payload["messages"],
+            metadata=payload["metadata"],
+        )
+        for payload in check_payloads
+    ]
+
     report = IngestQualityReport(
         status=overall_status,
         score=round(overall_score, 4),

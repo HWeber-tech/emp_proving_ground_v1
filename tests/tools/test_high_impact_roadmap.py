@@ -34,6 +34,8 @@ def test_stream_a_includes_resilience_requirements() -> None:
 
     assert "operations.backup.evaluate_backup_readiness" in status.evidence
     assert "operations.spark_stress.execute_spark_stress_drill" in status.evidence
+    assert "data_foundation.ingest.anomaly_detection.detect_feed_anomalies" in status.evidence
+    assert "data_foundation.streaming.latency_benchmark.StreamingLatencyBenchmark" in status.evidence
 
 
 def test_stream_b_lists_all_sensory_organs() -> None:

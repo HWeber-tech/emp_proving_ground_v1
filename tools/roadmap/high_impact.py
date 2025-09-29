@@ -143,6 +143,10 @@ def _stream_definitions() -> Sequence[StreamDefinition]:
                     "evaluate_ingest_quality",
                 ),
                 require_module_attr(
+                    "data_foundation.ingest.anomaly_detection",
+                    "detect_feed_anomalies",
+                ),
+                require_module_attr(
                     "data_foundation.cache.redis_cache",
                     "ManagedRedisCache",
                 ),
@@ -153,6 +157,10 @@ def _stream_definitions() -> Sequence[StreamDefinition]:
                 require_module_attr(
                     "data_foundation.streaming.kafka_stream",
                     "KafkaIngestQualityPublisher",
+                ),
+                require_module_attr(
+                    "data_foundation.streaming.latency_benchmark",
+                    "StreamingLatencyBenchmark",
                 ),
                 require_module_attr(
                     "data_foundation.batch.spark_export",

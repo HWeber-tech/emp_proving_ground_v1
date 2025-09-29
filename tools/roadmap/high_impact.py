@@ -756,9 +756,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     try:
-        statuses = evaluate_streams(args.streams)
+        statuses = tuple(evaluate_streams(args.streams))
     except ValueError as exc:
         parser.error(str(exc))
+
+    portfolio = summarise_portfolio(statuses)
     if args.refresh_docs:
         refresh_docs(
             statuses,
@@ -787,7 +789,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         args.output.write_text(output, encoding="utf-8")
 
     print(output)
-    return 0
+    return 0 if portfolio.all_ready else 1
 
 
 if __name__ == "__main__":  # pragma: no cover - CLI wrapper

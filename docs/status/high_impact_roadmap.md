@@ -8,6 +8,9 @@ before demos or reviews:
 python -m tools.roadmap.high_impact --format markdown
 ```
 
+The command exits with a non-zero status when any stream needs attention, so CI
+pipelines can gate on roadmap readiness without additional scripting.
+
 To focus on specific streams, provide one or more ``--stream`` flags:
 
 ```bash

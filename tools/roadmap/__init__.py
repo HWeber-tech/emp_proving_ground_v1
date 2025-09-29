@@ -11,6 +11,7 @@ if TYPE_CHECKING:  # pragma: no cover - import-time conveniences for type checke
         evaluate_portfolio_snapshot,
         main as snapshot_main,
     )
+    from . import doc_tasks as doc_tasks
 
 __all__ = [
     "InitiativeStatus",
@@ -19,6 +20,7 @@ __all__ = [
     "evaluate_streams",
     "snapshot_main",
     "high_impact_main",
+    "doc_tasks",
     "main",
 ]
 
@@ -38,6 +40,7 @@ def __getattr__(name: str) -> Any:
         "StreamStatus": ("tools.roadmap.high_impact", "StreamStatus"),
         "evaluate_streams": ("tools.roadmap.high_impact", "evaluate_streams"),
         "high_impact_main": ("tools.roadmap.high_impact", "main"),
+        "doc_tasks": ("tools.roadmap.doc_tasks", None),
         "main": ("tools.roadmap.snapshot", "main"),
     }
 
@@ -45,13 +48,17 @@ def __getattr__(name: str) -> Any:
     if target is None:
         raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
-    module = import_module(target[0])
-    attribute = getattr(module, target[1])
+    module_name, attribute_name = target
+    module = import_module(module_name)
+    attribute = module if attribute_name is None else getattr(module, attribute_name)
 
     # Cache the resolved attribute to avoid repeated imports.
     globals()[name] = attribute
 
     # Keep the alias between ``main`` and ``snapshot_main`` in sync.
+    if attribute_name is None:
+        return attribute
+
     if name == "main" and "snapshot_main" not in globals():
         globals()["snapshot_main"] = attribute
     elif name == "snapshot_main" and "main" not in globals():

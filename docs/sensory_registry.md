@@ -5,7 +5,9 @@ configuration surfaces. Regenerate via `python -m tools.sensory.registry`.
 
 ## HOW – sensory.how.how_sensor.HowSensor
 
-Bridge the institutional HOW engine into the legacy sensory pipeline.
+Bridge the institutional HOW engine into the legacy sensory pipeline. Enriches
+signals with order book imbalance, depth telemetry, and volume profiles derived
+from FIX snapshots or backtest data feeds.
 
 ### Configuration
 
@@ -27,9 +29,9 @@ Pattern sensor (WHAT dimension).
 
 Temporal/context sensor (WHEN dimension).
 
-Combines session intensity, macro event proximity, and option gamma posture to
-reflect the temporal edge of acting right now versus waiting for better
-conditions.
+Combines session intensity (via programmable session analytics), macro event
+proximity, and option gamma posture to reflect the temporal edge of acting
+right now versus waiting for better conditions.
 
 ### Configuration
 

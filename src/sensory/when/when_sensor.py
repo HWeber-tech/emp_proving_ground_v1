@@ -16,6 +16,7 @@ from src.sensory.when.gamma_exposure import (
     GammaExposureDataset,
     GammaExposureSummary,
 )
+from src.sensory.when.session_analytics import SessionWindow, analyse_session
 
 __all__ = ["WhenSensor", "WhenSensorConfig"]
 
@@ -72,6 +73,7 @@ class WhenSensor:
         *,
         option_positions: pd.DataFrame | None = None,
         macro_events: Sequence[datetime] | None = None,
+        session_calendar: Sequence[SessionWindow] | None = None,
     ) -> list[SensorSignal]:
         if df is None or df.empty or "close" not in df or "timestamp" not in df:
             return [self._default_signal(confidence=0.05)]
@@ -86,7 +88,8 @@ class WhenSensor:
         symbol = str(row.get("symbol", "UNKNOWN"))
         spot_price = float(row.get("close", 0.0) or 0.0)
 
-        session_intensity = self._calculate_session_intensity(timestamp)
+        session_summary = analyse_session(timestamp, calendar=session_calendar)
+        session_intensity = session_summary.intensity
         news_proximity = self._calculate_news_proximity(timestamp, macro_events or [])
         gamma_summary = self._summarise_gamma(
             symbol=symbol,
@@ -139,6 +142,7 @@ class WhenSensor:
             "components": components,
             "gamma_snapshot": gamma_snapshot,
             "gamma_dominant_strikes": dominant_profiles,
+            "session": session_summary.as_metadata(),
         }
 
         value = {
@@ -157,23 +161,6 @@ class WhenSensor:
                 metadata=metadata,
             )
         ]
-
-    def _calculate_session_intensity(self, timestamp: pd.Timestamp) -> float:
-        hour = timestamp.astimezone(timezone.utc).hour
-        # Rough session overlap windows (UTC)
-        london = 7 <= hour < 16
-        new_york = 12 <= hour < 21
-        asia = hour >= 22 or hour < 7
-
-        overlap_weight = 0.0
-        if london and new_york:
-            overlap_weight = 1.0
-        elif london or new_york:
-            overlap_weight = 0.7
-        elif asia:
-            overlap_weight = 0.4
-
-        return float(overlap_weight)
 
     def _calculate_news_proximity(
         self, timestamp: pd.Timestamp, events: Sequence[datetime]

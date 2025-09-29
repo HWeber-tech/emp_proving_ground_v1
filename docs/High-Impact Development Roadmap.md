@@ -188,11 +188,11 @@ To reflect the true scope of institutional-grade trading components, the roadmap
 #### Workstream 2C: Sensory Cortex Enhancements (targeted; ~1.5 weeks)
 **Impact:** 🔥🔥 **HIGH** — Focus on actionable data rather than exhaustive research
 
-- [ ] Prioritize HOW-dimension improvements aligned with execution (order book imbalance, volume profile snapshots).
-- [ ] Add WHEN-dimension session analytics feeding strategy scheduling.
+- [x] Prioritize HOW-dimension improvements aligned with execution (order book imbalance, volume profile snapshots).
+- [x] Add WHEN-dimension session analytics feeding strategy scheduling.
 - [ ] Defer deep ICT/ML research to Phase 3 backlog but capture requirements in documentation.
-- [ ] Ensure new sensors emit structured data consumed by strategies and risk modules.
-- [ ] Expand tests to validate sensor outputs over historical datasets.
+- [x] Ensure new sensors emit structured data consumed by strategies and risk modules.
+- [x] Expand tests to validate sensor outputs over historical datasets.
 - [ ] Implement WHY-dimension narrative hooks (economic calendar sentiment, macro regime flags) using encyclopedia cues.
 - [x] Stand up anomaly detection harness comparing sensor drifts vs baseline expectation windows (see `src/sensory/monitoring/sensor_drift.py` and `scripts/check_sensor_drift.py`).
 - [x] Synchronize sensor metadata catalog in `/docs/sensory_registry.md` with encyclopedia Layer 2 tables (auto-generated via `python -m tools.sensory.registry`).

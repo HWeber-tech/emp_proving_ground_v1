@@ -8,7 +8,12 @@ from src.sensory.anomaly import AnomalySensor
 from src.sensory.how.how_sensor import HowSensor
 
 
-def _build_market_frame(rows: int = 12, *, anomaly_spike: bool = False) -> pd.DataFrame:
+def _build_market_frame(
+    rows: int = 12,
+    *,
+    anomaly_spike: bool = False,
+    include_order_book: bool = False,
+) -> pd.DataFrame:
     base = datetime(2024, 1, 1, tzinfo=timezone.utc)
     data: list[dict[str, object]] = []
     price = 1.10
@@ -16,22 +21,26 @@ def _build_market_frame(rows: int = 12, *, anomaly_spike: bool = False) -> pd.Da
         price += 0.0005 if idx % 2 == 0 else -0.0003
         if anomaly_spike and idx == rows - 1:
             price += 0.01
-        data.append(
-            {
-                "timestamp": base + timedelta(minutes=idx),
-                "symbol": "EURUSD",
-                "open": price - 0.0004,
-                "high": price + 0.0006,
-                "low": price - 0.0005,
-                "close": price,
-                "volume": 1500 + idx * 120,
-                "volatility": 0.0004 + idx * 0.00001,
-                "spread": 0.00005,
-                "depth": 5500 + idx * 120,
-                "order_imbalance": 0.15 + 0.01 * idx,
-                "data_quality": 0.9,
+        row = {
+            "timestamp": base + timedelta(minutes=idx),
+            "symbol": "EURUSD",
+            "open": price - 0.0004,
+            "high": price + 0.0006,
+            "low": price - 0.0005,
+            "close": price,
+            "volume": 1500 + idx * 120,
+            "volatility": 0.0004 + idx * 0.00001,
+            "spread": 0.00005,
+            "depth": 5500 + idx * 120,
+            "order_imbalance": 0.15 + 0.01 * idx,
+            "data_quality": 0.9,
+        }
+        if include_order_book:
+            row["order_book"] = {
+                "bids": [(price - 0.0002, 6000.0), (price - 0.0003, 4800.0)],
+                "asks": [(price + 0.0002, 5200.0), (price + 0.0003, 4300.0)],
             }
-        )
+        data.append(row)
     return pd.DataFrame(data)
 
 
@@ -50,6 +59,22 @@ def test_how_sensor_emits_liquidity_audit() -> None:
     audit = metadata.get("audit")
     assert isinstance(audit, dict)
     assert set(audit.keys()) >= {"signal", "confidence", "liquidity", "participation"}
+
+
+def test_how_sensor_order_book_metrics_enriched() -> None:
+    sensor = HowSensor()
+    frame = _build_market_frame(include_order_book=True)
+
+    signals = sensor.process(frame)
+
+    signal = signals[0]
+    metadata = signal.metadata or {}
+    order_book_metrics = metadata.get("order_book_metrics")
+    assert isinstance(order_book_metrics, dict)
+    assert order_book_metrics["volume_profile"]
+    value = signal.value
+    assert "book_imbalance" in value
+    assert value["book_imbalance"] != 0.0
 
 
 def test_anomaly_sensor_sequence_mode_detects_spike() -> None:

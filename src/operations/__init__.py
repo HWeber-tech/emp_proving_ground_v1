@@ -158,6 +158,12 @@ from .slo import (
     SLOStatus,
     evaluate_ingest_slos,
 )
+from .observability_dashboard import (
+    DashboardPanel,
+    DashboardStatus,
+    ObservabilityDashboard,
+    build_observability_dashboard,
+)
 from .ingest_trends import (
     IngestDimensionTrend,
     IngestTrendSnapshot,

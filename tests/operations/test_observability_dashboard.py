@@ -1,0 +1,205 @@
+from __future__ import annotations
+
+from datetime import UTC, datetime, timedelta
+
+from src.operations.data_backbone import (
+    BackboneComponentSnapshot,
+    BackboneStatus,
+    DataBackboneReadinessSnapshot,
+)
+from src.operations.event_bus_health import (
+    EventBusHealthSnapshot,
+    EventBusHealthStatus,
+)
+from src.operations.observability_dashboard import (
+    DashboardPanel,
+    DashboardStatus,
+    build_observability_dashboard,
+)
+from src.operations.roi import RoiStatus, RoiTelemetrySnapshot
+from src.operations.slo import OperationalSLOSnapshot, ServiceSLO, SLOStatus
+from src.risk.analytics.expected_shortfall import ExpectedShortfallResult
+from src.risk.analytics.var import VarResult
+
+
+def _now() -> datetime:
+    return datetime.now(tz=UTC)
+
+
+def _roi_snapshot() -> RoiTelemetrySnapshot:
+    moment = _now()
+    return RoiTelemetrySnapshot(
+        status=RoiStatus.tracking,
+        generated_at=moment,
+        initial_capital=100_000.0,
+        current_equity=101_200.0,
+        gross_pnl=1_800.0,
+        net_pnl=1_500.0,
+        infrastructure_cost=200.0,
+        fees=100.0,
+        days_active=10.0,
+        executed_trades=48,
+        total_notional=250_000.0,
+        roi=0.015,
+        annualised_roi=0.45,
+        gross_roi=0.018,
+        gross_annualised_roi=0.54,
+        breakeven_daily_return=0.0003,
+        target_annual_roi=0.25,
+    )
+
+
+def _event_bus_snapshot() -> EventBusHealthSnapshot:
+    moment = _now()
+    return EventBusHealthSnapshot(
+        service="runtime",
+        generated_at=moment,
+        status=EventBusHealthStatus.warn,
+        expected=True,
+        running=True,
+        loop_running=True,
+        queue_size=120,
+        queue_capacity=500,
+        subscriber_count=6,
+        topic_subscribers={"telemetry": 3},
+        published_events=420,
+        dropped_events=2,
+        handler_errors=1,
+        uptime_seconds=3600.0,
+        last_event_at=moment - timedelta(seconds=30),
+        last_error_at=None,
+        issues=("Queue backlog observed",),
+        metadata={"region": "primary"},
+    )
+
+
+def _slo_snapshot() -> OperationalSLOSnapshot:
+    moment = _now()
+    slos = (
+        ServiceSLO(
+            name="daily_bars",
+            status=SLOStatus.met,
+            message="Freshness within target",
+            target={"freshness_seconds": 300},
+            observed={"freshness_seconds": 120, "rows": 1200},
+        ),
+        ServiceSLO(
+            name="intraday_trades",
+            status=SLOStatus.at_risk,
+            message="Lag approaching threshold",
+            target={"freshness_seconds": 120},
+            observed={"freshness_seconds": 150, "rows": 4800},
+        ),
+    )
+    return OperationalSLOSnapshot(
+        service="timescale_ingest",
+        generated_at=moment,
+        status=SLOStatus.at_risk,
+        slos=slos,
+        metadata={"region": "primary"},
+    )
+
+
+def _backbone_snapshot() -> DataBackboneReadinessSnapshot:
+    moment = _now()
+    components = (
+        BackboneComponentSnapshot(
+            name="Timescale ingest",
+            status=BackboneStatus.warn,
+            summary="Freshness outside SLO",
+        ),
+        BackboneComponentSnapshot(
+            name="Redis cache",
+            status=BackboneStatus.ok,
+            summary="Nominal",
+        ),
+    )
+    return DataBackboneReadinessSnapshot(
+        status=BackboneStatus.warn,
+        generated_at=moment,
+        components=components,
+        metadata={"environment": "paper"},
+    )
+
+
+def test_build_dashboard_composes_panels_and_status() -> None:
+    roi_snapshot = _roi_snapshot()
+    var_result = VarResult(value=12_000.0, confidence=0.99, sample_size=252)
+    es_result = ExpectedShortfallResult(value=8_500.0, confidence=0.99, sample_size=252)
+
+    dashboard = build_observability_dashboard(
+        roi_snapshot=roi_snapshot,
+        risk_results={
+            "parametric_var": var_result,
+            "expected_shortfall": es_result,
+        },
+        risk_limits={"parametric_var": 10_000.0, "expected_shortfall": 12_000.0},
+        event_bus_snapshot=_event_bus_snapshot(),
+        slo_snapshot=_slo_snapshot(),
+        backbone_snapshot=_backbone_snapshot(),
+        metadata={"environment": "paper"},
+    )
+
+    assert dashboard.status is DashboardStatus.fail
+    assert {panel.name for panel in dashboard.panels} == {
+        "PnL & ROI",
+        "Risk & exposure",
+        "Latency & throughput",
+        "System health",
+    }
+
+    risk_panel = next(
+        panel for panel in dashboard.panels if panel.name == "Risk & exposure"
+    )
+    assert risk_panel.status is DashboardStatus.fail
+    assert "parametric_var" in risk_panel.metadata
+
+    roi_panel = next(
+        panel for panel in dashboard.panels if panel.name == "PnL & ROI"
+    )
+    assert roi_panel.status is DashboardStatus.ok
+    assert roi_panel.metadata["roi"]["status"] == RoiStatus.tracking.value
+
+    latency_panel = next(
+        panel for panel in dashboard.panels if panel.name == "Latency & throughput"
+    )
+    assert latency_panel.status is DashboardStatus.warn
+    assert "event_bus" in latency_panel.metadata
+    assert "slos" in latency_panel.metadata
+
+    system_panel = next(
+        panel for panel in dashboard.panels if panel.name == "System health"
+    )
+    assert system_panel.status is DashboardStatus.warn
+    assert system_panel.metadata["backbone"]["status"] == BackboneStatus.warn.value
+
+    markdown = dashboard.to_markdown()
+    assert "# Operational observability dashboard" in markdown
+    assert "Risk & exposure" in markdown
+
+
+def test_dashboard_handles_missing_inputs() -> None:
+    dashboard = build_observability_dashboard()
+
+    assert dashboard.status is DashboardStatus.ok
+    assert dashboard.panels == ()
+
+    markdown = dashboard.to_markdown()
+    assert "| Panel" not in markdown
+
+    payload = dashboard.as_dict()
+    assert payload["status"] == DashboardStatus.ok.value
+    assert payload["panels"] == []
+
+
+def test_dashboard_merges_additional_panels() -> None:
+    custom_panel = DashboardPanel(
+        name="Custom",
+        status=DashboardStatus.warn,
+        headline="Follow-up required",
+    )
+
+    dashboard = build_observability_dashboard(additional_panels=[custom_panel])
+
+    assert dashboard.status is DashboardStatus.warn
+    assert dashboard.panels == (custom_panel,)

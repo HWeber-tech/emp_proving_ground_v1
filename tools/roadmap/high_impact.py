@@ -311,6 +311,10 @@ def _stream_definitions() -> Sequence[StreamDefinition]:
                     "classify_volatility_regime",
                 ),
                 require_module_attr(
+                    "operations.observability_dashboard",
+                    "build_observability_dashboard",
+                ),
+                require_module_attr(
                     "trading.order_management.lifecycle_processor",
                     "OrderLifecycleProcessor",
                 ),

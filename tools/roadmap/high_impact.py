@@ -809,6 +809,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
+    if args.refresh_docs and args.streams:
+        parser.error(
+            "--refresh-docs cannot be combined with --stream; refresh the full "
+            "portfolio instead"
+        )
+
     try:
         statuses = tuple(evaluate_streams(args.streams))
     except ValueError as exc:

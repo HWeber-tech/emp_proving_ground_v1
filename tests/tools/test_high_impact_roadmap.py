@@ -442,6 +442,24 @@ def test_cli_refresh_docs_accepts_custom_paths(
     assert attention_payload["portfolio"]["attention_needed"] == 0
 
 
+def test_cli_rejects_stream_filter_when_refreshing_docs(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with pytest.raises(SystemExit) as excinfo:
+        high_impact.main(
+            [
+                "--refresh-docs",
+                "--stream",
+                "Stream A – Institutional data backbone",
+            ]
+        )
+
+    assert excinfo.value.code == 2
+    out, err = capsys.readouterr()
+    assert not out
+    assert "cannot be combined" in err
+
+
 def test_refresh_docs_updates_summary_and_detail(tmp_path: Path) -> None:
     summary = tmp_path / "summary.md"
     detail = tmp_path / "detail.md"

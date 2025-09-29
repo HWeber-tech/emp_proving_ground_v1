@@ -161,7 +161,7 @@ def main() -> None:
         "- [ ] Evaluate Pareto-front selection for multi-objective fitness.\n"
         "- [ ] Swap synthetic datasets with live market snapshots for benchmarking.\n"
         "- [ ] Automate nightly leaderboard refresh with CI artifact publishing.\n"
-        "- [ ] Integrate promoted genomes into the strategy registry feature flags.\n"
+        "- [x] Integrate promoted genomes into the strategy registry feature flags.\n"
     )
 
     doc_path.write_text(doc_content)

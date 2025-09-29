@@ -18,4 +18,5 @@ pytest-cov==7.0.0
 hypothesis==6.112.0
 vulture==2.11
 fakeredis==2.23.2
+pip-audit==2.7.3
 

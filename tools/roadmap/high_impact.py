@@ -311,6 +311,10 @@ def _stream_definitions() -> Sequence[StreamDefinition]:
                     "classify_volatility_regime",
                 ),
                 require_module_attr(
+                    "security.pip_audit_runner",
+                    "run_audit",
+                ),
+                require_module_attr(
                     "trading.order_management.lifecycle_processor",
                     "OrderLifecycleProcessor",
                 ),
@@ -329,6 +333,9 @@ def _stream_definitions() -> Sequence[StreamDefinition]:
                 require_path("scripts/order_lifecycle_dry_run.py"),
                 require_path("scripts/reconcile_positions.py"),
                 require_path("scripts/generate_risk_report.py"),
+                require_path("scripts/security/run_pip_audit.py"),
+                require_path("config/security/pip_audit_allowlist.yaml"),
+                require_path("docs/deployment/vulnerability_scanning.md"),
                 require_path("docs/runbooks/execution_lifecycle.md"),
             ),
         ),

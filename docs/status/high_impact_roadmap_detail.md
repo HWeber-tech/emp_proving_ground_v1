@@ -80,6 +80,7 @@
 - risk.analytics.expected_shortfall.compute_historical_expected_shortfall
 - risk.analytics.volatility_target.determine_target_allocation
 - risk.analytics.volatility_regime.classify_volatility_regime
+- security.pip_audit_runner.run_audit
 - trading.order_management.lifecycle_processor.OrderLifecycleProcessor
 - trading.order_management.position_tracker.PositionTracker
 - trading.order_management.event_journal.OrderEventJournal
@@ -88,4 +89,7 @@
 - scripts/order_lifecycle_dry_run.py
 - scripts/reconcile_positions.py
 - scripts/generate_risk_report.py
+- scripts/security/run_pip_audit.py
+- config/security/pip_audit_allowlist.yaml
+- docs/deployment/vulnerability_scanning.md
 - docs/runbooks/execution_lifecycle.md

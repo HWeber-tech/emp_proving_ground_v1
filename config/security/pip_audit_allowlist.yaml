@@ -1,0 +1,8 @@
+# Allowlist for pip-audit findings.
+#
+# Each entry documents a vulnerability that is temporarily suppressed while we
+# work on remediation.  Fields:
+#   id:      The vulnerability identifier (e.g. GHSA-xxxx-xxxx-xxxx)
+#   reason:  Business justification for the temporary exemption
+#   expires: Optional ISO-8601 date indicating when the exemption lapses
+ignored_vulnerabilities: []

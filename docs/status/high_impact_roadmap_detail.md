@@ -69,10 +69,15 @@
 - operations.slo.evaluate_ingest_slos
 - operations.event_bus_health.evaluate_event_bus_health
 - operations.failover_drill.execute_failover_drill
+- risk.analytics.var.compute_parametric_var
+- risk.analytics.expected_shortfall.compute_historical_expected_shortfall
+- risk.analytics.volatility_target.determine_target_allocation
+- risk.analytics.volatility_regime.classify_volatility_regime
 - trading.order_management.lifecycle_processor.OrderLifecycleProcessor
 - trading.order_management.position_tracker.PositionTracker
 - trading.order_management.event_journal.OrderEventJournal
 - trading.order_management.reconciliation.replay_order_events
 - scripts/order_lifecycle_dry_run.py
 - scripts/reconcile_positions.py
+- scripts/generate_risk_report.py
 - docs/runbooks/execution_lifecycle.md

@@ -69,6 +69,22 @@ def test_stream_c_covers_execution_lifecycle_artifacts() -> None:
         assert entry in status.evidence, f"missing {entry}"
 
 
+def test_stream_c_includes_risk_analytics_suite() -> None:
+    status = _status_map()[
+        "Stream C – Execution, risk, compliance, ops readiness"
+    ]
+
+    required = {
+        "risk.analytics.var.compute_parametric_var",
+        "risk.analytics.expected_shortfall.compute_historical_expected_shortfall",
+        "risk.analytics.volatility_target.determine_target_allocation",
+        "risk.analytics.volatility_regime.classify_volatility_regime",
+        "scripts/generate_risk_report.py",
+    }
+
+    assert required.issubset(set(status.evidence))
+
+
 def test_markdown_formatter_outputs_table() -> None:
     statuses = high_impact.evaluate_streams()
     markdown = high_impact.format_markdown(statuses)

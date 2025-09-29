@@ -71,6 +71,8 @@ streaming and production telemetry land.
 - operations.system_validation.evaluate_system_validation
 - operations.slo.evaluate_ingest_slos
 - operations.event_bus_health.evaluate_event_bus_health
+- data_foundation.monitoring.feed_anomaly.analyse_feed
+- operations.feed_health.evaluate_feed_health
 - operations.failover_drill.execute_failover_drill
 - operations.alerts.build_default_alert_manager
 - risk.analytics.var.compute_parametric_var

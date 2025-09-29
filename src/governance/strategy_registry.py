@@ -115,6 +115,7 @@ class StrategyRegistry:
         fitness_report: dict[str, Any],
         *,
         provenance: Mapping[str, Any] | None = None,
+        status: "StrategyStatus" | str | None = None,
     ) -> bool:
         """
         Register a champion genome with its fitness report.
@@ -122,6 +123,11 @@ class StrategyRegistry:
         Args:
             genome: The evolved genome object
             fitness_report: Dictionary containing fitness metrics
+
+        Keyword Args:
+            provenance: Optional catalogue provenance metadata
+            status: Optional explicit status override. Defaults to
+                :class:`StrategyStatus.EVOLVED` when ``None`` or invalid.
 
         Returns:
             bool: True if registration successful, False otherwise
@@ -133,6 +139,15 @@ class StrategyRegistry:
             dna_json = json.dumps(
                 genome.decision_tree if hasattr(genome, "decision_tree") else str(genome)
             )
+
+            status_value = StrategyStatus.EVOLVED.value
+            if status is not None:
+                if isinstance(status, StrategyStatus):
+                    status_value = status.value
+                else:
+                    normalised = str(status).strip().lower()
+                    if normalised in {member.value for member in StrategyStatus}:
+                        status_value = normalised
 
             # Extract key metrics for quick querying
             strategy_name = getattr(
@@ -201,7 +216,7 @@ class StrategyRegistry:
                     datetime.now(),
                     dna_json,
                     report_json,
-                    "evolved",
+                    status_value,
                     strategy_name,
                     generation,
                     fitness_score,

@@ -10,6 +10,7 @@ from .ma_crossover_ga import (
     evaluate_genome_fitness,
     run_ga_experiment,
 )
+from .promotion import PromotionResult, promote_ma_crossover_champion
 from .reporting import render_leaderboard_markdown
 
 __all__ = [
@@ -22,4 +23,6 @@ __all__ = [
     "evaluate_genome_fitness",
     "run_ga_experiment",
     "render_leaderboard_markdown",
+    "PromotionResult",
+    "promote_ma_crossover_champion",
 ]

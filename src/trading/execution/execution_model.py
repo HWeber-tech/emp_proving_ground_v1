@@ -2,6 +2,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from .market_regime import (
+    MarketRegimeAssessment,
+    apply_regime_adjustment,
+)
+
 from src.data_foundation.config.execution_config import ExecutionConfig
 
 
@@ -13,7 +18,12 @@ class ExecContext:
     size_ratio: float
 
 
-def estimate_slippage_bps(ctx: ExecContext, cfg: ExecutionConfig) -> float:
+def estimate_slippage_bps(
+    ctx: ExecContext,
+    cfg: ExecutionConfig,
+    *,
+    regime_assessment: MarketRegimeAssessment | None = None,
+) -> float:
     # Simple monotonic function consistent with test expectations
     s = max(ctx.spread, 0.0)
     imb = max(ctx.top_imbalance, 0.0)
@@ -24,7 +34,12 @@ def estimate_slippage_bps(ctx: ExecContext, cfg: ExecutionConfig) -> float:
     imbalance_coef = getattr(cfg.slippage, "imbalance_coef", 0.0)
     sigma_coef = getattr(cfg.slippage, "sigma_coef", 0.0)
     size_coef = getattr(cfg.slippage, "size_coef", 0.0)
-    return float(base + spread_coef * s + imbalance_coef * imb + sigma_coef * sig + size_coef * sz)
+    estimate = float(
+        base + spread_coef * s + imbalance_coef * imb + sigma_coef * sig + size_coef * sz
+    )
+    if regime_assessment is not None:
+        return apply_regime_adjustment(estimate, regime_assessment)
+    return estimate
 
 
 def estimate_commission_bps(cfg: ExecutionConfig) -> float:

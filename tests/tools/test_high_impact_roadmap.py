@@ -62,6 +62,7 @@ def test_stream_c_covers_execution_lifecycle_artifacts() -> None:
         "trading.order_management.position_tracker.PositionTracker",
         "trading.order_management.event_journal.OrderEventJournal",
         "trading.order_management.reconciliation.replay_order_events",
+        "trading.execution.market_regime.classify_market_regime",
         "scripts/order_lifecycle_dry_run.py",
         "scripts/reconcile_positions.py",
         "docs/runbooks/execution_lifecycle.md",

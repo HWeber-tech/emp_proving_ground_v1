@@ -31,6 +31,9 @@
 
 **Next checkpoint:** Extend live-paper experiments and automated tuning loops using evolution telemetry.
 
+**Deferred (Phase 3 backlog):** Deep ICT/ML sensory research – requirements captured for prioritisation once microstructure
+streaming and production telemetry land.
+
 **Evidence:**
 - sensory.how.how_sensor.HowSensor
 - sensory.anomaly.anomaly_sensor.AnomalySensor

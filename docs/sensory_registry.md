@@ -5,7 +5,9 @@ configuration surfaces. Regenerate via `python -m tools.sensory.registry`.
 
 ## HOW – sensory.how.how_sensor.HowSensor
 
-Bridge the institutional HOW engine into the legacy sensory pipeline.
+Bridge the institutional HOW engine into the legacy sensory pipeline. The
+sensor now enriches telemetry with order book analytics (imbalance, value
+area, participation ratio) derived from `OrderBookAnalytics` snapshots.
 
 ### Configuration
 
@@ -29,7 +31,8 @@ Temporal/context sensor (WHEN dimension).
 
 Combines session intensity, macro event proximity, and option gamma posture to
 reflect the temporal edge of acting right now versus waiting for better
-conditions.
+conditions. Session analytics expose active/overlapping venues and countdowns
+to the next opening bell for strategy scheduling.
 
 ### Configuration
 
@@ -47,7 +50,8 @@ Configuration for the WHEN sensor scoring function.
 
 ## WHY – sensory.why.why_sensor.WhySensor
 
-Macro proxy sensor (WHY dimension) with yield-curve awareness.
+Macro proxy sensor (WHY dimension) with yield-curve awareness plus narrative
+hooks that aggregate economic calendar sentiment and macro regime flags.
 
 *This sensor does not expose configuration parameters.*
 

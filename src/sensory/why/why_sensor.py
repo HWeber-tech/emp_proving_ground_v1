@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from datetime import datetime
 
 import pandas as pd
 
 from src.sensory.dimensions.why.yield_signal import YieldSlopeTracker
+from src.sensory.why.narrative_hooks import NarrativeEvent, NarrativeHookEngine, NarrativeSummary
 from src.sensory.signals import SensorSignal
 
 _DEFAULT_YIELD_COLUMNS: Mapping[str, str] = {
@@ -42,13 +44,19 @@ def _coerce_curve_value(value: object) -> float | int | str | None:
 class WhySensor:
     """Macro proxy sensor (WHY dimension) with yield-curve awareness."""
 
-    def __init__(self, yield_column_map: Mapping[str, str] | None = None) -> None:
+    def __init__(
+        self,
+        yield_column_map: Mapping[str, str] | None = None,
+        *,
+        narrative_engine: NarrativeHookEngine | None = None,
+    ) -> None:
         mapping = dict(_DEFAULT_YIELD_COLUMNS)
         if yield_column_map:
             for column, tenor in yield_column_map.items():
                 if column:
                     mapping[column] = str(tenor)
         self._yield_columns = mapping
+        self._narrative_engine = narrative_engine or NarrativeHookEngine()
 
     def _extract_yields(self, row: Mapping[str, object]) -> Mapping[str, float | str | None]:
         tracker = YieldSlopeTracker()
@@ -67,7 +75,14 @@ class WhySensor:
 
         return tracker.snapshot().as_dict()
 
-    def process(self, df: pd.DataFrame) -> list[SensorSignal]:
+    def process(
+        self,
+        df: pd.DataFrame,
+        *,
+        narrative_events: list[NarrativeEvent] | None = None,
+        macro_regime_flags: Mapping[str, float] | None = None,
+        as_of: datetime | pd.Timestamp | None = None,
+    ) -> list[SensorSignal]:
         if df is None or df.empty or "close" not in df:
             return [SensorSignal(signal_type="WHY", value={"strength": 0.0}, confidence=0.1)]
 
@@ -115,6 +130,30 @@ class WhySensor:
             1.0,
         )
 
+        narrative_summary: NarrativeSummary | None = None
+        try:
+            as_of_raw = as_of if as_of is not None else last_row.get("timestamp")
+            if as_of_raw is None:
+                index_value = df.index[-1]
+                as_of_raw = index_value if isinstance(index_value, (pd.Timestamp, datetime)) else pd.Timestamp.utcnow()
+            as_of_ts = pd.Timestamp(as_of_raw)
+            if as_of_ts.tzinfo is None:
+                as_of_ts = as_of_ts.tz_localize("UTC")
+            narrative_summary = self._narrative_engine.summarise(
+                as_of=as_of_ts,
+                events=narrative_events,
+                macro_flags=macro_regime_flags or {},
+            )
+        except Exception:
+            narrative_summary = None
+
+        if narrative_summary is not None:
+            combined_strength = 0.8 * combined_strength + 0.2 * narrative_summary.sentiment_score
+            combined_confidence = max(
+                combined_confidence,
+                0.5 + 0.2 * abs(narrative_summary.sentiment_score),
+            )
+
         metadata: dict[str, object] = {
             "volatility": vol,
             "price_slope": slope,
@@ -123,11 +162,15 @@ class WhySensor:
             "macro_confidence": base_confidence,
             "yield_curve": yield_snapshot_dict,
         }
+        if narrative_summary is not None:
+            metadata["narrative"] = narrative_summary.as_dict()
 
         value: dict[str, object] = {
             "strength": float(combined_strength),
             "confidence": float(combined_confidence),
         }
+        if narrative_summary is not None:
+            value["narrative_sentiment"] = float(narrative_summary.sentiment_score)
 
         return [
             SensorSignal(

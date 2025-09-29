@@ -10,6 +10,7 @@ from typing import Iterable, Sequence
 import pandas as pd
 
 from src.sensory.signals import SensorSignal
+from src.sensory.when.session_analytics import SessionAnalytics
 from src.sensory.when.gamma_exposure import (
     GammaExposureAnalyzer,
     GammaExposureAnalyzerConfig,
@@ -57,6 +58,7 @@ class WhenSensor:
         *,
         gamma_dataset: GammaExposureDataset | None = None,
         gamma_analyzer: GammaExposureAnalyzer | None = None,
+        session_analytics: SessionAnalytics | None = None,
     ) -> None:
         self._config = config or WhenSensorConfig()
         analyzer_config = GammaExposureAnalyzerConfig(
@@ -65,6 +67,7 @@ class WhenSensor:
         )
         self._gamma_analyzer = gamma_analyzer or GammaExposureAnalyzer(analyzer_config)
         self._gamma_dataset = gamma_dataset
+        self._session_analytics = session_analytics or SessionAnalytics()
 
     def process(
         self,
@@ -86,7 +89,8 @@ class WhenSensor:
         symbol = str(row.get("symbol", "UNKNOWN"))
         spot_price = float(row.get("close", 0.0) or 0.0)
 
-        session_intensity = self._calculate_session_intensity(timestamp)
+        session_snapshot = self._session_analytics.analyse(timestamp)
+        session_intensity = session_snapshot.intensity
         news_proximity = self._calculate_news_proximity(timestamp, macro_events or [])
         gamma_summary = self._summarise_gamma(
             symbol=symbol,
@@ -140,6 +144,7 @@ class WhenSensor:
             "gamma_snapshot": gamma_snapshot,
             "gamma_dominant_strikes": dominant_profiles,
         }
+        metadata["session"] = session_snapshot.as_dict()
 
         value = {
             "strength": strength,
@@ -157,23 +162,6 @@ class WhenSensor:
                 metadata=metadata,
             )
         ]
-
-    def _calculate_session_intensity(self, timestamp: pd.Timestamp) -> float:
-        hour = timestamp.astimezone(timezone.utc).hour
-        # Rough session overlap windows (UTC)
-        london = 7 <= hour < 16
-        new_york = 12 <= hour < 21
-        asia = hour >= 22 or hour < 7
-
-        overlap_weight = 0.0
-        if london and new_york:
-            overlap_weight = 1.0
-        elif london or new_york:
-            overlap_weight = 0.7
-        elif asia:
-            overlap_weight = 0.4
-
-        return float(overlap_weight)
 
     def _calculate_news_proximity(
         self, timestamp: pd.Timestamp, events: Sequence[datetime]

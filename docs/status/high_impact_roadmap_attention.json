@@ -1,0 +1,10 @@
+{
+  "portfolio": {
+    "total_streams": 3,
+    "ready": 3,
+    "attention_needed": 0,
+    "all_ready": true
+  },
+  "streams": [],
+  "missing_requirements": {}
+}

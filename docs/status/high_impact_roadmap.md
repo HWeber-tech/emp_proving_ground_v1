@@ -33,6 +33,18 @@ requirements:
 python -m tools.roadmap.high_impact --format attention
 ```
 
+When refreshing documentation, JSON payloads for dashboards are emitted
+alongside the Markdown files (by default they land in
+`docs/status/high_impact_roadmap_portfolio.json` and
+`docs/status/high_impact_roadmap_attention.json`). Override the default
+destinations when needed:
+
+```bash
+python -m tools.roadmap.high_impact --refresh-docs \
+  --portfolio-json-path /tmp/high_impact_portfolio.json \
+  --attention-json-path /tmp/high_impact_attention.json
+```
+
 To feed dashboards that only need the missing requirements, emit the JSON
 attention view:
 

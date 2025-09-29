@@ -199,6 +199,32 @@ def test_cli_attention_format_handles_ready_streams(capsys: pytest.CaptureFixtur
     assert "All streams are Ready" in out
 
 
+def test_cli_exit_code_reflects_attention(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    def _fake_streams(_: list[str] | None = None) -> list[high_impact.StreamStatus]:
+        return [
+            high_impact.StreamStatus(
+                stream="Stream Ω – Test",
+                status="Attention needed",
+                summary="Incomplete",
+                next_checkpoint="Ship everything",
+                evidence=("module.present",),
+                missing=("module.missing",),
+            )
+        ]
+
+    monkeypatch.setattr(high_impact, "evaluate_streams", _fake_streams)
+
+    exit_code = high_impact.main([])
+
+    assert exit_code == 1
+
+    out, err = capsys.readouterr()
+    assert not err
+    assert "Stream Ω – Test" in out
+
+
 def test_cli_supports_portfolio_json(capsys: pytest.CaptureFixture[str]) -> None:
     exit_code = high_impact.main(["--format", "portfolio-json"])
 

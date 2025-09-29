@@ -32,6 +32,7 @@ class StreamDefinition:
     attention_summary: str
     next_checkpoint: str
     requirements: Sequence[Requirement]
+    deferred_summary: str | None = None
 
     def evaluate(self, repo_root: Path) -> "StreamStatus":
         evidence, missing = evaluate_requirements(self.requirements, repo_root)
@@ -46,6 +47,7 @@ class StreamDefinition:
             next_checkpoint=self.next_checkpoint,
             evidence=tuple(evidence),
             missing=tuple(missing),
+            deferred_summary=self.deferred_summary,
         )
 
 
@@ -59,6 +61,7 @@ class StreamStatus:
     next_checkpoint: str
     evidence: tuple[str, ...]
     missing: tuple[str, ...]
+    deferred_summary: str | None = None
 
 
 @dataclass(frozen=True)
@@ -232,6 +235,10 @@ def _stream_definitions() -> Sequence[StreamDefinition]:
                     "evaluate_evolution_tuning",
                 ),
             ),
+            deferred_summary=(
+                "**Deferred (Phase 3 backlog):** Deep ICT/ML sensory research – requirements "
+                "captured for prioritisation once microstructure streaming and production telemetry land."
+            ),
         ),
         StreamDefinition(
             stream="Stream C – Execution, risk, compliance, ops readiness",
@@ -277,10 +284,16 @@ def _stream_definitions() -> Sequence[StreamDefinition]:
                     "operations.event_bus_health", "evaluate_event_bus_health"
                 ),
                 require_module_attr(
+                    "operations.feed_health", "evaluate_feed_health"
+                ),
+                require_module_attr(
                     "operations.failover_drill", "execute_failover_drill"
                 ),
                 require_module_attr(
                     "operations.alerts", "build_default_alert_manager"
+                ),
+                require_module_attr(
+                    "data_foundation.monitoring.feed_anomaly", "analyse_feed"
                 ),
                 require_module_attr(
                     "risk.analytics.var", "compute_parametric_var"
@@ -517,6 +530,10 @@ def format_detail(statuses: Iterable[StreamStatus]) -> str:
             ]
         )
 
+        if status.deferred_summary:
+            lines.append(status.deferred_summary)
+            lines.append("")
+
         if status.evidence:
             lines.append("**Evidence:**")
             lines.extend(f"- {item}" for item in status.evidence)
@@ -546,6 +563,7 @@ def format_detail_json(statuses: Iterable[StreamStatus]) -> str:
                 "next_checkpoint": status.next_checkpoint,
                 "evidence": list(status.evidence),
                 "missing": list(status.missing),
+                "deferred_summary": status.deferred_summary,
             }
             for status in stream_statuses
         ],

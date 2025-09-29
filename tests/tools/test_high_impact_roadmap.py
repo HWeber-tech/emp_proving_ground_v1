@@ -57,12 +57,14 @@ def test_stream_c_covers_execution_lifecycle_artifacts() -> None:
 
     expected_entries = {
         "operations.event_bus_health.evaluate_event_bus_health",
+        "operations.feed_health.evaluate_feed_health",
         "operations.failover_drill.execute_failover_drill",
         "trading.order_management.lifecycle_processor.OrderLifecycleProcessor",
         "trading.order_management.position_tracker.PositionTracker",
         "trading.order_management.event_journal.OrderEventJournal",
         "trading.order_management.reconciliation.replay_order_events",
         "trading.execution.market_regime.classify_market_regime",
+        "data_foundation.monitoring.feed_anomaly.analyse_feed",
         "scripts/order_lifecycle_dry_run.py",
         "scripts/reconcile_positions.py",
         "docs/runbooks/execution_lifecycle.md",
@@ -165,6 +167,7 @@ def test_detail_json_format_includes_streams() -> None:
     assert payload["portfolio"]["total_streams"] == len(statuses)
     assert payload["streams"], "expected streams list in detail JSON output"
     assert payload["streams"][0]["evidence"], "expected evidence list in detail JSON output"
+    assert any(item["deferred_summary"] for item in payload["streams"])  # ensures deferred notes surface
 
 
 def test_attention_json_format_includes_missing_requirements() -> None:
@@ -326,6 +329,7 @@ def test_detail_formatter_includes_evidence() -> None:
     assert "# High-impact roadmap status" in report
     assert "**Evidence:**" in report
     assert "Stream A" in report
+    assert "**Deferred (Phase 3 backlog):**" in report
 
 
 def test_portfolio_summary_mentions_missing_requirements() -> None:

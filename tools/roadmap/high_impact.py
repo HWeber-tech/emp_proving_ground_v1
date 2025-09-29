@@ -272,6 +272,9 @@ def _stream_definitions() -> Sequence[StreamDefinition]:
                     "operations.failover_drill", "execute_failover_drill"
                 ),
                 require_module_attr(
+                    "operations.alerts", "build_default_alert_manager"
+                ),
+                require_module_attr(
                     "risk.analytics.var", "compute_parametric_var"
                 ),
                 require_module_attr(

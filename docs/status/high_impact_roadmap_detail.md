@@ -69,6 +69,7 @@
 - operations.slo.evaluate_ingest_slos
 - operations.event_bus_health.evaluate_event_bus_health
 - operations.failover_drill.execute_failover_drill
+- operations.alerts.build_default_alert_manager
 - risk.analytics.var.compute_parametric_var
 - risk.analytics.expected_shortfall.compute_historical_expected_shortfall
 - risk.analytics.volatility_target.determine_target_allocation

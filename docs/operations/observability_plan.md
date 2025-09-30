@@ -116,7 +116,18 @@ can layer on without introducing third-party dependencies.
   bus statistics into `telemetry.event_bus.health` snapshots, publishes the
   payload after ingest runs, and stores the markdown summary in the
   professional runtime so operators can audit queue depth, drops, and handler
-  errors alongside other readiness feeds.【F:src/operations/event_bus_health.py†L1-L220】【F:src/runtime/runtime_builder.py†L1872-L1916】【F:src/runtime/predator_app.py†L200-L380】【F:tests/operations/test_event_bus_health.py†L1-L82】【F:tests/runtime/test_professional_app_timescale.py†L380-L452】
+  errors alongside other readiness feeds. The publisher now logs unexpected
+  failures, prefers synchronous publishing when the runtime bus is healthy, and
+  escalates to the global bus only when necessary so diagnostics do not get
+  swallowed behind silent fallbacks.【F:src/operations/event_bus_health.py†L1-L281】【F:src/runtime/runtime_builder.py†L1872-L1916】【F:src/runtime/predator_app.py†L200-L380】【F:tests/operations/test_event_bus_health.py†L1-L147】【F:tests/runtime/test_professional_app_timescale.py†L380-L452】
+* **Governance reporting cadence** – `should_generate_report`,
+  `collect_audit_evidence`, and `generate_governance_report` fuse compliance
+  readiness, regulatory telemetry, and Timescale audit evidence into a single
+  report, while `publish_governance_report` emits
+  `telemetry.compliance.governance` snapshots and `persist_governance_report`
+  maintains an on-disk history for audit drills. Tests document the cadence
+  intervals, section escalation, event-bus publishing, and JSON persistence so
+  governance reviews inherit deterministic artefacts.【F:src/operations/governance_reporting.py†L1-L520】【F:tests/operations/test_governance_reporting.py†L1-L152】
 * **Kafka readiness telemetry** – `evaluate_kafka_readiness` merges connection
   settings, topic provisioning summaries, publisher availability, and lag
   snapshots into `telemetry.kafka.readiness`, with the runtime builder

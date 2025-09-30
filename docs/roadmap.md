@@ -34,9 +34,13 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
 - [ ] **Stabilise runtime entrypoints** – Move all application starts through
   `RuntimeApplication` and register background jobs under a task supervisor to
   eliminate unsupervised `create_task` usage.【F:docs/technical_debt_assessment.md†L33-L56】
+  - [x] Routed the operational health monitor through supervised background
+    tasks with graceful shutdown signals and metadata for observability.
 - [ ] **Security hardening sprint** – Execute the remediation plan’s Phase 0:
   parameterise SQL, remove `eval`, and address blanket exception handlers in
   operational modules.【F:docs/development/remediation_plan.md†L34-L72】
+  - [x] Replaced blanket exception handlers in health monitoring resource
+    checks with structured logging and explicit error reporting.
 - [ ] **Context pack refresh** – Replace legacy briefs with the updated context in
   `docs/context/alignment_briefs` so discovery and reviews inherit the same
   narrative reset (this change set).

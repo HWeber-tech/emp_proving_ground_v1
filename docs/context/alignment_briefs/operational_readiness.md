@@ -16,6 +16,9 @@
   and open alerts workflow items.【F:docs/technical_debt_assessment.md†L33-L112】
 - Legacy guides (OpenAPI/cTrader) persist in `docs/legacy`, signalling incomplete
   cleanup and risk of policy drift.【F:docs/legacy/README.md†L1-L12】
+- Operational health monitoring now routes background loops through the runtime
+  task supervisor and surfaces explicit error telemetry instead of silently
+  swallowing failures.【F:src/operational/health_monitor.py†L1-L214】
 
 ## Gap themes
 

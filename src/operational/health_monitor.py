@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """
 Health Monitor System
 ====================
@@ -8,8 +10,9 @@ Monitors system health and performance across all components.
 import asyncio
 import logging
 import uuid
+from collections.abc import Coroutine, Mapping
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Protocol, TypeVar
 
 from src.core.event_bus import EventBus
 from src.core.state_store import StateStore
@@ -17,15 +20,40 @@ from src.core.state_store import StateStore
 logger = logging.getLogger(__name__)
 
 
+_T = TypeVar("_T")
+
+
+class _SupportsCreateTask(Protocol):
+    """Protocol capturing the :class:`TaskSupervisor` ``create`` signature."""
+
+    def create(
+        self,
+        coro: Coroutine[Any, Any, _T],
+        *,
+        name: str | None = None,
+        metadata: Mapping[str, Any] | None = None,
+    ) -> "asyncio.Task[_T]":
+        ...
+
+
 class HealthMonitor:
     """Monitors system health and performance."""
 
-    def __init__(self, state_store: StateStore, event_bus: EventBus):
+    def __init__(
+        self,
+        state_store: StateStore,
+        event_bus: EventBus,
+        *,
+        task_supervisor: Optional[_SupportsCreateTask] = None,
+    ):
         self.state_store = state_store
         self.event_bus = event_bus
         self.is_running = False
         self.check_interval = 60  # seconds
         self.health_history: list[dict[str, object]] = []
+        self._task_supervisor = task_supervisor
+        self._monitor_task: asyncio.Task[None] | None = None
+        self._stop_event: asyncio.Event | None = None
 
     async def start(self) -> bool:
         """Start health monitoring."""
@@ -33,31 +61,83 @@ class HealthMonitor:
             return True
 
         self.is_running = True
-        asyncio.create_task(self._monitor_loop())
+        self._stop_event = asyncio.Event()
+        self._monitor_task = self._create_task(self._monitor_loop(), "health-monitor-loop")
         logger.info("Health monitor started")
         return True
 
     async def stop(self) -> bool:
         """Stop health monitoring."""
+        if not self.is_running:
+            return True
+
         self.is_running = False
+        if self._stop_event is not None:
+            self._stop_event.set()
+
+        task = self._monitor_task
+        if task is not None:
+            try:
+                await task
+            finally:
+                self._monitor_task = None
+
+        self._stop_event = None
+
         logger.info("Health monitor stopped")
         return True
 
+    def _create_task(self, coro: Coroutine[Any, Any, None], name: str) -> asyncio.Task[None]:
+        metadata = {"component": "operational.health_monitor"}
+        supervisor = self._task_supervisor
+        if supervisor is not None:
+            create = getattr(supervisor, "create", None)
+            if callable(create):
+                try:
+                    return create(coro, name=name, metadata=metadata)
+                except TypeError:
+                    return create(coro, name=name)  # type: ignore[arg-type]
+        return asyncio.create_task(coro, name=name)
+
     async def _monitor_loop(self) -> None:
         """Main monitoring loop."""
-        while self.is_running:
+        stop_event = self._stop_event
+        if stop_event is None:
+            return
+
+        while not stop_event.is_set():
             try:
                 health_check = await self._perform_health_check()
-                await self._store_health_check(health_check)
+            except Exception as exc:
+                logger.exception("Health monitoring cycle failed")
+                health_check = {
+                    "check_id": str(uuid.uuid4()),
+                    "timestamp": datetime.utcnow().isoformat(),
+                    "status": "ERROR",
+                    "error": str(exc),
+                }
 
-                if health_check.get("status") == "CRITICAL":
+            await self._store_health_check(health_check)
+
+            if health_check.get("status") == "CRITICAL":
+                try:
                     await self.event_bus.emit("health_critical", health_check)
+                except Exception:
+                    logger.exception("Failed to emit health_critical event")
 
-                await asyncio.sleep(self.check_interval)
+            await self._sleep_until_next_cycle(stop_event)
 
-            except Exception as e:
-                logger.error(f"Error in health monitoring: {e}")
-                await asyncio.sleep(self.check_interval)
+    async def _sleep_until_next_cycle(self, stop_event: asyncio.Event) -> None:
+        """Wait for the next monitoring cycle while honouring shutdown signals."""
+
+        if self.check_interval <= 0:
+            await asyncio.sleep(0)
+            return
+
+        try:
+            await asyncio.wait_for(stop_event.wait(), timeout=self.check_interval)
+        except asyncio.TimeoutError:
+            return
 
     async def _perform_health_check(self) -> Dict[str, Any]:
         """Perform comprehensive health check."""
@@ -80,15 +160,17 @@ class HealthMonitor:
             await self.state_store.set("health_check", "test")
             value = await self.state_store.get("health_check")
             return {"status": "HEALTHY", "response_time": 0.001}
-        except Exception as e:
-            return {"status": "ERROR", "error": str(e)}
+        except Exception as exc:
+            logger.exception("State store health check failed")
+            return {"status": "ERROR", "error": str(exc)}
 
     async def _check_event_bus(self) -> Dict[str, Any]:
         """Check event bus health."""
         try:
             return {"status": "HEALTHY", "subscribers": 0}
-        except Exception as e:
-            return {"status": "ERROR", "error": str(e)}
+        except Exception as exc:
+            logger.exception("Event bus health check failed")
+            return {"status": "ERROR", "error": str(exc)}
 
     async def _check_memory(self) -> Dict[str, Any]:
         """Check memory usage."""
@@ -101,8 +183,12 @@ class HealthMonitor:
                 "usage_percent": memory.percent,
                 "available_gb": memory.available / (1024**3),
             }
-        except:
-            return {"status": "UNKNOWN", "usage_percent": 0}
+        except ImportError as exc:
+            logger.warning("psutil not available for memory checks: %s", exc)
+            return {"status": "UNKNOWN", "error": str(exc)}
+        except Exception as exc:
+            logger.exception("Memory check failed")
+            return {"status": "ERROR", "error": str(exc)}
 
     async def _check_cpu(self) -> Dict[str, Any]:
         """Check CPU usage."""
@@ -114,8 +200,12 @@ class HealthMonitor:
                 "status": "HEALTHY" if cpu_percent < 80 else "WARNING",
                 "usage_percent": cpu_percent,
             }
-        except:
-            return {"status": "UNKNOWN", "usage_percent": 0}
+        except ImportError as exc:
+            logger.warning("psutil not available for CPU checks: %s", exc)
+            return {"status": "UNKNOWN", "error": str(exc)}
+        except Exception as exc:
+            logger.exception("CPU check failed")
+            return {"status": "ERROR", "error": str(exc)}
 
     async def _check_disk(self) -> Dict[str, Any]:
         """Check disk usage."""
@@ -128,8 +218,12 @@ class HealthMonitor:
                 "usage_percent": disk.percent,
                 "free_gb": disk.free / (1024**3),
             }
-        except:
-            return {"status": "UNKNOWN", "usage_percent": 0}
+        except ImportError as exc:
+            logger.warning("psutil not available for disk checks: %s", exc)
+            return {"status": "UNKNOWN", "error": str(exc)}
+        except Exception as exc:
+            logger.exception("Disk check failed")
+            return {"status": "ERROR", "error": str(exc)}
 
     async def _store_health_check(self, health_check: Dict[str, Any]) -> None:
         """Store health check results."""
@@ -142,8 +236,8 @@ class HealthMonitor:
             if len(self.health_history) > 100:
                 self.health_history = self.health_history[-100:]
 
-        except Exception as e:
-            logger.error(f"Error storing health check: {e}")
+        except Exception:
+            logger.exception("Error storing health check")
 
     async def get_health_summary(self) -> Dict[str, Any]:
         """Get health summary."""

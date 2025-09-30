@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import asyncio
+import logging
+from typing import Any
 
 import pytest
 
@@ -88,3 +90,39 @@ async def test_publish_event_bus_health_dispatches_snapshot() -> None:
     assert received[0].type == "telemetry.event_bus.health"
 
     await bus.stop()
+
+
+def test_publish_event_bus_health_falls_back_to_global_bus(monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture) -> None:
+    class _DummyTopicBus:
+        def __init__(self) -> None:
+            self.published: list[tuple[str, Any, str | None]] = []
+
+        def publish_sync(self, topic: str, payload: Any, *, source: str | None = None) -> int:
+            self.published.append((topic, payload, source))
+            return 1
+
+    captured_topic_bus = _DummyTopicBus()
+
+    def _fake_get_global_bus() -> _DummyTopicBus:
+        return captured_topic_bus
+
+    monkeypatch.setattr(
+        "src.operations.event_bus_health.get_global_bus", _fake_get_global_bus
+    )
+
+    bus = EventBus()
+
+    def _failing_publish(_: Event) -> None:
+        raise RuntimeError("bus offline")
+
+    monkeypatch.setattr(bus, "publish_from_sync", _failing_publish)
+    monkeypatch.setattr(bus, "is_running", lambda: True)
+
+    snapshot = evaluate_event_bus_health(bus, expected=False)
+
+    with caplog.at_level(logging.WARNING):
+        publish_event_bus_health(bus, snapshot)
+
+    assert captured_topic_bus.published
+    messages = " ".join(record.getMessage() for record in caplog.records)
+    assert "falling back to global bus" in messages

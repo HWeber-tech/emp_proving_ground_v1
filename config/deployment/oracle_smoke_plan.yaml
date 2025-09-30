@@ -1,0 +1,36 @@
+metadata:
+  name: oracle-cloud-free-tier
+  environment: oracle-free-tier
+  owner: trading-ops@emp
+  rollback_command: ./scripts/deployment/rollback_oracle_release.sh
+
+# Commands are intentionally simple so they work in CI or local shells.
+# Replace curl targets with the deployed ingress URL when available.
+tests:
+  - name: api-health
+    command:
+      - curl
+      - --fail
+      - --silent
+      - --show-error
+      - https://emp.example.com/health
+    timeout: 15
+    critical: true
+  - name: check-fix-gateway-port
+    command: python - <<'PY'
+import socket
+host = "fix-gateway.emp"
+port = 9876
+with socket.create_connection((host, port), timeout=5) as sock:
+    print(f"connected to {host}:{port}")
+PY
+    timeout: 10
+    critical: true
+  - name: metrics-endpoint
+    command:
+      - curl
+      - --fail
+      - --silent
+      - http://emp-metrics.emp-system.svc.cluster.local:9090/-/healthy
+    timeout: 10
+    critical: false

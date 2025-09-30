@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: emp-config
+  namespace: emp-system
+data:
+  EMP_ENVIRONMENT: "${EMP_ENVIRONMENT:-production}"
+  EMP_SYSTEM_VERSION: "1.1.0"
+  LOG_LEVEL: "INFO"
+  REDIS_HOST: "emp-redis"
+  POSTGRES_HOST: "emp-postgres"
+  NATS_HOST: "emp-nats"

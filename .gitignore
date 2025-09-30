@@ -107,3 +107,6 @@ logs/
 changed_files*.txt
 *.orig
 *.rej
+
+# K8s overlay secrets
+k8s/overlays/*/*.env

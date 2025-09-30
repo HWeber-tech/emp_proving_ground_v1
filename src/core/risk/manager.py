@@ -1,27 +1,110 @@
 from __future__ import annotations
 
-import importlib
 from decimal import Decimal
-from typing import Any
+from typing import Any, Mapping
+
+from src.config.risk.risk_config import RiskConfig
+from src.risk.risk_manager_impl import RiskManagerImpl
+
+__all__ = ["RiskManager", "get_risk_manager"]
 
 
-class RiskConfig:
-    """Minimal RiskConfig placeholder to satisfy type imports.
-    Real configuration is provided dynamically from src.config.risk.risk_config at runtime.
+class RiskManager(RiskManagerImpl):
+    """Backwards-compatible facade for :class:`RiskManagerImpl`.
+
+    The legacy ``src.core`` namespace exposed a thin ``RiskManager`` class with a
+    ``validate_trade`` helper.  The original implementation silently accepted
+    any positive trade values which meant downstream callers could not rely on
+    deterministic risk enforcement.  This wrapper instantiates the canonical
+    :class:`RiskManagerImpl` so existing imports continue to work while the
+    runtime benefits from the full policy checks.
     """
 
-    def __init__(self) -> None:
-        pass
+    def __init__(
+        self,
+        config: RiskConfig | None = None,
+        *,
+        initial_balance: float | Decimal | None = None,
+        **kwargs: Any,
+    ) -> None:
+        resolved_config = config or RiskConfig()
+        starting_balance = (
+            float(initial_balance)
+            if initial_balance is not None
+            else 10000.0
+        )
+        super().__init__(
+            initial_balance=starting_balance,
+            risk_config=resolved_config,
+            **kwargs,
+        )
+
+    def validate_trade(
+        self,
+        size: Decimal,
+        entry_price: Decimal,
+        *,
+        symbol: str = "",
+        stop_loss_pct: float | Decimal | None = None,
+        portfolio_state: Mapping[str, object] | None = None,
+    ) -> bool:
+        """Synchronously evaluate a trade against configured limits."""
+
+        _ = portfolio_state  # retained for API compatibility
+
+        quantity = float(size)
+        price = float(entry_price)
+        stop_loss = float(stop_loss_pct) if stop_loss_pct is not None else 0.0
+
+        if quantity <= 0 or price <= 0:
+            return False
+
+        if quantity < self._min_position_size or quantity > self._max_position_size:
+            return False
+
+        if self._mandatory_stop_loss and not self._research_mode and stop_loss <= 0:
+            return False
+
+        effective_stop_loss = stop_loss if stop_loss > 0 else self._risk_per_trade
+        risk_amount = quantity * price * effective_stop_loss
+        max_allowed_risk = self._compute_risk_budget()
+
+        if max_allowed_risk <= 0:
+            return False
+
+        if risk_amount > max_allowed_risk:
+            return False
+
+        projected_risk = {
+            sym: self._compute_position_risk(pos) for sym, pos in self.positions.items()
+        }
+        symbol_key = symbol or "__pending__"
+        projected_risk[symbol_key] = projected_risk.get(symbol_key, 0.0) + risk_amount
+
+        aggregate_risk = self.risk_manager.assess_risk(projected_risk)
+        if aggregate_risk > 1.0:
+            return False
+
+        sector = self._resolve_sector(symbol_key)
+        if sector is not None:
+            sector_budget = self._sector_budget(sector)
+            if sector_budget is not None:
+                current_exposure = self._compute_sector_risk(sector)
+                projected_exposure = current_exposure + risk_amount
+                if sector_budget <= 0.0 and projected_exposure > 0.0:
+                    return False
+                if sector_budget > 0.0 and projected_exposure > sector_budget:
+                    return False
+
+        return True
 
 
-def _risk_cfg(sym: str) -> Any:
-    return getattr(importlib.import_module("src.config.risk.risk_config"), sym)
+def get_risk_manager(
+    config: RiskConfig | None = None,
+    *,
+    initial_balance: float | Decimal | None = None,
+    **kwargs: Any,
+) -> RiskManager:
+    """Factory returning a :class:`RiskManager` configured for production use."""
 
-
-class RiskManager:
-    def __init__(self, config: Any | None = None) -> None:
-        RiskConfig = _risk_cfg("RiskConfig")
-        self.config = config or RiskConfig()
-
-    def validate_trade(self, size: Decimal, entry_price: Decimal) -> bool:
-        return size > 0 and entry_price > 0
+    return RiskManager(config=config, initial_balance=initial_balance, **kwargs)

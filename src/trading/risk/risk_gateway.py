@@ -17,7 +17,16 @@ import logging
 from dataclasses import asdict, is_dataclass
 from datetime import datetime
 from decimal import Decimal
-from typing import Any, Callable, Mapping, MutableMapping, Optional, Protocol, cast
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    Mapping,
+    MutableMapping,
+    Optional,
+    Protocol,
+    cast,
+)
 
 from src.data_foundation.config.execution_config import (
     ExecutionConfig,
@@ -59,6 +68,20 @@ class SupportsStrategyRegistry(Protocol):
 
     def get_strategy(self, strategy_id: str) -> Mapping[str, Any] | None: ...
 
+
+if TYPE_CHECKING:
+    from src.risk.real_risk_manager import RealRiskManager
+
+
+class SupportsPortfolioRisk(Protocol):
+    """Protocol describing the :class:`RealRiskManager` surface we rely on."""
+
+    def update_equity(self, equity: float | Decimal) -> None: ...
+
+    def assess_risk(self, positions: Mapping[str, float]) -> float: ...
+
+    @property
+    def last_snapshot(self) -> Mapping[str, float]: ...
 
 PositionSizer = Callable[[Decimal, Decimal, Decimal], Decimal]
 
@@ -154,6 +177,7 @@ class RiskGateway:
         min_liquidity_confidence: float = 0.3,
         risk_policy: RiskPolicy | None = None,
         execution_config: ExecutionConfig | None = None,
+        portfolio_risk_manager: SupportsPortfolioRisk | None = None,
     ) -> None:
         self.strategy_registry = strategy_registry
         self.position_sizer = position_sizer
@@ -168,6 +192,8 @@ class RiskGateway:
         self.min_liquidity_confidence = float(min_liquidity_confidence)
         self.risk_policy = risk_policy
         self._execution_config = execution_config or load_execution_config()
+        self.portfolio_risk_manager = portfolio_risk_manager
+        self._risk_per_trade_float = float(self.risk_per_trade)
 
         self.telemetry: dict[str, Any] = {
             "total_checks": 0,
@@ -257,6 +283,16 @@ class RiskGateway:
                     )
                     self._reject(decision)
                     return None
+
+            if not self._enforce_portfolio_risk(
+                decision,
+                portfolio_state,
+                symbol=str(decision["symbol"]),
+                quantity=float(adjusted_quantity),
+                market_price=market_price,
+                stop_loss_pct=stop_loss_pct,
+            ):
+                return None
 
             execution_assessment = self._evaluate_execution_cost(
                 intent,
@@ -530,6 +566,9 @@ class RiskGateway:
                 assessment["policy"] = dict(policy_metadata)
         if liquidity_score is not None:
             assessment["liquidity_confidence"] = float(liquidity_score)
+        risk_summary = decision.get("risk_manager")
+        if isinstance(risk_summary, Mapping):
+            assessment["portfolio_risk"] = dict(risk_summary)
 
         if hasattr(intent, "liquidity_confidence_score"):
             try:
@@ -634,6 +673,169 @@ class RiskGateway:
             "breaches": tuple(breaches),
             "reason": "execution_risk",
         }
+
+    def _enforce_portfolio_risk(
+        self,
+        decision: dict[str, Any],
+        portfolio_state: Mapping[str, Any],
+        *,
+        symbol: str,
+        quantity: float,
+        market_price: float,
+        stop_loss_pct: float,
+    ) -> bool:
+        manager = self.portfolio_risk_manager
+        if manager is None:
+            return True
+
+        equity = 0.0
+        try:
+            equity = self._resolve_equity_for_risk(portfolio_state)
+            if equity > 0:
+                manager.update_equity(equity)
+        except Exception:  # pragma: no cover - diagnostics only
+            logger.debug("Failed to update portfolio equity for risk manager", exc_info=True)
+
+        risk_map = self._build_portfolio_risk_map(portfolio_state)
+
+        price = market_price
+        if price <= 0:
+            existing_position = self._locate_position(portfolio_state, symbol)
+            if existing_position is not None:
+                price = self._resolve_position_price(existing_position)
+
+        trade_exposure = self._compute_risk_exposure(quantity, price, stop_loss_pct)
+        if trade_exposure > 0:
+            risk_map[symbol] = risk_map.get(symbol, 0.0) + trade_exposure
+
+        try:
+            risk_score = manager.assess_risk(risk_map)
+            snapshot = dict(manager.last_snapshot)
+        except Exception as exc:  # pragma: no cover - fail safe
+            logger.exception("Portfolio risk assessment failed: %s", exc)
+            decision.setdefault("checks", []).append(
+                {
+                    "name": "portfolio_risk_score",
+                    "value": None,
+                    "threshold": 1.0,
+                    "status": "error",
+                    "error": str(exc),
+                }
+            )
+            decision.update(status="rejected", reason="portfolio_risk_error")
+            self._reject(decision)
+            return False
+
+        check_entry = {
+            "name": "portfolio_risk_score",
+            "value": risk_score,
+            "threshold": 1.0,
+            "status": "ok" if risk_score <= 1.0 else "violation",
+            "metadata": snapshot,
+        }
+        decision.setdefault("checks", []).append(check_entry)
+        risk_section = decision.setdefault("risk_manager", {})
+        risk_section.update(
+            {
+                "risk_score": risk_score,
+                "snapshot": snapshot,
+                "equity": equity,
+                "projected_risk_map": dict(risk_map),
+            }
+        )
+
+        if risk_score > 1.0:
+            decision.update(status="rejected", reason="portfolio_risk_breach")
+            self._reject(decision)
+            return False
+
+        return True
+
+    def _resolve_equity_for_risk(self, portfolio_state: Mapping[str, Any]) -> float:
+        equity = _as_float(portfolio_state.get("equity"), default=0.0)
+        if equity > 0:
+            return equity
+        cash = _as_float(portfolio_state.get("cash"), default=0.0)
+        total_exposure = 0.0
+        positions = portfolio_state.get("open_positions")
+        if isinstance(positions, Mapping):
+            for payload in positions.values():
+                if not isinstance(payload, Mapping):
+                    continue
+                quantity = abs(_as_float(payload.get("quantity"), default=0.0))
+                price = self._resolve_position_price(payload)
+                total_exposure += quantity * price
+        return max(0.0, cash + total_exposure)
+
+    def _build_portfolio_risk_map(
+        self, portfolio_state: Mapping[str, Any]
+    ) -> dict[str, float]:
+        exposures: dict[str, float] = {}
+        positions = portfolio_state.get("open_positions")
+        if not isinstance(positions, Mapping):
+            return exposures
+
+        for symbol, payload in positions.items():
+            if not isinstance(payload, Mapping):
+                continue
+            quantity = _as_float(payload.get("quantity"), default=0.0)
+            price = self._resolve_position_price(payload)
+            stop_loss = self._extract_position_stop_loss(payload)
+            exposure = self._compute_risk_exposure(quantity, price, stop_loss)
+            if exposure > 0:
+                exposures[str(symbol)] = exposure
+
+        return exposures
+
+    def _compute_risk_exposure(
+        self, quantity: float, price: float, stop_loss_pct: float
+    ) -> float:
+        abs_quantity = abs(quantity)
+        if abs_quantity <= 0 or price <= 0:
+            return 0.0
+        resolved_stop = max(
+            abs(float(stop_loss_pct)),
+            self._risk_per_trade_float,
+            self.stop_loss_floor,
+        )
+        return abs_quantity * price * resolved_stop
+
+    def _extract_position_stop_loss(self, payload: Mapping[str, Any]) -> float:
+        stop_loss = _as_float(payload.get("stop_loss_pct"), default=0.0)
+        if stop_loss > 0:
+            return stop_loss
+        metadata = payload.get("metadata")
+        if isinstance(metadata, Mapping):
+            candidate = _as_float(metadata.get("stop_loss_pct"), default=0.0)
+            if candidate > 0:
+                return candidate
+        risk_section = payload.get("risk_assessment")
+        if isinstance(risk_section, Mapping):
+            candidate = _as_float(risk_section.get("stop_loss_pct"), default=0.0)
+            if candidate > 0:
+                return candidate
+        return 0.0
+
+    def _resolve_position_price(self, payload: Mapping[str, Any]) -> float:
+        for key in ("current_price", "last_price", "avg_price", "price"):
+            price = _as_float(payload.get(key), default=0.0)
+            if price > 0:
+                return price
+        quantity = _as_float(payload.get("quantity"), default=0.0)
+        current_value = _as_float(payload.get("current_value"), default=0.0)
+        if quantity and current_value:
+            return abs(current_value) / abs(quantity)
+        return _as_float(payload.get("entry_price"), default=0.0)
+
+    def _locate_position(
+        self, portfolio_state: Mapping[str, Any], symbol: str
+    ) -> Mapping[str, Any] | None:
+        positions = portfolio_state.get("open_positions")
+        if isinstance(positions, Mapping):
+            payload = positions.get(symbol)
+            if isinstance(payload, Mapping):
+                return payload
+        return None
 
     def _build_execution_context(
         self,

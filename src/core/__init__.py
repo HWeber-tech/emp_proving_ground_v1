@@ -29,7 +29,7 @@ except Exception:  # pragma: no cover
 
     WHAT_ORGAN = WHEN_ORGAN = ANOMALY_ORGAN = CHAOS_ORGAN = None  # type: ignore
 from .instrument import Instrument, get_all_instruments, get_instrument
-from .risk.manager import RiskManager  # consolidated SoT
+from .risk.manager import RiskManager, get_risk_manager  # consolidated SoT
 
 __all__ = [
     # Population Manager
@@ -65,4 +65,4 @@ try:
 except Exception:  # pragma: no cover
     pass
 from .instrument import Instrument, get_all_instruments, get_instrument
-from .risk.manager import RiskManager
+from .risk.manager import RiskManager, get_risk_manager

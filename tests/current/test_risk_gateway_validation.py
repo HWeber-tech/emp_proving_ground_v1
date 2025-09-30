@@ -15,6 +15,7 @@ from src.data_foundation.config.execution_config import (
 from src.core.base import MarketData
 from src.core.event_bus import EventBus
 from src.core.risk.position_sizing import position_size
+from src.risk.real_risk_manager import RealRiskConfig, RealRiskManager
 from src.trading.liquidity.depth_aware_prober import DepthAwareLiquidityProber
 from src.trading.monitoring.portfolio_monitor import InMemoryRedis, PortfolioMonitor
 from src.trading.risk.risk_gateway import RiskGateway
@@ -217,6 +218,54 @@ async def test_risk_gateway_rejects_on_policy_violation(
     assert policy_decision is not None
     assert "policy.min_position_size" in policy_decision.violations
 
+
+@pytest.mark.asyncio()
+async def test_risk_gateway_rejects_when_portfolio_risk_exceeded(
+    portfolio_monitor: PortfolioMonitor,
+) -> None:
+    registry = DummyStrategyRegistry(active=True)
+    portfolio_risk_manager = RealRiskManager(
+        RealRiskConfig(
+            max_position_risk=0.001,
+            max_total_exposure=0.001,
+            max_drawdown=0.25,
+            max_leverage=10.0,
+            equity=100_000.0,
+        )
+    )
+
+    gateway = RiskGateway(
+        strategy_registry=registry,
+        position_sizer=None,
+        portfolio_monitor=portfolio_monitor,
+        risk_policy=None,
+        portfolio_risk_manager=portfolio_risk_manager,
+        risk_per_trade=Decimal("0.001"),
+    )
+
+    state = portfolio_monitor.get_state()
+    state["equity"] = 100_000.0
+    state["current_daily_drawdown"] = 0.0
+    state["open_positions"] = {
+        "EURUSD": {
+            "quantity": 40000,
+            "avg_price": 1.0,
+            "stop_loss_pct": 0.002,
+        }
+    }
+
+    intent = Intent("GBPUSD", Decimal("10000"))
+    intent.metadata["stop_loss_pct"] = 0.008
+
+    result = await gateway.validate_trade_intent(intent, state)
+
+    assert result is None
+    decision = gateway.get_last_decision()
+    assert decision is not None
+    assert decision.get("reason") == "portfolio_risk_breach"
+    risk_summary = decision.get("risk_manager")
+    assert isinstance(risk_summary, Mapping)
+    assert risk_summary.get("risk_score") and risk_summary["risk_score"] > 1.0
 
 @pytest.mark.asyncio()
 async def test_risk_gateway_rejects_on_execution_risk(

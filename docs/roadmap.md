@@ -55,6 +55,10 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
   - *Progress*: Added an end-to-end regression for the real portfolio monitor to
     exercise data writes, analytics, and reporting flows under pytest, closing a
     previously untested gap in the trading surface.【F:tests/trading/test_real_portfolio_monitor.py†L1-L77】
+  - *Progress*: Hardened risk policy coverage with regressions that enforce
+    stop-loss mandates, reuse canonical position pricing, and validate equity
+    derivation from cash + exposure so policy thresholds stay deterministic in
+    CI.【F:tests/trading/test_risk_policy.py†L73-L138】
 
 ### Next (30–90 days)
 

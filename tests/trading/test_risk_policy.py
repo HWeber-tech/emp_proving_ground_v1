@@ -117,3 +117,87 @@ def test_risk_policy_warns_but_allows_in_research_mode() -> None:
     assert decision.approved
     assert decision.violations
     assert decision.metadata["research_mode"] is True
+
+
+def test_risk_policy_resolves_price_from_open_position() -> None:
+    """Ensure we reuse canonical position pricing when no quote is supplied."""
+
+    config = RiskConfig(
+        max_risk_per_trade_pct=Decimal("0.02"),
+        max_total_exposure_pct=Decimal("0.5"),
+        max_leverage=Decimal("5"),
+        max_drawdown_pct=Decimal("0.1"),
+        min_position_size=1,
+        mandatory_stop_loss=True,
+    )
+    policy = RiskPolicy.from_config(config)
+
+    state = _state({"EURUSD": {"quantity": 2500.0, "avg_price": 1.15}})
+
+    decision = policy.evaluate(
+        symbol="EURUSD",
+        quantity=1000.0,
+        price=0.0,
+        stop_loss_pct=0.02,
+        portfolio_state=state,
+    )
+
+    assert decision.approved
+    assert not decision.violations
+    assert decision.metadata["resolved_price"] == pytest.approx(1.15)
+
+
+def test_risk_policy_requires_stop_loss_when_mandated() -> None:
+    config = RiskConfig(
+        max_risk_per_trade_pct=Decimal("0.02"),
+        max_total_exposure_pct=Decimal("0.5"),
+        max_leverage=Decimal("5"),
+        max_drawdown_pct=Decimal("0.1"),
+        min_position_size=1,
+        mandatory_stop_loss=True,
+    )
+    policy = RiskPolicy.from_config(config)
+
+    decision = policy.evaluate(
+        symbol="EURUSD",
+        quantity=1000.0,
+        price=1.2,
+        stop_loss_pct=0.0,
+        portfolio_state=_state(),
+    )
+
+    assert not decision.approved
+    assert decision.reason == "policy.stop_loss"
+    assert "policy.stop_loss" in decision.violations
+
+
+def test_risk_policy_derives_equity_from_cash_and_positions() -> None:
+    config = RiskConfig(
+        max_risk_per_trade_pct=Decimal("0.02"),
+        max_total_exposure_pct=Decimal("0.5"),
+        max_leverage=Decimal("5"),
+        max_drawdown_pct=Decimal("0.1"),
+        min_position_size=1,
+    )
+    policy = RiskPolicy.from_config(config)
+
+    state = {
+        "equity": 0.0,
+        "cash": 25_000.0,
+        "open_positions": {
+            "EURUSD": {"quantity": 1_000.0, "last_price": 1.1},
+        },
+        "current_daily_drawdown": 0.01,
+    }
+
+    decision = policy.evaluate(
+        symbol="GBPUSD",
+        quantity=500.0,
+        price=1.2,
+        stop_loss_pct=0.02,
+        portfolio_state=state,
+    )
+
+    assert decision.approved
+    assert decision.metadata["equity"] == pytest.approx(26_100.0)
+    assert decision.metadata["risk_budget"] == pytest.approx(522.0)

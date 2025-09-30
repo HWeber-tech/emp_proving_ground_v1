@@ -35,6 +35,10 @@ runtime output so the context stays anchored to the concept blueprint.
   emits `telemetry.compliance.governance` with `publish_governance_report`, and
   trims persisted history with `persist_governance_report` so audit drills inherit
   deterministic artefacts instead of manual spreadsheets.【F:src/operations/governance_reporting.py†L1-L520】【F:tests/operations/test_governance_reporting.py†L1-L152】
+- `GovernanceCadenceRunner` wraps the cadence helpers behind a single entrypoint,
+  loading the previous artefact, enforcing the reporting interval, and wiring
+  publication and persistence so runtimes can schedule governance reports without
+  bespoke glue code.【F:src/operations/governance_cadence.py†L1-L164】【F:tests/operations/test_governance_cadence.py†L1-L118】
 - Pytest coverage captures the workflow evaluator, publisher contract, and runtime
   integration so CI guards the new starter kits end-to-end.【F:tests/compliance/test_compliance_workflow.py†L1-L98】【F:tests/runtime/test_runtime_builder.py†L160-L240】【F:tests/runtime/test_professional_app_timescale.py†L200-L320】
 

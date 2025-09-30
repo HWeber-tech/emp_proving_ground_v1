@@ -131,9 +131,12 @@ can layer on without introducing third-party dependencies.
   readiness, regulatory telemetry, and Timescale audit evidence into a single
   report, while `publish_governance_report` emits
   `telemetry.compliance.governance` snapshots and `persist_governance_report`
-  maintains an on-disk history for audit drills. Tests document the cadence
-  intervals, section escalation, event-bus publishing, and JSON persistence so
-  governance reviews inherit deterministic artefacts.【F:src/operations/governance_reporting.py†L1-L520】【F:tests/operations/test_governance_reporting.py†L1-L152】
+  maintains an on-disk history for audit drills. `GovernanceCadenceRunner`
+  loads the prior artefact, enforces the cadence interval, and orchestrates the
+  publish/persist flow so runtimes can schedule the governance feed without
+  bespoke glue code. Tests document the cadence intervals, section escalation,
+  event-bus publishing, JSON persistence, and orchestration flow so governance
+  reviews inherit deterministic artefacts.【F:src/operations/governance_reporting.py†L1-L520】【F:src/operations/governance_cadence.py†L1-L164】【F:tests/operations/test_governance_reporting.py†L1-L152】【F:tests/operations/test_governance_cadence.py†L1-L118】
 * **Kafka readiness telemetry** – `evaluate_kafka_readiness` merges connection
   settings, topic provisioning summaries, publisher availability, and lag
   snapshots into `telemetry.kafka.readiness`, with the runtime builder

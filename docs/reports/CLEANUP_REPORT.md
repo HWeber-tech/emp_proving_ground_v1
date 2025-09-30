@@ -77,7 +77,8 @@ Dead code candidates (first 100):
 -  src\phase3_integration.py
 -  src\pnl.py
 -  src\risk.py
--  src\config\evolution_config.py
+-  ~~src\config\evolution_config.py~~ (removed; evolution configuration now
+   resolves through `src/core/evolution/engine.py`).【F:src/core/evolution/engine.py†L13-L43】
 -  src\config\portfolio_config.py
 -  ~~src\config\risk_config.py~~ (removed; canonical risk config lives at `src/config/risk/risk_config.py`).【F:src/config/risk/risk_config.py†L1-L72】
 -  src\config\sensory_config.py

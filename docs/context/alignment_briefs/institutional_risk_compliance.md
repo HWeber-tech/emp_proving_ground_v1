@@ -38,6 +38,9 @@
   plan Phase 0.【F:docs/development/remediation_plan.md†L34-L72】
 - Extend CI to include baseline risk regression tests covering exposure, leverage,
   and drawdown limits; capture findings in `docs/status`.
+- Progress: Risk policy regression enforces mandatory stop losses, positive
+  equity budgets, and violation telemetry so CI fails fast when policy guardrails
+  drift, keeping execution blockers visible to compliance reviewers.【F:src/trading/risk/risk_policy.py†L120-L246】【F:tests/trading/test_risk_policy.py†L117-L157】
 
 ### Next (30–90 days)
 

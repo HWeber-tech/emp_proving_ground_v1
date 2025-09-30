@@ -26,12 +26,25 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
     symbol filters, and parameterises queries before execution so ingest consumers
     cannot smuggle unsafe SQL through configuration, with security regressions
     covering identifier fuzzing.【F:src/data_foundation/persist/timescale_reader.py†L19-L210】【F:tests/data_foundation/test_timescale_reader_security.py†L1-L45】
+  - *Progress*: Data backbone readiness telemetry now exposes failover triggers,
+    optional trigger metadata, and recovery plan payloads under pytest coverage so
+    institutional dashboards surface degraded optional slices alongside the
+    Timescale recovery blueprint instead of masking the drill-down details.【F:src/operations/data_backbone.py†L488-L515】【F:tests/operations/test_data_backbone.py†L289-L347】
 - [ ] **Sensory + evolution execution** – Replace HOW/ANOMALY stubs, wire lineage
   telemetry, and prove adaptive strategies against recorded data.
   - *Progress*: Ecosystem optimizer now defends against unsafe genomes and
     malformed regime metadata by normalising canonical models, skipping
     non-numeric parameters, and logging adapter failures with pytest coverage on
     each guardrail so evolution runs cannot silently corrupt state.【F:src/ecosystem/optimization/ecosystem_optimizer.py†L59-L230】【F:tests/ecosystem/test_ecosystem_optimizer_hardening.py†L1-L70】
+  - *Progress*: Portfolio evolution falls back gracefully when optional
+    scikit-learn dependencies are missing by logging the degraded path, returning
+    deterministic cluster bucketing, and exercising the guards under
+    regression tests so adaptive runs keep producing actionable recommendations
+    even in minimal environments.【F:src/intelligence/portfolio_evolution.py†L47-L142】【F:tests/intelligence/test_portfolio_evolution_security.py†L1-L169】
+  - *Progress*: Evolution experiment telemetry hardens publishing with explicit
+    exception capture, markdown fallback logging, and pytest scenarios that
+    simulate transport failures so dashboards and runbooks inherit reliable
+    snapshots of paper-trading ROI and backlog posture.【F:src/operations/evolution_experiments.py†L40-L196】【F:tests/operations/test_evolution_experiments.py†L1-L126】
 - [ ] **Risk and runtime safety** – Enforce `RiskConfig`, finish the builder rollout,
   adopt supervised async lifecycles, and purge deprecated facades.
   - *Progress*: The trading risk gateway now drives portfolio checks through the
@@ -43,6 +56,10 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
     canonical `get_risk_manager` facade, exposes the core engine’s snapshot and
     assessment APIs, and keeps execution telemetry aligned with the deterministic
     risk manager surfaced by the runtime builder.【F:src/trading/trading_manager.py†L105-L147】【F:src/risk/risk_manager_impl.py†L533-L573】
+  - *Progress*: Risk policy regression now enforces mandatory stop losses,
+    positive equity budgets, and resolved price fallbacks, documenting violation
+    telemetry and metadata so CI catches policy drift before it reaches
+    execution flows.【F:src/trading/risk/risk_policy.py†L120-L246】【F:tests/trading/test_risk_policy.py†L117-L157】
 - [ ] **Quality and observability** – Expand regression coverage, close the
   documentation gap, and track remediation progress through CI snapshots.
   - *Progress*: Event bus health publishing now logs unexpected primary-bus
@@ -58,6 +75,10 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
     into warnings, raises on unexpected errors, and regression tests capture the
     fallback handling so readiness dashboards surface degraded validation runs
     instead of missing them.【F:src/operations/system_validation.py†L269-L312】【F:tests/operations/test_system_validation.py†L85-L137】
+  - *Progress*: CI telemetry tooling now records remediation status snapshots via
+    the `--remediation-status` CLI flag and validates the JSON contract under
+    pytest so roadmap evidence, dashboard feeds, and audits inherit structured
+    remediation progress without manual spreadsheets.【F:tools/telemetry/update_ci_metrics.py†L10-L176】【F:tests/tools/test_ci_metrics.py†L180-L332】【F:tests/.telemetry/ci_metrics.json†L1-L6】
 - [ ] **Dead code and duplication** – Triage the 168-file dead-code backlog and
   eliminate shim exports so operators see a single canonical API surface.【F:docs/reports/CLEANUP_REPORT.md†L71-L188】
   - *Progress*: Removed the deprecated risk and evolution configuration shims so
@@ -112,6 +133,11 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
   - *Progress*: Added ingest observability and risk policy telemetry regression tests
     so CI surfaces regressions in data backbone snapshots and policy evaluation
     markdown output.【F:tests/data_foundation/test_ingest_observability.py†L1-L190】【F:tests/trading/test_risk_policy_telemetry.py†L1-L124】
+  - *Progress*: Data backbone readiness coverage now asserts failover trigger
+    metadata and Timescale recovery plan serialisation, while risk policy
+    regression tests lock mandatory stop-loss and equity budget enforcement so
+    coverage extensions land with actionable guardrails instead of brittle
+    placeholders.【F:tests/operations/test_data_backbone.py†L289-L347】【F:tests/trading/test_risk_policy.py†L117-L157】
   - *Progress*: Coverage telemetry now emits per-domain matrices from the
     coverage XML, with CLI tooling and pytest coverage documenting the JSON/markdown
     contract so dashboards can flag lagging domains without scraping CI logs.【F:tools/telemetry/coverage_matrix.py†L1-L199】【F:tests/tools/test_coverage_matrix.py†L1-L123】【F:docs/status/ci_health.md†L13-L31】

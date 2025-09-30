@@ -44,6 +44,10 @@
   degradation, failover decisions, and Timescale recovery plans with pytest
   coverage, giving operators actionable metadata when optional slices drift
   instead of generic warnings.【F:src/operations/data_backbone.py†L488-L515】【F:tests/operations/test_data_backbone.py†L289-L347】
+- Progress: JSONL persistence hardening now raises typed errors for
+  unserialisable payloads, logs filesystem failures, and deletes partial files so
+  ingest tooling reports genuine write issues instead of silently returning empty
+  paths.【F:src/data_foundation/persist/jsonl_writer.py†L1-L69】【F:tests/data_foundation/test_jsonl_writer.py†L1-L37】
 - Wire all runtime entrypoints through `RuntimeApplication` and a task supervisor
   so ingest, cache, and stream jobs are supervised.【F:docs/technical_debt_assessment.md†L33-L56】
 - Document current gaps and expected telemetry in updated runbooks and status

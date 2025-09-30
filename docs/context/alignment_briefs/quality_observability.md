@@ -55,6 +55,14 @@
   - Progress: Event bus health tests now assert queue backlog escalation,
     dropped-event surfacing, and global bus failure propagation so operational
     telemetry keeps raising alarms when both primary and fallback paths degrade.【F:src/operations/event_bus_health.py†L118-L281】【F:tests/operations/test_event_bus_health.py†L1-L206】
+  - Progress: Ingest trend telemetry logging now records runtime publish
+    fallbacks, raises on unexpected errors, and escalates global bus outages with
+    pytest coverage so data backbone dashboards expose genuine gaps instead of
+    silently skipping degraded snapshots.【F:src/operations/ingest_trends.py†L303-L336】【F:tests/operations/test_ingest_trends.py†L90-L148】
+  - Progress: Cache health publishing now logs primary bus errors, only falls back
+    when runtime failures occur, and raises on unexpected or global-bus outages
+    under pytest guardrails so readiness telemetry surfaces real cache incidents
+    instead of quietly failing to publish.【F:src/operations/cache_health.py†L230-L303】【F:tests/operations/test_cache_health.py†L64-L131】
 - Progress: Operational metrics instrumentation now has targeted regressions for
   logging escalation, lazy gauge fallbacks, Prometheus exporter idempotence, and
   registry sink adapters so CI surfaces metric failures deterministically and

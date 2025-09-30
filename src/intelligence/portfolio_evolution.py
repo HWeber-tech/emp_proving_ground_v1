@@ -73,17 +73,23 @@ class CorrelationOptimizer:
         self.clustering: Optional[_ClusteringLike] = None
         try:
             from sklearn.covariance import LedoitWolf as _LedoitWolf
-
-            self.correlation_estimator = _LedoitWolf()
-        except Exception:  # pragma: no cover
+        except ImportError as exc:  # pragma: no cover - optional dependency
+            logger.warning(
+                "LedoitWolf estimator unavailable for correlation optimisation: %s", exc
+            )
             self.correlation_estimator = None
+        else:
+            self.correlation_estimator = _LedoitWolf()
 
         try:
             from sklearn.cluster import AgglomerativeClustering as _AgglomerativeClustering
-
-            self.clustering = _AgglomerativeClustering(n_clusters=3)
-        except Exception:  # pragma: no cover
+        except ImportError as exc:  # pragma: no cover - optional dependency
+            logger.warning(
+                "AgglomerativeClustering unavailable for correlation optimisation: %s", exc
+            )
             self.clustering = None  # Fallback clustering handled in method
+        else:
+            self.clustering = _AgglomerativeClustering(n_clusters=3)
 
     async def optimize_correlations(
         self, strategies: List[PortfolioStrategy], market_data: Mapping[str, float]
@@ -317,7 +323,11 @@ class SynergyDetector:
         """Build neural network for synergy detection."""
         try:
             import torch.nn as nn
-
+        except (ImportError, AttributeError) as exc:  # pragma: no cover - optional dependency
+            logger.warning(
+                "torch.nn unavailable for synergy detection model construction: %s", exc
+            )
+        else:
             return nn.Sequential(
                 nn.Linear(10, 64),
                 nn.ReLU(),
@@ -326,13 +336,13 @@ class SynergyDetector:
                 nn.Linear(32, 1),
                 nn.Sigmoid(),
             )
-        except Exception:
-            # Fallback lightweight stub when torch is unavailable at runtime
-            class _StubModel:
-                def __call__(self, *args: object, **kwargs: object) -> float:
-                    return 0.5
 
-            return _StubModel()
+        # Fallback lightweight stub when torch is unavailable at runtime
+        class _StubModel:
+            def __call__(self, *args: object, **kwargs: object) -> float:
+                return 0.5
+
+        return _StubModel()
 
     async def detect_synergies(
         self, portfolio: List[PortfolioStrategy], market_data: Mapping[str, float]
@@ -457,7 +467,13 @@ class SynergyDetector:
                 return float(
                     np.corrcoef(strategy1.correlation_vector, strategy2.correlation_vector)[0, 1]
                 )
-            except Exception:
+            except (np.linalg.LinAlgError, ValueError, TypeError) as exc:
+                logger.warning(
+                    "Correlation computation failed for strategies %s and %s: %s",
+                    strategy1.strategy_id,
+                    strategy2.strategy_id,
+                    exc,
+                )
                 return 0.0
 
         return 0.0
@@ -628,7 +644,13 @@ class DiversificationMaximizer:
                 if vec_i and vec_j and len(vec_i) == len(vec_j):
                     try:
                         corr = float(np.corrcoef(vec_i, vec_j)[0, 1])
-                    except Exception:
+                    except (np.linalg.LinAlgError, ValueError, TypeError) as exc:
+                        logger.warning(
+                            "Correlation matrix entry failed for indices (%s, %s): %s",
+                            i,
+                            j,
+                            exc,
+                        )
                         corr = 0.0
                 # Clamp the correlation to the valid range [-1, 1]
                 corr = max(-1.0, min(1.0, corr))

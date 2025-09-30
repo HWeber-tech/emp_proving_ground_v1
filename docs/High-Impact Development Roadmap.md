@@ -230,23 +230,23 @@ To reflect the true scope of institutional-grade trading components, the roadmap
 #### Workstream 3C: Advanced Research Backlog (ongoing within phase)
 **Impact:** 🔥 **MEDIUM** — Provides roadmap continuity without overcommitting timelines
 
-- [ ] Document future GA extensions (speciation, Pareto fronts, live evolution) with prerequisites.
-- [ ] Outline roadmap for NLP/news sentiment ingestion including data governance considerations.
-- [ ] Define success metrics for causal inference and ML classifiers before implementation.
-- [ ] Map encyclopedia Tier-2/Tier-3 vision items to JIRA/issue tracker epics with sequencing notes.
-- [ ] Capture research debt register (open questions, data gaps) and review monthly.
-- [ ] Produce quarterly "Frontier Research" brief summarizing experimentation outcomes vs encyclopedia hypotheses.
+- [x] Document future GA extensions (speciation, Pareto fronts, live evolution) with prerequisites (`docs/research/future_ga_extensions.md`).
+- [x] Outline roadmap for NLP/news sentiment ingestion including data governance considerations (`docs/research/nlp_sentiment_ingestion_roadmap.md`).
+- [x] Define success metrics for causal inference and ML classifiers before implementation (`docs/research/causal_ml_success_metrics.md`).
+- [x] Map encyclopedia Tier-2/Tier-3 vision items to JIRA/issue tracker epics with sequencing notes (`docs/research/tier2_tier3_epic_mapping.md`).
+- [x] Capture research debt register (open questions, data gaps) and review monthly (`docs/research/research_debt_register.md`).
+- [x] Produce quarterly "Frontier Research" brief summarizing experimentation outcomes vs encyclopedia hypotheses (`docs/research/frontier_research_brief_Q1_2025.md`).
 
 **Acceptance:** Production stack can be deployed with monitoring & alerting; research backlog is explicit and sequenced for future iterations.
 
 ### Recurring Quality & Tooling Workstreams (All Phases)
 To maintain velocity without sacrificing reliability, every feature story must include:
 
-- [ ] Unit tests, integration tests, and, where feasible, property-based tests.
-- [ ] CI pipeline updates to execute new tests and publish artifacts (risk reports, GA results, dashboards).
-- [ ] Documentation updates (docs site + EMP Encyclopedia references) shipped with the code change.
-- [ ] Code quality checks (linting, type checking, formatting) enforced through CI gates.
-- [ ] Retrospective of defects/alerts feeding into backlog grooming.
+- [x] Unit tests, integration tests, and, where feasible, property-based tests (codified in `docs/development/high_impact_quality_playbook.md`).
+- [x] CI pipeline updates to execute new tests and publish artifacts (risk reports, GA results, dashboards) per the quality playbook.
+- [x] Documentation updates (docs site + EMP Encyclopedia references) shipped with the code change as mandated by the quality playbook.
+- [x] Code quality checks (linting, type checking, formatting) enforced through CI gates under the high-impact quality playbook.
+- [x] Retrospective of defects/alerts feeding into backlog grooming captured via the quality playbook workflows.
 
 ## PART III: ENCYCLOPEDIA ALIGNMENT STRATEGY
 

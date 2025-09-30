@@ -16,6 +16,7 @@ except Exception:  # pragma: no cover
 
 from src.config.risk.risk_config import RiskConfig as TradingRiskConfig
 from src.core.coercion import coerce_float, coerce_int
+from src.risk.real_risk_manager import RealRiskConfig, RealRiskManager
 from src.risk.telemetry import (
     RiskTelemetrySnapshot,
     evaluate_risk_posture,
@@ -120,6 +121,14 @@ class TradingManager:
             }
         )
         self._risk_config = effective_config
+        risk_manager_config = RealRiskConfig(
+            max_position_risk=float(effective_config.max_risk_per_trade_pct),
+            max_total_exposure=float(effective_config.max_total_exposure_pct),
+            max_drawdown=float(effective_config.max_drawdown_pct),
+            max_leverage=float(effective_config.max_leverage),
+            equity=float(initial_equity),
+        )
+        self._portfolio_risk_manager = RealRiskManager(risk_manager_config)
         self._risk_policy = risk_policy or RiskPolicy.from_config(effective_config)
         self._last_policy_snapshot: RiskPolicyEvaluationSnapshot | None = None
 
@@ -135,6 +144,7 @@ class TradingManager:
             min_intent_confidence=min_intent_confidence,
             min_liquidity_confidence=min_liquidity_confidence,
             risk_policy=self._risk_policy,
+            portfolio_risk_manager=self._portfolio_risk_manager,
         )
 
         self._last_risk_snapshot: RiskTelemetrySnapshot | None = None
@@ -451,6 +461,11 @@ class TradingManager:
             "risk_limits": cast(Any, self.risk_gateway).get_risk_limits(),
             "portfolio_state": cast(Any, self.portfolio_monitor).get_state(),
         }
+        last_decision = cast(Any, self.risk_gateway).get_last_decision()
+        if isinstance(last_decision, Mapping):
+            risk_manager_info = last_decision.get("risk_manager")
+            if isinstance(risk_manager_info, Mapping):
+                payload["risk_manager"] = dict(risk_manager_info)
         if self._last_policy_snapshot is not None:
             payload["policy"] = {
                 "snapshot": self._last_policy_snapshot.as_dict(),

@@ -23,6 +23,23 @@ class StubBus:
         return True
 
 
+class RaisingRuntimeBus(StubBus):
+    def __init__(self, exc: Exception) -> None:
+        super().__init__()
+        self._exc = exc
+
+    def publish_from_sync(self, event: object) -> None:  # type: ignore[override]
+        raise self._exc
+
+
+class StubTopicBus:
+    def __init__(self) -> None:
+        self.events: list[tuple[str, object, str | None]] = []
+
+    def publish_sync(self, topic: str, payload: object, *, source: str | None = None) -> None:
+        self.events.append((topic, payload, source))
+
+
 def test_evaluate_system_validation_full_pass() -> None:
     report = {
         "timestamp": datetime(2025, 1, 1, tzinfo=timezone.utc).isoformat(),
@@ -81,6 +98,43 @@ def test_publish_system_validation_snapshot_emits_event() -> None:
     assert getattr(event, "type", "") == "telemetry.operational.system_validation"
     payload = getattr(event, "payload", {})
     assert payload.get("status") == SystemValidationStatus.passed.value
+
+
+def test_publish_system_validation_snapshot_falls_back_to_global_bus(monkeypatch: pytest.MonkeyPatch) -> None:
+    report = {"timestamp": datetime.now(timezone.utc).isoformat(), "total_checks": 1, "results": {"core": True}}
+    snapshot = evaluate_system_validation(report)
+
+    runtime_bus = RaisingRuntimeBus(RuntimeError("loop stopped"))
+    global_bus = StubTopicBus()
+
+    monkeypatch.setattr("src.operations.system_validation.get_global_bus", lambda: global_bus)
+
+    publish_system_validation_snapshot(runtime_bus, snapshot, source="test")
+
+    assert not runtime_bus.events
+    assert global_bus.events
+    topic, payload, source = global_bus.events[-1]
+    assert topic == "telemetry.operational.system_validation"
+    assert payload.get("status") == SystemValidationStatus.passed.value
+    assert source == "test"
+
+
+def test_publish_system_validation_snapshot_raises_on_unexpected_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    report = {"timestamp": datetime.now(timezone.utc).isoformat(), "total_checks": 1, "results": {"core": True}}
+    snapshot = evaluate_system_validation(report)
+
+    runtime_bus = RaisingRuntimeBus(ValueError("boom"))
+    global_bus = StubTopicBus()
+
+    monkeypatch.setattr("src.operations.system_validation.get_global_bus", lambda: global_bus)
+
+    with pytest.raises(ValueError):
+        publish_system_validation_snapshot(runtime_bus, snapshot, source="test")
+
+    assert not runtime_bus.events
+    assert not global_bus.events
 
 
 def test_load_system_validation_snapshot_reads_file(tmp_path) -> None:

@@ -86,7 +86,14 @@ jobs:
           PYTHONPATH: ${{ github.workspace }}
         run: |
           set -euo pipefail
-          pytest tests/current --cov=src --cov-report=term -q | tee pytest.log
+          pytest \
+            tests/current \
+            tests/data_foundation \
+            tests/operations \
+            tests/trading \
+            --cov=src \
+            --cov-report=term \
+            -q | tee pytest.log
       - name: Publish pytest summary
         if: always()
         run: |

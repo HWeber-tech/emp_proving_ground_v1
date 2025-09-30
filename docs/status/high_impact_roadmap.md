@@ -63,7 +63,9 @@ telemetry before declaring parity.【F:docs/development/remediation_plan.md†L3
 *Status:* Attention
 *Summary:* Concept chapters are mapped to code stubs, but HOW/ANOMALY organs,
 evolution pipelines, and catalogue integrations still ship as placeholders with
-`NotImplementedError` paths and thin heuristics.【F:docs/DEVELOPMENT_STATUS.md†L19-L35】
+`NotImplementedError` paths and thin heuristics; the new integrated sensory organ
+fuses WHY/WHAT/WHEN/HOW/ANOMALY signals with lineage and telemetry yet still
+relies on synthetic feeds until institutional ingest lands.【F:docs/DEVELOPMENT_STATUS.md†L19-L35】【F:src/sensory/real_sensory_organ.py†L20-L208】【F:src/sensory/real_sensory_organ.py†L210-L336】【F:tests/sensory/test_real_sensory_organ.py†L1-L107】
 *Next checkpoint:* Replace scaffolding with executable organs, wire lineage
 telemetry, and complete the evolution engine so strategies can mutate against
 real data feeds.【F:docs/development/remediation_plan.md†L92-L167】

@@ -2,7 +2,10 @@ from types import SimpleNamespace
 
 import pytest
 
-from src.governance.strategy_registry import StrategyRegistry
+from src.governance.strategy_registry import (
+    StrategyRegistry,
+    StrategyRegistryError,
+)
 
 
 def _build_provenance() -> dict[str, object]:
@@ -72,3 +75,11 @@ def test_strategy_registry_records_catalogue_provenance(tmp_path, status: str) -
     assert summary["catalogue_entry_count"] == 1
     assert summary["catalogue_missing_provenance"] == 0
     assert summary["seed_source_counts"].get("catalogue") == 1
+
+
+def test_strategy_registry_surfaces_database_errors(tmp_path) -> None:
+    invalid_path = tmp_path / "registry_dir"
+    invalid_path.mkdir()
+
+    with pytest.raises(StrategyRegistryError):
+        StrategyRegistry(db_path=str(invalid_path))

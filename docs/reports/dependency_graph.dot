@@ -5,7 +5,6 @@ digraph emp_deps {
   "src.config.evolution_config";
   "src.config.portfolio_config";
   "src.config.risk.risk_config";
-  "src.config.risk_config";
   "src.config.sensory_config";
   "src.config.system_config";
   "src.core";
@@ -317,7 +316,6 @@ digraph emp_deps {
   "src.risk" -> "src.core.risk.manager";
   "src.risk" -> "src.validation.models";
   "src.config.evolution_config" -> "src.core.evolution.engine";
-  "src.config.risk_config" -> "src.core.risk.manager";
   "src.core.configuration" -> "src.core.exceptions";
   "src.core.event_bus" -> "src.core.events";
   "src.core.population_manager" -> "src.core.interfaces";

@@ -15,8 +15,9 @@
   risk sizing pipelines.【F:docs/DEVELOPMENT_STATUS.md†L19-L35】
 - Technical debt findings flag unsupervised async tasks, hollow risk checks, and
   namespace drift that block dependable runtime assembly.【F:docs/technical_debt_assessment.md†L33-L80】
-- Deprecated configs remain in-tree, signalling unfinished de-shimming work that
-  risks misconfiguration when real services arrive.【F:src/config/risk_config.py†L1-L8】【F:src/config/evolution_config.py†L1-L8】
+- Canonical risk configuration now lives under `src/config/risk/risk_config.py`,
+  but the deprecated evolution config shim still signals unfinished de-shimming
+  work that risks misconfiguration when real services arrive.【F:src/config/risk/risk_config.py†L1-L72】【F:src/config/evolution_config.py†L1-L8】
 
 ## Gap themes
 

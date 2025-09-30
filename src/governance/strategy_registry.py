@@ -1,5 +1,5 @@
 """
-EMP Strategy Registry v1.1 - SQLite Implementation
+EMP Strategy Registry v1.2 - SQLite Implementation
 
 Persistent strategy registry using SQLite for champion genome storage.
 Implements GOV-02 ticket requirements for database-backed strategy management.
@@ -10,12 +10,11 @@ from __future__ import annotations
 import json
 import logging
 import sqlite3
-from datetime import datetime
+from contextlib import contextmanager
+from datetime import UTC, datetime
 from enum import Enum
 from pathlib import Path
-from typing import Any, Mapping, Optional, cast
-
-logger = logging.getLogger(__name__)
+from typing import Any, Iterator, Mapping, cast
 
 
 class StrategyStatus(Enum):
@@ -25,27 +24,56 @@ class StrategyStatus(Enum):
     INACTIVE = "inactive"
 
 
+class StrategyRegistryError(RuntimeError):
+    """Raised when the registry cannot persist or retrieve strategy data."""
+
+
 class StrategyRegistry:
     """Persistent strategy registry using SQLite database."""
 
-    def __init__(self, db_path: str = "governance.db"):
+    def __init__(self, db_path: str = "governance.db") -> None:
         self.db_path = Path(db_path)
-        self.conn = sqlite3.connect(self.db_path)
-        self.conn.row_factory = sqlite3.Row
+        self.db_path.parent.mkdir(parents=True, exist_ok=True)
+        self._logger = logging.getLogger(f"{__name__}.StrategyRegistry")
         self._initialize_database()
 
-    def _initialize_database(self) -> None:
-        """Initialize SQLite database with required schema."""
+    @contextmanager
+    def _managed_connection(self) -> Iterator[sqlite3.Connection]:
         try:
-            cursor = self.conn.cursor()
+            conn = sqlite3.connect(self.db_path)
+            conn.row_factory = sqlite3.Row
+        except sqlite3.Error as exc:  # pragma: no cover - sqlite connect failure
+            raise StrategyRegistryError("Unable to open strategy registry database") from exc
 
-            # Create strategies table if it doesn't exist
+        try:
+            yield conn
+            conn.commit()
+        except sqlite3.Error as exc:
+            conn.rollback()
+            raise StrategyRegistryError("Strategy registry database operation failed") from exc
+        finally:
+            conn.close()
+
+    def _initialize_database(self) -> None:
+        governance_columns = {
+            "seed_source": "TEXT",
+            "catalogue_name": "TEXT",
+            "catalogue_version": "TEXT",
+            "catalogue_seeded_at": "REAL",
+            "catalogue_metadata": "TEXT",
+            "catalogue_entry_id": "TEXT",
+            "catalogue_entry_name": "TEXT",
+            "catalogue_entry_metadata": "TEXT",
+        }
+
+        with self._managed_connection() as conn:
+            cursor = conn.cursor()
             cursor.execute(
                 """
                 CREATE TABLE IF NOT EXISTS strategies (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     genome_id TEXT UNIQUE NOT NULL,
-                    created_at TIMESTAMP NOT NULL,
+                    created_at TEXT NOT NULL,
                     dna TEXT NOT NULL,
                     fitness_report TEXT NOT NULL,
                     status TEXT NOT NULL DEFAULT 'evolved',
@@ -67,8 +95,6 @@ class StrategyRegistry:
                 )
             """
             )
-
-            # Create indexes for performance
             cursor.execute(
                 """
                 CREATE INDEX IF NOT EXISTS idx_genome_id ON strategies(genome_id)
@@ -82,32 +108,75 @@ class StrategyRegistry:
             cursor.execute(
                 """
                 CREATE INDEX IF NOT EXISTS idx_fitness_score ON strategies(fitness_score DESC)
-                """
+            """
             )
 
-            # Ensure new governance columns exist for legacy databases
             cursor.execute("PRAGMA table_info(strategies)")
             existing_columns = {row[1] for row in cursor.fetchall()}
-            governance_columns = {
-                "seed_source": "TEXT",
-                "catalogue_name": "TEXT",
-                "catalogue_version": "TEXT",
-                "catalogue_seeded_at": "REAL",
-                "catalogue_metadata": "TEXT",
-                "catalogue_entry_id": "TEXT",
-                "catalogue_entry_name": "TEXT",
-                "catalogue_entry_metadata": "TEXT",
-            }
             for column, definition in governance_columns.items():
                 if column not in existing_columns:
-                    cursor.execute(f"ALTER TABLE strategies ADD COLUMN {column} {definition}")
+                    cursor.execute(
+                        f"ALTER TABLE strategies ADD COLUMN {column} {definition}"
+                    )
 
-            self.conn.commit()
-            logger.info(f"Strategy Registry initialized with database: {self.db_path}")
+        self._logger.info("Strategy Registry initialised with database: %s", self.db_path)
 
-        except Exception as e:
-            logger.error(f"Error initializing database: {e}")
-            raise
+    def _json_loads(self, payload: str | None, context: str) -> Any | None:
+        if not payload:
+            return None
+        try:
+            return json.loads(payload)
+        except json.JSONDecodeError as exc:
+            raise StrategyRegistryError(f"{context} contains invalid JSON") from exc
+
+    def _json_mapping(self, payload: str | None, context: str) -> dict[str, Any] | None:
+        data = self._json_loads(payload, context)
+        if data is None:
+            return None
+        if not isinstance(data, dict):
+            raise StrategyRegistryError(f"{context} must be a JSON object")
+        return cast(dict[str, Any], data)
+
+    def _row_to_strategy(self, row: sqlite3.Row) -> dict[str, Any]:
+        catalogue_metadata = self._json_mapping(row["catalogue_metadata"], "catalogue_metadata")
+        catalogue_entry_metadata = self._json_mapping(
+            row["catalogue_entry_metadata"], "catalogue_entry_metadata"
+        )
+        return {
+            "id": row["id"],
+            "genome_id": row["genome_id"],
+            "created_at": row["created_at"],
+            "dna": self._json_loads(row["dna"], "dna"),
+            "fitness_report": self._json_mapping(row["fitness_report"], "fitness_report") or {},
+            "status": row["status"],
+            "strategy_name": row["strategy_name"],
+            "generation": row["generation"],
+            "fitness_score": row["fitness_score"],
+            "max_drawdown": row["max_drawdown"],
+            "sharpe_ratio": row["sharpe_ratio"],
+            "total_return": row["total_return"],
+            "volatility": row["volatility"],
+            "seed_source": row["seed_source"],
+            "catalogue_name": row["catalogue_name"],
+            "catalogue_version": row["catalogue_version"],
+            "catalogue_seeded_at": row["catalogue_seeded_at"],
+            "catalogue_metadata": catalogue_metadata,
+            "catalogue_entry_id": row["catalogue_entry_id"],
+            "catalogue_entry_name": row["catalogue_entry_name"],
+            "catalogue_entry_metadata": catalogue_entry_metadata,
+        }
+
+    def _normalise_status(
+        self, status: StrategyStatus | str | None, *, default: StrategyStatus
+    ) -> str:
+        if status is None:
+            return default.value
+        if isinstance(status, StrategyStatus):
+            return status.value
+        normalised = str(status).strip().lower()
+        if normalised in {member.value for member in StrategyStatus}:
+            return normalised
+        return default.value
 
     def register_champion(
         self,
@@ -115,92 +184,73 @@ class StrategyRegistry:
         fitness_report: dict[str, Any],
         *,
         provenance: Mapping[str, Any] | None = None,
-        status: "StrategyStatus" | str | None = None,
+        status: StrategyStatus | str | None = None,
     ) -> bool:
-        """
-        Register a champion genome with its fitness report.
+        genome_id = str(getattr(genome, "id", genome))
+        status_value = self._normalise_status(status, default=StrategyStatus.EVOLVED)
 
-        Args:
-            genome: The evolved genome object
-            fitness_report: Dictionary containing fitness metrics
-
-        Keyword Args:
-            provenance: Optional catalogue provenance metadata
-            status: Optional explicit status override. Defaults to
-                :class:`StrategyStatus.EVOLVED` when ``None`` or invalid.
-
-        Returns:
-            bool: True if registration successful, False otherwise
-        """
         try:
-            cursor = self.conn.cursor()
+            dna_source = getattr(genome, "decision_tree", None)
+            if dna_source is None:
+                dna_source = str(genome)
+            dna_json = json.dumps(dna_source, default=str)
+        except (TypeError, ValueError) as exc:
+            raise StrategyRegistryError("Unable to serialise genome DNA") from exc
 
-            # Serialize genome DNA (decision tree) to JSON
-            dna_json = json.dumps(
-                genome.decision_tree if hasattr(genome, "decision_tree") else str(genome)
-            )
+        strategy_name = getattr(genome, "name", f"genome_{genome_id}")
+        generation = getattr(genome, "generation", 0)
+        fitness_score = fitness_report.get("fitness_score", 0.0)
+        max_drawdown = fitness_report.get("max_drawdown", 0.0)
+        sharpe_ratio = fitness_report.get("sharpe_ratio", 0.0)
+        total_return = fitness_report.get("total_return", 0.0)
+        volatility = fitness_report.get("volatility", 0.0)
 
-            status_value = StrategyStatus.EVOLVED.value
-            if status is not None:
-                if isinstance(status, StrategyStatus):
-                    status_value = status.value
-                else:
-                    normalised = str(status).strip().lower()
-                    if normalised in {member.value for member in StrategyStatus}:
-                        status_value = normalised
+        seed_source: str | None = None
+        catalogue_name: str | None = None
+        catalogue_version: str | None = None
+        catalogue_seeded_at: float | None = None
+        catalogue_metadata_json: str | None = None
+        catalogue_entry_id: str | None = None
+        catalogue_entry_name: str | None = None
+        catalogue_entry_metadata_json: str | None = None
 
-            # Extract key metrics for quick querying
-            strategy_name = getattr(
-                genome, "name", f"genome_{genome.id if hasattr(genome, 'id') else 'unknown'}"
-            )
-            generation = getattr(genome, "generation", 0)
-            fitness_score = fitness_report.get("fitness_score", 0.0)
-            max_drawdown = fitness_report.get("max_drawdown", 0.0)
-            sharpe_ratio = fitness_report.get("sharpe_ratio", 0.0)
-            total_return = fitness_report.get("total_return", 0.0)
-            volatility = fitness_report.get("volatility", 0.0)
+        report_payload = dict(fitness_report)
+        metadata = report_payload.setdefault("metadata", {})
+        if provenance:
+            seed_source_value = provenance.get("seed_source")
+            if seed_source_value:
+                seed_source = str(seed_source_value)
 
-            seed_source: str | None = None
-            catalogue_name: str | None = None
-            catalogue_version: str | None = None
-            catalogue_seeded_at: float | None = None
-            catalogue_metadata_json: str | None = None
-            catalogue_entry_id: str | None = None
-            catalogue_entry_name: str | None = None
-            catalogue_entry_metadata_json: str | None = None
+            catalogue_payload = provenance.get("catalogue")
+            if isinstance(catalogue_payload, Mapping):
+                catalogue_name = str(catalogue_payload.get("name") or "") or None
+                catalogue_version = str(catalogue_payload.get("version") or "") or None
+                seeded_at_value = catalogue_payload.get("seeded_at")
+                try:
+                    catalogue_seeded_at = (
+                        float(seeded_at_value) if seeded_at_value is not None else None
+                    )
+                except (TypeError, ValueError):
+                    catalogue_seeded_at = None
+                catalogue_metadata_json = json.dumps(dict(catalogue_payload), default=str)
 
-            if provenance:
-                seed_source_value = provenance.get("seed_source")
-                if seed_source_value:
-                    seed_source = str(seed_source_value)
+            entry_payload = provenance.get("entry")
+            if isinstance(entry_payload, Mapping):
+                catalogue_entry_id = str(entry_payload.get("id") or "") or None
+                catalogue_entry_name = str(entry_payload.get("name") or "") or None
+                catalogue_entry_metadata_json = json.dumps(dict(entry_payload), default=str)
 
-                catalogue_payload = provenance.get("catalogue")
-                if isinstance(catalogue_payload, Mapping):
-                    catalogue_name = str(catalogue_payload.get("name") or "") or None
-                    catalogue_version = str(catalogue_payload.get("version") or "") or None
-                    seeded_at_value = catalogue_payload.get("seeded_at")
-                    try:
-                        catalogue_seeded_at = (
-                            float(seeded_at_value) if seeded_at_value is not None else None
-                        )
-                    except Exception:
-                        catalogue_seeded_at = None
-                    catalogue_metadata_json = json.dumps(dict(catalogue_payload))
+            if isinstance(metadata, dict):
+                metadata.setdefault("catalogue_provenance", dict(provenance))
+            else:
+                report_payload["metadata"] = {"catalogue_provenance": dict(provenance)}
 
-                entry_payload = provenance.get("entry")
-                if isinstance(entry_payload, Mapping):
-                    catalogue_entry_id = str(entry_payload.get("id") or "") or None
-                    catalogue_entry_name = str(entry_payload.get("name") or "") or None
-                    catalogue_entry_metadata_json = json.dumps(dict(entry_payload))
+        report_json = json.dumps(report_payload, default=str)
 
-                # Persist provenance inside the stored fitness report metadata
-                metadata = fitness_report.setdefault("metadata", {})
-                if isinstance(metadata, dict):
-                    metadata.setdefault("catalogue_provenance", dict(provenance))
+        created_at = datetime.now(tz=UTC).isoformat()
 
-            # Serialize fitness report after provenance enrichment
-            report_json = json.dumps(fitness_report)
-
+        with self._managed_connection() as conn:
+            cursor = conn.cursor()
             cursor.execute(
                 """
                 INSERT OR REPLACE INTO strategies
@@ -212,8 +262,8 @@ class StrategyRegistry:
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
                 (
-                    genome.id if hasattr(genome, "id") else str(genome),
-                    datetime.now(),
+                    genome_id,
+                    created_at,
                     dna_json,
                     report_json,
                     status_value,
@@ -235,231 +285,66 @@ class StrategyRegistry:
                 ),
             )
 
-            self.conn.commit()
-            logger.info(
-                f"Registered champion genome: {genome.id if hasattr(genome, 'id') else str(genome)}"
-            )
-            return True
+        self._logger.info("Registered champion genome: %s", genome_id)
+        return True
 
-        except Exception as e:
-            logger.error(f"Error registering champion: {e}")
-            self.conn.rollback()
-            return False
-
-    def get_strategy(self, strategy_id: str) -> Optional[dict[str, Any]]:
-        """
-        Retrieve a strategy by its ID.
-
-        Args:
-            strategy_id: The genome_id of the strategy
-
-        Returns:
-            Dictionary with strategy data or None if not found
-        """
-        try:
-            cursor = self.conn.cursor()
+    def get_strategy(self, strategy_id: str) -> dict[str, Any] | None:
+        with self._managed_connection() as conn:
+            cursor = conn.cursor()
             cursor.execute("SELECT * FROM strategies WHERE genome_id = ?", (strategy_id,))
             row = cursor.fetchone()
 
-            if row:
-                catalogue_metadata = row["catalogue_metadata"]
-                catalogue_entry_metadata = row["catalogue_entry_metadata"]
-                return {
-                    "id": row["id"],
-                    "genome_id": row["genome_id"],
-                    "created_at": row["created_at"],
-                    "dna": cast(dict[str, Any], json.loads(row["dna"])),
-                    "fitness_report": cast(dict[str, Any], json.loads(row["fitness_report"])),
-                    "status": row["status"],
-                    "strategy_name": row["strategy_name"],
-                    "generation": row["generation"],
-                    "fitness_score": row["fitness_score"],
-                    "max_drawdown": row["max_drawdown"],
-                    "sharpe_ratio": row["sharpe_ratio"],
-                    "total_return": row["total_return"],
-                    "volatility": row["volatility"],
-                    "seed_source": row["seed_source"],
-                    "catalogue_name": row["catalogue_name"],
-                    "catalogue_version": row["catalogue_version"],
-                    "catalogue_seeded_at": row["catalogue_seeded_at"],
-                    "catalogue_metadata": (
-                        cast(dict[str, Any], json.loads(catalogue_metadata))
-                        if catalogue_metadata
-                        else None
-                    ),
-                    "catalogue_entry_id": row["catalogue_entry_id"],
-                    "catalogue_entry_name": row["catalogue_entry_name"],
-                    "catalogue_entry_metadata": (
-                        cast(dict[str, Any], json.loads(catalogue_entry_metadata))
-                        if catalogue_entry_metadata
-                        else None
-                    ),
-                }
+        if row is None:
             return None
+        return self._row_to_strategy(row)
 
-        except Exception as e:
-            logger.error(f"Error retrieving strategy: {e}")
-            return None
-
-    def update_strategy_status(self, strategy_id: str, new_status: str) -> bool:
-        """
-        Update the status of a strategy.
-
-        Args:
-            strategy_id: The genome_id of the strategy
-            new_status: New status value
-
-        Returns:
-            bool: True if update successful, False otherwise
-        """
-        try:
-            cursor = self.conn.cursor()
+    def update_strategy_status(
+        self, strategy_id: str, new_status: StrategyStatus | str
+    ) -> bool:
+        status_value = self._normalise_status(new_status, default=StrategyStatus.EVOLVED)
+        with self._managed_connection() as conn:
+            cursor = conn.cursor()
             cursor.execute(
-                "UPDATE strategies SET status = ? WHERE genome_id = ?", (new_status, strategy_id)
+                "UPDATE strategies SET status = ? WHERE genome_id = ?",
+                (status_value, strategy_id),
             )
+            updated = cursor.rowcount > 0
 
-            if cursor.rowcount > 0:
-                self.conn.commit()
-                logger.info(f"Updated strategy {strategy_id} status to {new_status}")
-                return True
-            else:
-                logger.warning(f"Strategy {strategy_id} not found")
-                return False
-
-        except Exception as e:
-            logger.error(f"Error updating strategy status: {e}")
-            self.conn.rollback()
-            return False
+        if updated:
+            self._logger.info(
+                "Updated strategy %s status to %s", strategy_id, status_value
+            )
+        else:
+            self._logger.warning("Strategy %s not found", strategy_id)
+        return updated
 
     def get_champion_strategies(self, limit: int = 10) -> list[dict[str, Any]]:
-        """
-        Get the top performing strategies.
-
-        Args:
-            limit: Maximum number of strategies to return
-
-        Returns:
-            List of strategy dictionaries
-        """
-        try:
-            cursor = self.conn.cursor()
+        with self._managed_connection() as conn:
+            cursor = conn.cursor()
             cursor.execute(
                 """
-                SELECT * FROM strategies 
+                SELECT * FROM strategies
                 WHERE status IN ('evolved', 'approved', 'active')
                 ORDER BY fitness_score DESC
                 LIMIT ?
             """,
                 (limit,),
             )
+            rows = cursor.fetchall()
 
-            strategies = []
-            for row in cursor.fetchall():
-                catalogue_metadata = row["catalogue_metadata"]
-                catalogue_entry_metadata = row["catalogue_entry_metadata"]
-                strategies.append(
-                    {
-                        "id": row["id"],
-                        "genome_id": row["genome_id"],
-                        "created_at": row["created_at"],
-                        "dna": cast(dict[str, Any], json.loads(row["dna"])),
-                        "fitness_report": cast(dict[str, Any], json.loads(row["fitness_report"])),
-                        "status": row["status"],
-                        "strategy_name": row["strategy_name"],
-                        "generation": row["generation"],
-                        "fitness_score": row["fitness_score"],
-                        "max_drawdown": row["max_drawdown"],
-                        "sharpe_ratio": row["sharpe_ratio"],
-                        "total_return": row["total_return"],
-                        "volatility": row["volatility"],
-                        "seed_source": row["seed_source"],
-                        "catalogue_name": row["catalogue_name"],
-                        "catalogue_version": row["catalogue_version"],
-                        "catalogue_seeded_at": row["catalogue_seeded_at"],
-                        "catalogue_metadata": (
-                            cast(dict[str, Any], json.loads(catalogue_metadata))
-                            if catalogue_metadata
-                            else None
-                        ),
-                        "catalogue_entry_id": row["catalogue_entry_id"],
-                        "catalogue_entry_name": row["catalogue_entry_name"],
-                        "catalogue_entry_metadata": (
-                            cast(dict[str, Any], json.loads(catalogue_entry_metadata))
-                            if catalogue_entry_metadata
-                            else None
-                        ),
-                    }
-                )
-
-            return strategies
-
-        except Exception as e:
-            logger.error(f"Error retrieving champion strategies: {e}")
-            return []
+        return [self._row_to_strategy(row) for row in rows]
 
     def get_strategies_by_status(self, status: str) -> list[dict[str, Any]]:
-        """
-        Get all strategies with a specific status.
-
-        Args:
-            status: Status value to filter by
-
-        Returns:
-            List of strategy dictionaries
-        """
-        try:
-            cursor = self.conn.cursor()
+        with self._managed_connection() as conn:
+            cursor = conn.cursor()
             cursor.execute("SELECT * FROM strategies WHERE status = ?", (status,))
+            rows = cursor.fetchall()
 
-            strategies = []
-            for row in cursor.fetchall():
-                catalogue_metadata = row["catalogue_metadata"]
-                catalogue_entry_metadata = row["catalogue_entry_metadata"]
-                strategies.append(
-                    {
-                        "id": row["id"],
-                        "genome_id": row["genome_id"],
-                        "created_at": row["created_at"],
-                        "dna": cast(dict[str, Any], json.loads(row["dna"])),
-                        "fitness_report": cast(dict[str, Any], json.loads(row["fitness_report"])),
-                        "status": row["status"],
-                        "strategy_name": row["strategy_name"],
-                        "generation": row["generation"],
-                        "fitness_score": row["fitness_score"],
-                        "seed_source": row["seed_source"],
-                        "catalogue_name": row["catalogue_name"],
-                        "catalogue_version": row["catalogue_version"],
-                        "catalogue_seeded_at": row["catalogue_seeded_at"],
-                        "catalogue_metadata": (
-                            cast(dict[str, Any], json.loads(catalogue_metadata))
-                            if catalogue_metadata
-                            else None
-                        ),
-                        "catalogue_entry_id": row["catalogue_entry_id"],
-                        "catalogue_entry_name": row["catalogue_entry_name"],
-                        "catalogue_entry_metadata": (
-                            cast(dict[str, Any], json.loads(catalogue_entry_metadata))
-                            if catalogue_entry_metadata
-                            else None
-                        ),
-                    }
-                )
-
-            return strategies
-
-        except Exception as e:
-            logger.error(f"Error retrieving strategies by status: {e}")
-            return []
+        return [self._row_to_strategy(row) for row in rows]
 
     def get_registry_summary(self) -> dict[str, Any]:
-        """
-        Get summary statistics of the registry.
-
-        Returns:
-            Dictionary with registry statistics
-        """
-        try:
-            cursor = self.conn.cursor()
+        with self._managed_connection() as conn:
+            cursor = conn.cursor()
             cursor.execute(
                 """
                 SELECT
@@ -488,23 +373,9 @@ class StrategyRegistry:
                 FROM strategies
             """
             )
-
-            row = cursor.fetchone()
-
-            summary: dict[str, Any] = {
-                "total_strategies": row["total_strategies"],
-                "evolved_count": row["evolved_count"],
-                "approved_count": row["approved_count"],
-                "active_count": row["active_count"],
-                "avg_fitness_score": row["avg_fitness_score"] or 0.0,
-                "max_fitness_score": row["max_fitness_score"] or 0.0,
-                "min_fitness_score": row["min_fitness_score"] or 0.0,
-                "catalogue_seeded": row["catalogue_seeded"],
-                "catalogue_entry_count": row["catalogue_entry_count"],
-                "catalogue_missing_provenance": row["catalogue_missing_provenance"],
-                "latest_catalogue_seeded_at": row["latest_catalogue_seeded_at"],
-                "database_path": str(self.db_path),
-            }
+            summary_row = cursor.fetchone()
+            if summary_row is None:
+                raise StrategyRegistryError("Failed to read registry summary")
 
             cursor.execute(
                 """
@@ -517,7 +388,6 @@ class StrategyRegistry:
             for source_row in cursor.fetchall():
                 key = source_row["seed_source"] or ""
                 seed_source_counts[str(key)] = source_row["count"]
-            summary["seed_source_counts"] = seed_source_counts
 
             cursor.execute(
                 """
@@ -536,8 +406,6 @@ class StrategyRegistry:
                     catalogue_names.add(str(name))
                 if version:
                     catalogue_versions.add(str(version))
-            summary["catalogue_names"] = sorted(catalogue_names)
-            summary["catalogue_versions"] = sorted(catalogue_versions)
 
             cursor.execute(
                 """
@@ -549,26 +417,35 @@ class StrategyRegistry:
             """
             )
             latest_catalogue_row = cursor.fetchone()
-            if latest_catalogue_row and latest_catalogue_row["catalogue_metadata"]:
-                try:
-                    summary["latest_catalogue_metadata"] = json.loads(
-                        latest_catalogue_row["catalogue_metadata"]
-                    )
-                except Exception:
-                    summary["latest_catalogue_metadata"] = None
 
-            return summary
+        summary: dict[str, Any] = {
+            "total_strategies": summary_row["total_strategies"],
+            "evolved_count": summary_row["evolved_count"],
+            "approved_count": summary_row["approved_count"],
+            "active_count": summary_row["active_count"],
+            "avg_fitness_score": summary_row["avg_fitness_score"] or 0.0,
+            "max_fitness_score": summary_row["max_fitness_score"] or 0.0,
+            "min_fitness_score": summary_row["min_fitness_score"] or 0.0,
+            "catalogue_seeded": summary_row["catalogue_seeded"],
+            "catalogue_entry_count": summary_row["catalogue_entry_count"],
+            "catalogue_missing_provenance": summary_row["catalogue_missing_provenance"],
+            "latest_catalogue_seeded_at": summary_row["latest_catalogue_seeded_at"],
+            "database_path": str(self.db_path),
+            "seed_source_counts": seed_source_counts,
+            "catalogue_names": sorted(catalogue_names),
+            "catalogue_versions": sorted(catalogue_versions),
+        }
 
-        except Exception as e:
-            logger.error(f"Error getting registry summary: {e}")
-            return {"error": str(e)}
+        if latest_catalogue_row and latest_catalogue_row["catalogue_metadata"]:
+            summary["latest_catalogue_metadata"] = self._json_mapping(
+                latest_catalogue_row["catalogue_metadata"], "latest_catalogue_metadata"
+            )
 
-    def close(self) -> None:
-        """Close database connection."""
-        if self.conn:
-            self.conn.close()
-            logger.info("Strategy Registry database connection closed")
+        return summary
 
-    def __del__(self) -> None:
-        """Cleanup database connection on destruction."""
-        self.close()
+
+__all__ = [
+    "StrategyRegistry",
+    "StrategyRegistryError",
+    "StrategyStatus",
+]

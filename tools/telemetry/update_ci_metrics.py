@@ -8,6 +8,7 @@ from typing import Sequence
 from .ci_metrics import (
     DEFAULT_METRICS_PATH,
     record_coverage,
+    record_coverage_domains,
     record_formatter,
 )
 
@@ -35,6 +36,17 @@ def _build_parser() -> argparse.ArgumentParser:
         "--coverage-label",
         type=str,
         help="Label to associate with the recorded coverage entry (defaults to UTC timestamp)",
+    )
+    parser.add_argument(
+        "--no-domain-breakdown",
+        action="store_true",
+        help="Skip recording per-domain coverage snapshots when recording coverage",
+    )
+    parser.add_argument(
+        "--domain-threshold",
+        type=float,
+        default=80.0,
+        help="Threshold for flagging lagging domains in coverage telemetry",
     )
     parser.add_argument(
         "--allowlist",
@@ -76,6 +88,14 @@ def main(argv: Sequence[str] | None = None) -> int:
             label=coverage_label,
             data=metrics_data,
         )
+        if not args.no_domain_breakdown:
+            metrics_data = record_coverage_domains(
+                metrics_path,
+                args.coverage_report,
+                label=coverage_label,
+                threshold=args.domain_threshold,
+                data=metrics_data,
+            )
 
     if formatter_mode is not None:
         if formatter_mode == "allowlist" and args.allowlist is None:

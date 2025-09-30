@@ -7,6 +7,7 @@ from tools.telemetry.ci_metrics import (
     load_metrics,
     parse_coverage_percentage,
     record_coverage,
+    record_coverage_domains,
     record_formatter,
 )
 from tools.telemetry.update_ci_metrics import main as update_ci_metrics
@@ -39,6 +40,30 @@ COVERAGE_XML_WITH_LINES = """<?xml version='1.0'?>
 ALLOWLIST_SAMPLE = """# comment
 src/core/
 src/module.py
+"""
+
+COVERAGE_WITH_FILENAMES = """<?xml version='1.0'?>
+<coverage>
+  <packages>
+    <package>
+      <classes>
+        <class filename='src/core/example.py'>
+          <lines>
+            <line number='1' hits='1'/>
+            <line number='2' hits='0'/>
+          </lines>
+        </class>
+        <class filename='src/trading/alpha.py'>
+          <lines>
+            <line number='1' hits='1'/>
+            <line number='2' hits='1'/>
+            <line number='3' hits='0'/>
+          </lines>
+        </class>
+      </classes>
+    </package>
+  </packages>
+</coverage>
 """
 
 
@@ -76,6 +101,7 @@ def test_record_coverage_appends_entry(tmp_path: Path) -> None:
         }
     ]
     assert stored["formatter_trend"] == []
+    assert stored["coverage_domain_trend"] == []
 
 
 def test_record_formatter_counts_allowlist_entries(tmp_path: Path) -> None:
@@ -96,6 +122,7 @@ def test_record_formatter_counts_allowlist_entries(tmp_path: Path) -> None:
         }
     ]
     assert stored["coverage_trend"] == []
+    assert stored["coverage_domain_trend"] == []
 
 
 def test_record_formatter_global_mode_records_zero_counts(tmp_path: Path) -> None:
@@ -113,13 +140,40 @@ def test_record_formatter_global_mode_records_zero_counts(tmp_path: Path) -> Non
             "file_count": 0,
         }
     ]
+    assert stored["coverage_trend"] == []
+    assert stored["coverage_domain_trend"] == []
+
+
+def test_record_coverage_domains_appends_entry(tmp_path: Path) -> None:
+    metrics_path = tmp_path / "metrics.json"
+    coverage_path = tmp_path / "coverage.xml"
+    coverage_path.write_text(COVERAGE_WITH_FILENAMES)
+
+    record_coverage_domains(
+        metrics_path,
+        coverage_path,
+        label="domains-1",
+        threshold=90.0,
+    )
+
+    stored = json.loads(metrics_path.read_text())
+    assert stored["coverage_domain_trend"]
+    entry = stored["coverage_domain_trend"][0]
+    assert entry["label"] == "domains-1"
+    assert entry["source"] == str(coverage_path)
+    assert entry["threshold"] == 90.0
+    assert entry["lagging_domains"] == ["core", "trading"]
+    assert entry["totals"]["files"] == 2
+    assert isinstance(entry["generated_at"], str)
+    domain_names = [domain["name"] for domain in entry["domains"]]
+    assert domain_names == ["core", "trading"]
 
 
 def test_update_ci_metrics_cli_updates_both(tmp_path: Path) -> None:
     metrics_path = tmp_path / "metrics.json"
     coverage_path = tmp_path / "coverage.xml"
     allowlist = tmp_path / "allowlist.txt"
-    coverage_path.write_text(COVERAGE_XML_WITH_LINES)
+    coverage_path.write_text(COVERAGE_WITH_FILENAMES)
     allowlist.write_text(ALLOWLIST_SAMPLE)
 
     exit_code = update_ci_metrics(
@@ -145,6 +199,8 @@ def test_update_ci_metrics_cli_updates_both(tmp_path: Path) -> None:
     assert stored["coverage_trend"][-1]["label"] == "coverage-sample"
     assert stored["formatter_trend"][-1]["label"] == "formatter-sample"
     assert stored["formatter_trend"][-1]["total_entries"] == 2
+    assert stored["coverage_domain_trend"][-1]["label"] == "coverage-sample"
+    assert stored["coverage_domain_trend"][-1]["domains"]
 
 
 def test_update_ci_metrics_cli_handles_global_mode(tmp_path: Path) -> None:
@@ -171,6 +227,29 @@ def test_update_ci_metrics_cli_handles_global_mode(tmp_path: Path) -> None:
         "directory_count": 0,
         "file_count": 0,
     }
+    assert stored["coverage_domain_trend"] == []
+
+
+def test_update_ci_metrics_cli_can_skip_domain_breakdown(tmp_path: Path) -> None:
+    metrics_path = tmp_path / "metrics.json"
+    coverage_path = tmp_path / "coverage.xml"
+    coverage_path.write_text(COVERAGE_WITH_FILENAMES)
+
+    exit_code = update_ci_metrics(
+        [
+            "--metrics",
+            str(metrics_path),
+            "--coverage-report",
+            str(coverage_path),
+            "--no-domain-breakdown",
+        ]
+    )
+
+    assert exit_code == 0
+
+    stored = json.loads(metrics_path.read_text())
+    assert stored["coverage_trend"]
+    assert stored["coverage_domain_trend"] == []
 
 
 def test_load_metrics_returns_defaults_when_missing(tmp_path: Path) -> None:
@@ -178,4 +257,8 @@ def test_load_metrics_returns_defaults_when_missing(tmp_path: Path) -> None:
 
     metrics = load_metrics(metrics_path)
 
-    assert metrics == {"coverage_trend": [], "formatter_trend": []}
+    assert metrics == {
+        "coverage_trend": [],
+        "formatter_trend": [],
+        "coverage_domain_trend": [],
+    }

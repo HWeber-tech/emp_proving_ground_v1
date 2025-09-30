@@ -6,16 +6,23 @@ from pathlib import Path
 from typing import Any, Iterable
 import xml.etree.ElementTree as ET
 
+from .coverage_matrix import build_coverage_matrix
+
 DEFAULT_METRICS_PATH = Path("tests/.telemetry/ci_metrics.json")
 
 
 def _empty_metrics() -> dict[str, Any]:
-    return {"coverage_trend": [], "formatter_trend": []}
+    return {
+        "coverage_trend": [],
+        "formatter_trend": [],
+        "coverage_domain_trend": [],
+    }
 
 
 def _ensure_defaults(data: dict[str, Any]) -> dict[str, Any]:
     data.setdefault("coverage_trend", [])
     data.setdefault("formatter_trend", [])
+    data.setdefault("coverage_domain_trend", [])
     return data
 
 
@@ -33,6 +40,7 @@ def save_metrics(path: Path, data: dict[str, Any]) -> None:
     serialisable = {
         "coverage_trend": list(data.get("coverage_trend", [])),
         "formatter_trend": list(data.get("formatter_trend", [])),
+        "coverage_domain_trend": list(data.get("coverage_domain_trend", [])),
     }
     path.write_text(json.dumps(serialisable, indent=2, sort_keys=True) + "\n")
 
@@ -90,6 +98,40 @@ def record_coverage(
         "source": str(coverage_report),
     }
     metrics["coverage_trend"].append(entry)
+    save_metrics(metrics_path, metrics)
+    return metrics
+
+
+def record_coverage_domains(
+    metrics_path: Path,
+    coverage_report: Path,
+    *,
+    label: str | None = None,
+    threshold: float | None = 80.0,
+    data: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    if not coverage_report.exists():
+        raise FileNotFoundError(f"Coverage report not found: {coverage_report}")
+
+    metrics = _ensure_defaults(data or load_metrics(metrics_path))
+    matrix = build_coverage_matrix(coverage_report)
+    entry: dict[str, Any] = {
+        "label": label or _timestamp_label(),
+        "source": str(coverage_report),
+        "generated_at": matrix.generated_at,
+        "totals": matrix.totals.as_dict(),
+        "domains": [domain.as_dict() for domain in matrix.domains],
+    }
+
+    if threshold is not None:
+        entry["threshold"] = float(threshold)
+        entry["lagging_domains"] = [
+            domain["name"]
+            for domain in entry["domains"]
+            if float(domain["coverage_percent"]) < float(threshold)
+        ]
+
+    metrics["coverage_domain_trend"].append(entry)
     save_metrics(metrics_path, metrics)
     return metrics
 
@@ -155,6 +197,7 @@ __all__ = [
     "DEFAULT_METRICS_PATH",
     "load_metrics",
     "record_coverage",
+    "record_coverage_domains",
     "record_formatter",
     "parse_coverage_percentage",
     "save_metrics",

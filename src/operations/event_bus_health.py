@@ -249,10 +249,15 @@ def publish_event_bus_health(event_bus: EventBus, snapshot: EventBusHealthSnapsh
                 "Primary event bus publish_from_sync failed; falling back to global bus",
                 exc_info=exc,
             )
-        except Exception:  # pragma: no cover - unexpected failure path
+        except Exception:
+            # Unexpected failures should surface instead of being silently
+            # swallowed behind the fallback path so operators see the root
+            # cause. This keeps the remediation-plan promise of tightening
+            # blanket exception handlers in operational modules.
             logger.exception(
-                "Unexpected error publishing event bus health; falling back to global bus",
+                "Unexpected error publishing event bus health from primary bus",
             )
+            raise
         else:
             if publish_result is not None:
                 return

@@ -92,7 +92,9 @@ async def test_publish_event_bus_health_dispatches_snapshot() -> None:
     await bus.stop()
 
 
-def test_publish_event_bus_health_falls_back_to_global_bus(monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture) -> None:
+def test_publish_event_bus_health_falls_back_to_global_bus(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
     class _DummyTopicBus:
         def __init__(self) -> None:
             self.published: list[tuple[str, Any, str | None]] = []
@@ -126,3 +128,20 @@ def test_publish_event_bus_health_falls_back_to_global_bus(monkeypatch: pytest.M
     assert captured_topic_bus.published
     messages = " ".join(record.getMessage() for record in caplog.records)
     assert "falling back to global bus" in messages
+
+
+def test_publish_event_bus_health_raises_on_unexpected_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    bus = EventBus()
+
+    def _unexpected(_: Event) -> None:
+        raise ValueError("boom")
+
+    monkeypatch.setattr(bus, "publish_from_sync", _unexpected)
+    monkeypatch.setattr(bus, "is_running", lambda: True)
+
+    snapshot = evaluate_event_bus_health(bus, expected=False)
+
+    with pytest.raises(ValueError):
+        publish_event_bus_health(bus, snapshot)

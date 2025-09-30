@@ -101,9 +101,9 @@ Dead code candidates (first 100):
 -  src\core\risk\stress_testing.py
 -  src\core\risk\var_calculator.py
 -  src\core\strategy\engine.py
--  src\core\strategy\templates\mean_reversion.py
--  src\core\strategy\templates\moving_average.py
--  src\core\strategy\templates\trend_strategies.py
+-  ~~src\core\strategy\templates\mean_reversion.py~~ (removed; canonical mean reversion lives under `src/trading/strategies/mean_reversion.py`).
+-  ~~src\core\strategy\templates\moving_average.py~~ (removed alongside template package retirement).
+-  ~~src\core\strategy\templates\trend_strategies.py~~ (removed alongside template package retirement).
 -  src\data_foundation\schemas.py
 -  src\data_foundation\config\execution_config.py
 -  src\data_foundation\config\risk_portfolio_config.py
@@ -174,6 +174,9 @@ Dead code candidates (first 100):
 -  src\sensory\organs\dimensions\real_sensory_organ.py
 -  src\sensory\organs\dimensions\sensory_signal.py
 Total candidates: 168
+
+Cleanup updates since last audit:
+-  Retired the legacy `scripts/verify_complete_system.py` harness which depended on removed strategy templates.
 
 ## Latest Duplicate Map (AST-based, Phase 1)
 

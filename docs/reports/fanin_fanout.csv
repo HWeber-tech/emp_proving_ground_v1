@@ -3,7 +3,6 @@ src,0,0
 src.config.evolution_config,0,1
 src.config.portfolio_config,1,0
 src.config.risk.risk_config,3,0
-src.config.risk_config,0,1
 src.config.sensory_config,0,0
 src.config.system_config,1,0
 src.core,6,3

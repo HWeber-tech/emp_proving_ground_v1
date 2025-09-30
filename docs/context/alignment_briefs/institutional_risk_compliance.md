@@ -15,8 +15,9 @@
 - Technical debt audits highlight hollow risk enforcement, unsupervised async
   entrypoints, and namespace drift (`get_risk_manager` export) that mislead API
   consumers.【F:docs/technical_debt_assessment.md†L33-L80】【F:src/core/__init__.py†L11-L51】
-- Deprecated config modules remain, and dead-code sweeps list multiple risk and
-  compliance files as unused, complicating canonicalisation.【F:src/config/risk_config.py†L1-L8】【F:docs/reports/CLEANUP_REPORT.md†L71-L175】
+- Canonical risk configuration now resides in `src/config/risk/risk_config.py`,
+  yet dead-code sweeps still list additional risk and compliance files as unused,
+  complicating canonicalisation.【F:src/config/risk/risk_config.py†L1-L72】【F:docs/reports/CLEANUP_REPORT.md†L71-L175】
 
 ## Gap themes
 

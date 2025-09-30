@@ -12,7 +12,7 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
 | Delivery state | The codebase is still a development framework: evolution, intelligence, execution, and strategy layers run on mocks; there is no production ingest, risk sizing, or portfolio management. | 【F:docs/DEVELOPMENT_STATUS.md†L7-L35】 |
 | Quality posture | CI passes with 76% coverage, but hotspots include operational metrics, position models, and configuration loaders; runtime validation checks still fail. | 【F:docs/ci_baseline_report.md†L8-L27】【F:docs/technical_debt_assessment.md†L31-L112】 |
 | Debt hotspots | Hollow risk management, unsupervised async tasks, namespace drift, and deprecated exports continue to surface in audits. | 【F:docs/technical_debt_assessment.md†L33-L80】【F:src/core/__init__.py†L11-L51】 |
-| Legacy footprint | Deprecated configs and legacy integration guides remain in the tree, signalling unfinished cleanup. | 【F:src/config/risk_config.py†L1-L8】【F:src/config/evolution_config.py†L1-L8】【F:docs/legacy/README.md†L1-L12】 |
+| Legacy footprint | Canonical risk config has replaced the deprecated shim while the evolution shim and legacy integration guides remain, signalling unfinished cleanup. | 【F:src/config/risk/risk_config.py†L1-L72】【F:src/config/evolution_config.py†L1-L8】【F:docs/legacy/README.md†L1-L12】 |
 
 ## Gaps to close
 
@@ -26,6 +26,8 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
   documentation gap, and track remediation progress through CI snapshots.
 - [ ] **Dead code and duplication** – Triage the 168-file dead-code backlog and
   eliminate shim exports so operators see a single canonical API surface.【F:docs/reports/CLEANUP_REPORT.md†L71-L188】
+  - *Progress*: Removed the deprecated `src/config/risk_config.py` shim so risk
+    consumers converge on the canonical configuration module.【F:src/config/risk/risk_config.py†L1-L72】
 
 ## Roadmap cadence
 
@@ -42,6 +44,9 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
     - *Progress*: Hardened the SQLite-backed real portfolio monitor with managed
       connections, parameterised statements, and narrowed exception handling to
       surface operational failures instead of masking them.【F:src/trading/portfolio/real_portfolio_monitor.py†L1-L572】
+    - *Progress*: Strategy registry now opens per-operation SQLite connections,
+      raises typed errors, and uses parameterised statements so governance writes
+      are supervised instead of silently swallowed.【F:src/governance/strategy_registry.py†L1-L347】
 - [x] **Context pack refresh** – Replace legacy briefs with the updated context in
   `docs/context/alignment_briefs` so discovery and reviews inherit the same
   narrative reset (this change set).
@@ -82,6 +87,8 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
 | [ ] | Roll out deterministic risk API and supervised runtime builder across execution modules | Execution & risk squad | Now/Next → Risk and runtime safety |
 | [ ] | Expand CI to cover ingest orchestration, risk policies, and observability guardrails | Quality guild | Now → Quality and observability |
 | [ ] | Purge deprecated shims and close dead-code backlog | Platform hygiene crew | Later → Dead code and duplication |
+
+- *Progress*: Risk configuration now sources exclusively from `src/config/risk/risk_config.py`; the evolution shim remains queued for removal.【F:src/config/risk/risk_config.py†L1-L72】【F:src/config/evolution_config.py†L1-L8】
 
 ## Execution guardrails
 

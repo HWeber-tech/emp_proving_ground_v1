@@ -79,7 +79,7 @@ Dead code candidates (first 100):
 -  src\risk.py
 -  src\config\evolution_config.py
 -  src\config\portfolio_config.py
--  src\config\risk_config.py
+-  ~~src\config\risk_config.py~~ (removed; canonical risk config lives at `src/config/risk/risk_config.py`).【F:src/config/risk/risk_config.py†L1-L72】
 -  src\config\sensory_config.py
 -  src\core\configuration.py
 -  src\core\context_packet.py

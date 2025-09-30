@@ -26,14 +26,14 @@ backlog grooming, release readiness reviews, and post-mortems.
    and acceptance tests that demonstrate failover and telemetry parity.
 2. Adopt the runtime builder end to end so ingest, cache warmers, and streaming
    consumers register under supervised tasks instead of ad-hoc loops.
-3. Replace deprecated config shims (`src/config/risk_config.py`,
-   `src/config/evolution_config.py`) with canonical modules throughout the ingest
-   stack to avoid namespace drift.【F:src/config/risk_config.py†L1-L8】【F:src/config/evolution_config.py†L1-L8】
+3. Finish removing deprecated config shims now that the canonical risk
+   configuration lives in `src/config/risk/risk_config.py`; the evolution shim
+   still needs replacement to avoid namespace drift.【F:src/config/risk/risk_config.py†L1-L72】【F:src/config/evolution_config.py†L1-L8】
 
 **Actionable checklist:**
 - [ ] Timescale/Redis/Kafka services provisioned with supervised connectors and failover tests.
 - [ ] Runtime builder adoption complete for ingest, cache warmers, and streaming consumers.
-- [ ] Deprecated config shims replaced with canonical modules across ingest surfaces.【F:src/config/risk_config.py†L1-L8】【F:src/config/evolution_config.py†L1-L8】
+- [ ] Deprecated config shims replaced with canonical modules across ingest surfaces; risk uses `src/config/risk/risk_config.py`, evolution shim remains.【F:src/config/risk/risk_config.py†L1-L72】【F:src/config/evolution_config.py†L1-L8】
 
 **Validation hooks:**
 - Builder-driven smoke test that loads institutional credentials and exercises
@@ -94,7 +94,8 @@ backlog grooming, release readiness reviews, and post-mortems.
 - Runtime entrypoints partially adopt the new builder while legacy modules keep
   spawning unsupervised async tasks, creating shutdown hazards.【F:docs/technical_debt_assessment.md†L33-L56】
 - Public exports advertise helpers that do not exist (`get_risk_manager`), and
-  deprecated config shims remain in the tree.【F:src/core/__init__.py†L11-L51】【F:src/config/risk_config.py†L1-L8】
+  the evolution config shim remains in the tree even after consolidating risk
+  configuration under the canonical module.【F:src/core/__init__.py†L11-L51】【F:src/config/evolution_config.py†L1-L8】
 
 **Gaps to close:**
 1. Finalise the runtime builder migration, introduce a `TaskSupervisor`, and

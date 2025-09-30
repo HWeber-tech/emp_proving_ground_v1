@@ -1,69 +1,138 @@
-"""
-Health Monitor System
-====================
+"""Operational health monitor with supervised background execution."""
 
-Monitors system health and performance across all components.
-"""
+from __future__ import annotations
 
 import asyncio
 import logging
-import uuid
-from datetime import datetime
-from typing import Any, Dict, Optional
+from collections.abc import Coroutine, Mapping
+from datetime import UTC, datetime
+from typing import Any, Protocol, TypeVar, runtime_checkable
+from uuid import uuid4
 
 from src.core.event_bus import EventBus
 from src.core.state_store import StateStore
 
 logger = logging.getLogger(__name__)
 
+_T = TypeVar("_T")
+
+
+@runtime_checkable
+class SupportsTaskSupervision(Protocol):
+    """Protocol implemented by task supervisors used by the runtime."""
+
+    def create(
+        self,
+        coro: Coroutine[Any, Any, _T],
+        *,
+        name: str | None = None,
+        metadata: Mapping[str, Any] | None = None,
+    ) -> asyncio.Task[_T]:
+        ...
+
 
 class HealthMonitor:
-    """Monitors system health and performance."""
+    """Monitors system health and emits alerts when critical thresholds trigger."""
 
-    def __init__(self, state_store: StateStore, event_bus: EventBus):
-        self.state_store = state_store
-        self.event_bus = event_bus
-        self.is_running = False
-        self.check_interval = 60  # seconds
-        self.health_history: list[dict[str, object]] = []
+    def __init__(
+        self,
+        state_store: StateStore,
+        event_bus: EventBus,
+        *,
+        task_supervisor: SupportsTaskSupervision | None = None,
+        check_interval_seconds: float = 60.0,
+    ) -> None:
+        self._state_store = state_store
+        self._event_bus = event_bus
+        self._check_interval = float(check_interval_seconds)
+        if self._check_interval <= 0:
+            raise ValueError("check_interval_seconds must be positive")
+        self._task_supervisor = task_supervisor or _create_task_supervisor()
+        self._monitor_task: asyncio.Task[None] | None = None
+        self._stop_signal = asyncio.Event()
+        self._is_running = False
+        self.health_history: list[dict[str, Any]] = []
+
+    @property
+    def is_running(self) -> bool:
+        return self._is_running
 
     async def start(self) -> bool:
-        """Start health monitoring."""
-        if self.is_running:
+        """Start the background health monitoring loop under supervision."""
+
+        if self.is_running and self._monitor_task and not self._monitor_task.done():
             return True
 
-        self.is_running = True
-        asyncio.create_task(self._monitor_loop())
+        self._is_running = True
+        self._stop_signal.clear()
+        self._monitor_task = self._task_supervisor.create(
+            self._monitor_loop(),
+            name="health-monitor",
+            metadata={"component": "health-monitor"},
+        )
         logger.info("Health monitor started")
         return True
 
     async def stop(self) -> bool:
-        """Stop health monitoring."""
-        self.is_running = False
+        """Stop the monitoring loop and wait for graceful shutdown."""
+
+        if not self.is_running:
+            return True
+
+        self._is_running = False
+        self._stop_signal.set()
+        monitor_task = self._monitor_task
+        if monitor_task is not None:
+            try:
+                await monitor_task
+            except asyncio.CancelledError:
+                logger.debug("Health monitor task cancelled during shutdown")
+            except Exception:  # pragma: no cover - defensive logging
+                logger.exception("Health monitor task failed during shutdown")
+            finally:
+                self._monitor_task = None
+
         logger.info("Health monitor stopped")
         return True
 
     async def _monitor_loop(self) -> None:
-        """Main monitoring loop."""
-        while self.is_running:
+        """Main monitoring loop executed under supervision."""
+
+        try:
+            while self.is_running:
+                await self._process_cycle()
+                try:
+                    await asyncio.wait_for(self._stop_signal.wait(), timeout=self._check_interval)
+                except asyncio.TimeoutError:
+                    continue
+                else:
+                    break
+        except asyncio.CancelledError:
+            logger.debug("Health monitor loop cancelled")
+            raise
+
+    async def _process_cycle(self) -> None:
+        try:
+            health_check = await self._perform_health_check()
+        except Exception:
+            logger.exception("Error performing health check")
+            return
+
+        await self._store_health_check(health_check)
+
+        if health_check.get("status") == "CRITICAL":
             try:
-                health_check = await self._perform_health_check()
-                await self._store_health_check(health_check)
+                await self._event_bus.emit("health_critical", health_check)
+            except Exception:
+                logger.exception("Failed to emit health_critical event")
 
-                if health_check.get("status") == "CRITICAL":
-                    await self.event_bus.emit("health_critical", health_check)
+    async def _perform_health_check(self) -> dict[str, Any]:
+        """Perform comprehensive health check across subsystems."""
 
-                await asyncio.sleep(self.check_interval)
-
-            except Exception as e:
-                logger.error(f"Error in health monitoring: {e}")
-                await asyncio.sleep(self.check_interval)
-
-    async def _perform_health_check(self) -> Dict[str, Any]:
-        """Perform comprehensive health check."""
+        timestamp = datetime.now(UTC)
         return {
-            "check_id": str(uuid.uuid4()),
-            "timestamp": datetime.utcnow().isoformat(),
+            "check_id": str(uuid4()),
+            "timestamp": timestamp.isoformat(),
             "status": "HEALTHY",
             "components": {
                 "state_store": await self._check_state_store(),
@@ -74,100 +143,106 @@ class HealthMonitor:
             },
         }
 
-    async def _check_state_store(self) -> Dict[str, Any]:
-        """Check state store health."""
+    async def _check_state_store(self) -> dict[str, Any]:
         try:
-            await self.state_store.set("health_check", "test")
-            value = await self.state_store.get("health_check")
-            return {"status": "HEALTHY", "response_time": 0.001}
-        except Exception as e:
-            return {"status": "ERROR", "error": str(e)}
+            await self._state_store.set("health_check", "test", expire=60)
+            await self._state_store.get("health_check")
+            return {"status": "HEALTHY"}
+        except Exception as exc:  # pragma: no cover - defensive log path
+            logger.exception("State store check failed")
+            return {"status": "ERROR", "error": str(exc)}
 
-    async def _check_event_bus(self) -> Dict[str, Any]:
-        """Check event bus health."""
+    async def _check_event_bus(self) -> dict[str, Any]:
         try:
-            return {"status": "HEALTHY", "subscribers": 0}
-        except Exception as e:
-            return {"status": "ERROR", "error": str(e)}
+            return {"status": "HEALTHY"}
+        except Exception as exc:  # pragma: no cover - placeholder for future instrumentation
+            logger.exception("Event bus check failed")
+            return {"status": "ERROR", "error": str(exc)}
 
-    async def _check_memory(self) -> Dict[str, Any]:
-        """Check memory usage."""
+    async def _check_memory(self) -> dict[str, Any]:
         try:
-            import psutil
+            import psutil  # type: ignore[import-not-found]
 
             memory = psutil.virtual_memory()
             return {
                 "status": "HEALTHY" if memory.percent < 90 else "WARNING",
-                "usage_percent": memory.percent,
-                "available_gb": memory.available / (1024**3),
+                "usage_percent": float(memory.percent),
+                "available_gb": float(memory.available / (1024**3)),
             }
-        except:
-            return {"status": "UNKNOWN", "usage_percent": 0}
+        except (ImportError, AttributeError, RuntimeError) as exc:
+            logger.debug("Memory inspection unavailable: %s", exc)
+            return {"status": "UNKNOWN", "usage_percent": 0.0}
 
-    async def _check_cpu(self) -> Dict[str, Any]:
-        """Check CPU usage."""
+    async def _check_cpu(self) -> dict[str, Any]:
         try:
-            import psutil
+            import psutil  # type: ignore[import-not-found]
 
-            cpu_percent = psutil.cpu_percent(interval=1)
+            cpu_percent = float(psutil.cpu_percent(interval=0.1))
             return {
                 "status": "HEALTHY" if cpu_percent < 80 else "WARNING",
                 "usage_percent": cpu_percent,
             }
-        except:
-            return {"status": "UNKNOWN", "usage_percent": 0}
+        except (ImportError, AttributeError, RuntimeError) as exc:
+            logger.debug("CPU inspection unavailable: %s", exc)
+            return {"status": "UNKNOWN", "usage_percent": 0.0}
 
-    async def _check_disk(self) -> Dict[str, Any]:
-        """Check disk usage."""
+    async def _check_disk(self) -> dict[str, Any]:
         try:
-            import psutil
+            import psutil  # type: ignore[import-not-found]
 
             disk = psutil.disk_usage("/")
             return {
                 "status": "HEALTHY" if disk.percent < 90 else "WARNING",
-                "usage_percent": disk.percent,
-                "free_gb": disk.free / (1024**3),
+                "usage_percent": float(disk.percent),
+                "free_gb": float(disk.free / (1024**3)),
             }
-        except:
-            return {"status": "UNKNOWN", "usage_percent": 0}
+        except (ImportError, AttributeError, OSError) as exc:
+            logger.debug("Disk inspection unavailable: %s", exc)
+            return {"status": "UNKNOWN", "usage_percent": 0.0}
 
-    async def _store_health_check(self, health_check: Dict[str, Any]) -> None:
-        """Store health check results."""
+    async def _store_health_check(self, health_check: dict[str, Any]) -> None:
         try:
-            key = f"health_check:{datetime.utcnow().date()}"
-            await self.state_store.set(key, str(health_check), expire=86400)
+            key = f"health_check:{datetime.now(UTC).date()}"
+            await self._state_store.set(key, str(health_check), expire=86_400)
             self.health_history.append(health_check)
-
-            # Keep only last 100 checks
             if len(self.health_history) > 100:
-                self.health_history = self.health_history[-100:]
+                del self.health_history[:-100]
+        except Exception:
+            logger.exception("Error storing health check")
 
-        except Exception as e:
-            logger.error(f"Error storing health check: {e}")
-
-    async def get_health_summary(self) -> Dict[str, Any]:
-        """Get health summary."""
+    async def get_health_summary(self) -> dict[str, Any]:
         if not self.health_history:
             return {"status": "NO_DATA", "message": "No health checks performed"}
 
         latest = self.health_history[-1]
-        healthy_checks = sum(1 for h in self.health_history[-10:] if h.get("status") == "HEALTHY")
+        history_window = self.health_history[-10:]
+        healthy_checks = sum(1 for check in history_window if check.get("status") == "HEALTHY")
+        uptime_percent = 100.0 * healthy_checks / max(len(history_window), 1)
 
         return {
             "status": latest.get("status"),
-            "uptime_percent": (healthy_checks / min(10, len(self.health_history))) * 100,
+            "uptime_percent": uptime_percent,
             "last_check": latest.get("timestamp"),
             "total_checks": len(self.health_history),
         }
 
 
-# Global instance
-_health_monitor: Optional[HealthMonitor] = None
+def _create_task_supervisor() -> SupportsTaskSupervision:
+    try:
+        from src.runtime.task_supervisor import TaskSupervisor
 
+        return TaskSupervisor(namespace="health-monitor")
+    except Exception as exc:  # pragma: no cover - fallback path
+        logger.warning("Falling back to unsupervised health monitor task creation: %s", exc)
 
-async def get_health_monitor(state_store: StateStore, event_bus: EventBus) -> HealthMonitor:
-    """Get or create global health monitor instance."""
-    global _health_monitor
-    if _health_monitor is None:
-        _health_monitor = HealthMonitor(state_store, event_bus)
-    return _health_monitor
+        class _FallbackSupervisor(SupportsTaskSupervision):
+            def create(  # type: ignore[override]
+                self,
+                coro: Coroutine[Any, Any, _T],
+                *,
+                name: str | None = None,
+                metadata: Mapping[str, Any] | None = None,
+            ) -> asyncio.Task[_T]:
+                return asyncio.create_task(coro, name=name)
+
+        return _FallbackSupervisor()

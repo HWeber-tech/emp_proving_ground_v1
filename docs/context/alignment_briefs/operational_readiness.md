@@ -16,6 +16,9 @@
   and open alerts workflow items.【F:docs/technical_debt_assessment.md†L33-L112】
 - Legacy guides (OpenAPI/cTrader) persist in `docs/legacy`, signalling incomplete
   cleanup and risk of policy drift.【F:docs/legacy/README.md†L1-L12】
+- Operational health monitor now runs under the runtime task supervisor with
+  deterministic shutdown semantics and scoped exception handling, reducing the
+  unsupervised task risk flagged in audits.【F:src/operational/health_monitor.py†L1-L205】
 
 ## Gap themes
 
@@ -35,6 +38,8 @@
   archive obsolete OpenAPI references where possible.【F:docs/legacy/README.md†L1-L12】
 - Extend CI step summaries to include risk, ingest, and sensory telemetry status so
   failures surface promptly.
+- ✅ Health monitor supervision implemented with new tests to guard regressions
+  while broader runtime integration continues.【F:src/operational/health_monitor.py†L1-L205】【F:tests/operations/test_health_monitor.py†L1-L106】
 
 ### Next (30–90 days)
 

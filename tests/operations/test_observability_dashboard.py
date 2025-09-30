@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
+import pytest
+
 from src.operations.data_backbone import (
     BackboneComponentSnapshot,
     BackboneStatus,
@@ -203,3 +205,20 @@ def test_dashboard_merges_additional_panels() -> None:
 
     assert dashboard.status is DashboardStatus.warn
     assert dashboard.panels == (custom_panel,)
+
+
+def test_risk_panel_metadata_includes_limit_ratio() -> None:
+    var_result = VarResult(value=9_000.0, confidence=0.99, sample_size=252)
+
+    dashboard = build_observability_dashboard(
+        risk_results={"parametric_var": var_result},
+        risk_limits={"parametric_var": 10_000.0},
+    )
+
+    assert dashboard.status is DashboardStatus.warn
+
+    (risk_panel,) = dashboard.panels
+    payload = risk_panel.metadata["parametric_var"]
+    assert payload["limit"] == pytest.approx(10_000.0)
+    assert payload["limit_ratio"] == pytest.approx(0.9)
+    assert payload["limit_status"] == "warn"

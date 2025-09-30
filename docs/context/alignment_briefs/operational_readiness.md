@@ -31,6 +31,9 @@
 ### Now (0–30 days)
 
 - Finish the task supervision rollout across runtime and operational helpers.【F:docs/technical_debt_assessment.md†L33-L56】
+- ✅ Health monitor tasks now opt into the runtime `TaskSupervisor` and log
+  detailed failures, eliminating bare `except` blocks and making shutdowns
+  observable.【F:src/operational/health_monitor.py†L1-L126】
 - Update incident response docs with current limitations and TODOs; remove or
   archive obsolete OpenAPI references where possible.【F:docs/legacy/README.md†L1-L12】
 - Extend CI step summaries to include risk, ingest, and sensory telemetry status so

@@ -15,6 +15,7 @@ from src.data_foundation.ingest.scheduler_telemetry import (
     format_scheduler_markdown,
     publish_scheduler_snapshot,
 )
+from src.runtime.task_supervisor import TaskSupervisor
 
 
 @pytest.mark.asyncio()
@@ -43,6 +44,30 @@ async def test_scheduler_runs_until_stopped() -> None:
     assert isinstance(state, IngestSchedulerState)
     assert state.running is False
     assert state.last_started_at is not None
+
+
+@pytest.mark.asyncio()
+async def test_scheduler_uses_task_supervisor() -> None:
+    invoked = asyncio.Event()
+
+    async def _callback() -> bool:
+        invoked.set()
+        return False
+
+    supervisor = TaskSupervisor(namespace="test-timescale-scheduler")
+    scheduler = TimescaleIngestScheduler(
+        schedule=IngestSchedule(interval_seconds=0.01, jitter_seconds=0.0, max_failures=1),
+        run_callback=_callback,
+    )
+
+    scheduler.start(task_factory=supervisor.create)
+
+    await invoked.wait()
+    # Scheduler should exit automatically after the failure threshold.
+    await asyncio.sleep(0.02)
+
+    assert scheduler.running is False
+    assert supervisor.active_count == 0
 
 
 @pytest.mark.asyncio()

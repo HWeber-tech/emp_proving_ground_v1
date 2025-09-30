@@ -2968,10 +2968,10 @@ def build_professional_runtime_application(
                     scheduler = TimescaleIngestScheduler(
                         schedule=ingest_config.schedule,
                         run_callback=_run_timescale_ingest,
+                        task_factory=app.task_supervisor.create,
                     )
                     scheduler_ref = scheduler
-                    task = scheduler.start()
-                    app.register_background_task(task)
+                    scheduler.start()
 
                     async def _stop_scheduler() -> None:
                         await scheduler.stop()

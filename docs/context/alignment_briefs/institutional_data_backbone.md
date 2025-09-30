@@ -36,6 +36,9 @@
   removal in ingest modules.【F:docs/development/remediation_plan.md†L34-L61】
 - Wire all runtime entrypoints through `RuntimeApplication` and a task supervisor
   so ingest, cache, and stream jobs are supervised.【F:docs/technical_debt_assessment.md†L33-L56】
+- ✅ Timescale ingest scheduler now delegates background task creation to the
+  runtime `TaskSupervisor`, preventing unsupervised loops and keeping shutdown
+  hooks observable.【F:src/data_foundation/ingest/scheduler.py†L18-L115】【F:src/runtime/runtime_builder.py†L2966-L2992】
 - Document current gaps and expected telemetry in updated runbooks and status
   pages (this brief, roadmap, high-impact reports).
 

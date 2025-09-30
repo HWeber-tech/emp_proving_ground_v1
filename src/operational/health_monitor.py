@@ -1,15 +1,13 @@
-"""
-Health Monitor System
-====================
+"""Health monitoring utilities backed by supervised background tasks."""
 
-Monitors system health and performance across all components.
-"""
+from __future__ import annotations
 
 import asyncio
 import logging
 import uuid
+from contextlib import suppress
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Protocol, Coroutine
 
 from src.core.event_bus import EventBus
 from src.core.state_store import StateStore
@@ -17,29 +15,64 @@ from src.core.state_store import StateStore
 logger = logging.getLogger(__name__)
 
 
+class _TaskFactory(Protocol):
+    """Protocol matching :func:`asyncio.create_task` for dependency injection."""
+
+    def __call__(
+        self,
+        coro: Coroutine[Any, Any, Any],
+        *,
+        name: str | None = None,
+    ) -> asyncio.Task[Any]:
+        ...
+
+
 class HealthMonitor:
     """Monitors system health and performance."""
 
-    def __init__(self, state_store: StateStore, event_bus: EventBus):
+    def __init__(
+        self,
+        state_store: StateStore,
+        event_bus: EventBus,
+        *,
+        task_factory: _TaskFactory | None = None,
+    ):
         self.state_store = state_store
         self.event_bus = event_bus
         self.is_running = False
         self.check_interval = 60  # seconds
         self.health_history: list[dict[str, object]] = []
+        self._task_factory = task_factory
+        self._task: asyncio.Task[None] | None = None
+        self._task_name = "health-monitor-loop"
 
-    async def start(self) -> bool:
+    async def start(self, *, task_factory: _TaskFactory | None = None) -> bool:
         """Start health monitoring."""
         if self.is_running:
             return True
 
         self.is_running = True
-        asyncio.create_task(self._monitor_loop())
+        factory = task_factory or self._task_factory
+        coro = self._monitor_loop()
+        if factory is not None:
+            task = factory(coro, name=self._task_name)
+            if not isinstance(task, asyncio.Task):
+                raise TypeError("Task factory must return an asyncio.Task")
+            self._task = task
+        else:
+            self._task = asyncio.create_task(coro, name=self._task_name)
         logger.info("Health monitor started")
         return True
 
     async def stop(self) -> bool:
         """Stop health monitoring."""
         self.is_running = False
+        task = self._task
+        self._task = None
+        if task is not None and not task.done():
+            task.cancel()
+            with suppress(asyncio.CancelledError):
+                await task
         logger.info("Health monitor stopped")
         return True
 
@@ -56,7 +89,7 @@ class HealthMonitor:
                 await asyncio.sleep(self.check_interval)
 
             except Exception as e:
-                logger.error(f"Error in health monitoring: {e}")
+                logger.error("Error in health monitoring loop: %s", e, exc_info=True)
                 await asyncio.sleep(self.check_interval)
 
     async def _perform_health_check(self) -> Dict[str, Any]:
@@ -101,7 +134,8 @@ class HealthMonitor:
                 "usage_percent": memory.percent,
                 "available_gb": memory.available / (1024**3),
             }
-        except:
+        except Exception as exc:
+            logger.debug("Memory health check failed", exc_info=exc)
             return {"status": "UNKNOWN", "usage_percent": 0}
 
     async def _check_cpu(self) -> Dict[str, Any]:
@@ -114,7 +148,8 @@ class HealthMonitor:
                 "status": "HEALTHY" if cpu_percent < 80 else "WARNING",
                 "usage_percent": cpu_percent,
             }
-        except:
+        except Exception as exc:
+            logger.debug("CPU health check failed", exc_info=exc)
             return {"status": "UNKNOWN", "usage_percent": 0}
 
     async def _check_disk(self) -> Dict[str, Any]:
@@ -128,7 +163,8 @@ class HealthMonitor:
                 "usage_percent": disk.percent,
                 "free_gb": disk.free / (1024**3),
             }
-        except:
+        except Exception as exc:
+            logger.debug("Disk health check failed", exc_info=exc)
             return {"status": "UNKNOWN", "usage_percent": 0}
 
     async def _store_health_check(self, health_check: Dict[str, Any]) -> None:

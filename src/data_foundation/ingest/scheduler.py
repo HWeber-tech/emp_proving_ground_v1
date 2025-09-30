@@ -8,12 +8,25 @@ import random
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from typing import Any, Coroutine, Protocol
 
 
 logger = logging.getLogger(__name__)
 
 
 RunCallback = Callable[[], Awaitable[bool | None]]
+
+
+class _TaskFactory(Protocol):
+    """Protocol describing the subset of :func:`asyncio.create_task` we rely on."""
+
+    def __call__(
+        self,
+        coro: Coroutine[Any, Any, Any],
+        *,
+        name: str | None = None,
+    ) -> asyncio.Task[Any]:
+        ...
 
 
 @dataclass(frozen=True)
@@ -75,6 +88,7 @@ class TimescaleIngestScheduler:
         schedule: IngestSchedule,
         run_callback: RunCallback,
         task_name: str = "timescale-ingest-scheduler",
+        task_factory: _TaskFactory | None = None,
     ) -> None:
         self._schedule = schedule
         self._run_callback = run_callback
@@ -87,6 +101,7 @@ class TimescaleIngestScheduler:
         self._last_completed_at: datetime | None = None
         self._last_success_at: datetime | None = None
         self._next_run_at: datetime | None = None
+        self._task_factory = task_factory
 
     @property
     def running(self) -> bool:
@@ -94,7 +109,11 @@ class TimescaleIngestScheduler:
 
         return self._task is not None and not self._task.done()
 
-    def start(self) -> asyncio.Task[None]:
+    def start(
+        self,
+        *,
+        task_factory: _TaskFactory | None = None,
+    ) -> asyncio.Task[None]:
         """Start the scheduler loop and return the background task."""
 
         if self.running:
@@ -103,7 +122,14 @@ class TimescaleIngestScheduler:
         self._stop_event = asyncio.Event()
         self._failure_count = 0
         self._next_run_at = None
-        self._task = asyncio.create_task(self._run_loop(), name=self._task_name)
+        factory = task_factory or self._task_factory
+        if factory is not None:
+            task = factory(self._run_loop(), name=self._task_name)
+            if not isinstance(task, asyncio.Task):
+                raise TypeError("Task factory must return an asyncio.Task")
+            self._task = task
+        else:
+            self._task = asyncio.create_task(self._run_loop(), name=self._task_name)
         return self._task
 
     async def stop(self) -> None:

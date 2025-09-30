@@ -50,6 +50,13 @@ def test_how_sensor_emits_liquidity_audit() -> None:
     audit = metadata.get("audit")
     assert isinstance(audit, dict)
     assert set(audit.keys()) >= {"signal", "confidence", "liquidity", "participation"}
+    lineage = metadata.get("lineage")
+    assert isinstance(lineage, dict)
+    assert lineage.get("dimension") == "HOW"
+    assert lineage.get("source") == "sensory.how"
+    assert lineage.get("inputs", {}).get("symbol") == "EURUSD"
+    assert "liquidity" in lineage.get("telemetry", {})
+    assert lineage.get("metadata", {}).get("mode") == "market_data"
 
 
 def test_anomaly_sensor_sequence_mode_detects_spike() -> None:
@@ -65,6 +72,11 @@ def test_anomaly_sensor_sequence_mode_detects_spike() -> None:
     assert metadata.get("mode") == "sequence"
     assert metadata.get("thresholds") == {"warn": 0.4, "alert": 0.7}
     assert signal.value["strength"] >= 0.0
+    lineage = metadata.get("lineage")
+    assert isinstance(lineage, dict)
+    assert lineage.get("metadata", {}).get("mode") == "sequence"
+    assert lineage.get("inputs", {}).get("sequence_length") == 12
+    assert "baseline" in lineage.get("telemetry", {})
 
 
 def test_anomaly_sensor_falls_back_to_market_payload() -> None:
@@ -78,3 +90,7 @@ def test_anomaly_sensor_falls_back_to_market_payload() -> None:
     metadata = signal.metadata or {}
     assert metadata.get("mode") == "market_data"
     assert "baseline" in metadata.get("audit", {})
+    lineage = metadata.get("lineage")
+    assert isinstance(lineage, dict)
+    assert lineage.get("metadata", {}).get("mode") == "market_data"
+    assert lineage.get("inputs", {}).get("symbol") == "EURUSD"

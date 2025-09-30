@@ -7,6 +7,7 @@ import pandas as pd
 
 from src.sensory.enhanced.how_dimension import InstitutionalIntelligenceEngine
 from src.sensory.how.order_book_analytics import OrderBookAnalytics, OrderBookSnapshot
+from src.sensory.lineage import build_lineage_record
 from src.sensory.signals import SensorSignal
 
 __all__ = ["HowSensor", "HowSensorConfig"]
@@ -79,11 +80,25 @@ class HowSensor:
             "alert": self._config.alert_threshold,
         }
 
+        lineage = build_lineage_record(
+            "HOW",
+            "sensory.how",
+            inputs=payload,
+            outputs={"signal": signal_strength, "confidence": confidence},
+            telemetry=telemetry,
+            metadata={
+                "mode": "market_data",
+                "thresholds": thresholds,
+                "order_book_sampled": order_snapshot is not None,
+            },
+        )
+
         metadata: dict[str, object] = {
             "source": "sensory.how",
             "regime": getattr(getattr(reading, "regime", None), "name", None),
             "thresholds": thresholds,
             "audit": audit,
+            "lineage": lineage.as_dict(),
         }
         if order_snapshot is not None:
             metadata["order_book"] = order_snapshot.as_dict()
@@ -126,10 +141,20 @@ class HowSensor:
             "warn": self._config.warn_threshold,
             "alert": self._config.alert_threshold,
         }
+        lineage = build_lineage_record(
+            "HOW",
+            "sensory.how",
+            inputs={},
+            outputs={"signal": 0.0, "confidence": confidence},
+            telemetry={},
+            metadata={"mode": "default", "thresholds": thresholds},
+        )
+
         metadata: dict[str, object] = {
             "source": "sensory.how",
             "thresholds": thresholds,
             "audit": {"signal": 0.0, "confidence": confidence},
+            "lineage": lineage.as_dict(),
         }
         return SensorSignal(
             signal_type="HOW",

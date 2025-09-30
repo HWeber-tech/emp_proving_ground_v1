@@ -17,3 +17,4 @@ Pull request and issue templates under [`.github/`](../../../.github) embed thes
 - [Evolution engine & catalogue seeding](evolution_engine.md) – institutional genome catalogue, feature flags, and validation hooks for adaptive populations.
 - [Institutional risk, execution & compliance telemetry](institutional_risk_compliance.md) – risk policy, execution readiness, compliance monitors, and audit journaling.
 - [Operational readiness & resilience telemetry](operational_readiness.md) – backup drills, incident response, security posture, and professional readiness aggregates.
+- [Quality & observability guardrails](quality_observability.md) – regression coverage, telemetry freshness, and alerting hygiene across the platform.

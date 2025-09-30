@@ -79,6 +79,10 @@
 - Track coverage deltas via `tests/.telemetry/ci_metrics.json` and surface them
   in dashboards; add assertions in regression suites to prevent silent drops.
   【F:docs/status/ci_health.md†L13-L15】
+- Domain snapshots are now captured alongside overall coverage in
+  `tests/.telemetry/ci_metrics.json`, flagging lagging domains directly in CI
+  telemetry so remediation progress is visible without ad-hoc parsing.
+  【F:tools/telemetry/ci_metrics.py†L1-L212】【F:tests/tools/test_ci_metrics.py†L1-L236】
 - Maintain CI dashboard entries for ingest, risk, sensory, evolution, and
   operational telemetry, updating notes/tests as suites land so reviewers can
   trace validation hooks directly from the brief.【F:docs/status/ci_health.md†L21-L73】

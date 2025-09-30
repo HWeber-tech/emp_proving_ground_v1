@@ -42,6 +42,13 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
     - *Progress*: Hardened the SQLite-backed real portfolio monitor with managed
       connections, parameterised statements, and narrowed exception handling to
       surface operational failures instead of masking them.【F:src/trading/portfolio/real_portfolio_monitor.py†L1-L572】
+    - *Progress*: Governance registry migrations now quote identifiers instead
+      of interpolating column names and escalate database errors with precise
+      logging, eliminating the blanket `except Exception` paths that obscured
+      failures.【F:src/governance/strategy_registry.py†L1-L330】
+    - *Progress*: The Yahoo ingest writer sanitises table names, scopes DELETE
+      statements to explicit symbol parameters, and is exercised via DuckDB
+      regression tests to prevent SQL injection regressions.【F:src/data_foundation/ingest/yahoo_ingest.py†L1-L134】【F:tests/data_foundation/test_yahoo_ingest.py†L1-L66】
 - [x] **Context pack refresh** – Replace legacy briefs with the updated context in
   `docs/context/alignment_briefs` so discovery and reviews inherit the same
   narrative reset (this change set).

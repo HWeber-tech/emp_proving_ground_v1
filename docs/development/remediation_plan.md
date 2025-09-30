@@ -38,12 +38,20 @@ Phase 0 — Security P0 Remediations (dedicated, fast-follow PRs)
      - [src/data_foundation/ingest/yahoo_ingest.py](src/data_foundation/ingest/yahoo_ingest.py:66)
      - [src/trading/portfolio/real_portfolio_monitor.py](src/trading/portfolio/real_portfolio_monitor.py:454)
      - [src/trading/portfolio/real_portfolio_monitor.py](src/trading/portfolio/real_portfolio_monitor.py:491)
+     - [src/governance/strategy_registry.py](src/governance/strategy_registry.py:1)
    - Actions:
      - Replace string interpolation/f-strings with parameterized queries or API-native executemany/select constructs.
      - For DuckDB/SQLite, use placeholders (e.g., “?”) and pass parameters list/tuple safely.
    - Acceptance:
      - Bandit: B608 count for these files → 0; CI green.
      - Basic smoke test: run the affected code paths with safe sample inputs.
+   - Update:
+     - Governance registry schema migrations now quote identifiers and raise on
+       invalid names instead of interpolating raw column strings, tightening
+       the SQLite surface for provenance columns.【F:src/governance/strategy_registry.py†L1-L330】
+     - DuckDB ingest writes are covered by regression tests that assert table
+       sanitisation and parameterised DELETE flows, guarding against injection
+       regressions.【F:src/data_foundation/ingest/yahoo_ingest.py†L1-L134】【F:tests/data_foundation/test_yahoo_ingest.py†L1-L66】
 
 2) eval replacement (B307)
    - Files/evidence:

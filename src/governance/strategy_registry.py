@@ -8,7 +8,9 @@ Implements GOV-02 ticket requirements for database-backed strategy management.
 from __future__ import annotations
 
 import json
+from json import JSONDecodeError
 import logging
+import re
 import sqlite3
 from datetime import datetime
 from enum import Enum
@@ -16,6 +18,16 @@ from pathlib import Path
 from typing import Any, Mapping, Optional, cast
 
 logger = logging.getLogger(__name__)
+
+_IDENTIFIER_PATTERN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+
+
+def _quote_identifier(identifier: str) -> str:
+    if not _IDENTIFIER_PATTERN.fullmatch(identifier):
+        msg = f"Unsafe SQL identifier requested: {identifier!r}"
+        raise ValueError(msg)
+    escaped = identifier.replace("\"", "\"\"")
+    return f'"{escaped}"'
 
 
 class StrategyStatus(Enum):
@@ -100,13 +112,15 @@ class StrategyRegistry:
             }
             for column, definition in governance_columns.items():
                 if column not in existing_columns:
-                    cursor.execute(f"ALTER TABLE strategies ADD COLUMN {column} {definition}")
+                    cursor.execute(
+                        f"ALTER TABLE strategies ADD COLUMN {_quote_identifier(column)} {definition}"
+                    )
 
             self.conn.commit()
-            logger.info(f"Strategy Registry initialized with database: {self.db_path}")
+            logger.info("Strategy Registry initialized with database: %s", self.db_path)
 
-        except Exception as e:
-            logger.error(f"Error initializing database: {e}")
+        except sqlite3.DatabaseError:
+            logger.exception("Error initializing database")
             raise
 
     def register_champion(
@@ -183,7 +197,7 @@ class StrategyRegistry:
                         catalogue_seeded_at = (
                             float(seeded_at_value) if seeded_at_value is not None else None
                         )
-                    except Exception:
+                    except (TypeError, ValueError):
                         catalogue_seeded_at = None
                     catalogue_metadata_json = json.dumps(dict(catalogue_payload))
 
@@ -241,8 +255,8 @@ class StrategyRegistry:
             )
             return True
 
-        except Exception as e:
-            logger.error(f"Error registering champion: {e}")
+        except sqlite3.DatabaseError:
+            logger.exception("Error registering champion")
             self.conn.rollback()
             return False
 
@@ -297,8 +311,11 @@ class StrategyRegistry:
                 }
             return None
 
-        except Exception as e:
-            logger.error(f"Error retrieving strategy: {e}")
+        except sqlite3.DatabaseError:
+            logger.exception("Error retrieving strategy")
+            return None
+        except (TypeError, JSONDecodeError):
+            logger.exception("Error decoding stored strategy payloads")
             return None
 
     def update_strategy_status(self, strategy_id: str, new_status: str) -> bool:
@@ -326,8 +343,8 @@ class StrategyRegistry:
                 logger.warning(f"Strategy {strategy_id} not found")
                 return False
 
-        except Exception as e:
-            logger.error(f"Error updating strategy status: {e}")
+        except sqlite3.DatabaseError:
+            logger.exception("Error updating strategy status")
             self.conn.rollback()
             return False
 
@@ -393,8 +410,11 @@ class StrategyRegistry:
 
             return strategies
 
-        except Exception as e:
-            logger.error(f"Error retrieving champion strategies: {e}")
+        except sqlite3.DatabaseError:
+            logger.exception("Error retrieving champion strategies")
+            return []
+        except (TypeError, JSONDecodeError):
+            logger.exception("Error decoding champion strategy payloads")
             return []
 
     def get_strategies_by_status(self, status: str) -> list[dict[str, Any]]:
@@ -447,8 +467,11 @@ class StrategyRegistry:
 
             return strategies
 
-        except Exception as e:
-            logger.error(f"Error retrieving strategies by status: {e}")
+        except sqlite3.DatabaseError:
+            logger.exception("Error retrieving strategies by status")
+            return []
+        except (TypeError, JSONDecodeError):
+            logger.exception("Error decoding strategy payloads")
             return []
 
     def get_registry_summary(self) -> dict[str, Any]:
@@ -554,14 +577,17 @@ class StrategyRegistry:
                     summary["latest_catalogue_metadata"] = json.loads(
                         latest_catalogue_row["catalogue_metadata"]
                     )
-                except Exception:
+                except (TypeError, JSONDecodeError):
                     summary["latest_catalogue_metadata"] = None
 
             return summary
 
-        except Exception as e:
-            logger.error(f"Error getting registry summary: {e}")
-            return {"error": str(e)}
+        except sqlite3.DatabaseError:
+            logger.exception("Error getting registry summary")
+            return {"error": "database_error"}
+        except (TypeError, JSONDecodeError) as exc:
+            logger.exception("Error decoding registry metadata")
+            return {"error": str(exc)}
 
     def close(self) -> None:
         """Close database connection."""

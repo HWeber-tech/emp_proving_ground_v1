@@ -19,6 +19,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from datetime import UTC, datetime
+import re
 from typing import Sequence, cast
 
 import pandas as pd
@@ -44,6 +45,46 @@ def _normalise_symbols(symbols: Sequence[str] | None) -> tuple[str, ...]:
     if not symbols:
         return tuple()
     return tuple(sorted({symbol.strip() for symbol in symbols if symbol}))
+
+
+_IDENTIFIER_PATTERN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+
+
+def _validate_identifier(value: str, *, label: str) -> str:
+    """Ensure SQL identifiers do not contain unsafe characters."""
+
+    if not value:
+        raise ValueError(f"{label} identifier cannot be empty")
+    if not _IDENTIFIER_PATTERN.fullmatch(value):
+        raise ValueError(f"{label} identifier '{value}' contains unsafe characters")
+    return value
+
+
+def _ensure_safe_identifiers(
+    *,
+    schema: str,
+    table: str,
+    columns: Sequence[str],
+    timestamp_column: str,
+    symbol_column: str,
+) -> tuple[tuple[str, ...], str, str]:
+    """Validate schema, table, and column identifiers before building SQL."""
+
+    _validate_identifier(schema, label="schema")
+    _validate_identifier(table, label="table")
+
+    safe_columns = tuple(
+        _validate_identifier(column, label="column") for column in columns
+    )
+    if not safe_columns:
+        raise ValueError("column list cannot be empty")
+    if len(set(safe_columns)) != len(safe_columns):
+        raise ValueError("column list contains duplicates")
+
+    safe_timestamp = _validate_identifier(timestamp_column, label="timestamp column")
+    safe_symbol = _validate_identifier(symbol_column, label="symbol column")
+
+    return safe_columns, safe_timestamp, safe_symbol
 
 
 @dataclass(frozen=True)
@@ -201,6 +242,13 @@ class TimescaleReader:
         dimension: str,
         symbol_column: str = "symbol",
     ) -> TimescaleQueryResult:
+        safe_columns, safe_timestamp_column, safe_symbol_column = _ensure_safe_identifiers(
+            schema=schema,
+            table=table,
+            columns=columns,
+            timestamp_column=timestamp_column,
+            symbol_column=symbol_column,
+        )
         normalized_symbols = _normalise_symbols(symbols)
         with self._engine.begin() as conn:
             dialect = conn.dialect.name
@@ -216,10 +264,10 @@ class TimescaleReader:
                 dialect,
             )
             sql = self._build_query(
-                columns=columns,
+                columns=safe_columns,
                 table_name=table_name,
-                timestamp_column=timestamp_column,
-                symbol_column=symbol_column,
+                timestamp_column=safe_timestamp_column,
+                symbol_column=safe_symbol_column,
                 symbols=normalized_symbols,
                 start=start,
                 end=end,
@@ -236,7 +284,7 @@ class TimescaleReader:
             frame = pd.read_sql_query(sql, conn, params=params)
 
         if frame.empty:
-            empty_frame = pd.DataFrame(columns=columns)
+            empty_frame = pd.DataFrame(columns=safe_columns)
             return TimescaleQueryResult(
                 dimension=dimension,
                 frame=empty_frame,
@@ -246,24 +294,28 @@ class TimescaleReader:
                 max_ingested_at=None,
             )
 
-        if timestamp_column in frame:
-            frame[timestamp_column] = _coerce_timestamp(frame[timestamp_column])
+        if safe_timestamp_column in frame:
+            frame[safe_timestamp_column] = _coerce_timestamp(frame[safe_timestamp_column])
         if "ingested_at" in frame:
             frame["ingested_at"] = _coerce_timestamp(frame["ingested_at"])
 
-        frame = frame.sort_values(timestamp_column)
+        frame = frame.sort_values(safe_timestamp_column)
 
-        if symbol_column in frame:
-            series = frame[symbol_column].dropna().astype(str)
+        if safe_symbol_column in frame:
+            series = frame[safe_symbol_column].dropna().astype(str)
             symbols_present = _normalise_symbols(series.tolist())
         else:
             symbols_present = tuple()
 
         start_ts = (
-            self._to_datetime(frame[timestamp_column].min()) if timestamp_column in frame else None
+            self._to_datetime(frame[safe_timestamp_column].min())
+            if safe_timestamp_column in frame
+            else None
         )
         end_ts = (
-            self._to_datetime(frame[timestamp_column].max()) if timestamp_column in frame else None
+            self._to_datetime(frame[safe_timestamp_column].max())
+            if safe_timestamp_column in frame
+            else None
         )
         max_ingested_at = (
             self._to_datetime(frame["ingested_at"].max())

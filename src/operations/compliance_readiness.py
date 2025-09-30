@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import Enum
@@ -9,6 +10,9 @@ from typing import Mapping, MutableMapping, Sequence
 
 from src.core.event_bus import Event, EventBus, get_global_bus
 from src.core.coercion import coerce_int
+
+
+logger = logging.getLogger(__name__)
 
 
 class ComplianceReadinessStatus(Enum):
@@ -312,14 +316,31 @@ def publish_compliance_readiness(
         try:
             publish_from_sync(event)
             return
-        except Exception:  # pragma: no cover - defensive logging
-            pass
+        except RuntimeError as exc:
+            logger.warning(
+                "Runtime event bus rejected compliance readiness snapshot; falling back to global bus",
+                exc_info=exc,
+            )
+        except Exception:
+            logger.exception(
+                "Unexpected error publishing compliance readiness snapshot via runtime bus",
+            )
+            raise
 
     try:
         topic_bus = get_global_bus()
         topic_bus.publish_sync(event.type, event.payload, source=event.source)
-    except Exception:  # pragma: no cover - defensive logging
-        pass
+    except RuntimeError as exc:
+        logger.error(
+            "Global event bus not running while publishing compliance readiness snapshot",
+            exc_info=exc,
+        )
+        raise
+    except Exception:
+        logger.exception(
+            "Unexpected error publishing compliance readiness snapshot via global bus",
+        )
+        raise
 
 
 __all__ = [

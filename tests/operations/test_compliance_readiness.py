@@ -1,8 +1,11 @@
 from datetime import datetime, timezone
 
+import pytest
+
 from src.operations.compliance_readiness import (
     ComplianceReadinessStatus,
     evaluate_compliance_readiness,
+    publish_compliance_readiness,
 )
 
 
@@ -80,3 +83,98 @@ def test_compliance_readiness_warns_on_kyc_outstanding_items() -> None:
     kyc_component = next(comp for comp in snapshot.components if comp.name == "kyc_aml")
     assert kyc_component.status is ComplianceReadinessStatus.warn
     assert kyc_component.metadata["outstanding_items"] == 2
+
+
+class _StubRuntimeBus:
+    def __init__(self) -> None:
+        self.events: list[object] = []
+
+    def publish_from_sync(self, event: object) -> None:
+        self.events.append(event)
+
+    def is_running(self) -> bool:
+        return True
+
+
+class _RaisingRuntimeBus(_StubRuntimeBus):
+    def __init__(self, exc: Exception) -> None:
+        super().__init__()
+        self._exc = exc
+
+    def publish_from_sync(self, event: object) -> None:  # type: ignore[override]
+        raise self._exc
+
+
+class _StubTopicBus:
+    def __init__(self) -> None:
+        self.events: list[tuple[str, object, str | None]] = []
+
+    def publish_sync(self, topic: str, payload: object, *, source: str | None = None) -> None:
+        self.events.append((topic, payload, source))
+
+
+def _snapshot() -> object:
+    return evaluate_compliance_readiness(
+        trade_summary=_trade_summary("pass"),
+        kyc_summary=_kyc_summary("APPROVED"),
+    )
+
+
+def test_publish_compliance_readiness_prefers_runtime_bus() -> None:
+    runtime_bus = _StubRuntimeBus()
+    snapshot = _snapshot()
+
+    publish_compliance_readiness(runtime_bus, snapshot)
+
+    assert runtime_bus.events
+    event = runtime_bus.events[-1]
+    assert getattr(event, "type", "") == "telemetry.compliance.readiness"
+
+
+def test_publish_compliance_readiness_falls_back_to_global_bus(monkeypatch: pytest.MonkeyPatch) -> None:
+    runtime_bus = _RaisingRuntimeBus(RuntimeError("loop stopped"))
+    topic_bus = _StubTopicBus()
+    monkeypatch.setattr("src.operations.compliance_readiness.get_global_bus", lambda: topic_bus)
+
+    publish_compliance_readiness(runtime_bus, _snapshot())
+
+    assert not runtime_bus.events
+    assert topic_bus.events
+    topic, payload, source = topic_bus.events[-1]
+    assert topic == "telemetry.compliance.readiness"
+    assert payload.get("status") == ComplianceReadinessStatus.ok.value
+    assert source == "compliance_readiness"
+
+
+def test_publish_compliance_readiness_raises_on_unexpected_runtime_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    runtime_bus = _RaisingRuntimeBus(ValueError("boom"))
+    topic_bus = _StubTopicBus()
+    monkeypatch.setattr("src.operations.compliance_readiness.get_global_bus", lambda: topic_bus)
+
+    with pytest.raises(ValueError):
+        publish_compliance_readiness(runtime_bus, _snapshot())
+
+    assert not runtime_bus.events
+    assert not topic_bus.events
+
+
+def test_publish_compliance_readiness_raises_when_global_bus_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    runtime_bus = _StubRuntimeBus()
+
+    class _FailingTopicBus(_StubTopicBus):
+        def publish_sync(self, topic: str, payload: object, *, source: str | None = None) -> None:  # type: ignore[override]
+            raise RuntimeError("global bus stopped")
+
+    topic_bus = _FailingTopicBus()
+    monkeypatch.setattr("src.operations.compliance_readiness.get_global_bus", lambda: topic_bus)
+    monkeypatch.setattr(runtime_bus, "is_running", lambda: False)
+
+    with pytest.raises(RuntimeError):
+        publish_compliance_readiness(runtime_bus, _snapshot())
+
+    assert not runtime_bus.events
+    assert not topic_bus.events

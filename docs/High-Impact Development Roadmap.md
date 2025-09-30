@@ -212,7 +212,7 @@ To reflect the true scope of institutional-grade trading components, the roadmap
 - [x] Update documentation on data lineage and quality SLA (`docs/deployment/data_lineage.md`).
 - [ ] Implement encyclopedia-aligned "Market Microstructure Observatory" notebooks showcasing liquidity/volume profiling studies.
 - [x] Add market regime classifier blending volatility, liquidity, and sentiment signals for execution model selection.
-- [ ] Archive microstructure datasets in tiered storage (hot/cold) with retention guidance per encyclopedia cost matrix.
+- [x] Archive microstructure datasets in tiered storage (hot/cold) with retention guidance per encyclopedia cost matrix (see `src/data_foundation/microstructure/archive.py`).
 
 #### Workstream 3B: Monitoring, Alerting & Deployment (~1.5 weeks)
 **Impact:** 🔥🔥 **HIGH** — Moves toward production readiness earlier than previously planned

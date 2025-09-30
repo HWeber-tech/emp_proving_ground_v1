@@ -5,6 +5,8 @@ from datetime import UTC, datetime, timedelta
 import pandas as pd
 from sqlalchemy import create_engine
 
+import pytest
+
 from src.core.event_bus import Event, EventBus
 from src.data_foundation.persist.timescale import TimescaleIngestor, TimescaleMigrator
 from src.operations.retention import (
@@ -175,3 +177,22 @@ def test_publish_data_retention_emits_event() -> None:
 
     assert bus.events
     assert bus.events[0].type == "telemetry.data_backbone.retention"
+
+
+def test_evaluate_data_retention_rejects_unsafe_identifiers(tmp_path) -> None:
+    engine = create_engine(f"sqlite:///{tmp_path}/retention_invalid.db")
+    TimescaleMigrator(engine).apply()
+
+    policies = (
+        RetentionPolicy(
+            dimension="invalid",
+            schema="market_data",
+            table="daily_bars",
+            target_days=1,
+            minimum_days=1,
+            timestamp_column="ts; DROP TABLE",
+        ),
+    )
+
+    with pytest.raises(ValueError):
+        evaluate_data_retention(engine, policies)

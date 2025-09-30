@@ -10,6 +10,8 @@ surface.
 
 from __future__ import annotations
 
+import logging
+import re
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import Enum
@@ -17,6 +19,7 @@ from typing import Mapping, Sequence
 
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
+from sqlalchemy.exc import SQLAlchemyError
 
 from src.core.event_bus import Event, EventBus, get_global_bus
 
@@ -34,6 +37,12 @@ _STATUS_ORDER: dict[RetentionStatus, int] = {
     RetentionStatus.warn: 1,
     RetentionStatus.fail: 2,
 }
+
+
+_IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+
+
+logger = logging.getLogger(__name__)
 
 
 def _combine_status(current: RetentionStatus, candidate: RetentionStatus) -> RetentionStatus:
@@ -105,10 +114,42 @@ class DataRetentionSnapshot:
         return "\n".join(rows)
 
 
+def _validate_identifier(identifier: str, *, field: str) -> str:
+    candidate = identifier.strip()
+    if not _IDENTIFIER_RE.match(candidate):
+        raise ValueError(f"Unsafe identifier supplied for {field}: {identifier!r}")
+    return candidate
+
+
 def _resolve_table_name(policy: RetentionPolicy, dialect: str) -> str:
+    schema = _validate_identifier(policy.schema, field="schema")
+    table = _validate_identifier(policy.table, field="table")
     if dialect == "postgresql":
-        return f"{policy.schema}.{policy.table}"
-    return f"{policy.schema}_{policy.table}"
+        return f"{schema}.{table}"
+    return f"{schema}_{table}"
+
+
+def _resolve_policy_identifiers(
+    policy: RetentionPolicy, dialect: str
+) -> tuple[str, str]:
+    table = _resolve_table_name(policy, dialect)
+    timestamp_column = _validate_identifier(
+        policy.timestamp_column, field="timestamp_column"
+    )
+    return table, timestamp_column
+
+
+def _retention_statement(*, table: str, timestamp_column: str):
+    return text(
+        " ".join(
+            [
+                "SELECT",
+                f"MIN({timestamp_column}) AS min_ts,",
+                f"MAX({timestamp_column}) AS max_ts,",
+                f"COUNT(*) AS rowcount FROM {table}",
+            ]
+        )
+    )
 
 
 def _parse_timestamp(value: object) -> datetime | None:
@@ -146,15 +187,14 @@ def evaluate_data_retention(
     with engine.begin() as conn:
         dialect = conn.dialect.name
         for policy in policies:
-            table = _resolve_table_name(policy, dialect)
-            stmt = text(
-                f"SELECT MIN({policy.timestamp_column}) AS min_ts, "
-                f"MAX({policy.timestamp_column}) AS max_ts, "
-                f"COUNT(*) AS rowcount FROM {table}"
-            )
+            table, timestamp_column = _resolve_policy_identifiers(policy, dialect)
+            stmt = _retention_statement(table=table, timestamp_column=timestamp_column)
             try:
                 row = conn.execute(stmt).mappings().one()
-            except Exception:
+            except SQLAlchemyError:
+                logger.exception(
+                    "Failed to query retention window for dimension %s", policy.dimension
+                )
                 components.append(
                     RetentionComponentSnapshot(
                         name=policy.dimension,

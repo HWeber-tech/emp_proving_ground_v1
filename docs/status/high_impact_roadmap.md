@@ -1,151 +1,109 @@
 # High-impact roadmap status
 
-The high-impact roadmap tracks the three document-driven streams called out in
-[`docs/roadmap.md`](../roadmap.md). Run the helper to refresh the status table
-before demos or reviews:
-
-```bash
-python -m tools.roadmap.high_impact --format markdown
-```
-
-The command exits with a non-zero status when any stream needs attention, so CI
-pipelines can gate on roadmap readiness without additional scripting.
-
-To focus on specific streams, provide one or more ``--stream`` flags:
-
-```bash
-python -m tools.roadmap.high_impact --stream "Stream A – Institutional data backbone" --format detail
-```
-
-When dashboards require the same evidence payloads in JSON form, use the
-``detail-json`` format:
-
-```bash
-python -m tools.roadmap.high_impact --format detail-json
-```
-
-For an at-a-glance rollup of the portfolio, render the summary view:
-
-```bash
-python -m tools.roadmap.high_impact --format summary
-```
-
-When stakeholders need a narrative progress brief with percentages and
-upcoming checkpoints, emit the progress report:
-
-```bash
-python -m tools.roadmap.high_impact --format progress
-```
-
-When dashboards require the same roll-up as structured data, emit the JSON
-variant:
-
-```bash
-python -m tools.roadmap.high_impact --format progress-json
-```
-
-For dashboards that only need aggregate counts, export the portfolio JSON view:
-
-```bash
-python -m tools.roadmap.high_impact --format portfolio-json
-```
-
-When triaging gaps, render the attention report to list any missing
-requirements:
-
-```bash
-python -m tools.roadmap.high_impact --format attention
-```
-
-When refreshing documentation, JSON payloads for dashboards are emitted
-alongside the Markdown files (by default they land in
-`docs/status/high_impact_roadmap_portfolio.json` and
-`docs/status/high_impact_roadmap_attention.json`). Override the default
-destinations when needed:
-
-```bash
-python -m tools.roadmap.high_impact --refresh-docs \
-  --portfolio-json-path /tmp/high_impact_portfolio.json \
-  --attention-json-path /tmp/high_impact_attention.json
-```
-
-To feed dashboards that only need the missing requirements, emit the JSON
-attention view:
-
-```bash
-python -m tools.roadmap.high_impact --format attention-json
-```
-
-To update both this summary and the detailed evidence companion file in one
-shot, use the refresh flag:
+The high-impact tracker distills the encyclopedia alignment work into three
+streams so release reviews and planning meetings can see gaps immediately.
+Refresh the report before demos or milestone sign-off:
 
 ```bash
 python -m tools.roadmap.high_impact --refresh-docs
 ```
 
-> **Note:** Refreshing documentation always evaluates the full portfolio. The
-> CLI rejects attempts to combine `--refresh-docs` with stream filters so the
-> published status pages cannot accidentally omit streams.
+Render a single format on demand when dashboards or briefs need a specific
+payload:
 
-When writing to alternate locations (for example in CI workspaces), provide
-explicit paths for the summary and detail files:
+```bash
+python -m tools.roadmap.high_impact --format summary
+python -m tools.roadmap.high_impact --format detail
+python -m tools.roadmap.high_impact --format attention
+```
+
+JSON companions are emitted with the same flags (`--format …-json`). When
+writing to alternate destinations, provide explicit paths:
 
 ```bash
 python -m tools.roadmap.high_impact --refresh-docs \
   --summary-path /tmp/high_impact_summary.md \
-  --detail-path /tmp/high_impact_detail.md
+  --detail-path /tmp/high_impact_detail.md \
+  --attention-path /tmp/high_impact_attention.md
 ```
+
+> **Reminder:** `--refresh-docs` always evaluates the full portfolio; combine it
+> with explicit paths rather than stream filters so published status pages never
+> omit a stream.
 
 <!-- HIGH_IMPACT_PORTFOLIO:START -->
 # High-impact roadmap summary
 
 - Total streams: 3
-- Ready: 3
-- Attention needed: 0
+- Ready: 0
+- Attention needed: 3
 
-All streams are Ready; no missing requirements.
+The core abstractions mirror the encyclopedia narrative, but every stream still
+relies on scaffolding or deprecated paths rather than production-grade
+implementations.【F:docs/DEVELOPMENT_STATUS.md†L7-L35】【F:docs/technical_debt_assessment.md†L31-L112】
 
 ## Streams
 
 ### Stream A – Institutional data backbone
 
-*Status:* Ready
-*Summary:* Timescale ingest, Redis caching, Kafka streaming, and Spark exports ship with readiness telemetry and failover tooling.
-*Next checkpoint:* Exercise cross-region failover and automated scheduler cutover using the readiness feeds.
+*Status:* Attention
+*Summary:* The layered architecture and canonical `SystemConfig` exist, yet the
+institutional ingest/caching/streaming stack remains mock-driven with no
+Timescale, Redis, or Kafka services in operation.【F:docs/architecture/overview.md†L9-L48】【F:docs/DEVELOPMENT_STATUS.md†L19-L35】
+*Next checkpoint:* Stand up a real ingest slice with parameterised SQL, managed
+caches, supervised async tasks, and regression tests that exercise institutional
+telemetry before declaring parity.【F:docs/development/remediation_plan.md†L34-L141】【F:docs/technical_debt_assessment.md†L33-L101】
+*Actionable checklist:*
+  - [ ] Provision production-grade Timescale/Redis/Kafka instances and connect them through supervised builders.
+  - [ ] Parameterise all ingest SQL and remove `eval` usage flagged in the remediation plan.【F:docs/development/remediation_plan.md†L34-L72】
+  - [ ] Add ingest telemetry regression tests and CI coverage beyond the current 76% baseline.【F:docs/ci_baseline_report.md†L8-L27】
 
 ### Stream B – Sensory cortex & evolution uplift
 
-*Status:* Ready
-*Summary:* All five sensory organs operate with drift telemetry and catalogue-backed evolution lineage exports.
-*Next checkpoint:* Extend live-paper experiments and automated tuning loops using evolution telemetry.
+*Status:* Attention
+*Summary:* Concept chapters are mapped to code stubs, but HOW/ANOMALY organs,
+evolution pipelines, and catalogue integrations still ship as placeholders with
+`NotImplementedError` paths and thin heuristics.【F:docs/DEVELOPMENT_STATUS.md†L19-L35】
+*Next checkpoint:* Replace scaffolding with executable organs, wire lineage
+telemetry, and complete the evolution engine so strategies can mutate against
+real data feeds.【F:docs/development/remediation_plan.md†L92-L167】
+*Actionable checklist:*
+  - [ ] Implement executable HOW/ANOMALY sensory organs with documented drift metrics.
+  - [ ] Seed catalogue-backed genomes and capture lineage telemetry for governance sign-off.
+  - [ ] Extend regression suites to cover sensory drift and adaptive loops beyond FIX mocks.【F:docs/DEVELOPMENT_STATUS.md†L19-L35】
 
 ### Stream C – Execution, risk, compliance, ops readiness
 
-*Status:* Ready
-*Summary:* FIX pilots, risk/compliance workflows, ROI telemetry, and operational readiness publish evidence for operators.
-*Next checkpoint:* Expand broker connectivity with drop-copy reconciliation and extend regulatory telemetry coverage.
+*Status:* Attention
+*Summary:* The order lifecycle mirrors the encyclopedia chapters, yet risk and
+compliance enforcement are hollow, async entrypoints remain partially migrated,
+ and deprecated exports still leak into runtime consumers.【F:docs/technical_debt_assessment.md†L33-L121】【F:src/core/__init__.py†L11-L51】【F:docs/DEVELOPMENT_STATUS.md†L19-L35】
+*Next checkpoint:* Finish the runtime builder rollout, adopt supervised tasks,
+enforce risk policies, and retire deprecated facades before expanding broker
+coverage.【F:docs/technical_debt_assessment.md†L33-L101】【F:docs/development/remediation_plan.md†L34-L167】
+*Actionable checklist:*
+  - [ ] Complete the runtime builder migration and introduce a task supervision layer.
+  - [ ] Enforce deterministic risk APIs and surface policy breaches through telemetry dashboards.
+  - [ ] Remove deprecated config shims and undefined exports (`get_risk_manager`) from public modules.【F:src/core/__init__.py†L11-L51】
 <!-- HIGH_IMPACT_PORTFOLIO:END -->
 
 <!-- HIGH_IMPACT_SUMMARY:START -->
 | Stream | Status | Summary | Next checkpoint |
 | --- | --- | --- | --- |
-| Stream A – Institutional data backbone | Ready | Timescale ingest, Redis caching, Kafka streaming, and Spark exports ship with readiness telemetry and failover tooling. | Exercise cross-region failover and automated scheduler cutover using the readiness feeds. |
-| Stream B – Sensory cortex & evolution uplift | Ready | All five sensory organs operate with drift telemetry and catalogue-backed evolution lineage exports. | Extend live-paper experiments and automated tuning loops using evolution telemetry. |
-| Stream C – Execution, risk, compliance, ops readiness | Ready | FIX pilots, risk/compliance workflows, ROI telemetry, and operational readiness publish evidence for operators. | Expand broker connectivity with drop-copy reconciliation and extend regulatory telemetry coverage. |
+| Stream A – Institutional data backbone | Attention | Canonical layering exists, but institutional ingest/caching/streaming still run on mocks without Timescale/Redis/Kafka services. | Deploy real services, secure SQL paths, and instrument supervised telemetry across ingest tasks. |
+| Stream B – Sensory cortex & evolution uplift | Attention | Encyclopedia dimensions map to stubs; HOW/ANOMALY organs and evolution loops remain incomplete. | Implement executable organs, connect lineage telemetry, and exercise evolution against live data feeds. |
+| Stream C – Execution, risk, compliance, ops readiness | Attention | Lifecycle scaffolding is present, yet risk/compliance enforcement and runtime entrypoints remain hollow. | Complete the builder migration, enforce risk policies, and retire deprecated facades before expanding pilots. |
 <!-- HIGH_IMPACT_SUMMARY:END -->
 
-For narrative reports or dashboards, export the detailed format to a companion
-file:
+To export the detailed evidence companion file, render the detail view:
 
 ```bash
-python -m tools.roadmap.high_impact --format detail --output docs/status/high_impact_roadmap_detail.md
+python -m tools.roadmap.high_impact --format detail \
+  --output docs/status/high_impact_roadmap_detail.md
 ```
 
-The command produces a stream-by-stream summary that includes the captured
-evidence list for each initiative.
-
-To persist the attention view alongside these reports, provide an explicit
-destination (or rely on the default location under `docs/status/`):
+Persist the attention view alongside these reports when dashboards track gap
+lists explicitly:
 
 ```bash
 python -m tools.roadmap.high_impact --refresh-docs \

@@ -48,9 +48,12 @@ relative_files = true
 source = ["src"]
 include = [
   "src/core/**",
-  "src/trading/execution/**",
-  "src/trading/models/**",
-  "src/operational/metrics.py"
+  "src/trading/**",
+  "src/risk/**",
+  "src/data_foundation/**",
+  "src/operations/**",
+  "src/runtime/**",
+  "src/governance/**",
 ]
 
 [tool.coverage.report]
@@ -71,5 +74,12 @@ include = [
   "src/data_foundation/config/risk_portfolio_config.py",
   "src/data_foundation/config/sizing_config.py",
   "src/data_foundation/config/why_config.py",
-  "src/sensory/dimensions/why/yield_signal.py"
+  "src/sensory/dimensions/why/yield_signal.py",
+  "src/trading/risk/*.py",
+  "src/risk/*.py",
+  "src/data_foundation/ingest/*.py",
+  "src/data_foundation/streaming/*.py",
+  "src/operations/*.py",
+  "src/runtime/runtime_builder.py",
+  "src/runtime/predator_app.py",
 ]

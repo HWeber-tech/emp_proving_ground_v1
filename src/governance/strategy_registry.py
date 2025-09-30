@@ -54,6 +54,18 @@ class StrategyRegistry:
         finally:
             conn.close()
 
+    def close(self) -> None:
+        """Release any registry resources.
+
+        The registry opens short-lived SQLite connections via
+        :meth:`_managed_connection`, so there is no persistent handle to close.
+        Exposing an explicit ``close`` method keeps the API aligned with the
+        legacy shim while letting callers treat the registry like other managed
+        resources.
+        """
+
+        self._logger.debug("Strategy Registry close requested; no persistent connections to close")
+
     def _initialize_database(self) -> None:
         governance_columns = {
             "seed_source": "TEXT",

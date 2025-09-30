@@ -285,14 +285,31 @@ def publish_system_validation_snapshot(
         try:
             publish_from_sync(event)
             return
-        except Exception:  # pragma: no cover - defensive logging
-            logger.debug("Failed to publish system validation via runtime bus", exc_info=True)
+        except RuntimeError as exc:
+            logger.warning(
+                "Runtime event bus rejected system validation snapshot; falling back to global bus",
+                exc_info=exc,
+            )
+        except Exception:
+            logger.exception(
+                "Unexpected error publishing system validation snapshot via runtime bus",
+            )
+            raise
 
     try:
         bus = get_global_bus()
         bus.publish_sync(event.type, event.payload, source=event.source)
-    except Exception:  # pragma: no cover - defensive logging
-        logger.debug("System validation telemetry publish skipped", exc_info=True)
+    except RuntimeError as exc:
+        logger.error(
+            "Global event bus not running while publishing system validation snapshot",
+            exc_info=exc,
+        )
+        raise
+    except Exception:
+        logger.exception(
+            "Unexpected error publishing system validation snapshot via global bus",
+        )
+        raise
 
 
 def load_system_validation_snapshot(

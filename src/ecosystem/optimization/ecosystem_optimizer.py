@@ -270,14 +270,15 @@ class EcosystemOptimizer(IEcosystemOptimizer):
 
         # Adjust for market regime
         regime_bonus = 1.0
+        regime_attr = getattr(market_context, "regime", "")
         try:
-            regime_str = str(getattr(market_context, "regime", "")).lower()
-            if "trend" in regime_str:
-                regime_bonus = 1.1
-            elif "volatile" in regime_str or "crisis" in regime_str:
-                regime_bonus = 0.9
-        except Exception:
-            regime_bonus = 1.0
+            regime_str = str(regime_attr).lower()
+        except (TypeError, ValueError, AttributeError):
+            regime_str = ""
+        if "trend" in regime_str:
+            regime_bonus = 1.1
+        elif "volatile" in regime_str or "crisis" in regime_str:
+            regime_bonus = 0.9
 
         return float(base_score * species_bonus * regime_bonus)
 
@@ -296,7 +297,7 @@ class EcosystemOptimizer(IEcosystemOptimizer):
                 val = parent2.parameters.get(key, parent1.parameters.get(key, 0.0))
             try:
                 child_params[str(key)] = float(val)
-            except Exception:
+            except (TypeError, ValueError):
                 # Skip non-coercible values
                 continue
 
@@ -324,7 +325,7 @@ class EcosystemOptimizer(IEcosystemOptimizer):
                     # Apply a mild random multiplicative perturbation
                     mutated_val = float(value) * random.uniform(0.8, 1.2)
                     new_params[str(key)] = float(mutated_val)
-                except Exception:
+                except (TypeError, ValueError):
                     continue
 
         if not new_params:
@@ -505,7 +506,10 @@ class EcosystemOptimizer(IEcosystemOptimizer):
             return genome
         try:
             return cast(CanonDecisionGenome, adapt_to_canonical(genome))
-        except Exception:
+        except (TypeError, ValueError, AttributeError) as error:
+            logger.warning(
+                "Failed to adapt genome to canonical representation: %s", error
+            )
             # Minimal fallback canonical genome
             return CanonDecisionGenome.from_dict(
                 {

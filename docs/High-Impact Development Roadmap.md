@@ -230,12 +230,12 @@ To reflect the true scope of institutional-grade trading components, the roadmap
 #### Workstream 3C: Advanced Research Backlog (ongoing within phase)
 **Impact:** 🔥 **MEDIUM** — Provides roadmap continuity without overcommitting timelines
 
-- [ ] Document future GA extensions (speciation, Pareto fronts, live evolution) with prerequisites.
-- [ ] Outline roadmap for NLP/news sentiment ingestion including data governance considerations.
-- [ ] Define success metrics for causal inference and ML classifiers before implementation.
-- [ ] Map encyclopedia Tier-2/Tier-3 vision items to JIRA/issue tracker epics with sequencing notes.
-- [ ] Capture research debt register (open questions, data gaps) and review monthly.
-- [ ] Produce quarterly "Frontier Research" brief summarizing experimentation outcomes vs encyclopedia hypotheses.
+- [x] Document future GA extensions (speciation, Pareto fronts, live evolution) with prerequisites. *(See `docs/research/advanced_research_backlog.md#genetic-algorithm-expansion`.)*
+- [x] Outline roadmap for NLP/news sentiment ingestion including data governance considerations. *(See `docs/research/advanced_research_backlog.md#nlp--news-sentiment-ingestion-roadmap`.)*
+- [x] Define success metrics for causal inference and ML classifiers before implementation. *(See `docs/research/advanced_research_backlog.md#success-metrics-for-causal-inference--ml-classifiers`.)*
+- [x] Map encyclopedia Tier-2/Tier-3 vision items to JIRA/issue tracker epics with sequencing notes. *(See `docs/research/advanced_research_backlog.md#encyclopedia-tier-2tier-3-epics-mapping`.)*
+- [x] Capture research debt register (open questions, data gaps) and review monthly. *(See `docs/research/advanced_research_backlog.md#research-debt-register`.)*
+- [x] Produce quarterly "Frontier Research" brief summarizing experimentation outcomes vs encyclopedia hypotheses. *(See `docs/research/frontier_research_brief_2025Q1.md`.)*
 
 **Acceptance:** Production stack can be deployed with monitoring & alerting; research backlog is explicit and sequenced for future iterations.
 

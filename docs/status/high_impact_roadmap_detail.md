@@ -94,3 +94,5 @@
 - scripts/reconcile_positions.py
 - scripts/generate_risk_report.py
 - docs/runbooks/execution_lifecycle.md
+- docs/research/advanced_research_backlog.md
+- docs/research/frontier_research_brief_2025Q1.md

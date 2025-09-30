@@ -30,6 +30,10 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
     optional trigger metadata, and recovery plan payloads under pytest coverage so
     institutional dashboards surface degraded optional slices alongside the
     Timescale recovery blueprint instead of masking the drill-down details.【F:src/operations/data_backbone.py†L488-L515】【F:tests/operations/test_data_backbone.py†L289-L347】
+  - *Progress*: JSONL persistence now raises typed errors for unserialisable payloads,
+    logs filesystem failures, and cleans up partial files so ingest tooling surfaces
+    genuine persistence faults instead of emitting empty paths under silent
+    fallbacks.【F:src/data_foundation/persist/jsonl_writer.py†L1-L69】【F:tests/data_foundation/test_jsonl_writer.py†L1-L37】
 - [ ] **Sensory + evolution execution** – Replace HOW/ANOMALY stubs, wire lineage
   telemetry, and prove adaptive strategies against recorded data.
   - *Progress*: Ecosystem optimizer now defends against unsafe genomes and
@@ -63,10 +67,10 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
 - [ ] **Quality and observability** – Expand regression coverage, close the
   documentation gap, and track remediation progress through CI snapshots.
   - *Progress*: Event bus health publishing now logs unexpected primary-bus
-    failures, only falls back to the global bus after emitting warnings, and
-    raises on unknown exceptions so telemetry regressions surface instead of
-    disappearing behind silent fallbacks, with tests covering the warning and
-    escalation paths.【F:src/operations/event_bus_health.py†L234-L281】【F:tests/operations/test_event_bus_health.py†L95-L147】
+    failures, asserts backlog thresholds, surfaces dropped events, and raises on
+    global bus outages so telemetry regressions escalate instead of disappearing
+    behind silent fallbacks, with tests covering backlog, drop, and failover
+    scenarios.【F:src/operations/event_bus_health.py†L118-L281】【F:tests/operations/test_event_bus_health.py†L1-L206】
   - *Progress*: Bootstrap control centre helpers now log champion payload,
     trading-manager method, and formatter failures, keeping operational
     diagnostics visible during bootstrap runs and documenting the logging
@@ -145,8 +149,13 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
     governance suites regress by pinning pytest entrypoints and coverage include
     lists to those domains, preventing partial runs from passing unnoticed.【F:.github/workflows/ci.yml†L79-L120】【F:pytest.ini†L1-L14】【F:pyproject.toml†L45-L85】
   - *Progress*: Ingest trend and Kafka readiness publishers now log event bus
-    failures and ship regression tests so telemetry gaps raise alerts instead of
-    disappearing silently.【F:src/operations/ingest_trends.py†L303-L329】【F:tests/operations/test_ingest_trends.py†L90-L118】【F:src/operations/kafka_readiness.py†L313-L333】【F:tests/operations/test_kafka_readiness.py†L115-L143】
+    failures, raise on unexpected exceptions, and surface global-bus outages with
+    pytest coverage so telemetry gaps raise alerts instead of disappearing
+    silently.【F:src/operations/ingest_trends.py†L303-L336】【F:tests/operations/test_ingest_trends.py†L90-L148】【F:src/operations/kafka_readiness.py†L313-L333】【F:tests/operations/test_kafka_readiness.py†L115-L143】
+  - *Progress*: Cache health telemetry now logs primary bus failures, only falls
+    back once runtime errors are captured, and raises on unexpected or global-bus
+    errors with pytest guardrails so readiness dashboards record real outages
+    instead of silent drops.【F:src/operations/cache_health.py†L230-L303】【F:tests/operations/test_cache_health.py†L64-L131】
   - *Progress*: Trading position model guardrails now run under pytest,
     asserting timestamp updates, profit recalculations, and close flows so the
     lightweight execution telemetry remains deterministic under CI coverage.【F:tests/trading/test_position_model_guardrails.py†L1-L105】

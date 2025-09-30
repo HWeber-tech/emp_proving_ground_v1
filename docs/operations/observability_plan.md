@@ -30,7 +30,13 @@ can layer on without introducing third-party dependencies.
   ingests coverage XML and records the active formatter mode to append trend entries to
   `tests/.telemetry/ci_metrics.json`, giving CI dashboards a machine-readable
   feed for coverage percentages and formatter enforcement with pytest validating the
-  JSON contract.【F:tools/telemetry/update_ci_metrics.py†L1-L120】【F:tools/telemetry/ci_metrics.py†L1-L164】【F:tests/tools/test_ci_metrics.py†L1-L160】【F:tests/.telemetry/ci_metrics.json†L1-L4】
+  JSON contract.【F:tools/telemetry/update_ci_metrics.py†L1-L184】【F:tools/telemetry/ci_metrics.py†L1-L210】【F:tests/tools/test_ci_metrics.py†L1-L340】【F:tests/.telemetry/ci_metrics.json†L1-L5】
+* **Remediation progress snapshots** – The same CLI now accepts `--remediation-status`
+  key/value pairs (plus optional label/source/note metadata) to append roadmap
+  progress entries to `tests/.telemetry/ci_metrics.json`, giving dashboards a
+  structured feed for quality/observability remediation progress. pytest exercises
+  the JSON schema, CLI parsing, and evidence metadata handling so snapshots stay
+  regression-safe.【F:tools/telemetry/update_ci_metrics.py†L1-L184】【F:tools/telemetry/ci_metrics.py†L1-L210】【F:tests/tools/test_ci_metrics.py†L1-L340】【F:tests/.telemetry/ci_metrics.json†L1-L5】
 * **Operational snapshot export** – `tools/telemetry/export_operational_snapshots.py`
   builds the professional runtime, extracts high-value operational blocks (professional
   readiness, security, incident response, and system validation), and emits a JSON

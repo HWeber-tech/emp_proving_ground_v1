@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any, Iterable, Mapping
 import xml.etree.ElementTree as ET
 
 from .coverage_matrix import build_coverage_matrix
@@ -16,6 +16,7 @@ def _empty_metrics() -> dict[str, Any]:
         "coverage_trend": [],
         "formatter_trend": [],
         "coverage_domain_trend": [],
+        "remediation_trend": [],
     }
 
 
@@ -23,6 +24,7 @@ def _ensure_defaults(data: dict[str, Any]) -> dict[str, Any]:
     data.setdefault("coverage_trend", [])
     data.setdefault("formatter_trend", [])
     data.setdefault("coverage_domain_trend", [])
+    data.setdefault("remediation_trend", [])
     return data
 
 
@@ -41,6 +43,7 @@ def save_metrics(path: Path, data: dict[str, Any]) -> None:
         "coverage_trend": list(data.get("coverage_trend", [])),
         "formatter_trend": list(data.get("formatter_trend", [])),
         "coverage_domain_trend": list(data.get("coverage_domain_trend", [])),
+        "remediation_trend": list(data.get("remediation_trend", [])),
     }
     path.write_text(json.dumps(serialisable, indent=2, sort_keys=True) + "\n")
 
@@ -193,12 +196,40 @@ def record_formatter(
     return metrics
 
 
+def record_remediation(
+    metrics_path: Path,
+    *,
+    statuses: Mapping[str, str],
+    label: str | None = None,
+    source: str | None = None,
+    note: str | None = None,
+    data: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    if not statuses:
+        raise ValueError("At least one remediation status must be provided")
+
+    metrics = _ensure_defaults(data or load_metrics(metrics_path))
+    entry: dict[str, Any] = {
+        "label": label or _timestamp_label(),
+        "statuses": {key: str(value) for key, value in sorted(statuses.items())},
+    }
+    if source is not None:
+        entry["source"] = source
+    if note is not None:
+        entry["note"] = note
+
+    metrics["remediation_trend"].append(entry)
+    save_metrics(metrics_path, metrics)
+    return metrics
+
+
 __all__ = [
     "DEFAULT_METRICS_PATH",
     "load_metrics",
     "record_coverage",
     "record_coverage_domains",
     "record_formatter",
+    "record_remediation",
     "parse_coverage_percentage",
     "save_metrics",
 ]

@@ -52,6 +52,10 @@
   - Progress: System validation telemetry regressions now capture runtime bus
     fallbacks and unexpected-error escalations, hardening operational coverage so
     readiness dashboards surface degraded runs instead of swallowing failures.【F:src/operations/system_validation.py†L269-L312】【F:tests/operations/test_system_validation.py†L85-L137】
+- Progress: Operational metrics instrumentation now has targeted regressions for
+  logging escalation, lazy gauge fallbacks, Prometheus exporter idempotence, and
+  registry sink adapters so CI surfaces metric failures deterministically and
+  remediation plans inherit documented evidence.【F:src/operational/metrics.py†L1-L268】【F:tests/operational/test_metrics.py†L1-L220】
 - Wire Slack/webhook mirrors for CI alerts, rehearse the forced-failure drill,
   and record MTTA/MTTR in the health dashboard per the operational telemetry
   stream roadmap.【F:docs/technical_debt_assessment.md†L156-L174】【F:docs/status/ci_health.md†L74-L76】
@@ -89,6 +93,10 @@
   `tests/.telemetry/ci_metrics.json`, flagging lagging domains directly in CI
   telemetry so remediation progress is visible without ad-hoc parsing.
   【F:tools/telemetry/ci_metrics.py†L1-L212】【F:tests/tools/test_ci_metrics.py†L1-L236】
+- Remediation progress snapshots now live alongside coverage/formatter trendlines
+  in `tests/.telemetry/ci_metrics.json` thanks to the `--remediation-status`
+  CLI, capturing roadmap evidence (label, statuses, source, notes) for dashboards
+  and audits with pytest guarding the JSON contract.【F:tools/telemetry/update_ci_metrics.py†L1-L184】【F:tools/telemetry/ci_metrics.py†L1-L210】【F:tests/tools/test_ci_metrics.py†L1-L340】【F:tests/.telemetry/ci_metrics.json†L1-L5】
 - Maintain CI dashboard entries for ingest, risk, sensory, evolution, and
   operational telemetry, updating notes/tests as suites land so reviewers can
   trace validation hooks directly from the brief.【F:docs/status/ci_health.md†L21-L73】

@@ -10,6 +10,7 @@ from .ci_metrics import (
     record_coverage,
     record_coverage_domains,
     record_formatter,
+    record_remediation,
 )
 
 
@@ -19,7 +20,9 @@ def _timestamp() -> str:
 
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Update CI telemetry trendlines for coverage and formatter adoption.",
+        description=(
+            "Update CI telemetry trendlines for coverage, formatter adoption, and remediation progress."
+        ),
     )
     parser.add_argument(
         "--metrics",
@@ -63,7 +66,47 @@ def _build_parser() -> argparse.ArgumentParser:
         type=str,
         help="Label for the formatter trend entry (defaults to UTC timestamp)",
     )
+    parser.add_argument(
+        "--remediation-status",
+        action="append",
+        metavar="KEY=VALUE",
+        help=(
+            "Record a remediation status entry in the telemetry JSON; "
+            "specify multiple times for additional key/value pairs"
+        ),
+    )
+    parser.add_argument(
+        "--remediation-label",
+        type=str,
+        help="Label for the remediation progress entry (defaults to UTC timestamp)",
+    )
+    parser.add_argument(
+        "--remediation-source",
+        type=str,
+        help="Optional evidence reference (URL or file path) for the remediation entry",
+    )
+    parser.add_argument(
+        "--remediation-note",
+        type=str,
+        help="Optional free-form note to include with the remediation entry",
+    )
     return parser
+
+
+def _parse_status_arguments(entries: Sequence[str] | None) -> dict[str, str]:
+    statuses: dict[str, str] = {}
+    if not entries:
+        return statuses
+    for raw_entry in entries:
+        if "=" not in raw_entry:
+            raise ValueError(f"Invalid remediation status entry: {raw_entry!r}")
+        key, value = raw_entry.split("=", 1)
+        key = key.strip()
+        value = value.strip()
+        if not key or not value:
+            raise ValueError(f"Invalid remediation status entry: {raw_entry!r}")
+        statuses[key] = value
+    return statuses
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -74,8 +117,27 @@ def main(argv: Sequence[str] | None = None) -> int:
     if formatter_mode is None and args.allowlist is not None:
         formatter_mode = "allowlist"
 
-    if args.coverage_report is None and formatter_mode is None:
-        parser.error("Provide --coverage-report, --formatter-mode, or both to update metrics")
+    remediation_statuses: dict[str, str] = {}
+    try:
+        remediation_statuses = _parse_status_arguments(args.remediation_status)
+    except ValueError as exc:
+        parser.error(str(exc))
+
+    if (
+        args.coverage_report is None
+        and formatter_mode is None
+        and not remediation_statuses
+    ):
+        parser.error(
+            "Provide --coverage-report, --formatter-mode, --remediation-status, or a combination to update metrics"
+        )
+
+    if not remediation_statuses and (
+        args.remediation_label is not None
+        or args.remediation_source is not None
+        or args.remediation_note is not None
+    ):
+        parser.error("--remediation-label/source/note require at least one --remediation-status entry")
 
     metrics_data = None
     metrics_path: Path = args.metrics
@@ -109,6 +171,17 @@ def main(argv: Sequence[str] | None = None) -> int:
             args.allowlist if formatter_mode == "allowlist" else None,
             mode=formatter_mode,
             label=formatter_label,
+            data=metrics_data,
+        )
+
+    if remediation_statuses:
+        remediation_label = args.remediation_label or _timestamp()
+        metrics_data = record_remediation(
+            metrics_path,
+            statuses=remediation_statuses,
+            label=remediation_label,
+            source=args.remediation_source,
+            note=args.remediation_note,
             data=metrics_data,
         )
 

@@ -12,7 +12,7 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
 | Delivery state | The codebase is still a development framework: evolution, intelligence, execution, and strategy layers run on mocks; there is no production ingest, risk sizing, or portfolio management. | 【F:docs/DEVELOPMENT_STATUS.md†L7-L35】 |
 | Quality posture | CI passes with 76% coverage, but hotspots include operational metrics, position models, and configuration loaders; runtime validation checks still fail. | 【F:docs/ci_baseline_report.md†L8-L27】【F:docs/technical_debt_assessment.md†L31-L112】 |
 | Debt hotspots | Hollow risk management, unsupervised async tasks, namespace drift, and deprecated exports continue to surface in audits. | 【F:docs/technical_debt_assessment.md†L33-L80】【F:src/core/__init__.py†L11-L51】 |
-| Legacy footprint | Canonical risk config has replaced the deprecated shim while the evolution shim and legacy integration guides remain, signalling unfinished cleanup. | 【F:src/config/risk/risk_config.py†L1-L72】【F:src/config/evolution_config.py†L1-L8】【F:docs/legacy/README.md†L1-L12】 |
+| Legacy footprint | Canonical risk and evolution configuration now resolve through their source modules, with both legacy shims removed while integration guides still trail reality. | 【F:src/config/risk/risk_config.py†L1-L72】【F:src/core/evolution/engine.py†L13-L52】【F:docs/reports/CLEANUP_REPORT.md†L74-L84】【F:docs/legacy/README.md†L1-L12】 |
 
 ## Gaps to close
 
@@ -35,8 +35,9 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
   documentation gap, and track remediation progress through CI snapshots.
 - [ ] **Dead code and duplication** – Triage the 168-file dead-code backlog and
   eliminate shim exports so operators see a single canonical API surface.【F:docs/reports/CLEANUP_REPORT.md†L71-L188】
-  - *Progress*: Removed the deprecated `src/config/risk_config.py` shim so risk
-    consumers converge on the canonical configuration module.【F:src/config/risk/risk_config.py†L1-L72】
+  - *Progress*: Removed the deprecated risk and evolution configuration shims so
+    consumers converge on the canonical modules without drift when new services
+    arrive.【F:docs/reports/CLEANUP_REPORT.md†L74-L84】【F:src/config/risk/risk_config.py†L1-L72】【F:src/core/evolution/engine.py†L13-L52】
 
 ## Roadmap cadence
 
@@ -64,6 +65,9 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
       parameterised deletes, and asserts gateway error handling so bootstrap
       persistence cannot be hijacked by crafted identifiers or silent
       failures.【F:src/data_foundation/ingest/yahoo_ingest.py†L82-L151】【F:tests/data_foundation/test_yahoo_ingest_security.py†L32-L80】【F:tests/data_integration/test_yfinance_gateway_security.py†L12-L56】
+    - *Progress*: Hardened the IC Markets operational bridge with classified
+      network/message error handling, managed retries, and structured logging so
+      FIX connectivity failures surface instead of stalling silent loops.【F:src/operational/icmarkets_robust_application.py†L22-L333】
 - [x] **Context pack refresh** – Replace legacy briefs with the updated context in
   `docs/context/alignment_briefs` so discovery and reviews inherit the same
   narrative reset (this change set).
@@ -78,6 +82,12 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
   - *Progress*: Coverage telemetry now emits per-domain matrices from the
     coverage XML, with CLI tooling and pytest coverage documenting the JSON/markdown
     contract so dashboards can flag lagging domains without scraping CI logs.【F:tools/telemetry/coverage_matrix.py†L1-L199】【F:tests/tools/test_coverage_matrix.py†L1-L123】【F:docs/status/ci_health.md†L13-L31】
+  - *Progress*: CI workflow now fails fast if ingest, operations, trading, and
+    governance suites regress by pinning pytest entrypoints and coverage include
+    lists to those domains, preventing partial runs from passing unnoticed.【F:.github/workflows/ci.yml†L79-L120】【F:pytest.ini†L1-L14】【F:pyproject.toml†L45-L85】
+  - *Progress*: Ingest trend and Kafka readiness publishers now log event bus
+    failures and ship regression tests so telemetry gaps raise alerts instead of
+    disappearing silently.【F:src/operations/ingest_trends.py†L303-L329】【F:tests/operations/test_ingest_trends.py†L90-L118】【F:src/operations/kafka_readiness.py†L313-L333】【F:tests/operations/test_kafka_readiness.py†L115-L143】
 
 ### Next (30–90 days)
 
@@ -115,7 +125,9 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
 | [ ] | Expand CI to cover ingest orchestration, risk policies, and observability guardrails | Quality guild | Now → Quality and observability |
 | [ ] | Purge deprecated shims and close dead-code backlog | Platform hygiene crew | Later → Dead code and duplication |
 
-- *Progress*: Risk configuration now sources exclusively from `src/config/risk/risk_config.py`; the evolution shim remains queued for removal.【F:src/config/risk/risk_config.py†L1-L72】【F:src/config/evolution_config.py†L1-L8】
+- *Progress*: Risk and evolution configuration now source directly from their
+  canonical modules with the legacy shims removed, shrinking the cleanup queue
+  and preventing namespace drift.【F:docs/reports/CLEANUP_REPORT.md†L74-L84】【F:src/config/risk/risk_config.py†L1-L72】【F:src/core/evolution/engine.py†L13-L52】
 
 ## Execution guardrails
 

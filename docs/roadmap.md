@@ -22,8 +22,16 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
     identifiers, parameterises retention queries, and documents the contract via
     regression tests so institutional slices cannot inject raw SQL through policy
     definitions.【F:src/operations/retention.py†L42-L195】【F:tests/operations/test_data_retention.py†L1-L118】
+  - *Progress*: Timescale reader guards schema/table/column identifiers, normalises
+    symbol filters, and parameterises queries before execution so ingest consumers
+    cannot smuggle unsafe SQL through configuration, with security regressions
+    covering identifier fuzzing.【F:src/data_foundation/persist/timescale_reader.py†L19-L210】【F:tests/data_foundation/test_timescale_reader_security.py†L1-L45】
 - [ ] **Sensory + evolution execution** – Replace HOW/ANOMALY stubs, wire lineage
   telemetry, and prove adaptive strategies against recorded data.
+  - *Progress*: Ecosystem optimizer now defends against unsafe genomes and
+    malformed regime metadata by normalising canonical models, skipping
+    non-numeric parameters, and logging adapter failures with pytest coverage on
+    each guardrail so evolution runs cannot silently corrupt state.【F:src/ecosystem/optimization/ecosystem_optimizer.py†L59-L230】【F:tests/ecosystem/test_ecosystem_optimizer_hardening.py†L1-L70】
 - [ ] **Risk and runtime safety** – Enforce `RiskConfig`, finish the builder rollout,
   adopt supervised async lifecycles, and purge deprecated facades.
   - *Progress*: The trading risk gateway now drives portfolio checks through the
@@ -38,6 +46,10 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
   - *Progress*: Removed the deprecated risk and evolution configuration shims so
     consumers converge on the canonical modules without drift when new services
     arrive.【F:docs/reports/CLEANUP_REPORT.md†L74-L84】【F:src/config/risk/risk_config.py†L1-L72】【F:src/core/evolution/engine.py†L13-L52】
+  - *Progress*: Retired the legacy strategy template package and rewrote the
+    canonical mean reversion regression to exercise the modern trading
+    strategies API, shrinking the dead-code backlog and aligning tests with the
+    production surface.【F:docs/reports/CLEANUP_REPORT.md†L87-L106】【F:tests/current/test_mean_reversion_strategy.py†L1-L80】
 
 ## Roadmap cadence
 

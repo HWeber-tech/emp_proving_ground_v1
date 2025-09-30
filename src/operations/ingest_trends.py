@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import StrEnum
@@ -10,6 +11,9 @@ from typing import Iterable, Mapping, Sequence
 
 from src.core.event_bus import Event, EventBus, get_global_bus
 from src.data_foundation.persist.timescale import TimescaleIngestRunRecord
+
+
+logger = logging.getLogger(__name__)
 
 
 class IngestTrendStatus(StrEnum):
@@ -307,14 +311,22 @@ def publish_ingest_trends(
         try:
             publish_from_sync(event)
             return
-        except Exception:  # pragma: no cover - defensive logging
-            pass
+        except Exception as exc:  # pragma: no cover - defensive logging
+            logger.warning(
+                "Failed to publish ingest trend snapshot via runtime event bus: %s",
+                exc,
+                exc_info=True,
+            )
 
     try:
         topic_bus = get_global_bus()
         topic_bus.publish_sync(event.type, event.payload, source=event.source)
-    except Exception:  # pragma: no cover - defensive logging
-        pass
+    except Exception as exc:  # pragma: no cover - defensive logging
+        logger.warning(
+            "Failed to publish ingest trend snapshot via global event bus: %s",
+            exc,
+            exc_info=True,
+        )
 
 
 __all__ = [

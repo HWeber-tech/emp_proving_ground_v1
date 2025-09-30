@@ -1,3 +1,4 @@
+import logging
 from datetime import UTC, datetime, timedelta
 
 from src.data_foundation.ingest.configuration import KafkaReadinessSettings
@@ -10,6 +11,7 @@ from src.data_foundation.streaming.kafka_stream import (
 from src.operations.kafka_readiness import (
     KafkaReadinessStatus,
     evaluate_kafka_readiness,
+    publish_kafka_readiness,
 )
 
 
@@ -108,3 +110,34 @@ def test_evaluate_kafka_readiness_warns_on_stale_lag() -> None:
         component for component in snapshot.components if component.name == "consumer_lag"
     )
     assert "stale" in lag_component.summary
+
+
+def test_publish_kafka_readiness_logs_failures(monkeypatch, caplog) -> None:
+    settings = KafkaReadinessSettings(enabled=True)
+    connection = _sample_connection()
+    snapshot = evaluate_kafka_readiness(
+        generated_at=datetime.now(tz=UTC),
+        settings=settings,
+        connection=connection,
+    )
+
+    class _FailRuntimeBus:
+        def is_running(self) -> bool:
+            return True
+
+        def publish_from_sync(self, event) -> None:
+            raise RuntimeError("runtime bus failure")
+
+    class _FailGlobalBus:
+        def publish_sync(self, *_: object, **__: object) -> None:
+            raise RuntimeError("global bus failure")
+
+    monkeypatch.setattr(
+        "src.operations.kafka_readiness.get_global_bus",
+        lambda: _FailGlobalBus(),
+    )
+
+    with caplog.at_level(logging.WARNING):
+        publish_kafka_readiness(_FailRuntimeBus(), snapshot)
+
+    assert "Failed to publish Kafka readiness snapshot" in caplog.text

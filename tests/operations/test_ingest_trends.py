@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from datetime import UTC, datetime, timedelta
 
 from src.core.event_bus import Event
@@ -84,3 +85,34 @@ def test_publish_ingest_trends_uses_event_bus() -> None:
     event = bus.events[0]
     assert event.type == "telemetry.ingest.trends"
     assert event.payload["status"] == snapshot.status.value
+
+
+def test_publish_ingest_trends_logs_failures(monkeypatch, caplog) -> None:
+    base = datetime(2024, 1, 1, tzinfo=UTC)
+    snapshot = evaluate_ingest_trends(
+        [
+            _record(run_id="r1", executed_at=base + timedelta(hours=1)),
+            _record(run_id="r0", executed_at=base),
+        ]
+    )
+
+    class _FailRuntimeBus:
+        def is_running(self) -> bool:
+            return True
+
+        def publish_from_sync(self, event: Event) -> None:
+            raise RuntimeError("runtime bus unavailable")
+
+    class _FailGlobalBus:
+        def publish_sync(self, *_: object, **__: object) -> None:
+            raise RuntimeError("global bus unavailable")
+
+    monkeypatch.setattr(
+        "src.operations.ingest_trends.get_global_bus",
+        lambda: _FailGlobalBus(),
+    )
+
+    with caplog.at_level(logging.WARNING):
+        publish_ingest_trends(_FailRuntimeBus(), snapshot)
+
+    assert "Failed to publish ingest trend snapshot" in caplog.text

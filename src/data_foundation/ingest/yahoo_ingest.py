@@ -79,6 +79,17 @@ def fetch_intraday_trades(symbols: list[str], days: int = 2, interval: str = "1m
     return pd.concat(frames, ignore_index=True)
 
 
+_VALID_IDENTIFIER = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
+
+
+def _sanitize_table_name(name: str | None, default: str = "daily_bars") -> str:
+    """Return a safe table identifier comprised of alphanumerics/underscores only."""
+
+    if name and _VALID_IDENTIFIER.fullmatch(name):
+        return name
+    return default
+
+
 def store_duckdb(df: pd.DataFrame, db_path: Path, table: str = "daily_bars") -> None:
     try:
         import duckdb
@@ -88,34 +99,41 @@ def store_duckdb(df: pd.DataFrame, db_path: Path, table: str = "daily_bars") -> 
         df.to_csv(csv_path, index=False)
         return
 
-    con = cast(Any, duckdb.connect(str(db_path)))
-    # Bandit B608: parameterized query to avoid SQL injection (sanitize identifier)
-    safe_table = (
-        table if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", table or "daily_bars") else "daily_bars"
+    safe_table = _sanitize_table_name(table)
+    escape_identifier = getattr(duckdb, "escape_identifier", None)
+    quoted_table = (
+        escape_identifier(safe_table)
+        if callable(escape_identifier)
+        else safe_table
     )
-    con.execute(
-        f"""
-        CREATE TABLE IF NOT EXISTS {safe_table} (
-            date TIMESTAMP,
-            open DOUBLE,
-            high DOUBLE,
-            low DOUBLE,
-            close DOUBLE,
-            adj_close DOUBLE,
-            volume DOUBLE,
-            symbol VARCHAR
+
+    connection = cast(Any, duckdb.connect(str(db_path)))
+    try:
+        connection.execute(
+            f"""
+            CREATE TABLE IF NOT EXISTS {quoted_table} (
+                date TIMESTAMP,
+                open DOUBLE,
+                high DOUBLE,
+                low DOUBLE,
+                close DOUBLE,
+                adj_close DOUBLE,
+                volume DOUBLE,
+                symbol VARCHAR
+            )
+            """
         )
-        """
-    )
-    # Bandit B608: parameterized query to avoid SQL injection
-    con.execute(
-        f"DELETE FROM {safe_table} WHERE symbol IN ({','.join(['?'] * len(df['symbol'].unique()))})",
-        list(df["symbol"].unique()),
-    )
-    con.register("tmp_df", df)
-    # Bandit B608: parameterized query to avoid SQL injection (identifier sanitized)
-    con.execute(f"INSERT INTO {safe_table} SELECT * FROM tmp_df")
-    con.close()
+
+        unique_symbols = list(dict.fromkeys(df["symbol"].tolist()))
+        if unique_symbols:
+            delete_statement = f"DELETE FROM {quoted_table} WHERE symbol = ?"
+            for symbol in unique_symbols:
+                connection.execute(delete_statement, [symbol])
+
+        connection.register("tmp_df", df)
+        connection.execute(f"INSERT INTO {quoted_table} SELECT * FROM tmp_df")
+    finally:
+        connection.close()
 
 
 def main() -> int:

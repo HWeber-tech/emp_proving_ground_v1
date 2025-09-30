@@ -11,12 +11,16 @@ Returns pandas DataFrames with standardized columns:
 
 from __future__ import annotations
 
+import logging
 from typing import Any, Optional
 
 import pandas as pd
 import yfinance as yf
 
 from src.core.market_data import MarketDataGateway
+
+
+logger = logging.getLogger(__name__)
 
 
 class YFinanceGateway(MarketDataGateway):
@@ -80,8 +84,16 @@ class YFinanceGateway(MarketDataGateway):
             # Add symbol column for convenience
             df["symbol"] = symbol
             return df
-        except Exception:
+        except (ValueError, KeyError, pd.errors.ParserError) as exc:
+            logger.warning(
+                "Failed to fetch yfinance data for %s: %s", symbol, exc, exc_info=False
+            )
             return None
+        except Exception as exc:  # pragma: no cover - unexpected safeguard
+            logger.exception(
+                "Unexpected error while fetching yfinance data for %s", symbol
+            )
+            raise
 
     async def get_market_data(
         self,

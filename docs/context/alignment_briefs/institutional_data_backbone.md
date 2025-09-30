@@ -48,6 +48,9 @@
   unserialisable payloads, logs filesystem failures, and deletes partial files so
   ingest tooling reports genuine write issues instead of silently returning empty
   paths.【F:src/data_foundation/persist/jsonl_writer.py†L1-L69】【F:tests/data_foundation/test_jsonl_writer.py†L1-L37】
+- Progress: Timescale ingest regression now covers migrator bootstrap,
+  idempotent upserts for empty plans, and macro event ingestion so coverage
+  catches silent failures before institutional pipelines depend on them.【F:tests/data_foundation/test_timescale_ingest.py†L1-L213】
 - Wire all runtime entrypoints through `RuntimeApplication` and a task supervisor
   so ingest, cache, and stream jobs are supervised.【F:docs/technical_debt_assessment.md†L33-L56】
 - Document current gaps and expected telemetry in updated runbooks and status

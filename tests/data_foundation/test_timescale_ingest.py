@@ -268,6 +268,59 @@ def test_timescale_orchestrator_publishes_ingest_events(tmp_path) -> None:
     assert macro_meta.get("frame_rows") == len(_sample_macro_events())
 
 
+def test_timescale_orchestrator_handles_empty_plan() -> None:
+    settings = TimescaleConnectionSettings.from_mapping({})
+    orchestrator = TimescaleBackboneOrchestrator(settings)
+
+    def _should_not_run(*_: object, **__: object) -> None:
+        raise AssertionError("fetcher should not be invoked for an empty plan")
+
+    plan = TimescaleBackbonePlan()
+
+    results = orchestrator.run(
+        plan=plan,
+        fetch_daily=_should_not_run,  # type: ignore[arg-type]
+        fetch_intraday=_should_not_run,  # type: ignore[arg-type]
+        fetch_macro=_should_not_run,  # type: ignore[arg-type]
+    )
+
+    assert results == {}
+
+
+def test_timescale_orchestrator_fetches_macro_window(tmp_path) -> None:
+    db_path = tmp_path / "macro_window.db"
+    settings = TimescaleConnectionSettings(url=f"sqlite:///{db_path}")
+    publisher = _RecordingPublisher()
+    orchestrator = TimescaleBackboneOrchestrator(settings, event_publisher=publisher)
+
+    plan = TimescaleBackbonePlan(
+        macro=MacroEventIngestPlan(start="2024-01-01", end="2024-01-02", source="fred"),
+    )
+
+    def _fetch_window(start: str, end: str) -> list[MacroEvent]:
+        assert start == "2024-01-01"
+        assert end == "2024-01-02"
+        return _sample_macro_events()
+
+    results = orchestrator.run(plan=plan, fetch_macro=_fetch_window)
+
+    assert set(results) == {"macro_events"}
+    macro_result = results["macro_events"]
+    assert macro_result.rows_written == len(_sample_macro_events())
+    assert macro_result.dimension == "macro_events"
+    assert len(publisher.calls) == 1
+
+    result, metadata = publisher.calls[0]
+    assert result is macro_result
+    assert metadata is not None
+    assert metadata["plan"] == "macro_events"
+    assert metadata["window"] == {"start": "2024-01-01", "end": "2024-01-02"}
+    assert metadata["provided_events"] == 0
+    assert metadata["fetched_via_window"] is True
+    assert metadata["fetched_events"] == len(_sample_macro_events())
+    assert metadata["frame_rows"] == len(_sample_macro_events())
+
+
 def test_ingest_pipeline_runs_with_sqlite(monkeypatch, tmp_path) -> None:
     captured: dict[str, pd.DataFrame] = {}
 

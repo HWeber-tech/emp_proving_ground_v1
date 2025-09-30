@@ -194,6 +194,12 @@ def _stream_definitions() -> Sequence[StreamDefinition]:
                     "operations.spark_stress",
                     "execute_spark_stress_drill",
                 ),
+                require_module_attr(
+                    "data_foundation.storage.tiered_storage",
+                    "MicrostructureTieredArchive",
+                ),
+                require_path("scripts/archive_microstructure_data.py"),
+                require_path("docs/runbooks/microstructure_storage.md"),
             ),
         ),
         StreamDefinition(

@@ -41,12 +41,19 @@ from src.data_foundation.ingest.scheduler_telemetry import (
     IngestSchedulerSnapshot,
     IngestSchedulerStatus,
 )
+from src.data_foundation.ingest.timescale_pipeline import (
+    DailyBarIngestPlan,
+    IntradayTradeIngestPlan,
+    MacroEventIngestPlan,
+    TimescaleBackbonePlan,
+)
 from src.runtime import (
     RuntimeApplication,
     RuntimeWorkload,
     build_professional_predator_app,
     build_professional_runtime_application,
 )
+from src.runtime.runtime_builder import _normalise_ingest_plan_metadata, _plan_dimensions
 
 
 @pytest.mark.asyncio()
@@ -943,3 +950,47 @@ def test_configure_runtime_logging_handles_invalid_context(monkeypatch):
     assert warnings, "expected warning for invalid JSON context"
     static_fields = captured["static_fields"]
     assert static_fields["runtime.environment"] == cfg.environment.value
+
+
+@pytest.mark.parametrize(
+    "plan,expected",
+    [
+        (
+            TimescaleBackbonePlan(
+                daily=DailyBarIngestPlan(symbols=("EURUSD",), lookback_days=10),
+                intraday=IntradayTradeIngestPlan(symbols=("EURUSD",), lookback_days=1),
+                macro=MacroEventIngestPlan(
+                    events=({"event_name": "GDP"}, {"event_name": "CPI"})
+                ),
+            ),
+            ["daily_bars", "intraday_trades", "macro_events"],
+        ),
+        (
+            TimescaleBackbonePlan(
+                daily=DailyBarIngestPlan(symbols=("AAPL",), lookback_days=5),
+                macro=MacroEventIngestPlan(events=({"event_name": "NFP"},)),
+            ),
+            ["daily_bars", "macro_events"],
+        ),
+        (TimescaleBackbonePlan(), []),
+    ],
+)
+def test_plan_dimensions_matches_active_slices(
+    plan: TimescaleBackbonePlan, expected: list[str]
+) -> None:
+    assert _plan_dimensions(plan) == expected
+
+
+@pytest.mark.parametrize(
+    "value,expected",
+    [
+        ({"daily_bars": {}, "macro_events": {}}, ["daily_bars", "macro_events"]),
+        (("intraday_trades", "daily_bars"), ["intraday_trades", "daily_bars"]),
+        ("daily_bars", ["daily_bars"]),
+        (None, []),
+    ],
+)
+def test_normalise_ingest_plan_metadata_handles_iterables(
+    value: object, expected: list[str]
+) -> None:
+    assert _normalise_ingest_plan_metadata(value) == expected

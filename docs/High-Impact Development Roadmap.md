@@ -230,12 +230,12 @@ To reflect the true scope of institutional-grade trading components, the roadmap
 #### Workstream 3C: Advanced Research Backlog (ongoing within phase)
 **Impact:** 🔥 **MEDIUM** — Provides roadmap continuity without overcommitting timelines
 
-- [ ] Document future GA extensions (speciation, Pareto fronts, live evolution) with prerequisites.
-- [ ] Outline roadmap for NLP/news sentiment ingestion including data governance considerations.
-- [ ] Define success metrics for causal inference and ML classifiers before implementation.
-- [ ] Map encyclopedia Tier-2/Tier-3 vision items to JIRA/issue tracker epics with sequencing notes.
-- [ ] Capture research debt register (open questions, data gaps) and review monthly.
-- [ ] Produce quarterly "Frontier Research" brief summarizing experimentation outcomes vs encyclopedia hypotheses.
+- [x] Document future GA extensions (speciation, Pareto fronts, live evolution) with prerequisites. *(Documented in `docs/research/advanced_research_backlog.md`.)*
+- [x] Outline roadmap for NLP/news sentiment ingestion including data governance considerations. *(See `docs/research/advanced_research_backlog.md`.)*
+- [x] Define success metrics for causal inference and ML classifiers before implementation. *(Tracked in `docs/research/advanced_research_backlog.md`.)*
+- [x] Map encyclopedia Tier-2/Tier-3 vision items to JIRA/issue tracker epics with sequencing notes. *(Proposed slugs recorded in `docs/research/advanced_research_backlog.md`.)*
+- [x] Capture research debt register (open questions, data gaps) and review monthly. *(Register maintained in `docs/research/advanced_research_backlog.md`.)*
+- [x] Produce quarterly "Frontier Research" brief summarizing experimentation outcomes vs encyclopedia hypotheses. *(See `docs/research/frontier_research_brief_Q1_2025.md`.)*
 
 **Acceptance:** Production stack can be deployed with monitoring & alerting; research backlog is explicit and sequenced for future iterations.
 

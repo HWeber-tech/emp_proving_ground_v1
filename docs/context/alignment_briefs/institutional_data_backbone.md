@@ -40,6 +40,10 @@
     parameterised statements and typed errors, eliminating blanket exception
     handlers and inline literals in the trading slice’s persistence path.
     【F:src/trading/portfolio/real_portfolio_monitor.py†L1-L572】
+- Progress: Data backbone readiness snapshots now capture optional-trigger
+  degradation, failover decisions, and Timescale recovery plans with pytest
+  coverage, giving operators actionable metadata when optional slices drift
+  instead of generic warnings.【F:src/operations/data_backbone.py†L488-L515】【F:tests/operations/test_data_backbone.py†L289-L347】
 - Wire all runtime entrypoints through `RuntimeApplication` and a task supervisor
   so ingest, cache, and stream jobs are supervised.【F:docs/technical_debt_assessment.md†L33-L56】
 - Document current gaps and expected telemetry in updated runbooks and status

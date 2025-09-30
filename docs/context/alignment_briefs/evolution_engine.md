@@ -34,6 +34,10 @@
   prepare for incremental implementation.【F:docs/reports/CLEANUP_REPORT.md†L71-L175】
 - Define telemetry contracts for population health, lineage snapshots, and
   experiment metadata; add placeholder tests to lock schemas.
+- Progress: Portfolio evolution now logs optional dependency outages, falls back
+  to deterministic clustering, and records the degraded path under pytest so
+  adaptive runs continue producing reproducible recommendations in minimal
+  environments.【F:src/intelligence/portfolio_evolution.py†L47-L142】【F:tests/intelligence/test_portfolio_evolution_security.py†L1-L169】
 - Coordinate with risk and data-backbone tracks so adaptive loops inherit
   trustworthy inputs and enforcement.【F:docs/technical_debt_assessment.md†L58-L72】
 
@@ -45,6 +49,10 @@
   recorded datasets; expose metrics via runtime summaries.
 - Surface lineage telemetry and integrate with compliance workflow templates for
   strategy approvals.
+- Progress: Evolution experiment telemetry now guards publish failures, records
+  markdown fallbacks, and documents exception paths via pytest so dashboards and
+  status packs retain reliable ROI and backlog metrics even when transports
+  misbehave.【F:src/operations/evolution_experiments.py†L40-L196】【F:tests/operations/test_evolution_experiments.py†L1-L126】
 
 ### Later (90+ days)
 

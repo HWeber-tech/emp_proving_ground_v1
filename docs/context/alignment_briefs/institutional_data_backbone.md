@@ -16,8 +16,9 @@
 - Technical debt findings flag unsupervised async tasks, hollow risk checks, and
   namespace drift that block dependable runtime assembly.【F:docs/technical_debt_assessment.md†L33-L80】
 - Canonical risk configuration now lives under `src/config/risk/risk_config.py`,
-  but the deprecated evolution config shim still signals unfinished de-shimming
-  work that risks misconfiguration when real services arrive.【F:src/config/risk/risk_config.py†L1-L72】【F:src/config/evolution_config.py†L1-L8】
+  and the evolution configuration resides in `src/core/evolution/engine.py`,
+  eliminating the deprecated shim that previously risked misconfiguration once
+  real services arrive.【F:src/config/risk/risk_config.py†L1-L72】【F:src/core/evolution/engine.py†L13-L43】
 
 ## Gap themes
 

@@ -89,7 +89,6 @@ src/core/risk/stress_testing.py
 src/trading/__init__.py
 src/validation/__init__.py
 src/validation/accuracy/__init__.py
-src/config/evolution_config.py
 src/config/risk_config.py
 src/sensory/anomaly/__init__.py
 src/validation/performance/__init__.py

@@ -27,13 +27,14 @@ backlog grooming, release readiness reviews, and post-mortems.
 2. Adopt the runtime builder end to end so ingest, cache warmers, and streaming
    consumers register under supervised tasks instead of ad-hoc loops.
 3. Finish removing deprecated config shims now that the canonical risk
-   configuration lives in `src/config/risk/risk_config.py`; the evolution shim
-   still needs replacement to avoid namespace drift.【F:src/config/risk/risk_config.py†L1-L72】【F:src/config/evolution_config.py†L1-L8】
+   configuration lives in `src/config/risk/risk_config.py` and the evolution
+   configuration has been consolidated into `src/core/evolution/engine.py`,
+   keeping namespaces aligned as ingestion hardens.【F:src/config/risk/risk_config.py†L1-L72】【F:src/core/evolution/engine.py†L13-L43】
 
 **Actionable checklist:**
 - [ ] Timescale/Redis/Kafka services provisioned with supervised connectors and failover tests.
 - [ ] Runtime builder adoption complete for ingest, cache warmers, and streaming consumers.
-- [ ] Deprecated config shims replaced with canonical modules across ingest surfaces; risk uses `src/config/risk/risk_config.py`, evolution shim remains.【F:src/config/risk/risk_config.py†L1-L72】【F:src/config/evolution_config.py†L1-L8】
+- [x] Deprecated config shims replaced with canonical modules across ingest surfaces; risk uses `src/config/risk/risk_config.py`, and evolution imports resolve through `src/core/evolution/engine.py`.【F:src/config/risk/risk_config.py†L1-L72】【F:src/core/evolution/engine.py†L13-L43】
 
 **Validation hooks:**
 - Builder-driven smoke test that loads institutional credentials and exercises
@@ -94,8 +95,8 @@ backlog grooming, release readiness reviews, and post-mortems.
 - Runtime entrypoints partially adopt the new builder while legacy modules keep
   spawning unsupervised async tasks, creating shutdown hazards.【F:docs/technical_debt_assessment.md†L33-L56】
 - Public exports advertise helpers that do not exist (`get_risk_manager`), and
-  the evolution config shim remains in the tree even after consolidating risk
-  configuration under the canonical module.【F:src/core/__init__.py†L11-L51】【F:src/config/evolution_config.py†L1-L8】
+  configuration drift is reduced now that evolution imports resolve directly
+  through the canonical engine implementation.【F:src/core/__init__.py†L11-L51】【F:src/core/evolution/engine.py†L13-L43】
 
 **Gaps to close:**
 1. Finalise the runtime builder migration, introduce a `TaskSupervisor`, and

@@ -1,4 +1,3 @@
-src/config/evolution_config.py
 src/config/portfolio_config.py
 src/config/risk_config.py
 src/config/risk/risk_config.py

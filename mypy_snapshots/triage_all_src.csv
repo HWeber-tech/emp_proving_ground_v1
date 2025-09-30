@@ -149,7 +149,6 @@ src/config/risk/risk_config.py,56,0
 src/config/risk/__init__.py,0,0
 src/config/risk_config.py,6,0
 src/config/__init__.py,0,0
-src/config/evolution_config.py,6,0
 src/data_foundation/replay/multidim_replayer.py,68,0
 src/data_foundation/replay/__init__.py,0,0
 src/data_foundation/config/vol_config.py,103,1

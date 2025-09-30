@@ -9,6 +9,7 @@ from tools.telemetry.ci_metrics import (
     record_coverage,
     record_coverage_domains,
     record_formatter,
+    record_remediation,
 )
 from tools.telemetry.update_ci_metrics import main as update_ci_metrics
 
@@ -102,6 +103,7 @@ def test_record_coverage_appends_entry(tmp_path: Path) -> None:
     ]
     assert stored["formatter_trend"] == []
     assert stored["coverage_domain_trend"] == []
+    assert stored["remediation_trend"] == []
 
 
 def test_record_formatter_counts_allowlist_entries(tmp_path: Path) -> None:
@@ -123,6 +125,7 @@ def test_record_formatter_counts_allowlist_entries(tmp_path: Path) -> None:
     ]
     assert stored["coverage_trend"] == []
     assert stored["coverage_domain_trend"] == []
+    assert stored["remediation_trend"] == []
 
 
 def test_record_formatter_global_mode_records_zero_counts(tmp_path: Path) -> None:
@@ -142,6 +145,7 @@ def test_record_formatter_global_mode_records_zero_counts(tmp_path: Path) -> Non
     ]
     assert stored["coverage_trend"] == []
     assert stored["coverage_domain_trend"] == []
+    assert stored["remediation_trend"] == []
 
 
 def test_record_coverage_domains_appends_entry(tmp_path: Path) -> None:
@@ -167,6 +171,34 @@ def test_record_coverage_domains_appends_entry(tmp_path: Path) -> None:
     assert isinstance(entry["generated_at"], str)
     domain_names = [domain["name"] for domain in entry["domains"]]
     assert domain_names == ["core", "trading"]
+
+
+def test_record_remediation_appends_entry(tmp_path: Path) -> None:
+    metrics_path = tmp_path / "metrics.json"
+
+    record_remediation(
+        metrics_path,
+        statuses={"quality": "improved", "observability": "documented"},
+        label="snapshot-1",
+        source="docs/status/ci_health.md",
+        note="Expanded operational metrics coverage",
+    )
+
+    stored = json.loads(metrics_path.read_text())
+    assert stored["remediation_trend"] == [
+        {
+            "label": "snapshot-1",
+            "note": "Expanded operational metrics coverage",
+            "source": "docs/status/ci_health.md",
+            "statuses": {
+                "observability": "documented",
+                "quality": "improved",
+            },
+        }
+    ]
+    assert stored["coverage_trend"] == []
+    assert stored["formatter_trend"] == []
+    assert stored["coverage_domain_trend"] == []
 
 
 def test_update_ci_metrics_cli_updates_both(tmp_path: Path) -> None:
@@ -201,6 +233,7 @@ def test_update_ci_metrics_cli_updates_both(tmp_path: Path) -> None:
     assert stored["formatter_trend"][-1]["total_entries"] == 2
     assert stored["coverage_domain_trend"][-1]["label"] == "coverage-sample"
     assert stored["coverage_domain_trend"][-1]["domains"]
+    assert stored["remediation_trend"] == []
 
 
 def test_update_ci_metrics_cli_handles_global_mode(tmp_path: Path) -> None:
@@ -228,6 +261,7 @@ def test_update_ci_metrics_cli_handles_global_mode(tmp_path: Path) -> None:
         "file_count": 0,
     }
     assert stored["coverage_domain_trend"] == []
+    assert stored["remediation_trend"] == []
 
 
 def test_update_ci_metrics_cli_can_skip_domain_breakdown(tmp_path: Path) -> None:
@@ -250,6 +284,43 @@ def test_update_ci_metrics_cli_can_skip_domain_breakdown(tmp_path: Path) -> None
     stored = json.loads(metrics_path.read_text())
     assert stored["coverage_trend"]
     assert stored["coverage_domain_trend"] == []
+    assert stored["remediation_trend"] == []
+
+
+def test_update_ci_metrics_cli_records_remediation(tmp_path: Path) -> None:
+    metrics_path = tmp_path / "metrics.json"
+
+    exit_code = update_ci_metrics(
+        [
+            "--metrics",
+            str(metrics_path),
+            "--remediation-status",
+            "quality=regression-added",
+            "--remediation-status",
+            "observability=docs-refreshed",
+            "--remediation-label",
+            "snapshot-2",
+            "--remediation-source",
+            "docs/context/alignment_briefs/quality_observability.md",
+            "--remediation-note",
+            "Documented regression coverage expansion",
+        ]
+    )
+
+    assert exit_code == 0
+
+    stored = json.loads(metrics_path.read_text())
+    assert stored["coverage_trend"] == []
+    assert stored["formatter_trend"] == []
+    assert stored["coverage_domain_trend"] == []
+    entry = stored["remediation_trend"][-1]
+    assert entry["label"] == "snapshot-2"
+    assert entry["source"] == "docs/context/alignment_briefs/quality_observability.md"
+    assert entry["note"] == "Documented regression coverage expansion"
+    assert entry["statuses"] == {
+        "observability": "docs-refreshed",
+        "quality": "regression-added",
+    }
 
 
 def test_load_metrics_returns_defaults_when_missing(tmp_path: Path) -> None:
@@ -261,4 +332,5 @@ def test_load_metrics_returns_defaults_when_missing(tmp_path: Path) -> None:
         "coverage_trend": [],
         "formatter_trend": [],
         "coverage_domain_trend": [],
+        "remediation_trend": [],
     }

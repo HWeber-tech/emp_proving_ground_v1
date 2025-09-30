@@ -152,8 +152,22 @@ class FixDropcopyReconciler:
             try:
                 if isinstance(self.event_bus, TopicBus):
                     self.event_bus.publish_sync(self._channel, payload)
-                else:
-                    await self.event_bus.publish(Event(self._channel, payload))
+                    continue
+
+                publish = getattr(self.event_bus, "publish", None)
+                if publish is not None:
+                    await publish(Event(self._channel, payload))
+                    continue
+
+                emit_nowait = getattr(self.event_bus, "emit_nowait", None)
+                if callable(emit_nowait):
+                    emit_nowait(Event(self._channel, payload))
+                    continue
+
+                self._logger.debug(
+                    "Event bus object does not expose publish/emit interfaces: %s",
+                    type(self.event_bus),
+                )
             except Exception:  # pragma: no cover - diagnostics only
                 self._logger.debug("Failed to publish drop-copy event", exc_info=True)
 

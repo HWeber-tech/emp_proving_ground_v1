@@ -34,6 +34,10 @@
 
 - Complete the security remediation tranche for SQL construction and `eval`
   removal in ingest modules.【F:docs/development/remediation_plan.md†L34-L61】
+  - Progress: Real portfolio monitoring now uses managed SQLite connections with
+    parameterised statements and typed errors, eliminating blanket exception
+    handlers and inline literals in the trading slice’s persistence path.
+    【F:src/trading/portfolio/real_portfolio_monitor.py†L1-L572】
 - Wire all runtime entrypoints through `RuntimeApplication` and a task supervisor
   so ingest, cache, and stream jobs are supervised.【F:docs/technical_debt_assessment.md†L33-L56】
 - Document current gaps and expected telemetry in updated runbooks and status

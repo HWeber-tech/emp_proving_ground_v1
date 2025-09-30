@@ -1,12 +1,19 @@
+"""Runtime portfolio monitor backed by SQLite storage.
+
+The original implementation relied on implicit commits, inline SQL literals,
+and blanket ``except Exception`` blocks that obscured the root cause when
+database operations failed.  This revision adopts structured connection
+management, parameterised SQL statements, and narrower exception handling so
+the security hardening sprint in the roadmap can show tangible progress.
 """
-Real Portfolio Monitor Implementation
-Replaces the mock with functional portfolio tracking and P&L calculation
-"""
+
+from __future__ import annotations
 
 import logging
 import sqlite3
+from contextlib import contextmanager
 from datetime import datetime
-from typing import Any, Dict, List, Optional, cast
+from typing import Any, Dict, Iterator, List, Optional, cast
 
 import pandas as pd
 
@@ -16,6 +23,25 @@ from ..models.portfolio_snapshot import PortfolioSnapshot
 from ..monitoring.performance_metrics import PerformanceMetrics
 
 logger = logging.getLogger(__name__)
+
+
+class PortfolioMonitorError(RuntimeError):
+    """Raised when the portfolio monitor fails to persist or retrieve data."""
+
+
+def _parse_timestamp(value: Any) -> Optional[datetime]:
+    """Best-effort conversion from SQLite payloads to ``datetime`` objects."""
+
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return value
+    if isinstance(value, str):
+        try:
+            return datetime.fromisoformat(value)
+        except ValueError:
+            return None
+    return None
 
 
 class RealPortfolioMonitor:
@@ -37,106 +63,126 @@ class RealPortfolioMonitor:
         self._last_update = datetime.now()
 
         logger.info(
-            f"RealPortfolioMonitor initialized with initial balance: {self.initial_balance}"
+            "RealPortfolioMonitor initialised with initial balance %.2f",
+            self.initial_balance,
         )
+
+    @contextmanager
+    def _managed_connection(self) -> Iterator[sqlite3.Connection]:
+        """Return a managed SQLite connection with consistent settings."""
+
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        try:
+            yield conn
+            conn.commit()
+        except sqlite3.Error as exc:  # pragma: no cover - wrapped downstream
+            conn.rollback()
+            raise PortfolioMonitorError("SQLite operation failed") from exc
+        finally:
+            conn.close()
 
     def _init_database(self) -> None:
-        """Initialize portfolio database"""
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
+        """Initialise portfolio tables if they do not exist."""
 
-        cursor.execute(
-            """
-            CREATE TABLE IF NOT EXISTS positions (
-                position_id TEXT PRIMARY KEY,
-                symbol TEXT NOT NULL,
-                size REAL NOT NULL,
-                entry_price REAL NOT NULL,
-                current_price REAL NOT NULL,
-                status TEXT NOT NULL,
-                stop_loss REAL,
-                take_profit REAL,
-                entry_time DATETIME DEFAULT CURRENT_TIMESTAMP,
-                exit_time DATETIME,
-                realized_pnl REAL DEFAULT 0.0,
-                unrealized_pnl REAL DEFAULT 0.0
-            )
-        """
-        )
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS positions (
+                        position_id TEXT PRIMARY KEY,
+                        symbol TEXT NOT NULL,
+                        size REAL NOT NULL,
+                        entry_price REAL NOT NULL,
+                        current_price REAL NOT NULL,
+                        status TEXT NOT NULL,
+                        stop_loss REAL,
+                        take_profit REAL,
+                        entry_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        exit_time DATETIME,
+                        realized_pnl REAL DEFAULT 0.0,
+                        unrealized_pnl REAL DEFAULT 0.0
+                    )
+                """
+                )
 
-        cursor.execute(
-            """
-            CREATE TABLE IF NOT EXISTS portfolio_snapshots (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-                total_value REAL,
-                cash_balance REAL,
-                unrealized_pnl REAL,
-                realized_pnl REAL,
-                position_count INTEGER
-            )
-        """
-        )
+                cursor.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS portfolio_snapshots (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        total_value REAL,
+                        cash_balance REAL,
+                        unrealized_pnl REAL,
+                        realized_pnl REAL,
+                        position_count INTEGER
+                    )
+                """
+                )
 
-        cursor.execute(
-            """
-            CREATE TABLE IF NOT EXISTS transactions (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                position_id TEXT,
-                symbol TEXT,
-                action TEXT,
-                size REAL,
-                price REAL,
-                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-                fees REAL DEFAULT 0.0
-            )
-        """
-        )
-
-        conn.commit()
-        conn.close()
+                cursor.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS transactions (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        position_id TEXT,
+                        symbol TEXT,
+                        action TEXT,
+                        size REAL,
+                        price REAL,
+                        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        fees REAL DEFAULT 0.0
+                    )
+                """
+                )
+        except sqlite3.Error as exc:
+            logger.exception("Failed to initialise portfolio database")
+            raise PortfolioMonitorError("Failed to initialise portfolio database") from exc
 
     def get_balance(self) -> float:
-        """Get current cash balance"""
+        """Get current cash balance."""
+
         return float(self.initial_balance)
 
+    def _row_to_position(self, row: sqlite3.Row) -> Position:
+        """Convert a SQLite row into a ``Position`` instance."""
+
+        entry_time = _parse_timestamp(row["entry_time"]) or datetime.now()
+        exit_time = _parse_timestamp(row["exit_time"])
+        status_value = row["status"]
+        P = cast(Any, Position)
+        position = P(
+            symbol=row["symbol"],
+            size=row["size"],
+            entry_price=row["entry_price"],
+            position_id=row["position_id"],
+            current_price=row["current_price"],
+            realized_pnl=row["realized_pnl"],
+            unrealized_pnl=row["unrealized_pnl"],
+        )
+        position.status = status_value
+        position.stop_loss = row["stop_loss"]
+        position.take_profit = row["take_profit"]
+        position.entry_time = entry_time
+        position.exit_time = exit_time
+        return position
+
     def get_positions(self) -> List[Position]:
-        """Get all open positions"""
+        """Return all open positions from the backing store."""
+
         try:
-            conn = sqlite3.connect(self.db_path)
-            cursor = conn.cursor()
-
-            cursor.execute(
-                """
-                SELECT * FROM positions WHERE status = 'OPEN'
-            """
-            )
-
-            positions = []
-            for row in cursor.fetchall():
-                P = cast(Any, Position)
-                position = P(
-                    position_id=row[0],
-                    symbol=row[1],
-                    size=row[2],
-                    entry_price=row[3],
-                    current_price=row[4],
-                    status=row[5],
-                    stop_loss=row[6],
-                    take_profit=row[7],
-                    entry_time=datetime.fromisoformat(row[8]) if row[8] else datetime.now(),
-                    exit_time=datetime.fromisoformat(row[9]) if row[9] else None,
-                    realized_pnl=row[10],
-                    unrealized_pnl=row[11],
+            with self._managed_connection() as conn:
+                cursor = conn.execute(
+                    "SELECT * FROM positions WHERE status = ?",
+                    ("OPEN",),
                 )
-                positions.append(position)
-
-            conn.close()
-            return positions
-
-        except Exception as e:
-            logger.error(f"Error getting positions: {e}")
+                rows = cursor.fetchall()
+        except PortfolioMonitorError:
+            logger.exception("Failed to read open positions")
             return []
+
+        positions = [self._row_to_position(row) for row in rows]
+        return positions
 
     def get_total_value(self) -> float:
         """Get total portfolio value (cash + positions)"""
@@ -144,215 +190,172 @@ class RealPortfolioMonitor:
         position_value = sum(pos.value for pos in positions)
         return float(self.initial_balance + position_value)
 
+    def _normalise_status(self, status: object | None) -> str:
+        """Return a canonical uppercase status string."""
+
+        if status is None:
+            return "OPEN"
+        value = getattr(status, "value", status)
+        return str(value).upper()
+
     def add_position(self, position: Position) -> bool:
-        """Add a new position"""
+        """Add a new position."""
+
         try:
-            conn = sqlite3.connect(self.db_path)
-            cursor = conn.cursor()
-
-            cursor.execute(
-                """
-                INSERT OR REPLACE INTO positions (
-                    position_id, symbol, size, entry_price, current_price, status,
-                    stop_loss, take_profit, entry_time, realized_pnl, unrealized_pnl
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-                (
-                    position.position_id,
-                    position.symbol,
-                    position.size,
-                    position.entry_price,
-                    position.current_price,
-                    getattr(
-                        position.status,
-                        "value",
-                        position.status if position.status is not None else "OPEN",
-                    ),
-                    position.stop_loss,
-                    position.take_profit,
+            with self._managed_connection() as conn:
+                conn.execute(
+                    """
+                    INSERT OR REPLACE INTO positions (
+                        position_id, symbol, size, entry_price, current_price, status,
+                        stop_loss, take_profit, entry_time, realized_pnl, unrealized_pnl
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
                     (
-                        position.entry_time.isoformat()
-                        if isinstance(position.entry_time, datetime)
-                        else datetime.now().isoformat()
+                        position.position_id,
+                        position.symbol,
+                        position.size,
+                        position.entry_price,
+                        position.current_price,
+                        self._normalise_status(position.status),
+                        position.stop_loss,
+                        position.take_profit,
+                        (
+                            position.entry_time.isoformat()
+                            if isinstance(position.entry_time, datetime)
+                            else datetime.now().isoformat()
+                        ),
+                        position.realized_pnl,
+                        position.unrealized_pnl,
                     ),
-                    position.realized_pnl,
-                    position.unrealized_pnl,
-                ),
-            )
-
-            conn.commit()
-            conn.close()
-
-            # Update cache
-            self._position_cache[str(position.position_id or position.symbol)] = position
-
-            logger.info(f"Added position: {position.position_id} for {position.symbol}")
-            return True
-
-        except Exception as e:
-            logger.error(f"Error adding position: {e}")
+                )
+        except PortfolioMonitorError:
+            logger.exception("Failed to add position %s", position.position_id)
             return False
+
+        # Update cache
+        self._position_cache[str(position.position_id or position.symbol)] = position
+        logger.info("Added position %s for %s", position.position_id, position.symbol)
+        return True
 
     def update_position_price(self, position_id: str, new_price: float) -> bool:
         """Update position price and recalculate P&L"""
         try:
-            conn = sqlite3.connect(self.db_path)
-            cursor = conn.cursor()
+            with self._managed_connection() as conn:
+                cursor = conn.execute(
+                    "SELECT size, entry_price FROM positions WHERE position_id = ?",
+                    (position_id,),
+                )
+                row = cursor.fetchone()
+                if row is None:
+                    logger.warning("Position not found: %s", position_id)
+                    return False
 
-            # Get current position
-            cursor.execute(
-                """
-                SELECT * FROM positions WHERE position_id = ?
-            """,
-                (position_id,),
-            )
+                size = float(row["size"])
+                entry_price = float(row["entry_price"])
+                unrealized_pnl = (new_price - entry_price) * size
 
-            row = cursor.fetchone()
-            if not row:
-                logger.warning(f"Position not found: {position_id}")
-                return False
-
-            # Calculate new unrealized P&L
-            size = row[2]
-            entry_price = row[3]
-            unrealized_pnl = (new_price - entry_price) * size
-
-            # Update position
-            cursor.execute(
-                """
-                UPDATE positions 
-                SET current_price = ?, unrealized_pnl = ?
-                WHERE position_id = ?
-            """,
-                (new_price, unrealized_pnl, position_id),
-            )
-
-            conn.commit()
-            conn.close()
-
-            # Update cache
-            if position_id in self._position_cache:
-                self._position_cache[position_id].current_price = new_price
-                self._position_cache[position_id].unrealized_pnl = unrealized_pnl
-
-            return True
-
-        except Exception as e:
-            logger.error(f"Error updating position price: {e}")
+                conn.execute(
+                    """
+                    UPDATE positions
+                    SET current_price = ?, unrealized_pnl = ?
+                    WHERE position_id = ?
+                """,
+                    (new_price, unrealized_pnl, position_id),
+                )
+        except PortfolioMonitorError:
+            logger.exception("Failed to update price for %s", position_id)
             return False
+
+        if position_id in self._position_cache:
+            cached = self._position_cache[position_id]
+            cached.current_price = new_price
+            cached.unrealized_pnl = unrealized_pnl
+
+        return True
 
     def close_position(
         self, position_id: str, exit_price: float, exit_time: Optional[datetime] = None
     ) -> bool:
         """Close a position and calculate final P&L"""
         try:
-            conn = sqlite3.connect(self.db_path)
-            cursor = conn.cursor()
+            with self._managed_connection() as conn:
+                cursor = conn.execute(
+                    "SELECT size, entry_price FROM positions WHERE position_id = ?",
+                    (position_id,),
+                )
+                row = cursor.fetchone()
+                if row is None:
+                    logger.warning("Position not found: %s", position_id)
+                    return False
 
-            # Get position
-            cursor.execute(
-                """
-                SELECT * FROM positions WHERE position_id = ?
-            """,
-                (position_id,),
-            )
-
-            row = cursor.fetchone()
-            if not row:
-                logger.warning(f"Position not found: {position_id}")
-                return False
-
-            # Calculate final P&L
-            size = row[2]
-            entry_price = row[3]
-            realized_pnl = (exit_price - entry_price) * size
-
-            # Update position
-            cursor.execute(
-                """
-                UPDATE positions 
-                SET status = 'CLOSED', exit_time = ?, realized_pnl = ?, current_price = ?
-                WHERE position_id = ?
-            """,
-                ((exit_time or datetime.now()).isoformat(), realized_pnl, exit_price, position_id),
-            )
-
-            conn.commit()
-            conn.close()
-
-            # Update cache
-            if position_id in self._position_cache:
-                self._position_cache[position_id].close(exit_price, exit_time)
-
-            logger.info(f"Closed position: {position_id} with P&L: {realized_pnl:.4f}")
-            return True
-
-        except Exception as e:
-            logger.error(f"Error closing position: {e}")
+                size = float(row["size"])
+                entry_price = float(row["entry_price"])
+                realized_pnl = (exit_price - entry_price) * size
+                conn.execute(
+                    """
+                    UPDATE positions
+                    SET status = ?, exit_time = ?, realized_pnl = ?, current_price = ?
+                    WHERE position_id = ?
+                """,
+                    (
+                        "CLOSED",
+                        (exit_time or datetime.now()).isoformat(),
+                        realized_pnl,
+                        exit_price,
+                        position_id,
+                    ),
+                )
+        except PortfolioMonitorError:
+            logger.exception("Failed to close position %s", position_id)
             return False
+
+        if position_id in self._position_cache:
+            self._position_cache[position_id].close(exit_price, exit_time)
+
+        logger.info("Closed position %s with P&L %.4f", position_id, realized_pnl)
+        return True
 
     def get_portfolio_snapshot(self) -> PortfolioSnapshot:
         """Get current portfolio snapshot"""
-        try:
-            positions = self.get_positions()
+        positions = self.get_positions()
 
-            # Calculate P&L
-            unrealized_pnl = sum(pos.unrealized_pnl for pos in positions)
-            realized_pnl = sum(pos.realized_pnl for pos in positions)
+        unrealized_pnl = sum(pos.unrealized_pnl for pos in positions)
+        realized_pnl = sum(pos.realized_pnl for pos in positions)
 
-            # Calculate position value
-            position_value = sum(pos.value for pos in positions)
-            cash_balance = self.initial_balance - position_value
+        position_value = sum(pos.value for pos in positions)
+        cash_balance = self.initial_balance - position_value
 
-            snapshot = PortfolioSnapshot(
-                total_value=self.initial_balance + unrealized_pnl,
-                cash_balance=cash_balance,
-                positions=positions,
-                unrealized_pnl=unrealized_pnl,
-                realized_pnl=realized_pnl,
-            )
+        snapshot = PortfolioSnapshot(
+            total_value=self.initial_balance + unrealized_pnl,
+            cash_balance=cash_balance,
+            positions=positions,
+            unrealized_pnl=unrealized_pnl,
+            realized_pnl=realized_pnl,
+        )
 
-            # Store snapshot
-            self._store_snapshot(snapshot)
-
-            return snapshot
-
-        except Exception as e:
-            logger.error(f"Error getting portfolio snapshot: {e}")
-            return PortfolioSnapshot(
-                total_value=self.initial_balance,
-                cash_balance=self.initial_balance,
-                positions=[],
-                unrealized_pnl=0.0,
-                realized_pnl=0.0,
-            )
+        self._store_snapshot(snapshot)
+        return snapshot
 
     def _store_snapshot(self, snapshot: PortfolioSnapshot) -> None:
         """Store portfolio snapshot in database"""
         try:
-            conn = sqlite3.connect(self.db_path)
-            cursor = conn.cursor()
-
-            cursor.execute(
-                """
-                INSERT INTO portfolio_snapshots (
-                    total_value, cash_balance, unrealized_pnl, realized_pnl, position_count
-                ) VALUES (?, ?, ?, ?, ?)
-            """,
-                (
-                    snapshot.total_value,
-                    snapshot.cash_balance,
-                    snapshot.unrealized_pnl,
-                    snapshot.realized_pnl,
-                    len(snapshot.positions),
-                ),
-            )
-
-            conn.commit()
-            conn.close()
-
-        except Exception as e:
-            logger.error(f"Error storing snapshot: {e}")
+            with self._managed_connection() as conn:
+                conn.execute(
+                    """
+                    INSERT INTO portfolio_snapshots (
+                        total_value, cash_balance, unrealized_pnl, realized_pnl, position_count
+                    ) VALUES (?, ?, ?, ?, ?)
+                """,
+                    (
+                        snapshot.total_value,
+                        snapshot.cash_balance,
+                        snapshot.unrealized_pnl,
+                        snapshot.realized_pnl,
+                        len(snapshot.positions),
+                    ),
+                )
+        except PortfolioMonitorError:
+            logger.exception("Failed to persist portfolio snapshot")
 
     @staticmethod
     def _make_performance_metrics(
@@ -397,129 +400,72 @@ class RealPortfolioMonitor:
 
     def get_performance_metrics(self) -> PerformanceMetrics:
         """Calculate performance metrics"""
+        snapshots: List[sqlite3.Row]
+        gross_profit = 0.0
+        gross_loss = 0.0
+
         try:
-            conn = sqlite3.connect(self.db_path)
-            cursor = conn.cursor()
-
-            # Get historical snapshots
-            cursor.execute(
+            with self._managed_connection() as conn:
+                cursor = conn.execute(
+                    """
+                    SELECT id, timestamp, total_value, cash_balance, unrealized_pnl,
+                           realized_pnl, position_count
+                    FROM portfolio_snapshots
+                    ORDER BY timestamp DESC LIMIT 100
                 """
-                SELECT * FROM portfolio_snapshots 
-                ORDER BY timestamp DESC LIMIT 100
-            """
-            )
-
-            snapshots = cursor.fetchall()
-            if not snapshots:
-                return self._make_performance_metrics(
-                    total_return=0.0,
-                    annualized_return=0.0,
-                    sharpe_ratio=0.0,
-                    max_drawdown=0.0,
-                    win_rate=0.0,
-                    profit_factor=0.0,
-                    total_trades=0,
-                    winning_trades=0,
-                    losing_trades=0,
                 )
+                snapshots = cursor.fetchall()
 
-            # Calculate returns
-            initial_value = self.initial_balance
-            current_value = snapshots[0][2]  # Most recent total_value
+                if not snapshots:
+                    return self._make_performance_metrics(
+                        total_return=0.0,
+                        annualized_return=0.0,
+                        sharpe_ratio=0.0,
+                        max_drawdown=0.0,
+                        win_rate=0.0,
+                        profit_factor=0.0,
+                        total_trades=0,
+                        winning_trades=0,
+                        losing_trades=0,
+                    )
 
-            total_return = (current_value - initial_value) / initial_value
+                initial_value = self.initial_balance
+                current_value = float(snapshots[0]["total_value"])
+                total_return = (current_value - initial_value) / initial_value
 
-            # Calculate annualized return (simplified)
-            days_elapsed = (datetime.now() - datetime.fromisoformat(snapshots[-1][1])).days
-            if days_elapsed > 0:
-                annualized_return = total_return * (365 / days_elapsed)
-            else:
-                annualized_return = 0.0
+                oldest_ts = _parse_timestamp(snapshots[-1]["timestamp"]) or datetime.now()
+                days_elapsed = (datetime.now() - oldest_ts).days
+                annualized_return = total_return * (365 / days_elapsed) if days_elapsed > 0 else 0.0
 
-            # Get closed positions for win rate calculation
-            cursor.execute(
-                """
-                SELECT COUNT(*), SUM(CASE WHEN realized_pnl > 0 THEN 1 ELSE 0 END)
-                FROM positions WHERE status = 'CLOSED'
-            """
-            )
+                cursor = conn.execute(
+                    """
+                    SELECT COUNT(*) AS trades,
+                           SUM(CASE WHEN realized_pnl > 0 THEN 1 ELSE 0 END) AS wins
+                    FROM positions WHERE status = ?
+                """,
+                    ("CLOSED",),
+                )
+                result = cursor.fetchone()
+                total_trades = int(result["trades"] or 0)
+                winning_trades = int(result["wins"] or 0)
+                losing_trades = total_trades - winning_trades
+                win_rate = winning_trades / total_trades if total_trades > 0 else 0.0
 
-            result = cursor.fetchone()
-            total_trades = result[0] if result[0] else 0
-            winning_trades = result[1] if result[1] else 0
-            losing_trades = total_trades - winning_trades
+                cursor = conn.execute(
+                    "SELECT SUM(realized_pnl) AS profit FROM positions WHERE realized_pnl > 0"
+                )
+                profit_row = cursor.fetchone()
+                if profit_row and profit_row["profit"] is not None:
+                    gross_profit = float(profit_row["profit"])
 
-            # Calculate win rate
-            win_rate = winning_trades / total_trades if total_trades > 0 else 0.0
-
-            # Calculate profit factor
-            cursor.execute(
-                """
-                SELECT SUM(realized_pnl) FROM positions WHERE realized_pnl > 0
-            """
-            )
-            gross_profit = cursor.fetchone()[0] or 0.0
-
-            cursor.execute(
-                """
-                SELECT ABS(SUM(realized_pnl)) FROM positions WHERE realized_pnl < 0
-            """
-            )
-            gross_loss = cursor.fetchone()[0] or 0.0
-
-            profit_factor = gross_profit / gross_loss if gross_loss > 0 else 0.0
-
-            # Calculate max drawdown (simplified)
-            max_drawdown = 0.0
-            peak_value = initial_value
-            for snapshot in reversed(snapshots):
-                value = snapshot[2]
-                if value > peak_value:
-                    peak_value = value
-                else:
-                    drawdown = (peak_value - value) / peak_value
-                    max_drawdown = max(max_drawdown, drawdown)
-
-            # Calculate Sharpe ratio (simplified)
-            # Derive daily returns from snapshots (ordered oldest -> newest)
-            try:
-                values = [
-                    row[2]
-                    for row in reversed(snapshots)
-                    if row and len(row) > 2 and row[2] is not None
-                ]
-                returns: List[float] = []
-                for i in range(1, len(values)):
-                    prev = values[i - 1]
-                    curr = values[i]
-                    if prev and prev != 0:
-                        returns.append((curr - prev) / prev)
-                if len(returns) > 1:
-                    mu = sum(returns) / len(returns)
-                    var = sum((r - mu) ** 2 for r in returns) / (len(returns) - 1)
-                    sigma = var**0.5
-                    sharpe_ratio = (mu / sigma) * (252**0.5) if sigma > 0 else 0.0
-                else:
-                    sharpe_ratio = 0.0
-            except Exception:
-                sharpe_ratio = 0.0
-
-            conn.close()
-
-            return self._make_performance_metrics(
-                total_return=total_return,
-                annualized_return=annualized_return,
-                sharpe_ratio=sharpe_ratio,
-                max_drawdown=max_drawdown,
-                win_rate=win_rate,
-                profit_factor=profit_factor,
-                total_trades=total_trades,
-                winning_trades=winning_trades,
-                losing_trades=losing_trades,
-            )
-
-        except Exception as e:
-            logger.error(f"Error calculating performance metrics: {e}")
+                cursor = conn.execute(
+                    "SELECT ABS(SUM(realized_pnl)) AS loss FROM positions WHERE realized_pnl < 0"
+                )
+                loss_row = cursor.fetchone()
+                if loss_row and loss_row["loss"] is not None:
+                    gross_loss = float(loss_row["loss"])
+        except PortfolioMonitorError:
+            logger.exception("Failed to compute performance metrics")
             return self._make_performance_metrics(
                 total_return=0.0,
                 annualized_return=0.0,
@@ -532,75 +478,95 @@ class RealPortfolioMonitor:
                 losing_trades=0,
             )
 
+        profit_factor = gross_profit / gross_loss if gross_loss > 0 else 0.0
+
+        max_drawdown = 0.0
+        peak_value = self.initial_balance
+        for snapshot in reversed(snapshots):
+            value = float(snapshot["total_value"])
+            if value > peak_value:
+                peak_value = value
+            elif peak_value > 0:
+                drawdown = (peak_value - value) / peak_value
+                max_drawdown = max(max_drawdown, drawdown)
+
+        # Calculate daily returns for Sharpe ratio
+        values = [
+            float(row["total_value"])
+            for row in reversed(snapshots)
+            if row["total_value"] is not None
+        ]
+        returns: List[float] = []
+        for i in range(1, len(values)):
+            prev = values[i - 1]
+            curr = values[i]
+            if prev != 0:
+                returns.append((curr - prev) / prev)
+        if len(returns) > 1:
+            mu = sum(returns) / len(returns)
+            var = sum((r - mu) ** 2 for r in returns) / (len(returns) - 1)
+            sigma = var**0.5
+            sharpe_ratio = (mu / sigma) * (252**0.5) if sigma > 0 else 0.0
+        else:
+            sharpe_ratio = 0.0
+
+        return self._make_performance_metrics(
+            total_return=total_return,
+            annualized_return=annualized_return,
+            sharpe_ratio=sharpe_ratio,
+            max_drawdown=max_drawdown,
+            win_rate=win_rate,
+            profit_factor=profit_factor,
+            total_trades=total_trades,
+            winning_trades=winning_trades,
+            losing_trades=losing_trades,
+        )
+
     def get_position_history(self, days: int = 30) -> List[Position]:
         """Get position history for the last N days"""
+        interval = max(int(days), 0)
+
         try:
-            conn = sqlite3.connect(self.db_path)
-            cursor = conn.cursor()
-
-            # Bandit B608: parameterized query to avoid SQL injection
-            cursor.execute(
-                """
-                SELECT * FROM positions
-                WHERE entry_time > datetime('now', ?)
-                ORDER BY entry_time DESC
-            """,
-                (f"-{int(days)} days",),
-            )
-
-            positions = []
-            for row in cursor.fetchall():
-                P = cast(Any, Position)
-                position = P(
-                    position_id=row[0],
-                    symbol=row[1],
-                    size=row[2],
-                    entry_price=row[3],
-                    current_price=row[4],
-                    status=row[5],
-                    stop_loss=row[6],
-                    take_profit=row[7],
-                    entry_time=datetime.fromisoformat(row[8]) if row[8] else datetime.now(),
-                    exit_time=datetime.fromisoformat(row[9]) if row[9] else None,
-                    realized_pnl=row[10],
-                    unrealized_pnl=row[11],
+            with self._managed_connection() as conn:
+                cursor = conn.execute(
+                    """
+                    SELECT * FROM positions
+                    WHERE entry_time > datetime('now', ?)
+                    ORDER BY entry_time DESC
+                """,
+                    (f"-{interval} days",),
                 )
-                positions.append(position)
-
-            conn.close()
-            return positions
-
-        except Exception as e:
-            logger.error(f"Error getting position history: {e}")
+                rows = cursor.fetchall()
+        except PortfolioMonitorError:
+            logger.exception("Failed to read position history")
             return []
+
+        return [self._row_to_position(row) for row in rows]
 
     def get_daily_pnl(self, days: int = 30) -> List[Dict[str, float]]:
         """Get daily P&L for the last N days"""
+        interval = max(int(days), 0)
+
         try:
-            conn = sqlite3.connect(self.db_path)
-            cursor = conn.cursor()
-
-            # Bandit B608: parameterized query to avoid SQL injection
-            cursor.execute(
-                """
-                SELECT DATE(timestamp) as date,
-                       SUM(realized_pnl) as daily_pnl,
-                       COUNT(*) as trades
-                FROM positions
-                WHERE exit_time > datetime('now', ?)
-                GROUP BY DATE(timestamp)
-                ORDER BY date DESC
-            """,
-                (f"-{int(days)} days",),
-            )
-
-            results = []
-            for row in cursor.fetchall():
-                results.append({"date": row[0], "pnl": row[1] or 0.0, "trades": row[2] or 0})
-
-            conn.close()
-            return results
-
-        except Exception as e:
-            logger.error(f"Error getting daily P&L: {e}")
+            with self._managed_connection() as conn:
+                cursor = conn.execute(
+                    """
+                    SELECT DATE(exit_time) as date,
+                           SUM(realized_pnl) as daily_pnl,
+                           COUNT(*) as trades
+                    FROM positions
+                    WHERE exit_time > datetime('now', ?)
+                    GROUP BY DATE(exit_time)
+                    ORDER BY date DESC
+                """,
+                    (f"-{interval} days",),
+                )
+                rows = cursor.fetchall()
+        except PortfolioMonitorError:
+            logger.exception("Failed to read daily P&L")
             return []
+
+        return [
+            {"date": row["date"], "pnl": float(row["daily_pnl"] or 0.0), "trades": int(row["trades"] or 0)}
+            for row in rows
+        ]

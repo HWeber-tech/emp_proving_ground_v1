@@ -31,6 +31,9 @@
 ### Now (0–30 days)
 
 - Finish the task supervision rollout across runtime and operational helpers.【F:docs/technical_debt_assessment.md†L33-L56】
+  - ✅ Runtime CLI orchestration and the bootstrap sensory loop now execute under
+    `TaskSupervisor`, eliminating direct `asyncio.create_task` usage for
+    entrypoint workflows and providing deterministic signal/timeout shutdowns.【F:src/runtime/cli.py†L206-L249】【F:src/runtime/bootstrap_runtime.py†L227-L268】
 - Update incident response docs with current limitations and TODOs; remove or
   archive obsolete OpenAPI references where possible.【F:docs/legacy/README.md†L1-L12】
 - Extend CI step summaries to include risk, ingest, and sensory telemetry status so

@@ -59,6 +59,10 @@ backlog grooming, release readiness reviews, and post-mortems.
   modules still raise `NotImplementedError` or operate as mock frameworks.【F:docs/DEVELOPMENT_STATUS.md†L19-L35】
 - Dead-code audits flag sensory/evolution directories as dormant, reinforcing the
   lack of executable pipelines.【F:docs/reports/CLEANUP_REPORT.md†L71-L175】
+- Real sensory organ now fuses WHY/WHAT/WHEN/HOW/ANOMALY signals, records
+  lineage, and publishes telemetry snapshots so runtime summaries have a single
+  executable sensory surface, though feeds remain synthetic pending the
+  institutional backbone.【F:src/sensory/real_sensory_organ.py†L20-L208】【F:src/sensory/real_sensory_organ.py†L210-L336】【F:tests/sensory/test_real_sensory_organ.py†L1-L107】
 
 **Gaps to close:**
 1. Implement HOW and ANOMALY organs with deterministic inputs, documented drift

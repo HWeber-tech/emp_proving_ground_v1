@@ -53,6 +53,10 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
     propagate threshold metadata, and expose deterministic telemetry snapshots so
     downstream consumers can audit signal provenance, with pytest coverage across
     lineage coercion and sensory processing flows.【F:src/sensory/how/how_sensor.py†L1-L140】【F:src/sensory/anomaly/anomaly_sensor.py†L1-L163】【F:src/sensory/lineage.py†L1-L87】【F:tests/sensory/test_how_anomaly_sensors.py†L1-L134】【F:tests/sensory/test_lineage.py†L1-L143】
+  - *Progress*: Integrated sensory organ fuses WHY/WHAT/WHEN/HOW/ANOMALY signals,
+    records lineage and audit trails, publishes telemetry snapshots, and surfaces
+    status summaries so runtime consumers inherit a single executable sensory
+    surface under pytest coverage.【F:src/sensory/real_sensory_organ.py†L20-L208】【F:src/sensory/real_sensory_organ.py†L210-L336】【F:tests/sensory/test_real_sensory_organ.py†L1-L107】
 - [ ] **Risk and runtime safety** – Enforce `RiskConfig`, finish the builder rollout,
   adopt supervised async lifecycles, and purge deprecated facades.
   - *Progress*: The trading risk gateway now drives portfolio checks through the

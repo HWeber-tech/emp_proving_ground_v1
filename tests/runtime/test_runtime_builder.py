@@ -12,6 +12,7 @@ import logging
 import pytest
 import pandas as pd
 
+from src.config.risk.risk_config import RiskConfig
 from src.governance.system_config import ConnectionProtocol, DataBackboneMode, EmpTier, SystemConfig
 from src.operations.backup import BackupReadinessSnapshot, BackupStatus
 from src.operations.data_backbone import (
@@ -112,6 +113,9 @@ async def test_builder_bootstrap_mode(monkeypatch, tmp_path):
     app = await build_professional_predator_app(config=cfg)
 
     class StubTradingManager:
+        def __init__(self) -> None:
+            self._risk_config = RiskConfig()
+
         def get_experiment_events(self) -> list[dict[str, object]]:
             return [
                 {
@@ -130,6 +134,9 @@ async def test_builder_bootstrap_mode(monkeypatch, tmp_path):
         def get_last_roi_snapshot(self) -> None:
             return None
 
+        def get_risk_status(self) -> Mapping[str, object]:
+            return {"risk_config": self._risk_config.dict()}
+
     if getattr(app, "sensory_organ", None) is None:
         app.sensory_organ = SimpleNamespace(trading_manager=StubTradingManager())
     else:
@@ -144,6 +151,9 @@ async def test_builder_bootstrap_mode(monkeypatch, tmp_path):
         summary = runtime_app.summary()
         assert summary["ingestion"]["name"] == "tier0-ingest"
         assert summary["trading"]["name"] == "professional-trading"
+        trading_metadata = summary["trading"].get("metadata", {})
+        assert "risk" in trading_metadata
+        assert trading_metadata["risk"]["mandatory_stop_loss"] is True
     finally:
         await app.shutdown()
 
@@ -243,7 +253,10 @@ async def test_builder_health_server_can_be_disabled(tmp_path):
             symbols_csv="EURUSD",
             duckdb_path=str(tmp_path / "tier0.duckdb"),
         )
-        assert runtime_app.startup_callbacks == []
+        assert runtime_app.startup_callbacks, "expected risk enforcement callback"
+        assert {
+            callback.__name__ for callback in runtime_app.startup_callbacks
+        } == {"enforce_trading_risk_config"}
     finally:
         await app.shutdown()
 
@@ -521,6 +534,7 @@ async def test_builder_records_backup_snapshot(monkeypatch, tmp_path):
                     "metadata": {"reason": "low_confidence"},
                 },
             ]
+            self._risk_config = RiskConfig()
 
         def get_execution_stats(self) -> Mapping[str, object]:
             return {
@@ -543,6 +557,9 @@ async def test_builder_records_backup_snapshot(monkeypatch, tmp_path):
 
         def get_last_roi_snapshot(self) -> Mapping[str, object]:
             return {"status": "tracking", "roi": 0.05, "net_pnl": 320.0}
+
+        def get_risk_status(self) -> Mapping[str, object]:
+            return {"risk_config": self._risk_config.dict()}
 
     trading_manager = StubTradingManager()
     if getattr(app, "sensory_organ", None) is None:
@@ -683,6 +700,9 @@ async def test_builder_records_cross_region_snapshot(monkeypatch, tmp_path):
     app = await build_professional_predator_app(config=cfg)
 
     class StubTradingManager:
+        def __init__(self) -> None:
+            self._risk_config = RiskConfig()
+
         def get_execution_stats(self) -> Mapping[str, object]:
             return {
                 "orders_submitted": 1,
@@ -698,6 +718,9 @@ async def test_builder_records_cross_region_snapshot(monkeypatch, tmp_path):
 
         def get_last_roi_snapshot(self) -> Mapping[str, object]:
             return {"status": "tracking", "roi": 0.0, "net_pnl": 0.0}
+
+        def get_risk_status(self) -> Mapping[str, object]:
+            return {"risk_config": self._risk_config.dict()}
 
     if getattr(app, "sensory_organ", None) is None:
         app.sensory_organ = SimpleNamespace(trading_manager=StubTradingManager())
@@ -806,6 +829,9 @@ async def test_builder_records_kafka_readiness_snapshot(monkeypatch, tmp_path):
     app = await build_professional_predator_app(config=cfg)
 
     class StubTradingManager:
+        def __init__(self) -> None:
+            self._risk_config = RiskConfig()
+
         def get_execution_stats(self) -> Mapping[str, object]:
             return {
                 "orders_submitted": 1,
@@ -821,6 +847,9 @@ async def test_builder_records_kafka_readiness_snapshot(monkeypatch, tmp_path):
 
         def get_last_roi_snapshot(self) -> Mapping[str, object]:
             return {"status": "tracking", "roi": 0.0, "net_pnl": 0.0}
+
+        def get_risk_status(self) -> Mapping[str, object]:
+            return {"risk_config": self._risk_config.dict()}
 
     if getattr(app, "sensory_organ", None) is None:
         app.sensory_organ = SimpleNamespace(trading_manager=StubTradingManager())

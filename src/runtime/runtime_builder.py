@@ -20,6 +20,7 @@ from collections.abc import Mapping as MappingABC
 from typing import Any, Awaitable, Callable, Mapping, MutableMapping, Sequence, cast
 from uuid import uuid4
 
+from src.config.risk.risk_config import RiskConfig
 from src.core.coercion import coerce_float
 from src.core.event_bus import Event, EventBus, get_global_bus
 from src.observability.logging import (
@@ -295,6 +296,79 @@ def _normalise_ingest_plan_metadata(value: object) -> list[str]:
 StartupCallback = Callable[[], Awaitable[None] | None]
 ShutdownCallback = Callable[[], Awaitable[None] | None]
 WorkloadFactory = Callable[[], Awaitable[None]]
+
+
+def _locate_trading_manager(app: ProfessionalPredatorApp) -> Any | None:
+    sensory = getattr(app, "sensory_organ", None)
+    if sensory is None:
+        return None
+    return getattr(sensory, "trading_manager", None)
+
+
+def _resolve_trading_risk_config(trading_manager: Any) -> RiskConfig:
+    """Resolve the canonical :class:`RiskConfig` from a trading manager."""
+
+    candidate = getattr(trading_manager, "_risk_config", None)
+    if isinstance(candidate, RiskConfig):
+        return candidate
+    if isinstance(candidate, MappingABC):
+        return RiskConfig.parse_obj(candidate)
+
+    status_getter = getattr(trading_manager, "get_risk_status", None)
+    if callable(status_getter):
+        try:
+            status_payload = status_getter()
+        except Exception as exc:  # pragma: no cover - diagnostics only
+            raise RuntimeError("Trading manager risk status retrieval failed") from exc
+        if isinstance(status_payload, MappingABC):
+            config_payload = status_payload.get("risk_config")
+            if isinstance(config_payload, MappingABC):
+                return RiskConfig.parse_obj(config_payload)
+
+    raise RuntimeError("Trading manager does not expose a canonical RiskConfig")
+
+
+def _summarise_risk_metadata(config: RiskConfig) -> dict[str, object]:
+    return {
+        "max_risk_per_trade_pct": float(config.max_risk_per_trade_pct),
+        "max_total_exposure_pct": float(config.max_total_exposure_pct),
+        "max_leverage": float(config.max_leverage),
+        "max_drawdown_pct": float(config.max_drawdown_pct),
+        "min_position_size": int(config.min_position_size),
+        "max_position_size": int(config.max_position_size),
+        "mandatory_stop_loss": bool(config.mandatory_stop_loss),
+        "research_mode": bool(config.research_mode),
+    }
+
+
+def _prepare_trading_risk_enforcement(
+    app: ProfessionalPredatorApp, metadata: MutableMapping[str, object]
+) -> StartupCallback | None:
+    trading_manager = _locate_trading_manager(app)
+    if trading_manager is None:
+        logger.debug("Trading manager not attached; skipping runtime risk enforcement")
+        return None
+
+    risk_config = _resolve_trading_risk_config(trading_manager)
+    if risk_config.max_risk_per_trade_pct <= 0:
+        raise RuntimeError("RiskConfig.max_risk_per_trade_pct must be positive")
+    if risk_config.max_total_exposure_pct <= 0:
+        raise RuntimeError("RiskConfig.max_total_exposure_pct must be positive")
+
+    metadata["risk"] = _summarise_risk_metadata(risk_config)
+
+    async def _enforce_trading_risk_config() -> None:
+        logger.info(
+            "🛡️ Trading risk configuration enforced: risk_per_trade=%.4f exposure_cap=%.4f"
+            " mandatory_stop=%s research_mode=%s",
+            float(risk_config.max_risk_per_trade_pct),
+            float(risk_config.max_total_exposure_pct),
+            bool(risk_config.mandatory_stop_loss),
+            bool(risk_config.research_mode),
+        )
+
+    _enforce_trading_risk_config.__name__ = "enforce_trading_risk_config"
+    return _enforce_trading_risk_config
 
 
 @dataclass(frozen=True)
@@ -3001,14 +3075,17 @@ def build_professional_runtime_application(
                 reason=reason,
             )
 
+    trading_metadata: dict[str, object] = {
+        "mode": app.config.run_mode.value,
+        "protocol": app.config.connection_protocol.value,
+    }
+    risk_startup_callback = _prepare_trading_risk_enforcement(app, trading_metadata)
+
     trading = RuntimeWorkload(
         name="professional-trading",
         factory=lambda: app.run_forever(),
         description="Professional Predator trading loop",
-        metadata={
-            "mode": app.config.run_mode.value,
-            "protocol": app.config.connection_protocol.value,
-        },
+        metadata=trading_metadata,
     )
 
     runtime_app = RuntimeApplication(
@@ -3016,6 +3093,9 @@ def build_professional_runtime_application(
         trading=trading,
         tracer=runtime_tracer,
     )
+
+    if risk_startup_callback is not None:
+        runtime_app.add_startup_callback(risk_startup_callback)
 
     extras = app.config.extras or {}
     health_enabled = _coerce_bool(extras.get("RUNTIME_HEALTHCHECK_ENABLED", True), True)

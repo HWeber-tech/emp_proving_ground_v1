@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import StrEnum
@@ -14,6 +15,9 @@ from src.data_foundation.streaming.kafka_stream import (
     KafkaConsumerLagSnapshot,
     KafkaTopicProvisioningSummary,
 )
+
+
+logger = logging.getLogger(__name__)
 
 
 class KafkaReadinessStatus(StrEnum):
@@ -311,11 +315,19 @@ def publish_kafka_readiness(event_bus: EventBus, snapshot: KafkaReadinessSnapsho
         try:
             publish_from_sync(event)
             return
-        except Exception:  # pragma: no cover - defensive log suppressed
-            pass
+        except Exception as exc:  # pragma: no cover - defensive logging
+            logger.warning(
+                "Failed to publish Kafka readiness snapshot via runtime event bus: %s",
+                exc,
+                exc_info=True,
+            )
 
     try:
         bus = get_global_bus()
         bus.publish_sync(event.type, event.payload, source=event.source)
-    except Exception:  # pragma: no cover - fallback best effort
-        pass
+    except Exception as exc:  # pragma: no cover - fallback best effort
+        logger.warning(
+            "Failed to publish Kafka readiness snapshot via global event bus: %s",
+            exc,
+            exc_info=True,
+        )

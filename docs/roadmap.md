@@ -64,10 +64,15 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
     canonical `get_risk_manager` facade, exposes the core engine’s snapshot and
     assessment APIs, and keeps execution telemetry aligned with the deterministic
     risk manager surfaced by the runtime builder.【F:src/trading/trading_manager.py†L105-L147】【F:src/risk/risk_manager_impl.py†L533-L573】
+  - *Progress*: Runtime builder now resolves the canonical `RiskConfig` from the
+    trading manager, validates mandatory risk thresholds, records enforced
+    metadata, and registers a startup callback that logs the hardened risk
+    posture under regression coverage so runtime launches cannot proceed with
+    missing or invalid limits.【F:src/runtime/runtime_builder.py†L298-L358】【F:src/runtime/runtime_builder.py†L3075-L3110】【F:tests/runtime/test_runtime_builder.py†L71-L138】
   - *Progress*: Risk policy regression now enforces mandatory stop losses,
     positive equity budgets, and resolved price fallbacks, documenting violation
     telemetry and metadata so CI catches policy drift before it reaches
-    execution flows.【F:src/trading/risk/risk_policy.py†L120-L246】【F:tests/trading/test_risk_policy.py†L117-L157】
+    execution flows.【F:src/trading/risk/risk_policy.py†L120-L246】【F:tests/trading/test_risk_policy.py†L117-L205】
 - [ ] **Quality and observability** – Expand regression coverage, close the
   documentation gap, and track remediation progress through CI snapshots.
   - *Progress*: Event bus health publishing now logs unexpected primary-bus
@@ -79,6 +84,10 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
     trading-manager method, and formatter failures, keeping operational
     diagnostics visible during bootstrap runs and documenting the logging
     behaviour under pytest.【F:src/operations/bootstrap_control_center.py†L31-L115】【F:tests/current/test_bootstrap_control_center.py†L178-L199】
+  - *Progress*: Observability dashboard risk telemetry now annotates each metric
+    with limit values, ratios, and violation statuses while preserving serialised
+    payloads, backed by regression coverage so operators inherit actionable risk
+    summaries instead of opaque aggregates.【F:src/operations/observability_dashboard.py†L254-L309】【F:tests/operations/test_observability_dashboard.py†L201-L246】
   - *Progress*: System validation telemetry escalates runtime publish failures
     into warnings, raises on unexpected errors, and regression tests capture the
     fallback handling so readiness dashboards surface degraded validation runs
@@ -156,6 +165,10 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
     failures, raise on unexpected exceptions, and surface global-bus outages with
     pytest coverage so telemetry gaps raise alerts instead of disappearing
     silently.【F:src/operations/ingest_trends.py†L303-L336】【F:tests/operations/test_ingest_trends.py†L90-L148】【F:src/operations/kafka_readiness.py†L313-L333】【F:tests/operations/test_kafka_readiness.py†L115-L143】
+  - *Progress*: Security telemetry regression suite now exercises runtime-bus
+    fallbacks, global-bus escalation, and unexpected-error handling so security
+    posture publishing surfaces outages deterministically instead of silently
+    discarding events.【F:tests/operations/test_security.py†L101-L211】
   - *Progress*: Cache health telemetry now logs primary bus failures, only falls
     back once runtime errors are captured, and raises on unexpected or global-bus
     errors with pytest guardrails so readiness dashboards record real outages
@@ -166,6 +179,10 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
   - *Progress*: Timescale ingest coverage now exercises migrator setup, idempotent
     daily/intraday upserts, and macro event pathways so empty plans and windowed
     flows keep writing deterministic telemetry under CI guardrails.【F:tests/data_foundation/test_timescale_ingest.py†L1-L213】
+  - *Progress*: Runtime builder coverage now snapshots ingest plan dimensions,
+    trading metadata, and enforced risk summaries, while risk policy regressions
+    assert portfolio price fallbacks so ingest orchestration and risk sizing
+    guardrails stay under deterministic pytest coverage.【F:tests/runtime/test_runtime_builder.py†L1-L196】【F:tests/trading/test_risk_policy.py†L1-L205】
 
 ### Next (30–90 days)
 

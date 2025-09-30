@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any, Mapping
 
@@ -7,11 +8,12 @@ import pytest
 
 from src.config.risk.risk_config import RiskConfig
 from src.trading.risk.policy_telemetry import (
+    PolicyCheckStatus,
     build_policy_snapshot,
     format_policy_markdown,
     publish_policy_snapshot,
 )
-from src.trading.risk.risk_policy import RiskPolicy
+from src.trading.risk.risk_policy import RiskPolicy, RiskPolicyDecision
 
 
 class StubBus:
@@ -87,6 +89,53 @@ def test_format_policy_markdown_includes_status() -> None:
     assert "POLICY STATUS" in markdown.upper()
     assert "VIOLATIONS" in markdown.upper()
     assert "LIMITS" in markdown.upper()
+
+
+def test_build_policy_snapshot_without_policy_uses_metadata() -> None:
+    decision = RiskPolicyDecision(
+        approved=False,
+        reason="exposure_limit",
+        checks=(
+            {
+                "name": "policy.max_total_exposure_pct",
+                "status": "violation",
+                "value": "100000",
+                "threshold": "50000",
+                "extra": {
+                    "ratio": "2.0",
+                    "projected_total_exposure": "100000",
+                },
+            },
+        ),
+        metadata={
+            "symbol": "GBPUSD",
+            "equity": "250000",
+            "projected_total_exposure": "100000",
+            "research_mode": True,
+        },
+        violations=("policy.max_total_exposure_pct",),
+    )
+
+    generated_at = datetime(2024, 2, 1, 15, 30, tzinfo=timezone.utc)
+    snapshot = build_policy_snapshot(decision, None, generated_at=generated_at)
+
+    assert snapshot.generated_at == generated_at
+    assert snapshot.symbol == "GBPUSD"
+    assert snapshot.policy_limits == {}
+    assert snapshot.research_mode is True
+    assert snapshot.approved is False
+    assert snapshot.violations == ("policy.max_total_exposure_pct",)
+
+    (check,) = snapshot.checks
+    assert check.status is PolicyCheckStatus.violation
+    assert check.value == pytest.approx(100000.0)
+    assert check.threshold == pytest.approx(50000.0)
+    assert check.metadata["ratio"] == "2.0"
+    assert check.metadata["projected_total_exposure"] == "100000"
+
+    markdown = format_policy_markdown(snapshot)
+    assert "RESEARCH MODE" in markdown.upper()
+    assert "**Exposure:** equity=250,000.00 projected=100,000.00" in markdown
 
 
 @pytest.mark.asyncio()

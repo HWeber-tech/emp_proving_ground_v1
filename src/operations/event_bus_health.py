@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import StrEnum
@@ -14,6 +15,9 @@ from src.core.event_bus import (
     event_bus as global_event_bus,
     get_global_bus,
 )
+
+
+logger = logging.getLogger(__name__)
 
 
 class EventBusHealthStatus(StrEnum):
@@ -239,16 +243,37 @@ def publish_event_bus_health(event_bus: EventBus, snapshot: EventBusHealthSnapsh
     publish_from_sync = getattr(event_bus, "publish_from_sync", None)
     if callable(publish_from_sync) and event_bus.is_running():
         try:
-            publish_from_sync(event)
-            return
-        except Exception:
-            pass  # Fallback to global bus below
+            publish_result = publish_from_sync(event)
+        except RuntimeError as exc:
+            logger.warning(
+                "Primary event bus publish_from_sync failed; falling back to global bus",
+                exc_info=exc,
+            )
+        except Exception:  # pragma: no cover - unexpected failure path
+            logger.exception(
+                "Unexpected error publishing event bus health; falling back to global bus",
+            )
+        else:
+            if publish_result is not None:
+                return
+            logger.warning(
+                "Primary event bus publish_from_sync returned None; falling back to global bus",
+            )
 
+    topic_bus = get_global_bus()
     try:
-        topic_bus = get_global_bus()
         topic_bus.publish_sync(event.type, event.payload, source=event.source)
+    except RuntimeError as exc:
+        logger.error(
+            "Global event bus not running while publishing event bus health snapshot",
+            exc_info=exc,
+        )
+        raise
     except Exception:
-        pass
+        logger.exception(
+            "Unexpected error publishing event bus health snapshot via global bus",
+        )
+        raise
 
 
 __all__ = [

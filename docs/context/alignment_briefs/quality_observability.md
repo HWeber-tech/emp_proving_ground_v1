@@ -59,6 +59,9 @@
     fallbacks, raises on unexpected errors, and escalates global bus outages with
     pytest coverage so data backbone dashboards expose genuine gaps instead of
     silently skipping degraded snapshots.【F:src/operations/ingest_trends.py†L303-L336】【F:tests/operations/test_ingest_trends.py†L90-L148】
+  - Progress: Timescale ingest regressions now cover migrator bootstrap,
+    idempotent upserts for empty/changed plans, and macro event ingestion so
+    coverage catches silent failures across institutional ingest windows.【F:tests/data_foundation/test_timescale_ingest.py†L1-L213】
   - Progress: Cache health publishing now logs primary bus errors, only falls back
     when runtime failures occur, and raises on unexpected or global-bus outages
     under pytest guardrails so readiness telemetry surfaces real cache incidents

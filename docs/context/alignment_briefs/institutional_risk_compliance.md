@@ -41,6 +41,10 @@
 - Progress: Risk policy regression enforces mandatory stop losses, positive
   equity budgets, and violation telemetry so CI fails fast when policy guardrails
   drift, keeping execution blockers visible to compliance reviewers.【F:src/trading/risk/risk_policy.py†L120-L246】【F:tests/trading/test_risk_policy.py†L117-L157】
+- Progress: Compliance readiness snapshots now consolidate trade surveillance and
+  KYC telemetry, escalate severities deterministically, and expose markdown
+  evidence with pytest guardrails so governance cadences inherit truthful
+  compliance posture summaries.【F:src/operations/compliance_readiness.py†L1-L220】【F:tests/operations/test_compliance_readiness.py†L1-L173】
 
 ### Next (30–90 days)
 
@@ -50,6 +54,10 @@
     canonical deterministic facade and exposes the core engine’s snapshot and
     assessment hooks so execution flows share the same enforcement path as the
     runtime builder.【F:src/trading/trading_manager.py†L105-L147】【F:src/risk/risk_manager_impl.py†L533-L573】
+- Progress: Governance cadence runner orchestrates interval gating, audit
+  evidence collection, report persistence, and event-bus publishing so the
+  compliance squad has a single supervised entrypoint for regulatory reporting
+  under pytest coverage.【F:src/operations/governance_cadence.py†L1-L167】【F:tests/operations/test_governance_cadence.py†L1-L206】
 - Wire compliance workflows (KYC, trade surveillance) with markdown exports and
   optional Timescale journaling to satisfy audit requirements.
 - Complete runtime builder adoption so FIX pilots, simulators, and eventual live

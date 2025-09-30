@@ -49,6 +49,10 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
     exception capture, markdown fallback logging, and pytest scenarios that
     simulate transport failures so dashboards and runbooks inherit reliable
     snapshots of paper-trading ROI and backlog posture.【F:src/operations/evolution_experiments.py†L40-L196】【F:tests/operations/test_evolution_experiments.py†L1-L126】
+  - *Progress*: HOW and ANOMALY sensors now embed sanitised lineage records,
+    propagate threshold metadata, and expose deterministic telemetry snapshots so
+    downstream consumers can audit signal provenance, with pytest coverage across
+    lineage coercion and sensory processing flows.【F:src/sensory/how/how_sensor.py†L1-L140】【F:src/sensory/anomaly/anomaly_sensor.py†L1-L163】【F:src/sensory/lineage.py†L1-L87】【F:tests/sensory/test_how_anomaly_sensors.py†L1-L134】【F:tests/sensory/test_lineage.py†L1-L143】
 - [ ] **Risk and runtime safety** – Enforce `RiskConfig`, finish the builder rollout,
   adopt supervised async lifecycles, and purge deprecated facades.
   - *Progress*: The trading risk gateway now drives portfolio checks through the
@@ -159,6 +163,9 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
   - *Progress*: Trading position model guardrails now run under pytest,
     asserting timestamp updates, profit recalculations, and close flows so the
     lightweight execution telemetry remains deterministic under CI coverage.【F:tests/trading/test_position_model_guardrails.py†L1-L105】
+  - *Progress*: Timescale ingest coverage now exercises migrator setup, idempotent
+    daily/intraday upserts, and macro event pathways so empty plans and windowed
+    flows keep writing deterministic telemetry under CI guardrails.【F:tests/data_foundation/test_timescale_ingest.py†L1-L213】
 
 ### Next (30–90 days)
 
@@ -190,6 +197,14 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
     publishes the snapshot on the event bus, and trims persisted histories so
     audits inherit deterministic evidence, with pytest covering scheduling,
     publishing, and storage flows.【F:src/operations/governance_reporting.py†L1-L200】【F:tests/operations/test_governance_reporting.py†L1-L152】
+  - *Progress*: Compliance readiness snapshots now normalise trade-surveillance and
+    KYC components, escalate severities deterministically, and render markdown
+    evidence with regression coverage so governance cadences inherit reliable
+    compliance posture telemetry.【F:src/operations/compliance_readiness.py†L1-L220】【F:tests/operations/test_compliance_readiness.py†L1-L173】
+  - *Progress*: Governance cadence runner orchestrates interval gating, audit
+    evidence collection, report persistence, and event-bus publishing with
+    injectable providers so institutional deployments can trigger the cadence
+    from a single supervised entrypoint under pytest coverage.【F:src/operations/governance_cadence.py†L1-L167】【F:tests/operations/test_governance_cadence.py†L1-L206】
 
 ## Actionable to-do tracker
 

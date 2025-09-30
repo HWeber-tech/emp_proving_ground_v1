@@ -1,0 +1,2 @@
+# Example vulnerability exemptions.
+# Replace with CVE or GHSA identifiers when temporary suppression is required.

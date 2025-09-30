@@ -1,0 +1,278 @@
+{
+  "status": "ready",
+  "generated_at": "2025-09-29T15:14:46.681264+00:00",
+  "steps": [
+    {
+      "name": "Backup validation",
+      "status": "ready",
+      "summary": "Backups meet policy targets",
+      "details": [
+        "Providers: aws_s3, gcs",
+        "Storage: s3://emp-backups/timescale",
+        "Latest backup: 2025-09-29T12:44:46.681264+00:00",
+        "Next due: 2025-09-29T18:44:46.681264+00:00"
+      ]
+    },
+    {
+      "name": "Failover automation",
+      "status": "ready",
+      "summary": "Failover drill completed",
+      "details": [
+        "health: fail \u2013 health status error",
+        "failover: ok \u2013 daily_bars produced zero rows; daily_bars missing symbols: SPY, QQQ, ES; daily_bars status=error",
+        "fallback: ok \u2013 fallback executed",
+        "Fallback executed during drill"
+      ]
+    }
+  ],
+  "backup_snapshot": {
+    "service": "timescale_failover_backups",
+    "generated_at": "2025-09-29T15:14:46.681264+00:00",
+    "status": "ok",
+    "retention_days": 14,
+    "issues": [],
+    "metadata": {
+      "policy": {
+        "enabled": true,
+        "expected_frequency_seconds": 21600,
+        "warn_after_seconds": 32400.0,
+        "fail_after_seconds": 54000.0,
+        "retention_days": 14,
+        "minimum_retention_days": 7,
+        "restore_test_interval_days": 14,
+        "providers": [
+          "aws_s3",
+          "gcs"
+        ],
+        "storage_location": "s3://emp-backups/timescale"
+      },
+      "state": {
+        "last_backup_status": "ok",
+        "last_restore_status": "ok",
+        "recorded_failures": [],
+        "last_backup_at": "2025-09-29T12:44:46.681264+00:00",
+        "last_restore_test_at": "2025-09-22T15:14:46.681264+00:00"
+      },
+      "context": {
+        "policy": {
+          "enabled": true,
+          "expected_frequency_seconds": 21600,
+          "retention_days": 14,
+          "minimum_retention_days": 7,
+          "restore_test_interval_days": 14,
+          "warn_after_seconds": null,
+          "fail_after_seconds": null,
+          "providers": [
+            "aws_s3",
+            "gcs"
+          ],
+          "storage_location": "s3://emp-backups/timescale"
+        }
+      }
+    },
+    "latest_backup_at": "2025-09-29T12:44:46.681264+00:00",
+    "next_backup_due_at": "2025-09-29T18:44:46.681264+00:00"
+  },
+  "failover_snapshot": {
+    "status": "ok",
+    "generated_at": "2025-09-29T15:14:46.681640+00:00",
+    "scenario": "timescale_failover",
+    "components": [
+      {
+        "name": "health",
+        "status": "fail",
+        "summary": "health status error",
+        "metadata": {
+          "checks": [
+            {
+              "dimension": "daily_bars",
+              "status": "error",
+              "message": "No rows ingested for planned slice; All expected symbols missing from ingest result; Freshness metric unavailable",
+              "rows_written": 0,
+              "freshness_seconds": null,
+              "observed_symbols": [],
+              "expected_symbols": [
+                "SPY",
+                "QQQ",
+                "ES"
+              ],
+              "missing_symbols": [
+                "SPY",
+                "QQQ",
+                "ES"
+              ],
+              "ingest_duration_seconds": 0.0,
+              "metadata": {
+                "freshness_sla_seconds": 86400.0,
+                "min_rows_required": 1,
+                "source": "timescale"
+              }
+            },
+            {
+              "dimension": "intraday_trades",
+              "status": "ok",
+              "message": "Ingest healthy",
+              "rows_written": 96000,
+              "freshness_seconds": 240.0,
+              "observed_symbols": [
+                "SPY",
+                "QQQ"
+              ],
+              "expected_symbols": [
+                "SPY",
+                "QQQ"
+              ],
+              "ingest_duration_seconds": 25.1,
+              "metadata": {
+                "freshness_sla_seconds": 900.0,
+                "min_rows_required": 1,
+                "source": "timescale"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "name": "failover",
+        "status": "ok",
+        "summary": "daily_bars produced zero rows; daily_bars missing symbols: SPY, QQQ, ES; daily_bars status=error",
+        "metadata": {
+          "targeted": [
+            "daily_bars"
+          ],
+          "triggered": [
+            "daily_bars"
+          ],
+          "optional_triggers": []
+        }
+      },
+      {
+        "name": "fallback",
+        "status": "ok",
+        "summary": "fallback executed",
+        "metadata": {
+          "executed": true,
+          "error": null
+        }
+      }
+    ],
+    "health_report": {
+      "status": "error",
+      "generated_at": "2025-09-29T15:14:46.681696+00:00",
+      "checks": [
+        {
+          "dimension": "daily_bars",
+          "status": "error",
+          "message": "No rows ingested for planned slice; All expected symbols missing from ingest result; Freshness metric unavailable",
+          "rows_written": 0,
+          "freshness_seconds": null,
+          "observed_symbols": [],
+          "expected_symbols": [
+            "SPY",
+            "QQQ",
+            "ES"
+          ],
+          "missing_symbols": [
+            "SPY",
+            "QQQ",
+            "ES"
+          ],
+          "ingest_duration_seconds": 0.0,
+          "metadata": {
+            "freshness_sla_seconds": 86400.0,
+            "min_rows_required": 1,
+            "source": "timescale"
+          }
+        },
+        {
+          "dimension": "intraday_trades",
+          "status": "ok",
+          "message": "Ingest healthy",
+          "rows_written": 96000,
+          "freshness_seconds": 240.0,
+          "observed_symbols": [
+            "SPY",
+            "QQQ"
+          ],
+          "expected_symbols": [
+            "SPY",
+            "QQQ"
+          ],
+          "ingest_duration_seconds": 25.1,
+          "metadata": {
+            "freshness_sla_seconds": 900.0,
+            "min_rows_required": 1,
+            "source": "timescale"
+          }
+        }
+      ],
+      "metadata": {
+        "planned_dimensions": [
+          "daily_bars",
+          "intraday_trades"
+        ],
+        "observed_dimensions": [
+          "daily_bars",
+          "intraday_trades"
+        ],
+        "drill": {
+          "scenario": "timescale_failover",
+          "dimensions": [
+            "daily_bars"
+          ]
+        }
+      }
+    },
+    "failover_decision": {
+      "should_failover": true,
+      "status": "error",
+      "reason": "daily_bars produced zero rows; daily_bars missing symbols: SPY, QQQ, ES; daily_bars status=error",
+      "generated_at": "2025-09-29T15:14:46.681696+00:00",
+      "triggered_dimensions": [
+        "daily_bars"
+      ],
+      "optional_triggers": [],
+      "planned_dimensions": [
+        "daily_bars",
+        "intraday_trades"
+      ],
+      "metadata": {
+        "planned_dimensions": [
+          "daily_bars",
+          "intraday_trades"
+        ],
+        "observed_dimensions": [
+          "daily_bars",
+          "intraday_trades"
+        ],
+        "drill": {
+          "scenario": "timescale_failover",
+          "dimensions": [
+            "daily_bars"
+          ]
+        }
+      }
+    },
+    "metadata": {
+      "drill": {
+        "initiated_at": "2025-09-29T15:14:46.681264+00:00",
+        "scenario": "timescale_failover"
+      },
+      "targeted_dimensions": [
+        "daily_bars"
+      ],
+      "failover_triggered": true,
+      "fallback": {
+        "executed": true,
+        "error": null
+      }
+    }
+  },
+  "metadata": {
+    "drill": {
+      "initiated_at": "2025-09-29T15:14:46.681264+00:00",
+      "scenario": "timescale_failover"
+    },
+    "scenario": "timescale_failover"
+  }
+}

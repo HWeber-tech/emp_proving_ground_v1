@@ -20,10 +20,21 @@ import simplefix
 from src.core.types import JSONObject
 
 # Configure logging
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
 logger = logging.getLogger(__name__)
+
+
+_NETWORK_ERRORS: tuple[type[BaseException], ...] = (
+    OSError,
+    ssl.SSLError,
+    socket.timeout,
+    TimeoutError,
+)
+
+_MESSAGE_ERRORS: tuple[type[BaseException], ...] = (
+    ValueError,
+    TypeError,
+    UnicodeDecodeError,
+)
 
 
 @runtime_checkable
@@ -177,8 +188,8 @@ class RobustMessageParser:
 
             return parsed
 
-        except Exception as e:
-            logger.error(f"Error parsing FIX message: {e}")
+        except _MESSAGE_ERRORS as exc:
+            logger.error("Error parsing FIX message: %s", exc)
             return None
 
 
@@ -232,6 +243,19 @@ class ICMarketsRobustConnection:
         self.heartbeat_thread: Optional[threading.Thread] = None
         self.last_heartbeat: Optional[datetime] = None
 
+    def _reset_connection_state(self) -> None:
+        """Close network resources and reset state after failures."""
+        sockets = (self.ssl_socket, self.socket)
+        for sock in sockets:
+            if sock is None:
+                continue
+            try:
+                sock.close()
+            except OSError:
+                logger.debug("Error closing socket during reset", exc_info=True)
+        self.ssl_socket = None
+        self.socket = None
+
     def connect(self) -> bool:
         """Connect with automatic retry and recovery."""
         while self.recovery_manager.should_retry():
@@ -283,8 +307,11 @@ class ICMarketsRobustConnection:
                     logger.info(f"{self.session_type} connection established successfully")
                     return True
 
-            except Exception as e:
-                logger.error(f"Connection failed: {e}")
+            except _NETWORK_ERRORS:
+                logger.exception(
+                    "Connection failed for %s session", self.session_type
+                )
+                self._reset_connection_state()
                 self.recovery_manager.record_failure()
 
                 if self.recovery_manager.should_retry():
@@ -294,6 +321,15 @@ class ICMarketsRobustConnection:
                 else:
                     logger.error(f"Max retries exceeded for {self.session_type}")
                     return False
+
+            except ValueError as exc:
+                logger.error(
+                    "Configuration error establishing %s session: %s",
+                    self.session_type,
+                    exc,
+                )
+                self._reset_connection_state()
+                return False
 
         return False
 
@@ -327,8 +363,17 @@ class ICMarketsRobustConnection:
                 self.last_heartbeat = datetime.utcnow()
                 return True
 
-        except Exception as e:
-            logger.error(f"Logon failed: {e}")
+        except _NETWORK_ERRORS:
+            logger.exception("Logon failed for %s session", self.session_type)
+            self.connected = False
+            self._reset_connection_state()
+            return False
+        except _MESSAGE_ERRORS as exc:
+            logger.error(
+                "Failed to build logon message for %s session: %s",
+                self.session_type,
+                exc,
+            )
             return False
 
         return False
@@ -354,9 +399,16 @@ class ICMarketsRobustConnection:
             self.sequence_number += 1
             self.last_heartbeat = datetime.utcnow()
 
-        except Exception as e:
-            logger.error(f"Heartbeat failed: {e}")
+        except _NETWORK_ERRORS:
+            logger.exception("Heartbeat failed for %s session", self.session_type)
             self.connected = False
+            self._reset_connection_state()
+        except _MESSAGE_ERRORS as exc:
+            logger.error(
+                "Heartbeat message generation failed for %s session: %s",
+                self.session_type,
+                exc,
+            )
 
     def _heartbeat_loop(self) -> None:
         """Send periodic heartbeats."""
@@ -365,9 +417,12 @@ class ICMarketsRobustConnection:
                 time.sleep(30)  # 30-second heartbeat
                 if self.connected:
                     self._send_heartbeat()
-            except Exception as e:
-                logger.error(f"Heartbeat loop error: {e}")
+            except _NETWORK_ERRORS:
+                logger.exception(
+                    "Heartbeat loop error for %s session", self.session_type
+                )
                 self.connected = False
+                self._reset_connection_state()
 
     def _receive_messages(self) -> None:
         """Receive messages with error handling."""
@@ -388,9 +443,13 @@ class ICMarketsRobustConnection:
 
             except socket.timeout:
                 continue
-            except Exception as e:
-                logger.error(f"Receive error: {e}")
+            except queue.Full:
+                logger.warning("Message queue full while receiving %s data", self.session_type)
+                continue
+            except _NETWORK_ERRORS:
+                logger.exception("Receive error for %s session", self.session_type)
                 self.connected = False
+                self._reset_connection_state()
                 break
 
     def send_message(self, message: simplefix.FixMessage) -> bool:
@@ -408,9 +467,17 @@ class ICMarketsRobustConnection:
             self.sequence_number += 1
             return True
 
-        except Exception as e:
-            logger.error(f"Send error: {e}")
+        except _NETWORK_ERRORS:
+            logger.exception("Send error for %s session", self.session_type)
             self.connected = False
+            self._reset_connection_state()
+            return False
+        except _MESSAGE_ERRORS as exc:
+            logger.error(
+                "Failed to encode message for %s session: %s",
+                self.session_type,
+                exc,
+            )
             return False
 
     def disconnect(self) -> None:
@@ -431,10 +498,12 @@ class ICMarketsRobustConnection:
                 msg.append_pair(52, datetime.utcnow().strftime("%Y%m%d-%H:%M:%S.%f")[:-3])
 
                 self.ssl_socket.send(msg.encode())
-            except:
-                pass
+            except _NETWORK_ERRORS:
+                logger.debug("Failed to send logout message", exc_info=True)
+            except _MESSAGE_ERRORS as exc:
+                logger.warning("Failed to compose logout message: %s", exc)
 
-            self.ssl_socket.close()
+        self._reset_connection_state()
 
     def is_connected(self) -> bool:
         """Check connection status."""
@@ -483,8 +552,11 @@ class ICMarketsRobustManager:
                 logger.error("Failed to establish robust connections")
                 return False
 
-        except Exception as e:
-            logger.error(f"Failed to start robust manager: {e}")
+        except _NETWORK_ERRORS:
+            logger.exception("Failed to start robust manager due to network error")
+            return False
+        except ValueError as exc:
+            logger.error("Invalid configuration provided to robust manager: %s", exc)
             return False
 
     def subscribe_market_data(self, symbols: List[str]) -> bool:
@@ -512,8 +584,11 @@ class ICMarketsRobustManager:
 
             return True
 
-        except Exception as e:
-            logger.error(f"Failed to subscribe to market data: {e}")
+        except _NETWORK_ERRORS:
+            logger.exception("Failed to subscribe to market data")
+            return False
+        except _MESSAGE_ERRORS as exc:
+            logger.error("Invalid market data subscription payload: %s", exc)
             return False
 
     def place_market_order(self, symbol: str, side: str, quantity: float) -> Optional[str]:
@@ -542,8 +617,11 @@ class ICMarketsRobustManager:
             if self.trade_connection.send_message(msg):
                 return cl_ord_id
 
-        except Exception as e:
-            logger.error(f"Failed to place market order: {e}")
+        except _NETWORK_ERRORS:
+            logger.exception("Failed to place market order")
+            return None
+        except _MESSAGE_ERRORS as exc:
+            logger.error("Invalid market order payload: %s", exc)
             return None
 
         return None

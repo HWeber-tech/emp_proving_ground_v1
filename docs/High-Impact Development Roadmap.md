@@ -210,7 +210,7 @@ To reflect the true scope of institutional-grade trading components, the roadmap
 - [x] Incorporate selected ICT-style sensors (fair value gaps, liquidity sweeps) once validated by strategies (`MarketMicrostructureAnalyzer`).
 - [x] Build anomaly detection for data feed breaks and false ticks.
 - [x] Update documentation on data lineage and quality SLA (`docs/deployment/data_lineage.md`).
-- [ ] Implement encyclopedia-aligned "Market Microstructure Observatory" notebooks showcasing liquidity/volume profiling studies.
+- [x] Implement encyclopedia-aligned "Market Microstructure Observatory" notebooks showcasing liquidity/volume profiling studies.
 - [x] Add market regime classifier blending volatility, liquidity, and sentiment signals for execution model selection.
 - [x] Archive microstructure datasets in tiered storage (hot/cold) with retention guidance per encyclopedia cost matrix. (`src/data_foundation/storage/tiered_storage.py`, `scripts/archive_microstructure_data.py`, `docs/runbooks/microstructure_storage.md`)
 
@@ -219,8 +219,8 @@ To reflect the true scope of institutional-grade trading components, the roadmap
 
 - [x] Extend Prometheus/Grafana dashboards (or textual equivalents) for PnL, risk, latency, and system health (`src/operations/observability_dashboard.py`).
 - [x] Implement alerting rules (email/SMS/webhook) for risk breaches and system failures.
-- [ ] Harden Docker/K8s manifests with environment-specific overrides and secrets management guidance.
-- [ ] Automate smoke tests and deployment scripts targeting Oracle Cloud (or equivalent) with rollback plan.
+- [x] Harden Docker/K8s manifests with environment-specific overrides and secrets management guidance.
+- [x] Automate smoke tests and deployment scripts targeting Oracle Cloud (or equivalent) with rollback plan.
 - [x] Capture infrastructure-as-code runbook in `/docs/deployment/`.
 - [x] Establish encyclopedia "Ops Command" checklist covering daily start/stop, failover, and audit logging rotations.
 - [x] Integrate dependency vulnerability scanning (e.g., `pip-audit`, `trivy`) into CI with exemption workflow documented.

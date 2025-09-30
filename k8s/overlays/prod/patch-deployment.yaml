@@ -1,0 +1,22 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: emp-app
+  namespace: emp-system
+spec:
+  replicas: 3
+  template:
+    spec:
+      containers:
+        - name: emp-app
+          image: ghcr.io/emp/emp-app:stable
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "1Gi"
+            limits:
+              cpu: "1"
+              memory: "2Gi"
+          env:
+            - name: EMP_ENV
+              value: production

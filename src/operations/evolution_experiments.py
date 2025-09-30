@@ -9,6 +9,7 @@ monitor how well evolution-driven experiments perform in staging environments.
 
 from __future__ import annotations
 
+import logging
 from collections import Counter
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -18,6 +19,9 @@ from typing import Any, Mapping, Sequence
 
 from src.core.event_bus import Event, EventBus, get_global_bus
 from src.operations.roi import RoiStatus, RoiTelemetrySnapshot
+
+
+logger = logging.getLogger(__name__)
 
 
 class ExperimentStatus(str, Enum):
@@ -295,16 +299,38 @@ def publish_evolution_experiment_snapshot(
     publish_from_sync = getattr(event_bus, "publish_from_sync", None)
     if callable(publish_from_sync) and event_bus.is_running():
         try:
-            publish_from_sync(event)
-            return
-        except Exception:  # pragma: no cover - defensive logging
-            pass
+            publish_result = publish_from_sync(event)
+        except RuntimeError as exc:
+            logger.warning(
+                "Primary event bus publish_from_sync failed; falling back to global bus",
+                exc_info=exc,
+            )
+        except Exception:
+            logger.exception(
+                "Unexpected error publishing evolution experiment snapshot via runtime event bus",
+            )
+            raise
+        else:
+            if publish_result is not None:
+                return
+            logger.warning(
+                "Primary event bus publish_from_sync returned None; falling back to global bus",
+            )
 
+    topic_bus = get_global_bus()
     try:
-        bus = get_global_bus()
-        bus.publish_sync(event.type, event.payload, source=event.source)
-    except Exception:  # pragma: no cover - defensive logging
-        pass
+        topic_bus.publish_sync(event.type, event.payload, source=event.source)
+    except RuntimeError as exc:
+        logger.error(
+            "Global event bus not running while publishing evolution experiment snapshot",
+            exc_info=exc,
+        )
+        raise
+    except Exception:
+        logger.exception(
+            "Unexpected error publishing evolution experiment snapshot via global bus",
+        )
+        raise
 
 
 def format_evolution_experiment_markdown(

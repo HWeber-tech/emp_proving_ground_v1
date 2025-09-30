@@ -96,8 +96,9 @@ def test_publish_evolution_experiment_snapshot_uses_event_bus() -> None:
         def is_running(self) -> bool:
             return True
 
-        def publish_from_sync(self, event) -> None:  # pragma: no cover - trivial
+        def publish_from_sync(self, event) -> int:  # pragma: no cover - trivial
             self.events.append(event)
+            return 1
 
     bus = StubBus()
     snapshot = evaluate_evolution_experiments(
@@ -113,6 +114,72 @@ def test_publish_evolution_experiment_snapshot_uses_event_bus() -> None:
     assert bus.events, "expected snapshot to publish via stub bus"
     published = bus.events[0]
     assert published.payload["status"] == snapshot.status.value
+
+
+def test_publish_evolution_experiment_snapshot_falls_back_on_runtime_error(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    class PrimaryBus:
+        def is_running(self) -> bool:
+            return True
+
+        def publish_from_sync(self, event: object) -> None:
+            raise RuntimeError("loop stopped")
+
+    published: list[tuple[str, dict[str, object], str | None]] = []
+
+    class GlobalBus:
+        def publish_sync(
+            self, event_type: str, payload: dict[str, object], source: str | None = None
+        ) -> None:
+            published.append((event_type, payload, source))
+
+    monkeypatch.setattr(
+        "src.operations.evolution_experiments.get_global_bus", lambda: GlobalBus()
+    )
+
+    snapshot = evaluate_evolution_experiments(
+        [
+            {"event_id": "1", "status": "executed", "confidence": 0.9},
+            {"event_id": "2", "status": "rejected", "metadata": {"reason": "risk"}},
+        ],
+        roi_snapshot=_build_roi_snapshot(),
+    )
+
+    caplog.set_level("WARNING", logger="src.operations.evolution_experiments")
+    publish_evolution_experiment_snapshot(PrimaryBus(), snapshot)
+
+    assert published, "expected snapshot to publish via global bus fallback"
+    assert any(
+        "falling back to global bus" in message for message in caplog.messages
+    ), "expected warning when falling back to global bus"
+
+
+def test_publish_evolution_experiment_snapshot_raises_on_unexpected_error(
+    monkeypatch: pytest.MonkeyPatch
+) -> None:
+    class PrimaryBus:
+        def is_running(self) -> bool:
+            return True
+
+        def publish_from_sync(self, event: object) -> None:
+            raise ValueError("boom")
+
+    def fail_global_bus() -> object:
+        raise AssertionError("global bus should not be used when primary raises")
+
+    monkeypatch.setattr("src.operations.evolution_experiments.get_global_bus", fail_global_bus)
+
+    snapshot = evaluate_evolution_experiments(
+        [
+            {"event_id": "1", "status": "executed", "confidence": 0.9},
+            {"event_id": "2", "status": "rejected", "metadata": {"reason": "risk"}},
+        ],
+        roi_snapshot=_build_roi_snapshot(),
+    )
+
+    with pytest.raises(ValueError):
+        publish_evolution_experiment_snapshot(PrimaryBus(), snapshot)
 
 
 def test_evaluate_evolution_experiments_accepts_roi_mapping() -> None:

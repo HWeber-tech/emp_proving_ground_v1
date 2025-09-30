@@ -55,6 +55,9 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
   - *Progress*: Added an end-to-end regression for the real portfolio monitor to
     exercise data writes, analytics, and reporting flows under pytest, closing a
     previously untested gap in the trading surface.【F:tests/trading/test_real_portfolio_monitor.py†L1-L77】
+  - *Progress*: Added ingest observability and risk policy telemetry regression tests
+    so CI surfaces regressions in data backbone snapshots and policy evaluation
+    markdown output.【F:tests/data_foundation/test_ingest_observability.py†L1-L190】【F:tests/trading/test_risk_policy_telemetry.py†L1-L124】
 
 ### Next (30–90 days)
 

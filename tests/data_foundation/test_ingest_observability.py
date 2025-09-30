@@ -1,69 +1,118 @@
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
+
+import pytest
 
 from src.data_foundation.ingest.failover import IngestFailoverDecision
-from src.data_foundation.ingest.health import IngestHealthStatus, evaluate_ingest_health
-from src.data_foundation.ingest.metrics import summarise_ingest_metrics
-from src.data_foundation.ingest.observability import build_ingest_observability_snapshot
+from src.data_foundation.ingest.health import (
+    IngestHealthCheck,
+    IngestHealthReport,
+    IngestHealthStatus,
+)
+from src.data_foundation.ingest.metrics import (
+    IngestDimensionMetrics,
+    IngestMetricsSnapshot,
+)
+from src.data_foundation.ingest.observability import (
+    IngestObservabilityDimension,
+    build_ingest_observability_snapshot,
+)
 from src.data_foundation.ingest.recovery import IngestRecoveryRecommendation
 from src.data_foundation.ingest.timescale_pipeline import (
     DailyBarIngestPlan,
     TimescaleBackbonePlan,
 )
-from src.data_foundation.persist.timescale import TimescaleIngestResult
 
 
-def _result(
-    *,
-    dimension: str,
-    rows: int,
-    freshness_seconds: float | None,
-    symbols: tuple[str, ...] = ("EURUSD",),
-    source: str = "yahoo",
-) -> TimescaleIngestResult:
-    now = datetime.now(tz=UTC)
-    return TimescaleIngestResult(
-        rows_written=rows,
-        symbols=symbols,
-        start_ts=now - timedelta(minutes=15),
-        end_ts=now,
-        ingest_duration_seconds=3.2,
-        freshness_seconds=freshness_seconds,
-        dimension=dimension,
-        source=source,
-    )
+@pytest.fixture()
+def base_timestamp() -> datetime:
+    return datetime(2024, 1, 1, 12, 0, tzinfo=UTC)
 
 
-def test_build_ingest_observability_snapshot_includes_failover_and_recovery() -> None:
-    results = {
-        "daily_bars": _result(
-            dimension="daily_bars",
-            rows=12,
-            freshness_seconds=120.0,
-            symbols=("EURUSD",),
+def _dimension_by_name(
+    snapshot_dimensions: tuple[IngestObservabilityDimension, ...],
+    name: str,
+) -> IngestObservabilityDimension:
+    for dimension in snapshot_dimensions:
+        if dimension.dimension == name:
+            return dimension
+    raise AssertionError(f"missing dimension {name}")
+
+
+def test_build_ingest_observability_snapshot_merges_sources(
+    base_timestamp: datetime,
+) -> None:
+    metrics = IngestMetricsSnapshot(
+        generated_at=base_timestamp,
+        dimensions=(
+            IngestDimensionMetrics(
+                dimension="daily_bars",
+                rows=12,
+                symbols=("AAPL", "MSFT"),
+                ingest_duration_seconds=9.5,
+                freshness_seconds=60.0,
+                source="timescale",
+            ),
+            IngestDimensionMetrics(
+                dimension="macro_events",
+                rows=2,
+                symbols=("CPI", "NFP"),
+                ingest_duration_seconds=5.0,
+                freshness_seconds=None,
+                source="fred",
+            ),
         ),
-    }
-
-    metrics = summarise_ingest_metrics(results)
-    plan = TimescaleBackbonePlan(
-        daily=DailyBarIngestPlan(symbols=("EURUSD", "GBPUSD"), lookback_days=30)
     )
-    health = evaluate_ingest_health(results, plan=plan)
+
+    health = IngestHealthReport(
+        status=IngestHealthStatus.warn,
+        generated_at=base_timestamp,
+        checks=(
+            IngestHealthCheck(
+                dimension="daily_bars",
+                status=IngestHealthStatus.warn,
+                message="Missing GOOG",
+                rows_written=10,
+                freshness_seconds=120.0,
+                expected_symbols=("AAPL", "MSFT", "GOOG"),
+                observed_symbols=("AAPL", "MSFT"),
+                missing_symbols=("GOOG",),
+                ingest_duration_seconds=8.0,
+                metadata={"lag_seconds": 42},
+            ),
+            IngestHealthCheck(
+                dimension="intraday_trades",
+                status=IngestHealthStatus.ok,
+                message="Healthy",
+                rows_written=5,
+                freshness_seconds=45.0,
+                expected_symbols=tuple(),
+                observed_symbols=("AAPL",),
+                missing_symbols=tuple(),
+                ingest_duration_seconds=3.5,
+                metadata={},
+            ),
+        ),
+        metadata={"ingest_run": "primary"},
+    )
 
     failover = IngestFailoverDecision(
-        should_failover=False,
-        status=health.status,
-        reason=None,
-        generated_at=health.generated_at,
-        triggered_dimensions=tuple(),
+        should_failover=True,
+        status=IngestHealthStatus.error,
+        reason="daily_bars status=error",
+        generated_at=base_timestamp,
+        triggered_dimensions=("daily_bars",),
         optional_triggers=tuple(),
-        planned_dimensions=("daily_bars",),
-        metadata=health.metadata,
+        planned_dimensions=("daily_bars", "intraday_trades"),
+        metadata={"attempt": 1},
     )
 
+    recovery_plan = TimescaleBackbonePlan(
+        daily=DailyBarIngestPlan(symbols=("GOOG",), lookback_days=3, source="yahoo"),
+    )
     recovery = IngestRecoveryRecommendation(
-        plan=TimescaleBackbonePlan(daily=DailyBarIngestPlan(symbols=("GBPUSD",), lookback_days=45)),
-        reasons={"daily_bars": "Missing GBPUSD"},
-        missing_symbols={"daily_bars": ("GBPUSD",)},
+        plan=recovery_plan,
+        reasons={"daily_bars": "Backfill missing GOOG"},
+        missing_symbols={"daily_bars": ("GOOG",)},
     )
 
     snapshot = build_ingest_observability_snapshot(
@@ -71,58 +120,86 @@ def test_build_ingest_observability_snapshot_includes_failover_and_recovery() ->
         health,
         failover=failover,
         recovery=recovery,
-        metadata={"recovery": {"attempts": 1}},
+        metadata={"ci_job": "coverage"},
     )
 
+    assert snapshot.generated_at == base_timestamp
     assert snapshot.status is IngestHealthStatus.warn
-    assert snapshot.total_rows() == metrics.total_rows()
     assert snapshot.failover is failover
+    # Recovery only attaches when the plan is not empty
+    assert snapshot.recovery is recovery
+    assert snapshot.metadata == {"ingest_run": "primary", "ci_job": "coverage"}
 
-    dimension = snapshot.dimensions[0]
-    assert dimension.dimension == "daily_bars"
-    assert dimension.status is IngestHealthStatus.warn
-    assert dimension.missing_symbols == ("GBPUSD",)
+    by_dimension = snapshot.dimensions
+    daily = _dimension_by_name(by_dimension, "daily_bars")
+    assert daily.rows == 12  # metrics override the health rows
+    assert daily.freshness_seconds == pytest.approx(60.0)
+    assert daily.ingest_duration_seconds == pytest.approx(9.5)
+    assert daily.observed_symbols == ("AAPL", "MSFT")
+    assert daily.missing_symbols == ("GOOG",)
+    assert daily.metadata["lag_seconds"] == 42
+    assert daily.source == "timescale"
 
-    summary = snapshot.recovery_summary()
-    assert summary is not None
-    assert summary["reasons"]["daily_bars"] == "Missing GBPUSD"
+    intraday = _dimension_by_name(by_dimension, "intraday_trades")
+    assert intraday.rows == 5
+    assert intraday.source is None
+    assert intraday.message == "Healthy"
+
+    macro = _dimension_by_name(by_dimension, "macro_events")
+    assert macro.status is IngestHealthStatus.ok
+    assert macro.message == "Metric recorded without health check"
+    assert macro.source == "fred"
+
+    degraded = snapshot.degraded_dimensions()
+    assert degraded == ("daily_bars",)
 
     markdown = snapshot.to_markdown()
-    assert "Overall status" in markdown
-    assert "daily_bars" in markdown
-
-    payload = snapshot.as_dict()
-    assert payload["status"] == "warn"
-    assert payload["failover"]["should_failover"] is False
-    assert payload["recovery"]["missing_symbols"]["daily_bars"] == ["GBPUSD"]
+    assert "Failover triggered: **YES**" in markdown
+    assert "Recovery plan dimensions" in markdown
+    assert "Missing symbols: daily_bars: GOOG" in markdown
 
 
-def test_build_ingest_observability_snapshot_adds_metric_only_dimension() -> None:
-    results = {
-        "daily_bars": _result(
-            dimension="daily_bars",
-            rows=7,
-            freshness_seconds=90.0,
-            symbols=("EURUSD",),
+def test_ingest_observability_snapshot_serialises_dimension_metadata(
+    base_timestamp: datetime,
+) -> None:
+    metrics = IngestMetricsSnapshot(
+        generated_at=base_timestamp,
+        dimensions=(
+            IngestDimensionMetrics(
+                dimension="intraday_trades",
+                rows=0,
+                symbols=tuple(),
+                ingest_duration_seconds=2.0,
+                freshness_seconds=None,
+                source=None,
+            ),
         ),
-        "intraday_trades": _result(
-            dimension="intraday_trades",
-            rows=0,
-            freshness_seconds=None,
-            symbols=tuple(),
-        ),
-    }
+    )
 
-    metrics = summarise_ingest_metrics(results)
-    health = evaluate_ingest_health(results, plan=None)
+    health = IngestHealthReport(
+        status=IngestHealthStatus.ok,
+        generated_at=base_timestamp,
+        checks=(
+            IngestHealthCheck(
+                dimension="intraday_trades",
+                status=IngestHealthStatus.ok,
+                message="Recovered",
+                rows_written=0,
+                freshness_seconds=None,
+                expected_symbols=tuple(),
+                observed_symbols=tuple(),
+                missing_symbols=tuple(),
+                ingest_duration_seconds=None,
+                metadata={},
+            ),
+        ),
+    )
 
     snapshot = build_ingest_observability_snapshot(metrics, health)
+    payload = snapshot.as_dict()
 
-    assert snapshot.status is IngestHealthStatus.warn
-    names = {dimension.dimension for dimension in snapshot.dimensions}
-    assert names == {"daily_bars", "intraday_trades"}
-
-    extra = next(
-        dimension for dimension in snapshot.dimensions if dimension.dimension == "intraday_trades"
-    )
-    assert extra.message.startswith("Ingest healthy") or extra.rows == 0
+    assert payload["status"] == "ok"
+    assert payload["total_rows"] == 0
+    assert payload["dimensions"][0]["dimension"] == "intraday_trades"
+    assert payload["dimensions"][0]["message"] == "Recovered"
+    assert payload["degraded_dimensions"] == []

@@ -310,23 +310,33 @@ def publish_ingest_trends(
     if callable(publish_from_sync) and event_bus.is_running():
         try:
             publish_from_sync(event)
-            return
-        except Exception as exc:  # pragma: no cover - defensive logging
+        except RuntimeError as exc:
             logger.warning(
-                "Failed to publish ingest trend snapshot via runtime event bus: %s",
-                exc,
-                exc_info=True,
+                "Runtime event bus publish failed; falling back to global bus",
+                exc_info=exc,
             )
+        except Exception:
+            logger.exception(
+                "Unexpected error publishing ingest trend snapshot via runtime event bus",
+            )
+            raise
+        else:
+            return
 
+    topic_bus = get_global_bus()
     try:
-        topic_bus = get_global_bus()
         topic_bus.publish_sync(event.type, event.payload, source=event.source)
-    except Exception as exc:  # pragma: no cover - defensive logging
-        logger.warning(
-            "Failed to publish ingest trend snapshot via global event bus: %s",
-            exc,
-            exc_info=True,
+    except RuntimeError as exc:
+        logger.error(
+            "Global event bus not running while publishing ingest trend snapshot",
+            exc_info=exc,
         )
+        raise
+    except Exception:
+        logger.exception(
+            "Unexpected error publishing ingest trend snapshot via global event bus",
+        )
+        raise
 
 
 __all__ = [

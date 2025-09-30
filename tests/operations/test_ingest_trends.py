@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import pytest
 from datetime import UTC, datetime, timedelta
 
 from src.core.event_bus import Event
@@ -113,6 +114,33 @@ def test_publish_ingest_trends_logs_failures(monkeypatch, caplog) -> None:
     )
 
     with caplog.at_level(logging.WARNING):
-        publish_ingest_trends(_FailRuntimeBus(), snapshot)
+        with pytest.raises(RuntimeError):
+            publish_ingest_trends(_FailRuntimeBus(), snapshot)
 
-    assert "Failed to publish ingest trend snapshot" in caplog.text
+    assert "Runtime event bus publish failed; falling back to global bus" in caplog.text
+
+
+def test_publish_ingest_trends_raises_on_unexpected_runtime_error(caplog) -> None:
+    base = datetime(2024, 1, 1, tzinfo=UTC)
+    snapshot = evaluate_ingest_trends(
+        [
+            _record(run_id="r1", executed_at=base + timedelta(hours=1)),
+            _record(run_id="r0", executed_at=base),
+        ]
+    )
+
+    class _ExplodeRuntimeBus:
+        def is_running(self) -> bool:
+            return True
+
+        def publish_from_sync(self, event: Event) -> None:
+            raise ValueError("boom")
+
+    with caplog.at_level(logging.ERROR):
+        with pytest.raises(ValueError):
+            publish_ingest_trends(_ExplodeRuntimeBus(), snapshot)
+
+    assert (
+        "Unexpected error publishing ingest trend snapshot via runtime event bus"
+        in caplog.text
+    )

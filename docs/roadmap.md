@@ -31,9 +31,11 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
 
 ### Now (0–30 days)
 
-- [ ] **Stabilise runtime entrypoints** – Move all application starts through
+- [x] **Stabilise runtime entrypoints** – Move all application starts through
   `RuntimeApplication` and register background jobs under a task supervisor to
-  eliminate unsupervised `create_task` usage.【F:docs/technical_debt_assessment.md†L33-L56】
+  eliminate unsupervised `create_task` usage. Runtime CLI invocations and the
+  bootstrap sensory loop now run under `TaskSupervisor`, ensuring graceful
+  signal/time-based shutdown paths.【F:docs/technical_debt_assessment.md†L33-L56】【F:src/runtime/cli.py†L206-L249】【F:src/runtime/bootstrap_runtime.py†L227-L268】
 - [ ] **Security hardening sprint** – Execute the remediation plan’s Phase 0:
   parameterise SQL, remove `eval`, and address blanket exception handlers in
   operational modules.【F:docs/development/remediation_plan.md†L34-L72】

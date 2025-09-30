@@ -18,6 +18,7 @@ from src.data_foundation.fabric.market_data_fabric import MarketDataConnector, M
 from src.operations.bootstrap_control_center import BootstrapControlCenter
 from src.operations.roi import RoiCostModel
 from src.orchestration.bootstrap_stack import BootstrapSensoryPipeline, BootstrapTradingStack
+from src.runtime.task_supervisor import TaskSupervisor
 from src.trading.execution.paper_execution import ImmediateFillExecutionAdapter
 from src.trading.liquidity.depth_aware_prober import DepthAwareLiquidityProber
 from src.trading.monitoring.portfolio_monitor import PortfolioMonitor, RedisLike
@@ -105,6 +106,7 @@ class BootstrapRuntime:
         redis_client: RedisLike | None = None,
         roi_cost_model: RoiCostModel | None = None,
         risk_config: RiskConfig | None = None,
+        task_supervisor: TaskSupervisor | None = None,
     ) -> None:
         self.event_bus = event_bus
         self.symbols = [s.strip() for s in (symbols or ["EURUSD"]) if s and s.strip()]
@@ -118,6 +120,8 @@ class BootstrapRuntime:
         self._price_task: asyncio.Task[None] | None = None
         self.running = False
         self._last_error: Exception | None = None
+        self._task_supervisor: TaskSupervisor | None = task_supervisor
+        self._owns_supervisor = task_supervisor is None
 
         resolved_connectors: dict[str, MarketDataConnector] = {}
         if connectors:
@@ -222,13 +226,23 @@ class BootstrapRuntime:
                 status["sensor_audit"] = audit
         return status
 
-    async def start(self) -> None:
+    async def start(self, *, task_supervisor: TaskSupervisor | None = None) -> None:
         if self.running:
             return
         self._stop_event = asyncio.Event()
         self._tick_counter = 0
         self.running = True
-        self._run_task = asyncio.create_task(self._run_loop(), name="bootstrap-runtime-loop")
+        if task_supervisor is not None:
+            self._task_supervisor = task_supervisor
+            self._owns_supervisor = False
+
+        supervisor = self._task_supervisor
+        if supervisor is None:
+            supervisor = TaskSupervisor(namespace="bootstrap-runtime")
+            self._task_supervisor = supervisor
+            self._owns_supervisor = True
+
+        self._run_task = supervisor.create(self._run_loop(), name="bootstrap-runtime-loop")
         self._price_task = self._run_task
         logger.info(
             "BootstrapRuntime started for %s (tick interval %.2fs)",
@@ -246,6 +260,8 @@ class BootstrapRuntime:
         self.running = False
         self._run_task = None
         self._price_task = None
+        if self._owns_supervisor and self._task_supervisor is not None:
+            await self._task_supervisor.cancel_all()
         logger.info("BootstrapRuntime stopped after %s ticks", self._tick_counter)
 
     async def _run_loop(self) -> None:

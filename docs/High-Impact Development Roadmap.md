@@ -224,6 +224,7 @@ To reflect the true scope of institutional-grade trading components, the roadmap
 - [x] Capture infrastructure-as-code runbook in `/docs/deployment/`.
 - [x] Establish encyclopedia "Ops Command" checklist covering daily start/stop, failover, and audit logging rotations.
 - [x] Integrate dependency vulnerability scanning (e.g., `pip-audit`, `trivy`) into CI with exemption workflow documented.
+- [x] Extend regulatory telemetry coverage for compliance surfaces (`src/operations/regulatory_telemetry.py`).
 - [x] Simulate disaster recovery drill restoring from latest backups and log results under `/docs/deployment/drills/`.
 
 #### Workstream 3C: Advanced Research Backlog (ongoing within phase)

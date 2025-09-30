@@ -24,6 +24,9 @@
 - operations.cross_region_failover.evaluate_cross_region_failover
 - operations.backup.evaluate_backup_readiness
 - operations.spark_stress.execute_spark_stress_drill
+- data_foundation.storage.tiered_storage.MicrostructureTieredArchive
+- scripts/archive_microstructure_data.py
+- docs/runbooks/microstructure_storage.md
 
 ## Stream B – Sensory cortex & evolution uplift
 

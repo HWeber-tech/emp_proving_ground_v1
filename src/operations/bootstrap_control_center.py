@@ -5,12 +5,16 @@ from __future__ import annotations
 from collections import deque
 from datetime import datetime
 from itertools import islice
+import logging
 from typing import Any, Callable, Deque, Iterable, Mapping
 
 from src.governance.vision_alignment import VisionAlignmentReport
 from src.operations.roi import format_roi_markdown as format_roi_summary
 from src.orchestration.bootstrap_stack import SensorySnapshot
 from src.trading.risk.policy_telemetry import format_policy_markdown
+
+
+_log = logging.getLogger(__name__)
 
 
 def _as_float(value: object, default: float = 0.0) -> float:
@@ -31,7 +35,13 @@ def _normalise_champion_payload(candidate: object | None) -> dict[str, Any] | No
     if callable(method):
         try:
             payload = method()
-        except Exception:  # pragma: no cover - defensive logging surface
+        except Exception as exc:  # pragma: no cover - defensive logging surface
+            _log.warning(
+                "Champion payload resolution failed for %s: %s",
+                type(candidate).__name__,
+                exc,
+                exc_info=exc,
+            )
             return {"genome_id": getattr(candidate, "genome_id", None)}
         if isinstance(payload, Mapping):
             return dict(payload)
@@ -49,7 +59,13 @@ def _call_trading_manager_method(trading_manager: Any, method_name: str) -> Any:
         return None
     try:
         return target()
-    except Exception:  # pragma: no cover - diagnostics only
+    except Exception as exc:  # pragma: no cover - diagnostics only
+        _log.warning(
+            "Trading manager method '%s' failed: %s",
+            method_name,
+            exc,
+            exc_info=exc,
+        )
         return None
 
 
@@ -63,7 +79,13 @@ def _coerce_snapshot_mapping(snapshot: Any) -> Mapping[str, Any] | None:
     if callable(as_dict):
         try:
             payload = as_dict()
-        except Exception:  # pragma: no cover - diagnostics only
+        except Exception as exc:  # pragma: no cover - diagnostics only
+            _log.warning(
+                "Snapshot serialization failed for %s: %s",
+                type(snapshot).__name__,
+                exc,
+                exc_info=exc,
+            )
             payload = None
         if isinstance(payload, Mapping):
             return dict(payload)
@@ -81,7 +103,15 @@ def _format_optional_markdown(
 
     try:
         return formatter(snapshot)
-    except Exception:  # pragma: no cover - diagnostics only
+    except Exception as exc:  # pragma: no cover - diagnostics only
+        formatter_name = getattr(formatter, "__name__", repr(formatter))
+        _log.warning(
+            "Formatter '%s' failed for %s: %s",
+            formatter_name,
+            type(snapshot).__name__,
+            exc,
+            exc_info=exc,
+        )
         return None
 
 

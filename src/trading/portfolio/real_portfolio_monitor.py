@@ -440,8 +440,9 @@ class RealPortfolioMonitor:
             cursor.execute(
                 """
                 SELECT COUNT(*), SUM(CASE WHEN realized_pnl > 0 THEN 1 ELSE 0 END)
-                FROM positions WHERE status = 'CLOSED'
-            """
+                FROM positions WHERE status = ?
+            """,
+                ("CLOSED",),
             )
 
             result = cursor.fetchone()
@@ -501,7 +502,7 @@ class RealPortfolioMonitor:
                     sharpe_ratio = (mu / sigma) * (252**0.5) if sigma > 0 else 0.0
                 else:
                     sharpe_ratio = 0.0
-            except Exception:
+            except (ZeroDivisionError, ValueError, TypeError):
                 sharpe_ratio = 0.0
 
             conn.close()
@@ -518,8 +519,21 @@ class RealPortfolioMonitor:
                 losing_trades=losing_trades,
             )
 
-        except Exception as e:
-            logger.error(f"Error calculating performance metrics: {e}")
+        except sqlite3.Error as exc:
+            logger.error("Error calculating performance metrics: %s", exc, exc_info=True)
+            return self._make_performance_metrics(
+                total_return=0.0,
+                annualized_return=0.0,
+                sharpe_ratio=0.0,
+                max_drawdown=0.0,
+                win_rate=0.0,
+                profit_factor=0.0,
+                total_trades=0,
+                winning_trades=0,
+                losing_trades=0,
+            )
+        except (ValueError, TypeError) as exc:
+            logger.error("Failed to calculate performance metrics due to data issue: %s", exc, exc_info=True)
             return self._make_performance_metrics(
                 total_return=0.0,
                 annualized_return=0.0,
@@ -570,8 +584,11 @@ class RealPortfolioMonitor:
             conn.close()
             return positions
 
-        except Exception as e:
-            logger.error(f"Error getting position history: {e}")
+        except sqlite3.Error as exc:
+            logger.error("Error getting position history: %s", exc, exc_info=True)
+            return []
+        except (ValueError, TypeError) as exc:
+            logger.error("Malformed position history data: %s", exc, exc_info=True)
             return []
 
     def get_daily_pnl(self, days: int = 30) -> List[Dict[str, float]]:
@@ -601,6 +618,9 @@ class RealPortfolioMonitor:
             conn.close()
             return results
 
-        except Exception as e:
-            logger.error(f"Error getting daily P&L: {e}")
+        except sqlite3.Error as exc:
+            logger.error("Error getting daily P&L: %s", exc, exc_info=True)
+            return []
+        except (ValueError, TypeError) as exc:
+            logger.error("Malformed daily P&L data: %s", exc, exc_info=True)
             return []

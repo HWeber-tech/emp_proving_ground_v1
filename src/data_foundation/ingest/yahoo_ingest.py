@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import argparse
 import re
+from contextlib import closing
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, cast
@@ -88,34 +89,40 @@ def store_duckdb(df: pd.DataFrame, db_path: Path, table: str = "daily_bars") -> 
         df.to_csv(csv_path, index=False)
         return
 
-    con = cast(Any, duckdb.connect(str(db_path)))
-    # Bandit B608: parameterized query to avoid SQL injection (sanitize identifier)
     safe_table = (
         table if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", table or "daily_bars") else "daily_bars"
     )
-    con.execute(
-        f"""
-        CREATE TABLE IF NOT EXISTS {safe_table} (
-            date TIMESTAMP,
-            open DOUBLE,
-            high DOUBLE,
-            low DOUBLE,
-            close DOUBLE,
-            adj_close DOUBLE,
-            volume DOUBLE,
-            symbol VARCHAR
+
+    with closing(cast(Any, duckdb.connect(str(db_path)))) as con:
+        con.execute(
+            f"""
+            CREATE TABLE IF NOT EXISTS {safe_table} (
+                date TIMESTAMP,
+                open DOUBLE,
+                high DOUBLE,
+                low DOUBLE,
+                close DOUBLE,
+                adj_close DOUBLE,
+                volume DOUBLE,
+                symbol VARCHAR
+            )
+            """
         )
-        """
-    )
-    # Bandit B608: parameterized query to avoid SQL injection
-    con.execute(
-        f"DELETE FROM {safe_table} WHERE symbol IN ({','.join(['?'] * len(df['symbol'].unique()))})",
-        list(df["symbol"].unique()),
-    )
-    con.register("tmp_df", df)
-    # Bandit B608: parameterized query to avoid SQL injection (identifier sanitized)
-    con.execute(f"INSERT INTO {safe_table} SELECT * FROM tmp_df")
-    con.close()
+
+        unique_symbols = df[["symbol"]].drop_duplicates()
+        if not unique_symbols.empty:
+            con.register("tmp_symbols", unique_symbols)
+            con.execute(
+                f"DELETE FROM {safe_table} "
+                "WHERE symbol IN (SELECT symbol FROM tmp_symbols)"
+            )
+            if hasattr(con, "unregister"):
+                con.unregister("tmp_symbols")
+
+        con.register("tmp_df", df)
+        con.execute(f"INSERT INTO {safe_table} SELECT * FROM tmp_df")
+        if hasattr(con, "unregister"):
+            con.unregister("tmp_df")
 
 
 def main() -> int:

@@ -41,6 +41,11 @@ Phase 0 — Security P0 Remediations (dedicated, fast-follow PRs)
    - Actions:
      - Replace string interpolation/f-strings with parameterized queries or API-native executemany/select constructs.
      - For DuckDB/SQLite, use placeholders (e.g., “?”) and pass parameters list/tuple safely.
+   - Status:
+     - DuckDB ingest delete flow now registers temporary symbol tables before deleting,
+       avoiding dynamic IN-clause string building.
+     - Portfolio metrics queries rely on parameter binding for status filters, with
+       exception handling narrowed to surface sqlite errors distinctly.
    - Acceptance:
      - Bandit: B608 count for these files → 0; CI green.
      - Basic smoke test: run the affected code paths with safe sample inputs.

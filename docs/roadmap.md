@@ -39,6 +39,9 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
 - [ ] **Security hardening sprint** – Execute the remediation plan’s Phase 0:
   parameterise SQL, remove `eval`, and address blanket exception handlers in
   operational modules.【F:docs/development/remediation_plan.md†L34-L72】
+  - ✅ Parameterised DuckDB + SQLite access for Yahoo ingest and portfolio
+    monitoring flows, and narrowed broad exception handlers where data issues can
+    be surfaced without masking operational errors.
 - [x] **Context pack refresh** – Replace legacy briefs with the updated context in
   `docs/context/alignment_briefs` so discovery and reviews inherit the same
   narrative reset (this change set).

@@ -1,3 +1,5 @@
+import logging
+from datetime import datetime
 from types import SimpleNamespace
 
 import pytest
@@ -72,3 +74,44 @@ def test_strategy_registry_records_catalogue_provenance(tmp_path, status: str) -
     assert summary["catalogue_entry_count"] == 1
     assert summary["catalogue_missing_provenance"] == 0
     assert summary["seed_source_counts"].get("catalogue") == 1
+
+
+def test_strategy_registry_handles_malformed_payload(tmp_path, caplog: pytest.LogCaptureFixture) -> None:
+    registry = StrategyRegistry(db_path=str(tmp_path / "registry.db"))
+    with registry.conn:
+        registry.conn.execute(
+            """
+            INSERT INTO strategies (
+                genome_id,
+                created_at,
+                dna,
+                fitness_report,
+                status,
+                catalogue_metadata
+            ) VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            ("broken", datetime.now(), "{", "{", "evolved", "{"),
+        )
+
+    with caplog.at_level(logging.ERROR):
+        assert registry.get_strategy("broken") is None
+    assert any(
+        "Corrupted JSON payload retrieving strategy" in record.message for record in caplog.records
+    )
+
+    caplog.clear()
+    with caplog.at_level(logging.ERROR):
+        assert registry.get_champion_strategies(limit=1) == []
+    assert any(
+        "Corrupted JSON retrieving champion strategies" in record.message
+        for record in caplog.records
+    )
+
+    caplog.clear()
+    with caplog.at_level(logging.ERROR):
+        summary = registry.get_registry_summary()
+    assert "error" in summary
+    assert any(
+        "Corrupted JSON while building registry summary" in record.message
+        for record in caplog.records
+    )

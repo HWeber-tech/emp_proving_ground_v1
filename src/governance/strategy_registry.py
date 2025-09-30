@@ -12,6 +12,7 @@ import logging
 import sqlite3
 from datetime import datetime
 from enum import Enum
+from json import JSONDecodeError
 from pathlib import Path
 from typing import Any, Mapping, Optional, cast
 
@@ -85,28 +86,28 @@ class StrategyRegistry:
                 """
             )
 
-            # Ensure new governance columns exist for legacy databases
+            # Ensure new governance columns exist for legacy databases using static statements
             cursor.execute("PRAGMA table_info(strategies)")
             existing_columns = {row[1] for row in cursor.fetchall()}
-            governance_columns = {
-                "seed_source": "TEXT",
-                "catalogue_name": "TEXT",
-                "catalogue_version": "TEXT",
-                "catalogue_seeded_at": "REAL",
-                "catalogue_metadata": "TEXT",
-                "catalogue_entry_id": "TEXT",
-                "catalogue_entry_name": "TEXT",
-                "catalogue_entry_metadata": "TEXT",
+            column_statements = {
+                "seed_source": "ALTER TABLE strategies ADD COLUMN seed_source TEXT",
+                "catalogue_name": "ALTER TABLE strategies ADD COLUMN catalogue_name TEXT",
+                "catalogue_version": "ALTER TABLE strategies ADD COLUMN catalogue_version TEXT",
+                "catalogue_seeded_at": "ALTER TABLE strategies ADD COLUMN catalogue_seeded_at REAL",
+                "catalogue_metadata": "ALTER TABLE strategies ADD COLUMN catalogue_metadata TEXT",
+                "catalogue_entry_id": "ALTER TABLE strategies ADD COLUMN catalogue_entry_id TEXT",
+                "catalogue_entry_name": "ALTER TABLE strategies ADD COLUMN catalogue_entry_name TEXT",
+                "catalogue_entry_metadata": "ALTER TABLE strategies ADD COLUMN catalogue_entry_metadata TEXT",
             }
-            for column, definition in governance_columns.items():
+            for column, statement in column_statements.items():
                 if column not in existing_columns:
-                    cursor.execute(f"ALTER TABLE strategies ADD COLUMN {column} {definition}")
+                    cursor.execute(statement)
 
             self.conn.commit()
-            logger.info(f"Strategy Registry initialized with database: {self.db_path}")
+            logger.info("Strategy Registry initialised", extra={"db_path": str(self.db_path)})
 
-        except Exception as e:
-            logger.error(f"Error initializing database: {e}")
+        except sqlite3.DatabaseError:  # pragma: no cover - init failure should bubble
+            logger.exception("Error initialising strategy registry")
             raise
 
     def register_champion(
@@ -183,7 +184,7 @@ class StrategyRegistry:
                         catalogue_seeded_at = (
                             float(seeded_at_value) if seeded_at_value is not None else None
                         )
-                    except Exception:
+                    except (TypeError, ValueError):
                         catalogue_seeded_at = None
                     catalogue_metadata_json = json.dumps(dict(catalogue_payload))
 
@@ -241,8 +242,12 @@ class StrategyRegistry:
             )
             return True
 
-        except Exception as e:
-            logger.error(f"Error registering champion: {e}")
+        except sqlite3.DatabaseError:
+            logger.exception("Database error registering champion")
+            self.conn.rollback()
+            return False
+        except TypeError:
+            logger.exception("Serialization error registering champion")
             self.conn.rollback()
             return False
 
@@ -297,8 +302,15 @@ class StrategyRegistry:
                 }
             return None
 
-        except Exception as e:
-            logger.error(f"Error retrieving strategy: {e}")
+        except sqlite3.DatabaseError:
+            logger.exception(
+                "Database error retrieving strategy", extra={"strategy_id": strategy_id}
+            )
+            return None
+        except JSONDecodeError:
+            logger.exception(
+                "Corrupted JSON payload retrieving strategy", extra={"strategy_id": strategy_id}
+            )
             return None
 
     def update_strategy_status(self, strategy_id: str, new_status: str) -> bool:
@@ -326,8 +338,11 @@ class StrategyRegistry:
                 logger.warning(f"Strategy {strategy_id} not found")
                 return False
 
-        except Exception as e:
-            logger.error(f"Error updating strategy status: {e}")
+        except sqlite3.DatabaseError:
+            logger.exception(
+                "Database error updating strategy status",
+                extra={"strategy_id": strategy_id, "status": new_status},
+            )
             self.conn.rollback()
             return False
 
@@ -393,8 +408,11 @@ class StrategyRegistry:
 
             return strategies
 
-        except Exception as e:
-            logger.error(f"Error retrieving champion strategies: {e}")
+        except sqlite3.DatabaseError:
+            logger.exception("Database error retrieving champion strategies")
+            return []
+        except JSONDecodeError:
+            logger.exception("Corrupted JSON retrieving champion strategies")
             return []
 
     def get_strategies_by_status(self, status: str) -> list[dict[str, Any]]:
@@ -447,8 +465,17 @@ class StrategyRegistry:
 
             return strategies
 
-        except Exception as e:
-            logger.error(f"Error retrieving strategies by status: {e}")
+        except sqlite3.DatabaseError:
+            logger.exception(
+                "Database error retrieving strategies by status",
+                extra={"status": status},
+            )
+            return []
+        except JSONDecodeError:
+            logger.exception(
+                "Corrupted JSON retrieving strategies by status",
+                extra={"status": status},
+            )
             return []
 
     def get_registry_summary(self) -> dict[str, Any]:
@@ -550,18 +577,18 @@ class StrategyRegistry:
             )
             latest_catalogue_row = cursor.fetchone()
             if latest_catalogue_row and latest_catalogue_row["catalogue_metadata"]:
-                try:
-                    summary["latest_catalogue_metadata"] = json.loads(
-                        latest_catalogue_row["catalogue_metadata"]
-                    )
-                except Exception:
-                    summary["latest_catalogue_metadata"] = None
+                summary["latest_catalogue_metadata"] = json.loads(
+                    latest_catalogue_row["catalogue_metadata"]
+                )
 
             return summary
 
-        except Exception as e:
-            logger.error(f"Error getting registry summary: {e}")
-            return {"error": str(e)}
+        except sqlite3.DatabaseError as exc:
+            logger.exception("Database error getting registry summary")
+            return {"error": str(exc)}
+        except JSONDecodeError as exc:
+            logger.exception("Corrupted JSON while building registry summary")
+            return {"error": str(exc)}
 
     def close(self) -> None:
         """Close database connection."""

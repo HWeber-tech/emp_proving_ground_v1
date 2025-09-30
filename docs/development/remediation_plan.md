@@ -38,6 +38,7 @@ Phase 0 — Security P0 Remediations (dedicated, fast-follow PRs)
      - [src/data_foundation/ingest/yahoo_ingest.py](src/data_foundation/ingest/yahoo_ingest.py:66)
      - [src/trading/portfolio/real_portfolio_monitor.py](src/trading/portfolio/real_portfolio_monitor.py:454)
      - [src/trading/portfolio/real_portfolio_monitor.py](src/trading/portfolio/real_portfolio_monitor.py:491)
+     - [src/governance/strategy_registry.py](src/governance/strategy_registry.py:90)
    - Actions:
      - Replace string interpolation/f-strings with parameterized queries or API-native executemany/select constructs.
      - For DuckDB/SQLite, use placeholders (e.g., “?”) and pass parameters list/tuple safely.
@@ -63,6 +64,7 @@ Phase 0 — Security P0 Remediations (dedicated, fast-follow PRs)
    - Files (examples):
      - [src/governance/system_config.py](src/governance/system_config.py:28) → use tempfile.gettempdir() or platformdirs
      - Many operational metrics sites (e.g., [src/operational/metrics.py](src/operational/metrics.py:103)) swallow exceptions
+     - [src/governance/strategy_registry.py](src/governance/strategy_registry.py:112)
    - Actions:
      - Replace os.getenv TMP fallback with stdlib temp APIs.
      - Replace blanket except: with narrow exceptions; log warnings; keep counters.

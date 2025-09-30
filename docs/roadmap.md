@@ -42,6 +42,9 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
     - *Progress*: Hardened the SQLite-backed real portfolio monitor with managed
       connections, parameterised statements, and narrowed exception handling to
       surface operational failures instead of masking them.【F:src/trading/portfolio/real_portfolio_monitor.py†L1-L572】
+    - *Progress*: Secured the Strategy Registry migrations with static SQL, added
+      targeted exception handling, and logged corrupted payloads so governance
+      operators can diagnose malformed state quickly.【F:src/governance/strategy_registry.py†L1-L374】
 - [x] **Context pack refresh** – Replace legacy briefs with the updated context in
   `docs/context/alignment_briefs` so discovery and reviews inherit the same
   narrative reset (this change set).
@@ -50,6 +53,9 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
   - *Progress*: Added an end-to-end regression for the real portfolio monitor to
     exercise data writes, analytics, and reporting flows under pytest, closing a
     previously untested gap in the trading surface.【F:tests/trading/test_real_portfolio_monitor.py†L1-L77】
+  - *Progress*: Extended governance coverage with failure-path tests for the
+    Strategy Registry, asserting telemetry on malformed JSON and ensuring
+    corrupted rows no longer silently pass through dashboards.【F:tests/governance/test_strategy_registry.py†L1-L120】
 
 ### Next (30–90 days)
 

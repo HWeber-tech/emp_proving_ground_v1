@@ -55,6 +55,9 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
   - *Progress*: Added an end-to-end regression for the real portfolio monitor to
     exercise data writes, analytics, and reporting flows under pytest, closing a
     previously untested gap in the trading surface.【F:tests/trading/test_real_portfolio_monitor.py†L1-L77】
+  - *Progress*: Landed ingest plan helper tests and a `RiskConfig` extras
+    regression so CI now tracks Timescale plan metadata normalisation alongside
+    deterministic risk enforcement derived from runtime configuration.【F:tests/runtime/test_runtime_ingest_plan_helpers.py†L1-L33】【F:tests/runtime/test_predator_app_risk.py†L1-L35】
 
 ### Next (30–90 days)
 

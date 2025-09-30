@@ -1,4 +1,8 @@
+import logging
 from datetime import UTC, datetime
+from typing import Mapping
+
+import pytest
 
 from src.core.event_bus import Event
 from src.operations.security import (
@@ -139,3 +143,121 @@ def test_publish_security_posture_emits_event() -> None:
     event = bus.events[0]
     assert event.type == "telemetry.operational.security"
     assert event.payload["status"] == snapshot.status.value
+
+
+def test_publish_security_posture_falls_back_on_runtime_failure(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    class _GlobalBus:
+        def __init__(self) -> None:
+            self.events: list[tuple[str, Mapping[str, object], str]] = []
+
+        def publish_sync(self, event_type: str, payload: Mapping[str, object], *, source: str) -> None:
+            self.events.append((event_type, dict(payload), source))
+
+    bus = _StubEventBus()
+
+    def _failing_publish(_: Event) -> None:
+        raise RuntimeError("primary bus offline")
+
+    bus.publish_from_sync = _failing_publish  # type: ignore[method-assign]
+
+    global_bus = _GlobalBus()
+    monkeypatch.setattr("src.operations.security.get_global_bus", lambda: global_bus)
+
+    control = SecurityControlEvaluation(
+        control="mfa",
+        status=SecurityStatus.passed,
+        summary="ok",
+    )
+    snapshot = SecurityPostureSnapshot(
+        service="emp",
+        generated_at=datetime(2025, 2, 1, tzinfo=UTC),
+        status=SecurityStatus.passed,
+        controls=(control,),
+        metadata={},
+    )
+
+    with caplog.at_level(logging.WARNING):
+        publish_security_posture(bus, snapshot)
+
+    assert not bus.events
+    assert global_bus.events
+    assert any("falling back to global bus" in message for message in caplog.messages)
+
+
+def test_publish_security_posture_raises_on_unexpected_runtime_error(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    bus = _StubEventBus()
+
+    def _unexpected(_: Event) -> None:
+        raise ValueError("boom")
+
+    bus.publish_from_sync = _unexpected  # type: ignore[method-assign]
+
+    called: list[object] = []
+
+    def _fail() -> None:
+        called.append("called")
+        raise AssertionError("global bus should not be reached")
+
+    monkeypatch.setattr("src.operations.security.get_global_bus", _fail)
+
+    control = SecurityControlEvaluation(
+        control="mfa",
+        status=SecurityStatus.passed,
+        summary="ok",
+    )
+    snapshot = SecurityPostureSnapshot(
+        service="emp",
+        generated_at=datetime(2025, 2, 1, tzinfo=UTC),
+        status=SecurityStatus.passed,
+        controls=(control,),
+        metadata={},
+    )
+
+    with caplog.at_level(logging.ERROR):
+        with pytest.raises(ValueError):
+            publish_security_posture(bus, snapshot)
+
+    assert not called
+    assert any("Unexpected error publishing security posture" in message for message in caplog.messages)
+
+
+def test_publish_security_posture_raises_on_global_bus_failure(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    bus = _StubEventBus()
+
+    def _no_result(event: Event) -> None:
+        bus.events.append(event)
+        return None
+
+    bus.publish_from_sync = _no_result  # type: ignore[method-assign]
+
+    class _FailingGlobalBus:
+        def publish_sync(self, event_type: str, payload: Mapping[str, object], *, source: str) -> None:
+            raise RuntimeError("global bus offline")
+
+    monkeypatch.setattr("src.operations.security.get_global_bus", lambda: _FailingGlobalBus())
+
+    control = SecurityControlEvaluation(
+        control="mfa",
+        status=SecurityStatus.passed,
+        summary="ok",
+    )
+    snapshot = SecurityPostureSnapshot(
+        service="emp",
+        generated_at=datetime(2025, 2, 1, tzinfo=UTC),
+        status=SecurityStatus.passed,
+        controls=(control,),
+        metadata={},
+    )
+
+    with caplog.at_level(logging.ERROR):
+        with pytest.raises(RuntimeError):
+            publish_security_posture(bus, snapshot)
+
+    assert bus.events  # primary attempt recorded but treated as failure
+    assert any("Global event bus not running" in message for message in caplog.messages)

@@ -545,16 +545,38 @@ def publish_security_posture(event_bus: EventBus, snapshot: SecurityPostureSnaps
     publish_from_sync = getattr(event_bus, "publish_from_sync", None)
     if callable(publish_from_sync) and event_bus.is_running():
         try:
-            publish_from_sync(event)
-            return
-        except Exception:  # pragma: no cover - defensive logging
-            logger.debug("Failed to publish security posture via runtime event bus", exc_info=True)
+            publish_result = publish_from_sync(event)
+        except RuntimeError as exc:
+            logger.warning(
+                "Primary event bus publish_from_sync failed; falling back to global bus",
+                exc_info=exc,
+            )
+        except Exception:
+            logger.exception(
+                "Unexpected error publishing security posture via runtime event bus",
+            )
+            raise
+        else:
+            if publish_result is not None:
+                return
+            logger.warning(
+                "Primary event bus publish_from_sync returned None; falling back to global bus",
+            )
 
+    topic_bus = get_global_bus()
     try:
-        topic_bus = get_global_bus()
         topic_bus.publish_sync(event.type, event.payload, source=event.source)
-    except Exception:  # pragma: no cover - defensive logging
-        logger.debug("Security posture telemetry publish skipped", exc_info=True)
+    except RuntimeError as exc:
+        logger.error(
+            "Global event bus not running while publishing security posture snapshot",
+            exc_info=exc,
+        )
+        raise
+    except Exception:
+        logger.exception(
+            "Unexpected error publishing security posture snapshot via global bus",
+        )
+        raise
 
 
 __all__ = [

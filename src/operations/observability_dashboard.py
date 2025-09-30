@@ -254,8 +254,7 @@ def build_observability_dashboard(
         worst_ratio: float | None = None
 
         for name, result in sorted(risk_results.items()):
-            payload = _normalise_risk_result(result)
-            serialised[name] = payload
+            payload = dict(_normalise_risk_result(result))
             value = float(payload.get("value", 0.0))
             confidence = payload.get("confidence")
             sample_size = payload.get("sample_size")
@@ -267,13 +266,24 @@ def build_observability_dashboard(
 
             limit = float(risk_limits.get(name)) if risk_limits and name in risk_limits else None
             ratio: float | None = None
+            limit_status = "unknown"
             if limit is not None and limit > 0.0:
                 ratio = value / limit
                 line += f" limit {limit:,.2f}"
                 if value > limit:
                     risk_status = DashboardStatus.fail
+                    limit_status = "violation"
                 elif value > limit * 0.8:
                     risk_status = _escalate(risk_status, DashboardStatus.warn)
+                    limit_status = "warn"
+                else:
+                    limit_status = "ok"
+                payload["limit"] = limit
+                payload["limit_ratio"] = ratio
+                payload["limit_status"] = limit_status
+            elif limit is not None:
+                payload["limit"] = limit
+                payload["limit_status"] = "invalid"
 
             if value > worst_value:
                 worst_value = value
@@ -281,6 +291,7 @@ def build_observability_dashboard(
                 worst_ratio = ratio
 
             lines.append(line)
+            serialised[name] = payload
 
         if worst_name is not None:
             if worst_ratio is not None:

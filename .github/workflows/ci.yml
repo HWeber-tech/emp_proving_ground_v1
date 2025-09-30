@@ -29,9 +29,29 @@ jobs:
       - name: Ruff (format)
         run: ruff format --check .
 
-  types:
+  dependency-audit:
     runs-on: ubuntu-latest
     needs: [lint]
+    steps:
+      - uses: ./.github/actions/python-setup
+      - name: pip-audit (dependency vulnerabilities)
+        run: |
+          set -euo pipefail
+          python scripts/run_dependency_audit.py \
+            --allowlist config/governance/dependency_allowlist.json \
+            --report artifacts/dependency_audit/report.json \
+            --exit-on-vuln
+      - name: Upload dependency audit report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-audit-${{ github.run_id }}
+          path: artifacts/dependency_audit
+          if-no-files-found: error
+
+  types:
+    runs-on: ubuntu-latest
+    needs: [dependency-audit]
     steps:
       - uses: ./.github/actions/python-setup
       - name: Guard single mypy source

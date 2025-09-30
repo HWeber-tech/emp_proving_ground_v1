@@ -1,0 +1,4 @@
+{
+  "ignored_vulnerabilities": [],
+  "notes": "Populate ignored_vulnerabilities with objects {\"id\": \"VULN-ID\", \"reason\": \"justification\", \"expires\": \"YYYY-MM-DD\"}."
+}

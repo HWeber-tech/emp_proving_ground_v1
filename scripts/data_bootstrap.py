@@ -98,6 +98,38 @@ def _write_json(path: Path, payload: Mapping[str, object]) -> None:
         json.dump(payload, fh, indent=2, sort_keys=True)
 
 
+def _slug_component(value: str) -> str:
+    """Return a filesystem-friendly representation of ``value``."""
+
+    cleaned = value.strip().lower()
+    safe_chars = [char if char.isalnum() else "_" for char in cleaned]
+    return "".join(safe_chars) or "value"
+
+
+def _ensure_source_column(frame: pd.DataFrame, vendor: str) -> pd.DataFrame:
+    """Return a copy of ``frame`` with a populated ``source`` column."""
+
+    if "source" in frame.columns:
+        enriched = frame.copy()
+        enriched["source"] = enriched["source"].fillna(vendor)
+        return enriched
+    enriched = frame.copy()
+    enriched["source"] = vendor
+    return enriched
+
+
+def _write_dataset(frame: pd.DataFrame, path: Path, fmt: str) -> None:
+    """Persist ``frame`` using the requested file ``fmt``."""
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if fmt == "csv":
+        frame.to_csv(path, index=False)
+    elif fmt == "parquet":
+        frame.to_parquet(path, index=False)
+    else:  # pragma: no cover - parser guards against other formats
+        raise ValueError(f"Unsupported dataset format: {fmt}")
+
+
 def _run_pipeline(args: argparse.Namespace) -> tuple[PricingPipelineConfig, PricingPipelineResult]:
     symbols = _parse_symbols(args.symbols)
     config = PricingPipelineConfig(
@@ -177,6 +209,13 @@ def run(argv: list[str] | None = None) -> int:
         help="Optional explicit path for issues JSON (defaults to <output>/pricing_issues.json)",
     )
     parser.add_argument(
+        "--format",
+        type=str,
+        default="parquet",
+        choices=("parquet", "csv"),
+        help="Dataset format written to the output directory (default: parquet)",
+    )
+    parser.add_argument(
         "--cache-retention-days",
         type=int,
         default=14,
@@ -210,23 +249,37 @@ def run(argv: list[str] | None = None) -> int:
         max_entries=args.cache_max_entries,
     )
 
-    metadata_payload = dict(entry.metadata)
     issues_payload = list(entry.issues_payload)
 
-    metadata_path = args.metadata_path or entry.metadata_path
-    if metadata_path != entry.metadata_path:
-        _write_json(metadata_path, metadata_payload)
+    dataset_format = args.format.lower()
+    friendly_dataset = args.output / (
+        f"pricing_{_slug_component(args.vendor)}_{_slug_component(args.interval)}.{dataset_format}"
+    )
 
-    issues_path = args.issues_path or entry.issues_path
-    if issues_path != entry.issues_path:
-        _write_json(issues_path, {"issues": issues_payload})
+    enriched_frame = _ensure_source_column(result.data, args.vendor)
+    _write_dataset(enriched_frame, friendly_dataset, dataset_format)
+
+    default_metadata_path = args.metadata_path or args.output / "pricing_metadata.json"
+    default_issues_path = args.issues_path or args.output / "pricing_issues.json"
+
+    summary_metadata = {
+        "dataset_path": str(friendly_dataset),
+        "row_count": int(len(enriched_frame)),
+        "symbols": config.normalised_symbols(),
+        "vendor": args.vendor,
+        "interval": args.interval,
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+    }
+
+    _write_json(default_metadata_path, summary_metadata)
+    _write_json(default_issues_path, {"issues": issues_payload})
 
     quality_errors = [issue for issue in issues_payload if issue["severity"].lower() == "error"]
 
     summary = {
-        "dataset": str(entry.dataset_path),
-        "rows": metadata_payload["rows"],
-        "symbols": metadata_payload["symbols"],
+        "dataset": str(friendly_dataset),
+        "rows": summary_metadata["row_count"],
+        "symbols": summary_metadata["symbols"],
         "issues": issues_payload,
     }
     print(json.dumps(summary, indent=2))

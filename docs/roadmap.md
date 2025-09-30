@@ -41,6 +41,15 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
     manager.【F:src/trading/risk/risk_gateway.py†L161-L379】【F:tests/current/test_risk_gateway_validation.py†L74-L206】
 - [ ] **Quality and observability** – Expand regression coverage, close the
   documentation gap, and track remediation progress through CI snapshots.
+  - *Progress*: Event bus health publishing now logs unexpected primary-bus
+    failures, only falls back to the global bus after emitting warnings, and
+    raises on unknown exceptions so telemetry regressions surface instead of
+    disappearing behind silent fallbacks, with tests covering the warning and
+    escalation paths.【F:src/operations/event_bus_health.py†L234-L281】【F:tests/operations/test_event_bus_health.py†L95-L147】
+  - *Progress*: Bootstrap control centre helpers now log champion payload,
+    trading-manager method, and formatter failures, keeping operational
+    diagnostics visible during bootstrap runs and documenting the logging
+    behaviour under pytest.【F:src/operations/bootstrap_control_center.py†L31-L115】【F:tests/current/test_bootstrap_control_center.py†L178-L199】
 - [ ] **Dead code and duplication** – Triage the 168-file dead-code backlog and
   eliminate shim exports so operators see a single canonical API surface.【F:docs/reports/CLEANUP_REPORT.md†L71-L188】
   - *Progress*: Removed the deprecated risk and evolution configuration shims so
@@ -126,6 +135,11 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
   report and tighten import guards to prevent shims from resurfacing.【F:docs/reports/CLEANUP_REPORT.md†L71-L188】
 - [ ] **Governance and compliance** – Build the reporting cadence for KYC/AML,
   regulatory telemetry, and audit storage prior to live-broker pilots.【F:docs/technical_debt_assessment.md†L58-L112】
+  - *Progress*: Governance reporting cadence now assembles compliance readiness,
+    regulatory telemetry, and Timescale audit evidence into a single artefact,
+    publishes the snapshot on the event bus, and trims persisted histories so
+    audits inherit deterministic evidence, with pytest covering scheduling,
+    publishing, and storage flows.【F:src/operations/governance_reporting.py†L1-L200】【F:tests/operations/test_governance_reporting.py†L1-L152】
 
 ## Actionable to-do tracker
 

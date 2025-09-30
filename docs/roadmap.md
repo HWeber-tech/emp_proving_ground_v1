@@ -39,11 +39,17 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
 - [ ] **Security hardening sprint** – Execute the remediation plan’s Phase 0:
   parameterise SQL, remove `eval`, and address blanket exception handlers in
   operational modules.【F:docs/development/remediation_plan.md†L34-L72】
+    - *Progress*: Hardened the SQLite-backed real portfolio monitor with managed
+      connections, parameterised statements, and narrowed exception handling to
+      surface operational failures instead of masking them.【F:src/trading/portfolio/real_portfolio_monitor.py†L1-L572】
 - [x] **Context pack refresh** – Replace legacy briefs with the updated context in
   `docs/context/alignment_briefs` so discovery and reviews inherit the same
   narrative reset (this change set).
 - [ ] **Coverage guardrails** – Extend the CI baseline to include ingest orchestration
   and risk policy regression tests, lifting coverage beyond the fragile 76% line.
+  - *Progress*: Added an end-to-end regression for the real portfolio monitor to
+    exercise data writes, analytics, and reporting flows under pytest, closing a
+    previously untested gap in the trading surface.【F:tests/trading/test_real_portfolio_monitor.py†L1-L77】
 
 ### Next (30–90 days)
 

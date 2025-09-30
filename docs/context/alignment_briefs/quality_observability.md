@@ -43,6 +43,9 @@
 - Add regression tickets/tests for uncovered modules (`operational.metrics`,
   `trading.models.position`, sensory WHY organ) and capture ownership in the
   regression backlog so coverage gains can be tracked.【F:docs/ci_baseline_report.md†L18-L27】【F:docs/technical_debt_assessment.md†L133-L154】
+  - Progress: Added a pytest regression for the SQLite-backed portfolio monitor
+    covering position lifecycle management and metrics generation so trading
+    telemetry now participates in CI coverage.【F:tests/trading/test_real_portfolio_monitor.py†L1-L77】
 - Wire Slack/webhook mirrors for CI alerts, rehearse the forced-failure drill,
   and record MTTA/MTTR in the health dashboard per the operational telemetry
   stream roadmap.【F:docs/technical_debt_assessment.md†L156-L174】【F:docs/status/ci_health.md†L74-L76】

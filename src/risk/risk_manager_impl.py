@@ -530,6 +530,11 @@ class RiskManagerImpl(RiskManagerProtocol):
         )
         return allocation
 
+    def update_equity(self, equity: float | Decimal) -> None:
+        """Public alias aligning with deterministic trading integrations."""
+
+        self.update_account_balance(equity)
+
     def update_account_balance(self, new_balance: float | Decimal) -> None:
         """
         Update the account balance.
@@ -547,6 +552,25 @@ class RiskManagerImpl(RiskManagerProtocol):
             self.peak_balance,
             self._drawdown_multiplier,
         )
+
+    def assess_risk(self, positions: Mapping[str, float]) -> float:
+        """Expose the underlying portfolio risk assessment to callers."""
+
+        try:
+            numeric_positions: Dict[str, float] = {
+                symbol: float(value)
+                for symbol, value in positions.items()
+            }
+        except (TypeError, ValueError):
+            logger.warning("Failed to normalise positions for risk assessment")
+            numeric_positions = {}
+        return self.risk_manager.assess_risk(numeric_positions)
+
+    @property
+    def last_snapshot(self) -> Mapping[str, float]:
+        """Return the latest telemetry snapshot from the core risk engine."""
+
+        return dict(self.risk_manager.last_snapshot)
 
     def update_market_regime(
         self, market_data: Mapping[str, object] | Sequence[float] | Iterable[float]

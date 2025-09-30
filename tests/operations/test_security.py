@@ -261,3 +261,70 @@ def test_publish_security_posture_raises_on_global_bus_failure(
 
     assert bus.events  # primary attempt recorded but treated as failure
     assert any("Global event bus not running" in message for message in caplog.messages)
+
+
+def test_evaluate_security_posture_merges_metadata_without_mutation() -> None:
+    policy = SecurityPolicy(minimum_mfa_coverage=0.0)
+    state = SecurityState(total_users=0, mfa_enabled_users=0)
+    metadata_input: Mapping[str, object] = {"region": "us-east-1"}
+
+    snapshot = evaluate_security_posture(
+        policy,
+        state,
+        metadata=metadata_input,
+        service="emp",
+        now=datetime(2025, 3, 1, tzinfo=UTC),
+    )
+
+    # Ensure the returned metadata contains the supplied keys plus the derived telemetry.
+    assert snapshot.metadata["region"] == "us-east-1"
+    assert snapshot.metadata["controls_evaluated"] == len(snapshot.controls)
+    assert snapshot.metadata["mfa_coverage"] == 0.0
+
+    # Verify the original mapping was not mutated so callers can reuse it safely.
+    assert metadata_input == {"region": "us-east-1"}
+
+
+def test_publish_security_posture_uses_global_bus_when_runtime_not_running(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _NotRunningBus:
+        def __init__(self) -> None:
+            self.events: list[Event] = []
+
+        def is_running(self) -> bool:  # pragma: no cover - simple proxy
+            return False
+
+        def publish_from_sync(self, _: Event) -> None:  # pragma: no cover - defensive
+            raise AssertionError("runtime bus should not be used when not running")
+
+    class _GlobalBus:
+        def __init__(self) -> None:
+            self.events: list[tuple[str, Mapping[str, object], str]] = []
+
+        def publish_sync(self, event_type: str, payload: Mapping[str, object], *, source: str) -> None:
+            self.events.append((event_type, dict(payload), source))
+
+    not_running_bus = _NotRunningBus()
+    global_bus = _GlobalBus()
+    monkeypatch.setattr("src.operations.security.get_global_bus", lambda: global_bus)
+
+    control = SecurityControlEvaluation(
+        control="mfa",
+        status=SecurityStatus.passed,
+        summary="ok",
+    )
+    snapshot = SecurityPostureSnapshot(
+        service="emp",
+        generated_at=datetime(2025, 3, 1, tzinfo=UTC),
+        status=SecurityStatus.passed,
+        controls=(control,),
+        metadata={},
+    )
+
+    publish_security_posture(not_running_bus, snapshot)
+
+    assert not_running_bus.events == []
+    assert global_bus.events == [
+        ("telemetry.operational.security", snapshot.as_dict(), "operations.security")
+    ]

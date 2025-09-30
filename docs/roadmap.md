@@ -18,10 +18,19 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
 
 - [ ] **Operational data backbone** – Deliver real Timescale/Redis/Kafka services,
   parameterise SQL, and supervise ingest tasks instead of relying on mocks.
+  - *Progress*: Timescale retention telemetry now validates schema/table/timestamp
+    identifiers, parameterises retention queries, and documents the contract via
+    regression tests so institutional slices cannot inject raw SQL through policy
+    definitions.【F:src/operations/retention.py†L42-L195】【F:tests/operations/test_data_retention.py†L1-L118】
 - [ ] **Sensory + evolution execution** – Replace HOW/ANOMALY stubs, wire lineage
   telemetry, and prove adaptive strategies against recorded data.
 - [ ] **Risk and runtime safety** – Enforce `RiskConfig`, finish the builder rollout,
   adopt supervised async lifecycles, and purge deprecated facades.
+  - *Progress*: The trading risk gateway now drives portfolio checks through the
+    real risk manager, records liquidity and policy telemetry, and rejects
+    intents that breach drawdown, exposure, or liquidity limits, aligning the
+    trading stack with the deterministic enforcement promised by the real
+    manager.【F:src/trading/risk/risk_gateway.py†L161-L379】【F:tests/current/test_risk_gateway_validation.py†L74-L206】
 - [ ] **Quality and observability** – Expand regression coverage, close the
   documentation gap, and track remediation progress through CI snapshots.
 - [ ] **Dead code and duplication** – Triage the 168-file dead-code backlog and
@@ -47,6 +56,14 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
     - *Progress*: Strategy registry now opens per-operation SQLite connections,
       raises typed errors, and uses parameterised statements so governance writes
       are supervised instead of silently swallowed.【F:src/governance/strategy_registry.py†L1-L347】
+    - *Progress*: Data retention telemetry guards schema/table/timestamp
+      identifiers and uses SQLAlchemy parameter binding so operators cannot
+      inject raw SQL through policy configuration, with tests covering the
+      hardened contract.【F:src/operations/retention.py†L42-L195】【F:tests/operations/test_data_retention.py†L1-L118】
+    - *Progress*: Yahoo ingest persistence sanitises DuckDB table names, uses
+      parameterised deletes, and asserts gateway error handling so bootstrap
+      persistence cannot be hijacked by crafted identifiers or silent
+      failures.【F:src/data_foundation/ingest/yahoo_ingest.py†L82-L151】【F:tests/data_foundation/test_yahoo_ingest_security.py†L32-L80】【F:tests/data_integration/test_yfinance_gateway_security.py†L12-L56】
 - [x] **Context pack refresh** – Replace legacy briefs with the updated context in
   `docs/context/alignment_briefs` so discovery and reviews inherit the same
   narrative reset (this change set).
@@ -58,6 +75,9 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
   - *Progress*: Added ingest observability and risk policy telemetry regression tests
     so CI surfaces regressions in data backbone snapshots and policy evaluation
     markdown output.【F:tests/data_foundation/test_ingest_observability.py†L1-L190】【F:tests/trading/test_risk_policy_telemetry.py†L1-L124】
+  - *Progress*: Coverage telemetry now emits per-domain matrices from the
+    coverage XML, with CLI tooling and pytest coverage documenting the JSON/markdown
+    contract so dashboards can flag lagging domains without scraping CI logs.【F:tools/telemetry/coverage_matrix.py†L1-L199】【F:tests/tools/test_coverage_matrix.py†L1-L123】【F:docs/status/ci_health.md†L13-L31】
 
 ### Next (30–90 days)
 
@@ -71,6 +91,10 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
   complete.【F:docs/development/remediation_plan.md†L92-L167】
 - [ ] **Risk API enforcement** – Align trading modules with deterministic risk
   interfaces, surface policy violations via telemetry, and add escalation runbooks.
+  - *Progress*: Risk gateway wiring now normalises intents, enforces
+    drawdown/exposure/liquidity guardrails, and publishes policy decisions so
+    trading managers consume the same deterministic risk manager path as the
+    runtime builder.【F:src/trading/trading_manager.py†L1-L320】【F:src/trading/risk/risk_gateway.py†L161-L379】【F:tests/current/test_risk_gateway_validation.py†L74-L206】
 
 ### Later (90+ days)
 

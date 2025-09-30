@@ -154,3 +154,62 @@ def test_risk_policy_requires_stop_loss_and_equity_budget() -> None:
     assert "policy.max_drawdown_pct" in decision.violations
     assert decision.metadata["resolved_price"] == pytest.approx(1.15)
     assert decision.metadata["risk_budget"] == pytest.approx(0.0)
+
+
+def test_risk_policy_resolves_price_from_existing_position_value() -> None:
+    config = RiskConfig(
+        max_risk_per_trade_pct=Decimal("0.05"),
+        max_total_exposure_pct=Decimal("0.9"),
+        max_leverage=Decimal("10"),
+        max_drawdown_pct=Decimal("0.5"),
+        min_position_size=1,
+    )
+    policy = RiskPolicy.from_config(config)
+
+    state = _state(
+        {
+            "EURUSD": {
+                "quantity": 2_000.0,
+                "current_value": 2_200.0,
+            }
+        }
+    )
+
+    decision = policy.evaluate(
+        symbol="EURUSD",
+        quantity=1_000.0,
+        price=0.0,
+        stop_loss_pct=0.02,
+        portfolio_state=state,
+    )
+
+    assert decision.approved
+    assert decision.metadata["resolved_price"] == pytest.approx(1.1)
+    assert decision.metadata["existing_position_notional"] == pytest.approx(2_200.0)
+    assert decision.metadata["projected_notional"] == pytest.approx(3_300.0)
+
+
+def test_risk_policy_falls_back_to_portfolio_price_when_missing_market_price() -> None:
+    config = RiskConfig(
+        max_risk_per_trade_pct=Decimal("0.05"),
+        max_total_exposure_pct=Decimal("0.9"),
+        max_leverage=Decimal("10"),
+        max_drawdown_pct=Decimal("0.5"),
+        min_position_size=1,
+    )
+    policy = RiskPolicy.from_config(config)
+
+    state = dict(_state())
+    state["current_price"] = 1.25
+
+    decision = policy.evaluate(
+        symbol="EURUSD",
+        quantity=1_000.0,
+        price=0.0,
+        stop_loss_pct=0.02,
+        portfolio_state=state,
+    )
+
+    assert decision.approved
+    assert decision.metadata["resolved_price"] == pytest.approx(1.25)
+    assert decision.metadata["projected_total_exposure"] == pytest.approx(1_250.0)

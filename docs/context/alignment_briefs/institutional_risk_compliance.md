@@ -38,9 +38,13 @@
   plan Phase 0.【F:docs/development/remediation_plan.md†L34-L72】
 - Extend CI to include baseline risk regression tests covering exposure, leverage,
   and drawdown limits; capture findings in `docs/status`.
-- Progress: Risk policy regression enforces mandatory stop losses, positive
-  equity budgets, and violation telemetry so CI fails fast when policy guardrails
-  drift, keeping execution blockers visible to compliance reviewers.【F:src/trading/risk/risk_policy.py†L120-L246】【F:tests/trading/test_risk_policy.py†L117-L157】
+  - Progress: Risk policy regression enforces mandatory stop losses, positive
+    equity budgets, and violation telemetry so CI fails fast when policy guardrails
+    drift, keeping execution blockers visible to compliance reviewers.【F:src/trading/risk/risk_policy.py†L120-L246】【F:tests/trading/test_risk_policy.py†L117-L205】
+- Progress: Runtime builder now resolves the canonical `RiskConfig`, validates
+  risk thresholds, and records enforced metadata under regression coverage so
+  supervised launches cannot proceed without mandatory limits, aligning runtime
+  posture with compliance expectations.【F:src/runtime/runtime_builder.py†L298-L358】【F:src/runtime/runtime_builder.py†L3075-L3110】【F:tests/runtime/test_runtime_builder.py†L71-L138】
 - Progress: Compliance readiness snapshots now consolidate trade surveillance and
   KYC telemetry, escalate severities deterministically, and expose markdown
   evidence with pytest guardrails so governance cadences inherit truthful

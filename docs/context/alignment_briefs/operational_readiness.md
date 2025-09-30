@@ -34,6 +34,9 @@
   - ✅ Runtime CLI orchestration and the bootstrap sensory loop now execute under
     `TaskSupervisor`, eliminating direct `asyncio.create_task` usage for
     entrypoint workflows and providing deterministic signal/timeout shutdowns.【F:src/runtime/cli.py†L206-L249】【F:src/runtime/bootstrap_runtime.py†L227-L268】
+- Harden operational telemetry publishers so security and system validation
+  feeds warn on runtime bus failures, fall back deterministically, and raise on
+  unexpected errors with pytest coverage guarding the behaviour.【F:src/operations/security.py†L536-L579】【F:tests/operations/test_security.py†L148-L263】【F:src/operations/system_validation.py†L269-L312】【F:tests/operations/test_system_validation.py†L85-L137】
 - Update incident response docs with current limitations and TODOs; remove or
   archive obsolete OpenAPI references where possible.【F:docs/legacy/README.md†L1-L12】
 - Extend CI step summaries to include risk, ingest, and sensory telemetry status so

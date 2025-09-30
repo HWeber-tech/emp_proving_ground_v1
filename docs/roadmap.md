@@ -39,6 +39,10 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
     intents that breach drawdown, exposure, or liquidity limits, aligning the
     trading stack with the deterministic enforcement promised by the real
     manager.【F:src/trading/risk/risk_gateway.py†L161-L379】【F:tests/current/test_risk_gateway_validation.py†L74-L206】
+  - *Progress*: Trading manager initialises its portfolio risk manager via the
+    canonical `get_risk_manager` facade, exposes the core engine’s snapshot and
+    assessment APIs, and keeps execution telemetry aligned with the deterministic
+    risk manager surfaced by the runtime builder.【F:src/trading/trading_manager.py†L105-L147】【F:src/risk/risk_manager_impl.py†L533-L573】
 - [ ] **Quality and observability** – Expand regression coverage, close the
   documentation gap, and track remediation progress through CI snapshots.
   - *Progress*: Event bus health publishing now logs unexpected primary-bus
@@ -50,6 +54,10 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
     trading-manager method, and formatter failures, keeping operational
     diagnostics visible during bootstrap runs and documenting the logging
     behaviour under pytest.【F:src/operations/bootstrap_control_center.py†L31-L115】【F:tests/current/test_bootstrap_control_center.py†L178-L199】
+  - *Progress*: System validation telemetry escalates runtime publish failures
+    into warnings, raises on unexpected errors, and regression tests capture the
+    fallback handling so readiness dashboards surface degraded validation runs
+    instead of missing them.【F:src/operations/system_validation.py†L269-L312】【F:tests/operations/test_system_validation.py†L85-L137】
 - [ ] **Dead code and duplication** – Triage the 168-file dead-code backlog and
   eliminate shim exports so operators see a single canonical API surface.【F:docs/reports/CLEANUP_REPORT.md†L71-L188】
   - *Progress*: Removed the deprecated risk and evolution configuration shims so
@@ -89,6 +97,10 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
     - *Progress*: Hardened the IC Markets operational bridge with classified
       network/message error handling, managed retries, and structured logging so
       FIX connectivity failures surface instead of stalling silent loops.【F:src/operational/icmarkets_robust_application.py†L22-L333】
+    - *Progress*: Security posture publishing now warns and falls back to the
+      global bus when runtime publishing fails, raises on unexpected errors, and
+      documents the error-handling paths under pytest so telemetry outages cannot
+      disappear silently.【F:src/operations/security.py†L536-L579】【F:tests/operations/test_security.py†L148-L263】
 - [x] **Context pack refresh** – Replace legacy briefs with the updated context in
   `docs/context/alignment_briefs` so discovery and reviews inherit the same
   narrative reset (this change set).
@@ -109,6 +121,9 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
   - *Progress*: Ingest trend and Kafka readiness publishers now log event bus
     failures and ship regression tests so telemetry gaps raise alerts instead of
     disappearing silently.【F:src/operations/ingest_trends.py†L303-L329】【F:tests/operations/test_ingest_trends.py†L90-L118】【F:src/operations/kafka_readiness.py†L313-L333】【F:tests/operations/test_kafka_readiness.py†L115-L143】
+  - *Progress*: Trading position model guardrails now run under pytest,
+    asserting timestamp updates, profit recalculations, and close flows so the
+    lightweight execution telemetry remains deterministic under CI coverage.【F:tests/trading/test_position_model_guardrails.py†L1-L105】
 
 ### Next (30–90 days)
 

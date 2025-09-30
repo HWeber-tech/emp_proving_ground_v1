@@ -43,6 +43,10 @@
 
 - Implement deterministic risk API enforcement with telemetry topics (policy,
   exposure, breaches) and runtime summaries.
+  - Progress: Trading manager now sources its portfolio risk manager through the
+    canonical deterministic facade and exposes the core engine’s snapshot and
+    assessment hooks so execution flows share the same enforcement path as the
+    runtime builder.【F:src/trading/trading_manager.py†L105-L147】【F:src/risk/risk_manager_impl.py†L533-L573】
 - Wire compliance workflows (KYC, trade surveillance) with markdown exports and
   optional Timescale journaling to satisfy audit requirements.
 - Complete runtime builder adoption so FIX pilots, simulators, and eventual live

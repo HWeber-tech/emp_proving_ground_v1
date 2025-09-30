@@ -46,6 +46,12 @@
   - Progress: Added a pytest regression for the SQLite-backed portfolio monitor
     covering position lifecycle management and metrics generation so trading
     telemetry now participates in CI coverage.【F:tests/trading/test_real_portfolio_monitor.py†L1-L77】
+  - Progress: Added guardrail regressions for the trading position model to
+    assert timestamp updates, profit recalculations, and close flows so the
+    lightweight execution telemetry remains deterministic under CI coverage.【F:tests/trading/test_position_model_guardrails.py†L1-L105】
+  - Progress: System validation telemetry regressions now capture runtime bus
+    fallbacks and unexpected-error escalations, hardening operational coverage so
+    readiness dashboards surface degraded runs instead of swallowing failures.【F:src/operations/system_validation.py†L269-L312】【F:tests/operations/test_system_validation.py†L85-L137】
 - Wire Slack/webhook mirrors for CI alerts, rehearse the forced-failure drill,
   and record MTTA/MTTR in the health dashboard per the operational telemetry
   stream roadmap.【F:docs/technical_debt_assessment.md†L156-L174】【F:docs/status/ci_health.md†L74-L76】

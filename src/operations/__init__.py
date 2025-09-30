@@ -40,6 +40,13 @@ from .compliance_readiness import (
     evaluate_compliance_readiness,
     publish_compliance_readiness,
 )
+from .regulatory_telemetry import (
+    RegulatoryTelemetrySignal,
+    RegulatoryTelemetrySnapshot,
+    RegulatoryTelemetryStatus,
+    evaluate_regulatory_telemetry,
+    publish_regulatory_telemetry,
+)
 from .professional_readiness import (
     ProfessionalReadinessComponent,
     ProfessionalReadinessSnapshot,
@@ -222,6 +229,11 @@ __all__ = [
     "ComplianceReadinessStatus",
     "evaluate_compliance_readiness",
     "publish_compliance_readiness",
+    "RegulatoryTelemetrySignal",
+    "RegulatoryTelemetrySnapshot",
+    "RegulatoryTelemetryStatus",
+    "evaluate_regulatory_telemetry",
+    "publish_regulatory_telemetry",
     "ProfessionalReadinessComponent",
     "ProfessionalReadinessSnapshot",
     "ProfessionalReadinessStatus",

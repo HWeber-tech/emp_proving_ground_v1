@@ -59,6 +59,7 @@ def test_stream_c_covers_execution_lifecycle_artifacts() -> None:
         "operations.event_bus_health.evaluate_event_bus_health",
         "operations.feed_health.evaluate_feed_health",
         "operations.failover_drill.execute_failover_drill",
+        "operations.regulatory_telemetry.evaluate_regulatory_telemetry",
         "operations.observability_dashboard.build_observability_dashboard",
         "trading.order_management.lifecycle_processor.OrderLifecycleProcessor",
         "trading.order_management.position_tracker.PositionTracker",

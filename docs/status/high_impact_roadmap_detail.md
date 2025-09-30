@@ -69,6 +69,7 @@
 - operations.strategy_performance.evaluate_strategy_performance
 - compliance.workflow.evaluate_compliance_workflows
 - operations.compliance_readiness.evaluate_compliance_readiness
+- operations.regulatory_telemetry.evaluate_regulatory_telemetry
 - compliance.trade_compliance.TradeComplianceMonitor
 - compliance.kyc.KycAmlMonitor
 - operations.configuration_audit.evaluate_configuration_audit

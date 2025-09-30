@@ -272,6 +272,9 @@ def _stream_definitions() -> Sequence[StreamDefinition]:
                 require_module_attr(
                     "operations.compliance_readiness", "evaluate_compliance_readiness"
                 ),
+                require_module_attr(
+                    "operations.regulatory_telemetry", "evaluate_regulatory_telemetry"
+                ),
                 require_module_attr("compliance.trade_compliance", "TradeComplianceMonitor"),
                 require_module_attr("compliance.kyc", "KycAmlMonitor"),
                 require_module_attr(

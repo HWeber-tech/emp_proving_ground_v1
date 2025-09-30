@@ -287,3 +287,48 @@ def test_evaluate_data_backbone_validation_passes_when_configured() -> None:
     assert check_map["redis"].status is BackboneStatus.ok
     assert check_map["kafka"].status is BackboneStatus.ok
     assert "scheduler" not in check_map
+
+
+def test_data_backbone_readiness_surfaces_failover_and_recovery() -> None:
+    config = _sample_ingest_config()
+    generated = datetime(2025, 2, 1, 12, 30, tzinfo=UTC)
+
+    failover_decision = IngestFailoverDecision(
+        should_failover=False,
+        status=IngestHealthStatus.warn,
+        reason=None,
+        generated_at=generated,
+        triggered_dimensions=tuple(),
+        optional_triggers=("macro_events",),
+        planned_dimensions=("daily_bars", "macro_events"),
+        metadata={"latency_seconds": 420.0},
+    )
+
+    recovery_plan = TimescaleBackbonePlan(
+        daily=DailyBarIngestPlan(symbols=["EURUSD"], lookback_days=3)
+    )
+    recovery_recommendation = IngestRecoveryRecommendation(
+        plan=recovery_plan,
+        reasons={"daily_bars": "freshness degraded"},
+        missing_symbols={"daily_bars": ("EURUSD",)},
+    )
+
+    snapshot = evaluate_data_backbone_readiness(
+        ingest_config=config,
+        failover_decision=failover_decision,
+        recovery_recommendation=recovery_recommendation,
+    )
+
+    components = {component.name: component for component in snapshot.components}
+    failover_component = components["failover"]
+    assert failover_component.status is BackboneStatus.warn
+    assert failover_component.summary == "optional slices degraded"
+    assert failover_component.metadata["optional_triggers"] == ["macro_events"]
+    assert failover_component.metadata["triggered"] == []
+
+    recovery_component = components["recovery"]
+    assert recovery_component.status is BackboneStatus.warn
+    assert "plan" in recovery_component.metadata
+    plan_metadata = recovery_component.metadata["plan"]
+    assert plan_metadata["daily_bars"]["lookback_days"] == 3
+    assert plan_metadata["daily_bars"]["symbols"] == ["EURUSD"]

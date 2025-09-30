@@ -117,3 +117,40 @@ def test_risk_policy_warns_but_allows_in_research_mode() -> None:
     assert decision.approved
     assert decision.violations
     assert decision.metadata["research_mode"] is True
+
+
+def test_risk_policy_requires_stop_loss_and_equity_budget() -> None:
+    config = RiskConfig(
+        max_risk_per_trade_pct=Decimal("0.02"),
+        max_total_exposure_pct=Decimal("0.4"),
+        max_leverage=Decimal("3.0"),
+        max_drawdown_pct=Decimal("0.1"),
+        min_position_size=1,
+        mandatory_stop_loss=True,
+    )
+    policy = RiskPolicy.from_config(config)
+
+    state = {
+        "equity": 0.0,
+        "cash": 0.0,
+        "current_price": 1.15,
+        "open_positions": {},
+        "current_daily_drawdown": 0.2,
+    }
+
+    decision = policy.evaluate(
+        symbol="EURUSD",
+        quantity=2_000.0,
+        price=0.0,
+        stop_loss_pct=0.0,
+        portfolio_state=state,
+    )
+
+    assert not decision.approved
+    assert decision.reason == "policy.equity"
+    assert "policy.stop_loss" in decision.violations
+    assert "policy.equity" in decision.violations
+    assert "policy.max_risk_per_trade_pct" in decision.violations
+    assert "policy.max_drawdown_pct" in decision.violations
+    assert decision.metadata["resolved_price"] == pytest.approx(1.15)
+    assert decision.metadata["risk_budget"] == pytest.approx(0.0)

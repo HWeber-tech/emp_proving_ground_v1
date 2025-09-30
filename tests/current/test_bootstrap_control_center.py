@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
-from decimal import Decimal
+import logging
 from typing import Any, Mapping
 
 import pytest
@@ -10,6 +10,7 @@ import pytest
 from src.config.risk.risk_config import RiskConfig
 from src.core.event_bus import EventBus
 from src.data_foundation import HistoricalReplayConnector, MarketDataFabric
+from src.operations import bootstrap_control_center as bootstrap_module
 from src.operations.bootstrap_control_center import BootstrapControlCenter
 from src.orchestration.bootstrap_stack import BootstrapSensoryPipeline, BootstrapTradingStack
 from src.orchestration.enhanced_intelligence_engine import ContextualFusionEngine
@@ -172,3 +173,29 @@ async def test_control_center_compiles_telemetry_report() -> None:
     assert overview["roi_posture"]["status"] in {"ahead", "tracking", "at_risk"}
     assert overview["evolution"]["generations"] == orchestrator.telemetry["total_generations"]
     assert overview["vision_alignment"]["status"] in {"ready", "progressing", "gap"}
+
+
+def test_trading_manager_method_failures_are_logged(caplog: pytest.LogCaptureFixture) -> None:
+    class ExplodingManager:
+        def method(self) -> None:
+            raise RuntimeError("boom")
+
+    caplog.set_level(logging.WARNING, logger=bootstrap_module.__name__)
+
+    manager = ExplodingManager()
+    result = bootstrap_module._call_trading_manager_method(manager, "method")
+
+    assert result is None
+    assert "Trading manager method 'method' failed" in caplog.text
+
+
+def test_formatter_failures_are_logged(caplog: pytest.LogCaptureFixture) -> None:
+    def explode_formatter(_: object) -> str:
+        raise ValueError("bad format")
+
+    caplog.set_level(logging.WARNING, logger=bootstrap_module.__name__)
+
+    result = bootstrap_module._format_optional_markdown(explode_formatter, object())
+
+    assert result is None
+    assert "Formatter" in caplog.text and "bad format" in caplog.text

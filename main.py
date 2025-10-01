@@ -16,6 +16,7 @@ from src.runtime.runtime_builder import (
     _execute_timescale_ingest,
     build_professional_runtime_application,
 )
+from src.runtime.runtime_runner import run_runtime_application
 
 from src.operational.structured_logging import (
     configure_structlog,
@@ -134,7 +135,11 @@ async def main() -> None:
                     trading_plan.get("description"),
                 )
 
-            await runtime_app.run()
+            await run_runtime_application(
+                runtime_app,
+                logger=logger,
+                namespace="runtime.main",
+            )
     except asyncio.CancelledError:
         logger.info("⏹️ Received cancellation signal")
         raise

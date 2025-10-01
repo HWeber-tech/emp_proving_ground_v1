@@ -8,6 +8,7 @@ from .runtime_builder import (
     RuntimeWorkload,
     build_professional_runtime_application,
 )
+from .runtime_runner import run_runtime_application
 from .task_supervisor import TaskSupervisor
 
 __all__ = [
@@ -19,5 +20,6 @@ __all__ = [
     "RuntimeWorkload",
     "build_professional_predator_app",
     "build_professional_runtime_application",
+    "run_runtime_application",
     "TaskSupervisor",
 ]

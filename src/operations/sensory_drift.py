@@ -8,13 +8,20 @@ markdown summaries suitable for operator dashboards and event-bus feeds.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from statistics import fmean
 from typing import Any, Iterable, Mapping, MutableMapping, Sequence
 
-from src.core.event_bus import Event, EventBus, get_global_bus
+import logging
+
+from src.core.event_bus import Event, EventBus, TopicBus
+from src.operations.event_bus_failover import publish_event_with_failover
+
+
+logger = logging.getLogger(__name__)
 
 
 class DriftSeverity(str, Enum):
@@ -237,26 +244,36 @@ def evaluate_sensory_drift(
     )
 
 
-def publish_sensory_drift(event_bus: EventBus, snapshot: SensoryDriftSnapshot) -> None:
+def publish_sensory_drift(
+    event_bus: EventBus,
+    snapshot: SensoryDriftSnapshot,
+    *,
+    global_bus_factory: Callable[[], TopicBus] | None = None,
+) -> None:
     """Publish the sensory drift snapshot to the runtime event bus."""
 
-    payload = snapshot.as_dict()
     event = Event(
         type="telemetry.sensory.drift",
-        payload=payload,
-        source="sensory_drift",
+        payload=snapshot.as_dict(),
+        source="operations.sensory_drift",
     )
 
-    publish = getattr(event_bus, "publish_from_sync", None)
-    if callable(publish) and event_bus.is_running():
-        try:
-            publish(event)
-            return
-        except Exception:  # pragma: no cover - defensive publish fallback
-            pass
-
-    topic_bus = get_global_bus()
-    topic_bus.publish_sync(event.type, event.payload, source=event.source)
+    publish_event_with_failover(
+        event_bus,
+        event,
+        logger=logger,
+        runtime_fallback_message=
+            "Primary event bus publish_from_sync failed; falling back to global bus",
+        runtime_unexpected_message=
+            "Unexpected error publishing sensory drift telemetry via runtime bus",
+        runtime_none_message=
+            "Primary event bus publish_from_sync returned None; falling back to global bus",
+        global_not_running_message=
+            "Global event bus not running while publishing sensory drift telemetry",
+        global_unexpected_message=
+            "Unexpected error publishing sensory drift telemetry via global bus",
+        global_bus_factory=global_bus_factory,
+    )
 
 
 __all__ = [

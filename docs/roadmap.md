@@ -61,9 +61,10 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
     simulate transport failures so dashboards and runbooks inherit reliable
     snapshots of paper-trading ROI and backlog posture.【F:src/operations/evolution_experiments.py†L40-L196】【F:tests/operations/test_evolution_experiments.py†L1-L126】
   - *Progress*: HOW and ANOMALY sensors now embed sanitised lineage records,
-    propagate threshold metadata, and expose deterministic telemetry snapshots so
-    downstream consumers can audit signal provenance, with pytest coverage across
-    lineage coercion and sensory processing flows.【F:src/sensory/how/how_sensor.py†L1-L140】【F:src/sensory/anomaly/anomaly_sensor.py†L1-L163】【F:src/sensory/lineage.py†L1-L87】【F:tests/sensory/test_how_anomaly_sensors.py†L1-L134】【F:tests/sensory/test_lineage.py†L1-L143】
+    compute shared threshold posture assessments, and surface state/breach
+    metadata on every signal so downstream consumers can audit provenance and
+    escalation context, with pytest coverage locking the helper and sensory
+    flows.【F:src/sensory/how/how_sensor.py†L67-L194】【F:src/sensory/anomaly/anomaly_sensor.py†L121-L220】【F:src/sensory/thresholds.py†L1-L76】【F:tests/sensory/test_how_anomaly_sensors.py†L87-L175】【F:tests/sensory/test_thresholds.py†L1-L57】
   - *Progress*: Integrated sensory organ fuses WHY/WHAT/WHEN/HOW/ANOMALY signals,
     records lineage and audit trails, publishes telemetry snapshots, and surfaces
     status summaries so runtime consumers inherit a single executable sensory
@@ -83,6 +84,10 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
     canonical `get_risk_manager` facade, exposes the core engine’s snapshot and
     assessment APIs, and keeps execution telemetry aligned with the deterministic
     risk manager surfaced by the runtime builder.【F:src/trading/trading_manager.py†L105-L147】【F:src/risk/risk_manager_impl.py†L533-L573】
+  - *Progress*: Deterministic trading risk API centralises config/status
+    resolution, builds runtime metadata snapshots, and powers the runtime
+    builder’s enforcement path so supervisors and docs consume a single
+    hardened contract under pytest coverage.【F:src/trading/risk/risk_api.py†L1-L134】【F:src/runtime/runtime_builder.py†L313-L343】【F:tests/trading/test_risk_api.py†L1-L115】【F:tests/trading/test_trading_manager_execution.py†L208-L224】
   - *Progress*: `RiskConfig` now enforces positive position sizing, cross-field
     exposure relationships, and research-mode overrides, emitting warnings when
     mandatory stop losses are disabled outside research and blocking
@@ -195,9 +200,10 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
       documents the error-handling paths under pytest so telemetry outages cannot
       disappear silently.【F:src/operations/security.py†L536-L579】【F:tests/operations/test_security.py†L148-L263】
     - *Progress*: Event bus failover helper now powers security, system
-      validation, compliance readiness, and evolution experiment publishing,
-      replacing ad-hoc blanket handlers with typed errors and structured logging
-      so transport regressions escalate deterministically across feeds.【F:src/operations/event_bus_failover.py†L1-L174】【F:src/operations/evolution_experiments.py†L297-L342】【F:tests/operations/test_event_bus_failover.py†L1-L164】【F:tests/operations/test_evolution_experiments.py†L135-L191】
+      validation, compliance readiness, incident response, and evolution
+      experiment publishing, replacing ad-hoc blanket handlers with typed errors
+      and structured logging so transport regressions escalate deterministically
+      across feeds.【F:src/operations/event_bus_failover.py†L1-L174】【F:src/operations/incident_response.py†L350-L375】【F:src/operations/evolution_experiments.py†L297-L342】【F:tests/operations/test_event_bus_failover.py†L1-L164】【F:tests/operations/test_incident_response.py†L123-L167】【F:tests/operations/test_evolution_experiments.py†L135-L191】
 - [x] **Context pack refresh** – Replace legacy briefs with the updated context in
   `docs/context/alignment_briefs` so discovery and reviews inherit the same
   narrative reset (this change set).

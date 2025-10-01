@@ -39,6 +39,10 @@
   unexpected errors with pytest coverage guarding the behaviour, including
   regressions that capture global-bus fallbacks, runtime-not-running paths, and
   unexpected error escalation for security publishing.【F:src/operations/security.py†L536-L579】【F:tests/operations/test_security.py†L101-L211】【F:src/operations/system_validation.py†L269-L312】【F:tests/operations/test_system_validation.py†L85-L137】
+- Harden incident response telemetry with the shared failover helper so
+  snapshots reuse the guarded runtime→global publish path, surface warning/error
+  logs for degraded transports, and raise typed errors under pytest coverage
+  instead of silently skipping outage evidence.【F:src/operations/incident_response.py†L350-L375】【F:tests/operations/test_incident_response.py†L123-L167】【F:src/operations/event_bus_failover.py†L1-L174】
 - Aggregate operational readiness into a single severity snapshot that merges
   system validation, incident response, and ingest SLO posture, emits Markdown
   summaries, derives alert events, and now exposes status breakdown/component

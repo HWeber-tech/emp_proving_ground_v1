@@ -276,3 +276,51 @@ def test_orchestrator_fetches_macro_window_when_events_missing() -> None:
     assert metadata["fetched_events"] == 1
     assert settings.engine.disposed is True
 
+
+def test_orchestrator_emits_zero_row_metadata_for_empty_symbols() -> None:
+    settings = _RecordingSettings()
+    publisher = _RecordingPublisher()
+
+    orchestrator = TimescaleBackboneOrchestrator(
+        settings,
+        migrator_cls=_RecordingMigrator,
+        ingestor_cls=_RecordingIngestor,
+        event_publisher=publisher,
+    )
+
+    plan = TimescaleBackbonePlan(
+        daily=DailyBarIngestPlan(symbols=[], lookback_days=5, source="yahoo"),
+        intraday=IntradayTradeIngestPlan(symbols=["   "], lookback_days=1, interval="1m", source="yahoo"),
+        macro=MacroEventIngestPlan(events=(), source="fred"),
+    )
+
+    def _fail_fetch_daily(symbols: list[str], lookback: int) -> pd.DataFrame:  # pragma: no cover - defensive helper
+        raise AssertionError("fetch_daily should not be called when no symbols are provided")
+
+    def _fail_fetch_intraday(symbols: list[str], lookback: int, interval: str) -> pd.DataFrame:  # pragma: no cover - defensive helper
+        raise AssertionError("fetch_intraday should not be called when no symbols are provided")
+
+    results = orchestrator.run(
+        plan=plan,
+        fetch_daily=_fail_fetch_daily,
+        fetch_intraday=_fail_fetch_intraday,
+    )
+
+    assert set(results) == {"daily_bars", "intraday_trades", "macro_events"}
+    assert settings.engine.disposed is True
+
+    published = {metadata["plan"]: metadata for _, metadata in publisher.published}
+    daily_meta = published["daily_bars"]
+    intraday_meta = published["intraday_trades"]
+    macro_meta = published["macro_events"]
+
+    assert daily_meta["requested_symbols"] == []
+    assert daily_meta["fetched_rows"] == 0
+
+    assert intraday_meta["requested_symbols"] == []
+    assert intraday_meta["fetched_rows"] == 0
+
+    assert macro_meta["provided_events"] == 0
+    assert macro_meta["fetched_events"] == 0
+    assert macro_meta["frame_rows"] == 0
+

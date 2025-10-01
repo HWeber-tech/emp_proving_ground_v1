@@ -23,6 +23,7 @@ from src.evolution.catalogue_telemetry import (
     EvolutionCatalogueSnapshot,
     build_catalogue_snapshot,
 )
+from src.evolution.feature_flags import EvolutionFeatureFlags
 from src.evolution.lineage_telemetry import (
     EvolutionLineageSnapshot,
     build_lineage_snapshot,
@@ -44,4 +45,5 @@ __all__ = [
     "build_catalogue_snapshot",
     "EvolutionLineageSnapshot",
     "build_lineage_snapshot",
+    "EvolutionFeatureFlags",
 ]

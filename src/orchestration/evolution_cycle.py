@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import inspect
+import time
 from dataclasses import asdict, dataclass, field, is_dataclass
 from typing import (
     TYPE_CHECKING,
@@ -24,6 +25,7 @@ from src.evolution.catalogue_telemetry import (
     EvolutionCatalogueSnapshot,
     build_catalogue_snapshot,
 )
+from src.evolution.feature_flags import EvolutionFeatureFlags
 from src.evolution.lineage_telemetry import (
     EvolutionLineageSnapshot,
     build_lineage_snapshot,
@@ -61,6 +63,16 @@ def _as_float(value: Any, default: float = 0.0) -> float:
         return float(value)
     except Exception:
         return default
+
+
+def _as_int(value: Any, default: int = 0) -> int:
+    try:
+        return int(value)
+    except Exception:
+        try:
+            return int(float(value))
+        except Exception:
+            return default
 
 
 @dataclass(slots=True)
@@ -160,12 +172,16 @@ class EvolutionCycleOrchestrator:
         strategy_registry: SupportsChampionRegistry | None = None,
         genome_factory: Callable[[], DecisionGenome] | None = None,
         event_bus: EventBus | None = None,
+        adaptive_runs_enabled: bool | None = None,
+        feature_flags: EvolutionFeatureFlags | None = None,
     ) -> None:
         self._engine = evolution_engine
         self._callback = evaluation_callback
         self._registry = strategy_registry
         self._genome_factory = genome_factory
         self._event_bus = event_bus
+        self._feature_flags = feature_flags or EvolutionFeatureFlags()
+        self._adaptive_runs_override = adaptive_runs_enabled
         self.telemetry: dict[str, Any] = {
             "total_generations": 0,
             "best_fitness": float("-inf"),
@@ -183,13 +199,22 @@ class EvolutionCycleOrchestrator:
 
         population = self._engine.ensure_population(self._genome_factory)
         evaluations = await self._evaluate_population(population)
-        champion = self._promote_champion(population, evaluations)
-        summary = self._engine.evolve(self._genome_factory)
+        adaptive_enabled = self._is_adaptive_runs_enabled()
+        champion = self._promote_champion(
+            population, evaluations, allow_registration=adaptive_enabled
+        )
+
+        if adaptive_enabled:
+            summary = self._engine.evolve(self._genome_factory)
+            self.telemetry["total_generations"] += 1
+        else:
+            summary = self._build_static_summary(population, evaluations)
+
         self._refresh_catalogue_snapshot()
         self._refresh_lineage_snapshot(champion, summary)
 
-        self.telemetry["total_generations"] += 1
         self.telemetry["last_summary"] = asdict(summary)
+        self.telemetry["adaptive_runs_enabled"] = adaptive_enabled
         if champion is not None:
             self.telemetry["best_fitness"] = max(
                 _as_float(self.telemetry.get("best_fitness", 0.0)), champion.fitness
@@ -270,6 +295,8 @@ class EvolutionCycleOrchestrator:
         self,
         population: Sequence[DecisionGenome],
         evaluations: Iterable[EvaluationRecord],
+        *,
+        allow_registration: bool = True,
     ) -> ChampionRecord | None:
         try:
             best_record = max(evaluations, key=lambda r: r.fitness)
@@ -284,7 +311,7 @@ class EvolutionCycleOrchestrator:
             return None
 
         registered = False
-        if self._registry is not None:
+        if allow_registration and self._registry is not None:
             try:
                 provenance = self._build_catalogue_provenance(genome)
                 registry_payload = best_record.report.for_registry()
@@ -409,6 +436,42 @@ class EvolutionCycleOrchestrator:
         """Expose population statistics for monitoring surfaces."""
 
         return self._engine.get_population_statistics()
+
+    def _is_adaptive_runs_enabled(self) -> bool:
+        return self._feature_flags.adaptive_runs_enabled(self._adaptive_runs_override)
+
+    def _build_static_summary(
+        self,
+        population: Sequence[DecisionGenome],
+        evaluations: Sequence[EvaluationRecord],
+    ) -> EvolutionSummary:
+        stats = self._engine.get_population_statistics()
+
+        population_size = _as_int(stats.get("population_size", len(population)))
+        if population_size <= 0:
+            population_size = len(population)
+
+        best_from_stats = _as_float(stats.get("best_fitness", 0.0))
+        best_evaluation = max((record.fitness for record in evaluations), default=best_from_stats)
+
+        if evaluations:
+            average_evaluation = sum(record.fitness for record in evaluations) / len(evaluations)
+        else:
+            average_evaluation = _as_float(stats.get("average_fitness", 0.0))
+
+        elite_config = getattr(self._engine, "config", None)
+        elite_count = 0
+        if elite_config is not None:
+            elite_count = max(0, min(_as_int(getattr(elite_config, "elite_count", 0)), population_size))
+
+        return EvolutionSummary(
+            generation=_as_int(stats.get("generation", 0)),
+            population_size=population_size,
+            best_fitness=float(best_evaluation),
+            average_fitness=float(average_evaluation),
+            elite_count=elite_count,
+            timestamp=time.time(),
+        )
 
     def _refresh_catalogue_snapshot(self) -> None:
         stats = self._engine.get_population_statistics()

@@ -2,15 +2,20 @@
 
 from __future__ import annotations
 
+import logging
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import Enum
 from statistics import fmean
-from typing import Any, Iterable, Mapping, MutableMapping, Sequence
+from typing import Any, Callable, Iterable, Mapping, MutableMapping, Sequence
 
-from src.core.event_bus import Event, EventBus, get_global_bus
+from src.core.event_bus import Event, EventBus, TopicBus
+from src.operations.event_bus_failover import publish_event_with_failover
 from src.operations.roi import RoiStatus, RoiTelemetrySnapshot
+
+
+logger = logging.getLogger(__name__)
 
 
 class StrategyPerformanceStatus(str, Enum):
@@ -493,6 +498,7 @@ def publish_strategy_performance_snapshot(
     snapshot: StrategyPerformanceSnapshot,
     *,
     source: str = "operations.strategy_performance",
+    global_bus_factory: Callable[[], TopicBus] | None = None,
 ) -> None:
     """Publish the strategy performance snapshot onto the runtime bus."""
 
@@ -502,19 +508,27 @@ def publish_strategy_performance_snapshot(
         source=source,
     )
 
-    publish_from_sync = getattr(event_bus, "publish_from_sync", None)
-    if callable(publish_from_sync) and event_bus.is_running():
-        try:
-            publish_from_sync(event)
-            return
-        except Exception:  # pragma: no cover - diagnostics only
-            pass
-
-    try:
-        global_bus = get_global_bus()
-        global_bus.publish_sync(event.type, event.payload, source=event.source)
-    except Exception:  # pragma: no cover - diagnostics only
-        return
+    publish_event_with_failover(
+        event_bus,
+        event,
+        logger=logger,
+        runtime_fallback_message=(
+            "Primary event bus publish_from_sync failed; falling back to global bus"
+        ),
+        runtime_unexpected_message=(
+            "Unexpected error publishing strategy performance snapshot via runtime bus"
+        ),
+        runtime_none_message=(
+            "Primary event bus publish_from_sync returned None; falling back to global bus"
+        ),
+        global_not_running_message=(
+            "Global event bus not running while publishing strategy performance snapshot"
+        ),
+        global_unexpected_message=(
+            "Unexpected error publishing strategy performance snapshot via global bus"
+        ),
+        global_bus_factory=global_bus_factory,
+    )
 
 
 __all__ = [

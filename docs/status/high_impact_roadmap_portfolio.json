@@ -63,6 +63,7 @@
         "runtime.fix_dropcopy.FixDropcopyReconciler",
         "operations.execution.evaluate_execution_readiness",
         "operations.professional_readiness.evaluate_professional_readiness",
+        "operations.operational_readiness.evaluate_operational_readiness",
         "operations.roi.evaluate_roi_posture",
         "operations.strategy_performance.evaluate_strategy_performance",
         "compliance.workflow.evaluate_compliance_workflows",

@@ -39,6 +39,10 @@
   unexpected errors with pytest coverage guarding the behaviour, including
   regressions that capture global-bus fallbacks, runtime-not-running paths, and
   unexpected error escalation for security publishing.【F:src/operations/security.py†L536-L579】【F:tests/operations/test_security.py†L101-L211】【F:src/operations/system_validation.py†L269-L312】【F:tests/operations/test_system_validation.py†L85-L137】
+- Aggregate operational readiness into a single severity snapshot that merges
+  system validation, incident response, and ingest SLO posture, emits Markdown
+  summaries, and derives alert events so runbooks and runtime summaries surface
+  the same readiness view under pytest coverage.【F:src/operations/operational_readiness.py†L1-L297】【F:tests/operations/test_operational_readiness.py†L1-L118】【F:tests/runtime/test_professional_app_timescale.py†L722-L799】
 - Update incident response docs with current limitations and TODOs; remove or
   archive obsolete OpenAPI references where possible.【F:docs/legacy/README.md†L1-L12】
 - Extend CI step summaries to include risk, ingest, and sensory telemetry status so

@@ -38,6 +38,7 @@ def from_legacy(obj: Any) -> DecisionGenome:
             "mutation_history": _get(obj, "mutation_history", []),
             "performance_metrics": _get(obj, "performance_metrics", {}) or {},
             "created_at": _get(obj, "created_at", time.time()),
+            "metadata": _get(obj, "metadata", {}) or {},
         }
         # Pass through canonical coercion/validation
         return DecisionGenome.from_dict(data)
@@ -53,6 +54,7 @@ def from_legacy(obj: Any) -> DecisionGenome:
             mutation_history=[],
             performance_metrics={},
             created_at=time.time(),
+            metadata={},
         )
 
 
@@ -70,6 +72,7 @@ def to_legacy_view(genome: DecisionGenome) -> dict[str, Any]:
         "mutation_history": d["mutation_history"],
         "performance_metrics": d["performance_metrics"],
         "created_at": d["created_at"],
+        "metadata": d.get("metadata", {}),
     }
 
 

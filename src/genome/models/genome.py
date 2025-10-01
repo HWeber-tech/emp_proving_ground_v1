@@ -12,7 +12,7 @@ import logging
 import time
 import uuid
 from dataclasses import dataclass, field
-from typing import Any, Optional
+from typing import Any, Mapping, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -109,6 +109,7 @@ class DecisionGenome:
     mutation_history: list[str] = field(default_factory=list)
     performance_metrics: dict[str, float] = field(default_factory=dict)
     created_at: float = field(default_factory=time.time)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize to a plain dict with deep copies for mutables."""
@@ -122,6 +123,7 @@ class DecisionGenome:
             "mutation_history": list(self.mutation_history),
             "performance_metrics": copy.deepcopy(self.performance_metrics),
             "created_at": float(self.created_at),
+            "metadata": copy.deepcopy(self.metadata),
         }
 
     @classmethod
@@ -184,6 +186,13 @@ class DecisionGenome:
                 if tag:
                     mh_list.append(tag)
 
+            metadata_raw = data.get("metadata", {})
+            metadata: dict[str, Any]
+            if isinstance(metadata_raw, Mapping):
+                metadata = {str(k): metadata_raw[k] for k in metadata_raw}
+            else:
+                metadata = {}
+
             created_at = data.get("created_at")
             cat = _to_float(created_at)
             if cat is None:
@@ -199,6 +208,7 @@ class DecisionGenome:
                 mutation_history=mh_list,
                 performance_metrics=perf,
                 created_at=cat,
+                metadata=metadata,
             )
         except Exception as e:
             logger.error("DecisionGenome.from_dict failed: %s", e)
@@ -213,6 +223,7 @@ class DecisionGenome:
                 mutation_history=[],
                 performance_metrics={},
                 created_at=time.time(),
+                metadata={},
             )
 
     def with_updated(self, **kwargs: Any) -> "DecisionGenome":
@@ -227,6 +238,7 @@ class DecisionGenome:
             "mutation_history": list(self.mutation_history),
             "performance_metrics": copy.deepcopy(self.performance_metrics),
             "created_at": float(self.created_at),
+            "metadata": copy.deepcopy(self.metadata),
         }
 
         # If caller passes mutables, ensure we copy them too for safety
@@ -238,6 +250,8 @@ class DecisionGenome:
             kwargs["mutation_history"] = list(kwargs["mutation_history"])
         if "performance_metrics" in kwargs and isinstance(kwargs["performance_metrics"], dict):
             kwargs["performance_metrics"] = copy.deepcopy(kwargs["performance_metrics"])
+        if "metadata" in kwargs and isinstance(kwargs["metadata"], dict):
+            kwargs["metadata"] = copy.deepcopy(kwargs["metadata"])
 
         data.update(kwargs)
         # Cast to a permissive mapping before kwargs expansion to satisfy typing
@@ -265,6 +279,7 @@ def new_genome(
         mutation_history=[],
         performance_metrics={},
         created_at=time.time(),
+        metadata={},
     )
 
 

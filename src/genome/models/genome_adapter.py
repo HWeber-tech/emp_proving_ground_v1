@@ -90,6 +90,7 @@ class _FallbackGenome:
     mutation_history: List[str] = field(default_factory=list)
     performance_metrics: Dict[str, float] = field(default_factory=dict)
     created_at: float = field(default_factory=time.time)
+    metadata: Dict[str, Any] = field(default_factory=dict)
 
     def with_updated(self, **kwargs: Any) -> "_FallbackGenome":
         data = {
@@ -102,12 +103,15 @@ class _FallbackGenome:
             "mutation_history": list(self.mutation_history),
             "performance_metrics": dict(self.performance_metrics),
             "created_at": float(self.created_at),
+            "metadata": dict(self.metadata),
         }
         for k, v in kwargs.items():
             if k in ("parameters", "performance_metrics") and isinstance(v, dict):
                 data[k] = dict(v)
             elif k in ("parent_ids", "mutation_history") and isinstance(v, list):
                 data[k] = list(v)
+            elif k == "metadata" and isinstance(v, dict):
+                data[k] = dict(v)
             elif k in data:
                 data[k] = v
         return _FallbackGenome(**data)  # type: ignore[arg-type]
@@ -123,6 +127,7 @@ class _FallbackGenome:
             "mutation_history": list(self.mutation_history),
             "performance_metrics": dict(self.performance_metrics),
             "created_at": float(self.created_at),
+            "metadata": dict(self.metadata),
         }
 
 

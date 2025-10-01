@@ -58,6 +58,10 @@
     canonical deterministic facade and exposes the core engine’s snapshot and
     assessment hooks so execution flows share the same enforcement path as the
     runtime builder.【F:src/trading/trading_manager.py†L105-L147】【F:src/risk/risk_manager_impl.py†L533-L573】
+  - Progress: FIX broker interface now validates manual intents via the real risk
+    gateway, publishes structured rejection telemetry, and records approved
+    decisions on order state so FIX pilots inherit the same guardrails and
+    evidence trail under pytest coverage as orchestrated runtimes.【F:src/trading/integration/fix_broker_interface.py†L38-L524】【F:tests/trading/test_fix_broker_interface_events.py†L13-L202】
 - Progress: Governance cadence runner orchestrates interval gating, audit
   evidence collection, report persistence, and event-bus publishing so the
   compliance squad has a single supervised entrypoint for regulatory reporting

@@ -6,6 +6,7 @@ from datetime import UTC, datetime, timedelta
 
 from src.core.event_bus import Event
 from src.data_foundation.persist.timescale import TimescaleIngestRunRecord
+from src.operations.event_bus_failover import EventPublishError
 from src.operations.ingest_trends import (
     IngestTrendStatus,
     evaluate_ingest_trends,
@@ -109,15 +110,17 @@ def test_publish_ingest_trends_logs_failures(monkeypatch, caplog) -> None:
             raise RuntimeError("global bus unavailable")
 
     monkeypatch.setattr(
-        "src.operations.ingest_trends.get_global_bus",
+        "src.operations.event_bus_failover.get_global_bus",
         lambda: _FailGlobalBus(),
     )
 
     with caplog.at_level(logging.WARNING):
-        with pytest.raises(RuntimeError):
+        with pytest.raises(EventPublishError) as excinfo:
             publish_ingest_trends(_FailRuntimeBus(), snapshot)
 
     assert "Runtime event bus publish failed; falling back to global bus" in caplog.text
+    assert excinfo.value.stage == "global"
+    assert excinfo.value.event_type == "telemetry.ingest.trends"
 
 
 def test_publish_ingest_trends_raises_on_unexpected_runtime_error(caplog) -> None:
@@ -137,10 +140,12 @@ def test_publish_ingest_trends_raises_on_unexpected_runtime_error(caplog) -> Non
             raise ValueError("boom")
 
     with caplog.at_level(logging.ERROR):
-        with pytest.raises(ValueError):
+        with pytest.raises(EventPublishError) as excinfo:
             publish_ingest_trends(_ExplodeRuntimeBus(), snapshot)
 
     assert (
         "Unexpected error publishing ingest trend snapshot via runtime event bus"
         in caplog.text
     )
+    assert excinfo.value.stage == "runtime"
+    assert excinfo.value.event_type == "telemetry.ingest.trends"

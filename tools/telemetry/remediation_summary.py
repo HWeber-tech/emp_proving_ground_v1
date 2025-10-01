@@ -68,15 +68,55 @@ def _render_table(entries: Sequence[Mapping[str, object]]) -> list[str]:
     return lines
 
 
+def _parse_numeric(value: object) -> float | None:
+    """Try to coerce ``value`` into a floating point number."""
+
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, str):
+        cleaned = value.strip()
+        if not cleaned:
+            return None
+        if cleaned.endswith("%"):
+            cleaned = cleaned[:-1]
+        cleaned = cleaned.replace(",", "")
+        try:
+            return float(cleaned)
+        except ValueError:
+            return None
+    return None
+
+
 def _latest_status_lines(entries: Sequence[Mapping[str, object]]) -> list[str]:
     latest = entries[-1]
     statuses_obj = latest.get("statuses")
     if not isinstance(statuses_obj, Mapping) or not statuses_obj:
         return []
 
+    previous_statuses: Mapping[str, object] | None = None
+    if len(entries) > 1:
+        prev = entries[-2]
+        prev_statuses = prev.get("statuses")
+        if isinstance(prev_statuses, Mapping) and prev_statuses:
+            previous_statuses = prev_statuses
+
     lines = ["## Latest status overview", ""]
     for key, value in sorted(statuses_obj.items(), key=lambda item: str(item[0])):
-        lines.append(f"- **{_format_cell(key)}**: {_format_cell(value)}")
+        rendered_value = _format_cell(value)
+        line = f"- **{_format_cell(key)}**: {rendered_value}"
+
+        if previous_statuses is not None:
+            previous_value = previous_statuses.get(key)
+            current_numeric = _parse_numeric(value)
+            previous_numeric = _parse_numeric(previous_value)
+            if current_numeric is not None and previous_numeric is not None:
+                delta = current_numeric - previous_numeric
+                if abs(delta) >= 1e-9:
+                    value_text = str(value)
+                    suffix = "%" if isinstance(value, str) and value_text.strip().endswith("%") else ""
+                    line += f" (_Δ {delta:+g}{suffix}_)"
+
+        lines.append(line)
 
     note = latest.get("note")
     if note not in (None, ""):

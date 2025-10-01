@@ -53,6 +53,10 @@
   markdown fallbacks, and documents exception paths via pytest so dashboards and
   status packs retain reliable ROI and backlog metrics even when transports
   misbehave.【F:src/operations/evolution_experiments.py†L40-L196】【F:tests/operations/test_evolution_experiments.py†L1-L126】
+- Progress: Adaptive runs remain gated behind the `EVOLUTION_ENABLE_ADAPTIVE_RUNS`
+  flag, with orchestrator wiring skipping champion registration and telemetry
+  when the flag is disabled and pytest coverage documenting the contract so
+  governance can stage reviews before enabling live evolution loops.【F:src/evolution/feature_flags.py†L1-L44】【F:src/orchestration/evolution_cycle.py†L172-L340】【F:tests/current/test_evolution_orchestrator.py†L195-L240】【F:tests/evolution/test_feature_flags.py†L1-L27】
 
 ### Later (90+ days)
 

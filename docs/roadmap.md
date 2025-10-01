@@ -45,6 +45,11 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
     deterministic cluster bucketing, and exercising the guards under
     regression tests so adaptive runs keep producing actionable recommendations
     even in minimal environments.【F:src/intelligence/portfolio_evolution.py†L47-L142】【F:tests/intelligence/test_portfolio_evolution_security.py†L1-L169】
+  - *Progress*: Evolution orchestrator now honours an `EVOLUTION_ENABLE_ADAPTIVE_RUNS`
+    feature flag, exposing helpers for tests and gating champion registration,
+    catalogue updates, and telemetry so governance can disable adaptive loops
+    until approvals land, with pytest coverage documenting the flag contract and
+    orchestration fallbacks.【F:src/evolution/feature_flags.py†L1-L44】【F:src/orchestration/evolution_cycle.py†L65-L340】【F:tests/current/test_evolution_orchestrator.py†L64-L240】【F:tests/evolution/test_feature_flags.py†L1-L27】
   - *Progress*: Evolution experiment telemetry hardens publishing with explicit
     exception capture, markdown fallback logging, and pytest scenarios that
     simulate transport failures so dashboards and runbooks inherit reliable
@@ -91,7 +96,11 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
   - *Progress*: Observability dashboard risk telemetry now annotates each metric
     with limit values, ratios, and violation statuses while preserving serialised
     payloads, backed by regression coverage so operators inherit actionable risk
-    summaries instead of opaque aggregates.【F:src/operations/observability_dashboard.py†L254-L309】【F:tests/operations/test_observability_dashboard.py†L201-L246】
+    summaries instead of opaque aggregates.【F:src/operations/observability_dashboard.py†L254-L309】【F:tests/operations/test_observability_dashboard.py†L201-L241】
+  - *Progress*: Compliance readiness publishing now warns on runtime bus rejections,
+    escalates unexpected failures, and retries on the global bus so telemetry does
+    not silently disappear when transports degrade, with hardened logging guiding
+    operators during outages.【F:src/operations/compliance_readiness.py†L284-L344】
   - *Progress*: System validation telemetry escalates runtime publish failures
     into warnings, raises on unexpected errors, and regression tests capture the
     fallback handling so readiness dashboards surface degraded validation runs
@@ -183,10 +192,16 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
   - *Progress*: Timescale ingest coverage now exercises migrator setup, idempotent
     daily/intraday upserts, and macro event pathways so empty plans and windowed
     flows keep writing deterministic telemetry under CI guardrails.【F:tests/data_foundation/test_timescale_ingest.py†L1-L213】
+  - *Progress*: Timescale ingest orchestrator regression suite now validates engine
+    lifecycle hooks, publisher metadata, empty-plan short-circuits, and guardrails
+    for missing intraday fetchers so institutional ingest cannot regress silently.【F:tests/data_foundation/test_timescale_backbone_orchestrator.py†L1-L150】
   - *Progress*: Runtime builder coverage now snapshots ingest plan dimensions,
     trading metadata, and enforced risk summaries, while risk policy regressions
     assert portfolio price fallbacks so ingest orchestration and risk sizing
     guardrails stay under deterministic pytest coverage.【F:tests/runtime/test_runtime_builder.py†L1-L196】【F:tests/trading/test_risk_policy.py†L1-L205】
+  - *Progress*: Risk policy regression enforces minimum position sizing while the
+    observability dashboard tests assert limit-status escalation so CI catches
+    governance and telemetry drift before it hits production surfaces.【F:tests/trading/test_risk_policy.py†L213-L240】【F:tests/operations/test_observability_dashboard.py†L222-L241】
 
 ### Next (30–90 days)
 

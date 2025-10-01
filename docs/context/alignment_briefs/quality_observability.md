@@ -57,15 +57,16 @@
     telemetry keeps raising alarms when both primary and fallback paths degrade.【F:src/operations/event_bus_health.py†L118-L281】【F:tests/operations/test_event_bus_health.py†L1-L206】
   - Progress: Risk telemetry panels now attach limit values, ratios, and
     violation states to observability dashboard entries while preserving the
-    serialised payloads, with pytest coverage ensuring operators inherit
-    actionable risk summaries instead of opaque aggregates.【F:src/operations/observability_dashboard.py†L254-L309】【F:tests/operations/test_observability_dashboard.py†L201-L246】
+    serialised payloads, with pytest coverage asserting limit-status escalation
+    so operators inherit actionable risk summaries instead of opaque aggregates.【F:src/operations/observability_dashboard.py†L254-L309】【F:tests/operations/test_observability_dashboard.py†L201-L241】
   - Progress: Ingest trend telemetry logging now records runtime publish
     fallbacks, raises on unexpected errors, and escalates global bus outages with
     pytest coverage so data backbone dashboards expose genuine gaps instead of
     silently skipping degraded snapshots.【F:src/operations/ingest_trends.py†L303-L336】【F:tests/operations/test_ingest_trends.py†L90-L148】
   - Progress: Timescale ingest regressions now cover migrator bootstrap,
-    idempotent upserts for empty/changed plans, and macro event ingestion so
-    coverage catches silent failures across institutional ingest windows.【F:tests/data_foundation/test_timescale_ingest.py†L1-L213】
+    idempotent upserts for empty/changed plans, macro event ingestion, and the
+    backbone orchestrator’s lifecycle/metadata guardrails so coverage catches
+    silent failures across institutional ingest windows.【F:tests/data_foundation/test_timescale_ingest.py†L1-L359】【F:tests/data_foundation/test_timescale_backbone_orchestrator.py†L1-L200】
   - Progress: Cache health publishing now logs primary bus errors, only falls back
     when runtime failures occur, and raises on unexpected or global-bus outages
     under pytest guardrails so readiness telemetry surfaces real cache incidents

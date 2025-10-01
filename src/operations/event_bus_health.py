@@ -15,6 +15,7 @@ from src.core.event_bus import (
     event_bus as global_event_bus,
     get_global_bus,
 )
+from src.operations.event_bus_failover import publish_event_with_failover
 
 
 logger = logging.getLogger(__name__)
@@ -240,45 +241,22 @@ def publish_event_bus_health(event_bus: EventBus, snapshot: EventBusHealthSnapsh
         source="operations.event_bus_health",
     )
 
-    publish_from_sync = getattr(event_bus, "publish_from_sync", None)
-    if callable(publish_from_sync) and event_bus.is_running():
-        try:
-            publish_result = publish_from_sync(event)
-        except RuntimeError as exc:
-            logger.warning(
-                "Primary event bus publish_from_sync failed; falling back to global bus",
-                exc_info=exc,
-            )
-        except Exception:
-            # Unexpected failures should surface instead of being silently
-            # swallowed behind the fallback path so operators see the root
-            # cause. This keeps the remediation-plan promise of tightening
-            # blanket exception handlers in operational modules.
-            logger.exception(
-                "Unexpected error publishing event bus health from primary bus",
-            )
-            raise
-        else:
-            if publish_result is not None:
-                return
-            logger.warning(
-                "Primary event bus publish_from_sync returned None; falling back to global bus",
-            )
-
-    topic_bus = get_global_bus()
-    try:
-        topic_bus.publish_sync(event.type, event.payload, source=event.source)
-    except RuntimeError as exc:
-        logger.error(
-            "Global event bus not running while publishing event bus health snapshot",
-            exc_info=exc,
-        )
-        raise
-    except Exception:
-        logger.exception(
-            "Unexpected error publishing event bus health snapshot via global bus",
-        )
-        raise
+    publish_event_with_failover(
+        event_bus,
+        event,
+        logger=logger,
+        runtime_fallback_message=
+        "Primary event bus publish_from_sync failed; falling back to global bus",
+        runtime_unexpected_message=
+        "Unexpected error publishing event bus health from primary bus",
+        runtime_none_message=
+        "Primary event bus publish_from_sync returned None; falling back to global bus",
+        global_not_running_message=
+        "Global event bus not running while publishing event bus health snapshot",
+        global_unexpected_message=
+        "Unexpected error publishing event bus health snapshot via global bus",
+        global_bus_factory=get_global_bus,
+    )
 
 
 __all__ = [

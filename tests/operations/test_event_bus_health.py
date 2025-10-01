@@ -8,6 +8,7 @@ from typing import Any
 import pytest
 
 from src.core.event_bus import Event, EventBus, EventBusStatistics
+from src.operations.event_bus_failover import EventPublishError
 from src.operations.event_bus_health import (
     EventBusHealthStatus,
     evaluate_event_bus_health,
@@ -147,8 +148,11 @@ def test_publish_event_bus_health_raises_on_unexpected_error(
 
     snapshot = evaluate_event_bus_health(bus, expected=False)
 
-    with pytest.raises(ValueError):
+    with pytest.raises(EventPublishError) as excinfo:
         publish_event_bus_health(bus, snapshot)
+
+    assert excinfo.value.stage == "runtime"
+    assert excinfo.value.event_type == "telemetry.event_bus.health"
 
 
 def test_event_bus_health_escalates_queue_backlog_and_drops(
@@ -223,8 +227,9 @@ def test_publish_event_bus_health_raises_when_global_bus_unavailable(
     snapshot = evaluate_event_bus_health(bus, expected=False)
 
     with caplog.at_level(logging.ERROR):
-        with pytest.raises(RuntimeError) as excinfo:
+        with pytest.raises(EventPublishError) as excinfo:
             publish_event_bus_health(bus, snapshot)
 
     assert "Global event bus not running" in caplog.text
-    assert "global bus offline" in str(excinfo.value)
+    assert excinfo.value.stage == "global"
+    assert excinfo.value.event_type == "telemetry.event_bus.health"

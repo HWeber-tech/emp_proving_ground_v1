@@ -87,6 +87,12 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
     positive equity budgets, and resolved price fallbacks, documenting violation
     telemetry and metadata so CI catches policy drift before it reaches
     execution flows.【F:src/trading/risk/risk_policy.py†L120-L246】【F:tests/trading/test_risk_policy.py†L117-L205】
+  - *Progress*: Policy telemetry helpers now serialise deterministic decision
+    snapshots, render Markdown summaries, and publish violation alerts with
+    embedded runbook metadata while the trading manager escalates breached
+    guardrails and regression tests lock the payload contract, giving operators
+    an actionable feed plus an escalation playbook whenever policy violations
+    surface.【F:src/trading/risk/policy_telemetry.py†L1-L285】【F:src/trading/trading_manager.py†L642-L686】【F:docs/operations/runbooks/risk_policy_violation.md†L1-L51】【F:tests/trading/test_risk_policy_telemetry.py†L1-L199】
   - *Progress*: FIX broker interface now routes every manual intent through the real
     risk gateway, publishes structured rejection telemetry, and records the gateway
     decision/portfolio metadata on approved orders so FIX pilots inherit the same
@@ -207,7 +213,7 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
   - *Progress*: Cache health telemetry now logs primary bus failures, only falls
     back once runtime errors are captured, and raises on unexpected or global-bus
     errors with pytest guardrails so readiness dashboards record real outages
-    instead of silent drops.【F:src/operations/cache_health.py†L230-L303】【F:tests/operations/test_cache_health.py†L64-L131】
+    instead of silent drops.【F:src/operations/cache_health.py†L143-L245】【F:tests/operations/test_cache_health.py†L15-L138】
   - *Progress*: Trading position model guardrails now run under pytest,
     asserting timestamp updates, profit recalculations, and close flows so the
     lightweight execution telemetry remains deterministic under CI coverage.【F:tests/trading/test_position_model_guardrails.py†L1-L105】
@@ -216,7 +222,11 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
     flows keep writing deterministic telemetry under CI guardrails.【F:tests/data_foundation/test_timescale_ingest.py†L1-L213】
   - *Progress*: Timescale ingest orchestrator regression suite now validates engine
     lifecycle hooks, publisher metadata, empty-plan short-circuits, and guardrails
-    for missing intraday fetchers so institutional ingest cannot regress silently.【F:tests/data_foundation/test_timescale_backbone_orchestrator.py†L1-L150】
+    for missing intraday fetchers so institutional ingest cannot regress silently.【F:tests/data_foundation/test_timescale_backbone_orchestrator.py†L1-L200】
+  - *Progress*: CI now runs a dedicated `pytest -m guardrail` job ahead of the
+    coverage sweep, ensuring ingest, risk, and observability guardrail tests are
+    executed in isolation with deterministic markers and failing fast when
+    regressions surface.【F:.github/workflows/ci.yml†L79-L123】【F:pytest.ini†L1-L25】【F:tests/data_foundation/test_timescale_backbone_orchestrator.py†L1-L28】【F:tests/operations/test_event_bus_health.py†L1-L155】
   - *Progress*: Runtime builder coverage now snapshots ingest plan dimensions,
     trading metadata, and enforced risk summaries, while risk policy regressions
     assert portfolio price fallbacks so ingest orchestration and risk sizing

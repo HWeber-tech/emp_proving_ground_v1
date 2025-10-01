@@ -11,7 +11,8 @@ from datetime import datetime
 
 # Add typing for callbacks and awaitables
 from collections import defaultdict
-from typing import Any, Awaitable, Callable, Coroutine, Optional
+from decimal import Decimal
+from typing import Any, Awaitable, Callable, Coroutine, Mapping, MutableMapping, Optional, Protocol
 
 import simplefix
 
@@ -34,6 +35,17 @@ ORDER_EVENT_TYPES = {
 }
 
 
+class SupportsRiskGateway(Protocol):
+    """Subset of the trading risk gateway used by the FIX adapter."""
+
+    async def validate_trade_intent(
+        self, intent: Any, portfolio_state: Mapping[str, Any] | None
+    ) -> Any | None:
+        ...
+
+    def get_last_decision(self) -> Mapping[str, Any] | None: ...
+
+
 class FIXBrokerInterface:
     """Interface between FIX protocol and trading system.
 
@@ -50,6 +62,9 @@ class FIXBrokerInterface:
         fix_initiator: Any,
         *,
         task_factory: TaskFactory | None = None,
+        risk_gateway: SupportsRiskGateway | None = None,
+        portfolio_state_provider: Callable[[str], Mapping[str, Any]] | None = None,
+        risk_event_topic: str = "telemetry.risk.intent_rejected",
     ) -> None:
         """
         Initialize FIX broker interface.
@@ -68,6 +83,9 @@ class FIXBrokerInterface:
         self._event_callbacks: dict[str, list[OrderEventCallback]] = defaultdict(list)
         self._trade_task: asyncio.Task[Any] | None = None
         self._task_factory = task_factory
+        self._risk_gateway = risk_gateway
+        self._portfolio_state_provider = portfolio_state_provider
+        self._risk_event_topic = risk_event_topic
 
     async def start(self) -> None:
         """Start the broker interface."""
@@ -96,6 +114,121 @@ class FIXBrokerInterface:
                 await task
         self._trade_task = None
         logger.info("fix_broker_stopped")
+
+    def _resolve_portfolio_state(self, symbol: str) -> Mapping[str, Any]:
+        provider = self._portfolio_state_provider
+        if provider is None:
+            return {}
+        try:
+            state = provider(symbol)
+        except Exception:
+            logger.debug("portfolio_state_provider_failed", exc_info=True)
+            return {}
+        if isinstance(state, Mapping):
+            return state
+        if isinstance(state, MutableMapping):
+            return state
+        return {}
+
+    @staticmethod
+    def _maybe_get(intent: Any, *names: str) -> Any:
+        if isinstance(intent, Mapping):
+            for name in names:
+                if name in intent:
+                    return intent[name]
+        for name in names:
+            if hasattr(intent, name):
+                return getattr(intent, name)
+        return None
+
+    @classmethod
+    def _extract_quantity(cls, intent: Any, default: float) -> float:
+        value = cls._maybe_get(intent, "quantity", "size", "volume")
+        if value is None:
+            return float(default)
+        try:
+            if isinstance(value, Decimal):
+                return float(value)
+            return float(value)
+        except (TypeError, ValueError):
+            return float(default)
+
+    @classmethod
+    def _extract_side(cls, intent: Any, fallback: str) -> str:
+        value = cls._maybe_get(intent, "side", "direction")
+        if isinstance(value, str) and value:
+            return value.upper()
+        return fallback.upper()
+
+    @staticmethod
+    def _resolve_metadata(intent: Any) -> dict[str, Any] | None:
+        candidate = None
+        if isinstance(intent, Mapping):
+            candidate = intent.get("metadata")
+        elif hasattr(intent, "metadata"):
+            candidate = getattr(intent, "metadata")
+        if isinstance(candidate, MutableMapping):
+            return dict(candidate)
+        return None
+
+    @staticmethod
+    def _coerce_float(value: Any) -> float | None:
+        try:
+            resolved = float(value)
+        except (TypeError, ValueError):
+            return None
+        return resolved
+
+    def _build_manual_intent(
+        self, symbol: str, side: str, quantity: float, portfolio_state: Mapping[str, Any]
+    ):
+        metadata: dict[str, Any] = {
+            "source": "fix_manual_order",
+        }
+        current_price = self._coerce_float(portfolio_state.get("current_price"))
+        if current_price is not None and current_price > 0:
+            metadata.setdefault("reference_price", current_price)
+
+        intent = {
+            "symbol": symbol,
+            "side": side.upper(),
+            "quantity": Decimal(str(quantity)),
+            "confidence": 1.0,
+            "metadata": metadata,
+        }
+        if current_price is not None and current_price > 0:
+            intent["price"] = current_price
+        return intent
+
+    async def _publish_risk_rejection(
+        self,
+        symbol: str,
+        side: str,
+        quantity: float,
+        decision: Mapping[str, Any] | None,
+    ) -> None:
+        if not self.event_bus or not hasattr(self.event_bus, "emit"):
+            return
+
+        reason = "risk_rejected"
+        if isinstance(decision, Mapping):
+            reason = str(decision.get("reason") or reason)
+
+        payload: dict[str, Any] = {
+            "symbol": symbol,
+            "side": side.upper(),
+            "quantity": float(quantity),
+            "reason": reason,
+            "timestamp": datetime.utcnow().isoformat(),
+            "source": "fix_broker_interface",
+        }
+        if decision:
+            payload["decision"] = dict(decision)
+
+        try:
+            await self.event_bus.emit(self._risk_event_topic, payload)
+        except Exception as exc:
+            logger.debug("risk_violation_emit_failed", error=str(exc))
 
     async def _process_trade_messages(self) -> None:
         """Process trade messages from the queue."""
@@ -317,21 +450,33 @@ class FIXBrokerInterface:
             Order ID if successful, None otherwise
         """
         try:
-            # Risk guard: ensure portfolio risk within limits if a risk manager is available on event_bus
-            try:
-                risk_manager = (
-                    getattr(self.event_bus, "risk_manager", None) if self.event_bus else None
+            risk_gateway = self._risk_gateway
+            portfolio_state: Mapping[str, Any] = {}
+            if risk_gateway is not None:
+                portfolio_state = self._resolve_portfolio_state(symbol)
+                intent = self._build_manual_intent(symbol, side, quantity, portfolio_state)
+                validated_intent = await risk_gateway.validate_trade_intent(
+                    intent, portfolio_state
                 )
-                if risk_manager and hasattr(risk_manager, "check_risk_thresholds"):
-                    if not risk_manager.check_risk_thresholds():
-                        logger.warning(
-                            "order_blocked_by_risk_thresholds",
-                            reason="var_es_limit",
-                        )
-                        return None
-            except Exception:
-                # If risk check fails, proceed conservatively without blocking
-                pass
+                if not validated_intent:
+                    decision: Mapping[str, Any] | None = None
+                    try:
+                        decision = risk_gateway.get_last_decision()
+                    except Exception:
+                        logger.debug("risk_gateway_last_decision_failed", exc_info=True)
+                    await self._publish_risk_rejection(symbol, side, quantity, decision)
+                    logger.warning(
+                        "order_blocked_by_risk_gateway",
+                        symbol=symbol,
+                        side=side,
+                    )
+                    return None
+
+                quantity = self._extract_quantity(validated_intent, quantity)
+                side = self._extract_side(validated_intent, side)
+                metadata = self._resolve_metadata(validated_intent)
+            else:
+                metadata = None
             # Generate order ID
             order_id = f"ORD_{int(datetime.utcnow().timestamp() * 1000)}"
 
@@ -367,6 +512,16 @@ class FIXBrokerInterface:
                     "status": "PENDING",
                     "timestamp": datetime.utcnow(),
                 }
+                if metadata:
+                    self.orders[order_id]["metadata"] = metadata
+                if risk_gateway is not None:
+                    decision: Mapping[str, Any] | None = None
+                    try:
+                        decision = risk_gateway.get_last_decision()
+                    except Exception:
+                        logger.debug("risk_gateway_last_decision_failed", exc_info=True)
+                    if decision:
+                        self.orders[order_id]["risk_decision"] = dict(decision)
 
                 return order_id
         except Exception as e:

@@ -14,7 +14,6 @@ import argparse
 import asyncio
 import json
 import logging
-import signal
 import sys
 from contextlib import suppress
 from typing import Any, Awaitable, Callable, Mapping, Sequence
@@ -22,7 +21,7 @@ from typing import Any, Awaitable, Callable, Mapping, Sequence
 from src.governance.system_config import SystemConfig
 from src.runtime.predator_app import ProfessionalPredatorApp, build_professional_predator_app
 from src.runtime.runtime_builder import RuntimeApplication, build_professional_runtime_application
-from src.runtime.task_supervisor import TaskSupervisor
+from src.runtime.runtime_runner import run_runtime_application
 
 
 logger = logging.getLogger(__name__)
@@ -205,60 +204,6 @@ async def _handle_summary(
     return await _with_runtime(args, _summarise)
 
 
-async def _run_runtime_with_signals(runtime_app: RuntimeApplication, timeout: float | None) -> None:
-    loop = asyncio.get_running_loop()
-    stop_event = asyncio.Event()
-    supervisor = TaskSupervisor(namespace="runtime.cli")
-
-    def _trigger_stop() -> None:
-        stop_event.set()
-
-    registered_signals: list[signal.Signals] = []
-    for sig in (signal.SIGINT, signal.SIGTERM):
-        try:
-            loop.add_signal_handler(sig, _trigger_stop)
-        except (NotImplementedError, ValueError):  # pragma: no cover - Windows / nested loop
-            continue
-        else:
-            registered_signals.append(sig)
-
-    run_task = supervisor.create(runtime_app.run(), name="runtime-app-run")
-    waiters: set[asyncio.Task[object]] = {run_task}
-
-    stop_task = supervisor.create(stop_event.wait(), name="runtime-stop-event")
-    waiters.add(stop_task)
-
-    timeout_task: asyncio.Task[object] | None = None
-    if timeout is not None:
-        timeout_task = supervisor.create(asyncio.sleep(timeout), name="runtime-timeout")
-        waiters.add(timeout_task)
-
-    try:
-        done, pending = await asyncio.wait(waiters, return_when=asyncio.FIRST_COMPLETED)
-
-        if run_task in done:
-            for task in pending:
-                task.cancel()
-            await asyncio.gather(*pending, return_exceptions=True)
-            return
-
-        if stop_task in done and stop_event.is_set():
-            logger.info("Shutdown signal received; cancelling runtime workloads")
-        elif timeout_task is not None and timeout_task in done:
-            logger.info("Runtime timeout reached after %ss; cancelling workloads", timeout)
-
-        run_task.cancel()
-        for task in pending:
-            task.cancel()
-        await asyncio.gather(*pending, return_exceptions=True)
-        with suppress(asyncio.CancelledError):
-            await run_task
-    finally:
-        await supervisor.cancel_all()
-        for sig in registered_signals:
-            with suppress(NotImplementedError):  # pragma: no cover - mirrors add_signal_handler
-                loop.remove_signal_handler(sig)
-
 
 async def _handle_run(args: argparse.Namespace) -> int:
     async def _run(
@@ -269,7 +214,12 @@ async def _handle_run(args: argparse.Namespace) -> int:
         if args.no_trading:
             runtime_app.trading = None
 
-        await _run_runtime_with_signals(runtime_app, args.timeout)
+        await run_runtime_application(
+            runtime_app,
+            timeout=args.timeout,
+            logger=logger,
+            namespace="runtime.cli",
+        )
         return 0
 
     return await _with_runtime(args, _run)

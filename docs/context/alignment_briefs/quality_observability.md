@@ -53,9 +53,10 @@
     fallbacks and unexpected-error escalations, hardening operational coverage so
     readiness dashboards surface degraded runs instead of swallowing failures.【F:src/operations/system_validation.py†L269-L312】【F:tests/operations/test_system_validation.py†L85-L137】
   - Progress: Event bus failover helper now powers security, system validation,
-    compliance readiness, and evolution experiment publishers, replacing ad-hoc
-    blanket handlers with typed errors and structured logging so transport
-    regressions escalate consistently across modules.【F:src/operations/event_bus_failover.py†L1-L174】【F:src/operations/evolution_experiments.py†L297-L342】【F:tests/operations/test_event_bus_failover.py†L1-L164】【F:tests/operations/test_evolution_experiments.py†L135-L191】
+    compliance readiness, incident response, and evolution experiment
+    publishers, replacing ad-hoc blanket handlers with typed errors and
+    structured logging so transport regressions escalate consistently across
+    modules.【F:src/operations/event_bus_failover.py†L1-L174】【F:src/operations/incident_response.py†L350-L375】【F:src/operations/evolution_experiments.py†L297-L342】【F:tests/operations/test_event_bus_failover.py†L1-L164】【F:tests/operations/test_incident_response.py†L123-L167】【F:tests/operations/test_evolution_experiments.py†L135-L191】
   - Progress: Event bus health tests now assert queue backlog escalation,
     dropped-event surfacing, and global bus failure propagation so operational
     telemetry keeps raising alarms when both primary and fallback paths degrade.【F:src/operations/event_bus_health.py†L118-L281】【F:tests/operations/test_event_bus_health.py†L1-L206】

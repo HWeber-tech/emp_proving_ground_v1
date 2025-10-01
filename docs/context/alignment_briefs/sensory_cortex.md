@@ -17,10 +17,11 @@
   underscoring the lack of executable coverage.【F:docs/reports/CLEANUP_REPORT.md†L71-L175】
 - Technical debt priorities call out async hazards and namespace drift that block
   reliable runtime wiring for sensory subscriptions.【F:docs/technical_debt_assessment.md†L33-L80】
-- HOW and ANOMALY organs now emit sanitised lineage records with threshold
-  metadata and deterministic telemetry so downstream consumers can trace signal
-  provenance under pytest coverage, though inputs remain synthetic until the
-  ingest backbone is live.【F:src/sensory/how/how_sensor.py†L1-L140】【F:src/sensory/anomaly/anomaly_sensor.py†L1-L163】【F:src/sensory/lineage.py†L1-L87】【F:tests/sensory/test_how_anomaly_sensors.py†L1-L134】【F:tests/sensory/test_lineage.py†L1-L143】
+- HOW and ANOMALY organs now emit sanitised lineage records with shared
+  threshold posture assessments, surfacing state/breach metadata alongside the
+  telemetry so downstream consumers can trace signal provenance and escalation
+  context under pytest coverage, though inputs remain synthetic until the ingest
+  backbone is live.【F:src/sensory/how/how_sensor.py†L67-L194】【F:src/sensory/anomaly/anomaly_sensor.py†L121-L220】【F:src/sensory/thresholds.py†L1-L76】【F:tests/sensory/test_how_anomaly_sensors.py†L87-L175】【F:tests/sensory/test_thresholds.py†L1-L57】
 - Real sensory organ fuses WHY/WHAT/WHEN/HOW/ANOMALY outputs, publishes
   telemetry snapshots with lineage metadata, and exposes audit/status helpers
   while still consuming synthetic data until institutional ingest arrives.【F:src/sensory/real_sensory_organ.py†L20-L208】【F:src/sensory/real_sensory_organ.py†L210-L336】【F:tests/sensory/test_real_sensory_organ.py†L1-L107】

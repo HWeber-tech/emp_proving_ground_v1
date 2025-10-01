@@ -59,6 +59,10 @@
   metadata under regression coverage so supervised launches cannot proceed with
   missing or malformed limits, aligning runtime posture with compliance
   expectations.【F:src/runtime/runtime_builder.py†L298-L337】【F:tests/runtime/test_runtime_builder.py†L158-L200】
+- Progress: Deterministic trading risk API centralises config/status resolution,
+  exposes runtime-ready metadata snapshots, and drives the runtime builder’s
+  enforcement path so supervisors and docs consume a single hardened contract
+  under pytest coverage.【F:src/trading/risk/risk_api.py†L1-L134】【F:src/runtime/runtime_builder.py†L313-L343】【F:tests/trading/test_risk_api.py†L1-L115】【F:tests/trading/test_trading_manager_execution.py†L208-L224】
 - Progress: Compliance readiness snapshots now consolidate trade surveillance and
   KYC telemetry, escalate severities deterministically, and expose markdown
   evidence with pytest guardrails so governance cadences inherit truthful

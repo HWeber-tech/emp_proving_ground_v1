@@ -8,7 +8,8 @@ from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Mapping
 
-from src.core.event_bus import Event, EventBus, get_global_bus
+from src.core.event_bus import Event, EventBus
+from src.operations.event_bus_failover import publish_event_with_failover
 
 
 logger = logging.getLogger(__name__)
@@ -227,41 +228,21 @@ def publish_cache_health(event_bus: EventBus, snapshot: CacheHealthSnapshot) -> 
         source="operations.cache_health",
     )
 
-    publish_from_sync = getattr(event_bus, "publish_from_sync", None)
-    if callable(publish_from_sync) and event_bus.is_running():
-        try:
-            publish_result = publish_from_sync(event)
-        except RuntimeError as exc:
-            logger.warning(
-                "Primary event bus publish_from_sync failed; falling back to global bus",
-                exc_info=exc,
-            )
-        except Exception:
-            logger.exception(
-                "Unexpected error publishing cache health via runtime event bus",
-            )
-            raise
-        else:
-            if publish_result is not None:
-                return
-            logger.warning(
-                "Primary event bus publish_from_sync returned None; falling back to global bus",
-            )
-
-    topic_bus = get_global_bus()
-    try:
-        topic_bus.publish_sync(event.type, event.payload, source=event.source)
-    except RuntimeError as exc:
-        logger.error(
+    publish_event_with_failover(
+        event_bus,
+        event,
+        logger=logger,
+        runtime_fallback_message=
+            "Primary event bus publish_from_sync failed; falling back to global bus",
+        runtime_unexpected_message=
+            "Unexpected error publishing cache health via runtime event bus",
+        runtime_none_message=
+            "Primary event bus publish_from_sync returned None; falling back to global bus",
+        global_not_running_message=
             "Global event bus not running while publishing cache health snapshot",
-            exc_info=exc,
-        )
-        raise
-    except Exception:
-        logger.exception(
+        global_unexpected_message=
             "Unexpected error publishing cache health snapshot via global bus",
-        )
-        raise
+    )
 
 
 __all__ = [

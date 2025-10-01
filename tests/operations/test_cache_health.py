@@ -9,6 +9,7 @@ from src.operations.cache_health import (
     evaluate_cache_health,
     publish_cache_health,
 )
+from src.operations.event_bus_failover import EventPublishError
 
 
 def test_cache_health_fails_when_expected_but_missing() -> None:
@@ -107,7 +108,7 @@ def test_publish_cache_health_falls_back_on_runtime_error(monkeypatch: pytest.Mo
 
     topic_bus = DummyTopicBus()
     monkeypatch.setattr(
-        "src.operations.cache_health.get_global_bus", lambda: topic_bus
+        "src.operations.event_bus_failover.get_global_bus", lambda: topic_bus
     )
 
     publish_cache_health(DummyEventBus(), _snapshot())
@@ -115,7 +116,9 @@ def test_publish_cache_health_falls_back_on_runtime_error(monkeypatch: pytest.Mo
     assert published and published[0]["topic"] == "telemetry.cache.health"
 
 
-def test_publish_cache_health_raises_on_unexpected_error(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_publish_cache_health_raises_on_unexpected_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     class DummyEventBus:
         def is_running(self) -> bool:
             return True
@@ -126,7 +129,10 @@ def test_publish_cache_health_raises_on_unexpected_error(monkeypatch: pytest.Mon
     def _fail() -> None:
         raise AssertionError("Global bus should not be called on unexpected errors")
 
-    monkeypatch.setattr("src.operations.cache_health.get_global_bus", _fail)
+    monkeypatch.setattr("src.operations.event_bus_failover.get_global_bus", _fail)
 
-    with pytest.raises(ValueError):
+    with pytest.raises(EventPublishError) as excinfo:
         publish_cache_health(DummyEventBus(), _snapshot())
+
+    assert excinfo.value.stage == "runtime"
+    assert isinstance(excinfo.value.__cause__, ValueError)

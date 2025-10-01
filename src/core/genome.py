@@ -75,6 +75,7 @@ class _CoreGenomeStub:
     mutation_history: List[str] = field(default_factory=list)
     performance_metrics: Dict[str, float] = field(default_factory=dict)
     created_at: float = field(default_factory=time.time)
+    metadata: Dict[str, Any] = field(default_factory=dict)
 
     def with_updated(self, **kwargs: object) -> "_CoreGenomeStub":
         """Return a shallow-copied updated instance. Only known fields are applied."""
@@ -88,6 +89,7 @@ class _CoreGenomeStub:
             "mutation_history": list(self.mutation_history),
             "performance_metrics": dict(self.performance_metrics),
             "created_at": float(self.created_at),
+            "metadata": dict(self.metadata),
         }
         for k, v in kwargs.items():
             if k in data:
@@ -96,6 +98,8 @@ class _CoreGenomeStub:
                     data[k] = dict(v)
                 elif k in ("parent_ids", "mutation_history") and isinstance(v, list):
                     data[k] = list(v)
+                elif k == "metadata" and isinstance(v, dict):
+                    data[k] = dict(v)
                 else:
                     data[k] = cast(Any, v)
         return _CoreGenomeStub(**data)  # type: ignore[arg-type]
@@ -112,6 +116,7 @@ class _CoreGenomeStub:
             "mutation_history": list(self.mutation_history),
             "performance_metrics": dict(self.performance_metrics),
             "created_at": float(self.created_at),
+            "metadata": dict(self.metadata),
         }
 
 
@@ -223,6 +228,7 @@ class NoOpGenomeProvider:
                     get(obj, "performance_metrics", {}) or {}
                 ),
                 created_at=float(get(obj, "created_at", time.time()) or time.time()),
+                metadata=dict(get(obj, "metadata", {}) or {}),
             )
         except Exception:
             return _CoreGenomeStub(id=f"noop_{int(time.time() * 1000)}")

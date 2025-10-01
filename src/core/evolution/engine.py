@@ -8,6 +8,7 @@ from typing import Callable, Dict, Iterable, Mapping, Optional, Sequence, cast
 from src.core.genome import get_genome_provider
 from src.core.interfaces import DecisionGenome, PopulationManager as PopulationManagerProtocol
 from src.core.population_manager import PopulationManager as PopulationManagerImpl
+from src.core.evolution.seeding import GenomeSeed, RealisticGenomeSeeder
 
 
 @dataclass
@@ -51,6 +52,7 @@ class EvolutionEngine:
         self._initialized = False
         self._genome_counter = 0
         self._rng = random.Random()
+        self._seed_sampler = RealisticGenomeSeeder(rng=self._rng)
 
     def ensure_population(
         self, genome_factory: Optional[Callable[[], DecisionGenome]] = None
@@ -245,6 +247,49 @@ class EvolutionEngine:
             pass
         return genome
 
+    def _apply_seed_context(self, genome: DecisionGenome, seed: GenomeSeed) -> DecisionGenome:
+        updates: Dict[str, object] = {}
+        if seed.parent_ids:
+            updates["parent_ids"] = list(seed.parent_ids)
+        if seed.mutation_history:
+            updates["mutation_history"] = list(seed.mutation_history)
+        if seed.performance_metrics:
+            merged_metrics: Dict[str, float]
+            existing = getattr(genome, "performance_metrics", {}) or {}
+            if isinstance(existing, Mapping):
+                merged_metrics = dict(existing)
+            else:
+                merged_metrics = {}
+            merged_metrics.update({str(k): float(v) for k, v in seed.performance_metrics.items()})
+            updates["performance_metrics"] = merged_metrics
+
+        if updates and hasattr(genome, "with_updated"):
+            try:
+                genome = cast(DecisionGenome, genome.with_updated(**updates))
+            except Exception:
+                pass
+
+        for key, value in updates.items():
+            try:
+                setattr(genome, key, value)
+            except Exception:
+                pass
+
+        metadata = seed.metadata()
+        if metadata:
+            try:
+                existing_meta = getattr(genome, "metadata", {}) or {}
+                if isinstance(existing_meta, Mapping):
+                    merged_meta = dict(existing_meta)
+                else:
+                    merged_meta = {}
+                merged_meta.update(metadata)
+                setattr(genome, "metadata", merged_meta)
+            except Exception:
+                pass
+
+        return genome
+
     def _apply_parent_metadata(
         self, genome: DecisionGenome, parent_ids: Sequence[str], generation: int
     ) -> DecisionGenome:
@@ -275,20 +320,19 @@ class EvolutionEngine:
         provider = get_genome_provider()
         self._genome_counter += 1
         identifier = f"core-evo-{self._genome_counter:05d}"
-        parameters = {
-            "risk_tolerance": 0.5,
-            "momentum_window": float(10 + (self._genome_counter % 15)),
-            "mean_reversion": 0.2,
-        }
+        seed = self._seed_sampler.sample()
+        parameters = dict(seed.parameters)
         genome = provider.new_genome(
             id=identifier,
             parameters=parameters,
             generation=0,
-            species_type="core_strategy",
+            species_type=seed.species or "core_strategy",
         )
         if isinstance(genome, DecisionGenome):
-            return genome
-        return cast(DecisionGenome, provider.from_legacy(genome))
+            seeded = genome
+        else:
+            seeded = cast(DecisionGenome, provider.from_legacy(genome))
+        return self._apply_seed_context(seeded, seed)
 def _to_int(value: object, *, default: int = 0) -> int:
     """Return a safe ``int`` conversion for telemetry payload values."""
 

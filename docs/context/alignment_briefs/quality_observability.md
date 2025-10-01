@@ -78,7 +78,9 @@
 - Progress: Operational metrics instrumentation now has targeted regressions for
   logging escalation, lazy gauge fallbacks, Prometheus exporter idempotence, and
   registry sink adapters so CI surfaces metric failures deterministically and
-  remediation plans inherit documented evidence.【F:src/operational/metrics.py†L1-L268】【F:tests/operational/test_metrics.py†L1-L220】
+  remediation plans inherit documented evidence. Latest coverage exercises the
+  failure fallback hook, sanitised FIX wrappers, and latency bounds so telemetry
+  captures degraded instrumentation instead of silently dropping metrics.【F:src/operational/metrics.py†L1-L200】【F:tests/operational/test_metrics.py†L200-L328】
 - Wire Slack/webhook mirrors for CI alerts, rehearse the forced-failure drill,
   and record MTTA/MTTR in the health dashboard per the operational telemetry
   stream roadmap.【F:docs/technical_debt_assessment.md†L156-L174】【F:docs/status/ci_health.md†L74-L76】
@@ -89,6 +91,11 @@
   sweep so ingest, risk, and observability guardrails run in isolation and fail
   fast when regressions surface, with the workflow and pytest marker contract
   documenting the enforced scope.【F:.github/workflows/ci.yml†L79-L123】【F:pytest.ini†L1-L25】【F:tests/data_foundation/test_timescale_backbone_orchestrator.py†L1-L28】
+
+- Progress: Sensory drift telemetry publisher now routes through the shared
+  event-bus failover helper, logging runtime and global-bus degradations while
+  tests assert the fallback contract so operators keep receiving deterministic
+  drift alerts when the primary transport misbehaves.【F:src/operations/sensory_drift.py†L247-L276】【F:tests/operations/test_sensory_drift.py†L17-L163】
 
 ### Next (30–90 days)
 

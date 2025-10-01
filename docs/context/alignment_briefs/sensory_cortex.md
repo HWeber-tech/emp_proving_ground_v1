@@ -24,6 +24,9 @@
 - Real sensory organ fuses WHY/WHAT/WHEN/HOW/ANOMALY outputs, publishes
   telemetry snapshots with lineage metadata, and exposes audit/status helpers
   while still consuming synthetic data until institutional ingest arrives.【F:src/sensory/real_sensory_organ.py†L20-L208】【F:src/sensory/real_sensory_organ.py†L210-L336】【F:tests/sensory/test_real_sensory_organ.py†L1-L107】
+- Core package now logs and documents the sensory organ import fallback, keeping
+  stub exports visible under pytest coverage so bootstrap environments surface
+  degraded wiring instead of silently masking missing dependencies.【F:src/core/__init__.py†L11-L45】【F:tests/core/test_core_init_fallback.py†L1-L43】
 
 ## Gap themes
 

@@ -212,3 +212,117 @@ def test_registry_metrics_sink_routes_through_registry(monkeypatch: pytest.Monke
     assert registry.histogram_requests[0][0] == "hist"
     assert registry.histograms[0].observed == [0.5]
 
+
+def test_call_metric_invokes_fallback_when_action_fails(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    fallback_calls: list[str] = []
+
+    def _action() -> None:
+        raise RuntimeError("boom")
+
+    def _fallback() -> str:
+        fallback_calls.append("called")
+        return "fallback"
+
+    with caplog.at_level(logging.WARNING):
+        result = metrics._call_metric("test.metric", _action, fallback=_fallback)
+
+    assert result == "fallback"
+    assert fallback_calls == ["called"]
+    assert any(
+        "Failed to update metric" in record.getMessage() for record in caplog.records
+    )
+
+
+def test_fix_metrics_wrappers_sanitise_inputs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    registry = _RecordingRegistry()
+    monkeypatch.setattr(metrics, "get_registry", lambda: registry)
+
+    metrics.inc_md_reject("")
+    metrics.inc_message("", "")
+    metrics.set_session_connected("", True)
+    metrics.inc_reconnect("", "")
+    metrics.inc_business_reject(None)
+
+    assert registry.counter_requests[0] == ("fix_md_rejects_total", ("reason",))
+    assert registry.counters[0].labels_calls == [{"reason": "?"}]
+    assert registry.counters[0].inc_calls == [1.0]
+
+    assert registry.counter_requests[1] == ("fix_messages_total", ("session", "msg_type"))
+    assert registry.counters[1].labels_calls == [{"session": "?", "msg_type": "?"}]
+
+    assert registry.gauge_requests[0] == ("fix_session_connected", ("session",))
+    assert registry.gauges[0].labels_calls == [{"session": "?"}]
+    assert registry.gauges[0].set_calls == [1.0]
+
+    assert registry.counter_requests[2] == ("fix_reconnect_attempts_total", ("session", "outcome"))
+    assert registry.counters[2].labels_calls == [{"session": "?", "outcome": "?"}]
+
+    assert registry.counter_requests[3] == ("fix_business_rejects_total", ("ref_msg_type",))
+    assert registry.counters[3].labels_calls == [{"ref_msg_type": "?"}]
+
+
+def test_latency_and_staleness_metrics_apply_bounds(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    registry = _RecordingRegistry()
+    monkeypatch.setattr(metrics, "get_registry", lambda: registry)
+
+    metrics.observe_exec_latency(-0.5)
+    metrics.observe_cancel_latency(-1.0)
+    metrics.observe_heartbeat_interval("", -2.0)
+    metrics.set_md_staleness("", -3.0)
+
+    assert not registry.histograms
+    assert registry.gauges[0].labels_calls == [{"symbol": "?"}]
+    assert registry.gauges[0].set_calls == [0.0]
+
+    metrics.observe_exec_latency(0.25)
+    metrics.observe_cancel_latency(0.75)
+    metrics.observe_heartbeat_interval("", 5.0)
+
+    assert registry.histogram_requests[0] == (
+        "fix_exec_report_latency_seconds",
+        (0.01, 0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10),
+        None,
+    )
+    assert registry.histograms[0].observed == [0.25]
+
+    assert registry.histogram_requests[1] == (
+        "fix_cancel_latency_seconds",
+        (0.01, 0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10),
+        None,
+    )
+    assert registry.histograms[1].observed == [0.75]
+
+    assert registry.histogram_requests[2] == (
+        "fix_heartbeat_interval_seconds",
+        (1, 5, 10, 20, 30, 45, 60, 90, 120),
+        ("session",),
+    )
+    assert registry.histograms[2].labels_calls == [{"session": "?"}]
+    assert registry.histograms[2].observed == [5.0]
+
+
+def test_why_feature_metric_sorts_labels(monkeypatch: pytest.MonkeyPatch) -> None:
+    registry = _RecordingRegistry()
+    monkeypatch.setattr(metrics, "get_registry", lambda: registry)
+
+    metrics.set_why_feature("macro_bias", True, labels={"b": "2", "a": "1"})
+    metrics.set_why_feature("macro_bias", False)
+
+    assert registry.gauge_requests[-2] == (
+        "why_feature_available",
+        ("feature", "a", "b"),
+    )
+    assert registry.gauges[-2].labels_calls == [
+        {"feature": "macro_bias", "a": "1", "b": "2"}
+    ]
+    assert registry.gauges[-2].set_calls == [1.0]
+
+    assert registry.gauge_requests[-1] == ("why_feature_available", ("feature",))
+    assert registry.gauges[-1].labels_calls == [{"feature": "macro_bias"}]
+    assert registry.gauges[-1].set_calls == [0.0]

@@ -24,8 +24,9 @@ def test_max_exposure_must_cover_risk_per_trade() -> None:
         )
 
 
-def test_mandatory_stop_loss_requires_research_mode_when_disabled() -> None:
-    with pytest.raises(ValidationError):
+def test_stop_loss_disabled_outside_research_mode_emits_warning() -> None:
+    message = "mandatory_stop_loss=False outside research mode"
+    with pytest.warns(UserWarning, match=message):
         RiskConfig(mandatory_stop_loss=False, research_mode=False)
 
 

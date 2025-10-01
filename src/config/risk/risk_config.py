@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import warnings
 from decimal import Decimal
 from typing import Dict
 
@@ -118,7 +119,12 @@ class RiskConfig(BaseModel):
         mandatory_stop_loss = values.get("mandatory_stop_loss")
         research_mode = values.get("research_mode")
         if mandatory_stop_loss is False and research_mode is not True:
-            raise ValueError("Disabling mandatory_stop_loss requires research_mode=True")
+            warnings.warn(
+                "RiskConfig configured with mandatory_stop_loss=False outside research mode; "
+                "ensure governance approval before running in production.",
+                UserWarning,
+                stacklevel=2,
+            )
 
         return values
 

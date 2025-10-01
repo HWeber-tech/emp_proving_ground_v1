@@ -15,6 +15,7 @@ from src.data_foundation.ingest.scheduler_telemetry import (
     format_scheduler_markdown,
     publish_scheduler_snapshot,
 )
+from src.runtime.task_supervisor import TaskSupervisor
 
 
 @pytest.mark.asyncio()
@@ -101,6 +102,40 @@ async def test_scheduler_invokes_jitter(monkeypatch) -> None:
     assert runs >= 2
     assert jitter_calls
     assert all(call == (-0.02, 0.02) for call in jitter_calls)
+
+
+@pytest.mark.asyncio()
+async def test_scheduler_tracks_task_with_supervisor() -> None:
+    supervisor = TaskSupervisor(namespace="test-ingest")
+    started = asyncio.Event()
+
+    async def _callback() -> bool:
+        started.set()
+        return True
+
+    scheduler = TimescaleIngestScheduler(
+        schedule=IngestSchedule(interval_seconds=0.05, jitter_seconds=0.0, max_failures=3),
+        run_callback=_callback,
+        task_supervisor=supervisor,
+        task_metadata={"pipeline": "institutional"},
+        task_name="supervised-timescale-ingest",
+    )
+
+    scheduler.start()
+    await started.wait()
+    await asyncio.sleep(0)
+
+    snapshots = supervisor.describe()
+    assert snapshots, "Supervisor should expose active ingest task telemetry"
+    supervised = next(
+        snapshot for snapshot in snapshots if snapshot["name"] == "supervised-timescale-ingest"
+    )
+    assert supervised["metadata"]["component"] == "timescale_ingest.scheduler"
+    assert supervised["metadata"]["pipeline"] == "institutional"
+
+    await scheduler.stop()
+    await asyncio.sleep(0)
+    assert supervisor.active_count == 0
 
 
 @pytest.mark.asyncio()

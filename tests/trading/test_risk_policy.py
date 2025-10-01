@@ -293,3 +293,59 @@ def test_risk_policy_enforces_minimum_position_size() -> None:
     assert decision.reason == "policy.min_position_size"
     assert "policy.min_position_size" in decision.violations
     assert any(check["name"] == "policy.min_position_size" for check in decision.checks)
+
+
+def test_risk_policy_limit_snapshot_serialises_thresholds() -> None:
+    config = RiskConfig(
+        max_risk_per_trade_pct=Decimal("0.01"),
+        max_total_exposure_pct=Decimal("0.2"),
+        max_leverage=Decimal("3"),
+        max_drawdown_pct=Decimal("0.05"),
+        min_position_size=10,
+        max_position_size=1000,
+    )
+    policy = RiskPolicy.from_config(config)
+
+    snapshot = policy.limit_snapshot()
+
+    assert snapshot == {
+        "max_total_exposure_pct": pytest.approx(0.2),
+        "max_leverage": pytest.approx(3.0),
+        "max_risk_per_trade_pct": pytest.approx(0.01),
+        "min_position_size": pytest.approx(10.0),
+        "max_position_size": pytest.approx(1000.0),
+        "max_drawdown_pct": pytest.approx(0.05),
+    }
+
+
+def test_risk_policy_flags_leverage_warning_before_violation() -> None:
+    config = RiskConfig(
+        max_risk_per_trade_pct=Decimal("0.02"),
+        max_total_exposure_pct=Decimal("1.0"),
+        max_leverage=Decimal("1.2"),
+        max_drawdown_pct=Decimal("0.1"),
+        min_position_size=1,
+    )
+    policy = RiskPolicy.from_config(config)
+
+    state = {
+        "equity": 1_000.0,
+        "open_positions": {"EURUSD": {"quantity": 400.0, "last_price": 1.0}},
+        "current_daily_drawdown": 0.02,
+    }
+
+    decision = policy.evaluate(
+        symbol="EURUSD",
+        quantity=560.0,
+        price=1.0,
+        stop_loss_pct=0.01,
+        portfolio_state=state,
+    )
+
+    leverage_check = next(
+        check for check in decision.checks if check["name"] == "policy.max_leverage"
+    )
+    assert leverage_check["status"] == "warn"
+    assert leverage_check["threshold"] == pytest.approx(1.2)
+    assert leverage_check["value"] >= leverage_check["threshold"] * 0.8
+    assert decision.approved is True

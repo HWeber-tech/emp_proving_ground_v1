@@ -38,11 +38,11 @@ can layer on without introducing third-party dependencies.
   the JSON schema, CLI parsing, and evidence metadata handling so snapshots stay
   regression-safe.【F:tools/telemetry/update_ci_metrics.py†L1-L184】【F:tools/telemetry/ci_metrics.py†L1-L210】【F:tests/tools/test_ci_metrics.py†L1-L340】【F:tests/.telemetry/ci_metrics.json†L1-L5】
 * **Remediation summary export** – `python -m tools.telemetry.remediation_summary`
-  renders the latest remediation entries into a Markdown table plus highlight
-  bullets for status updates, honours `--limit` when comms only require the most
-  recent snapshots, and can write directly to files for automation. pytest covers
-  the Markdown rendering and CLI output contract so release managers can trust the
-  generated summaries.【F:tools/telemetry/remediation_summary.py†L1-L175】【F:tests/tools/test_remediation_summary.py†L1-L94】
+  renders the latest remediation entries into Markdown tables with delta call-outs,
+  honours `--limit` when comms only require the most recent snapshots, omits
+  deltas for non-numeric statuses, and can write directly to files for automation.
+  pytest covers the Markdown rendering and CLI output contract so release managers
+  can trust the generated summaries.【F:tools/telemetry/remediation_summary.py†L1-L220】【F:tests/tools/test_remediation_summary.py†L22-L125】
 * **Operational snapshot export** – `tools/telemetry/export_operational_snapshots.py`
   builds the professional runtime, extracts high-value operational blocks (professional
   readiness, security, incident response, and system validation), and emits a JSON

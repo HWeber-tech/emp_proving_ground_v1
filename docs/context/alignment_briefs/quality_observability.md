@@ -52,10 +52,10 @@
   - Progress: System validation telemetry regressions now capture runtime bus
     fallbacks and unexpected-error escalations, hardening operational coverage so
     readiness dashboards surface degraded runs instead of swallowing failures.【F:src/operations/system_validation.py†L269-L312】【F:tests/operations/test_system_validation.py†L85-L137】
-  - Progress: Event bus failover helper centralises guarded publishing for
-    security, system validation, and compliance readiness snapshots, replacing
-    ad-hoc blanket exception handlers with typed errors and structured logging so
-    transport regressions escalate consistently across feeds.【F:src/operations/event_bus_failover.py†L1-L174】【F:src/operations/compliance_readiness.py†L284-L344】【F:tests/operations/test_security.py†L164-L263】【F:tests/operations/test_system_validation.py†L85-L140】
+  - Progress: Event bus failover helper now powers security, system validation,
+    compliance readiness, and evolution experiment publishers, replacing ad-hoc
+    blanket handlers with typed errors and structured logging so transport
+    regressions escalate consistently across modules.【F:src/operations/event_bus_failover.py†L1-L174】【F:src/operations/evolution_experiments.py†L297-L342】【F:tests/operations/test_event_bus_failover.py†L1-L164】【F:tests/operations/test_evolution_experiments.py†L135-L191】
   - Progress: Event bus health tests now assert queue backlog escalation,
     dropped-event surfacing, and global bus failure propagation so operational
     telemetry keeps raising alarms when both primary and fallback paths degrade.【F:src/operations/event_bus_health.py†L118-L281】【F:tests/operations/test_event_bus_health.py†L1-L206】
@@ -135,10 +135,10 @@
   in `tests/.telemetry/ci_metrics.json` thanks to the `--remediation-status`
   CLI, capturing roadmap evidence (label, statuses, source, notes) for dashboards
   and audits with pytest guarding the JSON contract.【F:tools/telemetry/update_ci_metrics.py†L1-L184】【F:tools/telemetry/ci_metrics.py†L1-L210】【F:tests/tools/test_ci_metrics.py†L1-L340】【F:tests/.telemetry/ci_metrics.json†L1-L5】
-- Remediation summary exporter reads the metrics feed and renders Markdown tables
-  with highlight bullets for the latest snapshot, honours slice limits, and ships
-  with a CLI/pytest contract so status updates and briefs stay in sync without
-  manual collation.【F:tools/telemetry/remediation_summary.py†L1-L175】【F:tests/tools/test_remediation_summary.py†L22-L101】
+- Remediation summary exporter reads the metrics feed, renders Markdown tables
+  with delta call-outs, honours slice limits, omits deltas for non-numeric
+  statuses, and ships with a CLI/pytest contract so status updates and briefs
+  stay in sync without manual collation.【F:tools/telemetry/remediation_summary.py†L1-L220】【F:tests/tools/test_remediation_summary.py†L22-L125】
 - Maintain CI dashboard entries for ingest, risk, sensory, evolution, and
   operational telemetry, updating notes/tests as suites land so reviewers can
   trace validation hooks directly from the brief.【F:docs/status/ci_health.md†L21-L73】

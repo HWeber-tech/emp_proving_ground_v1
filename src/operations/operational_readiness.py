@@ -220,6 +220,15 @@ def evaluate_operational_readiness(
     generated_at = max(moments) if moments else datetime.now(tz=UTC)
 
     snapshot_metadata: dict[str, object] = {"component_count": len(components)}
+    if components:
+        breakdown: dict[str, int] = {}
+        component_statuses: dict[str, str] = {}
+        for component in components:
+            status_value = component.status.value
+            breakdown[status_value] = breakdown.get(status_value, 0) + 1
+            component_statuses[component.name] = status_value
+        snapshot_metadata["status_breakdown"] = breakdown
+        snapshot_metadata["component_statuses"] = component_statuses
     if metadata:
         snapshot_metadata.update(dict(metadata))
 

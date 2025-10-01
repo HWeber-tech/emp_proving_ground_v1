@@ -63,10 +63,11 @@
   exposes runtime-ready metadata snapshots, and drives the runtime builder’s
   enforcement path so supervisors and docs consume a single hardened contract
   under pytest coverage.【F:src/trading/risk/risk_api.py†L1-L134】【F:src/runtime/runtime_builder.py†L313-L343】【F:tests/trading/test_risk_api.py†L1-L115】【F:tests/trading/test_trading_manager_execution.py†L208-L224】
-- Progress: Compliance readiness snapshots now consolidate trade surveillance and
-  KYC telemetry, escalate severities deterministically, and expose markdown
-  evidence with pytest guardrails so governance cadences inherit truthful
-  compliance posture summaries.【F:src/operations/compliance_readiness.py†L1-L220】【F:tests/operations/test_compliance_readiness.py†L1-L173】
+- Progress: Compliance readiness snapshots now consolidate trade surveillance,
+  KYC telemetry, and workflow checklist status, escalating blocked items,
+  surfacing active task counts, and exposing markdown evidence with pytest
+  guardrails so governance cadences inherit truthful compliance posture
+  summaries.【F:src/operations/compliance_readiness.py†L262-L420】【F:tests/operations/test_compliance_readiness.py†L58-L213】
 
 ### Next (30–90 days)
 

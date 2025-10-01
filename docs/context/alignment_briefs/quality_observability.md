@@ -57,6 +57,10 @@
     publishers, replacing ad-hoc blanket handlers with typed errors and
     structured logging so transport regressions escalate consistently across
     modules.【F:src/operations/event_bus_failover.py†L1-L174】【F:src/operations/incident_response.py†L350-L375】【F:src/operations/evolution_experiments.py†L297-L342】【F:tests/operations/test_event_bus_failover.py†L1-L164】【F:tests/operations/test_incident_response.py†L123-L167】【F:tests/operations/test_evolution_experiments.py†L135-L191】
+  - Progress: Guardrail manifest tests pin the ingest orchestration, risk policy,
+    and observability suites to the CI guardrail marker so coverage drops or
+    marker drift block merges before the broader regression run, with pytest
+    verifying target existence and guardrail tagging.【F:tests/runtime/test_guardrail_suite_manifest.py†L1-L40】
   - Progress: Event bus health tests now assert queue backlog escalation,
     dropped-event surfacing, and global bus failure propagation so operational
     telemetry keeps raising alarms when both primary and fallback paths degrade.【F:src/operations/event_bus_health.py†L118-L281】【F:tests/operations/test_event_bus_health.py†L1-L206】

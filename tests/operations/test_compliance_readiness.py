@@ -8,6 +8,12 @@ from src.operations.compliance_readiness import (
     evaluate_compliance_readiness,
     publish_compliance_readiness,
 )
+from src.compliance.workflow import (
+    ComplianceWorkflowChecklist,
+    ComplianceWorkflowSnapshot,
+    ComplianceWorkflowTask,
+    WorkflowTaskStatus,
+)
 
 
 def _trade_summary(status: str, *, failed: bool = False) -> dict[str, object]:
@@ -49,6 +55,34 @@ def _kyc_summary(
     }
 
 
+def _workflow_summary(
+    status: WorkflowTaskStatus,
+    *,
+    task_statuses: tuple[WorkflowTaskStatus, ...] = (),
+) -> dict[str, object]:
+    tasks = tuple(
+        ComplianceWorkflowTask(
+            task_id=f"task-{index}",
+            title=f"Task {index}",
+            status=task_status,
+            summary=f"Summary {index}",
+        )
+        for index, task_status in enumerate(task_statuses, start=1)
+    )
+    checklist = ComplianceWorkflowChecklist(
+        name="Baseline",
+        regulation="MiFID",
+        status=status,
+        tasks=tasks,
+    )
+    snapshot = ComplianceWorkflowSnapshot(
+        status=status,
+        generated_at=datetime.now(timezone.utc),
+        workflows=(checklist,),
+    )
+    return snapshot.as_dict()
+
+
 def test_compliance_readiness_flags_trade_failures() -> None:
     snapshot = evaluate_compliance_readiness(trade_summary=_trade_summary("fail", failed=True))
 
@@ -84,6 +118,38 @@ def test_compliance_readiness_warns_on_kyc_outstanding_items() -> None:
     kyc_component = next(comp for comp in snapshot.components if comp.name == "kyc_aml")
     assert kyc_component.status is ComplianceReadinessStatus.warn
     assert kyc_component.metadata["outstanding_items"] == 2
+
+
+def test_compliance_readiness_includes_workflow_component() -> None:
+    snapshot = evaluate_compliance_readiness(
+        trade_summary=_trade_summary("pass"),
+        kyc_summary=_kyc_summary("APPROVED"),
+        workflow_summary=_workflow_summary(
+            WorkflowTaskStatus.completed,
+            task_statuses=(WorkflowTaskStatus.in_progress,),
+        ),
+    )
+
+    assert snapshot.status is ComplianceReadinessStatus.warn
+    component = next(comp for comp in snapshot.components if comp.name == "compliance_workflows")
+    assert component.status is ComplianceReadinessStatus.warn
+    assert component.metadata["tasks_active"] == 1
+
+
+def test_compliance_readiness_escalates_blocked_workflows() -> None:
+    snapshot = evaluate_compliance_readiness(
+        trade_summary=_trade_summary("pass"),
+        kyc_summary=_kyc_summary("APPROVED"),
+        workflow_summary=_workflow_summary(
+            WorkflowTaskStatus.blocked,
+            task_statuses=(WorkflowTaskStatus.blocked,),
+        ),
+    )
+
+    assert snapshot.status is ComplianceReadinessStatus.fail
+    component = next(comp for comp in snapshot.components if comp.name == "compliance_workflows")
+    assert component.status is ComplianceReadinessStatus.fail
+    assert component.metadata["workflows_blocked"] == 1
 
 
 class _StubRuntimeBus:

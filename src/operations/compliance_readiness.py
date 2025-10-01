@@ -8,8 +8,9 @@ from datetime import UTC, datetime
 from enum import Enum
 from typing import Mapping, MutableMapping, Sequence
 
-from src.core.event_bus import Event, EventBus, get_global_bus
+from src.core.event_bus import Event, EventBus
 from src.core.coercion import coerce_int
+from src.operations.event_bus_failover import publish_event_with_failover
 
 
 logger = logging.getLogger(__name__)
@@ -311,36 +312,21 @@ def publish_compliance_readiness(
         source="compliance_readiness",
     )
 
-    publish_from_sync = getattr(event_bus, "publish_from_sync", None)
-    if callable(publish_from_sync) and event_bus.is_running():
-        try:
-            publish_from_sync(event)
-            return
-        except RuntimeError as exc:
-            logger.warning(
-                "Runtime event bus rejected compliance readiness snapshot; falling back to global bus",
-                exc_info=exc,
-            )
-        except Exception:
-            logger.exception(
-                "Unexpected error publishing compliance readiness snapshot via runtime bus",
-            )
-            raise
-
-    try:
-        topic_bus = get_global_bus()
-        topic_bus.publish_sync(event.type, event.payload, source=event.source)
-    except RuntimeError as exc:
-        logger.error(
-            "Global event bus not running while publishing compliance readiness snapshot",
-            exc_info=exc,
-        )
-        raise
-    except Exception:
-        logger.exception(
-            "Unexpected error publishing compliance readiness snapshot via global bus",
-        )
-        raise
+    publish_event_with_failover(
+        event_bus,
+        event,
+        logger=logger,
+        runtime_fallback_message=
+        "Runtime event bus rejected compliance readiness snapshot; falling back to global bus",
+        runtime_unexpected_message=
+        "Unexpected error publishing compliance readiness snapshot via runtime bus",
+        runtime_none_message=
+        "Runtime event bus returned None while publishing compliance readiness snapshot; using global bus",
+        global_not_running_message=
+        "Global event bus not running while publishing compliance readiness snapshot",
+        global_unexpected_message=
+        "Unexpected error publishing compliance readiness snapshot via global bus",
+    )
 
 
 __all__ = [

@@ -5,6 +5,7 @@ from typing import Mapping
 import pytest
 
 from src.core.event_bus import Event
+from src.operations.event_bus_failover import EventPublishError
 from src.operations.security import (
     SecurityControlEvaluation,
     SecurityPolicy,
@@ -163,7 +164,7 @@ def test_publish_security_posture_falls_back_on_runtime_failure(
     bus.publish_from_sync = _failing_publish  # type: ignore[method-assign]
 
     global_bus = _GlobalBus()
-    monkeypatch.setattr("src.operations.security.get_global_bus", lambda: global_bus)
+    monkeypatch.setattr("src.operations.event_bus_failover.get_global_bus", lambda: global_bus)
 
     control = SecurityControlEvaluation(
         control="mfa",
@@ -202,7 +203,7 @@ def test_publish_security_posture_raises_on_unexpected_runtime_error(
         called.append("called")
         raise AssertionError("global bus should not be reached")
 
-    monkeypatch.setattr("src.operations.security.get_global_bus", _fail)
+    monkeypatch.setattr("src.operations.event_bus_failover.get_global_bus", _fail)
 
     control = SecurityControlEvaluation(
         control="mfa",
@@ -218,11 +219,12 @@ def test_publish_security_posture_raises_on_unexpected_runtime_error(
     )
 
     with caplog.at_level(logging.ERROR):
-        with pytest.raises(ValueError):
+        with pytest.raises(EventPublishError) as exc_info:
             publish_security_posture(bus, snapshot)
 
     assert not called
     assert any("Unexpected error publishing security posture" in message for message in caplog.messages)
+    assert exc_info.value.stage == "runtime"
 
 
 def test_publish_security_posture_raises_on_global_bus_failure(
@@ -240,7 +242,7 @@ def test_publish_security_posture_raises_on_global_bus_failure(
         def publish_sync(self, event_type: str, payload: Mapping[str, object], *, source: str) -> None:
             raise RuntimeError("global bus offline")
 
-    monkeypatch.setattr("src.operations.security.get_global_bus", lambda: _FailingGlobalBus())
+    monkeypatch.setattr("src.operations.event_bus_failover.get_global_bus", lambda: _FailingGlobalBus())
 
     control = SecurityControlEvaluation(
         control="mfa",
@@ -256,11 +258,12 @@ def test_publish_security_posture_raises_on_global_bus_failure(
     )
 
     with caplog.at_level(logging.ERROR):
-        with pytest.raises(RuntimeError):
+        with pytest.raises(EventPublishError) as exc_info:
             publish_security_posture(bus, snapshot)
 
     assert bus.events  # primary attempt recorded but treated as failure
     assert any("Global event bus not running" in message for message in caplog.messages)
+    assert exc_info.value.stage == "global"
 
 
 def test_evaluate_security_posture_merges_metadata_without_mutation() -> None:
@@ -307,7 +310,7 @@ def test_publish_security_posture_uses_global_bus_when_runtime_not_running(
 
     not_running_bus = _NotRunningBus()
     global_bus = _GlobalBus()
-    monkeypatch.setattr("src.operations.security.get_global_bus", lambda: global_bus)
+    monkeypatch.setattr("src.operations.event_bus_failover.get_global_bus", lambda: global_bus)
 
     control = SecurityControlEvaluation(
         control="mfa",

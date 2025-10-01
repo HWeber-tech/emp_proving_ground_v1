@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 
 import pytest
 
+from src.operations.event_bus_failover import EventPublishError
 from src.operations.system_validation import (
     SystemValidationStatus,
     evaluate_system_validation,
@@ -107,7 +108,7 @@ def test_publish_system_validation_snapshot_falls_back_to_global_bus(monkeypatch
     runtime_bus = RaisingRuntimeBus(RuntimeError("loop stopped"))
     global_bus = StubTopicBus()
 
-    monkeypatch.setattr("src.operations.system_validation.get_global_bus", lambda: global_bus)
+    monkeypatch.setattr("src.operations.event_bus_failover.get_global_bus", lambda: global_bus)
 
     publish_system_validation_snapshot(runtime_bus, snapshot, source="test")
 
@@ -128,13 +129,14 @@ def test_publish_system_validation_snapshot_raises_on_unexpected_error(
     runtime_bus = RaisingRuntimeBus(ValueError("boom"))
     global_bus = StubTopicBus()
 
-    monkeypatch.setattr("src.operations.system_validation.get_global_bus", lambda: global_bus)
+    monkeypatch.setattr("src.operations.event_bus_failover.get_global_bus", lambda: global_bus)
 
-    with pytest.raises(ValueError):
+    with pytest.raises(EventPublishError) as exc_info:
         publish_system_validation_snapshot(runtime_bus, snapshot, source="test")
 
     assert not runtime_bus.events
     assert not global_bus.events
+    assert exc_info.value.stage == "runtime"
 
 
 def test_load_system_validation_snapshot_reads_file(tmp_path) -> None:

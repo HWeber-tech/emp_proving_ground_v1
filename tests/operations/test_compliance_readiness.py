@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 
 import pytest
 
+from src.operations.event_bus_failover import EventPublishError
 from src.operations.compliance_readiness import (
     ComplianceReadinessStatus,
     evaluate_compliance_readiness,
@@ -134,7 +135,7 @@ def test_publish_compliance_readiness_prefers_runtime_bus() -> None:
 def test_publish_compliance_readiness_falls_back_to_global_bus(monkeypatch: pytest.MonkeyPatch) -> None:
     runtime_bus = _RaisingRuntimeBus(RuntimeError("loop stopped"))
     topic_bus = _StubTopicBus()
-    monkeypatch.setattr("src.operations.compliance_readiness.get_global_bus", lambda: topic_bus)
+    monkeypatch.setattr("src.operations.event_bus_failover.get_global_bus", lambda: topic_bus)
 
     publish_compliance_readiness(runtime_bus, _snapshot())
 
@@ -151,13 +152,14 @@ def test_publish_compliance_readiness_raises_on_unexpected_runtime_error(
 ) -> None:
     runtime_bus = _RaisingRuntimeBus(ValueError("boom"))
     topic_bus = _StubTopicBus()
-    monkeypatch.setattr("src.operations.compliance_readiness.get_global_bus", lambda: topic_bus)
+    monkeypatch.setattr("src.operations.event_bus_failover.get_global_bus", lambda: topic_bus)
 
-    with pytest.raises(ValueError):
+    with pytest.raises(EventPublishError) as exc_info:
         publish_compliance_readiness(runtime_bus, _snapshot())
 
     assert not runtime_bus.events
     assert not topic_bus.events
+    assert exc_info.value.stage == "runtime"
 
 
 def test_publish_compliance_readiness_raises_when_global_bus_fails(
@@ -170,11 +172,12 @@ def test_publish_compliance_readiness_raises_when_global_bus_fails(
             raise RuntimeError("global bus stopped")
 
     topic_bus = _FailingTopicBus()
-    monkeypatch.setattr("src.operations.compliance_readiness.get_global_bus", lambda: topic_bus)
+    monkeypatch.setattr("src.operations.event_bus_failover.get_global_bus", lambda: topic_bus)
     monkeypatch.setattr(runtime_bus, "is_running", lambda: False)
 
-    with pytest.raises(RuntimeError):
+    with pytest.raises(EventPublishError) as exc_info:
         publish_compliance_readiness(runtime_bus, _snapshot())
 
     assert not runtime_bus.events
     assert not topic_bus.events
+    assert exc_info.value.stage == "global"

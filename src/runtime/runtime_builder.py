@@ -20,6 +20,8 @@ from collections.abc import Mapping as MappingABC
 from typing import Any, Awaitable, Callable, Mapping, MutableMapping, Sequence, cast
 from uuid import uuid4
 
+from pydantic import ValidationError
+
 from src.config.risk.risk_config import RiskConfig
 from src.core.coercion import coerce_float
 from src.core.event_bus import Event, EventBus, get_global_bus
@@ -312,7 +314,10 @@ def _resolve_trading_risk_config(trading_manager: Any) -> RiskConfig:
     if isinstance(candidate, RiskConfig):
         return candidate
     if isinstance(candidate, MappingABC):
-        return RiskConfig.parse_obj(candidate)
+        try:
+            return RiskConfig.parse_obj(candidate)
+        except ValidationError as exc:
+            raise RuntimeError("Trading manager risk configuration is invalid") from exc
 
     status_getter = getattr(trading_manager, "get_risk_status", None)
     if callable(status_getter):
@@ -323,7 +328,10 @@ def _resolve_trading_risk_config(trading_manager: Any) -> RiskConfig:
         if isinstance(status_payload, MappingABC):
             config_payload = status_payload.get("risk_config")
             if isinstance(config_payload, MappingABC):
-                return RiskConfig.parse_obj(config_payload)
+                try:
+                    return RiskConfig.parse_obj(config_payload)
+                except ValidationError as exc:
+                    raise RuntimeError("Trading manager risk configuration is invalid") from exc
 
     raise RuntimeError("Trading manager does not expose a canonical RiskConfig")
 

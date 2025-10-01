@@ -159,6 +159,42 @@ async def test_builder_bootstrap_mode(monkeypatch, tmp_path):
 
 
 @pytest.mark.asyncio()
+async def test_builder_rejects_invalid_trading_risk_config(tmp_path):
+    cfg = SystemConfig().with_updated(
+        connection_protocol=ConnectionProtocol.bootstrap,
+        data_backbone_mode=DataBackboneMode.bootstrap,
+        extras={"BOOTSTRAP_SYMBOLS": "EURUSD"},
+    )
+
+    app = await build_professional_predator_app(config=cfg)
+
+    class StubTradingManager:
+        def get_risk_status(self) -> Mapping[str, object]:
+            return {
+                "risk_config": {
+                    "max_risk_per_trade_pct": 0.2,
+                    "max_total_exposure_pct": 0.1,
+                }
+            }
+
+    if getattr(app, "sensory_organ", None) is None:
+        app.sensory_organ = SimpleNamespace(trading_manager=StubTradingManager())
+    else:
+        setattr(app.sensory_organ, "trading_manager", StubTradingManager())
+
+    try:
+        with pytest.raises(RuntimeError, match="risk configuration is invalid"):
+            build_professional_runtime_application(
+                app,
+                skip_ingest=True,
+                symbols_csv="EURUSD",
+                duckdb_path=str(tmp_path / "tier0.duckdb"),
+            )
+    finally:
+        await app.shutdown()
+
+
+@pytest.mark.asyncio()
 async def test_configuration_audit_runs_without_timescale(monkeypatch, tmp_path):
     cfg = SystemConfig().with_updated(
         connection_protocol=ConnectionProtocol.bootstrap,

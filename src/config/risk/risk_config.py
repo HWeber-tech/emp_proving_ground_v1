@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import warnings
 from decimal import Decimal
 from typing import Dict
 
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, root_validator, validator
 
 
 class RiskConfig(BaseModel):
@@ -90,11 +91,42 @@ class RiskConfig(BaseModel):
             raise ValueError("Annualisation factor must be positive")
         return v
 
+    @validator("min_position_size", "max_position_size")
+    def validate_position_size(cls, v: int) -> int:
+        if v <= 0:
+            raise ValueError("Position sizes must be positive")
+        return v
+
     @validator("sector_exposure_limits", each_item=True)
     def validate_sector_limits(cls, v: Decimal) -> Decimal:
         if v <= 0 or v > 1:
             raise ValueError("Sector exposure limits must be between 0 and 1")
         return v
+
+    @root_validator
+    def validate_consistency(cls, values: dict[str, object]) -> dict[str, object]:
+        min_size = values.get("min_position_size")
+        max_size = values.get("max_position_size")
+        if isinstance(min_size, int) and isinstance(max_size, int) and min_size > max_size:
+            raise ValueError("min_position_size cannot exceed max_position_size")
+
+        max_risk = values.get("max_risk_per_trade_pct")
+        max_exposure = values.get("max_total_exposure_pct")
+        if isinstance(max_risk, Decimal) and isinstance(max_exposure, Decimal):
+            if max_risk > max_exposure:
+                raise ValueError("max_total_exposure_pct must be >= max_risk_per_trade_pct")
+
+        mandatory_stop_loss = values.get("mandatory_stop_loss")
+        research_mode = values.get("research_mode")
+        if mandatory_stop_loss is False and research_mode is not True:
+            warnings.warn(
+                "RiskConfig configured with mandatory_stop_loss=False outside research mode; "
+                "ensure governance approval before running in production.",
+                UserWarning,
+                stacklevel=2,
+            )
+
+        return values
 
 
 __all__ = ["RiskConfig"]

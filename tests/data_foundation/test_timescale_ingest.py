@@ -5,6 +5,7 @@ from typing import Mapping
 
 import pandas as pd
 from sqlalchemy import create_engine, text
+import pytest
 
 from src.data_foundation.ingest.timescale_pipeline import (
     DailyBarIngestPlan,
@@ -319,6 +320,41 @@ def test_timescale_orchestrator_fetches_macro_window(tmp_path) -> None:
     assert metadata["fetched_via_window"] is True
     assert metadata["fetched_events"] == len(_sample_macro_events())
     assert metadata["frame_rows"] == len(_sample_macro_events())
+
+
+def test_timescale_orchestrator_requires_intraday_fetcher() -> None:
+    settings = TimescaleConnectionSettings(url="sqlite:///:memory:")
+    orchestrator = TimescaleBackboneOrchestrator(settings)
+
+    plan = TimescaleBackbonePlan(
+        intraday=IntradayTradeIngestPlan(symbols=["EURUSD"], lookback_days=1)
+    )
+
+    with pytest.raises(ValueError, match="Intraday ingest requested"):
+        orchestrator.run(plan=plan, fetch_intraday=None)
+
+
+def test_timescale_orchestrator_handles_macro_without_events(tmp_path) -> None:
+    settings = TimescaleConnectionSettings(url="sqlite:///:memory:")
+    publisher = _RecordingPublisher()
+    orchestrator = TimescaleBackboneOrchestrator(settings, event_publisher=publisher)
+
+    plan = TimescaleBackbonePlan(macro=MacroEventIngestPlan(source="fred"))
+
+    results = orchestrator.run(plan=plan)
+
+    assert set(results) == {"macro_events"}
+    macro_result = results["macro_events"]
+    assert macro_result.rows_written == 0
+    assert macro_result.dimension == "macro_events"
+    assert macro_result.source == "fred"
+
+    assert len(publisher.calls) == 1
+    _, metadata = publisher.calls[0]
+    assert metadata is not None
+    assert metadata["plan"] == "macro_events"
+    assert metadata["window"] is None
+    assert metadata["provided_events"] == 0
 
 
 def test_ingest_pipeline_runs_with_sqlite(monkeypatch, tmp_path) -> None:

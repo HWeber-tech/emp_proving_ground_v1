@@ -8,12 +8,19 @@ import random
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from typing import Mapping
 
 
 logger = logging.getLogger(__name__)
 
 
 RunCallback = Callable[[], Awaitable[bool | None]]
+
+
+try:  # pragma: no cover - import guard for runtime optionality
+    from src.runtime.task_supervisor import TaskSupervisor
+except ImportError:  # pragma: no cover - fallback when runtime not available
+    TaskSupervisor = None  # type: ignore[assignment]
 
 
 @dataclass(frozen=True)
@@ -75,6 +82,8 @@ class TimescaleIngestScheduler:
         schedule: IngestSchedule,
         run_callback: RunCallback,
         task_name: str = "timescale-ingest-scheduler",
+        task_supervisor: TaskSupervisor | None = None,
+        task_metadata: Mapping[str, object] | None = None,
     ) -> None:
         self._schedule = schedule
         self._run_callback = run_callback
@@ -87,6 +96,8 @@ class TimescaleIngestScheduler:
         self._last_completed_at: datetime | None = None
         self._last_success_at: datetime | None = None
         self._next_run_at: datetime | None = None
+        self._task_supervisor = task_supervisor
+        self._task_metadata = dict(task_metadata) if task_metadata is not None else None
 
     @property
     def running(self) -> bool:
@@ -103,7 +114,23 @@ class TimescaleIngestScheduler:
         self._stop_event = asyncio.Event()
         self._failure_count = 0
         self._next_run_at = None
-        self._task = asyncio.create_task(self._run_loop(), name=self._task_name)
+        loop_coro = self._run_loop()
+        if self._task_supervisor is not None:
+            metadata = {
+                "component": "timescale_ingest.scheduler",
+                "interval_seconds": self._schedule.interval_seconds,
+                "jitter_seconds": self._schedule.jitter_seconds,
+                "max_failures": self._schedule.max_failures,
+            }
+            if self._task_metadata:
+                metadata.update(self._task_metadata)
+            self._task = self._task_supervisor.create(
+                loop_coro,
+                name=self._task_name,
+                metadata=metadata,
+            )
+        else:
+            self._task = asyncio.create_task(loop_coro, name=self._task_name)
         return self._task
 
     async def stop(self) -> None:

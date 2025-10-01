@@ -89,7 +89,7 @@ Dead code candidates (first 100):
 -  src\core\instrument.py
 -  src\core\interfaces.py
 -  src\core\population_manager.py
--  src\core\risk_manager.py
+-  ~~src\core\risk_manager.py~~ (removed; canonical imports now resolve via `src/core/risk/manager.py`, which core and trading modules already consume).【F:src/core/__init__.py†L34-L43】【F:src/trading/trading_manager.py†L105-L147】
 -  src\core\sensory_organ.py
 -  src\core\evolution\engine.py
 -  src\core\evolution\fitness.py
@@ -98,8 +98,10 @@ Dead code candidates (first 100):
 -  src\core\performance\market_data_cache.py
 -  src\core\risk\manager.py
 -  src\core\risk\position_sizing.py
--  src\core\risk\stress_testing.py
--  src\core\risk\var_calculator.py
+-  ~~src\core\risk\stress_testing.py~~ (removed; stress testing helpers will
+   be rebuilt on top of canonical risk analytics in `src/risk/analytics`).【F:src/risk/analytics/__init__.py†L1-L32】
+-  ~~src\core\risk\var_calculator.py~~ (removed; historical VaR calculations now
+   live in `src/risk/analytics/var.py`).【F:src/risk/analytics/var.py†L19-L118】
 -  src\core\strategy\engine.py
 -  ~~src\core\strategy\templates\mean_reversion.py~~ (removed; canonical mean reversion lives under `src/trading/strategies/mean_reversion.py`).
 -  ~~src\core\strategy\templates\moving_average.py~~ (removed alongside template package retirement).
@@ -270,7 +272,7 @@ Notes
     - [src/core.py](src/core.py) re-exports RiskConfig from canonical
 - RiskManager
   - Canonical: [src/core/risk/manager.py](src/core/risk/manager.py)
-  - Legacy shim: [src/core/risk_manager.py](src/core/risk_manager.py) now re-exports RiskManager and keeps get_global_risk_manager()
+  - Legacy shim retired: `src/core/risk_manager.py` removed after trading and core modules switched to importing `src/core/risk/manager.py` directly.【F:src/core/__init__.py†L34-L43】【F:src/trading/trading_manager.py†L105-L147】
 - risk module unification
   - [src/risk.py](src/risk.py) now re-exports canonical RiskManager and RiskConfig and temporarily retains ValidationResult for compatibility
   - Note: ValidationResult will be canonicalized in Batch 4 under validation models

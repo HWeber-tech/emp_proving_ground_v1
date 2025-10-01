@@ -8,6 +8,7 @@ import pandas as pd
 from src.sensory.enhanced.anomaly_dimension import AnomalyIntelligenceEngine
 from src.sensory.lineage import build_lineage_record
 from src.sensory.signals import SensorSignal
+from src.sensory.thresholds import ThresholdAssessment, evaluate_thresholds
 
 __all__ = ["AnomalySensor", "AnomalySensorConfig"]
 
@@ -24,8 +25,13 @@ class AnomalySensorConfig:
 class AnomalySensor:
     """Detect displacements in price/volume behaviour for the ANOMALY dimension."""
 
-    def __init__(self, config: AnomalySensorConfig | None = None) -> None:
-        self._engine = AnomalyIntelligenceEngine()
+    def __init__(
+        self,
+        config: AnomalySensorConfig | None = None,
+        *,
+        engine: AnomalyIntelligenceEngine | None = None,
+    ) -> None:
+        self._engine = engine or AnomalyIntelligenceEngine()
         self._config = config or AnomalySensorConfig()
 
     def process(
@@ -112,6 +118,13 @@ class AnomalySensor:
         context = dict(getattr(reading, "context", {}) or {})
         mode = mode_override or reading_adapter.get("mode", "sequence")
 
+        assessment = evaluate_thresholds(
+            signal_strength,
+            self._config.warn_threshold,
+            self._config.alert_threshold,
+            mode="positive",
+        )
+
         telemetry: dict[str, float] = {
             "baseline": float(reading_adapter.get("baseline", 0.0)),
             "dispersion": float(reading_adapter.get("dispersion", 0.0)),
@@ -124,7 +137,12 @@ class AnomalySensor:
             inputs=inputs or {},
             outputs={"signal": signal_strength, "confidence": confidence},
             telemetry=telemetry,
-            metadata={"mode": mode},
+            metadata={
+                "mode": mode,
+                "thresholds": assessment.thresholds,
+                "state": assessment.state,
+                "breached_level": assessment.breached_level,
+            },
         )
 
         metadata: dict[str, object] = {
@@ -140,6 +158,8 @@ class AnomalySensor:
                 "context": context,
             },
             "lineage": lineage.as_dict(),
+            "state": assessment.state,
+            "threshold_assessment": assessment.as_dict(),
         }
         metadata["audit"].update(telemetry)
 
@@ -147,6 +167,7 @@ class AnomalySensor:
             "strength": signal_strength,
             "confidence": confidence,
             "context": context,
+            "state": assessment.state,
         }
         return SensorSignal(
             signal_type="ANOMALY",
@@ -160,13 +181,26 @@ class AnomalySensor:
             "warn": self._config.warn_threshold,
             "alert": self._config.alert_threshold,
         }
+        assessment = ThresholdAssessment(
+            state="nominal",
+            magnitude=0.0,
+            thresholds=thresholds,
+            breached_level=None,
+            breach_ratio=0.0,
+            distance_to_warn=thresholds["warn"],
+            distance_to_alert=thresholds["alert"],
+        )
         lineage = build_lineage_record(
             "ANOMALY",
             "sensory.anomaly",
             inputs={},
             outputs={"signal": 0.0, "confidence": 0.0},
             telemetry={},
-            metadata={"mode": "default", "thresholds": thresholds},
+            metadata={
+                "mode": "default",
+                "thresholds": thresholds,
+                "state": assessment.state,
+            },
         )
 
         metadata: dict[str, object] = {
@@ -175,10 +209,16 @@ class AnomalySensor:
             "mode": "unknown",
             "audit": {"signal": 0.0, "confidence": 0.0},
             "lineage": lineage.as_dict(),
+            "state": assessment.state,
+            "threshold_assessment": assessment.as_dict(),
         }
         return SensorSignal(
             signal_type="ANOMALY",
-            value={"strength": 0.0, "confidence": 0.0},
+            value={
+                "strength": 0.0,
+                "confidence": 0.0,
+                "state": assessment.state,
+            },
             confidence=0.0,
             metadata=metadata,
         )

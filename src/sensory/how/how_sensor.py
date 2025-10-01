@@ -9,6 +9,7 @@ from src.sensory.enhanced.how_dimension import InstitutionalIntelligenceEngine
 from src.sensory.how.order_book_analytics import OrderBookAnalytics, OrderBookSnapshot
 from src.sensory.lineage import build_lineage_record
 from src.sensory.signals import SensorSignal
+from src.sensory.thresholds import ThresholdAssessment, evaluate_thresholds
 
 __all__ = ["HowSensor", "HowSensorConfig"]
 
@@ -33,8 +34,9 @@ class HowSensor:
         config: HowSensorConfig | None = None,
         *,
         order_book_analytics: OrderBookAnalytics | None = None,
+        engine: InstitutionalIntelligenceEngine | None = None,
     ) -> None:
-        self._engine = InstitutionalIntelligenceEngine()
+        self._engine = engine or InstitutionalIntelligenceEngine()
         self._config = config or HowSensorConfig()
         self._order_book_analytics = order_book_analytics or OrderBookAnalytics()
 
@@ -61,6 +63,13 @@ class HowSensor:
             "imbalance": float(reading_adapter.get("imbalance", 0.0)),
             "volatility_drag": float(reading_adapter.get("volatility_drag", 0.0)),
         }
+
+        assessment = evaluate_thresholds(
+            signal_strength,
+            self._config.warn_threshold,
+            self._config.alert_threshold,
+            mode="absolute",
+        )
 
         order_snapshot: OrderBookSnapshot | None = None
         if order_book is not None:
@@ -90,6 +99,8 @@ class HowSensor:
                 "mode": "market_data",
                 "thresholds": thresholds,
                 "order_book_sampled": order_snapshot is not None,
+                "state": assessment.state,
+                "breached_level": assessment.breached_level,
             },
         )
 
@@ -99,6 +110,8 @@ class HowSensor:
             "thresholds": thresholds,
             "audit": audit,
             "lineage": lineage.as_dict(),
+            "state": assessment.state,
+            "threshold_assessment": assessment.as_dict(),
         }
         if order_snapshot is not None:
             metadata["order_book"] = order_snapshot.as_dict()
@@ -107,6 +120,7 @@ class HowSensor:
             "strength": signal_strength,
             "confidence": confidence,
             "context": context,
+            "state": assessment.state,
         }
         value.update({name: metric_value for name, metric_value in telemetry.items()})
         return [
@@ -141,13 +155,26 @@ class HowSensor:
             "warn": self._config.warn_threshold,
             "alert": self._config.alert_threshold,
         }
+        assessment = ThresholdAssessment(
+            state="nominal",
+            magnitude=0.0,
+            thresholds=thresholds,
+            breached_level=None,
+            breach_ratio=0.0,
+            distance_to_warn=thresholds["warn"],
+            distance_to_alert=thresholds["alert"],
+        )
         lineage = build_lineage_record(
             "HOW",
             "sensory.how",
             inputs={},
             outputs={"signal": 0.0, "confidence": confidence},
             telemetry={},
-            metadata={"mode": "default", "thresholds": thresholds},
+            metadata={
+                "mode": "default",
+                "thresholds": thresholds,
+                "state": assessment.state,
+            },
         )
 
         metadata: dict[str, object] = {
@@ -155,10 +182,16 @@ class HowSensor:
             "thresholds": thresholds,
             "audit": {"signal": 0.0, "confidence": confidence},
             "lineage": lineage.as_dict(),
+            "state": assessment.state,
+            "threshold_assessment": assessment.as_dict(),
         }
         return SensorSignal(
             signal_type="HOW",
-            value={"strength": 0.0, "confidence": confidence},
+            value={
+                "strength": 0.0,
+                "confidence": confidence,
+                "state": assessment.state,
+            },
             confidence=confidence,
             metadata=metadata,
         )

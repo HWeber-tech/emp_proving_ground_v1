@@ -10,19 +10,42 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Iterable, Sequence
 
+_TRACKED_DOMAINS: tuple[str, ...] = (
+    "core",
+    "data_foundation",
+    "sensory",
+    "trading",
+    "risk",
+    "operations",
+    "operational",
+    "observability",
+    "runtime",
+    "evolution",
+    "compliance",
+    "strategies",
+    "intelligence",
+    "governance",
+    "data_integration",
+    "data_sources",
+    "ecosystem",
+    "market_intelligence",
+    "performance",
+    "portfolio",
+    "simulation",
+    "orchestration",
+    "validation",
+    "deployment",
+    "integration",
+    "domain",
+    "thinking",
+    "testing",
+    "structlog",
+    "system",
+    "ui",
+)
+
 _DOMAIN_PREFIXES: dict[tuple[str, ...], str] = {
-    ("src", "core"): "core",
-    ("src", "data_foundation"): "data_foundation",
-    ("src", "sensory"): "sensory",
-    ("src", "trading"): "trading",
-    ("src", "risk"): "risk",
-    ("src", "operations"): "operations",
-    ("src", "operational"): "operational",
-    ("src", "observability"): "observability",
-    ("src", "runtime"): "runtime",
-    ("src", "evolution"): "evolution",
-    ("src", "compliance"): "compliance",
-    ("src", "strategies"): "strategies",
+    ("src", domain): domain for domain in _TRACKED_DOMAINS
 }
 
 

@@ -31,6 +31,13 @@ SAMPLE_COVERAGE = """<?xml version='1.0'?>
             <line number='3' hits='1'/>
           </lines>
         </class>
+        <class filename='src/intelligence/brain.py'>
+          <lines>
+            <line number='1' hits='1'/>
+            <line number='2' hits='1'/>
+            <line number='3' hits='1'/>
+          </lines>
+        </class>
         <class filename='src/unknown/baz.py'>
           <lines>
             <line number='1' hits='0'/>
@@ -59,13 +66,14 @@ def coverage_report(tmp_path: Path) -> Path:
 def test_build_coverage_matrix_groups_by_domain(coverage_report: Path) -> None:
     matrix = build_coverage_matrix(coverage_report)
 
-    assert matrix.totals.files == 4
-    assert matrix.totals.covered == 5
+    assert matrix.totals.files == 5
+    assert matrix.totals.covered == 8
     assert matrix.totals.missed == 4
-    assert pytest.approx(matrix.totals.percent, rel=1e-6) == 55.56
+    assert pytest.approx(matrix.totals.percent, rel=1e-6) == 66.67
 
     domain_names = [domain.name for domain in matrix.domains]
-    assert domain_names == ["other", "risk", "sensory", "runtime"]
+    assert domain_names[:3] == ["other", "risk", "sensory"]
+    assert set(domain_names[3:]) == {"runtime", "intelligence"}
 
     sensory = next(domain for domain in matrix.domains if domain.name == "sensory")
     assert sensory.files == 1
@@ -79,6 +87,14 @@ def test_build_coverage_matrix_groups_by_domain(coverage_report: Path) -> None:
     assert runtime.missed == 0
     assert runtime.percent == 100.0
 
+    intelligence = next(
+        domain for domain in matrix.domains if domain.name == "intelligence"
+    )
+    assert intelligence.files == 1
+    assert intelligence.covered == 3
+    assert intelligence.missed == 0
+    assert intelligence.percent == 100.0
+
 
 def test_render_markdown_highlights_laggards(coverage_report: Path) -> None:
     matrix = build_coverage_matrix(coverage_report)
@@ -87,6 +103,7 @@ def test_render_markdown_highlights_laggards(coverage_report: Path) -> None:
     assert "| Domain |" in markdown
     assert "sensory" in markdown
     assert "runtime" in markdown
+    assert "intelligence" in markdown
     assert "Domains below the 60.00% threshold" in markdown
     assert "other (0.00%)" in markdown
     assert "risk (33.33%)" in markdown
@@ -112,5 +129,5 @@ def test_cli_writes_json_payload(tmp_path: Path, coverage_report: Path) -> None:
     assert payload["threshold"] == 70.0
     assert payload["laggards"] == ["other", "risk", "sensory"]
     totals = payload["totals"]
-    assert totals["files"] == 4
-    assert totals["coverage_percent"] == pytest.approx(55.56)
+    assert totals["files"] == 5
+    assert totals["coverage_percent"] == pytest.approx(66.67)

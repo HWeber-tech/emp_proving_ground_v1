@@ -8,8 +8,9 @@ from enum import StrEnum
 from pathlib import Path
 from typing import Iterable, Mapping, Sequence
 
-from src.core.event_bus import Event, EventBus, get_global_bus
+from src.core.event_bus import Event, EventBus
 from src.core.coercion import coerce_float, coerce_int
+from src.operations.event_bus_failover import publish_event_with_failover
 
 logger = logging.getLogger(__name__)
 
@@ -280,36 +281,21 @@ def publish_system_validation_snapshot(
         source=source,
     )
 
-    publish_from_sync = getattr(event_bus, "publish_from_sync", None)
-    if callable(publish_from_sync) and event_bus.is_running():
-        try:
-            publish_from_sync(event)
-            return
-        except RuntimeError as exc:
-            logger.warning(
-                "Runtime event bus rejected system validation snapshot; falling back to global bus",
-                exc_info=exc,
-            )
-        except Exception:
-            logger.exception(
-                "Unexpected error publishing system validation snapshot via runtime bus",
-            )
-            raise
-
-    try:
-        bus = get_global_bus()
-        bus.publish_sync(event.type, event.payload, source=event.source)
-    except RuntimeError as exc:
-        logger.error(
-            "Global event bus not running while publishing system validation snapshot",
-            exc_info=exc,
-        )
-        raise
-    except Exception:
-        logger.exception(
-            "Unexpected error publishing system validation snapshot via global bus",
-        )
-        raise
+    publish_event_with_failover(
+        event_bus,
+        event,
+        logger=logger,
+        runtime_fallback_message=
+        "Runtime event bus rejected system validation snapshot; falling back to global bus",
+        runtime_unexpected_message=
+        "Unexpected error publishing system validation snapshot via runtime bus",
+        runtime_none_message=
+        "Runtime event bus returned None while publishing system validation snapshot; using global bus",
+        global_not_running_message=
+        "Global event bus not running while publishing system validation snapshot",
+        global_unexpected_message=
+        "Unexpected error publishing system validation snapshot via global bus",
+    )
 
 
 def load_system_validation_snapshot(

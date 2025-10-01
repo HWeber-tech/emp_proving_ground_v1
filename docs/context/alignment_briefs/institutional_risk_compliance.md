@@ -49,10 +49,16 @@
   summaries, and publish violation alerts with embedded escalation metadata while
   the trading manager mirrors the feed and the new runbook documents the response,
   giving governance a deterministic alert surface when violations occur.【F:src/trading/risk/policy_telemetry.py†L1-L285】【F:src/trading/trading_manager.py†L642-L686】【F:docs/operations/runbooks/risk_policy_violation.md†L1-L51】【F:tests/trading/test_risk_policy_telemetry.py†L1-L199】
+- Progress: Canonical `RiskConfig` enforces positive position sizing, cross-field
+  exposure relationships, and research-mode overrides, emitting warnings when
+  mandatory stop losses are disabled outside research and blocking inconsistent
+  payloads under pytest coverage so compliance reviews inherit deterministic
+  guardrails.【F:src/config/risk/risk_config.py†L1-L161】【F:tests/risk/test_risk_config_validation.py†L1-L36】
 - Progress: Runtime builder now resolves the canonical `RiskConfig`, validates
-  risk thresholds, and records enforced metadata under regression coverage so
-  supervised launches cannot proceed without mandatory limits, aligning runtime
-  posture with compliance expectations.【F:src/runtime/runtime_builder.py†L298-L358】【F:src/runtime/runtime_builder.py†L3075-L3110】【F:tests/runtime/test_runtime_builder.py†L71-L138】
+  thresholds, wraps invalid payloads in runtime errors, and records enforced
+  metadata under regression coverage so supervised launches cannot proceed with
+  missing or malformed limits, aligning runtime posture with compliance
+  expectations.【F:src/runtime/runtime_builder.py†L298-L337】【F:tests/runtime/test_runtime_builder.py†L158-L200】
 - Progress: Compliance readiness snapshots now consolidate trade surveillance and
   KYC telemetry, escalate severities deterministically, and expose markdown
   evidence with pytest guardrails so governance cadences inherit truthful

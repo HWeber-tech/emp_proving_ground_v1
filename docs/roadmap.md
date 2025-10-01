@@ -83,11 +83,15 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
     canonical `get_risk_manager` facade, exposes the core engine’s snapshot and
     assessment APIs, and keeps execution telemetry aligned with the deterministic
     risk manager surfaced by the runtime builder.【F:src/trading/trading_manager.py†L105-L147】【F:src/risk/risk_manager_impl.py†L533-L573】
+  - *Progress*: `RiskConfig` now enforces positive position sizing, cross-field
+    exposure relationships, and research-mode overrides, emitting warnings when
+    mandatory stop losses are disabled outside research and blocking
+    inconsistent payloads under pytest coverage.【F:src/config/risk/risk_config.py†L1-L161】【F:tests/risk/test_risk_config_validation.py†L1-L36】
   - *Progress*: Runtime builder now resolves the canonical `RiskConfig` from the
-    trading manager, validates mandatory risk thresholds, records enforced
-    metadata, and registers a startup callback that logs the hardened risk
-    posture under regression coverage so runtime launches cannot proceed with
-    missing or invalid limits.【F:src/runtime/runtime_builder.py†L298-L358】【F:src/runtime/runtime_builder.py†L3075-L3110】【F:tests/runtime/test_runtime_builder.py†L71-L138】
+    trading manager, validates mandatory thresholds, wraps invalid payloads in a
+    deterministic runtime error, and logs the enforced posture under regression
+    coverage so supervised launches cannot proceed with missing or malformed
+    limits.【F:src/runtime/runtime_builder.py†L298-L337】【F:tests/runtime/test_runtime_builder.py†L158-L200】
   - *Progress*: Risk policy regression now enforces mandatory stop losses,
     positive equity budgets, and resolved price fallbacks, documenting violation
     telemetry and metadata so CI catches policy drift before it reaches
@@ -143,10 +147,10 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
     the `--remediation-status` CLI flag and validates the JSON contract under
     pytest so roadmap evidence, dashboard feeds, and audits inherit structured
     remediation progress without manual spreadsheets.【F:tools/telemetry/update_ci_metrics.py†L10-L176】【F:tests/tools/test_ci_metrics.py†L180-L332】【F:tests/.telemetry/ci_metrics.json†L1-L6】
-  - *Progress*: Remediation summary exporter renders the telemetry snapshots into
-    Markdown tables plus highlight bullets, honours slice limits, and ships with a
-    CLI/pytest contract so status reports can ingest `tests/.telemetry/ci_metrics.json`
-    directly instead of hand-curating remediation decks.【F:tools/telemetry/remediation_summary.py†L1-L175】【F:tests/tools/test_remediation_summary.py†L22-L101】
+  - *Progress*: Remediation summary exporter renders telemetry snapshots into
+    Markdown tables with delta call-outs, honours slice limits, omits deltas for
+    non-numeric statuses, and ships with a CLI/pytest contract so status reports
+    can ingest `tests/.telemetry/ci_metrics.json` without hand-curated decks.【F:tools/telemetry/remediation_summary.py†L1-L220】【F:tests/tools/test_remediation_summary.py†L22-L125】
 - [ ] **Dead code and duplication** – Triage the 168-file dead-code backlog and
   eliminate shim exports so operators see a single canonical API surface.【F:docs/reports/CLEANUP_REPORT.md†L71-L188】
   - *Progress*: Removed the deprecated risk and evolution configuration shims so
@@ -190,10 +194,10 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
       global bus when runtime publishing fails, raises on unexpected errors, and
       documents the error-handling paths under pytest so telemetry outages cannot
       disappear silently.【F:src/operations/security.py†L536-L579】【F:tests/operations/test_security.py†L148-L263】
-    - *Progress*: Event bus failover helper centralises the guarded publish logic
-      for security, system validation, and compliance readiness feeds, replacing
-      ad-hoc blanket exception handlers with typed errors and consistent logging so
-      transport regressions escalate deterministically.【F:src/operations/event_bus_failover.py†L1-L174】【F:src/operations/compliance_readiness.py†L284-L344】【F:tests/operations/test_security.py†L164-L263】【F:tests/operations/test_system_validation.py†L85-L140】
+    - *Progress*: Event bus failover helper now powers security, system
+      validation, compliance readiness, and evolution experiment publishing,
+      replacing ad-hoc blanket handlers with typed errors and structured logging
+      so transport regressions escalate deterministically across feeds.【F:src/operations/event_bus_failover.py†L1-L174】【F:src/operations/evolution_experiments.py†L297-L342】【F:tests/operations/test_event_bus_failover.py†L1-L164】【F:tests/operations/test_evolution_experiments.py†L135-L191】
 - [x] **Context pack refresh** – Replace legacy briefs with the updated context in
   `docs/context/alignment_briefs` so discovery and reviews inherit the same
   narrative reset (this change set).

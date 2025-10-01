@@ -46,6 +46,11 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
     malformed regime metadata by normalising canonical models, skipping
     non-numeric parameters, and logging adapter failures with pytest coverage on
     each guardrail so evolution runs cannot silently corrupt state.【F:src/ecosystem/optimization/ecosystem_optimizer.py†L59-L230】【F:tests/ecosystem/test_ecosystem_optimizer_hardening.py†L1-L70】
+  - *Progress*: Default evolution seeding now cycles through catalogue-inspired
+    genome templates, injecting lineage metadata, realistic performance
+    fingerprints, and species diversity so baseline populations resemble the
+    institutional strategy library, with pytest guarding the sampler rotation and
+    seeded genome context.【F:src/core/evolution/seeding.py†L1-L335】【F:src/core/evolution/engine.py†L250-L335】【F:tests/evolution/test_realistic_seeding.py†L1-L47】
   - *Progress*: Portfolio evolution falls back gracefully when optional
     scikit-learn dependencies are missing by logging the degraded path, returning
     deterministic cluster bucketing, and exercising the guards under
@@ -97,6 +102,11 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
     deterministic runtime error, and logs the enforced posture under regression
     coverage so supervised launches cannot proceed with missing or malformed
     limits.【F:src/runtime/runtime_builder.py†L298-L337】【F:tests/runtime/test_runtime_builder.py†L158-L200】
+  - *Progress*: A supervised runtime runner now wraps professional workloads in a
+    shared `TaskSupervisor`, wiring graceful signal handling, optional timeouts,
+    and deterministic shutdown callbacks so runtime launches inherit the same
+    lifecycle guarantees as the builder, with pytest exercising normal and
+    timeout-driven exits.【F:src/runtime/runtime_runner.py†L1-L120】【F:main.py†L71-L125】【F:tests/runtime/test_runtime_runner.py†L1-L58】
   - *Progress*: Risk policy regression now enforces mandatory stop losses,
     positive equity budgets, and resolved price fallbacks, documenting violation
     telemetry and metadata so CI catches policy drift before it reaches
@@ -132,10 +142,11 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
     metadata with a status breakdown plus component map so dashboards can render
     severity chips without recomputing the logic, under pytest coverage and
     documented contract updates.【F:src/operations/operational_readiness.py†L1-L256】【F:tests/operations/test_operational_readiness.py†L1-L86】【F:docs/status/operational_readiness.md†L1-L34】【F:tests/runtime/test_professional_app_timescale.py†L722-L799】
-  - *Progress*: Compliance readiness publishing now warns on runtime bus rejections,
-    escalates unexpected failures, and retries on the global bus so telemetry does
-    not silently disappear when transports degrade, with hardened logging guiding
-    operators during outages.【F:src/operations/compliance_readiness.py†L284-L344】
+  - *Progress*: Compliance readiness snapshots now include workflow portfolio
+    status alongside trade and KYC telemetry, escalating blocked checklists,
+    surfacing active task counts, and retaining the hardened publish failover so
+    governance teams see actionable workflow posture even during runtime bus
+    outages.【F:src/operations/compliance_readiness.py†L262-L420】【F:tests/operations/test_compliance_readiness.py†L58-L213】
   - *Progress*: System validation telemetry escalates runtime publish failures
     into warnings, raises on unexpected errors, and regression tests capture the
     fallback handling so readiness dashboards surface degraded validation runs
@@ -148,6 +159,10 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
     execution, FIX wrapper sanitisation, and bounded latency histograms so guardrail
     telemetry captures instrumentation failures instead of dropping them silently.
     【F:src/operational/metrics.py†L1-L200】【F:tests/operational/test_metrics.py†L200-L328】
+  - *Progress*: Guardrail manifest tests now enforce the presence and pytest marker
+    coverage of ingest orchestration, risk policy, and observability suites so the
+    CI guardrail job fails fast if critical regression files or markers drift out
+    of the matrix.【F:tests/runtime/test_guardrail_suite_manifest.py†L1-L40】
   - *Progress*: CI telemetry tooling now records remediation status snapshots via
     the `--remediation-status` CLI flag and validates the JSON contract under
     pytest so roadmap evidence, dashboard feeds, and audits inherit structured

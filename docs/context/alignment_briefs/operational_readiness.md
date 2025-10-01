@@ -34,6 +34,11 @@
   - ✅ Runtime CLI orchestration and the bootstrap sensory loop now execute under
     `TaskSupervisor`, eliminating direct `asyncio.create_task` usage for
     entrypoint workflows and providing deterministic signal/timeout shutdowns.【F:src/runtime/cli.py†L206-L249】【F:src/runtime/bootstrap_runtime.py†L227-L268】
+  - Progress: A dedicated runtime runner now wraps professional workloads in a
+    shared `TaskSupervisor`, wiring signal handlers, optional timeouts, and
+    shutdown callbacks so production launches share the same supervised lifecycle
+    contract as the builder, with pytest covering normal completion and timeout
+    cancellation flows.【F:src/runtime/runtime_runner.py†L1-L120】【F:main.py†L71-L125】【F:tests/runtime/test_runtime_runner.py†L1-L58】
 - Harden operational telemetry publishers so security and system validation
   feeds warn on runtime bus failures, fall back deterministically, and raise on
   unexpected errors with pytest coverage guarding the behaviour, including

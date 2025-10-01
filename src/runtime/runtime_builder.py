@@ -20,8 +20,6 @@ from collections.abc import Mapping as MappingABC
 from typing import Any, Awaitable, Callable, Mapping, MutableMapping, Sequence, cast
 from uuid import uuid4
 
-from pydantic import ValidationError
-
 from src.config.risk.risk_config import RiskConfig
 from src.core.coercion import coerce_float
 from src.core.event_bus import Event, EventBus, get_global_bus
@@ -243,6 +241,11 @@ from src.operations.sensory_drift import (
 )
 from src.runtime.healthcheck import RuntimeHealthServer
 from src.runtime.predator_app import ProfessionalPredatorApp
+from src.trading.risk.risk_api import (
+    RiskApiError,
+    build_runtime_risk_metadata,
+    resolve_trading_risk_config,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -307,48 +310,6 @@ def _locate_trading_manager(app: ProfessionalPredatorApp) -> Any | None:
     return getattr(sensory, "trading_manager", None)
 
 
-def _resolve_trading_risk_config(trading_manager: Any) -> RiskConfig:
-    """Resolve the canonical :class:`RiskConfig` from a trading manager."""
-
-    candidate = getattr(trading_manager, "_risk_config", None)
-    if isinstance(candidate, RiskConfig):
-        return candidate
-    if isinstance(candidate, MappingABC):
-        try:
-            return RiskConfig.parse_obj(candidate)
-        except ValidationError as exc:
-            raise RuntimeError("Trading manager risk configuration is invalid") from exc
-
-    status_getter = getattr(trading_manager, "get_risk_status", None)
-    if callable(status_getter):
-        try:
-            status_payload = status_getter()
-        except Exception as exc:  # pragma: no cover - diagnostics only
-            raise RuntimeError("Trading manager risk status retrieval failed") from exc
-        if isinstance(status_payload, MappingABC):
-            config_payload = status_payload.get("risk_config")
-            if isinstance(config_payload, MappingABC):
-                try:
-                    return RiskConfig.parse_obj(config_payload)
-                except ValidationError as exc:
-                    raise RuntimeError("Trading manager risk configuration is invalid") from exc
-
-    raise RuntimeError("Trading manager does not expose a canonical RiskConfig")
-
-
-def _summarise_risk_metadata(config: RiskConfig) -> dict[str, object]:
-    return {
-        "max_risk_per_trade_pct": float(config.max_risk_per_trade_pct),
-        "max_total_exposure_pct": float(config.max_total_exposure_pct),
-        "max_leverage": float(config.max_leverage),
-        "max_drawdown_pct": float(config.max_drawdown_pct),
-        "min_position_size": int(config.min_position_size),
-        "max_position_size": int(config.max_position_size),
-        "mandatory_stop_loss": bool(config.mandatory_stop_loss),
-        "research_mode": bool(config.research_mode),
-    }
-
-
 def _prepare_trading_risk_enforcement(
     app: ProfessionalPredatorApp, metadata: MutableMapping[str, object]
 ) -> StartupCallback | None:
@@ -357,13 +318,16 @@ def _prepare_trading_risk_enforcement(
         logger.debug("Trading manager not attached; skipping runtime risk enforcement")
         return None
 
-    risk_config = _resolve_trading_risk_config(trading_manager)
+    try:
+        risk_config = resolve_trading_risk_config(trading_manager)
+    except RiskApiError as exc:
+        raise RuntimeError(str(exc)) from exc
     if risk_config.max_risk_per_trade_pct <= 0:
         raise RuntimeError("RiskConfig.max_risk_per_trade_pct must be positive")
     if risk_config.max_total_exposure_pct <= 0:
         raise RuntimeError("RiskConfig.max_total_exposure_pct must be positive")
 
-    metadata["risk"] = _summarise_risk_metadata(risk_config)
+    metadata["risk"] = build_runtime_risk_metadata(trading_manager)
 
     async def _enforce_trading_risk_config() -> None:
         logger.info(

@@ -36,6 +36,7 @@ from src.trading.risk.policy_telemetry import (
 )
 from src.trading.risk.risk_gateway import RiskGateway
 from src.trading.risk.risk_policy import RiskPolicy
+from src.trading.risk.risk_api import resolve_trading_risk_interface
 
 from src.operations.roi import (
     RoiCostModel,
@@ -497,6 +498,18 @@ class TradingManager:
         """Expose the last published risk policy decision snapshot."""
 
         return self._last_policy_snapshot
+
+    def describe_risk_interface(self) -> dict[str, object]:
+        """Expose a deterministic snapshot of the trading risk interface."""
+
+        interface = resolve_trading_risk_interface(self)
+        payload: dict[str, object] = {
+            "config": interface.config.dict(),
+            "summary": interface.summary(),
+        }
+        if interface.status is not None:
+            payload["status"] = dict(interface.status)
+        return payload
 
     def _resolve_redis_client(self, provided: Any | None) -> Any:
         if provided is not None:

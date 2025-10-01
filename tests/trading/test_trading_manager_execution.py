@@ -203,3 +203,22 @@ def test_record_experiment_event_handles_non_mapping_inputs() -> None:
     assert recorded["status"] == "executed"
     assert "metadata" not in recorded
     assert "decision" not in recorded
+
+
+def test_describe_risk_interface_exposes_canonical_payload() -> None:
+    manager = TradingManager(
+        event_bus=DummyBus(),
+        strategy_registry=AlwaysActiveRegistry(),
+        execution_engine=None,
+        initial_equity=25_000.0,
+        risk_config=RiskConfig(),
+    )
+
+    description = manager.describe_risk_interface()
+
+    assert "config" in description
+    assert description["summary"]["mandatory_stop_loss"] is True
+    assert description["summary"]["max_risk_per_trade_pct"] == pytest.approx(
+        float(manager._risk_config.max_risk_per_trade_pct)  # type: ignore[attr-defined]
+    )
+    assert "policy_limits" in description["status"]

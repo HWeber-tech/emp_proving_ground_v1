@@ -67,6 +67,10 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
     records lineage and audit trails, publishes telemetry snapshots, and surfaces
     status summaries so runtime consumers inherit a single executable sensory
     surface under pytest coverage.【F:src/sensory/real_sensory_organ.py†L20-L208】【F:src/sensory/real_sensory_organ.py†L210-L336】【F:tests/sensory/test_real_sensory_organ.py†L1-L107】
+  - *Progress*: Core module now logs and documents the sensory organ import
+    fallback, emitting warnings and restoring stub exports under regression
+    coverage so bootstrap environments surface degraded sensory wiring instead of
+    silently masking missing dependencies.【F:src/core/__init__.py†L11-L45】【F:tests/core/test_core_init_fallback.py†L1-L43】
 - [ ] **Risk and runtime safety** – Enforce `RiskConfig`, finish the builder rollout,
   adopt supervised async lifecycles, and purge deprecated facades.
   - *Progress*: The trading risk gateway now drives portfolio checks through the
@@ -125,6 +129,14 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
     into warnings, raises on unexpected errors, and regression tests capture the
     fallback handling so readiness dashboards surface degraded validation runs
     instead of missing them.【F:src/operations/system_validation.py†L269-L312】【F:tests/operations/test_system_validation.py†L85-L137】
+  - *Progress*: Sensory drift telemetry publisher now routes through the shared
+    failover helper, logging runtime and global-bus degradation while retaining
+    deterministic payload metadata so dashboards receive alerts even when the
+    primary bus misbehaves.【F:src/operations/sensory_drift.py†L247-L276】【F:tests/operations/test_sensory_drift.py†L17-L163】
+  - *Progress*: Operational metrics regression suite now exercises fallback
+    execution, FIX wrapper sanitisation, and bounded latency histograms so guardrail
+    telemetry captures instrumentation failures instead of dropping them silently.
+    【F:src/operational/metrics.py†L1-L200】【F:tests/operational/test_metrics.py†L200-L328】
   - *Progress*: CI telemetry tooling now records remediation status snapshots via
     the `--remediation-status` CLI flag and validates the JSON contract under
     pytest so roadmap evidence, dashboard feeds, and audits inherit structured

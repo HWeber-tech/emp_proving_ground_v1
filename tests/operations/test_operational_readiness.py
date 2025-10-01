@@ -55,6 +55,11 @@ def test_operational_readiness_combines_components() -> None:
 
     assert readiness.status is OperationalReadinessStatus.fail
     assert readiness.metadata["component_count"] == 2
+    assert readiness.metadata["status_breakdown"] == {"warn": 1, "fail": 1}
+    assert readiness.metadata["component_statuses"] == {
+        "system_validation": "warn",
+        "incident_response": "fail",
+    }
     names = {component.name for component in readiness.components}
     assert names == {"system_validation", "incident_response"}
 
@@ -82,6 +87,7 @@ def test_operational_readiness_alert_generation() -> None:
     assert overall.severity is AlertSeverity.warning
     assert component.severity is AlertSeverity.warning
     assert "status warn" in component.message
+    assert overall.context["snapshot"]["metadata"]["status_breakdown"] == {"warn": 1}
 
     suppressed = derive_operational_alerts(
         readiness, threshold=OperationalReadinessStatus.fail, include_overall=False

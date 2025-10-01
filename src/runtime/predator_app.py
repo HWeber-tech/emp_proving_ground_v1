@@ -86,6 +86,7 @@ from src.operations.spark_stress import (
     SparkStressSnapshot,
     format_spark_stress_markdown,
 )
+from src.operations.slo import OperationalSLOSnapshot
 from src.operations.professional_readiness import ProfessionalReadinessSnapshot
 from src.operations.security import SecurityPostureSnapshot
 from src.operations.cache_health import CacheHealthSnapshot
@@ -108,6 +109,10 @@ from src.operations.cross_region_failover import (
 from src.operations.system_validation import (
     SystemValidationSnapshot,
     format_system_validation_markdown,
+)
+from src.operations.operational_readiness import (
+    evaluate_operational_readiness,
+    format_operational_readiness_markdown,
 )
 from src.operations.evolution_experiments import (
     EvolutionExperimentSnapshot,
@@ -264,6 +269,7 @@ class ProfessionalPredatorApp:
         self._last_data_retention_snapshot: DataRetentionSnapshot | None = None
         self._last_backbone_validation_snapshot: DataBackboneValidationSnapshot | None = None
         self._last_professional_snapshot: ProfessionalReadinessSnapshot | None = None
+        self._last_operational_slo_snapshot: OperationalSLOSnapshot | None = None
         self._last_compliance_snapshot: ComplianceReadinessSnapshot | None = None
         self._last_compliance_workflow_snapshot: ComplianceWorkflowSnapshot | None = None
         self._last_security_snapshot: SecurityPostureSnapshot | None = None
@@ -348,6 +354,18 @@ class ProfessionalPredatorApp:
         """Store the latest professional readiness snapshot."""
 
         self._last_professional_snapshot = snapshot
+
+    def record_operational_slo_snapshot(
+        self, snapshot: OperationalSLOSnapshot
+    ) -> None:
+        """Store the latest operational SLO snapshot."""
+
+        self._last_operational_slo_snapshot = snapshot
+
+    def get_last_operational_slo_snapshot(self) -> OperationalSLOSnapshot | None:
+        """Return the most recent operational SLO snapshot, if any."""
+
+        return self._last_operational_slo_snapshot
 
     def record_spark_export_snapshot(self, snapshot: SparkExportSnapshot) -> None:
         """Record the most recent Spark export snapshot for summaries."""
@@ -1145,6 +1163,30 @@ class ProfessionalPredatorApp:
             if markdown:
                 professional_payload["markdown"] = markdown
             summary_payload["professional_readiness"] = professional_payload
+
+        if self._last_operational_slo_snapshot is not None:
+            slo_snapshot = self._last_operational_slo_snapshot
+            slo_payload: dict[str, object] = {"snapshot": slo_snapshot.as_dict()}
+            markdown = slo_snapshot.to_markdown()
+            if markdown:
+                slo_payload["markdown"] = markdown
+            summary_payload["operational_slos"] = slo_payload
+
+        if (
+            self._last_system_validation_snapshot is not None
+            or self._last_incident_response_snapshot is not None
+            or self._last_operational_slo_snapshot is not None
+        ):
+            readiness_snapshot = evaluate_operational_readiness(
+                system_validation=self._last_system_validation_snapshot,
+                incident_response=self._last_incident_response_snapshot,
+                slo_snapshot=self._last_operational_slo_snapshot,
+                metadata={"protocol": self.config.connection_protocol.value},
+            )
+            summary_payload["operational_readiness"] = {
+                "snapshot": readiness_snapshot.as_dict(),
+                "markdown": format_operational_readiness_markdown(readiness_snapshot),
+            }
 
         return summary_payload
 

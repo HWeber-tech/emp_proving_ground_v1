@@ -48,7 +48,12 @@ from src.operations.retention import (
     RetentionComponentSnapshot,
     RetentionStatus,
 )
-from src.operations.system_validation import evaluate_system_validation
+from src.operations.system_validation import (
+    SystemValidationCheck,
+    SystemValidationSnapshot,
+    SystemValidationStatus,
+    evaluate_system_validation,
+)
 from src.operations.professional_readiness import (
     ProfessionalReadinessComponent,
     ProfessionalReadinessSnapshot,
@@ -715,6 +720,74 @@ async def test_professional_app_summary_includes_system_validation(tmp_path) -> 
     assert block is not None
     assert block["snapshot"]["failed_checks"] == 1
     assert "integration pending" in block["markdown"].lower()
+
+
+@pytest.mark.asyncio()
+async def test_professional_app_summary_includes_operational_readiness(tmp_path) -> None:
+    db_path = tmp_path / "operational_readiness.db"
+    cfg = SystemConfig().with_updated(
+        connection_protocol=ConnectionProtocol.bootstrap,
+        data_backbone_mode=DataBackboneMode.institutional,
+        extras={"TIMESCALEDB_URL": f"sqlite:///{db_path}"},
+    )
+
+    app = await build_professional_predator_app(config=cfg)
+    try:
+        system_snapshot = SystemValidationSnapshot(
+            status=SystemValidationStatus.warn,
+            generated_at=datetime(2025, 1, 5, tzinfo=UTC),
+            total_checks=3,
+            passed_checks=2,
+            failed_checks=1,
+            success_rate=2.0 / 3.0,
+            checks=(
+                SystemValidationCheck(name="timescale", passed=False, message="lag detected"),
+                SystemValidationCheck(name="redis", passed=True),
+                SystemValidationCheck(name="kafka", passed=True),
+            ),
+            metadata={"validator": "ops_guardian"},
+        )
+
+        policy = IncidentResponsePolicy(
+            required_runbooks=("timescale_outage",),
+            training_interval_days=30,
+            drill_interval_days=45,
+            minimum_primary_responders=1,
+            minimum_secondary_responders=1,
+            postmortem_sla_hours=24.0,
+            maximum_open_incidents=0,
+            require_chatops=True,
+        )
+        state = IncidentResponseState(
+            available_runbooks=tuple(),
+            training_age_days=90.0,
+            drill_age_days=50.0,
+            primary_oncall=tuple(),
+            secondary_oncall=tuple(),
+            open_incidents=("INC-204",),
+            postmortem_backlog_hours=48.0,
+            chatops_ready=False,
+        )
+
+        incident_snapshot = evaluate_incident_response(
+            policy,
+            state,
+            service="emp_incidents",
+            now=datetime(2025, 1, 5, 12, tzinfo=UTC),
+        )
+
+        app.record_system_validation_snapshot(system_snapshot)
+        app.record_incident_response_snapshot(incident_snapshot)
+        summary = app.summary()
+    finally:
+        await app.shutdown()
+
+    readiness = summary.get("operational_readiness")
+    assert readiness is not None
+    assert readiness["snapshot"]["status"] == "fail"
+    markdown = readiness.get("markdown", "").lower()
+    assert "operational readiness" in markdown
+    assert "incident_response" in markdown
 
 
 @pytest.mark.asyncio()

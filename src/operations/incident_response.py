@@ -8,7 +8,8 @@ from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Mapping, MutableMapping, Sequence
 
-from src.core.event_bus import Event, EventBus, get_global_bus
+from src.core.event_bus import Event, EventBus
+from src.operations.event_bus_failover import publish_event_with_failover
 
 logger = logging.getLogger(__name__)
 
@@ -357,22 +358,21 @@ def publish_incident_response_snapshot(
         source="operations.incident_response",
     )
 
-    publish_from_sync = getattr(event_bus, "publish_from_sync", None)
-    if callable(publish_from_sync) and event_bus.is_running():
-        try:
-            publish_from_sync(event)
-            return
-        except Exception:  # pragma: no cover - defensive publish fallback
-            logger.debug(
-                "Failed to publish incident response snapshot via runtime bus",
-                exc_info=True,
-            )
-
-    try:
-        topic_bus = get_global_bus()
-        topic_bus.publish_sync(event.type, event.payload, source=event.source)
-    except Exception:  # pragma: no cover - diagnostics only
-        logger.debug("Incident response telemetry publish skipped", exc_info=True)
+    publish_event_with_failover(
+        event_bus,
+        event,
+        logger=logger,
+        runtime_fallback_message=
+            "Primary event bus publish_from_sync failed; falling back to global bus",
+        runtime_unexpected_message=
+            "Unexpected error publishing incident response via runtime event bus",
+        runtime_none_message=
+            "Primary event bus publish_from_sync returned None; falling back to global bus",
+        global_not_running_message=
+            "Global event bus not running while publishing incident response snapshot",
+        global_unexpected_message=
+            "Unexpected error publishing incident response snapshot via global bus",
+    )
 
 
 __all__ = [

@@ -1,4 +1,7 @@
 from datetime import UTC, datetime
+from unittest.mock import patch
+
+import pytest
 
 from src.core.event_bus import Event
 from src.operations.incident_response import (
@@ -9,6 +12,7 @@ from src.operations.incident_response import (
     evaluate_incident_response,
     publish_incident_response_snapshot,
 )
+from src.operations.event_bus_failover import EventPublishError
 
 
 class _StubEventBus:
@@ -21,6 +25,7 @@ class _StubEventBus:
 
     def publish_from_sync(self, event: Event) -> None:
         self.events.append(event)
+        return True
 
 
 def test_evaluate_incident_response_ok() -> None:
@@ -137,3 +142,26 @@ def test_publish_incident_response_snapshot() -> None:
     event = bus.events[0]
     assert event.type == "telemetry.operational.incident_response"
     assert event.payload["status"] == "warn"
+
+
+def test_publish_incident_response_snapshot_raises_on_failover_error() -> None:
+    snapshot = IncidentResponseSnapshot(
+        service="emp",
+        generated_at=datetime(2025, 3, 1, tzinfo=UTC),
+        status=IncidentResponseStatus.fail,
+        missing_runbooks=("redis_outage",),
+        training_age_days=None,
+        drill_age_days=None,
+        primary_oncall=tuple(),
+        secondary_oncall=tuple(),
+        open_incidents=tuple(),
+        issues=("Runtime bus unavailable",),
+        metadata={},
+    )
+
+    with patch(
+        "src.operations.incident_response.publish_event_with_failover",
+        side_effect=EventPublishError("runtime", "telemetry.operational.incident_response"),
+    ):
+        with pytest.raises(EventPublishError):
+            publish_incident_response_snapshot(_StubEventBus(), snapshot)

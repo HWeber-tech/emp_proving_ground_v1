@@ -74,7 +74,7 @@
   - Progress: Cache health publishing now logs primary bus errors, only falls back
     when runtime failures occur, and raises on unexpected or global-bus outages
     under pytest guardrails so readiness telemetry surfaces real cache incidents
-    instead of quietly failing to publish.【F:src/operations/cache_health.py†L230-L303】【F:tests/operations/test_cache_health.py†L64-L131】
+    instead of quietly failing to publish.【F:src/operations/cache_health.py†L143-L245】【F:tests/operations/test_cache_health.py†L15-L138】
 - Progress: Operational metrics instrumentation now has targeted regressions for
   logging escalation, lazy gauge fallbacks, Prometheus exporter idempotence, and
   registry sink adapters so CI surfaces metric failures deterministically and
@@ -85,6 +85,10 @@
 - Refresh CI dashboard rows as telemetry lands, noting validation hooks and
   outstanding actions so stakeholders see live gaps (e.g., sensory fixture
   rollout, ingest metrics coverage).【F:docs/status/ci_health.md†L21-L76】
+- Progress: CI now runs a dedicated guardrail marker job ahead of the coverage
+  sweep so ingest, risk, and observability guardrails run in isolation and fail
+  fast when regressions surface, with the workflow and pytest marker contract
+  documenting the enforced scope.【F:.github/workflows/ci.yml†L79-L123】【F:pytest.ini†L1-L25】【F:tests/data_foundation/test_timescale_backbone_orchestrator.py†L1-L28】
 
 ### Next (30–90 days)
 

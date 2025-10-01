@@ -41,6 +41,10 @@
   - Progress: Risk policy regression enforces mandatory stop losses, positive
     equity budgets, and violation telemetry so CI fails fast when policy guardrails
     drift, keeping execution blockers visible to compliance reviewers.【F:src/trading/risk/risk_policy.py†L120-L246】【F:tests/trading/test_risk_policy.py†L117-L205】
+- Progress: Policy telemetry builders serialise decision snapshots, emit Markdown
+  summaries, and publish violation alerts with embedded escalation metadata while
+  the trading manager mirrors the feed and the new runbook documents the response,
+  giving governance a deterministic alert surface when violations occur.【F:src/trading/risk/policy_telemetry.py†L1-L285】【F:src/trading/trading_manager.py†L642-L686】【F:docs/operations/runbooks/risk_policy_violation.md†L1-L51】【F:tests/trading/test_risk_policy_telemetry.py†L1-L199】
 - Progress: Runtime builder now resolves the canonical `RiskConfig`, validates
   risk thresholds, and records enforced metadata under regression coverage so
   supervised launches cannot proceed without mandatory limits, aligning runtime

@@ -122,6 +122,59 @@ def test_risk_policy_warns_but_allows_in_research_mode() -> None:
     assert decision.metadata["research_mode"] is True
 
 
+def test_risk_policy_warns_when_near_exposure_and_leverage_limits() -> None:
+    config = RiskConfig(
+        max_risk_per_trade_pct=Decimal("0.02"),
+        max_total_exposure_pct=Decimal("0.5"),
+        max_leverage=Decimal("0.5"),
+        max_drawdown_pct=Decimal("0.1"),
+        min_position_size=1,
+        max_position_size=50_000,
+        mandatory_stop_loss=False,
+    )
+    policy = RiskPolicy.from_config(config)
+
+    state = _state(
+        {
+            "EURUSD": {"quantity": 20_000.0, "last_price": 1.5},
+        }
+    )
+
+    decision = policy.evaluate(
+        symbol="EURUSD",
+        quantity=10_000.0,
+        price=1.5,
+        stop_loss_pct=0.01,
+        portfolio_state=state,
+    )
+
+    assert decision.approved is True
+    assert decision.violations == tuple()
+
+    exposure_check = next(
+        check
+        for check in decision.checks
+        if check["name"] == "policy.max_total_exposure_pct"
+    )
+    assert exposure_check["status"] == "warn"
+    assert exposure_check["value"] == pytest.approx(45_000.0)
+    assert exposure_check["threshold"] == pytest.approx(50_000.0)
+    assert exposure_check["ratio"] == pytest.approx(0.9, rel=1e-6)
+
+    leverage_check = next(
+        check for check in decision.checks if check["name"] == "policy.max_leverage"
+    )
+    assert leverage_check["status"] == "warn"
+    assert leverage_check["value"] == pytest.approx(0.45, rel=1e-6)
+    assert leverage_check["threshold"] == pytest.approx(0.5)
+    assert leverage_check["ratio"] == pytest.approx(0.9, rel=1e-6)
+
+    assert decision.metadata["projected_total_exposure"] == pytest.approx(45_000.0)
+    assert decision.metadata["projected_leverage"] == pytest.approx(0.45, rel=1e-6)
+    assert decision.metadata["max_total_exposure"] == pytest.approx(50_000.0)
+    assert decision.metadata["estimated_risk"] == pytest.approx(150.0)
+
+
 def test_risk_policy_requires_stop_loss_and_equity_budget() -> None:
     config = RiskConfig(
         max_risk_per_trade_pct=Decimal("0.02"),

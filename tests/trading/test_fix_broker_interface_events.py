@@ -17,6 +17,7 @@ class DummyRiskGateway:
         self.last_intent: Any | None = None
         self.last_state: Mapping[str, Any] | None = None
         self._last_decision: Mapping[str, Any] | None = None
+        self._last_policy_snapshot: Mapping[str, Any] | None = None
 
     async def validate_trade_intent(
         self, intent: Any, portfolio_state: Mapping[str, Any] | None
@@ -30,6 +31,11 @@ class DummyRiskGateway:
             self._last_decision = {
                 "reason": "policy_violation",
                 "symbol": symbol,
+            }
+            self._last_policy_snapshot = {
+                "symbol": symbol,
+                "approved": False,
+                "violations": ["policy_violation"],
             }
             return None
 
@@ -46,10 +52,18 @@ class DummyRiskGateway:
             "status": "approved",
             "symbol": symbol,
         }
+        self._last_policy_snapshot = {
+            "symbol": symbol,
+            "approved": True,
+            "violations": [],
+        }
         return intent
 
     def get_last_decision(self) -> Mapping[str, Any] | None:
         return self._last_decision
+
+    def get_last_policy_snapshot(self) -> Mapping[str, Any] | None:
+        return self._last_policy_snapshot
 
 
 class DummyEventBus:
@@ -157,6 +171,7 @@ async def test_fix_interface_blocks_when_risk_gateway_rejects() -> None:
     assert payload["symbol"] == "EURUSD"
     assert payload["side"] == "BUY"
     assert payload["quantity"] == pytest.approx(100_000.0)
+    assert payload.get("policy_snapshot", {}).get("approved") is False
 
 
 @pytest.mark.asyncio
@@ -200,4 +215,7 @@ async def test_fix_interface_uses_risk_gateway_adjustments() -> None:
     risk_decision = order_record.get("risk_decision")
     assert risk_decision is not None
     assert risk_decision.get("status") == "approved"
+    policy_snapshot = order_record.get("policy_snapshot")
+    assert policy_snapshot is not None
+    assert policy_snapshot.get("approved") is True
 

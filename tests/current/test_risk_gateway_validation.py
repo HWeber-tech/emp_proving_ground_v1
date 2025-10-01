@@ -134,6 +134,9 @@ async def test_risk_gateway_clips_position_and_adds_liquidity_metadata(
     policy_decision = gateway.get_last_policy_decision()
     assert policy_decision is not None
     assert policy_decision.approved is True
+    snapshot = gateway.get_last_policy_snapshot()
+    assert snapshot is not None
+    assert snapshot.approved is True
 
 
 @pytest.mark.asyncio()
@@ -217,6 +220,9 @@ async def test_risk_gateway_rejects_on_policy_violation(
     policy_decision = gateway.get_last_policy_decision()
     assert policy_decision is not None
     assert "policy.min_position_size" in policy_decision.violations
+    snapshot = gateway.get_last_policy_snapshot()
+    assert snapshot is not None
+    assert "policy.min_position_size" in snapshot.violations
 
 
 @pytest.mark.asyncio()

@@ -26,9 +26,13 @@ from src.risk.telemetry import (
 from src.trading.monitoring.portfolio_monitor import InMemoryRedis, PortfolioMonitor
 from src.trading.risk.policy_telemetry import (
     RiskPolicyEvaluationSnapshot,
+    RiskPolicyViolationAlert,
     build_policy_snapshot,
+    build_policy_violation_alert,
     format_policy_markdown,
+    format_policy_violation_markdown,
     publish_policy_snapshot,
+    publish_policy_violation,
 )
 from src.trading.risk.risk_gateway import RiskGateway
 from src.trading.risk.risk_policy import RiskPolicy
@@ -638,16 +642,24 @@ class TradingManager:
     async def _emit_policy_snapshot(self) -> None:
         """Publish the most recent policy decision as telemetry."""
 
+        snapshot: RiskPolicyEvaluationSnapshot | None = None
         try:
-            policy_decision = self.risk_gateway.get_last_policy_decision()
+            snapshot = self.risk_gateway.get_last_policy_snapshot()
         except Exception:  # pragma: no cover - diagnostics only
-            logger.debug("RiskGateway.get_last_policy_decision failed", exc_info=True)
+            logger.debug("RiskGateway.get_last_policy_snapshot failed", exc_info=True)
+
+        if snapshot is None and self._risk_policy is not None:
+            try:
+                policy_decision = self.risk_gateway.get_last_policy_decision()
+            except Exception:  # pragma: no cover - diagnostics only
+                logger.debug("RiskGateway.get_last_policy_decision failed", exc_info=True)
+                return
+            if policy_decision is None:
+                return
+            snapshot = build_policy_snapshot(policy_decision, self._risk_policy)
+        elif snapshot is None:
             return
 
-        if policy_decision is None or self._risk_policy is None:
-            return
-
-        snapshot = build_policy_snapshot(policy_decision, self._risk_policy)
         self._last_policy_snapshot = snapshot
         logger.info("🛡️ Policy decision\n%s", format_policy_markdown(snapshot))
 
@@ -655,3 +667,20 @@ class TradingManager:
             await publish_policy_snapshot(self.event_bus, snapshot, source="trading_manager")
         except Exception:  # pragma: no cover - diagnostics only
             logger.debug("Failed to publish risk policy telemetry", exc_info=True)
+
+        if not snapshot.approved or snapshot.violations:
+            severity = "critical" if not snapshot.approved else "warning"
+            alert: RiskPolicyViolationAlert = build_policy_violation_alert(
+                snapshot,
+                severity=severity,
+                runbook="docs/operations/runbooks/risk_policy_violation.md",
+            )
+            logger.warning("🚨 Policy violation alert\n%s", format_policy_violation_markdown(alert))
+            try:
+                await publish_policy_violation(
+                    self.event_bus,
+                    alert,
+                    source="trading_manager",
+                )
+            except Exception:  # pragma: no cover - diagnostics only
+                logger.debug("Failed to publish policy violation telemetry", exc_info=True)

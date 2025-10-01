@@ -45,6 +45,8 @@ class SupportsRiskGateway(Protocol):
 
     def get_last_decision(self) -> Mapping[str, Any] | None: ...
 
+    def get_last_policy_snapshot(self) -> Any | None: ...
+
 
 class FIXBrokerInterface:
     """Interface between FIX protocol and trading system.
@@ -224,6 +226,26 @@ class FIXBrokerInterface:
         }
         if decision:
             payload["decision"] = dict(decision)
+
+        snapshot_payload: dict[str, object] | None = None
+        gateway = self._risk_gateway
+        if gateway is not None:
+            try:
+                snapshot = gateway.get_last_policy_snapshot()
+            except Exception:
+                logger.debug("risk_gateway_policy_snapshot_failed", exc_info=True)
+            else:
+                if snapshot is not None:
+                    try:
+                        snapshot_payload = (
+                            snapshot.as_dict()
+                            if hasattr(snapshot, "as_dict")
+                            else dict(snapshot)
+                        )
+                    except Exception:
+                        logger.debug("policy_snapshot_serialisation_failed", exc_info=True)
+        if snapshot_payload:
+            payload["policy_snapshot"] = snapshot_payload
 
         try:
             await self.event_bus.emit(self._risk_event_topic, payload)
@@ -522,6 +544,22 @@ class FIXBrokerInterface:
                         logger.debug("risk_gateway_last_decision_failed", exc_info=True)
                     if decision:
                         self.orders[order_id]["risk_decision"] = dict(decision)
+                    try:
+                        snapshot = risk_gateway.get_last_policy_snapshot()
+                    except Exception:
+                        logger.debug("risk_gateway_policy_snapshot_failed", exc_info=True)
+                    else:
+                        if snapshot is not None:
+                            try:
+                                self.orders[order_id]["policy_snapshot"] = (
+                                    snapshot.as_dict()
+                                    if hasattr(snapshot, "as_dict")
+                                    else dict(snapshot)
+                                )
+                            except Exception:
+                                logger.debug(
+                                    "policy_snapshot_serialisation_failed", exc_info=True
+                                )
 
                 return order_id
         except Exception as e:

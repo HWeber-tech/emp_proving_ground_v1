@@ -38,6 +38,10 @@ from src.trading.execution.execution_model import (
     estimate_commission_bps,
     estimate_slippage_bps,
 )
+from .policy_telemetry import (
+    RiskPolicyEvaluationSnapshot,
+    build_policy_snapshot,
+)
 from .risk_policy import RiskPolicy, RiskPolicyDecision
 
 try:  # pragma: no cover - metrics optional in certain runtimes
@@ -202,6 +206,7 @@ class RiskGateway:
             "last_decision": None,
         }
         self._last_policy_decision: RiskPolicyDecision | None = None
+        self._last_policy_snapshot: RiskPolicyEvaluationSnapshot | None = None
 
     # ------------------------------------------------------------------
     # Public API
@@ -213,6 +218,7 @@ class RiskGateway:
 
         self.telemetry["total_checks"] += 1
         self._last_policy_decision = None
+        self._last_policy_snapshot = None
         decision: dict[str, Any] = {
             "timestamp": datetime.utcnow().isoformat(),
             "symbol": _extract_attr(intent, "symbol", default="UNKNOWN"),
@@ -268,6 +274,13 @@ class RiskGateway:
                     portfolio_state=portfolio_state,
                 )
                 self._last_policy_decision = policy_decision
+                try:
+                    self._last_policy_snapshot = build_policy_snapshot(
+                        policy_decision, self.risk_policy
+                    )
+                except Exception:  # pragma: no cover - defensive telemetry path
+                    logger.debug("Failed to build policy snapshot", exc_info=True)
+                    self._last_policy_snapshot = None
                 decision["checks"].extend(policy_decision.checks)
                 policy_metadata = policy_decision.metadata
                 decision["policy"] = {
@@ -377,6 +390,11 @@ class RiskGateway:
         """Return the last evaluated :class:`RiskPolicyDecision`, if available."""
 
         return self._last_policy_decision
+
+    def get_last_policy_snapshot(self) -> RiskPolicyEvaluationSnapshot | None:
+        """Expose the last :class:`RiskPolicyEvaluationSnapshot`, if available."""
+
+        return self._last_policy_snapshot
 
     # ------------------------------------------------------------------
     # Internal helpers

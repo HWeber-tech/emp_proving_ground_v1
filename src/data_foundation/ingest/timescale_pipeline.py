@@ -146,6 +146,7 @@ class TimescaleBackboneOrchestrator:
                     "source": plan.daily.source,
                     "requested_symbols": symbols,
                     "lookback_days": plan.daily.lookback_days,
+                    "fetched_rows": 0,
                 }
 
                 if not symbols:
@@ -175,6 +176,7 @@ class TimescaleBackboneOrchestrator:
                     "requested_symbols": symbols,
                     "lookback_days": plan.intraday.lookback_days,
                     "interval": plan.intraday.interval,
+                    "fetched_rows": 0,
                 }
                 if not symbols:
                     result = TimescaleIngestResult.empty(
@@ -206,6 +208,8 @@ class TimescaleBackboneOrchestrator:
                     if plan.macro.has_window()
                     else None,
                     "provided_events": len(events) if events is not None else 0,
+                    "fetched_events": 0,
+                    "frame_rows": 0,
                 }
 
                 if events is None:

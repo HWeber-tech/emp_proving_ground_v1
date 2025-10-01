@@ -271,6 +271,34 @@ def test_risk_policy_falls_back_to_portfolio_price_when_missing_market_price() -
     assert decision.metadata["projected_total_exposure"] == pytest.approx(1_250.0)
 
 
+def test_risk_policy_rejects_when_market_price_unavailable() -> None:
+    config = RiskConfig(
+        max_risk_per_trade_pct=Decimal("0.02"),
+        max_total_exposure_pct=Decimal("0.5"),
+        max_leverage=Decimal("5.0"),
+        max_drawdown_pct=Decimal("0.1"),
+        min_position_size=1,
+    )
+    policy = RiskPolicy.from_config(config)
+
+    decision = policy.evaluate(
+        symbol="EURUSD",
+        quantity=1_000.0,
+        price=0.0,
+        stop_loss_pct=0.02,
+        portfolio_state=_state(),
+    )
+
+    assert not decision.approved
+    assert decision.reason == "policy.market_price"
+    assert "policy.market_price" in decision.violations
+    market_check = next(
+        check for check in decision.checks if check["name"] == "policy.market_price"
+    )
+    assert market_check["status"] == "violation"
+    assert decision.metadata["resolved_price"] == pytest.approx(0.0)
+
+
 def test_risk_policy_enforces_minimum_position_size() -> None:
     config = RiskConfig(
         max_risk_per_trade_pct=Decimal("0.02"),

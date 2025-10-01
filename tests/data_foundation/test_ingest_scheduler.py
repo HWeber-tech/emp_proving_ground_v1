@@ -280,3 +280,35 @@ async def test_publish_scheduler_snapshot_emits_event() -> None:
     assert event.type == "telemetry.ingest.scheduler"
     assert event.payload["status"] == snapshot.status.value
     assert "markdown" in event.payload
+
+
+def test_ingest_schedule_validation_guards_negative_values() -> None:
+    with pytest.raises(ValueError, match="interval_seconds"):
+        IngestSchedule(interval_seconds=0)
+    with pytest.raises(ValueError, match="jitter_seconds"):
+        IngestSchedule(interval_seconds=1, jitter_seconds=-0.1)
+    with pytest.raises(ValueError, match="max_failures"):
+        IngestSchedule(interval_seconds=1, jitter_seconds=0, max_failures=-1)
+
+
+def test_ingest_scheduler_state_serialises_to_json_primitives() -> None:
+    now = datetime(2024, 1, 1, 12, 0, tzinfo=UTC)
+    state = IngestSchedulerState(
+        running=True,
+        last_started_at=now,
+        last_completed_at=now,
+        last_success_at=now,
+        consecutive_failures=2,
+        next_run_at=now + timedelta(seconds=30),
+        interval_seconds=30.0,
+        jitter_seconds=5.0,
+        max_failures=4,
+    )
+
+    snapshot = state.as_dict()
+
+    assert snapshot["running"] is True
+    assert snapshot["last_started_at"].endswith("+00:00")
+    assert snapshot["consecutive_failures"] == 2
+    assert snapshot["interval_seconds"] == 30.0
+    assert snapshot["max_failures"] == 4

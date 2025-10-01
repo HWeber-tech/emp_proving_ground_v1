@@ -70,6 +70,7 @@ class SensoryDimensionDrift:
     confidence_delta: float | None
     severity: DriftSeverity
     samples: int
+    metrics: Mapping[str, float] = field(default_factory=dict)
 
     def as_dict(self) -> dict[str, Any]:
         payload: dict[str, Any] = {
@@ -88,6 +89,8 @@ class SensoryDimensionDrift:
             payload["baseline_confidence"] = self.baseline_confidence
         if self.confidence_delta is not None:
             payload["confidence_delta"] = self.confidence_delta
+        if self.metrics:
+            payload["metrics"] = dict(self.metrics)
         return payload
 
 
@@ -165,6 +168,8 @@ def evaluate_sensory_drift(
     dimension_payloads: MutableMapping[str, SensoryDimensionDrift] = {}
     aggregate_status = DriftSeverity.normal
 
+    latest_metrics_summary: MutableMapping[str, Mapping[str, float]] = {}
+
     for name, payload in latest_dimensions.items():
         if not isinstance(payload, Mapping):
             continue
@@ -174,6 +179,9 @@ def evaluate_sensory_drift(
             continue
 
         current_confidence = _coerce_float(payload.get("confidence"))
+        metrics = _sanitize_metrics(payload.get("metrics"))
+        if metrics:
+            latest_metrics_summary[str(name)] = metrics
 
         baseline_signals: list[float] = []
         baseline_confidences: list[float] = []
@@ -222,11 +230,14 @@ def evaluate_sensory_drift(
             confidence_delta=confidence_delta,
             severity=severity,
             samples=1 + len(baseline_signals),
+            metrics=metrics,
         )
 
     snapshot_metadata = {"entries": len(cleaned_entries)}
     if metadata:
         snapshot_metadata.update(dict(metadata))
+    if latest_metrics_summary:
+        snapshot_metadata["latest_metrics"] = dict(latest_metrics_summary)
 
     return SensoryDriftSnapshot(
         generated_at=generated_at,
@@ -235,6 +246,17 @@ def evaluate_sensory_drift(
         sample_window=min(len(cleaned_entries), lookback + 1),
         metadata=snapshot_metadata,
     )
+
+
+def _sanitize_metrics(payload: Any) -> Mapping[str, float]:
+    if not isinstance(payload, Mapping):
+        return {}
+    metrics: dict[str, float] = {}
+    for key, value in payload.items():
+        number = _coerce_float(value)
+        if number is not None:
+            metrics[str(key)] = number
+    return metrics
 
 
 def publish_sensory_drift(event_bus: EventBus, snapshot: SensoryDriftSnapshot) -> None:

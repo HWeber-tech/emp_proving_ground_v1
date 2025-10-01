@@ -4,6 +4,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 
 import pandas as pd
+import pytest
 
 from src.sensory.real_sensory_organ import RealSensoryOrgan
 
@@ -99,6 +100,14 @@ def test_real_sensory_organ_observe_builds_snapshot() -> None:
     event_type, payload = bus.events[0]
     assert event_type == "telemetry.sensory.snapshot"
     assert payload["symbol"] == "EURUSD"
+
+    status = organ.status()
+    latest = status["latest"]
+    assert latest is not None
+    how_metrics = latest["dimensions"]["HOW"]["metrics"]
+    assert how_metrics["liquidity"] > 0
+    anomaly_thresholds = latest["dimensions"]["ANOMALY"]["thresholds"]
+    assert pytest.approx(anomaly_thresholds["warn"], rel=1e-6) == 0.4
 
 
 def test_real_sensory_organ_handles_empty_frame() -> None:

@@ -146,10 +146,7 @@ class RealSensoryOrgan:
             "unified_score": integrated.strength,
             "confidence": integrated.confidence,
             "dimensions": {
-                name: {
-                    "signal": payload["signal"],
-                    "confidence": payload["confidence"],
-                }
+                name: self._summarise_dimension_payload(payload)
                 for name, payload in dimension_payloads.items()
             },
         }
@@ -281,14 +278,52 @@ class RealSensoryOrgan:
         dimensions = snapshot.get("dimensions")
         if isinstance(dimensions, Mapping):
             payload["dimensions"] = {
-                name: {
-                    "signal": entry.get("signal"),
-                    "confidence": entry.get("confidence"),
-                }
+                name: self._summarise_dimension_payload(entry)
                 for name, entry in dimensions.items()
                 if isinstance(entry, Mapping)
             }
         return payload
+
+    def _summarise_dimension_payload(
+        self, payload: Mapping[str, Any]
+    ) -> Mapping[str, Any]:
+        summary: dict[str, Any] = {
+            "signal": payload.get("signal"),
+            "confidence": payload.get("confidence"),
+        }
+
+        metrics: dict[str, float] = {}
+        value = payload.get("value")
+        if isinstance(value, Mapping):
+            metrics.update(self._extract_numeric_metrics(value))
+
+        metadata = payload.get("metadata")
+        if isinstance(metadata, Mapping):
+            thresholds = metadata.get("thresholds")
+            if isinstance(thresholds, Mapping):
+                summary["thresholds"] = self._serialise_mapping(thresholds)
+
+            audit_payload = metadata.get("audit")
+            if isinstance(audit_payload, Mapping):
+                metrics.update(self._extract_numeric_metrics(audit_payload))
+
+        if metrics:
+            summary["metrics"] = metrics
+
+        return summary
+
+    def _extract_numeric_metrics(self, mapping: Mapping[str, Any]) -> dict[str, float]:
+        metrics: dict[str, float] = {}
+        for key, value in mapping.items():
+            if isinstance(value, Mapping):
+                continue
+            key_str = str(key)
+            if key_str in {"strength", "confidence"}:
+                continue
+            number = self._as_float(value)
+            if number is not None:
+                metrics[key_str] = number
+        return metrics
 
     def _format_timestamp(self, value: Any) -> str | None:
         if isinstance(value, datetime):

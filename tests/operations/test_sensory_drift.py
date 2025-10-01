@@ -13,8 +13,16 @@ def test_evaluate_sensory_drift_flags_alert_and_warn() -> None:
             "unified_score": 0.62,
             "confidence": 0.78,
             "dimensions": {
-                "why": {"signal": 0.55, "confidence": 0.74},
-                "how": {"signal": -0.15, "confidence": 0.68},
+                "why": {
+                    "signal": 0.55,
+                    "confidence": 0.74,
+                    "metrics": {"breadth": 1.2},
+                },
+                "how": {
+                    "signal": -0.15,
+                    "confidence": 0.68,
+                    "metrics": {"liquidity": 0.45},
+                },
             },
         },
         {
@@ -23,8 +31,16 @@ def test_evaluate_sensory_drift_flags_alert_and_warn() -> None:
             "unified_score": 0.10,
             "confidence": 0.45,
             "dimensions": {
-                "why": {"signal": 0.05, "confidence": 0.40},
-                "how": {"signal": 0.12, "confidence": 0.52},
+                "why": {
+                    "signal": 0.05,
+                    "confidence": 0.40,
+                    "metrics": {"breadth": 0.4},
+                },
+                "how": {
+                    "signal": 0.12,
+                    "confidence": 0.52,
+                    "metrics": {"liquidity": 0.30},
+                },
             },
         },
         {
@@ -33,8 +49,16 @@ def test_evaluate_sensory_drift_flags_alert_and_warn() -> None:
             "unified_score": -0.05,
             "confidence": 0.48,
             "dimensions": {
-                "why": {"signal": -0.02, "confidence": 0.42},
-                "how": {"signal": 0.08, "confidence": 0.46},
+                "why": {
+                    "signal": -0.02,
+                    "confidence": 0.42,
+                    "metrics": {"breadth": 0.1},
+                },
+                "how": {
+                    "signal": 0.08,
+                    "confidence": 0.46,
+                    "metrics": {"liquidity": 0.25},
+                },
             },
         },
     ]
@@ -50,12 +74,17 @@ def test_evaluate_sensory_drift_flags_alert_and_warn() -> None:
     assert why.baseline_signal is not None
     assert pytest.approx(why.baseline_signal, rel=1e-6) == 0.015
     assert why.delta is not None and why.delta > 0.5
+    assert why.metrics["breadth"] == pytest.approx(1.2, rel=1e-6)
 
     how = snapshot.dimensions["how"]
     assert how.severity is DriftSeverity.warn
     assert how.delta is not None and pytest.approx(how.delta, rel=1e-6) == -0.25
+    assert how.metrics["liquidity"] == pytest.approx(0.45, rel=1e-6)
     markdown = snapshot.to_markdown()
     assert "why" in markdown and "how" in markdown
+    latest_metrics = snapshot.metadata.get("latest_metrics")
+    assert latest_metrics is not None
+    assert latest_metrics["why"]["breadth"] == pytest.approx(1.2, rel=1e-6)
 
 
 def test_evaluate_sensory_drift_handles_single_entry() -> None:
@@ -64,7 +93,11 @@ def test_evaluate_sensory_drift_handles_single_entry() -> None:
             "symbol": "GBPUSD",
             "generated_at": datetime.utcnow().isoformat(),
             "dimensions": {
-                "why": {"signal": 0.25, "confidence": 0.6},
+                "why": {
+                    "signal": 0.25,
+                    "confidence": 0.6,
+                    "metrics": {"breadth": 0.8},
+                },
             },
         }
     ]
@@ -77,3 +110,4 @@ def test_evaluate_sensory_drift_handles_single_entry() -> None:
     assert why.baseline_signal is None
     assert why.delta is None
     assert why.severity is DriftSeverity.normal
+    assert why.metrics["breadth"] == pytest.approx(0.8, rel=1e-6)

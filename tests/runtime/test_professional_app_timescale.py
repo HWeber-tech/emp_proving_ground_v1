@@ -1302,13 +1302,14 @@ async def test_professional_app_summary_includes_sensory_drift(tmp_path) -> None
             confidence_delta=0.06,
             severity=DriftSeverity.warn,
             samples=3,
+            metrics={"breadth": 1.1},
         )
         snapshot = SensoryDriftSnapshot(
             generated_at=datetime(2024, 1, 4, tzinfo=UTC),
             status=DriftSeverity.warn,
             dimensions={"why": dimension},
             sample_window=3,
-            metadata={"entries": 3},
+            metadata={"entries": 3, "latest_metrics": {"why": {"breadth": 1.1}}},
         )
         app.record_sensory_drift_snapshot(snapshot)
 
@@ -1318,6 +1319,9 @@ async def test_professional_app_summary_includes_sensory_drift(tmp_path) -> None
         assert drift_section["snapshot"]["status"] == DriftSeverity.warn.value
         assert "markdown" in drift_section
         assert "why" in drift_section["markdown"]
+        assert drift_section["snapshot"]["dimensions"]["why"]["metrics"]["breadth"] == pytest.approx(
+            1.1, rel=1e-6
+        )
     finally:
         await app.shutdown()
 

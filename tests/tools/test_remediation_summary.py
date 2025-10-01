@@ -47,6 +47,7 @@ def test_render_remediation_summary_formats_markdown(tmp_path: Path) -> None:
     assert "Regression coverage uplift" in summary
     assert "## Latest status overview" in summary
     assert "**coverage**: 78%" in summary
+    assert "Δ +2%" in summary
 
 
 def test_render_remediation_summary_honours_limit(tmp_path: Path) -> None:
@@ -74,6 +75,24 @@ def test_render_remediation_summary_handles_empty_metrics(tmp_path: Path) -> Non
     summary = render_remediation_summary(metrics_path)
 
     assert "No remediation snapshots" in summary
+
+
+def test_render_remediation_summary_omits_delta_for_non_numeric_status(tmp_path: Path) -> None:
+    metrics_path = tmp_path / "ci_metrics.json"
+    _write_metrics(
+        metrics_path,
+        [
+            {"label": "snapshot-a", "statuses": {"observability": "green"}},
+            {"label": "snapshot-b", "statuses": {"observability": "amber"}},
+        ],
+    )
+
+    summary = render_remediation_summary(metrics_path)
+
+    latest_line = next(
+        line for line in summary.splitlines() if line.strip().startswith("- **observability**")
+    )
+    assert "Δ" not in latest_line
 
 
 def test_cli_writes_output_file(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:

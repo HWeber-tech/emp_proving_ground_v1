@@ -11,6 +11,7 @@ from src.operations.evolution_experiments import (
     format_evolution_experiment_markdown,
     publish_evolution_experiment_snapshot,
 )
+from src.operations.event_bus_failover import EventPublishError
 from src.operations.roi import RoiStatus, RoiTelemetrySnapshot
 
 
@@ -135,7 +136,7 @@ def test_publish_evolution_experiment_snapshot_falls_back_on_runtime_error(
             published.append((event_type, payload, source))
 
     monkeypatch.setattr(
-        "src.operations.evolution_experiments.get_global_bus", lambda: GlobalBus()
+        "src.operations.event_bus_failover.get_global_bus", lambda: GlobalBus()
     )
 
     snapshot = evaluate_evolution_experiments(
@@ -168,7 +169,9 @@ def test_publish_evolution_experiment_snapshot_raises_on_unexpected_error(
     def fail_global_bus() -> object:
         raise AssertionError("global bus should not be used when primary raises")
 
-    monkeypatch.setattr("src.operations.evolution_experiments.get_global_bus", fail_global_bus)
+    monkeypatch.setattr(
+        "src.operations.event_bus_failover.get_global_bus", fail_global_bus
+    )
 
     snapshot = evaluate_evolution_experiments(
         [
@@ -178,8 +181,11 @@ def test_publish_evolution_experiment_snapshot_raises_on_unexpected_error(
         roi_snapshot=_build_roi_snapshot(),
     )
 
-    with pytest.raises(ValueError):
+    with pytest.raises(EventPublishError) as excinfo:
         publish_evolution_experiment_snapshot(PrimaryBus(), snapshot)
+
+    assert excinfo.value.stage == "runtime"
+    assert excinfo.value.event_type == "telemetry.evolution.experiments"
 
 
 def test_evaluate_evolution_experiments_accepts_roi_mapping() -> None:

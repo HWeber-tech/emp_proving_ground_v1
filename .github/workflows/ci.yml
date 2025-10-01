@@ -91,6 +91,9 @@ jobs:
             tests/data_foundation \
             tests/operations \
             tests/trading \
+            tests/runtime \
+            tests/observability \
+            tests/risk \
             --cov=src \
             --cov-report=term \
             -q | tee pytest.log

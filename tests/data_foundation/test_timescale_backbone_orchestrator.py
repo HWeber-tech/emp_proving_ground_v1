@@ -21,6 +21,9 @@ from src.data_foundation.persist.timescale import TimescaleIngestResult
 from src.data_foundation.schemas import MacroEvent
 
 
+pytestmark = pytest.mark.guardrail
+
+
 class _FailingSettings:
     """Settings stub that fails if the engine is constructed."""
 

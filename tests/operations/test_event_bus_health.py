@@ -15,6 +15,9 @@ from src.operations.event_bus_health import (
 )
 
 
+pytestmark = pytest.mark.guardrail
+
+
 @pytest.mark.asyncio()
 async def test_event_bus_health_reports_failure_when_bus_not_running() -> None:
     bus = EventBus()

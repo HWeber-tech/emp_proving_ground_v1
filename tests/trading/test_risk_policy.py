@@ -9,6 +9,9 @@ from src.config.risk.risk_config import RiskConfig
 from src.trading.risk.risk_policy import RiskPolicy
 
 
+pytestmark = pytest.mark.guardrail
+
+
 def _state(open_positions: Mapping[str, Mapping[str, float]] | None = None) -> Mapping[str, object]:
     return {
         "equity": 100_000.0,

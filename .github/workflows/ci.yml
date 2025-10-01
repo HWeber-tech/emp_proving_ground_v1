@@ -81,6 +81,12 @@ jobs:
     needs: [types]
     steps:
       - uses: ./.github/actions/python-setup
+      - name: Pytest (guardrail suite)
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: |
+          set -euo pipefail
+          pytest -m guardrail --maxfail=1 -q
       - name: Pytest (coverage)
         env:
           PYTHONPATH: ${{ github.workspace }}

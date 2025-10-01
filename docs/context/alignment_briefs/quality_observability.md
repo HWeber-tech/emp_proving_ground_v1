@@ -120,6 +120,10 @@
   in `tests/.telemetry/ci_metrics.json` thanks to the `--remediation-status`
   CLI, capturing roadmap evidence (label, statuses, source, notes) for dashboards
   and audits with pytest guarding the JSON contract.【F:tools/telemetry/update_ci_metrics.py†L1-L184】【F:tools/telemetry/ci_metrics.py†L1-L210】【F:tests/tools/test_ci_metrics.py†L1-L340】【F:tests/.telemetry/ci_metrics.json†L1-L5】
+- Remediation summary exporter reads the metrics feed and renders Markdown tables
+  with highlight bullets for the latest snapshot, honours slice limits, and ships
+  with a CLI/pytest contract so status updates and briefs stay in sync without
+  manual collation.【F:tools/telemetry/remediation_summary.py†L1-L175】【F:tests/tools/test_remediation_summary.py†L22-L101】
 - Maintain CI dashboard entries for ingest, risk, sensory, evolution, and
   operational telemetry, updating notes/tests as suites land so reviewers can
   trace validation hooks directly from the brief.【F:docs/status/ci_health.md†L21-L73】

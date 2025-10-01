@@ -30,6 +30,11 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
     optional trigger metadata, and recovery plan payloads under pytest coverage so
     institutional dashboards surface degraded optional slices alongside the
     Timescale recovery blueprint instead of masking the drill-down details.【F:src/operations/data_backbone.py†L488-L515】【F:tests/operations/test_data_backbone.py†L289-L347】
+  - *Progress*: Timescale ingest scheduler can now register its background loop with
+    the runtime task supervisor, tagging interval/jitter metadata and exposing
+    live snapshots so operators see supervised ingest jobs instead of orphaned
+    `create_task` handles, with pytest verifying supervisor telemetry and cleanup
+    hooks.【F:src/data_foundation/ingest/scheduler.py†L1-L138】【F:tests/data_foundation/test_ingest_scheduler.py†L107-L138】
   - *Progress*: JSONL persistence now raises typed errors for unserialisable payloads,
     logs filesystem failures, and cleans up partial files so ingest tooling surfaces
     genuine persistence faults instead of emitting empty paths under silent
@@ -82,6 +87,10 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
     positive equity budgets, and resolved price fallbacks, documenting violation
     telemetry and metadata so CI catches policy drift before it reaches
     execution flows.【F:src/trading/risk/risk_policy.py†L120-L246】【F:tests/trading/test_risk_policy.py†L117-L205】
+  - *Progress*: FIX broker interface now routes every manual intent through the real
+    risk gateway, publishes structured rejection telemetry, and records the gateway
+    decision/portfolio metadata on approved orders so FIX pilots inherit the same
+    deterministic guardrails as runtime-managed flows under pytest coverage.【F:src/trading/integration/fix_broker_interface.py†L38-L524】【F:tests/trading/test_fix_broker_interface_events.py†L13-L202】
 - [ ] **Quality and observability** – Expand regression coverage, close the
   documentation gap, and track remediation progress through CI snapshots.
   - *Progress*: Event bus health publishing now logs unexpected primary-bus
@@ -114,6 +123,10 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
     the `--remediation-status` CLI flag and validates the JSON contract under
     pytest so roadmap evidence, dashboard feeds, and audits inherit structured
     remediation progress without manual spreadsheets.【F:tools/telemetry/update_ci_metrics.py†L10-L176】【F:tests/tools/test_ci_metrics.py†L180-L332】【F:tests/.telemetry/ci_metrics.json†L1-L6】
+  - *Progress*: Remediation summary exporter renders the telemetry snapshots into
+    Markdown tables plus highlight bullets, honours slice limits, and ships with a
+    CLI/pytest contract so status reports can ingest `tests/.telemetry/ci_metrics.json`
+    directly instead of hand-curating remediation decks.【F:tools/telemetry/remediation_summary.py†L1-L175】【F:tests/tools/test_remediation_summary.py†L22-L101】
 - [ ] **Dead code and duplication** – Triage the 168-file dead-code backlog and
   eliminate shim exports so operators see a single canonical API surface.【F:docs/reports/CLEANUP_REPORT.md†L71-L188】
   - *Progress*: Removed the deprecated risk and evolution configuration shims so

@@ -63,6 +63,10 @@
     violation states to observability dashboard entries while preserving the
     serialised payloads, with pytest coverage asserting limit-status escalation
     so operators inherit actionable risk summaries instead of opaque aggregates.【F:src/operations/observability_dashboard.py†L254-L309】【F:tests/operations/test_observability_dashboard.py†L201-L241】
+  - Progress: Operational readiness telemetry now enriches snapshots with
+    per-status breakdowns and component maps so dashboards can render severity
+    chips without reimplementing escalation logic, with pytest and docs locking
+    the contract alongside the runtime exposure.【F:src/operations/operational_readiness.py†L200-L256】【F:tests/operations/test_operational_readiness.py†L1-L86】【F:docs/status/operational_readiness.md†L1-L34】【F:tests/runtime/test_professional_app_timescale.py†L722-L799】
   - Progress: Ingest trend telemetry logging now records runtime publish
     fallbacks, raises on unexpected errors, and escalates global bus outages with
     pytest coverage so data backbone dashboards expose genuine gaps instead of

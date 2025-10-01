@@ -33,8 +33,9 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
   - *Progress*: Timescale ingest scheduler can now register its background loop with
     the runtime task supervisor, tagging interval/jitter metadata and exposing
     live snapshots so operators see supervised ingest jobs instead of orphaned
-    `create_task` handles, with pytest verifying supervisor telemetry and cleanup
-    hooks.【F:src/data_foundation/ingest/scheduler.py†L1-L138】【F:tests/data_foundation/test_ingest_scheduler.py†L107-L138】
+    `create_task` handles, with pytest covering steady-state execution, failure
+    cut-offs, jitter bounds, supervisor telemetry, and snapshot publishing so
+    the guardrail remains deterministic.【F:src/data_foundation/ingest/scheduler.py†L1-L138】【F:tests/data_foundation/test_ingest_scheduler.py†L1-L200】
   - *Progress*: JSONL persistence now raises typed errors for unserialisable payloads,
     logs filesystem failures, and cleans up partial files so ingest tooling surfaces
     genuine persistence faults instead of emitting empty paths under silent
@@ -118,9 +119,10 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
     summaries instead of opaque aggregates.【F:src/operations/observability_dashboard.py†L254-L309】【F:tests/operations/test_observability_dashboard.py†L201-L241】
   - *Progress*: Operational readiness aggregation now fuses system validation,
     incident response, and ingest SLO snapshots into a single severity grade,
-    emits Markdown/JSON for dashboards, and derives alert events so runtime
-    summaries and on-call responders inherit the same readiness picture under
-    pytest coverage.【F:src/operations/operational_readiness.py†L1-L297】【F:tests/operations/test_operational_readiness.py†L1-L118】【F:tests/runtime/test_professional_app_timescale.py†L722-L799】
+    emits Markdown/JSON for dashboards, derives alert events, and enriches the
+    metadata with a status breakdown plus component map so dashboards can render
+    severity chips without recomputing the logic, under pytest coverage and
+    documented contract updates.【F:src/operations/operational_readiness.py†L1-L256】【F:tests/operations/test_operational_readiness.py†L1-L86】【F:docs/status/operational_readiness.md†L1-L34】【F:tests/runtime/test_professional_app_timescale.py†L722-L799】
   - *Progress*: Compliance readiness publishing now warns on runtime bus rejections,
     escalates unexpected failures, and retries on the global bus so telemetry does
     not silently disappear when transports degrade, with hardened logging guiding
@@ -246,6 +248,14 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
   - *Progress*: Risk policy regression enforces minimum position sizing while the
     observability dashboard tests assert limit-status escalation so CI catches
     governance and telemetry drift before it hits production surfaces.【F:tests/trading/test_risk_policy.py†L213-L240】【F:tests/operations/test_observability_dashboard.py†L222-L241】
+  - *Progress*: Ingest scheduler guardrails now exercise run-loop shutdown,
+    failure cut-offs, jitter windows, supervisor telemetry, snapshot builders,
+    and event publishing so Timescale scheduling instrumentation surfaces issues
+    immediately instead of stalling silently.【F:tests/data_foundation/test_ingest_scheduler.py†L1-L200】
+  - *Progress*: Risk policy warn-threshold coverage asserts that leverage and
+    exposure checks flip to warning states before violating limits, capturing
+    ratios, thresholds, and metadata so compliance reviewers can trust the
+    policy telemetry feed when positions approach guardrails.【F:tests/trading/test_risk_policy.py†L69-L142】
 
 ### Next (30–90 days)
 

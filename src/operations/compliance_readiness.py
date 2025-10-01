@@ -11,6 +11,7 @@ from typing import Mapping, MutableMapping, Sequence
 from src.core.event_bus import Event, EventBus
 from src.core.coercion import coerce_int
 from src.operations.event_bus_failover import publish_event_with_failover
+from src.compliance.workflow import WorkflowTaskStatus
 
 
 logger = logging.getLogger(__name__)
@@ -258,10 +259,105 @@ def _extract_kyc_component(
     )
 
 
+def _extract_workflow_component(
+    summary: Mapping[str, object] | None,
+) -> ComplianceReadinessComponent:
+    if not summary:
+        return ComplianceReadinessComponent(
+            name="compliance_workflows",
+            status=ComplianceReadinessStatus.warn,
+            summary="workflow snapshot missing",
+            metadata={"reason": "workflow_snapshot_missing"},
+        )
+
+    status_label = str(summary.get("status") or "").lower()
+    workflows = [
+        _coerce_mapping(workflow)
+        for workflow in _coerce_sequence(summary.get("workflows"))
+        if isinstance(workflow, Mapping)
+    ]
+
+    workflow_counts: dict[str, int] = {
+        WorkflowTaskStatus.completed.value: 0,
+        WorkflowTaskStatus.in_progress.value: 0,
+        WorkflowTaskStatus.todo.value: 0,
+        WorkflowTaskStatus.blocked.value: 0,
+    }
+    total_tasks = 0
+    blocked_tasks = 0
+    active_tasks = 0
+
+    for workflow in workflows:
+        workflow_status = str(workflow.get("status") or "").lower()
+        if workflow_status in workflow_counts:
+            workflow_counts[workflow_status] += 1
+
+        tasks = [
+            _coerce_mapping(task)
+            for task in _coerce_sequence(workflow.get("tasks"))
+            if isinstance(task, Mapping)
+        ]
+        for task in tasks:
+            status = str(task.get("status") or "").lower()
+            total_tasks += 1
+            if status == WorkflowTaskStatus.blocked.value:
+                blocked_tasks += 1
+            if status and status != WorkflowTaskStatus.completed.value:
+                active_tasks += 1
+
+    if status_label == WorkflowTaskStatus.blocked.value:
+        status = ComplianceReadinessStatus.fail
+    elif workflow_counts[WorkflowTaskStatus.blocked.value] or blocked_tasks:
+        status = ComplianceReadinessStatus.fail
+    elif status_label in {
+        WorkflowTaskStatus.todo.value,
+        WorkflowTaskStatus.in_progress.value,
+    }:
+        status = ComplianceReadinessStatus.warn
+    elif active_tasks:
+        status = ComplianceReadinessStatus.warn
+    elif status_label == WorkflowTaskStatus.completed.value:
+        status = ComplianceReadinessStatus.ok
+    else:
+        status = ComplianceReadinessStatus.warn
+
+    summary_text_parts = [status_label.upper() or "UNKNOWN"]
+    total_workflows = sum(workflow_counts.values())
+    if total_workflows:
+        summary_text_parts.append(f"{total_workflows} workflows")
+    if blocked_tasks:
+        summary_text_parts.append(f"{blocked_tasks} blocked tasks")
+    elif active_tasks:
+        summary_text_parts.append(f"{active_tasks} active tasks")
+
+    metadata: dict[str, object] = {
+        "workflows_total": total_workflows,
+        "workflows_completed": workflow_counts[WorkflowTaskStatus.completed.value],
+        "workflows_in_progress": workflow_counts[WorkflowTaskStatus.in_progress.value],
+        "workflows_todo": workflow_counts[WorkflowTaskStatus.todo.value],
+        "workflows_blocked": workflow_counts[WorkflowTaskStatus.blocked.value],
+        "tasks_total": total_tasks,
+        "tasks_blocked": blocked_tasks,
+        "tasks_active": active_tasks,
+    }
+
+    snapshot_metadata = summary.get("metadata")
+    if isinstance(snapshot_metadata, Mapping):
+        metadata["snapshot_metadata"] = dict(snapshot_metadata)
+
+    return ComplianceReadinessComponent(
+        name="compliance_workflows",
+        status=status,
+        summary=" – ".join(summary_text_parts),
+        metadata=metadata,
+    )
+
+
 def evaluate_compliance_readiness(
     *,
     trade_summary: Mapping[str, object] | None = None,
     kyc_summary: Mapping[str, object] | None = None,
+    workflow_summary: Mapping[str, object] | None = None,
     metadata: Mapping[str, object] | None = None,
 ) -> ComplianceReadinessSnapshot:
     """Fuse trade compliance and KYC telemetry into a readiness snapshot."""
@@ -284,6 +380,11 @@ def evaluate_compliance_readiness(
             kyc_component = _extract_kyc_component(None)
         components.append(kyc_component)
         overall = _combine_status(overall, kyc_component.status)
+
+        if workflow_summary is not None:
+            workflow_component = _extract_workflow_component(workflow_summary)
+            components.append(workflow_component)
+            overall = _combine_status(overall, workflow_component.status)
 
     snapshot_metadata: dict[str, object] = {}
     if isinstance(metadata, Mapping):

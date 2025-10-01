@@ -64,6 +64,7 @@ async def test_orchestrator_registers_champion_and_updates_registry(tmp_path):
         evaluator,
         strategy_registry=registry,
         event_bus=bus,
+        adaptive_runs_enabled=True,
     )
 
     result = await orchestrator.run_cycle()
@@ -132,7 +133,7 @@ async def test_orchestrator_supports_sync_evaluators_and_dataclass_reports():
         base = _score_parameters(genome)
         return SimpleReport(fitness_score=0.1 + base, sharpe_ratio=1.5)
 
-    orchestrator = EvolutionCycleOrchestrator(engine, evaluator)
+    orchestrator = EvolutionCycleOrchestrator(engine, evaluator, adaptive_runs_enabled=True)
 
     first = await orchestrator.run_cycle()
     second = await orchestrator.run_cycle()
@@ -170,7 +171,9 @@ async def test_catalogue_snapshot_emitted_when_catalogue_active():
         }
 
     bus = RecordingBus()
-    orchestrator = EvolutionCycleOrchestrator(engine, evaluator, event_bus=bus)
+    orchestrator = EvolutionCycleOrchestrator(
+        engine, evaluator, event_bus=bus, adaptive_runs_enabled=True
+    )
 
     result = await orchestrator.run_cycle()
     assert result.champion is not None
@@ -192,3 +195,48 @@ async def test_catalogue_snapshot_emitted_when_catalogue_active():
     last_catalogue = catalogue_events[-1]
     assert last_catalogue.payload["catalogue"]["name"] == snapshot.catalogue_name
     assert last_catalogue.payload["generation"] == snapshot.generation
+
+
+@pytest.mark.asyncio
+async def test_orchestrator_skips_adaptive_runs_when_disabled(monkeypatch, tmp_path):
+    monkeypatch.delenv("EVOLUTION_ENABLE_ADAPTIVE_RUNS", raising=False)
+
+    engine = EvolutionEngine(
+        EvolutionConfig(
+            population_size=3,
+            elite_count=1,
+            crossover_rate=0.4,
+            mutation_rate=0.1,
+            use_catalogue=True,
+        )
+    )
+    engine._rng.seed(17)  # type: ignore[attr-defined]
+
+    registry = StrategyRegistry(db_path=str(tmp_path / "governance-disabled.db"))
+
+    async def evaluator(genome):
+        return {"fitness_score": _score_parameters(genome), "sharpe_ratio": 0.9}
+
+    orchestrator = EvolutionCycleOrchestrator(
+        engine,
+        evaluator,
+        strategy_registry=registry,
+        adaptive_runs_enabled=False,
+    )
+
+    first = await orchestrator.run_cycle()
+    assert first.summary.generation == 0
+    assert orchestrator.telemetry["adaptive_runs_enabled"] is False
+    assert orchestrator.telemetry["total_generations"] == 0
+
+    champion = first.champion
+    assert champion is not None
+    assert champion.registered is False
+    assert registry.get_strategy(champion.genome_id) is None
+
+    second = await orchestrator.run_cycle()
+    assert second.summary.generation == 0
+    assert orchestrator.telemetry["total_generations"] == 0
+
+    stats = engine.get_population_statistics()
+    assert stats["generation"] == 0

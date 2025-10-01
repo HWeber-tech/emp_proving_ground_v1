@@ -52,6 +52,10 @@
   - Progress: System validation telemetry regressions now capture runtime bus
     fallbacks and unexpected-error escalations, hardening operational coverage so
     readiness dashboards surface degraded runs instead of swallowing failures.【F:src/operations/system_validation.py†L269-L312】【F:tests/operations/test_system_validation.py†L85-L137】
+  - Progress: Event bus failover helper centralises guarded publishing for
+    security, system validation, and compliance readiness snapshots, replacing
+    ad-hoc blanket exception handlers with typed errors and structured logging so
+    transport regressions escalate consistently across feeds.【F:src/operations/event_bus_failover.py†L1-L174】【F:src/operations/compliance_readiness.py†L284-L344】【F:tests/operations/test_security.py†L164-L263】【F:tests/operations/test_system_validation.py†L85-L140】
   - Progress: Event bus health tests now assert queue backlog escalation,
     dropped-event surfacing, and global bus failure propagation so operational
     telemetry keeps raising alarms when both primary and fallback paths degrade.【F:src/operations/event_bus_health.py†L118-L281】【F:tests/operations/test_event_bus_health.py†L1-L206】

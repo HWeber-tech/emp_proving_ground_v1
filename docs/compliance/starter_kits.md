@@ -39,6 +39,10 @@ runtime output so the context stays anchored to the concept blueprint.
   loading the previous artefact, enforcing the reporting interval, and wiring
   publication and persistence so runtimes can schedule governance reports without
   bespoke glue code.【F:src/operations/governance_cadence.py†L1-L164】【F:tests/operations/test_governance_cadence.py†L1-L118】
+- The `export_governance_report` CLI loads readiness snapshots, collects audit
+  evidence when required, persists history with metadata, and emits Markdown
+  alongside JSON so operators can script cadence exports without bespoke
+  tooling.【F:tools/telemetry/export_governance_report.py†L1-L260】【F:tests/tools/test_export_governance_report.py†L1-L139】
 - Pytest coverage captures the workflow evaluator, publisher contract, and runtime
   integration so CI guards the new starter kits end-to-end.【F:tests/compliance/test_compliance_workflow.py†L1-L98】【F:tests/runtime/test_runtime_builder.py†L160-L240】【F:tests/runtime/test_professional_app_timescale.py†L200-L320】
 

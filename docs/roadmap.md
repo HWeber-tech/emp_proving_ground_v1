@@ -97,6 +97,11 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
     with limit values, ratios, and violation statuses while preserving serialised
     payloads, backed by regression coverage so operators inherit actionable risk
     summaries instead of opaque aggregates.【F:src/operations/observability_dashboard.py†L254-L309】【F:tests/operations/test_observability_dashboard.py†L201-L241】
+  - *Progress*: Operational readiness aggregation now fuses system validation,
+    incident response, and ingest SLO snapshots into a single severity grade,
+    emits Markdown/JSON for dashboards, and derives alert events so runtime
+    summaries and on-call responders inherit the same readiness picture under
+    pytest coverage.【F:src/operations/operational_readiness.py†L1-L297】【F:tests/operations/test_operational_readiness.py†L1-L118】【F:tests/runtime/test_professional_app_timescale.py†L722-L799】
   - *Progress*: Compliance readiness publishing now warns on runtime bus rejections,
     escalates unexpected failures, and retries on the global bus so telemetry does
     not silently disappear when transports degrade, with hardened logging guiding
@@ -152,6 +157,10 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
       global bus when runtime publishing fails, raises on unexpected errors, and
       documents the error-handling paths under pytest so telemetry outages cannot
       disappear silently.【F:src/operations/security.py†L536-L579】【F:tests/operations/test_security.py†L148-L263】
+    - *Progress*: Event bus failover helper centralises the guarded publish logic
+      for security, system validation, and compliance readiness feeds, replacing
+      ad-hoc blanket exception handlers with typed errors and consistent logging so
+      transport regressions escalate deterministically.【F:src/operations/event_bus_failover.py†L1-L174】【F:src/operations/compliance_readiness.py†L284-L344】【F:tests/operations/test_security.py†L164-L263】【F:tests/operations/test_system_validation.py†L85-L140】
 - [x] **Context pack refresh** – Replace legacy briefs with the updated context in
   `docs/context/alignment_briefs` so discovery and reviews inherit the same
   narrative reset (this change set).
@@ -241,6 +250,10 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
     evidence collection, report persistence, and event-bus publishing with
     injectable providers so institutional deployments can trigger the cadence
     from a single supervised entrypoint under pytest coverage.【F:src/operations/governance_cadence.py†L1-L167】【F:tests/operations/test_governance_cadence.py†L1-L206】
+  - *Progress*: Governance report export CLI now loads compliance/regulatory/audit
+    snapshots, persists history with metadata, emits Markdown alongside JSON, and
+    records regression coverage so operators can script cadence exports without
+    bespoke tooling.【F:tools/telemetry/export_governance_report.py†L1-L260】【F:tests/tools/test_export_governance_report.py†L1-L139】
 
 ## Actionable to-do tracker
 

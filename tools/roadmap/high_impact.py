@@ -268,6 +268,10 @@ def _stream_definitions() -> Sequence[StreamDefinition]:
                 require_module_attr(
                     "operations.professional_readiness", "evaluate_professional_readiness"
                 ),
+                require_module_attr(
+                    "operations.operational_readiness",
+                    "evaluate_operational_readiness",
+                ),
                 require_module_attr("operations.roi", "evaluate_roi_posture"),
                 require_module_attr(
                     "operations.strategy_performance", "evaluate_strategy_performance"

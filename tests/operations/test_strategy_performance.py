@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 import pytest
 
 from src.operations.roi import RoiStatus, RoiTelemetrySnapshot
+from src.operations.event_bus_failover import EventPublishError
 from src.operations.strategy_performance import (
     StrategyPerformanceStatus,
     evaluate_strategy_performance,
@@ -17,9 +18,29 @@ class StubBus:
 
     def publish_from_sync(self, event: object) -> None:
         self.events.append(event)
+        return event
 
     def is_running(self) -> bool:
         return True
+
+
+class FallbackStubBus:
+    def __init__(self) -> None:
+        self.events: list[object] = []
+
+    def publish_from_sync(self, event: object) -> None:
+        raise RuntimeError("runtime bus unavailable")
+
+    def is_running(self) -> bool:
+        return True
+
+
+class StubTopicBus:
+    def __init__(self) -> None:
+        self.events: list[tuple[str, object, str]] = []
+
+    def publish_sync(self, event_type: str, payload: object, *, source: str) -> None:
+        self.events.append((event_type, payload, source))
 
 
 def _roi_snapshot() -> RoiTelemetrySnapshot:
@@ -118,3 +139,55 @@ def test_publish_strategy_performance_snapshot_emits_event() -> None:
     assert getattr(event, "source", "") == "test"
     payload = getattr(event, "payload", {})
     assert payload.get("status") in {status.value for status in StrategyPerformanceStatus}
+
+
+def test_publish_strategy_performance_snapshot_falls_back_to_global_bus() -> None:
+    snapshot = evaluate_strategy_performance(
+        [
+            {
+                "strategy_id": "alpha",
+                "status": "executed",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            },
+        ]
+    )
+
+    bus = FallbackStubBus()
+    topic_bus = StubTopicBus()
+
+    publish_strategy_performance_snapshot(
+        bus,
+        snapshot,
+        source="test",
+        global_bus_factory=lambda: topic_bus,
+    )
+
+    assert topic_bus.events, "expected strategy performance telemetry event on global bus"
+    event_type, payload, source = topic_bus.events[-1]
+    assert event_type == "telemetry.strategy.performance"
+    assert source == "test"
+    assert payload.get("status") in {status.value for status in StrategyPerformanceStatus}
+
+
+def test_publish_strategy_performance_snapshot_raises_on_unexpected_error() -> None:
+    snapshot = evaluate_strategy_performance(
+        [
+            {
+                "strategy_id": "alpha",
+                "status": "executed",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            },
+        ]
+    )
+
+    class BrokenBus(StubBus):
+        def publish_from_sync(self, event: object) -> None:  # type: ignore[override]
+            raise ValueError("unexpected failure")
+
+    bus = BrokenBus()
+
+    with pytest.raises(EventPublishError) as excinfo:
+        publish_strategy_performance_snapshot(bus, snapshot)
+
+    assert excinfo.value.stage == "runtime"
+    assert excinfo.value.event_type == "telemetry.strategy.performance"

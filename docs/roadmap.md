@@ -12,7 +12,7 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
 | Delivery state | The codebase is still a development framework: evolution, intelligence, execution, and strategy layers run on mocks; there is no production ingest, risk sizing, or portfolio management. | 【F:docs/DEVELOPMENT_STATUS.md†L7-L35】 |
 | Quality posture | CI passes with 76% coverage, but hotspots include operational metrics, position models, and configuration loaders; runtime validation checks still fail. | 【F:docs/ci_baseline_report.md†L8-L27】【F:docs/technical_debt_assessment.md†L31-L112】 |
 | Debt hotspots | Hollow risk management, unsupervised async tasks, namespace drift, and deprecated exports continue to surface in audits. | 【F:docs/technical_debt_assessment.md†L33-L80】【F:src/core/__init__.py†L11-L51】 |
-| Legacy footprint | Canonical risk and evolution configuration now resolve through their source modules, with both legacy shims removed while integration guides still trail reality. | 【F:src/config/risk/risk_config.py†L1-L72】【F:src/core/evolution/engine.py†L13-L52】【F:docs/reports/CLEANUP_REPORT.md†L74-L84】【F:docs/legacy/README.md†L1-L12】 |
+| Legacy footprint | Canonical risk, evolution, and analytics modules now resolve through their source packages: the deprecated core risk manager shim is gone, stress/VaR helpers route through `src/risk/analytics`, and integration guides still trail reality. | 【F:src/config/risk/risk_config.py†L1-L161】【F:src/core/__init__.py†L16-L46】【F:docs/reports/CLEANUP_REPORT.md†L71-L104】【F:src/risk/analytics/var.py†L19-L121】 |
 
 ## Gaps to close
 
@@ -123,11 +123,20 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
     deterministic guardrails as runtime-managed flows under pytest coverage.【F:src/trading/integration/fix_broker_interface.py†L38-L524】【F:tests/trading/test_fix_broker_interface_events.py†L13-L202】
 - [ ] **Quality and observability** – Expand regression coverage, close the
   documentation gap, and track remediation progress through CI snapshots.
-  - *Progress*: Event bus health publishing now logs unexpected primary-bus
-    failures, asserts backlog thresholds, surfaces dropped events, and raises on
-    global bus outages so telemetry regressions escalate instead of disappearing
-    behind silent fallbacks, with tests covering backlog, drop, and failover
-    scenarios.【F:src/operations/event_bus_health.py†L118-L281】【F:tests/operations/test_event_bus_health.py†L1-L206】
+  - *Progress*: Event bus health publishing now routes through the shared
+    failover helper, logging runtime publish failures, propagating metadata to
+    the global bus, and raising typed errors when both transports degrade so
+    operators see deterministic alerts instead of silent drops. Guardrail tests
+    capture primary fallbacks, global outages, and backlog escalation.【F:src/operations/event_bus_health.py†L143-L259】【F:tests/operations/test_event_bus_health.py†L22-L235】
+  - *Progress*: Strategy performance telemetry aggregates execution/rejection
+    ratios, ROI snapshots, and rejection reasons into Markdown summaries, then
+    publishes the payload via the shared failover helper so dashboards and
+    runtime reports inherit the same hardened transport guarantees under pytest
+    coverage.【F:src/operations/strategy_performance.py†L200-L531】【F:tests/operations/test_strategy_performance.py†L68-L193】
+  - *Progress*: Health monitor resource probes now normalise psutil import
+    failures, log probe errors, retain bounded history, and surface event-bus
+    diagnostics so operational responders get actionable state even when optional
+    dependencies are missing, with asyncio-loop regressions covering each guardrail.【F:src/operational/health_monitor.py†L61-L200】【F:tests/operational/test_health_monitor.py†L74-L176】
   - *Progress*: Bootstrap control centre helpers now log champion payload,
     trading-manager method, and formatter failures, keeping operational
     diagnostics visible during bootstrap runs and documenting the logging
@@ -173,9 +182,10 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
     can ingest `tests/.telemetry/ci_metrics.json` without hand-curated decks.【F:tools/telemetry/remediation_summary.py†L1-L220】【F:tests/tools/test_remediation_summary.py†L22-L125】
 - [ ] **Dead code and duplication** – Triage the 168-file dead-code backlog and
   eliminate shim exports so operators see a single canonical API surface.【F:docs/reports/CLEANUP_REPORT.md†L71-L188】
-  - *Progress*: Removed the deprecated risk and evolution configuration shims so
-    consumers converge on the canonical modules without drift when new services
-    arrive.【F:docs/reports/CLEANUP_REPORT.md†L74-L84】【F:src/config/risk/risk_config.py†L1-L72】【F:src/core/evolution/engine.py†L13-L52】
+  - *Progress*: Removed the deprecated risk and evolution configuration shims,
+    deleted the core risk manager/stress/VaR stand-ins, and pointed callers at
+    the canonical implementations so consumers converge on the real modules when
+    new services arrive.【F:docs/reports/CLEANUP_REPORT.md†L71-L104】【F:src/core/__init__.py†L16-L46】【F:src/risk/analytics/var.py†L19-L121】
   - *Progress*: Retired the legacy strategy template package and rewrote the
     canonical mean reversion regression to exercise the modern trading
     strategies API, shrinking the dead-code backlog and aligning tests with the

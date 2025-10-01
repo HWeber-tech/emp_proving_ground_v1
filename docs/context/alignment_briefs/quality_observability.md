@@ -62,8 +62,17 @@
     marker drift block merges before the broader regression run, with pytest
     verifying target existence and guardrail tagging.【F:tests/runtime/test_guardrail_suite_manifest.py†L1-L40】
   - Progress: Event bus health tests now assert queue backlog escalation,
-    dropped-event surfacing, and global bus failure propagation so operational
-    telemetry keeps raising alarms when both primary and fallback paths degrade.【F:src/operations/event_bus_health.py†L118-L281】【F:tests/operations/test_event_bus_health.py†L1-L206】
+    dropped-event surfacing, and the shared failover helper’s runtime/global bus
+    fallbacks so operational telemetry keeps raising alarms when both transports
+    degrade.【F:src/operations/event_bus_health.py†L143-L259】【F:tests/operations/test_event_bus_health.py†L22-L235】
+  - Progress: Strategy performance telemetry now normalises execution events,
+    captures ROI/net PnL metadata, renders Markdown summaries, and publishes via
+    the shared failover helper under pytest coverage so dashboards inherit the
+    same hardened transport as other operational feeds.【F:src/operations/strategy_performance.py†L200-L531】【F:tests/operations/test_strategy_performance.py†L68-L193】
+  - Progress: Health monitor probes guard optional psutil imports, log resource
+    sampling failures, persist bounded histories, and surface event-bus
+    snapshots, with asyncio regressions ensuring the loop logs unexpected errors
+    instead of hanging silently.【F:src/operational/health_monitor.py†L61-L200】【F:tests/operational/test_health_monitor.py†L74-L176】
   - Progress: Risk telemetry panels now attach limit values, ratios, and
     violation states to observability dashboard entries while preserving the
     serialised payloads, with pytest coverage asserting limit-status escalation

@@ -12,9 +12,9 @@
 
 - Development status confirms that execution, risk, and strategy subsystems are
   mock frameworks without real broker connectivity or portfolio management.【F:docs/DEVELOPMENT_STATUS.md†L19-L35】
-- Technical debt audits highlight hollow risk enforcement, unsupervised async
-  entrypoints, and namespace drift (`get_risk_manager` export) that mislead API
-  consumers.【F:docs/technical_debt_assessment.md†L33-L80】【F:src/core/__init__.py†L11-L51】
+- Technical debt audits highlight hollow risk enforcement and unsupervised async
+  entrypoints; the legacy `get_risk_manager` shim has now been removed so the
+  canonical export reflects the real implementation.【F:docs/technical_debt_assessment.md†L33-L80】【F:src/core/__init__.py†L16-L46】【F:docs/reports/CLEANUP_REPORT.md†L71-L104】
 - Canonical risk configuration now resides in `src/config/risk/risk_config.py`,
   yet dead-code sweeps still list additional risk and compliance files as unused,
   complicating canonicalisation.【F:src/config/risk/risk_config.py†L1-L72】【F:docs/reports/CLEANUP_REPORT.md†L71-L175】

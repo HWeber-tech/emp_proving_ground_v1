@@ -9,9 +9,13 @@ import pytest
 from src.config.risk.risk_config import RiskConfig
 from src.trading.risk.policy_telemetry import (
     PolicyCheckStatus,
+    RiskPolicyViolationAlert,
     build_policy_snapshot,
+    build_policy_violation_alert,
     format_policy_markdown,
+    format_policy_violation_markdown,
     publish_policy_snapshot,
+    publish_policy_violation,
 )
 from src.trading.risk.risk_policy import RiskPolicy, RiskPolicyDecision
 
@@ -166,4 +170,69 @@ async def test_publish_policy_snapshot_emits_event() -> None:
     event = bus.events[-1]
     assert event.type == "telemetry.risk.policy"
     assert event.payload["approved"] is True
+    assert "markdown" in event.payload
+
+
+def test_build_policy_violation_alert_wraps_snapshot() -> None:
+    policy = RiskPolicy.from_config(
+        RiskConfig(
+            max_risk_per_trade_pct=Decimal("0.02"),
+            max_total_exposure_pct=Decimal("0.2"),
+            max_leverage=Decimal("2"),
+            max_drawdown_pct=Decimal("0.1"),
+            min_position_size=10,
+        )
+    )
+    decision = policy.evaluate(
+        symbol="EURUSD",
+        quantity=1.0,
+        price=1.1,
+        stop_loss_pct=0.0,
+        portfolio_state=_portfolio_state(),
+    )
+    snapshot = build_policy_snapshot(decision, policy)
+    alert = build_policy_violation_alert(
+        snapshot,
+        severity="critical",
+        runbook="docs/operations/runbooks/risk_policy_violation.md",
+    )
+
+    assert isinstance(alert, RiskPolicyViolationAlert)
+    assert alert.snapshot is snapshot
+    assert alert.severity == "critical"
+    assert alert.runbook.endswith("risk_policy_violation.md")
+    markdown = format_policy_violation_markdown(alert)
+    assert "POLICY VIOLATION" in markdown.upper()
+    assert "RUNBOOK" in markdown.upper()
+
+
+@pytest.mark.asyncio()
+async def test_publish_policy_violation_emits_event() -> None:
+    policy = RiskPolicy.from_config(
+        RiskConfig(
+            max_risk_per_trade_pct=Decimal("0.02"),
+            max_total_exposure_pct=Decimal("0.2"),
+            max_leverage=Decimal("2"),
+            max_drawdown_pct=Decimal("0.1"),
+            min_position_size=100,
+        )
+    )
+    decision = policy.evaluate(
+        symbol="EURUSD",
+        quantity=1.0,
+        price=1.1,
+        stop_loss_pct=0.0,
+        portfolio_state=_portfolio_state(),
+    )
+    snapshot = build_policy_snapshot(decision, policy)
+    alert = build_policy_violation_alert(snapshot, severity="warning")
+    bus = StubBus()
+
+    await publish_policy_violation(bus, alert, source="tests")
+
+    assert bus.events, "expected violation telemetry"
+    event = bus.events[-1]
+    assert event.type == "telemetry.risk.policy_violation"
+    assert event.payload["severity"] == "warning"
+    assert event.payload["snapshot"]["approved"] is snapshot.approved
     assert "markdown" in event.payload

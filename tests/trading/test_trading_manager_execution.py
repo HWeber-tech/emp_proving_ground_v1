@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from typing import Any
 
 import pytest
 
@@ -29,6 +30,15 @@ class DummyBus:
         return False
 
 
+class RecordingBus(DummyBus):
+    def __init__(self) -> None:
+        super().__init__()
+        self.events: list[Any] = []
+
+    async def publish(self, event: Any) -> None:
+        self.events.append(event)
+
+
 @dataclass
 class SimpleIntent:
     symbol: str
@@ -53,6 +63,7 @@ async def test_trading_manager_records_execution_stats(monkeypatch: pytest.Monke
     monkeypatch.setattr("src.trading.trading_manager.publish_risk_snapshot", _noop)
     monkeypatch.setattr("src.trading.trading_manager.publish_roi_snapshot", _noop)
     monkeypatch.setattr("src.trading.trading_manager.publish_policy_snapshot", _noop)
+    monkeypatch.setattr("src.trading.trading_manager.publish_policy_violation", _noop)
 
     bus = DummyBus()
     manager = TradingManager(
@@ -90,6 +101,7 @@ async def test_trading_manager_records_experiment_events_and_rejections(
     monkeypatch.setattr("src.trading.trading_manager.publish_risk_snapshot", _noop)
     monkeypatch.setattr("src.trading.trading_manager.publish_roi_snapshot", _noop)
     monkeypatch.setattr("src.trading.trading_manager.publish_policy_snapshot", _noop)
+    monkeypatch.setattr("src.trading.trading_manager.publish_policy_violation", _noop)
 
     bus = DummyBus()
     manager = TradingManager(
@@ -118,6 +130,48 @@ async def test_trading_manager_records_experiment_events_and_rejections(
     statuses = {event["status"] for event in events}
     assert "executed" in statuses
     assert "rejected" in statuses
+
+
+@pytest.mark.asyncio()
+async def test_trading_manager_emits_policy_violation_alert(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def _noop(*_args, **_kwargs) -> None:
+        return None
+
+    captured: list[tuple[Any, Any, str]] = []
+
+    async def _capture(event_bus: RecordingBus, alert, *, source: str) -> None:
+        captured.append((alert, source, len(event_bus.events)))
+        await event_bus.publish({"alert": alert, "source": source})
+
+    monkeypatch.setattr("src.trading.trading_manager.publish_risk_snapshot", _noop)
+    monkeypatch.setattr("src.trading.trading_manager.publish_roi_snapshot", _noop)
+    monkeypatch.setattr("src.trading.trading_manager.publish_policy_snapshot", _noop)
+    monkeypatch.setattr("src.trading.trading_manager.publish_policy_violation", _capture)
+
+    bus = RecordingBus()
+    manager = TradingManager(
+        event_bus=bus,
+        strategy_registry=AlwaysActiveRegistry(),
+        execution_engine=None,
+        initial_equity=50_000.0,
+        risk_config=RiskConfig(
+            min_position_size=100,
+            mandatory_stop_loss=False,
+            research_mode=False,
+        ),
+    )
+
+    intent = SimpleIntent(symbol="EURUSD", quantity=1.0, price=1.2222)
+    await manager.on_trade_intent(intent)
+
+    assert captured, "expected policy violation alert"
+    alert, source, _ = captured[-1]
+    assert source == "trading_manager"
+    assert not alert.snapshot.approved
+    assert "policy.min_position_size" in alert.snapshot.violations
+    assert bus.events, "expected violation to publish on event bus"
 
 
 def test_record_experiment_event_handles_non_mapping_inputs() -> None:

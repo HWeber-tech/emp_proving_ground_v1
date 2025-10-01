@@ -14,6 +14,9 @@ briefs and CI health snapshot.
 - [Kafka ingest offset recovery](kafka_ingest_offset_recovery.md) – Guides the
   ingest event bridge through consumer lag diagnosis, manual offset commits, and
   replay validation using the Kafka telemetry helpers.
+- [Risk policy violation escalation](risk_policy_violation.md) – Surfaces the
+  policy snapshot, Markdown alert, and governance escalation path for trade
+  intents rejected by the deterministic risk gateway.
 
 Keep these documents close to the institutional data backbone alignment brief so
 runbooks, roadmap status, and acceptance hooks evolve together.

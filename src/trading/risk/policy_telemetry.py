@@ -220,11 +220,107 @@ async def publish_policy_snapshot(
     await event_bus.publish(event)
 
 
+@dataclass(frozen=True)
+class RiskPolicyViolationAlert:
+    """Telemetry surface for policy violations requiring escalation."""
+
+    snapshot: RiskPolicyEvaluationSnapshot
+    severity: str
+    runbook: str | None
+    generated_at: datetime
+
+    def as_dict(self) -> dict[str, object]:
+        payload = {
+            "severity": self.severity,
+            "runbook": self.runbook,
+            "generated_at": self.generated_at.isoformat(),
+            "snapshot": self.snapshot.as_dict(),
+        }
+        if self.runbook is None:
+            payload.pop("runbook")
+        return payload
+
+
+def _first_violation(snapshot: RiskPolicyEvaluationSnapshot) -> str | None:
+    if snapshot.violations:
+        return snapshot.violations[0]
+    for check in snapshot.checks:
+        if check.status is PolicyCheckStatus.violation:
+            return check.name
+    return None
+
+
+def build_policy_violation_alert(
+    snapshot: RiskPolicyEvaluationSnapshot,
+    *,
+    severity: str = "critical",
+    runbook: str | None = None,
+    generated_at: datetime | None = None,
+) -> RiskPolicyViolationAlert:
+    """Create a structured alert for policy violations."""
+
+    timestamp = generated_at or datetime.now(timezone.utc)
+    return RiskPolicyViolationAlert(
+        snapshot=snapshot,
+        severity=severity,
+        runbook=runbook,
+        generated_at=timestamp,
+    )
+
+
+def format_policy_violation_markdown(alert: RiskPolicyViolationAlert) -> str:
+    snapshot = alert.snapshot
+    lines = [
+        "🚨 **Policy violation detected**",
+        f"**Symbol:** {snapshot.symbol}",
+        f"**Approved:** {'YES' if snapshot.approved else 'NO'}",
+    ]
+    primary = _first_violation(snapshot)
+    if primary:
+        lines.append(f"**Primary violation:** {primary}")
+    if snapshot.reason:
+        lines.append(f"**Reason:** {snapshot.reason}")
+    if snapshot.policy_limits:
+        limit_parts = [f"{key}={value}" for key, value in snapshot.policy_limits.items()]
+        lines.append("**Limits:** " + ", ".join(limit_parts))
+    if snapshot.metadata:
+        equity = _coerce_float(snapshot.metadata.get("equity"))
+        projected = _coerce_float(snapshot.metadata.get("projected_total_exposure"))
+        if equity is not None or projected is not None:
+            lines.append(
+                "**Exposure:** equity={:,.2f} projected={:,.2f}".format(
+                    equity if equity is not None else 0.0,
+                    projected if projected is not None else 0.0,
+                )
+            )
+    if alert.runbook:
+        lines.append(f"**Runbook:** {alert.runbook}")
+    return "\n".join(lines)
+
+
+async def publish_policy_violation(
+    event_bus: EventBus,
+    alert: RiskPolicyViolationAlert,
+    *,
+    source: str = "risk_gateway",
+) -> None:
+    """Publish a policy violation alert on the event bus."""
+
+    payload = alert.as_dict()
+    payload["markdown"] = format_policy_violation_markdown(alert)
+    event = Event(type="telemetry.risk.policy_violation", payload=payload, source=source)
+    await event_bus.publish(event)
+
+
 __all__ = [
     "PolicyCheckStatus",
     "RiskPolicyCheckSnapshot",
     "RiskPolicyEvaluationSnapshot",
+    "RiskPolicyViolationAlert",
     "build_policy_snapshot",
+    "build_policy_violation_alert",
     "format_policy_markdown",
+    "format_policy_violation_markdown",
     "publish_policy_snapshot",
+    "publish_policy_violation",
 ]

@@ -9,8 +9,9 @@ from enum import StrEnum
 from statistics import mean
 from typing import Iterable, Mapping, Sequence
 
-from src.core.event_bus import Event, EventBus, get_global_bus
+from src.core.event_bus import Event, EventBus
 from src.data_foundation.persist.timescale import TimescaleIngestRunRecord
+from src.operations.event_bus_failover import publish_event_with_failover
 
 
 logger = logging.getLogger(__name__)
@@ -306,37 +307,25 @@ def publish_ingest_trends(
         source="ingest_trends",
     )
 
-    publish_from_sync = getattr(event_bus, "publish_from_sync", None)
-    if callable(publish_from_sync) and event_bus.is_running():
-        try:
-            publish_from_sync(event)
-        except RuntimeError as exc:
-            logger.warning(
-                "Runtime event bus publish failed; falling back to global bus",
-                exc_info=exc,
-            )
-        except Exception:
-            logger.exception(
-                "Unexpected error publishing ingest trend snapshot via runtime event bus",
-            )
-            raise
-        else:
-            return
-
-    topic_bus = get_global_bus()
-    try:
-        topic_bus.publish_sync(event.type, event.payload, source=event.source)
-    except RuntimeError as exc:
-        logger.error(
-            "Global event bus not running while publishing ingest trend snapshot",
-            exc_info=exc,
-        )
-        raise
-    except Exception:
-        logger.exception(
-            "Unexpected error publishing ingest trend snapshot via global event bus",
-        )
-        raise
+    publish_event_with_failover(
+        event_bus,
+        event,
+        logger=logger,
+        runtime_fallback_message="Runtime event bus publish failed; falling back to global bus",
+        runtime_unexpected_message=(
+            "Unexpected error publishing ingest trend snapshot via runtime event bus"
+        ),
+        runtime_none_message=(
+            "Runtime event bus returned no acknowledgement for ingest trend snapshot; "
+            "falling back to global bus"
+        ),
+        global_not_running_message=(
+            "Global event bus not running while publishing ingest trend snapshot"
+        ),
+        global_unexpected_message=(
+            "Unexpected error publishing ingest trend snapshot via global event bus"
+        ),
+    )
 
 
 __all__ = [

@@ -222,3 +222,22 @@ def test_risk_panel_metadata_includes_limit_ratio() -> None:
     assert payload["limit"] == pytest.approx(10_000.0)
     assert payload["limit_ratio"] == pytest.approx(0.9)
     assert payload["limit_status"] == "warn"
+
+
+def test_dashboard_risk_panel_announces_limit_statuses() -> None:
+    dashboard = build_observability_dashboard(
+        risk_results={
+            "expected_shortfall": {"value": 1_200.0},
+            "parametric_var": {"value": 90.0, "confidence": 0.99, "sample_size": 250},
+        },
+        risk_limits={"expected_shortfall": 0.0, "parametric_var": 100.0},
+    )
+
+    risk_panel = next(panel for panel in dashboard.panels if panel.name == "Risk & exposure")
+
+    assert risk_panel.status is DashboardStatus.warn
+    metadata = risk_panel.metadata
+    assert metadata["parametric_var"]["limit_status"] == "warn"
+    assert metadata["parametric_var"]["limit_ratio"] == pytest.approx(0.9)
+    assert metadata["expected_shortfall"]["limit_status"] == "invalid"
+    assert "limit" in metadata["expected_shortfall"]

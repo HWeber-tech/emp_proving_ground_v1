@@ -21,6 +21,21 @@ class _StubEventBus:
 
     def publish_from_sync(self, event: Event) -> None:
         self.events.append(event)
+        return True
+
+
+class _FallbackEventBus(_StubEventBus):
+    def publish_from_sync(self, event: Event) -> None:  # pragma: no cover - short path
+        self.events.append(event)
+        return None
+
+
+class _StubTopicBus:
+    def __init__(self) -> None:
+        self.events: list[Event] = []
+
+    def publish_sync(self, event_type: str, payload: object, *, source: str) -> None:
+        self.events.append(Event(type=event_type, payload=payload, source=source))
 
 
 def test_evaluate_incident_response_ok() -> None:
@@ -135,5 +150,34 @@ def test_publish_incident_response_snapshot() -> None:
 
     assert bus.events
     event = bus.events[0]
+    assert event.type == "telemetry.operational.incident_response"
+    assert event.payload["status"] == "warn"
+
+
+def test_publish_incident_response_snapshot_falls_back_to_global_bus() -> None:
+    bus = _FallbackEventBus()
+    topic_bus = _StubTopicBus()
+    snapshot = IncidentResponseSnapshot(
+        service="emp",
+        generated_at=datetime(2025, 3, 1, tzinfo=UTC),
+        status=IncidentResponseStatus.warn,
+        missing_runbooks=("redis_outage",),
+        training_age_days=40.0,
+        drill_age_days=20.0,
+        primary_oncall=("alice",),
+        secondary_oncall=tuple(),
+        open_incidents=("incident-a",),
+        issues=("Missing runbooks",),
+        metadata={"postmortem_backlog_hours": 12.0},
+    )
+
+    publish_incident_response_snapshot(
+        bus,
+        snapshot,
+        global_bus_factory=lambda: topic_bus,
+    )
+
+    assert topic_bus.events
+    event = topic_bus.events[0]
     assert event.type == "telemetry.operational.incident_response"
     assert event.payload["status"] == "warn"

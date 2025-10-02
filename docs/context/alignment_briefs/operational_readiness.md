@@ -53,6 +53,10 @@
   summaries, derives alert events, and now exposes status breakdown/component
   metadata so dashboards can render severity chips without recomputing logic,
   with pytest guarding the contract and docs capturing the payload update.【F:src/operations/operational_readiness.py†L1-L256】【F:tests/operations/test_operational_readiness.py†L1-L86】【F:docs/status/operational_readiness.md†L1-L34】【F:tests/runtime/test_professional_app_timescale.py†L722-L799】
+- Wire the observability dashboard to consume the readiness snapshot directly,
+  rendering a dedicated panel with component summaries and remediation roll-ups
+  under pytest coverage so operators see readiness posture alongside risk,
+  latency, and backbone panels without bespoke integrations.【F:src/operations/observability_dashboard.py†L443-L493】【F:tests/operations/test_observability_dashboard.py†L135-L236】
 - Update incident response docs with current limitations and TODOs; remove or
   archive obsolete OpenAPI references where possible.【F:docs/legacy/README.md†L1-L12】
 - Extend CI step summaries to include risk, ingest, and sensory telemetry status so

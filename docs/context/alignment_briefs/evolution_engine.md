@@ -52,6 +52,10 @@
   【F:src/core/evolution/seeding.py†L1-L335】【F:src/core/evolution/engine.py†L250-L335】【F:tests/evolution/test_realistic_seeding.py†L1-L47】
 - Build population management routines (selection, mutation, evaluation) tied to
   recorded datasets; expose metrics via runtime summaries.
+- Progress: Recorded sensory replay evaluator converts archived sensory
+  snapshots into deterministic evaluation metrics, wiring price/confidence
+  extraction and replay scoring under pytest coverage so genomes can be vetted
+  against recorded data before live ingest arrives.【F:src/evolution/evaluation/recorded_replay.py†L1-L193】【F:tests/evolution/test_recorded_replay_evaluator.py†L1-L108】
 - Surface lineage telemetry and integrate with compliance workflow templates for
   strategy approvals.
 - Progress: Evolution experiment telemetry now guards publish failures, records

@@ -34,3 +34,12 @@ if the breakdown or component mapping drift.
 
 Combine the snapshot with the observability dashboard output to give operators a
 clear view of which operational slices need attention each run.
+
+## Dashboard integration
+
+The observability dashboard now renders operational readiness as a dedicated
+panel, summarising component severities, highlighting degraded services, and
+embedding the full snapshot metadata in panel payloads. Regression coverage
+asserts that the panel headlines, remediation summaries, and Markdown export all
+surface the readiness status so responders inherit the enriched snapshot without
+custom wiring.【F:src/operations/observability_dashboard.py†L443-L493】【F:tests/operations/test_observability_dashboard.py†L135-L236】

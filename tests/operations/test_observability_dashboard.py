@@ -182,6 +182,18 @@ def test_build_dashboard_composes_panels_and_status() -> None:
     assert "# Operational observability dashboard" in markdown
     assert "Risk & exposure" in markdown
 
+    remediation = dashboard.remediation_summary()
+    assert remediation["overall_status"] == DashboardStatus.fail.value
+    assert remediation["panel_counts"][DashboardStatus.fail.value] == 1
+    assert remediation["panel_counts"][DashboardStatus.warn.value] == 2
+    assert remediation["panel_counts"][DashboardStatus.ok.value] == 1
+    assert remediation["failing_panels"] == ("Risk & exposure",)
+    assert set(remediation["warning_panels"]) == {
+        "Latency & throughput",
+        "System health",
+    }
+    assert remediation["healthy_panels"] == ("PnL & ROI",)
+
 
 def test_dashboard_handles_missing_inputs() -> None:
     dashboard = build_observability_dashboard()
@@ -195,6 +207,17 @@ def test_dashboard_handles_missing_inputs() -> None:
     payload = dashboard.as_dict()
     assert payload["status"] == DashboardStatus.ok.value
     assert payload["panels"] == []
+
+    remediation = dashboard.remediation_summary()
+    assert remediation["overall_status"] == DashboardStatus.ok.value
+    assert remediation["panel_counts"] == {
+        DashboardStatus.ok.value: 0,
+        DashboardStatus.warn.value: 0,
+        DashboardStatus.fail.value: 0,
+    }
+    assert remediation["failing_panels"] == ()
+    assert remediation["warning_panels"] == ()
+    assert remediation["healthy_panels"] == ()
 
 
 def test_dashboard_merges_additional_panels() -> None:

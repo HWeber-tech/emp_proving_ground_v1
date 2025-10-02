@@ -84,6 +84,33 @@ class ObservabilityDashboard:
             "metadata": dict(self.metadata),
         }
 
+    def remediation_summary(self) -> dict[str, Any]:
+        """Summarise remediation posture for CI progress tracking."""
+
+        panel_counts = Counter(panel.status for panel in self.panels)
+        failing = tuple(
+            panel.name for panel in self.panels if panel.status is DashboardStatus.fail
+        )
+        warnings = tuple(
+            panel.name for panel in self.panels if panel.status is DashboardStatus.warn
+        )
+        healthy = tuple(
+            panel.name for panel in self.panels if panel.status is DashboardStatus.ok
+        )
+
+        return {
+            "generated_at": self.generated_at.astimezone(UTC).isoformat(),
+            "overall_status": self.status.value,
+            "panel_counts": {
+                DashboardStatus.ok.value: panel_counts.get(DashboardStatus.ok, 0),
+                DashboardStatus.warn.value: panel_counts.get(DashboardStatus.warn, 0),
+                DashboardStatus.fail.value: panel_counts.get(DashboardStatus.fail, 0),
+            },
+            "failing_panels": failing,
+            "warning_panels": warnings,
+            "healthy_panels": healthy,
+        }
+
     def to_markdown(self) -> str:
         lines = [
             "# Operational observability dashboard",

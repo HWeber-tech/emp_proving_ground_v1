@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import inspect
+import logging
 from collections import deque
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -27,6 +28,9 @@ from src.trading.trading_manager import TradingManager
 
 if TYPE_CHECKING:
     from src.operations.bootstrap_control_center import BootstrapControlCenter
+
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -79,8 +83,14 @@ class BootstrapSensoryPipeline:
                 outcome = listener(snapshot)
                 if inspect.isawaitable(outcome):
                     await outcome
-            except Exception:
-                # Observability callbacks should never break the pipeline
+            except Exception:  # pragma: no cover - defensive guard
+                logger.exception(
+                    "Bootstrap sensory listener failed",  # noqa: TRY401 - intentional logging path
+                    extra={
+                        "listener": getattr(listener, "__name__", repr(listener)),
+                        "symbol": symbol,
+                    },
+                )
                 continue
 
         return snapshot
@@ -162,9 +172,14 @@ class BootstrapTradingStack:
             async def _record(snapshot: SensorySnapshot) -> None:
                 try:
                     liquidity_prober.record_snapshot(snapshot.symbol, snapshot.market_data)
-                except Exception:
-                    # Observability helpers must never break the decision loop
-                    pass
+                except Exception:  # pragma: no cover - defensive guard
+                    logger.exception(
+                        "Liquidity prober snapshot recording failed",
+                        extra={
+                            "symbol": snapshot.symbol,
+                            "prober": liquidity_prober.__class__.__name__,
+                        },
+                    )
 
             self.pipeline.register_listener(_record)
 
@@ -233,9 +248,14 @@ class BootstrapTradingStack:
         if self.control_center is not None:
             try:
                 self.control_center.record_tick(snapshot=snapshot, result=result)
-            except Exception:
-                # Telemetry hooks must never impact the trading decision flow
-                pass
+            except Exception:  # pragma: no cover - defensive guard
+                logger.exception(
+                    "Bootstrap control center notification failed",
+                    extra={
+                        "control_center": self.control_center.__class__.__name__,
+                        "symbol": snapshot.symbol,
+                    },
+                )
 
 
 __all__ = [

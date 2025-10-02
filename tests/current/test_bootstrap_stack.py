@@ -1,7 +1,7 @@
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timedelta, timezone
-from decimal import Decimal
 from decimal import Decimal
 from typing import Any, Mapping
 
@@ -19,6 +19,7 @@ from src.trading.execution.paper_execution import ImmediateFillExecutionAdapter
 from src.trading.liquidity.depth_aware_prober import DepthAwareLiquidityProber
 from src.trading.monitoring.portfolio_monitor import InMemoryRedis, PortfolioMonitor
 from src.trading.trading_manager import TradingManager
+
 
 
 def _build_replay_connector() -> HistoricalReplayConnector:
@@ -61,6 +62,20 @@ def _build_replay_connector() -> HistoricalReplayConnector:
 class DummyStrategyRegistry:
     def get_strategy(self, strategy_id: str) -> Mapping[str, Any] | None:
         return {"status": "active", "strategy_id": strategy_id}
+
+
+class _StubRiskGateway:
+    def get_last_decision(self) -> Mapping[str, Any]:
+        return {"checks": []}
+
+
+class StubTradingManager:
+    def __init__(self) -> None:
+        self.intents: list[Any] = []
+        self.risk_gateway = _StubRiskGateway()
+
+    async def on_trade_intent(self, intent: Any) -> None:
+        self.intents.append(intent)
 
 
 @pytest.mark.asyncio()
@@ -144,3 +159,55 @@ async def test_bootstrap_trading_stack_executes_trade() -> None:
     policy_snapshot = trading_manager.get_last_policy_snapshot()
     assert policy_snapshot is not None
     assert policy_snapshot.symbol == "EURUSD"
+
+
+@pytest.mark.asyncio()
+async def test_bootstrap_pipeline_logs_listener_failure(caplog: pytest.LogCaptureFixture) -> None:
+    connector = _build_replay_connector()
+    fabric = MarketDataFabric({"replay": connector})
+    pipeline = BootstrapSensoryPipeline(fabric, ContextualFusionEngine())
+
+    def failing_listener(_: Any) -> None:
+        raise RuntimeError("boom")
+
+    pipeline.register_listener(failing_listener)
+
+    with caplog.at_level(logging.ERROR):
+        snapshot = await pipeline.process_tick("EURUSD")
+
+    assert snapshot.symbol == "EURUSD"
+    messages = [record.message for record in caplog.records]
+    assert any("Bootstrap sensory listener failed" in message for message in messages)
+
+
+class ExplodingProber:
+    def record_snapshot(self, symbol: str, market_data: Any) -> None:
+        raise RuntimeError(f"{symbol} failure")
+
+
+class ExplodingControlCenter:
+    def record_tick(self, *, snapshot: Any, result: Mapping[str, Any]) -> None:
+        raise RuntimeError("control center offline")
+
+
+@pytest.mark.asyncio()
+async def test_bootstrap_stack_logs_optional_callback_failures(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    connector = _build_replay_connector()
+    fabric = MarketDataFabric({"replay": connector})
+    pipeline = BootstrapSensoryPipeline(fabric, ContextualFusionEngine())
+
+    stack = BootstrapTradingStack(
+        pipeline,
+        StubTradingManager(),
+        liquidity_prober=ExplodingProber(),
+        control_center=ExplodingControlCenter(),
+    )
+
+    with caplog.at_level(logging.ERROR):
+        await stack.evaluate_tick("EURUSD")
+
+    messages = [record.message for record in caplog.records]
+    assert any("Liquidity prober snapshot recording failed" in message for message in messages)
+    assert any("Bootstrap control center notification failed" in message for message in messages)

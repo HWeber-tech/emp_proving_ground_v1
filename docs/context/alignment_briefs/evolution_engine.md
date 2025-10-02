@@ -62,6 +62,11 @@
   markdown fallbacks, and documents exception paths via pytest so dashboards and
   status packs retain reliable ROI and backlog metrics even when transports
   misbehave.【F:src/operations/evolution_experiments.py†L40-L196】【F:tests/operations/test_evolution_experiments.py†L1-L126】
+- Progress: Evolution engine now records seed provenance on population
+  initialization and after each generation, summarising catalogue templates,
+  seed tags, and totals for the population manager while lineage telemetry emits
+  the enriched payload under pytest coverage so orchestrator dashboards expose
+  deterministic seed metadata instead of opaque populations.【F:src/core/evolution/engine.py†L65-L336】【F:src/core/population_manager.py†L115-L183】【F:src/evolution/lineage_telemetry.py†L1-L200】【F:tests/current/test_evolution_orchestrator.py†L83-L120】【F:tests/evolution/test_lineage_snapshot.py†L8-L66】
 - Progress: Adaptive runs remain gated behind the `EVOLUTION_ENABLE_ADAPTIVE_RUNS`
   flag, with orchestrator wiring skipping champion registration and telemetry
   when the flag is disabled and pytest coverage documenting the contract so

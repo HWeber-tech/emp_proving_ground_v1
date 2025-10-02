@@ -70,6 +70,12 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
     catalogue updates, and telemetry so governance can disable adaptive loops
     until approvals land, with pytest coverage documenting the flag contract and
     orchestration fallbacks.【F:src/evolution/feature_flags.py†L1-L44】【F:src/orchestration/evolution_cycle.py†L65-L340】【F:tests/current/test_evolution_orchestrator.py†L64-L240】【F:tests/evolution/test_feature_flags.py†L1-L27】
+  - *Progress*: Evolution engine now records seed provenance on every
+    initialization and generation, summarising catalogue template counts,
+    species tags, and seeded totals for the population manager while lineage
+    telemetry emits the enriched payload under pytest coverage so dashboards and
+    governance reviews inherit deterministic seed metadata instead of opaque
+    populations.【F:src/core/evolution/engine.py†L65-L336】【F:src/core/population_manager.py†L115-L183】【F:src/evolution/lineage_telemetry.py†L1-L200】【F:tests/current/test_evolution_orchestrator.py†L83-L120】【F:tests/evolution/test_lineage_snapshot.py†L8-L66】
   - *Progress*: Evolution experiment telemetry hardens publishing with explicit
     exception capture, markdown fallback logging, and pytest scenarios that
     simulate transport failures so dashboards and runbooks inherit reliable
@@ -195,10 +201,16 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
     surfacing active task counts, and retaining the hardened publish failover so
     governance teams see actionable workflow posture even during runtime bus
     outages.【F:src/operations/compliance_readiness.py†L262-L420】【F:tests/operations/test_compliance_readiness.py†L58-L213】
-  - *Progress*: System validation telemetry escalates runtime publish failures
-    into warnings, raises on unexpected errors, and regression tests capture the
-    fallback handling so readiness dashboards surface degraded validation runs
-    instead of missing them.【F:src/operations/system_validation.py†L269-L312】【F:tests/operations/test_system_validation.py†L85-L137】
+  - *Progress*: System validation telemetry now attaches failing check names and
+    messages to snapshot metadata and Markdown output while continuing to route
+    through the shared failover helper, so readiness dashboards surface the
+    precise failing checks even when the runtime bus degrades, with pytest
+    verifying metadata capture and failover escalation.【F:src/operations/system_validation.py†L127-L321】【F:tests/operations/test_system_validation.py†L77-L160】
+  - *Progress*: Professional readiness publisher now reuses the hardened
+    failover helper, logging runtime fallbacks, refusing unexpected errors, and
+    supporting injected global bus factories under pytest coverage so
+    operational readiness telemetry is preserved when the primary transport
+    fails instead of silently dropping snapshots.【F:src/operations/professional_readiness.py†L268-L305】【F:tests/operations/test_professional_readiness.py†L164-L239】
   - *Progress*: Sensory drift telemetry publisher now routes through the shared
     failover helper, logging runtime and global-bus degradation while retaining
     deterministic payload metadata so dashboards receive alerts even when the
@@ -229,6 +241,11 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
     canonical mean reversion regression to exercise the modern trading
     strategies API, shrinking the dead-code backlog and aligning tests with the
     production surface.【F:docs/reports/CLEANUP_REPORT.md†L87-L106】【F:tests/current/test_mean_reversion_strategy.py†L1-L80】
+  - *Progress*: Core configuration module now proxies every legacy accessor to
+    the canonical `SystemConfig`, preserving environment overrides, YAML import
+    compatibility, and debug coercion so downstream consumers can migrate
+    without duplicating parsing logic while the shim stops drifting from the
+    source of truth.【F:src/core/configuration.py†L1-L188】
 
 ## Roadmap cadence
 

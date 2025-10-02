@@ -39,11 +39,12 @@
     shutdown callbacks so production launches share the same supervised lifecycle
     contract as the builder, with pytest covering normal completion and timeout
     cancellation flows.【F:src/runtime/runtime_runner.py†L1-L120】【F:main.py†L71-L125】【F:tests/runtime/test_runtime_runner.py†L1-L58】
-- Harden operational telemetry publishers so security and system validation
-  feeds warn on runtime bus failures, fall back deterministically, and raise on
-  unexpected errors with pytest coverage guarding the behaviour, including
-  regressions that capture global-bus fallbacks, runtime-not-running paths, and
-  unexpected error escalation for security publishing.【F:src/operations/security.py†L536-L579】【F:tests/operations/test_security.py†L101-L211】【F:src/operations/system_validation.py†L269-L312】【F:tests/operations/test_system_validation.py†L85-L137】
+- Harden operational telemetry publishers so security, system validation, and
+  professional readiness feeds warn on runtime bus failures, fall back
+  deterministically, and raise on unexpected errors with pytest coverage
+  guarding the behaviour, while system validation now records failing-check
+  metadata so responders see the exact degradation in Markdown and payloads.
+  【F:src/operations/security.py†L536-L579】【F:tests/operations/test_security.py†L101-L211】【F:src/operations/system_validation.py†L127-L321】【F:tests/operations/test_system_validation.py†L77-L160】【F:src/operations/professional_readiness.py†L268-L305】【F:tests/operations/test_professional_readiness.py†L164-L239】
 - Harden incident response telemetry with the shared failover helper so
   snapshots reuse the guarded runtime→global publish path, surface warning/error
   logs for degraded transports, and raise typed errors under pytest coverage

@@ -131,6 +131,12 @@ class SystemValidationSnapshot:
             f"- Checks passed: {self.passed_checks}/{self.total_checks}",
             f"- Success rate: {self.success_rate:.2%}",
         ]
+        failing_checks = [check for check in self.checks if not check.passed]
+        if failing_checks:
+            summary_names = [
+                check.name if check.name else "unknown" for check in failing_checks
+            ]
+            lines.append("- Failing checks: " + ", ".join(summary_names))
         if isinstance(self.metadata, Mapping):
             validator = self.metadata.get("validator")
             if validator:
@@ -254,6 +260,24 @@ def evaluate_system_validation(
         snapshot_metadata.setdefault("version", str(version))
     if summary_message:
         snapshot_metadata.setdefault("summary_message", str(summary_message))
+
+    failing_checks = tuple(check for check in checks if not check.passed)
+    if failing_checks:
+        snapshot_metadata.setdefault(
+            "failing_checks",
+            tuple(
+                {
+                    "name": check.name,
+                    "message": check.message,
+                    "metadata": dict(check.metadata),
+                }
+                for check in failing_checks
+            ),
+        )
+        snapshot_metadata.setdefault(
+            "failing_check_names",
+            tuple(check.name for check in failing_checks),
+        )
 
     return SystemValidationSnapshot(
         status=status,

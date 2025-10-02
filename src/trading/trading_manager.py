@@ -36,7 +36,7 @@ from src.trading.risk.policy_telemetry import (
 )
 from src.trading.risk.risk_gateway import RiskGateway
 from src.trading.risk.risk_policy import RiskPolicy
-from src.trading.risk.risk_api import resolve_trading_risk_interface
+from src.trading.risk.risk_api import RiskApiError, resolve_trading_risk_interface
 
 from src.operations.roi import (
     RoiCostModel,
@@ -502,7 +502,15 @@ class TradingManager:
     def describe_risk_interface(self) -> dict[str, object]:
         """Expose a deterministic snapshot of the trading risk interface."""
 
-        interface = resolve_trading_risk_interface(self)
+        try:
+            interface = resolve_trading_risk_interface(self)
+        except RiskApiError as exc:
+            return {
+                "error": str(exc),
+                "runbook": exc.runbook,
+                "details": exc.to_metadata().get("details", {}),
+            }
+
         payload: dict[str, object] = {
             "config": interface.config.dict(),
             "summary": interface.summary(),

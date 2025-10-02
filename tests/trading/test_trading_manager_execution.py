@@ -222,3 +222,27 @@ def test_describe_risk_interface_exposes_canonical_payload() -> None:
         float(manager._risk_config.max_risk_per_trade_pct)  # type: ignore[attr-defined]
     )
     assert "policy_limits" in description["status"]
+
+
+def test_describe_risk_interface_returns_runbook_on_error() -> None:
+    class BrokenTradingManager(TradingManager):
+        def __init__(self) -> None:
+            super().__init__(
+                event_bus=DummyBus(),
+                strategy_registry=AlwaysActiveRegistry(),
+                execution_engine=None,
+                risk_config=RiskConfig(),
+            )
+            # Invalidate the canonical risk configuration to trigger fallback path.
+            self._risk_config = None  # type: ignore[assignment]
+
+        def get_risk_status(self) -> dict[str, object]:
+            return {"risk_config": {"max_risk_per_trade_pct": -1}}
+
+    manager = BrokenTradingManager()
+
+    description = manager.describe_risk_interface()
+
+    assert description["runbook"].endswith("risk_api_contract.md")
+    assert "BrokenTradingManager" in description["details"].get("manager", "")
+    assert "error" in description

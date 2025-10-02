@@ -20,8 +20,31 @@ from pydantic import ValidationError
 from src.config.risk.risk_config import RiskConfig
 
 
+_DEFAULT_RUNBOOK = "docs/operations/runbooks/risk_api_contract.md"
+
+
 class RiskApiError(RuntimeError):
     """Raised when a trading manager violates the risk API contract."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        details: Mapping[str, object] | None = None,
+        runbook: str | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.message = message
+        self.details = dict(details or {})
+        self.runbook = runbook or _DEFAULT_RUNBOOK
+
+    def to_metadata(self) -> dict[str, object]:
+        """Serialise the error details for telemetry surfaces."""
+
+        payload: dict[str, object] = {"message": self.message, "runbook": self.runbook}
+        if self.details:
+            payload["details"] = dict(self.details)
+        return payload
 
 
 def _extract_risk_status(trading_manager: Any) -> Mapping[str, object] | None:
@@ -32,7 +55,10 @@ def _extract_risk_status(trading_manager: Any) -> Mapping[str, object] | None:
         try:
             payload = getter()
         except Exception as exc:  # pragma: no cover - diagnostic guardrail
-            raise RiskApiError("Trading manager risk status retrieval failed") from exc
+            raise RiskApiError(
+                "Trading manager risk status retrieval failed",
+                details={"manager": type(trading_manager).__name__},
+            ) from exc
         if isinstance(payload, Mapping):
             return payload
     return None
@@ -59,9 +85,15 @@ def resolve_trading_risk_config(trading_manager: Any) -> RiskConfig:
             try:
                 return RiskConfig.parse_obj(config_payload)
             except ValidationError as exc:
-                raise RiskApiError("Trading manager risk configuration is invalid") from exc
+                raise RiskApiError(
+                    "Trading manager risk configuration is invalid",
+                    details={"manager": type(trading_manager).__name__},
+                ) from exc
 
-    raise RiskApiError("Trading manager does not expose a canonical RiskConfig")
+    raise RiskApiError(
+        "Trading manager does not expose a canonical RiskConfig",
+        details={"manager": type(trading_manager).__name__},
+    )
 
 
 def summarise_risk_config(config: RiskConfig) -> dict[str, object]:

@@ -183,13 +183,16 @@ async def test_builder_rejects_invalid_trading_risk_config(tmp_path):
         setattr(app.sensory_organ, "trading_manager", StubTradingManager())
 
     try:
-        with pytest.raises(RuntimeError, match="risk configuration is invalid"):
+        with pytest.raises(RuntimeError) as excinfo:
             build_professional_runtime_application(
                 app,
                 skip_ingest=True,
                 symbols_csv="EURUSD",
                 duckdb_path=str(tmp_path / "tier0.duckdb"),
             )
+        message = str(excinfo.value)
+        assert "risk configuration is invalid" in message
+        assert "risk_api_contract.md" in message
     finally:
         await app.shutdown()
 

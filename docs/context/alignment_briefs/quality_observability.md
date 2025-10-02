@@ -130,6 +130,10 @@
   event-bus failover helper, logging runtime and global-bus degradations while
   tests assert the fallback contract so operators keep receiving deterministic
   drift alerts when the primary transport misbehaves.【F:src/operations/sensory_drift.py†L247-L276】【F:tests/operations/test_sensory_drift.py†L17-L163】
+- Progress: System validation snapshots now attach failing-check names and
+  messages to metadata and Markdown while reusing the shared failover helper so
+  operational dashboards display the exact broken checks even during runtime bus
+  degradation, with pytest covering metadata capture and failover paths.【F:src/operations/system_validation.py†L127-L321】【F:tests/operations/test_system_validation.py†L77-L160】
 
 ### Next (30–90 days)
 

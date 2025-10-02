@@ -1,3 +1,4 @@
+import logging
 from datetime import UTC, datetime
 from typing import Mapping
 
@@ -116,3 +117,48 @@ def test_combine_ingest_publishers_handles_none_only() -> None:
 
     recorder = _Recorder()
     assert combine_ingest_publishers(None, recorder) is recorder
+
+
+def test_event_bus_publisher_logs_and_falls_back_on_recoverable_local_error(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    caplog.set_level(logging.WARNING)
+    captured: dict[str, object] = {}
+
+    class _RecoveringBus:
+        def publish_from_sync(self, event) -> None:  # pragma: no cover - tested via exception path
+            raise RuntimeError("not running")
+
+        def is_running(self) -> bool:
+            return True
+
+    class _FallbackBus:
+        def publish_sync(self, topic: str, payload, source: str | None = None) -> None:
+            captured["topic"] = topic
+            captured["payload"] = payload
+            captured["source"] = source
+
+    monkeypatch.setattr(
+        "src.data_foundation.ingest.telemetry.get_global_bus",
+        lambda: _FallbackBus(),
+    )
+
+    publisher = EventBusIngestPublisher(_RecoveringBus(), topic="telemetry.recoverable", source="unit")
+    publisher.publish(_sample_result(), metadata={"latency": 1.23})
+
+    assert captured["topic"] == "telemetry.recoverable"
+    assert "falling back to global bus" in caplog.text
+
+
+def test_event_bus_publisher_raises_on_unexpected_error() -> None:
+    class _BrokenBus:
+        def publish_from_sync(self, event) -> None:  # pragma: no cover - tested via exception path
+            raise TypeError("boom")
+
+        def is_running(self) -> bool:
+            return True
+
+    publisher = EventBusIngestPublisher(_BrokenBus(), topic="telemetry.error", source="unit")
+
+    with pytest.raises(TypeError):
+        publisher.publish(_sample_result())

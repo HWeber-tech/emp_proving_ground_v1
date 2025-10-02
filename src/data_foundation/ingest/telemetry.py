@@ -59,21 +59,43 @@ class EventBusIngestPublisher(IngestResultPublisher):
 
         publish_from_sync = getattr(self._bus, "publish_from_sync", None)
         is_running = getattr(self._bus, "is_running", lambda: False)
+
         if callable(publish_from_sync) and callable(is_running) and is_running():
             try:
                 publish_from_sync(event)
                 return
+            except (ConnectionError, RuntimeError, TimeoutError) as exc:
+                self._logger.warning(
+                    "Failed to publish ingest telemetry on local event bus; falling back to global bus",
+                    exc_info=exc,
+                )
             except Exception:
-                self._logger.exception("Failed to publish ingest telemetry on local event bus")
+                self._logger.exception(
+                    "Unexpected error publishing ingest telemetry on local event bus",
+                )
+                raise
 
         try:
             topic_bus = get_global_bus()
-            topic_bus.publish_sync(self._topic, payload, source=self._source)
         except Exception:
-            self._logger.debug(
-                "Ingest telemetry publish skipped – no global bus available",
+            self._logger.warning(
+                "Global event bus unavailable for ingest telemetry publishing",
                 exc_info=True,
             )
+            return
+
+        try:
+            topic_bus.publish_sync(self._topic, payload, source=self._source)
+        except (ConnectionError, RuntimeError, TimeoutError) as exc:
+            self._logger.warning(
+                "Failed to publish ingest telemetry on global event bus",
+                exc_info=exc,
+            )
+        except Exception:
+            self._logger.exception(
+                "Unexpected error publishing ingest telemetry on global event bus",
+            )
+            raise
 
 
 class CompositeIngestPublisher(IngestResultPublisher):

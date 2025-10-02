@@ -17,6 +17,7 @@ pytestmark = pytest.mark.guardrail
 
 _GUARDRAIL_TARGETS: dict[str, Path] = {
     "ingest_orchestration": Path("tests/data_foundation/test_timescale_backbone_orchestrator.py"),
+    "ingest_scheduler": Path("tests/data_foundation/test_ingest_scheduler.py"),
     "risk_policy": Path("tests/trading/test_risk_policy.py"),
     "observability_event_bus": Path("tests/operations/test_event_bus_health.py"),
 }

@@ -1,5 +1,8 @@
 from datetime import UTC, datetime
 
+import pytest
+
+from src.core.event_bus import Event
 from src.data_foundation.ingest.failover import IngestFailoverDecision
 from src.data_foundation.ingest.health import IngestHealthStatus
 from src.data_foundation.ingest.recovery import IngestRecoveryRecommendation
@@ -13,7 +16,8 @@ from src.operations.data_backbone import (
     BackboneStatus,
     DataBackboneReadinessSnapshot,
 )
-from src.core.event_bus import Event
+
+from src.operations.event_bus_failover import EventPublishError
 from src.operations.professional_readiness import (
     ProfessionalReadinessStatus,
     evaluate_professional_readiness,
@@ -154,6 +158,7 @@ class _StubEventBus:
 
     def publish_from_sync(self, event: Event) -> None:
         self.events.append(event)
+        return True
 
 
 def test_publish_professional_readiness_snapshot_uses_event_bus() -> None:
@@ -171,3 +176,64 @@ def test_publish_professional_readiness_snapshot_uses_event_bus() -> None:
     assert event.type == "telemetry.operational.readiness"
     assert event.source == "unit_test"
     assert event.payload["status"] == "ok"
+
+
+def test_publish_professional_readiness_snapshot_falls_back_to_global_bus() -> None:
+    snapshot = evaluate_professional_readiness(
+        backbone_snapshot=_backbone_snapshot(BackboneStatus.ok),
+        backup_snapshot=_backup_snapshot(BackupStatus.ok),
+        slo_snapshot=_slo_snapshot(SLOStatus.met),
+    )
+
+    class _FailingRuntimeBus:
+        def is_running(self) -> bool:
+            return True
+
+        def publish_from_sync(self, event: Event) -> None:
+            raise RuntimeError("runtime bus unavailable")
+
+    published: list[tuple[str, dict[str, object], str]] = []
+
+    class _StubTopicBus:
+        def publish_sync(self, event_type: str, payload: dict[str, object], *, source: str) -> None:
+            published.append((event_type, payload, source))
+
+    publish_professional_readiness_snapshot(
+        _FailingRuntimeBus(),
+        snapshot,
+        global_bus_factory=lambda: _StubTopicBus(),
+    )
+
+    assert published == [
+        (
+            "telemetry.operational.readiness",
+            snapshot.as_dict(),
+            "operations.professional_readiness",
+        )
+    ]
+
+
+def test_publish_professional_readiness_snapshot_raises_on_unexpected_error() -> None:
+    snapshot = evaluate_professional_readiness(
+        backbone_snapshot=_backbone_snapshot(BackboneStatus.ok),
+        backup_snapshot=_backup_snapshot(BackupStatus.ok),
+        slo_snapshot=_slo_snapshot(SLOStatus.met),
+    )
+
+    class _UnexpectedRuntimeBus:
+        def is_running(self) -> bool:
+            return True
+
+        def publish_from_sync(self, event: Event) -> None:
+            raise ValueError("boom")
+
+    class _UnusedTopicBus:
+        def publish_sync(self, event_type: str, payload: dict[str, object], *, source: str) -> None:
+            raise AssertionError("global bus should not be used for unexpected runtime errors")
+
+    with pytest.raises(EventPublishError):
+        publish_professional_readiness_snapshot(
+            _UnexpectedRuntimeBus(),
+            snapshot,
+            global_bus_factory=lambda: _UnusedTopicBus(),
+        )

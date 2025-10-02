@@ -321,7 +321,8 @@ def _prepare_trading_risk_enforcement(
     try:
         risk_config = resolve_trading_risk_config(trading_manager)
     except RiskApiError as exc:
-        raise RuntimeError(str(exc)) from exc
+        metadata["risk_error"] = exc.to_metadata()
+        raise RuntimeError(f"{exc}. See {exc.runbook}") from exc
     if risk_config.max_risk_per_trade_pct <= 0:
         raise RuntimeError("RiskConfig.max_risk_per_trade_pct must be positive")
     if risk_config.max_total_exposure_pct <= 0:

@@ -114,3 +114,13 @@ def test_resolve_trading_risk_interface_exposes_status_mapping() -> None:
     assert interface.status is not None
     assert interface.status["policy_limits"]["max_leverage"] == 5
 
+
+def test_risk_api_error_surfaces_metadata_and_runbook() -> None:
+    error = RiskApiError("example failure", details={"manager": "StubManager"})
+
+    metadata = error.to_metadata()
+
+    assert metadata["message"] == "example failure"
+    assert metadata["runbook"].endswith("risk_api_contract.md")
+    assert metadata["details"]["manager"] == "StubManager"
+

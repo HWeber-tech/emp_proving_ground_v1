@@ -49,14 +49,19 @@
   - Progress: Added guardrail regressions for the trading position model to
     assert timestamp updates, profit recalculations, and close flows so the
     lightweight execution telemetry remains deterministic under CI coverage.【F:tests/trading/test_position_model_guardrails.py†L1-L105】
-  - Progress: System validation telemetry regressions now capture runtime bus
-    fallbacks and unexpected-error escalations, hardening operational coverage so
-    readiness dashboards surface degraded runs instead of swallowing failures.【F:src/operations/system_validation.py†L269-L312】【F:tests/operations/test_system_validation.py†L85-L137】
+  - Progress: System validation evaluator now normalises structured reports into
+    readiness snapshots, annotates failing checks, derives alert events, and
+    publishes via the failover helper under pytest coverage so dashboards retain
+    degradation evidence even when the runtime bus misbehaves.【F:src/operations/system_validation.py†L1-L312】【F:tests/operations/test_system_validation.py†L1-L195】
   - Progress: Event bus failover helper now powers security, system validation,
     compliance readiness, incident response, and evolution experiment
     publishers, replacing ad-hoc blanket handlers with typed errors and
     structured logging so transport regressions escalate consistently across
-    modules.【F:src/operations/event_bus_failover.py†L1-L174】【F:src/operations/incident_response.py†L350-L375】【F:src/operations/evolution_experiments.py†L297-L342】【F:tests/operations/test_event_bus_failover.py†L1-L164】【F:tests/operations/test_incident_response.py†L123-L167】【F:tests/operations/test_evolution_experiments.py†L135-L191】
+    modules.【F:src/operations/event_bus_failover.py†L1-L174】【F:src/operations/incident_response.py†L675-L715】【F:src/operations/evolution_experiments.py†L297-L342】【F:tests/operations/test_event_bus_failover.py†L1-L164】【F:tests/operations/test_incident_response.py†L135-L179】【F:tests/operations/test_evolution_experiments.py†L135-L191】
+  - Progress: Incident response readiness now evaluates policy/state mappings,
+    emits Markdown snapshots, derives roster/backlog alerts, and publishes via
+    the failover helper under pytest coverage so operators inherit actionable
+    escalations instead of silent outages.【F:src/operations/incident_response.py†L1-L715】【F:tests/operations/test_incident_response.py†L1-L200】
   - Progress: Guardrail manifest tests pin the ingest orchestration, risk policy,
     and observability suites to the CI guardrail marker so coverage drops or
     marker drift block merges before the broader regression run, with pytest

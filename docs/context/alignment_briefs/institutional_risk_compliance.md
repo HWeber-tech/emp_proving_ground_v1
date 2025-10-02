@@ -49,11 +49,11 @@
   summaries, and publish violation alerts with embedded escalation metadata while
   the trading manager mirrors the feed and the new runbook documents the response,
   giving governance a deterministic alert surface when violations occur.【F:src/trading/risk/policy_telemetry.py†L1-L285】【F:src/trading/trading_manager.py†L642-L686】【F:docs/operations/runbooks/risk_policy_violation.md†L1-L51】【F:tests/trading/test_risk_policy_telemetry.py†L1-L199】
-- Progress: Canonical `RiskConfig` enforces positive position sizing, cross-field
-  exposure relationships, and research-mode overrides, emitting warnings when
-  mandatory stop losses are disabled outside research and blocking inconsistent
-  payloads under pytest coverage so compliance reviews inherit deterministic
-  guardrails.【F:src/config/risk/risk_config.py†L1-L161】【F:tests/risk/test_risk_config_validation.py†L1-L36】
+- Progress: Canonical `RiskConfig` now normalises instrument/sector inputs,
+  rejects duplicate sector limits, enforces sector budgets against the global
+  exposure cap, and retains the research-mode and position-sizing guards so
+  compliance reviews inherit deterministic, de-duplicated limits under pytest
+  coverage.【F:src/config/risk/risk_config.py†L10-L205】【F:tests/risk/test_risk_config_validation.py†L39-L70】
 - Progress: Runtime builder now resolves the canonical `RiskConfig`, validates
   thresholds, wraps invalid payloads in runtime errors, and records enforced
   metadata under regression coverage so supervised launches cannot proceed with

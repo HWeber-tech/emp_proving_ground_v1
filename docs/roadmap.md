@@ -80,6 +80,11 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
     exception capture, markdown fallback logging, and pytest scenarios that
     simulate transport failures so dashboards and runbooks inherit reliable
     snapshots of paper-trading ROI and backlog posture.【F:src/operations/evolution_experiments.py†L40-L196】【F:tests/operations/test_evolution_experiments.py†L1-L126】
+  - *Progress*: Evolution readiness evaluator now fuses the adaptive-run feature
+    flag, seed provenance statistics, and lineage telemetry into a governance
+    snapshot, rendering Markdown/JSON summaries, capturing issues, and exposing
+    champion metadata so reviewers can gate adaptive runs deterministically
+    under pytest coverage.【F:src/operations/evolution_readiness.py†L1-L206】【F:tests/operations/test_evolution_readiness.py†L1-L118】
   - *Progress*: Recorded sensory replay evaluator converts archived sensory
     snapshots into deterministic fitness metrics, wiring price/confidence
     extraction and regression coverage so adaptive runs can be validated without
@@ -117,10 +122,11 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
     payloads on the event bus, and persist the latest posture for discovery,
     with pytest asserting snapshot and alert propagation so supervisors inherit
     actionable evidence when enforcement fails.【F:src/trading/risk/risk_interface_telemetry.py†L1-L156】【F:src/trading/trading_manager.py†L635-L678】【F:tests/trading/test_trading_manager_execution.py†L190-L287】
-  - *Progress*: `RiskConfig` now enforces positive position sizing, cross-field
-    exposure relationships, and research-mode overrides, emitting warnings when
-    mandatory stop losses are disabled outside research and blocking
-    inconsistent payloads under pytest coverage.【F:src/config/risk/risk_config.py†L1-L161】【F:tests/risk/test_risk_config_validation.py†L1-L36】
+  - *Progress*: `RiskConfig` now normalises sector/instrument mappings, rejects
+    duplicate or missing sector limits, caps sector exposure against the global
+    budget, and continues to enforce position sizing plus research-mode
+    overrides so governance reviews inherit deterministic, de-duplicated risk
+    inputs under pytest coverage.【F:src/config/risk/risk_config.py†L10-L205】【F:tests/risk/test_risk_config_validation.py†L39-L70】
   - *Progress*: Runtime builder now resolves the canonical `RiskConfig` from the
     trading manager, validates mandatory thresholds, wraps invalid payloads in a
     deterministic runtime error, and logs the enforced posture under regression
@@ -161,6 +167,16 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
     publishes the payload via the shared failover helper so dashboards and
     runtime reports inherit the same hardened transport guarantees under pytest
     coverage.【F:src/operations/strategy_performance.py†L200-L531】【F:tests/operations/test_strategy_performance.py†L68-L193】
+  - *Progress*: Incident response readiness now parses policy/state mappings into
+    a severity snapshot, derives targeted alert events, and publishes telemetry
+    via the shared failover helper so operators get actionable runbook, roster,
+    and backlog evidence under pytest coverage covering escalation, dispatch,
+    and publish failure paths.【F:src/operations/incident_response.py†L1-L715】【F:tests/operations/test_incident_response.py†L1-L200】
+  - *Progress*: System validation evaluator ingests JSON/structured reports,
+    normalises timestamps and success rates, renders Markdown, derives alert
+    events, and routes/publishes snapshots through the failover helper so
+    readiness dashboards retain failing-check context even when the runtime bus
+    degrades, with pytest guarding evaluation, alerting, and failover flows.【F:src/operations/system_validation.py†L1-L312】【F:tests/operations/test_system_validation.py†L1-L195】
   - *Progress*: Coverage matrix CLI now surfaces lagging domains and can fail
     the build when coverage drops below a configurable threshold, with helper
     utilities and pytest coverage documenting the contract so guardrail

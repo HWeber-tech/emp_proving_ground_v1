@@ -35,6 +35,18 @@ if the breakdown or component mapping drift.
 Combine the snapshot with the observability dashboard output to give operators a
 clear view of which operational slices need attention each run.
 
+## Feeder snapshots
+
+- `evaluate_incident_response` turns policy/state mappings into a readiness
+  snapshot, attaches missing-runbook, roster, backlog, and chatops context, and
+  exposes Markdown plus alert derivation helpers so the operational readiness
+  aggregate inherits actionable incident evidence under pytest coverage.【F:src/operations/incident_response.py†L249-L715】【F:tests/operations/test_incident_response.py†L1-L200】
+- `evaluate_system_validation` ingests structured reports, computes success
+  rates, annotates failing checks, and publishes via the shared failover helper
+  so readiness retains validator metadata and degraded-check evidence even when
+  the runtime bus falters, with regressions covering evaluation, alerting, and
+  failover paths.【F:src/operations/system_validation.py†L1-L312】【F:tests/operations/test_system_validation.py†L1-L195】
+
 ## Dashboard integration
 
 The observability dashboard now renders operational readiness as a dedicated

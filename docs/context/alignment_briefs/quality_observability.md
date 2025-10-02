@@ -77,6 +77,10 @@
     violation states to observability dashboard entries while preserving the
     serialised payloads, with pytest coverage asserting limit-status escalation
     so operators inherit actionable risk summaries instead of opaque aggregates.【F:src/operations/observability_dashboard.py†L254-L309】【F:tests/operations/test_observability_dashboard.py†L201-L241】
+  - Progress: Observability dashboard now exposes a remediation summary capsule
+    that counts failing/warning/healthy panels and lists affected slices under
+    regression coverage so CI exporters can consume a canonical operational
+    readiness signal without recomputing severities.【F:src/operations/observability_dashboard.py†L60-L109】【F:tests/operations/test_observability_dashboard.py†L60-L116】
   - Progress: Operational readiness telemetry now enriches snapshots with
     per-status breakdowns and component maps so dashboards can render severity
     chips without reimplementing escalation logic, with pytest and docs locking
@@ -99,6 +103,10 @@
   remediation plans inherit documented evidence. Latest coverage exercises the
   failure fallback hook, sanitised FIX wrappers, and latency bounds so telemetry
   captures degraded instrumentation instead of silently dropping metrics.【F:src/operational/metrics.py†L1-L200】【F:tests/operational/test_metrics.py†L200-L328】
+- Progress: Bootstrap stack now logs sensory listener, liquidity prober, and
+  control-centre callback failures with structured metadata so optional hooks
+  surface errors without disrupting bootstrap decisions, under pytest coverage
+  that captures the emitted diagnostics.【F:src/orchestration/bootstrap_stack.py†L81-L258】【F:tests/current/test_bootstrap_stack.py†L164-L213】
 - Wire Slack/webhook mirrors for CI alerts, rehearse the forced-failure drill,
   and record MTTA/MTTR in the health dashboard per the operational telemetry
   stream roadmap.【F:docs/technical_debt_assessment.md†L156-L174】【F:docs/status/ci_health.md†L74-L76】

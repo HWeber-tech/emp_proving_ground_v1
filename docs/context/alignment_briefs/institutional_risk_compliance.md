@@ -63,6 +63,11 @@
   exposes runtime-ready metadata snapshots, and drives the runtime builder’s
   enforcement path so supervisors and docs consume a single hardened contract
   under pytest coverage.【F:src/trading/risk/risk_api.py†L1-L134】【F:src/runtime/runtime_builder.py†L313-L343】【F:tests/trading/test_risk_api.py†L1-L115】【F:tests/trading/test_trading_manager_execution.py†L208-L224】
+- Progress: Trading risk interface telemetry helpers now publish structured
+  snapshots and contract-violation alerts with Markdown summaries, updating the
+  trading manager’s cached posture and emitting event-bus payloads under pytest
+  coverage so governance receives actionable enforcement evidence when the
+  interface degrades.【F:src/trading/risk/risk_interface_telemetry.py†L1-L156】【F:src/trading/trading_manager.py†L635-L678】【F:tests/trading/test_trading_manager_execution.py†L190-L287】
 - Progress: Compliance readiness snapshots now consolidate trade surveillance,
   KYC telemetry, and workflow checklist status, escalating blocked items,
   surfacing active task counts, and exposing markdown evidence with pytest

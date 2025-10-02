@@ -15,6 +15,9 @@ from src.observability.logging import (
 )
 
 
+pytestmark = pytest.mark.guardrail
+
+
 @pytest.fixture()
 def reset_logging() -> Iterator[None]:
     root = logging.getLogger()

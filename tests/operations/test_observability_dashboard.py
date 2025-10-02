@@ -24,6 +24,9 @@ from src.risk.analytics.expected_shortfall import ExpectedShortfallResult
 from src.risk.analytics.var import VarResult
 
 
+pytestmark = pytest.mark.guardrail
+
+
 def _now() -> datetime:
     return datetime.now(tz=UTC)
 

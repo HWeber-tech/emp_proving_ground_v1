@@ -15,9 +15,9 @@ import logging
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import Enum
-from typing import Mapping
+from typing import Callable, Mapping
 
-from src.core.event_bus import Event, EventBus, get_global_bus
+from src.core.event_bus import Event, EventBus, TopicBus
 
 from src.data_foundation.ingest.failover import IngestFailoverDecision
 from src.data_foundation.ingest.recovery import IngestRecoveryRecommendation
@@ -27,6 +27,7 @@ from src.operations.data_backbone import (
     DataBackboneReadinessSnapshot,
 )
 from src.operations.slo import OperationalSLOSnapshot, SLOStatus
+from src.operations.event_bus_failover import publish_event_with_failover
 
 
 logger = logging.getLogger(__name__)
@@ -269,6 +270,7 @@ def publish_professional_readiness_snapshot(
     snapshot: ProfessionalReadinessSnapshot,
     *,
     source: str = "operations.professional_readiness",
+    global_bus_factory: Callable[[], TopicBus] | None = None,
 ) -> None:
     """Publish the snapshot onto the runtime/global event buses."""
 
@@ -278,24 +280,29 @@ def publish_professional_readiness_snapshot(
         source=source,
     )
 
-    publish_from_sync = getattr(event_bus, "publish_from_sync", None)
-    if callable(publish_from_sync) and event_bus.is_running():
-        try:
-            publish_from_sync(event)
-            return
-        except Exception:  # pragma: no cover - defensive logging
-            logger.debug(
-                "Failed to publish professional readiness via runtime event bus",
-                exc_info=True,
-            )
-
-    try:
-        topic_bus = get_global_bus()
-        topic_bus.publish_sync(event.type, event.payload, source=event.source)
-    except Exception:  # pragma: no cover - defensive logging
-        logger.debug(
-            "Professional readiness telemetry publish skipped", exc_info=True
-        )
+    publish_event_with_failover(
+        event_bus,
+        event,
+        logger=logger,
+        runtime_fallback_message=(
+            "Primary event bus publish_from_sync failed; falling back to global bus "
+            "for professional readiness telemetry"
+        ),
+        runtime_unexpected_message=(
+            "Unexpected error publishing professional readiness snapshot via runtime bus"
+        ),
+        runtime_none_message=(
+            "Primary event bus publish_from_sync returned None; falling back to global bus "
+            "for professional readiness telemetry"
+        ),
+        global_not_running_message=(
+            "Global event bus not running while publishing professional readiness snapshot"
+        ),
+        global_unexpected_message=(
+            "Unexpected error publishing professional readiness snapshot via global bus"
+        ),
+        global_bus_factory=global_bus_factory,
+    )
 
 
 __all__ = [

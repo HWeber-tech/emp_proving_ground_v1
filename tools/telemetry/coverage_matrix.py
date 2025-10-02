@@ -181,6 +181,12 @@ def build_coverage_matrix(coverage_report: Path) -> CoverageMatrix:
     )
 
 
+def identify_laggards(matrix: CoverageMatrix, *, threshold: float) -> tuple[CoverageDomain, ...]:
+    return tuple(
+        domain for domain in matrix.domains if domain.percent < threshold
+    )
+
+
 def render_markdown(matrix: CoverageMatrix, *, threshold: float = 80.0) -> str:
     lines: list[str] = []
     lines.append(f"Generated at {matrix.generated_at}")
@@ -207,9 +213,11 @@ def render_markdown(matrix: CoverageMatrix, *, threshold: float = 80.0) -> str:
     )
     lines.append("")
 
-    laggards = [domain for domain in matrix.domains if domain.percent < threshold]
+    laggards = identify_laggards(matrix, threshold=threshold)
     if laggards:
-        labels = ", ".join(f"{domain.name} ({domain.percent:.2f}%)" for domain in laggards)
+        labels = ", ".join(
+            f"{domain.name} ({domain.percent:.2f}%)" for domain in laggards
+        )
         lines.append(
             f"Domains below the {threshold:.2f}% threshold: {labels}."
         )
@@ -248,6 +256,14 @@ def _build_parser() -> argparse.ArgumentParser:
         default=80.0,
         help="Highlight domains below this coverage percentage threshold.",
     )
+    parser.add_argument(
+        "--fail-below-threshold",
+        action="store_true",
+        help=(
+            "Exit with status 1 when any tracked domain falls below the provided "
+            "threshold."
+        ),
+    )
     return parser
 
 
@@ -256,13 +272,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     matrix = build_coverage_matrix(args.coverage_report)
+    laggards = identify_laggards(matrix, threshold=args.threshold)
 
     if args.format == "json":
         payload = matrix.as_dict()
         payload["threshold"] = args.threshold
-        payload["laggards"] = [
-            domain.name for domain in matrix.domains if domain.percent < args.threshold
-        ]
+        payload["laggards"] = [domain.name for domain in laggards]
         output_text = json.dumps(payload, indent=2, sort_keys=True) + "\n"
     else:
         output_text = render_markdown(matrix, threshold=args.threshold)
@@ -273,12 +288,16 @@ def main(argv: Sequence[str] | None = None) -> int:
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(output_text)
 
+    if laggards and args.fail_below_threshold:
+        return 1
+
     return 0
 
 
 __all__ = [
     "CoverageDomain",
     "CoverageMatrix",
+    "identify_laggards",
     "build_coverage_matrix",
     "render_markdown",
     "main",

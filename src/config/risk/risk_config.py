@@ -97,11 +97,67 @@ class RiskConfig(BaseModel):
             raise ValueError("Position sizes must be positive")
         return v
 
+    @validator("sector_exposure_limits", pre=True)
+    def _normalise_sector_limit_keys(
+        cls, value: Dict[str, Decimal] | None
+    ) -> Dict[str, Decimal]:
+        if value is None:
+            return {}
+
+        if not isinstance(value, dict):
+            raise TypeError("sector_exposure_limits must be provided as a mapping")
+
+        normalised: Dict[str, Decimal] = {}
+        for raw_sector, raw_limit in value.items():
+            if raw_sector is None or str(raw_sector).strip() == "":
+                raise ValueError("Sector names must be non-empty strings")
+
+            sector_key = str(raw_sector).upper()
+            if sector_key in normalised:
+                raise ValueError(
+                    "Duplicate sector exposure limit defined for sector %s" % sector_key
+                )
+
+            normalised[sector_key] = raw_limit
+
+        return normalised
+
     @validator("sector_exposure_limits", each_item=True)
     def validate_sector_limits(cls, v: Decimal) -> Decimal:
         if v <= 0 or v > 1:
             raise ValueError("Sector exposure limits must be between 0 and 1")
         return v
+
+    @validator("instrument_sector_map", pre=True)
+    def _normalise_instrument_sector_map(
+        cls, value: Dict[str, str] | None
+    ) -> Dict[str, str]:
+        if value is None:
+            return {}
+
+        if not isinstance(value, dict):
+            raise TypeError("instrument_sector_map must be provided as a mapping")
+
+        normalised: Dict[str, str] = {}
+        for raw_symbol, raw_sector in value.items():
+            if raw_symbol is None or str(raw_symbol).strip() == "":
+                raise ValueError("Instrument symbols must be non-empty strings")
+
+            if raw_sector is None or str(raw_sector).strip() == "":
+                raise ValueError("Instrument sector identifiers must be non-empty strings")
+
+            symbol_key = str(raw_symbol).upper()
+            sector_key = str(raw_sector).upper()
+
+            previous_sector = normalised.get(symbol_key)
+            if previous_sector is not None and previous_sector != sector_key:
+                raise ValueError(
+                    f"Instrument {symbol_key} assigned to multiple sectors"
+                )
+
+            normalised[symbol_key] = sector_key
+
+        return normalised
 
     @root_validator
     def validate_consistency(cls, values: dict[str, object]) -> dict[str, object]:
@@ -125,6 +181,26 @@ class RiskConfig(BaseModel):
                 UserWarning,
                 stacklevel=2,
             )
+
+        sector_limits = values.get("sector_exposure_limits") or {}
+        instrument_map = values.get("instrument_sector_map") or {}
+        if instrument_map:
+            missing_sectors = {
+                sector for sector in instrument_map.values() if sector not in sector_limits
+            }
+            if missing_sectors:
+                raise ValueError(
+                    "Sector exposure limits required for sectors: %s"
+                    % ", ".join(sorted(missing_sectors))
+                )
+
+        max_exposure_pct = values.get("max_total_exposure_pct")
+        if isinstance(max_exposure_pct, Decimal):
+            for sector, limit in sector_limits.items():
+                if isinstance(limit, Decimal) and limit > max_exposure_pct:
+                    raise ValueError(
+                        "Sector %s exposure limit exceeds max_total_exposure_pct" % sector
+                    )
 
         return values
 

@@ -1,3 +1,13 @@
-from __future__ import annotations
+"""Evaluation utilities for adaptive evolution experiments."""
 
-__all__: list[str] = []
+from .recorded_replay import (
+    RecordedEvaluationResult,
+    RecordedSensoryEvaluator,
+    RecordedSensorySnapshot,
+)
+
+__all__ = [
+    "RecordedEvaluationResult",
+    "RecordedSensoryEvaluator",
+    "RecordedSensorySnapshot",
+]

@@ -134,6 +134,11 @@ from .evolution_tuning import (
     format_evolution_tuning_markdown,
     publish_evolution_tuning_snapshot,
 )
+from .evolution_readiness import (
+    EvolutionReadinessSnapshot,
+    EvolutionReadinessStatus,
+    evaluate_evolution_readiness,
+)
 from .system_validation import (
     SystemValidationCheck,
     SystemValidationSnapshot,
@@ -350,4 +355,7 @@ __all__ = [
     "evaluate_strategy_performance",
     "format_strategy_performance_markdown",
     "publish_strategy_performance_snapshot",
+    "EvolutionReadinessSnapshot",
+    "EvolutionReadinessStatus",
+    "evaluate_evolution_readiness",
 ]

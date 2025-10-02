@@ -11,12 +11,16 @@ dashboards and runbooks.
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from enum import StrEnum
 from typing import Iterable, Mapping, MutableMapping, Sequence
 
-from src.core.event_bus import Event, EventBus, get_global_bus
+from src.core.event_bus import Event, EventBus
+from src.operations.event_bus_failover import publish_event_with_failover
+
+logger = logging.getLogger(__name__)
 
 __all__ = [
     "RegulatoryTelemetryStatus",
@@ -351,17 +355,23 @@ def publish_regulatory_telemetry(
         source="regulatory_telemetry",
     )
 
-    publish_from_sync = getattr(event_bus, "publish_from_sync", None)
-    if callable(publish_from_sync):
-        try:
-            if event_bus.is_running():
-                publish_from_sync(event)
-                return
-        except Exception:  # pragma: no cover - best-effort logging path
-            pass
-
-    try:
-        topic_bus = get_global_bus()
-        topic_bus.publish_sync(event.type, event.payload, source=event.source)
-    except Exception:  # pragma: no cover - best-effort logging path
-        pass
+    publish_event_with_failover(
+        event_bus,
+        event,
+        logger=logger,
+        runtime_fallback_message=(
+            "Primary event bus publish_from_sync failed; falling back to global bus"
+        ),
+        runtime_unexpected_message=(
+            "Unexpected error publishing regulatory telemetry via runtime event bus"
+        ),
+        runtime_none_message=(
+            "Primary event bus publish_from_sync returned None; falling back to global bus"
+        ),
+        global_not_running_message=(
+            "Global event bus not running while publishing regulatory telemetry"
+        ),
+        global_unexpected_message=(
+            "Unexpected error publishing regulatory telemetry via global bus"
+        ),
+    )

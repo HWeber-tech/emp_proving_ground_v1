@@ -64,6 +64,10 @@ async def test_trading_manager_records_execution_stats(monkeypatch: pytest.Monke
     monkeypatch.setattr("src.trading.trading_manager.publish_roi_snapshot", _noop)
     monkeypatch.setattr("src.trading.trading_manager.publish_policy_snapshot", _noop)
     monkeypatch.setattr("src.trading.trading_manager.publish_policy_violation", _noop)
+    monkeypatch.setattr(
+        "src.trading.trading_manager.publish_risk_interface_snapshot", _noop
+    )
+    monkeypatch.setattr("src.trading.trading_manager.publish_risk_interface_error", _noop)
 
     bus = DummyBus()
     manager = TradingManager(
@@ -102,6 +106,10 @@ async def test_trading_manager_records_experiment_events_and_rejections(
     monkeypatch.setattr("src.trading.trading_manager.publish_roi_snapshot", _noop)
     monkeypatch.setattr("src.trading.trading_manager.publish_policy_snapshot", _noop)
     monkeypatch.setattr("src.trading.trading_manager.publish_policy_violation", _noop)
+    monkeypatch.setattr(
+        "src.trading.trading_manager.publish_risk_interface_snapshot", _noop
+    )
+    monkeypatch.setattr("src.trading.trading_manager.publish_risk_interface_error", _noop)
 
     bus = DummyBus()
     manager = TradingManager(
@@ -149,6 +157,10 @@ async def test_trading_manager_emits_policy_violation_alert(
     monkeypatch.setattr("src.trading.trading_manager.publish_roi_snapshot", _noop)
     monkeypatch.setattr("src.trading.trading_manager.publish_policy_snapshot", _noop)
     monkeypatch.setattr("src.trading.trading_manager.publish_policy_violation", _capture)
+    monkeypatch.setattr(
+        "src.trading.trading_manager.publish_risk_interface_snapshot", _noop
+    )
+    monkeypatch.setattr("src.trading.trading_manager.publish_risk_interface_error", _noop)
 
     bus = RecordingBus()
     manager = TradingManager(
@@ -173,6 +185,106 @@ async def test_trading_manager_emits_policy_violation_alert(
     assert "policy.min_position_size" in alert.snapshot.violations
     assert bus.events, "expected violation to publish on event bus"
 
+
+@pytest.mark.asyncio()
+async def test_trading_manager_emits_risk_interface_snapshot(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def _noop(*_args, **_kwargs) -> None:
+        return None
+
+    captured: list[tuple[Any, str]] = []
+
+    async def _capture(event_bus: RecordingBus, snapshot, *, source: str) -> None:
+        captured.append((snapshot, source))
+        await event_bus.publish({"snapshot": snapshot.as_dict(), "source": source})
+
+    monkeypatch.setattr("src.trading.trading_manager.publish_risk_snapshot", _noop)
+    monkeypatch.setattr("src.trading.trading_manager.publish_roi_snapshot", _noop)
+    monkeypatch.setattr("src.trading.trading_manager.publish_policy_snapshot", _noop)
+    monkeypatch.setattr("src.trading.trading_manager.publish_policy_violation", _noop)
+    monkeypatch.setattr(
+        "src.trading.trading_manager.publish_risk_interface_snapshot", _capture
+    )
+    monkeypatch.setattr("src.trading.trading_manager.publish_risk_interface_error", _noop)
+
+    bus = RecordingBus()
+    manager = TradingManager(
+        event_bus=bus,
+        strategy_registry=AlwaysActiveRegistry(),
+        execution_engine=None,
+        initial_equity=50_000.0,
+        risk_config=RiskConfig(),
+    )
+    engine = ImmediateFillExecutionAdapter(manager.portfolio_monitor)
+    manager.execution_engine = engine
+
+    intent = SimpleIntent(symbol="EURUSD", quantity=1.0, price=1.2050)
+    await manager.on_trade_intent(intent)
+
+    assert captured, "expected risk interface snapshot"
+    snapshot, source = captured[-1]
+    assert source == "trading_manager"
+    assert snapshot.summary["mandatory_stop_loss"] is True
+    assert manager.get_last_risk_interface_snapshot() is not None
+    assert manager.get_last_risk_interface_error() is None
+
+
+@pytest.mark.asyncio()
+async def test_trading_manager_emits_risk_interface_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def _noop(*_args, **_kwargs) -> None:
+        return None
+
+    captured: list[tuple[Any, str]] = []
+
+    async def _capture(event_bus: RecordingBus, alert, *, source: str) -> None:
+        captured.append((alert, source))
+        await event_bus.publish({"alert": alert.as_dict(), "source": source})
+
+    monkeypatch.setattr("src.trading.trading_manager.publish_risk_snapshot", _noop)
+    monkeypatch.setattr("src.trading.trading_manager.publish_roi_snapshot", _noop)
+    monkeypatch.setattr("src.trading.trading_manager.publish_policy_snapshot", _noop)
+    monkeypatch.setattr("src.trading.trading_manager.publish_policy_violation", _noop)
+    monkeypatch.setattr(
+        "src.trading.trading_manager.publish_risk_interface_snapshot", _noop
+    )
+    monkeypatch.setattr(
+        "src.trading.trading_manager.publish_risk_interface_error", _capture
+    )
+
+    class BrokenTradingManager(TradingManager):
+        def __init__(self) -> None:
+            super().__init__(
+                event_bus=RecordingBus(),
+                strategy_registry=AlwaysActiveRegistry(),
+                execution_engine=None,
+                risk_config=RiskConfig(),
+            )
+            self._risk_config = None  # type: ignore[assignment]
+
+        def get_risk_status(self) -> dict[str, object]:
+            return {"risk_config": {"max_risk_per_trade_pct": -1}}
+
+    bus = RecordingBus()
+    manager = BrokenTradingManager()
+    manager.event_bus = bus  # override to shared recording bus
+    engine = ImmediateFillExecutionAdapter(manager.portfolio_monitor)
+    manager.execution_engine = engine
+
+    intent = SimpleIntent(symbol="EURUSD", quantity=1.0, price=1.2000)
+    await manager.on_trade_intent(intent)
+
+    assert captured, "expected risk interface error alert"
+    alert, source = captured[-1]
+    assert source == "trading_manager"
+    assert alert.runbook.endswith("risk_api_contract.md")
+    assert manager.get_last_risk_interface_snapshot() is None
+    stored_alert = manager.get_last_risk_interface_error()
+    assert stored_alert is not None
+    assert stored_alert.runbook.endswith("risk_api_contract.md")
+    assert bus.events, "expected alert to publish on event bus"
 
 def test_record_experiment_event_handles_non_mapping_inputs() -> None:
     manager = TradingManager(

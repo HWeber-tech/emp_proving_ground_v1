@@ -34,3 +34,37 @@ def test_stop_loss_can_be_disabled_in_research_mode() -> None:
     cfg = RiskConfig(mandatory_stop_loss=False, research_mode=True)
     assert cfg.research_mode is True
     assert cfg.mandatory_stop_loss is False
+
+
+def test_instrument_sector_map_normalised_and_requires_limits() -> None:
+    cfg = RiskConfig(
+        instrument_sector_map={"eurusd": "fx"},
+        sector_exposure_limits={"FX": Decimal("0.10")},
+    )
+
+    assert cfg.instrument_sector_map == {"EURUSD": "FX"}
+    assert cfg.sector_exposure_limits == {"FX": Decimal("0.10")}
+
+
+def test_instrument_sector_map_missing_limit_raises() -> None:
+    with pytest.raises(ValidationError):
+        RiskConfig(
+            instrument_sector_map={"EURUSD": "FX"},
+            sector_exposure_limits={},
+        )
+
+
+def test_sector_limit_cannot_exceed_total_exposure() -> None:
+    with pytest.raises(ValidationError):
+        RiskConfig(
+            max_total_exposure_pct=Decimal("0.20"),
+            sector_exposure_limits={"FX": Decimal("0.30")},
+        )
+
+
+def test_instrument_sector_map_conflicting_assignment_rejected() -> None:
+    with pytest.raises(ValidationError):
+        RiskConfig(
+            instrument_sector_map={"EURUSD": "FX", "eurusd": "macro"},
+            sector_exposure_limits={"FX": Decimal("0.20"), "MACRO": Decimal("0.20")},
+        )

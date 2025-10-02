@@ -18,6 +18,11 @@ from src.operations.observability_dashboard import (
     DashboardStatus,
     build_observability_dashboard,
 )
+from src.operations.operational_readiness import (
+    OperationalReadinessComponent,
+    OperationalReadinessSnapshot,
+    OperationalReadinessStatus,
+)
 from src.operations.roi import RoiStatus, RoiTelemetrySnapshot
 from src.operations.slo import OperationalSLOSnapshot, ServiceSLO, SLOStatus
 from src.risk.analytics.expected_shortfall import ExpectedShortfallResult
@@ -127,6 +132,28 @@ def _backbone_snapshot() -> DataBackboneReadinessSnapshot:
     )
 
 
+def _operational_readiness_snapshot() -> OperationalReadinessSnapshot:
+    moment = _now()
+    components = (
+        OperationalReadinessComponent(
+            name="system_validation",
+            status=OperationalReadinessStatus.ok,
+            summary="All guardrails green",
+        ),
+        OperationalReadinessComponent(
+            name="incident_response",
+            status=OperationalReadinessStatus.warn,
+            summary="Open incidents=1, missing runbooks=0",
+        ),
+    )
+    return OperationalReadinessSnapshot(
+        status=OperationalReadinessStatus.warn,
+        generated_at=moment,
+        components=components,
+        metadata={"region": "primary"},
+    )
+
+
 def test_build_dashboard_composes_panels_and_status() -> None:
     roi_snapshot = _roi_snapshot()
     var_result = VarResult(value=12_000.0, confidence=0.99, sample_size=252)
@@ -142,6 +169,7 @@ def test_build_dashboard_composes_panels_and_status() -> None:
         event_bus_snapshot=_event_bus_snapshot(),
         slo_snapshot=_slo_snapshot(),
         backbone_snapshot=_backbone_snapshot(),
+        operational_readiness_snapshot=_operational_readiness_snapshot(),
         metadata={"environment": "paper"},
     )
 
@@ -151,6 +179,7 @@ def test_build_dashboard_composes_panels_and_status() -> None:
         "Risk & exposure",
         "Latency & throughput",
         "System health",
+        "Operational readiness",
     }
 
     risk_panel = next(
@@ -178,6 +207,17 @@ def test_build_dashboard_composes_panels_and_status() -> None:
     assert system_panel.status is DashboardStatus.warn
     assert system_panel.metadata["backbone"]["status"] == BackboneStatus.warn.value
 
+    readiness_panel = next(
+        panel
+        for panel in dashboard.panels
+        if panel.name == "Operational readiness"
+    )
+    assert readiness_panel.status is DashboardStatus.warn
+    assert readiness_panel.metadata["operational_readiness"]["status"] == (
+        OperationalReadinessStatus.warn.value
+    )
+    assert any("incident_response" in detail for detail in readiness_panel.details)
+
     markdown = dashboard.to_markdown()
     assert "# Operational observability dashboard" in markdown
     assert "Risk & exposure" in markdown
@@ -185,12 +225,13 @@ def test_build_dashboard_composes_panels_and_status() -> None:
     remediation = dashboard.remediation_summary()
     assert remediation["overall_status"] == DashboardStatus.fail.value
     assert remediation["panel_counts"][DashboardStatus.fail.value] == 1
-    assert remediation["panel_counts"][DashboardStatus.warn.value] == 2
+    assert remediation["panel_counts"][DashboardStatus.warn.value] == 3
     assert remediation["panel_counts"][DashboardStatus.ok.value] == 1
     assert remediation["failing_panels"] == ("Risk & exposure",)
     assert set(remediation["warning_panels"]) == {
         "Latency & throughput",
         "System health",
+        "Operational readiness",
     }
     assert remediation["healthy_panels"] == ("PnL & ROI",)
 

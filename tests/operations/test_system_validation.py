@@ -81,6 +81,27 @@ def test_evaluate_system_validation_partial_warn() -> None:
     assert snapshot.failed_checks == 1
     assert snapshot.success_rate == pytest.approx(2 / 3)
     assert any(not check.passed for check in snapshot.checks)
+    assert snapshot.metadata.get("failing_check_names") == ("population_manager",)
+    failing_checks = snapshot.metadata.get("failing_checks")
+    assert failing_checks and failing_checks[0]["name"] == "population_manager"
+    assert failing_checks[0]["message"] is None
+
+
+def test_markdown_includes_failing_checks() -> None:
+    report = {
+        "timestamp": datetime(2025, 1, 2, tzinfo=timezone.utc).isoformat(),
+        "total_checks": 2,
+        "results": {
+            "core.exceptions": True,
+            "population_manager": False,
+        },
+    }
+
+    snapshot = evaluate_system_validation(report)
+    markdown = format_system_validation_markdown(snapshot)
+
+    assert "failing checks" in markdown.lower()
+    assert "population_manager" in markdown
 
 
 def test_publish_system_validation_snapshot_emits_event() -> None:

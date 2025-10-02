@@ -17,6 +17,10 @@ from src.operations.event_bus_health import (
     EventBusHealthSnapshot,
     EventBusHealthStatus,
 )
+from src.operations.operational_readiness import (
+    OperationalReadinessSnapshot,
+    OperationalReadinessStatus,
+)
 from src.operations.roi import RoiStatus, RoiTelemetrySnapshot
 from src.operations.slo import OperationalSLOSnapshot, SLOStatus
 
@@ -174,6 +178,16 @@ def _map_backbone_status(status: BackboneStatus) -> DashboardStatus:
     return DashboardStatus.ok
 
 
+def _map_operational_readiness_status(
+    status: OperationalReadinessStatus,
+) -> DashboardStatus:
+    if status is OperationalReadinessStatus.fail:
+        return DashboardStatus.fail
+    if status is OperationalReadinessStatus.warn:
+        return DashboardStatus.warn
+    return DashboardStatus.ok
+
+
 def _format_currency(value: float) -> str:
     return f"{value:,.2f}"
 
@@ -227,6 +241,7 @@ def build_observability_dashboard(
     event_bus_snapshot: EventBusHealthSnapshot | None = None,
     slo_snapshot: OperationalSLOSnapshot | None = None,
     backbone_snapshot: DataBackboneReadinessSnapshot | None = None,
+    operational_readiness_snapshot: OperationalReadinessSnapshot | None = None,
     additional_panels: Sequence[DashboardPanel] | None = None,
     generated_at: datetime | None = None,
     metadata: Mapping[str, Any] | None = None,
@@ -422,6 +437,43 @@ def build_observability_dashboard(
                 headline=f"Backbone status {backbone_snapshot.status.value}",
                 details=tuple(details),
                 metadata={"backbone": metadata_payload},
+            )
+        )
+
+    if operational_readiness_snapshot is not None:
+        readiness_status = _map_operational_readiness_status(
+            operational_readiness_snapshot.status
+        )
+        component_counts = Counter(
+            component.status for component in operational_readiness_snapshot.components
+        )
+        details: list[str] = [
+            "Components OK {ok} / warn {warn} / fail {fail}".format(
+                ok=component_counts.get(OperationalReadinessStatus.ok, 0),
+                warn=component_counts.get(OperationalReadinessStatus.warn, 0),
+                fail=component_counts.get(OperationalReadinessStatus.fail, 0),
+            )
+        ]
+        degraded_components = [
+            f"{component.name}: {component.summary}"
+            for component in operational_readiness_snapshot.components
+            if component.status is not OperationalReadinessStatus.ok
+        ]
+        if degraded_components:
+            details.append("")
+            details.extend(degraded_components)
+
+        panels.append(
+            DashboardPanel(
+                name="Operational readiness",
+                status=readiness_status,
+                headline=(
+                    f"Readiness {operational_readiness_snapshot.status.value}"
+                ),
+                details=tuple(details),
+                metadata={
+                    "operational_readiness": operational_readiness_snapshot.as_dict()
+                },
             )
         )
 

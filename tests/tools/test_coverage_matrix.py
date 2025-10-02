@@ -7,6 +7,7 @@ import pytest
 
 from tools.telemetry.coverage_matrix import (
     build_coverage_matrix,
+    identify_laggards,
     main as coverage_matrix_main,
     render_markdown,
 )
@@ -109,6 +110,14 @@ def test_render_markdown_highlights_laggards(coverage_report: Path) -> None:
     assert "risk (33.33%)" in markdown
 
 
+def test_identify_laggards_filters_domains(coverage_report: Path) -> None:
+    matrix = build_coverage_matrix(coverage_report)
+
+    laggards = identify_laggards(matrix, threshold=70.0)
+
+    assert [domain.name for domain in laggards] == ["other", "risk", "sensory"]
+
+
 def test_cli_writes_json_payload(tmp_path: Path, coverage_report: Path) -> None:
     output_path = tmp_path / "matrix.json"
     exit_code = coverage_matrix_main(
@@ -131,3 +140,43 @@ def test_cli_writes_json_payload(tmp_path: Path, coverage_report: Path) -> None:
     totals = payload["totals"]
     assert totals["files"] == 5
     assert totals["coverage_percent"] == pytest.approx(66.67)
+
+
+def test_cli_fails_when_laggards_present_and_flag_enabled(
+    coverage_report: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    exit_code = coverage_matrix_main(
+        [
+            "--coverage-report",
+            str(coverage_report),
+            "--threshold",
+            "70",
+            "--fail-below-threshold",
+        ]
+    )
+
+    captured = capsys.readouterr()
+
+    assert exit_code == 1
+    assert "Domains below the 70.00% threshold" in captured.out
+
+
+def test_cli_succeeds_when_flag_enabled_but_no_laggards(
+    coverage_report: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    exit_code = coverage_matrix_main(
+        [
+            "--coverage-report",
+            str(coverage_report),
+            "--threshold",
+            "0",
+            "--fail-below-threshold",
+        ]
+    )
+
+    captured = capsys.readouterr()
+
+    assert exit_code == 0
+    assert "All tracked domains meet the 0.00% coverage threshold." in captured.out

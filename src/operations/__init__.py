@@ -67,9 +67,11 @@ from .incident_response import (
     IncidentResponseSnapshot,
     IncidentResponseState,
     IncidentResponseStatus,
+    derive_incident_response_alerts,
     evaluate_incident_response,
     format_incident_response_markdown,
     publish_incident_response_snapshot,
+    route_incident_response_alerts,
 )
 from .execution import (
     ExecutionIssue,
@@ -138,8 +140,10 @@ from .system_validation import (
     SystemValidationCheck,
     SystemValidationSnapshot,
     SystemValidationStatus,
+    derive_system_validation_alerts,
     evaluate_system_validation,
     format_system_validation_markdown,
+    route_system_validation_alerts,
     publish_system_validation_snapshot,
     load_system_validation_snapshot,
 )

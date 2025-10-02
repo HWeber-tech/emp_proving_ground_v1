@@ -4,13 +4,16 @@ from unittest.mock import patch
 import pytest
 
 from src.core.event_bus import Event
+from src.operations.alerts import AlertDispatchResult, AlertEvent, AlertSeverity
 from src.operations.incident_response import (
     IncidentResponsePolicy,
     IncidentResponseSnapshot,
     IncidentResponseState,
     IncidentResponseStatus,
+    derive_incident_response_alerts,
     evaluate_incident_response,
     publish_incident_response_snapshot,
+    route_incident_response_alerts,
 )
 from src.operations.event_bus_failover import EventPublishError
 
@@ -26,6 +29,15 @@ class _StubEventBus:
     def publish_from_sync(self, event: Event) -> None:
         self.events.append(event)
         return True
+
+
+class _StubAlertManager:
+    def __init__(self) -> None:
+        self.events: list[AlertEvent] = []
+
+    def dispatch(self, event: AlertEvent) -> AlertDispatchResult:
+        self.events.append(event)
+        return AlertDispatchResult(event=event, triggered_channels=("stub",))
 
 
 def test_evaluate_incident_response_ok() -> None:
@@ -165,3 +177,62 @@ def test_publish_incident_response_snapshot_raises_on_failover_error() -> None:
     ):
         with pytest.raises(EventPublishError):
             publish_incident_response_snapshot(_StubEventBus(), snapshot)
+
+
+def test_incident_response_alert_generation_from_snapshot() -> None:
+    policy = IncidentResponsePolicy(
+        required_runbooks=("redis_outage",),
+        training_interval_days=14,
+        drill_interval_days=14,
+        minimum_primary_responders=2,
+        minimum_secondary_responders=1,
+        postmortem_sla_hours=12.0,
+        maximum_open_incidents=0,
+        require_chatops=True,
+    )
+    state = IncidentResponseState(
+        available_runbooks=tuple(),
+        training_age_days=40.0,
+        drill_age_days=50.0,
+        primary_oncall=("alice",),
+        secondary_oncall=tuple(),
+        open_incidents=("INC-42",),
+        postmortem_backlog_hours=30.0,
+        chatops_ready=False,
+    )
+
+    snapshot = evaluate_incident_response(policy, state, service="emp")
+    events = derive_incident_response_alerts(snapshot)
+
+    categories = {event.category: event for event in events}
+    assert categories["incident_response.status"].severity is AlertSeverity.critical
+    assert categories["incident_response.missing_runbooks"].context["missing_runbooks"] == [
+        "redis_outage"
+    ]
+    assert categories["incident_response.postmortem_backlog"].severity is AlertSeverity.critical
+    assert "training overdue" in categories["incident_response.training"].message.lower()
+    assert "incident" in categories["incident_response.open_incidents"].message.lower()
+    assert categories["incident_response.chatops"].context["chatops_ready"] is False
+
+
+def test_route_incident_response_alerts_dispatches_events() -> None:
+    policy = IncidentResponsePolicy(required_runbooks=("redis_outage",))
+    state = IncidentResponseState(
+        available_runbooks=tuple(),
+        training_age_days=None,
+        drill_age_days=None,
+        primary_oncall=("alice",),
+        secondary_oncall=tuple(),
+        open_incidents=("INC-5",),
+        postmortem_backlog_hours=0.0,
+        chatops_ready=False,
+    )
+
+    snapshot = evaluate_incident_response(policy, state, service="emp")
+    manager = _StubAlertManager()
+
+    results = route_incident_response_alerts(manager, snapshot)
+
+    assert results, "expected at least one alert dispatch"
+    assert all(result.triggered_channels == ("stub",) for result in results)
+    assert manager.events

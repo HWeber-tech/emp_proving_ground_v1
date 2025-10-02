@@ -3,13 +3,18 @@ from datetime import datetime, timezone
 
 import pytest
 
+from src.operations.alerts import AlertDispatchResult, AlertEvent, AlertSeverity
 from src.operations.event_bus_failover import EventPublishError
 from src.operations.system_validation import (
+    SystemValidationCheck,
+    SystemValidationSnapshot,
     SystemValidationStatus,
+    derive_system_validation_alerts,
     evaluate_system_validation,
     format_system_validation_markdown,
     load_system_validation_snapshot,
     publish_system_validation_snapshot,
+    route_system_validation_alerts,
 )
 
 
@@ -39,6 +44,15 @@ class StubTopicBus:
 
     def publish_sync(self, topic: str, payload: object, *, source: str | None = None) -> None:
         self.events.append((topic, payload, source))
+
+
+class StubAlertManager:
+    def __init__(self) -> None:
+        self.events: list[AlertEvent] = []
+
+    def dispatch(self, event: AlertEvent) -> AlertDispatchResult:
+        self.events.append(event)
+        return AlertDispatchResult(event=event, triggered_channels=("stub",))
 
 
 def test_evaluate_system_validation_full_pass() -> None:
@@ -176,3 +190,76 @@ def test_load_system_validation_snapshot_reads_file(tmp_path) -> None:
     assert snapshot.metadata.get("report_path") == str(report_path)
     assert snapshot.metadata.get("run") == "ci"
     assert snapshot.failed_checks == 1
+
+
+def test_system_validation_alert_generation() -> None:
+    snapshot = SystemValidationSnapshot(
+        status=SystemValidationStatus.warn,
+        generated_at=datetime(2025, 1, 4, tzinfo=timezone.utc),
+        total_checks=3,
+        passed_checks=2,
+        failed_checks=1,
+        success_rate=2 / 3,
+        checks=(
+            SystemValidationCheck(
+                name="database_latency",
+                passed=False,
+                message="latency above threshold",
+                metadata={"latency_ms": 450},
+            ),
+            SystemValidationCheck(name="event_bus", passed=True),
+        ),
+        metadata={"validator": "ops_guardian"},
+    )
+
+    events = derive_system_validation_alerts(snapshot)
+    categories = [event.category for event in events]
+    assert "system_validation.status" in categories
+    assert any(category == "system_validation.check" for category in categories)
+    status_event = next(event for event in events if event.category == "system_validation.status")
+    assert status_event.severity is AlertSeverity.warning
+    check_event = next(event for event in events if event.category == "system_validation.check")
+    assert "database_latency" in check_event.message
+    assert check_event.context["check"]["metadata"]["latency_ms"] == 450
+
+
+def test_route_system_validation_alerts_dispatches() -> None:
+    snapshot = SystemValidationSnapshot(
+        status=SystemValidationStatus.fail,
+        generated_at=datetime(2025, 1, 5, tzinfo=timezone.utc),
+        total_checks=2,
+        passed_checks=0,
+        failed_checks=2,
+        success_rate=0.0,
+        checks=(
+            SystemValidationCheck(name="database", passed=False),
+            SystemValidationCheck(name="event_bus", passed=False),
+        ),
+        metadata={},
+    )
+
+    manager = StubAlertManager()
+    results = route_system_validation_alerts(manager, snapshot)
+
+    assert results
+    assert all(result.triggered_channels == ("stub",) for result in results)
+    assert len(manager.events) == len(results)
+
+
+def test_system_validation_alert_threshold_filtering() -> None:
+    snapshot = SystemValidationSnapshot(
+        status=SystemValidationStatus.warn,
+        generated_at=datetime(2025, 1, 6, tzinfo=timezone.utc),
+        total_checks=1,
+        passed_checks=0,
+        failed_checks=1,
+        success_rate=0.0,
+        checks=(SystemValidationCheck(name="ops", passed=False),),
+        metadata={},
+    )
+
+    events = derive_system_validation_alerts(
+        snapshot, threshold=SystemValidationStatus.fail
+    )
+
+    assert events == []

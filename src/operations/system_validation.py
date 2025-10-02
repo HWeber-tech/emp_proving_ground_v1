@@ -10,6 +10,12 @@ from typing import Iterable, Mapping, Sequence
 
 from src.core.event_bus import Event, EventBus
 from src.core.coercion import coerce_float, coerce_int
+from src.operations.alerts import (
+    AlertDispatchResult,
+    AlertEvent,
+    AlertManager,
+    AlertSeverity,
+)
 from src.operations.event_bus_failover import publish_event_with_failover
 
 logger = logging.getLogger(__name__)
@@ -30,12 +36,25 @@ _STATUS_ORDER: Mapping[SystemValidationStatus, int] = {
 }
 
 
+_SEVERITY_MAP: Mapping[SystemValidationStatus, AlertSeverity] = {
+    SystemValidationStatus.passed: AlertSeverity.info,
+    SystemValidationStatus.warn: AlertSeverity.warning,
+    SystemValidationStatus.fail: AlertSeverity.critical,
+}
+
+
 def _escalate(
     current: SystemValidationStatus, candidate: SystemValidationStatus
 ) -> SystemValidationStatus:
     if _STATUS_ORDER[candidate] > _STATUS_ORDER[current]:
         return candidate
     return current
+
+
+def _meets_threshold(
+    status: SystemValidationStatus, threshold: SystemValidationStatus
+) -> bool:
+    return _STATUS_ORDER[status] >= _STATUS_ORDER[threshold]
 
 
 def _parse_timestamp(value: object | None) -> datetime:
@@ -291,6 +310,85 @@ def evaluate_system_validation(
     )
 
 
+def derive_system_validation_alerts(
+    snapshot: SystemValidationSnapshot,
+    *,
+    threshold: SystemValidationStatus = SystemValidationStatus.warn,
+    include_status_event: bool = True,
+    include_failing_checks: bool = True,
+    base_tags: Sequence[str] = ("system-validation",),
+) -> list[AlertEvent]:
+    """Translate a system validation snapshot into alert events."""
+
+    events: list[AlertEvent] = []
+    tags = tuple(base_tags)
+    payload = snapshot.as_dict()
+
+    if include_status_event and _meets_threshold(snapshot.status, threshold):
+        events.append(
+            AlertEvent(
+                category="system_validation.status",
+                severity=_SEVERITY_MAP[snapshot.status],
+                message=f"System validation status {snapshot.status.value}",
+                tags=tags,
+                context={"snapshot": payload},
+            )
+        )
+
+    if include_failing_checks:
+        failing_checks = [check for check in snapshot.checks if not check.passed]
+        if failing_checks:
+            detail_status = (
+                snapshot.status
+                if snapshot.status is SystemValidationStatus.fail
+                else SystemValidationStatus.warn
+            )
+            if _meets_threshold(detail_status, threshold):
+                severity = _SEVERITY_MAP[detail_status]
+                for check in failing_checks:
+                    message = f"Validation check failed: {check.name}"
+                    if check.message:
+                        message += f" – {check.message}"
+                    events.append(
+                        AlertEvent(
+                            category="system_validation.check",
+                            severity=severity,
+                            message=message,
+                            tags=tags + ("check",),
+                            context={
+                                "snapshot": payload,
+                                "check": check.as_dict(),
+                            },
+                        )
+                    )
+
+    return events
+
+
+def route_system_validation_alerts(
+    manager: AlertManager,
+    snapshot: SystemValidationSnapshot,
+    *,
+    threshold: SystemValidationStatus = SystemValidationStatus.warn,
+    include_status_event: bool = True,
+    include_failing_checks: bool = True,
+    base_tags: Sequence[str] = ("system-validation",),
+) -> list[AlertDispatchResult]:
+    """Dispatch system validation alerts via an alert manager."""
+
+    events = derive_system_validation_alerts(
+        snapshot,
+        threshold=threshold,
+        include_status_event=include_status_event,
+        include_failing_checks=include_failing_checks,
+        base_tags=base_tags,
+    )
+    results: list[AlertDispatchResult] = []
+    for event in events:
+        results.append(manager.dispatch(event))
+    return results
+
+
 def publish_system_validation_snapshot(
     event_bus: EventBus,
     snapshot: SystemValidationSnapshot,
@@ -354,8 +452,10 @@ __all__ = [
     "SystemValidationStatus",
     "SystemValidationCheck",
     "SystemValidationSnapshot",
+    "derive_system_validation_alerts",
     "evaluate_system_validation",
     "format_system_validation_markdown",
+    "route_system_validation_alerts",
     "publish_system_validation_snapshot",
     "load_system_validation_snapshot",
 ]

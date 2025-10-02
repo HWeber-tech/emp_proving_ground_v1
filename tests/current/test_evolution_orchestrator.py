@@ -99,16 +99,24 @@ async def test_orchestrator_registers_champion_and_updates_registry(tmp_path):
     lineage = telemetry["lineage"]
     assert lineage["champion"]["id"] == champion.genome_id
     assert lineage["champion"]["metadata"]["evaluated"] is True
-    assert lineage["population"]["seed_source"] in {"factory", "catalogue"}
+    assert lineage["population"]["seed_source"] in {"factory", "catalogue", "realistic_sampler"}
+    seed_metadata = lineage["population"].get("seed_metadata") or {}
+    if seed_metadata:
+        assert seed_metadata["seed_names"]
+        assert seed_metadata["seed_templates"]
 
     snapshot = orchestrator.lineage_snapshot
     assert snapshot is not None
     assert snapshot.champion_id == champion.genome_id
     assert snapshot.to_markdown().startswith("### Evolution lineage")
+    if snapshot.seed_metadata:
+        assert snapshot.seed_metadata.get("seed_names")
 
     lineage_events = [event for event in bus.events if event.type == "telemetry.evolution.lineage"]
     assert lineage_events, "expected lineage telemetry event"
     assert lineage_events[-1].payload["champion"]["id"] == champion.genome_id
+    if seed_metadata:
+        assert lineage_events[-1].payload["population"].get("seed_metadata")
 
     summary = registry.get_registry_summary()
     assert summary["catalogue_seeded"] >= 1
@@ -233,6 +241,9 @@ async def test_orchestrator_skips_adaptive_runs_when_disabled(monkeypatch, tmp_p
     assert champion is not None
     assert champion.registered is False
     assert registry.get_strategy(champion.genome_id) is None
+    seed_metadata = orchestrator.telemetry["lineage"]["population"].get("seed_metadata")
+    if seed_metadata:
+        assert seed_metadata["seed_names"]
 
     second = await orchestrator.run_cycle()
     assert second.summary.generation == 0
@@ -240,3 +251,41 @@ async def test_orchestrator_skips_adaptive_runs_when_disabled(monkeypatch, tmp_p
 
     stats = engine.get_population_statistics()
     assert stats["generation"] == 0
+
+
+@pytest.mark.asyncio
+async def test_seed_metadata_present_when_realistic_seeder_used(monkeypatch):
+    monkeypatch.delenv("EVOLUTION_ENABLE_ADAPTIVE_RUNS", raising=False)
+
+    engine = EvolutionEngine(
+        EvolutionConfig(
+            population_size=4,
+            elite_count=1,
+            crossover_rate=0.4,
+            mutation_rate=0.1,
+            use_catalogue=False,
+        )
+    )
+    engine._rng.seed(29)  # type: ignore[attr-defined]
+
+    async def evaluator(genome):
+        return {"fitness_score": _score_parameters(genome), "sharpe_ratio": 1.1}
+
+    orchestrator = EvolutionCycleOrchestrator(
+        engine,
+        evaluator,
+        adaptive_runs_enabled=False,
+    )
+
+    result = await orchestrator.run_cycle()
+    assert result.champion is not None
+
+    seed_metadata = orchestrator.telemetry["lineage"]["population"].get("seed_metadata")
+    assert seed_metadata, "expected seed metadata from realistic sampler"
+    assert seed_metadata["seed_names"]
+    assert seed_metadata["seed_templates"]
+
+    snapshot = orchestrator.lineage_snapshot
+    assert snapshot is not None
+    assert snapshot.seed_metadata
+    assert snapshot.seed_metadata.get("seed_names")

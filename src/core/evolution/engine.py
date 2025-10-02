@@ -3,6 +3,7 @@ from __future__ import annotations
 import random
 from dataclasses import dataclass
 from time import time
+from collections import Counter
 from typing import Callable, Dict, Iterable, Mapping, Optional, Sequence, cast
 
 from src.core.genome import get_genome_provider
@@ -64,12 +65,14 @@ class EvolutionEngine:
         if not self._initialized:
             self._population_manager.initialize_population(factory)
             self._initialized = True
+            self._record_seed_metadata()
 
         population = self._population_manager.get_population()
         if not population:
             seeds = [factory() for _ in range(self.config.population_size)]
             self._population_manager.update_population(seeds)
             population = self._population_manager.get_population()
+            self._record_seed_metadata()
 
         return list(population)
 
@@ -154,6 +157,7 @@ class EvolutionEngine:
 
         self._population_manager.update_population(new_population[: self.config.population_size])
         self._population_manager.advance_generation()
+        self._record_seed_metadata()
         stats = self._population_manager.get_population_statistics()
 
         return EvolutionSummary(
@@ -246,6 +250,127 @@ class EvolutionEngine:
         except Exception:
             pass
         return genome
+
+    def _record_seed_metadata(self) -> None:
+        """Capture seed provenance metadata for downstream telemetry consumers."""
+
+        recorder = getattr(self._population_manager, "record_seed_metadata", None)
+        if not callable(recorder):  # pragma: no cover - legacy population managers
+            return
+
+        try:
+            population = self._population_manager.get_population()
+        except Exception:  # pragma: no cover - defensive guard
+            return
+
+        summary = self._summarize_seed_metadata(population)
+        if summary is None:
+            return
+
+        try:
+            stats = self._population_manager.get_population_statistics()
+        except Exception:  # pragma: no cover - defensive guard
+            stats = {}
+
+        current_source = str(stats.get("seed_source", "")) if stats else ""
+        seed_source_override = None
+        if current_source.lower() != "catalogue":
+            seed_source_override = "realistic_sampler"
+
+        recorder(summary, seed_source=seed_source_override)
+
+    def _summarize_seed_metadata(
+        self, population: Sequence[DecisionGenome]
+    ) -> Dict[str, object] | None:
+        """Build a lightweight summary of seed provenance across the population."""
+
+        name_counts: Counter[str] = Counter()
+        tag_counts: Counter[str] = Counter()
+        seed_species_counts: Counter[str] = Counter()
+        total_with_metadata = 0
+
+        for genome in population:
+            metadata = self._extract_seed_metadata(genome)
+            if metadata is None:
+                continue
+
+            seed_name = metadata.get("seed_name")
+            if isinstance(seed_name, str) and seed_name:
+                name_counts[seed_name] += 1
+
+            tags = metadata.get("seed_tags")
+            for tag in self._normalise_seed_tags(tags):
+                tag_counts[tag] += 1
+
+            seed_species = metadata.get("seed_species")
+            if isinstance(seed_species, str) and seed_species:
+                seed_species_counts[seed_species] += 1
+
+            total_with_metadata += 1
+
+        if not name_counts and not tag_counts and not seed_species_counts:
+            return None
+
+        summary: Dict[str, object] = {}
+        if total_with_metadata:
+            summary["total_seeded"] = total_with_metadata
+
+        if name_counts:
+            ordered_names = self._ordered_counter(name_counts)
+            summary["seed_names"] = ordered_names
+            total_named = sum(name_counts.values())
+            summary["seed_templates"] = [
+                {
+                    "name": name,
+                    "count": count,
+                    "share": count / float(total_named),
+                }
+                for name, count in ordered_names.items()
+            ]
+
+        if tag_counts:
+            summary["seed_tags"] = self._ordered_counter(tag_counts)
+
+        if seed_species_counts:
+            summary["seed_species"] = self._ordered_counter(seed_species_counts)
+
+        return summary
+
+    def _extract_seed_metadata(
+        self, genome: DecisionGenome
+    ) -> Mapping[str, object] | None:
+        metadata = getattr(genome, "metadata", None)
+        if isinstance(metadata, Mapping):
+            if any(key.startswith("seed_") for key in metadata.keys()):
+                return metadata
+        direct_seed = {
+            key: getattr(genome, key)
+            for key in ("seed_name", "seed_tags", "seed_species")
+            if hasattr(genome, key)
+        }
+        return direct_seed or None
+
+    def _normalise_seed_tags(self, tags: object) -> tuple[str, ...]:
+        if tags is None:
+            return tuple()
+        if isinstance(tags, str):
+            text = tags.strip()
+            return (text,) if text else tuple()
+        if isinstance(tags, Mapping):
+            values = tags.values()
+        else:
+            values = tags
+
+        result: list[str] = []
+        for item in values:
+            text = str(item).strip()
+            if text:
+                result.append(text)
+        return tuple(result)
+
+    def _ordered_counter(self, counter: Counter[str]) -> Dict[str, int]:
+        ordered_keys = sorted(counter.keys(), key=lambda item: (-counter[item], item))
+        return {key: counter[key] for key in ordered_keys}
 
     def _apply_seed_context(self, genome: DecisionGenome, seed: GenomeSeed) -> DecisionGenome:
         updates: Dict[str, object] = {}

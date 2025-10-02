@@ -11,7 +11,7 @@ from __future__ import annotations
 import logging
 import os
 import time
-from typing import Callable, Dict, List, Optional, cast
+from typing import Callable, Dict, List, Mapping, Optional, cast
 
 import numpy as np
 
@@ -53,6 +53,7 @@ class PopulationManager(IPopulationManager):
         self._catalogue_summary: Dict[str, object] | None = None
         self._catalogue_seeded_at: float | None = None
         self._seed_source: str = "factory"
+        self._seed_metadata: Dict[str, object] | None = None
 
     def initialize_population(self, genome_factory: Callable) -> None:
         """Initialize population with new genomes."""
@@ -75,7 +76,9 @@ class PopulationManager(IPopulationManager):
             ]
             self._catalogue_summary = None
             self._catalogue_seeded_at = None
-            self._seed_source = "factory"
+            self.record_seed_metadata(None, seed_source="factory")
+        else:
+            self.record_seed_metadata(None, seed_source="catalogue")
         self.generation = 0
         self._cache_population_stats()
 
@@ -109,6 +112,33 @@ class PopulationManager(IPopulationManager):
         self.population = [cast(DecisionGenome, provider.from_legacy(g)) for g in new_population]
         self._cache_population_stats()
 
+    def record_seed_metadata(
+        self, metadata: Mapping[str, object] | None, *, seed_source: str | None = None
+    ) -> None:
+        """Record seed provenance metadata for population statistics."""
+
+        extracted_source: str | None = None
+        if isinstance(metadata, Mapping):
+            normalised: Dict[str, object] = {}
+            for key, value in metadata.items():
+                key_text = str(key)
+                if key_text == "seed_source" and isinstance(value, str):
+                    extracted_source = value
+                    continue
+                if isinstance(value, Mapping):
+                    normalised[key_text] = {
+                        str(inner_key): inner_value for inner_key, inner_value in value.items()
+                    }
+                else:
+                    normalised[key_text] = value
+            self._seed_metadata = normalised or None
+        else:
+            self._seed_metadata = None
+
+        resolved_source = seed_source or extracted_source
+        if resolved_source:
+            self._seed_source = resolved_source
+
     def get_population_statistics(self) -> dict[str, object]:
         """Get statistics about the current population."""
         if not self.population:
@@ -124,6 +154,8 @@ class PopulationManager(IPopulationManager):
             }
             if self._catalogue_summary:
                 stats["catalogue"] = dict(self._catalogue_summary)
+            if self._seed_metadata:
+                stats["seed_metadata"] = dict(self._seed_metadata)
             return stats
 
         fitness_values = [(g.fitness or 0.0) for g in self.population]
@@ -146,6 +178,8 @@ class PopulationManager(IPopulationManager):
         }
         if self._catalogue_summary:
             stats["catalogue"] = dict(self._catalogue_summary)
+        if self._seed_metadata:
+            stats["seed_metadata"] = dict(self._seed_metadata)
         return stats
 
     def advance_generation(self) -> None:
@@ -158,6 +192,7 @@ class PopulationManager(IPopulationManager):
         logger.info("Resetting population manager")
         self.population.clear()
         self.generation = 0
+        self._seed_metadata = None
 
     def _cache_population_stats(self) -> None:
         """Cache population statistics for performance."""
@@ -212,6 +247,7 @@ class PopulationManager(IPopulationManager):
             if seeded:
                 self.population.extend(seeded)
                 logger.info("Seeded %s genomes from catalogue %s", len(seeded), catalogue.name)
+                self.record_seed_metadata(None, seed_source="catalogue")
                 return
 
         try:
@@ -241,6 +277,7 @@ class PopulationManager(IPopulationManager):
                 self.population.append(cast(DecisionGenome, genome))
 
             logger.info(f"Successfully generated {len(self.population)} genomes")
+            self.record_seed_metadata(None, seed_source="factory")
 
         except Exception as e:
             logger.error(f"Failed to generate initial population: {e}")
@@ -295,7 +332,7 @@ class PopulationManager(IPopulationManager):
         summary["seeded_at"] = seeded_at
         self._catalogue_summary = summary
         self._catalogue_seeded_at = seeded_at
-        self._seed_source = "catalogue"
+        self.record_seed_metadata(None, seed_source="catalogue")
         return resolved
 
     def evolve_population(self, market_data: Dict, performance_metrics: Dict) -> None:

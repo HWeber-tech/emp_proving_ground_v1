@@ -37,6 +37,15 @@ from src.trading.risk.policy_telemetry import (
 from src.trading.risk.risk_gateway import RiskGateway
 from src.trading.risk.risk_policy import RiskPolicy
 from src.trading.risk.risk_api import RiskApiError, resolve_trading_risk_interface
+from src.trading.risk.risk_interface_telemetry import (
+    RiskInterfaceErrorAlert,
+    RiskInterfaceSnapshot,
+    build_risk_interface_error,
+    build_risk_interface_snapshot,
+    format_risk_interface_markdown,
+    publish_risk_interface_error,
+    publish_risk_interface_snapshot,
+)
 
 from src.operations.roi import (
     RoiCostModel,
@@ -132,6 +141,8 @@ class TradingManager:
         )
         self._risk_policy = risk_policy or RiskPolicy.from_config(effective_config)
         self._last_policy_snapshot: RiskPolicyEvaluationSnapshot | None = None
+        self._last_risk_interface_snapshot: RiskInterfaceSnapshot | None = None
+        self._last_risk_interface_error: RiskInterfaceErrorAlert | None = None
 
         risk_per_trade_decimal = Decimal(str(resolved_risk_per_trade))
         self.risk_gateway = RiskGateway(
@@ -310,6 +321,7 @@ class TradingManager:
             logger.error(f"Error processing trade intent {event_id}: {e}")
         finally:
             await self._emit_policy_snapshot()
+            await self._emit_risk_interface_snapshot()
             await self._emit_risk_snapshot()
 
     def _record_execution_success(self, latency_ms: float, result: object) -> None:
@@ -499,6 +511,16 @@ class TradingManager:
 
         return self._last_policy_snapshot
 
+    def get_last_risk_interface_snapshot(self) -> RiskInterfaceSnapshot | None:
+        """Expose the last published trading risk interface snapshot."""
+
+        return self._last_risk_interface_snapshot
+
+    def get_last_risk_interface_error(self) -> RiskInterfaceErrorAlert | None:
+        """Expose the last risk interface enforcement error, if any."""
+
+        return self._last_risk_interface_error
+
     def describe_risk_interface(self) -> dict[str, object]:
         """Expose a deterministic snapshot of the trading risk interface."""
 
@@ -609,6 +631,51 @@ class TradingManager:
     @staticmethod
     def _coerce_float(value: Any) -> float | None:
         return coerce_float(value)
+
+    async def _emit_risk_interface_snapshot(self) -> None:
+        """Resolve and publish the trading risk interface summary."""
+
+        try:
+            interface = resolve_trading_risk_interface(self)
+        except RiskApiError as exc:
+            alert = build_risk_interface_error(exc)
+            self._last_risk_interface_snapshot = None
+            self._last_risk_interface_error = alert
+            logger.error(
+                "Trading risk interface resolution failed: %s. See %s",
+                alert.message,
+                alert.runbook,
+            )
+            try:
+                await publish_risk_interface_error(
+                    self.event_bus,
+                    alert,
+                    source="trading_manager",
+                )
+            except Exception:  # pragma: no cover - diagnostics only
+                logger.debug(
+                    "Failed to publish risk interface error telemetry",
+                    exc_info=True,
+                )
+            return
+
+        snapshot = build_risk_interface_snapshot(interface)
+        self._last_risk_interface_snapshot = snapshot
+        self._last_risk_interface_error = None
+
+        logger.info("🛡️ Risk interface\n%s", format_risk_interface_markdown(snapshot))
+
+        try:
+            await publish_risk_interface_snapshot(
+                self.event_bus,
+                snapshot,
+                source="trading_manager",
+            )
+        except Exception:  # pragma: no cover - diagnostics only
+            logger.debug(
+                "Failed to publish risk interface telemetry",
+                exc_info=True,
+            )
 
     async def _emit_risk_snapshot(self) -> None:
         """Compute and publish the latest risk posture telemetry."""

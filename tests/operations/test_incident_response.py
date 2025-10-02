@@ -9,6 +9,7 @@ from src.operations.incident_response import (
     IncidentResponseSnapshot,
     IncidentResponseState,
     IncidentResponseStatus,
+    derive_incident_response_alerts,
     evaluate_incident_response,
     publish_incident_response_snapshot,
 )
@@ -165,3 +166,49 @@ def test_publish_incident_response_snapshot_raises_on_failover_error() -> None:
     ):
         with pytest.raises(EventPublishError):
             publish_incident_response_snapshot(_StubEventBus(), snapshot)
+
+
+def test_derive_incident_response_alerts_emits_detail_events() -> None:
+    snapshot = IncidentResponseSnapshot(
+        service="emp",
+        generated_at=datetime(2025, 3, 1, tzinfo=UTC),
+        status=IncidentResponseStatus.fail,
+        missing_runbooks=("redis_outage", "kafka_lag"),
+        training_age_days=120.0,
+        drill_age_days=45.0,
+        primary_oncall=("alice",),
+        secondary_oncall=tuple(),
+        open_incidents=("INC-42",),
+        issues=("ChatOps automations disabled",),
+        metadata={"postmortem_backlog_hours": 36.0},
+    )
+
+    events = derive_incident_response_alerts(snapshot)
+
+    categories = {event.category for event in events}
+    assert "incident.response.status" in categories
+    assert "incident.response.issue" in categories
+
+    backlog_messages = [event.message for event in events if "backlog" in event.message.lower()]
+    assert backlog_messages
+    for event in events:
+        assert event.context.get("snapshot")
+
+
+def test_derive_incident_response_alerts_respects_threshold() -> None:
+    snapshot = IncidentResponseSnapshot(
+        service="emp",
+        generated_at=datetime(2025, 3, 1, tzinfo=UTC),
+        status=IncidentResponseStatus.warn,
+        missing_runbooks=tuple(),
+        training_age_days=20.0,
+        drill_age_days=20.0,
+        primary_oncall=("alice",),
+        secondary_oncall=("bob",),
+        open_incidents=tuple(),
+        issues=("Training cadence approaching limit",),
+        metadata={},
+    )
+
+    events = derive_incident_response_alerts(snapshot, threshold=IncidentResponseStatus.fail)
+    assert events == []

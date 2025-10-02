@@ -6,10 +6,11 @@ import logging
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import StrEnum
-from typing import Mapping, MutableMapping, Sequence
+from typing import Iterable, Mapping, MutableMapping, Sequence
 
 from src.core.event_bus import Event, EventBus
 from src.operations.event_bus_failover import publish_event_with_failover
+from src.operations.alerts import AlertEvent, AlertSeverity
 
 logger = logging.getLogger(__name__)
 
@@ -380,7 +381,100 @@ __all__ = [
     "IncidentResponseSnapshot",
     "IncidentResponseState",
     "IncidentResponseStatus",
+    "derive_incident_response_alerts",
     "evaluate_incident_response",
     "format_incident_response_markdown",
     "publish_incident_response_snapshot",
 ]
+
+
+_INCIDENT_ALERT_SEVERITY: Mapping[IncidentResponseStatus, AlertSeverity] = {
+    IncidentResponseStatus.ok: AlertSeverity.info,
+    IncidentResponseStatus.warn: AlertSeverity.warning,
+    IncidentResponseStatus.fail: AlertSeverity.critical,
+}
+
+
+def _incident_should_alert(
+    status: IncidentResponseStatus, threshold: IncidentResponseStatus
+) -> bool:
+    return _STATUS_ORDER[status] >= _STATUS_ORDER[threshold]
+
+
+def _issue_alert_events(
+    *,
+    snapshot: IncidentResponseSnapshot,
+    severity: AlertSeverity,
+    issues: Iterable[str],
+    base_context: Mapping[str, object],
+) -> list[AlertEvent]:
+    events: list[AlertEvent] = []
+    for issue in issues:
+        events.append(
+            AlertEvent(
+                category="incident.response.issue",
+                severity=severity,
+                message=issue,
+                context={"snapshot": base_context, "issue": issue},
+            )
+        )
+    return events
+
+
+def derive_incident_response_alerts(
+    snapshot: IncidentResponseSnapshot,
+    *,
+    threshold: IncidentResponseStatus = IncidentResponseStatus.warn,
+    include_overall: bool = True,
+    include_details: bool = True,
+) -> list[AlertEvent]:
+    """Translate an incident response snapshot into alert events.
+
+    The helper emits an overall readiness alert when the snapshot status meets
+    the configured ``threshold`` and optional detail alerts highlighting
+    specific issues such as missing runbooks or open incidents. Downstream alert
+    managers can then route the events without re-implementing severity or
+    payload logic.
+    """
+
+    severity = _INCIDENT_ALERT_SEVERITY[snapshot.status]
+    should_alert = _incident_should_alert(snapshot.status, threshold)
+    context_payload = snapshot.as_dict()
+
+    events: list[AlertEvent] = []
+
+    if include_overall and should_alert:
+        events.append(
+            AlertEvent(
+                category="incident.response.status",
+                severity=severity,
+                message=f"Incident response status {snapshot.status.value}",
+                context={"snapshot": context_payload},
+            )
+        )
+
+    if not include_details or not should_alert:
+        return events
+
+    issue_events: list[str] = list(snapshot.issues)
+    if snapshot.missing_runbooks:
+        issue_events.append(
+            "Missing runbooks: " + ", ".join(sorted(snapshot.missing_runbooks))
+        )
+    backlog = snapshot.metadata.get("postmortem_backlog_hours")
+    if isinstance(backlog, (int, float)) and backlog > 0:
+        issue_events.append(f"Postmortem backlog at {backlog:.1f} hours")
+    if snapshot.open_incidents:
+        for incident in snapshot.open_incidents:
+            issue_events.append(f"Open incident: {incident}")
+
+    events.extend(
+        _issue_alert_events(
+            snapshot=snapshot,
+            severity=severity,
+            issues=issue_events,
+            base_context=context_payload,
+        )
+    )
+
+    return events

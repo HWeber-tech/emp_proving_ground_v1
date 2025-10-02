@@ -11,6 +11,7 @@ from typing import Iterable, Mapping, Sequence
 from src.core.event_bus import Event, EventBus
 from src.core.coercion import coerce_float, coerce_int
 from src.operations.event_bus_failover import publish_event_with_failover
+from src.operations.alerts import AlertEvent, AlertSeverity
 
 logger = logging.getLogger(__name__)
 
@@ -158,6 +159,73 @@ def format_system_validation_markdown(snapshot: SystemValidationSnapshot) -> str
     """Convenience wrapper mirroring other operational formatters."""
 
     return snapshot.to_markdown()
+
+
+_SYSTEM_ALERT_SEVERITY: Mapping[SystemValidationStatus, AlertSeverity] = {
+    SystemValidationStatus.passed: AlertSeverity.info,
+    SystemValidationStatus.warn: AlertSeverity.warning,
+    SystemValidationStatus.fail: AlertSeverity.critical,
+}
+
+
+def _system_should_alert(
+    status: SystemValidationStatus, threshold: SystemValidationStatus
+) -> bool:
+    return _STATUS_ORDER[status] >= _STATUS_ORDER[threshold]
+
+
+def derive_system_validation_alerts(
+    snapshot: SystemValidationSnapshot,
+    *,
+    threshold: SystemValidationStatus = SystemValidationStatus.warn,
+    include_overall: bool = True,
+    include_failing_checks: bool = True,
+) -> list[AlertEvent]:
+    """Return alert events for degraded system validation runs."""
+
+    severity = _SYSTEM_ALERT_SEVERITY[snapshot.status]
+    should_alert = _system_should_alert(snapshot.status, threshold)
+    snapshot_payload = snapshot.as_dict()
+
+    events: list[AlertEvent] = []
+
+    if include_overall and should_alert:
+        events.append(
+            AlertEvent(
+                category="system.validation.status",
+                severity=severity,
+                message=(
+                    f"System validation status {snapshot.status.value}"
+                    f" – {snapshot.passed_checks}/{snapshot.total_checks} checks"
+                ),
+                context={"snapshot": snapshot_payload},
+            )
+        )
+
+    if not include_failing_checks or not should_alert:
+        return events
+
+    for check in snapshot.checks:
+        if check.passed:
+            continue
+        context: dict[str, object] = {
+            "snapshot": snapshot_payload,
+            "check": check.as_dict(),
+        }
+        if check.message:
+            message = f"Validation check failed: {check.name} – {check.message}"
+        else:
+            message = f"Validation check failed: {check.name}"
+        events.append(
+            AlertEvent(
+                category="system.validation.check",
+                severity=severity,
+                message=message,
+                context=context,
+            )
+        )
+
+    return events
 
 
 def _extract_checks(results: object | None) -> Iterable[SystemValidationCheck]:
@@ -354,6 +422,7 @@ __all__ = [
     "SystemValidationStatus",
     "SystemValidationCheck",
     "SystemValidationSnapshot",
+    "derive_system_validation_alerts",
     "evaluate_system_validation",
     "format_system_validation_markdown",
     "publish_system_validation_snapshot",

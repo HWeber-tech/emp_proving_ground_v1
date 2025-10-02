@@ -5,7 +5,10 @@ import pytest
 
 from src.operations.event_bus_failover import EventPublishError
 from src.operations.system_validation import (
+    SystemValidationCheck,
+    SystemValidationSnapshot,
     SystemValidationStatus,
+    derive_system_validation_alerts,
     evaluate_system_validation,
     format_system_validation_markdown,
     load_system_validation_snapshot,
@@ -176,3 +179,48 @@ def test_load_system_validation_snapshot_reads_file(tmp_path) -> None:
     assert snapshot.metadata.get("report_path") == str(report_path)
     assert snapshot.metadata.get("run") == "ci"
     assert snapshot.failed_checks == 1
+
+
+def test_derive_system_validation_alerts_include_failing_checks() -> None:
+    snapshot = SystemValidationSnapshot(
+        status=SystemValidationStatus.fail,
+        generated_at=datetime(2025, 2, 1, tzinfo=timezone.utc),
+        total_checks=3,
+        passed_checks=1,
+        failed_checks=2,
+        success_rate=1 / 3,
+        checks=(
+            SystemValidationCheck(name="database", passed=False, message="timeout"),
+            SystemValidationCheck(name="event_bus", passed=True),
+            SystemValidationCheck(name="ingest", passed=False),
+        ),
+        metadata={},
+    )
+
+    events = derive_system_validation_alerts(snapshot)
+
+    categories = [event.category for event in events]
+    assert "system.validation.status" in categories
+    assert categories.count("system.validation.check") == 2
+    failing_messages = [event.message for event in events if "validation check failed" in event.message.lower()]
+    assert len(failing_messages) == 2
+    for event in events:
+        assert event.context.get("snapshot")
+
+
+def test_derive_system_validation_alerts_threshold_blocks_warn() -> None:
+    snapshot = SystemValidationSnapshot(
+        status=SystemValidationStatus.warn,
+        generated_at=datetime(2025, 2, 1, tzinfo=timezone.utc),
+        total_checks=2,
+        passed_checks=1,
+        failed_checks=1,
+        success_rate=0.5,
+        checks=(
+            SystemValidationCheck(name="database", passed=False, message="timeout"),
+        ),
+        metadata={},
+    )
+
+    events = derive_system_validation_alerts(snapshot, threshold=SystemValidationStatus.fail)
+    assert events == []

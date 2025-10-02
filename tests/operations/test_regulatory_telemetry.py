@@ -18,8 +18,9 @@ class DummyEventBus:
         self.events: list[object] = []
         self._running = True
 
-    def publish_from_sync(self, event: object) -> None:
+    def publish_from_sync(self, event: object) -> int:
         self.events.append(event)
+        return 1
 
     def is_running(self) -> bool:
         return self._running
@@ -115,3 +116,43 @@ def test_publish_regulatory_telemetry_uses_event_bus() -> None:
     assert bus.events, "expected snapshot to be published"
     payload = bus.events[0].payload
     assert payload["status"] == RegulatoryTelemetryStatus.ok.value
+
+
+def test_publish_regulatory_telemetry_falls_back_to_global_bus(monkeypatch: pytest.MonkeyPatch) -> None:
+    snapshot = evaluate_regulatory_telemetry(
+        signals=[
+            {
+                "name": "kyc_aml",
+                "status": "warn",
+                "summary": "Backlog present",
+                "observed_at": _fresh_timestamp(),
+            }
+        ],
+        required_domains=("kyc_aml",),
+    )
+
+    class FailingEventBus(DummyEventBus):
+        def publish_from_sync(self, event: object) -> int:
+            raise RuntimeError("runtime bus failure")
+
+    published: list[tuple[str, dict[str, object], str | None]] = []
+
+    class DummyTopicBus:
+        def publish_sync(
+            self, topic: str, payload: dict[str, object], *, source: str | None = None
+        ) -> None:
+            published.append((topic, payload, source))
+
+    monkeypatch.setattr(
+        "src.operations.event_bus_failover.get_global_bus",
+        lambda: DummyTopicBus(),
+    )
+
+    bus = FailingEventBus()
+    publish_regulatory_telemetry(bus, snapshot)
+
+    assert published, "expected snapshot to be published via global bus"
+    topic, payload, source = published[0]
+    assert topic == "telemetry.compliance.regulatory"
+    assert source == "regulatory_telemetry"
+    assert payload["status"] == RegulatoryTelemetryStatus.warn.value

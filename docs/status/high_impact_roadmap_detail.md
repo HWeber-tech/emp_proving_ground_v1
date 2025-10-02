@@ -101,6 +101,12 @@ backlog grooming, release readiness reviews, and post-mortems.
 - Public exports advertise helpers that do not exist (`get_risk_manager`), and
   configuration drift is reduced now that evolution imports resolve directly
   through the canonical engine implementation.【F:src/core/__init__.py†L11-L51】【F:src/core/evolution/engine.py†L13-L43】
+- Risk API contract violations now surface structured metadata and a documented
+  runbook so supervisors can escalate invalid trading manager payloads without
+  spelunking logs.【F:docs/api/risk.md†L1-L23】【F:docs/operations/runbooks/risk_api_contract.md†L1-L31】【F:src/trading/risk/risk_api.py†L20-L118】【F:src/runtime/runtime_builder.py†L321-L337】【F:src/trading/trading_manager.py†L493-L529】
+- Regulatory telemetry publisher uses the shared failover helper, logging
+  runtime failures and falling back to the global bus so compliance snapshots
+  persist through outages.【F:src/operations/regulatory_telemetry.py†L11-L388】【F:tests/operations/test_regulatory_telemetry.py†L18-L160】
 
 **Gaps to close:**
 1. Finalise the runtime builder migration, introduce a `TaskSupervisor`, and

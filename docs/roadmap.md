@@ -89,10 +89,10 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
     canonical `get_risk_manager` facade, exposes the core engine’s snapshot and
     assessment APIs, and keeps execution telemetry aligned with the deterministic
     risk manager surfaced by the runtime builder.【F:src/trading/trading_manager.py†L105-L147】【F:src/risk/risk_manager_impl.py†L533-L573】
-  - *Progress*: Deterministic trading risk API centralises config/status
-    resolution, builds runtime metadata snapshots, and powers the runtime
-    builder’s enforcement path so supervisors and docs consume a single
-    hardened contract under pytest coverage.【F:src/trading/risk/risk_api.py†L1-L134】【F:src/runtime/runtime_builder.py†L313-L343】【F:tests/trading/test_risk_api.py†L1-L115】【F:tests/trading/test_trading_manager_execution.py†L208-L224】
+  - *Progress*: Deterministic trading risk API now attaches structured metadata
+    and a contract runbook to every `RiskApiError`, with the runtime builder and
+    trading manager surfacing the runbook URL so supervisors can escalate broken
+    risk interfaces using the documented playbook.【F:docs/api/risk.md†L1-L23】【F:docs/operations/runbooks/risk_api_contract.md†L1-L31】【F:src/trading/risk/risk_api.py†L20-L118】【F:src/runtime/runtime_builder.py†L321-L337】【F:src/trading/trading_manager.py†L493-L529】【F:tests/runtime/test_runtime_builder.py†L183-L198】【F:tests/trading/test_risk_api.py†L114-L123】【F:tests/trading/test_trading_manager_execution.py†L222-L247】
   - *Progress*: `RiskConfig` now enforces positive position sizing, cross-field
     exposure relationships, and research-mode overrides, emitting warnings when
     mandatory stop losses are disabled outside research and blocking
@@ -128,6 +128,10 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
     the global bus, and raising typed errors when both transports degrade so
     operators see deterministic alerts instead of silent drops. Guardrail tests
     capture primary fallbacks, global outages, and backlog escalation.【F:src/operations/event_bus_health.py†L143-L259】【F:tests/operations/test_event_bus_health.py†L22-L235】
+  - *Progress*: Regulatory telemetry publisher now reuses the failover helper,
+    logging runtime publish failures, escalating unexpected errors, and
+    documenting global-bus fallbacks so compliance dashboards retain snapshots
+    even during runtime outages.【F:src/operations/regulatory_telemetry.py†L11-L388】【F:tests/operations/test_regulatory_telemetry.py†L18-L160】
   - *Progress*: Strategy performance telemetry aggregates execution/rejection
     ratios, ROI snapshots, and rejection reasons into Markdown summaries, then
     publishes the payload via the shared failover helper so dashboards and
@@ -255,6 +259,10 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
     failures, raise on unexpected exceptions, and surface global-bus outages with
     pytest coverage so telemetry gaps raise alerts instead of disappearing
     silently.【F:src/operations/ingest_trends.py†L303-L336】【F:tests/operations/test_ingest_trends.py†L90-L148】【F:src/operations/kafka_readiness.py†L313-L333】【F:tests/operations/test_kafka_readiness.py†L115-L143】
+  - *Progress*: Kafka readiness suite now asserts required-topic and consumer
+    coverage, tolerates epoch millisecond lag timestamps, and renders Markdown
+    summaries so operations can embed readiness tables directly in incident
+    updates.【F:tests/operations/test_kafka_readiness.py†L116-L207】
   - *Progress*: Security telemetry regression suite now exercises runtime-bus
     fallbacks, global-bus escalation, and unexpected-error handling so security
     posture publishing surfaces outages deterministically instead of silently
@@ -283,6 +291,9 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
   - *Progress*: Risk policy regression enforces minimum position sizing while the
     observability dashboard tests assert limit-status escalation so CI catches
     governance and telemetry drift before it hits production surfaces.【F:tests/trading/test_risk_policy.py†L213-L240】【F:tests/operations/test_observability_dashboard.py†L222-L241】
+  - *Progress*: Observability logging and dashboard suites now carry the
+    `guardrail` marker so CI can gatekeep their execution ahead of the broader
+    coverage sweep.【F:tests/observability/test_logging.py†L18-L24】【F:tests/operations/test_observability_dashboard.py†L24-L31】
   - *Progress*: Ingest scheduler guardrails now exercise run-loop shutdown,
     failure cut-offs, jitter windows, supervisor telemetry, snapshot builders,
     and event publishing so Timescale scheduling instrumentation surfaces issues

@@ -45,6 +45,10 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
     returns explicit sentinels under regression coverage so institutional
     ingest slices capture telemetry write issues instead of silently losing
     events.【F:src/data_foundation/persist/parquet_writer.py†L1-L75】【F:tests/data_foundation/test_parquet_writer.py†L1-L93】
+  - *Progress*: Ingest telemetry publisher now logs recoverable local bus
+    failures, escalates unexpected exceptions, and falls back to the global bus
+    under pytest coverage so ingest snapshots are not silently dropped when the
+    runtime transport degrades.【F:src/data_foundation/ingest/telemetry.py†L33-L99】【F:tests/data_foundation/test_ingest_publishers.py†L1-L164】
 - [ ] **Sensory + evolution execution** – Replace HOW/ANOMALY stubs, wire lineage
   telemetry, and prove adaptive strategies against recorded data.
   - *Progress*: Ecosystem optimizer now defends against unsafe genomes and
@@ -70,6 +74,10 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
     exception capture, markdown fallback logging, and pytest scenarios that
     simulate transport failures so dashboards and runbooks inherit reliable
     snapshots of paper-trading ROI and backlog posture.【F:src/operations/evolution_experiments.py†L40-L196】【F:tests/operations/test_evolution_experiments.py†L1-L126】
+  - *Progress*: Recorded sensory replay evaluator converts archived sensory
+    snapshots into deterministic fitness metrics, wiring price/confidence
+    extraction and regression coverage so adaptive runs can be validated without
+    live feeds while preserving reproducible fitness payloads.【F:src/evolution/evaluation/recorded_replay.py†L1-L193】【F:tests/evolution/test_recorded_replay_evaluator.py†L1-L108】
   - *Progress*: HOW and ANOMALY sensors now embed sanitised lineage records,
     compute shared threshold posture assessments, and surface state/breach
     metadata on every signal so downstream consumers can audit provenance and
@@ -147,6 +155,15 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
     publishes the payload via the shared failover helper so dashboards and
     runtime reports inherit the same hardened transport guarantees under pytest
     coverage.【F:src/operations/strategy_performance.py†L200-L531】【F:tests/operations/test_strategy_performance.py†L68-L193】
+  - *Progress*: Coverage matrix CLI now surfaces lagging domains and can fail
+    the build when coverage drops below a configurable threshold, with helper
+    utilities and pytest coverage documenting the contract so guardrail
+    enforcement becomes part of CI instead of manual review.【F:tools/telemetry/coverage_matrix.py†L184-L304】【F:tests/tools/test_coverage_matrix.py†L1-L182】
+  - *Progress*: Observability dashboard integrates operational readiness
+    snapshots as a first-class panel, summarising component severities and
+    surfacing degraded services alongside risk, latency, and backbone telemetry
+    under regression coverage so responders inherit a consolidated operational
+    view.【F:src/operations/observability_dashboard.py†L443-L493】【F:tests/operations/test_observability_dashboard.py†L135-L236】
   - *Progress*: Health monitor resource probes now normalise psutil import
     failures, log probe errors, retain bounded history, and surface event-bus
     diagnostics so operational responders get actionable state even when optional

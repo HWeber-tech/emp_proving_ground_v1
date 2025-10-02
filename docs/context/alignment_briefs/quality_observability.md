@@ -85,6 +85,14 @@
     per-status breakdowns and component maps so dashboards can render severity
     chips without reimplementing escalation logic, with pytest and docs locking
     the contract alongside the runtime exposure.【F:src/operations/operational_readiness.py†L200-L256】【F:tests/operations/test_operational_readiness.py†L1-L86】【F:docs/status/operational_readiness.md†L1-L34】【F:tests/runtime/test_professional_app_timescale.py†L722-L799】
+  - Progress: Coverage matrix CLI now exposes lagging domains via the new
+    `identify_laggards` helper, supports a `--fail-below-threshold` guardrail,
+    and carries pytest coverage so CI can fail fast when coverage drops instead
+    of relying on manual dashboards.【F:tools/telemetry/coverage_matrix.py†L184-L304】【F:tests/tools/test_coverage_matrix.py†L1-L182】
+  - Progress: Observability dashboard surfaces operational readiness as a
+    first-class panel, counting component severities, embedding metadata, and
+    feeding remediation summaries under pytest coverage so responders inherit a
+    consolidated operational view without bespoke wiring.【F:src/operations/observability_dashboard.py†L443-L493】【F:tests/operations/test_observability_dashboard.py†L135-L236】
   - Progress: Ingest trend telemetry logging now records runtime publish
     fallbacks, raises on unexpected errors, and escalates global bus outages with
     pytest coverage so data backbone dashboards expose genuine gaps instead of

@@ -42,13 +42,15 @@
 - Harden operational telemetry publishers so security, system validation, and
   professional readiness feeds warn on runtime bus failures, fall back
   deterministically, and raise on unexpected errors with pytest coverage
-  guarding the behaviour, while system validation now records failing-check
-  metadata so responders see the exact degradation in Markdown and payloads.
-  【F:src/operations/security.py†L536-L579】【F:tests/operations/test_security.py†L101-L211】【F:src/operations/system_validation.py†L127-L321】【F:tests/operations/test_system_validation.py†L77-L160】【F:src/operations/professional_readiness.py†L268-L305】【F:tests/operations/test_professional_readiness.py†L164-L239】
-- Harden incident response telemetry with the shared failover helper so
-  snapshots reuse the guarded runtime→global publish path, surface warning/error
-  logs for degraded transports, and raise typed errors under pytest coverage
-  instead of silently skipping outage evidence.【F:src/operations/incident_response.py†L350-L375】【F:tests/operations/test_incident_response.py†L123-L167】【F:src/operations/event_bus_failover.py†L1-L174】
+  guarding the behaviour. The system validation track now evaluates structured
+  reports into readiness snapshots, derives alert events, and publishes via the
+  shared failover helper while preserving failing-check metadata in Markdown and
+  payloads so responders see the exact degradation.【F:src/operations/security.py†L536-L579】【F:tests/operations/test_security.py†L101-L211】【F:src/operations/system_validation.py†L1-L312】【F:tests/operations/test_system_validation.py†L1-L195】【F:src/operations/professional_readiness.py†L268-L305】【F:tests/operations/test_professional_readiness.py†L164-L239】
+- Harden incident response readiness by parsing policy/state mappings into a
+  severity snapshot, deriving targeted alert events, and publishing telemetry
+  via the guarded runtime→global failover path so outage evidence, roster gaps,
+  and postmortem backlog context stay visible under pytest coverage documenting
+  escalation and publish failures.【F:src/operations/incident_response.py†L1-L715】【F:tests/operations/test_incident_response.py†L1-L200】【F:src/operations/event_bus_failover.py†L1-L174】
 - Aggregate operational readiness into a single severity snapshot that merges
   system validation, incident response, and ingest SLO posture, emits Markdown
   summaries, derives alert events, and now exposes status breakdown/component

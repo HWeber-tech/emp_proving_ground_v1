@@ -62,6 +62,10 @@
   markdown fallbacks, and documents exception paths via pytest so dashboards and
   status packs retain reliable ROI and backlog metrics even when transports
   misbehave.【F:src/operations/evolution_experiments.py†L40-L196】【F:tests/operations/test_evolution_experiments.py†L1-L126】
+- Progress: Evolution readiness evaluator merges the adaptive-run feature flag,
+  population seed metadata, and lineage telemetry into a governance snapshot,
+  rendering Markdown/JSON summaries with champion provenance and blocking issues
+  so reviewers can gate adaptive runs deterministically under pytest coverage.【F:src/operations/evolution_readiness.py†L1-L206】【F:tests/operations/test_evolution_readiness.py†L1-L118】
 - Progress: Evolution engine now records seed provenance on population
   initialization and after each generation, summarising catalogue templates,
   seed tags, and totals for the population manager while lineage telemetry emits

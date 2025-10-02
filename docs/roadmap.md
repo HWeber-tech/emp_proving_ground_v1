@@ -40,6 +40,11 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
     logs filesystem failures, and cleans up partial files so ingest tooling surfaces
     genuine persistence faults instead of emitting empty paths under silent
     fallbacks.【F:src/data_foundation/persist/jsonl_writer.py†L1-L69】【F:tests/data_foundation/test_jsonl_writer.py†L1-L37】
+  - *Progress*: Parquet ingest persistence now resolves the pandas DataFrame
+    constructor defensively, logs conversion and filesystem failures, and
+    returns explicit sentinels under regression coverage so institutional
+    ingest slices capture telemetry write issues instead of silently losing
+    events.【F:src/data_foundation/persist/parquet_writer.py†L1-L75】【F:tests/data_foundation/test_parquet_writer.py†L1-L93】
 - [ ] **Sensory + evolution execution** – Replace HOW/ANOMALY stubs, wire lineage
   telemetry, and prove adaptive strategies against recorded data.
   - *Progress*: Ecosystem optimizer now defends against unsafe genomes and
@@ -93,6 +98,11 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
     and a contract runbook to every `RiskApiError`, with the runtime builder and
     trading manager surfacing the runbook URL so supervisors can escalate broken
     risk interfaces using the documented playbook.【F:docs/api/risk.md†L1-L23】【F:docs/operations/runbooks/risk_api_contract.md†L1-L31】【F:src/trading/risk/risk_api.py†L20-L118】【F:src/runtime/runtime_builder.py†L321-L337】【F:src/trading/trading_manager.py†L493-L529】【F:tests/runtime/test_runtime_builder.py†L183-L198】【F:tests/trading/test_risk_api.py†L114-L123】【F:tests/trading/test_trading_manager_execution.py†L222-L247】
+  - *Progress*: Trading manager now emits dedicated risk interface telemetry via
+    snapshot/error helpers that render Markdown summaries, publish structured
+    payloads on the event bus, and persist the latest posture for discovery,
+    with pytest asserting snapshot and alert propagation so supervisors inherit
+    actionable evidence when enforcement fails.【F:src/trading/risk/risk_interface_telemetry.py†L1-L156】【F:src/trading/trading_manager.py†L635-L678】【F:tests/trading/test_trading_manager_execution.py†L190-L287】
   - *Progress*: `RiskConfig` now enforces positive position sizing, cross-field
     exposure relationships, and research-mode overrides, emitting warnings when
     mandatory stop losses are disabled outside research and blocking
@@ -145,10 +155,18 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
     trading-manager method, and formatter failures, keeping operational
     diagnostics visible during bootstrap runs and documenting the logging
     behaviour under pytest.【F:src/operations/bootstrap_control_center.py†L31-L115】【F:tests/current/test_bootstrap_control_center.py†L178-L199】
+  - *Progress*: Bootstrap orchestration now wraps sensory listeners,
+    liquidity probers, and control-centre callbacks with structured error
+    logging so optional observability hooks surface failures without breaking
+    the decision loop, with pytest capturing the emitted diagnostics.【F:src/orchestration/bootstrap_stack.py†L81-L258】【F:tests/current/test_bootstrap_stack.py†L164-L213】
   - *Progress*: Observability dashboard risk telemetry now annotates each metric
     with limit values, ratios, and violation statuses while preserving serialised
     payloads, backed by regression coverage so operators inherit actionable risk
     summaries instead of opaque aggregates.【F:src/operations/observability_dashboard.py†L254-L309】【F:tests/operations/test_observability_dashboard.py†L201-L241】
+  - *Progress*: Observability dashboard now emits a remediation summary capsule
+    that aggregates panel severities, highlights failing/warning slices, and is
+    regression-tested so CI status exporters can consume a canonical
+    institutional readiness snapshot without re-deriving counts.【F:src/operations/observability_dashboard.py†L60-L109】【F:tests/operations/test_observability_dashboard.py†L60-L116】
   - *Progress*: Operational readiness aggregation now fuses system validation,
     incident response, and ingest SLO snapshots into a single severity grade,
     emits Markdown/JSON for dashboards, derives alert events, and enriches the

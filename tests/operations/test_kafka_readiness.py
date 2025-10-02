@@ -11,6 +11,7 @@ from src.data_foundation.streaming.kafka_stream import (
 from src.operations.kafka_readiness import (
     KafkaReadinessStatus,
     evaluate_kafka_readiness,
+    format_kafka_readiness_markdown,
     publish_kafka_readiness,
 )
 
@@ -110,6 +111,106 @@ def test_evaluate_kafka_readiness_warns_on_stale_lag() -> None:
         component for component in snapshot.components if component.name == "consumer_lag"
     )
     assert "stale" in lag_component.summary
+
+
+def test_evaluate_kafka_readiness_requires_topics_and_consumer() -> None:
+    settings = KafkaReadinessSettings(
+        enabled=True,
+        min_publishers=0,
+        require_topics=True,
+        require_consumer=True,
+    )
+    connection = _sample_connection()
+
+    snapshot = evaluate_kafka_readiness(
+        generated_at=datetime.now(tz=UTC),
+        settings=settings,
+        connection=connection,
+        topics=(),
+        publishers=(),
+    )
+
+    assert snapshot.status is KafkaReadinessStatus.fail
+    topic_component = next(
+        component for component in snapshot.components if component.name == "topics"
+    )
+    assert topic_component.status is KafkaReadinessStatus.fail
+    consumer_component = next(
+        component
+        for component in snapshot.components
+        if component.name == "consumer_lag"
+    )
+    assert consumer_component.status is KafkaReadinessStatus.fail
+    assert consumer_component.metadata["required"] is True
+
+
+def test_evaluate_kafka_readiness_handles_epoch_lag_timestamp() -> None:
+    settings = KafkaReadinessSettings(
+        enabled=True,
+        warn_stale_seconds=60.0,
+        fail_stale_seconds=120.0,
+        min_publishers=0,
+    )
+    connection = _sample_connection()
+    generated_at = datetime.now(tz=UTC)
+    recorded_at = generated_at - timedelta(seconds=240)
+    lag_snapshot = KafkaConsumerLagSnapshot(
+        partitions=(
+            KafkaPartitionLag(
+                topic="ingest.daily",
+                partition=0,
+                current_offset=0,
+                end_offset=0,
+                lag=0,
+            ),
+        ),
+        recorded_at=str(int(recorded_at.timestamp() * 1000)),
+        total_lag=0,
+        max_lag=0,
+        topic_lag={"ingest.daily": 0},
+    )
+
+    snapshot = evaluate_kafka_readiness(
+        generated_at=generated_at,
+        settings=settings,
+        connection=connection,
+        topics=("ingest.daily",),
+        publishers=(),
+        lag_snapshot=lag_snapshot,
+    )
+
+    assert snapshot.status is KafkaReadinessStatus.fail
+    lag_component = next(
+        component for component in snapshot.components if component.name == "consumer_lag"
+    )
+    assert "stale" in lag_component.summary
+    assert lag_component.metadata["lag_seconds"] > settings.fail_stale_seconds
+
+
+def test_kafka_readiness_markdown_renders_components() -> None:
+    settings = KafkaReadinessSettings(
+        enabled=True,
+        min_publishers=0,
+        require_topics=False,
+    )
+    connection = _sample_connection()
+
+    snapshot = evaluate_kafka_readiness(
+        generated_at=datetime.now(tz=UTC),
+        settings=settings,
+        connection=connection,
+        topics=(" ingest.daily ", "ingest.daily", "analytics"),
+        publishers=(),
+    )
+
+    topics_component = next(
+        component for component in snapshot.components if component.name == "topics"
+    )
+    assert topics_component.metadata["expected"] == ["ingest.daily", "analytics"]
+
+    markdown = format_kafka_readiness_markdown(snapshot)
+    assert "| Component | Status | Summary |" in markdown
+    assert "| topics | OK | Kafka topics configured |" in markdown
 
 
 def test_publish_kafka_readiness_logs_failures(monkeypatch, caplog) -> None:

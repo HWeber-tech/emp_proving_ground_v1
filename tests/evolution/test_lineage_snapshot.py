@@ -28,6 +28,10 @@ def test_build_lineage_snapshot_fuses_stats_and_champion_metadata():
         "species_distribution": {"trend_following": 3, "carry": 2},
         "seed_source": "catalogue",
         "catalogue": {"name": "institutional", "seeded_at": 1234.0},
+        "seed_metadata": {
+            "seed_names": {"Trend Surfer Alpha": 3},
+            "seed_tags": {"trend": 3, "fx": 2},
+        },
     }
     summary = EvolutionSummary(
         generation=6,
@@ -48,12 +52,14 @@ def test_build_lineage_snapshot_fuses_stats_and_champion_metadata():
     assert snapshot.seed_source == "catalogue"
     assert snapshot.species_distribution["trend_following"] == 3
     assert snapshot.catalogue["name"] == "institutional"
+    assert snapshot.seed_metadata["seed_names"]["Trend Surfer Alpha"] == 3
 
     payload = snapshot.as_dict(max_parents=1, max_mutations=1)
     assert payload["champion"]["parent_ids"] == ["core-evo-0000"]
     assert payload["champion"]["mutation_history"] == ["g1:mutation:drift"]
     assert payload["champion"]["metadata"]["desk"] == "trend"
     assert payload["population"]["seed_source"] == "catalogue"
+    assert payload["population"]["seed_metadata"]["seed_names"]["Trend Surfer Alpha"] == 3
 
     fingerprint = snapshot.fingerprint()
     assert fingerprint[0] == 6

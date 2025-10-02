@@ -39,6 +39,21 @@ def _ensure_mapping(payload: Any) -> dict[str, Any]:
     return {}
 
 
+def _coerce_seed_metadata(payload: Any) -> dict[str, Any] | None:
+    if not isinstance(payload, Mapping):
+        return None
+    result: dict[str, Any] = {}
+    for key, value in payload.items():
+        key_text = str(key)
+        if isinstance(value, Mapping):
+            result[key_text] = {
+                str(inner_key): inner_value for inner_key, inner_value in value.items()
+            }
+        else:
+            result[key_text] = value
+    return result
+
+
 def _summary_to_mapping(summary: "EvolutionSummary | Mapping[str, Any] | None") -> dict[str, Any]:
     if summary is None:
         return {}
@@ -64,6 +79,22 @@ def _summary_to_mapping(summary: "EvolutionSummary | Mapping[str, Any] | None") 
     return {}
 
 
+def _fingerprint_seed_metadata(metadata: Mapping[str, Any] | None) -> tuple[Any, ...]:
+    if not isinstance(metadata, Mapping):
+        return tuple()
+
+    fingerprint: list[tuple[str, Any]] = []
+    for key, value in sorted(metadata.items(), key=lambda item: item[0]):
+        if isinstance(value, Mapping):
+            nested = tuple(sorted((str(inner_key), inner_value) for inner_key, inner_value in value.items()))
+            fingerprint.append((key, nested))
+        elif isinstance(value, Sequence) and not isinstance(value, (str, bytes)):
+            fingerprint.append((key, tuple(value)))
+        else:
+            fingerprint.append((key, value))
+    return tuple(fingerprint)
+
+
 @dataclass(slots=True)
 class EvolutionLineageSnapshot:
     """Immutable snapshot describing the latest evolution lineage state."""
@@ -80,6 +111,7 @@ class EvolutionLineageSnapshot:
     evaluation_metadata: Mapping[str, Any] = field(default_factory=dict)
     catalogue: Mapping[str, Any] | None = None
     summary: Mapping[str, Any] = field(default_factory=dict)
+    seed_metadata: Mapping[str, Any] | None = None
 
     def as_dict(
         self,
@@ -113,6 +145,8 @@ class EvolutionLineageSnapshot:
             payload["catalogue"] = dict(self.catalogue)
         if self.summary:
             payload["summary"] = dict(self.summary)
+        if self.seed_metadata:
+            payload["population"]["seed_metadata"] = _coerce_seed_metadata(self.seed_metadata)
         return payload
 
     def fingerprint(self) -> tuple[Any, ...]:
@@ -124,6 +158,8 @@ class EvolutionLineageSnapshot:
         catalogue_name = None
         if isinstance(self.catalogue, Mapping):
             catalogue_name = self.catalogue.get("name")
+        seed_metadata_fp = _fingerprint_seed_metadata(self.seed_metadata)
+
         return (
             int(self.generation),
             self.champion_id,
@@ -135,6 +171,7 @@ class EvolutionLineageSnapshot:
             self.seed_source,
             species_items,
             catalogue_name,
+            seed_metadata_fp,
         )
 
     def to_markdown(self) -> str:
@@ -164,6 +201,15 @@ class EvolutionLineageSnapshot:
             lines.append(f"- **Species distribution** {species}")
         if self.catalogue and "name" in self.catalogue:
             lines.append(f"- **Catalogue** {self.catalogue['name']}")
+        if self.seed_metadata:
+            names = self.seed_metadata.get("seed_names") if isinstance(self.seed_metadata, Mapping) else None
+            if isinstance(names, Mapping) and names:
+                top_name, top_count = next(iter(names.items()))
+                lines.append(f"- **Seed template** {top_name} (count: {top_count})")
+            tags = self.seed_metadata.get("seed_tags") if isinstance(self.seed_metadata, Mapping) else None
+            if isinstance(tags, Mapping) and tags:
+                preview = ", ".join(list(tags.keys())[:3])
+                lines.append(f"- **Seed tags** {preview}")
         return "\n".join(lines)
 
 
@@ -195,6 +241,7 @@ def build_lineage_snapshot(
         summary_mapping = {}
 
     metadata = _ensure_mapping(champion.report.metadata)
+    seed_metadata = _coerce_seed_metadata(stats.get("seed_metadata"))
 
     return EvolutionLineageSnapshot(
         generation=generation,
@@ -211,4 +258,5 @@ def build_lineage_snapshot(
         evaluation_metadata=metadata,
         catalogue=catalogue,
         summary=summary_mapping,
+        seed_metadata=seed_metadata,
     )

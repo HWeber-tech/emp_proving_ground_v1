@@ -1,11 +1,22 @@
 from datetime import UTC, datetime
 
-from src.operations.alerts import AlertSeverity
+import pytest
+
+from src.operations.alerts import (
+    AlertChannel,
+    AlertDispatchResult,
+    AlertManager,
+    AlertRule,
+    AlertSeverity,
+)
+from src.operations.event_bus_failover import EventPublishError
 from src.operations.incident_response import IncidentResponseSnapshot, IncidentResponseStatus
 from src.operations.operational_readiness import (
     OperationalReadinessStatus,
     derive_operational_alerts,
     evaluate_operational_readiness,
+    publish_operational_readiness_snapshot,
+    route_operational_readiness_alerts,
 )
 from src.operations.system_validation import (
     SystemValidationCheck,
@@ -88,8 +99,123 @@ def test_operational_readiness_alert_generation() -> None:
     assert component.severity is AlertSeverity.warning
     assert "status warn" in component.message
     assert overall.context["snapshot"]["metadata"]["status_breakdown"] == {"warn": 1}
+    assert overall.tags == ("operational-readiness",)
+    assert component.tags == ("operational-readiness", "system_validation")
 
     suppressed = derive_operational_alerts(
         readiness, threshold=OperationalReadinessStatus.fail, include_overall=False
     )
     assert suppressed == []
+
+
+class RecordingTransport:
+    def __init__(self) -> None:
+        self.events: list[object] = []
+
+    def __call__(self, event: object) -> None:
+        self.events.append(event)
+
+
+class StubBus:
+    def __init__(self) -> None:
+        self.events: list[object] = []
+
+    def publish_from_sync(self, event: object) -> None:  # pragma: no cover - simple stub
+        self.events.append(event)
+
+    def is_running(self) -> bool:  # pragma: no cover - simple stub
+        return True
+
+
+class RaisingRuntimeBus(StubBus):
+    def __init__(self, exc: Exception) -> None:
+        super().__init__()
+        self._exc = exc
+
+    def publish_from_sync(self, event: object) -> None:  # type: ignore[override]
+        raise self._exc
+
+
+class StubTopicBus:
+    def __init__(self) -> None:
+        self.events: list[tuple[str, object, str | None]] = []
+
+    def publish_sync(self, topic: str, payload: object, *, source: str | None = None) -> None:
+        self.events.append((topic, payload, source))
+
+
+def _alert_manager(recording: RecordingTransport) -> AlertManager:
+    channel = AlertChannel(
+        name="recording",
+        transport=recording,
+        channel_type="memory",
+        min_severity=AlertSeverity.info,
+    )
+    rule = AlertRule(
+        name="all",
+        categories=(),
+        min_severity=AlertSeverity.info,
+        channels=("recording",),
+    )
+    return AlertManager(channels=[channel], rules=[rule])
+
+
+def test_route_operational_readiness_alerts_dispatches_events() -> None:
+    readiness = evaluate_operational_readiness(
+        system_validation=_system_validation_snapshot(SystemValidationStatus.warn)
+    )
+
+    recording = RecordingTransport()
+    manager = _alert_manager(recording)
+
+    results = route_operational_readiness_alerts(
+        manager,
+        readiness,
+        base_tags=("ops",),
+    )
+
+    assert len(results) == 2
+    assert all(isinstance(result, AlertDispatchResult) for result in results)
+    assert len(recording.events) == 2
+    categories = {event.category for event in recording.events}
+    assert categories == {"operational.readiness", "operational.system_validation"}
+    for event in recording.events:
+        assert event.tags[0] == "ops"
+
+
+def test_publish_operational_readiness_snapshot_uses_failover(monkeypatch: pytest.MonkeyPatch) -> None:
+    readiness = evaluate_operational_readiness(
+        system_validation=_system_validation_snapshot(SystemValidationStatus.passed)
+    )
+
+    runtime_bus = RaisingRuntimeBus(RuntimeError("loop stopped"))
+    global_bus = StubTopicBus()
+    monkeypatch.setattr("src.operations.event_bus_failover.get_global_bus", lambda: global_bus)
+
+    publish_operational_readiness_snapshot(runtime_bus, readiness, source="test")
+
+    assert not runtime_bus.events
+    assert global_bus.events
+    topic, payload, source = global_bus.events[-1]
+    assert topic == "telemetry.operational.operational_readiness"
+    assert payload.get("status") == OperationalReadinessStatus.ok.value
+    assert source == "test"
+
+
+def test_publish_operational_readiness_snapshot_raises_unexpected(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    readiness = evaluate_operational_readiness(
+        system_validation=_system_validation_snapshot(SystemValidationStatus.passed)
+    )
+
+    runtime_bus = RaisingRuntimeBus(ValueError("boom"))
+    global_bus = StubTopicBus()
+    monkeypatch.setattr("src.operations.event_bus_failover.get_global_bus", lambda: global_bus)
+
+    with pytest.raises(EventPublishError) as exc_info:
+        publish_operational_readiness_snapshot(runtime_bus, readiness, source="test")
+
+    assert exc_info.value.stage == "runtime"
+    assert not runtime_bus.events
+    assert not global_bus.events

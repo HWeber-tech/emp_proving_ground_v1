@@ -187,6 +187,8 @@ from .operational_readiness import (
     derive_operational_alerts,
     evaluate_operational_readiness,
     format_operational_readiness_markdown,
+    publish_operational_readiness_snapshot,
+    route_operational_readiness_alerts,
 )
 from .ingest_trends import (
     IngestDimensionTrend,

@@ -72,6 +72,13 @@ async def test_orchestrator_registers_champion_and_updates_registry(tmp_path):
     assert len(result.evaluations) == 6
     assert all(record.fitness >= 0.0 for record in result.evaluations)
 
+    decision = orchestrator.adaptive_runs_decision
+    assert decision is not None
+    assert decision.enabled is True
+    assert decision.source == "override"
+    assert decision.reason == "override_enabled"
+    assert orchestrator.telemetry["adaptive_runs"]["source"] == "override"
+
     champion = result.champion
     assert champion is not None
     assert champion.fitness == max(record.fitness for record in result.evaluations)
@@ -235,7 +242,13 @@ async def test_orchestrator_skips_adaptive_runs_when_disabled(monkeypatch, tmp_p
     first = await orchestrator.run_cycle()
     assert first.summary.generation == 0
     assert orchestrator.telemetry["adaptive_runs_enabled"] is False
+    assert orchestrator.telemetry["adaptive_runs"]["reason"] == "override_disabled"
     assert orchestrator.telemetry["total_generations"] == 0
+
+    decision = orchestrator.adaptive_runs_decision
+    assert decision is not None
+    assert decision.enabled is False
+    assert decision.reason == "override_disabled"
 
     champion = first.champion
     assert champion is not None
@@ -289,3 +302,27 @@ async def test_seed_metadata_present_when_realistic_seeder_used(monkeypatch):
     assert snapshot is not None
     assert snapshot.seed_metadata
     assert snapshot.seed_metadata.get("seed_names")
+
+
+@pytest.mark.asyncio
+async def test_orchestrator_uses_environment_flag(monkeypatch):
+    monkeypatch.setenv("EVOLUTION_ENABLE_ADAPTIVE_RUNS", "true")
+
+    engine = EvolutionEngine(
+        EvolutionConfig(population_size=3, elite_count=1, crossover_rate=0.4, mutation_rate=0.1)
+    )
+    engine._rng.seed(31)  # type: ignore[attr-defined]
+
+    async def evaluator(genome):
+        return {"fitness_score": _score_parameters(genome), "sharpe_ratio": 0.8}
+
+    orchestrator = EvolutionCycleOrchestrator(engine, evaluator)
+
+    result = await orchestrator.run_cycle()
+    assert result.champion is not None
+
+    decision = orchestrator.adaptive_runs_decision
+    assert decision is not None
+    assert decision.source == "environment"
+    assert decision.reason == "flag_enabled"
+    assert orchestrator.telemetry["adaptive_runs"]["reason"] == "flag_enabled"

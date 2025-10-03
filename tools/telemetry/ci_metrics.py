@@ -3,10 +3,14 @@ from __future__ import annotations
 import json
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Iterable, Mapping
+from typing import TYPE_CHECKING, Any, Iterable, Mapping
 import xml.etree.ElementTree as ET
 
 from .coverage_matrix import build_coverage_matrix
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+    from src.operations.observability_dashboard import ObservabilityDashboard
 
 DEFAULT_METRICS_PATH = Path("tests/.telemetry/ci_metrics.json")
 
@@ -223,6 +227,109 @@ def record_remediation(
     return metrics
 
 
+def summarise_dashboard_payload(
+    dashboard: Mapping[str, Any] | "ObservabilityDashboard",
+) -> dict[str, Any]:
+    """Normalise an observability dashboard payload for remediation tracking."""
+
+    if hasattr(dashboard, "remediation_summary"):
+        summary = dashboard.remediation_summary()  # type: ignore[assignment]
+        if not isinstance(summary, Mapping):
+            raise TypeError("Dashboard remediation summary must be mapping-like")
+        return {
+            "generated_at": summary.get("generated_at"),
+            "overall_status": summary.get("overall_status"),
+            "panel_counts": dict(summary.get("panel_counts", {})),
+            "failing_panels": tuple(summary.get("failing_panels", ())),
+            "warning_panels": tuple(summary.get("warning_panels", ())),
+            "healthy_panels": tuple(summary.get("healthy_panels", ())),
+        }
+
+    if not isinstance(dashboard, Mapping):
+        raise TypeError("Dashboard payload must be mapping-like")
+
+    status = str(dashboard.get("status", "unknown"))
+    panels_obj = dashboard.get("panels", [])
+    failing: list[str] = []
+    warning: list[str] = []
+    healthy: list[str] = []
+
+    if isinstance(panels_obj, Iterable):
+        for raw_panel in panels_obj:
+            if not isinstance(raw_panel, Mapping):
+                continue
+            panel_name = str(raw_panel.get("name", "(unknown panel)"))
+            panel_status = str(raw_panel.get("status", "unknown")).lower()
+            if panel_status == "fail":
+                failing.append(panel_name)
+            elif panel_status == "warn":
+                warning.append(panel_name)
+            elif panel_status == "ok":
+                healthy.append(panel_name)
+
+    counts = {
+        "ok": len(healthy),
+        "warn": len(warning),
+        "fail": len(failing),
+    }
+
+    generated_at = dashboard.get("generated_at")
+    if not isinstance(generated_at, str):
+        generated_at = _timestamp_label()
+
+    return {
+        "generated_at": generated_at,
+        "overall_status": status,
+        "panel_counts": counts,
+        "failing_panels": tuple(failing),
+        "warning_panels": tuple(warning),
+        "healthy_panels": tuple(healthy),
+    }
+
+
+def record_dashboard_remediation(
+    metrics_path: Path,
+    *,
+    summary: Mapping[str, Any] | "ObservabilityDashboard",
+    label: str | None = None,
+    source: str | None = None,
+    data: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Record an observability dashboard snapshot as a remediation entry."""
+
+    normalised = summarise_dashboard_payload(summary)
+
+    panel_counts = normalised.get("panel_counts", {})
+    statuses: dict[str, Any] = {
+        "overall_status": normalised.get("overall_status", "unknown"),
+        "panels_ok": panel_counts.get("ok", 0),
+        "panels_warn": panel_counts.get("warn", 0),
+        "panels_fail": panel_counts.get("fail", 0),
+    }
+
+    note_parts: list[str] = []
+    failing = tuple(str(name) for name in normalised.get("failing_panels", ()))
+    warnings = tuple(str(name) for name in normalised.get("warning_panels", ()))
+
+    if failing:
+        note_parts.append(f"Failing panels: {', '.join(failing)}")
+    if warnings:
+        note_parts.append(f"Warning panels: {', '.join(warnings)}")
+
+    note = "; ".join(note_parts) if note_parts else None
+
+    entry_label = label or str(normalised.get("generated_at", _timestamp_label()))
+
+    return record_remediation(
+        metrics_path,
+        statuses=statuses,
+        label=entry_label,
+        source=source,
+        note=note,
+        data=data,
+    )
+
+
 __all__ = [
     "DEFAULT_METRICS_PATH",
     "load_metrics",
@@ -230,6 +337,8 @@ __all__ = [
     "record_coverage_domains",
     "record_formatter",
     "record_remediation",
+    "record_dashboard_remediation",
+    "summarise_dashboard_payload",
     "parse_coverage_percentage",
     "save_metrics",
 ]

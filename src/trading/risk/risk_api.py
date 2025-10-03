@@ -23,6 +23,10 @@ from src.config.risk.risk_config import RiskConfig
 _DEFAULT_RUNBOOK = "docs/operations/runbooks/risk_api_contract.md"
 
 
+# Public alias so runtime supervisors can surface consistent remediation links.
+RISK_API_RUNBOOK = _DEFAULT_RUNBOOK
+
+
 class RiskApiError(RuntimeError):
     """Raised when a trading manager violates the risk API contract."""
 
@@ -157,6 +161,7 @@ def build_runtime_risk_metadata(trading_manager: Any) -> dict[str, object]:
 
 
 __all__ = [
+    "RISK_API_RUNBOOK",
     "RiskApiError",
     "TradingRiskInterface",
     "build_runtime_risk_metadata",

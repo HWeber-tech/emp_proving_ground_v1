@@ -198,6 +198,43 @@ async def test_builder_rejects_invalid_trading_risk_config(tmp_path):
 
 
 @pytest.mark.asyncio()
+async def test_builder_rejects_stop_loss_disabled_outside_research_mode(tmp_path):
+    cfg = SystemConfig().with_updated(
+        connection_protocol=ConnectionProtocol.bootstrap,
+        data_backbone_mode=DataBackboneMode.bootstrap,
+        extras={"BOOTSTRAP_SYMBOLS": "EURUSD"},
+    )
+
+    app = await build_professional_predator_app(config=cfg)
+
+    class StubTradingManager:
+        def __init__(self) -> None:
+            self._risk_config = RiskConfig(
+                mandatory_stop_loss=False,
+                research_mode=False,
+            )
+
+    if getattr(app, "sensory_organ", None) is None:
+        app.sensory_organ = SimpleNamespace(trading_manager=StubTradingManager())
+    else:
+        setattr(app.sensory_organ, "trading_manager", StubTradingManager())
+
+    try:
+        with pytest.raises(RuntimeError) as excinfo:
+            build_professional_runtime_application(
+                app,
+                skip_ingest=True,
+                symbols_csv="EURUSD",
+                duckdb_path=str(tmp_path / "tier0.duckdb"),
+            )
+        message = str(excinfo.value)
+        assert "mandatory_stop_loss" in message
+        assert "risk_api_contract.md" in message
+    finally:
+        await app.shutdown()
+
+
+@pytest.mark.asyncio()
 async def test_configuration_audit_runs_without_timescale(monkeypatch, tmp_path):
     cfg = SystemConfig().with_updated(
         connection_protocol=ConnectionProtocol.bootstrap,

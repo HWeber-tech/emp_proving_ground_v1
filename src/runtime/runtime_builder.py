@@ -242,6 +242,7 @@ from src.operations.sensory_drift import (
 from src.runtime.healthcheck import RuntimeHealthServer
 from src.runtime.predator_app import ProfessionalPredatorApp
 from src.trading.risk.risk_api import (
+    RISK_API_RUNBOOK,
     RiskApiError,
     build_runtime_risk_metadata,
     resolve_trading_risk_config,
@@ -323,6 +324,17 @@ def _prepare_trading_risk_enforcement(
     except RiskApiError as exc:
         metadata["risk_error"] = exc.to_metadata()
         raise RuntimeError(f"{exc}. See {exc.runbook}") from exc
+    if not risk_config.mandatory_stop_loss and not risk_config.research_mode:
+        message = (
+            "RiskConfig.mandatory_stop_loss must remain enabled outside research mode."
+        )
+        metadata["risk_error"] = {
+            "message": message,
+            "runbook": RISK_API_RUNBOOK,
+            "mandatory_stop_loss": bool(risk_config.mandatory_stop_loss),
+            "research_mode": bool(risk_config.research_mode),
+        }
+        raise RuntimeError(f"{message} See {RISK_API_RUNBOOK}")
     if risk_config.max_risk_per_trade_pct <= 0:
         raise RuntimeError("RiskConfig.max_risk_per_trade_pct must be positive")
     if risk_config.max_total_exposure_pct <= 0:

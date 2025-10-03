@@ -58,14 +58,19 @@
     publishers, replacing ad-hoc blanket handlers with typed errors and
     structured logging so transport regressions escalate consistently across
     modules.【F:src/operations/event_bus_failover.py†L1-L174】【F:src/operations/incident_response.py†L675-L715】【F:src/operations/evolution_experiments.py†L297-L342】【F:tests/operations/test_event_bus_failover.py†L1-L164】【F:tests/operations/test_incident_response.py†L135-L179】【F:tests/operations/test_evolution_experiments.py†L135-L191】
+  - Progress: Execution readiness telemetry now rides the shared failover
+    helper, logging runtime publish failures, escalating unexpected exceptions,
+    and falling back to the global bus under pytest coverage so dashboards keep
+    receiving readiness snapshots even when the runtime transport degrades.【F:src/operations/execution.py†L611-L648】【F:tests/operations/test_execution.py†L100-L134】
   - Progress: Incident response readiness now evaluates policy/state mappings,
     emits Markdown snapshots, derives roster/backlog alerts, and publishes via
     the failover helper under pytest coverage so operators inherit actionable
     escalations instead of silent outages.【F:src/operations/incident_response.py†L1-L715】【F:tests/operations/test_incident_response.py†L1-L200】
-  - Progress: Guardrail manifest tests pin the ingest orchestration, risk policy,
-    and observability suites to the CI guardrail marker so coverage drops or
-    marker drift block merges before the broader regression run, with pytest
-    verifying target existence and guardrail tagging.【F:tests/runtime/test_guardrail_suite_manifest.py†L1-L40】
+  - Progress: Guardrail manifest tests pin the ingest orchestration, ingest
+    scheduler, risk policy, and observability suites to the CI guardrail marker
+    so coverage drops or marker drift block merges before the broader regression
+    run, with pytest verifying target existence and guardrail tagging across the
+    matrix.【F:tests/runtime/test_guardrail_suite_manifest.py†L18-L40】【F:tests/data_foundation/test_ingest_scheduler.py†L1-L28】
   - Progress: Event bus health tests now assert queue backlog escalation,
     dropped-event surfacing, and the shared failover helper’s runtime/global bus
     fallbacks so operational telemetry keeps raising alarms when both transports

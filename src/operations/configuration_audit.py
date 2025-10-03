@@ -17,7 +17,8 @@ from enum import StrEnum
 from typing import Callable, Mapping, MutableMapping
 from uuid import uuid4
 
-from src.core.event_bus import Event, EventBus, get_global_bus
+from src.core.event_bus import Event, EventBus
+from src.operations.event_bus_failover import publish_event_with_failover
 from src.governance.system_config import SystemConfig
 
 logger = logging.getLogger(__name__)
@@ -217,19 +218,21 @@ def publish_configuration_audit_snapshot(
         source="operations.configuration_audit",
     )
 
-    publish_from_sync = getattr(event_bus, "publish_from_sync", None)
-    if callable(publish_from_sync) and getattr(event_bus, "is_running", lambda: False)():
-        try:
-            publish_from_sync(event)
-            return
-        except Exception:  # pragma: no cover - diagnostics only
-            logger.debug("Failed to publish configuration audit via runtime bus", exc_info=True)
-
-    try:
-        topic_bus = get_global_bus()
-        topic_bus.publish_sync(event.type, event.payload, source=event.source)
-    except Exception:  # pragma: no cover - diagnostics only
-        logger.debug("Configuration audit telemetry publish skipped", exc_info=True)
+    publish_event_with_failover(
+        event_bus,
+        event,
+        logger=logger,
+        runtime_fallback_message=
+            "Runtime event bus unavailable for configuration audit; falling back to global bus",
+        runtime_unexpected_message=
+            "Unexpected error publishing configuration audit via runtime event bus",
+        runtime_none_message=
+            "Runtime event bus returned no result for configuration audit; falling back to global bus",
+        global_not_running_message=
+            "Global event bus unavailable while publishing configuration audit snapshot",
+        global_unexpected_message=
+            "Unexpected error publishing configuration audit snapshot via global bus",
+    )
 
 
 def format_configuration_audit_markdown(snapshot: ConfigurationAuditSnapshot) -> str:

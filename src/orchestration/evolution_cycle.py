@@ -25,7 +25,7 @@ from src.evolution.catalogue_telemetry import (
     EvolutionCatalogueSnapshot,
     build_catalogue_snapshot,
 )
-from src.evolution.feature_flags import EvolutionFeatureFlags
+from src.evolution.feature_flags import AdaptiveRunDecision, EvolutionFeatureFlags
 from src.evolution.lineage_telemetry import (
     EvolutionLineageSnapshot,
     build_lineage_snapshot,
@@ -182,6 +182,7 @@ class EvolutionCycleOrchestrator:
         self._event_bus = event_bus
         self._feature_flags = feature_flags or EvolutionFeatureFlags()
         self._adaptive_runs_override = adaptive_runs_enabled
+        self._adaptive_runs_decision: AdaptiveRunDecision | None = None
         self.telemetry: dict[str, Any] = {
             "total_generations": 0,
             "best_fitness": float("-inf"),
@@ -199,7 +200,8 @@ class EvolutionCycleOrchestrator:
 
         population = self._engine.ensure_population(self._genome_factory)
         evaluations = await self._evaluate_population(population)
-        adaptive_enabled = self._is_adaptive_runs_enabled()
+        decision = self._resolve_adaptive_runs_decision()
+        adaptive_enabled = decision.enabled
         champion = self._promote_champion(
             population, evaluations, allow_registration=adaptive_enabled
         )
@@ -215,6 +217,7 @@ class EvolutionCycleOrchestrator:
 
         self.telemetry["last_summary"] = asdict(summary)
         self.telemetry["adaptive_runs_enabled"] = adaptive_enabled
+        self.telemetry["adaptive_runs"] = decision.as_dict()
         if champion is not None:
             self.telemetry["best_fitness"] = max(
                 _as_float(self.telemetry.get("best_fitness", 0.0)), champion.fitness
@@ -235,6 +238,12 @@ class EvolutionCycleOrchestrator:
             self.telemetry.pop("catalogue", None)
 
         return EvolutionCycleResult(summary=summary, evaluations=evaluations, champion=champion)
+
+    @property
+    def adaptive_runs_decision(self) -> AdaptiveRunDecision | None:
+        """Return the most recent adaptive-run gating decision."""
+
+        return self._adaptive_runs_decision
 
     async def _evaluate_population(
         self, population: Sequence[DecisionGenome]
@@ -437,8 +446,12 @@ class EvolutionCycleOrchestrator:
 
         return self._engine.get_population_statistics()
 
-    def _is_adaptive_runs_enabled(self) -> bool:
-        return self._feature_flags.adaptive_runs_enabled(self._adaptive_runs_override)
+    def _resolve_adaptive_runs_decision(self) -> AdaptiveRunDecision:
+        decision = self._feature_flags.adaptive_runs_decision(
+            self._adaptive_runs_override
+        )
+        self._adaptive_runs_decision = decision
+        return decision
 
     def _build_static_summary(
         self,

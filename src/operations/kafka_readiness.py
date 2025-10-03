@@ -8,13 +8,14 @@ from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Mapping, MutableMapping, Sequence
 
-from src.core.event_bus import Event, EventBus, get_global_bus
+from src.core.event_bus import Event, EventBus
 from src.data_foundation.ingest.configuration import KafkaReadinessSettings
 from src.data_foundation.streaming.kafka_stream import (
     KafkaConnectionSettings,
     KafkaConsumerLagSnapshot,
     KafkaTopicProvisioningSummary,
 )
+from src.operations.event_bus_failover import publish_event_with_failover
 
 
 logger = logging.getLogger(__name__)
@@ -310,24 +311,18 @@ def publish_kafka_readiness(event_bus: EventBus, snapshot: KafkaReadinessSnapsho
         source="operations.kafka_readiness",
     )
 
-    publish_from_sync = getattr(event_bus, "publish_from_sync", None)
-    if callable(publish_from_sync) and event_bus.is_running():
-        try:
-            publish_from_sync(event)
-            return
-        except Exception as exc:  # pragma: no cover - defensive logging
-            logger.warning(
-                "Failed to publish Kafka readiness snapshot via runtime event bus: %s",
-                exc,
-                exc_info=True,
-            )
-
-    try:
-        bus = get_global_bus()
-        bus.publish_sync(event.type, event.payload, source=event.source)
-    except Exception as exc:  # pragma: no cover - fallback best effort
-        logger.warning(
-            "Failed to publish Kafka readiness snapshot via global event bus: %s",
-            exc,
-            exc_info=True,
-        )
+    publish_event_with_failover(
+        event_bus,
+        event,
+        logger=logger,
+        runtime_fallback_message=
+            "Runtime event bus unavailable for Kafka readiness; falling back to global bus",
+        runtime_unexpected_message=
+            "Unexpected error publishing Kafka readiness via runtime event bus",
+        runtime_none_message=
+            "Runtime event bus returned no result for Kafka readiness; falling back to global bus",
+        global_not_running_message=
+            "Global event bus unavailable while publishing Kafka readiness snapshot",
+        global_unexpected_message=
+            "Unexpected error publishing Kafka readiness snapshot via global bus",
+    )

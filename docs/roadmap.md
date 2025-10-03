@@ -70,8 +70,10 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
   - *Progress*: Evolution orchestrator now honours an `EVOLUTION_ENABLE_ADAPTIVE_RUNS`
     feature flag, exposing helpers for tests and gating champion registration,
     catalogue updates, and telemetry so governance can disable adaptive loops
-    until approvals land, with pytest coverage documenting the flag contract and
-    orchestration fallbacks.【F:src/evolution/feature_flags.py†L1-L44】【F:src/orchestration/evolution_cycle.py†L65-L340】【F:tests/current/test_evolution_orchestrator.py†L64-L240】【F:tests/evolution/test_feature_flags.py†L1-L27】
+    until approvals land; the latest uplift records a structured
+    `AdaptiveRunDecision` snapshot (source, raw flag, reason) alongside the
+    boolean gate so dashboards and reviewers inherit auditable evidence of how
+    adaptive runs were resolved.【F:src/evolution/feature_flags.py†L1-L91】【F:src/orchestration/evolution_cycle.py†L150-L325】【F:tests/current/test_evolution_orchestrator.py†L64-L330】【F:tests/evolution/test_feature_flags.py†L1-L46】
   - *Progress*: Evolution engine now records seed provenance on every
     initialization and generation, summarising catalogue template counts,
     species tags, and seeded totals for the population manager while lineage
@@ -107,28 +109,31 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
 - [ ] **Risk and runtime safety** – Enforce `RiskConfig`, finish the builder rollout,
   adopt supervised async lifecycles, and purge deprecated facades.
   - *Progress*: The trading risk gateway now drives portfolio checks through the
-    real risk manager, records liquidity and policy telemetry, and rejects
-    intents that breach drawdown, exposure, or liquidity limits, aligning the
-    trading stack with the deterministic enforcement promised by the real
-    manager.【F:src/trading/risk/risk_gateway.py†L161-L379】【F:tests/current/test_risk_gateway_validation.py†L74-L206】
+    real risk manager, records liquidity and policy telemetry, rejects intents
+    that breach drawdown/exposure/liquidity limits, and publishes a
+    runbook-backed `risk_config_summary` snapshot so downstream tooling inherits
+    the enforced configuration and escalation URL with every limit payload.【F:src/trading/risk/risk_gateway.py†L170-L390】【F:src/trading/trading_manager.py†L105-L210】【F:tests/current/test_risk_gateway_validation.py†L326-L350】
   - *Progress*: Trading manager initialises its portfolio risk manager via the
     canonical `get_risk_manager` facade, exposes the core engine’s snapshot and
     assessment APIs, and keeps execution telemetry aligned with the deterministic
     risk manager surfaced by the runtime builder.【F:src/trading/trading_manager.py†L105-L147】【F:src/risk/risk_manager_impl.py†L533-L573】
   - *Progress*: Deterministic trading risk API now attaches structured metadata
-    and a contract runbook to every `RiskApiError`, with the runtime builder and
-    trading manager surfacing the runbook URL so supervisors can escalate broken
-    risk interfaces using the documented playbook.【F:docs/api/risk.md†L1-L23】【F:docs/operations/runbooks/risk_api_contract.md†L1-L31】【F:src/trading/risk/risk_api.py†L20-L118】【F:src/runtime/runtime_builder.py†L321-L337】【F:src/trading/trading_manager.py†L493-L529】【F:tests/runtime/test_runtime_builder.py†L183-L198】【F:tests/trading/test_risk_api.py†L114-L123】【F:tests/trading/test_trading_manager_execution.py†L222-L247】
+    and a contract runbook to every `RiskApiError`, while its summariser renders
+    sector exposure maps, combined budget totals, and research-mode posture in
+    the payload so supervisors receive the full allocation context alongside the
+    documented escalation path; runtime builder and trading manager continue to
+    surface the runbook URL for deterministic triage.【F:docs/api/risk.md†L1-L28】【F:docs/operations/runbooks/risk_api_contract.md†L1-L31】【F:src/trading/risk/risk_api.py†L20-L128】【F:src/runtime/runtime_builder.py†L321-L337】【F:src/trading/trading_manager.py†L493-L529】【F:tests/runtime/test_runtime_builder.py†L183-L198】【F:tests/trading/test_risk_api.py†L79-L142】【F:tests/trading/test_trading_manager_execution.py†L222-L247】
   - *Progress*: Trading manager now emits dedicated risk interface telemetry via
     snapshot/error helpers that render Markdown summaries, publish structured
     payloads on the event bus, and persist the latest posture for discovery,
     with pytest asserting snapshot and alert propagation so supervisors inherit
     actionable evidence when enforcement fails.【F:src/trading/risk/risk_interface_telemetry.py†L1-L156】【F:src/trading/trading_manager.py†L635-L678】【F:tests/trading/test_trading_manager_execution.py†L190-L287】
   - *Progress*: `RiskConfig` now normalises sector/instrument mappings, rejects
-    duplicate or missing sector limits, caps sector exposure against the global
-    budget, and continues to enforce position sizing plus research-mode
-    overrides so governance reviews inherit deterministic, de-duplicated risk
-    inputs under pytest coverage.【F:src/config/risk/risk_config.py†L10-L205】【F:tests/risk/test_risk_config_validation.py†L39-L70】
+    duplicate or missing sector limits, enforces that individual and combined
+    sector budgets never exceed the global exposure cap, and continues to
+    enforce position sizing plus research-mode overrides so governance reviews
+    inherit deterministic, de-duplicated risk inputs under pytest
+    coverage.【F:src/config/risk/risk_config.py†L10-L213】【F:tests/risk/test_risk_config_validation.py†L39-L90】
   - *Progress*: Runtime builder now resolves the canonical `RiskConfig` from the
     trading manager, validates mandatory thresholds, wraps invalid payloads in a
     deterministic runtime error, and logs the enforced posture under regression

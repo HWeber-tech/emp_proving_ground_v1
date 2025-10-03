@@ -187,6 +187,52 @@ def test_record_coverage_domains_appends_entry(tmp_path: Path) -> None:
     assert domain_names == ["core", "trading"]
 
 
+def test_record_coverage_domains_can_record_remediation(tmp_path: Path) -> None:
+    metrics_path = tmp_path / "metrics.json"
+    coverage_path = tmp_path / "coverage.xml"
+    coverage_path.write_text(COVERAGE_WITH_FILENAMES)
+
+    record_coverage_domains(
+        metrics_path,
+        coverage_path,
+        label="domains-with-remediation",
+        threshold=60.0,
+        record_remediation_entry=True,
+        remediation_note="Custom note",
+    )
+
+    stored = json.loads(metrics_path.read_text())
+    remediation_entry = stored["remediation_trend"][0]
+    assert remediation_entry["label"] == "domains-with-remediation"
+    assert remediation_entry["source"] == str(coverage_path)
+    assert remediation_entry["note"] == "Custom note"
+    statuses = remediation_entry["statuses"]
+    assert statuses["lagging_count"] == "1"
+    assert statuses["overall_coverage"] == "60.0"
+    assert statuses["coverage_threshold"] == "60.0"
+    assert statuses["worst_domain"] == "core"
+    assert statuses["worst_domain_coverage"] == "50.0"
+
+
+def test_record_coverage_domains_generates_default_note(tmp_path: Path) -> None:
+    metrics_path = tmp_path / "metrics.json"
+    coverage_path = tmp_path / "coverage.xml"
+    coverage_path.write_text(COVERAGE_WITH_FILENAMES)
+
+    record_coverage_domains(
+        metrics_path,
+        coverage_path,
+        label="domains-auto-note",
+        threshold=65.0,
+        record_remediation_entry=True,
+    )
+
+    stored = json.loads(metrics_path.read_text())
+    remediation_entry = stored["remediation_trend"][0]
+    assert remediation_entry["label"] == "domains-auto-note"
+    assert remediation_entry["note"] == "Lagging domains: core (50.00%)"
+
+
 def test_summarise_dashboard_payload_extracts_counts() -> None:
     summary = summarise_dashboard_payload(DASHBOARD_PAYLOAD)
 
@@ -284,6 +330,36 @@ def test_update_ci_metrics_cli_updates_both(tmp_path: Path) -> None:
     assert coverage_entry["lagging_count"] == len(coverage_entry["lagging_domains"])
     assert coverage_entry["worst_domain"]["name"] in coverage_entry["lagging_domains"]
     assert stored["remediation_trend"] == []
+
+
+def test_update_ci_metrics_cli_records_coverage_remediation(tmp_path: Path) -> None:
+    metrics_path = tmp_path / "metrics.json"
+    coverage_path = tmp_path / "coverage.xml"
+    coverage_path.write_text(COVERAGE_WITH_FILENAMES)
+
+    exit_code = update_ci_metrics(
+        [
+            "--metrics",
+            str(metrics_path),
+            "--coverage-report",
+            str(coverage_path),
+            "--coverage-label",
+            "coverage-remediation",
+            "--coverage-remediation",
+            "--coverage-remediation-note",
+            "Coverage remediation snapshot",
+        ]
+    )
+
+    assert exit_code == 0
+    stored = json.loads(metrics_path.read_text())
+    remediation_entry = stored["remediation_trend"][0]
+    assert remediation_entry["label"] == "coverage-remediation"
+    assert remediation_entry["note"] == "Coverage remediation snapshot"
+    statuses = remediation_entry["statuses"]
+    assert statuses["lagging_count"] == str(len(stored["coverage_domain_trend"][0]["lagging_domains"]))
+    assert "overall_coverage" in statuses
+    assert remediation_entry["source"] == str(coverage_path)
 
 
 def test_update_ci_metrics_cli_handles_global_mode(tmp_path: Path) -> None:

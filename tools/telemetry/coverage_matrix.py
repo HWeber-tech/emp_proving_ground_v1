@@ -278,6 +278,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         payload = matrix.as_dict()
         payload["threshold"] = args.threshold
         payload["laggards"] = [domain.name for domain in laggards]
+        payload["lagging_count"] = len(laggards)
+        payload["worst_domain"] = (
+            laggards[0].as_dict()
+            if laggards
+            else (matrix.domains[0].as_dict() if matrix.domains else None)
+        )
         output_text = json.dumps(payload, indent=2, sort_keys=True) + "\n"
     else:
         output_text = render_markdown(matrix, threshold=args.threshold)

@@ -18,6 +18,7 @@ from src.core.risk.position_sizing import position_size
 from src.risk.real_risk_manager import RealRiskConfig, RealRiskManager
 from src.trading.liquidity.depth_aware_prober import DepthAwareLiquidityProber
 from src.trading.monitoring.portfolio_monitor import InMemoryRedis, PortfolioMonitor
+from src.trading.risk.risk_api import RISK_API_RUNBOOK
 from src.trading.risk.risk_gateway import RiskGateway
 from src.trading.risk.risk_policy import RiskPolicy
 
@@ -320,3 +321,30 @@ async def test_risk_gateway_rejects_on_execution_risk(
     )
     exec_meta = intent.metadata.get("execution_risk", {})
     assert exec_meta.get("slippage_bps", 0.0) > execution_config.limits.max_slippage_bps
+
+
+def test_risk_gateway_limits_include_risk_api_summary(
+    portfolio_monitor: PortfolioMonitor,
+) -> None:
+    registry = DummyStrategyRegistry(active=True)
+    config = RiskConfig(
+        max_risk_per_trade_pct=Decimal("0.02"),
+        max_total_exposure_pct=Decimal("0.5"),
+        mandatory_stop_loss=True,
+    )
+    policy = RiskPolicy.from_config(config)
+    gateway = RiskGateway(
+        strategy_registry=registry,
+        position_sizer=None,
+        portfolio_monitor=portfolio_monitor,
+        risk_policy=policy,
+        risk_config=config,
+    )
+
+    limits = gateway.get_risk_limits()
+
+    summary = limits.get("risk_config_summary")
+    assert isinstance(summary, dict)
+    assert summary["max_risk_per_trade_pct"] == pytest.approx(float(config.max_risk_per_trade_pct))
+    assert summary["mandatory_stop_loss"] is True
+    assert limits.get("runbook") == RISK_API_RUNBOOK

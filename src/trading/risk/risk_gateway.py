@@ -28,6 +28,7 @@ from typing import (
     cast,
 )
 
+from src.config.risk.risk_config import RiskConfig
 from src.data_foundation.config.execution_config import (
     ExecutionConfig,
     ExecutionRiskLimits,
@@ -42,6 +43,7 @@ from .policy_telemetry import (
     RiskPolicyEvaluationSnapshot,
     build_policy_snapshot,
 )
+from .risk_api import RISK_API_RUNBOOK, summarise_risk_config
 from .risk_policy import RiskPolicy, RiskPolicyDecision
 
 try:  # pragma: no cover - metrics optional in certain runtimes
@@ -182,6 +184,7 @@ class RiskGateway:
         risk_policy: RiskPolicy | None = None,
         execution_config: ExecutionConfig | None = None,
         portfolio_risk_manager: SupportsPortfolioRisk | None = None,
+        risk_config: RiskConfig | None = None,
     ) -> None:
         self.strategy_registry = strategy_registry
         self.position_sizer = position_sizer
@@ -207,6 +210,7 @@ class RiskGateway:
         }
         self._last_policy_decision: RiskPolicyDecision | None = None
         self._last_policy_snapshot: RiskPolicyEvaluationSnapshot | None = None
+        self._risk_config: RiskConfig | None = risk_config
 
     # ------------------------------------------------------------------
     # Public API
@@ -379,7 +383,11 @@ class RiskGateway:
             limits.update(self.risk_policy.limit_snapshot())
             if self.risk_policy.research_mode:
                 limits["research_mode"] = True
-        return {"limits": limits, "telemetry": dict(self.telemetry)}
+        payload: dict[str, Any] = {"limits": limits, "telemetry": dict(self.telemetry)}
+        if self._risk_config is not None:
+            payload["risk_config_summary"] = summarise_risk_config(self._risk_config)
+            payload["runbook"] = RISK_API_RUNBOOK
+        return payload
 
     def get_last_decision(self) -> Mapping[str, Any] | None:
         """Expose the most recent risk decision record."""

@@ -18,9 +18,24 @@ class StubBus:
 
     def publish_from_sync(self, event: object) -> None:
         self.events.append(event)
+        return 1
 
     def is_running(self) -> bool:
         return True
+
+
+class StubFallbackBus(StubBus):
+    def publish_from_sync(self, event: object) -> None:  # type: ignore[override]
+        super().publish_from_sync(event)
+        return None
+
+
+class StubTopicBus:
+    def __init__(self) -> None:
+        self.events: list[tuple[object, object, object | None]] = []
+
+    def publish_sync(self, event_type: object, payload: object, *, source: object | None = None) -> None:
+        self.events.append((event_type, payload, source))
 
 
 def test_evaluate_execution_readiness_pass() -> None:
@@ -94,4 +109,26 @@ def test_publish_execution_snapshot_emits_event() -> None:
     assert getattr(event, "type", "") == "telemetry.operational.execution"
     assert getattr(event, "source", "") == "test"
     payload = getattr(event, "payload", {})
+    assert payload.get("status") in {status.value for status in ExecutionStatus}
+
+
+def test_publish_execution_snapshot_falls_back_to_global_bus() -> None:
+    policy = ExecutionPolicy()
+    state = ExecutionState(orders_submitted=3, orders_executed=2, connection_healthy=True)
+    snapshot = evaluate_execution_readiness(policy, state)
+
+    bus = StubFallbackBus()
+    topic_bus = StubTopicBus()
+
+    publish_execution_snapshot(
+        bus,
+        snapshot,
+        source="fallback",
+        global_bus_factory=lambda: topic_bus,
+    )
+
+    assert topic_bus.events, "expected fallback global bus publish"
+    event_type, payload, source = topic_bus.events[-1]
+    assert event_type == "telemetry.operational.execution"
+    assert source == "fallback"
     assert payload.get("status") in {status.value for status in ExecutionStatus}

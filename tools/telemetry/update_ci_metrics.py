@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import argparse
+import json
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Sequence
 
 from .ci_metrics import (
     DEFAULT_METRICS_PATH,
+    record_dashboard_remediation,
     record_coverage,
     record_coverage_domains,
     record_formatter,
@@ -90,6 +92,23 @@ def _build_parser() -> argparse.ArgumentParser:
         type=str,
         help="Optional free-form note to include with the remediation entry",
     )
+    parser.add_argument(
+        "--dashboard-json",
+        type=Path,
+        help=(
+            "Path to an observability dashboard JSON payload to record as a remediation snapshot"
+        ),
+    )
+    parser.add_argument(
+        "--dashboard-label",
+        type=str,
+        help="Optional label for the dashboard remediation entry (defaults to generated_at)",
+    )
+    parser.add_argument(
+        "--dashboard-source",
+        type=str,
+        help="Optional evidence reference for the dashboard entry (defaults to the JSON path)",
+    )
     return parser
 
 
@@ -127,6 +146,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         args.coverage_report is None
         and formatter_mode is None
         and not remediation_statuses
+        and args.dashboard_json is None
     ):
         parser.error(
             "Provide --coverage-report, --formatter-mode, --remediation-status, or a combination to update metrics"
@@ -182,6 +202,23 @@ def main(argv: Sequence[str] | None = None) -> int:
             label=remediation_label,
             source=args.remediation_source,
             note=args.remediation_note,
+            data=metrics_data,
+        )
+
+    if args.dashboard_json is not None:
+        if not args.dashboard_json.exists():
+            parser.error(f"Dashboard JSON not found: {args.dashboard_json}")
+        try:
+            payload = json.loads(args.dashboard_json.read_text())
+        except json.JSONDecodeError as exc:  # pragma: no cover - defensive guard
+            parser.error(f"Failed to parse dashboard JSON: {exc}")
+
+        dashboard_source = args.dashboard_source or str(args.dashboard_json)
+        metrics_data = record_dashboard_remediation(
+            metrics_path,
+            summary=payload,
+            label=args.dashboard_label,
+            source=dashboard_source,
             data=metrics_data,
         )
 

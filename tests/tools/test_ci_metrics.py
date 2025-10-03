@@ -8,8 +8,10 @@ from tools.telemetry.ci_metrics import (
     parse_coverage_percentage,
     record_coverage,
     record_coverage_domains,
+    record_dashboard_remediation,
     record_formatter,
     record_remediation,
+    summarise_dashboard_payload,
 )
 from tools.telemetry.update_ci_metrics import main as update_ci_metrics
 
@@ -66,6 +68,16 @@ COVERAGE_WITH_FILENAMES = """<?xml version='1.0'?>
   </packages>
 </coverage>
 """
+
+DASHBOARD_PAYLOAD = {
+    "generated_at": "2024-05-20T12:00:00+00:00",
+    "status": "warn",
+    "panels": [
+        {"name": "Operational readiness", "status": "fail"},
+        {"name": "System health", "status": "warn"},
+        {"name": "Latency & throughput", "status": "ok"},
+    ],
+}
 
 
 @pytest.mark.parametrize(
@@ -171,6 +183,39 @@ def test_record_coverage_domains_appends_entry(tmp_path: Path) -> None:
     assert isinstance(entry["generated_at"], str)
     domain_names = [domain["name"] for domain in entry["domains"]]
     assert domain_names == ["core", "trading"]
+
+
+def test_summarise_dashboard_payload_extracts_counts() -> None:
+    summary = summarise_dashboard_payload(DASHBOARD_PAYLOAD)
+
+    assert summary["overall_status"] == "warn"
+    assert summary["panel_counts"] == {"ok": 1, "warn": 1, "fail": 1}
+    assert summary["failing_panels"] == ("Operational readiness",)
+    assert summary["warning_panels"] == ("System health",)
+    assert summary["healthy_panels"] == ("Latency & throughput",)
+
+
+def test_record_dashboard_remediation_appends_entry(tmp_path: Path) -> None:
+    metrics_path = tmp_path / "metrics.json"
+
+    record_dashboard_remediation(
+        metrics_path,
+        summary=DASHBOARD_PAYLOAD,
+        label="dashboard-scan",
+        source="observability_dashboard.json",
+    )
+
+    stored = json.loads(metrics_path.read_text())
+    entry = stored["remediation_trend"][0]
+    assert entry["label"] == "dashboard-scan"
+    assert entry["source"] == "observability_dashboard.json"
+    assert entry["statuses"] == {
+        "overall_status": "warn",
+        "panels_fail": "1",
+        "panels_ok": "1",
+        "panels_warn": "1",
+    }
+    assert entry["note"] == "Failing panels: Operational readiness; Warning panels: System health"
 
 
 def test_record_remediation_appends_entry(tmp_path: Path) -> None:
@@ -285,6 +330,30 @@ def test_update_ci_metrics_cli_can_skip_domain_breakdown(tmp_path: Path) -> None
     assert stored["coverage_trend"]
     assert stored["coverage_domain_trend"] == []
     assert stored["remediation_trend"] == []
+
+
+def test_update_ci_metrics_records_dashboard_payload(tmp_path: Path) -> None:
+    metrics_path = tmp_path / "metrics.json"
+    dashboard_path = tmp_path / "dashboard.json"
+    dashboard_path.write_text(json.dumps(DASHBOARD_PAYLOAD))
+
+    exit_code = update_ci_metrics(
+        [
+            "--metrics",
+            str(metrics_path),
+            "--dashboard-json",
+            str(dashboard_path),
+            "--dashboard-label",
+            "ops-scan",
+        ]
+    )
+
+    assert exit_code == 0
+    stored = json.loads(metrics_path.read_text())
+    entry = stored["remediation_trend"][0]
+    assert entry["label"] == "ops-scan"
+    assert entry["source"] == str(dashboard_path)
+    assert entry["statuses"]["panels_fail"] == "1"
 
 
 def test_update_ci_metrics_cli_records_remediation(tmp_path: Path) -> None:

@@ -10,6 +10,7 @@ from src.trading.risk.risk_api import (
     build_runtime_risk_metadata,
     resolve_trading_risk_config,
     resolve_trading_risk_interface,
+    summarise_risk_config,
 )
 
 
@@ -94,6 +95,21 @@ def test_trading_risk_interface_summary_includes_policy_metadata() -> None:
     assert summary["policy_limits"]["max_drawdown_pct"] == pytest.approx(0.25)
     assert summary["policy_research_mode"] is True
     assert summary["latest_snapshot"]["max_risk_per_trade_pct"] == pytest.approx(0.02)
+
+
+def test_summarise_risk_config_includes_sector_metadata() -> None:
+    config = RiskConfig(
+        max_risk_per_trade_pct=Decimal("0.02"),
+        max_total_exposure_pct=Decimal("0.5"),
+        instrument_sector_map={"EURUSD": "FX"},
+        sector_exposure_limits={"FX": Decimal("0.30")},
+    )
+
+    summary = summarise_risk_config(config)
+
+    assert summary["sector_exposure_limits"] == {"FX": pytest.approx(0.30)}
+    assert summary["instrument_sector_map"] == {"EURUSD": "FX"}
+    assert summary["sector_budget_total_pct"] == pytest.approx(0.30)
 
 
 def test_build_runtime_metadata_respects_status_payload() -> None:

@@ -17,12 +17,16 @@ from typing import Any, Awaitable, Callable, Coroutine, Mapping, MutableMapping,
 import simplefix
 
 from src.operational.structured_logging import get_logger, order_logging_context
+from src.trading.risk.risk_api import RISK_API_RUNBOOK
 
 logger = get_logger(__name__)
 
 
 TaskFactory = Callable[[Coroutine[Any, Any, Any], Optional[str]], asyncio.Task[Any]]
 OrderEventCallback = Callable[[str, dict[str, Any]], None] | Callable[[str, dict[str, Any]], Awaitable[None]]
+
+
+_MANUAL_FIX_RISK_RUNBOOK = "docs/operations/runbooks/manual_fix_order_risk_block.md"
 
 ORDER_EVENT_TYPES = {
     "order_update",
@@ -46,6 +50,8 @@ class SupportsRiskGateway(Protocol):
     def get_last_decision(self) -> Mapping[str, Any] | None: ...
 
     def get_last_policy_snapshot(self) -> Any | None: ...
+
+    def get_risk_limits(self) -> Mapping[str, Any]: ...
 
 
 class FIXBrokerInterface:
@@ -224,6 +230,7 @@ class FIXBrokerInterface:
             "timestamp": datetime.utcnow().isoformat(),
             "source": "fix_broker_interface",
         }
+        payload["runbook"] = _MANUAL_FIX_RISK_RUNBOOK
         if decision:
             payload["decision"] = dict(decision)
 
@@ -246,6 +253,39 @@ class FIXBrokerInterface:
                         logger.debug("policy_snapshot_serialisation_failed", exc_info=True)
         if snapshot_payload:
             payload["policy_snapshot"] = snapshot_payload
+
+        policy_violation = True
+        violations: list[str] = []
+        if snapshot_payload:
+            approved = bool(snapshot_payload.get("approved", False))
+            raw_violations = snapshot_payload.get("violations")
+            if isinstance(raw_violations, (list, tuple)):
+                violations = [str(item) for item in raw_violations if item]
+            policy_violation = (not approved) or bool(violations)
+        if violations:
+            payload["violations"] = violations
+        payload["policy_violation"] = policy_violation
+        payload["severity"] = "critical" if policy_violation else "warning"
+
+        risk_reference: dict[str, object] = {}
+        if gateway is not None:
+            try:
+                limits_payload = gateway.get_risk_limits()
+            except Exception:
+                logger.debug("risk_gateway_limits_failed", exc_info=True)
+            else:
+                if isinstance(limits_payload, Mapping):
+                    limits_section = limits_payload.get("limits")
+                    if isinstance(limits_section, Mapping):
+                        risk_reference["limits"] = dict(limits_section)
+                    summary = limits_payload.get("risk_config_summary")
+                    if isinstance(summary, Mapping):
+                        risk_reference["risk_config_summary"] = dict(summary)
+                    runbook = limits_payload.get("runbook")
+                    if isinstance(runbook, str) and runbook:
+                        risk_reference["risk_api_runbook"] = runbook
+        if risk_reference:
+            payload["risk_reference"] = risk_reference
 
         try:
             await self.event_bus.emit(self._risk_event_topic, payload)

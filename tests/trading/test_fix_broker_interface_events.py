@@ -9,6 +9,7 @@ import pytest
 import simplefix
 
 from src.trading.integration.fix_broker_interface import FIXBrokerInterface
+from src.trading.risk.risk_api import RISK_API_RUNBOOK
 
 class DummyRiskGateway:
     def __init__(self, *, approve: bool, adjusted_quantity: Decimal | None = None):
@@ -18,6 +19,11 @@ class DummyRiskGateway:
         self.last_state: Mapping[str, Any] | None = None
         self._last_decision: Mapping[str, Any] | None = None
         self._last_policy_snapshot: Mapping[str, Any] | None = None
+        self._risk_limits: Mapping[str, Any] = {
+            "limits": {"max_open_positions": 5, "risk_per_trade": 0.01},
+            "risk_config_summary": {"max_risk_per_trade_pct": 0.02},
+            "runbook": RISK_API_RUNBOOK,
+        }
 
     async def validate_trade_intent(
         self, intent: Any, portfolio_state: Mapping[str, Any] | None
@@ -64,6 +70,9 @@ class DummyRiskGateway:
 
     def get_last_policy_snapshot(self) -> Mapping[str, Any] | None:
         return self._last_policy_snapshot
+
+    def get_risk_limits(self) -> Mapping[str, Any]:
+        return dict(self._risk_limits)
 
 
 class DummyEventBus:
@@ -172,6 +181,15 @@ async def test_fix_interface_blocks_when_risk_gateway_rejects() -> None:
     assert payload["side"] == "BUY"
     assert payload["quantity"] == pytest.approx(100_000.0)
     assert payload.get("policy_snapshot", {}).get("approved") is False
+    assert payload["runbook"].endswith("manual_fix_order_risk_block.md")
+    assert payload["policy_violation"] is True
+    assert payload["severity"] == "critical"
+    assert payload["violations"] == ["policy_violation"]
+    reference = payload.get("risk_reference")
+    assert reference is not None
+    assert reference["risk_api_runbook"] == RISK_API_RUNBOOK
+    assert reference["limits"]["max_open_positions"] == 5
+    assert reference["risk_config_summary"]["max_risk_per_trade_pct"] == pytest.approx(0.02)
 
 
 @pytest.mark.asyncio

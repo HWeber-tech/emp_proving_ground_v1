@@ -17,6 +17,9 @@ briefs and CI health snapshot.
 - [Risk policy violation escalation](risk_policy_violation.md) – Surfaces the
   policy snapshot, Markdown alert, and governance escalation path for trade
   intents rejected by the deterministic risk gateway.
+- [Manual FIX order risk block](manual_fix_order_risk_block.md) – Documents the
+  telemetry contract emitted by `FIXBrokerInterface` when manual orders are
+  denied and links to the deterministic risk API remediation path.
 
 Keep these documents close to the institutional data backbone alignment brief so
 runbooks, roadmap status, and acceptance hooks evolve together.

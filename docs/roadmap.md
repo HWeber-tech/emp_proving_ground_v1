@@ -35,7 +35,9 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
     live snapshots so operators see supervised ingest jobs instead of orphaned
     `create_task` handles, with pytest covering steady-state execution, failure
     cut-offs, jitter bounds, supervisor telemetry, and snapshot publishing so
-    the guardrail remains deterministic.【F:src/data_foundation/ingest/scheduler.py†L1-L138】【F:tests/data_foundation/test_ingest_scheduler.py†L1-L200】
+    the guardrail remains deterministic. The guardrail manifest now pins the
+    ingest scheduler regression to the `guardrail` matrix, ensuring CI fails
+    fast if the scheduler suite drifts or loses its guardrail marker.【F:src/data_foundation/ingest/scheduler.py†L1-L138】【F:tests/data_foundation/test_ingest_scheduler.py†L1-L200】【F:tests/runtime/test_guardrail_suite_manifest.py†L18-L40】
   - *Progress*: JSONL persistence now raises typed errors for unserialisable payloads,
     logs filesystem failures, and cleans up partial files so ingest tooling surfaces
     genuine persistence faults instead of emitting empty paths under silent
@@ -131,7 +133,10 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
     trading manager, validates mandatory thresholds, wraps invalid payloads in a
     deterministic runtime error, and logs the enforced posture under regression
     coverage so supervised launches cannot proceed with missing or malformed
-    limits.【F:src/runtime/runtime_builder.py†L298-L337】【F:tests/runtime/test_runtime_builder.py†L158-L200】
+    limits. The builder now refuses to launch when mandatory stop-loss controls
+    are disabled outside research mode, emitting the shared risk API runbook
+    alias so supervisors inherit a consistent escalation path under pytest
+    coverage.【F:src/runtime/runtime_builder.py†L323-L353】【F:src/trading/risk/risk_api.py†L23-L44】【F:tests/runtime/test_runtime_builder.py†L200-L234】
   - *Progress*: A supervised runtime runner now wraps professional workloads in a
     shared `TaskSupervisor`, wiring graceful signal handling, optional timeouts,
     and deterministic shutdown callbacks so runtime launches inherit the same
@@ -158,6 +163,11 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
     the global bus, and raising typed errors when both transports degrade so
     operators see deterministic alerts instead of silent drops. Guardrail tests
     capture primary fallbacks, global outages, and backlog escalation.【F:src/operations/event_bus_health.py†L143-L259】【F:tests/operations/test_event_bus_health.py†L22-L235】
+  - *Progress*: Execution readiness telemetry now rides the shared failover
+    helper, logging runtime publish failures, escalating unexpected runtime and
+    global bus errors, and falling back deterministically to the global topic
+    so dashboards keep receiving readiness snapshots, with pytest coverage
+    documenting the fallback contract.【F:src/operations/execution.py†L611-L648】【F:tests/operations/test_execution.py†L100-L134】
   - *Progress*: Regulatory telemetry publisher now reuses the failover helper,
     logging runtime publish failures, escalating unexpected errors, and
     documenting global-bus fallbacks so compliance dashboards retain snapshots

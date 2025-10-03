@@ -58,11 +58,14 @@
   thresholds, wraps invalid payloads in runtime errors, and records enforced
   metadata under regression coverage so supervised launches cannot proceed with
   missing or malformed limits, aligning runtime posture with compliance
-  expectations.【F:src/runtime/runtime_builder.py†L298-L337】【F:tests/runtime/test_runtime_builder.py†L158-L200】
+  expectations. Launches now fail fast when mandatory stop-loss enforcement is
+  disabled outside research mode, surfacing the shared risk API runbook alias so
+  supervisors inherit a consistent escalation path.【F:src/runtime/runtime_builder.py†L323-L353】【F:tests/runtime/test_runtime_builder.py†L200-L234】
 - Progress: Deterministic trading risk API centralises config/status resolution,
   exposes runtime-ready metadata snapshots, and drives the runtime builder’s
   enforcement path so supervisors and docs consume a single hardened contract
-  under pytest coverage.【F:src/trading/risk/risk_api.py†L1-L134】【F:src/runtime/runtime_builder.py†L313-L343】【F:tests/trading/test_risk_api.py†L1-L115】【F:tests/trading/test_trading_manager_execution.py†L208-L224】
+  under pytest coverage, now exporting a public runbook alias so downstream
+  telemetry and runtime errors link to the same remediation guide.【F:src/trading/risk/risk_api.py†L23-L44】【F:src/runtime/runtime_builder.py†L323-L337】【F:tests/trading/test_risk_api.py†L1-L115】【F:tests/runtime/test_runtime_builder.py†L200-L234】
 - Progress: Trading risk interface telemetry helpers now publish structured
   snapshots and contract-violation alerts with Markdown summaries, updating the
   trading manager’s cached posture and emitting event-bus payloads under pytest

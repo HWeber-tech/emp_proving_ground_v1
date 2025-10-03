@@ -12,6 +12,10 @@ compliance.
   failure metadata.
 * `TradingManager.describe_risk_interface()` returns an `error` payload instead
   of the normal configuration summary.
+* Risk gateway limit payloads expose a `risk_config_summary` and `runbook`
+  field; if those entries are missing or reference stale metadata, the gateway
+  failed to hydrate the deterministic risk API contract and the downstream
+  trading stack should escalate using this runbook.【F:src/trading/risk/risk_gateway.py†L371-L389】【F:tests/current/test_risk_gateway_validation.py†L326-L350】
 
 ## Immediate response
 

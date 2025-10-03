@@ -179,15 +179,15 @@
 - Domain snapshots are now captured alongside overall coverage in
   `tests/.telemetry/ci_metrics.json`, flagging lagging domains directly in CI
   telemetry so remediation progress is visible without ad-hoc parsing.
-  【F:tools/telemetry/ci_metrics.py†L1-L212】【F:tests/tools/test_ci_metrics.py†L1-L236】
-- Coverage telemetry now records lagging-domain counts, worst-performing
-  slices, and observability dashboard remediation snapshots via the CLI so
-  dashboards inherit actionable readiness deltas alongside coverage trendlines.
-  【F:tools/telemetry/ci_metrics.py†L112-L337】【F:tools/telemetry/update_ci_metrics.py†L1-L169】【F:tests/tools/test_ci_metrics.py†L180-L309】
+  【F:tools/telemetry/ci_metrics.py†L1-L260】【F:tests/tools/test_ci_metrics.py†L1-L300】
+- Coverage telemetry now records lagging-domain counts, formatted notes, worst-performing
+  slices, and optional remediation snapshots via the CLI so dashboards inherit
+  actionable readiness deltas alongside coverage trendlines.【F:tools/telemetry/ci_metrics.py†L120-L260】【F:tools/telemetry/update_ci_metrics.py†L1-L240】【F:tests/tools/test_ci_metrics.py†L200-L360】
 - Remediation progress snapshots now live alongside coverage/formatter trendlines
   in `tests/.telemetry/ci_metrics.json` thanks to the `--remediation-status`
-  CLI, capturing roadmap evidence (label, statuses, source, notes) for dashboards
-  and audits with pytest guarding the JSON contract.【F:tools/telemetry/update_ci_metrics.py†L1-L184】【F:tools/telemetry/ci_metrics.py†L1-L210】【F:tests/tools/test_ci_metrics.py†L1-L340】【F:tests/.telemetry/ci_metrics.json†L1-L5】
+  CLI and the new `--coverage-remediation` mode, capturing roadmap evidence
+  (label, statuses, source, notes) and coverage laggard summaries for dashboards
+  and audits with pytest guarding the JSON contract.【F:tools/telemetry/update_ci_metrics.py†L1-L240】【F:tools/telemetry/ci_metrics.py†L1-L260】【F:tests/tools/test_ci_metrics.py†L1-L420】【F:tests/.telemetry/ci_metrics.json†L1-L6】
 - Remediation summary exporter reads the metrics feed, renders Markdown tables
   with delta call-outs, honours slice limits, omits deltas for non-numeric
   statuses, and ships with a CLI/pytest contract so status updates and briefs

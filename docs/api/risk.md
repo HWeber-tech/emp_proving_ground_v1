@@ -16,3 +16,8 @@ manager's risk posture:
 `docs/operations/runbooks/risk_api_contract.md`.  Callers should surface the
 `runbook` URL in error messages and log the accompanying details so operators
 can triage missing or invalid contracts quickly.
+
+`summarise_risk_config` also renders sector exposure limits, combined sector
+budget totals, and instrument-sector mappings when present so downstream
+telemetry can display the enforced allocation posture alongside the numerical
+limits without rehydrating the full configuration.【F:src/trading/risk/risk_api.py†L104-L128】【F:tests/trading/test_risk_api.py†L100-L142】

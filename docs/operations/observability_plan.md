@@ -27,16 +27,17 @@ can layer on without introducing third-party dependencies.
 * **Telemetry summary CLI** – `tools/telemetry/summarize_flakes.py` converts the
   flake log into a human-readable digest for status updates and retros.
 * **Coverage & formatter telemetry** – `tools/telemetry/update_ci_metrics.py`
-  ingests coverage XML and records the active formatter mode to append trend entries to
-  `tests/.telemetry/ci_metrics.json`, giving CI dashboards a machine-readable
-  feed for coverage percentages and formatter enforcement with pytest validating the
-  JSON contract.【F:tools/telemetry/update_ci_metrics.py†L1-L184】【F:tools/telemetry/ci_metrics.py†L1-L210】【F:tests/tools/test_ci_metrics.py†L1-L340】【F:tests/.telemetry/ci_metrics.json†L1-L5】
+  ingests coverage XML, records the active formatter mode, and can emit
+  remediation snapshots so `tests/.telemetry/ci_metrics.json` captures coverage
+  percentages, lagging-domain breakdowns, and formatter enforcement in a single
+  machine-readable feed validated by pytest.【F:tools/telemetry/update_ci_metrics.py†L1-L240】【F:tools/telemetry/ci_metrics.py†L1-L260】【F:tests/tools/test_ci_metrics.py†L1-L420】【F:tests/.telemetry/ci_metrics.json†L1-L6】
 * **Remediation progress snapshots** – The same CLI now accepts `--remediation-status`
-  key/value pairs (plus optional label/source/note metadata) to append roadmap
-  progress entries to `tests/.telemetry/ci_metrics.json`, giving dashboards a
+  key/value pairs, optional label/source/note metadata, and the `--coverage-remediation`
+  mode to append roadmap entries plus coverage laggard summaries (counts, thresholds,
+  worst-domain metadata) to `tests/.telemetry/ci_metrics.json`, giving dashboards a
   structured feed for quality/observability remediation progress. pytest exercises
   the JSON schema, CLI parsing, and evidence metadata handling so snapshots stay
-  regression-safe.【F:tools/telemetry/update_ci_metrics.py†L1-L184】【F:tools/telemetry/ci_metrics.py†L1-L210】【F:tests/tools/test_ci_metrics.py†L1-L340】【F:tests/.telemetry/ci_metrics.json†L1-L5】
+  regression-safe.【F:tools/telemetry/update_ci_metrics.py†L1-L240】【F:tools/telemetry/ci_metrics.py†L1-L260】【F:tests/tools/test_ci_metrics.py†L1-L420】【F:tests/.telemetry/ci_metrics.json†L1-L6】
 * **Remediation summary export** – `python -m tools.telemetry.remediation_summary`
   renders the latest remediation entries into Markdown tables with delta call-outs,
   honours `--limit` when comms only require the most recent snapshots, omits

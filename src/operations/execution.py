@@ -9,7 +9,8 @@ from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Mapping
 
-from src.core.event_bus import Event, EventBus, get_global_bus
+from src.core.event_bus import Event, EventBus
+from src.operations.event_bus_failover import publish_event_with_failover
 
 logger = logging.getLogger(__name__)
 
@@ -621,19 +622,21 @@ def publish_execution_snapshot(
         source=source,
     )
 
-    publish_from_sync = getattr(event_bus, "publish_from_sync", None)
-    if callable(publish_from_sync) and event_bus.is_running():
-        try:
-            publish_from_sync(event)
-            return
-        except Exception:  # pragma: no cover - defensive logging
-            logger.debug("Failed to publish execution readiness via runtime bus", exc_info=True)
-
-    try:
-        topic_bus = get_global_bus()
-        topic_bus.publish_sync(event.type, event.payload, source=event.source)
-    except Exception:  # pragma: no cover - defensive logging
-        logger.debug("Execution readiness telemetry publish skipped", exc_info=True)
+    publish_event_with_failover(
+        event_bus,
+        event,
+        logger=logger,
+        runtime_fallback_message=
+        "Runtime execution telemetry publish failed; falling back to global bus",
+        runtime_unexpected_message=
+        "Unexpected runtime error while publishing execution telemetry",
+        runtime_none_message=
+        "Runtime bus returned no result for execution telemetry; falling back to global bus",
+        global_not_running_message=
+        "Global bus unavailable while publishing execution telemetry",
+        global_unexpected_message=
+        "Unexpected global bus error while publishing execution telemetry",
+    )
 
 
 __all__ = [

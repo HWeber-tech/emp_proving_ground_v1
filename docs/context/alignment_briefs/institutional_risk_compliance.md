@@ -76,6 +76,10 @@
   surfacing active task counts, and exposing markdown evidence with pytest
   guardrails so governance cadences inherit truthful compliance posture
   summaries.【F:src/operations/compliance_readiness.py†L262-L420】【F:tests/operations/test_compliance_readiness.py†L58-L213】
+- Progress: Governance reporting cadence now uses the shared failover helper to
+  publish compiled KYC/AML, regulatory, and audit evidence bundles with typed
+  escalation logs so runtime outages still deliver governance telemetry, with
+  pytest scenarios covering fallback behaviour.【F:src/operations/governance_reporting.py†L437-L519】【F:tests/operations/test_governance_reporting.py†L1-L200】
 
 ### Next (30–90 days)
 

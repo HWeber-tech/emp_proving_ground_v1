@@ -2,12 +2,20 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import StrEnum
-from typing import Mapping
+from typing import Mapping, Sequence
 
-from src.operations.alerts import AlertEvent, AlertSeverity
+from src.core.event_bus import Event, EventBus
+from src.operations.alerts import (
+    AlertDispatchResult,
+    AlertEvent,
+    AlertManager,
+    AlertSeverity,
+)
+from src.operations.event_bus_failover import publish_event_with_failover
 from src.operations.incident_response import (
     IncidentResponseSnapshot,
     IncidentResponseStatus,
@@ -17,6 +25,9 @@ from src.operations.system_validation import (
     SystemValidationSnapshot,
     SystemValidationStatus,
 )
+
+
+logger = logging.getLogger(__name__)
 
 
 class OperationalReadinessStatus(StrEnum):
@@ -260,6 +271,7 @@ def derive_operational_alerts(
     *,
     threshold: OperationalReadinessStatus = OperationalReadinessStatus.warn,
     include_overall: bool = True,
+    base_tags: Sequence[str] = ("operational-readiness",),
 ) -> list[AlertEvent]:
     """Translate the readiness snapshot into alert events for routing policies."""
 
@@ -270,12 +282,15 @@ def derive_operational_alerts(
         OperationalReadinessStatus.fail: AlertSeverity.critical,
     }
 
+    base_tag_tuple = tuple(base_tags)
+
     if include_overall and _should_alert(snapshot.status, threshold):
         events.append(
             AlertEvent(
                 category="operational.readiness",
                 severity=severity_map[snapshot.status],
                 message=f"Operational readiness status {snapshot.status.value}",
+                tags=base_tag_tuple,
                 context={"snapshot": snapshot.as_dict()},
             )
         )
@@ -283,16 +298,76 @@ def derive_operational_alerts(
     for component in snapshot.components:
         if not _should_alert(component.status, threshold):
             continue
+        component_tags = base_tag_tuple + (component.name,)
         events.append(
             AlertEvent(
                 category=f"operational.{component.name}",
                 severity=severity_map[component.status],
                 message=f"{component.name} status {component.status.value}: {component.summary}",
+                tags=component_tags,
                 context={"component": component.as_dict(), "snapshot": snapshot.as_dict()},
             )
         )
 
     return events
+
+
+def route_operational_readiness_alerts(
+    manager: AlertManager,
+    snapshot: OperationalReadinessSnapshot,
+    *,
+    threshold: OperationalReadinessStatus = OperationalReadinessStatus.warn,
+    include_overall: bool = True,
+    base_tags: Sequence[str] = ("operational-readiness",),
+) -> list[AlertDispatchResult]:
+    """Dispatch operational readiness alerts through an :class:`AlertManager`."""
+
+    events = derive_operational_alerts(
+        snapshot,
+        threshold=threshold,
+        include_overall=include_overall,
+        base_tags=base_tags,
+    )
+    results: list[AlertDispatchResult] = []
+    for event in events:
+        results.append(manager.dispatch(event))
+    return results
+
+
+def publish_operational_readiness_snapshot(
+    event_bus: EventBus,
+    snapshot: OperationalReadinessSnapshot,
+    *,
+    source: str = "operations.operational_readiness",
+) -> None:
+    """Publish the operational readiness snapshot onto the runtime event bus."""
+
+    event = Event(
+        type="telemetry.operational.operational_readiness",
+        payload=snapshot.as_dict(),
+        source=source,
+    )
+
+    publish_event_with_failover(
+        event_bus,
+        event,
+        logger=logger,
+        runtime_fallback_message=(
+            "Runtime event bus rejected operational readiness snapshot; falling back to global bus"
+        ),
+        runtime_unexpected_message=(
+            "Unexpected error publishing operational readiness snapshot via runtime bus"
+        ),
+        runtime_none_message=(
+            "Runtime event bus returned None while publishing operational readiness snapshot; using global bus"
+        ),
+        global_not_running_message=(
+            "Global event bus not running while publishing operational readiness snapshot"
+        ),
+        global_unexpected_message=(
+            "Unexpected error publishing operational readiness snapshot via global bus"
+        ),
+    )
 
 
 __all__ = [
@@ -302,5 +377,7 @@ __all__ = [
     "derive_operational_alerts",
     "evaluate_operational_readiness",
     "format_operational_readiness_markdown",
+    "publish_operational_readiness_snapshot",
+    "route_operational_readiness_alerts",
 ]
 

@@ -3,6 +3,9 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
+
+pytestmark = [pytest.mark.guardrail]
+
 from src.core.event_bus import AsyncEventBus
 from src.data_foundation.ingest.scheduler import (
     IngestSchedule,

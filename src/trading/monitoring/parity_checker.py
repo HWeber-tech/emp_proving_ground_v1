@@ -50,10 +50,11 @@ class ParityChecker:
             except Exception:
                 mismatches += 1
                 continue
-        try:
-            get_metrics_sink().set_gauge("fix_parity_mismatched_orders", float(mismatches))
-        except Exception:
-            pass
+        self._record_gauge(
+            "fix_parity_mismatched_orders",
+            float(mismatches),
+            context="order parity",
+        )
         logger.info(f"Order parity mismatches: {mismatches}")
         return mismatches
 
@@ -121,9 +122,35 @@ class ParityChecker:
             except Exception:
                 mismatches += 1
                 continue
-        try:
-            get_metrics_sink().set_gauge("fix_parity_mismatched_positions", float(mismatches))
-        except Exception:
-            pass
+        self._record_gauge(
+            "fix_parity_mismatched_positions",
+            float(mismatches),
+            context="position parity",
+        )
         logger.info(f"Position parity mismatches: {mismatches}")
         return mismatches
+
+    def _record_gauge(self, name: str, value: float, *, context: str) -> None:
+        """Safely publish parity telemetry without masking failures."""
+
+        try:
+            sink = get_metrics_sink()
+        except Exception as exc:  # pragma: no cover - defensive guardrail
+            logger.warning(
+                "Failed to resolve metrics sink for %s gauge: %s",
+                context,
+                exc,
+                exc_info=True,
+            )
+            return
+
+        try:
+            sink.set_gauge(name, value)
+        except Exception as exc:  # pragma: no cover - defensive guardrail
+            logger.warning(
+                "Failed to publish %s gauge (%s): %s",
+                name,
+                context,
+                exc,
+                exc_info=True,
+            )

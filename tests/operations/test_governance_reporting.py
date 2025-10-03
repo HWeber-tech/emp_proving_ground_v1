@@ -4,6 +4,8 @@ import json
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
+import pytest
+
 from src.governance.system_config import SystemConfig
 from src.operations.compliance_readiness import (
     ComplianceReadinessComponent,
@@ -11,12 +13,15 @@ from src.operations.compliance_readiness import (
     ComplianceReadinessStatus,
 )
 from src.operations.governance_reporting import (
+    AuditJournalError,
     GovernanceReportStatus,
     collect_audit_evidence,
     generate_governance_report,
     persist_governance_report,
+    publish_governance_report,
     should_generate_report,
 )
+from src.operations.event_bus_failover import EventPublishError
 from src.operations.regulatory_telemetry import (
     RegulatoryTelemetrySignal,
     RegulatoryTelemetrySnapshot,
@@ -37,6 +42,28 @@ class _StubJournal:
 
     def close(self) -> None:
         self.closed = True
+
+
+class _RuntimeOnlyBus:
+    def __init__(self, *, error: Exception | None = None) -> None:
+        self._error = error
+        self.published: list[object] = []
+
+    def is_running(self) -> bool:
+        return True
+
+    def publish_from_sync(self, event: object) -> None:
+        if self._error is not None:
+            raise self._error
+        self.published.append(event)
+
+
+class _StubTopicBus:
+    def __init__(self) -> None:
+        self.published: list[tuple[str, object, str]] = []
+
+    def publish_sync(self, event_type: str, payload: object, *, source: str) -> None:
+        self.published.append((event_type, payload, source))
 
 
 def test_generate_governance_report_composes_sections() -> None:
@@ -106,7 +133,9 @@ def test_collect_audit_evidence_records_errors() -> None:
         config,
         journal_factories={
             "compliance": lambda _: _StubJournal(stats=compliance_stats),
-            "kyc": lambda _: _StubJournal(error=RuntimeError("journal offline")),
+            "kyc": lambda _: _StubJournal(
+                error=AuditJournalError("journal offline")
+            ),
         },
     )
 
@@ -150,4 +179,47 @@ def test_persist_governance_report_trims_history(tmp_path: Path) -> None:
     assert len(payload["history"]) == 2
     statuses = [entry["metadata"]["status"] for entry in payload["history"]]
     assert statuses == [GovernanceReportStatus.warn.value, GovernanceReportStatus.fail.value]
+
+
+def test_publish_governance_report_falls_back_to_global_bus() -> None:
+    runtime_bus = _RuntimeOnlyBus(error=RuntimeError("runtime down"))
+    topic_bus = _StubTopicBus()
+
+    report = generate_governance_report(
+        compliance_readiness=None,
+        regulatory_snapshot=None,
+        audit_evidence=None,
+    )
+
+    publish_governance_report(
+        runtime_bus,
+        report,
+        global_bus_factory=lambda: topic_bus,
+    )
+
+    assert len(topic_bus.published) == 1
+    event_type, payload, source = topic_bus.published[0]
+    assert event_type == "telemetry.compliance.governance"
+    assert payload["status"] == report.status.value
+    assert source == "governance_reporting"
+
+
+def test_publish_governance_report_raises_on_unexpected_runtime_error() -> None:
+    runtime_bus = _RuntimeOnlyBus(error=ValueError("bad runtime"))
+    topic_bus = _StubTopicBus()
+
+    report = generate_governance_report(
+        compliance_readiness=None,
+        regulatory_snapshot=None,
+        audit_evidence=None,
+    )
+
+    with pytest.raises(EventPublishError):
+        publish_governance_report(
+            runtime_bus,
+            report,
+            global_bus_factory=lambda: topic_bus,
+        )
+
+    assert not topic_bus.published
 

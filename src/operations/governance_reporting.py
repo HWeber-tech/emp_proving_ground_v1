@@ -17,13 +17,16 @@ when the cadence needs to emit a new artefact, call
 from __future__ import annotations
 
 import json
+import logging
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from enum import StrEnum
 from pathlib import Path
 from typing import Callable, Mapping, MutableMapping, Sequence
 
-from src.core.event_bus import Event, EventBus, get_global_bus
+from sqlalchemy.exc import SQLAlchemyError
+
+from src.core.event_bus import Event, EventBus, TopicBus
 from src.governance.system_config import SystemConfig
 from src.operations.compliance_readiness import (
     ComplianceReadinessComponent,
@@ -40,6 +43,7 @@ from src.data_foundation.persist.timescale import (
     TimescaleConnectionSettings,
     TimescaleKycJournal,
 )
+from src.operations.event_bus_failover import publish_event_with_failover
 
 __all__ = [
     "GovernanceReportStatus",
@@ -51,6 +55,9 @@ __all__ = [
     "publish_governance_report",
     "persist_governance_report",
 ]
+
+
+logger = logging.getLogger(__name__)
 
 
 class GovernanceReportStatus(StrEnum):
@@ -66,6 +73,10 @@ _STATUS_ORDER: Mapping[GovernanceReportStatus, int] = {
     GovernanceReportStatus.warn: 1,
     GovernanceReportStatus.fail: 2,
 }
+
+
+class AuditJournalError(RuntimeError):
+    """Raised when a Timescale governance journal cannot be accessed."""
 
 
 def _escalate(
@@ -387,29 +398,34 @@ def collect_audit_evidence(
     errors: list[str] = []
 
     for key, factory in factories.items():
+        journal: object | None = None
         try:
             journal = factory(settings)
-        except Exception as exc:  # pragma: no cover - defensive
+        except (AuditJournalError, OSError, SQLAlchemyError) as exc:
+            logger.error("Failed to initialise %s audit journal", key, exc_info=exc)
             errors.append(f"{key}: {exc}")
             results[key] = {"error": str(exc)}
             continue
 
         try:
-            if key == "compliance":
-                stats = journal.summarise(strategy_id=strategy_id)
-            elif key == "kyc":
-                stats = journal.summarise(strategy_id=strategy_id)
+            summarise = getattr(journal, "summarise", None)
+            if callable(summarise):
+                stats = summarise(strategy_id=strategy_id)
             else:
-                stats = journal.summarise(strategy_id=strategy_id)
-            results[key] = {"stats": stats}
-        except Exception as exc:  # pragma: no cover - defensive
+                raise AuditJournalError(f"journal {key!r} does not expose summarise()")
+        except (AuditJournalError, OSError, SQLAlchemyError) as exc:
+            logger.error("Failed to summarise %s audit journal", key, exc_info=exc)
             errors.append(f"{key}: {exc}")
             results[key] = {"error": str(exc)}
+        else:
+            results[key] = {"stats": stats}
         finally:
-            try:
-                journal.close()
-            except Exception:  # pragma: no cover - defensive cleanup
-                pass
+            close = getattr(journal, "close", None)
+            if callable(close):
+                try:
+                    close()
+                except (AuditJournalError, OSError) as exc:
+                    logger.warning("Error closing %s audit journal", key, exc_info=exc)
 
     if errors:
         metadata["errors"] = errors
@@ -470,6 +486,7 @@ def publish_governance_report(
     report: GovernanceReport,
     *,
     channel: str = "telemetry.compliance.governance",
+    global_bus_factory: Callable[[], TopicBus] | None = None,
 ) -> None:
     """Publish the governance report to the provided event bus."""
 
@@ -479,20 +496,27 @@ def publish_governance_report(
         source="governance_reporting",
     )
 
-    publish_from_sync = getattr(event_bus, "publish_from_sync", None)
-    if callable(publish_from_sync):
-        try:
-            if event_bus.is_running():
-                publish_from_sync(event)
-                return
-        except Exception:  # pragma: no cover - best-effort logging path
-            pass
-
-    try:
-        topic_bus = get_global_bus()
-        topic_bus.publish_sync(event.type, event.payload, source=event.source)
-    except Exception:  # pragma: no cover - best-effort logging path
-        pass
+    publish_event_with_failover(
+        event_bus,
+        event,
+        logger=logger,
+        runtime_fallback_message=(
+            "Runtime bus rejected governance report; falling back to global bus"
+        ),
+        runtime_unexpected_message=(
+            "Unexpected error publishing governance report via runtime bus"
+        ),
+        runtime_none_message=(
+            "Runtime publish_from_sync returned None for governance report"
+        ),
+        global_not_running_message=(
+            "Global topic bus is not running; governance report not published"
+        ),
+        global_unexpected_message=(
+            "Unexpected error publishing governance report via global bus"
+        ),
+        global_bus_factory=global_bus_factory,
+    )
 
 
 def persist_governance_report(

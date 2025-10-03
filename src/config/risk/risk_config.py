@@ -196,11 +196,19 @@ class RiskConfig(BaseModel):
 
         max_exposure_pct = values.get("max_total_exposure_pct")
         if isinstance(max_exposure_pct, Decimal):
+            sector_total = Decimal("0")
             for sector, limit in sector_limits.items():
                 if isinstance(limit, Decimal) and limit > max_exposure_pct:
                     raise ValueError(
                         "Sector %s exposure limit exceeds max_total_exposure_pct" % sector
                     )
+                if isinstance(limit, Decimal):
+                    sector_total += limit
+
+            if sector_limits and sector_total > max_exposure_pct:
+                raise ValueError(
+                    "Combined sector_exposure_limits exceed max_total_exposure_pct"
+                )
 
         return values
 

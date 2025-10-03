@@ -62,6 +62,17 @@ def test_sector_limit_cannot_exceed_total_exposure() -> None:
         )
 
 
+def test_sector_limits_cannot_exceed_global_budget() -> None:
+    with pytest.raises(ValidationError):
+        RiskConfig(
+            max_total_exposure_pct=Decimal("0.50"),
+            sector_exposure_limits={
+                "FX": Decimal("0.30"),
+                "EQUITIES": Decimal("0.30"),
+            },
+        )
+
+
 def test_instrument_sector_map_conflicting_assignment_rejected() -> None:
     with pytest.raises(ValidationError):
         RiskConfig(

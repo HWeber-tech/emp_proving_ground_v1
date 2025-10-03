@@ -11,6 +11,7 @@ consistent metadata snapshots.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from decimal import Decimal
 from typing import Any
 
 from collections.abc import Mapping
@@ -103,7 +104,7 @@ def resolve_trading_risk_config(trading_manager: Any) -> RiskConfig:
 def summarise_risk_config(config: RiskConfig) -> dict[str, object]:
     """Render a serialisable summary of the supplied risk configuration."""
 
-    return {
+    summary: dict[str, object] = {
         "max_risk_per_trade_pct": float(config.max_risk_per_trade_pct),
         "max_total_exposure_pct": float(config.max_total_exposure_pct),
         "max_leverage": float(config.max_leverage),
@@ -113,6 +114,18 @@ def summarise_risk_config(config: RiskConfig) -> dict[str, object]:
         "mandatory_stop_loss": bool(config.mandatory_stop_loss),
         "research_mode": bool(config.research_mode),
     }
+
+    if config.sector_exposure_limits:
+        summary["sector_exposure_limits"] = {
+            sector: float(limit) for sector, limit in config.sector_exposure_limits.items()
+        }
+        sector_total = sum(config.sector_exposure_limits.values(), Decimal("0"))
+        summary["sector_budget_total_pct"] = float(sector_total)
+
+    if config.instrument_sector_map:
+        summary["instrument_sector_map"] = dict(config.instrument_sector_map)
+
+    return summary
 
 
 @dataclass(frozen=True)

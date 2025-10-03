@@ -6,9 +6,10 @@ import logging
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import StrEnum
-from typing import Mapping, MutableMapping, Sequence
+from typing import Callable, Mapping, MutableMapping, Sequence, cast
 
 from src.core.event_bus import Event, EventBus, TopicBus, get_global_bus
+from src.operations.event_bus_failover import publish_event_with_failover
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
@@ -335,18 +336,41 @@ def publish_fix_pilot_snapshot(
     snapshot: FixPilotSnapshot,
     *,
     channel: str = "telemetry.execution.fix_pilot",
+    source: str = "operations.fix_pilot",
+    global_bus_factory: Callable[[], TopicBus] | None = None,
 ) -> None:
     """Publish FIX pilot telemetry on the event bus."""
 
-    bus = event_bus or get_global_bus()
-    try:
-        payload = snapshot.as_dict()
-        if isinstance(bus, TopicBus):
-            bus.publish(channel, payload)
-        else:
-            bus.publish_from_sync(Event(channel, payload))
-    except Exception:  # pragma: no cover - diagnostics only
-        logger.debug("Failed to publish FIX pilot snapshot", exc_info=True)
+    payload = snapshot.as_dict()
+    event = Event(type=channel, payload=payload, source=source)
+
+    if event_bus is None:
+        factory = global_bus_factory or get_global_bus
+        topic_bus = factory()
+        topic_bus.publish_sync(channel, payload, source=source)
+        return
+
+    if not hasattr(event_bus, "publish_from_sync"):
+        topic_bus = cast(TopicBus, event_bus)
+        topic_bus.publish_sync(channel, payload, source=source)
+        return
+
+    publish_event_with_failover(
+        cast(EventBus, event_bus),
+        event,
+        logger=logger,
+        runtime_fallback_message=
+        "Runtime event bus rejected FIX pilot snapshot; falling back to global topic bus",
+        runtime_unexpected_message=
+        "Unexpected error publishing FIX pilot snapshot via runtime event bus",
+        runtime_none_message=
+        "Runtime event bus returned None while publishing FIX pilot snapshot; using global topic bus",
+        global_not_running_message=
+        "Global event bus not running while publishing FIX pilot snapshot",
+        global_unexpected_message=
+        "Unexpected error publishing FIX pilot snapshot via global topic bus",
+        global_bus_factory=global_bus_factory,
+    )
 
 
 __all__ = [

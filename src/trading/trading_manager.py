@@ -157,6 +157,7 @@ class TradingManager:
             min_liquidity_confidence=min_liquidity_confidence,
             risk_policy=self._risk_policy,
             portfolio_risk_manager=self._portfolio_risk_manager,
+            risk_config=effective_config,
         )
 
         self._last_risk_snapshot: RiskTelemetrySnapshot | None = None

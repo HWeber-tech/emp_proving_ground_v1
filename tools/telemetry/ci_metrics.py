@@ -109,12 +109,47 @@ def record_coverage(
     return metrics
 
 
+def _format_lagging_note(
+    entry: Mapping[str, Any], *, default: str | None = None
+) -> str | None:
+    lagging = entry.get("lagging_domains")
+    domains = entry.get("domains")
+    if not lagging:
+        return default
+
+    lagging_set = {str(name) for name in lagging}
+    domain_lookup: dict[str, float] = {}
+    if isinstance(domains, Iterable):
+        for raw_domain in domains:
+            if not isinstance(raw_domain, Mapping):
+                continue
+            name = str(raw_domain.get("name"))
+            if name in lagging_set:
+                try:
+                    percent = float(raw_domain.get("coverage_percent", 0))
+                except (TypeError, ValueError):  # pragma: no cover - defensive
+                    percent = 0.0
+                domain_lookup[name] = percent
+
+    if not domain_lookup:
+        return default
+
+    rendered = ", ".join(
+        f"{name} ({percent:.2f}%)" for name, percent in sorted(domain_lookup.items())
+    )
+    return f"Lagging domains: {rendered}"
+
+
 def record_coverage_domains(
     metrics_path: Path,
     coverage_report: Path,
     *,
     label: str | None = None,
     threshold: float | None = 80.0,
+    record_remediation_entry: bool = False,
+    remediation_label: str | None = None,
+    remediation_note: str | None = None,
+    remediation_source: str | None = None,
     data: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     if not coverage_report.exists():
@@ -147,6 +182,40 @@ def record_coverage_domains(
 
     metrics["coverage_domain_trend"].append(entry)
     save_metrics(metrics_path, metrics)
+
+    if record_remediation_entry:
+        if remediation_source is None:
+            remediation_source = str(coverage_report)
+
+        statuses: dict[str, Any] = {
+            "overall_coverage": round(matrix.totals.percent, 2),
+            "lagging_count": len(entry.get("lagging_domains", [])),
+        }
+
+        if threshold is not None:
+            statuses["coverage_threshold"] = float(threshold)
+
+        worst_domain = entry.get("worst_domain")
+        if isinstance(worst_domain, Mapping) and worst_domain.get("name") is not None:
+            statuses["worst_domain"] = str(worst_domain.get("name"))
+            try:
+                statuses["worst_domain_coverage"] = float(
+                    worst_domain.get("coverage_percent", 0.0)
+                )
+            except (TypeError, ValueError):  # pragma: no cover - defensive
+                pass
+
+        note = remediation_note or _format_lagging_note(entry)
+
+        metrics = record_remediation(
+            metrics_path,
+            statuses=statuses,
+            label=remediation_label or label or _timestamp_label(),
+            source=remediation_source,
+            note=note,
+            data=metrics,
+        )
+
     return metrics
 
 

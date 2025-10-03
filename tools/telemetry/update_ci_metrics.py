@@ -54,6 +54,30 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Threshold for flagging lagging domains in coverage telemetry",
     )
     parser.add_argument(
+        "--coverage-remediation",
+        action="store_true",
+        help=(
+            "Record a remediation snapshot summarising coverage laggards alongside the domain breakdown"
+        ),
+    )
+    parser.add_argument(
+        "--coverage-remediation-label",
+        type=str,
+        help=(
+            "Label for the coverage remediation entry (defaults to the coverage label or UTC timestamp)"
+        ),
+    )
+    parser.add_argument(
+        "--coverage-remediation-note",
+        type=str,
+        help="Optional note for the coverage remediation entry (defaults to lagging-domain summary)",
+    )
+    parser.add_argument(
+        "--coverage-remediation-source",
+        type=str,
+        help="Override the evidence source recorded for the coverage remediation entry",
+    )
+    parser.add_argument(
         "--allowlist",
         type=Path,
         help="Path to the Ruff formatter allowlist file (deprecated once formatter mode is global)",
@@ -171,11 +195,18 @@ def main(argv: Sequence[str] | None = None) -> int:
             data=metrics_data,
         )
         if not args.no_domain_breakdown:
+            coverage_remediation_label = (
+                args.coverage_remediation_label or coverage_label
+            )
             metrics_data = record_coverage_domains(
                 metrics_path,
                 args.coverage_report,
                 label=coverage_label,
                 threshold=args.domain_threshold,
+                record_remediation_entry=args.coverage_remediation,
+                remediation_label=coverage_remediation_label,
+                remediation_note=args.coverage_remediation_note,
+                remediation_source=args.coverage_remediation_source,
                 data=metrics_data,
             )
 

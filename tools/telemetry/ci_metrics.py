@@ -133,6 +133,13 @@ def record_coverage_domains(
             for domain in entry["domains"]
             if float(domain["coverage_percent"]) < float(threshold)
         ]
+        entry["lagging_count"] = len(entry["lagging_domains"])
+
+    if matrix.domains:
+        worst_domain = min(matrix.domains, key=lambda domain: domain.percent)
+        entry["worst_domain"] = worst_domain.as_dict()
+    else:
+        entry["worst_domain"] = None
 
     metrics["coverage_domain_trend"].append(entry)
     save_metrics(metrics_path, metrics)

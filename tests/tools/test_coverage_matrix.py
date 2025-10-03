@@ -137,6 +137,8 @@ def test_cli_writes_json_payload(tmp_path: Path, coverage_report: Path) -> None:
     payload = json.loads(output_path.read_text())
     assert payload["threshold"] == 70.0
     assert payload["laggards"] == ["other", "risk", "sensory"]
+    assert payload["lagging_count"] == 3
+    assert payload["worst_domain"]["name"] == "other"
     totals = payload["totals"]
     assert totals["files"] == 5
     assert totals["coverage_percent"] == pytest.approx(66.67)

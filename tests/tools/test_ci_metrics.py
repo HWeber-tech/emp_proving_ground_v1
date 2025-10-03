@@ -167,6 +167,8 @@ def test_record_coverage_domains_appends_entry(tmp_path: Path) -> None:
     assert entry["source"] == str(coverage_path)
     assert entry["threshold"] == 90.0
     assert entry["lagging_domains"] == ["core", "trading"]
+    assert entry["lagging_count"] == 2
+    assert entry["worst_domain"]["name"] == "core"
     assert entry["totals"]["files"] == 2
     assert isinstance(entry["generated_at"], str)
     domain_names = [domain["name"] for domain in entry["domains"]]
@@ -231,8 +233,11 @@ def test_update_ci_metrics_cli_updates_both(tmp_path: Path) -> None:
     assert stored["coverage_trend"][-1]["label"] == "coverage-sample"
     assert stored["formatter_trend"][-1]["label"] == "formatter-sample"
     assert stored["formatter_trend"][-1]["total_entries"] == 2
-    assert stored["coverage_domain_trend"][-1]["label"] == "coverage-sample"
-    assert stored["coverage_domain_trend"][-1]["domains"]
+    coverage_entry = stored["coverage_domain_trend"][-1]
+    assert coverage_entry["label"] == "coverage-sample"
+    assert coverage_entry["domains"]
+    assert coverage_entry["lagging_count"] == len(coverage_entry["lagging_domains"])
+    assert coverage_entry["worst_domain"]["name"] in coverage_entry["lagging_domains"]
     assert stored["remediation_trend"] == []
 
 

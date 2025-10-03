@@ -103,6 +103,11 @@
     first-class panel, counting component severities, embedding metadata, and
     feeding remediation summaries under pytest coverage so responders inherit a
     consolidated operational view without bespoke wiring.【F:src/operations/observability_dashboard.py†L443-L493】【F:tests/operations/test_observability_dashboard.py†L135-L236】
+  - Progress: Configuration audit telemetry now evaluates `SystemConfig` diffs,
+    annotates tracked toggles and extras, renders Markdown summaries, and
+    publishes via the shared failover helper so configuration changes generate a
+    durable audit trail for dashboards and governance reviews under pytest
+    coverage.【F:src/operations/configuration_audit.py†L1-L235】【F:tests/operations/test_configuration_audit.py†L1-L164】
   - Progress: Ingest trend telemetry logging now records runtime publish
     fallbacks, raises on unexpected errors, and escalates global bus outages with
     pytest coverage so data backbone dashboards expose genuine gaps instead of
@@ -175,6 +180,10 @@
   `tests/.telemetry/ci_metrics.json`, flagging lagging domains directly in CI
   telemetry so remediation progress is visible without ad-hoc parsing.
   【F:tools/telemetry/ci_metrics.py†L1-L212】【F:tests/tools/test_ci_metrics.py†L1-L236】
+- Coverage telemetry now records lagging-domain counts, worst-performing
+  slices, and observability dashboard remediation snapshots via the CLI so
+  dashboards inherit actionable readiness deltas alongside coverage trendlines.
+  【F:tools/telemetry/ci_metrics.py†L112-L337】【F:tools/telemetry/update_ci_metrics.py†L1-L169】【F:tests/tools/test_ci_metrics.py†L180-L309】
 - Remediation progress snapshots now live alongside coverage/formatter trendlines
   in `tests/.telemetry/ci_metrics.json` thanks to the `--remediation-status`
   CLI, capturing roadmap evidence (label, statuses, source, notes) for dashboards

@@ -196,6 +196,11 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
     surfacing degraded services alongside risk, latency, and backbone telemetry
     under regression coverage so responders inherit a consolidated operational
     view.【F:src/operations/observability_dashboard.py†L443-L493】【F:tests/operations/test_observability_dashboard.py†L135-L236】
+  - *Progress*: Configuration audit telemetry now normalises `SystemConfig`
+    diffs, grades tracked toggles plus extras, renders Markdown summaries, and
+    publishes via the shared failover helper so configuration changes leave a
+    durable, event-bus-backed audit trail for operators and governance
+    reviewers.【F:src/operations/configuration_audit.py†L1-L235】
   - *Progress*: Health monitor resource probes now normalise psutil import
     failures, log probe errors, retain bounded history, and surface event-bus
     diagnostics so operational responders get actionable state even when optional
@@ -227,6 +232,11 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
     surfacing active task counts, and retaining the hardened publish failover so
     governance teams see actionable workflow posture even during runtime bus
     outages.【F:src/operations/compliance_readiness.py†L262-L420】【F:tests/operations/test_compliance_readiness.py†L58-L213】
+  - *Progress*: Governance reporting cadence now publishes through the shared
+    failover helper with typed escalation messages, preserving cadence payloads
+    when the runtime bus degrades and documenting fallback behaviour under
+    regression coverage so compliance reviewers always receive the compiled
+    KYC/AML, regulatory, and audit telemetry bundle.【F:src/operations/governance_reporting.py†L437-L519】【F:tests/operations/test_governance_reporting.py†L1-L226】
   - *Progress*: System validation telemetry now attaches failing check names and
     messages to snapshot metadata and Markdown output while continuing to route
     through the shared failover helper, so readiness dashboards surface the
@@ -253,6 +263,11 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
     the `--remediation-status` CLI flag and validates the JSON contract under
     pytest so roadmap evidence, dashboard feeds, and audits inherit structured
     remediation progress without manual spreadsheets.【F:tools/telemetry/update_ci_metrics.py†L10-L176】【F:tests/tools/test_ci_metrics.py†L180-L332】【F:tests/.telemetry/ci_metrics.json†L1-L6】
+  - *Progress*: Coverage telemetry recorder now flags lagging domains, captures
+    the worst-performing slice, and tags threshold breaches in the CI metrics
+    feed while the CLI ingests observability dashboard snapshots into the
+    remediation trend so status exports inherit actionable coverage and
+    operational readiness deltas.【F:tools/telemetry/ci_metrics.py†L112-L337】【F:tools/telemetry/update_ci_metrics.py†L1-L169】【F:tests/tools/test_ci_metrics.py†L180-L309】
   - *Progress*: Remediation summary exporter renders telemetry snapshots into
     Markdown tables with delta call-outs, honours slice limits, omits deltas for
     non-numeric statuses, and ships with a CLI/pytest contract so status reports

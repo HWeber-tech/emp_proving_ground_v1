@@ -158,9 +158,11 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
     an actionable feed plus an escalation playbook whenever policy violations
     surface.【F:src/trading/risk/policy_telemetry.py†L1-L285】【F:src/trading/trading_manager.py†L642-L686】【F:docs/operations/runbooks/risk_policy_violation.md†L1-L51】【F:tests/trading/test_risk_policy_telemetry.py†L1-L199】
   - *Progress*: FIX broker interface now routes every manual intent through the real
-    risk gateway, publishes structured rejection telemetry, and records the gateway
+    risk gateway, publishes structured rejection telemetry with policy snapshots,
+    deterministic severity flags, and runbook links, and records the gateway
     decision/portfolio metadata on approved orders so FIX pilots inherit the same
-    deterministic guardrails as runtime-managed flows under pytest coverage.【F:src/trading/integration/fix_broker_interface.py†L38-L524】【F:tests/trading/test_fix_broker_interface_events.py†L13-L202】
+    deterministic guardrails plus a manual risk block playbook under pytest
+    coverage.【F:src/trading/integration/fix_broker_interface.py†L211-L604】【F:tests/trading/test_fix_broker_interface_events.py†L14-L239】【F:docs/operations/runbooks/manual_fix_order_risk_block.md†L1-L38】
 - [ ] **Quality and observability** – Expand regression coverage, close the
   documentation gap, and track remediation progress through CI snapshots.
   - *Progress*: Event bus health publishing now routes through the shared
@@ -228,10 +230,15 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
     institutional readiness snapshot without re-deriving counts.【F:src/operations/observability_dashboard.py†L60-L109】【F:tests/operations/test_observability_dashboard.py†L60-L116】
   - *Progress*: Operational readiness aggregation now fuses system validation,
     incident response, and ingest SLO snapshots into a single severity grade,
-    emits Markdown/JSON for dashboards, derives alert events, and enriches the
-    metadata with a status breakdown plus component map so dashboards can render
-    severity chips without recomputing the logic, under pytest coverage and
-    documented contract updates.【F:src/operations/operational_readiness.py†L1-L256】【F:tests/operations/test_operational_readiness.py†L1-L86】【F:docs/status/operational_readiness.md†L1-L34】【F:tests/runtime/test_professional_app_timescale.py†L722-L799】
+    emits Markdown/JSON for dashboards, derives routed alert events, hardens
+    publish failover via the shared helper, and enriches metadata with status
+    breakdowns so dashboards can render severity chips without recomputing the
+    logic, under pytest coverage and documented contract updates.【F:src/operations/operational_readiness.py†L1-L373】【F:tests/operations/test_operational_readiness.py†L1-L221】【F:docs/status/operational_readiness.md†L1-L60】【F:tests/runtime/test_professional_app_timescale.py†L722-L799】
+  - *Progress*: FIX pilot telemetry now evaluates compliance, risk, drop-copy, and
+    queue posture against configurable policies, publishes snapshots through the
+    failover helper, and documents the publishing contract under pytest so FIX
+    deployments surface actionable readiness evidence even when the runtime bus
+    degrades.【F:src/operations/fix_pilot.py†L62-L373】【F:tests/operations/test_fix_pilot_ops.py†L1-L164】
   - *Progress*: Compliance readiness snapshots now include workflow portfolio
     status alongside trade and KYC telemetry, escalating blocked checklists,
     surfacing active task counts, and retaining the hardened publish failover so
@@ -354,9 +361,9 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
     governance suites regress by pinning pytest entrypoints and coverage include
     lists to those domains, preventing partial runs from passing unnoticed.【F:.github/workflows/ci.yml†L79-L120】【F:pytest.ini†L1-L14】【F:pyproject.toml†L45-L85】
   - *Progress*: Ingest trend and Kafka readiness publishers now log event bus
-    failures, raise on unexpected exceptions, and surface global-bus outages with
-    pytest coverage so telemetry gaps raise alerts instead of disappearing
-    silently.【F:src/operations/ingest_trends.py†L303-L336】【F:tests/operations/test_ingest_trends.py†L90-L148】【F:src/operations/kafka_readiness.py†L313-L333】【F:tests/operations/test_kafka_readiness.py†L115-L143】
+    failures, raise on unexpected exceptions, fall back to the global bus with
+    structured warnings, and surface offline-global cases under pytest coverage so
+    telemetry gaps raise alerts instead of disappearing silently.【F:src/operations/ingest_trends.py†L303-L336】【F:tests/operations/test_ingest_trends.py†L90-L148】【F:src/operations/kafka_readiness.py†L305-L328】【F:tests/operations/test_kafka_readiness.py†L219-L345】
   - *Progress*: Kafka readiness suite now asserts required-topic and consumer
     coverage, tolerates epoch millisecond lag timestamps, and renders Markdown
     summaries so operations can embed readiness tables directly in incident

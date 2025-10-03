@@ -97,10 +97,11 @@ can layer on without introducing third-party dependencies.
   operators can confirm drill readiness alongside security and cache feeds.【F:src/operations/incident_response.py†L1-L233】【F:src/runtime/runtime_builder.py†L2160-L2215】【F:src/runtime/predator_app.py†L260-L360】【F:tests/operations/test_incident_response.py†L1-L108】【F:tests/runtime/test_runtime_builder.py†L360-L520】【F:tests/runtime/test_professional_app_timescale.py†L520-L600】
 * **FIX pilot telemetry** – `FixIntegrationPilot` supervises FIX sessions and
   background workers while `FixDropcopyReconciler` feeds drop-copy executions
-  into pilot snapshots; `evaluate_fix_pilot` emits
-  `telemetry.execution.fix_pilot` with queue metrics, order posture, drop-copy
-  reconciliation, and compliance coverage so FIX deployments remain observable
-  from the runtime summary.【F:src/runtime/fix_pilot.py†L1-L210】【F:src/runtime/fix_dropcopy.py†L1-L228】【F:src/operations/fix_pilot.py†L1-L240】【F:src/runtime/runtime_builder.py†L2040-L2130】【F:tests/runtime/test_fix_pilot.py†L1-L190】【F:tests/runtime/test_fix_dropcopy.py†L1-L60】
+  into pilot snapshots; `evaluate_fix_pilot` applies configurable
+  compliance/risk/drop-copy policies, enriches metadata with reconciliation
+  evidence, and `publish_fix_pilot_snapshot` reuses the failover helper so
+  `telemetry.execution.fix_pilot` continues streaming when the runtime bus
+  degrades.【F:src/runtime/fix_pilot.py†L1-L210】【F:src/runtime/fix_dropcopy.py†L1-L228】【F:src/operations/fix_pilot.py†L62-L373】【F:src/runtime/runtime_builder.py†L2040-L2130】【F:tests/runtime/test_fix_pilot.py†L1-L190】【F:tests/operations/test_fix_pilot_ops.py†L1-L164】【F:tests/runtime/test_fix_dropcopy.py†L1-L60】
 * **Execution readiness journal** – `TimescaleExecutionJournal` mirrors each
   execution snapshot to Timescale (`telemetry.execution_snapshots`) and the
   professional runtime summary exposes recent and latest entries via the

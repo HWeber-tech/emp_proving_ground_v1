@@ -35,6 +35,21 @@ if the breakdown or component mapping drift.
 Combine the snapshot with the observability dashboard output to give operators a
 clear view of which operational slices need attention each run.
 
+## Alert routing and publishing
+
+`derive_operational_alerts` translates the aggregated snapshot into component and
+overall alert events with deterministic severity mapping, optional suppression of
+the overall status, and tag inheritance so routing policies can dispatch the same
+evidence that dashboards render.【F:src/operations/operational_readiness.py†L205-L292】【F:tests/operations/test_operational_readiness.py†L86-L183】
+`route_operational_readiness_alerts` pipes those events through any
+`AlertManager`, returning dispatch results for guardrail assertions and ensuring
+context packs capture which transports emitted notifications.【F:src/operations/operational_readiness.py†L294-L317】【F:tests/operations/test_operational_readiness.py†L147-L184】
+
+`publish_operational_readiness_snapshot` now reuses the shared failover helper to
+log runtime bus failures, raise typed errors on unexpected exceptions, and fall
+back to the global bus when necessary, with regression coverage locking the
+runtime/global escalation paths.【F:src/operations/operational_readiness.py†L319-L373】【F:tests/operations/test_operational_readiness.py†L186-L221】
+
 ## Feeder snapshots
 
 - `evaluate_incident_response` turns policy/state mappings into a readiness

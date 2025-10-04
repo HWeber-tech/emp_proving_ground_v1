@@ -84,8 +84,19 @@ def parse_coverage_percentage(coverage_report: Path) -> float:
     return _coverage_from_lines(root)
 
 
+def _now() -> datetime:
+    """Return the current UTC timestamp.
+
+    Centralising the time source makes it easier to monkeypatch in tests so we
+    can exercise staleness calculations deterministically without depending on
+    real wall-clock time.
+    """
+
+    return datetime.now(tz=UTC)
+
+
 def _timestamp_label() -> str:
-    return datetime.now(tz=UTC).isoformat(timespec="seconds")
+    return _now().isoformat(timespec="seconds")
 
 
 def record_coverage(
@@ -406,6 +417,83 @@ def record_dashboard_remediation(
     )
 
 
+def _parse_timestamp(value: object) -> datetime | None:
+    if not isinstance(value, str):
+        return None
+
+    try:
+        parsed = datetime.fromisoformat(value)
+    except ValueError:
+        return None
+
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=UTC)
+
+    return parsed.astimezone(UTC)
+
+
+def summarise_trend_staleness(
+    metrics: Mapping[str, Any], *, max_age_hours: float = 24.0
+) -> dict[str, Any]:
+    """Summarise freshness for CI telemetry trends.
+
+    The quality and observability roadmap leans heavily on telemetry snapshots
+    to prove remediation progress. This helper inspects the existing metrics
+    payload, calculates the age of the most recent entry per trend, and flags
+    any surfaces that have gone stale beyond the configured threshold.
+    """
+
+    now = _now()
+    threshold = float(max_age_hours)
+    trends: dict[str, dict[str, Any]] = {}
+
+    for key in (
+        "coverage_trend",
+        "coverage_domain_trend",
+        "formatter_trend",
+        "remediation_trend",
+    ):
+        raw_entries = metrics.get(key, [])
+        entries: list[Mapping[str, Any]] = (
+            [entry for entry in raw_entries if isinstance(entry, Mapping)]
+            if isinstance(raw_entries, Iterable)
+            else []
+        )
+
+        last_timestamp: datetime | None = None
+        for entry in entries:
+            for field in ("generated_at", "label", "timestamp"):
+                candidate = _parse_timestamp(entry.get(field))
+                if candidate is None:
+                    continue
+                if last_timestamp is None or candidate > last_timestamp:
+                    last_timestamp = candidate
+
+        age_hours: float | None = None
+        is_stale = True
+        last_timestamp_str: str | None = None
+
+        if last_timestamp is not None:
+            age_hours = (now - last_timestamp).total_seconds() / 3600.0
+            last_timestamp_str = last_timestamp.isoformat(timespec="seconds")
+            is_stale = age_hours > threshold
+        else:
+            is_stale = True
+
+        trends[key] = {
+            "entry_count": len(entries),
+            "last_timestamp": last_timestamp_str,
+            "age_hours": round(age_hours, 2) if age_hours is not None else None,
+            "is_stale": is_stale,
+        }
+
+    return {
+        "evaluated_at": now.isoformat(timespec="seconds"),
+        "threshold_hours": threshold,
+        "trends": trends,
+    }
+
+
 __all__ = [
     "DEFAULT_METRICS_PATH",
     "load_metrics",
@@ -415,6 +503,7 @@ __all__ = [
     "record_remediation",
     "record_dashboard_remediation",
     "summarise_dashboard_payload",
+    "summarise_trend_staleness",
     "parse_coverage_percentage",
     "save_metrics",
 ]

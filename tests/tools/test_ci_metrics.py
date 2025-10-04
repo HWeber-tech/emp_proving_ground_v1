@@ -1,4 +1,5 @@
 import json
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -12,6 +13,7 @@ from tools.telemetry.ci_metrics import (
     record_formatter,
     record_remediation,
     summarise_dashboard_payload,
+    summarise_trend_staleness,
 )
 from tools.telemetry.update_ci_metrics import main as update_ci_metrics
 
@@ -411,6 +413,56 @@ def test_update_ci_metrics_cli_can_skip_domain_breakdown(tmp_path: Path) -> None
     assert stored["coverage_trend"]
     assert stored["coverage_domain_trend"] == []
     assert stored["remediation_trend"] == []
+
+
+def test_summarise_trend_staleness_flags_outdated_trends(monkeypatch: pytest.MonkeyPatch) -> None:
+    metrics = {
+        "coverage_trend": [
+            {"label": "2024-06-04T15:30:00+00:00"},
+            {"label": "2024-06-02T12:00:00+00:00"},
+        ],
+        "formatter_trend": [
+            {
+                "label": "manual",
+                "generated_at": "2024-06-05T09:00:00+00:00",
+            }
+        ],
+        "coverage_domain_trend": [
+            {"generated_at": "not-a-timestamp"},
+        ],
+        "remediation_trend": [],
+    }
+
+    frozen_now = datetime(2024, 6, 5, 12, 0, 0, tzinfo=UTC)
+    monkeypatch.setattr("tools.telemetry.ci_metrics._now", lambda: frozen_now)
+
+    summary = summarise_trend_staleness(metrics, max_age_hours=24.0)
+
+    assert summary["evaluated_at"] == "2024-06-05T12:00:00+00:00"
+    assert summary["threshold_hours"] == 24.0
+
+    coverage = summary["trends"]["coverage_trend"]
+    assert coverage["entry_count"] == 2
+    assert coverage["last_timestamp"] == "2024-06-04T15:30:00+00:00"
+    assert coverage["is_stale"] is False
+    assert coverage["age_hours"] == pytest.approx(20.5, rel=1e-6)
+
+    formatter = summary["trends"]["formatter_trend"]
+    assert formatter["entry_count"] == 1
+    assert formatter["last_timestamp"] == "2024-06-05T09:00:00+00:00"
+    assert formatter["is_stale"] is False
+    assert formatter["age_hours"] == pytest.approx(3.0, rel=1e-6)
+
+    domain = summary["trends"]["coverage_domain_trend"]
+    assert domain["entry_count"] == 1
+    assert domain["last_timestamp"] is None
+    assert domain["is_stale"] is True
+    assert domain["age_hours"] is None
+
+    remediation = summary["trends"]["remediation_trend"]
+    assert remediation["entry_count"] == 0
+    assert remediation["is_stale"] is True
+    assert remediation["age_hours"] is None
 
 
 def test_update_ci_metrics_records_dashboard_payload(tmp_path: Path) -> None:

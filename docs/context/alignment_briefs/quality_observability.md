@@ -67,10 +67,10 @@
     the failover helper under pytest coverage so operators inherit actionable
     escalations instead of silent outages.【F:src/operations/incident_response.py†L1-L715】【F:tests/operations/test_incident_response.py†L1-L200】
   - Progress: Guardrail manifest tests pin the ingest orchestration, ingest
-    scheduler, risk policy, and observability suites to the CI guardrail marker
-    so coverage drops or marker drift block merges before the broader regression
-    run, with pytest verifying target existence and guardrail tagging across the
-    matrix.【F:tests/runtime/test_guardrail_suite_manifest.py†L18-L40】【F:tests/data_foundation/test_ingest_scheduler.py†L1-L28】
+    scheduler, risk policy, and observability suites to the CI guardrail marker,
+    and assert the workflow runs `pytest -m guardrail` plus enumerates guardrail
+    domains in the coverage sweep so marker drift, missing files, or workflow
+    regressions block merges before the broader regression run.【F:tests/runtime/test_guardrail_suite_manifest.py†L18-L91】【F:tests/data_foundation/test_ingest_scheduler.py†L1-L28】
   - Progress: Event bus health tests now assert queue backlog escalation,
     dropped-event surfacing, and the shared failover helper’s runtime/global bus
     fallbacks so operational telemetry keeps raising alarms when both transports
@@ -104,6 +104,10 @@
     first-class panel, counting component severities, embedding metadata, and
     feeding remediation summaries under pytest coverage so responders inherit a
     consolidated operational view without bespoke wiring.【F:src/operations/observability_dashboard.py†L443-L493】【F:tests/operations/test_observability_dashboard.py†L135-L236】
+  - Progress: Observability dashboard guard CLI grades snapshot freshness,
+    required panels, and failing slices, emitting JSON or human-readable
+    summaries with status-driven exit codes so CI hooks and drills can block on
+    stale observability evidence under pytest coverage.【F:tools/telemetry/dashboard_guard.py†L1-L260】【F:tests/tools/test_dashboard_guard.py†L16-L140】
   - Progress: Configuration audit telemetry now evaluates `SystemConfig` diffs,
     annotates tracked toggles and extras, renders Markdown summaries, and
     publishes via the shared failover helper so configuration changes generate a

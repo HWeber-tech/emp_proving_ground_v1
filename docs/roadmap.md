@@ -91,18 +91,20 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
     under pytest coverage.【F:src/operations/evolution_readiness.py†L1-L206】【F:tests/operations/test_evolution_readiness.py†L1-L118】
   - *Progress*: Recorded sensory replay evaluator converts archived sensory
     snapshots into deterministic fitness metrics, now emitting a structured
-    trade ledger with confidence/strength metadata and exporting the trade
-    count inside the fitness payload so adaptive runs surface auditable replay
-    evidence under pytest coverage.【F:src/evolution/evaluation/recorded_replay.py†L160-L389】【F:tests/evolution/test_recorded_replay_evaluator.py†L37-L98】
+    trade ledger with confidence/strength metadata, tracking maximum loss
+    streaks, and reporting average trade durations so adaptive runs surface
+    auditable replay evidence with richer drawdown diagnostics under pytest
+    coverage.【F:src/evolution/evaluation/recorded_replay.py†L266-L425】【F:tests/evolution/test_recorded_replay_evaluator.py†L66-L102】
   - *Progress*: HOW and ANOMALY sensors now embed sanitised lineage records,
     compute shared threshold posture assessments, and surface state/breach
     metadata on every signal so downstream consumers can audit provenance and
     escalation context, with pytest coverage locking the helper and sensory
     flows.【F:src/sensory/how/how_sensor.py†L67-L194】【F:src/sensory/anomaly/anomaly_sensor.py†L121-L220】【F:src/sensory/thresholds.py†L1-L76】【F:tests/sensory/test_how_anomaly_sensors.py†L87-L175】【F:tests/sensory/test_thresholds.py†L1-L57】
   - *Progress*: Integrated sensory organ fuses WHY/WHAT/WHEN/HOW/ANOMALY signals,
-    records lineage and audit trails, publishes telemetry snapshots, and surfaces
-    status summaries so runtime consumers inherit a single executable sensory
-    surface under pytest coverage.【F:src/sensory/real_sensory_organ.py†L20-L208】【F:src/sensory/real_sensory_organ.py†L210-L336】【F:tests/sensory/test_real_sensory_organ.py†L1-L107】
+    records lineage and audit trails, instruments sensor-drift windows with a
+    configurable baseline/evaluation policy, publishes telemetry snapshots, and
+    surfaces status summaries so runtime consumers inherit a single executable
+    sensory surface with drift alerts under pytest coverage.【F:src/sensory/real_sensory_organ.py†L23-L199】【F:src/sensory/real_sensory_organ.py†L288-L375】【F:tests/sensory/test_real_sensory_organ.py†L98-L142】
   - *Progress*: Core module now logs and documents the sensory organ import
     fallback, emitting warnings and restoring stub exports under regression
     coverage so bootstrap environments surface degraded sensory wiring instead of
@@ -212,6 +214,10 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
     surfacing degraded services alongside risk, latency, and backbone telemetry
     under regression coverage so responders inherit a consolidated operational
     view.【F:src/operations/observability_dashboard.py†L443-L493】【F:tests/operations/test_observability_dashboard.py†L135-L236】
+  - *Progress*: Observability dashboard guard CLI now grades snapshot freshness,
+    required panels, and failing slices with machine-readable output and
+    severity-driven exit codes so CI pipelines and drills can block on stale or
+    missing observability evidence under pytest coverage.【F:tools/telemetry/dashboard_guard.py†L1-L260】【F:tests/tools/test_dashboard_guard.py†L16-L140】
   - *Progress*: Configuration audit telemetry now normalises `SystemConfig`
     diffs, grades tracked toggles plus extras, renders Markdown summaries, and
     publishes via the shared failover helper so configuration changes leave a
@@ -277,9 +283,10 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
     telemetry captures instrumentation failures instead of dropping them silently.
     【F:src/operational/metrics.py†L1-L200】【F:tests/operational/test_metrics.py†L200-L328】
   - *Progress*: Guardrail manifest tests now enforce the presence and pytest marker
-    coverage of ingest orchestration, risk policy, and observability suites so the
-    CI guardrail job fails fast if critical regression files or markers drift out
-    of the matrix.【F:tests/runtime/test_guardrail_suite_manifest.py†L1-L40】
+    coverage of ingest orchestration, risk policy, and observability suites, and
+    assert that the CI workflow runs `pytest -m guardrail` plus enumerates the
+    guardrail-critical domains in the coverage sweep so the pipeline fails fast
+    if files, markers, or workflow hooks drift.【F:tests/runtime/test_guardrail_suite_manifest.py†L18-L91】
   - *Progress*: CI telemetry tooling now records remediation status snapshots via
     the `--remediation-status` CLI flag and validates the JSON contract under
     pytest so roadmap evidence, dashboard feeds, and audits inherit structured

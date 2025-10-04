@@ -8,6 +8,7 @@ from src.core.genome import NoOpGenomeProvider
 from src.evolution.evaluation import (
     RecordedSensoryEvaluator,
     RecordedSensorySnapshot,
+    RecordedTrade,
 )
 from src.sensory.signals import IntegratedSignal
 
@@ -60,6 +61,13 @@ def test_evaluator_generates_positive_return_for_trending_signals() -> None:
     assert result.trades >= 1
     assert result.win_rate >= 0.5
     assert len(result.equity_curve) == len(snapshots)
+    assert all(isinstance(trade, RecordedTrade) for trade in result.trade_log)
+    assert len(result.trade_log) == result.trades
+    ledger = result.as_dict()["trade_log"]
+    assert isinstance(ledger, list)
+    assert ledger
+    first_trade = ledger[0]
+    assert first_trade["opened_at"] < first_trade["closed_at"]
 
 
 def test_evaluator_handles_low_confidence_with_no_trades() -> None:
@@ -86,6 +94,7 @@ def test_evaluator_handles_low_confidence_with_no_trades() -> None:
     assert result.trades == 0
     assert result.total_return == pytest.approx(0.0, abs=1e-6)
     assert result.max_drawdown == pytest.approx(0.0, abs=1e-6)
+    assert result.trade_log == ()
 
 
 def test_snapshot_from_serialised_payload_extracts_fields() -> None:

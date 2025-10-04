@@ -8,8 +8,9 @@ from typing import Any, Mapping
 import pytest
 import simplefix
 
+from src.config.risk.risk_config import RiskConfig
 from src.trading.integration.fix_broker_interface import FIXBrokerInterface
-from src.trading.risk.risk_api import RISK_API_RUNBOOK
+from src.trading.risk.risk_api import RISK_API_RUNBOOK, TradingRiskInterface
 
 class DummyRiskGateway:
     def __init__(self, *, approve: bool, adjusted_quantity: Decimal | None = None):
@@ -190,6 +191,50 @@ async def test_fix_interface_blocks_when_risk_gateway_rejects() -> None:
     assert reference["risk_api_runbook"] == RISK_API_RUNBOOK
     assert reference["limits"]["max_open_positions"] == 5
     assert reference["risk_config_summary"]["max_risk_per_trade_pct"] == pytest.approx(0.02)
+
+
+@pytest.mark.asyncio
+async def test_fix_interface_enriches_risk_reference_from_provider() -> None:
+    bus = DummyEventBus()
+    trade_queue: asyncio.Queue[Any] = asyncio.Queue()
+
+    config = RiskConfig(
+        max_risk_per_trade_pct=Decimal("0.02"),
+        max_total_exposure_pct=Decimal("0.50"),
+        mandatory_stop_loss=True,
+    )
+
+    interface = TradingRiskInterface(
+        config=config,
+        status={"policy_limits": {"max_leverage": 7}},
+    )
+
+    def provider() -> TradingRiskInterface:
+        return interface
+
+    broker = FIXBrokerInterface(
+        bus,
+        trade_queue,
+        DummyFixInitiator(),
+        risk_interface_provider=provider,
+    )
+
+    await broker._publish_risk_rejection("EURUSD", "buy", 10_000.0, None)
+
+    assert bus.emitted
+    topic, payload = bus.emitted[-1]
+    assert topic == "telemetry.risk.intent_rejected"
+    reference = payload["risk_reference"]
+    assert reference["risk_api_runbook"] == RISK_API_RUNBOOK
+    summary = reference["risk_config_summary"]
+    assert summary["max_risk_per_trade_pct"] == pytest.approx(0.02)
+    assert summary["max_total_exposure_pct"] == pytest.approx(0.50)
+    status = reference.get("risk_interface_status")
+    assert status is not None
+    assert status["policy_limits"]["max_leverage"] == pytest.approx(7)
+    config_payload = reference.get("risk_config")
+    assert config_payload is not None
+    assert config_payload["mandatory_stop_loss"] is True
 
 
 @pytest.mark.asyncio

@@ -12,12 +12,21 @@ from datetime import datetime
 # Add typing for callbacks and awaitables
 from collections import defaultdict
 from decimal import Decimal
-from typing import Any, Awaitable, Callable, Coroutine, Mapping, MutableMapping, Optional, Protocol
+from typing import (
+    Any,
+    Awaitable,
+    Callable,
+    Coroutine,
+    Mapping,
+    MutableMapping,
+    Optional,
+    Protocol,
+)
 
 import simplefix
 
 from src.operational.structured_logging import get_logger, order_logging_context
-from src.trading.risk.risk_api import RISK_API_RUNBOOK
+from src.trading.risk.risk_api import RISK_API_RUNBOOK, TradingRiskInterface
 
 logger = get_logger(__name__)
 
@@ -73,6 +82,7 @@ class FIXBrokerInterface:
         risk_gateway: SupportsRiskGateway | None = None,
         portfolio_state_provider: Callable[[str], Mapping[str, Any]] | None = None,
         risk_event_topic: str = "telemetry.risk.intent_rejected",
+        risk_interface_provider: Callable[[], Any] | None = None,
     ) -> None:
         """
         Initialize FIX broker interface.
@@ -94,6 +104,7 @@ class FIXBrokerInterface:
         self._risk_gateway = risk_gateway
         self._portfolio_state_provider = portfolio_state_provider
         self._risk_event_topic = risk_event_topic
+        self._risk_interface_provider = risk_interface_provider
 
     async def start(self) -> None:
         """Start the broker interface."""
@@ -284,13 +295,59 @@ class FIXBrokerInterface:
                     runbook = limits_payload.get("runbook")
                     if isinstance(runbook, str) and runbook:
                         risk_reference["risk_api_runbook"] = runbook
+        provider = self._risk_interface_provider
+        if provider is not None:
+            try:
+                candidate = provider()
+            except Exception:
+                logger.debug("risk_interface_provider_failed", exc_info=True)
+            else:
+                reference = self._normalise_risk_interface(candidate)
+                for key, value in reference.items():
+                    if isinstance(value, Mapping):
+                        value = dict(value)
+                    existing = risk_reference.get(key)
+                    if isinstance(existing, dict) and isinstance(value, dict):
+                        merged = dict(existing)
+                        merged.update(value)
+                        risk_reference[key] = merged
+                    else:
+                        risk_reference.setdefault(key, value)
         if risk_reference:
+            risk_reference.setdefault("risk_api_runbook", RISK_API_RUNBOOK)
             payload["risk_reference"] = risk_reference
 
         try:
             await self.event_bus.emit(self._risk_event_topic, payload)
         except Exception as exc:
             logger.debug("risk_violation_emit_failed", error=str(exc))
+
+    @staticmethod
+    def _normalise_risk_interface(candidate: Any) -> dict[str, object]:
+        """Convert ``candidate`` into a serialisable risk reference payload."""
+
+        reference: dict[str, object] = {}
+        if isinstance(candidate, TradingRiskInterface):
+            reference["risk_config_summary"] = candidate.summary()
+            if candidate.status is not None:
+                reference["risk_interface_status"] = dict(candidate.status)
+            reference["risk_config"] = candidate.config.dict()
+            return reference
+
+        if isinstance(candidate, Mapping):
+            summary = candidate.get("summary")
+            if isinstance(summary, Mapping):
+                reference["risk_config_summary"] = dict(summary)
+            status = candidate.get("status")
+            if isinstance(status, Mapping):
+                reference["risk_interface_status"] = dict(status)
+            config = candidate.get("config")
+            if isinstance(config, Mapping):
+                reference["risk_config"] = dict(config)
+            runbook = candidate.get("risk_api_runbook") or candidate.get("runbook")
+            if isinstance(runbook, str) and runbook:
+                reference["risk_api_runbook"] = runbook
+        return reference
 
     async def _process_trade_messages(self) -> None:
         """Process trade messages from the queue."""

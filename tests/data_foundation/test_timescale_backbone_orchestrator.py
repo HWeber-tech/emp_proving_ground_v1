@@ -215,7 +215,20 @@ def test_orchestrator_runs_all_slices_and_publishes_metadata() -> None:
     assert metadata_dimensions == {"daily_bars", "intraday_trades", "macro_events"}
     for result, metadata in publisher.published:
         assert metadata["source"] == result.source
-        assert metadata["requested_symbols"] if metadata["plan"] != "macro_events" else True
+        if metadata["plan"] != "macro_events":
+            assert metadata["requested_symbols"]
+        assert metadata["rows_written"] == result.rows_written
+        assert metadata["result"]["rows_written"] == result.rows_written
+        assert metadata["result"]["dimension"] == result.dimension
+        assert metadata["ingested_symbols"] == list(result.symbols)
+        assert metadata["result_duration_seconds"] == result.ingest_duration_seconds
+        assert metadata["result_freshness_seconds"] == result.freshness_seconds
+        assert metadata["result_start_ts"] == (
+            result.start_ts.isoformat() if result.start_ts else None
+        )
+        assert metadata["result_end_ts"] == (
+            result.end_ts.isoformat() if result.end_ts else None
+        )
 
 
 def test_orchestrator_disposes_engine_when_intraday_fetcher_missing() -> None:
@@ -274,6 +287,9 @@ def test_orchestrator_fetches_macro_window_when_events_missing() -> None:
     _, metadata = publisher.published[0]
     assert metadata["fetched_via_window"] is True
     assert metadata["fetched_events"] == 1
+    assert metadata["rows_written"] == macro_result.rows_written
+    assert metadata["result"]["dimension"] == "macro_events"
+    assert metadata["ingested_symbols"] == list(macro_result.symbols)
     assert settings.engine.disposed is True
 
 
@@ -323,4 +339,7 @@ def test_orchestrator_emits_zero_row_metadata_for_empty_symbols() -> None:
     assert macro_meta["provided_events"] == 0
     assert macro_meta["fetched_events"] == 0
     assert macro_meta["frame_rows"] == 0
+    assert macro_meta["rows_written"] == 0
+    assert macro_meta["ingested_symbols"] == []
+    assert macro_meta["result_freshness_seconds"] is None
 

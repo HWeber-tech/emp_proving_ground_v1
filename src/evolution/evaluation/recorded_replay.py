@@ -201,6 +201,8 @@ class RecordedEvaluationResult:
     wins: int
     losses: int
     trade_log: tuple[RecordedTrade, ...]
+    max_consecutive_losses: int
+    average_trade_duration_minutes: float
 
     def to_fitness_payload(self) -> dict[str, float]:
         return {
@@ -224,6 +226,8 @@ class RecordedEvaluationResult:
             "wins": self.wins,
             "losses": self.losses,
             "trade_log": [trade.as_dict() for trade in self.trade_log],
+            "max_consecutive_losses": self.max_consecutive_losses,
+            "average_trade_duration_minutes": self.average_trade_duration_minutes,
         }
 
 
@@ -266,6 +270,8 @@ class RecordedSensoryEvaluator:
                 wins=0,
                 losses=0,
                 trade_log=(),
+                max_consecutive_losses=0,
+                average_trade_duration_minutes=0.0,
             )
 
         equity = 1.0
@@ -277,6 +283,8 @@ class RecordedSensoryEvaluator:
         cooldown = 0
         peak = equity
         max_drawdown = 0.0
+        loss_streak = 0
+        max_loss_streak = 0
 
         for previous, current in zip(snapshots, snapshots[1:]):
             if previous.price == 0:
@@ -302,6 +310,7 @@ class RecordedSensoryEvaluator:
                     or abs(current.strength) <= exit_threshold
                 )
                 if should_exit:
+                    trade_return: float | None = None
                     if (
                         entry_snapshot is not None
                         and entry_snapshot.price not in (None, 0.0)
@@ -324,6 +333,13 @@ class RecordedSensoryEvaluator:
                                 strength_close=current.strength,
                             )
                         )
+                    if trade_return is not None:
+                        if trade_return < 0:
+                            loss_streak += 1
+                            if loss_streak > max_loss_streak:
+                                max_loss_streak = loss_streak
+                        else:
+                            loss_streak = 0
                     position = 0
                     entry_snapshot = None
                     cooldown = cooldown_steps
@@ -366,6 +382,12 @@ class RecordedSensoryEvaluator:
                     strength_close=final_snapshot.strength,
                 )
             )
+            if trade_return < 0:
+                loss_streak += 1
+                if loss_streak > max_loss_streak:
+                    max_loss_streak = loss_streak
+            else:
+                loss_streak = 0
 
         trades = len(trade_log)
         wins = sum(1 for trade in trade_log if trade.return_pct > 0)
@@ -375,6 +397,18 @@ class RecordedSensoryEvaluator:
         avg_return = mean(returns) if returns else 0.0
         sharpe = avg_return / volatility if volatility > 0 else 0.0
         total_return = equity - 1.0
+        if trades:
+            avg_duration_minutes = float(
+                mean(
+                    (
+                        (trade.closed_at - trade.opened_at).total_seconds()
+                        / 60.0
+                    )
+                    for trade in trade_log
+                )
+            )
+        else:
+            avg_duration_minutes = 0.0
 
         return RecordedEvaluationResult(
             equity_curve=tuple(equity_curve),
@@ -387,6 +421,8 @@ class RecordedSensoryEvaluator:
             wins=wins,
             losses=losses,
             trade_log=tuple(trade_log),
+            max_consecutive_losses=max_loss_streak,
+            average_trade_duration_minutes=float(avg_duration_minutes),
         )
 
     def _extract_parameters(self, genome: object | Mapping[str, object]) -> dict[str, float]:

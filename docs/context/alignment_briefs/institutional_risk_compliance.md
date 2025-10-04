@@ -49,6 +49,10 @@
   summaries, and publish violation alerts with embedded escalation metadata while
   the trading manager mirrors the feed and the new runbook documents the response,
   giving governance a deterministic alert surface when violations occur.【F:src/trading/risk/policy_telemetry.py†L1-L285】【F:src/trading/trading_manager.py†L642-L686】【F:docs/operations/runbooks/risk_policy_violation.md†L1-L51】【F:tests/trading/test_risk_policy_telemetry.py†L1-L199】
+- Progress: Parity checker telemetry now wraps gauge publication in defensive
+  logging, recording order and position mismatches even when the metrics sink
+  misbehaves so compliance dashboards surface reconciliation issues instead of
+  silently masking telemetry drops.【F:src/trading/monitoring/parity_checker.py†L53-L156】
 - Progress: Canonical `RiskConfig` now normalises instrument/sector inputs,
   rejects duplicate sector limits, enforces sector budgets against the global
   exposure cap, and retains the research-mode and position-sizing guards so

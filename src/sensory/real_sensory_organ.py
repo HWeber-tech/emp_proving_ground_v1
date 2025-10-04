@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections import deque
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Mapping, Sequence
 
@@ -10,12 +11,27 @@ from src.core.event_bus import Event
 from src.sensory.anomaly.anomaly_sensor import AnomalySensor
 from src.sensory.how.how_sensor import HowSensor
 from src.sensory.lineage import build_lineage_record
+from src.sensory.monitoring.sensor_drift import SensorDriftSummary, evaluate_sensor_drift
 from src.sensory.signals import IntegratedSignal, SensorSignal
 from src.sensory.what.what_sensor import WhatSensor
 from src.sensory.when.when_sensor import WhenSensor
 from src.sensory.why.why_sensor import WhySensor
 
-__all__ = ["RealSensoryOrgan"]
+__all__ = ["RealSensoryOrgan", "SensoryDriftConfig"]
+
+
+@dataclass(slots=True)
+class SensoryDriftConfig:
+    """Configuration controlling sensory drift instrumentation."""
+
+    baseline_window: int = 60
+    evaluation_window: int = 20
+    min_observations: int = 10
+    z_threshold: float = 3.0
+    sensors: tuple[str, ...] = ("WHY", "WHAT", "WHEN", "HOW", "ANOMALY")
+
+    def required_samples(self) -> int:
+        return self.baseline_window + self.evaluation_window
 
 
 class RealSensoryOrgan:
@@ -32,6 +48,7 @@ class RealSensoryOrgan:
         event_bus: Any | None = None,
         event_type: str = "telemetry.sensory.snapshot",
         audit_window: int = 128,
+        drift_config: SensoryDriftConfig | None = None,
     ) -> None:
         self._why = why_sensor or WhySensor()
         self._how = how_sensor or HowSensor()
@@ -40,8 +57,11 @@ class RealSensoryOrgan:
         self._anomaly = anomaly_sensor or AnomalySensor()
         self._event_bus = event_bus
         self._event_type = event_type
-        self._audit_trail: deque[Mapping[str, Any]] = deque(maxlen=max(1, audit_window))
+        self._drift_config = self._validate_drift_config(drift_config)
+        min_window = max(self._validate_window(audit_window), self._drift_config.required_samples())
+        self._audit_trail: deque[Mapping[str, Any]] = deque(maxlen=min_window)
         self._latest_snapshot: Mapping[str, Any] | None = None
+        self._latest_drift: SensorDriftSummary | None = None
 
     # ------------------------------------------------------------------
     def observe(
@@ -154,6 +174,8 @@ class RealSensoryOrgan:
             },
         }
         self._audit_trail.appendleft(audit_entry)
+        self._refresh_drift_summary()
+        snapshot["drift_summary"] = self._latest_drift
         self._latest_snapshot = snapshot
         self._publish_snapshot(snapshot)
         return snapshot
@@ -173,6 +195,7 @@ class RealSensoryOrgan:
             "samples": len(self._audit_trail),
             "latest": self._serialise_snapshot(latest) if latest else None,
             "sensor_audit": self.audit_trail(limit=5),
+            "drift_summary": self._serialise_drift_summary(self._latest_drift),
         }
 
     # ------------------------------------------------------------------
@@ -288,6 +311,9 @@ class RealSensoryOrgan:
                 for name, entry in dimensions.items()
                 if isinstance(entry, Mapping)
             }
+        drift_summary = snapshot.get("drift_summary")
+        if isinstance(drift_summary, SensorDriftSummary):
+            payload["drift_summary"] = self._serialise_drift_summary(drift_summary)
         return payload
 
     def _format_timestamp(self, value: Any) -> str | None:
@@ -308,6 +334,87 @@ class RealSensoryOrgan:
             return float(value)
         except (TypeError, ValueError):
             return None
+
+    def _validate_window(self, value: int) -> int:
+        if value <= 0:
+            return 1
+        return int(value)
+
+    def _validate_drift_config(
+        self, drift_config: SensoryDriftConfig | None
+    ) -> SensoryDriftConfig:
+        config = drift_config or SensoryDriftConfig()
+        if config.baseline_window <= 0 or config.evaluation_window <= 0:
+            raise ValueError("Drift windows must be positive integers")
+        if config.min_observations <= 0:
+            raise ValueError("min_observations must be a positive integer")
+        if not config.sensors:
+            raise ValueError("At least one sensor must be configured for drift monitoring")
+        return config
+
+    def _build_drift_frame(self, config: SensoryDriftConfig) -> pd.DataFrame | None:
+        sensors = list(dict.fromkeys(config.sensors))
+        if not sensors:
+            return None
+
+        records: list[dict[str, Any]] = []
+        for entry in reversed(self._audit_trail):
+            dimensions = entry.get("dimensions", {})
+            if not isinstance(dimensions, Mapping):
+                continue
+            record: dict[str, Any] = {"generated_at": entry.get("generated_at")}
+            for sensor in sensors:
+                payload = dimensions.get(sensor)
+                if isinstance(payload, Mapping):
+                    record[sensor] = payload.get("signal")
+            records.append(record)
+
+        if not records:
+            return None
+
+        frame = pd.DataFrame(records)
+        sensor_columns = [sensor for sensor in sensors if sensor in frame.columns]
+        if not sensor_columns:
+            return None
+
+        for column in sensor_columns:
+            frame[column] = pd.to_numeric(frame[column], errors="coerce")
+
+        frame = frame.dropna(subset=sensor_columns, how="all")
+        required = config.required_samples()
+        if frame.shape[0] < required:
+            return None
+        return frame.tail(required)
+
+    def _refresh_drift_summary(self) -> None:
+        frame = self._build_drift_frame(self._drift_config)
+        if frame is None:
+            self._latest_drift = None
+            return
+
+        try:
+            summary = evaluate_sensor_drift(
+                frame,
+                sensor_columns=list(self._drift_config.sensors),
+                baseline_window=self._drift_config.baseline_window,
+                evaluation_window=self._drift_config.evaluation_window,
+                min_observations=self._drift_config.min_observations,
+                z_threshold=self._drift_config.z_threshold,
+            )
+        except ValueError:
+            self._latest_drift = None
+            return
+
+        self._latest_drift = summary
+
+    def _serialise_drift_summary(
+        self, summary: SensorDriftSummary | None
+    ) -> Mapping[str, Any] | None:
+        if summary is None:
+            return None
+        data = summary.as_dict()
+        data["exceeded"] = [result.as_dict() for result in summary.exceeded]
+        return data
 
     def _publish_snapshot(self, snapshot: Mapping[str, Any]) -> None:
         if self._event_bus is None:
@@ -335,6 +442,11 @@ class RealSensoryOrgan:
             "lineage": snapshot.get("lineage").as_dict()
             if hasattr(snapshot.get("lineage"), "as_dict")
             else snapshot.get("lineage"),
+            "drift_summary": self._serialise_drift_summary(
+                snapshot.get("drift_summary")
+                if isinstance(snapshot.get("drift_summary"), SensorDriftSummary)
+                else None
+            ),
         }
 
         event = Event(

@@ -5,7 +5,7 @@ from typing import Any
 
 import pandas as pd
 
-from src.sensory.real_sensory_organ import RealSensoryOrgan
+from src.sensory.real_sensory_organ import RealSensoryOrgan, SensoryDriftConfig
 
 
 class _StubBus:
@@ -95,10 +95,14 @@ def test_real_sensory_organ_observe_builds_snapshot() -> None:
     assert len(audit_entries) == 1
     assert audit_entries[0]["dimensions"]["WHAT"]["confidence"] == dimensions["WHAT"]["confidence"]
 
+    assert snapshot["drift_summary"] is None
+
     assert bus.events
     event_type, payload = bus.events[0]
     assert event_type == "telemetry.sensory.snapshot"
     assert payload["symbol"] == "EURUSD"
+    assert "drift_summary" in payload
+    assert payload["drift_summary"] is None
 
 
 def test_real_sensory_organ_handles_empty_frame() -> None:
@@ -109,3 +113,30 @@ def test_real_sensory_organ_handles_empty_frame() -> None:
     integrated = snapshot["integrated_signal"]
     assert integrated.strength == 0.0
     assert organ.audit_trail(limit=1)
+
+
+def test_real_sensory_organ_exposes_drift_summary_after_window() -> None:
+    frame = _build_market_frame()
+    bus = _StubBus()
+    config = SensoryDriftConfig(
+        baseline_window=3,
+        evaluation_window=2,
+        min_observations=1,
+        z_threshold=1.5,
+        sensors=("WHY", "HOW"),
+    )
+    organ = RealSensoryOrgan(event_bus=bus, drift_config=config)
+
+    for _ in range(5):
+        organ.observe(frame)
+
+    status = organ.status()
+    drift_summary = status["drift_summary"]
+    assert drift_summary is not None
+    assert drift_summary["parameters"]["baseline_window"] == 3
+    assert drift_summary["parameters"]["evaluation_window"] == 2
+    assert drift_summary["results"]
+
+    latest_event = bus.events[-1][1]
+    assert latest_event["drift_summary"] is not None
+    assert latest_event["drift_summary"]["parameters"]["z_threshold"] == config.z_threshold

@@ -54,10 +54,10 @@
     publishes via the failover helper under pytest coverage so dashboards retain
     degradation evidence even when the runtime bus misbehaves.【F:src/operations/system_validation.py†L1-L312】【F:tests/operations/test_system_validation.py†L1-L195】
   - Progress: Event bus failover helper now powers security, system validation,
-    compliance readiness, incident response, and evolution experiment
-    publishers, replacing ad-hoc blanket handlers with typed errors and
+    compliance readiness, incident response, evolution experiment, and evolution
+    tuning publishers, replacing ad-hoc blanket handlers with typed errors and
     structured logging so transport regressions escalate consistently across
-    modules.【F:src/operations/event_bus_failover.py†L1-L174】【F:src/operations/incident_response.py†L675-L715】【F:src/operations/evolution_experiments.py†L297-L342】【F:tests/operations/test_event_bus_failover.py†L1-L164】【F:tests/operations/test_incident_response.py†L135-L179】【F:tests/operations/test_evolution_experiments.py†L135-L191】
+    modules.【F:src/operations/event_bus_failover.py†L1-L174】【F:src/operations/incident_response.py†L675-L715】【F:src/operations/evolution_experiments.py†L297-L342】【F:src/operations/evolution_tuning.py†L410-L433】【F:tests/operations/test_event_bus_failover.py†L1-L164】【F:tests/operations/test_incident_response.py†L135-L179】【F:tests/operations/test_evolution_experiments.py†L135-L191】【F:tests/operations/test_evolution_tuning.py†L226-L281】
   - Progress: Execution readiness telemetry now rides the shared failover
     helper, logging runtime publish failures, escalating unexpected exceptions,
     and falling back to the global bus under pytest coverage so dashboards keep
@@ -95,10 +95,11 @@
     per-status breakdowns and component maps so dashboards can render severity
     chips without reimplementing escalation logic, with pytest and docs locking
     the contract alongside the runtime exposure.【F:src/operations/operational_readiness.py†L200-L256】【F:tests/operations/test_operational_readiness.py†L1-L86】【F:docs/status/operational_readiness.md†L1-L34】【F:tests/runtime/test_professional_app_timescale.py†L722-L799】
-  - Progress: Coverage matrix CLI now exposes lagging domains via the new
-    `identify_laggards` helper, supports a `--fail-below-threshold` guardrail,
-    and carries pytest coverage so CI can fail fast when coverage drops instead
-    of relying on manual dashboards.【F:tools/telemetry/coverage_matrix.py†L184-L304】【F:tests/tools/test_coverage_matrix.py†L1-L182】
+  - Progress: Coverage matrix CLI now exposes lagging domains via the
+    `identify_laggards` helper, exports the list of covered source files, and
+    enforces required regression suites through `--require-file`, failing the
+    build and logging missing paths under pytest coverage when critical files
+    fall out of reports.【F:tools/telemetry/coverage_matrix.py†L83-L357】【F:tests/tools/test_coverage_matrix.py†L136-L225】
   - Progress: Observability dashboard surfaces operational readiness as a
     first-class panel, counting component severities, embedding metadata, and
     feeding remediation summaries under pytest coverage so responders inherit a

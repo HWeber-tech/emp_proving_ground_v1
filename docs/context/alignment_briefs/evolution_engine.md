@@ -53,9 +53,10 @@
 - Build population management routines (selection, mutation, evaluation) tied to
   recorded datasets; expose metrics via runtime summaries.
 - Progress: Recorded sensory replay evaluator converts archived sensory
-  snapshots into deterministic evaluation metrics, wiring price/confidence
-  extraction and replay scoring under pytest coverage so genomes can be vetted
-  against recorded data before live ingest arrives.【F:src/evolution/evaluation/recorded_replay.py†L1-L193】【F:tests/evolution/test_recorded_replay_evaluator.py†L1-L108】
+  snapshots into deterministic evaluation metrics and now emits a trade ledger
+  with confidence/strength metadata plus a trade-count fitness field so replay
+  audits surface actionable evidence under pytest coverage before live ingest
+  arrives.【F:src/evolution/evaluation/recorded_replay.py†L160-L389】【F:tests/evolution/test_recorded_replay_evaluator.py†L37-L98】
 - Surface lineage telemetry and integrate with compliance workflow templates for
   strategy approvals.
 - Progress: Evolution experiment telemetry now guards publish failures, records

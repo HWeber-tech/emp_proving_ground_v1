@@ -90,9 +90,10 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
     champion metadata so reviewers can gate adaptive runs deterministically
     under pytest coverage.【F:src/operations/evolution_readiness.py†L1-L206】【F:tests/operations/test_evolution_readiness.py†L1-L118】
   - *Progress*: Recorded sensory replay evaluator converts archived sensory
-    snapshots into deterministic fitness metrics, wiring price/confidence
-    extraction and regression coverage so adaptive runs can be validated without
-    live feeds while preserving reproducible fitness payloads.【F:src/evolution/evaluation/recorded_replay.py†L1-L193】【F:tests/evolution/test_recorded_replay_evaluator.py†L1-L108】
+    snapshots into deterministic fitness metrics, now emitting a structured
+    trade ledger with confidence/strength metadata and exporting the trade
+    count inside the fitness payload so adaptive runs surface auditable replay
+    evidence under pytest coverage.【F:src/evolution/evaluation/recorded_replay.py†L160-L389】【F:tests/evolution/test_recorded_replay_evaluator.py†L37-L98】
   - *Progress*: HOW and ANOMALY sensors now embed sanitised lineage records,
     compute shared threshold posture assessments, and surface state/breach
     metadata on every signal so downstream consumers can audit provenance and
@@ -157,6 +158,10 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
     guardrails and regression tests lock the payload contract, giving operators
     an actionable feed plus an escalation playbook whenever policy violations
     surface.【F:src/trading/risk/policy_telemetry.py†L1-L285】【F:src/trading/trading_manager.py†L642-L686】【F:docs/operations/runbooks/risk_policy_violation.md†L1-L51】【F:tests/trading/test_risk_policy_telemetry.py†L1-L199】
+  - *Progress*: Parity checker telemetry now resolves the metrics sink once,
+    logs failures to access or publish gauges, and emits guarded order/position
+    mismatch counts so institutional monitors see parity outages instead of
+    silently dropping telemetry when instrumentation breaks.【F:src/trading/monitoring/parity_checker.py†L53-L156】
   - *Progress*: FIX broker interface now routes every manual intent through the real
     risk gateway, publishes structured rejection telemetry with policy snapshots,
     deterministic severity flags, and runbook links, and records the gateway
@@ -170,6 +175,10 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
     the global bus, and raising typed errors when both transports degrade so
     operators see deterministic alerts instead of silent drops. Guardrail tests
     capture primary fallbacks, global outages, and backlog escalation.【F:src/operations/event_bus_health.py†L143-L259】【F:tests/operations/test_event_bus_health.py†L22-L235】
+  - *Progress*: Evolution tuning telemetry publisher now reuses the shared
+    failover helper, warning on runtime bus outages, escalating unexpected
+    errors, and exercising fallback/global-error coverage so tuning snapshots
+    stay observable when transports degrade.【F:src/operations/evolution_tuning.py†L410-L433】【F:tests/operations/test_evolution_tuning.py†L226-L281】
   - *Progress*: Execution readiness telemetry now rides the shared failover
     helper, logging runtime publish failures, escalating unexpected runtime and
     global bus errors, and falling back deterministically to the global topic
@@ -194,10 +203,10 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
     events, and routes/publishes snapshots through the failover helper so
     readiness dashboards retain failing-check context even when the runtime bus
     degrades, with pytest guarding evaluation, alerting, and failover flows.【F:src/operations/system_validation.py†L1-L312】【F:tests/operations/test_system_validation.py†L1-L195】
-  - *Progress*: Coverage matrix CLI now surfaces lagging domains and can fail
-    the build when coverage drops below a configurable threshold, with helper
-    utilities and pytest coverage documenting the contract so guardrail
-    enforcement becomes part of CI instead of manual review.【F:tools/telemetry/coverage_matrix.py†L184-L304】【F:tests/tools/test_coverage_matrix.py†L1-L182】
+  - *Progress*: Coverage matrix CLI now surfaces lagging domains, exports the
+    full set of covered source files, and enforces required guardrail suites via
+    `--require-file`, failing CI when critical reports disappear and logging
+    missing paths under pytest coverage.【F:tools/telemetry/coverage_matrix.py†L83-L357】【F:tests/tools/test_coverage_matrix.py†L136-L225】
   - *Progress*: Observability dashboard integrates operational readiness
     snapshots as a first-class panel, summarising component severities and
     surfacing degraded services alongside risk, latency, and backbone telemetry

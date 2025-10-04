@@ -377,3 +377,36 @@ def test_risk_policy_flags_leverage_warning_before_violation() -> None:
     assert leverage_check["threshold"] == pytest.approx(1.2)
     assert leverage_check["value"] >= leverage_check["threshold"] * 0.8
     assert decision.approved is True
+
+
+def test_risk_policy_rejects_when_exceeding_max_position_size() -> None:
+    config = RiskConfig(
+        max_risk_per_trade_pct=Decimal("0.02"),
+        max_total_exposure_pct=Decimal("0.5"),
+        max_leverage=Decimal("5.0"),
+        max_drawdown_pct=Decimal("0.1"),
+        min_position_size=1,
+        max_position_size=Decimal("5_000"),
+    )
+    policy = RiskPolicy.from_config(config)
+
+    decision = policy.evaluate(
+        symbol="EURUSD",
+        quantity=10_000.0,
+        price=1.0,
+        stop_loss_pct=0.01,
+        portfolio_state=_state(),
+    )
+
+    assert decision.approved is False
+    assert decision.reason == "policy.max_position_size"
+    assert "policy.max_position_size" in decision.violations
+
+    max_position_check = next(
+        check for check in decision.checks if check["name"] == "policy.max_position_size"
+    )
+    assert max_position_check["status"] == "violation"
+    assert max_position_check["value"] == pytest.approx(10_000.0)
+    assert max_position_check["threshold"] == pytest.approx(5_000.0)
+
+    assert decision.metadata["violations"] == ("policy.max_position_size",)

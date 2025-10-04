@@ -142,6 +142,8 @@ def test_cli_writes_json_payload(tmp_path: Path, coverage_report: Path) -> None:
     totals = payload["totals"]
     assert totals["files"] == 5
     assert totals["coverage_percent"] == pytest.approx(66.67)
+    assert "source_files" in payload
+    assert "src/sensory/foo.py" in payload["source_files"]
 
 
 def test_cli_fails_when_laggards_present_and_flag_enabled(
@@ -182,3 +184,42 @@ def test_cli_succeeds_when_flag_enabled_but_no_laggards(
 
     assert exit_code == 0
     assert "All tracked domains meet the 0.00% coverage threshold." in captured.out
+
+
+def test_cli_succeeds_when_required_files_present(
+    coverage_report: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    exit_code = coverage_matrix_main(
+        [
+            "--coverage-report",
+            str(coverage_report),
+            "--require-file",
+            "src/sensory/foo.py",
+        ]
+    )
+
+    captured = capsys.readouterr()
+
+    assert exit_code == 0
+    assert "All required files present in coverage" in captured.out
+    assert "src/sensory/foo.py" in captured.out
+
+
+def test_cli_fails_when_required_file_missing(
+    coverage_report: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    exit_code = coverage_matrix_main(
+        [
+            "--coverage-report",
+            str(coverage_report),
+            "--require-file",
+            "src/data_foundation/ingest/scheduler.py",
+        ]
+    )
+
+    captured = capsys.readouterr()
+
+    assert exit_code == 1
+    assert "Missing required coverage for" in captured.out
+    assert "src/data_foundation/ingest/scheduler.py" in captured.out
+    assert "Required files missing from coverage" in captured.err

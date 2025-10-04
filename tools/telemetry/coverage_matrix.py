@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -82,12 +83,14 @@ class CoverageMatrix:
     generated_at: str
     totals: CoverageDomain
     domains: tuple[CoverageDomain, ...]
+    source_files: tuple[str, ...] = ()
 
     def as_dict(self) -> dict[str, object]:
         return {
             "generated_at": self.generated_at,
             "totals": self.totals.as_dict(),
             "domains": [domain.as_dict() for domain in self.domains],
+            "source_files": list(self.source_files),
         }
 
 
@@ -144,17 +147,20 @@ def build_coverage_matrix(coverage_report: Path) -> CoverageMatrix:
         covered, missed = _count_line_coverage(class_node)
         if covered == 0 and missed == 0:
             continue
+        normalised_filename = "/".join(_normalise_parts(filename))
+        if not normalised_filename:
+            continue
         domain = _classify_domain(filename)
         totals = domain_totals.setdefault(
             domain,
             {"files": set(), "covered": 0, "missed": 0},
         )
-        totals["files"].add(filename)
+        totals["files"].add(normalised_filename)
         totals["covered"] = int(totals["covered"]) + covered
         totals["missed"] = int(totals["missed"]) + missed
         total_covered += covered
         total_missed += missed
-        all_files.add(filename)
+        all_files.add(normalised_filename)
 
     domains = [
         CoverageDomain(
@@ -178,6 +184,7 @@ def build_coverage_matrix(coverage_report: Path) -> CoverageMatrix:
         generated_at=datetime.now(tz=UTC).isoformat(timespec="seconds"),
         totals=totals_domain,
         domains=tuple(domains),
+        source_files=tuple(sorted(all_files)),
     )
 
 
@@ -264,6 +271,18 @@ def _build_parser() -> argparse.ArgumentParser:
             "threshold."
         ),
     )
+    parser.add_argument(
+        "--require-file",
+        dest="require_files",
+        action="append",
+        default=[],
+        metavar="PATH",
+        help=(
+            "Require that the coverage report includes the given file. Provide "
+            "multiple --require-file flags to guardrail critical regression "
+            "suites."
+        ),
+    )
     return parser
 
 
@@ -273,6 +292,15 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     matrix = build_coverage_matrix(args.coverage_report)
     laggards = identify_laggards(matrix, threshold=args.threshold)
+
+    required_files = tuple(args.require_files)
+    missing_required: list[str] = []
+    if required_files:
+        available_files = set(matrix.source_files)
+        for required in required_files:
+            normalised = "/".join(_normalise_parts(required))
+            if normalised not in available_files:
+                missing_required.append(normalised or required)
 
     if args.format == "json":
         payload = matrix.as_dict()
@@ -284,9 +312,31 @@ def main(argv: Sequence[str] | None = None) -> int:
             if laggards
             else (matrix.domains[0].as_dict() if matrix.domains else None)
         )
+        if required_files:
+            payload["required_files"] = [
+                "/".join(_normalise_parts(path)) for path in required_files
+            ]
+            payload["missing_required_files"] = missing_required
         output_text = json.dumps(payload, indent=2, sort_keys=True) + "\n"
     else:
         output_text = render_markdown(matrix, threshold=args.threshold)
+        if required_files:
+            output_text = output_text.rstrip() + "\n"
+            if missing_required:
+                output_text += (
+                    "Missing required coverage for: "
+                    + ", ".join(sorted(missing_required))
+                    + "\n"
+                )
+            else:
+                normalised = [
+                    "/".join(_normalise_parts(path)) for path in required_files
+                ]
+                output_text += (
+                    "All required files present in coverage: "
+                    + ", ".join(sorted(normalised))
+                    + "\n"
+                )
 
     if args.output is None:
         print(output_text, end="")
@@ -294,10 +344,19 @@ def main(argv: Sequence[str] | None = None) -> int:
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(output_text)
 
+    exit_code = 0
     if laggards and args.fail_below_threshold:
-        return 1
+        exit_code = 1
+    if missing_required:
+        if exit_code == 0:
+            exit_code = 1
+        print(
+            "Required files missing from coverage: "
+            + ", ".join(sorted(missing_required)),
+            file=sys.stderr,
+        )
 
-    return 0
+    return exit_code
 
 
 __all__ = [

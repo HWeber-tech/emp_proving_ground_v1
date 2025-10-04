@@ -34,6 +34,7 @@ __all__ = [
     "RecordedSensorySnapshot",
     "RecordedEvaluationResult",
     "RecordedSensoryEvaluator",
+    "RecordedTrade",
 ]
 
 
@@ -157,6 +158,36 @@ class RecordedSensorySnapshot:
 
 
 @dataclass(frozen=True, slots=True)
+class RecordedTrade:
+    """Summary of a simulated trade generated during replay evaluation."""
+
+    opened_at: datetime
+    closed_at: datetime
+    direction: int
+    entry_price: float
+    exit_price: float
+    return_pct: float
+    confidence_open: float
+    confidence_close: float
+    strength_open: float
+    strength_close: float
+
+    def as_dict(self) -> dict[str, object]:
+        return {
+            "opened_at": self.opened_at.isoformat(),
+            "closed_at": self.closed_at.isoformat(),
+            "direction": self.direction,
+            "entry_price": self.entry_price,
+            "exit_price": self.exit_price,
+            "return_pct": self.return_pct,
+            "confidence_open": self.confidence_open,
+            "confidence_close": self.confidence_close,
+            "strength_open": self.strength_open,
+            "strength_close": self.strength_close,
+        }
+
+
+@dataclass(frozen=True, slots=True)
 class RecordedEvaluationResult:
     """Deterministic metrics summarising a replay backtest."""
 
@@ -169,6 +200,7 @@ class RecordedEvaluationResult:
     trades: int
     wins: int
     losses: int
+    trade_log: tuple[RecordedTrade, ...]
 
     def to_fitness_payload(self) -> dict[str, float]:
         return {
@@ -177,6 +209,7 @@ class RecordedEvaluationResult:
             "max_drawdown": float(self.max_drawdown),
             "sharpe_ratio": float(self.sharpe_ratio),
             "volatility": float(self.volatility),
+            "trade_count": float(self.trades),
         }
 
     def as_dict(self) -> dict[str, object]:
@@ -190,6 +223,7 @@ class RecordedEvaluationResult:
             "trades": self.trades,
             "wins": self.wins,
             "losses": self.losses,
+            "trade_log": [trade.as_dict() for trade in self.trade_log],
         }
 
 
@@ -231,14 +265,15 @@ class RecordedSensoryEvaluator:
                 trades=0,
                 wins=0,
                 losses=0,
+                trade_log=(),
             )
 
         equity = 1.0
         equity_curve: list[float] = [equity]
         returns: list[float] = []
         position = 0  # -1 short, 0 flat, 1 long
-        entry_price: float | None = None
-        trades = wins = losses = 0
+        entry_snapshot: RecordedSensorySnapshot | None = None
+        trade_log: list[RecordedTrade] = []
         cooldown = 0
         peak = equity
         max_drawdown = 0.0
@@ -267,14 +302,30 @@ class RecordedSensoryEvaluator:
                     or abs(current.strength) <= exit_threshold
                 )
                 if should_exit:
-                    if entry_price not in (None, 0.0):
-                        trade_return = position * (current.price - entry_price) / entry_price
-                        if trade_return > 0:
-                            wins += 1
-                        elif trade_return < 0:
-                            losses += 1
+                    if (
+                        entry_snapshot is not None
+                        and entry_snapshot.price not in (None, 0.0)
+                    ):
+                        trade_return = position * (
+                            (current.price - entry_snapshot.price)
+                            / entry_snapshot.price
+                        )
+                        trade_log.append(
+                            RecordedTrade(
+                                opened_at=entry_snapshot.timestamp,
+                                closed_at=current.timestamp,
+                                direction=position,
+                                entry_price=entry_snapshot.price,
+                                exit_price=current.price,
+                                return_pct=float(trade_return),
+                                confidence_open=entry_snapshot.confidence,
+                                confidence_close=current.confidence,
+                                strength_open=entry_snapshot.strength,
+                                strength_close=current.strength,
+                            )
+                        )
                     position = 0
-                    entry_price = None
+                    entry_snapshot = None
                     cooldown = cooldown_steps
                 continue
 
@@ -286,21 +337,39 @@ class RecordedSensoryEvaluator:
                 continue
             if current.strength >= entry_threshold:
                 position = 1
-                entry_price = current.price
-                trades += 1
+                entry_snapshot = current
             elif current.strength <= -entry_threshold:
                 position = -1
-                entry_price = current.price
-                trades += 1
+                entry_snapshot = current
 
-        if position != 0 and entry_price not in (None, 0.0):
-            final_price = snapshots[-1].price
-            trade_return = position * (final_price - entry_price) / entry_price
-            if trade_return > 0:
-                wins += 1
-            elif trade_return < 0:
-                losses += 1
+        if (
+            position != 0
+            and entry_snapshot is not None
+            and entry_snapshot.price not in (None, 0.0)
+        ):
+            final_snapshot = snapshots[-1]
+            trade_return = position * (
+                (final_snapshot.price - entry_snapshot.price)
+                / entry_snapshot.price
+            )
+            trade_log.append(
+                RecordedTrade(
+                    opened_at=entry_snapshot.timestamp,
+                    closed_at=final_snapshot.timestamp,
+                    direction=position,
+                    entry_price=entry_snapshot.price,
+                    exit_price=final_snapshot.price,
+                    return_pct=float(trade_return),
+                    confidence_open=entry_snapshot.confidence,
+                    confidence_close=final_snapshot.confidence,
+                    strength_open=entry_snapshot.strength,
+                    strength_close=final_snapshot.strength,
+                )
+            )
 
+        trades = len(trade_log)
+        wins = sum(1 for trade in trade_log if trade.return_pct > 0)
+        losses = sum(1 for trade in trade_log if trade.return_pct < 0)
         win_rate = wins / trades if trades else 0.0
         volatility = stdev(returns) if len(returns) >= 2 else 0.0
         avg_return = mean(returns) if returns else 0.0
@@ -317,6 +386,7 @@ class RecordedSensoryEvaluator:
             trades=trades,
             wins=wins,
             losses=losses,
+            trade_log=tuple(trade_log),
         )
 
     def _extract_parameters(self, genome: object | Mapping[str, object]) -> dict[str, float]:

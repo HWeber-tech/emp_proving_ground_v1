@@ -324,3 +324,45 @@ def test_orchestrator_emits_zero_row_metadata_for_empty_symbols() -> None:
     assert macro_meta["fetched_events"] == 0
     assert macro_meta["frame_rows"] == 0
 
+
+def test_orchestrator_warns_when_macro_plan_lacks_events_and_window(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    settings = _RecordingSettings()
+    publisher = _RecordingPublisher()
+
+    orchestrator = TimescaleBackboneOrchestrator(
+        settings,
+        migrator_cls=_RecordingMigrator,
+        ingestor_cls=_RecordingIngestor,
+        event_publisher=publisher,
+    )
+
+    plan = TimescaleBackbonePlan(macro=MacroEventIngestPlan(events=None, source="fred"))
+
+    def _fail_fetch_macro(start: str, end: str) -> Sequence[MacroEvent]:  # pragma: no cover - defensive helper
+        raise AssertionError("fetch_macro should not be invoked without a window")
+
+    with caplog.at_level("WARNING"):
+        results = orchestrator.run(plan=plan, fetch_macro=_fail_fetch_macro)
+
+    assert set(results) == {"macro_events"}
+    macro_result = results["macro_events"]
+    assert macro_result.rows_written == 0
+    assert macro_result.dimension == "macro_events"
+    assert settings.engine.disposed is True
+
+    assert any(
+        "Macro ingest requested without events or a start/end window; skipping" in message
+        for message in caplog.messages
+    )
+
+    assert len(publisher.published) == 1
+    _, metadata = publisher.published[0]
+    assert metadata["plan"] == "macro_events"
+    assert metadata["window"] is None
+    assert metadata["provided_events"] == 0
+    assert metadata["fetched_events"] == 0
+    assert metadata["frame_rows"] == 0
+    assert "fetched_via_window" not in metadata
+

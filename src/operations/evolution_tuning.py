@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
+import logging
 from collections import Counter
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import Enum
 from typing import Any, Iterable, Mapping, MutableMapping, Sequence
 
-from src.core.event_bus import Event, EventBus, get_global_bus
+from src.core.event_bus import Event, EventBus
 from src.operations.evolution_experiments import (
     ExperimentMetrics,
     ExperimentStatus,
@@ -19,6 +20,10 @@ from src.operations.strategy_performance import (
     StrategyPerformanceSnapshot,
     StrategyPerformanceStatus,
 )
+from src.operations.event_bus_failover import publish_event_with_failover
+
+
+logger = logging.getLogger(__name__)
 
 
 class EvolutionTuningStatus(str, Enum):
@@ -149,7 +154,7 @@ def _coerce_experiment(snapshot: Any) -> EvolutionExperimentSnapshot | None:
                     rejection_reasons=dict(snapshot.get("rejection_reasons", {})),
                     metadata=dict(snapshot.get("metadata", {})),
                 )
-            except Exception:  # pragma: no cover - defensive path
+            except (TypeError, ValueError):  # pragma: no cover - defensive path
                 return None
             return coerced
     return None
@@ -416,19 +421,16 @@ def publish_evolution_tuning_snapshot(
         source=source,
     )
 
-    publish_from_sync = getattr(event_bus, "publish_from_sync", None)
-    if callable(publish_from_sync) and event_bus.is_running():
-        try:
-            publish_from_sync(event)
-            return
-        except Exception:  # pragma: no cover - diagnostics only
-            pass
-
-    try:
-        global_bus = get_global_bus()
-        global_bus.publish_sync(event.type, event.payload, source=event.source)
-    except Exception:  # pragma: no cover - diagnostics only
-        return
+    publish_event_with_failover(
+        event_bus,
+        event,
+        logger=logger,
+        runtime_fallback_message="Runtime event bus unavailable for evolution tuning; falling back to global bus",
+        runtime_unexpected_message="Unexpected error publishing evolution tuning snapshot via runtime event bus",
+        runtime_none_message="Runtime event bus returned no result for evolution tuning snapshot; falling back to global bus",
+        global_not_running_message="Global event bus unavailable while publishing evolution tuning snapshot",
+        global_unexpected_message="Unexpected error publishing evolution tuning snapshot via global bus",
+    )
 
 
 __all__ = [

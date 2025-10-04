@@ -1,4 +1,7 @@
+import logging
 from datetime import UTC, datetime
+
+import pytest
 
 from src.operations.evolution_experiments import (
     ExperimentMetrics,
@@ -7,8 +10,10 @@ from src.operations.evolution_experiments import (
 )
 from src.operations.evolution_tuning import (
     EvolutionTuningStatus,
+    EvolutionTuningSnapshot,
     evaluate_evolution_tuning,
     format_evolution_tuning_markdown,
+    publish_evolution_tuning_snapshot,
 )
 from src.operations.strategy_performance import (
     StrategyPerformanceMetrics,
@@ -16,6 +21,19 @@ from src.operations.strategy_performance import (
     StrategyPerformanceStatus,
     StrategyPerformanceTotals,
 )
+from src.operations.event_bus_failover import EventPublishError
+
+
+class _StubEventBus:
+    def __init__(self) -> None:
+        self.events: list[object] = []
+
+    def publish_from_sync(self, event) -> int:
+        self.events.append(event)
+        return 1
+
+    def is_running(self) -> bool:
+        return True
 
 
 def _make_experiment(
@@ -170,3 +188,94 @@ def test_evaluate_evolution_tuning_scales_successful_strategy() -> None:
     assert rec.action == "scale_successful_strategy"
     assert "consider scaling" in rec.rationale
     assert rec.confidence > 0.5
+
+
+def _make_snapshot() -> EvolutionTuningSnapshot:
+    metric = StrategyPerformanceMetrics(
+        strategy_id="momentum",
+        status=StrategyPerformanceStatus.normal,
+        total_events=5,
+        executed=4,
+        rejected=1,
+        failed=0,
+        other=0,
+        execution_rate=0.8,
+        rejection_rate=0.2,
+        failure_rate=0.0,
+        avg_confidence=0.6,
+        avg_notional=10_000.0,
+        last_event_at=datetime(2024, 1, 7, tzinfo=UTC),
+        rejection_reasons={"risk": 1},
+        metadata={},
+    )
+    performance = _make_performance(
+        metric,
+        status=StrategyPerformanceStatus.normal,
+        roi=0.05,
+        roi_status="steady",
+    )
+    experiment = _make_experiment(
+        status=ExperimentStatus.normal,
+        execution_rate=0.9,
+        roi=0.05,
+        roi_status="steady",
+    )
+    return evaluate_evolution_tuning(experiment, performance)
+
+
+def test_publish_evolution_tuning_snapshot_prefers_runtime_bus() -> None:
+    bus = _StubEventBus()
+    snapshot = _make_snapshot()
+
+    publish_evolution_tuning_snapshot(bus, snapshot)
+
+    assert bus.events, "expected evolution tuning event"
+    event = bus.events[0]
+    assert event.type == "telemetry.evolution.tuning"
+    assert event.payload["status"] == snapshot.status.value
+
+
+def test_publish_evolution_tuning_snapshot_falls_back_to_global_bus(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    snapshot = _make_snapshot()
+
+    class _FailingRuntimeBus(_StubEventBus):
+        def publish_from_sync(self, event) -> int:  # type: ignore[override]
+            raise RuntimeError("offline")
+
+    class _TopicBus:
+        def __init__(self) -> None:
+            self.published: list[tuple[str, object, str | None]] = []
+
+        def publish_sync(self, topic: str, payload: object, *, source: str | None = None) -> int:
+            self.published.append((topic, payload, source))
+            return 1
+
+    captured = _TopicBus()
+
+    monkeypatch.setattr(
+        "src.operations.event_bus_failover.get_global_bus",
+        lambda: captured,
+    )
+
+    with caplog.at_level(logging.WARNING):
+        publish_evolution_tuning_snapshot(_FailingRuntimeBus(), snapshot)
+
+    assert captured.published
+    messages = " ".join(record.getMessage() for record in caplog.records)
+    assert "falling back to global bus" in messages
+
+
+def test_publish_evolution_tuning_snapshot_raises_on_unexpected_runtime_error() -> None:
+    snapshot = _make_snapshot()
+
+    class _UnexpectedRuntimeBus(_StubEventBus):
+        def publish_from_sync(self, event) -> int:  # type: ignore[override]
+            raise ValueError("boom")
+
+    with pytest.raises(EventPublishError) as excinfo:
+        publish_evolution_tuning_snapshot(_UnexpectedRuntimeBus(), snapshot)
+
+    assert excinfo.value.stage == "runtime"
+    assert excinfo.value.event_type == "telemetry.evolution.tuning"

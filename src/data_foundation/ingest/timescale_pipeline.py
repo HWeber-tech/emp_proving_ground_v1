@@ -105,6 +105,21 @@ class TimescaleBackboneOrchestrator:
         self._logger = logging.getLogger(f"{__name__}.TimescaleBackboneOrchestrator")
         self._event_publisher = event_publisher
 
+    @staticmethod
+    def _attach_result_metadata(
+        metadata: dict[str, object], result: TimescaleIngestResult
+    ) -> None:
+        """Augment slice metadata with the persisted ingest result details."""
+
+        payload = result.as_dict()
+        metadata["result"] = payload
+        metadata["rows_written"] = payload["rows_written"]
+        metadata["ingested_symbols"] = payload["symbols"]
+        metadata["result_start_ts"] = payload["start_ts"]
+        metadata["result_end_ts"] = payload["end_ts"]
+        metadata["result_duration_seconds"] = payload["ingest_duration_seconds"]
+        metadata["result_freshness_seconds"] = payload["freshness_seconds"]
+
     def _publish_result(
         self,
         result: TimescaleIngestResult,
@@ -163,6 +178,7 @@ class TimescaleBackboneOrchestrator:
                     else:
                         result = ingestor.upsert_daily_bars(df, source=plan.daily.source)
 
+                self._attach_result_metadata(metadata, result)
                 results["daily_bars"] = result
                 self._publish_result(result, metadata)
 
@@ -196,6 +212,7 @@ class TimescaleBackboneOrchestrator:
                             trades, source=plan.intraday.source
                         )
 
+                self._attach_result_metadata(metadata, result)
                 results["intraday_trades"] = result
                 self._publish_result(result, metadata)
 
@@ -224,6 +241,7 @@ class TimescaleBackboneOrchestrator:
                         result = TimescaleIngestResult.empty(
                             dimension="macro_events", source=plan.macro.source
                         )
+                        self._attach_result_metadata(metadata, result)
                         results["macro_events"] = result
                         self._publish_result(result, metadata)
                         return results
@@ -242,6 +260,7 @@ class TimescaleBackboneOrchestrator:
                         dimension="macro_events", source=plan.macro.source
                     )
 
+                self._attach_result_metadata(metadata, result)
                 results["macro_events"] = result
                 self._publish_result(result, metadata)
 

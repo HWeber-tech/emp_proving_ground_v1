@@ -104,3 +104,37 @@ def test_cli_outputs_json(tmp_path: Path, capsys: pytest.CaptureFixture[str]) ->
     output = json.loads(captured.out)
     assert output["status"] == "ok"
     assert output["missing_panels"] == []
+
+
+def test_cli_exit_code_for_failing_dashboard(tmp_path: Path) -> None:
+    now = datetime.now(tz=UTC)
+    payload = _base_summary(now)
+    payload["failing_panels"] = ("Risk & exposure",)
+    payload_path = tmp_path / "dashboard.json"
+    payload_path.write_text(json.dumps(payload))
+
+    exit_code = main(
+        [
+            str(payload_path),
+            "--max-age-minutes",
+            "30",
+        ]
+    )
+
+    assert exit_code == 2
+
+
+def test_cli_exit_code_for_warning_dashboard(tmp_path: Path) -> None:
+    now = datetime.now(tz=UTC)
+    payload = _base_summary(now)
+    payload["warning_panels"] = ("Latency",)
+    payload_path = tmp_path / "dashboard.json"
+    payload_path.write_text(json.dumps(payload))
+
+    exit_code = main([
+        str(payload_path),
+        "--max-age-minutes",
+        "30",
+    ])
+
+    assert exit_code == 1

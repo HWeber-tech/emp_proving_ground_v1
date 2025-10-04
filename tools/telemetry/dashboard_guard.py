@@ -229,6 +229,13 @@ def _build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+_EXIT_CODES: Mapping[DashboardGuardStatus, int] = {
+    DashboardGuardStatus.ok: 0,
+    DashboardGuardStatus.warn: 1,
+    DashboardGuardStatus.fail: 2,
+}
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv)
@@ -252,7 +259,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     else:
         print(_format_human(report))
 
-    return 0
+    return _EXIT_CODES.get(report.status, 1)
 
 
 __all__ = [

@@ -188,6 +188,10 @@
 - Coverage telemetry now records lagging-domain counts, formatted notes, worst-performing
   slices, and optional remediation snapshots via the CLI so dashboards inherit
   actionable readiness deltas alongside coverage trendlines.【F:tools/telemetry/ci_metrics.py†L120-L260】【F:tools/telemetry/update_ci_metrics.py†L1-L240】【F:tests/tools/test_ci_metrics.py†L200-L360】
+- CI metrics staleness summary now inspects coverage, formatter, domain, and
+  remediation feeds to flag stale telemetry windows with timestamps and age
+  calculations so roadmap checkpoints surface expired evidence automatically
+  under pytest coverage.【F:tools/telemetry/ci_metrics.py†L214-L320】【F:tests/tools/test_ci_metrics.py†L210-L360】
 - Remediation progress snapshots now live alongside coverage/formatter trendlines
   in `tests/.telemetry/ci_metrics.json` thanks to the `--remediation-status`
   CLI and the new `--coverage-remediation` mode, capturing roadmap evidence

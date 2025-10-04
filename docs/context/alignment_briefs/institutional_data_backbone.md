@@ -65,6 +65,10 @@
 - Progress: Timescale ingest regression now covers migrator bootstrap,
   idempotent upserts for empty plans, and macro event ingestion so coverage
   catches silent failures before institutional pipelines depend on them.【F:tests/data_foundation/test_timescale_ingest.py†L1-L213】
+- Progress: Timescale backbone orchestrator now emits metadata for requested
+  symbols, fetched rows, macro windows, and ingest results on every slice while
+  guardrail tests lock macro window fallbacks and zero-payload execution so
+  institutional telemetry reflects what was ingested or skipped.【F:src/data_foundation/ingest/timescale_pipeline.py†L70-L213】【F:tests/data_foundation/test_timescale_backbone_orchestrator.py†L1-L200】
 - Wire all runtime entrypoints through `RuntimeApplication` and a task supervisor
   so ingest, cache, and stream jobs are supervised.【F:docs/technical_debt_assessment.md†L33-L56】
 - Document current gaps and expected telemetry in updated runbooks and status

@@ -38,6 +38,12 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
     the guardrail remains deterministic. The guardrail manifest now pins the
     ingest scheduler regression to the `guardrail` matrix, ensuring CI fails
     fast if the scheduler suite drifts or loses its guardrail marker.【F:src/data_foundation/ingest/scheduler.py†L1-L138】【F:tests/data_foundation/test_ingest_scheduler.py†L1-L200】【F:tests/runtime/test_guardrail_suite_manifest.py†L18-L40】
+  - *Progress*: Timescale backbone orchestrator now enriches every daily,
+    intraday, and macro slice with requested symbol/event counts, fetched row
+    totals, ingest result metadata, and macro window provenance so ingest
+    telemetry exposes what was fetched, normalised, or skipped; guardrail tests
+    cover macro window fallbacks, empty payloads, and metadata emission to
+    prevent regressions in institutional ingest coverage.【F:src/data_foundation/ingest/timescale_pipeline.py†L70-L213】【F:tests/data_foundation/test_timescale_backbone_orchestrator.py†L1-L200】
   - *Progress*: JSONL persistence now raises typed errors for unserialisable payloads,
     logs filesystem failures, and cleans up partial files so ingest tooling surfaces
     genuine persistence faults instead of emitting empty paths under silent
@@ -137,6 +143,10 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
     enforce position sizing plus research-mode overrides so governance reviews
     inherit deterministic, de-duplicated risk inputs under pytest
     coverage.【F:src/config/risk/risk_config.py†L10-L213】【F:tests/risk/test_risk_config_validation.py†L39-L90】
+  - *Progress*: Risk policy guardrail suite now exercises approvals, exposure
+    breaches, leverage warnings, research-mode overrides, closing-position
+    allowances, and price fallbacks under the `guardrail` marker so CI fails
+    fast when institutional limit enforcement regresses.【F:tests/trading/test_risk_policy.py†L1-L220】
   - *Progress*: Runtime builder now resolves the canonical `RiskConfig` from the
     trading manager, validates mandatory thresholds, wraps invalid payloads in a
     deterministic runtime error, and logs the enforced posture under regression
@@ -164,6 +174,11 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
     logs failures to access or publish gauges, and emits guarded order/position
     mismatch counts so institutional monitors see parity outages instead of
     silently dropping telemetry when instrumentation breaks.【F:src/trading/monitoring/parity_checker.py†L53-L156】
+  - *Progress*: FIX broker interface risk telemetry now falls back to the
+    deterministic risk API contract when provider lookups fail, merges gateway
+    limit snapshots with interface summaries, and always includes the shared
+    risk API runbook so manual pilot alerts retain actionable escalation
+    metadata under pytest coverage.【F:src/trading/integration/fix_broker_interface.py†L211-L330】【F:tests/trading/test_fix_broker_interface_events.py†L170-L239】
   - *Progress*: FIX broker interface now routes every manual intent through the real
     risk gateway, publishes structured rejection telemetry with policy snapshots,
     deterministic severity flags, and runbook links, and records the gateway
@@ -195,6 +210,10 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
     publishes the payload via the shared failover helper so dashboards and
     runtime reports inherit the same hardened transport guarantees under pytest
     coverage.【F:src/operations/strategy_performance.py†L200-L531】【F:tests/operations/test_strategy_performance.py†L68-L193】
+  - *Progress*: CI metrics tooling now summarises trend staleness across
+    coverage, formatter, domain, and remediation feeds, flagging stale
+    telemetry windows with timestamps and age calculations so roadmap evidence
+    highlights expired observability snapshots under pytest coverage.【F:tools/telemetry/ci_metrics.py†L214-L320】【F:tests/tools/test_ci_metrics.py†L210-L360】
   - *Progress*: Incident response readiness now parses policy/state mappings into
     a severity snapshot, derives targeted alert events, and publishes telemetry
     via the shared failover helper so operators get actionable runbook, roster,

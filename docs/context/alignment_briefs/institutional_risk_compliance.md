@@ -45,6 +45,10 @@
     exposure checks escalate to warnings before breaching limits, capturing
     ratios, thresholds, and projected exposure metadata so compliance teams can
     monitor approaching guardrails without waiting for outright violations.【F:tests/trading/test_risk_policy.py†L69-L142】
+  - Progress: Guardrail-marked risk policy suite now covers approvals,
+    research-mode overrides, minimum size enforcement, closing trades, and
+    market price fallbacks so institutional limit enforcement remains pinned to
+    the `guardrail` CI job.【F:tests/trading/test_risk_policy.py†L1-L220】
 - Progress: Policy telemetry builders serialise decision snapshots, emit Markdown
   summaries, and publish violation alerts with embedded escalation metadata while
   the trading manager mirrors the feed and the new runbook documents the response,
@@ -75,6 +79,10 @@
   trading manager’s cached posture and emitting event-bus payloads under pytest
   coverage so governance receives actionable enforcement evidence when the
   interface degrades.【F:src/trading/risk/risk_interface_telemetry.py†L1-L156】【F:src/trading/trading_manager.py†L635-L678】【F:tests/trading/test_trading_manager_execution.py†L190-L287】
+- Progress: FIX broker interface risk rejections now merge gateway policy
+  snapshots, provider summaries, and deterministic risk API fallbacks while
+  always attaching the shared runbook so manual pilots inherit actionable
+  escalation metadata even when provider lookups fail, under pytest coverage.【F:src/trading/integration/fix_broker_interface.py†L211-L330】【F:tests/trading/test_fix_broker_interface_events.py†L170-L239】
 - Progress: Compliance readiness snapshots now consolidate trade surveillance,
   KYC telemetry, and workflow checklist status, escalating blocked items,
   surfacing active task counts, and exposing markdown evidence with pytest

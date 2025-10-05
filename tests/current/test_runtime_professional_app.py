@@ -92,6 +92,27 @@ class _StubBroker:
         self._trade_task = None
 
 
+class _StubTradingManager:
+    def __init__(self) -> None:
+        self.interface_payload = {
+            "summary": {"max_total_exposure_pct": 50.0},
+            "config": {"max_total_exposure_pct": 50.0},
+            "runbook": "docs/operations/runbooks/risk_api_contract.md",
+        }
+
+    def describe_risk_interface(self):
+        return dict(self.interface_payload)
+
+    def get_last_risk_snapshot(self):
+        return None
+
+    def get_last_policy_snapshot(self):
+        return None
+
+    def get_last_roi_snapshot(self):
+        return None
+
+
 class _StubPilot:
     def __init__(self, sensory: _StubSensory, broker: _StubBroker) -> None:
         self.sensory = sensory
@@ -254,3 +275,29 @@ async def test_professional_predator_app_with_fix_pilot_summary():
 
     await app.shutdown()
     assert pilot.stopped == 1
+
+
+@pytest.mark.asyncio
+async def test_professional_predator_app_summary_includes_risk_interface():
+    config = SystemConfig()
+    event_bus = EventBus()
+    sensory = _StubSensory()
+    sensory.trading_manager = _StubTradingManager()
+    broker = _StubBroker()
+
+    app = ProfessionalPredatorApp(
+        config=config,
+        event_bus=event_bus,
+        sensory_organ=sensory,
+        broker_interface=broker,
+        fix_connection_manager=_StubFixManager(),
+        sensors={"stub": _StubSensor()},
+    )
+
+    await app.start()
+    summary = app.summary()
+    interface_payload = summary["risk"]["interface"]
+    assert interface_payload["summary"]["max_total_exposure_pct"] == 50.0
+    assert interface_payload.get("runbook") == "docs/operations/runbooks/risk_api_contract.md"
+
+    await app.shutdown()

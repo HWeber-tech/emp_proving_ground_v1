@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from typing import Any, Callable, Iterable, Mapping, MutableMapping, Sequence
 
 import pandas as pd
+from pandas.errors import OutOfBoundsDatetime
 
 from src.core.event_bus import Event, EventBus, TopicBus
 from src.operations.event_bus_failover import publish_event_with_failover
@@ -43,9 +44,12 @@ def _normalise_mapping(mapping: Mapping[str, Any] | None) -> Mapping[str, Any]:
 def _parse_timestamp(value: Any) -> datetime | None:
     if isinstance(value, datetime):
         return value
+    if value is None:
+        return None
     try:
         converted = pd.to_datetime(value, utc=True, errors="coerce")
-    except Exception:
+    except (TypeError, ValueError, OutOfBoundsDatetime) as exc:
+        logger.warning("Failed to parse sensory summary timestamp", exc_info=exc)
         return None
     if converted is pd.NaT:
         return None
@@ -97,6 +101,77 @@ class SensoryDimensionSummary:
         return payload
 
 
+def _normalise_drift_summary(
+    raw_summary: Mapping[str, Any] | None,
+) -> tuple[Mapping[str, Any] | None, tuple[Mapping[str, Any], ...], str]:
+    if not isinstance(raw_summary, Mapping):
+        return None, (), "nominal"
+
+    def _normalise_value(value: Any) -> Any:
+        if isinstance(value, Mapping):
+            return {str(key): sub_value for key, sub_value in value.items()}
+        if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
+            return [
+                {str(key): sub_value for key, sub_value in entry.items()}
+                if isinstance(entry, Mapping)
+                else entry
+                for entry in value
+            ]
+        return value
+
+    summary = {str(key): _normalise_value(value) for key, value in raw_summary.items()}
+
+    alerts = _normalise_drift_alerts(
+        summary.get("exceeded"), summary.get("results")
+    )
+    severity = _derive_drift_severity(alerts)
+    return summary, alerts, severity
+
+
+def _normalise_drift_alerts(
+    exceeded: Any, results: Any
+) -> tuple[Mapping[str, Any], ...]:
+    sequences: list[Iterable[Any]] = []
+    if isinstance(exceeded, Sequence) and not isinstance(exceeded, (str, bytes, bytearray)):
+        sequences.append(exceeded)
+    if isinstance(results, Sequence) and not isinstance(results, (str, bytes, bytearray)):
+        sequences.append(results)
+
+    alerts_by_sensor: dict[str, MutableMapping[str, Any]] = {}
+    for sequence in sequences:
+        for entry in sequence:
+            if not isinstance(entry, Mapping):
+                continue
+            sensor = entry.get("sensor")
+            sensor_name = str(sensor) if sensor is not None else "UNKNOWN"
+            record = alerts_by_sensor.setdefault(sensor_name, {"sensor": sensor_name})
+
+            z_score = _coerce_float(entry.get("z_score"))
+            if z_score is not None:
+                record["z_score"] = z_score
+            drift_ratio = _coerce_float(entry.get("drift_ratio"))
+            if drift_ratio is not None:
+                record["drift_ratio"] = drift_ratio
+
+            severity = entry.get("severity")
+            if isinstance(severity, str):
+                record["severity"] = severity
+            elif bool(entry.get("exceeded")):
+                record["severity"] = "fail"
+            elif "severity" not in record:
+                record["severity"] = "warn"
+
+    return tuple(sorted(alerts_by_sensor.values(), key=lambda item: item["sensor"]))
+
+
+def _derive_drift_severity(alerts: Sequence[Mapping[str, Any]]) -> str:
+    if not alerts:
+        return "nominal"
+    if any(str(alert.get("severity")) == "fail" for alert in alerts):
+        return "fail"
+    return "warn"
+
+
 @dataclass(frozen=True)
 class SensorySummary:
     """Aggregated sensory cortex snapshot for dashboards and telemetry."""
@@ -110,10 +185,12 @@ class SensorySummary:
     contributing: tuple[str, ...]
     dimensions: tuple[SensoryDimensionSummary, ...]
     drift_summary: Mapping[str, Any] | None
+    drift_alerts: tuple[Mapping[str, Any], ...]
+    drift_severity: str
     audit_entries: tuple[Mapping[str, Any], ...]
 
     def as_dict(self) -> Mapping[str, Any]:
-        return {
+        payload = {
             "symbol": self.symbol,
             "generated_at": _serialise_datetime(self.generated_at),
             "samples": self.samples,
@@ -124,7 +201,10 @@ class SensorySummary:
             "dimensions": [dimension.as_dict() for dimension in self.dimensions],
             "drift_summary": dict(self.drift_summary) if self.drift_summary else None,
             "audit_entries": [dict(entry) for entry in self.audit_entries],
+            "drift_alerts": [dict(entry) for entry in self.drift_alerts],
+            "drift_severity": self.drift_severity,
         }
+        return payload
 
     def top_dimensions(self, limit: int = 3) -> tuple[SensoryDimensionSummary, ...]:
         if limit <= 0:
@@ -165,13 +245,13 @@ class SensorySummary:
             )
 
         if self.drift_summary:
-            exceeded = self.drift_summary.get("exceeded")
-            if exceeded:
-                exceeded_names = ", ".join(
-                    str(entry.get("sensor")) for entry in exceeded if isinstance(entry, Mapping)
-                )
-                lines.append("")
-                lines.append(f"Drift alerts: {exceeded_names or 'None'}")
+            alerts = ", ".join(
+                str(alert.get("sensor")) for alert in self.drift_alerts if alert.get("sensor")
+            )
+            lines.append("")
+            lines.append(
+                f"Drift severity: {self.drift_severity.upper()} | Alerts: {alerts or 'None'}"
+            )
 
         return "\n".join(lines)
 
@@ -231,13 +311,8 @@ def build_sensory_summary(status: Mapping[str, Any] | None) -> SensorySummary:
     dimension_summaries.sort(key=lambda dimension: dimension.name)
 
     drift_summary_raw = mapping.get("drift_summary")
-    drift_summary = (
-        {
-            key: value if not isinstance(value, Sequence) else list(value)
-            for key, value in drift_summary_raw.items()
-        }
-        if isinstance(drift_summary_raw, Mapping)
-        else None
+    drift_summary, drift_alerts, drift_severity = _normalise_drift_summary(
+        drift_summary_raw if isinstance(drift_summary_raw, Mapping) else None
     )
 
     audit_entries_raw = mapping.get("sensor_audit")
@@ -253,6 +328,8 @@ def build_sensory_summary(status: Mapping[str, Any] | None) -> SensorySummary:
         contributing=contributions,
         dimensions=tuple(dimension_summaries),
         drift_summary=drift_summary,
+        drift_alerts=drift_alerts,
+        drift_severity=drift_severity,
         audit_entries=audit_entries,
     )
 

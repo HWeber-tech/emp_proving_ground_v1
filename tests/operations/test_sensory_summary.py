@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
@@ -123,6 +124,8 @@ def test_build_sensory_summary_extracts_metrics() -> None:
     assert summary.integrated_confidence == pytest.approx(0.68)
     assert summary.samples == 12
     assert len(summary.dimensions) == 3
+    assert summary.drift_severity == "fail"
+    assert summary.drift_alerts
 
     names = [dimension.name for dimension in summary.dimensions]
     assert set(names) == {"WHY", "HOW", "ANOMALY"}
@@ -133,7 +136,7 @@ def test_build_sensory_summary_extracts_metrics() -> None:
 
     markdown = summary.to_markdown()
     assert "Dimension" in markdown
-    assert "Drift alerts" in markdown
+    assert "Drift severity" in markdown
 
 
 def test_publish_sensory_summary_uses_runtime_bus() -> None:
@@ -161,3 +164,23 @@ def test_publish_sensory_summary_falls_back_to_global_bus() -> None:
     assert event_type == "telemetry.sensory.summary"
     assert payload["symbol"] == "EURUSD"
     assert source == "operations.sensory_summary"
+
+
+def test_build_sensory_summary_logs_invalid_timestamp(
+    caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    status = _sample_status()
+    status["latest"]["generated_at"] = "2263-01-01"
+
+    def _raise_value_error(*args: Any, **kwargs: Any) -> None:  # pragma: no cover - helper
+        raise ValueError("invalid timestamp")
+
+    monkeypatch.setattr(
+        "src.operations.sensory_summary.pd.to_datetime", _raise_value_error
+    )
+
+    with caplog.at_level(logging.WARNING):
+        summary = build_sensory_summary(status)
+
+    assert summary.generated_at is None
+    assert any("Failed to parse sensory summary timestamp" in message for message in caplog.messages)

@@ -1,23 +1,25 @@
+"""Helpers for persisting ingest events to columnar Parquet storage."""
+
 from __future__ import annotations
 
 import importlib
 import logging
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Callable, Protocol
+from typing import Any, Callable, Iterable, Protocol, Sequence
 
 
 logger = logging.getLogger(__name__)
 
 
 class _DataFrameFactory(Protocol):
-    def __call__(self, events: list[dict[str, Any]]) -> "_SupportsParquet":
-        ...
+    def __call__(self, events: Sequence[dict[str, Any]]) -> "_SupportsParquet":
+        """Create a DataFrame-like object that supports ``to_parquet``."""
 
 
 class _SupportsParquet(Protocol):
     def to_parquet(self, path: str, *, index: bool) -> None:
-        ...
+        """Persist a DataFrame to the parquet ``path``."""
 
 
 _pd: object | None = None
@@ -37,7 +39,9 @@ def _resolve_dataframe_factory() -> _DataFrameFactory | None:
     return factory  # type: ignore[return-value]
 
 
-def write_events_parquet(events: list[dict[str, Any]], out_dir: str, partition: str) -> str:
+def write_events_parquet(
+    events: Iterable[dict[str, Any]], out_dir: str, partition: str
+) -> str:
     """Write ``events`` to a Parquet file under ``out_dir`` and return the file path.
 
     Returns an empty string when pandas is unavailable or when the payload cannot
@@ -45,7 +49,9 @@ def write_events_parquet(events: list[dict[str, Any]], out_dir: str, partition: 
     failures instead of silently losing telemetry.
     """
 
-    if not events:
+    events_list = list(events)
+
+    if not events_list:
         logger.debug("Skipping Parquet write because no events were supplied")
         return ""
 
@@ -55,7 +61,7 @@ def write_events_parquet(events: list[dict[str, Any]], out_dir: str, partition: 
         return ""
 
     try:
-        dataframe = dataframe_factory(events)
+        dataframe = dataframe_factory(events_list)
     except (TypeError, ValueError):
         logger.exception("Failed to convert ingest events into a pandas DataFrame")
         return ""

@@ -23,6 +23,8 @@ _DEFAULT_TARGETS: dict[str, str] = {
     "ingest_production_slice": "src/data_foundation/ingest/production_slice.py",
     "timescale_pipeline": "src/data_foundation/ingest/timescale_pipeline.py",
     "risk_policy": "src/trading/risk/risk_policy.py",
+    "ingest_observability": "src/data_foundation/ingest/observability.py",
+    "observability_dashboard": "src/operations/observability_dashboard.py",
 }
 
 

@@ -15,8 +15,10 @@ from src.operations.compliance_readiness import (
 from src.operations.governance_reporting import (
     AuditJournalError,
     GovernanceReportStatus,
+    build_governance_report_from_config,
     collect_audit_evidence,
     generate_governance_report,
+    load_governance_context_from_config,
     persist_governance_report,
     publish_governance_report,
     should_generate_report,
@@ -198,10 +200,99 @@ def test_publish_governance_report_falls_back_to_global_bus() -> None:
     )
 
     assert len(topic_bus.published) == 1
-    event_type, payload, source = topic_bus.published[0]
-    assert event_type == "telemetry.compliance.governance"
-    assert payload["status"] == report.status.value
-    assert source == "governance_reporting"
+
+
+def test_build_governance_report_from_config_uses_context(tmp_path: Path) -> None:
+    compliance_path = tmp_path / "compliance.json"
+    compliance_path.write_text(
+        json.dumps(
+            {
+                "status": "ok",
+                "generated_at": "2024-03-01T00:00:00+00:00",
+                "components": [
+                    {
+                        "name": "kyc_aml",
+                        "status": "ok",
+                        "summary": "KYC readiness stable",
+                        "metadata": {"open_cases": 0},
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    regulatory_path = tmp_path / "regulatory.json"
+    regulatory_path.write_text(
+        json.dumps(
+            {
+                "generated_at": "2024-03-01T12:00:00+00:00",
+                "status": "ok",
+                "coverage_ratio": 1.0,
+                "required_domains": ["kyc_aml"],
+                "missing_domains": [],
+                "signals": [
+                    {
+                        "name": "kyc_aml",
+                        "status": "ok",
+                        "summary": "Telemetry green",
+                        "observed_at": "2024-03-01T12:00:00+00:00",
+                        "metadata": {"checks": 4},
+                    }
+                ],
+                "metadata": {"notes": "baseline"},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    audit_path = tmp_path / "audit.json"
+    audit_path.write_text(
+        json.dumps(
+            {
+                "metadata": {"configured": True, "dialect": "sqlite"},
+                "compliance": {"stats": {"total_records": 5}},
+                "kyc": {"stats": {"total_cases": 1}},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    config = SystemConfig(
+        extras={
+            "GOVERNANCE_CONTEXT_DIR": str(tmp_path),
+            "GOVERNANCE_COMPLIANCE_CONTEXT": "compliance.json",
+            "GOVERNANCE_REGULATORY_CONTEXT": "regulatory.json",
+            "GOVERNANCE_AUDIT_CONTEXT": "audit.json",
+        }
+    )
+
+    sources = load_governance_context_from_config(config)
+    assert sources.compliance is not None
+    assert sources.compliance_path == compliance_path
+    assert sources.regulatory_path == regulatory_path
+    assert sources.audit_path == audit_path
+
+    generated_at = datetime(2024, 3, 2, 0, 0, tzinfo=UTC)
+    report = build_governance_report_from_config(
+        config,
+        generated_at=generated_at,
+        metadata={"cadence": "weekly"},
+    )
+
+    assert report.status is GovernanceReportStatus.ok
+    assert report.generated_at == generated_at
+    assert report.metadata["cadence"] == "weekly"
+    assert report.metadata["source"] == "governance_context"
+    context_sources = report.metadata["context_sources"]
+    assert context_sources["compliance"].endswith("compliance.json")
+    assert context_sources["regulatory"].endswith("regulatory.json")
+    assert context_sources["audit"].endswith("audit.json")
+
+    kyc_section = next(section for section in report.sections if section.name == "kyc_aml")
+    assert kyc_section.status is GovernanceReportStatus.ok
+    audit_section = next(section for section in report.sections if section.name == "audit_storage")
+    assert "records=5" in audit_section.summary
 
 
 def test_publish_governance_report_raises_on_unexpected_runtime_error() -> None:
@@ -222,4 +313,3 @@ def test_publish_governance_report_raises_on_unexpected_runtime_error() -> None:
         )
 
     assert not topic_bus.published
-

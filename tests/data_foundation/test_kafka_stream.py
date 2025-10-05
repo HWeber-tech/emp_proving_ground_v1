@@ -97,6 +97,7 @@ class _FakeConsumer:
         self.commits: list[dict[str, object]] = []
         self.metrics_data: Mapping[str, object] | None = None
         self.metrics_calls = 0
+        self.list_topics_calls = 0
 
     def subscribe(self, topics: Mapping[str, object] | list[str]) -> None:  # type: ignore[override]
         self.subscriptions.append(list(topics))
@@ -105,6 +106,10 @@ class _FakeConsumer:
         if self.messages:
             return self.messages.pop(0)
         return None
+
+    def list_topics(self, timeout: float | None = None) -> Mapping[str, object]:
+        self.list_topics_calls += 1
+        return {"topics": {topic: {} for topic in ("timescale.daily",)}}
 
     def close(self) -> None:
         self.closed = True
@@ -452,6 +457,34 @@ def test_kafka_ingest_event_consumer_commits_offsets_when_enabled() -> None:
     commit_record = consumer.commits[0]
     assert commit_record["message"] is None or commit_record["message"] == message
     assert commit_record["asynchronous"] is False
+
+
+def test_kafka_ingest_event_consumer_ping_uses_list_topics() -> None:
+    bridge = KafkaIngestEventConsumer(
+        _FakeConsumer(),
+        topics=["timescale.daily"],
+        event_bus=object(),
+    )
+
+    assert bridge.ping(timeout=0.01) is True
+
+
+def test_kafka_ingest_event_consumer_ping_handles_failures(caplog: pytest.LogCaptureFixture) -> None:
+    class _FailingConsumer(_FakeConsumer):
+        def list_topics(self, timeout: float | None = None):  # type: ignore[override]
+            raise RuntimeError("boom")
+
+    bridge = KafkaIngestEventConsumer(
+        _FailingConsumer(),
+        topics=["timescale.daily"],
+        event_bus=object(),
+    )
+
+    with caplog.at_level("ERROR"):
+        healthy = bridge.ping(timeout=0.01)
+
+    assert healthy is False
+    assert any("list_topics" in record.message for record in caplog.records)
 
 
 def test_capture_consumer_lag_from_metrics() -> None:

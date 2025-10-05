@@ -23,6 +23,7 @@ from src.operations.operational_readiness import (
     OperationalReadinessSnapshot,
     OperationalReadinessStatus,
 )
+from src.operations.quality_telemetry import QualityStatus, QualityTelemetrySnapshot
 from src.operations.roi import RoiStatus, RoiTelemetrySnapshot
 from src.operations.slo import OperationalSLOSnapshot, ServiceSLO, SLOStatus
 from src.risk.analytics.expected_shortfall import ExpectedShortfallResult
@@ -154,6 +155,21 @@ def _operational_readiness_snapshot() -> OperationalReadinessSnapshot:
     )
 
 
+def _quality_snapshot() -> QualityTelemetrySnapshot:
+    moment = _now()
+    return QualityTelemetrySnapshot(
+        generated_at=moment,
+        status=QualityStatus.warn,
+        coverage_percent=78.0,
+        coverage_target=80.0,
+        staleness_hours=10.0,
+        max_staleness_hours=24.0,
+        notes=("Coverage 78.00% (target 80.00%)", "Coverage telemetry age 10.0h (max 24.0h)"),
+        remediation_items=("Add ingest backfill tests",),
+        metadata={"trend_counts": {"coverage_trend": 5, "coverage_domain_trend": 2, "remediation_trend": 1}},
+    )
+
+
 def test_build_dashboard_composes_panels_and_status() -> None:
     roi_snapshot = _roi_snapshot()
     var_result = VarResult(value=12_000.0, confidence=0.99, sample_size=252)
@@ -170,6 +186,7 @@ def test_build_dashboard_composes_panels_and_status() -> None:
         slo_snapshot=_slo_snapshot(),
         backbone_snapshot=_backbone_snapshot(),
         operational_readiness_snapshot=_operational_readiness_snapshot(),
+        quality_snapshot=_quality_snapshot(),
         metadata={"environment": "paper"},
     )
 
@@ -180,6 +197,7 @@ def test_build_dashboard_composes_panels_and_status() -> None:
         "Latency & throughput",
         "System health",
         "Operational readiness",
+        "Quality & coverage",
     }
 
     risk_panel = next(
@@ -198,6 +216,13 @@ def test_build_dashboard_composes_panels_and_status() -> None:
         panel for panel in dashboard.panels if panel.name == "Latency & throughput"
     )
     assert latency_panel.status is DashboardStatus.warn
+
+    quality_panel = next(
+        panel for panel in dashboard.panels if panel.name == "Quality & coverage"
+    )
+    assert quality_panel.status is DashboardStatus.warn
+    assert "Coverage 78.00%" in quality_panel.headline
+    assert "Add ingest backfill tests" in "\n".join(quality_panel.details)
     assert "event_bus" in latency_panel.metadata
     assert "slos" in latency_panel.metadata
 

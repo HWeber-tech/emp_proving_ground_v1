@@ -87,6 +87,10 @@
     violation states to observability dashboard entries while preserving the
     serialised payloads, with pytest coverage asserting limit-status escalation
     so operators inherit actionable risk summaries instead of opaque aggregates.【F:src/operations/observability_dashboard.py†L254-L309】【F:tests/operations/test_observability_dashboard.py†L201-L241】
+  - Progress: Observability dashboard metadata now auto-fills panel status counts
+    and severity maps next to the remediation capsule so exporters and runbooks
+    can ingest a machine-readable readiness snapshot without recomputing
+    severities, with pytest locking the contract.【F:src/operations/observability_dashboard.py†L486-L508】【F:tests/operations/test_observability_dashboard.py†L189-L237】
   - Progress: Observability dashboard now exposes a remediation summary capsule
     that counts failing/warning/healthy panels and lists affected slices under
     regression coverage so CI exporters can consume a canonical operational

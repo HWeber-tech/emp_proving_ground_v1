@@ -69,6 +69,14 @@
   symbols, fetched rows, macro windows, and ingest results on every slice while
   guardrail tests lock macro window fallbacks and zero-payload execution so
   institutional telemetry reflects what was ingested or skipped.【F:src/data_foundation/ingest/timescale_pipeline.py†L70-L213】【F:tests/data_foundation/test_timescale_backbone_orchestrator.py†L1-L200】
+- Progress: Institutional ingest provisioner now builds supervised Timescale
+  schedules, Redis caches, and Kafka bridges from a single configuration
+  surface, exposing failover drill metadata and a runtime summary so operators
+  can bootstrap the ingest vertical with guardrails and surface disaster-recovery
+  requirements in dashboards, with docs capturing the drill workflow.【F:src/data_foundation/ingest/institutional_vertical.py†L1-L239】【F:tests/runtime/test_institutional_ingest_vertical.py†L1-L164】【F:docs/operations/timescale_failover_drills.md†L1-L27】
+- Progress: Timescale ingest helpers now validate schema/table identifiers at
+  construction time and assert the contract under regression coverage so policy
+  payloads cannot inject unsafe SQL into institutional ingest jobs.【F:src/data_foundation/persist/timescale.py†L1-L120】【F:tests/data_foundation/test_timescale_ingest.py†L1-L83】
 - Wire all runtime entrypoints through `RuntimeApplication` and a task supervisor
   so ingest, cache, and stream jobs are supervised.【F:docs/technical_debt_assessment.md†L33-L56】
 - Document current gaps and expected telemetry in updated runbooks and status

@@ -18,6 +18,7 @@ from src.operations.retention import (
     format_data_retention_markdown,
     publish_data_retention,
 )
+from src.operations.event_bus_failover import EventPublishError
 
 
 def _make_daily_frame(symbol: str, start: datetime, days: int) -> pd.DataFrame:
@@ -177,6 +178,92 @@ def test_publish_data_retention_emits_event() -> None:
 
     assert bus.events
     assert bus.events[0].type == "telemetry.data_backbone.retention"
+
+
+def test_publish_data_retention_falls_back_to_global_bus(monkeypatch: pytest.MonkeyPatch) -> None:
+    snapshot = DataRetentionSnapshot(
+        status=RetentionStatus.ok,
+        generated_at=datetime.now(tz=UTC),
+        components=(
+            RetentionComponentSnapshot(
+                name="daily_bars",
+                status=RetentionStatus.ok,
+                summary="Coverage 365d",
+            ),
+        ),
+    )
+
+    class _RuntimeBus(EventBus):
+        def __init__(self) -> None:
+            super().__init__()
+
+        def is_running(self) -> bool:  # pragma: no cover - trivial
+            return True
+
+        def publish_from_sync(self, event: Event) -> int:
+            raise RuntimeError("runtime bus unavailable")
+
+    class _TopicBus:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, dict[str, object], str | None]] = []
+
+        def publish_sync(self, event_type: str, payload: dict[str, object], *, source: str | None = None) -> None:
+            self.calls.append((event_type, payload, source))
+
+    topic_bus = _TopicBus()
+    monkeypatch.setattr(
+        "src.operations.event_bus_failover.get_global_bus",
+        lambda: topic_bus,
+    )
+
+    publish_data_retention(_RuntimeBus(), snapshot)
+
+    assert topic_bus.calls
+    event_type, payload, source = topic_bus.calls[0]
+    assert event_type == "telemetry.data_backbone.retention"
+    assert source == "data_retention"
+    assert payload == snapshot.as_dict()
+
+
+def test_publish_data_retention_raises_on_unexpected_runtime_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    snapshot = DataRetentionSnapshot(
+        status=RetentionStatus.ok,
+        generated_at=datetime.now(tz=UTC),
+        components=(
+            RetentionComponentSnapshot(
+                name="daily_bars",
+                status=RetentionStatus.ok,
+                summary="Coverage 365d",
+            ),
+        ),
+    )
+
+    class _RuntimeBus(EventBus):
+        def __init__(self) -> None:
+            super().__init__()
+
+        def is_running(self) -> bool:  # pragma: no cover - trivial
+            return True
+
+        def publish_from_sync(self, event: Event) -> int:
+            raise ValueError("unexpected error")
+
+    topic_calls: list[tuple[str, dict[str, object], str | None]] = []
+
+    class _TopicBus:
+        def publish_sync(self, event_type: str, payload: dict[str, object], *, source: str | None = None) -> None:  # pragma: no cover - fallback should not run
+            topic_calls.append((event_type, payload, source))
+
+    monkeypatch.setattr(
+        "src.operations.event_bus_failover.get_global_bus",
+        lambda: _TopicBus(),
+    )
+
+    with pytest.raises(EventPublishError) as excinfo:
+        publish_data_retention(_RuntimeBus(), snapshot)
+
+    assert excinfo.value.stage == "runtime"
+    assert not topic_calls
 
 
 def test_evaluate_data_retention_rejects_unsafe_identifiers(tmp_path) -> None:

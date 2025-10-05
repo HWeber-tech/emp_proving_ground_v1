@@ -21,7 +21,8 @@ from sqlalchemy import text
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import SQLAlchemyError
 
-from src.core.event_bus import Event, EventBus, get_global_bus
+from src.core.event_bus import Event, EventBus
+from src.operations.event_bus_failover import publish_event_with_failover
 
 
 class RetentionStatus(Enum):
@@ -283,10 +284,7 @@ def format_data_retention_markdown(snapshot: DataRetentionSnapshot) -> str:
     return snapshot.to_markdown()
 
 
-def publish_data_retention(
-    event_bus: EventBus | None,
-    snapshot: DataRetentionSnapshot,
-) -> None:
+def publish_data_retention(event_bus: EventBus, snapshot: DataRetentionSnapshot) -> None:
     """Emit the retention snapshot on the runtime event bus."""
 
     event = Event(
@@ -295,18 +293,21 @@ def publish_data_retention(
         source="data_retention",
     )
 
-    bus = event_bus or get_global_bus()
-    publish_from_sync = getattr(bus, "publish_from_sync", None)
-    is_running = getattr(bus, "is_running", None)
-    if callable(publish_from_sync) and callable(is_running) and is_running():
-        try:
-            publish_from_sync(event)
-            return
-        except Exception:  # pragma: no cover - defensive publish fallback
-            pass
-
-    topic_bus = get_global_bus()
-    topic_bus.publish_sync(event.type, event.payload, source=event.source)
+    publish_event_with_failover(
+        event_bus,
+        event,
+        logger=logger,
+        runtime_fallback_message=
+            "Primary event bus publish_from_sync failed; falling back to global bus",
+        runtime_unexpected_message=
+            "Unexpected error publishing data retention snapshot via runtime event bus",
+        runtime_none_message=
+            "Primary event bus publish_from_sync returned None; falling back to global bus",
+        global_not_running_message=
+            "Global event bus not running while publishing data retention snapshot",
+        global_unexpected_message=
+            "Unexpected error publishing data retention snapshot via global bus",
+    )
 
 
 __all__ = [

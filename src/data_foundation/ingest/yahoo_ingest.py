@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
-"""
-Tier-0 Yahoo ingest: fetch daily bars for symbols and persist to DuckDB (if available) or CSV.
-"""
+"""Canonical Yahoo Finance ingest helpers used by tier-0 pipelines."""
 
 from __future__ import annotations
 
@@ -13,6 +11,8 @@ from typing import Any, cast
 
 import pandas as pd
 import yfinance as yf
+
+from src.core.types import JSONObject
 
 
 def fetch_daily_bars(symbols: list[str], days: int = 60) -> pd.DataFrame:

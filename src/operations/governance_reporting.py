@@ -49,11 +49,14 @@ __all__ = [
     "GovernanceReportStatus",
     "GovernanceReportSection",
     "GovernanceReport",
+    "GovernanceContextSources",
     "should_generate_report",
     "collect_audit_evidence",
     "generate_governance_report",
     "publish_governance_report",
     "persist_governance_report",
+    "load_governance_context_from_config",
+    "build_governance_report_from_config",
 ]
 
 
@@ -160,6 +163,18 @@ class GovernanceReport:
             for key, value in sorted(self.metadata.items()):
                 rows.append(f"- **{key}**: {value}")
         return "\n".join(rows)
+
+
+@dataclass(slots=True, frozen=True)
+class GovernanceContextSources:
+    """Resolved governance telemetry context sources derived from configuration."""
+
+    compliance: Mapping[str, object] | None
+    compliance_path: Path | None
+    regulatory: Mapping[str, object] | None
+    regulatory_path: Path | None
+    audit: Mapping[str, object] | None
+    audit_path: Path | None
 
 
 def should_generate_report(
@@ -555,4 +570,130 @@ def persist_governance_report(
 
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(output, indent=2, sort_keys=True), encoding="utf-8")
+
+
+def _context_base_directory(
+    extras: Mapping[str, str] | None,
+    base_path: Path | None,
+) -> Path:
+    root_hint = None if extras is None else extras.get("GOVERNANCE_CONTEXT_DIR")
+    if root_hint:
+        root = Path(root_hint)
+        if not root.is_absolute():
+            anchor = base_path or Path.cwd()
+            return anchor / root
+        return root
+    return base_path or Path.cwd()
+
+
+def _load_context_payload(path: Path) -> Mapping[str, object] | None:
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        logger.warning("Governance context file missing: %s", path)
+        return None
+    except (OSError, ValueError) as exc:
+        logger.warning("Failed to load governance context from %s", path, exc_info=exc)
+        return None
+    if isinstance(data, Mapping):
+        return {str(key): value for key, value in data.items()}
+    logger.warning("Governance context file %s did not contain a JSON object", path)
+    return None
+
+
+def load_governance_context_from_config(
+    config: SystemConfig,
+    *,
+    base_path: Path | None = None,
+) -> GovernanceContextSources:
+    """Resolve governance telemetry context payloads referenced by SystemConfig extras."""
+
+    extras = config.extras or {}
+    root = _context_base_directory(extras, base_path)
+
+    def _resolve(key: str) -> tuple[Mapping[str, object] | None, Path | None]:
+        location = extras.get(key)
+        if not location:
+            return None, None
+        candidate = Path(location)
+        if not candidate.is_absolute():
+            candidate = root / candidate
+        payload = _load_context_payload(candidate)
+        return payload, candidate
+
+    compliance_payload, compliance_path = _resolve("GOVERNANCE_COMPLIANCE_CONTEXT")
+    regulatory_payload, regulatory_path = _resolve("GOVERNANCE_REGULATORY_CONTEXT")
+    audit_payload, audit_path = _resolve("GOVERNANCE_AUDIT_CONTEXT")
+
+    return GovernanceContextSources(
+        compliance=compliance_payload,
+        compliance_path=compliance_path,
+        regulatory=regulatory_payload,
+        regulatory_path=regulatory_path,
+        audit=audit_payload,
+        audit_path=audit_path,
+    )
+
+
+def build_governance_report_from_config(
+    config: SystemConfig,
+    *,
+    event_bus: EventBus | None = None,
+    base_path: Path | None = None,
+    generated_at: datetime | None = None,
+    strategy_id: str | None = None,
+    metadata: Mapping[str, object] | None = None,
+    compliance_provider: Callable[[], ComplianceReadinessSnapshot | Mapping[str, object] | None]
+    | None = None,
+    regulatory_provider: Callable[[], RegulatoryTelemetrySnapshot | Mapping[str, object] | None]
+    | None = None,
+    audit_collector: Callable[[SystemConfig, str | None], Mapping[str, object]] | None = None,
+) -> GovernanceReport:
+    """Compose and optionally publish a governance report using config-driven context."""
+
+    context_sources = load_governance_context_from_config(config, base_path=base_path)
+
+    compliance_payload = (
+        compliance_provider() if compliance_provider is not None else context_sources.compliance
+    )
+    regulatory_payload = (
+        regulatory_provider() if regulatory_provider is not None else context_sources.regulatory
+    )
+
+    if audit_collector is not None:
+        audit_payload = audit_collector(config, strategy_id)
+    elif context_sources.audit is not None:
+        audit_payload = context_sources.audit
+    else:
+        audit_payload = collect_audit_evidence(config, strategy_id=strategy_id)
+
+    metadata_payload: dict[str, object] = dict(metadata or {})
+    context_metadata: dict[str, str] = {}
+    if context_sources.compliance_path is not None:
+        context_metadata["compliance"] = str(context_sources.compliance_path)
+    if context_sources.regulatory_path is not None:
+        context_metadata["regulatory"] = str(context_sources.regulatory_path)
+    if context_sources.audit_path is not None:
+        context_metadata["audit"] = str(context_sources.audit_path)
+    if context_metadata:
+        existing = metadata_payload.get("context_sources")
+        merged: dict[str, str] = {}
+        if isinstance(existing, Mapping):
+            merged.update({str(key): str(value) for key, value in existing.items()})
+        merged.update(context_metadata)
+        metadata_payload["context_sources"] = merged
+    metadata_payload.setdefault("source", "governance_context")
+
+    report = generate_governance_report(
+        compliance_readiness=compliance_payload,
+        regulatory_snapshot=regulatory_payload,
+        audit_evidence=audit_payload,
+        generated_at=generated_at,
+        metadata=metadata_payload,
+    )
+
+    if event_bus is not None:
+        publish_governance_report(event_bus, report)
+
+    return report
 

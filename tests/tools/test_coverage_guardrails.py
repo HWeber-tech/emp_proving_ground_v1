@@ -41,6 +41,8 @@ def sample_report(tmp_path: Path) -> Path:
         "src/data_foundation/ingest/production_slice.py": [1, 1, 1, 0],
         "src/data_foundation/ingest/timescale_pipeline.py": [1, 1, 1, 1, 0],
         "src/trading/risk/risk_policy.py": [1, 1, 0, 1, 1],
+        "src/data_foundation/ingest/observability.py": [1, 1, 1, 1, 1],
+        "src/operations/observability_dashboard.py": [1, 1, 1, 1, 1],
     }
     return _write_report(tmp_path, coverage)
 
@@ -52,6 +54,8 @@ def test_evaluate_guardrails_passes_when_threshold_met(sample_report: Path) -> N
         "ingest_production_slice",
         "timescale_pipeline",
         "risk_policy",
+        "ingest_observability",
+        "observability_dashboard",
     }
     for target in report.targets:
         assert target.percent >= 60.0
@@ -69,9 +73,17 @@ def test_evaluate_guardrails_marks_missing_targets(tmp_path: Path) -> None:
     report = evaluate_guardrails(report_path, minimum_percent=80.0)
 
     assert report.has_failures
-    assert "timescale_pipeline" in report.failing
+    assert set(report.failing) == {
+        "timescale_pipeline",
+        "ingest_observability",
+        "observability_dashboard",
+    }
     missing = {target.label for target in report.targets if target.missing}
-    assert missing == {"timescale_pipeline"}
+    assert missing == {
+        "timescale_pipeline",
+        "ingest_observability",
+        "observability_dashboard",
+    }
 
 
 def test_cli_returns_failure_exit_code_on_low_coverage(sample_report: Path, capsys: pytest.CaptureFixture[str]) -> None:

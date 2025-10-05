@@ -274,7 +274,7 @@ Notes
   - Canonical: [src/core/risk/manager.py](src/core/risk/manager.py)
   - Legacy shim retired: `src/core/risk_manager.py` removed after trading and core modules switched to importing `src/core/risk/manager.py` directly.【F:src/core/__init__.py†L34-L43】【F:src/trading/trading_manager.py†L105-L147】
 - risk module unification
-  - [src/risk.py](src/risk.py) now re-exports canonical RiskManager and RiskConfig and temporarily retains ValidationResult for compatibility
+  - Legacy [src/risk.py](src/risk.py) shim removed; package init now re-exports canonical RiskManager and RiskConfig for compatibility【F:src/risk/__init__.py†L6-L43】
   - Note: ValidationResult will be canonicalized in Batch 4 under validation models
 
 Verification (scanner)
@@ -290,7 +290,7 @@ Notes
   - Canonical: [src/validation/models.py](src/validation/models.py)
   - Updates:
     - Validation framework now imports canonical model: [src/validation/validation_framework.py](src/validation/validation_framework.py)
-    - risk module re-exports canonical model for back-compat: [src/risk.py](src/risk.py)
+    - risk module re-exports canonical model for back-compat: [src/risk/__init__.py](src/risk/__init__.py)
     - data_integration package re-exports canonical model: [src/data_integration/__init__.py](src/data_integration/__init__.py)
   - Parser fix folded into this batch:
     - Replaced local dataclass and corrected loops in Phase 2 suite: [src/validation/phase2_validation_suite.py](src/validation/phase2_validation_suite.py)

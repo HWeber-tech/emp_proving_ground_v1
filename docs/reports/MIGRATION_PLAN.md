@@ -74,7 +74,7 @@ Batch 3 — Risk layer
   - RiskConfig → canonical [src/config/risk/risk_config.py](src/config/risk/risk_config.py)
 - Actions:
   - Convert [src/core/risk_manager.py](src/core/risk_manager.py) to re-export from core.risk.manager.
-  - Convert [src/risk.py](src/risk.py) to re-export RiskManager only (and ValidationResult from validation, see Batch 4).
+  - Convert risk package init ([src/risk/__init__.py](src/risk/__init__.py)) to re-export RiskManager only (legacy src/risk.py shim removed; retain ValidationResult until Batch 4).
   - Extract RiskConfig into [src/config/risk/risk_config.py](src/config/risk/risk_config.py); remove inline bodies from [src/core.py](src/core.py).
 - Tests:
   - Run risk unit tests; run scanner; verify RiskManager and RiskConfig no longer duplicated.
@@ -85,7 +85,7 @@ Batch 4 — Validation layer
   - Phase2DIntegrationValidator → canonical [src/validation/phase2d_integration_validator.py](src/validation/phase2d_integration_validator.py)
 - Actions:
   - Create [src/validation/models.py](src/validation/models.py) and move ValidationResult here.
-  - Convert [src/data_integration/__init__.py](src/data_integration/__init__.py) and [src/risk.py](src/risk.py) to re-export.
+  - Convert [src/data_integration/__init__.py](src/data_integration/__init__.py) and [src/risk/__init__.py](src/risk/__init__.py) to re-export.
   - Convert root-level [src/phase2d_integration_validator.py](src/phase2d_integration_validator.py) to re-export the validation module.
 - Tests:
   - Run validation suite; run scanner; verify duplicates removed for these families.

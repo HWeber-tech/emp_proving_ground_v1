@@ -20,9 +20,9 @@ def test_integration():
     try:
         # Test 1: Core imports
         from src.core import InstrumentProvider, RiskConfig
+        from src.core.risk.manager import RiskManager
         from src.data import TickDataCleaner, TickDataStorage
         from src.evolution import EvolutionConfig, EvolutionEngine, FitnessEvaluator
-        from src.risk import RiskManager
         from src.sensory.core.base import InstrumentMeta
         from src.sensory.orchestration.master_orchestrator import MasterOrchestrator
         from src.simulation import MarketSimulator

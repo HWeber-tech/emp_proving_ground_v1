@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from src.config.risk.risk_config import RiskConfig
+from src.core.risk.manager import RiskManager
+
 from .real_risk_manager import RealRiskConfig, RealRiskManager
 from .analytics import (
     VolatilityTargetAllocation,
@@ -59,4 +62,6 @@ __all__ = [
     "VolatilityRegimeAssessment",
     "VolatilityRegimeThresholds",
     "classify_volatility_regime",
+    "RiskManager",
+    "RiskConfig",
 ]

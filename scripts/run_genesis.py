@@ -29,9 +29,9 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
 from src.core import CurrencyConverter, InstrumentProvider, RiskConfig
+from src.core.risk.manager import RiskManager
 from src.data import DukascopyIngestor, TickDataCleaner, TickDataStorage
 from src.evolution import EvolutionConfig, EvolutionEngine, FitnessEvaluator
-from src.risk import RiskManager
 from src.sensory.core.base import InstrumentMeta
 from src.sensory.orchestration.master_orchestrator import MasterOrchestrator
 from src.simulation import AdversarialEngine, MarketSimulator

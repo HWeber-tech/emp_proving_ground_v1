@@ -932,6 +932,23 @@ class ProfessionalPredatorApp:
                 if risk_markdown:
                     summary_payload["risk"]["markdown"] = risk_markdown
 
+            describe_interface = getattr(trading_manager, "describe_risk_interface", None)
+            if callable(describe_interface):
+                try:
+                    interface_payload = describe_interface()
+                except Exception:  # pragma: no cover - diagnostics only
+                    self._logger.debug(
+                        "Failed to resolve trading risk interface for runtime summary",
+                        exc_info=True,
+                    )
+                else:
+                    if interface_payload is not None:
+                        risk_section = summary_payload.setdefault("risk", {})
+                        if isinstance(interface_payload, Mapping):
+                            risk_section["interface"] = dict(interface_payload)
+                        else:
+                            risk_section["interface"] = interface_payload
+
             policy_obj = _call_manager_method(trading_manager, "get_last_policy_snapshot")
             policy_snapshot = _snapshot_to_dict(policy_obj)
             policy_markdown = (

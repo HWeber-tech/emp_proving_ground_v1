@@ -140,3 +140,20 @@ def test_real_sensory_organ_exposes_drift_summary_after_window() -> None:
     latest_event = bus.events[-1][1]
     assert latest_event["drift_summary"] is not None
     assert latest_event["drift_summary"]["parameters"]["z_threshold"] == config.z_threshold
+
+
+def test_real_sensory_organ_metrics_exposes_dimension_state() -> None:
+    frame = _build_market_frame()
+    organ = RealSensoryOrgan()
+    organ.observe(frame)
+
+    metrics = organ.metrics()
+
+    assert metrics["samples"] >= 1
+    assert metrics["integrated"] is not None
+    dimensions = metrics["dimensions"]
+    assert "HOW" in dimensions and "ANOMALY" in dimensions
+
+    how_metrics = dimensions["HOW"]
+    assert "signal" in how_metrics
+    assert "threshold_state" in how_metrics

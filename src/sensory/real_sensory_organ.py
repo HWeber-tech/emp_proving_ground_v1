@@ -198,6 +198,40 @@ class RealSensoryOrgan:
             "drift_summary": self._serialise_drift_summary(self._latest_drift),
         }
 
+    def metrics(self) -> Mapping[str, Any]:
+        """Expose dimension-level metrics for runtime summaries and telemetry."""
+
+        latest_snapshot = self._latest_snapshot
+        serialised_latest = self._serialise_snapshot(latest_snapshot)
+
+        dimensions: dict[str, Mapping[str, Any]] = {}
+        if isinstance(latest_snapshot, Mapping):
+            raw_dimensions = latest_snapshot.get("dimensions")
+            if isinstance(raw_dimensions, Mapping):
+                for name, payload in raw_dimensions.items():
+                    if not isinstance(name, str) or not isinstance(payload, Mapping):
+                        continue
+                    dimensions[name] = self._build_dimension_metrics(payload)
+
+        integrated_metrics: Mapping[str, Any] | None = None
+        if isinstance(latest_snapshot, Mapping):
+            integrated = latest_snapshot.get("integrated_signal")
+            if isinstance(integrated, IntegratedSignal):
+                integrated_metrics = {
+                    "strength": integrated.strength,
+                    "confidence": integrated.confidence,
+                    "direction": integrated.direction,
+                }
+
+        return {
+            "symbol": (serialised_latest or {}).get("symbol"),
+            "generated_at": (serialised_latest or {}).get("generated_at"),
+            "samples": len(self._audit_trail),
+            "integrated": integrated_metrics,
+            "dimensions": dimensions,
+            "drift_summary": self._serialise_drift_summary(self._latest_drift),
+        }
+
     # ------------------------------------------------------------------
     def _first_signal(self, signals: Sequence[SensorSignal], dimension: str) -> SensorSignal:
         for signal in signals:
@@ -315,6 +349,24 @@ class RealSensoryOrgan:
         if isinstance(drift_summary, SensorDriftSummary):
             payload["drift_summary"] = self._serialise_drift_summary(drift_summary)
         return payload
+
+    def _build_dimension_metrics(self, payload: Mapping[str, Any]) -> Mapping[str, Any]:
+        signal = self._as_float(payload.get("signal"))
+        confidence = self._as_float(payload.get("confidence"))
+        metadata = payload.get("metadata") if isinstance(payload.get("metadata"), Mapping) else {}
+        state = metadata.get("state") if isinstance(metadata.get("state"), str) else None
+        threshold_state: str | None = None
+        thresholds = metadata.get("threshold_assessment")
+        if isinstance(thresholds, Mapping):
+            value = thresholds.get("state")
+            if isinstance(value, str):
+                threshold_state = value
+        return {
+            "signal": signal,
+            "confidence": confidence,
+            "state": state,
+            "threshold_state": threshold_state,
+        }
 
     def _format_timestamp(self, value: Any) -> str | None:
         if isinstance(value, datetime):

@@ -110,10 +110,11 @@
     CI hooks and drills can block on stale, failing, or WARN observability
     evidence under pytest coverage.【F:tools/telemetry/dashboard_guard.py†L1-L220】【F:tests/tools/test_dashboard_guard.py†L16-L140】
   - Progress: Configuration audit telemetry now evaluates `SystemConfig` diffs,
-    annotates tracked toggles and extras, renders Markdown summaries, and
-    publishes via the shared failover helper so configuration changes generate a
-    durable audit trail for dashboards and governance reviews under pytest
-    coverage.【F:src/operations/configuration_audit.py†L1-L235】【F:tests/operations/test_configuration_audit.py†L1-L164】
+    annotates tracked toggles and extras, renders Markdown summaries with
+    severity breakdowns, and publishes via the shared failover helper so
+    configuration changes generate a durable audit trail with explicit severity
+    counts and highest-risk fields for dashboards and governance reviews under
+    pytest coverage.【F:src/operations/configuration_audit.py†L90-L210】【F:tests/operations/test_configuration_audit.py†L24-L86】
   - Progress: Ingest trend telemetry logging now records runtime publish
     fallbacks, raises on unexpected errors, and escalates global bus outages with
     pytest coverage so data backbone dashboards expose genuine gaps instead of
@@ -201,7 +202,7 @@
 - CI metrics staleness guard exposes a CLI that summarises coverage, formatter,
   domain, and remediation trend freshness, failing builds when telemetry goes
   stale or evidence is missing so roadmap reviews inherit up-to-date snapshots
-  under pytest coverage documenting stale detection and JSON output flows.【F:tools/telemetry/ci_metrics_guard.py†L1-L144】【F:tests/tools/test_ci_metrics_guard.py†L1-L98】
+  under pytest coverage documenting stale detection and JSON output flows.【F:tools/telemetry/ci_metrics_guard.py†L1-L142】【F:tests/tools/test_ci_metrics_guard.py†L1-L99】
 - Remediation summary exporter reads the metrics feed, renders Markdown tables
   with delta call-outs, honours slice limits, omits deltas for non-numeric
   statuses, and ships with a CLI/pytest contract so status updates and briefs

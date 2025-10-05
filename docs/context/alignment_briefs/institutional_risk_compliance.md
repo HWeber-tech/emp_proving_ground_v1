@@ -72,8 +72,9 @@
 - Progress: Deterministic trading risk API centralises config/status resolution,
   exposes runtime-ready metadata snapshots, and drives the runtime builder’s
   enforcement path so supervisors and docs consume a single hardened contract
-  under pytest coverage, now exporting a public runbook alias so downstream
-  telemetry and runtime errors link to the same remediation guide.【F:src/trading/risk/risk_api.py†L23-L44】【F:src/runtime/runtime_builder.py†L323-L337】【F:tests/trading/test_risk_api.py†L1-L115】【F:tests/runtime/test_runtime_builder.py†L200-L234】
+  under pytest coverage, now exporting volatility targets, leverage windows,
+  sector-instrument counts, and the public runbook alias so downstream telemetry
+  and runtime errors link to the same remediation guide.【F:src/trading/risk/risk_api.py†L100-L150】【F:src/runtime/runtime_builder.py†L323-L337】【F:tests/trading/test_risk_api.py†L90-L146】【F:tests/runtime/test_runtime_builder.py†L200-L234】
 - Progress: Trading risk interface telemetry helpers now publish structured
   snapshots and contract-violation alerts with Markdown summaries, updating the
   trading manager’s cached posture and emitting event-bus payloads under pytest

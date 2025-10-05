@@ -198,6 +198,10 @@
   CLI and the new `--coverage-remediation` mode, capturing roadmap evidence
   (label, statuses, source, notes) and coverage laggard summaries for dashboards
   and audits with pytest guarding the JSON contract.【F:tools/telemetry/update_ci_metrics.py†L1-L240】【F:tools/telemetry/ci_metrics.py†L1-L260】【F:tests/tools/test_ci_metrics.py†L1-L420】【F:tests/.telemetry/ci_metrics.json†L1-L6】
+- CI metrics staleness guard exposes a CLI that summarises coverage, formatter,
+  domain, and remediation trend freshness, failing builds when telemetry goes
+  stale or evidence is missing so roadmap reviews inherit up-to-date snapshots
+  under pytest coverage documenting stale detection and JSON output flows.【F:tools/telemetry/ci_metrics_guard.py†L1-L144】【F:tests/tools/test_ci_metrics_guard.py†L1-L98】
 - Remediation summary exporter reads the metrics feed, renders Markdown tables
   with delta call-outs, honours slice limits, omits deltas for non-numeric
   statuses, and ships with a CLI/pytest contract so status updates and briefs

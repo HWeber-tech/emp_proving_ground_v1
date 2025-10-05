@@ -23,6 +23,16 @@ from src.evolution.catalogue_telemetry import (
     EvolutionCatalogueSnapshot,
     build_catalogue_snapshot,
 )
+from src.evolution.evaluation import (
+    RecordedEvaluationResult,
+    RecordedSensoryEvaluator,
+    RecordedSensorySnapshot,
+    RecordedTrade,
+)
+from src.evolution.evaluation.telemetry import (
+    RecordedReplayTelemetrySnapshot,
+    summarise_recorded_replay,
+)
 from src.evolution.feature_flags import EvolutionFeatureFlags
 from src.evolution.lineage_telemetry import (
     EvolutionLineageSnapshot,
@@ -46,4 +56,10 @@ __all__ = [
     "EvolutionLineageSnapshot",
     "build_lineage_snapshot",
     "EvolutionFeatureFlags",
+    "RecordedEvaluationResult",
+    "RecordedReplayTelemetrySnapshot",
+    "RecordedSensoryEvaluator",
+    "RecordedSensorySnapshot",
+    "RecordedTrade",
+    "summarise_recorded_replay",
 ]

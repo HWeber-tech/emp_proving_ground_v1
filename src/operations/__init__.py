@@ -167,6 +167,12 @@ from .sensory_drift import (
     evaluate_sensory_drift,
     publish_sensory_drift,
 )
+from .sensory_summary import (
+    SensoryDimensionSummary,
+    SensorySummary,
+    build_sensory_summary,
+    publish_sensory_summary,
+)
 from .slo import (
     DEFAULT_ALERT_ROUTES,
     OperationalSLOSnapshot,
@@ -336,6 +342,10 @@ __all__ = [
     "SensoryDriftSnapshot",
     "evaluate_sensory_drift",
     "publish_sensory_drift",
+    "SensoryDimensionSummary",
+    "SensorySummary",
+    "build_sensory_summary",
+    "publish_sensory_summary",
     "DEFAULT_ALERT_ROUTES",
     "OperationalSLOSnapshot",
     "ServiceSLO",

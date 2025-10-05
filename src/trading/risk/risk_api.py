@@ -128,6 +128,19 @@ def summarise_risk_config(config: RiskConfig) -> dict[str, object]:
         }
         sector_total = sum(config.sector_exposure_limits.values(), Decimal("0"))
         summary["sector_budget_total_pct"] = float(sector_total)
+        headroom = config.max_total_exposure_pct - sector_total
+        if headroom < Decimal("0"):
+            headroom = Decimal("0")
+        summary["sector_headroom_pct"] = float(headroom)
+        summary["sector_headroom_ratio"] = float(
+            headroom / config.max_total_exposure_pct
+        )
+        max_sector_limit = max(
+            config.sector_exposure_limits.values(), default=Decimal("0")
+        )
+        summary["max_sector_utilisation_ratio"] = float(
+            max_sector_limit / config.max_total_exposure_pct
+        )
 
     if config.instrument_sector_map:
         instrument_sector_map = dict(config.instrument_sector_map)

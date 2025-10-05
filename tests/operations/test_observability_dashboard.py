@@ -222,6 +222,16 @@ def test_build_dashboard_composes_panels_and_status() -> None:
     assert "# Operational observability dashboard" in markdown
     assert "Risk & exposure" in markdown
 
+    metadata_counts = dashboard.metadata["panel_status_counts"]
+    assert metadata_counts == {
+        DashboardStatus.ok.value: 1,
+        DashboardStatus.warn.value: 3,
+        DashboardStatus.fail.value: 1,
+    }
+    metadata_statuses = dashboard.metadata["panel_statuses"]
+    assert metadata_statuses["Risk & exposure"] == DashboardStatus.fail.value
+    assert metadata_statuses["Operational readiness"] == DashboardStatus.warn.value
+
     remediation = dashboard.remediation_summary()
     assert remediation["overall_status"] == DashboardStatus.fail.value
     assert remediation["panel_counts"][DashboardStatus.fail.value] == 1
@@ -248,6 +258,13 @@ def test_dashboard_handles_missing_inputs() -> None:
     payload = dashboard.as_dict()
     assert payload["status"] == DashboardStatus.ok.value
     assert payload["panels"] == []
+    assert payload["metadata"]["panel_status_counts"] == {
+        DashboardStatus.ok.value: 0,
+        DashboardStatus.warn.value: 0,
+        DashboardStatus.fail.value: 0,
+    }
+    assert payload["metadata"]["panel_statuses"] == {}
+    assert payload["remediation_summary"]["overall_status"] == DashboardStatus.ok.value
 
     remediation = dashboard.remediation_summary()
     assert remediation["overall_status"] == DashboardStatus.ok.value
@@ -272,6 +289,14 @@ def test_dashboard_merges_additional_panels() -> None:
 
     assert dashboard.status is DashboardStatus.warn
     assert dashboard.panels == (custom_panel,)
+    assert dashboard.metadata["panel_status_counts"] == {
+        DashboardStatus.ok.value: 0,
+        DashboardStatus.warn.value: 1,
+        DashboardStatus.fail.value: 0,
+    }
+    assert dashboard.metadata["panel_statuses"] == {
+        "Custom": DashboardStatus.warn.value,
+    }
 
 
 def test_risk_panel_metadata_includes_limit_ratio() -> None:

@@ -17,6 +17,7 @@ from src.data_foundation.ingest.configuration import (
 )
 from src.data_foundation.ingest.institutional_vertical import (
     InstitutionalIngestProvisioner,
+    ManagedConnectorSnapshot,
     default_institutional_schedule,
 )
 from src.data_foundation.ingest.scheduler import IngestSchedule
@@ -128,6 +129,11 @@ async def test_provisioned_services_supervise_components() -> None:
     assert summary["timescale"]["configured"] is True
     assert summary["redis"] is not None
     assert summary["kafka_topics"] == ["telemetry.ingest"]
+    manifest = summary["managed_manifest"]
+    assert {entry["name"] for entry in manifest} == {"timescale", "redis", "kafka"}
+    for entry in manifest:
+        if entry["name"] == "redis" and entry["metadata"]["summary"]:
+            assert "***" in entry["metadata"]["summary"]
 
 
 def test_summary_includes_failover_metadata() -> None:
@@ -176,3 +182,71 @@ async def test_provision_skips_optional_connectors_when_unconfigured() -> None:
     summary = services.summary()
     assert summary["redis"] is None
     assert summary["kafka"] is None
+
+
+@pytest.mark.asyncio
+async def test_connectivity_report_uses_optional_probes() -> None:
+    config = _ingest_config(schedule=default_institutional_schedule())
+    provisioner = InstitutionalIngestProvisioner(
+        config,
+        redis_settings=RedisConnectionSettings.from_mapping(
+            {"REDIS_URL": "redis://localhost:6379/0"}
+        ),
+    )
+
+    services = provisioner.provision(
+        run_ingest=lambda: asyncio.sleep(0),
+        event_bus=_DummyEventBus(),
+        task_supervisor=TaskSupervisor(namespace="probes"),
+        redis_client_factory=lambda *_: InMemoryRedis(),
+        kafka_consumer_factory=lambda *_: _DummyKafkaConsumer(),
+    )
+
+    services.start()
+    probes_called: dict[str, bool] = {"timescale": False, "redis": False}
+
+    async def _async_probe() -> bool:
+        probes_called["timescale"] = True
+        return True
+
+    def _sync_probe() -> bool:
+        probes_called["redis"] = True
+        return False
+
+    report = await services.connectivity_report(
+        probes={"timescale": _async_probe, "redis": _sync_probe},
+        timeout=0.1,
+    )
+
+    manifest = {snapshot.name: snapshot for snapshot in report}
+    assert manifest["timescale"].healthy is True
+    assert manifest["redis"].healthy is False
+    assert manifest["kafka"].healthy is None
+    assert probes_called == {"timescale": True, "redis": True}
+
+    await services.stop()
+
+
+def test_manifest_snapshot_structure() -> None:
+    config = _ingest_config(schedule=default_institutional_schedule())
+    config = dataclasses.replace(
+        config,
+        kafka_settings=KafkaConnectionSettings.from_mapping({}),
+    )
+    provisioner = InstitutionalIngestProvisioner(
+        config,
+        redis_settings=RedisConnectionSettings(),
+    )
+
+    services = provisioner.provision(
+        run_ingest=lambda: asyncio.sleep(0),
+        event_bus=_DummyEventBus(),
+        task_supervisor=TaskSupervisor(namespace="manifest"),
+    )
+
+    snapshots = services.managed_manifest()
+    assert {snap.name for snap in snapshots} == {"timescale", "redis", "kafka"}
+    timescale_snapshot = next(snap for snap in snapshots if snap.name == "timescale")
+    assert timescale_snapshot.supervised is False
+    assert timescale_snapshot.configured is True
+    assert "dimensions" in timescale_snapshot.metadata

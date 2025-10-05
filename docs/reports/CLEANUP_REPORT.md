@@ -72,11 +72,15 @@ Dependency Analysis
 
 
 Dead code candidates (first 100):
--  src\core.py
--  src\phase2d_integration_validator.py
--  src\phase3_integration.py
--  src\pnl.py
--  src\risk.py
+-  ~~src\core.py~~ (removed; canonical core exports live in the `src/core` package and
+   remain covered by the defensive import tests).【F:src/core/__init__.py†L1-L52】【F:tests/core/test_core_init_fallback.py†L1-L48】
+-  ~~src\phase2d_integration_validator.py~~ (removed; orchestration now consumes the
+   typed validator in `src/validation/phase2d_integration_validator.py`).【F:src/validation/phase2d_integration_validator.py†L1-L204】
+-  ~~src\phase3_integration.py~~ (removed; evolution phase orchestration is housed in
+   `src/orchestration/evolution_cycle.py`).【F:src/orchestration/evolution_cycle.py†L1-L210】
+-  ~~src\pnl.py~~ (removed; portfolio and PnL calculations resolve through the
+   managed monitor implementation).【F:src/trading/portfolio/real_portfolio_monitor.py†L1-L572】
+-  ~~src\risk.py~~ (removed; risk modules import the canonical package entrypoint).【F:src/risk/__init__.py†L1-L54】
 -  ~~src\config\evolution_config.py~~ (removed; evolution configuration now
    resolves through `src/core/evolution/engine.py`).【F:src/core/evolution/engine.py†L13-L43】
 -  src\config\portfolio_config.py
@@ -269,13 +273,13 @@ Notes
   - Canonical: [src/config/risk/risk_config.py](src/config/risk/risk_config.py)
   - Re-exports for back-compat:
     - [src/core/risk/manager.py](src/core/risk/manager.py) now imports canonical RiskConfig and continues to expose RiskConfig for legacy imports
-    - [src/core.py](src/core.py) re-exports RiskConfig from canonical
+    - Legacy [src/core.py] shim removed once callers switched to the package exports
 - RiskManager
   - Canonical: [src/core/risk/manager.py](src/core/risk/manager.py)
   - Legacy shim retired: `src/core/risk_manager.py` removed after trading and core modules switched to importing `src/core/risk/manager.py` directly.【F:src/core/__init__.py†L34-L43】【F:src/trading/trading_manager.py†L105-L147】
 - risk module unification
-  - [src/risk.py](src/risk.py) now re-exports canonical RiskManager and RiskConfig and temporarily retains ValidationResult for compatibility
-  - Note: ValidationResult will be canonicalized in Batch 4 under validation models
+  - Legacy [src/risk.py] shim removed after imports converged on the package module
+  - Note: ValidationResult canonicalisation tracked under validation models
 
 Verification (scanner)
 - After Batch 3: Classes duplicate groups = 49; Functions duplicate groups = 1
@@ -290,7 +294,7 @@ Notes
   - Canonical: [src/validation/models.py](src/validation/models.py)
   - Updates:
     - Validation framework now imports canonical model: [src/validation/validation_framework.py](src/validation/validation_framework.py)
-    - risk module re-exports canonical model for back-compat: [src/risk.py](src/risk.py)
+    - risk package already points to canonical model
     - data_integration package re-exports canonical model: [src/data_integration/__init__.py](src/data_integration/__init__.py)
   - Parser fix folded into this batch:
     - Replaced local dataclass and corrected loops in Phase 2 suite: [src/validation/phase2_validation_suite.py](src/validation/phase2_validation_suite.py)
@@ -524,8 +528,8 @@ Notes
 
 Canonicalization
 - Core
-  - Instrument: canonical source is [src/core/instrument.py](src/core/instrument.py); [src/core.py](src/core.py) now re-exports Instrument (no duplicate class body).
-  - Domain shims: [src/domain/models.py](src/domain/models.py) now re-exports canonical [InstrumentProvider](src/core.py) and [CurrencyConverter](src/core.py) rather than defining duplicate placeholder classes.
+  - Instrument: canonical source is [src/core/instrument.py](src/core/instrument.py); legacy [src/core.py] shim removed.
+  - Domain shims: [src/domain/models.py](src/domain/models.py) now re-exports canonical [InstrumentProvider](src/core/instrument.py) and finance helpers.
 - Sensory
   - Signals: [src/sensory/__init__.py](src/sensory/__init__.py) re-exports SensorSignal and IntegratedSignal from [src/sensory/signals.py](src/sensory/signals.py).
   - Dimensions: [src/sensory/dimensions/__init__.py](src/sensory/dimensions/__init__.py) re-exports concrete implementations instead of defining local placeholder classes:

@@ -47,25 +47,25 @@ Phase 1 scope — families and decisions
 - Observed in:
   - [src/core/risk/manager.py](src/core/risk/manager.py)
   - [src/core/risk_manager.py](src/core/risk_manager.py)
-  - [src/risk.py](src/risk.py)
-  - [src/core.py](src/core.py) for RiskConfig
+  - ~~src/risk.py~~ (removed; canonical import surface is the package module)
+  - ~~src/core.py~~ (removed; package exports provide legacy accessors)
 - Canonical: [src/core/risk/manager.py](src/core/risk/manager.py)
 - RiskConfig canonical target: create [src/config/risk/risk_config.py](src/config/risk/risk_config.py) or reuse [src/config/risk/](src/config/risk/) if a module already fits.
 - Legacy shims:
   - [src/core/risk_manager.py](src/core/risk_manager.py) re-exports from core.risk.manager
-  - [src/risk.py](src/risk.py) re-exports RiskManager and ValidationResult (see family 6)
-  - [src/core.py](src/core.py) re-exports RiskConfig only; remove any inline type body
+  - ~~src/risk.py~~ (removed; see above)
+  - ~~src/core.py~~ (removed; see above)
 - Rationale: consolidate under core risk package; config lives under config.
 
 3) Instrument (2) and InstrumentProvider (2)
 - Observed in:
   - [src/core/instrument.py](src/core/instrument.py)
-  - [src/core.py](src/core.py)
+  - ~~src/core.py~~ (removed; instruments now surface via the package exports)
   - [src/domain/models.py](src/domain/models.py)
 - Canonical: [src/core/instrument.py](src/core/instrument.py)
 - Provider canonical target: create [src/core/instrument_provider.py](src/core/instrument_provider.py) (move provider here).
 - Legacy shims:
-  - [src/core.py](src/core.py) re-exports Instrument, InstrumentProvider
+  - ~~src/core.py~~ (removed; see above)
   - [src/domain/models.py](src/domain/models.py) re-exports InstrumentProvider
 - Rationale: instruments are core primitives; avoid multi-ownership.
 
@@ -73,11 +73,11 @@ Phase 1 scope — families and decisions
 - Observed in:
   - [src/validation/validation_framework.py](src/validation/validation_framework.py)
   - [src/data_integration/__init__.py](src/data_integration/__init__.py)
-  - [src/risk.py](src/risk.py)
+  - ~~src/risk.py~~ (removed; validation imports go through the package)
 - Canonical: create [src/validation/models.py](src/validation/models.py) and define ValidationResult here, or move into [src/validation/validation_framework.py](src/validation/validation_framework.py) if it already hosts the model cleanly.
 - Legacy shims:
   - [src/data_integration/__init__.py](src/data_integration/__init__.py) re-exports from validation.models
-  - [src/risk.py](src/risk.py) re-exports from validation.models
+  - ~~src/risk.py~~ (removed; see above)
 - Rationale: Validation types belong in validation.
 
 5) OrderBookSnapshot (3) and OrderBookLevel (2)
@@ -182,18 +182,18 @@ Phase 1 scope — families and decisions
 
 15) CurrencyConverter (2)
 - Observed in:
-  - [src/core.py](src/core.py)
+  - ~~src/core.py~~ (removed; stale shim deleted)
   - [src/domain/models.py](src/domain/models.py)
 - Canonical: create [src/core/finance/currency_converter.py](src/core/finance/currency_converter.py)
 - Legacy shims:
-  - [src/core.py](src/core.py) re-exports only
+  - ~~src/core.py~~ (removed)
   - [src/domain/models.py](src/domain/models.py) imports from core.finance
 - Rationale: financial utilities are core-level concerns.
 
 16) Phase2DIntegrationValidator (2)
 - Observed in:
   - [src/validation/phase2d_integration_validator.py](src/validation/phase2d_integration_validator.py)
-  - [src/phase2d_integration_validator.py](src/phase2d_integration_validator.py)
+  - ~~src/phase2d_integration_validator.py~~ (removed; see cleanup report)
 - Canonical: [src/validation/phase2d_integration_validator.py](src/validation/phase2d_integration_validator.py)
 - Legacy shim: root module re-exports only (or deletes content and forwards).
 - Rationale: validation resides under validation domain.
@@ -219,7 +219,7 @@ Re-export shim policy (Phase 1)
 - Re-export only; no additional logic in legacy modules.
 - Single source-of-truth import path used by all new code.
 - Shims live where current imports originate:
-  - Example targets to receive shims (non-exhaustive): [src/operational/event_bus.py](src/operational/event_bus.py), [src/core.py](src/core.py), [src/risk.py](src/risk.py), [src/trading/models.py](src/trading/models.py), [src/sensory/__init__.py](src/sensory/__init__.py), [src/data_integration/__init__.py](src/data_integration/__init__.py).
+- Example targets to receive shims (non-exhaustive): [src/operational/event_bus.py](src/operational/event_bus.py), ~~src/core.py~~ (removed), ~~src/risk.py~~ (removed), [src/trading/models.py](src/trading/models.py), [src/sensory/__init__.py](src/sensory/__init__.py), [src/data_integration/__init__.py](src/data_integration/__init__.py).
 
 Migration order (low risk to higher)
 1) Canonicalize “infrastructure primitives”:

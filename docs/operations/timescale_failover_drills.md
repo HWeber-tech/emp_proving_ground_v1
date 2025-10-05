@@ -24,6 +24,18 @@ Typical flow:
    active drill configuration and feed the result into
    `operations.failover_drill.execute_failover_drill()`.
 
+The services bundle now exposes two additional helpers for operations teams:
+
+- `managed_manifest()` returns a redaction-safe summary of the Timescale, Redis,
+  and Kafka connectors, including supervision state and configured topics.  The
+  manifest can be rendered directly in readiness dashboards without replicating
+  redaction logic.
+- `connectivity_report(probes=...)` runs optional synchronous or asynchronous
+  probes against the managed connectors, returning health-enriched manifest
+  snapshots.  Operators can inject bespoke Timescale, Redis, or Kafka pings and
+  publish the resulting manifest to observability streams alongside failover
+  metadata.
+
 By routing failover drills through the new helper, Tier-1 ingest deployments
 retain a consistent picture of which Timescale dimensions must participate in
 disaster-recovery simulations while ensuring all background workloads remain

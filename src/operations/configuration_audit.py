@@ -11,6 +11,7 @@ high-impact toggles (tier, backbone, run mode, credentials) go live.
 from __future__ import annotations
 
 import logging
+from collections import Counter
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import StrEnum
@@ -105,6 +106,12 @@ class ConfigurationAuditSnapshot:
                     f"- **{change.field}**: {previous} → {current}"
                     f" ({change.severity.value.upper()}){note}"
                 )
+        severity_counts = _summarise_severity(self.changes)
+        lines.append("\n## Severity summary")
+        for severity in ConfigurationAuditStatus:
+            lines.append(
+                f"- {severity.value.title()}: {severity_counts[severity]}"
+            )
         extras_summary = self.metadata.get("extras_summary")
         if isinstance(extras_summary, Mapping) and any(extras_summary.values()):
             added = extras_summary.get("added") or []
@@ -177,6 +184,11 @@ def evaluate_configuration_audit(
 
     extras_summary = _diff_extras(register_change, previous_config, current_config)
 
+    severity_counts = _summarise_severity(changes)
+    highest_severity_fields = [
+        change.field for change in changes if change.severity is status
+    ]
+
     metadata_payload: dict[str, object] = {
         "tier": current_config.get("tier"),
         "run_mode": current_config.get("run_mode"),
@@ -185,6 +197,11 @@ def evaluate_configuration_audit(
         "data_backbone_mode": current_config.get("data_backbone_mode"),
         "extras_summary": extras_summary,
         "changed_fields": [change.field for change in changes],
+        "severity_counts": {
+            severity.value: severity_counts[severity]
+            for severity in ConfigurationAuditStatus
+        },
+        "highest_severity_fields": highest_severity_fields,
     }
     if metadata:
         metadata_payload.update(dict(metadata))
@@ -286,6 +303,18 @@ def _normalise_config(
 
     result["extras"] = extras
     return result
+
+
+def _summarise_severity(
+    changes: tuple[ConfigurationChange, ...] | list[ConfigurationChange],
+) -> dict[ConfigurationAuditStatus, int]:
+    counter: Counter[ConfigurationAuditStatus] = Counter()
+    for change in changes:
+        counter[change.severity] += 1
+    return {
+        severity: counter.get(severity, 0)
+        for severity in ConfigurationAuditStatus
+    }
 
 
 def _coerce_bool(value: object, default: bool | None = False) -> bool:

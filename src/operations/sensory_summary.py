@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from typing import Any, Callable, Iterable, Mapping, MutableMapping, Sequence
 
 import pandas as pd
+from pandas.errors import OutOfBoundsDatetime, ParserError
 
 from src.core.event_bus import Event, EventBus, TopicBus
 from src.operations.event_bus_failover import publish_event_with_failover
@@ -40,12 +41,22 @@ def _normalise_mapping(mapping: Mapping[str, Any] | None) -> Mapping[str, Any]:
     return {str(key): value for key, value in mapping.items()}
 
 
+_TIMESTAMP_EXCEPTIONS: tuple[type[BaseException], ...] = (
+    TypeError,
+    ValueError,
+    OverflowError,
+    ParserError,
+    OutOfBoundsDatetime,
+)
+
+
 def _parse_timestamp(value: Any) -> datetime | None:
     if isinstance(value, datetime):
         return value
     try:
         converted = pd.to_datetime(value, utc=True, errors="coerce")
-    except Exception:
+    except _TIMESTAMP_EXCEPTIONS as exc:
+        logger.debug("Failed to parse sensory timestamp", extra={"value": value}, exc_info=exc)
         return None
     if converted is pd.NaT:
         return None

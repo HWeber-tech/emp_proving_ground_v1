@@ -22,6 +22,10 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.exc import SQLAlchemyError
 
 from src.core.event_bus import Event, EventBus, get_global_bus
+from src.operations.event_bus_failover import (
+    EventPublishError,
+    publish_event_with_failover,
+)
 
 
 class RetentionStatus(Enum):
@@ -295,22 +299,33 @@ def publish_data_retention(
         source="data_retention",
     )
 
-    bus = event_bus or get_global_bus()
-    publish_from_sync = getattr(bus, "publish_from_sync", None)
-    is_running = getattr(bus, "is_running", None)
-    if callable(publish_from_sync) and callable(is_running) and is_running():
-        try:
-            publish_from_sync(event)
-            return
-        except Exception:  # pragma: no cover - defensive publish fallback
-            pass
-
-    topic_bus = get_global_bus()
-    topic_bus.publish_sync(event.type, event.payload, source=event.source)
+    runtime_bus = event_bus or get_global_bus()
+    publish_event_with_failover(
+        runtime_bus,
+        event,
+        logger=logger,
+        runtime_fallback_message=(
+            "Runtime event bus rejected data retention snapshot; falling back to global bus"
+        ),
+        runtime_unexpected_message=(
+            "Runtime event bus raised an unexpected error while publishing data retention snapshot"
+        ),
+        runtime_none_message=(
+            "Runtime event bus returned no delivery count for data retention snapshot"
+        ),
+        global_not_running_message=(
+            "Global event bus is not running; unable to publish data retention snapshot"
+        ),
+        global_unexpected_message=(
+            "Global event bus raised an unexpected error while publishing data retention snapshot"
+        ),
+        global_bus_factory=get_global_bus,
+    )
 
 
 __all__ = [
     "DataRetentionSnapshot",
+    "EventPublishError",
     "RetentionComponentSnapshot",
     "RetentionPolicy",
     "RetentionStatus",

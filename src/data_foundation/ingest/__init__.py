@@ -56,6 +56,7 @@ __all__ = [
     "ProviderSnapshot",
     "ProviderSpec",
     "StalenessValidator",
+    "ProductionIngestSlice",
 ]
 
 
@@ -110,6 +111,7 @@ _MODULE_MAP = {
     "ProviderSnapshot": "src.data_foundation.ingest.multi_source",
     "ProviderSpec": "src.data_foundation.ingest.multi_source",
     "StalenessValidator": "src.data_foundation.ingest.multi_source",
+    "ProductionIngestSlice": "src.data_foundation.ingest.production_slice",
 }
 
 

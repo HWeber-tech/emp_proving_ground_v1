@@ -39,6 +39,7 @@ def test_evaluate_dashboard_health_reports_ok() -> None:
     assert report.missing_panels == ()
     assert report.issues == ()
     assert report.age_seconds == pytest.approx(600.0)
+    assert report.overall_status is DashboardGuardStatus.ok
 
 
 def test_evaluate_dashboard_health_detects_failing_panels() -> None:
@@ -51,6 +52,7 @@ def test_evaluate_dashboard_health_detects_failing_panels() -> None:
 
     assert report.status is DashboardGuardStatus.fail
     assert any("Failing panels" in issue for issue in report.issues)
+    assert report.overall_status is DashboardGuardStatus.ok
 
 
 def test_evaluate_dashboard_health_flags_stale_snapshot() -> None:
@@ -79,6 +81,29 @@ def test_evaluate_dashboard_health_requires_panels() -> None:
 
     assert report.status is DashboardGuardStatus.fail
     assert report.missing_panels == ("Operational readiness",)
+    assert report.overall_status is DashboardGuardStatus.ok
+
+
+def test_evaluate_dashboard_health_escalates_overall_status_warn() -> None:
+    now = datetime(2025, 1, 1, 12, 0, tzinfo=UTC)
+    summary = _base_summary(now)
+    summary["overall_status"] = "warn"
+    report = evaluate_dashboard_health(summary, current_time=now + timedelta(minutes=1))
+
+    assert report.status is DashboardGuardStatus.warn
+    assert report.overall_status is DashboardGuardStatus.warn
+    assert any("Overall dashboard status" in issue for issue in report.issues)
+
+
+def test_evaluate_dashboard_health_escalates_overall_status_fail() -> None:
+    now = datetime(2025, 1, 1, 12, 0, tzinfo=UTC)
+    summary = _base_summary(now)
+    summary["overall_status"] = "FAIL"
+    report = evaluate_dashboard_health(summary, current_time=now + timedelta(minutes=1))
+
+    assert report.status is DashboardGuardStatus.fail
+    assert report.overall_status is DashboardGuardStatus.fail
+    assert any(issue.endswith("FAIL") for issue in report.issues)
 
 
 def test_cli_outputs_json(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
@@ -103,6 +128,7 @@ def test_cli_outputs_json(tmp_path: Path, capsys: pytest.CaptureFixture[str]) ->
     captured = capsys.readouterr()
     output = json.loads(captured.out)
     assert output["status"] == "ok"
+    assert output["overall_status"] == "ok"
     assert output["missing_panels"] == []
 
 

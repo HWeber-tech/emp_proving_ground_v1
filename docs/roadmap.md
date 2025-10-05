@@ -56,10 +56,16 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
     prevent regressions in institutional ingest coverage.【F:src/data_foundation/ingest/timescale_pipeline.py†L70-L213】【F:tests/data_foundation/test_timescale_backbone_orchestrator.py†L1-L200】
   - *Progress*: Institutional ingest provisioner now hydrates supervised
     Timescale schedules, optional Redis caches, and Kafka ingest bridges from a
-    single configuration bundle while exposing failover drill metadata and
-    documenting how to surface the requirements so operators can bootstrap the
-    full ingest vertical with guardrails and discover required recovery
-    exercises without bespoke wiring.【F:src/data_foundation/ingest/institutional_vertical.py†L1-L239】【F:tests/runtime/test_institutional_ingest_vertical.py†L1-L164】【F:docs/operations/timescale_failover_drills.md†L1-L27】
+    single configuration bundle while exposing failover drill metadata, a
+    redaction-safe managed manifest, and an async connectivity-report helper so
+    operators can surface recovery requirements in dashboards and probe
+    Timescale/Redis/Kafka health without bespoke wiring.【F:src/data_foundation/ingest/institutional_vertical.py†L94-L349】【F:tests/runtime/test_institutional_ingest_vertical.py†L1-L164】【F:docs/operations/timescale_failover_drills.md†L1-L27】
+  - *Progress*: Tier-0 Yahoo ingest now sanitises symbols/intervals, enforces
+    mutually exclusive period versus window arguments, normalises timestamps,
+    and writes through a DuckDB helper that escapes table identifiers and binds
+    parameters with pytest coverage, while the new market data gateway logs
+    rejected requests and reuses the hardened fetcher so entry-level datasets
+    inherit safe defaults.【F:src/data_foundation/ingest/yahoo_ingest.py†L82-L305】【F:src/data_foundation/ingest/yahoo_gateway.py†L1-L53】【F:tests/data_foundation/test_yahoo_ingest_security.py†L1-L132】【F:tests/data_foundation/test_yahoo_gateway.py†L1-L69】
   - *Progress*: Timescale ingest helpers now validate schema/table identifiers
     before emitting SQL, raising deterministic errors on unsafe names and
     pinning the contract via regression tests so institutional slices cannot
@@ -300,6 +306,10 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
     with limit values, ratios, and violation statuses while preserving serialised
     payloads, backed by regression coverage so operators inherit actionable risk
     summaries instead of opaque aggregates.【F:src/operations/observability_dashboard.py†L254-L309】【F:tests/operations/test_observability_dashboard.py†L201-L241】
+  - *Progress*: Observability dashboard metadata now auto-populates panel status
+    counts and per-panel severity maps alongside the remediation capsule so CI
+    exporters and runbooks can ingest a machine-readable readiness snapshot
+    without recomputing counts, under pytest coverage that locks the contract.【F:src/operations/observability_dashboard.py†L486-L508】【F:tests/operations/test_observability_dashboard.py†L189-L237】
   - *Progress*: Observability dashboard now emits a remediation summary capsule
     that aggregates panel severities, highlights failing/warning slices, and is
     regression-tested so CI status exporters can consume a canonical

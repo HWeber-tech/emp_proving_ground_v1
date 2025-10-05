@@ -80,9 +80,15 @@
   instead of bespoke ingest wiring.【F:src/data_foundation/ingest/production_slice.py†L1-L170】【F:tests/data_foundation/test_production_ingest_slice.py†L1-L176】
 - Progress: Institutional ingest provisioner now builds supervised Timescale
   schedules, Redis caches, and Kafka bridges from a single configuration
-  surface, exposing failover drill metadata and a runtime summary so operators
-  can bootstrap the ingest vertical with guardrails and surface disaster-recovery
-  requirements in dashboards, with docs capturing the drill workflow.【F:src/data_foundation/ingest/institutional_vertical.py†L1-L239】【F:tests/runtime/test_institutional_ingest_vertical.py†L1-L164】【F:docs/operations/timescale_failover_drills.md†L1-L27】
+  surface, exposing failover drill metadata, a redaction-safe managed manifest,
+  and an async connectivity report helper so operators can bootstrap the ingest
+  vertical with guardrails, surface disaster-recovery requirements in
+  dashboards, and probe service health without bespoke wiring.【F:src/data_foundation/ingest/institutional_vertical.py†L94-L349】【F:tests/runtime/test_institutional_ingest_vertical.py†L1-L164】【F:docs/operations/timescale_failover_drills.md†L1-L27】
+- Progress: Tier-0 Yahoo ingest script now sanitises symbols and intervals,
+  enforces mutually exclusive period/start-end windows, normalises timestamps,
+  and persists via a DuckDB helper that escapes table identifiers and binds
+  parameters while the gateway adapter logs rejected fetches, with pytest
+  coverage locking the contract for institutional bootstrap datasets.【F:src/data_foundation/ingest/yahoo_ingest.py†L82-L305】【F:src/data_foundation/ingest/yahoo_gateway.py†L1-L53】【F:tests/data_foundation/test_yahoo_ingest_security.py†L1-L132】【F:tests/data_foundation/test_yahoo_gateway.py†L1-L69】
 - Progress: Timescale ingest helpers now validate schema/table identifiers at
   construction time and assert the contract under regression coverage so policy
   payloads cannot inject unsafe SQL into institutional ingest jobs.【F:src/data_foundation/persist/timescale.py†L1-L120】【F:tests/data_foundation/test_timescale_ingest.py†L1-L83】

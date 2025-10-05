@@ -5,10 +5,7 @@ from typing import Any
 
 import pytest
 
-from src.operations.sensory_summary import (
-    build_sensory_summary,
-    publish_sensory_summary,
-)
+from src.operations.sensory_summary import build_sensory_summary, publish_sensory_summary
 
 
 def _sample_status() -> dict[str, Any]:
@@ -127,6 +124,10 @@ def test_build_sensory_summary_extracts_metrics() -> None:
     names = [dimension.name for dimension in summary.dimensions]
     assert set(names) == {"WHY", "HOW", "ANOMALY"}
 
+    severities = {dimension.name: dimension.severity for dimension in summary.dimensions}
+    assert severities["ANOMALY"] == "alert"
+    assert summary.severity == "alert"
+
     top_dimension = summary.top_dimensions(1)[0]
     assert top_dimension.name in {"WHY", "ANOMALY"}
     assert top_dimension.threshold_state in {"warn", "alert"}
@@ -134,6 +135,7 @@ def test_build_sensory_summary_extracts_metrics() -> None:
     markdown = summary.to_markdown()
     assert "Dimension" in markdown
     assert "Drift alerts" in markdown
+    assert "severity=alert" in markdown
 
 
 def test_publish_sensory_summary_uses_runtime_bus() -> None:
@@ -161,3 +163,64 @@ def test_publish_sensory_summary_falls_back_to_global_bus() -> None:
     assert event_type == "telemetry.sensory.summary"
     assert payload["symbol"] == "EURUSD"
     assert source == "operations.sensory_summary"
+
+
+def test_build_sensory_summary_handles_invalid_timestamp() -> None:
+    summary = build_sensory_summary({"latest": {"generated_at": object()}})
+
+    assert summary.generated_at is None
+
+
+def test_summary_severity_accounts_for_drift_alerts() -> None:
+    status: dict[str, Any] = {
+        "samples": 1,
+        "latest": {
+            "symbol": "ABC",
+            "generated_at": "2024-01-01T00:00:00Z",
+            "integrated_signal": {},
+            "dimensions": {
+                "WHEN": {
+                    "signal": 0.1,
+                    "confidence": 0.2,
+                    "metadata": {"state": "nominal"},
+                }
+            },
+        },
+        "drift_summary": {
+            "results": [
+                {
+                    "sensor": "WHEN",
+                    "exceeded": True,
+                }
+            ],
+        },
+    }
+
+    summary = build_sensory_summary(status)
+
+    assert summary.severity == "alert"
+    payload = summary.as_dict()
+    assert payload["severity"] == "alert"
+
+
+def test_summary_severity_warns_on_exceeded_list_only() -> None:
+    status: dict[str, Any] = {
+        "samples": 1,
+        "latest": {
+            "symbol": "XYZ",
+            "generated_at": "2024-01-01T00:00:00Z",
+            "integrated_signal": {},
+            "dimensions": {},
+        },
+        "drift_summary": {
+            "exceeded": [
+                {
+                    "sensor": "WHEN",
+                }
+            ],
+        },
+    }
+
+    summary = build_sensory_summary(status)
+
+    assert summary.severity == "warn"

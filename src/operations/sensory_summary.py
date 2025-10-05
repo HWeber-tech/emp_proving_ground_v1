@@ -9,8 +9,23 @@ from typing import Any, Callable, Iterable, Mapping, MutableMapping, Sequence
 
 import pandas as pd
 
+try:  # pragma: no cover - fallback for older pandas
+    from pandas.errors import OutOfBoundsDatetime, ParserError
+except ImportError:  # pragma: no cover - exercised via runtime environments
+    OutOfBoundsDatetime = ParserError = ValueError  # type: ignore[assignment]
+
 from src.core.event_bus import Event, EventBus, TopicBus
 from src.operations.event_bus_failover import publish_event_with_failover
+
+_SEVERITY_RANK: Mapping[str, int] = {
+    "alert": 3,
+    "warn": 2,
+    "caution": 2,
+    "info": 1,
+    "informational": 1,
+    "nominal": 1,
+}
+
 
 __all__ = [
     "SensoryDimensionSummary",
@@ -45,7 +60,8 @@ def _parse_timestamp(value: Any) -> datetime | None:
         return value
     try:
         converted = pd.to_datetime(value, utc=True, errors="coerce")
-    except Exception:
+    except (TypeError, ValueError, OverflowError, OutOfBoundsDatetime, ParserError):
+        logger.debug("Failed to parse sensory timestamp", exc_info=True)
         return None
     if converted is pd.NaT:
         return None
@@ -94,7 +110,33 @@ class SensoryDimensionSummary:
             payload["state"] = self.state
         if self.threshold_state is not None:
             payload["threshold_state"] = self.threshold_state
+        severity = self.severity
+        if severity is not None:
+            payload["severity"] = severity
         return payload
+
+    @property
+    def severity(self) -> str | None:
+        """Return the highest severity derived from the dimension payload."""
+
+        best_rank = 0
+        best: str | None = None
+        candidates: tuple[Any, ...] = (
+            self.threshold_state,
+            self.state,
+            self.metadata.get("severity"),
+        )
+        for candidate in candidates:
+            if not isinstance(candidate, str):
+                continue
+            normalised = candidate.strip().lower()
+            rank = _SEVERITY_RANK.get(normalised)
+            if rank is None:
+                continue
+            if rank > best_rank:
+                best_rank = rank
+                best = normalised
+        return best
 
 
 @dataclass(frozen=True)
@@ -120,6 +162,7 @@ class SensorySummary:
             "integrated_strength": self.integrated_strength,
             "integrated_confidence": self.integrated_confidence,
             "integrated_direction": self.integrated_direction,
+            "severity": self.severity,
             "contributing": list(self.contributing),
             "dimensions": [dimension.as_dict() for dimension in self.dimensions],
             "drift_summary": dict(self.drift_summary) if self.drift_summary else None,
@@ -146,6 +189,7 @@ class SensorySummary:
             header.append(f"confidence={self.integrated_confidence:.2f}")
         if self.integrated_direction is not None:
             header.append(f"direction={self.integrated_direction:+.0f}")
+        header.append(f"severity={self.severity}")
 
         summary_line = f"**Symbol:** {symbol} | **Samples:** {self.samples}"
         if header:
@@ -174,6 +218,37 @@ class SensorySummary:
                 lines.append(f"Drift alerts: {exceeded_names or 'None'}")
 
         return "\n".join(lines)
+
+    @property
+    def severity(self) -> str:
+        """Determine the overall severity for the sensory snapshot."""
+
+        best_rank = 1
+        best = "nominal"
+
+        for dimension in self.dimensions:
+            severity = dimension.severity
+            if severity is None:
+                continue
+            rank = _SEVERITY_RANK.get(severity, 0)
+            if rank > best_rank:
+                best_rank = rank
+                best = severity
+
+        if self.drift_summary:
+            exceeded_entries = self.drift_summary.get("exceeded")
+            if isinstance(exceeded_entries, Sequence) and exceeded_entries:
+                if best_rank < _SEVERITY_RANK.get("warn", 2):
+                    best_rank = _SEVERITY_RANK["warn"]
+                    best = "warn"
+            results = self.drift_summary.get("results")
+            if isinstance(results, Sequence):
+                if any(isinstance(entry, Mapping) and entry.get("exceeded") for entry in results):
+                    if best_rank < _SEVERITY_RANK.get("alert", 3):
+                        best = "alert"
+                        best_rank = _SEVERITY_RANK["alert"]
+
+        return best
 
 
 def _build_dimension(name: str, payload: Mapping[str, Any]) -> SensoryDimensionSummary:

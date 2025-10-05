@@ -22,6 +22,7 @@ from src.data_foundation.persist.timescale import (
     TimescaleIngestResult,
     TimescaleIngestor,
     TimescaleMigrator,
+    _table_name,
 )
 from src.data_foundation.persist.timescale_reader import TimescaleReader
 from src.data_foundation.schemas import MacroEvent
@@ -102,6 +103,40 @@ def _sample_macro_events() -> list[MacroEvent]:
             source="fred",
         ),
     ]
+
+
+def test_timescale_table_name_rejects_invalid_identifiers() -> None:
+    with pytest.raises(ValueError, match="schema identifier"):
+        _table_name("market-data", "daily_bars", "postgresql")
+    with pytest.raises(ValueError, match="table identifier"):
+        _table_name("market_data", "daily-bars", "postgresql")
+
+
+def test_timescale_ingestor_rejects_invalid_table(tmp_path) -> None:
+    engine = create_engine("sqlite:///:memory:")
+    ingestor = TimescaleIngestor(engine)
+    ingest_ts = datetime.now(tz=timezone.utc)
+    record = {
+        "ts": ingest_ts,
+        "symbol": "EURUSD",
+        "source": "yahoo",
+        "ingested_at": ingest_ts,
+    }
+
+    with pytest.raises(ValueError, match="table identifier"):
+        ingestor._ingest_records(  # type: ignore[attr-defined]
+            records=[record],
+            schema="market_data",
+            table="daily-bars",
+            key_columns=("symbol", "ts"),
+            update_columns=("source", "ingested_at"),
+            all_columns=("ts", "symbol", "source", "ingested_at"),
+            dimension="daily_bars",
+            entity_key="symbol",
+            timestamp_key="ts",
+            ingest_ts=ingest_ts,
+            source="yahoo",
+        )
 
 
 def test_timescale_migrator_creates_tables_sqlite() -> None:

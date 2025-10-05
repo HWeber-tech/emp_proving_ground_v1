@@ -24,6 +24,14 @@ def test_max_exposure_must_cover_risk_per_trade() -> None:
         )
 
 
+def test_max_drawdown_must_cover_risk_per_trade() -> None:
+    with pytest.raises(ValidationError):
+        RiskConfig(
+            max_risk_per_trade_pct=Decimal("0.05"),
+            max_drawdown_pct=Decimal("0.04"),
+        )
+
+
 def test_stop_loss_disabled_outside_research_mode_emits_warning() -> None:
     message = "mandatory_stop_loss=False outside research mode"
     with pytest.warns(UserWarning, match=message):

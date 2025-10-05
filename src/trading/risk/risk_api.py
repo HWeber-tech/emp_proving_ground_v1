@@ -119,6 +119,7 @@ def summarise_risk_config(config: RiskConfig) -> dict[str, object]:
         "volatility_annualisation_factor": float(
             config.volatility_annualisation_factor
         ),
+        "runbook": RISK_API_RUNBOOK,
     }
 
     if config.sector_exposure_limits:

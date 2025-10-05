@@ -43,6 +43,7 @@ class DashboardGuardReport:
     status: DashboardGuardStatus
     generated_at: datetime | None
     age_seconds: float | None
+    overall_status: DashboardGuardStatus | None
     panel_counts: Mapping[str, int]
     failing_panels: Sequence[str]
     warning_panels: Sequence[str]
@@ -52,6 +53,9 @@ class DashboardGuardReport:
     def as_dict(self) -> dict[str, Any]:
         payload: MutableMapping[str, Any] = {
             "status": self.status.value,
+            "overall_status": self.overall_status.value
+            if self.overall_status
+            else None,
             "panel_counts": dict(self.panel_counts),
             "failing_panels": tuple(self.failing_panels),
             "warning_panels": tuple(self.warning_panels),
@@ -94,6 +98,7 @@ def _normalise_summary(
             "failing_panels": summary.get("failing_panels", ()),
             "warning_panels": summary.get("warning_panels", ()),
             "healthy_panels": summary.get("healthy_panels", ()),
+            "issues": summary.get("issues", ()),
         }
     return summarise_dashboard_payload(summary)
 
@@ -114,6 +119,7 @@ def evaluate_dashboard_health(
     status = DashboardGuardStatus.ok
 
     age_seconds: float | None = None
+    overall_status: DashboardGuardStatus | None = None
     if generated_at is None:
         issues.append("Snapshot missing valid generated_at timestamp")
         status = DashboardGuardStatus.fail
@@ -145,6 +151,34 @@ def evaluate_dashboard_health(
         )
         status = _escalate(status, DashboardGuardStatus.warn)
 
+    overall_status_raw = normalised.get("overall_status")
+    if isinstance(overall_status_raw, str):
+        lowered = overall_status_raw.strip().lower()
+        if lowered:
+            if lowered in {"fail", "failed", "critical"}:
+                overall_status = DashboardGuardStatus.fail
+            elif lowered in {"warn", "warning"}:
+                overall_status = DashboardGuardStatus.warn
+            elif lowered in {"ok", "pass", "passed", "healthy"}:
+                overall_status = DashboardGuardStatus.ok
+            else:
+                overall_status = None
+            if overall_status is DashboardGuardStatus.fail:
+                issues.append("Overall dashboard status reported as FAIL")
+                status = DashboardGuardStatus.fail
+            elif (
+                overall_status is DashboardGuardStatus.warn
+                and status is not DashboardGuardStatus.fail
+            ):
+                issues.append("Overall dashboard status reported as WARN")
+                status = _escalate(status, DashboardGuardStatus.warn)
+    summary_issues = normalised.get("issues", ())
+    if isinstance(summary_issues, Sequence) and not isinstance(summary_issues, (str, bytes)):
+        for item in summary_issues:
+            text = str(item).strip()
+            if text:
+                issues.append(text)
+
     raw_counts = normalised.get("panel_counts", {})
     panel_counts: dict[str, int] = {}
     if isinstance(raw_counts, Mapping):
@@ -169,6 +203,7 @@ def evaluate_dashboard_health(
         status=status,
         generated_at=generated_at,
         age_seconds=age_seconds,
+        overall_status=overall_status,
         panel_counts=panel_counts,
         failing_panels=failing_panels,
         warning_panels=warning_panels,
@@ -189,6 +224,9 @@ def _format_human(report: DashboardGuardReport) -> str:
             lines.append(f"Age: {int(report.age_seconds)} seconds")
     else:
         lines.append("Generated at: unknown")
+
+    if report.overall_status is not None:
+        lines.append(f"Dashboard overall status: {report.overall_status.value.upper()}")
 
     lines.append("Panel counts: " + json.dumps(dict(report.panel_counts), sort_keys=True))
     if report.issues:

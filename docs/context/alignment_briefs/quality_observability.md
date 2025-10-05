@@ -95,11 +95,15 @@
     per-status breakdowns and component maps so dashboards can render severity
     chips without reimplementing escalation logic, with pytest and docs locking
     the contract alongside the runtime exposure.【F:src/operations/operational_readiness.py†L200-L256】【F:tests/operations/test_operational_readiness.py†L1-L86】【F:docs/status/operational_readiness.md†L1-L34】【F:tests/runtime/test_professional_app_timescale.py†L722-L799】
-  - Progress: Coverage matrix CLI now exposes lagging domains via the
-    `identify_laggards` helper, exports the list of covered source files, and
-    enforces required regression suites through `--require-file`, failing the
-    build and logging missing paths under pytest coverage when critical files
-    fall out of reports.【F:tools/telemetry/coverage_matrix.py†L83-L357】【F:tests/tools/test_coverage_matrix.py†L136-L225】
+- Progress: Coverage matrix CLI now exposes lagging domains via the
+  `identify_laggards` helper, exports the list of covered source files, and
+  enforces required regression suites through `--require-file`, failing the
+  build and logging missing paths under pytest coverage when critical files
+  fall out of reports.【F:tools/telemetry/coverage_matrix.py†L83-L357】【F:tests/tools/test_coverage_matrix.py†L136-L225】
+- Progress: Coverage guardrail evaluator now parses Cobertura XML, checks
+  ingest/risk targets against configurable thresholds, highlights missing
+  modules, and surfaces JSON/text reports with failure exit codes so CI hooks and
+  local audits can block on coverage regressions deterministically.【F:tools/telemetry/coverage_guardrails.py†L1-L268】【F:tests/tools/test_coverage_guardrails.py†L1-L83】
   - Progress: Observability dashboard surfaces operational readiness as a
     first-class panel, counting component severities, embedding metadata, and
     feeding remediation summaries under pytest coverage so responders inherit a

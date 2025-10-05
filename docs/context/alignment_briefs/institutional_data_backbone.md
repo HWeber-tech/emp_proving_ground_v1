@@ -44,6 +44,10 @@
   degradation, failover decisions, and Timescale recovery plans with pytest
   coverage, giving operators actionable metadata when optional slices drift
   instead of generic warnings.【F:src/operations/data_backbone.py†L488-L515】【F:tests/operations/test_data_backbone.py†L289-L347】
+- Progress: Timescale retention telemetry now aggregates component coverage,
+  stamps WARN/FAIL severities, records evaluated policy metadata, and publishes
+  via the failover helper so dashboards inherit actionable retention posture
+  even during event-bus degradation.【F:src/operations/retention.py†L1-L334】【F:tests/operations/test_data_retention.py†L1-L220】
 - Progress: JSONL persistence hardening now raises typed errors for
   unserialisable payloads, logs filesystem failures, and deletes partial files so
   ingest tooling reports genuine write issues instead of silently returning empty

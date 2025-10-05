@@ -81,12 +81,14 @@ class ObservabilityDashboard:
     metadata: Mapping[str, Any] = field(default_factory=dict)
 
     def as_dict(self) -> dict[str, Any]:
-        return {
+        payload = {
             "generated_at": self.generated_at.astimezone(UTC).isoformat(),
             "status": self.status.value,
             "panels": [panel.as_dict() for panel in self.panels],
             "metadata": dict(self.metadata),
         }
+        payload["remediation_summary"] = self.remediation_summary()
+        return payload
 
     def remediation_summary(self) -> dict[str, Any]:
         """Summarise remediation posture for CI progress tracking."""
@@ -482,6 +484,19 @@ def build_observability_dashboard(
         overall_status = _escalate(overall_status, panel.status)
 
     dashboard_metadata = dict(metadata or {})
+    status_counts = Counter(panel.status for panel in panels)
+    dashboard_metadata.setdefault(
+        "panel_status_counts",
+        {
+            DashboardStatus.ok.value: status_counts.get(DashboardStatus.ok, 0),
+            DashboardStatus.warn.value: status_counts.get(DashboardStatus.warn, 0),
+            DashboardStatus.fail.value: status_counts.get(DashboardStatus.fail, 0),
+        },
+    )
+    dashboard_metadata.setdefault(
+        "panel_statuses",
+        {panel.name: panel.status.value for panel in panels},
+    )
     if generated_at is None:
         generated_at = datetime.now(tz=UTC)
 
@@ -491,4 +506,3 @@ def build_observability_dashboard(
         panels=tuple(panels),
         metadata=dashboard_metadata,
     )
-

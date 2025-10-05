@@ -25,6 +25,10 @@
 - Real sensory organ fuses WHY/WHAT/WHEN/HOW/ANOMALY outputs, publishes
   telemetry snapshots with lineage metadata, and exposes audit/status helpers
   while still consuming synthetic data until institutional ingest arrives.【F:src/sensory/real_sensory_organ.py†L20-L208】【F:src/sensory/real_sensory_organ.py†L210-L336】【F:tests/sensory/test_real_sensory_organ.py†L1-L107】
+- Sensory metrics layer now converts organ status snapshots into
+  dimension-strength/confidence metrics, captures drift alerts, and publishes via
+  the failover helper so dashboards can surface cortex posture even when the
+  runtime bus degrades.【F:src/operations/sensory_metrics.py†L1-L159】【F:tests/operations/test_sensory_metrics.py†L1-L92】
 - Core package now logs and documents the sensory organ import fallback, keeping
   stub exports visible under pytest coverage so bootstrap environments surface
   degraded wiring instead of silently masking missing dependencies.【F:src/core/__init__.py†L11-L45】【F:tests/core/test_core_init_fallback.py†L1-L43】
@@ -54,6 +58,10 @@
   publishes via the event-bus failover helper so dashboards receive resilient
   sensory status updates backed by regression coverage of runtime and fallback
   paths.【F:src/operations/sensory_summary.py†L1-L215】【F:tests/operations/test_sensory_summary.py†L1-L155】
+- Progress: Integrated organ now exposes a metrics view with integrated
+  strength/confidence snapshots, dimension posture, and drift metadata so the
+  new metrics publisher can build dashboard payloads without rehydrating raw
+  snapshots.【F:src/sensory/real_sensory_organ.py†L201-L233】【F:tests/sensory/test_real_sensory_organ.py†L130-L162】
 
 ### Next (30–90 days)
 

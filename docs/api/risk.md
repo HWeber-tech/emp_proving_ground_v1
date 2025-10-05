@@ -17,7 +17,10 @@ manager's risk posture:
 `RiskApiError` now carries structured metadata and a default runbook link at
 `docs/operations/runbooks/risk_api_contract.md`.  Callers should surface the
 `runbook` URL in error messages and log the accompanying details so operators
-can triage missing or invalid contracts quickly.
+can triage missing or invalid contracts quickly. The module also exposes a
+public `RISK_API_RUNBOOK` alias so runtime builders, telemetry publishers, and
+docs can reference the shared escalation path without duplicating the file
+location.
 
 `summarise_risk_config` also renders sector exposure limits, combined sector
 budget totals, instrument-sector mappings, sector-instrument counts, volatility

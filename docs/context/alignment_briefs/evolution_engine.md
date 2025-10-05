@@ -56,7 +56,10 @@
   snapshots into deterministic evaluation metrics and now emits a trade ledger
   with confidence/strength metadata plus a trade-count fitness field so replay
   audits surface actionable evidence under pytest coverage before live ingest
-  arrives.【F:src/evolution/evaluation/recorded_replay.py†L160-L389】【F:tests/evolution/test_recorded_replay_evaluator.py†L37-L98】
+  arrives. A dedicated telemetry builder lifts those metrics into lineage-backed
+  Markdown/JSON summaries, flags drawdown/return severities, and records best/
+  worst trade diagnostics so governance reviewers inherit ready-to-publish
+  replay dossiers.【F:src/evolution/evaluation/recorded_replay.py†L160-L389】【F:src/evolution/evaluation/telemetry.py†L1-L203】【F:tests/evolution/test_recorded_replay_evaluator.py†L37-L98】【F:tests/evolution/test_recorded_replay_telemetry.py†L1-L88】
 - Surface lineage telemetry and integrate with compliance workflow templates for
   strategy approvals.
 - Progress: Evolution experiment telemetry now guards publish failures, records

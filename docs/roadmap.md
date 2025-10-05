@@ -21,7 +21,11 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
   - *Progress*: Timescale retention telemetry now validates schema/table/timestamp
     identifiers, parameterises retention queries, and documents the contract via
     regression tests so institutional slices cannot inject raw SQL through policy
-    definitions.【F:src/operations/retention.py†L42-L195】【F:tests/operations/test_data_retention.py†L1-L118】
+    definitions. The snapshot elevates WARN/FAIL states deterministically,
+    attaches coverage/span metadata for every dimension, records the evaluated
+    policy catalogue, and publishes through the shared failover helper so
+    dashboards inherit severity-aware retention evidence even when the runtime
+    bus degrades.【F:src/operations/retention.py†L1-L334】【F:tests/operations/test_data_retention.py†L1-L220】
   - *Progress*: Timescale reader guards schema/table/column identifiers, normalises
     symbol filters, and parameterises queries before execution so ingest consumers
     cannot smuggle unsafe SQL through configuration, with security regressions
@@ -116,7 +120,10 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
     trade ledger with confidence/strength metadata, tracking maximum loss
     streaks, and reporting average trade durations so adaptive runs surface
     auditable replay evidence with richer drawdown diagnostics under pytest
-    coverage.【F:src/evolution/evaluation/recorded_replay.py†L266-L425】【F:tests/evolution/test_recorded_replay_evaluator.py†L66-L102】
+    coverage. A companion telemetry builder promotes those metrics into
+    lineage-backed Markdown/JSON snapshots, flags drawdown/return severities,
+    and captures best/worst trade diagnostics so governance reviewers inherit a
+    ready-to-publish replay dossier with deterministic thresholds.【F:src/evolution/evaluation/recorded_replay.py†L266-L425】【F:src/evolution/evaluation/telemetry.py†L1-L203】【F:tests/evolution/test_recorded_replay_evaluator.py†L66-L102】【F:tests/evolution/test_recorded_replay_telemetry.py†L1-L88】
   - *Progress*: HOW and ANOMALY sensors now embed sanitised lineage records,
     compute shared threshold posture assessments, and surface state/breach
     metadata on every signal so downstream consumers can audit provenance and
@@ -126,7 +133,12 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
     records lineage and audit trails, instruments sensor-drift windows with a
     configurable baseline/evaluation policy, publishes telemetry snapshots, and
     surfaces status summaries so runtime consumers inherit a single executable
-    sensory surface with drift alerts under pytest coverage.【F:src/sensory/real_sensory_organ.py†L23-L199】【F:src/sensory/real_sensory_organ.py†L288-L375】【F:tests/sensory/test_real_sensory_organ.py†L98-L142】
+    sensory surface with drift alerts under pytest coverage.【F:src/sensory/real_sensory_organ.py†L23-L233】【F:src/sensory/real_sensory_organ.py†L201-L355】【F:tests/sensory/test_real_sensory_organ.py†L96-L156】
+  - *Progress*: Sensory metrics telemetry now converts the organ status feed into
+    dimension-level metrics, captures drift-alert provenance, and publishes via
+    the event-bus failover helper so dashboards receive ranked strength,
+    confidence, and threshold-state summaries even when the runtime bus fails,
+    with pytest locking the contract and failover path.【F:src/operations/sensory_metrics.py†L1-L159】【F:tests/operations/test_sensory_metrics.py†L1-L92】
   - *Progress*: Sensory summary publisher now normalises integrated sensor
     payloads into ranked Markdown/JSON snapshots, captures drift metadata, and
     emits telemetry via the event-bus failover helper so dashboards inherit
@@ -148,12 +160,13 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
     assessment APIs, and keeps execution telemetry aligned with the deterministic
     risk manager surfaced by the runtime builder.【F:src/trading/trading_manager.py†L105-L147】【F:src/risk/risk_manager_impl.py†L533-L573】
   - *Progress*: Deterministic trading risk API now attaches structured metadata
-    and a contract runbook to every `RiskApiError`, while its summariser renders
-    sector exposure maps, combined budget totals, volatility targets, leverage
-    windows, and sector-instrument counts in the payload so supervisors receive
-    the full allocation context alongside the documented escalation path;
-    runtime builder and trading manager continue to surface the runbook URL for
-    deterministic triage.【F:docs/api/risk.md†L1-L24】【F:docs/operations/runbooks/risk_api_contract.md†L1-L31】【F:src/trading/risk/risk_api.py†L100-L150】【F:src/runtime/runtime_builder.py†L321-L337】【F:src/trading/trading_manager.py†L493-L529】【F:tests/runtime/test_runtime_builder.py†L183-L198】【F:tests/trading/test_risk_api.py†L90-L146】【F:tests/trading/test_trading_manager_execution.py†L222-L247】
+    and a contract runbook to every `RiskApiError`, exposes a shared
+    `RISK_API_RUNBOOK` alias for supervisors, and renders sector exposure maps,
+    combined budget totals, volatility targets, leverage windows,
+    sector-instrument counts, and latest policy snapshots in its summaries so
+    downstream telemetry inherits the full allocation context plus escalation
+    guidance; runtime builder and trading manager continue to surface the
+    runbook URL for deterministic triage.【F:docs/api/risk.md†L1-L24】【F:docs/operations/runbooks/risk_api_contract.md†L1-L31】【F:src/trading/risk/risk_api.py†L1-L158】【F:src/runtime/runtime_builder.py†L323-L353】【F:src/trading/trading_manager.py†L493-L529】【F:tests/runtime/test_runtime_builder.py†L200-L234】【F:tests/trading/test_risk_api.py†L90-L152】【F:tests/trading/test_trading_manager_execution.py†L222-L247】
   - *Progress*: Trading manager now emits dedicated risk interface telemetry via
     snapshot/error helpers that render Markdown summaries, publish structured
     payloads on the event bus, and persist the latest posture for discovery,
@@ -453,6 +466,10 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
     coverage sweep, ensuring ingest, risk, and observability guardrail tests are
     executed in isolation with deterministic markers and failing fast when
     regressions surface.【F:.github/workflows/ci.yml†L79-L123】【F:pytest.ini†L1-L25】【F:tests/data_foundation/test_timescale_backbone_orchestrator.py†L1-L28】【F:tests/operations/test_event_bus_health.py†L1-L155】
+  - *Progress*: Coverage guardrail CLI now parses Cobertura reports, enforces
+    minimum percentages across ingest/risk targets, flags missing files, and
+    exposes JSON/text summaries with failure exit codes so CI and local triage
+    can block on regression hotspots deterministically.【F:tools/telemetry/coverage_guardrails.py†L1-L268】【F:tests/tools/test_coverage_guardrails.py†L1-L83】
   - *Progress*: Runtime builder coverage now snapshots ingest plan dimensions,
     trading metadata, and enforced risk summaries, while risk policy regressions
     assert portfolio price fallbacks so ingest orchestration and risk sizing
@@ -495,6 +512,10 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
   validation so professional deployments can demonstrate reliability.
 - [ ] **Dead-code eradication** – Batch-delete unused modules flagged by the cleanup
   report and tighten import guards to prevent shims from resurfacing.【F:docs/reports/CLEANUP_REPORT.md†L71-L188】
+  - *Progress*: Dead-code tracker CLI now parses the cleanup report, highlights
+    live shim exports, flags missing candidates, and emits text/JSON summaries
+    so platform hygiene reviews can prioritise deletions and wire guardrails
+    without manually scraping Markdown lists.【F:tools/cleanup/dead_code_tracker.py†L1-L145】【F:tests/tools/test_dead_code_tracker.py†L1-L42】
 - [ ] **Governance and compliance** – Build the reporting cadence for KYC/AML,
   regulatory telemetry, and audit storage prior to live-broker pilots.【F:docs/technical_debt_assessment.md†L58-L112】
   - *Progress*: Governance reporting cadence now assembles compliance readiness,

@@ -1,9 +1,6 @@
-"""
-Health Monitor System
-====================
+"""Health monitoring utilities with supervised async lifecycle support."""
 
-Monitors system health and performance across all components.
-"""
+from __future__ import annotations
 
 import asyncio
 import logging
@@ -11,12 +8,15 @@ import uuid
 from datetime import datetime
 from importlib import import_module
 from types import ModuleType
-from typing import Any, Dict, Optional, cast
+from typing import Any, Dict, Optional, cast, TYPE_CHECKING
 
 from src.core.event_bus import EventBus
 from src.core.state_store import StateStore
 
 logger = logging.getLogger(__name__)
+
+if TYPE_CHECKING:  # pragma: no cover - import for type checking only
+    from src.runtime.task_supervisor import TaskSupervisor
 
 
 class _PsutilUnavailableError(RuntimeError):
@@ -41,22 +41,65 @@ class HealthMonitor:
         self.is_running = False
         self.check_interval = 60  # seconds
         self.health_history: list[dict[str, object]] = []
+        self._monitor_task: asyncio.Task[None] | None = None
+        self._task_supervisor: TaskSupervisor | None = None
 
-    async def start(self) -> bool:
-        """Start health monitoring."""
+    async def start(self, *, task_supervisor: "TaskSupervisor | None" = None) -> bool:
+        """Start health monitoring and optionally register with a supervisor."""
         if self.is_running:
             return True
 
         self.is_running = True
-        asyncio.create_task(self._monitor_loop())
+        if task_supervisor is not None:
+            self._task_supervisor = task_supervisor
+
+        metadata = {
+            "component": "health-monitor",
+            "interval_seconds": self.check_interval,
+        }
+        loop_coro = self._monitor_loop()
+        if self._task_supervisor is not None:
+            task = self._task_supervisor.create(
+                loop_coro,
+                name="health-monitor-loop",
+                metadata=metadata,
+            )
+        else:
+            task = asyncio.create_task(loop_coro, name="health-monitor-loop")
+
+        self._monitor_task = task
+        task.add_done_callback(self._on_monitor_task_done)
         logger.info("Health monitor started")
         return True
 
     async def stop(self) -> bool:
         """Stop health monitoring."""
         self.is_running = False
+        task = self._monitor_task
+        self._monitor_task = None
+        if task is not None:
+            try:
+                if not task.done():
+                    task.cancel()
+                await task
+            except asyncio.CancelledError:
+                logger.debug("Health monitor loop cancelled during shutdown")
+            except Exception as exc:  # pragma: no cover - defensive logging
+                logger.exception(
+                    "Health monitor task failed during shutdown", exc_info=exc
+                )
         logger.info("Health monitor stopped")
         return True
+
+    def _on_monitor_task_done(self, task: asyncio.Task[None]) -> None:
+        if self._monitor_task is task:
+            self._monitor_task = None
+        try:
+            task.result()
+        except asyncio.CancelledError:
+            logger.debug("Health monitor loop cancelled")
+        except Exception:  # pragma: no cover - defensive logging
+            logger.exception("Health monitor task failed")
 
     async def _monitor_loop(self) -> None:
         """Main monitoring loop."""

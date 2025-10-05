@@ -1,6 +1,10 @@
 import logging
 from dataclasses import dataclass
 
+import asyncio
+from collections.abc import Coroutine
+from typing import Any
+
 import pytest
 
 from src.core.event_bus import EventBusStatistics
@@ -9,6 +13,7 @@ from src.operational.health_monitor import (
     _PsutilUnavailableError,
     _import_psutil,
 )
+from src.runtime.task_supervisor import TaskSupervisor
 
 
 @dataclass
@@ -174,3 +179,89 @@ async def test_event_bus_statistics_snapshot() -> None:
         "queue_size": 5,
         "dropped_events": 2,
     }
+
+
+@pytest.mark.asyncio
+async def test_start_uses_task_supervisor(monkeypatch: pytest.MonkeyPatch) -> None:
+    monitor = HealthMonitor(_StubStateStore(), _StubEventBus())
+    monitor.check_interval = 0
+    supervisor = TaskSupervisor(namespace="test-health-monitor")
+
+    recorded: dict[str, object] = {}
+    original_create = TaskSupervisor.create
+
+    def _recording_create(
+        self: TaskSupervisor,
+        coro: Coroutine[Any, Any, object],
+        *,
+        name: str | None = None,
+        metadata: dict[str, object] | None = None,
+    ) -> asyncio.Task[object]:
+        recorded["name"] = name
+        recorded["metadata"] = metadata
+        return original_create(self, coro, name=name, metadata=metadata)
+
+    monkeypatch.setattr(TaskSupervisor, "create", _recording_create)
+
+    async def _single_check() -> dict[str, object]:
+        monitor.is_running = False
+        return {"status": "HEALTHY"}
+
+    async def _noop_store(_: dict[str, object]) -> None:
+        return None
+
+    monkeypatch.setattr(monitor, "_perform_health_check", _single_check)
+    monkeypatch.setattr(monitor, "_store_health_check", _noop_store)
+
+    await monitor.start(task_supervisor=supervisor)
+
+    task = monitor._monitor_task
+    if task is not None:
+        await task
+
+    assert recorded["name"] == "health-monitor-loop"
+    assert recorded["metadata"] == {
+        "component": "health-monitor",
+        "interval_seconds": 0,
+    }
+    assert monitor._monitor_task is None
+
+
+@pytest.mark.asyncio
+async def test_stop_cancels_background_task(monkeypatch: pytest.MonkeyPatch) -> None:
+    monitor = HealthMonitor(_StubStateStore(), _StubEventBus())
+
+    cancel_detected = asyncio.Event()
+    sleep_entered = asyncio.Event()
+
+    async def _blocking_sleep(_: float) -> None:
+        sleep_entered.set()
+        waiter = asyncio.Event()
+        try:
+            await waiter.wait()
+        except asyncio.CancelledError:
+            cancel_detected.set()
+            raise
+
+    async def _single_check() -> dict[str, object]:
+        return {"status": "HEALTHY"}
+
+    async def _noop_store(_: dict[str, object]) -> None:
+        return None
+
+    monitor.check_interval = 0.1
+    monkeypatch.setattr("src.operational.health_monitor.asyncio.sleep", _blocking_sleep)
+    monkeypatch.setattr(monitor, "_perform_health_check", _single_check)
+    monkeypatch.setattr(monitor, "_store_health_check", _noop_store)
+
+    await monitor.start()
+
+    await sleep_entered.wait()
+    task = monitor._monitor_task
+    assert task is not None
+    assert not task.done()
+
+    await monitor.stop()
+
+    assert monitor._monitor_task is None
+    assert cancel_detected.is_set()

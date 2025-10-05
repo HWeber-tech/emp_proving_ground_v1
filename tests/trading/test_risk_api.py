@@ -110,6 +110,13 @@ def test_summarise_risk_config_includes_sector_metadata() -> None:
     assert summary["sector_exposure_limits"] == {"FX": pytest.approx(0.30)}
     assert summary["instrument_sector_map"] == {"EURUSD": "FX"}
     assert summary["sector_budget_total_pct"] == pytest.approx(0.30)
+    assert summary["sector_instrument_counts"] == {"FX": 1}
+    assert summary["target_volatility_pct"] == pytest.approx(float(config.target_volatility_pct))
+    assert summary["volatility_window"] == config.volatility_window
+    assert summary["max_volatility_leverage"] == pytest.approx(float(config.max_volatility_leverage))
+    assert summary["volatility_annualisation_factor"] == pytest.approx(
+        float(config.volatility_annualisation_factor)
+    )
 
 
 def test_build_runtime_metadata_respects_status_payload() -> None:

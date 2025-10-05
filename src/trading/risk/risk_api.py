@@ -113,6 +113,12 @@ def summarise_risk_config(config: RiskConfig) -> dict[str, object]:
         "max_position_size": int(config.max_position_size),
         "mandatory_stop_loss": bool(config.mandatory_stop_loss),
         "research_mode": bool(config.research_mode),
+        "target_volatility_pct": float(config.target_volatility_pct),
+        "volatility_window": int(config.volatility_window),
+        "max_volatility_leverage": float(config.max_volatility_leverage),
+        "volatility_annualisation_factor": float(
+            config.volatility_annualisation_factor
+        ),
     }
 
     if config.sector_exposure_limits:
@@ -123,7 +129,12 @@ def summarise_risk_config(config: RiskConfig) -> dict[str, object]:
         summary["sector_budget_total_pct"] = float(sector_total)
 
     if config.instrument_sector_map:
-        summary["instrument_sector_map"] = dict(config.instrument_sector_map)
+        instrument_sector_map = dict(config.instrument_sector_map)
+        summary["instrument_sector_map"] = instrument_sector_map
+        sector_instrument_counts: dict[str, int] = {}
+        for sector in instrument_sector_map.values():
+            sector_instrument_counts[sector] = sector_instrument_counts.get(sector, 0) + 1
+        summary["sector_instrument_counts"] = sector_instrument_counts
 
     return summary
 

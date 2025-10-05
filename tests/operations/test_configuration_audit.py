@@ -42,9 +42,14 @@ def test_configuration_audit_initial_snapshot_marks_initial() -> None:
     assert snapshot.status is ConfigurationAuditStatus.passed
     assert snapshot.metadata.get("initial_snapshot") is True
     assert snapshot.changes == ()
+    assert snapshot.metadata["severity_counts"] == {"pass": 0, "warn": 0, "fail": 0}
+    assert snapshot.metadata["highest_severity_fields"] == []
 
     markdown = format_configuration_audit_markdown(snapshot)
     assert "Initial configuration snapshot" in markdown
+    assert "- Pass: 0" in markdown
+    assert "- Warn: 0" in markdown
+    assert "- Fail: 0" in markdown
 
 
 def test_configuration_audit_detects_high_risk_changes() -> None:
@@ -76,9 +81,13 @@ def test_configuration_audit_detects_high_risk_changes() -> None:
     assert fields["tier"].severity is ConfigurationAuditStatus.warn
     assert fields["connection_protocol"].severity is ConfigurationAuditStatus.warn
     assert fields["extras.KAFKA_BROKERS"].severity is not ConfigurationAuditStatus.passed
+    assert snapshot.metadata["severity_counts"] == {"pass": 1, "warn": 5, "fail": 2}
+    assert snapshot.metadata["highest_severity_fields"] == ["run_mode", "confirm_live"]
 
     markdown = snapshot.to_markdown()
     assert "KAFKA_BROKERS" in markdown
+    assert "- Fail: 2" in markdown
+    assert "- Warn: 5" in markdown
     extras_summary = snapshot.metadata.get("extras_summary")
     assert extras_summary["added"] == ["CUSTOM_FLAG", "KAFKA_BROKERS"]
 

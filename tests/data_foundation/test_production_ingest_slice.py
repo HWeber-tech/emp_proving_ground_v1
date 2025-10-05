@@ -156,3 +156,33 @@ async def test_production_slice_handles_disabled_configuration() -> None:
     assert summary["services"] is None
     assert summary["last_results"] == {}
     assert summary["last_error"] == "Timescale ingest disabled"
+
+
+@pytest.mark.asyncio
+async def test_production_slice_records_orchestrator_failures() -> None:
+    config = _ingest_config()
+    bus = _DummyEventBus()
+    supervisor = TaskSupervisor(namespace="ingest-error")
+
+    class _FailingOrchestrator:
+        def run(self, *, plan: TimescaleBackbonePlan) -> dict[str, TimescaleIngestResult]:
+            _ = plan  # defensive: plan is not needed in this stub
+            raise RuntimeError("Timescale ingest execution failed")
+
+    slice_runtime = ProductionIngestSlice(
+        config,
+        bus,
+        supervisor,
+        orchestrator_factory=lambda settings, publisher: _FailingOrchestrator(),
+    )
+
+    success = await slice_runtime.run_once()
+
+    assert success is False
+
+    summary = slice_runtime.summary()
+    assert summary["last_results"] == {}
+    assert summary["last_run_at"] is None
+    assert summary["last_error"] == "Timescale ingest execution failed"
+
+    await slice_runtime.stop()

@@ -27,6 +27,7 @@ from typing import Any, Iterable, Mapping, Sequence, cast
 from uuid import uuid4
 
 import json
+import re
 
 import pandas as pd
 from sqlalchemy import create_engine, text
@@ -37,6 +38,20 @@ from src.core.coercion import coerce_float, coerce_int
 logger = logging.getLogger(__name__)
 
 _JSON_INPUT_TYPES = (str, bytes, bytearray)
+
+_IDENTIFIER_PATTERN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+
+
+def _validate_identifier(value: str, *, label: str) -> str:
+    """Ensure SQL identifiers only contain safe characters."""
+
+    if not value:
+        raise ValueError(f"{label} identifier must not be empty")
+    if not _IDENTIFIER_PATTERN.fullmatch(value):
+        raise ValueError(
+            f"{label} identifier must contain only letters, numbers, or underscores: {value!r}"
+        )
+    return value
 
 
 def _ensure_mapping(
@@ -177,9 +192,11 @@ class TimescaleConnectionSettings:
 
 
 def _table_name(schema: str, table: str, dialect_name: str) -> str:
+    safe_schema = _validate_identifier(schema, label="schema")
+    safe_table = _validate_identifier(table, label="table")
     if dialect_name == "postgresql":
-        return f"{schema}.{table}"
-    return f"{schema}_{table}"
+        return f"{safe_schema}.{safe_table}"
+    return f"{safe_schema}_{safe_table}"
 
 
 def _timestamp_type(dialect: str) -> str:

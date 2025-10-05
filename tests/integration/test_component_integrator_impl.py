@@ -1,6 +1,7 @@
 import pytest
 
 from src.integration.component_integrator_impl import ComponentIntegratorImpl
+from src.config.risk.risk_config import RiskConfig
 
 
 @pytest.mark.asyncio
@@ -29,5 +30,18 @@ async def test_initialize_registers_sensory_aliases():
     assert data_flow["available"] is True
     assert data_flow["test_passed"] is True
     assert data_flow["source"] in {"what_sensor", "what_organ"}
+
+    risk_entry = validation["components"].get("risk_configuration")
+    assert risk_entry is not None
+    assert risk_entry["available"] is True
+    assert risk_entry["runbook"].endswith("risk_api_contract.md")
+    summary = risk_entry["summary"]
+    assert summary["mandatory_stop_loss"] is True
+    assert summary["max_risk_per_trade_pct"] > 0
+
+    risk_manager = integrator.get_component("risk_manager")
+    assert risk_manager is not None
+    config = getattr(risk_manager, "_risk_config", None)
+    assert isinstance(config, RiskConfig)
 
     await integrator.shutdown()

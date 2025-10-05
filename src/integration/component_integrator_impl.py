@@ -15,6 +15,7 @@ from typing import Dict, List, Optional
 
 from src.core.types import JSONObject
 from src.integration.component_integrator import ComponentIntegrator
+from src.trading.risk.risk_api import RISK_API_RUNBOOK
 
 logger = logging.getLogger(__name__)
 
@@ -123,11 +124,11 @@ class ComponentIntegratorImpl(ComponentIntegrator):
     async def _initialize_risk_system(self) -> bool:
         """Initialize risk management components."""
         try:
-            # Consolidated risk manager (single source of truth)
-            from src.core.risk.manager import RiskManager
+            if not self._ensure_risk_manager():
+                logger.warning("Risk system initialization skipped; canonical risk manager missing")
+                return False
 
-            self.components["risk_manager"] = RiskManager()
-            logger.info("Risk system components initialized (core.risk.manager)")
+            logger.info("Risk system components initialized with canonical risk manager")
             return True
         except Exception as e:
             logger.warning(f"Failed to initialize risk system: {e}")
@@ -167,6 +168,8 @@ class ComponentIntegratorImpl(ComponentIntegrator):
 
             self.components.clear()
             self._aliases.clear()
+            self._risk_config = None
+            self._risk_summary = None
             self.initialized = False
             logger.info("Component integrator shutdown complete")
             return True
@@ -252,6 +255,15 @@ class ComponentIntegratorImpl(ComponentIntegrator):
                     "available": True,
                     "test_passed": True,
                 }
+
+            risk_summary = self._risk_summary
+            risk_entry: dict[str, object] = {
+                "available": bool(risk_summary),
+                "runbook": RISK_API_RUNBOOK,
+            }
+            if risk_summary:
+                risk_entry["summary"] = dict(risk_summary)
+            validation_results["risk_configuration"] = risk_entry
 
             # Test data flow
             sensory_key = None

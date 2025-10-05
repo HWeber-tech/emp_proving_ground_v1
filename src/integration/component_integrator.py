@@ -16,11 +16,18 @@ from typing import TYPE_CHECKING, Dict, List, Optional, Protocol, runtime_checka
 
 from src.core.performance.market_data_cache import get_global_cache
 from src.core.types import JSONObject
+from src.config.risk.risk_config import RiskConfig
+from src.trading.risk.risk_api import RISK_API_RUNBOOK, summarise_risk_config
 
 # Canonical imports (avoid relative package traversals)
 # Note: These may be optional at runtime depending on environment; guarded in methods.
 try:
-    from src.core import PopulationManager, RiskManager, SensoryOrgan
+    from src.core import (
+        PopulationManager,
+        RiskManager,
+        SensoryOrgan,
+        get_risk_manager as _core_get_risk_manager,
+    )
 except Exception:  # pragma: no cover
     # Provide tiny runtime stubs to avoid rebinding type names to None
     class PopulationManager:  # type: ignore[no-redef]
@@ -31,6 +38,10 @@ except Exception:  # pragma: no cover
 
     class RiskManager:  # type: ignore[no-redef]
         def __init__(self, *args: object, **kwargs: object) -> None: ...
+
+    _core_get_risk_manager = None
+
+get_risk_manager = _core_get_risk_manager
 
 
 if TYPE_CHECKING:
@@ -69,6 +80,8 @@ class ComponentIntegrator:
         self.component_status: Dict[str, str] = {}
         self.cache = get_global_cache()
         self._initialized = False
+        self._risk_config: RiskConfig | None = None
+        self._risk_summary: Dict[str, object] | None = None
 
     async def initialize_components(self) -> bool:
         """Initialize all system components."""
@@ -105,11 +118,10 @@ class ComponentIntegrator:
             self.components["population_manager"] = population_manager
             self.component_status["population_manager"] = "initialized"
 
-        if RiskManager is not None:
-            # Risk Manager
-            risk_manager = RiskManager()
-            self.components["risk_manager"] = risk_manager
-            self.component_status["risk_manager"] = "initialized"
+        if self._ensure_risk_manager():
+            self.component_status["risk_management"] = "initialized"
+        else:
+            self.component_status["risk_management"] = "unavailable"
 
         logger.info("Core components initialized")
 
@@ -132,14 +144,53 @@ class ComponentIntegrator:
 
         logger.info("Sensory components initialized")
 
+    def _ensure_risk_manager(self) -> bool:
+        """Instantiate the canonical risk manager and capture metadata."""
+
+        if get_risk_manager is None:
+            logger.warning(
+                "Canonical risk manager factory unavailable; risk enforcement not initialised."
+            )
+            self.component_status["risk_manager"] = "unavailable"
+            self._risk_config = None
+            self._risk_summary = None
+            return False
+
+        try:
+            config = RiskConfig()
+            risk_manager = get_risk_manager(config=config)
+        except Exception as exc:  # pragma: no cover - defensive guardrail
+            logger.warning(
+                "Failed to construct canonical risk manager: %s",
+                exc,
+                exc_info=exc,
+            )
+            self.component_status["risk_manager"] = "error"
+            self._risk_config = None
+            self._risk_summary = None
+            return False
+
+        self.components["risk_manager"] = risk_manager
+        self.component_status["risk_manager"] = "initialized"
+        self._risk_config = config
+        self._risk_summary = summarise_risk_config(config)
+        return True
+
     async def _initialize_risk_management(self) -> None:
         """Initialize risk management components."""
         logger.info("Initializing risk management...")
 
-        # Risk manager is already initialized in core components
-        self.component_status["risk_management"] = "initialized"
+        if "risk_manager" not in self.components:
+            self._ensure_risk_manager()
 
-        logger.info("Risk management initialized")
+        if "risk_manager" in self.components:
+            self.component_status["risk_management"] = "initialized"
+            logger.info("Risk management initialized")
+        else:
+            self.component_status["risk_management"] = "unavailable"
+            logger.warning(
+                "Risk management initialization skipped because canonical risk manager is missing"
+            )
 
     async def _initialize_performance_components(self) -> None:
         """Initialize performance components."""
@@ -173,6 +224,8 @@ class ComponentIntegrator:
                     logger.info(f"Shutdown {component_name}")
 
             self.components.clear()
+            self._risk_config = None
+            self._risk_summary = None
             self._initialized = False
 
             logger.info("All components shutdown successfully")
@@ -198,12 +251,14 @@ class ComponentIntegrator:
 
             # Shutdown the component
             self.component_status[component_name] = "shutdown"
+            self.components.pop(component_name, None)
 
             # Re-initialize based on component type
             if PopulationManager is not None and component_name == "population_manager":
                 self.components[component_name] = PopulationManager(population_size=100)
-            elif RiskManager is not None and component_name == "risk_manager":
-                self.components[component_name] = RiskManager()
+            elif component_name == "risk_manager":
+                if not self._ensure_risk_manager():
+                    return False
             elif SensoryOrgan is not None and component_name.endswith("_organ"):
                 organ_type = component_name.replace("_organ", "")
                 self.components[component_name] = SensoryOrgan(organ_type)

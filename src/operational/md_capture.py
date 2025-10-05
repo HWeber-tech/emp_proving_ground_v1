@@ -9,10 +9,14 @@ speed factor.
 from __future__ import annotations
 
 import json
+import logging
 import os
 import time
 from datetime import datetime
 from typing import Callable, Optional, Protocol
+
+
+logger = logging.getLogger(__name__)
 
 
 def _serialize_order_book(symbol: str, order_book: object) -> dict[str, object]:
@@ -47,8 +51,14 @@ class MarketDataRecorder:
     def close(self) -> None:
         try:
             self._fh.close()
-        except Exception:
-            pass
+        except OSError as exc:
+            logger.warning("Failed to close market data capture file: %s", exc, exc_info=exc)
+        except Exception as exc:  # pragma: no cover - defensive guardrail
+            logger.error(
+                "Unexpected error while closing market data capture file: %s",
+                exc,
+                exc_info=exc,
+            )
 
 
 class MarketDataReplayer:
@@ -93,11 +103,28 @@ class MarketDataReplayer:
                     if feature_writer:
                         try:
                             feature_writer(symbol, ob)
-                        except Exception:
-                            pass
+                        except Exception as exc:  # pragma: no cover - best-effort writer
+                            logger.warning(
+                                "Feature writer failed for symbol %s: %s",
+                                symbol,
+                                exc,
+                                exc_info=exc,
+                            )
                     emitted += 1
                     if max_events and emitted >= max_events:
                         break
-                except Exception:
+                except (json.JSONDecodeError, ValueError, TypeError) as exc:
+                    logger.warning(
+                        "Skipping invalid market data record in %s: %s",
+                        self.in_path,
+                        exc,
+                        exc_info=exc,
+                    )
+                except Exception as exc:  # pragma: no cover - defensive guardrail
+                    logger.error(
+                        "Unexpected error during market data replay: %s",
+                        exc,
+                        exc_info=exc,
+                    )
                     continue
         return emitted

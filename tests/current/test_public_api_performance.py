@@ -2,6 +2,8 @@ import importlib
 import logging
 import sys
 
+import pytest
+
 
 def test_performance_public_api_no_side_effects_and_lazy_vectorized(monkeypatch, caplog):
     # Ensure vectorized module is not pre-imported
@@ -19,13 +21,17 @@ def test_performance_public_api_no_side_effects_and_lazy_vectorized(monkeypatch,
 
     # Public API surface is explicit
     assert hasattr(perf, "__all__")
-    expected = {"GlobalCache", "VectorizedIndicators", "get_global_cache"}
+    expected = {"MarketDataCache", "VectorizedIndicators", "get_global_cache"}
     assert expected.issubset(set(perf.__all__))
 
     # Lazy import check: module not loaded until attribute access
     assert vec_mod not in sys.modules
     _ = perf.VectorizedIndicators  # triggers lazy import
     assert vec_mod in sys.modules
+
+    # Removed shims should surface clear errors
+    with pytest.raises(AttributeError):
+        getattr(perf, "GlobalCache")
 
 
 def test_get_global_cache_smoke():

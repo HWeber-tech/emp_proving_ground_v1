@@ -15,29 +15,16 @@ from datetime import datetime
 from typing import TYPE_CHECKING, Dict, List, Optional, Protocol, runtime_checkable
 
 from src.core.performance.market_data_cache import get_global_cache
+from src.core.population_manager import PopulationManager
+from src.core.risk.manager import RiskManager
 from src.core.types import JSONObject
-
-# Canonical imports (avoid relative package traversals)
-# Note: These may be optional at runtime depending on environment; guarded in methods.
-try:
-    from src.core import PopulationManager, RiskManager, SensoryOrgan
-except Exception:  # pragma: no cover
-    # Provide tiny runtime stubs to avoid rebinding type names to None
-    class PopulationManager:  # type: ignore[no-redef]
-        def __init__(self, *args: object, **kwargs: object) -> None: ...
-
-    class SensoryOrgan:  # type: ignore[no-redef]
-        def __init__(self, *args: object, **kwargs: object) -> None: ...
-
-    class RiskManager:  # type: ignore[no-redef]
-        def __init__(self, *args: object, **kwargs: object) -> None: ...
+from src.core.sensory_organ import SensoryOrgan
 
 
 if TYPE_CHECKING:
-    # Type-only imports to satisfy checkers without runtime coupling
-    from src.core import PopulationManager as _TPopulationManager  # noqa: F401
-    from src.core import RiskManager as _TRiskManager  # noqa: F401
-    from src.core import SensoryOrgan as _TSensoryOrgan  # noqa: F401
+    from src.core.population_manager import PopulationManager as _TPopulationManager  # noqa: F401
+    from src.core.risk.manager import RiskManager as _TRiskManager  # noqa: F401
+    from src.core.sensory_organ import SensoryOrgan as _TSensoryOrgan  # noqa: F401
 
 logger = logging.getLogger(__name__)
 

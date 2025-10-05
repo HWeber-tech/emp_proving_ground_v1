@@ -11,7 +11,7 @@ from datetime import datetime
 from decimal import ROUND_HALF_UP, Decimal, getcontext
 from typing import Any, Dict, List
 
-from src.core import Instrument
+from src.core.instrument import Instrument
 
 # Configure decimal precision for financial calculations
 getcontext().prec = 12

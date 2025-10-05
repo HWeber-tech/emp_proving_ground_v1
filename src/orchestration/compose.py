@@ -7,7 +7,7 @@ decoupled. All imports are guarded so that missing optional dependencies
 degrade gracefully to core no-op implementations.
 
 Provided adapters:
-- YFinanceGateway (preferred MarketDataGateway adapter when available)
+- YahooMarketDataGateway (preferred MarketDataGateway adapter when available)
 - MarketDataGatewayAdapter (fallback using YahooFinanceOrgan if available)
 - AnomalyDetectorAdapter (uses ManipulationDetectionSystem when available)
 - RegimeClassifierAdapter (simple heuristic over pandas DataFrame)
@@ -29,6 +29,7 @@ from src.core.genome import GenomeProvider, NoOpGenomeProvider
 from src.core.market_data import MarketDataGateway, NoOpMarketDataGateway
 from src.core.regime import NoOpRegimeClassifier, RegimeClassifier, RegimeResult
 from src.core.risk_ports import NoOpRiskManager, RiskManagerPort
+from src.data_foundation.ingest.yahoo_gateway import YahooMarketDataGateway
 
 
 class ComposeAdaptersTD(TypedDict, total=False):
@@ -507,14 +508,9 @@ def compose_validation_adapters() -> ComposeAdaptersTD:
     """
     adapters: ComposeAdaptersTD = {}
 
-    # Market data gateway (prefer data_integration.yfinance_gateway)
+    # Market data gateway (prefer hardened Yahoo gateway)
     try:
-        mod = importlib.import_module("src.data_integration.yfinance_gateway")
-        gw_cls = getattr(mod, "YFinanceGateway", None)
-        if callable(gw_cls):
-            adapters["market_data_gateway"] = cast(MarketDataGateway, gw_cls())
-        else:
-            raise ImportError("YFinanceGateway not available")
+        adapters["market_data_gateway"] = YahooMarketDataGateway()
     except Exception:
         # Fallback to sensory organ adapter, then to NoOp
         try:

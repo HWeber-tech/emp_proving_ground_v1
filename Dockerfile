@@ -60,7 +60,6 @@ WORKDIR /app
 COPY src/ ./src/
 COPY config/ ./config/
 COPY main.py .
-COPY run_genesis.py .
 
 # Create necessary directories
 RUN mkdir -p data logs reports && \

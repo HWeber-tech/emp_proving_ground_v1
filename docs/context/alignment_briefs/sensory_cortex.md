@@ -49,6 +49,11 @@
   scaffolding so new organs can land incrementally.
 - Update documentation to reflect the mock status, preserving the truth-first
   narrative for reviewers.【F:docs/DEVELOPMENT_STATUS.md†L7-L35】
+- Progress: Sensory summary telemetry now constructs ranked Markdown/JSON
+  rollups from integrated sensor payloads, preserves drift metadata, and
+  publishes via the event-bus failover helper so dashboards receive resilient
+  sensory status updates backed by regression coverage of runtime and fallback
+  paths.【F:src/operations/sensory_summary.py†L1-L215】【F:tests/operations/test_sensory_summary.py†L1-L155】
 
 ### Next (30–90 days)
 

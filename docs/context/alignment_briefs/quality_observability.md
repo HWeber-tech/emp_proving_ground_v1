@@ -105,9 +105,10 @@
     feeding remediation summaries under pytest coverage so responders inherit a
     consolidated operational view without bespoke wiring.【F:src/operations/observability_dashboard.py†L443-L493】【F:tests/operations/test_observability_dashboard.py†L135-L236】
   - Progress: Observability dashboard guard CLI grades snapshot freshness,
-    required panels, and failing slices, emitting JSON or human-readable
-    summaries with status-driven exit codes so CI hooks and drills can block on
-    stale observability evidence under pytest coverage.【F:tools/telemetry/dashboard_guard.py†L1-L260】【F:tests/tools/test_dashboard_guard.py†L16-L140】
+    required panels, failing slices, and normalised overall status strings while
+    emitting JSON or human-readable summaries with status-driven exit codes so
+    CI hooks and drills can block on stale, failing, or WARN observability
+    evidence under pytest coverage.【F:tools/telemetry/dashboard_guard.py†L1-L220】【F:tests/tools/test_dashboard_guard.py†L16-L140】
   - Progress: Configuration audit telemetry now evaluates `SystemConfig` diffs,
     annotates tracked toggles and extras, renders Markdown summaries, and
     publishes via the shared failover helper so configuration changes generate a

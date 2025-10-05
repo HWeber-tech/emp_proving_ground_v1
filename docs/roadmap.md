@@ -44,6 +44,16 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
     telemetry exposes what was fetched, normalised, or skipped; guardrail tests
     cover macro window fallbacks, empty payloads, and metadata emission to
     prevent regressions in institutional ingest coverage.【F:src/data_foundation/ingest/timescale_pipeline.py†L70-L213】【F:tests/data_foundation/test_timescale_backbone_orchestrator.py†L1-L200】
+  - *Progress*: Institutional ingest provisioner now hydrates supervised
+    Timescale schedules, optional Redis caches, and Kafka ingest bridges from a
+    single configuration bundle while exposing failover drill metadata and
+    documenting how to surface the requirements so operators can bootstrap the
+    full ingest vertical with guardrails and discover required recovery
+    exercises without bespoke wiring.【F:src/data_foundation/ingest/institutional_vertical.py†L1-L239】【F:tests/runtime/test_institutional_ingest_vertical.py†L1-L164】【F:docs/operations/timescale_failover_drills.md†L1-L27】
+  - *Progress*: Timescale ingest helpers now validate schema/table identifiers
+    before emitting SQL, raising deterministic errors on unsafe names and
+    pinning the contract via regression tests so institutional slices cannot
+    smuggle raw SQL through policy or schedule configuration.【F:src/data_foundation/persist/timescale.py†L1-L120】【F:tests/data_foundation/test_timescale_ingest.py†L1-L83】
   - *Progress*: JSONL persistence now raises typed errors for unserialisable payloads,
     logs filesystem failures, and cleans up partial files so ingest tooling surfaces
     genuine persistence faults instead of emitting empty paths under silent
@@ -111,6 +121,11 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
     configurable baseline/evaluation policy, publishes telemetry snapshots, and
     surfaces status summaries so runtime consumers inherit a single executable
     sensory surface with drift alerts under pytest coverage.【F:src/sensory/real_sensory_organ.py†L23-L199】【F:src/sensory/real_sensory_organ.py†L288-L375】【F:tests/sensory/test_real_sensory_organ.py†L98-L142】
+  - *Progress*: Sensory summary publisher now normalises integrated sensor
+    payloads into ranked Markdown/JSON snapshots, captures drift metadata, and
+    emits telemetry via the event-bus failover helper so dashboards inherit
+    resilient sensory rollups backed by pytest coverage of runtime and failover
+    paths.【F:src/operations/sensory_summary.py†L1-L215】【F:tests/operations/test_sensory_summary.py†L1-L155】
   - *Progress*: Core module now logs and documents the sensory organ import
     fallback, emitting warnings and restoring stub exports under regression
     coverage so bootstrap environments surface degraded sensory wiring instead of
@@ -234,9 +249,10 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
     under regression coverage so responders inherit a consolidated operational
     view.【F:src/operations/observability_dashboard.py†L443-L493】【F:tests/operations/test_observability_dashboard.py†L135-L236】
   - *Progress*: Observability dashboard guard CLI now grades snapshot freshness,
-    required panels, and failing slices with machine-readable output and
-    severity-driven exit codes so CI pipelines and drills can block on stale or
-    missing observability evidence under pytest coverage.【F:tools/telemetry/dashboard_guard.py†L1-L260】【F:tests/tools/test_dashboard_guard.py†L16-L140】
+    required panels, failing slices, and normalised overall status strings with
+    machine-readable output plus severity-driven exit codes so CI pipelines and
+    drills can block on stale, failing, or operator-reported WARN/FAIL snapshots
+    under pytest coverage.【F:tools/telemetry/dashboard_guard.py†L1-L220】【F:tests/tools/test_dashboard_guard.py†L16-L140】
   - *Progress*: Configuration audit telemetry now normalises `SystemConfig`
     diffs, grades tracked toggles plus extras, renders Markdown summaries, and
     publishes via the shared failover helper so configuration changes leave a

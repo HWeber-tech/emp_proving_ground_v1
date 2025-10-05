@@ -51,6 +51,10 @@
   via the guarded runtime→global failover path so outage evidence, roster gaps,
   and postmortem backlog context stay visible under pytest coverage documenting
   escalation and publish failures.【F:src/operations/incident_response.py†L1-L715】【F:tests/operations/test_incident_response.py†L1-L200】【F:src/operations/event_bus_failover.py†L1-L174】
+- Document Timescale failover drill requirements via the institutional ingest
+  provisioner, which now exposes drill metadata from configuration and captures
+  the workflow in updated runbooks so operators can rehearse recoveries using a
+  consistent source of truth.【F:src/data_foundation/ingest/institutional_vertical.py†L160-L239】【F:docs/operations/timescale_failover_drills.md†L1-L27】
 - Aggregate operational readiness into a single severity snapshot that merges
   system validation, incident response, and ingest SLO posture, emits Markdown
   summaries, derives alert events, and now exposes status breakdown/component

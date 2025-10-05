@@ -136,6 +136,27 @@ def test_build_sensory_summary_extracts_metrics() -> None:
     assert "Drift alerts" in markdown
 
 
+def test_build_sensory_summary_handles_unparseable_timestamp(caplog: pytest.LogCaptureFixture) -> None:
+    status = _sample_status()
+    status["latest"]["generated_at"] = {"bad": "payload"}
+
+    with caplog.at_level("DEBUG"):
+        summary = build_sensory_summary(status)
+
+    assert summary.generated_at is None
+    assert any("Failed to parse sensory timestamp" in record.getMessage() for record in caplog.records)
+
+
+def test_build_sensory_summary_converts_naive_timestamp_to_utc() -> None:
+    status = _sample_status()
+    status["latest"]["generated_at"] = "2024-01-01T12:30:45"
+
+    summary = build_sensory_summary(status)
+
+    assert summary.generated_at is not None
+    assert summary.generated_at.tzinfo == timezone.utc
+
+
 def test_publish_sensory_summary_uses_runtime_bus() -> None:
     summary = build_sensory_summary(_sample_status())
     bus = _StubEventBus()

@@ -154,6 +154,7 @@ async def test_builder_bootstrap_mode(monkeypatch, tmp_path):
         trading_metadata = summary["trading"].get("metadata", {})
         assert "risk" in trading_metadata
         assert trading_metadata["risk"]["mandatory_stop_loss"] is True
+        assert trading_metadata["risk"]["runbook"].endswith("risk_api_contract.md")
     finally:
         await app.shutdown()
 

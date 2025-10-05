@@ -95,6 +95,7 @@ def test_trading_risk_interface_summary_includes_policy_metadata() -> None:
     assert summary["policy_limits"]["max_drawdown_pct"] == pytest.approx(0.25)
     assert summary["policy_research_mode"] is True
     assert summary["latest_snapshot"]["max_risk_per_trade_pct"] == pytest.approx(0.02)
+    assert summary["runbook"].endswith("risk_api_contract.md")
 
 
 def test_summarise_risk_config_includes_sector_metadata() -> None:
@@ -117,6 +118,7 @@ def test_summarise_risk_config_includes_sector_metadata() -> None:
     assert summary["volatility_annualisation_factor"] == pytest.approx(
         float(config.volatility_annualisation_factor)
     )
+    assert summary["runbook"].endswith("risk_api_contract.md")
 
 
 def test_build_runtime_metadata_respects_status_payload() -> None:
@@ -127,6 +129,7 @@ def test_build_runtime_metadata_respects_status_payload() -> None:
     assert metadata["max_risk_per_trade_pct"] == pytest.approx(0.03)
     assert metadata["policy_limits"]["max_leverage"] == 5
     assert metadata["latest_snapshot"]["max_drawdown_pct"] == pytest.approx(0.2)
+    assert metadata["runbook"].endswith("risk_api_contract.md")
 
 
 def test_resolve_trading_risk_interface_exposes_status_mapping() -> None:

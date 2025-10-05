@@ -172,6 +172,11 @@ class RiskConfig(BaseModel):
             if max_risk > max_exposure:
                 raise ValueError("max_total_exposure_pct must be >= max_risk_per_trade_pct")
 
+        max_drawdown = values.get("max_drawdown_pct")
+        if isinstance(max_drawdown, Decimal) and isinstance(max_risk, Decimal):
+            if max_drawdown < max_risk:
+                raise ValueError("max_drawdown_pct must be >= max_risk_per_trade_pct")
+
         mandatory_stop_loss = values.get("mandatory_stop_loss")
         research_mode = values.get("research_mode")
         if mandatory_stop_loss is False and research_mode is not True:

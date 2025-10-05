@@ -21,6 +21,10 @@ from src.operations.operational_readiness import (
     OperationalReadinessSnapshot,
     OperationalReadinessStatus,
 )
+from src.operations.quality_telemetry import (
+    QualityStatus,
+    QualityTelemetrySnapshot,
+)
 from src.operations.roi import RoiStatus, RoiTelemetrySnapshot
 from src.operations.slo import OperationalSLOSnapshot, SLOStatus
 
@@ -190,6 +194,14 @@ def _map_operational_readiness_status(
     return DashboardStatus.ok
 
 
+def _map_quality_status(status: QualityStatus) -> DashboardStatus:
+    if status is QualityStatus.fail:
+        return DashboardStatus.fail
+    if status is QualityStatus.warn:
+        return DashboardStatus.warn
+    return DashboardStatus.ok
+
+
 def _format_currency(value: float) -> str:
     return f"{value:,.2f}"
 
@@ -244,6 +256,7 @@ def build_observability_dashboard(
     slo_snapshot: OperationalSLOSnapshot | None = None,
     backbone_snapshot: DataBackboneReadinessSnapshot | None = None,
     operational_readiness_snapshot: OperationalReadinessSnapshot | None = None,
+    quality_snapshot: QualityTelemetrySnapshot | None = None,
     additional_panels: Sequence[DashboardPanel] | None = None,
     generated_at: datetime | None = None,
     metadata: Mapping[str, Any] | None = None,
@@ -476,6 +489,33 @@ def build_observability_dashboard(
                 metadata={
                     "operational_readiness": operational_readiness_snapshot.as_dict()
                 },
+            )
+        )
+
+    if quality_snapshot is not None:
+        quality_status = _map_quality_status(quality_snapshot.status)
+        details = list(quality_snapshot.notes)
+        if quality_snapshot.remediation_items:
+            details.append("")
+            details.extend(
+                f"Remediation: {item}" for item in quality_snapshot.remediation_items
+            )
+
+        if quality_snapshot.coverage_percent is None:
+            headline = "Coverage telemetry unavailable"
+        else:
+            headline = (
+                f"Coverage {quality_snapshot.coverage_percent:.2f}%"
+                f" (target {quality_snapshot.coverage_target:.2f}%)"
+            )
+
+        panels.append(
+            DashboardPanel(
+                name="Quality & coverage",
+                status=quality_status,
+                headline=headline,
+                details=tuple(details),
+                metadata={"quality": quality_snapshot.as_dict()},
             )
         )
 

@@ -26,6 +26,8 @@ import logging
 from dataclasses import dataclass, field
 from typing import Awaitable, Callable, Mapping, MutableMapping
 
+from sqlalchemy import text
+
 from src.data_foundation.cache.redis_cache import (
     ManagedRedisCache,
     RedisCachePolicy,
@@ -244,10 +246,10 @@ class InstitutionalIngestServices:
         """Evaluate managed connector health using optional asynchronous probes."""
 
         manifest = {snapshot.name: snapshot for snapshot in self.managed_manifest()}
-        probes = probes or {}
+        probe_mapping = probes or self._default_connectivity_probes()
 
         async def _evaluate(name: str, snapshot: ManagedConnectorSnapshot) -> ManagedConnectorSnapshot:
-            probe = probes.get(name)
+            probe = probe_mapping.get(name)
             if probe is None:
                 return snapshot
             try:
@@ -266,6 +268,55 @@ class InstitutionalIngestServices:
             evaluated.append(await _evaluate(name, snapshot))
 
         return tuple(evaluated)
+
+    def _default_connectivity_probes(self) -> Mapping[str, ProbeCallable]:
+        """Build connectivity probes for provisioned managed services."""
+
+        probes: dict[str, ProbeCallable] = {}
+
+        def _timescale_probe() -> bool:
+            settings = self.config.timescale_settings
+            engine = settings.create_engine()
+            try:
+                with engine.connect() as conn:
+                    conn.execute(text("SELECT 1"))
+                return True
+            except Exception:  # pragma: no cover - defensive logging
+                logger.exception("Timescale connectivity probe failed")
+                return False
+            finally:
+                engine.dispose()
+
+        probes["timescale"] = _timescale_probe
+
+        if self.redis_cache is not None:
+            def _redis_probe() -> bool:
+                client = getattr(self.redis_cache, "raw_client", None)
+                if client is None:
+                    return False
+                ping = getattr(client, "ping", None)
+                if not callable(ping):
+                    logger.debug("Redis client does not expose ping(); assuming unhealthy")
+                    return False
+                try:
+                    return bool(ping())
+                except Exception:  # pragma: no cover - defensive logging
+                    logger.exception("Redis connectivity probe failed")
+                    return False
+
+            probes["redis"] = _redis_probe
+
+        if self.kafka_consumer is not None:
+            def _kafka_probe() -> bool:
+                try:
+                    return bool(self.kafka_consumer.ping())
+                except Exception:  # pragma: no cover - defensive logging
+                    logger.exception("Kafka connectivity probe failed")
+                    return False
+
+            probes["kafka"] = _kafka_probe
+
+        return probes
 
 
 @dataclass(slots=True)

@@ -1738,6 +1738,32 @@ class KafkaIngestEventConsumer:
     def topics(self) -> tuple[str, ...]:
         return self._topics
 
+    def ping(self, *, timeout: float = 0.5) -> bool:
+        """Perform a lightweight connectivity check against the underlying consumer."""
+
+        list_topics = getattr(self._consumer, "list_topics", None)
+        if callable(list_topics):
+            try:
+                metadata = list_topics(timeout=timeout)
+            except TypeError:
+                metadata = list_topics()
+            except Exception:  # pragma: no cover - defensive logging
+                self._logger.exception("Kafka ingest consumer list_topics probe failed")
+                return False
+            return bool(metadata)
+
+        poll = getattr(self._consumer, "poll", None)
+        if callable(poll):
+            try:
+                poll(timeout)
+                return True
+            except Exception:  # pragma: no cover - defensive logging
+                self._logger.exception("Kafka ingest consumer poll probe failed")
+                return False
+
+        self._logger.debug("Kafka consumer lacks list_topics/poll for connectivity probe")
+        return False
+
     def summary(self) -> str:
         return (
             f"KafkaIngestEventConsumer(topics={list(self._topics)}, event_type={self._event_type})"

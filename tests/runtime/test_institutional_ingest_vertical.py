@@ -49,6 +49,9 @@ class _DummyKafkaConsumer:
     def poll(self, timeout):
         return None
 
+    def list_topics(self, timeout=None):  # type: ignore[override]
+        return {"topics": {topic: {} for topic in self.subscribed or ("telemetry.ingest",)}}
+
     def close(self) -> None:
         self.closed = True
 
@@ -223,6 +226,39 @@ async def test_connectivity_report_uses_optional_probes() -> None:
     assert manifest["redis"].healthy is False
     assert manifest["kafka"].healthy is None
     assert probes_called == {"timescale": True, "redis": True}
+
+    await services.stop()
+
+
+@pytest.mark.asyncio
+async def test_connectivity_report_defaults_use_managed_probes(tmp_path) -> None:
+    sqlite_path = tmp_path / "timescale.db"
+    config = _ingest_config(schedule=default_institutional_schedule())
+    config = dataclasses.replace(
+        config,
+        timescale_settings=TimescaleConnectionSettings(url=f"sqlite:///{sqlite_path}"),
+    )
+    provisioner = InstitutionalIngestProvisioner(
+        config,
+        redis_settings=RedisConnectionSettings.from_mapping(
+            {"REDIS_URL": "redis://localhost:6379/0"}
+        ),
+    )
+
+    services = provisioner.provision(
+        run_ingest=lambda: asyncio.sleep(0),
+        event_bus=_DummyEventBus(),
+        task_supervisor=TaskSupervisor(namespace="default-probes"),
+        redis_client_factory=lambda *_: InMemoryRedis(),
+        kafka_consumer_factory=lambda *_: _DummyKafkaConsumer(),
+    )
+
+    report = await services.connectivity_report(timeout=0.1)
+    manifest = {snapshot.name: snapshot for snapshot in report}
+
+    assert manifest["timescale"].healthy is True
+    assert manifest["redis"].healthy is True
+    assert manifest["kafka"].healthy is True
 
     await services.stop()
 

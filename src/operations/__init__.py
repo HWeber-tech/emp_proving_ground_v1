@@ -186,6 +186,11 @@ from .observability_dashboard import (
     ObservabilityDashboard,
     build_observability_dashboard,
 )
+from .quality_telemetry import (
+    QualityStatus,
+    QualityTelemetrySnapshot,
+    build_quality_telemetry_snapshot,
+)
 from .operational_readiness import (
     OperationalReadinessComponent,
     OperationalReadinessSnapshot,

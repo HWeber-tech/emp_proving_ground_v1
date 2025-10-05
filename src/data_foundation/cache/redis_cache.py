@@ -331,6 +331,11 @@ class InMemoryRedis:
                 del self._store[key]
         return removed
 
+    def ping(self) -> bool:
+        """Mirror the Redis ``PING`` command used by connectivity probes."""
+
+        return True
+
     def metrics(self, *, reset: bool = False) -> CacheMetrics:
         snapshot = CacheMetrics(
             hits=self._hits,

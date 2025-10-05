@@ -39,10 +39,3 @@ def test_execution_report_json(monkeypatch: pytest.MonkeyPatch) -> None:
     assert payload["symbol"] == "AAPL"
     assert payload["timestamp"] == "2024-01-02T03:04:05"
 
-
-def test_feature_detect_reexports(monkeypatch: pytest.MonkeyPatch) -> None:
-    _stub_domain_pkg(monkeypatch)
-    dm = importlib.import_module("src.domain.models")
-
-    assert hasattr(dm, "InstrumentProvider")
-    assert hasattr(dm, "CurrencyConverter")

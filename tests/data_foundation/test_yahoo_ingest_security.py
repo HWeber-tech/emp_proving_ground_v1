@@ -6,9 +6,10 @@ from pathlib import Path
 from typing import Any
 
 import pandas as pd
+import pytest
 from pandas import testing as pd_testing
 
-from src.data_foundation.ingest.yahoo_ingest import store_duckdb
+from src.data_foundation.ingest.yahoo_ingest import fetch_price_history, store_duckdb
 
 
 class _FakeConnection:
@@ -78,3 +79,54 @@ def test_store_duckdb_sanitizes_and_parameterizes(monkeypatch) -> None:
     assert name == "tmp_df"
     pd_testing.assert_frame_equal(registered_df, df)
     assert fake_connection.closed is True
+
+
+def test_fetch_price_history_normalises_symbol_and_interval(monkeypatch) -> None:
+    captured: dict[str, Any] = {}
+
+    def fake_download(symbol: str, **kwargs: Any) -> pd.DataFrame:
+        captured["symbol"] = symbol
+        captured["kwargs"] = kwargs
+        frame = pd.DataFrame(
+            {
+                "Open": [1.0],
+                "High": [1.2],
+                "Low": [0.9],
+                "Close": [1.1],
+                "Adj Close": [1.05],
+                "Volume": [100],
+            },
+            index=pd.DatetimeIndex(["2024-01-02"], name="Date"),
+        )
+        return frame
+
+    monkeypatch.setattr("yfinance.download", fake_download)
+
+    frame = fetch_price_history(" aapl ", interval="1H", period="5d")
+
+    assert captured["symbol"] == "AAPL"
+    assert captured["kwargs"]["interval"] == "1h"
+    assert captured["kwargs"]["period"] == "5d"
+    assert "timestamp" in frame.columns
+    assert frame.loc[0, "symbol"] == "AAPL"
+
+
+def test_fetch_price_history_rejects_invalid_inputs(monkeypatch) -> None:
+    calls: list[dict[str, Any]] = []
+
+    def fake_download(symbol: str, **kwargs: Any) -> pd.DataFrame:
+        calls.append({"symbol": symbol, "kwargs": kwargs})
+        return pd.DataFrame()
+
+    monkeypatch.setattr("yfinance.download", fake_download)
+
+    with pytest.raises(ValueError):
+        fetch_price_history("BAD SYMBOL", interval="1h")
+
+    with pytest.raises(ValueError):
+        fetch_price_history("AAPL", interval="not-real")
+
+    with pytest.raises(ValueError):
+        fetch_price_history("AAPL", period="1mo", start="2024-01-01")
+
+    assert calls == []

@@ -142,10 +142,10 @@ def test_compose_validation_adapters_handles_missing_modules(
 def test_compose_validation_adapters_prefers_runtime_implementations() -> None:
     adapters = compose_validation_adapters()
 
-    # YFinanceGateway should be preferred when available.
-    from src.data_integration.yfinance_gateway import YFinanceGateway
+    # YahooMarketDataGateway should be preferred when available.
+    from src.data_foundation.ingest.yahoo_gateway import YahooMarketDataGateway
     from src.orchestration.compose import AnomalyDetectorAdapter, ConfigurationProviderAdapter
 
-    assert isinstance(adapters["market_data_gateway"], YFinanceGateway)
+    assert isinstance(adapters["market_data_gateway"], YahooMarketDataGateway)
     assert isinstance(adapters["anomaly_detector"], AnomalyDetectorAdapter)
     assert isinstance(adapters["configuration_provider"], ConfigurationProviderAdapter)

@@ -13,7 +13,7 @@ from typing import Optional
 import click
 import pandas as pd
 
-from src.data_integration.yfinance_gateway import YFinanceGateway
+from src.data_foundation.ingest.yahoo_gateway import YahooMarketDataGateway
 
 # Configure logging
 logging.basicConfig(
@@ -80,7 +80,7 @@ def download(
 ) -> None:
     """Download historical market data for a symbol."""
     try:
-        gw = YFinanceGateway()
+        gw = YahooMarketDataGateway()
         click.echo(
             f"Downloading {symbol} data from {start_date} to {end_date or 'today'} ({interval})"
         )

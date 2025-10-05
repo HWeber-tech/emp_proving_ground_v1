@@ -34,7 +34,7 @@
   - Integrate it into the sense’s workflow and the sensory cortex API
   - Document the mapping of each analysis to its sense
 
-### 3. Core Engine & Simulation (`src/core.py`, `src/simulation.py`)
+### 3. Core Engine & Simulation (`src/core/`, `src/simulation.py`)
 - **Purpose:** Consumes signals and insights from the sensory cortex to drive strategy, risk, and simulation.
 - **Responsibilities:**
   - Risk management

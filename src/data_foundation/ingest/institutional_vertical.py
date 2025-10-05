@@ -22,8 +22,9 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import logging
 from dataclasses import dataclass, field
-from typing import Callable, Mapping, MutableMapping
+from typing import Awaitable, Callable, Mapping, MutableMapping
 
 from src.data_foundation.cache.redis_cache import (
     ManagedRedisCache,
@@ -44,6 +45,12 @@ from src.data_foundation.streaming.kafka_stream import (
     create_ingest_event_consumer,
 )
 from src.runtime.task_supervisor import TaskSupervisor
+
+
+logger = logging.getLogger(__name__)
+
+
+ProbeCallable = Callable[[], Awaitable[bool] | bool]
 
 
 DEFAULT_INTERVAL_SECONDS = 3_600.0
@@ -140,6 +147,47 @@ class InstitutionalIngestServices:
 
         await self.scheduler.stop()
 
+    def managed_manifest(self) -> tuple["ManagedConnectorSnapshot", ...]:
+        """Return structured metadata for provisioned managed services."""
+
+        timescale_snapshot = ManagedConnectorSnapshot(
+            name="timescale",
+            configured=self.config.timescale_settings.configured,
+            supervised=self.scheduler.running,
+            metadata={
+                "application_name": self.config.timescale_settings.application_name,
+                "url": _redacted_url(self.config.timescale_settings.url),
+                "dimensions": list(_plan_dimensions(self.config)),
+            },
+        )
+
+        redis_snapshot = ManagedConnectorSnapshot(
+            name="redis",
+            configured=bool(self.redis_settings and self.redis_settings.configured),
+            supervised=False,
+            metadata={
+                "summary": self.redis_settings.summary(redacted=True)
+                if self.redis_settings and self.redis_settings.configured
+                else None,
+            },
+        )
+
+        kafka_snapshot = ManagedConnectorSnapshot(
+            name="kafka",
+            configured=bool(self.kafka_settings and self.kafka_settings.configured),
+            supervised=self._kafka_task is not None,
+            metadata={
+                "bootstrap_servers": (
+                    self.kafka_settings.bootstrap_servers if self.kafka_settings else None
+                ),
+                "topics": list(self.kafka_consumer.topics)
+                if self.kafka_consumer is not None
+                else [],
+            },
+        )
+
+        return (timescale_snapshot, redis_snapshot, kafka_snapshot)
+
     def summary(self) -> Mapping[str, object]:
         """Summarise managed connectors for observability dashboards."""
 
@@ -176,6 +224,7 @@ class InstitutionalIngestServices:
             if self.kafka_consumer is not None
             else [],
             "failover": self.failover_metadata(),
+            "managed_manifest": [snapshot.as_dict() for snapshot in self.managed_manifest()],
         }
 
     def failover_metadata(self) -> Mapping[str, object] | None:
@@ -185,6 +234,38 @@ class InstitutionalIngestServices:
         if settings is None:
             return None
         return settings.to_metadata()
+
+    async def connectivity_report(
+        self,
+        *,
+        probes: Mapping[str, ProbeCallable] | None = None,
+        timeout: float = 5.0,
+    ) -> tuple["ManagedConnectorSnapshot", ...]:
+        """Evaluate managed connector health using optional asynchronous probes."""
+
+        manifest = {snapshot.name: snapshot for snapshot in self.managed_manifest()}
+        probes = probes or {}
+
+        async def _evaluate(name: str, snapshot: ManagedConnectorSnapshot) -> ManagedConnectorSnapshot:
+            probe = probes.get(name)
+            if probe is None:
+                return snapshot
+            try:
+                result = probe()
+                if asyncio.iscoroutine(result):
+                    healthy = await asyncio.wait_for(result, timeout=timeout)
+                else:
+                    healthy = bool(result)
+                return snapshot.with_health(bool(healthy))
+            except Exception:  # pragma: no cover - defensive logging
+                logger.exception("Connectivity probe for %s failed", name)
+                return snapshot.with_health(False)
+
+        evaluated: list[ManagedConnectorSnapshot] = []
+        for name, snapshot in manifest.items():
+            evaluated.append(await _evaluate(name, snapshot))
+
+        return tuple(evaluated)
 
 
 @dataclass(slots=True)
@@ -273,3 +354,37 @@ __all__ = [
     "InstitutionalIngestServices",
     "default_institutional_schedule",
 ]
+
+
+@dataclass(frozen=True, slots=True)
+class ManagedConnectorSnapshot:
+    """Snapshot of a managed ingest connector, including optional health state."""
+
+    name: str
+    configured: bool
+    supervised: bool
+    metadata: Mapping[str, object]
+    healthy: bool | None = None
+
+    def as_dict(self) -> dict[str, object]:
+        payload: dict[str, object] = {
+            "name": self.name,
+            "configured": self.configured,
+            "supervised": self.supervised,
+            "metadata": dict(self.metadata),
+        }
+        if self.healthy is not None:
+            payload["healthy"] = self.healthy
+        return payload
+
+    def with_health(self, healthy: bool | None) -> "ManagedConnectorSnapshot":
+        return ManagedConnectorSnapshot(
+            name=self.name,
+            configured=self.configured,
+            supervised=self.supervised,
+            metadata=self.metadata,
+            healthy=healthy,
+        )
+
+
+__all__.append("ManagedConnectorSnapshot")

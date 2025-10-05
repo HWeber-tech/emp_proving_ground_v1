@@ -87,6 +87,11 @@
     violation states to observability dashboard entries while preserving the
     serialised payloads, with pytest coverage asserting limit-status escalation
     so operators inherit actionable risk summaries instead of opaque aggregates.【F:src/operations/observability_dashboard.py†L254-L309】【F:tests/operations/test_observability_dashboard.py†L201-L241】
+  - Progress: Observability dashboard composer now fuses ROI, risk, latency,
+    backbone, operational readiness, and quality panels into a single snapshot,
+    escalating severities from ROI status, risk-limit breaches, event-bus/SLO
+    lag, and coverage posture while retaining structured metadata for each panel
+    so dashboards and exporters inherit a complete readiness view.【F:src/operations/observability_dashboard.py†L250-L420】【F:tests/operations/test_observability_dashboard.py†L198-L266】
   - Progress: Observability dashboard metadata now auto-fills panel status counts
     and severity maps next to the remediation capsule so exporters and runbooks
     can ingest a machine-readable readiness snapshot without recomputing
@@ -108,6 +113,11 @@
   ingest/risk targets against configurable thresholds, highlights missing
   modules, and surfaces JSON/text reports with failure exit codes so CI hooks and
   local audits can block on coverage regressions deterministically.【F:tools/telemetry/coverage_guardrails.py†L1-L268】【F:tests/tools/test_coverage_guardrails.py†L1-L83】
+  - Progress: Quality telemetry snapshot builder now normalises coverage,
+    staleness, and remediation trends into a typed `QualityTelemetrySnapshot`,
+    escalating WARN/FAIL severities, retaining lagging-domain metadata, and
+    capturing remediation notes so CI exports feed dashboards with deterministic
+    coverage posture evidence.【F:src/operations/quality_telemetry.py†L1-L168】【F:tests/operations/test_quality_telemetry.py†L9-L53】
   - Progress: Observability dashboard surfaces operational readiness as a
     first-class panel, counting component severities, embedding metadata, and
     feeding remediation summaries under pytest coverage so responders inherit a

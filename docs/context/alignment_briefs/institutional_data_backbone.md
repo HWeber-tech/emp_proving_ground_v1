@@ -78,12 +78,12 @@
   deterministic summaries, and supports scheduler lifecycles under pytest
   coverage so institutional environments inherit a single managed entrypoint
   instead of bespoke ingest wiring.【F:src/data_foundation/ingest/production_slice.py†L1-L170】【F:tests/data_foundation/test_production_ingest_slice.py†L1-L176】
-- Progress: Institutional ingest provisioner now builds supervised Timescale
-  schedules, Redis caches, and Kafka bridges from a single configuration
-  surface, exposing failover drill metadata, a redaction-safe managed manifest,
-  and an async connectivity report helper so operators can bootstrap the ingest
-  vertical with guardrails, surface disaster-recovery requirements in
-  dashboards, and probe service health without bespoke wiring.【F:src/data_foundation/ingest/institutional_vertical.py†L94-L349】【F:tests/runtime/test_institutional_ingest_vertical.py†L1-L164】【F:docs/operations/timescale_failover_drills.md†L1-L27】
+- Progress: Institutional ingest provisioner now spins up supervised Timescale
+  schedules alongside Redis caches and Kafka consumers, wiring the bridge into
+  the task supervisor with redacted metadata, publishing a managed manifest that
+  lists configured topics, and exposing async/sync connectivity probes so
+  operators can surface recovery requirements and live health checks without
+  bespoke wiring.【F:src/data_foundation/ingest/institutional_vertical.py†L96-L260】【F:tests/runtime/test_institutional_ingest_vertical.py†L86-L262】【F:docs/operations/timescale_failover_drills.md†L1-L27】
 - Progress: Tier-0 Yahoo ingest script now sanitises symbols and intervals,
   enforces mutually exclusive period/start-end windows, normalises timestamps,
   and persists via a DuckDB helper that escapes table identifiers and binds

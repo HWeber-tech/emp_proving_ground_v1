@@ -54,12 +54,12 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
     telemetry exposes what was fetched, normalised, or skipped; guardrail tests
     cover macro window fallbacks, empty payloads, and metadata emission to
     prevent regressions in institutional ingest coverage.【F:src/data_foundation/ingest/timescale_pipeline.py†L70-L213】【F:tests/data_foundation/test_timescale_backbone_orchestrator.py†L1-L200】
-  - *Progress*: Institutional ingest provisioner now hydrates supervised
-    Timescale schedules, optional Redis caches, and Kafka ingest bridges from a
-    single configuration bundle while exposing failover drill metadata, a
-    redaction-safe managed manifest, and an async connectivity-report helper so
-    operators can surface recovery requirements in dashboards and probe
-    Timescale/Redis/Kafka health without bespoke wiring.【F:src/data_foundation/ingest/institutional_vertical.py†L94-L349】【F:tests/runtime/test_institutional_ingest_vertical.py†L1-L164】【F:docs/operations/timescale_failover_drills.md†L1-L27】
+  - *Progress*: Institutional ingest provisioner now spins up supervised
+    Timescale schedules alongside Redis caches and Kafka consumers, wiring the
+    bridge into the task supervisor with redacted metadata, publishing a managed
+    manifest that lists configured topics, and exposing async/sync connectivity
+    probes so dashboards can surface recovery requirements and live health checks
+    without bespoke wiring.【F:src/data_foundation/ingest/institutional_vertical.py†L96-L260】【F:tests/runtime/test_institutional_ingest_vertical.py†L86-L262】【F:docs/operations/timescale_failover_drills.md†L1-L27】
   - *Progress*: Tier-0 Yahoo ingest now sanitises symbols/intervals, enforces
     mutually exclusive period versus window arguments, normalises timestamps,
     and writes through a DuckDB helper that escapes table identifiers and binds
@@ -140,6 +140,11 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
     configurable baseline/evaluation policy, publishes telemetry snapshots, and
     surfaces status summaries so runtime consumers inherit a single executable
     sensory surface with drift alerts under pytest coverage.【F:src/sensory/real_sensory_organ.py†L23-L233】【F:src/sensory/real_sensory_organ.py†L201-L355】【F:tests/sensory/test_real_sensory_organ.py†L96-L156】
+  - *Progress*: Component integrator now instantiates canonical sensory, trading,
+    evolution, risk, and governance subsystems, registers legacy aliases for the
+    HOW/WHAT/WHEN organs, captures the enforced `RiskConfig` summary, and surfaces
+    the shared risk API runbook so integration checks and governance reviews
+    observe the true wiring under pytest coverage.【F:src/integration/component_integrator.py†L1-L170】【F:src/integration/component_integrator_impl.py†L1-L139】【F:tests/integration/test_component_integrator_impl.py†L1-L44】
   - *Progress*: Sensory metrics telemetry now converts the organ status feed into
     dimension-level metrics, captures drift-alert provenance, and publishes via
     the event-bus failover helper so dashboards receive ranked strength,
@@ -154,6 +159,10 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
     fallback, emitting warnings and restoring stub exports under regression
     coverage so bootstrap environments surface degraded sensory wiring instead of
     silently masking missing dependencies.【F:src/core/__init__.py†L11-L45】【F:tests/core/test_core_init_fallback.py†L1-L43】
+  - *Progress*: Market data recorder/replayer now serialises lightweight order
+    books to JSONL, logs feature-writer failures, skips malformed payloads, and
+    guards file-handle shutdown so sensory backtests and feature pipelines can
+    rely on deterministic capture/replay under pytest coverage.【F:src/operational/md_capture.py†L1-L87】【F:tests/operational/test_md_capture.py†L1-L53】
 - [ ] **Risk and runtime safety** – Enforce `RiskConfig`, finish the builder rollout,
   adopt supervised async lifecycles, and purge deprecated facades.
   - *Progress*: The trading risk gateway now drives portfolio checks through the
@@ -306,6 +315,11 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
     with limit values, ratios, and violation statuses while preserving serialised
     payloads, backed by regression coverage so operators inherit actionable risk
     summaries instead of opaque aggregates.【F:src/operations/observability_dashboard.py†L254-L309】【F:tests/operations/test_observability_dashboard.py†L201-L241】
+  - *Progress*: Observability dashboard composer now fuses ROI, risk, latency,
+    backbone, operational readiness, and quality panels into a single snapshot,
+    escalating severities from ROI status, risk-limit breaches, event-bus/SLO
+    lag, and coverage posture while retaining structured metadata for each panel
+    so dashboards and exporters inherit a complete readiness view.【F:src/operations/observability_dashboard.py†L250-L420】【F:tests/operations/test_observability_dashboard.py†L198-L266】
   - *Progress*: Observability dashboard metadata now auto-populates panel status
     counts and per-panel severity maps alongside the remediation capsule so CI
     exporters and runbooks can ingest a machine-readable readiness snapshot
@@ -367,6 +381,11 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
     feed while the CLI ingests observability dashboard snapshots into the
     remediation trend so status exports inherit actionable coverage and
     operational readiness deltas.【F:tools/telemetry/ci_metrics.py†L112-L337】【F:tools/telemetry/update_ci_metrics.py†L1-L169】【F:tests/tools/test_ci_metrics.py†L180-L309】
+  - *Progress*: Quality telemetry snapshot builder now normalises coverage,
+    staleness, and remediation trends into a typed `QualityTelemetrySnapshot`,
+    escalating WARN/FAIL severities, retaining lagging-domain metadata, and
+    capturing remediation notes so CI exports feed dashboards with deterministic
+    coverage posture evidence.【F:src/operations/quality_telemetry.py†L1-L168】【F:tests/operations/test_quality_telemetry.py†L9-L53】
   - *Progress*: Remediation summary exporter renders telemetry snapshots into
     Markdown tables with delta call-outs, honours slice limits, omits deltas for
     non-numeric statuses, and ships with a CLI/pytest contract so status reports
@@ -530,9 +549,9 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
   regulatory telemetry, and audit storage prior to live-broker pilots.【F:docs/technical_debt_assessment.md†L58-L112】
   - *Progress*: Governance reporting cadence now assembles compliance readiness,
     regulatory telemetry, and Timescale audit evidence into a single artefact,
-    publishes the snapshot on the event bus, and trims persisted histories so
-    audits inherit deterministic evidence, with pytest covering scheduling,
-    publishing, and storage flows.【F:src/operations/governance_reporting.py†L1-L200】【F:tests/operations/test_governance_reporting.py†L1-L152】
+    escalates overall status, publishes via the event-bus failover helper, and
+    trims persisted histories so audits inherit deterministic evidence with
+    pytest covering scheduling, publishing, and storage flows.【F:src/operations/governance_reporting.py†L1-L520】【F:tests/operations/test_governance_reporting.py†L1-L226】
   - *Progress*: Compliance readiness snapshots now normalise trade-surveillance and
     KYC components, escalate severities deterministically, and render markdown
     evidence with regression coverage so governance cadences inherit reliable

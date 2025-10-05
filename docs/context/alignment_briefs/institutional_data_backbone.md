@@ -69,6 +69,11 @@
   symbols, fetched rows, macro windows, and ingest results on every slice while
   guardrail tests lock macro window fallbacks and zero-payload execution so
   institutional telemetry reflects what was ingested or skipped.【F:src/data_foundation/ingest/timescale_pipeline.py†L70-L213】【F:tests/data_foundation/test_timescale_backbone_orchestrator.py†L1-L200】
+- Progress: Production ingest slice coordinates the orchestrator, provisioner,
+  Redis cache, and Kafka bridge behind a supervised `TaskSupervisor`, exposes
+  deterministic summaries, and supports scheduler lifecycles under pytest
+  coverage so institutional environments inherit a single managed entrypoint
+  instead of bespoke ingest wiring.【F:src/data_foundation/ingest/production_slice.py†L1-L170】【F:tests/data_foundation/test_production_ingest_slice.py†L1-L176】
 - Progress: Institutional ingest provisioner now builds supervised Timescale
   schedules, Redis caches, and Kafka bridges from a single configuration
   surface, exposing failover drill metadata and a runtime summary so operators

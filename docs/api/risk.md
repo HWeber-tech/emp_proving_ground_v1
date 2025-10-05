@@ -18,6 +18,7 @@ manager's risk posture:
 can triage missing or invalid contracts quickly.
 
 `summarise_risk_config` also renders sector exposure limits, combined sector
-budget totals, and instrument-sector mappings when present so downstream
+budget totals, instrument-sector mappings, sector-instrument counts, volatility
+targets, leverage windows, and annualisation factors when present so downstream
 telemetry can display the enforced allocation posture alongside the numerical
-limits without rehydrating the full configuration.【F:src/trading/risk/risk_api.py†L104-L128】【F:tests/trading/test_risk_api.py†L100-L142】
+limits without rehydrating the full configuration.【F:src/trading/risk/risk_api.py†L100-L150】【F:tests/trading/test_risk_api.py†L90-L146】

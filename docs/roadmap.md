@@ -38,6 +38,12 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
     the guardrail remains deterministic. The guardrail manifest now pins the
     ingest scheduler regression to the `guardrail` matrix, ensuring CI fails
     fast if the scheduler suite drifts or loses its guardrail marker.【F:src/data_foundation/ingest/scheduler.py†L1-L138】【F:tests/data_foundation/test_ingest_scheduler.py†L1-L200】【F:tests/runtime/test_guardrail_suite_manifest.py†L18-L40】
+  - *Progress*: Production ingest slice now orchestrates Timescale runs and
+    supervised services from a single entrypoint, wiring the institutional
+    provisioner, Kafka bridge, and Redis cache through the shared
+    `TaskSupervisor` while exposing deterministic summaries for dashboards and
+    start/stop lifecycles under pytest coverage so operators inherit a managed
+    ingest surface instead of bespoke wiring.【F:src/data_foundation/ingest/production_slice.py†L1-L170】【F:tests/data_foundation/test_production_ingest_slice.py†L1-L176】
   - *Progress*: Timescale backbone orchestrator now enriches every daily,
     intraday, and macro slice with requested symbol/event counts, fetched row
     totals, ingest result metadata, and macro window provenance so ingest
@@ -143,10 +149,11 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
     risk manager surfaced by the runtime builder.【F:src/trading/trading_manager.py†L105-L147】【F:src/risk/risk_manager_impl.py†L533-L573】
   - *Progress*: Deterministic trading risk API now attaches structured metadata
     and a contract runbook to every `RiskApiError`, while its summariser renders
-    sector exposure maps, combined budget totals, and research-mode posture in
-    the payload so supervisors receive the full allocation context alongside the
-    documented escalation path; runtime builder and trading manager continue to
-    surface the runbook URL for deterministic triage.【F:docs/api/risk.md†L1-L28】【F:docs/operations/runbooks/risk_api_contract.md†L1-L31】【F:src/trading/risk/risk_api.py†L20-L128】【F:src/runtime/runtime_builder.py†L321-L337】【F:src/trading/trading_manager.py†L493-L529】【F:tests/runtime/test_runtime_builder.py†L183-L198】【F:tests/trading/test_risk_api.py†L79-L142】【F:tests/trading/test_trading_manager_execution.py†L222-L247】
+    sector exposure maps, combined budget totals, volatility targets, leverage
+    windows, and sector-instrument counts in the payload so supervisors receive
+    the full allocation context alongside the documented escalation path;
+    runtime builder and trading manager continue to surface the runbook URL for
+    deterministic triage.【F:docs/api/risk.md†L1-L24】【F:docs/operations/runbooks/risk_api_contract.md†L1-L31】【F:src/trading/risk/risk_api.py†L100-L150】【F:src/runtime/runtime_builder.py†L321-L337】【F:src/trading/trading_manager.py†L493-L529】【F:tests/runtime/test_runtime_builder.py†L183-L198】【F:tests/trading/test_risk_api.py†L90-L146】【F:tests/trading/test_trading_manager_execution.py†L222-L247】
   - *Progress*: Trading manager now emits dedicated risk interface telemetry via
     snapshot/error helpers that render Markdown summaries, publish structured
     payloads on the event bus, and persist the latest posture for discovery,
@@ -254,10 +261,16 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
     drills can block on stale, failing, or operator-reported WARN/FAIL snapshots
     under pytest coverage.【F:tools/telemetry/dashboard_guard.py†L1-L220】【F:tests/tools/test_dashboard_guard.py†L16-L140】
   - *Progress*: Configuration audit telemetry now normalises `SystemConfig`
-    diffs, grades tracked toggles plus extras, renders Markdown summaries, and
-    publishes via the shared failover helper so configuration changes leave a
-    durable, event-bus-backed audit trail for operators and governance
-    reviewers.【F:src/operations/configuration_audit.py†L1-L235】
+    diffs, grades tracked toggles plus extras, renders Markdown summaries with a
+    severity breakdown, and publishes via the shared failover helper so
+    configuration changes leave a durable, event-bus-backed audit trail with
+    explicit severity counts and highest-risk fields for operators and
+    governance reviewers.【F:src/operations/configuration_audit.py†L90-L210】【F:tests/operations/test_configuration_audit.py†L24-L86】
+  - *Progress*: CI metrics staleness guard CLI summarises coverage, formatter,
+    domain, and remediation telemetry ages, supports human/JSON output, and
+    fails builds when trends go stale or evidence is missing under pytest
+    coverage so roadmap reviews inherit fresh observability evidence without
+    manual checks.【F:tools/telemetry/ci_metrics_guard.py†L1-L142】【F:tests/tools/test_ci_metrics_guard.py†L1-L99】
   - *Progress*: Health monitor resource probes now normalise psutil import
     failures, log probe errors, retain bounded history, and surface event-bus
     diagnostics so operational responders get actionable state even when optional

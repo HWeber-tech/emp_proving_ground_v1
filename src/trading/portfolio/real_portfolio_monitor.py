@@ -452,18 +452,20 @@ class RealPortfolioMonitor:
                 win_rate = winning_trades / total_trades if total_trades > 0 else 0.0
 
                 cursor = conn.execute(
-                    "SELECT SUM(realized_pnl) AS profit FROM positions WHERE realized_pnl > 0"
+                    "SELECT SUM(realized_pnl) AS profit FROM positions WHERE realized_pnl > ?",
+                    (0,),
                 )
                 profit_row = cursor.fetchone()
                 if profit_row and profit_row["profit"] is not None:
                     gross_profit = float(profit_row["profit"])
 
                 cursor = conn.execute(
-                    "SELECT ABS(SUM(realized_pnl)) AS loss FROM positions WHERE realized_pnl < 0"
+                    "SELECT SUM(realized_pnl) AS loss FROM positions WHERE realized_pnl < ?",
+                    (0,),
                 )
                 loss_row = cursor.fetchone()
                 if loss_row and loss_row["loss"] is not None:
-                    gross_loss = float(loss_row["loss"])
+                    gross_loss = abs(float(loss_row["loss"]))
         except PortfolioMonitorError:
             logger.exception("Failed to compute performance metrics")
             return self._make_performance_metrics(

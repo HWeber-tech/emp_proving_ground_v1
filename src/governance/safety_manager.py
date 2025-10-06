@@ -1,31 +1,47 @@
-"""
-Safety Manager
-==============
-
-Centralizes runtime guardrails to prevent accidental live trading and to honor
-an external kill-switch. Keeps safety logic out of `main.py` and makes it easy
-to extend with remote toggles in the future.
-"""
+"""Runtime guardrails for live trading and kill-switch enforcement."""
 
 from __future__ import annotations
 
-import os
+import logging
+import tempfile
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Mapping, Optional
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
 class SafetyContext:
     run_mode: str
     confirm_live: bool
-    kill_switch_path: Optional[str]
+    kill_switch_path: Optional[Path]
 
 
 class SafetyManager:
-    def __init__(self, run_mode: str, confirm_live: bool, kill_switch_path: Optional[str]):
+    def __init__(
+        self,
+        run_mode: str,
+        confirm_live: bool,
+        kill_switch_path: str | Path | None,
+    ) -> None:
         self._ctx = SafetyContext(
-            run_mode=run_mode, confirm_live=confirm_live, kill_switch_path=kill_switch_path
+            run_mode=run_mode,
+            confirm_live=confirm_live,
+            kill_switch_path=self._normalize_kill_switch_path(kill_switch_path),
         )
+
+    @staticmethod
+    def _normalize_kill_switch_path(path: str | Path | None) -> Optional[Path]:
+        if path is None:
+            return None
+        raw = str(path).strip()
+        if not raw or raw.lower() in {"none", "disabled", "off"}:
+            return None
+        candidate = Path(raw).expanduser()
+        if not candidate.is_absolute():
+            candidate = Path(tempfile.gettempdir()) / candidate
+        return candidate
 
     @classmethod
     def from_config(cls, config: Mapping[str, object]) -> "SafetyManager":
@@ -34,18 +50,25 @@ class SafetyManager:
         kill_switch_path = getattr(config, "kill_switch_path", None)
         return cls(run_mode, confirm_live, kill_switch_path)
 
+    @property
+    def kill_switch_path(self) -> Optional[Path]:
+        return self._ctx.kill_switch_path
+
     def enforce(self) -> None:
         # Live mode requires explicit confirmation
         if self._ctx.run_mode == "live" and not self._ctx.confirm_live:
             raise RuntimeError("Live mode requires CONFIRM_LIVE=true. Aborting.")
 
         # Kill-switch file halts startup
-        if self._ctx.kill_switch_path:
+        kill_switch = self._ctx.kill_switch_path
+        if kill_switch:
             try:
-                if os.path.exists(self._ctx.kill_switch_path):
-                    raise RuntimeError(
-                        f"Kill-switch engaged at {self._ctx.kill_switch_path}. Aborting."
-                    )
-            except Exception:
-                # If path check fails, default to allowing startup; callers may log a warning
-                pass
+                if kill_switch.exists():
+                    raise RuntimeError(f"Kill-switch engaged at {kill_switch}. Aborting.")
+            except OSError as exc:
+                logger.warning(
+                    "Unable to inspect kill-switch path %s: %s",
+                    kill_switch,
+                    exc,
+                    exc_info=exc,
+                )

@@ -17,6 +17,8 @@ def test_realistic_genome_seeder_cycles_species():
     assert species[0] == species[len(seeder.templates)]
     assert len(set(species)) >= 3
 
+    assert all(seed.catalogue_entry_id for seed in seeds)
+
 
 def test_evolution_engine_default_population_has_lineage_metadata():
     engine = EvolutionEngine(EvolutionConfig(population_size=6, elite_count=2))
@@ -45,3 +47,9 @@ def test_evolution_engine_default_population_has_lineage_metadata():
         assert isinstance(metadata, dict)
         assert metadata.get("seed_name")
         assert metadata.get("seed_species")
+        assert metadata.get("seed_catalogue_id")
+
+    stats = engine.get_population_statistics()
+    seed_metadata = stats.get("seed_metadata") if isinstance(stats, dict) else None
+    assert seed_metadata is not None
+    assert seed_metadata.get("seed_catalogue_ids")

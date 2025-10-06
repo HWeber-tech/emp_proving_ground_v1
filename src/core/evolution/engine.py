@@ -287,6 +287,7 @@ class EvolutionEngine:
         name_counts: Counter[str] = Counter()
         tag_counts: Counter[str] = Counter()
         seed_species_counts: Counter[str] = Counter()
+        catalogue_id_counts: Counter[str] = Counter()
         total_with_metadata = 0
 
         for genome in population:
@@ -306,9 +307,13 @@ class EvolutionEngine:
             if isinstance(seed_species, str) and seed_species:
                 seed_species_counts[seed_species] += 1
 
+            catalogue_id = metadata.get("seed_catalogue_id")
+            if isinstance(catalogue_id, str) and catalogue_id:
+                catalogue_id_counts[catalogue_id] += 1
+
             total_with_metadata += 1
 
-        if not name_counts and not tag_counts and not seed_species_counts:
+        if not name_counts and not tag_counts and not seed_species_counts and not catalogue_id_counts:
             return None
 
         summary: Dict[str, object] = {}
@@ -333,6 +338,9 @@ class EvolutionEngine:
 
         if seed_species_counts:
             summary["seed_species"] = self._ordered_counter(seed_species_counts)
+
+        if catalogue_id_counts:
+            summary["seed_catalogue_ids"] = self._ordered_counter(catalogue_id_counts)
 
         return summary
 

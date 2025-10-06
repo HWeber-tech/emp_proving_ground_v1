@@ -111,6 +111,7 @@ async def test_orchestrator_registers_champion_and_updates_registry(tmp_path):
     if seed_metadata:
         assert seed_metadata["seed_names"]
         assert seed_metadata["seed_templates"]
+        assert seed_metadata.get("seed_catalogue_ids")
 
     snapshot = orchestrator.lineage_snapshot
     assert snapshot is not None

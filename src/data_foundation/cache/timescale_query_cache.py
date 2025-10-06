@@ -13,11 +13,16 @@ from __future__ import annotations
 import json
 import logging
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from hashlib import sha256
 from typing import Any, Callable, Mapping, Sequence, cast
 
 import pandas as pd
+
+try:  # pragma: no cover - Python 3.11+ provides datetime.UTC
+    from datetime import UTC  # type: ignore[attr-defined]
+except ImportError:  # pragma: no cover - Python 3.10 compatibility
+    UTC = timezone.utc  # type: ignore[assignment]
 
 from .redis_cache import ManagedRedisCache
 from ..persist.timescale_reader import TimescaleQueryResult, TimescaleReader

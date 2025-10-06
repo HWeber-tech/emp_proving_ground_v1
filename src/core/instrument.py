@@ -8,7 +8,15 @@ Defines the Instrument class for financial instruments.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TypedDict, Unpack, cast
+from typing import Any, TypedDict, cast
+
+try:  # pragma: no cover - Python 3.11+ provides typing.Unpack
+    from typing import Unpack  # type: ignore[attr-defined]
+except ImportError:  # pragma: no cover - fallback for Python 3.10
+    try:
+        from typing_extensions import Unpack  # type: ignore
+    except ModuleNotFoundError:  # pragma: no cover - minimal environments
+        Unpack = Any  # type: ignore[assignment]
 
 from src.core.types import JSONObject
 

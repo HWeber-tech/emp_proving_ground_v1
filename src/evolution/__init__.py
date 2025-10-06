@@ -24,10 +24,15 @@ from src.evolution.catalogue_telemetry import (
     build_catalogue_snapshot,
 )
 from src.evolution.evaluation import (
+    EVENT_SOURCE_RECORDED_REPLAY,
+    EVENT_TYPE_RECORDED_REPLAY,
+    build_recorded_replay_event,
+    format_recorded_replay_markdown,
     RecordedEvaluationResult,
     RecordedSensoryEvaluator,
     RecordedSensorySnapshot,
     RecordedTrade,
+    publish_recorded_replay_snapshot,
 )
 from src.evolution.evaluation.telemetry import (
     RecordedReplayTelemetrySnapshot,
@@ -62,4 +67,9 @@ __all__ = [
     "RecordedSensorySnapshot",
     "RecordedTrade",
     "summarise_recorded_replay",
+    "publish_recorded_replay_snapshot",
+    "format_recorded_replay_markdown",
+    "build_recorded_replay_event",
+    "EVENT_TYPE_RECORDED_REPLAY",
+    "EVENT_SOURCE_RECORDED_REPLAY",
 ]

@@ -4,12 +4,17 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from typing import Callable, cast
 
 import pandas as pd
 
 from src.core.base import MarketData
+
+try:  # pragma: no cover - Python 3.11+ provides datetime.UTC
+    from datetime import UTC  # type: ignore[attr-defined]
+except ImportError:  # pragma: no cover - Python 3.10 compatibility
+    UTC = timezone.utc  # type: ignore[assignment]
 
 from ..cache import TimescaleQueryCache
 from ..persist.timescale_reader import TimescaleQueryResult, TimescaleReader

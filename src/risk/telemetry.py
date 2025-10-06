@@ -2,8 +2,16 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from enum import StrEnum
+from enum import Enum
 from typing import Any, Iterable, Mapping, MutableMapping, Sequence, cast
+
+try:  # pragma: no cover - Python 3.11+ provides enum.StrEnum
+    from enum import StrEnum  # type: ignore[attr-defined]
+except ImportError:  # pragma: no cover - Python 3.10 compatibility
+    class StrEnum(str, Enum):
+        """Lightweight StrEnum backport for Python 3.10 environments."""
+
+        pass
 
 from src.core.event_bus import Event, EventBus
 from src.core.coercion import coerce_float, coerce_int

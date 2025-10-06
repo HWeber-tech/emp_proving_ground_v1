@@ -14,11 +14,16 @@ import logging
 import threading
 import sys
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import IO, Any, Mapping
 
 import yaml
+
+try:  # pragma: no cover - Python 3.11+ provides datetime.UTC
+    from datetime import UTC  # type: ignore[attr-defined]
+except ImportError:  # pragma: no cover - compatibility for Python 3.10
+    UTC = timezone.utc  # type: ignore[assignment]
 
 __all__ = [
     "StructuredLogConfig",

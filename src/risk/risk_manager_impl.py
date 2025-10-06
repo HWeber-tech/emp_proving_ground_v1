@@ -7,11 +7,19 @@ Provides risk management capabilities with position sizing and validation,
 aligned to canonical imports and types.
 """
 
-import logging
-from typing import Dict, Iterable, Mapping, NotRequired, Sequence, TypedDict
-from decimal import Decimal, InvalidOperation
-from datetime import datetime
 import asyncio
+import logging
+from datetime import datetime
+from decimal import Decimal, InvalidOperation
+from typing import Any, Dict, Iterable, Mapping, Sequence, TypedDict
+
+try:  # pragma: no cover - Python 3.11+ provides typing.NotRequired
+    from typing import NotRequired  # type: ignore[attr-defined]
+except ImportError:  # pragma: no cover - fall back for Python 3.10
+    try:
+        from typing_extensions import NotRequired  # type: ignore
+    except ModuleNotFoundError:  # pragma: no cover - minimal environments
+        NotRequired = Any  # type: ignore[assignment]
 
 from src.core.types import JSONObject
 from src.core.interfaces import RiskManager as RiskManagerProtocol

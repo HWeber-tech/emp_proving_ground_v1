@@ -1,4 +1,96 @@
 # High-Impact Development Roadmap
+
+## Executive summary
+
+AlphaTrade is the North Star for every investment we make in EMP: the initiative orients all delivery decisions around the question, “Does this tighten AlphaTrade’s feedback loop from market perception to capital allocation?” The operating cadence is defined by the Perception → Adaptation → Reflection loop that threads BeliefEmitter insights into RegimeFSM interpretation, routes policies via fast-weight PolicyRouter updates, journals every decision in the DecisionDiary, and guards behavioral drift through DriftSentry before enshrining new playbooks within PolicyLedger guardrails. The first execution slice is a two-week Understanding Loop v1 sprint that runs in live-shadow mode alongside AlphaTrade, validating that the loop produces trustworthy insights without risking capital.
+
+### Perception → Adaptation → Reflection loop
+
+1. **Perception (BeliefEmitter → RegimeFSM)** — consolidate sensory data into beliefs and immediately classify market regimes so PolicyRouter selections are contextual.
+2. **Adaptation (PolicyRouter fast-weights → DecisionDiary)** — refresh fast weights based on regime deltas, route candidate tactics, and capture rationale plus outcomes within the DecisionDiary for rapid review.
+3. **Reflection (DriftSentry → PolicyLedger)** — continuously compare realized outcomes against guardrails, halt promotion when drift is detected, and codify validated policies into the ledger for reuse.
+
+### Understanding Loop v1 (two-week objective)
+
+**Goal:** Shadow AlphaTrade’s live decisions for two weeks, running the full Perception → Adaptation → Reflection loop without order submission. Success means the loop can explain AlphaTrade’s choices, surface divergence alerts within minutes, and produce ledger-ready playbacks while maintaining strict no-impact guardrails.
+
+**Scope:**
+- Live-shadow AlphaTrade across representative assets and sessions.
+- Instrument BeliefEmitter through DriftSentry to capture every market-to-ledger handoff.
+- Daily reflections that compare loop outputs to AlphaTrade benchmarks and log remediation tasks.
+
+## Strategic operating plan
+
+### Architecture
+
+The roadmap implements a BeliefEmitter → RegimeFSM → PolicyRouter (fast-weights) → DecisionDiary → DriftSentry → PolicyLedger workflow. Each hop is backed by explicit contracts: BeliefEmitter emits structured perceptions; RegimeFSM annotates them with regime probabilities; PolicyRouter applies fast-weight adapters to select candidate tactics; DecisionDiary records hypotheses, executions, and outcomes; DriftSentry enforces guardrails on drift, latency, and compliance; PolicyLedger persists promoted tactics with provenance.
+
+### Pilot plan
+
+The Understanding Loop v1 pilot mirrors AlphaTrade in live-shadow. BeliefEmitter taps the same sensory bus, RegimeFSM runs synchronized inference, PolicyRouter outputs simulated orders, and DecisionDiary stores observation frames. DriftSentry runs in watch-only mode, halting promotions if divergence thresholds or compliance guardrails trip. Daily joint reviews with AlphaTrade operators drive ledger updates.
+
+### Success metrics
+
+- ≤2 minute lag between AlphaTrade decision and DecisionDiary entry.
+- ≥90% alignment between PolicyRouter recommendations and AlphaTrade actions under matching regimes.
+- Zero guardrail breaches (drift, compliance, or latency) during the pilot.
+- At least three actionable insights promoted into PolicyLedger with reproducible context.
+
+### Promotion gates
+
+1. **Shadow Readiness:** BeliefEmitter and RegimeFSM pass replay tests on historical AlphaTrade tapes.
+2. **Loop Fidelity:** PolicyRouter and DecisionDiary produce explanations with ≥85% reviewer confidence during dry runs.
+3. **Guardrail Integrity:** DriftSentry raises and resolves simulated drift incidents without manual overrides.
+4. **Ledger Promotion:** PolicyLedger entries trace back to DecisionDiary artifacts and satisfy risk/compliance sign-offs.
+
+### Work breakdown
+
+- **BeliefEmitter Integration:** Align data schemas, implement health checks, and catalog inputs.
+- **RegimeFSM Calibration:** Train classifiers on AlphaTrade historical regimes, define fallback states, and document transitions.
+- **PolicyRouter Fast-Weight Updates:** Implement fast-weight adaptation hooks, simulate alternative policy routing, and log weight provenance.
+- **DecisionDiary Automation:** Auto-generate entries with rationale, feature snapshots, and link-outs to replay artifacts.
+- **DriftSentry Guardrails:** Configure drift thresholds, latency watchdogs, and compliance monitors.
+- **PolicyLedger Governance:** Define ledger schema, promotion workflow, and audit trails that bind to DecisionDiary evidence.
+
+### Minimal code contracts
+
+- **BeliefEmitter Contract:** `emit(belief_packet) -> BeliefFrame` with schema versioning and latency budget alerts.
+- **RegimeFSM Contract:** `classify(BeliefFrame) -> RegimeState` returning confidence intervals plus fallback state.
+- **PolicyRouter Contract:** `route(RegimeState, fast_weights) -> PolicyDecision` carrying tactic id, parameters, and guardrail requirements.
+- **DecisionDiary Contract:** `record(PolicyDecision, outcomes) -> DiaryEntryId` with immutable storage and replay links.
+- **DriftSentry Contract:** `evaluate(DiaryEntryId) -> DriftStatus` emitting halt signals and remediation tasks.
+- **PolicyLedger Contract:** `promote(DiaryEntryId, approvals) -> LedgerRecord` versioned with cryptographic hashes for provenance.
+
+### Acceptance tests
+
+- End-to-end replay of historical AlphaTrade session producing synchronized DecisionDiary entries with ≤2 minute delta.
+- Simulated drift event triggering DriftSentry halt and generating remediation record within five minutes.
+- PolicyLedger promotion smoke test verifying immutable hashes and approval workflow completion.
+- Live-shadow dry run confirming no external orders are emitted and all guardrails remain green for 48 continuous hours.
+
+### 90-day roadmap
+
+1. **Days 0–14:** Deliver Understanding Loop v1 in live-shadow with focus on data fidelity and guardrails.
+2. **Days 15–45:** Expand PolicyRouter tactics, integrate fast-weight experimentation, and introduce automated reflection summaries.
+3. **Days 46–70:** Enable selective paper-trade execution with DriftSentry gating promotions and PolicyLedger enforcing audit coverage.
+4. **Days 71–90:** Graduate successful tactics to limited live capital, introduce adaptive drift thresholds, and operationalize ledger-based release management.
+
+### Risk register
+
+| Risk | Likelihood | Impact | Mitigation |
+| --- | --- | --- | --- |
+| BeliefEmitter data drift vs AlphaTrade feed | Medium | High | Mirror AlphaTrade ingestion pipeline, add real-time reconciliation alerts, freeze promotions on discrepancy. |
+| RegimeFSM misclassification | Medium | Medium | Backtest against historical regimes, maintain fallback “uncertain” state, require human review before ledger promotion. |
+| PolicyRouter fast-weight instability | Low | High | Implement gradient clipping, monitor via DriftSentry, roll back using PolicyLedger versioning. |
+| DecisionDiary storage gaps | Low | Medium | Enforce append-only storage with checksums and daily backups. |
+| DriftSentry false positives causing stagnation | Medium | Medium | Tune thresholds in sandbox, require dual approval to override halts, log overrides in Ledger. |
+| PolicyLedger compliance rejection | Low | High | Co-design schema with compliance, include audit metadata upfront, stage promotions behind approval queue. |
+
+---
+
+## Legacy appendix: modernization backlog
+
+# High-Impact Development Roadmap
 ## EMP Encyclopedia vs Repository Analysis & Strategic Development Plan
 
 **Date:** January 2025  

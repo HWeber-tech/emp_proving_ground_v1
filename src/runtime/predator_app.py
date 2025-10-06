@@ -621,6 +621,16 @@ class ProfessionalPredatorApp:
         """Store the most recent sensory drift snapshot."""
 
         self._last_sensory_drift_snapshot = snapshot
+        trading_manager = getattr(self.sensory_organ, "trading_manager", None)
+        update_method = getattr(trading_manager, "update_drift_sentry_snapshot", None)
+        if callable(update_method):
+            try:
+                update_method(snapshot)
+            except Exception:  # pragma: no cover - diagnostics only
+                logger.debug(
+                    "Failed to propagate sensory drift snapshot to trading manager",
+                    exc_info=True,
+                )
 
     def get_last_sensory_drift_snapshot(self) -> SensoryDriftSnapshot | None:
         """Return the most recent sensory drift snapshot, if any."""
@@ -998,6 +1008,20 @@ class ProfessionalPredatorApp:
                 summary_payload["roi"] = {"snapshot": roi_dict}
                 if roi_markdown:
                     summary_payload["roi"]["markdown"] = roi_markdown
+
+            describe_gate = getattr(trading_manager, "describe_drift_gate", None)
+            if callable(describe_gate):
+                try:
+                    gate_payload = describe_gate()
+                except Exception:  # pragma: no cover - diagnostics only
+                    self._logger.debug(
+                        "Failed to capture drift gate summary from trading manager",
+                        exc_info=True,
+                    )
+                else:
+                    if gate_payload:
+                        risk_section = summary_payload.setdefault("risk", {})
+                        risk_section["drift_gate"] = gate_payload
 
         if self._last_execution_snapshot is not None:
             execution_snapshot = self._last_execution_snapshot

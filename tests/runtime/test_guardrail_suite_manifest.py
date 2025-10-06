@@ -1,8 +1,9 @@
 """Guardrail manifest checks for critical regression suites.
 
-These tests ensure the ingest orchestration, risk policy, and observability
-regressions remain part of the guardrail test matrix. The CI pipeline executes
-``pytest -m guardrail`` on every change; if the manifest is broken or the guard
+These tests ensure the ingest orchestration, risk policy, risk policy telemetry,
+and observability regressions remain part of the guardrail test matrix. The CI
+pipeline executes ``pytest -m guardrail`` on every change; if the manifest is
+broken or the guard
 marker is removed, these checks fail and block the pipeline.
 """
 
@@ -21,6 +22,7 @@ _GUARDRAIL_TARGETS: dict[str, Path] = {
     "ingest_orchestration": Path("tests/data_foundation/test_timescale_backbone_orchestrator.py"),
     "ingest_scheduler": Path("tests/data_foundation/test_ingest_scheduler.py"),
     "risk_policy": Path("tests/trading/test_risk_policy.py"),
+    "risk_policy_telemetry": Path("tests/trading/test_risk_policy_telemetry.py"),
     "observability_event_bus": Path("tests/operations/test_event_bus_health.py"),
 }
 
@@ -85,6 +87,7 @@ def test_ci_guardrail_job_targets_ingest_risk_observability_domains() -> None:
     for domain in (
         "tests/data_foundation",
         "tests/trading",
+        "tests/risk",
         "tests/operations",
         "tests/observability",
     ):

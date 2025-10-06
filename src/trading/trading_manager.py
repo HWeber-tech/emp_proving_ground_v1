@@ -54,6 +54,8 @@ from src.operations.roi import (
     format_roi_markdown as format_roi_summary,
     publish_roi_snapshot,
 )
+from src.operations.sensory_drift import SensoryDriftSnapshot
+from src.trading.gating import DriftSentryDecision, DriftSentryGate
 
 try:
     from src.core.events import TradeIntent  # legacy
@@ -94,6 +96,7 @@ class TradingManager:
         roi_cost_model: RoiCostModel | None = None,
         risk_config: TradingRiskConfig | None = None,
         risk_policy: RiskPolicy | None = None,
+        drift_gate: DriftSentryGate | None = None,
     ) -> None:
         """
         Initialize the TradingManager with risk management components.
@@ -169,6 +172,9 @@ class TradingManager:
         self._roi_executed_trades = 0
         self._roi_total_notional = 0.0
 
+        self._drift_gate = drift_gate
+        self._last_drift_gate_decision: DriftSentryDecision | None = None
+
         self._execution_stats: dict[str, object] = {
             "orders_submitted": 0,
             "orders_executed": 0,
@@ -209,6 +215,53 @@ class TradingManager:
             base_confidence = self._extract_confidence(event)
 
             portfolio_state = cast(Any, self.portfolio_monitor).get_state()
+
+            gate_decision = self._evaluate_drift_gate(
+                event=event,
+                strategy_id=strategy_id,
+                symbol=base_symbol,
+                confidence=base_confidence,
+                portfolio_state=portfolio_state,
+                event_id=event_id,
+            )
+            if gate_decision is not None and not gate_decision.allowed:
+                logger.warning(
+                    "DriftSentry gate blocked trade intent %s: %s",
+                    event_id,
+                    gate_decision.reason,
+                )
+                notional_for_event: float | None = None
+                try:
+                    raw_quantity = self._extract_quantity(event)
+                    price_estimate = self._extract_price(event, portfolio_state)
+                    notional_for_event = abs(float(raw_quantity)) * abs(float(price_estimate))
+                except Exception:  # pragma: no cover - diagnostics only
+                    notional_for_event = None
+                metadata_payload: dict[str, Any] = {
+                    "drift_severity": gate_decision.severity.value,
+                }
+                if gate_decision.reason:
+                    metadata_payload["reason"] = gate_decision.reason
+                if gate_decision.blocked_dimensions:
+                    metadata_payload["blocked_dimensions"] = list(
+                        gate_decision.blocked_dimensions
+                    )
+                if gate_decision.requirements:
+                    metadata_payload["requirements"] = dict(gate_decision.requirements)
+                if gate_decision.snapshot_metadata:
+                    metadata_payload["drift_metadata"] = dict(gate_decision.snapshot_metadata)
+
+                self._record_experiment_event(
+                    event_id=event_id,
+                    status="gated",
+                    strategy_id=strategy_id,
+                    symbol=base_symbol,
+                    confidence=base_confidence,
+                    notional=notional_for_event,
+                    metadata=metadata_payload,
+                    decision=None,
+                )
+                return
 
             validated_intent = await self.risk_gateway.validate_trade_intent(
                 intent=event, portfolio_state=portfolio_state
@@ -359,6 +412,46 @@ class TradingManager:
         self._execution_stats["last_error"] = str(error)
         self._execution_stats["last_successful_order"] = None
 
+    def _evaluate_drift_gate(
+        self,
+        *,
+        event: Any,
+        strategy_id: str | None,
+        symbol: str,
+        confidence: float | None,
+        portfolio_state: Mapping[str, Any],
+        event_id: str,
+    ) -> DriftSentryDecision | None:
+        if self._drift_gate is None:
+            return None
+
+        quantity = self._extract_quantity(event)
+        try:
+            quantity_value = float(quantity)
+        except Exception:
+            quantity_value = coerce_float(quantity, default=0.0) or 0.0
+        quantity_abs = abs(quantity_value)
+
+        price = self._extract_price(event, portfolio_state)
+        notional = abs(quantity_abs * float(price)) if price is not None else None
+
+        context_metadata: dict[str, Any] = {"event_id": event_id, "symbol": symbol}
+        if quantity_abs:
+            context_metadata["quantity"] = quantity_abs
+        if notional is not None:
+            context_metadata["notional"] = notional
+
+        decision = self._drift_gate.evaluate_trade(
+            symbol=symbol,
+            strategy_id=strategy_id,
+            confidence=confidence,
+            quantity=quantity_abs if quantity_abs else None,
+            notional=notional,
+            metadata=context_metadata,
+        )
+        self._last_drift_gate_decision = decision
+        return decision
+
     def _record_experiment_event(
         self,
         *,
@@ -452,6 +545,33 @@ class TradingManager:
         if count <= 0:
             return []
         return events[: min(len(events), count)]
+
+    def attach_drift_gate(self, gate: DriftSentryGate | None) -> None:
+        """Attach or replace the configured DriftSentry gate."""
+
+        self._drift_gate = gate
+        self._last_drift_gate_decision = None
+
+    def update_drift_sentry_snapshot(self, snapshot: SensoryDriftSnapshot | None) -> None:
+        """Propagate the latest sensory drift snapshot to the gate, if configured."""
+
+        if self._drift_gate is None:
+            return
+        self._drift_gate.update_snapshot(snapshot)
+
+    def get_last_drift_gate_decision(self) -> DriftSentryDecision | None:
+        """Expose the most recent DriftSentry decision for observability surfaces."""
+
+        return self._last_drift_gate_decision
+
+    def describe_drift_gate(self) -> Mapping[str, Any]:
+        """Return a serialisable posture for the DriftSentry gate."""
+
+        if self._drift_gate is None:
+            return {"enabled": False}
+        description = dict(self._drift_gate.describe())
+        description["enabled"] = True
+        return description
 
     async def start(self) -> None:
         """Start the TradingManager and subscribe to trade intents."""

@@ -22,6 +22,7 @@ from src.runtime.task_supervisor import TaskSupervisor
 from src.trading.execution.paper_execution import ImmediateFillExecutionAdapter
 from src.trading.liquidity.depth_aware_prober import DepthAwareLiquidityProber
 from src.trading.monitoring.portfolio_monitor import PortfolioMonitor, RedisLike
+from src.trading.gating import DriftSentryGate
 from src.trading.trading_manager import TradingManager
 
 logger = logging.getLogger(__name__)
@@ -157,6 +158,7 @@ class BootstrapRuntime:
             min_position_size=1,
         )
 
+        self._drift_gate = DriftSentryGate()
         self.trading_manager = TradingManager(
             event_bus=event_bus,
             strategy_registry=_AlwaysActiveRegistry(),
@@ -171,6 +173,7 @@ class BootstrapRuntime:
             min_liquidity_confidence=min_liquidity_confidence,
             roi_cost_model=roi_cost_model,
             risk_config=resolved_risk_config,
+            drift_gate=self._drift_gate,
         )
         self.portfolio_monitor: PortfolioMonitor = self.trading_manager.portfolio_monitor
         self.execution_engine = ImmediateFillExecutionAdapter(self.portfolio_monitor)

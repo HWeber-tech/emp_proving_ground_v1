@@ -1,10 +1,44 @@
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from typing import Any
+from unittest.mock import AsyncMock
+
+import datetime as _datetime
+import enum as _enum
+import typing as _typing
+import sys
+
+if not hasattr(_datetime, "UTC"):
+    _datetime.UTC = _datetime.timezone.utc  # type: ignore[attr-defined]
+
+if not hasattr(_enum, "StrEnum"):
+    class _StrEnum(str, _enum.Enum):
+        pass
+
+    _enum.StrEnum = _StrEnum
+
+def _shim_class_getitem(name: str) -> type:
+    class _Placeholder:
+        @classmethod
+        def __class_getitem__(cls, item):
+            return item
+
+    _Placeholder.__name__ = name
+    return _Placeholder
+
+
+if not hasattr(_typing, "Unpack"):
+    _typing.Unpack = _shim_class_getitem("Unpack")  # type: ignore[attr-defined]
+
+if not hasattr(_typing, "NotRequired"):
+    _typing.NotRequired = _shim_class_getitem("NotRequired")  # type: ignore[attr-defined]
 
 import pytest
 
 from src.config.risk.risk_config import RiskConfig
+from src.operations.sensory_drift import DriftSeverity, SensoryDimensionDrift, SensoryDriftSnapshot
 from src.trading.execution.paper_execution import ImmediateFillExecutionAdapter
+from src.trading.gating import DriftSentryGate
 from src.trading.trading_manager import TradingManager
 
 
@@ -53,6 +87,15 @@ class ConfidenceIntent:
     price: float
     confidence: float
     strategy_id: str = "alpha"
+
+
+class RecordingExecutionEngine:
+    def __init__(self) -> None:
+        self.calls = 0
+
+    async def process_order(self, intent: Any) -> str:
+        self.calls += 1
+        return "ok"
 
 
 @pytest.mark.asyncio()
@@ -138,6 +181,83 @@ async def test_trading_manager_records_experiment_events_and_rejections(
     statuses = {event["status"] for event in events}
     assert "executed" in statuses
     assert "rejected" in statuses
+
+
+@pytest.mark.asyncio()
+async def test_trading_manager_gates_on_drift(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def _noop(*_args, **_kwargs) -> None:
+        return None
+
+    monkeypatch.setattr("src.trading.trading_manager.publish_risk_snapshot", _noop)
+    monkeypatch.setattr("src.trading.trading_manager.publish_roi_snapshot", _noop)
+    monkeypatch.setattr("src.trading.trading_manager.publish_policy_snapshot", _noop)
+    monkeypatch.setattr("src.trading.trading_manager.publish_policy_violation", _noop)
+    monkeypatch.setattr("src.trading.trading_manager.publish_risk_interface_snapshot", _noop)
+    monkeypatch.setattr("src.trading.trading_manager.publish_risk_interface_error", _noop)
+
+    gate = DriftSentryGate(warn_confidence_floor=0.75)
+    manager = TradingManager(
+        event_bus=DummyBus(),
+        strategy_registry=AlwaysActiveRegistry(),
+        execution_engine=None,
+        initial_equity=50_000.0,
+        risk_config=RiskConfig(
+            min_position_size=1,
+            mandatory_stop_loss=False,
+            research_mode=True,
+        ),
+        drift_gate=gate,
+    )
+    execution_engine = RecordingExecutionEngine()
+    manager.execution_engine = execution_engine
+
+    validate_mock: AsyncMock = AsyncMock(return_value=None)
+    manager.risk_gateway.validate_trade_intent = validate_mock  # type: ignore[assignment]
+
+    dimension = SensoryDimensionDrift(
+        name="WHY",
+        current_signal=0.42,
+        baseline_signal=0.10,
+        delta=0.32,
+        current_confidence=0.76,
+        baseline_confidence=0.70,
+        confidence_delta=0.06,
+        severity=DriftSeverity.warn,
+        samples=6,
+    )
+    snapshot = SensoryDriftSnapshot(
+        generated_at=datetime(2024, 1, 5, tzinfo=timezone.utc),
+        status=DriftSeverity.warn,
+        dimensions={"WHY": dimension},
+        sample_window=6,
+        metadata={"source": "test"},
+    )
+    manager.update_drift_sentry_snapshot(snapshot)
+
+    intent = ConfidenceIntent(
+        symbol="EURUSD",
+        quantity=1.0,
+        price=1.2010,
+        confidence=0.4,
+    )
+
+    await manager.on_trade_intent(intent)
+
+    assert validate_mock.await_count == 0
+    assert execution_engine.calls == 0
+
+    events = manager.get_experiment_events()
+    assert events, "expected gating event"
+    latest = events[0]
+    assert latest["status"] == "gated"
+    metadata = latest.get("metadata")
+    assert isinstance(metadata, dict)
+    assert metadata.get("drift_severity") == DriftSeverity.warn.value
+    assert "confidence" in str(metadata.get("reason"))
+    decision = manager.get_last_drift_gate_decision()
+    assert decision is not None
+    assert not decision.allowed
+    assert decision.severity is DriftSeverity.warn
 
 
 @pytest.mark.asyncio()

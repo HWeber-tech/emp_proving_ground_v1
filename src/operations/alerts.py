@@ -34,7 +34,7 @@ with their own configuration payload and transport factories.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from enum import StrEnum
 import json
 import logging
@@ -88,7 +88,7 @@ def _severity_rank(severity: AlertSeverity) -> int:
 
 
 def _now_utc() -> datetime:
-    return datetime.now(tz=UTC)
+    return datetime.now(tz=timezone.utc)
 
 
 @dataclass(slots=True, frozen=True)

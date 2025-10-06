@@ -10,7 +10,13 @@ from src.operations.alerts import (
     AlertSeverity,
 )
 from src.operations.event_bus_failover import EventPublishError
-from src.operations.incident_response import IncidentResponseSnapshot, IncidentResponseStatus
+from src.operations.incident_response import (
+    IncidentResponsePolicy,
+    IncidentResponseSnapshot,
+    IncidentResponseState,
+    IncidentResponseStatus,
+    evaluate_incident_response,
+)
 from src.operations.operational_readiness import (
     OperationalReadinessStatus,
     derive_operational_alerts,
@@ -106,6 +112,30 @@ def test_operational_readiness_alert_generation() -> None:
         readiness, threshold=OperationalReadinessStatus.fail, include_overall=False
     )
     assert suppressed == []
+
+
+def test_operational_readiness_aggregates_issue_counts() -> None:
+    policy = IncidentResponsePolicy(required_runbooks=("redis_outage",))
+    state = IncidentResponseState(
+        available_runbooks=tuple(),
+        training_age_days=None,
+        drill_age_days=None,
+        primary_oncall=tuple(),
+        secondary_oncall=tuple(),
+        open_incidents=tuple(),
+        postmortem_backlog_hours=30.0,
+        chatops_ready=False,
+    )
+
+    incident_snapshot = evaluate_incident_response(policy, state, service="emp_incidents")
+    readiness = evaluate_operational_readiness(incident_response=incident_snapshot)
+
+    issue_counts = readiness.metadata.get("issue_counts")
+    assert issue_counts and issue_counts["fail"] >= 1
+    component_details = readiness.metadata.get("component_issue_details")
+    assert component_details and "incident_response" in component_details
+    incident_details = component_details["incident_response"]
+    assert "issue_counts" in incident_details
 
 
 class RecordingTransport:

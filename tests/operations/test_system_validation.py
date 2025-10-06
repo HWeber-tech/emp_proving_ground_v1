@@ -7,10 +7,12 @@ from src.operations.alerts import AlertDispatchResult, AlertEvent, AlertSeverity
 from src.operations.event_bus_failover import EventPublishError
 from src.operations.system_validation import (
     SystemValidationCheck,
+    SystemValidationGateResult,
     SystemValidationSnapshot,
     SystemValidationStatus,
     derive_system_validation_alerts,
     evaluate_system_validation,
+    evaluate_system_validation_gate,
     format_system_validation_markdown,
     load_system_validation_snapshot,
     publish_system_validation_snapshot,
@@ -70,6 +72,8 @@ def test_evaluate_system_validation_full_pass() -> None:
     assert snapshot.passed_checks == 2
     assert snapshot.failed_checks == 0
     assert snapshot.success_rate == pytest.approx(1.0)
+    breakdown = snapshot.metadata.get("check_status_breakdown")
+    assert breakdown == {"passed": 2, "failed": 0}
     markdown = format_system_validation_markdown(snapshot)
     assert "system validation" in markdown.lower()
     assert "all checks passed" in markdown.lower()
@@ -99,6 +103,8 @@ def test_evaluate_system_validation_partial_warn() -> None:
     failing_checks = snapshot.metadata.get("failing_checks")
     assert failing_checks and failing_checks[0]["name"] == "population_manager"
     assert failing_checks[0]["message"] is None
+    breakdown = snapshot.metadata.get("check_status_breakdown")
+    assert breakdown == {"passed": 2, "failed": 1}
 
 
 def test_markdown_includes_failing_checks() -> None:
@@ -218,6 +224,94 @@ def test_system_validation_alert_generation() -> None:
     assert any(category == "system_validation.check" for category in categories)
     status_event = next(event for event in events if event.category == "system_validation.status")
     assert status_event.severity is AlertSeverity.warning
+
+
+def test_system_validation_gate_blocks_fail_and_warn() -> None:
+    snapshot = SystemValidationSnapshot(
+        status=SystemValidationStatus.fail,
+        generated_at=datetime(2025, 1, 5, tzinfo=timezone.utc),
+        total_checks=2,
+        passed_checks=0,
+        failed_checks=2,
+        success_rate=0.0,
+        checks=(
+            SystemValidationCheck(name="core", passed=False),
+            SystemValidationCheck(name="ingest", passed=False),
+        ),
+        metadata={},
+    )
+
+    result = evaluate_system_validation_gate(snapshot, min_success_rate=0.5)
+
+    assert result.should_block is True
+    assert any("FAIL" in reason for reason in result.reasons)
+
+    warn_snapshot = snapshot.__class__(
+        status=SystemValidationStatus.warn,
+        generated_at=snapshot.generated_at,
+        total_checks=snapshot.total_checks,
+        passed_checks=1,
+        failed_checks=1,
+        success_rate=0.5,
+        checks=snapshot.checks,
+        metadata=snapshot.metadata,
+    )
+
+    warn_result = evaluate_system_validation_gate(
+        warn_snapshot,
+        min_success_rate=0.5,
+        block_on_warn=True,
+    )
+
+    assert warn_result.should_block is True
+    assert any("WARN" in reason for reason in warn_result.reasons)
+
+
+def test_system_validation_gate_enforces_required_checks() -> None:
+    snapshot = SystemValidationSnapshot(
+        status=SystemValidationStatus.passed,
+        generated_at=datetime(2025, 1, 6, tzinfo=timezone.utc),
+        total_checks=2,
+        passed_checks=2,
+        failed_checks=0,
+        success_rate=1.0,
+        checks=(
+            SystemValidationCheck(name="core", passed=True),
+            SystemValidationCheck(name="ingest", passed=True),
+        ),
+        metadata={},
+    )
+
+    result_missing = evaluate_system_validation_gate(
+        snapshot,
+        required_checks=("routing",),
+    )
+
+    assert result_missing.should_block is True
+    assert any("missing" in reason.lower() for reason in result_missing.reasons)
+
+    failing_snapshot = snapshot.__class__(
+        status=SystemValidationStatus.warn,
+        generated_at=snapshot.generated_at,
+        total_checks=2,
+        passed_checks=1,
+        failed_checks=1,
+        success_rate=0.5,
+        checks=(
+            SystemValidationCheck(name="core", passed=True),
+            SystemValidationCheck(name="ingest", passed=False),
+        ),
+        metadata={},
+    )
+
+    result = evaluate_system_validation_gate(
+        failing_snapshot,
+        required_checks=("ingest",),
+        min_success_rate=0.4,
+    )
+
+    assert result.should_block is True
+    assert any("ingest" in reason.lower() for reason in result.reasons)
     check_event = next(event for event in events if event.category == "system_validation.check")
     assert "database_latency" in check_event.message
     assert check_event.context["check"]["metadata"]["latency_ms"] == 450

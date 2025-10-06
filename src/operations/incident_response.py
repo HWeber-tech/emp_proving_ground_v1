@@ -259,6 +259,28 @@ def evaluate_incident_response(
     moment = now or datetime.now(tz=UTC)
     status = IncidentResponseStatus.ok
     issues: list[str] = []
+    issue_details: list[dict[str, object]] = []
+    issue_catalog: dict[str, list[dict[str, object]]] = {}
+    issue_counts: dict[str, int] = {}
+
+    def _record_issue(
+        category: str,
+        severity: IncidentResponseStatus,
+        message: str,
+    ) -> None:
+        """Track an issue, escalating status and metadata consistently."""
+
+        nonlocal status
+        status = _escalate(status, severity)
+        issues.append(message)
+        entry = {
+            "category": category,
+            "severity": severity.value,
+            "message": message,
+        }
+        issue_details.append(entry)
+        issue_catalog.setdefault(category, []).append(entry)
+        issue_counts[severity.value] = issue_counts.get(severity.value, 0) + 1
 
     available = {runbook.lower(): runbook for runbook in state.available_runbooks}
     missing: list[str] = []
@@ -266,52 +288,83 @@ def evaluate_incident_response(
         if runbook.lower() not in available:
             missing.append(runbook)
     if missing:
-        status = _escalate(status, IncidentResponseStatus.fail)
-        issues.append("Missing required runbooks: " + ", ".join(sorted(missing)))
+        _record_issue(
+            "missing_runbooks",
+            IncidentResponseStatus.fail,
+            "Missing required runbooks: " + ", ".join(sorted(missing)),
+        )
 
     training_age = state.training_age_days
     if training_age is None:
-        status = _escalate(status, IncidentResponseStatus.warn)
-        issues.append("No incident response training recorded")
+        _record_issue(
+            "training",
+            IncidentResponseStatus.warn,
+            "No incident response training recorded",
+        )
     else:
         if training_age > policy.training_interval_days * 2:
-            status = _escalate(status, IncidentResponseStatus.fail)
-            issues.append("Incident response training overdue by more than 2x the interval")
+            _record_issue(
+                "training",
+                IncidentResponseStatus.fail,
+                "Incident response training overdue by more than 2x the interval",
+            )
         elif training_age > policy.training_interval_days:
-            status = _escalate(status, IncidentResponseStatus.warn)
-            issues.append("Incident response training overdue")
+            _record_issue(
+                "training",
+                IncidentResponseStatus.warn,
+                "Incident response training overdue",
+            )
 
     drill_age = state.drill_age_days
     if drill_age is None:
-        status = _escalate(status, IncidentResponseStatus.warn)
-        issues.append("No incident response drill recorded")
+        _record_issue(
+            "drill",
+            IncidentResponseStatus.warn,
+            "No incident response drill recorded",
+        )
     else:
         if drill_age > policy.drill_interval_days * 2:
-            status = _escalate(status, IncidentResponseStatus.fail)
-            issues.append("Incident drill cadence has lapsed significantly")
+            _record_issue(
+                "drill",
+                IncidentResponseStatus.fail,
+                "Incident drill cadence has lapsed significantly",
+            )
         elif drill_age > policy.drill_interval_days:
-            status = _escalate(status, IncidentResponseStatus.warn)
-            issues.append("Incident drill overdue")
+            _record_issue(
+                "drill",
+                IncidentResponseStatus.warn,
+                "Incident drill overdue",
+            )
 
     primary_count = len(state.primary_oncall)
     if primary_count < policy.minimum_primary_responders:
-        status = _escalate(status, IncidentResponseStatus.fail)
-        issues.append("Primary on-call roster below minimum required responders")
+        _record_issue(
+            "primary_roster",
+            IncidentResponseStatus.fail,
+            "Primary on-call roster below minimum required responders",
+        )
 
     secondary_count = len(state.secondary_oncall)
     if secondary_count < policy.minimum_secondary_responders:
-        status = _escalate(status, IncidentResponseStatus.warn)
-        issues.append("Secondary on-call roster below recommended responders")
+        _record_issue(
+            "secondary_roster",
+            IncidentResponseStatus.warn,
+            "Secondary on-call roster below recommended responders",
+        )
 
     open_count = len(state.open_incidents)
     if open_count > policy.maximum_open_incidents:
-        status = _escalate(status, IncidentResponseStatus.fail)
-        issues.append(
-            f"{open_count} open incidents exceeds threshold of {policy.maximum_open_incidents}"
+        _record_issue(
+            "open_incidents",
+            IncidentResponseStatus.fail,
+            f"{open_count} open incidents exceeds threshold of {policy.maximum_open_incidents}",
         )
     elif open_count and open_count == policy.maximum_open_incidents:
-        status = _escalate(status, IncidentResponseStatus.warn)
-        issues.append("Incident volume approaching the configured threshold")
+        _record_issue(
+            "open_incidents",
+            IncidentResponseStatus.warn,
+            "Incident volume approaching the configured threshold",
+        )
 
     backlog = state.postmortem_backlog_hours
     if backlog is not None and backlog > policy.postmortem_sla_hours:
@@ -320,12 +373,18 @@ def evaluate_incident_response(
             if backlog > policy.postmortem_sla_hours * 2
             else IncidentResponseStatus.warn
         )
-        status = _escalate(status, severity)
-        issues.append("Postmortem backlog exceeds the configured SLA")
+        _record_issue(
+            "postmortem_backlog",
+            severity,
+            "Postmortem backlog exceeds the configured SLA",
+        )
 
     if policy.require_chatops and not state.chatops_ready:
-        status = _escalate(status, IncidentResponseStatus.warn)
-        issues.append("ChatOps automations disabled or unavailable")
+        _record_issue(
+            "chatops",
+            IncidentResponseStatus.warn,
+            "ChatOps automations disabled or unavailable",
+        )
 
     combined_metadata: MutableMapping[str, object] = {
         "policy": {
@@ -347,6 +406,34 @@ def evaluate_incident_response(
     }
     if state.last_major_incident_age_days is not None:
         combined_metadata["last_major_incident_age_days"] = state.last_major_incident_age_days
+    if issue_details:
+        combined_metadata["issue_details"] = tuple(issue_details)
+        combined_metadata["issue_counts"] = dict(issue_counts)
+        combined_metadata["issue_catalog"] = {
+            category: tuple(entries) for category, entries in issue_catalog.items()
+        }
+        category_severity: dict[str, str] = {}
+        for category, entries in issue_catalog.items():
+            severity_rank = IncidentResponseStatus.ok
+            for entry in entries:
+                try:
+                    entry_status = IncidentResponseStatus(entry["severity"])
+                except ValueError:
+                    # Skip unknown severities gracefully.
+                    continue
+                if _STATUS_ORDER[entry_status] > _STATUS_ORDER[severity_rank]:
+                    severity_rank = entry_status
+            category_severity[category] = severity_rank.value
+        if category_severity:
+            combined_metadata["issue_category_severity"] = category_severity
+        try:
+            highest_issue = max(
+                (IncidentResponseStatus(severity) for severity in issue_counts),
+                key=_STATUS_ORDER.__getitem__,
+            )
+            combined_metadata["highest_issue_severity"] = highest_issue.value
+        except ValueError:
+            pass
     if metadata:
         combined_metadata["context"] = dict(metadata)
 
@@ -412,6 +499,15 @@ def derive_incident_response_alerts(
     metadata = snapshot.metadata if isinstance(snapshot.metadata, Mapping) else {}
     policy = metadata.get("policy") if isinstance(metadata, Mapping) else None
     policy_mapping: Mapping[str, object] = policy if isinstance(policy, Mapping) else {}
+
+    issue_detail_map: dict[str, Mapping[str, object]] = {}
+    raw_issue_details = metadata.get("issue_details") if isinstance(metadata, Mapping) else None
+    if isinstance(raw_issue_details, Sequence):
+        for entry in raw_issue_details:
+            if isinstance(entry, Mapping):
+                message = str(entry.get("message", ""))
+                if message:
+                    issue_detail_map[message] = entry
 
     def _policy_int(key: str, default: int | None = None) -> int | None:
         if key not in policy_mapping:
@@ -635,13 +731,22 @@ def derive_incident_response_alerts(
         issue_status = _detail_severity(snapshot.status)
         if not _meets_threshold(issue_status, threshold):
             continue
+        issue_tags = tags + ("issue",)
+        detail_entry = issue_detail_map.get(issue)
+        if detail_entry is not None:
+            category = detail_entry.get("category")
+            if category:
+                issue_tags = issue_tags + (str(category),)
+        context: dict[str, object] = {"snapshot": snapshot_payload, "issue": issue}
+        if detail_entry is not None:
+            context["detail"] = dict(detail_entry)
         events.append(
             AlertEvent(
                 category="incident_response.issue",
                 severity=_SEVERITY_MAP[issue_status],
                 message=issue,
-                tags=tags + ("issue",),
-                context={"snapshot": snapshot_payload, "issue": issue},
+                tags=issue_tags,
+                context=context,
             )
         )
 

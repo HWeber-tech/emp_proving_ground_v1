@@ -1,6 +1,8 @@
 import datetime as _datetime
 import enum as _enum
+import json
 import typing as _typing
+from pathlib import Path
 
 if not hasattr(_datetime, "UTC"):
     _datetime.UTC = _datetime.timezone.utc  # type: ignore[attr-defined]
@@ -171,6 +173,49 @@ def test_page_hinkley_drift_escalates_without_delta_trigger() -> None:
     assert why.page_hinkley_stat is not None and why.page_hinkley_stat >= 0.8
     assert why.severity is DriftSeverity.alert
     assert "page_hinkley_alert" in why.detectors
+
+
+def test_page_hinkley_replay_fixture_triggers_alert() -> None:
+    fixture_path = Path(__file__).with_name("fixtures") / "page_hinkley_replay.json"
+    with fixture_path.open(encoding="utf-8") as handle:
+        payload = json.load(handle)
+
+    audit_entries = payload["audit_entries"]
+    replay_metadata = dict(payload.get("metadata", {}))
+
+    snapshot = evaluate_sensory_drift(
+        audit_entries,
+        lookback=11,
+        warn_threshold=1.0,
+        alert_threshold=1.5,
+        page_hinkley_delta=0.0,
+        page_hinkley_warn=0.6,
+        page_hinkley_alert=0.9,
+        min_variance_samples=50,
+        metadata={"replay_id": replay_metadata.get("replay_id", "unknown")},
+    )
+
+    assert snapshot.status is DriftSeverity.alert
+    assert snapshot.sample_window == len(audit_entries)
+
+    why = snapshot.dimensions["why"]
+    assert why.severity is DriftSeverity.alert
+    assert why.detectors == ("page_hinkley_alert",)
+    assert why.page_hinkley_stat is not None and why.page_hinkley_stat >= 0.9
+
+    metadata = snapshot.metadata
+    assert metadata.get("replay_id") == replay_metadata.get("replay_id")
+    detector_catalog = metadata.get("detectors", {})
+    why_metadata = detector_catalog.get("why")
+    assert why_metadata is not None
+    assert why_metadata.get("severity") == "alert"
+    assert why_metadata.get("detectors") == ["page_hinkley_alert"]
+    if why.page_hinkley_stat is not None:
+        assert why_metadata.get("page_hinkley_stat") == pytest.approx(
+            why.page_hinkley_stat, rel=1e-6
+        )
+    severity_counts = metadata.get("severity_counts")
+    assert severity_counts == {"alert": 1}
 
 
 def test_variance_ratio_flags_alert() -> None:

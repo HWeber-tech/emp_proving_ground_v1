@@ -7,6 +7,7 @@ import inspect
 import logging
 from datetime import datetime
 from decimal import Decimal
+from pathlib import Path
 from types import MappingProxyType
 from typing import (
     Any,
@@ -69,6 +70,11 @@ from src.operations.ingest_trends import (
 from src.governance.audit_logger import AuditLogger
 from src.governance.safety_manager import SafetyManager
 from src.governance.strategy_registry import StrategyRegistry
+from src.governance.policy_ledger import (
+    LedgerReleaseManager,
+    PolicyLedgerStage,
+    PolicyLedgerStore,
+)
 from src.governance.system_config import ConnectionProtocol, DataBackboneMode, EmpTier, SystemConfig
 from src.operational.fix_connection_manager import FIXConnectionManager, SystemConfigProtocol
 from src.operations.backup import BackupReadinessSnapshot, format_backup_markdown
@@ -655,13 +661,16 @@ class ProfessionalPredatorApp:
             or extras.get("TRADE_STRATEGY_ID")
             or extras.get("COMPLIANCE_STRATEGY_ID")
             or extras.get("STRATEGY_ID")
+            or extras.get("BOOTSTRAP_STRATEGY_ID")
         )
         if strategy_hint:
             return str(strategy_hint)
-        try:
-            return self.config.run_mode.value
-        except AttributeError:  # pragma: no cover - defensive
-            return getattr(self.config, "run_mode_str", lambda: "paper")()
+        trading_stack = getattr(self.sensory_organ, "trading_stack", None)
+        if trading_stack is not None:
+            strategy_value = getattr(trading_stack, "strategy_id", None)
+            if strategy_value:
+                return str(strategy_value)
+        return "bootstrap-strategy"
 
     @property
     def active_background_tasks(self) -> tuple[asyncio.Task[Any], ...]:
@@ -1022,6 +1031,20 @@ class ProfessionalPredatorApp:
                     if gate_payload:
                         risk_section = summary_payload.setdefault("risk", {})
                         risk_section["drift_gate"] = gate_payload
+
+            describe_release = getattr(trading_manager, "describe_release_posture", None)
+            if callable(describe_release):
+                try:
+                    release_payload = describe_release(self._resolve_strategy_id())
+                except Exception:  # pragma: no cover - diagnostics only
+                    self._logger.debug(
+                        "Failed to resolve policy release posture for runtime summary",
+                        exc_info=True,
+                    )
+                else:
+                    if release_payload:
+                        risk_section = summary_payload.setdefault("risk", {})
+                        risk_section["release"] = dict(release_payload)
 
         if self._last_execution_snapshot is not None:
             execution_snapshot = self._last_execution_snapshot
@@ -1697,6 +1720,40 @@ def _build_bootstrap_runtime(
         extras, risk_per_trade=risk_per_trade, max_drawdown=max_drawdown
     )
 
+    release_manager: LedgerReleaseManager | None = None
+    ledger_path_hint = extras.get("POLICY_LEDGER_PATH") or extras.get("POLICY_LEDGER_ARTIFACT")
+    if ledger_path_hint:
+        ledger_path = Path(str(ledger_path_hint)).expanduser()
+        try:
+            store = PolicyLedgerStore(ledger_path)
+        except ValueError as exc:
+            logger.warning(
+                "Failed to initialise policy ledger store: %s",
+                exc,
+                extra={"policy_ledger_path": str(ledger_path)},
+            )
+        else:
+            default_stage = PolicyLedgerStage.EXPERIMENT
+            stage_hint = extras.get("POLICY_LEDGER_DEFAULT_STAGE")
+            if stage_hint:
+                try:
+                    default_stage = PolicyLedgerStage.from_value(stage_hint)
+                except ValueError:
+                    logger.warning(
+                        "Unknown policy ledger default stage %r; using %s",
+                        stage_hint,
+                        default_stage.value,
+                        extra={"policy_ledger_path": str(ledger_path)},
+                    )
+            release_manager = LedgerReleaseManager(store, default_stage=default_stage)
+            logger.info(
+                "📘 Policy ledger release manager enabled",
+                extra={
+                    "policy_ledger_path": str(ledger_path),
+                    "default_stage": default_stage.value,
+                },
+            )
+
     return BootstrapRuntime(
         event_bus=bus,
         symbols=symbols,
@@ -1717,6 +1774,7 @@ def _build_bootstrap_runtime(
         redis_client=redis_client,
         roi_cost_model=roi_cost_model,
         risk_config=risk_config,
+        release_manager=release_manager,
     )
 
 

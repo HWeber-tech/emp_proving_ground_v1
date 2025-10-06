@@ -227,6 +227,9 @@ class TradingManager:
                 portfolio_state=portfolio_state,
                 event_id=event_id,
             )
+            gate_decision_payload = (
+                gate_decision.as_dict() if gate_decision is not None else None
+            )
             if gate_decision is not None and not gate_decision.allowed:
                 logger.warning(
                     "DriftSentry gate blocked trade intent %s: %s",
@@ -253,6 +256,8 @@ class TradingManager:
                     metadata_payload["requirements"] = dict(gate_decision.requirements)
                 if gate_decision.snapshot_metadata:
                     metadata_payload["drift_metadata"] = dict(gate_decision.snapshot_metadata)
+                if gate_decision_payload is not None:
+                    metadata_payload["drift_gate"] = dict(gate_decision_payload)
 
                 self._record_experiment_event(
                     event_id=event_id,
@@ -327,6 +332,8 @@ class TradingManager:
                             "quantity": float(quantity),
                             "price": float(price),
                         }
+                        if gate_decision_payload is not None:
+                            success_metadata["drift_gate"] = dict(gate_decision_payload)
                         self._record_experiment_event(
                             event_id=event_id,
                             status="executed",
@@ -344,6 +351,8 @@ class TradingManager:
                         fallback_metadata: dict[str, object] = {"reason": error_reason}
                         if notional:
                             fallback_metadata["notional"] = float(notional)
+                        if gate_decision_payload is not None:
+                            fallback_metadata["drift_gate"] = dict(gate_decision_payload)
                         self._record_experiment_event(
                             event_id=event_id,
                             status="failed",
@@ -364,6 +373,8 @@ class TradingManager:
                 rejection_metadata: dict[str, object] = {}
                 if reason:
                     rejection_metadata["reason"] = reason
+                if gate_decision_payload is not None:
+                    rejection_metadata["drift_gate"] = dict(gate_decision_payload)
                 self._record_experiment_event(
                     event_id=event_id,
                     status="rejected",

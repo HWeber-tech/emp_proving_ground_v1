@@ -4,6 +4,11 @@ This reset distils the latest audit, technical debt, and status reports into a
 fresh execution plan. It assumes the conceptual architecture mirrors the EMP
 Encyclopedia while acknowledging that most subsystems remain scaffolding.
 
+AlphaTrade's Perception → Adaptation → Reflection loop now anchors every near-term
+investment. See `docs/High-Impact Development Roadmap.md` for the live-shadow
+Understanding Loop v1 pilot, follow-on promotion gates, and the telemetry proof
+kit that the roadmap calls back to in each checklist.
+
 ## Current parity snapshot
 
 | Signal | Reality | Evidence |
@@ -531,6 +536,25 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
     ratios, thresholds, and metadata so compliance reviewers can trust the
     policy telemetry feed when positions approach guardrails.【F:tests/trading/test_risk_policy.py†L69-L142】
 
+- [ ] **AlphaTrade understanding loop sprint (Days 0–14)** – Stand up the live-shadow
+  Perception → Adaptation → Reflection loop so AlphaTrade parity work can ship
+  without capital risk.【F:docs/High-Impact Development Roadmap.md†L5-L21】【F:docs/High-Impact Development Roadmap.md†L73-L76】
+  - [ ] Ship belief/regime scaffolding with `BeliefState` buffers, `RegimeSignal`
+    publication, and health-checked BeliefEmitter/RegimeFSM contracts ready for
+    live-shadow inputs.【F:docs/context/sprint_briefs/understanding_loop_v1.md†L33-L58】【F:docs/High-Impact Development Roadmap.md†L48-L59】
+  - [ ] Implement `UnderstandingRouter` fast-weight adapters with feature gating,
+    configuration schema, and guardrail tests so strategy routing stays
+    auditable.【F:docs/context/sprint_briefs/understanding_loop_v1.md†L38-L62】【F:docs/High-Impact Development Roadmap.md†L50-L52】
+  - [ ] Automate decision diaries and the probe registry with CLI exports and
+    governance hooks so reviewers inherit narrated decisions and probe
+    ownership.【F:docs/context/sprint_briefs/understanding_loop_v1.md†L63-L76】
+  - [ ] Stand up drift sentry detectors, alert policies, and runbook updates that
+    tie Page–Hinkley/variance thresholds into readiness dashboards.【F:docs/context/sprint_briefs/understanding_loop_v1.md†L78-L91】【F:docs/High-Impact Development Roadmap.md†L52-L53】
+  - [ ] Deliver the policy ledger store, rebuild CLI, and governance checklist so
+    promotions trace back to DecisionDiary evidence.【F:docs/context/sprint_briefs/understanding_loop_v1.md†L93-L107】【F:docs/High-Impact Development Roadmap.md†L53-L54】
+  - [ ] Provide graph diagnostics CLI, guardrailed acceptance workflow, and
+    operational dashboard tile so AlphaTrade deltas remain observable.【F:docs/context/sprint_briefs/understanding_loop_v1.md†L108-L128】
+
 ### Next (30–90 days)
 
 - [ ] **Institutional ingest vertical** – Provision managed Timescale/Redis/Kafka
@@ -547,24 +571,18 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
     drawdown/exposure/liquidity guardrails, and publishes policy decisions so
     trading managers consume the same deterministic risk manager path as the
     runtime builder.【F:src/trading/trading_manager.py†L1-L320】【F:src/trading/risk/risk_gateway.py†L161-L379】【F:tests/current/test_risk_gateway_validation.py†L74-L206】
-- [ ] **Understanding loop AlphaTrade shadow pilot** – Deliver the live-shadow
-  Perception → Adaptation → Reflection loop so AlphaTrade parity work can
-  proceed without risking capital.【F:docs/High-Impact Development Roadmap.md†L5-L45】
-  - [ ] Ship belief/regime scaffolding with `BeliefState` buffers,
-    `RegimeSignal` publication, and health-checked BeliefEmitter/RegimeFSM
-    contracts ready for live-shadow inputs.【F:docs/context/sprint_briefs/understanding_loop_v1.md†L33-L58】【F:docs/High-Impact Development Roadmap.md†L48-L59】
-  - [ ] Implement `UnderstandingRouter` fast-weight adapters with feature
-    gating, configuration schema, and guardrail tests so strategy routing stays
-    auditable.【F:docs/context/sprint_briefs/understanding_loop_v1.md†L38-L62】【F:docs/High-Impact Development Roadmap.md†L50-L52】
-  - [ ] Automate decision diaries and the probe registry with CLI exports and
-    governance hooks so reviewers inherit narrated decisions and probe
-    ownership.【F:docs/context/sprint_briefs/understanding_loop_v1.md†L63-L76】
-  - [ ] Stand up drift sentry detectors, alert policies, and runbook updates that
-    tie Page–Hinkley/variance thresholds into readiness dashboards.【F:docs/context/sprint_briefs/understanding_loop_v1.md†L78-L91】【F:docs/High-Impact Development Roadmap.md†L52-L53】
-  - [ ] Deliver the policy ledger store, rebuild CLI, and governance checklist so
-    promotions trace back to DecisionDiary evidence.【F:docs/context/sprint_briefs/understanding_loop_v1.md†L93-L107】【F:docs/High-Impact Development Roadmap.md†L53-L54】
-  - [ ] Provide graph diagnostics CLI, guardrailed acceptance workflow, and
-    operational dashboard tile so AlphaTrade deltas remain observable.【F:docs/context/sprint_briefs/understanding_loop_v1.md†L108-L128】
+- [ ] **AlphaTrade loop expansion (Days 15–90)** – Graduate the live-shadow pilot
+  into tactic experimentation, paper trading, and limited live promotions once V1
+  stabilises.【F:docs/High-Impact Development Roadmap.md†L74-L76】
+  - [ ] Expand PolicyRouter tactics and fast-weight experimentation while
+    automating reflection summaries so reviewers see emerging strategies without
+    spelunking telemetry dumps.【F:docs/High-Impact Development Roadmap.md†L74-L74】
+  - [ ] Enable selective paper-trade execution with DriftSentry gating
+    promotions and PolicyLedger enforcing audit coverage ahead of live capital
+    exposure.【F:docs/High-Impact Development Roadmap.md†L75-L75】
+  - [ ] Introduce adaptive drift thresholds and ledger-based release management so
+    vetted tactics can graduate to limited live capital without bypassing
+    governance.【F:docs/High-Impact Development Roadmap.md†L76-L76】
 
 ### Later (90+ days)
 

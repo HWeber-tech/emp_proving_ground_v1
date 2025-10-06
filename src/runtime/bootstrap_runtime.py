@@ -24,6 +24,7 @@ from src.trading.liquidity.depth_aware_prober import DepthAwareLiquidityProber
 from src.trading.monitoring.portfolio_monitor import PortfolioMonitor, RedisLike
 from src.trading.gating import DriftSentryGate
 from src.trading.trading_manager import TradingManager
+from src.governance.policy_ledger import LedgerReleaseManager
 
 logger = logging.getLogger(__name__)
 
@@ -108,6 +109,7 @@ class BootstrapRuntime:
         roi_cost_model: RoiCostModel | None = None,
         risk_config: RiskConfig | None = None,
         task_supervisor: TaskSupervisor | None = None,
+        release_manager: LedgerReleaseManager | None = None,
     ) -> None:
         self.event_bus = event_bus
         self.symbols = [s.strip() for s in (symbols or ["EURUSD"]) if s and s.strip()]
@@ -147,6 +149,7 @@ class BootstrapRuntime:
             )
 
         self.redis_client = cache_client
+        self._release_manager = release_manager
 
         base_risk_per_trade = risk_per_trade if risk_per_trade is not None else 0.02
         base_drawdown = max_daily_drawdown if max_daily_drawdown is not None else 0.1
@@ -174,6 +177,7 @@ class BootstrapRuntime:
             roi_cost_model=roi_cost_model,
             risk_config=resolved_risk_config,
             drift_gate=self._drift_gate,
+            release_manager=release_manager,
         )
         self.portfolio_monitor: PortfolioMonitor = self.trading_manager.portfolio_monitor
         self.execution_engine = ImmediateFillExecutionAdapter(self.portfolio_monitor)
@@ -243,6 +247,20 @@ class BootstrapRuntime:
                         status["risk_interface"] = dict(interface_payload)
                     else:
                         status["risk_interface"] = interface_payload
+
+        describe_release = getattr(self.trading_manager, "describe_release_posture", None)
+        if callable(describe_release):
+            try:
+                strategy_id = getattr(self.trading_stack, "strategy_id", None)
+                release_payload = describe_release(strategy_id)
+            except Exception:  # pragma: no cover - diagnostics only
+                logger.debug(
+                    "Failed to resolve policy release posture for bootstrap status",
+                    exc_info=True,
+                )
+            else:
+                if release_payload:
+                    status["release_posture"] = dict(release_payload)
         return status
 
     async def start(self, *, task_supervisor: TaskSupervisor | None = None) -> None:

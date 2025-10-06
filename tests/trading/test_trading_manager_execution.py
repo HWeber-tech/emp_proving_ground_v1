@@ -260,10 +260,92 @@ async def test_trading_manager_gates_on_drift(monkeypatch: pytest.MonkeyPatch) -
     assert isinstance(metadata, dict)
     assert metadata.get("drift_severity") == DriftSeverity.warn.value
     assert "confidence" in str(metadata.get("reason"))
+    gate_payload = metadata.get("drift_gate")
+    assert isinstance(gate_payload, dict)
+    assert gate_payload.get("allowed") is False
+    assert gate_payload.get("severity") == DriftSeverity.warn.value
     decision = manager.get_last_drift_gate_decision()
     assert decision is not None
     assert not decision.allowed
     assert decision.severity is DriftSeverity.warn
+
+
+@pytest.mark.asyncio()
+async def test_trading_manager_records_gate_metadata_on_execution(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def _noop(*_args, **_kwargs) -> None:
+        return None
+
+    monkeypatch.setattr("src.trading.trading_manager.publish_risk_snapshot", _noop)
+    monkeypatch.setattr("src.trading.trading_manager.publish_roi_snapshot", _noop)
+    monkeypatch.setattr("src.trading.trading_manager.publish_policy_snapshot", _noop)
+    monkeypatch.setattr("src.trading.trading_manager.publish_policy_violation", _noop)
+    monkeypatch.setattr("src.trading.trading_manager.publish_risk_interface_snapshot", _noop)
+    monkeypatch.setattr("src.trading.trading_manager.publish_risk_interface_error", _noop)
+
+    gate = DriftSentryGate(warn_confidence_floor=0.6)
+    dimension = SensoryDimensionDrift(
+        name="WHY",
+        current_signal=0.42,
+        baseline_signal=0.10,
+        delta=0.32,
+        current_confidence=0.76,
+        baseline_confidence=0.70,
+        confidence_delta=0.06,
+        severity=DriftSeverity.warn,
+        samples=6,
+    )
+    snapshot = SensoryDriftSnapshot(
+        generated_at=datetime(2024, 1, 5, tzinfo=timezone.utc),
+        status=DriftSeverity.warn,
+        dimensions={"WHY": dimension},
+        sample_window=6,
+        metadata={"source": "test"},
+    )
+    gate.update_snapshot(snapshot)
+
+    manager = TradingManager(
+        event_bus=DummyBus(),
+        strategy_registry=AlwaysActiveRegistry(),
+        execution_engine=None,
+        initial_equity=50_000.0,
+        risk_config=RiskConfig(
+            min_position_size=1,
+            mandatory_stop_loss=False,
+            research_mode=True,
+        ),
+        drift_gate=gate,
+    )
+    execution_engine = RecordingExecutionEngine()
+    manager.execution_engine = execution_engine
+
+    validated_intent = ConfidenceIntent(
+        symbol="EURUSD",
+        quantity=1.0,
+        price=1.2010,
+        confidence=0.95,
+        strategy_id="alpha",
+    )
+
+    validate_mock: AsyncMock = AsyncMock(return_value=validated_intent)
+    manager.risk_gateway.validate_trade_intent = validate_mock  # type: ignore[assignment]
+
+    await manager.on_trade_intent(validated_intent)
+
+    events = manager.get_experiment_events()
+    assert events, "expected executed event"
+    latest = events[0]
+    assert latest["status"] == "executed"
+    metadata = latest.get("metadata")
+    assert isinstance(metadata, dict)
+    gate_payload = metadata.get("drift_gate")
+    assert isinstance(gate_payload, dict)
+    assert gate_payload.get("allowed") is True
+    assert gate_payload.get("severity") == DriftSeverity.warn.value
+    thresholds = gate_payload.get("requirements", {})
+    assert thresholds.get("confidence_floor") == pytest.approx(0.6)
+    assert execution_engine.calls == 1
 
 
 @pytest.mark.asyncio()
@@ -288,6 +370,7 @@ async def test_trading_manager_release_thresholds(tmp_path: Path, monkeypatch: p
         tactic_id="alpha",
         stage=PolicyLedgerStage.PAPER,
         threshold_overrides={"warn_confidence_floor": 0.82},
+        evidence_id="diary-alpha",
     )
 
     manager = TradingManager(
@@ -347,6 +430,14 @@ async def test_trading_manager_release_thresholds(tmp_path: Path, monkeypatch: p
     assert requirements["release_stage"] == PolicyLedgerStage.PAPER.value
     assert validate_mock.await_count == 0
     assert execution_engine.calls == 0
+    events = manager.get_experiment_events()
+    assert events and events[0]["status"] == "gated"
+    metadata = events[0].get("metadata")
+    assert isinstance(metadata, dict)
+    gate_payload = metadata.get("drift_gate")
+    assert isinstance(gate_payload, dict)
+    gate_requirements = gate_payload.get("requirements", {})
+    assert gate_requirements.get("release_stage") == PolicyLedgerStage.PAPER.value
 
 
 def test_describe_release_posture(tmp_path: Path) -> None:
@@ -357,6 +448,7 @@ def test_describe_release_posture(tmp_path: Path) -> None:
         tactic_id="alpha",
         stage=PolicyLedgerStage.LIMITED_LIVE,
         approvals=("risk", "ops"),
+        evidence_id="diary-alpha",
     )
 
     manager = TradingManager(

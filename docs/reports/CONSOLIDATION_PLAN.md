@@ -16,7 +16,7 @@ Guiding constraints:
 - New reports saved to `docs/reports/` and mirrored to `reports/`
 
 Target single sources of truth (SoT):
-- Event system: keep `src/core/event_bus.py`; deprecate/remove `src/operational/event_bus.py` and any others with the same concept. Provide thin adapters only where unavoidable.
+- Event system: keep `src/core/event_bus.py`; legacy `src/operational.event_bus` shim has been removed in favour of direct aliases that point to the canonical module.
 - Trading models: keep `src/trading/models/order.py`, `position.py`, `trade.py`; deprecate `src/trading/models.py` duplicates.
 - Execution: keep `src/trading/execution/execution_model.py` (slippage/fees) and integrate it into pre‑trade checks. Review `fix_executor.py`; either align with `FIXBrokerInterface` or move to legacy.
 - FIX connectivity: keep `src/operational/fix_connection_manager.py` and `src/trading/integration/fix_broker_interface.py`. Retire `icmarkets_robust_application.py` if overlapping.
@@ -59,5 +59,4 @@ Acceptance criteria:
 
 Notes:
 - This plan preserves the FIX‑only execution pathway and avoids introducing non‑FIX paths.
-
 

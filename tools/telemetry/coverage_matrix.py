@@ -29,7 +29,6 @@ _TRACKED_DOMAINS: tuple[str, ...] = (
     "data_integration",
     "data_sources",
     "ecosystem",
-    "market_intelligence",
     "performance",
     "portfolio",
     "simulation",

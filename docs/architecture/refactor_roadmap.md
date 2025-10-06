@@ -98,9 +98,9 @@ graph TD
 - Acceptance: remove E402 per-file ignores progressively from [pyproject.toml](pyproject.toml:20).
 
 7) Directory unification  
-- Consolidate overlap between [src/sensory](src/sensory:) and [src/market_intelligence](src/market_intelligence:).  
-- Decide canonical namespace; mark the other as facades or migrate.  
-- Acceptance: single canonical path referenced by app.
+- Consolidate overlap between [src/sensory](src/sensory:) and the retired `src/market_intelligence` shims.  
+- Canonical namespace is `src.sensory.enhanced`; ensure any remaining references to `market_intelligence` are removed.  
+- Acceptance: single canonical sensory path referenced by app (no legacy shims).
 
 ## Ratchet plan
 ### Ruff

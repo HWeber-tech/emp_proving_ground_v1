@@ -118,7 +118,7 @@ matplotlib >= 3.5.0
 ```bash
 # Clone the repository
 git clone <repository-url>
-cd market_intelligence
+cd sensory
 
 # Install dependencies
 pip install -r requirements/base.txt
@@ -130,8 +130,8 @@ pip install -e .
 ### Quick Start
 ```python
 import asyncio
-from market_intelligence.core.base import MarketData
-from market_intelligence.orchestration.enhanced_intelligence_engine import ContextualFusionEngine
+from src.core.base import MarketData
+from src.orchestration.enhanced_intelligence_engine import ContextualFusionEngine
 from datetime import datetime
 
 # Initialize the system
@@ -576,4 +576,3 @@ For questions, issues, or contributions:
 ---
 
 **The Multidimensional Market Intelligence System represents the evolution from traditional single-dimensional analysis to true market understanding through interconnected intelligence. It embodies the principle that markets are complex adaptive systems requiring sophisticated, multi-faceted analysis for genuine comprehension.**
-

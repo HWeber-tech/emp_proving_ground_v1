@@ -18,21 +18,11 @@ from typing import List
 
 import numpy as np
 import pytest
-from market_intelligence.dimensions.enhanced_anomaly_dimension import (
-    AnomalyIntelligenceEngine,
-)
-from market_intelligence.dimensions.enhanced_how_dimension import (
-    InstitutionalIntelligenceEngine,
-)
-from market_intelligence.dimensions.enhanced_what_dimension import (
-    TechnicalRealityEngine,
-)
-from market_intelligence.dimensions.enhanced_when_dimension import (
-    ChronalIntelligenceEngine,
-)
-from market_intelligence.dimensions.enhanced_why_dimension import (
-    EnhancedFundamentalIntelligenceEngine,
-)
+from sensory.enhanced.anomaly_dimension import AnomalyIntelligenceEngine
+from sensory.enhanced.how_dimension import InstitutionalIntelligenceEngine
+from sensory.enhanced.what_dimension import TechnicalRealityEngine
+from sensory.enhanced.when_dimension import ChronalIntelligenceEngine
+from sensory.enhanced.why_dimension import EnhancedFundamentalIntelligenceEngine
 from orchestration.enhanced_intelligence_engine import ContextualFusionEngine
 
 # Import system components

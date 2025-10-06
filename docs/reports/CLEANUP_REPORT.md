@@ -145,7 +145,7 @@ Dead code candidates (first 100):
 -  src\intelligence\red_team_ai.py
 -  src\intelligence\sentient_adaptation.py
 -  src\intelligence\specialized_predators.py
--  src\operational\event_bus.py
+-  ~~src\operational\event_bus.py~~ (removed; canonical imports resolved via `src.core.event_bus`).
 -  src\operational\fix_connection_manager.py
 -  src\operational\health_monitor.py
 -  src\operational\icmarkets_robust_application.py
@@ -158,6 +158,7 @@ Dead code candidates (first 100):
 -  src\sensory\anomaly\anomaly_sensor.py
 -  src\sensory\dimensions\why\yield_signal.py
 -  src\sensory\organs\economic_organ.py
+-  ~~src\market_intelligence\dimensions\*~~ (removed; sensory enhanced engines now imported directly from `src.sensory.enhanced`).
 -  src\sensory\organs\fix_sensory_organ.py
 -  src\sensory\organs\news_organ.py
 -  src\sensory\organs\orderbook_organ.py

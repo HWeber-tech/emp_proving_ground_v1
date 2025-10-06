@@ -15,6 +15,21 @@ at the top of the log.
 
 ## Entries
 
+### 2025-10-06T18:13:30+00:00
+
+- Coverage: 76.40% (Δ +1.30 pts) vs 2025-09-29T12:00:00+00:00 (source: coverage-reports/pytest-2025-10-06.xml)
+- Lagging domains: 2 (Δ -1) — trading 79.60%, evolution 66.90% (threshold 80.0%) (source: coverage-reports/pytest-2025-10-06.xml)
+- Remediation statuses:
+  - coverage_threshold: 80
+  - lagging_count: 2 (Δ -1.00)
+  - overall_coverage: 76.4 (Δ +1.30)
+  - worst_domain: evolution
+- Note: Lagging domains: trading (79.6%), evolution (66.9%)
+- Telemetry freshness (threshold 168h, evaluated 2025-10-06T18:13:30+00:00):
+  - Stale feeds: formatter trend 849.2h
+  - Fresh feeds: coverage trend 7.2h; coverage domain trend 7.2h; remediation trend 18.2h
+- Evidence: tests/.telemetry/ci_metrics.json; coverage-reports/pytest-2025-10-06.xml
+
 ### 2025-10-06T11:00:00+00:00
 
 - Coverage: 76.40% (Δ +1.30 pts) vs 2025-09-29T12:00:00+00:00 (source: coverage-reports/pytest-2025-10-06.xml)

@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import logging
 import os
+import tempfile
 from dataclasses import dataclass, field
 from enum import StrEnum
+from pathlib import Path
 from typing import Mapping, TypedDict, TypeVar, Unpack
 
 logger = logging.getLogger(__name__)
@@ -52,6 +54,7 @@ class SystemConfigUpdate(TypedDict, total=False):
     confirm_live: bool | str | int
     connection_protocol: ConnectionProtocol | str
     data_backbone_mode: DataBackboneMode | str
+    kill_switch_path: str | os.PathLike[str] | Path | None
     extras: dict[str, str]
 
 
@@ -103,6 +106,27 @@ def _coerce_bool(value: str | bool | int | None, default: bool) -> bool:
     return default
 
 
+def _default_kill_switch_path() -> Path:
+    return Path(tempfile.gettempdir()) / "emp_pg.KILL"
+
+
+def _normalize_kill_switch_path(
+    raw: str | os.PathLike[str] | Path | None,
+) -> Path | None:
+    if raw is None:
+        return None
+    raw_str = str(raw).strip()
+    if not raw_str:
+        return None
+    lowered = raw_str.lower()
+    if lowered in {"none", "disabled", "off"}:
+        return None
+    candidate = Path(raw_str).expanduser()
+    if not candidate.is_absolute():
+        candidate = Path(tempfile.gettempdir()) / candidate
+    return candidate
+
+
 @dataclass
 class SystemConfig:
     # Typed fields (Enums and primitives)
@@ -112,7 +136,11 @@ class SystemConfig:
     confirm_live: bool = False
     connection_protocol: ConnectionProtocol = ConnectionProtocol.bootstrap
     data_backbone_mode: DataBackboneMode = DataBackboneMode.bootstrap
+    kill_switch_path: Path | None = field(default_factory=_default_kill_switch_path)
     extras: dict[str, str] = field(default_factory=lambda: {})
+
+    def __post_init__(self) -> None:  # pragma: no cover - trivial normalization
+        self.kill_switch_path = _normalize_kill_switch_path(self.kill_switch_path) or None
 
     # Backward-compatible string views for legacy comparisons
     @property
@@ -149,12 +177,13 @@ class SystemConfig:
             "confirm_live": self.confirm_live,
             "connection_protocol": self.connection_protocol.value,
             "data_backbone_mode": self.data_backbone_mode.value,
+            "kill_switch_path": str(self.kill_switch_path) if self.kill_switch_path else None,
             "extras": dict(self.extras),
         }
 
     def to_env(self) -> dict[str, str]:
         """Export environment variables as a string dictionary."""
-        return {
+        env = {
             "RUN_MODE": self.run_mode.value,
             "EMP_ENVIRONMENT": self.environment.value,
             "EMP_TIER": self.tier.value,
@@ -162,6 +191,9 @@ class SystemConfig:
             "CONNECTION_PROTOCOL": self.connection_protocol.value,
             "DATA_BACKBONE_MODE": self.data_backbone_mode.value,
         }
+        if self.kill_switch_path:
+            env["EMP_KILL_SWITCH"] = str(self.kill_switch_path)
+        return env
 
     @classmethod
     def from_env(
@@ -190,6 +222,7 @@ class SystemConfig:
             "CONFIRM_LIVE",
             "CONNECTION_PROTOCOL",
             "DATA_BACKBONE_MODE",
+            "EMP_KILL_SWITCH",
         }
 
         def _infer_data_backbone_mode(current: DataBackboneMode) -> DataBackboneMode:
@@ -288,6 +321,16 @@ class SystemConfig:
         if raw_backbone is None:
             data_backbone_mode = _infer_data_backbone_mode(data_backbone_mode)
 
+        kill_switch_path = base.kill_switch_path
+        raw_kill_switch = source_env.get("EMP_KILL_SWITCH")
+        if raw_kill_switch is not None:
+            normalized_kill_switch = _normalize_kill_switch_path(raw_kill_switch)
+            if normalized_kill_switch is None:
+                raw_str = str(raw_kill_switch).strip()
+                if raw_str and raw_str.lower() not in {"none", "disabled", "off"}:
+                    _mark_invalid("EMP_KILL_SWITCH", raw_str, str(kill_switch_path or "disabled"))
+            kill_switch_path = normalized_kill_switch
+
         # Include all other non-recognized env entries in extras (stringify values)
         for k, v in source_env.items():
             if k not in recognized_keys:
@@ -300,6 +343,7 @@ class SystemConfig:
             confirm_live=confirm_live,
             connection_protocol=connection_protocol,
             data_backbone_mode=data_backbone_mode,
+            kill_switch_path=kill_switch_path,
             extras=extras,
         )
 
@@ -315,6 +359,7 @@ class SystemConfig:
         confirm_live = self.confirm_live
         connection_protocol = self.connection_protocol
         data_backbone_mode = self.data_backbone_mode
+        kill_switch_path = self.kill_switch_path
         extras: dict[str, str] = dict(self.extras)  # deep copy for simple dict[str, str]
 
         if "run_mode" in overrides:
@@ -352,6 +397,8 @@ class SystemConfig:
                 if isinstance(v_bb, DataBackboneMode)
                 else _coerce_enum(v_bb, DataBackboneMode, data_backbone_mode)
             )
+        if "kill_switch_path" in overrides:
+            kill_switch_path = _normalize_kill_switch_path(overrides["kill_switch_path"])
         if "extras" in overrides:
             new_extras = overrides["extras"]
             extras = dict(new_extras) if isinstance(new_extras, dict) else extras
@@ -363,6 +410,7 @@ class SystemConfig:
             confirm_live=confirm_live,
             connection_protocol=connection_protocol,
             data_backbone_mode=data_backbone_mode,
+            kill_switch_path=kill_switch_path,
             extras=extras,
         )
 

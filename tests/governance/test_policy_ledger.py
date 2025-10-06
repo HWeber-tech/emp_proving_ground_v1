@@ -1,15 +1,21 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, timezone
+try:  # Python < 3.11 compatibility
+    from datetime import UTC  # type: ignore[attr-defined]
+except ImportError:  # pragma: no cover
+    UTC = timezone.utc  # type: ignore[assignment]
 from pathlib import Path
 from typing import Callable
 
 import pytest
-
 from src.governance.policy_ledger import (
     LedgerReleaseManager,
+    PolicyDelta,
+    PolicyLedgerFeatureFlags,
     PolicyLedgerStage,
     PolicyLedgerStore,
+    build_policy_governance_workflow,
 )
 
 
@@ -36,13 +42,21 @@ def test_policy_ledger_promotion_progression(tmp_path: Path) -> None:
         approvals=("risk", "compliance"),
         evidence_id="diary-001",
         threshold_overrides={"warn_confidence_floor": 0.8},
+        policy_delta=PolicyDelta(
+            regime="balanced",
+            risk_config={"max_leverage": "8"},
+            router_guardrails={"requires_diary": True},
+        ),
     )
 
     assert first.stage is PolicyLedgerStage.PAPER
     assert first.approvals == ("compliance", "risk")
     assert first.evidence_id == "diary-001"
     assert first.threshold_overrides["warn_confidence_floor"] == 0.8
-    assert first.history == ()
+    assert first.history
+    history_entry = first.history[0]
+    assert history_entry["prior_stage"] is None
+    assert history_entry["policy_delta"]["risk_config"]["max_leverage"] == "8"
     assert path.exists()
 
     second = manager.promote(
@@ -50,7 +64,12 @@ def test_policy_ledger_promotion_progression(tmp_path: Path) -> None:
         tactic_id="tactic.alpha",
         stage=PolicyLedgerStage.PILOT,
         approvals=("risk", "ops"),
+        evidence_id="diary-002",
         threshold_overrides={"warn_notional_limit": 60_000.0},
+        policy_delta={
+            "risk_config": {"max_total_exposure_pct": 0.45},
+            "router_guardrails": {"max_latency_ms": 250},
+        },
     )
     assert second.stage is PolicyLedgerStage.PILOT
     assert second.approvals == ("ops", "risk")
@@ -63,12 +82,17 @@ def test_policy_ledger_promotion_progression(tmp_path: Path) -> None:
     persisted = PolicyLedgerStore(path).get("alpha.policy")
     assert persisted is not None
     assert persisted.stage is PolicyLedgerStage.PILOT
+    assert persisted.policy_delta is not None
+    assert persisted.policy_delta.risk_config["max_total_exposure_pct"] == 0.45
 
 
 def test_policy_ledger_rejects_stage_regression(tmp_path: Path) -> None:
     path = tmp_path / "policy_ledger.json"
     store = PolicyLedgerStore(path)
-    manager = LedgerReleaseManager(store)
+    manager = LedgerReleaseManager(
+        store,
+        feature_flags=PolicyLedgerFeatureFlags(require_diary_evidence=False),
+    )
 
     manager.promote(
         policy_id="alpha.policy",
@@ -87,7 +111,10 @@ def test_policy_ledger_rejects_stage_regression(tmp_path: Path) -> None:
 def test_release_manager_threshold_resolution(tmp_path: Path) -> None:
     path = tmp_path / "policy_ledger.json"
     store = PolicyLedgerStore(path)
-    manager = LedgerReleaseManager(store)
+    manager = LedgerReleaseManager(
+        store,
+        feature_flags=PolicyLedgerFeatureFlags(require_diary_evidence=False),
+    )
 
     thresholds = manager.resolve_thresholds("missing")
     assert thresholds["stage"] == PolicyLedgerStage.EXPERIMENT.value
@@ -104,3 +131,51 @@ def test_release_manager_threshold_resolution(tmp_path: Path) -> None:
     assert overrides["stage"] == PolicyLedgerStage.LIMITED_LIVE.value
     assert overrides["warn_confidence_floor"] == pytest.approx(0.58)
     assert overrides["warn_notional_limit"] == pytest.approx(100_000.0)
+
+
+def test_policy_ledger_requires_diary_evidence(tmp_path: Path) -> None:
+    store = PolicyLedgerStore(tmp_path / "ledger.json")
+    manager = LedgerReleaseManager(store)
+
+    with pytest.raises(ValueError):
+        manager.promote(
+            policy_id="alpha.policy",
+            tactic_id="tactic.alpha",
+            stage=PolicyLedgerStage.PAPER,
+        )
+
+
+def test_policy_ledger_rejects_unsigned_policy_delta(tmp_path: Path) -> None:
+    store = PolicyLedgerStore(tmp_path / "ledger.json")
+
+    with pytest.raises(ValueError):
+        store.upsert(
+            policy_id="alpha.policy",
+            tactic_id="tactic.alpha",
+            stage=PolicyLedgerStage.PAPER,
+            approvals=(),
+            policy_delta={"risk_config": {"max_leverage": 9}},
+        )
+
+
+def test_policy_governance_workflow_builds_tasks(tmp_path: Path) -> None:
+    path = tmp_path / "policy_ledger.json"
+    store = PolicyLedgerStore(path)
+    manager = LedgerReleaseManager(store)
+    manager.promote(
+        policy_id="alpha.policy",
+        tactic_id="tactic.alpha",
+        stage=PolicyLedgerStage.PAPER,
+        approvals=("risk", "compliance"),
+        evidence_id="diary-1",
+        policy_delta={"risk_config": {"max_leverage": 8}},
+    )
+
+    snapshot = build_policy_governance_workflow(store)
+    assert snapshot.workflows
+    checklist = snapshot.workflows[0]
+    assert checklist.name == "Policy Ledger Governance"
+    assert checklist.tasks
+    task = checklist.tasks[0]
+    assert task.status.value in {"completed", "in_progress"}
+    assert task.metadata["policy_id"] == "alpha.policy"

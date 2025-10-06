@@ -7,6 +7,17 @@ Lightweight package init to avoid heavy imports at module import time.
 from __future__ import annotations
 
 import typing as _typing
+import datetime as _datetime
+import enum as _enum
+
+if not hasattr(_datetime, "UTC"):  # pragma: no cover - runtime compatibility shim
+    _datetime.UTC = _datetime.timezone.utc  # type: ignore[attr-defined]
+
+if not hasattr(_enum, "StrEnum"):  # pragma: no cover - Python 3.10 compatibility
+    class _StrEnum(str, _enum.Enum):
+        """Minimal fallback for :class:`enum.StrEnum`."""
+
+    _enum.StrEnum = _StrEnum  # type: ignore[attr-defined]
 
 try:  # Python 3.10 compatibility for typing.Optional[...] helpers
     _typing.NotRequired  # type: ignore[attr-defined]

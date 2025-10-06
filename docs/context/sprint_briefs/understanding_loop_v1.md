@@ -60,7 +60,10 @@
   - Register router contract tests under `pytest -m guardrail` that assert only approved strategy IDs receive high-confidence intents.
   - Static analysis hook verifying router configs declare policy references found in the policy ledger.
 - **Progress**
-  - PolicyRouter now routes tactics with fast-weight multipliers, captures guardrail metadata, and emits reviewer-facing reflection summaries under pytest coverage so the sprint can focus on wiring the remaining understanding router façade around the canonical implementation.【F:src/thinking/adaptation/policy_router.py†L1-L210】【F:tests/thinking/test_policy_router.py†L33-L116】
+  - PolicyRouter now tracks tactic objectives/tags, bulk registers and updates tactics,
+    exposes experiment registries, and ships a reflection digest summarising streaks,
+    regime mix, and experiment share so reviewers inherit emerging-strategy telemetry
+    without spelunking raw summaries under expanded pytest coverage.【F:src/thinking/adaptation/policy_router.py†L30-L412】【F:tests/thinking/test_policy_router.py†L120-L210】
 
 ### Days 6–7 – Decision diary & probes (≈3 tickets)
 
@@ -99,6 +102,7 @@
     alert-ready payloads plus runbook metadata so incident response inherits
     AlphaTrade drift posture under regression coverage.【F:src/operations/drift_sentry.py†L1-L279】【F:tests/intelligence/test_drift_sentry.py†L1-L103】【F:src/operations/operational_readiness.py†L209-L347】【F:docs/operations/runbooks/drift_sentry_response.md†L1-L69】
   - DriftSentry gate now consumes sensory drift snapshots, enforces confidence/notional guardrails before trade execution, and publishes gating summaries through the runtime bootstrap and Predator telemetry with regression coverage around the dedicated gate helper and trading manager integration.【F:src/trading/gating/drift_sentry_gate.py†L1-L200】【F:src/runtime/bootstrap_runtime.py†L161-L177】【F:src/runtime/predator_app.py†L1012-L1024】【F:tests/trading/test_trading_manager_execution.py†L187-L260】【F:tests/trading/test_drift_sentry_gate.py†L61-L153】
+  - Sensory drift regression now includes a deterministic Page–Hinkley replay fixture and metadata assertions so diagnostic runs reproduce the detector catalog, severity counts, and runbook link that readiness and incident response surfaces expect, under pytest coverage.【F:tests/operations/fixtures/page_hinkley_replay.json†L1-L128】【F:tests/operations/test_sensory_drift.py†L157-L218】
 
 ### Days 10–11 – Policy ledger & gate (≈3 tickets)
 

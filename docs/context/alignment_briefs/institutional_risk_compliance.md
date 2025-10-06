@@ -78,9 +78,10 @@
   errors point to the same remediation guide.【F:src/trading/risk/risk_api.py†L1-L158】【F:src/runtime/runtime_builder.py†L323-L353】【F:tests/trading/test_risk_api.py†L90-L152】【F:tests/runtime/test_runtime_builder.py†L200-L234】
 - Progress: Trading risk interface telemetry helpers now publish structured
   snapshots and contract-violation alerts with Markdown summaries, updating the
-  trading manager’s cached posture and emitting event-bus payloads under pytest
-  coverage so governance receives actionable enforcement evidence when the
-  interface degrades.【F:src/trading/risk/risk_interface_telemetry.py†L1-L156】【F:src/trading/trading_manager.py†L635-L678】【F:tests/trading/test_trading_manager_execution.py†L190-L287】
+  trading manager’s cached posture, while bootstrap control center, bootstrap
+  runtime status, and FIX pilot snapshots resolve the interface payload to embed
+  the shared runbook in operator telemetry under pytest coverage so governance
+  receives actionable enforcement evidence when the interface degrades.【F:src/trading/risk/risk_interface_telemetry.py†L1-L156】【F:src/trading/trading_manager.py†L635-L678】【F:src/operations/bootstrap_control_center.py†L99-L350】【F:src/runtime/bootstrap_runtime.py†L206-L246】【F:src/runtime/fix_pilot.py†L22-L318】【F:tests/trading/test_trading_manager_execution.py†L190-L287】【F:tests/current/test_bootstrap_control_center.py†L151-L180】【F:tests/runtime/test_fix_pilot.py†L115-L178】
 - Progress: FIX broker interface risk rejections now merge gateway policy
   snapshots, provider summaries, and deterministic risk API fallbacks while
   always attaching the shared runbook so manual pilots inherit actionable

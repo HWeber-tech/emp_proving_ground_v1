@@ -209,6 +209,11 @@ kit that the roadmap calls back to in each checklist.
     payloads on the event bus, and persist the latest posture for discovery,
     with pytest asserting snapshot and alert propagation so supervisors inherit
     actionable evidence when enforcement fails.【F:src/trading/risk/risk_interface_telemetry.py†L1-L156】【F:src/trading/trading_manager.py†L635-L678】【F:tests/trading/test_trading_manager_execution.py†L190-L287】
+  - *Progress*: Bootstrap control center, bootstrap runtime status, and FIX pilot
+    snapshots now resolve the trading manager’s risk interface payload, cache the
+    shared runbook metadata, and surface it in operator telemetry so control
+    rooms, status CLIs, and pilot dashboards expose the same escalation guidance
+    under regression coverage.【F:src/operations/bootstrap_control_center.py†L99-L350】【F:src/runtime/bootstrap_runtime.py†L206-L246】【F:src/runtime/fix_pilot.py†L22-L318】【F:tests/current/test_bootstrap_control_center.py†L151-L180】【F:tests/runtime/test_fix_pilot.py†L115-L178】
   - *Progress*: `RiskConfig` now normalises sector/instrument mappings, rejects
     duplicate or missing sector limits, enforces that individual and combined
     sector budgets never exceed the global exposure cap, and continues to
@@ -587,6 +592,10 @@ kit that the roadmap calls back to in each checklist.
     tie Page–Hinkley/variance thresholds into readiness dashboards.【F:docs/context/sprint_briefs/understanding_loop_v1.md†L78-L91】【F:docs/High-Impact Development Roadmap.md†L52-L53】
   - *Progress*: Understanding drift sentry now evaluates belief/regime metrics, publishes failover-aware telemetry, derives alert payloads, and pipes runbook metadata into operational readiness so incident responders inherit a single drift component across dashboards and alert policies under regression coverage.【F:src/operations/drift_sentry.py†L1-L399】【F:tests/intelligence/test_drift_sentry.py†L43-L135】【F:tests/operations/test_operational_readiness.py†L200-L283】【F:docs/operations/runbooks/drift_sentry_response.md†L1-L69】
   - *Progress*: DriftSentry gate now ingests sensory drift snapshots, applies confidence/notional guardrails, and surfaces gating telemetry through runtime bootstrap and Predator app summaries under dedicated trading manager regressions so drift incidents halt paper promotions with documented evidence.【F:src/trading/gating/drift_sentry_gate.py†L1-L200】【F:src/runtime/bootstrap_runtime.py†L161-L177】【F:src/runtime/predator_app.py†L1012-L1024】【F:tests/trading/test_trading_manager_execution.py†L187-L260】【F:tests/trading/test_drift_sentry_gate.py†L61-L153】
+  - *Progress*: Sensory drift regression suite now ships a deterministic Page–Hinkley
+    replay fixture and metadata assertions so escalations reproduce the alert
+    catalog, runbook link, and detector stats with evidence bundles backed by
+    pytest coverage.【F:tests/operations/fixtures/page_hinkley_replay.json†L1-L128】【F:tests/operations/test_sensory_drift.py†L157-L218】
   - [ ] Deliver the policy ledger store, rebuild CLI, and governance checklist so
     promotions trace back to DecisionDiary evidence.【F:docs/context/sprint_briefs/understanding_loop_v1.md†L93-L107】【F:docs/High-Impact Development Roadmap.md†L53-L54】
   - *Progress*: Policy ledger store now persists promotion history, approvals, threshold overrides, and diary evidence, with a rebuild CLI that regenerates enforceable risk configs and router guardrails while exporting governance workflows under pytest coverage so AlphaTrade promotions stay auditable.【F:src/governance/policy_ledger.py†L1-L200】【F:src/governance/policy_rebuilder.py†L1-L141】【F:tools/governance/rebuild_policy.py†L1-L112】【F:tests/governance/test_policy_ledger.py†L33-L181】【F:tests/tools/test_rebuild_policy_cli.py†L11-L41】
@@ -617,10 +626,11 @@ kit that the roadmap calls back to in each checklist.
   - [ ] Expand PolicyRouter tactics and fast-weight experimentation while
     automating reflection summaries so reviewers see emerging strategies without
     spelunking telemetry dumps.【F:docs/High-Impact Development Roadmap.md†L74-L74】
-  - *Progress*: PolicyRouter now ranks tactics with fast-weight multipliers,
-    folds experiment rationale into reflection summaries, and keeps a bounded
-    history so reviewers inherit regime-contextual decisions under pytest
-    coverage.【F:src/thinking/adaptation/policy_router.py†L1-L210】【F:tests/thinking/test_policy_router.py†L33-L116】
+  - *Progress*: PolicyRouter now tracks tactic objectives/tags, bulk-registers and
+    updates tactics, exposes experiment registries, and ships a reflection digest
+    that summarises streaks, regime mix, and experiment share so reviewers spot
+    emerging strategies without spelunking telemetry dumps under expanded pytest
+    coverage.【F:src/thinking/adaptation/policy_router.py†L30-L412】【F:tests/thinking/test_policy_router.py†L120-L210】
   - [ ] Enable selective paper-trade execution with DriftSentry gating
     promotions and PolicyLedger enforcing audit coverage ahead of live capital
     exposure.【F:docs/High-Impact Development Roadmap.md†L75-L75】

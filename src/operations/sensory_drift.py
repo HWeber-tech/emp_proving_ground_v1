@@ -8,16 +8,19 @@ markdown summaries suitable for operator dashboards and event-bus feeds.
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections import Counter
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
+from math import inf
 from statistics import fmean
-from typing import Any, Iterable, Mapping, MutableMapping, Sequence
+from typing import Any, Iterable, Mapping, MutableMapping
 
 import logging
 
 from src.core.event_bus import Event, EventBus, TopicBus
+from src.operations.alerts import AlertEvent, AlertSeverity
 from src.operations.event_bus_failover import publish_event_with_failover
 
 
@@ -64,6 +67,50 @@ def _sanitize_sequence(value: Iterable[Any]) -> list[Mapping[str, Any]]:
     return cleaned
 
 
+def _page_hinkley_stat(values: Sequence[float], *, delta: float) -> float:
+    if not values:
+        return 0.0
+    mean = values[0]
+    positive_sum = 0.0
+    negative_sum = 0.0
+    positive_max = 0.0
+    negative_max = 0.0
+    for index, value in enumerate(values[1:], start=1):
+        mean += (value - mean) / (index + 1)
+        deviation = value - mean - delta
+        positive_sum = max(0.0, positive_sum + deviation)
+        negative_sum = min(0.0, negative_sum + deviation)
+        positive_max = max(positive_max, positive_sum)
+        negative_max = min(negative_max, negative_sum)
+
+    return max(positive_max, abs(negative_max))
+
+
+def _variance(values: Sequence[float]) -> float:
+    if len(values) < 2:
+        return 0.0
+    mean = fmean(values)
+    return sum((value - mean) ** 2 for value in values) / (len(values) - 1)
+
+
+def _variance_ratio(
+    baseline: Sequence[float], evaluation: Sequence[float]
+) -> float | None:
+    if len(baseline) < 2 or len(evaluation) < 2:
+        return None
+    baseline_var = _variance(baseline)
+    evaluation_var = _variance(evaluation)
+    if baseline_var <= 0.0:
+        return inf if evaluation_var > 0.0 else None
+    return evaluation_var / baseline_var
+
+
+def _upgrade_severity(current: DriftSeverity, candidate: DriftSeverity) -> DriftSeverity:
+    if _SEVERITY_ORDER[candidate] > _SEVERITY_ORDER[current]:
+        return candidate
+    return current
+
+
 @dataclass(frozen=True)
 class SensoryDimensionDrift:
     """Drift statistics for a single sensory dimension."""
@@ -77,6 +124,9 @@ class SensoryDimensionDrift:
     confidence_delta: float | None
     severity: DriftSeverity
     samples: int
+    page_hinkley_stat: float | None = None
+    variance_ratio: float | None = None
+    detectors: tuple[str, ...] = ()
 
     def as_dict(self) -> dict[str, Any]:
         payload: dict[str, Any] = {
@@ -95,6 +145,12 @@ class SensoryDimensionDrift:
             payload["baseline_confidence"] = self.baseline_confidence
         if self.confidence_delta is not None:
             payload["confidence_delta"] = self.confidence_delta
+        if self.page_hinkley_stat is not None:
+            payload["page_hinkley_stat"] = self.page_hinkley_stat
+        if self.variance_ratio is not None:
+            payload["variance_ratio"] = self.variance_ratio
+        if self.detectors:
+            payload["detectors"] = list(self.detectors)
         return payload
 
 
@@ -146,9 +202,24 @@ def evaluate_sensory_drift(
     lookback: int = 20,
     warn_threshold: float = 0.25,
     alert_threshold: float = 0.5,
+    page_hinkley_delta: float = 0.01,
+    page_hinkley_warn: float = 3.0,
+    page_hinkley_alert: float = 6.0,
+    variance_window: int | None = None,
+    variance_warn_ratio: float = 1.5,
+    variance_alert_ratio: float = 2.5,
+    min_variance_samples: int = 5,
     metadata: Mapping[str, Any] | None = None,
 ) -> SensoryDriftSnapshot:
-    """Evaluate sensor drift from recent audit entries."""
+    """Evaluate sensor drift from recent audit entries.
+
+    The detector combines simple delta thresholds with Page–Hinkley drift
+    statistics and rolling variance ratios to emulate the DriftSentry brief.
+    ``page_hinkley_*`` parameters control the cumulative mean shift detector,
+    while the variance options guard volatility spikes in the trailing window.
+    ``min_variance_samples`` ensures both baseline and evaluation slices have
+    sufficient observations before a variance ratio is emitted.
+    """
 
     cleaned_entries = _sanitize_sequence(audit_entries)
     generated_at = datetime.utcnow()
@@ -171,6 +242,8 @@ def evaluate_sensory_drift(
 
     dimension_payloads: MutableMapping[str, SensoryDimensionDrift] = {}
     aggregate_status = DriftSeverity.normal
+    detector_catalog: dict[str, dict[str, Any]] = {}
+    severity_counts: Counter[str] = Counter()
 
     for name, payload in latest_dimensions.items():
         if not isinstance(payload, Mapping):
@@ -204,14 +277,51 @@ def evaluate_sensory_drift(
 
         delta: float | None = None
         severity = DriftSeverity.normal
+        detectors: list[str] = []
 
         if baseline_signal_value is not None:
             delta = current_signal - baseline_signal_value
             absolute_delta = abs(delta)
             if absolute_delta >= alert_threshold:
                 severity = DriftSeverity.alert
+                detectors.append("delta_alert")
             elif absolute_delta >= warn_threshold:
                 severity = DriftSeverity.warn
+                detectors.append("delta_warn")
+
+        detector_series = list(reversed(baseline_signals)) + [current_signal]
+        page_hinkley_stat: float | None = None
+        variance_ratio: float | None = None
+
+        if len(detector_series) >= 4:
+            page_hinkley_stat = _page_hinkley_stat(detector_series, delta=page_hinkley_delta)
+            if page_hinkley_stat >= page_hinkley_alert:
+                severity = DriftSeverity.alert
+                detectors.append("page_hinkley_alert")
+            elif page_hinkley_stat >= page_hinkley_warn:
+                severity = _upgrade_severity(severity, DriftSeverity.warn)
+                detectors.append("page_hinkley_warn")
+
+        min_total_variance = 2 * min_variance_samples
+        series_length = len(detector_series)
+        if series_length >= min_total_variance:
+            eval_window = variance_window if variance_window is not None else lookback
+            if eval_window <= 0:
+                eval_window = min_variance_samples
+            eval_window = max(min_variance_samples, min(eval_window, series_length - min_variance_samples))
+            if eval_window >= min_variance_samples and series_length - eval_window >= min_variance_samples:
+                evaluation_values = detector_series[-eval_window:]
+                baseline_window_values = detector_series[: series_length - eval_window]
+                baseline_values = baseline_window_values[-eval_window:]
+                ratio = _variance_ratio(baseline_values, evaluation_values)
+                if ratio is not None:
+                    variance_ratio = ratio
+                    if ratio >= variance_alert_ratio:
+                        severity = DriftSeverity.alert
+                        detectors.append("variance_alert")
+                    elif ratio >= variance_warn_ratio:
+                        severity = _upgrade_severity(severity, DriftSeverity.warn)
+                        detectors.append("variance_warn")
 
         aggregate_status = _max_severity(aggregate_status, severity)
 
@@ -229,11 +339,27 @@ def evaluate_sensory_drift(
             confidence_delta=confidence_delta,
             severity=severity,
             samples=1 + len(baseline_signals),
+            page_hinkley_stat=page_hinkley_stat,
+            variance_ratio=variance_ratio,
+            detectors=tuple(detectors),
         )
+        severity_counts[severity.value] += 1
+        detector_entry: dict[str, Any] = {"severity": severity.value}
+        if detectors:
+            detector_entry["detectors"] = list(detectors)
+        if page_hinkley_stat is not None:
+            detector_entry["page_hinkley_stat"] = page_hinkley_stat
+        if variance_ratio is not None:
+            detector_entry["variance_ratio"] = variance_ratio
+        detector_catalog[name] = detector_entry
 
     snapshot_metadata = {"entries": len(cleaned_entries)}
     if metadata:
         snapshot_metadata.update(dict(metadata))
+    if severity_counts:
+        snapshot_metadata["severity_counts"] = dict(severity_counts)
+    if detector_catalog:
+        snapshot_metadata["detectors"] = detector_catalog
 
     return SensoryDriftSnapshot(
         generated_at=generated_at,
@@ -276,10 +402,64 @@ def publish_sensory_drift(
     )
 
 
+def _should_emit(severity: DriftSeverity, threshold: DriftSeverity) -> bool:
+    return _SEVERITY_ORDER[severity] >= _SEVERITY_ORDER[threshold]
+
+
+def derive_drift_alerts(
+    snapshot: SensoryDriftSnapshot,
+    *,
+    threshold: DriftSeverity = DriftSeverity.warn,
+    include_overall: bool = True,
+    base_tags: Sequence[str] = ("drift-sentry",),
+) -> list[AlertEvent]:
+    """Translate sensory drift telemetry into alert events."""
+
+    events: list[AlertEvent] = []
+    base_tag_tuple = tuple(base_tags)
+    severity_map: Mapping[DriftSeverity, AlertSeverity] = {
+        DriftSeverity.normal: AlertSeverity.info,
+        DriftSeverity.warn: AlertSeverity.warning,
+        DriftSeverity.alert: AlertSeverity.critical,
+    }
+
+    if include_overall and _should_emit(snapshot.status, threshold):
+        events.append(
+            AlertEvent(
+                category="sensory.drift",
+                severity=severity_map[snapshot.status],
+                message=f"Sensory drift status {snapshot.status.value}",
+                tags=base_tag_tuple,
+                context={"snapshot": snapshot.as_dict()},
+            )
+        )
+
+    for name, dimension in snapshot.dimensions.items():
+        if not _should_emit(dimension.severity, threshold):
+            continue
+        dimension_tags = base_tag_tuple + (name.lower(),)
+        detector_suffix = f" ({', '.join(dimension.detectors)})" if dimension.detectors else ""
+        events.append(
+            AlertEvent(
+                category=f"sensory.drift.{name.lower()}",
+                severity=severity_map[dimension.severity],
+                message=f"{name} drift {dimension.severity.value}{detector_suffix}",
+                tags=dimension_tags,
+                context={
+                    "dimension": dimension.as_dict(),
+                    "snapshot": snapshot.as_dict(),
+                },
+            )
+        )
+
+    return events
+
+
 __all__ = [
     "DriftSeverity",
     "SensoryDimensionDrift",
     "SensoryDriftSnapshot",
     "evaluate_sensory_drift",
+    "derive_drift_alerts",
     "publish_sensory_drift",
 ]

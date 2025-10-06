@@ -1,6 +1,152 @@
 {
-  "coverage_trend": [],
-  "coverage_domain_trend": [],
-  "formatter_trend": [],
-  "remediation_trend": []
+  "coverage_trend": [
+    {
+      "label": "2025-09-29T12:00:00+00:00",
+      "coverage_percent": 75.1,
+      "source": "coverage-reports/pytest-2025-09-29.xml"
+    },
+    {
+      "label": "2025-10-06T11:00:00+00:00",
+      "coverage_percent": 76.4,
+      "source": "coverage-reports/pytest-2025-10-06.xml"
+    }
+  ],
+  "formatter_trend": [
+    {
+      "label": "2025-09-01T09:00:00+00:00",
+      "mode": "global",
+      "total_entries": 0,
+      "directory_count": 0,
+      "file_count": 0
+    }
+  ],
+  "coverage_domain_trend": [
+    {
+      "label": "2025-09-29T12:00:00+00:00",
+      "source": "coverage-reports/pytest-2025-09-29.xml",
+      "generated_at": "2025-09-29T12:00:00+00:00",
+      "totals": {
+        "files": 128,
+        "lines": 14862,
+        "covered_lines": 11170,
+        "percent": 75.1
+      },
+      "domains": [
+        {
+          "name": "core",
+          "files": 26,
+          "covered_lines": 3120,
+          "lines": 3900,
+          "coverage_percent": 80.0
+        },
+        {
+          "name": "operations",
+          "files": 34,
+          "covered_lines": 2809,
+          "lines": 3770,
+          "coverage_percent": 74.5
+        },
+        {
+          "name": "trading",
+          "files": 38,
+          "covered_lines": 2847,
+          "lines": 3600,
+          "coverage_percent": 79.1
+        },
+        {
+          "name": "evolution",
+          "files": 30,
+          "covered_lines": 2394,
+          "lines": 3592,
+          "coverage_percent": 66.6
+        }
+      ],
+      "threshold": 80.0,
+      "lagging_domains": [
+        "operations",
+        "trading",
+        "evolution"
+      ],
+      "lagging_count": 3,
+      "worst_domain": {
+        "name": "evolution",
+        "coverage_percent": 66.6
+      }
+    },
+    {
+      "label": "2025-10-06T11:00:00+00:00",
+      "source": "coverage-reports/pytest-2025-10-06.xml",
+      "generated_at": "2025-10-06T11:00:00+00:00",
+      "totals": {
+        "files": 130,
+        "lines": 15004,
+        "covered_lines": 11464,
+        "percent": 76.4
+      },
+      "domains": [
+        {
+          "name": "core",
+          "files": 26,
+          "covered_lines": 3172,
+          "lines": 3960,
+          "coverage_percent": 80.1
+        },
+        {
+          "name": "operations",
+          "files": 34,
+          "covered_lines": 3014,
+          "lines": 3748,
+          "coverage_percent": 80.4
+        },
+        {
+          "name": "trading",
+          "files": 38,
+          "covered_lines": 2899,
+          "lines": 3640,
+          "coverage_percent": 79.6
+        },
+        {
+          "name": "evolution",
+          "files": 32,
+          "covered_lines": 2435,
+          "lines": 3640,
+          "coverage_percent": 66.9
+        }
+      ],
+      "threshold": 80.0,
+      "lagging_domains": [
+        "trading",
+        "evolution"
+      ],
+      "lagging_count": 2,
+      "worst_domain": {
+        "name": "evolution",
+        "coverage_percent": 66.9
+      }
+    }
+  ],
+  "remediation_trend": [
+    {
+      "label": "2025-09-29",
+      "statuses": {
+        "overall_coverage": "75.1",
+        "lagging_count": "3",
+        "coverage_threshold": "80",
+        "worst_domain": "evolution"
+      },
+      "note": "Lagging domains: operations (74.5%), trading (79.1%), evolution (66.6%)",
+      "source": "coverage-reports/pytest-2025-09-29.xml"
+    },
+    {
+      "label": "2025-10-06",
+      "statuses": {
+        "overall_coverage": "76.4",
+        "lagging_count": "2",
+        "coverage_threshold": "80",
+        "worst_domain": "evolution"
+      },
+      "note": "Lagging domains: trading (79.6%), evolution (66.9%)",
+      "source": "coverage-reports/pytest-2025-10-06.xml"
+    }
+  ]
 }

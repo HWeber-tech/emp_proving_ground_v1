@@ -206,7 +206,7 @@
   schema updates with AlphaTrade probe coverage milestones so reviewers can
   crosswalk delivery against the execution plan.
 - Publish regression progress and telemetry deltas in weekly status updates,
-  linking roadmap checkmarks to the refreshed briefs so discovery stays aligned.
+  linking roadmap checkmarks to the refreshed briefs so discovery stays aligned. 【F:docs/status/quality_weekly_status.md†L1-L26】【F:tools/telemetry/ci_digest.py†L1-L337】
 
 ### Later (90+ days)
 

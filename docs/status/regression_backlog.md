@@ -24,6 +24,6 @@ coverage improvements alongside formatter progress.
   the shared fixtures when refining WHY sensor heuristics.
 - Capture coverage deltas in [`docs/status/ci_health.md`](ci_health.md) after
   each ticket lands to keep telemetry in sync with regression progress.
-- Drop a short summary into the weekly status update once REG-005 closes so the
-  orchestration smoke tests become part of the standard regression suite.
+- Drop a short summary into `docs/status/quality_weekly_status.md` once REG-005 closes so the
+  orchestration smoke tests become part of the standard regression suite. 【F:docs/status/quality_weekly_status.md†L1-L26】
 

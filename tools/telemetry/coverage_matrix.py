@@ -7,7 +7,12 @@ import json
 import sys
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import datetime, timezone
+
+try:
+    from datetime import UTC  # type: ignore[attr-defined]
+except ImportError:  # pragma: no cover - Python < 3.11 fallback
+    UTC = timezone.utc
 from pathlib import Path
 from typing import Iterable, Sequence
 

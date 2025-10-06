@@ -48,6 +48,8 @@ from src.operations.retention import (
     RetentionComponentSnapshot,
     RetentionStatus,
 )
+from src.operations.sensory_metrics import build_sensory_metrics
+from src.operations.sensory_summary import build_sensory_summary
 from src.operations.system_validation import (
     SystemValidationCheck,
     SystemValidationSnapshot,
@@ -1318,6 +1320,91 @@ async def test_professional_app_summary_includes_sensory_drift(tmp_path) -> None
         assert drift_section["snapshot"]["status"] == DriftSeverity.warn.value
         assert "markdown" in drift_section
         assert "why" in drift_section["markdown"]
+    finally:
+        await app.shutdown()
+
+
+@pytest.mark.asyncio()
+async def test_professional_app_summary_includes_sensory_summary_and_metrics(tmp_path) -> None:
+    db_path = tmp_path / "sensory_summary.db"
+    cfg = SystemConfig().with_updated(
+        connection_protocol=ConnectionProtocol.bootstrap,
+        data_backbone_mode=DataBackboneMode.institutional,
+        extras={"TIMESCALEDB_URL": f"sqlite:///{db_path}"},
+    )
+
+    app = await build_professional_predator_app(config=cfg)
+    try:
+        generated_at = datetime(2024, 1, 5, 12, 30, tzinfo=UTC)
+        status_payload = {
+            "samples": 3,
+            "latest": {
+                "symbol": "EURUSD",
+                "generated_at": generated_at.isoformat(),
+                "integrated_signal": {
+                    "strength": 0.35,
+                    "confidence": 0.62,
+                    "direction": 1.0,
+                    "contributing": ["WHY", "HOW", "ANOMALY"],
+                },
+                "dimensions": {
+                    "WHY": {
+                        "signal": 0.38,
+                        "confidence": 0.70,
+                        "metadata": {
+                            "state": "bullish",
+                            "threshold_assessment": {"state": "nominal"},
+                        },
+                    },
+                    "HOW": {
+                        "signal": 0.22,
+                        "confidence": 0.55,
+                        "metadata": {
+                            "state": "nominal",
+                            "threshold_assessment": {"state": "nominal"},
+                        },
+                    },
+                    "ANOMALY": {
+                        "signal": 0.75,
+                        "confidence": 0.61,
+                        "metadata": {
+                            "state": "alert",
+                            "threshold_assessment": {"state": "alert"},
+                        },
+                    },
+                },
+            },
+            "sensor_audit": [
+                {
+                    "symbol": "EURUSD",
+                    "generated_at": generated_at.isoformat(),
+                    "unified_score": 0.33,
+                    "confidence": 0.6,
+                    "dimensions": {
+                        "WHY": {"signal": 0.38, "confidence": 0.7},
+                        "HOW": {"signal": 0.22, "confidence": 0.55},
+                    },
+                }
+            ],
+            "drift_summary": {"exceeded": [{"sensor": "ANOMALY"}]},
+        }
+
+        summary = build_sensory_summary(status_payload)
+        metrics = build_sensory_metrics(summary)
+        app.record_sensory_summary(summary)
+        app.record_sensory_metrics(metrics)
+
+        runtime_summary = app.summary()
+        summary_block = runtime_summary.get("sensory_summary")
+        metrics_block = runtime_summary.get("sensory_metrics")
+
+        assert summary_block is not None
+        assert summary_block["snapshot"]["symbol"] == "EURUSD"
+        assert "markdown" in summary_block and "WHY" in summary_block["markdown"]
+
+        assert metrics_block is not None
+        assert metrics_block["snapshot"]["symbol"] == "EURUSD"
+        assert metrics_block["snapshot"]["dimensions"]
     finally:
         await app.shutdown()
 

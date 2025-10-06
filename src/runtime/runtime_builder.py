@@ -166,6 +166,14 @@ from src.operations.kafka_readiness import (
     format_kafka_readiness_markdown,
     publish_kafka_readiness,
 )
+from src.operations.sensory_metrics import (
+    build_sensory_metrics,
+    publish_sensory_metrics,
+)
+from src.operations.sensory_summary import (
+    build_sensory_summary,
+    publish_sensory_summary,
+)
 from src.operations.spark_stress import (
     SparkStressSnapshot,
     SparkStressStatus,
@@ -309,6 +317,55 @@ def _locate_trading_manager(app: ProfessionalPredatorApp) -> Any | None:
     if sensory is None:
         return None
     return getattr(sensory, "trading_manager", None)
+
+
+def _process_sensory_status(
+    app: ProfessionalPredatorApp,
+    sensory_status: Mapping[str, Any] | None,
+) -> list[Mapping[str, Any]]:
+    """Publish sensory summary/metrics and return audit entries for drift analysis."""
+
+    if not isinstance(sensory_status, Mapping):
+        return []
+
+    try:
+        summary = build_sensory_summary(sensory_status)
+    except Exception:  # pragma: no cover - defensive guardrail
+        logger.debug("Failed to build sensory summary from status payload", exc_info=True)
+        audit_payload = sensory_status.get("sensor_audit")
+        if isinstance(audit_payload, Sequence):
+            return [entry for entry in audit_payload if isinstance(entry, Mapping)]
+        return []
+
+    logger.info("🧠 Sensory summary:\n%s", summary.to_markdown(limit=5))
+    try:
+        publish_sensory_summary(summary, event_bus=app.event_bus)
+    finally:
+        record_summary = getattr(app, "record_sensory_summary", None)
+        if callable(record_summary):
+            try:
+                record_summary(summary)
+            except Exception:  # pragma: no cover - diagnostics only
+                logger.debug("Failed to record sensory summary on runtime app", exc_info=True)
+
+    metrics = build_sensory_metrics(summary)
+    logger.info(
+        "📊 Sensory metrics: symbol=%s samples=%d drift_alerts=%s",
+        metrics.symbol,
+        metrics.samples,
+        ",".join(metrics.drift_alerts) if metrics.drift_alerts else "none",
+    )
+    try:
+        publish_sensory_metrics(metrics, event_bus=app.event_bus)
+    finally:
+        record_metrics = getattr(app, "record_sensory_metrics", None)
+        if callable(record_metrics):
+            try:
+                record_metrics(metrics)
+            except Exception:  # pragma: no cover - diagnostics only
+                logger.debug("Failed to record sensory metrics on runtime app", exc_info=True)
+
+    return [dict(entry) for entry in summary.audit_entries]
 
 
 def _prepare_trading_risk_enforcement(
@@ -2940,8 +2997,7 @@ def build_professional_runtime_application(
                                     exc_info=True,
                                 )
 
-                    sensory_audit_entries: list[Mapping[str, object]] = []
-                    sensory_status: Mapping[str, object] | None = None
+                    sensory_status: Mapping[str, Any] | None = None
                     sensory_component = getattr(app, "sensory_organ", None)
                     if sensory_component is not None:
                         status_method = getattr(sensory_component, "status", None)
@@ -2953,12 +3009,7 @@ def build_professional_runtime_application(
                                     "Failed to capture sensory status for drift telemetry",
                                     exc_info=True,
                                 )
-                    if isinstance(sensory_status, Mapping):
-                        audit_payload = sensory_status.get("sensor_audit")
-                        if isinstance(audit_payload, Sequence):
-                            sensory_audit_entries = [
-                                item for item in audit_payload if isinstance(item, Mapping)
-                            ]
+                    sensory_audit_entries = _process_sensory_status(app, sensory_status)
 
                     if sensory_audit_entries:
                         latest_entry = sensory_audit_entries[0]

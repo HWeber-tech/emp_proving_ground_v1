@@ -136,6 +136,8 @@ from src.operations.execution import (
     format_execution_markdown,
 )
 from src.operations.sensory_drift import SensoryDriftSnapshot
+from src.operations.sensory_metrics import SensoryMetrics
+from src.operations.sensory_summary import SensorySummary
 from src.observability.tracing import (
     NullRuntimeTracer,
     RuntimeTracer,
@@ -284,6 +286,8 @@ class ProfessionalPredatorApp:
         self._last_failover_drill_snapshot: FailoverDrillSnapshot | None = None
         self._last_execution_snapshot: ExecutionReadinessSnapshot | None = None
         self._last_sensory_drift_snapshot: SensoryDriftSnapshot | None = None
+        self._last_sensory_summary: SensorySummary | None = None
+        self._last_sensory_metrics: SensoryMetrics | None = None
         self._last_system_validation_snapshot: SystemValidationSnapshot | None = None
         self._last_evolution_experiment_snapshot: EvolutionExperimentSnapshot | None = None
         self._last_evolution_tuning_snapshot: EvolutionTuningSnapshot | None = None
@@ -592,6 +596,26 @@ class ProfessionalPredatorApp:
         """Return the last recorded execution readiness snapshot, if any."""
 
         return self._last_execution_snapshot
+
+    def record_sensory_summary(self, summary: SensorySummary) -> None:
+        """Store the most recent sensory summary payload."""
+
+        self._last_sensory_summary = summary
+
+    def get_last_sensory_summary(self) -> SensorySummary | None:
+        """Return the most recent sensory summary, if any."""
+
+        return self._last_sensory_summary
+
+    def record_sensory_metrics(self, metrics: SensoryMetrics) -> None:
+        """Store the most recent sensory metrics payload."""
+
+        self._last_sensory_metrics = metrics
+
+    def get_last_sensory_metrics(self) -> SensoryMetrics | None:
+        """Return the most recent sensory metrics, if any."""
+
+        return self._last_sensory_metrics
 
     def record_sensory_drift_snapshot(self, snapshot: SensoryDriftSnapshot) -> None:
         """Store the most recent sensory drift snapshot."""
@@ -1100,6 +1124,19 @@ class ProfessionalPredatorApp:
             if markdown:
                 system_validation_payload["markdown"] = markdown
             summary_payload["system_validation"] = system_validation_payload
+
+        if self._last_sensory_summary is not None:
+            sensory_summary = self._last_sensory_summary
+            summary_payload["sensory_summary"] = {
+                "snapshot": sensory_summary.as_dict(),
+                "markdown": sensory_summary.to_markdown(),
+            }
+
+        if self._last_sensory_metrics is not None:
+            sensory_metrics = self._last_sensory_metrics
+            summary_payload["sensory_metrics"] = {
+                "snapshot": sensory_metrics.as_dict(),
+            }
 
         if self._last_sensory_drift_snapshot is not None:
             drift_snapshot = self._last_sensory_drift_snapshot

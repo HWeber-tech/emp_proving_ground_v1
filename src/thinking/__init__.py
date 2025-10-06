@@ -14,11 +14,18 @@ This layer owns all cognitive functions including:
 
 from __future__ import annotations
 
-from .analysis import *
-from .inference import *
-from .memory import *
-from .models import *
-from .patterns import *
+from contextlib import suppress
+
+with suppress(ModuleNotFoundError):
+    from .analysis import *
+with suppress(ModuleNotFoundError):
+    from .inference import *
+with suppress(ModuleNotFoundError):
+    from .memory import *
+with suppress(ModuleNotFoundError):
+    from .models import *
+with suppress(ModuleNotFoundError):
+    from .patterns import *
 
 __version__ = "1.1.0"
 __author__ = "EMP System"

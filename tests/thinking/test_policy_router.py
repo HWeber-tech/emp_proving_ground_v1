@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
@@ -18,6 +18,7 @@ def _regime(
     *,
     volume_z: float = 0.1,
     volatility: float = 0.2,
+    timestamp: datetime | None = None,
 ) -> RegimeState:
     return RegimeState(
         regime=regime,
@@ -26,7 +27,7 @@ def _regime(
             "volume_z": volume_z,
             "volatility": volatility,
         },
-        timestamp=datetime(2024, 3, 15, 12, 0, tzinfo=timezone.utc),
+        timestamp=timestamp or datetime(2024, 3, 15, 12, 0, tzinfo=timezone.utc),
     )
 
 
@@ -114,3 +115,97 @@ def test_registering_duplicate_tactic_raises() -> None:
 
     with pytest.raises(ValueError):
         router.register_tactic(PolicyTactic(tactic_id="dup", base_weight=1.0))
+
+
+def test_update_tactic_replaces_existing_definition() -> None:
+    router = PolicyRouter()
+    original = PolicyTactic(tactic_id="alpha", base_weight=1.0, description="old")
+    router.register_tactic(original)
+
+    updated = PolicyTactic(
+        tactic_id="alpha",
+        base_weight=1.2,
+        description="new",
+        objectives=("alpha-capture",),
+        tags=("momentum",),
+    )
+    router.update_tactic(updated)
+
+    stored = router.tactics()["alpha"]
+    assert stored.description == "new"
+    assert stored.base_weight == pytest.approx(1.2)
+    assert stored.objectives == ("alpha-capture",)
+    assert stored.tags == ("momentum",)
+
+    with pytest.raises(KeyError):
+        router.update_tactic(PolicyTactic(tactic_id="missing", base_weight=0.5))
+
+
+def test_reflection_digest_surfaces_emerging_strategies() -> None:
+    router = PolicyRouter(reflection_history=10)
+    router.register_tactics(
+        (
+            PolicyTactic(
+                tactic_id="breakout",
+                base_weight=1.0,
+                regime_bias={"bull": 1.4},
+                description="Momentum breakout",
+                objectives=("alpha-capture", "trend-follow"),
+                tags=("momentum", "fast-weight"),
+            ),
+            PolicyTactic(
+                tactic_id="mean_reversion",
+                base_weight=0.9,
+                regime_bias={"bull": 0.9},
+                description="Calm reversion",
+                objectives=("stability",),
+                tags=("reversion",),
+            ),
+        )
+    )
+
+    base = datetime(2024, 3, 15, 12, 0, tzinfo=timezone.utc)
+    router.route(_regime(timestamp=base))
+    router.route(_regime(timestamp=base + timedelta(minutes=5)))
+
+    router.register_experiment(
+        FastWeightExperiment(
+            experiment_id="exp-reversion",
+            tactic_id="mean_reversion",
+            delta=0.75,
+            rationale="Boost reversion while volatility remains muted",
+            min_confidence=0.6,
+            feature_gates={"volatility": (None, 0.3)},
+        )
+    )
+    router.route(_regime(volatility=0.25, timestamp=base + timedelta(minutes=10)))
+
+    digest = router.reflection_digest()
+
+    assert digest["total_decisions"] == 3
+    assert digest["as_of"].endswith("+00:00")
+
+    top_tactic = digest["tactics"][0]
+    assert top_tactic["tactic_id"] == "breakout"
+    assert top_tactic["count"] == 2
+    assert top_tactic["share"] == pytest.approx(2 / 3)
+    assert set(top_tactic["tags"]) == {"momentum", "fast-weight"}
+
+    reversion_entry = next(item for item in digest["tactics"] if item["tactic_id"] == "mean_reversion")
+    assert reversion_entry["avg_score"] > 0.0
+    assert reversion_entry["objectives"] == ["stability"]
+
+    experiments = digest["experiments"]
+    assert experiments[0]["experiment_id"] == "exp-reversion"
+    assert experiments[0]["count"] == 1
+    assert experiments[0]["most_common_tactic"] == "mean_reversion"
+
+    regimes = digest["regimes"]
+    assert regimes["bull"]["share"] == pytest.approx(1.0)
+
+    assert digest["current_streak"] == {"tactic_id": "mean_reversion", "length": 1}
+    assert digest["longest_streak"] == {"tactic_id": "breakout", "length": 2}
+
+    headlines = digest["recent_headlines"]
+    assert len(headlines) == 3
+    assert headlines[-1].startswith("Selected mean_reversion")

@@ -171,10 +171,14 @@
 - Refresh CI dashboard rows as telemetry lands, noting validation hooks and
   outstanding actions so stakeholders see live gaps (e.g., sensory fixture
   rollout, ingest metrics coverage).【F:docs/status/ci_health.md†L21-L76】
-- Publish decision narration capsules in the observability diary schema,
-  linking policy ledger diffs, sigma stability metrics, and throttle-state
-  transitions to each change window so AlphaTrade reviewers inherit a single
-  provenance trail for loop updates.
+- Progress: CI health snapshot and weekly status log now capture coverage and
+  remediation deltas with evidence pointers, keeping roadmap references aligned
+  with the latest telemetry exports.【F:docs/status/ci_health.md†L10-L21】【F:docs/status/quality_weekly_status.md†L18-L35】
+- Progress: Decision narration capsule builder/publisher now normalises policy
+  ledger diffs, sigma stability telemetry, and throttle states before emitting
+  Markdown/JSON payloads through the shared failover helper so AlphaTrade
+  reviewers inherit a resilient, single-trail diary feed aligned with the
+  observability schema under pytest coverage.【F:src/operations/observability_diary.py†L3-L392】【F:tests/operations/test_observability_diary.py†L1-L190】
 - Extend sensory drift regressions with Page–Hinkley detectors and throttle
   exercises, persisting deterministic replay artefacts and Prometheus export
   fixtures that demonstrate the fast-weight loop’s drift/throttle controls are

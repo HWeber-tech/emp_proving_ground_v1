@@ -21,7 +21,7 @@
 21 - Ensure psutil types installed (types-psutil); confirm via mypy run
 22 - Normalize internal imports to src.* consistently across codebase (no bare-package imports)
 23 - Add typed re-export shim [src/core/event_bus.py](src/core/event_bus.py:1) if event bus has moved, mapping old import sites to actual implementation
-24 - Audit and correct imports in [src/operational/event_bus.py](src/operational/event_bus.py:1) to point to the canonical event bus module
+24 - Legacy operational event bus path now aliases to [src/core/event_bus.py](src/core/event_bus.py:1) during `src.operational` import; keep the alias regression in [tests/operational/test_event_bus_alias.py](tests/operational/test_event_bus_alias.py:162) green
 25 - Fix risk package public API: reconcile [src/risk/__init__.py](src/risk/__init__.py:1) to import the real module or add [src/risk/real_risk_manager.py](src/risk/real_risk_manager.py:1) if needed
 26 - Audit orchestration imports in [src/orchestration/enhanced_intelligence_engine.py](src/orchestration/enhanced_intelligence_engine.py:1) and update to canonical src.market_intelligence.* paths
 27 - Standardize imports in market intelligence dimension modules under [src/market_intelligence/dimensions/](src/market_intelligence/dimensions/)

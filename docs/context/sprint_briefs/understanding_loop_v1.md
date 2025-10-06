@@ -59,6 +59,8 @@
   - Add CI guard ensuring fast-weight updates revert when `fast_weights_enabled` flag is false.
   - Register router contract tests under `pytest -m guardrail` that assert only approved strategy IDs receive high-confidence intents.
   - Static analysis hook verifying router configs declare policy references found in the policy ledger.
+- **Progress**
+  - PolicyRouter now routes tactics with fast-weight multipliers, captures guardrail metadata, and emits reviewer-facing reflection summaries under pytest coverage so the sprint can focus on wiring the remaining understanding router façade around the canonical implementation.【F:src/thinking/adaptation/policy_router.py†L1-L210】【F:tests/thinking/test_policy_router.py†L33-L116】
 
 ### Days 6–7 – Decision diary & probes (≈3 tickets)
 
@@ -74,6 +76,8 @@
   - Governance gate requiring diary entry presence before `fast_weights_enabled` toggles persist.
   - Lint rule or pre-commit check verifying diaries reference existing probe IDs.
   - Observability dashboard row automatically failing if diary export lag exceeds SLA (hooked via coverage matrix helper).【F:docs/context/alignment_briefs/quality_observability.md†L10-L188】
+- **Progress**
+  - Decision narration capsule builder/publisher now normalises ledger diffs, sigma stability, and throttle states, then publishes Markdown/JSON payloads via the shared failover helper so diary deliverables can plug directly into governance and observability dashboards.【F:src/operations/observability_diary.py†L3-L392】【F:tests/operations/test_observability_diary.py†L1-L190】
 
 ### Days 8–9 – Drift sentry (≈3 tickets)
 

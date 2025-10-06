@@ -38,9 +38,9 @@ Phase 1 scope — families and decisions
 1) EventBus (2)
 - Observed in:
   - [src/core/event_bus.py](src/core/event_bus.py)
-  - [src/operational/event_bus.py](src/operational/event_bus.py)
+  - ~~[src/operational/event_bus.py](src/operational/event_bus.py)~~ (removed; `src.operational` registers aliases that point to the canonical module)
 - Canonical: [src/core/event_bus.py](src/core/event_bus.py)
-- Legacy shim: keep [src/operational/event_bus.py](src/operational/event_bus.py) as a re-export only.
+- Legacy shim: removed in favour of direct aliases registered when importing `src.operational`.
 - Rationale: event bus is a core infrastructure primitive.
 
 2) RiskManager (3) and RiskConfig (2)
@@ -219,7 +219,7 @@ Re-export shim policy (Phase 1)
 - Re-export only; no additional logic in legacy modules.
 - Single source-of-truth import path used by all new code.
 - Shims live where current imports originate:
-- Example targets to receive shims (non-exhaustive): [src/operational/event_bus.py](src/operational/event_bus.py), ~~src/core.py~~ (removed), ~~src/risk.py~~ (removed), [src/trading/models.py](src/trading/models.py), [src/sensory/__init__.py](src/sensory/__init__.py), [src/data_integration/__init__.py](src/data_integration/__init__.py).
+- Example targets to receive shims (non-exhaustive): ~~[src/operational/event_bus.py](src/operational/event_bus.py)~~ (removed), ~~src/core.py~~ (removed), ~~src/risk.py~~ (removed), [src/trading/models.py](src/trading/models.py), [src/sensory/__init__.py](src/sensory/__init__.py), [src/data_integration/__init__.py](src/data_integration/__init__.py).
 
 Migration order (low risk to higher)
 1) Canonicalize “infrastructure primitives”:

@@ -31,7 +31,7 @@ Outcome: Internal code imports only from canonical modules under src, with optio
     - [src/performance/__init__.py](src/performance/__init__.py) — façade re-export for get_global_cache; replace internally with [src/core/performance/market_data_cache.py](src/core/performance/market_data_cache.py).
     - [src/trading/models.py](src/trading/models.py) — façade re-export for Position; replace internally with [src/trading/models/position.py](src/trading/models/position.py).
     - [src/sensory/models/__init__.py](src/sensory/models/__init__.py) — façade re-export for SensoryReading; internal code must import from [src/sensory/organs/dimensions/base_organ.py](src/sensory/organs/dimensions/base_organ.py).
-    - [src/operational/event_bus.py](src/operational/event_bus.py) — temporary shim for EventBus to be removed after PR2.
+    - ~~[src/operational/event_bus.py](src/operational/event_bus.py)~~ — shim removed; legacy import paths now alias to [src/core/event_bus.py](src/core/event_bus.py).
 
 - CI enforcement:
   - Duplicates scanner guard: require zero duplicate class groups; allow function duplicates only for main via [scripts/cleanup/check_no_new_duplicates.py](scripts/cleanup/check_no_new_duplicates.py:1).
@@ -47,7 +47,7 @@ Legend:
 
 | Source (shim/re-export) | Typical legacy import patterns to search | Replacement canonical import path(s) | Symbols impacted | Rename/alias |
 |---|---|---|---|---|
-| [src/operational/event_bus.py](src/operational/event_bus.py) → [src/core/event_bus.py](src/core/event_bus.py) | from operational.event_bus import EventBus; from src.operational.event_bus import EventBus; import operational.event_bus as bus | from src.core.event_bus import EventBus, event_bus, publish_event, subscribe_to_event, unsubscribe_from_event, start_event_bus, stop_event_bus | EventBus, event_bus, publish_event, subscribe_to_event, unsubscribe_from_event, start_event_bus, stop_event_bus | No rename |
+| ~~[src/operational/event_bus.py](src/operational/event_bus.py)~~ → [src/core/event_bus.py](src/core/event_bus.py) | from operational.event_bus import EventBus; from src.operational.event_bus import EventBus; import operational.event_bus as bus | from src.core.event_bus import EventBus, event_bus, publish_event, subscribe_to_event, unsubscribe_from_event, start_event_bus, stop_event_bus | EventBus, event_bus, publish_event, subscribe_to_event, unsubscribe_from_event, start_event_bus, stop_event_bus | No rename (legacy module removed; alias registered during `src.operational` import) |
 | [src/performance/__init__.py](src/performance/__init__.py) get_global_cache → [src/core/performance/market_data_cache.py](src/core/performance/market_data_cache.py) | from performance import get_global_cache; from src.performance import get_global_cache | from src.core.performance.market_data_cache import get_global_cache | get_global_cache | No rename |
 | [src/performance/__init__.py](src/performance/__init__.py) GlobalCache (deprecated) | from performance import GlobalCache | Prefer accessor: from src.core.performance.market_data_cache import get_global_cache; optional direct: from src.core.performance.market_data_cache import MarketDataCache | GlobalCache | Rename GlobalCache → MarketDataCache or usage of get_global_cache |
 | [src/trading/models.py](src/trading/models.py) → [src/trading/models/position.py](src/trading/models/position.py) | from trading.models import Position; from src.trading.models import Position | from src.trading.models.position import Position | Position | No rename |
@@ -301,7 +301,7 @@ repos:
 
 - PR2: Enforce and remove
   - Remove unused shims and re-export modules where feasible:
-    - [src/operational/event_bus.py](src/operational/event_bus.py)
+    - ~~[src/operational/event_bus.py](src/operational/event_bus.py)~~
     - [src/performance/__init__.py](src/performance/__init__.py) (keep if needed for external API only)
     - [src/trading/models.py](src/trading/models.py)
     - [src/sensory/models/__init__.py](src/sensory/models/__init__.py)
@@ -344,7 +344,7 @@ Risk mitigations:
 ## 9) Appendix
 
 A) Top-level canonical map (succinct):
-- Event bus: [src/core/event_bus.py](src/core/event_bus.py); shim [src/operational/event_bus.py](src/operational/event_bus.py)
+- Event bus: [src/core/event_bus.py](src/core/event_bus.py); shim removed (`src.operational` now aliases the canonical module)
 - Global cache: [src/core/performance/market_data_cache.py](src/core/performance/market_data_cache.py); façade [src/performance/__init__.py](src/performance/__init__.py)
 - Position: [src/trading/models/position.py](src/trading/models/position.py); façade [src/trading/models.py](src/trading/models.py)
 - Order book models: [src/trading/order_management/order_book/snapshot.py](src/trading/order_management/order_book/snapshot.py)

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import ast
 import json
 import re
 from dataclasses import dataclass
@@ -86,12 +87,65 @@ def _looks_like_shim(path: Path) -> bool:
         text = path.read_text(encoding="utf-8")
     except OSError:
         return False
-    lower = text.lower()
-    if "shim" in lower:
+
+    try:
+        tree = ast.parse(text)
+    except SyntaxError:
+        # Fallback to textual heuristic when the file cannot be parsed.
+        return "shim" in text.lower()
+
+    docstring = ast.get_docstring(tree)
+    if docstring and "shim" in docstring.lower():
         return True
-    if "__getattr__" in text and "importlib" in text:
+
+    if _has_module_level_getattr(tree):
         return True
+
+    if _is_reexport_module(tree):
+        return True
+
+    if "shim" in text.lower():
+        return True
+
     return False
+
+
+def _has_module_level_getattr(tree: ast.AST) -> bool:
+    body = getattr(tree, "body", [])
+    for node in body:
+        if isinstance(node, ast.FunctionDef) and node.name == "__getattr__":
+            return True
+    return False
+
+
+def _is_reexport_module(tree: ast.AST) -> bool:
+    """Detect modules that only re-export symbols from other modules."""
+
+    body = getattr(tree, "body", [])
+    has_import = False
+
+    for node in body:
+        if isinstance(node, ast.Expr) and isinstance(node.value, ast.Constant) and isinstance(node.value.value, str):
+            # Docstring or string literal – ignore.
+            continue
+        if isinstance(node, ast.ImportFrom):
+            has_import = True
+            continue
+        if isinstance(node, ast.Assign):
+            if not all(isinstance(target, ast.Name) and target.id == "__all__" for target in node.targets):
+                return False
+            continue
+        if isinstance(node, ast.AnnAssign):
+            target = node.target
+            if not isinstance(target, ast.Name) or target.id != "__all__":
+                return False
+            continue
+        if isinstance(node, ast.Pass):
+            continue
+        # Any other top-level statement means this is not a pure re-export shim.
+        return False
+
+    return has_import
 
 
 def _format_summary(summary: DeadCodeSummary) -> str:

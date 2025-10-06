@@ -145,7 +145,7 @@ Dead code candidates (first 100):
 -  src\intelligence\red_team_ai.py
 -  src\intelligence\sentient_adaptation.py
 -  src\intelligence\specialized_predators.py
--  src\operational\event_bus.py
+-  ~~src\\operational\\event_bus.py~~ (removed; canonical imports now resolve through `src/core/event_bus.py` with legacy aliases registered during `src.operational` package import.)
 -  src\operational\fix_connection_manager.py
 -  src\operational\health_monitor.py
 -  src\operational\icmarkets_robust_application.py
@@ -218,7 +218,7 @@ Phase 1 Canonicalization Scope (committed)
 - Migration batches and steps: [MIGRATION_PLAN.md](docs/reports/MIGRATION_PLAN.md)
 
 Batch 1 (to execute next)
-- EventBus → canonical [src/core/event_bus.py](src/core/event_bus.py); legacy shim [src/operational/event_bus.py](src/operational/event_bus.py)
+- EventBus → canonical [src/core/event_bus.py](src/core/event_bus.py); legacy shim removed (aliases registered during `src.operational` package import)
 - get_global_cache → canonical [src/core/performance/market_data_cache.py](src/core/performance/market_data_cache.py); legacy shim [src/performance/__init__.py](src/performance/__init__.py)
 - Command to regenerate map:
   - python [duplicate_map.py](scripts/cleanup/duplicate_map.py:1) --root src --out docs/reports --min-count 2
@@ -233,7 +233,7 @@ Parser warnings (non-blocking, fix in relevant batches)
 
 - EventBus
   - Canonical: [src/core/event_bus.py](src/core/event_bus.py)
-  - Legacy shim: [src/operational/event_bus.py](src/operational/event_bus.py)
+  - Legacy shim: ~~[src/operational/event_bus.py](src/operational/event_bus.py)~~ (removed; aliases registered during `src.operational` import)
 - get_global_cache
   - Canonical: [src/core/performance/market_data_cache.py](src/core/performance/market_data_cache.py)
   - Legacy shim: [src/performance/__init__.py](src/performance/__init__.py)

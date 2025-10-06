@@ -31,3 +31,13 @@ def test_summarise_candidates_identifies_shims(_repo_root: Path) -> None:
     assert isinstance(summary, DeadCodeSummary)
     assert "src/core/sensory_organ.py" in summary.present
     assert "src/core/sensory_organ.py" in summary.shim_exports
+
+
+def test_shim_detection_skips_protocol_getattr_false_positive(_repo_root: Path) -> None:
+    report_path = _repo_root / "docs" / "reports" / "CLEANUP_REPORT.md"
+    candidates = parse_cleanup_report(report_path)
+
+    summary = summarise_candidates(candidates, repo_root=_repo_root)
+
+    assert "src/operational/fix_connection_manager.py" in summary.present
+    assert "src/operational/fix_connection_manager.py" not in summary.shim_exports

@@ -47,7 +47,7 @@ Batch 1 — Infrastructure primitives
   - get_global_cache → canonical [src/core/performance/market_data_cache.py](src/core/performance/market_data_cache.py)
 - Actions:
   - Ensure canonical modules hold the only implementations.
-  - Convert [src/operational/event_bus.py](src/operational/event_bus.py) to a re-export shim.
+  - Remove [src/operational/event_bus.py](src/operational/event_bus.py) and register aliases during `src.operational` import.
   - Convert [src/performance/__init__.py](src/performance/__init__.py) to a re-export for get_global_cache.
 - Tests:
   - Run unit/integration for core and operational packages.

@@ -114,6 +114,8 @@
   - Feature flag preventing ledger promotions without matching decision diary evidence IDs.
   - Guardrail test asserting ledger rejects unsigned policy deltas (missing reviewer metadata).
   - CI step diffing ledger snapshots to block silent policy drift.
+- **Progress**
+  - Policy ledger store now records staged promotions with diary evidence, threshold overrides, and policy deltas, exposes release helpers, and powers a rebuild CLI that regenerates enforceable risk configs plus router guardrails while exporting governance workflows under pytest coverage so AlphaTrade promotions stay auditable end to end.【F:src/governance/policy_ledger.py†L1-L200】【F:src/governance/policy_rebuilder.py†L1-L141】【F:tools/governance/rebuild_policy.py†L1-L112】【F:tests/governance/test_policy_ledger.py†L33-L181】【F:tests/tools/test_rebuild_policy_cli.py†L11-L41】
 
 ### Days 12–14 – Graph diagnostics & acceptance (≈4 tickets)
 

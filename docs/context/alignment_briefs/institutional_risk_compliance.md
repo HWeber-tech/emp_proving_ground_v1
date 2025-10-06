@@ -94,6 +94,12 @@
   publish compiled KYC/AML, regulatory, and audit evidence bundles with typed
   escalation logs so runtime outages still deliver governance telemetry, with
   pytest scenarios covering fallback behaviour.【F:src/operations/governance_reporting.py†L437-L519】【F:tests/operations/test_governance_reporting.py†L1-L200】
+- Progress: Policy ledger store now enforces staged promotions with diary
+  evidence, approval metadata, and threshold overrides, and the rebuild CLI
+  regenerates enforceable risk configs plus router guardrails while exporting
+  governance workflow snapshots under pytest coverage so compliance reviews can
+  trace AlphaTrade tactics from ledger to runtime enforcement without manual
+  reconciliation.【F:src/governance/policy_ledger.py†L1-L200】【F:src/governance/policy_rebuilder.py†L1-L141】【F:tools/governance/rebuild_policy.py†L1-L112】【F:tests/governance/test_policy_ledger.py†L33-L181】【F:tests/tools/test_rebuild_policy_cli.py†L11-L41】
 
 ### Next (30–90 days)
 

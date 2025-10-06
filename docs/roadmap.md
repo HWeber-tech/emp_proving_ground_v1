@@ -172,6 +172,10 @@ kit that the roadmap calls back to in each checklist.
     emits telemetry via the event-bus failover helper so dashboards inherit
     resilient sensory rollups backed by pytest coverage of runtime and failover
     paths.【F:src/operations/sensory_summary.py†L1-L215】【F:tests/operations/test_sensory_summary.py†L1-L155】
+  - *Progress*: Professional runtime now captures the integrated sensory status
+    feed, publishes the hardened summary/metrics telemetry, and caches the last
+    snapshots so the Predator app summary exposes Markdown/JSON payloads for
+    responders under regression coverage of the builder and app surfaces.【F:src/runtime/runtime_builder.py†L322-L368】【F:src/runtime/predator_app.py†L600-L1139】【F:tests/runtime/test_runtime_builder.py†L121-L207】【F:tests/runtime/test_professional_app_timescale.py†L1328-L1404】
   - *Progress*: Core module now logs and documents the sensory organ import
     fallback, emitting warnings and restoring stub exports under regression
     coverage so bootstrap environments surface degraded sensory wiring instead of
@@ -411,6 +415,10 @@ kit that the roadmap calls back to in each checklist.
     feed while the CLI ingests observability dashboard snapshots into the
     remediation trend so status exports inherit actionable coverage and
     operational readiness deltas.【F:tools/telemetry/ci_metrics.py†L112-L337】【F:tools/telemetry/update_ci_metrics.py†L1-L169】【F:tests/tools/test_ci_metrics.py†L180-L309】
+  - *Progress*: CI digest CLI now renders dashboard rows and weekly digests from
+    the metrics JSON, calculating coverage/domain/remediation deltas with pytest
+    coverage and wiring straight into the status log so teams can paste evidence
+    into the backlog and weekly reports without manual collation.【F:tools/telemetry/ci_digest.py†L1-L240】【F:tests/tools/test_ci_digest.py†L1-L152】【F:docs/status/ci_health.md†L13-L19】【F:docs/status/quality_weekly_status.md†L1-L26】
   - *Progress*: Quality telemetry snapshot builder now normalises coverage,
     staleness, and remediation trends into a typed `QualityTelemetrySnapshot`,
     escalating WARN/FAIL severities, retaining lagging-domain metadata, and
@@ -420,6 +428,10 @@ kit that the roadmap calls back to in each checklist.
     Markdown tables with delta call-outs, honours slice limits, omits deltas for
     non-numeric statuses, and ships with a CLI/pytest contract so status reports
     can ingest `tests/.telemetry/ci_metrics.json` without hand-curated decks.【F:tools/telemetry/remediation_summary.py†L1-L220】【F:tests/tools/test_remediation_summary.py†L22-L125】
+  - *Progress*: Status digest CLI fuses coverage, formatter, remediation,
+    freshness, and observability dashboard telemetry into Markdown for CI table
+    rows or weekly updates, with pytest locking the CLI contract so briefs and
+    sprint notes stay evidence-backed.【F:tools/telemetry/status_digest.py†L1-L347】【F:tests/tools/test_status_digest.py†L1-L217】【F:docs/context/alignment_briefs/quality_observability.md†L262-L271】
 - [ ] **Dead code and duplication** – Triage the 168-file dead-code backlog and
   eliminate shim exports so operators see a single canonical API surface.【F:docs/reports/CLEANUP_REPORT.md†L71-L188】
   - *Progress*: Removed the deprecated risk and evolution configuration shims,

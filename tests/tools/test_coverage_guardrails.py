@@ -40,7 +40,9 @@ def sample_report(tmp_path: Path) -> Path:
     coverage = {
         "src/data_foundation/ingest/production_slice.py": [1, 1, 1, 0],
         "src/data_foundation/ingest/timescale_pipeline.py": [1, 1, 1, 1, 0],
+        "src/data_foundation/ingest/scheduler.py": [1, 1, 1, 1],
         "src/trading/risk/risk_policy.py": [1, 1, 0, 1, 1],
+        "src/trading/risk/policy_telemetry.py": [1, 1, 1, 0],
         "src/data_foundation/ingest/observability.py": [1, 1, 1, 1, 1],
         "src/operations/observability_dashboard.py": [1, 1, 1, 1, 1],
     }
@@ -53,7 +55,9 @@ def test_evaluate_guardrails_passes_when_threshold_met(sample_report: Path) -> N
     assert {target.label for target in report.targets} == {
         "ingest_production_slice",
         "timescale_pipeline",
+        "ingest_scheduler",
         "risk_policy",
+        "risk_policy_telemetry",
         "ingest_observability",
         "observability_dashboard",
     }
@@ -75,14 +79,18 @@ def test_evaluate_guardrails_marks_missing_targets(tmp_path: Path) -> None:
     assert report.has_failures
     assert set(report.failing) == {
         "timescale_pipeline",
+        "ingest_scheduler",
         "ingest_observability",
         "observability_dashboard",
+        "risk_policy_telemetry",
     }
     missing = {target.label for target in report.targets if target.missing}
     assert missing == {
         "timescale_pipeline",
+        "ingest_scheduler",
         "ingest_observability",
         "observability_dashboard",
+        "risk_policy_telemetry",
     }
 
 

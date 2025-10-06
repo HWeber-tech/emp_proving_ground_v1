@@ -22,7 +22,9 @@ __all__ = [
 _DEFAULT_TARGETS: dict[str, str] = {
     "ingest_production_slice": "src/data_foundation/ingest/production_slice.py",
     "timescale_pipeline": "src/data_foundation/ingest/timescale_pipeline.py",
+    "ingest_scheduler": "src/data_foundation/ingest/scheduler.py",
     "risk_policy": "src/trading/risk/risk_policy.py",
+    "risk_policy_telemetry": "src/trading/risk/policy_telemetry.py",
     "ingest_observability": "src/data_foundation/ingest/observability.py",
     "observability_dashboard": "src/operations/observability_dashboard.py",
 }

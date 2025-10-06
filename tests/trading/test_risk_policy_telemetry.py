@@ -20,6 +20,9 @@ from src.trading.risk.policy_telemetry import (
 from src.trading.risk.risk_policy import RiskPolicy, RiskPolicyDecision
 
 
+pytestmark = pytest.mark.guardrail
+
+
 class StubBus:
     def __init__(self) -> None:
         self.events: list[Any] = []

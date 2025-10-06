@@ -24,6 +24,7 @@ _GUARDRAIL_TARGETS: dict[str, Path] = {
     "risk_policy": Path("tests/trading/test_risk_policy.py"),
     "risk_policy_telemetry": Path("tests/trading/test_risk_policy_telemetry.py"),
     "observability_event_bus": Path("tests/operations/test_event_bus_health.py"),
+    "understanding_acceptance": Path("tests/understanding/test_understanding_acceptance.py"),
 }
 
 

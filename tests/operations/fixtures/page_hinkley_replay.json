@@ -1,0 +1,128 @@
+{
+  "metadata": {
+    "replay_id": "page_hinkley_replay",
+    "description": "Deterministic sensory drift replay fixture triggering Page-Hinkley alert without delta threshold"
+  },
+  "audit_entries": [
+    {
+      "symbol": "EURUSD",
+      "generated_at": "2024-05-01T10:00:00Z",
+      "dimensions": {
+        "why": {
+          "signal": 0.4,
+          "confidence": 0.72
+        }
+      }
+    },
+    {
+      "symbol": "EURUSD",
+      "generated_at": "2024-05-01T09:59:00Z",
+      "dimensions": {
+        "why": {
+          "signal": 0.32,
+          "confidence": 0.72
+        }
+      }
+    },
+    {
+      "symbol": "EURUSD",
+      "generated_at": "2024-05-01T09:58:00Z",
+      "dimensions": {
+        "why": {
+          "signal": 0.24,
+          "confidence": 0.72
+        }
+      }
+    },
+    {
+      "symbol": "EURUSD",
+      "generated_at": "2024-05-01T09:57:00Z",
+      "dimensions": {
+        "why": {
+          "signal": 0.18,
+          "confidence": 0.72
+        }
+      }
+    },
+    {
+      "symbol": "EURUSD",
+      "generated_at": "2024-05-01T09:56:00Z",
+      "dimensions": {
+        "why": {
+          "signal": 0.14,
+          "confidence": 0.72
+        }
+      }
+    },
+    {
+      "symbol": "EURUSD",
+      "generated_at": "2024-05-01T09:55:00Z",
+      "dimensions": {
+        "why": {
+          "signal": 0.1,
+          "confidence": 0.72
+        }
+      }
+    },
+    {
+      "symbol": "EURUSD",
+      "generated_at": "2024-05-01T09:54:00Z",
+      "dimensions": {
+        "why": {
+          "signal": 0.07,
+          "confidence": 0.72
+        }
+      }
+    },
+    {
+      "symbol": "EURUSD",
+      "generated_at": "2024-05-01T09:53:00Z",
+      "dimensions": {
+        "why": {
+          "signal": 0.05,
+          "confidence": 0.72
+        }
+      }
+    },
+    {
+      "symbol": "EURUSD",
+      "generated_at": "2024-05-01T09:52:00Z",
+      "dimensions": {
+        "why": {
+          "signal": 0.02,
+          "confidence": 0.72
+        }
+      }
+    },
+    {
+      "symbol": "EURUSD",
+      "generated_at": "2024-05-01T09:51:00Z",
+      "dimensions": {
+        "why": {
+          "signal": 0.0,
+          "confidence": 0.72
+        }
+      }
+    },
+    {
+      "symbol": "EURUSD",
+      "generated_at": "2024-05-01T09:50:00Z",
+      "dimensions": {
+        "why": {
+          "signal": -0.01,
+          "confidence": 0.72
+        }
+      }
+    },
+    {
+      "symbol": "EURUSD",
+      "generated_at": "2024-05-01T09:49:00Z",
+      "dimensions": {
+        "why": {
+          "signal": -0.02,
+          "confidence": 0.72
+        }
+      }
+    }
+  ]
+}

@@ -96,6 +96,28 @@ def _coerce_snapshot_mapping(snapshot: Any) -> Mapping[str, Any] | None:
     return None
 
 
+def _describe_risk_interface_payload(trading_manager: Any) -> Mapping[str, Any] | None:
+    """Resolve the trading risk interface payload if the manager exposes it."""
+
+    describe = getattr(trading_manager, "describe_risk_interface", None)
+    if not callable(describe):
+        return None
+    try:
+        payload = describe()
+    except Exception as exc:  # pragma: no cover - diagnostics only
+        _log.debug(
+            "Trading manager describe_risk_interface failed: %s",
+            exc,
+            exc_info=exc,
+        )
+        return None
+    if payload is None:
+        return None
+    if isinstance(payload, Mapping):
+        return dict(payload)
+    return {"value": payload}
+
+
 def _format_optional_markdown(
     formatter: Callable[[Any], str | None], snapshot: Any
 ) -> str | None:
@@ -245,6 +267,10 @@ class BootstrapControlCenter:
         if policy_mapping is not None:
             overview["risk_policy"] = policy_mapping
 
+        interface_payload = _describe_risk_interface_payload(self.trading_manager)
+        if interface_payload is not None:
+            overview["risk_interface"] = interface_payload
+
         roi_obj = _call_trading_manager_method(
             self.trading_manager, "get_last_roi_snapshot"
         )
@@ -290,6 +316,7 @@ class BootstrapControlCenter:
         limits_payload = (
             dict(limits) if isinstance(limits, Mapping) else {"limits": {}, "telemetry": {}}
         )
+        interface_payload = _describe_risk_interface_payload(self.trading_manager)
         snapshot_obj = _call_trading_manager_method(
             self.trading_manager, "get_last_risk_snapshot"
         )
@@ -319,6 +346,7 @@ class BootstrapControlCenter:
             else last_decision,
             "snapshot": dict(snapshot) if isinstance(snapshot, Mapping) else None,
             "policy": policy_block,
+            "interface": interface_payload,
         }
 
     def _build_intelligence_section(self) -> Mapping[str, Any]:

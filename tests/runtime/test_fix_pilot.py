@@ -10,6 +10,7 @@ from src.runtime.fix_dropcopy import FixDropcopyReconciler
 from src.runtime.fix_pilot import FixIntegrationPilot, FixPilotState
 from src.runtime.task_supervisor import TaskSupervisor
 from src.trading.order_management import OrderMetadata
+from src.trading.risk.risk_api import RISK_API_RUNBOOK
 
 
 class _StubAdapter:
@@ -111,12 +112,24 @@ class _StubComplianceMonitor:
         return {"policy": {"name": "default"}}
 
 
+class _StubTradingManager:
+    def __init__(self) -> None:
+        self._stats = {"orders_submitted": 1}
+
+    def get_execution_stats(self):
+        return dict(self._stats)
+
+    def describe_risk_interface(self):
+        return {"summary": {"runbook": RISK_API_RUNBOOK}}
+
+
 @pytest.mark.asyncio
 async def test_fix_integration_pilot_start_stop_and_snapshot():
     manager = _StubManager()
     sensory = _StubComponent()
     broker = _StubBroker()
     supervisor = TaskSupervisor(namespace="test", logger=logging.getLogger(__name__))
+    trading_manager = _StubTradingManager()
 
     def factory(coro, name=None):
         return supervisor.create(coro, name=name)
@@ -133,6 +146,7 @@ async def test_fix_integration_pilot_start_stop_and_snapshot():
         task_supervisor=supervisor,
         event_bus=None,
         compliance_monitor=_StubComplianceMonitor(),
+        trading_manager=trading_manager,
         dropcopy_listener=dropcopy,
     )
 
@@ -159,6 +173,8 @@ async def test_fix_integration_pilot_start_stop_and_snapshot():
     assert state.queue_metrics["price"]["delivered"] == 3
     assert state.active_orders == 1
     assert state.compliance_summary["policy"]["name"] == "default"
+    assert state.risk_interface is not None
+    assert state.risk_interface.get("summary", {}).get("runbook") == RISK_API_RUNBOOK
     assert state.dropcopy_running is True
     assert state.dropcopy_backlog == 0
     assert state.dropcopy_reconciliation is not None

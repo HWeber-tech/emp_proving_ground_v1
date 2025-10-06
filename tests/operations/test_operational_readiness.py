@@ -52,6 +52,11 @@ from src.operations.sensory_drift import (
     SensoryDimensionDrift,
     SensoryDriftSnapshot,
 )
+from src.operations.drift_sentry import (
+    DriftSentryConfig,
+    DriftSentrySnapshot,
+    evaluate_drift_sentry,
+)
 from src.operations.operational_readiness import (
     OperationalReadinessStatus,
     derive_operational_alerts,
@@ -122,6 +127,50 @@ def _drift_snapshot(severity: DriftSeverity) -> SensoryDriftSnapshot:
     )
 
 
+def _understanding_drift_snapshot(severity: DriftSeverity) -> DriftSentrySnapshot:
+    if severity is DriftSeverity.alert:
+        config = DriftSentryConfig(
+            baseline_window=8,
+            evaluation_window=4,
+            min_observations=4,
+            page_hinkley_delta=0.001,
+            page_hinkley_warn=0.15,
+            page_hinkley_alert=0.3,
+            variance_ratio_warn=1.2,
+            variance_ratio_alert=1.6,
+        )
+        series = [0.05] * 8 + [0.9] * 4
+    elif severity is DriftSeverity.warn:
+        config = DriftSentryConfig(
+            baseline_window=8,
+            evaluation_window=4,
+            min_observations=4,
+            page_hinkley_delta=0.002,
+            page_hinkley_warn=0.08,
+            page_hinkley_alert=0.35,
+            variance_ratio_warn=1.25,
+            variance_ratio_alert=3.0,
+        )
+        baseline = [0.12, 0.13, 0.11, 0.12, 0.13, 0.12, 0.11, 0.12]
+        evaluation = [0.18, 0.2, 0.19, 0.18]
+        series = baseline + evaluation
+    else:
+        config = DriftSentryConfig(
+            baseline_window=8,
+            evaluation_window=4,
+            min_observations=4,
+        )
+        series = [0.2] * 12
+
+    snapshot = evaluate_drift_sentry(
+        {"belief_confidence": series},
+        config=config,
+        generated_at=datetime(2025, 1, 4, tzinfo=UTC),
+    )
+    assert snapshot.status is severity
+    return snapshot
+
+
 def test_operational_readiness_combines_components() -> None:
     readiness = evaluate_operational_readiness(
         system_validation=_system_validation_snapshot(SystemValidationStatus.warn),
@@ -164,6 +213,22 @@ def test_operational_readiness_includes_drift_component() -> None:
     assert drift_component.metadata.get("issue_counts", {}).get("warn") == 1
 
 
+def test_operational_readiness_includes_understanding_drift_component() -> None:
+    readiness = evaluate_operational_readiness(
+        drift_snapshot=_understanding_drift_snapshot(DriftSeverity.alert)
+    )
+
+    assert readiness.status is OperationalReadinessStatus.fail
+    component = readiness.components[0]
+    assert component.name == "drift_sentry"
+    assert "belief_confidence:alert" in component.summary
+    metadata = component.metadata
+    assert metadata.get("runbook") == "docs/operations/runbooks/drift_sentry_response.md"
+    issue_details = metadata.get("issue_details")
+    assert issue_details and "belief_confidence" in issue_details
+    assert issue_details["belief_confidence"].get("severity") == DriftSeverity.alert.value
+
+
 def test_operational_readiness_alert_generation() -> None:
     readiness = evaluate_operational_readiness(
         system_validation=_system_validation_snapshot(SystemValidationStatus.warn)
@@ -201,6 +266,20 @@ def test_operational_readiness_alerts_include_drift_component() -> None:
     assert drift_event.severity is AlertSeverity.critical
     assert drift_event.tags == ("operational-readiness", "drift_sentry")
     assert drift_event.context["component"]["name"] == "drift_sentry"
+
+
+def test_operational_readiness_alerts_include_understanding_drift_component() -> None:
+    readiness = evaluate_operational_readiness(
+        drift_snapshot=_understanding_drift_snapshot(DriftSeverity.warn)
+    )
+
+    events = derive_operational_alerts(readiness)
+    drift_event = next(
+        event for event in events if event.category == "operational.drift_sentry"
+    )
+    assert drift_event.severity is AlertSeverity.warning
+    component_metadata = drift_event.context["component"]["metadata"]
+    assert component_metadata.get("runbook") == "docs/operations/runbooks/drift_sentry_response.md"
 
 
 def test_operational_readiness_aggregates_issue_counts() -> None:

@@ -1,9 +1,11 @@
 # Drift Sentry response
 
 The drift sentry runbook activates when Page–Hinkley or rolling variance
-thresholds breach the guardrails defined in `src/operations/sensory_drift.py`.
-The readiness stack now raises a `drift_sentry` component inside the operational
-readiness snapshot and dispatches alert categories `sensory.drift*` and
+thresholds breach the guardrails defined in `src/operations/sensory_drift.py`
+for sensory dimensions or the belief/regime metrics processed by
+`src/operations/drift_sentry.py`. The readiness stack now raises a
+`drift_sentry` component inside the operational readiness snapshot and
+dispatches alert categories `sensory.drift*`, `understanding.drift_sentry`, and
 `operational.drift_sentry` whenever the severity reaches WARN or ALERT. Use this
 playbook to decide whether to pause promotions, adjust thresholds, or escalate
 to adaptation leads.
@@ -14,14 +16,20 @@ to adaptation leads.
   per-dimension metadata for Page–Hinkley statistics, variance ratios, and the
   triggered detector list. The snapshot metadata also exposes
   `severity_counts` and `detectors` maps for dashboards and alert payloads.【F:src/operations/sensory_drift.py†L1-L287】
+- **Understanding drift snapshot** – Published via
+  `telemetry.understanding.drift_sentry` with belief/regime detector summaries,
+  baseline/evaluation statistics, and severity counts so operational dashboards
+  can render AlphaTrade drift posture alongside sensory telemetry.【F:src/operations/drift_sentry.py†L1-L279】
 - **Operational readiness component** – `evaluate_operational_readiness` now adds
   a `drift_sentry` component whose summary surfaces the degraded dimensions and
-  detector reasons. Guardrail alerts route through the existing operations email
-  and webhook channels.【F:src/operations/operational_readiness.py†L83-L253】
+  detector reasons, including belief/regime metrics and the linked runbook path
+  for AlphaTrade responders. Guardrail alerts route through the existing
+  operations email and webhook channels.【F:src/operations/operational_readiness.py†L83-L347】
 - **Alert policy** – `default_alert_policy_config` includes explicit routing for
-  `sensory.drift`, `sensory.drift.<dimension>`, and `operational.drift_sentry`
-  categories so notifications reach the ops email/webhook transports with a
-  10-minute suppression window.【F:src/operations/alerts.py†L520-L552】
+  `sensory.drift`, `sensory.drift.<dimension>`, `understanding.drift_sentry`,
+  and `operational.drift_sentry` categories so notifications reach the ops
+  email/webhook transports with suppression windows tuned for incident response
+  drills.【F:src/operations/alerts.py†L520-L552】
 
 ## Triage checklist
 
@@ -32,9 +40,10 @@ to adaptation leads.
    confirm the `drift_sentry` component status. The metadata block includes
    detector stats and WARN/FAIL counts for direct export into incident updates.
 3. **Correlate with understanding loop** – Inspect the understanding dashboard
-   tile for the affected dimensions. If ledger approvals or fast-weight
-   experiments align with the drift spike, coordinate with the adaptation lead
-   before re-enabling promotions.
+   tile for the affected dimensions. If ledger approvals, belief/regime scoring,
+   or fast-weight experiments align with the drift spike, coordinate with the
+   adaptation lead before re-enabling promotions. The drift sentry snapshot
+   includes baseline/evaluation stats to speed the comparison.
 4. **Escalate if ALERT** – On ALERT severity the runbook requires notifying the
    incident response lead, pausing paper-trade promotions, and logging a
    decision diary entry referencing the drift snapshot ID.

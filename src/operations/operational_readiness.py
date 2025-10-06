@@ -20,6 +20,7 @@ from src.operations.incident_response import (
     IncidentResponseSnapshot,
     IncidentResponseStatus,
 )
+from src.operations.drift_sentry import DriftSentryMetric, DriftSentrySnapshot
 from src.operations.sensory_drift import DriftSeverity, SensoryDriftSnapshot
 from src.operations.slo import OperationalSLOSnapshot, SLOStatus
 from src.operations.system_validation import (
@@ -206,44 +207,87 @@ def _slo_component(snapshot: OperationalSLOSnapshot) -> OperationalReadinessComp
     )
 
 
-def _drift_component(snapshot: SensoryDriftSnapshot) -> OperationalReadinessComponent:
+def _build_metric_detail(metric: DriftSentryMetric) -> dict[str, object]:
+    detail: dict[str, object] = {
+        "severity": metric.severity.value,
+        "baseline_mean": metric.baseline_mean,
+        "evaluation_mean": metric.evaluation_mean,
+        "baseline_variance": metric.baseline_variance,
+        "evaluation_variance": metric.evaluation_variance,
+        "baseline_count": metric.baseline_count,
+        "evaluation_count": metric.evaluation_count,
+    }
+    if metric.detectors:
+        detail["detectors"] = list(metric.detectors)
+    if metric.page_hinkley_stat is not None:
+        detail["page_hinkley_stat"] = metric.page_hinkley_stat
+    if metric.variance_ratio is not None:
+        detail["variance_ratio"] = metric.variance_ratio
+    return detail
+
+
+def _drift_component(
+    snapshot: SensoryDriftSnapshot | DriftSentrySnapshot,
+) -> OperationalReadinessComponent:
     status = _map_drift_status(snapshot.status)
     degraded: list[str] = []
     issue_counts: dict[str, int] = {}
     issue_details: dict[str, dict[str, object]] = {}
 
-    for name, dimension in snapshot.dimensions.items():
-        severity = dimension.severity
-        if severity is DriftSeverity.normal:
-            continue
-        if severity is DriftSeverity.warn:
-            issue_counts["warn"] = issue_counts.get("warn", 0) + 1
-        elif severity is DriftSeverity.alert:
-            issue_counts["fail"] = issue_counts.get("fail", 0) + 1
+    if isinstance(snapshot, DriftSentrySnapshot):
+        for name, metric in snapshot.metrics.items():
+            severity = metric.severity
+            if severity is DriftSeverity.normal:
+                continue
+            if severity is DriftSeverity.warn:
+                issue_counts["warn"] = issue_counts.get("warn", 0) + 1
+            elif severity is DriftSeverity.alert:
+                issue_counts["fail"] = issue_counts.get("fail", 0) + 1
 
-        detector_suffix = f" ({', '.join(dimension.detectors)})" if dimension.detectors else ""
-        degraded.append(f"{name}:{severity.value}{detector_suffix}")
+            detector_suffix = f" ({', '.join(metric.detectors)})" if metric.detectors else ""
+            degraded.append(f"{name}:{severity.value}{detector_suffix}")
+            issue_details[name] = _build_metric_detail(metric)
 
-        detail: dict[str, object] = {"severity": severity.value}
-        if dimension.detectors:
-            detail["detectors"] = list(dimension.detectors)
-        if dimension.page_hinkley_stat is not None:
-            detail["page_hinkley_stat"] = dimension.page_hinkley_stat
-        if dimension.variance_ratio is not None:
-            detail["variance_ratio"] = dimension.variance_ratio
-        issue_details[name] = detail
+        metadata: dict[str, object] = {
+            "snapshot": snapshot.as_dict(),
+            "config": snapshot.config.as_dict(),
+            "runbook": snapshot.metadata.get(
+                "runbook", "docs/operations/runbooks/drift_sentry_response.md"
+            ),
+        }
+    else:
+        metadata = {"snapshot": snapshot.as_dict()}
+        for name, dimension in snapshot.dimensions.items():
+            severity = dimension.severity
+            if severity is DriftSeverity.normal:
+                continue
+            if severity is DriftSeverity.warn:
+                issue_counts["warn"] = issue_counts.get("warn", 0) + 1
+            elif severity is DriftSeverity.alert:
+                issue_counts["fail"] = issue_counts.get("fail", 0) + 1
+
+            detector_suffix = f" ({', '.join(dimension.detectors)})" if dimension.detectors else ""
+            degraded.append(f"{name}:{severity.value}{detector_suffix}")
+
+            detail: dict[str, object] = {"severity": severity.value}
+            if dimension.detectors:
+                detail["detectors"] = list(dimension.detectors)
+            if dimension.page_hinkley_stat is not None:
+                detail["page_hinkley_stat"] = dimension.page_hinkley_stat
+            if dimension.variance_ratio is not None:
+                detail["variance_ratio"] = dimension.variance_ratio
+            issue_details[name] = detail
+
+    if issue_counts:
+        metadata["issue_counts"] = issue_counts
+    if issue_details:
+        metadata["issue_details"] = issue_details
 
     summary = (
         "no drift exceedances"
         if not degraded
         else "; ".join(sorted(degraded))
     )
-
-    metadata: dict[str, object] = {"snapshot": snapshot.as_dict()}
-    if issue_counts:
-        metadata["issue_counts"] = issue_counts
-    if issue_details:
-        metadata["issue_details"] = issue_details
 
     return OperationalReadinessComponent(
         name="drift_sentry",
@@ -299,7 +343,7 @@ def evaluate_operational_readiness(
     *,
     system_validation: SystemValidationSnapshot | None = None,
     incident_response: IncidentResponseSnapshot | None = None,
-    drift_snapshot: SensoryDriftSnapshot | None = None,
+    drift_snapshot: SensoryDriftSnapshot | DriftSentrySnapshot | None = None,
     slo_snapshot: OperationalSLOSnapshot | None = None,
     metadata: Mapping[str, object] | None = None,
 ) -> OperationalReadinessSnapshot:

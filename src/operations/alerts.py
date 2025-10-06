@@ -531,6 +531,7 @@ def default_alert_policy_config() -> dict[str, object]:
                     "operational.incident_response",
                     "operational.operational_slos",
                     "operational.drift_sentry",
+                    "understanding.drift_sentry",
                 ],
                 "min_severity": "warning",
                 "channels": ["ops-email", "ops-webhook"],

@@ -94,6 +94,10 @@
   - Alert-router integration test ensuring incident response receives drift alerts through failover helper.【F:docs/context/alignment_briefs/operational_readiness.md†L40-L88】
   - Static config validator requiring drift thresholds reference documented policy IDs.
 - **Progress**
+  - Drift sentry detectors now evaluate belief/regime metrics, emit
+    Page–Hinkley/variance telemetry, and feed operational readiness with
+    alert-ready payloads plus runbook metadata so incident response inherits
+    AlphaTrade drift posture under regression coverage.【F:src/operations/drift_sentry.py†L1-L279】【F:tests/intelligence/test_drift_sentry.py†L1-L103】【F:src/operations/operational_readiness.py†L209-L347】【F:docs/operations/runbooks/drift_sentry_response.md†L1-L69】
   - DriftSentry gate now consumes sensory drift snapshots, enforces confidence/notional guardrails before trade execution, and publishes gating summaries through the runtime bootstrap and Predator telemetry with regression coverage around the dedicated gate helper and trading manager integration.【F:src/trading/gating/drift_sentry_gate.py†L1-L200】【F:src/runtime/bootstrap_runtime.py†L161-L177】【F:src/runtime/predator_app.py†L1012-L1024】【F:tests/trading/test_trading_manager_execution.py†L187-L260】【F:tests/trading/test_drift_sentry_gate.py†L61-L153】
 
 ### Days 10–11 – Policy ledger & gate (≈3 tickets)

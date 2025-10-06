@@ -168,6 +168,14 @@ from .sensory_drift import (
     evaluate_sensory_drift,
     publish_sensory_drift,
 )
+from .drift_sentry import (
+    DriftSentryConfig,
+    DriftSentryMetric,
+    DriftSentrySnapshot,
+    derive_drift_sentry_alerts,
+    evaluate_drift_sentry,
+    publish_drift_sentry_snapshot,
+)
 from .sensory_summary import (
     SensoryDimensionSummary,
     SensorySummary,
@@ -356,6 +364,13 @@ __all__ = [
     "SensoryDriftSnapshot",
     "evaluate_sensory_drift",
     "publish_sensory_drift",
+    "derive_drift_alerts",
+    "DriftSentryConfig",
+    "DriftSentryMetric",
+    "DriftSentrySnapshot",
+    "evaluate_drift_sentry",
+    "derive_drift_sentry_alerts",
+    "publish_drift_sentry_snapshot",
     "SensoryDimensionSummary",
     "SensorySummary",
     "build_sensory_summary",

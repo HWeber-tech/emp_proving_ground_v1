@@ -151,3 +151,37 @@ def test_warn_notional_limit(notional: float, expected: bool) -> None:
         metadata={},
     )
     assert decision.allowed is expected
+
+
+def test_adaptive_threshold_overrides() -> None:
+    gate = DriftSentryGate(warn_confidence_floor=0.6)
+    gate.update_snapshot(_make_snapshot(DriftSeverity.warn))
+
+    blocked = gate.evaluate_trade(
+        symbol="EURUSD",
+        strategy_id="alpha",
+        confidence=0.7,
+        quantity=1.0,
+        notional=5_000.0,
+        metadata={},
+        threshold_overrides={
+            "warn_confidence_floor": 0.8,
+            "stage": "pilot",
+        },
+    )
+    assert not blocked.allowed
+    assert "0.800" in (blocked.reason or "")
+    assert blocked.requirements["release_stage"] == "pilot"
+
+    allowed = gate.evaluate_trade(
+        symbol="EURUSD",
+        strategy_id="alpha",
+        confidence=0.9,
+        quantity=1.0,
+        notional=5_000.0,
+        metadata={},
+        threshold_overrides={
+            "warn_confidence_floor": 0.65,
+        },
+    )
+    assert allowed.allowed

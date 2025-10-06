@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock
 
@@ -36,6 +37,11 @@ if not hasattr(_typing, "NotRequired"):
 import pytest
 
 from src.config.risk.risk_config import RiskConfig
+from src.governance.policy_ledger import (
+    LedgerReleaseManager,
+    PolicyLedgerStage,
+    PolicyLedgerStore,
+)
 from src.operations.sensory_drift import DriftSeverity, SensoryDimensionDrift, SensoryDriftSnapshot
 from src.trading.execution.paper_execution import ImmediateFillExecutionAdapter
 from src.trading.gating import DriftSentryGate
@@ -260,6 +266,113 @@ async def test_trading_manager_gates_on_drift(monkeypatch: pytest.MonkeyPatch) -
     assert decision.severity is DriftSeverity.warn
 
 
+@pytest.mark.asyncio()
+async def test_trading_manager_release_thresholds(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    async def _noop(*_args, **_kwargs) -> None:
+        return None
+
+    monkeypatch.setattr("src.trading.trading_manager.publish_risk_snapshot", _noop)
+    monkeypatch.setattr("src.trading.trading_manager.publish_roi_snapshot", _noop)
+    monkeypatch.setattr("src.trading.trading_manager.publish_policy_snapshot", _noop)
+    monkeypatch.setattr("src.trading.trading_manager.publish_policy_violation", _noop)
+    monkeypatch.setattr(
+        "src.trading.trading_manager.publish_risk_interface_snapshot", _noop
+    )
+    monkeypatch.setattr("src.trading.trading_manager.publish_risk_interface_error", _noop)
+
+    gate = DriftSentryGate(warn_confidence_floor=0.6)
+    store = PolicyLedgerStore(tmp_path / "policy_ledger.json")
+    release_manager = LedgerReleaseManager(store)
+    release_manager.promote(
+        policy_id="alpha",
+        tactic_id="alpha",
+        stage=PolicyLedgerStage.PAPER,
+        threshold_overrides={"warn_confidence_floor": 0.82},
+    )
+
+    manager = TradingManager(
+        event_bus=DummyBus(),
+        strategy_registry=AlwaysActiveRegistry(),
+        execution_engine=None,
+        initial_equity=50_000.0,
+        risk_config=RiskConfig(
+            min_position_size=1,
+            mandatory_stop_loss=False,
+            research_mode=True,
+        ),
+        drift_gate=gate,
+        release_manager=release_manager,
+    )
+    execution_engine = RecordingExecutionEngine()
+    manager.execution_engine = execution_engine
+
+    validate_mock: AsyncMock = AsyncMock(return_value=None)
+    manager.risk_gateway.validate_trade_intent = validate_mock  # type: ignore[assignment]
+
+    dimension = SensoryDimensionDrift(
+        name="WHY",
+        current_signal=0.42,
+        baseline_signal=0.10,
+        delta=0.32,
+        current_confidence=0.76,
+        baseline_confidence=0.70,
+        confidence_delta=0.06,
+        severity=DriftSeverity.warn,
+        samples=6,
+    )
+    snapshot = SensoryDriftSnapshot(
+        generated_at=datetime(2024, 1, 5, tzinfo=timezone.utc),
+        status=DriftSeverity.warn,
+        dimensions={"WHY": dimension},
+        sample_window=6,
+        metadata={"source": "test"},
+    )
+    manager.update_drift_sentry_snapshot(snapshot)
+
+    intent = ConfidenceIntent(
+        symbol="EURUSD",
+        quantity=1.0,
+        price=1.2010,
+        confidence=0.8,
+        strategy_id="alpha",
+    )
+
+    await manager.on_trade_intent(intent)
+
+    decision = manager.get_last_drift_gate_decision()
+    assert decision is not None
+    assert not decision.allowed, "confidence below release-managed floor should block"
+    assert "0.820" in (decision.reason or "")
+    requirements = dict(decision.requirements)
+    assert requirements["release_stage"] == PolicyLedgerStage.PAPER.value
+    assert validate_mock.await_count == 0
+    assert execution_engine.calls == 0
+
+
+def test_describe_release_posture(tmp_path: Path) -> None:
+    store = PolicyLedgerStore(tmp_path / "policy_ledger.json")
+    release_manager = LedgerReleaseManager(store)
+    release_manager.promote(
+        policy_id="alpha",
+        tactic_id="alpha",
+        stage=PolicyLedgerStage.LIMITED_LIVE,
+        approvals=("risk", "ops"),
+    )
+
+    manager = TradingManager(
+        event_bus=DummyBus(),
+        strategy_registry=AlwaysActiveRegistry(),
+        execution_engine=None,
+        initial_equity=10_000.0,
+        drift_gate=None,
+        release_manager=release_manager,
+    )
+
+    summary = manager.describe_release_posture("alpha")
+    assert summary["stage"] == PolicyLedgerStage.LIMITED_LIVE.value
+    assert summary["managed"] is True
+    assert "thresholds" in summary
+    assert summary.get("approvals") == ["ops", "risk"]
 @pytest.mark.asyncio()
 async def test_trading_manager_emits_policy_violation_alert(
     monkeypatch: pytest.MonkeyPatch,

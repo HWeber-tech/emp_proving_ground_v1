@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from typing import Any, Mapping, Sequence
+from typing import Any, Callable, Mapping, Sequence
 
 from src.operations.sensory_drift import DriftSeverity, SensoryDimensionDrift, SensoryDriftSnapshot
 
@@ -66,6 +66,7 @@ class DriftSentryGate:
         warn_notional_limit: float | None = 25_000.0,
         block_severity: DriftSeverity = DriftSeverity.alert,
         exempt_strategies: Sequence[str] | None = None,
+        threshold_resolver: Callable[[str | None], Mapping[str, Any] | None] | None = None,
     ) -> None:
         if not 0.0 <= warn_confidence_floor <= 1.0:
             raise ValueError("warn_confidence_floor must be between 0 and 1")
@@ -80,6 +81,7 @@ class DriftSentryGate:
         }
         self._latest_snapshot: SensoryDriftSnapshot | None = None
         self._last_decision: DriftSentryDecision | None = None
+        self._threshold_resolver = threshold_resolver
 
     @property
     def latest_snapshot(self) -> SensoryDriftSnapshot | None:
@@ -98,6 +100,13 @@ class DriftSentryGate:
 
         self._latest_snapshot = snapshot
 
+    def attach_threshold_resolver(
+        self, resolver: Callable[[str | None], Mapping[str, Any] | None] | None
+    ) -> None:
+        """Attach a resolver that provides adaptive thresholds per strategy."""
+
+        self._threshold_resolver = resolver
+
     def evaluate_trade(
         self,
         *,
@@ -107,12 +116,16 @@ class DriftSentryGate:
         quantity: float | None,
         notional: float | None,
         metadata: Mapping[str, Any] | None = None,
+        threshold_overrides: Mapping[str, Any] | None = None,
     ) -> DriftSentryDecision:
         """Evaluate trade intent metadata against the current drift posture."""
 
         snapshot = self._latest_snapshot
         evaluated_at = datetime.now(tz=UTC)
         severity = snapshot.status if snapshot is not None else DriftSeverity.normal
+        warn_confidence_floor, warn_notional_limit, block_severity, applied_stage = (
+            self._resolve_thresholds(strategy_id, threshold_overrides)
+        )
         blocked_dimensions = self._blocked_dimensions(snapshot)
         snapshot_metadata: Mapping[str, Any]
         if snapshot is not None and isinstance(snapshot.metadata, Mapping):
@@ -121,10 +134,13 @@ class DriftSentryGate:
             snapshot_metadata = {}
 
         requirements: dict[str, Any] = {
-            "confidence_floor": self._warn_confidence_floor,
+            "confidence_floor": warn_confidence_floor,
         }
-        if self._warn_notional_limit is not None:
-            requirements["warn_notional_limit"] = self._warn_notional_limit
+        if warn_notional_limit is not None:
+            requirements["warn_notional_limit"] = warn_notional_limit
+        requirements["block_severity"] = block_severity.value
+        if applied_stage:
+            requirements["release_stage"] = applied_stage
         if metadata:
             requirements.update({f"context.{key}": value for key, value in metadata.items()})
 
@@ -155,9 +171,9 @@ class DriftSentryGate:
             self._last_decision = decision
             return decision
 
-        if _severity_ge(severity, self._block_severity):
+        if _severity_ge(severity, block_severity):
             reason = (
-                f"drift severity {severity.value} reached block threshold {self._block_severity.value}"
+                f"drift severity {severity.value} reached block threshold {block_severity.value}"
             )
             decision = DriftSentryDecision(
                 allowed=False,
@@ -175,22 +191,22 @@ class DriftSentryGate:
             allowed = True
             reason: str | None = None
 
-            if confidence is None or confidence < self._warn_confidence_floor:
+            if confidence is None or confidence < warn_confidence_floor:
                 allowed = False
                 if confidence is None:
                     reason = "confidence missing during DriftSentry warn gating"
                 else:
                     reason = (
                         f"confidence {confidence:.3f} below DriftSentry floor "
-                        f"{self._warn_confidence_floor:.3f}"
+                        f"{warn_confidence_floor:.3f}"
                     )
 
-            if allowed and self._warn_notional_limit is not None and notional is not None:
-                if notional > self._warn_notional_limit:
+            if allowed and warn_notional_limit is not None and notional is not None:
+                if notional > warn_notional_limit:
                     allowed = False
                     reason = (
                         f"notional {notional:,.2f} exceeds DriftSentry warn limit "
-                        f"{self._warn_notional_limit:,.2f}"
+                        f"{warn_notional_limit:,.2f}"
                     )
 
             decision = DriftSentryDecision(
@@ -240,4 +256,48 @@ class DriftSentryGate:
             "warn_notional_limit": self._warn_notional_limit,
             "block_severity": self._block_severity.value,
             "exempt_strategies": sorted(self._exempt_strategies),
+            "adaptive_thresholds": bool(self._threshold_resolver),
         }
+
+    def _resolve_thresholds(
+        self,
+        strategy_id: str | None,
+        threshold_overrides: Mapping[str, Any] | None,
+    ) -> tuple[float, float | None, DriftSeverity, str | None]:
+        warn_confidence = self._warn_confidence_floor
+        warn_notional = self._warn_notional_limit
+        block_severity = self._block_severity
+        applied_stage: str | None = None
+
+        combined: dict[str, Any] = {}
+        if self._threshold_resolver is not None:
+            try:
+                resolved = self._threshold_resolver(strategy_id)
+            except Exception:  # pragma: no cover - defensive guard
+                resolved = None
+            if resolved:
+                combined.update(dict(resolved))
+        if threshold_overrides:
+            combined.update(dict(threshold_overrides))
+
+        if "stage" in combined:
+            applied_stage = str(combined["stage"])
+
+        if "warn_confidence_floor" in combined:
+            try:
+                warn_confidence = float(combined["warn_confidence_floor"])
+            except (TypeError, ValueError):
+                warn_confidence = self._warn_confidence_floor
+        if "warn_notional_limit" in combined:
+            try:
+                value = combined["warn_notional_limit"]
+                warn_notional = float(value) if value is not None else None
+            except (TypeError, ValueError):
+                warn_notional = self._warn_notional_limit
+        if "block_severity" in combined:
+            try:
+                block_severity = DriftSeverity(str(combined["block_severity"]).lower())
+            except Exception:
+                block_severity = self._block_severity
+
+        return warn_confidence, warn_notional, block_severity, applied_stage

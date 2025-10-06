@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections import Counter
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from enum import StrEnum
 from typing import Any, Iterable, Mapping, MutableMapping, Sequence
 
@@ -27,6 +27,15 @@ from src.operations.quality_telemetry import (
 )
 from src.operations.roi import RoiStatus, RoiTelemetrySnapshot
 from src.operations.slo import OperationalSLOSnapshot, SLOStatus
+from src.understanding.diagnostics import (
+    UnderstandingGraphStatus,
+    UnderstandingLoopSnapshot,
+)
+
+try:  # Python 3.10 compatibility
+    from datetime import UTC
+except ImportError:  # pragma: no cover - fallback for older runtimes
+    UTC = timezone.utc
 
 
 class DashboardStatus(StrEnum):
@@ -194,6 +203,14 @@ def _map_operational_readiness_status(
     return DashboardStatus.ok
 
 
+def _map_understanding_status(status: UnderstandingGraphStatus) -> DashboardStatus:
+    if status is UnderstandingGraphStatus.fail:
+        return DashboardStatus.fail
+    if status is UnderstandingGraphStatus.warn:
+        return DashboardStatus.warn
+    return DashboardStatus.ok
+
+
 def _map_quality_status(status: QualityStatus) -> DashboardStatus:
     if status is QualityStatus.fail:
         return DashboardStatus.fail
@@ -257,6 +274,7 @@ def build_observability_dashboard(
     backbone_snapshot: DataBackboneReadinessSnapshot | None = None,
     operational_readiness_snapshot: OperationalReadinessSnapshot | None = None,
     quality_snapshot: QualityTelemetrySnapshot | None = None,
+    understanding_snapshot: UnderstandingLoopSnapshot | None = None,
     additional_panels: Sequence[DashboardPanel] | None = None,
     generated_at: datetime | None = None,
     metadata: Mapping[str, Any] | None = None,
@@ -488,6 +506,43 @@ def build_observability_dashboard(
                 details=tuple(details),
                 metadata={
                     "operational_readiness": operational_readiness_snapshot.as_dict()
+                },
+            )
+        )
+
+    if understanding_snapshot is not None:
+        understanding_status = _map_understanding_status(understanding_snapshot.status)
+        regime = understanding_snapshot.regime_state
+        decision = understanding_snapshot.decision
+        ledger_diff = understanding_snapshot.ledger_diff
+        drift_exceeded = len(understanding_snapshot.drift_summary.exceeded)
+        details = [
+            "Regime {regime} @ {confidence:.1%}".format(
+                regime=regime.regime,
+                confidence=regime.confidence,
+            ),
+            "Drift exceedances: {count}".format(count=drift_exceeded),
+            "Selected tactic {tactic} weight {weight:.3f}".format(
+                tactic=decision.tactic_id,
+                weight=decision.selected_weight,
+            ),
+            "Ledger approvals: {approvals}".format(
+                approvals=",".join(ledger_diff.approvals) or "none",
+            ),
+        ]
+        experiments = ",".join(decision.experiments_applied)
+        details.append(f"Experiments: {experiments or 'none'}")
+
+        panels.append(
+            DashboardPanel(
+                name="Understanding loop",
+                status=understanding_status,
+                headline=(
+                    f"Understanding {understanding_snapshot.status.value}"
+                ),
+                details=tuple(details),
+                metadata={
+                    "understanding_loop": understanding_snapshot.as_dict()
                 },
             )
         )

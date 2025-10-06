@@ -1,6 +1,13 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta
+
+try:  # Python 3.10 compatibility
+    from datetime import UTC
+except ImportError:  # pragma: no cover - fallback for older runtimes
+    from datetime import timezone
+
+    UTC = timezone.utc
 
 import pytest
 
@@ -28,6 +35,7 @@ from src.operations.roi import RoiStatus, RoiTelemetrySnapshot
 from src.operations.slo import OperationalSLOSnapshot, ServiceSLO, SLOStatus
 from src.risk.analytics.expected_shortfall import ExpectedShortfallResult
 from src.risk.analytics.var import VarResult
+from src.understanding import UnderstandingDiagnosticsBuilder, UnderstandingGraphStatus
 
 
 pytestmark = pytest.mark.guardrail
@@ -358,3 +366,19 @@ def test_dashboard_risk_panel_announces_limit_statuses() -> None:
     assert metadata["parametric_var"]["limit_ratio"] == pytest.approx(0.9)
     assert metadata["expected_shortfall"]["limit_status"] == "invalid"
     assert "limit" in metadata["expected_shortfall"]
+
+
+def test_understanding_panel_included_with_snapshot() -> None:
+    builder = UnderstandingDiagnosticsBuilder(
+        now=lambda: datetime(2024, 1, 1, tzinfo=UTC)
+    )
+    snapshot = builder.build().to_snapshot()
+
+    dashboard = build_observability_dashboard(understanding_snapshot=snapshot)
+
+    panel = next(panel for panel in dashboard.panels if panel.name == "Understanding loop")
+    assert panel.status is DashboardStatus.ok
+
+    payload = panel.metadata["understanding_loop"]
+    assert payload["status"] == UnderstandingGraphStatus.ok.value
+    assert payload["graph"]["metadata"]["decision_id"] == snapshot.decision.tactic_id

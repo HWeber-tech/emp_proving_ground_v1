@@ -64,6 +64,11 @@
   render severity chips and remediation context without recomputing logic, with
   pytest guarding alert derivation, routing, and the failover publish path while
   docs capture the enriched payload contract.【F:src/operations/operational_readiness.py†L113-L373】【F:tests/operations/test_operational_readiness.py†L86-L221】【F:docs/status/operational_readiness.md†L1-L73】【F:tests/runtime/test_professional_app_timescale.py†L722-L799】
+- Progress: Drift sentry detectors now publish understanding-loop telemetry via the
+  failover helper, feed the new `drift_sentry` readiness component, and link the
+  shared runbook so incident response inherits Page–Hinkley/variance issue
+  catalogs alongside sensory drift, with regression coverage across the snapshot,
+  alert derivation, and documentation updates.【F:src/operations/drift_sentry.py†L1-L399】【F:tests/intelligence/test_drift_sentry.py†L43-L135】【F:tests/operations/test_operational_readiness.py†L200-L283】【F:docs/operations/runbooks/drift_sentry_response.md†L1-L69】
 - Wire the observability dashboard to consume the readiness snapshot directly,
   rendering a dedicated panel with component summaries and remediation roll-ups
   under pytest coverage so operators see readiness posture alongside risk,

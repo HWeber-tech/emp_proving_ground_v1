@@ -104,7 +104,9 @@ class FIXBrokerInterface:
         self._risk_gateway = risk_gateway
         self._portfolio_state_provider = portfolio_state_provider
         self._risk_event_topic = risk_event_topic
-        self._risk_interface_provider = risk_interface_provider
+        self._risk_interface_provider: Callable[[], Any] | None = None
+        if risk_interface_provider is not None:
+            self.set_risk_interface_provider(risk_interface_provider)
 
     async def start(self) -> None:
         """Start the broker interface."""
@@ -119,6 +121,15 @@ class FIXBrokerInterface:
             self._process_trade_messages(),
             name="fix-broker-trade-feed",
         )
+
+    def set_risk_interface_provider(
+        self, provider: Callable[[], Any] | None
+    ) -> None:
+        """Register (or clear) the callable that exposes trading risk state."""
+
+        if provider is not None and not callable(provider):
+            raise TypeError("risk interface provider must be callable or None")
+        self._risk_interface_provider = provider
 
     async def stop(self) -> None:
         """Stop the broker interface."""

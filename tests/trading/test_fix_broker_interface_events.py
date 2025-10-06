@@ -238,6 +238,36 @@ async def test_fix_interface_enriches_risk_reference_from_provider() -> None:
 
 
 @pytest.mark.asyncio
+async def test_fix_interface_updates_risk_reference_via_setter() -> None:
+    bus = DummyEventBus()
+    trade_queue: asyncio.Queue[Any] = asyncio.Queue()
+    fix = DummyFixInitiator()
+
+    interface = FIXBrokerInterface(bus, trade_queue, fix)
+
+    def provider() -> Mapping[str, Any]:
+        return {
+            "summary": {
+                "max_risk_per_trade_pct": 0.01,
+                "max_total_exposure_pct": 0.5,
+            },
+        }
+
+    interface.set_risk_interface_provider(provider)
+
+    await interface._publish_risk_rejection("EURUSD", "buy", 10_000.0, None)
+
+    assert bus.emitted
+    _, payload = bus.emitted[-1]
+    reference = payload["risk_reference"]
+    summary = reference.get("risk_config_summary")
+    assert summary is not None
+    assert summary["max_risk_per_trade_pct"] == pytest.approx(0.01)
+    assert summary["max_total_exposure_pct"] == pytest.approx(0.5)
+    assert reference["risk_api_runbook"] == RISK_API_RUNBOOK
+
+
+@pytest.mark.asyncio
 async def test_fix_interface_uses_risk_gateway_adjustments() -> None:
     bus = DummyEventBus()
     trade_queue: asyncio.Queue[Any] = asyncio.Queue()

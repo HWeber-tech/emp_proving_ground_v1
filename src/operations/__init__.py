@@ -191,6 +191,14 @@ from .quality_telemetry import (
     QualityTelemetrySnapshot,
     build_quality_telemetry_snapshot,
 )
+from .observability_diary import (
+    DecisionNarrationCapsule,
+    PolicyLedgerDiff,
+    SigmaStabilitySnapshot,
+    ThrottleStateSnapshot,
+    build_decision_narration_capsule,
+    publish_decision_narration_capsule,
+)
 from .operational_readiness import (
     OperationalReadinessComponent,
     OperationalReadinessSnapshot,

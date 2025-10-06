@@ -3,7 +3,7 @@ import json
 from collections import deque
 from datetime import UTC, datetime
 from types import SimpleNamespace
-from typing import Mapping
+from typing import Any, Mapping
 
 import io
 import json
@@ -54,7 +54,11 @@ from src.runtime import (
     build_professional_predator_app,
     build_professional_runtime_application,
 )
-from src.runtime.runtime_builder import _normalise_ingest_plan_metadata, _plan_dimensions
+from src.runtime.runtime_builder import (
+    _normalise_ingest_plan_metadata,
+    _plan_dimensions,
+    _process_sensory_status,
+)
 
 
 @pytest.mark.asyncio()
@@ -100,6 +104,107 @@ async def test_runtime_application_summary_contains_metadata():
     assert summary["ingestion"]["metadata"] == {"key": "value"}
     assert summary["shutdown_callbacks"] == 0
     assert summary["startup_callbacks"] == 0
+
+
+class _StubEventBus:
+    def __init__(self) -> None:
+        self.events: list[Any] = []
+
+    def is_running(self) -> bool:
+        return True
+
+    def publish_from_sync(self, event: Any) -> int:
+        self.events.append(event)
+        return 1
+
+
+class _StubSensoryApp:
+    def __init__(self) -> None:
+        self.event_bus = _StubEventBus()
+        self.summaries: list[Any] = []
+        self.metrics: list[Any] = []
+
+    def record_sensory_summary(self, summary: Any) -> None:
+        self.summaries.append(summary)
+
+    def record_sensory_metrics(self, metrics: Any) -> None:
+        self.metrics.append(metrics)
+
+
+def _sample_sensory_status_payload() -> dict[str, Any]:
+    generated_at = datetime.now(UTC)
+    return {
+        "samples": 4,
+        "latest": {
+            "symbol": "EURUSD",
+            "generated_at": generated_at.isoformat(),
+            "integrated_signal": {
+                "strength": 0.42,
+                "confidence": 0.68,
+                "direction": 1.0,
+                "contributing": ["WHY", "HOW", "ANOMALY"],
+            },
+            "dimensions": {
+                "WHY": {
+                    "signal": 0.38,
+                    "confidence": 0.70,
+                    "metadata": {
+                        "state": "bullish",
+                        "threshold_assessment": {"state": "nominal"},
+                    },
+                },
+                "HOW": {
+                    "signal": 0.22,
+                    "confidence": 0.55,
+                    "metadata": {
+                        "state": "nominal",
+                        "threshold_assessment": {"state": "nominal"},
+                    },
+                },
+                "ANOMALY": {
+                    "signal": 0.75,
+                    "confidence": 0.61,
+                    "metadata": {
+                        "state": "alert",
+                        "threshold_assessment": {"state": "alert"},
+                    },
+                },
+            },
+        },
+        "sensor_audit": [
+            {
+                "symbol": "EURUSD",
+                "generated_at": generated_at.isoformat(),
+                "unified_score": 0.39,
+                "confidence": 0.66,
+                "dimensions": {
+                    "WHY": {"signal": 0.38, "confidence": 0.70},
+                    "HOW": {"signal": 0.22, "confidence": 0.55},
+                },
+            }
+        ],
+        "drift_summary": {
+            "exceeded": [
+                {"sensor": "ANOMALY", "z_score": 3.1},
+            ]
+        },
+    }
+
+
+def test_process_sensory_status_publishes_summary_and_metrics() -> None:
+    app = _StubSensoryApp()
+    status = _sample_sensory_status_payload()
+
+    audit_entries = _process_sensory_status(app, status)
+
+    assert {event.type for event in app.event_bus.events} == {
+        "telemetry.sensory.summary",
+        "telemetry.sensory.metrics",
+    }
+    assert app.summaries and app.summaries[0].symbol == "EURUSD"
+    assert app.metrics and app.metrics[0].symbol == "EURUSD"
+    assert audit_entries
+    assert audit_entries[0]["symbol"] == "EURUSD"
 
 
 @pytest.mark.asyncio()

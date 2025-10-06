@@ -285,6 +285,12 @@ from src.thinking.adaptation.policy_router import (
     PolicyTactic,
     RegimeState,
 )
+from src.understanding.router import (
+    BeliefSnapshot,
+    FastWeightAdapter,
+    FeatureGate,
+    UnderstandingRouter,
+)
 
 
 class UnderstandingNodeKind(StrEnum):
@@ -518,8 +524,9 @@ class UnderstandingDiagnosticsBuilder:
             metadata={"window": "15m"},
         ).as_dict()
 
-        router = PolicyRouter(default_guardrails={"requires_diary": True, "max_latency_ms": 250})
-        router.register_tactic(
+        policy_router = PolicyRouter(default_guardrails={"requires_diary": True, "max_latency_ms": 250})
+        understanding_router = UnderstandingRouter(policy_router)
+        understanding_router.register_tactic(
             PolicyTactic(
                 tactic_id="momentum_breakout",
                 base_weight=1.15,
@@ -530,7 +537,7 @@ class UnderstandingDiagnosticsBuilder:
                 description="Fast-follow breakout with liquidity throttle",
             )
         )
-        router.register_tactic(
+        understanding_router.register_tactic(
             PolicyTactic(
                 tactic_id="mean_reversion",
                 base_weight=0.92,
@@ -542,7 +549,38 @@ class UnderstandingDiagnosticsBuilder:
             )
         )
 
-        decision = router.route(regime_state, fast_weights={"mean_reversion": 1.05})
+        understanding_router.register_adapter(
+            FastWeightAdapter(
+                adapter_id="low_liquidity_boost",
+                tactic_id="mean_reversion",
+                multiplier=1.05,
+                rationale="Boost mean reversion when liquidity is compressed and experiments are live",
+                feature_gates=(FeatureGate(feature="liquidity_z", maximum=0.0),),
+                required_flags={"experiments_live": True},
+            )
+        )
+        understanding_router.register_adapter(
+            FastWeightAdapter(
+                adapter_id="momentum_sentiment_gate",
+                tactic_id="momentum_breakout",
+                multiplier=1.0,
+                rationale="Documented gate for sentiment-positive momentum runs",
+                feature_gates=(FeatureGate(feature="sentiment_z", minimum=0.2),),
+                required_flags={"experiments_live": True},
+            )
+        )
+
+        belief_snapshot = BeliefSnapshot(
+            belief_id="understanding-balanced-shadow",
+            regime_state=regime_state,
+            features=regime_state.features,
+            metadata={"window": "15m", "source": "synthetic-shadow"},
+            fast_weights_enabled=True,
+            feature_flags={"experiments_live": True},
+        )
+
+        understanding_decision = understanding_router.route(belief_snapshot)
+        decision = understanding_decision.decision
 
         drift_parameters = SensorDriftParameters(
             baseline_window=4,
@@ -585,6 +623,7 @@ class UnderstandingDiagnosticsBuilder:
             notes=("correlated with balanced regime",),
             metadata={
                 "experiments": list(decision.experiments_applied),
+                "adapters": list(understanding_decision.applied_adapters),
                 "decision_timestamp": decision.reflection_summary.get("timestamp"),
             },
         )
@@ -669,6 +708,8 @@ class UnderstandingDiagnosticsBuilder:
                 "headline": f"winner={decision.tactic_id} weight={decision.selected_weight:.3f}",
                 "top_candidates": decision.reflection_summary.get("top_candidates", ()),
                 "experiments": list(decision.experiments_applied),
+                "adapters": list(understanding_decision.applied_adapters),
+                "fast_weight_summary": understanding_decision.fast_weight_summary,
             },
             lineage=None,
         )
@@ -714,6 +755,7 @@ class UnderstandingDiagnosticsBuilder:
             "capsule_id": capsule.capsule_id,
             "drift_exceeded": drift_exceeded,
             "experiments": list(decision.experiments_applied),
+            "adapters": list(understanding_decision.applied_adapters),
         }
 
         graph = UnderstandingGraphDiagnostics(

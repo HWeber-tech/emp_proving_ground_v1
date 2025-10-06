@@ -26,15 +26,19 @@
 
 ## Gap themes
 
-1. **Regression depth** – Expand deterministic coverage across ingest, sensory,
-   risk, and runtime orchestration, closing the hotspots highlighted in the CI
-   baseline and technical debt assessment.
-2. **Telemetry fidelity** – Ensure every roadmap surface (ingest, risk,
-   compliance, evolution, operations) exposes actionable metrics with
-   provenance, drill guides, and slack/webhook relays.
-3. **Status hygiene** – Keep CI dashboards, regression backlog, and context
-   packs synchronised with delivery so reviewers inherit accurate narrative and
-   validation pointers.
+1. **Decision loop narration** – Expand deterministic coverage across ingest,
+   sensory, risk, and runtime orchestration while attaching narrated decision
+   trails, policy ledger provenance, and sigma stability checkpoints so the new
+   fast-weight loop exposes auditable reasoning alongside coverage gains.
+2. **Drift detection & throttling** – Elevate sensory drift detectors,
+   Page–Hinkley monitors, and throttle-state transitions into first-class
+   telemetry streams with SLO instrumentation, Prometheus exports, and replay
+   determinism checks that prove throttles activate before sigma instability
+   breaches.
+3. **Observability proof surface** – Keep CI dashboards, regression backlog,
+   diary schema artefacts, and validation packets synchronised with delivery so
+   reviewers inherit decision narration, policy provenance, and validation hooks
+   for the drift/throttle surfaces without spelunking ad-hoc logs.
 
 ## Delivery plan
 
@@ -161,6 +165,17 @@
 - Refresh CI dashboard rows as telemetry lands, noting validation hooks and
   outstanding actions so stakeholders see live gaps (e.g., sensory fixture
   rollout, ingest metrics coverage).【F:docs/status/ci_health.md†L21-L76】
+- Publish decision narration capsules in the observability diary schema,
+  linking policy ledger diffs, sigma stability metrics, and throttle-state
+  transitions to each change window so AlphaTrade reviewers inherit a single
+  provenance trail for loop updates.
+- Extend sensory drift regressions with Page–Hinkley detectors and throttle
+  exercises, persisting deterministic replay artefacts and Prometheus export
+  fixtures that demonstrate the fast-weight loop’s drift/throttle controls are
+  reproducible under CI.
+- Instrument SLO probes for loop latency, drift alert freshness, and replay
+  determinism, wiring them to the existing Prometheus exporters and CI guardrail
+  suites so regressions fail fast when the loop degrades.
 - Progress: CI now runs a dedicated guardrail marker job ahead of the coverage
   sweep so ingest, risk, and observability guardrails run in isolation and fail
   fast when regressions surface, with the workflow and pytest marker contract
@@ -181,8 +196,13 @@
   to legacy/integration flows while monitoring flake telemetry for drift.
   【F:docs/technical_debt_assessment.md†L84-L112】
 - Instrument CI summaries with ingest freshness, Kafka lag, risk policy
-  violations, and sensory drift deltas, exporting machine-readable snapshots for
-  dashboards and compliance audits.【F:docs/status/ci_health.md†L21-L73】【F:docs/status/ci_health.md†L95-L108】
+  violations, sensory drift deltas, throttle-state occupancy, and sigma
+  stability SLOs, exporting machine-readable snapshots for dashboards and
+  compliance audits.【F:docs/status/ci_health.md†L21-L73】【F:docs/status/ci_health.md†L95-L108】
+- Land fast-weight replay determinism harnesses in staging, expanding
+  Prometheus exporters with per-loop drift and throttle gauges, and align diary
+  schema updates with AlphaTrade probe coverage milestones so reviewers can
+  crosswalk delivery against the execution plan.
 - Publish regression progress and telemetry deltas in weekly status updates,
   linking roadmap checkmarks to the refreshed briefs so discovery stays aligned.
 
@@ -194,10 +214,26 @@
 - Automate documentation freshness checks (roadmap, briefs, CI health) to flag
   stale sections and open follow-up issues when telemetry or coverage regresses.
 - Fold quality guardrails into professional readiness reporting so operators
-  see coverage drift, flake spikes, and alert posture alongside ingest health.
+  see coverage drift, flake spikes, alert posture, throttle health, and
+  sigma-stability posture alongside ingest health.
+- Deliver the AlphaTrade observability workbook that maps diary schema entries
+  to probe coverage, policy ledger provenance, replay determinism checkpoints,
+  and theory packet links so future loop upgrades inherit a reusable validation
+  blueprint.
 
 ## Validation & telemetry
 
+- Stand up a deterministic replay harness for the AlphaTrade fast-weight loop,
+  exposing diary-aligned probes, throttle state transitions, and Page–Hinkley
+  detector outputs as fixtures that reviewers can execute locally or in CI to
+  verify drift controls and decision narration remain stable across releases.
+- Ship a theory packet template that documents sigma stability metrics, policy
+  ledger provenance, replay scenarios, and validation hooks so observability
+  reviewers inherit a consistent proof kit for new drift/throttle surfaces.
+- Add validation hooks to the Prometheus exporters and policy ledger pipeline
+  that publish provenance hashes, throttle occupancy, and replay checksums,
+  ensuring SLO instrumentation and observability packets share identical audit
+  trails.
 - Track coverage deltas via `tests/.telemetry/ci_metrics.json` and surface them
   in dashboards; add assertions in regression suites to prevent silent drops.
   【F:docs/status/ci_health.md†L13-L15】

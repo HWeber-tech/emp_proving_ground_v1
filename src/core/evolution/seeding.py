@@ -12,7 +12,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 import random
+from functools import lru_cache
 from typing import Mapping, MutableMapping, Sequence
+
+from src.genome.catalogue import CatalogueEntry, GenomeCatalogue, load_default_catalogue
 
 
 def _ensure_float(value: float) -> float:
@@ -50,6 +53,7 @@ class GenomeSeedTemplate:
     mutation_history: Sequence[str] = field(default_factory=tuple)
     performance_metrics: Mapping[str, float] = field(default_factory=dict)
     tags: Sequence[str] = field(default_factory=tuple)
+    catalogue_entry_id: str | None = None
 
     def spawn(self, rng: random.Random) -> "GenomeSeed":
         parameters: dict[str, float] = {}
@@ -80,6 +84,7 @@ class GenomeSeedTemplate:
             mutation_history=history,
             performance_metrics=metrics,
             tags=tags,
+            catalogue_entry_id=self.catalogue_entry_id,
         )
 
 
@@ -94,6 +99,7 @@ class GenomeSeed:
     mutation_history: Sequence[str]
     performance_metrics: Mapping[str, float]
     tags: Sequence[str]
+    catalogue_entry_id: str | None = None
 
     def metadata(self) -> dict[str, object]:
         payload: MutableMapping[str, object] = {
@@ -101,10 +107,69 @@ class GenomeSeed:
             "seed_tags": list(self.tags),
             "seed_species": self.species,
         }
+        if self.catalogue_entry_id:
+            payload["seed_catalogue_id"] = self.catalogue_entry_id
         return dict(payload)
 
 
-_DEFAULT_TEMPLATES: tuple[GenomeSeedTemplate, ...] = (
+_CATALOGUE_JITTER_OVERRIDES: dict[str, Mapping[str, float]] = {
+    "catalogue/trend-alpha": {
+        "momentum_window": 0.08,
+        "trend_sensitivity": 0.04,
+        "risk_tolerance": 0.05,
+    },
+    "catalogue/mean-reversion-sigma": {
+        "momentum_window": 0.12,
+        "mean_reversion_factor": 0.06,
+    },
+    "catalogue/carry-overlay": {
+        "carry_tilt": 0.07,
+        "macro_overlay_weight": 0.07,
+    },
+    "catalogue/vol-breakout": {
+        "vol_breakout_zscore": 0.05,
+        "volatility_threshold": 0.08,
+    },
+    "catalogue/liquidity-harvest": {
+        "microstructure_edge": 0.09,
+        "liquidity_bias": 0.08,
+    },
+    "catalogue/macro-fusion": {
+        "macro_overlay_weight": 0.07,
+        "event_risk_budget": 0.08,
+    },
+}
+
+
+def _template_from_entry(entry: CatalogueEntry) -> GenomeSeedTemplate:
+    parameter_jitter = dict(
+        _CATALOGUE_JITTER_OVERRIDES.get(entry.identifier)
+        or _CATALOGUE_JITTER_OVERRIDES.get(entry.name, {})
+    )
+    return GenomeSeedTemplate(
+        name=entry.name,
+        species=entry.species,
+        base_parameters=dict(entry.parameters),
+        parameter_jitter=parameter_jitter,
+        parent_ids=tuple(entry.parent_ids),
+        mutation_history=tuple(entry.mutation_history),
+        performance_metrics=dict(entry.performance_metrics),
+        tags=tuple(entry.tags),
+        catalogue_entry_id=entry.identifier,
+    )
+
+
+@lru_cache(maxsize=1)
+def _load_catalogue_templates() -> tuple[GenomeSeedTemplate, ...]:
+    try:
+        catalogue: GenomeCatalogue = load_default_catalogue()
+    except Exception:
+        return _FALLBACK_TEMPLATES
+    entries = tuple(_template_from_entry(entry) for entry in catalogue.entries)
+    return entries if entries else _FALLBACK_TEMPLATES
+
+
+_FALLBACK_TEMPLATES: tuple[GenomeSeedTemplate, ...] = (
     GenomeSeedTemplate(
         name="Trend Surfer Alpha",
         species="trend_rider",
@@ -135,6 +200,7 @@ _DEFAULT_TEMPLATES: tuple[GenomeSeedTemplate, ...] = (
             "hit_rate": 0.57,
         },
         tags=("fx", "trend", "institutional"),
+        catalogue_entry_id="catalogue/trend-alpha",
     ),
     GenomeSeedTemplate(
         name="Sigma Reversion",
@@ -166,6 +232,7 @@ _DEFAULT_TEMPLATES: tuple[GenomeSeedTemplate, ...] = (
             "hit_rate": 0.63,
         },
         tags=("fx", "mean-reversion", "institutional"),
+        catalogue_entry_id="catalogue/mean-reversion-sigma",
     ),
     GenomeSeedTemplate(
         name="Carry Overlay",
@@ -197,6 +264,7 @@ _DEFAULT_TEMPLATES: tuple[GenomeSeedTemplate, ...] = (
             "hit_rate": 0.59,
         },
         tags=("carry", "macro", "multi-asset"),
+        catalogue_entry_id="catalogue/carry-overlay",
     ),
     GenomeSeedTemplate(
         name="Volatility Breakout",
@@ -228,6 +296,7 @@ _DEFAULT_TEMPLATES: tuple[GenomeSeedTemplate, ...] = (
             "hit_rate": 0.53,
         },
         tags=("volatility", "swing", "macro"),
+        catalogue_entry_id="catalogue/vol-breakout",
     ),
     GenomeSeedTemplate(
         name="Liquidity Harvest",
@@ -259,6 +328,7 @@ _DEFAULT_TEMPLATES: tuple[GenomeSeedTemplate, ...] = (
             "hit_rate": 0.66,
         },
         tags=("liquidity", "high-frequency", "fx"),
+        catalogue_entry_id="catalogue/liquidity-harvest",
     ),
     GenomeSeedTemplate(
         name="Macro Fusion",
@@ -290,6 +360,7 @@ _DEFAULT_TEMPLATES: tuple[GenomeSeedTemplate, ...] = (
             "hit_rate": 0.58,
         },
         tags=("macro", "regime", "institutional"),
+        catalogue_entry_id="catalogue/macro-fusion",
     ),
 )
 
@@ -303,7 +374,10 @@ class RealisticGenomeSeeder:
         *,
         rng: random.Random | None = None,
     ) -> None:
-        seeds = tuple(templates) if templates is not None else _DEFAULT_TEMPLATES
+        if templates is not None:
+            seeds = tuple(templates)
+        else:
+            seeds = _load_catalogue_templates()
         if not seeds:
             raise ValueError("At least one genome seed template is required")
         self._templates = seeds
@@ -328,4 +402,3 @@ __all__ = [
     "GenomeSeedTemplate",
     "RealisticGenomeSeeder",
 ]
-

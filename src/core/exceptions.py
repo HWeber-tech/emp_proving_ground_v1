@@ -7,7 +7,19 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime
-from typing import Callable, ParamSpec, TypedDict, TypeVar, Unpack, cast
+from typing import Callable, ParamSpec, TypedDict, TypeVar, cast
+
+try:  # Python 3.10 compatibility for typing.Unpack
+    from typing import Unpack  # type: ignore[attr-defined]
+except ImportError:  # pragma: no cover - fallback to typing_extensions
+    try:
+        from typing_extensions import Unpack  # type: ignore
+    except ImportError as exc:  # pragma: no cover - minimal shim if extensions missing
+        class _Unpack:  # pylint: disable=too-few-public-methods
+            def __getitem__(self, item):  # type: ignore[override]
+                return item
+
+        Unpack = _Unpack()  # type: ignore[assignment]
 
 from src.core.types import JSONArray, JSONObject, JSONValue
 

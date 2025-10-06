@@ -10,6 +10,13 @@ from .diagnostics import (
     UnderstandingNode,
     UnderstandingNodeKind,
 )
+from .router import (
+    BeliefSnapshot,
+    FastWeightAdapter,
+    FeatureGate,
+    UnderstandingDecision,
+    UnderstandingRouter,
+)
 
 __all__ = [
     "UnderstandingArtifacts",
@@ -20,4 +27,9 @@ __all__ = [
     "UnderstandingLoopSnapshot",
     "UnderstandingNode",
     "UnderstandingNodeKind",
+    "BeliefSnapshot",
+    "FastWeightAdapter",
+    "FeatureGate",
+    "UnderstandingDecision",
+    "UnderstandingRouter",
 ]

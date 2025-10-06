@@ -80,6 +80,15 @@ class CatalogueEntry:
             "mutation_history": list(self.mutation_history),
             "performance_metrics": _coerce_metrics(self.performance_metrics),
             "created_at": self.created_at or time.time(),
+            "metadata": {
+                "seed_name": self.name,
+                "seed_species": self.species,
+                "seed_tags": list(self.tags),
+                "seed_catalogue_id": self.identifier,
+                "seed_catalogue_generation": max(0, int(self.generation)),
+                "seed_parent_ids": list(self.parent_ids),
+                "seed_mutation_history": list(self.mutation_history),
+            },
         }
         return DecisionGenome.from_dict(payload)
 

@@ -9,6 +9,7 @@ from src.operations.regulatory_telemetry import (
     RegulatoryTelemetrySnapshot,
     RegulatoryTelemetryStatus,
     evaluate_regulatory_telemetry,
+    format_regulatory_markdown,
     publish_regulatory_telemetry,
 )
 
@@ -156,3 +157,31 @@ def test_publish_regulatory_telemetry_falls_back_to_global_bus(monkeypatch: pyte
     assert topic == "telemetry.compliance.regulatory"
     assert source == "regulatory_telemetry"
     assert payload["status"] == RegulatoryTelemetryStatus.warn.value
+
+
+def test_format_regulatory_markdown_renders_table() -> None:
+    snapshot = evaluate_regulatory_telemetry(
+        signals=[
+            {
+                "name": "trade_compliance",
+                "status": "ok",
+                "summary": "policy green",
+                "observed_at": _fresh_timestamp(),
+            },
+            {
+                "name": "trade_reporting",
+                "status": "fail",
+                "summary": "reports missing",
+                "observed_at": _fresh_timestamp(),
+            },
+        ],
+        required_domains=("trade_compliance", "trade_reporting"),
+        metadata={"cadence": "daily"},
+    )
+
+    markdown = format_regulatory_markdown(snapshot)
+
+    assert "| Domain | Status | Summary |" in markdown
+    assert "trade_reporting" in markdown
+    assert "Coverage" in markdown
+    assert "cadence" in markdown

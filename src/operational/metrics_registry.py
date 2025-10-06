@@ -5,7 +5,11 @@ is unavailable. Never raises on import; safe to use in any environment.
 
 import logging
 from threading import RLock
-from typing import Dict, List, Optional, Protocol, Self, Sequence, Tuple, Union, cast
+try:  # Python < 3.11 compatibility
+    from typing import Dict, List, Optional, Protocol, Self, Sequence, Tuple, Union, cast
+except ImportError:  # pragma: no cover - fallback for Python 3.10
+    from typing import Dict, List, Optional, Protocol, Sequence, Tuple, Union, cast
+    from typing_extensions import Self
 from src.core.interfaces import CounterLike, GaugeLike, HistogramLike
 
 _log = logging.getLogger(__name__)

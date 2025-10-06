@@ -13,8 +13,9 @@ import asyncio
 import inspect
 import json
 import logging
+from contextlib import suppress
 from dataclasses import dataclass, field, replace
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from collections.abc import Mapping as MappingABC
 from typing import Any, Awaitable, Callable, Mapping, MutableMapping, Sequence, cast
@@ -139,10 +140,12 @@ from src.operations.data_backbone import (
     evaluate_data_backbone_validation,
 )
 from src.compliance.workflow import (
+    ComplianceWorkflowSnapshot,
     evaluate_compliance_workflows,
     publish_compliance_workflows,
 )
 from src.operations.compliance_readiness import (
+    ComplianceReadinessSnapshot,
     evaluate_compliance_readiness,
     publish_compliance_readiness,
 )
@@ -247,6 +250,17 @@ from src.operations.sensory_drift import (
     evaluate_sensory_drift,
     publish_sensory_drift,
 )
+from src.operations.regulatory_telemetry import (
+    RegulatoryTelemetrySnapshot,
+    evaluate_regulatory_telemetry,
+    publish_regulatory_telemetry,
+    format_regulatory_markdown,
+)
+from src.operations.governance_cadence import GovernanceCadenceRunner
+from src.operations.governance_reporting import (
+    collect_audit_evidence,
+    load_governance_context_from_config,
+)
 from src.runtime.healthcheck import RuntimeHealthServer
 from src.runtime.predator_app import ProfessionalPredatorApp
 from src.trading.risk.risk_api import (
@@ -305,6 +319,91 @@ def _normalise_ingest_plan_metadata(value: object) -> list[str]:
     if value is None:
         return []
     return [str(value)]
+
+
+_REGULATORY_COMPONENT_NAMES = {"trade_compliance", "kyc_aml"}
+_WORKFLOW_DOMAIN_MAP = {
+    "MiFID II controls": "trade_reporting",
+    "Dodd-Frank controls": "surveillance",
+    "Audit trail readiness": "audit_storage",
+}
+_WORKFLOW_STATUS_TO_REGULATORY = {
+    "completed": "ok",
+    "in_progress": "warn",
+    "todo": "warn",
+    "blocked": "fail",
+}
+
+
+def _build_regulatory_signals(
+    compliance_snapshot: ComplianceReadinessSnapshot | None,
+    workflow_snapshot: ComplianceWorkflowSnapshot | None,
+) -> list[dict[str, object]]:
+    """Derive regulatory telemetry signals from compliance surfaces."""
+
+    signals: list[dict[str, object]] = []
+
+    if compliance_snapshot is not None:
+        observed_at = compliance_snapshot.generated_at.isoformat()
+        for component in compliance_snapshot.components:
+            if component.name not in _REGULATORY_COMPONENT_NAMES:
+                continue
+            metadata = dict(component.metadata)
+            metadata.setdefault("component", component.name)
+            metadata.setdefault("overall_status", compliance_snapshot.status.value)
+            signals.append(
+                {
+                    "name": component.name,
+                    "status": component.status.value,
+                    "summary": component.summary,
+                    "observed_at": observed_at,
+                    "metadata": metadata,
+                }
+            )
+
+    if workflow_snapshot is not None:
+        observed_at = workflow_snapshot.generated_at.isoformat()
+        for checklist in workflow_snapshot.workflows:
+            domain = _WORKFLOW_DOMAIN_MAP.get(checklist.name)
+            if domain is None:
+                continue
+            status_label = getattr(checklist.status, "value", str(checklist.status)).lower()
+            status = _WORKFLOW_STATUS_TO_REGULATORY.get(status_label, "warn")
+            tasks = tuple(checklist.tasks)
+            total_tasks = len(tasks)
+            blocked = sum(
+                1
+                for task in tasks
+                if getattr(task.status, "value", str(task.status)).lower() == "blocked"
+            )
+            completed = sum(
+                1
+                for task in tasks
+                if getattr(task.status, "value", str(task.status)).lower() == "completed"
+            )
+            metadata = dict(checklist.metadata)
+            metadata.update(
+                {
+                    "workflow_name": checklist.name,
+                    "workflow_regulation": checklist.regulation,
+                    "workflow_status": status_label,
+                    "tasks_total": total_tasks,
+                    "tasks_completed": completed,
+                    "tasks_blocked": blocked,
+                }
+            )
+            summary = f"{checklist.name} status {status_label.replace('_', ' ')}"
+            signals.append(
+                {
+                    "name": domain,
+                    "status": status,
+                    "summary": summary,
+                    "observed_at": observed_at,
+                    "metadata": metadata,
+                }
+            )
+
+    return signals
 
 
 StartupCallback = Callable[[], Awaitable[None] | None]
@@ -538,8 +637,9 @@ class RuntimeApplication:
                         self._run_workload(self.trading),
                         name=f"{self.trading.name}-workload",
                     )
-        except* Exception as exc_group:  # pragma: no cover - handled by caller
-            for exc in exc_group.exceptions:
+        except Exception as exc_group:  # pragma: no cover - handled by caller
+            exceptions = getattr(exc_group, "exceptions", (exc_group,))
+            for exc in exceptions:
                 if not isinstance(exc, asyncio.CancelledError):
                     self._logger.error("Runtime workload error: %s", exc)
             raise
@@ -1997,6 +2097,157 @@ def _coerce_int(raw: object, default: int) -> int:
         return default
 
 
+def _configure_governance_cadence(
+    app: ProfessionalPredatorApp,
+    runtime_app: "RuntimeApplication",
+) -> None:
+    extras = app.config.extras or {}
+    enabled_default = app.config.data_backbone_mode is DataBackboneMode.institutional
+    enabled = _coerce_bool(extras.get("GOVERNANCE_CADENCE_ENABLED"), enabled_default)
+    if not enabled:
+        return
+
+    interval_seconds = max(
+        _coerce_int(extras.get("GOVERNANCE_CADENCE_INTERVAL_SECONDS"), 86_400),
+        60,
+    )
+
+    poll_default = max(1, min(interval_seconds // 6 or interval_seconds, interval_seconds))
+    poll_seconds = max(1, _coerce_int(extras.get("GOVERNANCE_CADENCE_POLL_SECONDS"), poll_default))
+    history_limit = max(1, _coerce_int(extras.get("GOVERNANCE_HISTORY_LIMIT"), 12))
+
+    base_dir_hint = extras.get("GOVERNANCE_REPORT_DIR")
+    report_path_hint = extras.get("GOVERNANCE_REPORT_PATH")
+    if base_dir_hint:
+        base_dir = Path(base_dir_hint)
+        if not base_dir.is_absolute():
+            base_dir = Path.cwd() / base_dir
+    else:
+        base_dir = Path.cwd() / "artifacts" / "governance"
+
+    if report_path_hint:
+        report_path = Path(report_path_hint)
+        if not report_path.is_absolute():
+            report_path = base_dir / report_path
+    else:
+        report_path = base_dir / "report.json"
+
+    cadence_label = extras.get("GOVERNANCE_CADENCE_LABEL")
+
+    try:
+        context_sources = load_governance_context_from_config(app.config)
+    except Exception:  # pragma: no cover - defensive
+        logger.debug("Failed to load governance context sources", exc_info=True)
+        context_sources = None
+
+    def _compliance_provider() -> ComplianceReadinessSnapshot | Mapping[str, object] | None:
+        snapshot = app.get_last_compliance_readiness_snapshot()
+        if snapshot is not None:
+            return snapshot
+        if context_sources is not None:
+            return context_sources.compliance
+        return None
+
+    def _regulatory_provider() -> RegulatoryTelemetrySnapshot | Mapping[str, object] | None:
+        provider = getattr(app, "get_last_regulatory_snapshot", None)
+        snapshot = provider() if callable(provider) else None
+        if snapshot is not None:
+            return snapshot
+        if context_sources is not None:
+            return context_sources.regulatory
+        return None
+
+    def _audit_provider(config: SystemConfig, strategy_id: str | None) -> Mapping[str, object]:
+        if context_sources is not None and context_sources.audit is not None:
+            return context_sources.audit
+        return collect_audit_evidence(config, strategy_id=strategy_id)
+
+    def _strategy_id_provider() -> str | None:
+        try:
+            return app._resolve_strategy_id()
+        except Exception:  # pragma: no cover - defensive
+            logger.debug(
+                "Failed to resolve strategy identifier for governance cadence",
+                exc_info=True,
+            )
+            return None
+
+    def _metadata_provider() -> Mapping[str, object] | None:
+        metadata: dict[str, object] = {
+            "source": "runtime_cadence",
+            "poll_seconds": poll_seconds,
+            "runtime_mode": app.config.run_mode.value,
+            "report_path": str(report_path),
+        }
+        if cadence_label:
+            metadata["cadence_label"] = str(cadence_label)
+        return metadata
+
+    runner = GovernanceCadenceRunner(
+        event_bus=app.event_bus,
+        config_provider=lambda: app.config,
+        compliance_provider=_compliance_provider,
+        regulatory_provider=_regulatory_provider,
+        report_path=report_path,
+        interval=timedelta(seconds=interval_seconds),
+        history_limit=history_limit,
+        strategy_id_provider=_strategy_id_provider,
+        metadata_provider=_metadata_provider,
+        audit_collector=_audit_provider,
+    )
+
+    stop_event = asyncio.Event()
+    cadence_task: asyncio.Task[Any] | None = None
+
+    async def _run_cadence_loop() -> None:
+        while not stop_event.is_set():
+            reference = datetime.now(tz=UTC)
+            try:
+                report = runner.run(reference=reference)
+            except Exception:  # pragma: no cover - diagnostics only
+                logger.exception("Governance cadence execution failed")
+            else:
+                if report is not None:
+                    recorder = getattr(app, "record_governance_report", None)
+                    if callable(recorder):
+                        try:
+                            recorder(report)
+                        except Exception:  # pragma: no cover - diagnostics only
+                            logger.debug(
+                                "Failed to record governance report on runtime app",
+                                exc_info=True,
+                            )
+            try:
+                await asyncio.wait_for(stop_event.wait(), timeout=poll_seconds)
+            except asyncio.TimeoutError:
+                continue
+        logger.info("🗂️ Governance cadence loop stopped")
+
+    async def _start_cadence() -> None:
+        nonlocal cadence_task
+        if cadence_task is None or cadence_task.done():
+            cadence_task = app.create_background_task(
+                _run_cadence_loop(),
+                name="governance-cadence",
+            )
+
+    async def _stop_cadence() -> None:
+        stop_event.set()
+        if cadence_task is not None:
+            with suppress(asyncio.CancelledError):
+                await cadence_task
+
+    runtime_app.add_startup_callback(_start_cadence)
+    runtime_app.add_shutdown_callback(_stop_cadence)
+    logger.info(
+        "🗂️ Governance cadence enabled: interval=%ss poll=%ss history=%s path=%s",
+        interval_seconds,
+        poll_seconds,
+        history_limit,
+        report_path,
+    )
+
+
 def _coerce_float(raw: object, default: float) -> float:
     if isinstance(raw, (int, float)):
         return float(raw)
@@ -2622,6 +2873,40 @@ def build_professional_runtime_application(
                                     exc_info=True,
                                 )
 
+                        regulatory_signals = _build_regulatory_signals(
+                            compliance_snapshot,
+                            workflow_snapshot,
+                        )
+                        if regulatory_signals:
+                            regulatory_metadata: dict[str, object] = {
+                                "ingest_success": success,
+                                "scheduler": scheduler_metadata,
+                                "compliance_status": compliance_snapshot.status.value,
+                                "workflow_status": workflow_snapshot.status.value,
+                                "trade_monitor_active": trade_summary is not None,
+                                "kyc_monitor_active": kyc_summary is not None,
+                            }
+                            regulatory_snapshot = evaluate_regulatory_telemetry(
+                                signals=regulatory_signals,
+                                metadata=regulatory_metadata,
+                            )
+                            logger.info(
+                                "🏛️ Regulatory telemetry snapshot:\n%s",
+                                format_regulatory_markdown(regulatory_snapshot),
+                            )
+                            publish_regulatory_telemetry(app.event_bus, regulatory_snapshot)
+                            record_regulatory = getattr(
+                                app, "record_regulatory_snapshot", None
+                            )
+                            if callable(record_regulatory):
+                                try:
+                                    record_regulatory(regulatory_snapshot)
+                                except Exception:  # pragma: no cover - diagnostics only
+                                    logger.debug(
+                                        "Failed to record regulatory snapshot on runtime app",
+                                        exc_info=True,
+                                    )
+
                     security_policy = SecurityPolicy.from_mapping(extras_mapping)
                     security_state = SecurityState.from_mapping(extras_mapping)
                     security_metadata: dict[str, object] = {
@@ -3166,6 +3451,8 @@ def build_professional_runtime_application(
 
         runtime_app.add_startup_callback(_start_health)
         runtime_app.add_shutdown_callback(_stop_health)
+
+    _configure_governance_cadence(app, runtime_app)
 
     return runtime_app
 

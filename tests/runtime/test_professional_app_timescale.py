@@ -1,11 +1,69 @@
 from __future__ import annotations
 
 import asyncio
+import sys
 from datetime import UTC, datetime, timedelta, timezone
 from types import SimpleNamespace
+from typing import Callable
 
 import pandas as pd
 import pytest
+
+if "scipy" not in sys.modules:  # pragma: no cover - stub optional dependency
+    mock_signal = SimpleNamespace(find_peaks=lambda *args, **kwargs: ([], {}))
+    mock_stats = SimpleNamespace(zscore=lambda *args, **kwargs: 0.0)
+    sys.modules["scipy"] = SimpleNamespace(signal=mock_signal, stats=mock_stats)
+    sys.modules["scipy.signal"] = mock_signal
+    sys.modules["scipy.stats"] = mock_stats
+
+if "simplefix" not in sys.modules:
+    sys.modules["simplefix"] = SimpleNamespace(Message=object)
+
+if "src.runtime.fix_pilot" not in sys.modules:
+    sys.modules["src.runtime.fix_pilot"] = SimpleNamespace(FixIntegrationPilot=object)
+
+if "aiohttp" not in sys.modules:
+    class _StubAppRunner:
+        def __init__(self, app: object) -> None:
+            self.app = app
+
+        async def setup(self) -> None:
+            return None
+
+        async def cleanup(self) -> None:
+            return None
+
+    class _StubTCPSite:
+        def __init__(self, runner: _StubAppRunner, host: str, port: int) -> None:
+            self._runner = runner
+            self._host = host
+            self._port = port
+            socket = SimpleNamespace(getsockname=lambda: (host, port))
+            self._server = SimpleNamespace(sockets=[socket])
+
+        async def start(self) -> None:
+            return None
+
+        async def stop(self) -> None:
+            return None
+
+    def _json_response(payload: object) -> object:
+        return payload
+
+    def _get(path: str, handler: Callable[..., object]) -> tuple[str, Callable[..., object]]:
+        return (path, handler)
+
+    stub_web = SimpleNamespace(
+        Application=lambda: SimpleNamespace(add_routes=lambda routes: None),
+        AppRunner=_StubAppRunner,
+        TCPSite=_StubTCPSite,
+        Request=SimpleNamespace,
+        Response=SimpleNamespace,
+        json_response=_json_response,
+        get=_get,
+    )
+    sys.modules["aiohttp"] = SimpleNamespace(web=stub_web)
+    sys.modules["aiohttp.web"] = stub_web
 
 from src.data_foundation.batch.spark_export import (
     SparkExportFormat,
@@ -47,6 +105,11 @@ from src.operations.retention import (
     DataRetentionSnapshot,
     RetentionComponentSnapshot,
     RetentionStatus,
+)
+from src.operations.regulatory_telemetry import (
+    RegulatoryTelemetrySignal,
+    RegulatoryTelemetrySnapshot,
+    RegulatoryTelemetryStatus,
 )
 from src.operations.sensory_metrics import build_sensory_metrics
 from src.operations.sensory_summary import build_sensory_summary
@@ -106,6 +169,11 @@ from src.operations.incident_response import (
     IncidentResponsePolicy,
     IncidentResponseState,
     evaluate_incident_response,
+)
+from src.operations.governance_reporting import (
+    GovernanceReport,
+    GovernanceReportSection,
+    GovernanceReportStatus,
 )
 from src.operations.roi import RoiStatus, RoiTelemetrySnapshot
 from src.operations.ingest_trends import (
@@ -357,6 +425,65 @@ async def test_professional_app_summary_includes_strategy_performance(tmp_path) 
         assert section["snapshot"]["totals"]["total_events"] == 2
         assert section["snapshot"]["totals"]["roi_status"] == RoiStatus.tracking.value
         assert "Strategy alpha" in section["markdown"]
+    finally:
+        await app.shutdown()
+
+
+@pytest.mark.asyncio()
+async def test_professional_app_summary_includes_regulatory_and_governance(tmp_path) -> None:
+    cfg = SystemConfig().with_updated(
+        connection_protocol=ConnectionProtocol.bootstrap,
+        data_backbone_mode=DataBackboneMode.bootstrap,
+    )
+
+    app = await build_professional_predator_app(config=cfg)
+    try:
+        now = datetime.now(tz=UTC)
+        regulatory_snapshot = RegulatoryTelemetrySnapshot(
+            generated_at=now,
+            status=RegulatoryTelemetryStatus.warn,
+            coverage_ratio=0.5,
+            signals=(
+                RegulatoryTelemetrySignal(
+                    name="trade_compliance",
+                    status=RegulatoryTelemetryStatus.ok,
+                    summary="green",
+                    observed_at=now,
+                    metadata={"checks": 0},
+                ),
+            ),
+            required_domains=("trade_compliance",),
+            missing_domains=("trade_reporting",),
+            metadata={"source": "unit-test"},
+        )
+        app.record_regulatory_snapshot(regulatory_snapshot)
+
+        report = GovernanceReport(
+            status=GovernanceReportStatus.ok,
+            generated_at=now,
+            period_start=now - timedelta(days=1),
+            period_end=now,
+            sections=(
+                GovernanceReportSection(
+                    name="compliance",
+                    status=GovernanceReportStatus.ok,
+                    summary="Compliance steady",
+                ),
+            ),
+            metadata={"cadence": "test"},
+        )
+        app.record_governance_report(report)
+
+        summary = app.summary()
+        regulatory_block = summary.get("regulatory_telemetry")
+        assert regulatory_block is not None
+        assert regulatory_block["snapshot"]["status"] == RegulatoryTelemetryStatus.warn.value
+        assert "markdown" in regulatory_block
+
+        governance_block = summary.get("governance_report")
+        assert governance_block is not None
+        assert governance_block["status"] == GovernanceReportStatus.ok.value
+        assert "Compliance steady" in governance_block["markdown"]
     finally:
         await app.shutdown()
 

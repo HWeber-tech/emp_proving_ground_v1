@@ -28,6 +28,7 @@ __all__ = [
     "RegulatoryTelemetrySnapshot",
     "evaluate_regulatory_telemetry",
     "publish_regulatory_telemetry",
+    "format_regulatory_markdown",
 ]
 
 
@@ -375,3 +376,29 @@ def publish_regulatory_telemetry(
             "Unexpected error publishing regulatory telemetry via global bus"
         ),
     )
+
+
+def format_regulatory_markdown(snapshot: RegulatoryTelemetrySnapshot) -> str:
+    """Render the regulatory telemetry snapshot as a Markdown table."""
+
+    lines = ["| Domain | Status | Summary |", "| --- | --- | --- |"]
+    for signal in snapshot.signals:
+        lines.append(
+            f"| {signal.name} | {signal.status.value.upper()} | {signal.summary} |"
+        )
+
+    metadata_lines: list[str] = []
+    if snapshot.metadata:
+        metadata_lines.append("- Metadata:")
+        for key, value in sorted(snapshot.metadata.items()):
+            metadata_lines.append(f"  - **{key}**: {value}")
+
+    lines.append("")
+    lines.append(f"- Coverage: {snapshot.coverage_ratio:.2%}")
+    if snapshot.missing_domains:
+        missing = ", ".join(snapshot.missing_domains)
+        lines.append(f"- Missing domains: {missing}")
+    if metadata_lines:
+        lines.extend(metadata_lines)
+
+    return "\n".join(lines)

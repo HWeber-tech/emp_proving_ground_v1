@@ -1,9 +1,11 @@
 import asyncio
+import inspect
 import json
+import sys
 from collections import deque
 from datetime import UTC, datetime
 from types import SimpleNamespace
-from typing import Any, Mapping
+from typing import Any, Callable, Mapping
 
 import io
 import json
@@ -21,6 +23,17 @@ from src.operations.data_backbone import (
     DataBackboneReadinessSnapshot,
     DataBackboneValidationSnapshot,
 )
+from src.operations.compliance_readiness import (
+    ComplianceReadinessComponent,
+    ComplianceReadinessSnapshot,
+    ComplianceReadinessStatus,
+)
+from src.compliance.workflow import (
+    ComplianceWorkflowChecklist,
+    ComplianceWorkflowSnapshot,
+    ComplianceWorkflowTask,
+    WorkflowTaskStatus,
+)
 from src.operations.retention import (
     DataRetentionSnapshot,
     RetentionComponentSnapshot,
@@ -31,6 +44,7 @@ from src.operations.professional_readiness import (
     ProfessionalReadinessSnapshot,
     ProfessionalReadinessStatus,
 )
+from src.operations.regulatory_telemetry import evaluate_regulatory_telemetry
 from src.operations.incident_response import IncidentResponseStatus
 from src.operations.cross_region_failover import CrossRegionFailoverSnapshot
 from src.operations.kafka_readiness import (
@@ -48,13 +62,70 @@ from src.data_foundation.ingest.timescale_pipeline import (
     MacroEventIngestPlan,
     TimescaleBackbonePlan,
 )
-from src.runtime import (
+if "scipy" not in sys.modules:  # pragma: no cover - test stub for optional dependency
+    mock_signal = SimpleNamespace(find_peaks=lambda *args, **kwargs: ([], {}))
+    mock_stats = SimpleNamespace(zscore=lambda *args, **kwargs: 0.0)
+    sys.modules["scipy"] = SimpleNamespace(signal=mock_signal, stats=mock_stats)
+    sys.modules["scipy.signal"] = mock_signal
+    sys.modules["scipy.stats"] = mock_stats
+
+if "simplefix" not in sys.modules:  # pragma: no cover - optional dependency stub
+    sys.modules["simplefix"] = SimpleNamespace(Message=object)
+
+if "src.runtime.fix_pilot" not in sys.modules:  # pragma: no cover - avoid heavy dataclass init
+    sys.modules["src.runtime.fix_pilot"] = SimpleNamespace(FixIntegrationPilot=object)
+
+if "aiohttp" not in sys.modules:  # pragma: no cover - optional dependency stub
+    class _StubAppRunner:
+        def __init__(self, app: object) -> None:
+            self.app = app
+
+        async def setup(self) -> None:
+            return None
+
+        async def cleanup(self) -> None:
+            return None
+
+    class _StubTCPSite:
+        def __init__(self, runner: _StubAppRunner, host: str, port: int) -> None:
+            self._runner = runner
+            self._host = host
+            self._port = port
+            socket = SimpleNamespace(getsockname=lambda: (host, port))
+            self._server = SimpleNamespace(sockets=[socket])
+
+        async def start(self) -> None:
+            return None
+
+        async def stop(self) -> None:
+            return None
+
+    def _json_response(payload: object) -> object:
+        return payload
+
+    def _get(path: str, handler: Callable[..., object]) -> tuple[str, Callable[..., object]]:
+        return (path, handler)
+
+    stub_web = SimpleNamespace(
+        Application=lambda: SimpleNamespace(add_routes=lambda routes: None),
+        AppRunner=_StubAppRunner,
+        TCPSite=_StubTCPSite,
+        Request=SimpleNamespace,
+        Response=SimpleNamespace,
+        json_response=_json_response,
+        get=_get,
+    )
+    sys.modules["aiohttp"] = SimpleNamespace(web=stub_web)
+    sys.modules["aiohttp.web"] = stub_web
+
+from src.runtime.predator_app import build_professional_predator_app
+from src.runtime.runtime_builder import (
     RuntimeApplication,
     RuntimeWorkload,
-    build_professional_predator_app,
     build_professional_runtime_application,
 )
 from src.runtime.runtime_builder import (
+    _build_regulatory_signals,
     _normalise_ingest_plan_metadata,
     _plan_dimensions,
     _process_sensory_status,
@@ -207,6 +278,75 @@ def test_process_sensory_status_publishes_summary_and_metrics() -> None:
     assert audit_entries[0]["symbol"] == "EURUSD"
 
 
+def test_build_regulatory_signals_merges_components_and_workflows() -> None:
+    now = datetime.now(tz=UTC)
+    compliance_snapshot = ComplianceReadinessSnapshot(
+        status=ComplianceReadinessStatus.warn,
+        generated_at=now,
+        components=(
+            ComplianceReadinessComponent(
+                name="trade_compliance",
+                status=ComplianceReadinessStatus.ok,
+                summary="policy ok",
+                metadata={"failed_checks": 0},
+            ),
+            ComplianceReadinessComponent(
+                name="kyc_aml",
+                status=ComplianceReadinessStatus.warn,
+                summary="backlog",
+                metadata={"outstanding_items": 2},
+            ),
+        ),
+        metadata={},
+    )
+
+    workflow_snapshot = ComplianceWorkflowSnapshot(
+        status=WorkflowTaskStatus.in_progress,
+        generated_at=now,
+        workflows=(
+            ComplianceWorkflowChecklist(
+                name="MiFID II controls",
+                regulation="MiFID",
+                status=WorkflowTaskStatus.blocked,
+                tasks=(
+                    ComplianceWorkflowTask(
+                        task_id="mifid-report",
+                        title="Submit daily report",
+                        status=WorkflowTaskStatus.blocked,
+                        summary="Report missing",
+                    ),
+                ),
+            ),
+            ComplianceWorkflowChecklist(
+                name="Dodd-Frank controls",
+                regulation="Dodd-Frank",
+                status=WorkflowTaskStatus.in_progress,
+                tasks=(
+                    ComplianceWorkflowTask(
+                        task_id="dodd-monitor",
+                        title="Monitor positions",
+                        status=WorkflowTaskStatus.in_progress,
+                        summary="Investigating breach",
+                    ),
+                ),
+            ),
+        ),
+    )
+
+    signals = _build_regulatory_signals(compliance_snapshot, workflow_snapshot)
+
+    names = {signal["name"] for signal in signals}
+    assert {"trade_compliance", "kyc_aml", "trade_reporting", "surveillance"} <= names
+
+    trade_reporting = next(signal for signal in signals if signal["name"] == "trade_reporting")
+    assert trade_reporting["status"] == "fail"
+    assert trade_reporting["metadata"]["tasks_blocked"] == 1
+
+    surveillance = next(signal for signal in signals if signal["name"] == "surveillance")
+    assert surveillance["status"] == "warn"
+    assert surveillance["metadata"]["tasks_total"] == 1
+
+
 @pytest.mark.asyncio()
 async def test_builder_bootstrap_mode(monkeypatch, tmp_path):
     cfg = SystemConfig().with_updated(
@@ -261,6 +401,83 @@ async def test_builder_bootstrap_mode(monkeypatch, tmp_path):
         assert trading_metadata["risk"]["mandatory_stop_loss"] is True
         assert trading_metadata["risk"]["runbook"].endswith("risk_api_contract.md")
     finally:
+        await app.shutdown()
+
+
+@pytest.mark.asyncio()
+async def test_governance_cadence_background_service_generates_report(tmp_path) -> None:
+    audit_path = tmp_path / "audit.json"
+    audit_path.write_text(json.dumps({"entries": []}), encoding="utf-8")
+    report_path = tmp_path / "governance.json"
+
+    cfg = SystemConfig().with_updated(
+        connection_protocol=ConnectionProtocol.bootstrap,
+        data_backbone_mode=DataBackboneMode.bootstrap,
+        extras={
+            "GOVERNANCE_CADENCE_ENABLED": "true",
+            "GOVERNANCE_CADENCE_INTERVAL_SECONDS": "1",
+            "GOVERNANCE_CADENCE_POLL_SECONDS": "1",
+            "GOVERNANCE_REPORT_PATH": str(report_path),
+            "GOVERNANCE_CONTEXT_DIR": str(tmp_path),
+            "GOVERNANCE_AUDIT_CONTEXT": "audit.json",
+        },
+    )
+
+    app = await build_professional_predator_app(config=cfg)
+    runtime_app = build_professional_runtime_application(
+        app,
+        skip_ingest=True,
+        symbols_csv="EURUSD",
+        duckdb_path=str(tmp_path / "tier0.duckdb"),
+    )
+
+    try:
+        compliance_snapshot = ComplianceReadinessSnapshot(
+            status=ComplianceReadinessStatus.ok,
+            generated_at=datetime.now(tz=UTC),
+            components=(
+                ComplianceReadinessComponent(
+                    name="trade_compliance",
+                    status=ComplianceReadinessStatus.ok,
+                    summary="policy green",
+                ),
+                ComplianceReadinessComponent(
+                    name="kyc_aml",
+                    status=ComplianceReadinessStatus.ok,
+                    summary="kyc clear",
+                ),
+            ),
+            metadata={},
+        )
+        app.record_compliance_readiness_snapshot(compliance_snapshot)
+
+        regulatory_snapshot = evaluate_regulatory_telemetry(
+            signals=[
+                {
+                    "name": "trade_compliance",
+                    "status": "ok",
+                    "summary": "policy green",
+                    "observed_at": datetime.now(tz=UTC).isoformat(),
+                }
+            ],
+            required_domains=("trade_compliance",),
+        )
+        app.record_regulatory_snapshot(regulatory_snapshot)
+
+        await app.event_bus.start()
+        for callback in runtime_app.startup_callbacks:
+            result = callback()
+            if inspect.isawaitable(result):
+                await result
+
+        await asyncio.sleep(1.5)
+
+        report = app.get_last_governance_report()
+        assert report is not None
+        assert report_path.exists()
+    finally:
+        await runtime_app.shutdown()
+        await app.event_bus.stop()
         await app.shutdown()
 
 

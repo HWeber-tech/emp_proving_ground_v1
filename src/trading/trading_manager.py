@@ -15,6 +15,7 @@ except Exception:  # pragma: no cover
     redis = None  # type: ignore
 
 from src.config.risk.risk_config import RiskConfig as TradingRiskConfig
+from src.governance.policy_ledger import LedgerReleaseManager, PolicyLedgerStage
 from src.core.coercion import coerce_float, coerce_int
 from src.core.risk.manager import RiskManager, get_risk_manager
 from src.risk.telemetry import (
@@ -97,6 +98,7 @@ class TradingManager:
         risk_config: TradingRiskConfig | None = None,
         risk_policy: RiskPolicy | None = None,
         drift_gate: DriftSentryGate | None = None,
+        release_manager: LedgerReleaseManager | None = None,
     ) -> None:
         """
         Initialize the TradingManager with risk management components.
@@ -173,6 +175,7 @@ class TradingManager:
         self._roi_total_notional = 0.0
 
         self._drift_gate = drift_gate
+        self._release_manager = release_manager
         self._last_drift_gate_decision: DriftSentryDecision | None = None
 
         self._execution_stats: dict[str, object] = {
@@ -441,6 +444,21 @@ class TradingManager:
         if notional is not None:
             context_metadata["notional"] = notional
 
+        threshold_payload: Mapping[str, Any] | None = None
+        if self._release_manager is not None:
+            try:
+                threshold_payload = (
+                    self._release_manager.resolve_thresholds(strategy_id)
+                    if strategy_id
+                    else None
+                )
+            except Exception:  # pragma: no cover - defensive guard
+                threshold_payload = None
+        if threshold_payload:
+            stage_value = str(threshold_payload.get("stage") or "").strip()
+            if stage_value:
+                context_metadata.setdefault("release_stage", stage_value)
+
         decision = self._drift_gate.evaluate_trade(
             symbol=symbol,
             strategy_id=strategy_id,
@@ -448,6 +466,7 @@ class TradingManager:
             quantity=quantity_abs if quantity_abs else None,
             notional=notional,
             metadata=context_metadata,
+            threshold_overrides=threshold_payload,
         )
         self._last_drift_gate_decision = decision
         return decision
@@ -572,6 +591,33 @@ class TradingManager:
         description = dict(self._drift_gate.describe())
         description["enabled"] = True
         return description
+
+    def describe_release_posture(self, strategy_id: str | None = None) -> Mapping[str, Any]:
+        """Expose the release posture derived from the policy ledger."""
+
+        if self._release_manager is None:
+            payload: dict[str, Any] = {
+                "managed": False,
+                "stage": PolicyLedgerStage.EXPERIMENT.value,
+                "thresholds": {},
+            }
+            if strategy_id:
+                payload["strategy_id"] = strategy_id
+            return payload
+
+        try:
+            summary = dict(self._release_manager.describe(strategy_id))
+        except Exception:  # pragma: no cover - defensive guard
+            stage = self._release_manager.resolve_stage(strategy_id)
+            try:
+                thresholds = dict(self._release_manager.resolve_thresholds(strategy_id))
+            except Exception:
+                thresholds = {}
+            summary = {"stage": stage.value, "thresholds": thresholds}
+        summary.setdefault("managed", True)
+        if strategy_id and "strategy_id" not in summary:
+            summary["strategy_id"] = strategy_id
+        return summary
 
     async def start(self) -> None:
         """Start the TradingManager and subscribe to trade intents."""

@@ -261,6 +261,10 @@ kit that the roadmap calls back to in each checklist.
   - [ ] Publish decision narration capsules that link policy-ledger diffs, sigma
     stability metrics, and throttle states into the observability diary schema
     so AlphaTrade reviewers inherit a single provenance trail.【F:docs/context/alignment_briefs/quality_observability.md†L168-L171】
+  - *Progress*: Decision narration capsule helpers now normalise ledger diffs,
+    sigma stability, throttle states, and publish Markdown/JSON payloads through
+    the event-bus failover helper so observability diaries stay resilient under
+    runtime outages with pytest guarding the contract.【F:src/operations/observability_diary.py†L3-L392】【F:tests/operations/test_observability_diary.py†L1-L190】
   - [ ] Extend sensory drift regressions with Page–Hinkley sentries, replay
     determinism fixtures, and Prometheus exports that document throttle
     behaviour for the understanding loop.【F:docs/context/alignment_briefs/quality_observability.md†L172-L175】
@@ -271,6 +275,9 @@ kit that the roadmap calls back to in each checklist.
     changes.【F:docs/context/alignment_briefs/quality_observability.md†L162-L164】
   - [ ] Refresh CI dashboard rows and weekly status updates with telemetry
     deltas so roadmap evidence remains synchronised with delivery.【F:docs/context/alignment_briefs/quality_observability.md†L165-L167】
+  - *Progress*: CI health snapshot and weekly status log now capture coverage and
+    remediation deltas with evidence pointers, keeping roadmap artefacts aligned
+    with the latest telemetry exports.【F:docs/status/ci_health.md†L10-L21】【F:docs/status/quality_weekly_status.md†L18-L35】
   - *Progress*: Event bus health publishing now routes through the shared
     failover helper, logging runtime publish failures, propagating metadata to
     the global bus, and raising typed errors when both transports degrade so
@@ -447,6 +454,9 @@ kit that the roadmap calls back to in each checklist.
     compatibility, and debug coercion so downstream consumers can migrate
     without duplicating parsing logic while the shim stops drifting from the
     source of truth.【F:src/core/configuration.py†L1-L188】
+  - *Progress*: Operational package import now aliases `src.operational.event_bus`
+    to the canonical core implementation, keeping legacy paths alive while tests
+    assert the wiring so cleanup work can retire the shim safely.【F:src/operational/__init__.py†L1-L38】【F:tests/operational/test_event_bus_alias.py†L162-L178】
 
 ## Roadmap cadence
 
@@ -601,6 +611,10 @@ kit that the roadmap calls back to in each checklist.
   - [ ] Expand PolicyRouter tactics and fast-weight experimentation while
     automating reflection summaries so reviewers see emerging strategies without
     spelunking telemetry dumps.【F:docs/High-Impact Development Roadmap.md†L74-L74】
+  - *Progress*: PolicyRouter now ranks tactics with fast-weight multipliers,
+    folds experiment rationale into reflection summaries, and keeps a bounded
+    history so reviewers inherit regime-contextual decisions under pytest
+    coverage.【F:src/thinking/adaptation/policy_router.py†L1-L210】【F:tests/thinking/test_policy_router.py†L33-L116】
   - [ ] Enable selective paper-trade execution with DriftSentry gating
     promotions and PolicyLedger enforcing audit coverage ahead of live capital
     exposure.【F:docs/High-Impact Development Roadmap.md†L75-L75】

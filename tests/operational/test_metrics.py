@@ -307,6 +307,73 @@ def test_latency_and_staleness_metrics_apply_bounds(
     assert registry.histograms[2].observed == [5.0]
 
 
+def _reset_understanding_loop_proxies(monkeypatch: pytest.MonkeyPatch) -> None:
+    for proxy in (
+        metrics._UNDERSTANDING_LOOP_LATENCY_GAUGE,
+        metrics._UNDERSTANDING_LOOP_LATENCY_STATUS_GAUGE,
+        metrics._UNDERSTANDING_LOOP_DRIFT_FRESHNESS_GAUGE,
+        metrics._UNDERSTANDING_LOOP_DRIFT_STATUS_GAUGE,
+        metrics._UNDERSTANDING_LOOP_REPLAY_RATIO_GAUGE,
+        metrics._UNDERSTANDING_LOOP_REPLAY_STATUS_GAUGE,
+    ):
+        monkeypatch.setattr(proxy, "_resolved", None)
+
+
+def test_understanding_loop_slo_metrics_publish_values(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    registry = _RecordingRegistry()
+    monkeypatch.setattr(metrics, "get_registry", lambda: registry)
+    _reset_understanding_loop_proxies(monkeypatch)
+
+    metrics.set_understanding_loop_latency(0.75)
+    metrics.set_understanding_loop_latency_status("pass")
+    metrics.set_understanding_loop_drift_freshness(120.0)
+    metrics.set_understanding_loop_drift_status("warn")
+    metrics.set_understanding_loop_replay_determinism(0.98)
+    metrics.set_understanding_loop_replay_status("fail")
+
+    assert (
+        "understanding_loop_latency_seconds",
+        None,
+    ) in registry.gauge_requests
+    assert registry.gauges[0].set_calls == [0.75]
+
+    assert registry.gauges[1].set_calls == [0.0]
+    assert registry.gauges[2].set_calls == [120.0]
+    assert registry.gauges[3].set_calls == [1.0]
+    assert registry.gauges[4].set_calls == [0.98]
+    assert registry.gauges[5].set_calls == [2.0]
+
+
+def test_understanding_loop_slo_metrics_clamp_and_ignore_invalid(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    registry = _RecordingRegistry()
+    monkeypatch.setattr(metrics, "get_registry", lambda: registry)
+    _reset_understanding_loop_proxies(monkeypatch)
+
+    metrics.set_understanding_loop_latency(None)
+    metrics.set_understanding_loop_latency(-3.0)
+    metrics.set_understanding_loop_replay_determinism(2.5)
+    metrics.set_understanding_loop_replay_status("unknown")
+    metrics.set_understanding_loop_drift_status(None)
+
+    # Only valid updates should have been recorded
+    assert (
+        "understanding_loop_latency_seconds",
+        None,
+    ) in registry.gauge_requests
+    assert registry.gauges[0].set_calls == [0.0]
+    assert (
+        "understanding_loop_replay_determinism_ratio",
+        None,
+    ) in registry.gauge_requests
+    assert registry.gauges[1].set_calls == [1.0]
+    # No status gauges were updated due to invalid inputs
+    assert len(registry.gauges) == 2
+
+
 def test_why_feature_metric_sorts_labels(monkeypatch: pytest.MonkeyPatch) -> None:
     registry = _RecordingRegistry()
     monkeypatch.setattr(metrics, "get_registry", lambda: registry)

@@ -39,6 +39,73 @@ class _NoopGauge:
 
 _NOOP_GAUGE = _NoopGauge()
 
+
+# Understanding loop SLO gauges (no labels to keep exporters simple)
+_UNDERSTANDING_LOOP_LATENCY_GAUGE = LazyGaugeProxy(
+    "understanding_loop_latency_seconds",
+    "Understanding loop cycle latency in seconds",
+)
+_UNDERSTANDING_LOOP_LATENCY_STATUS_GAUGE = LazyGaugeProxy(
+    "understanding_loop_latency_slo_status",
+    "Understanding loop latency SLO status (0=pass,1=warn,2=fail)",
+)
+_UNDERSTANDING_LOOP_DRIFT_FRESHNESS_GAUGE = LazyGaugeProxy(
+    "understanding_loop_drift_freshness_seconds",
+    "Seconds since the latest drift alert impacting the understanding loop",
+)
+_UNDERSTANDING_LOOP_DRIFT_STATUS_GAUGE = LazyGaugeProxy(
+    "understanding_loop_drift_slo_status",
+    "Understanding loop drift freshness SLO status (0=pass,1=warn,2=fail)",
+)
+_UNDERSTANDING_LOOP_REPLAY_RATIO_GAUGE = LazyGaugeProxy(
+    "understanding_loop_replay_determinism_ratio",
+    "Determinism ratio observed during understanding loop replays",
+)
+_UNDERSTANDING_LOOP_REPLAY_STATUS_GAUGE = LazyGaugeProxy(
+    "understanding_loop_replay_slo_status",
+    "Understanding loop replay determinism SLO status (0=pass,1=warn,2=fail)",
+)
+
+
+_SLO_STATUS_VALUES = {
+    "pass": 0.0,
+    "warn": 1.0,
+    "fail": 2.0,
+}
+
+
+def _slo_status_to_value(status: object) -> float | None:
+    if status is None:
+        return None
+    key = str(status).strip().lower()
+    return _SLO_STATUS_VALUES.get(key)
+
+
+def _coerce_non_negative(value: object) -> float | None:
+    if value is None:
+        return None
+    try:
+        coerced = float(value)
+    except (TypeError, ValueError):
+        return None
+    if coerced < 0.0:
+        return 0.0
+    return coerced
+
+
+def _coerce_ratio(value: object) -> float | None:
+    if value is None:
+        return None
+    try:
+        coerced = float(value)
+    except (TypeError, ValueError):
+        return None
+    if coerced < 0.0:
+        return 0.0
+    if coerced > 1.0:
+        return 1.0
+    return coerced
+
 _T = TypeVar("_T")
 
 
@@ -229,6 +296,60 @@ def set_md_staleness(symbol: str, seconds: float) -> None:
         ).labels(symbol=safe_symbol).set(seconds_value)
 
     _call_metric("fix_md_staleness_seconds.set", _action)
+
+
+def set_understanding_loop_latency(seconds: float | None) -> None:
+    """Record the latest loop latency observation in seconds."""
+
+    value = _coerce_non_negative(seconds)
+    if value is None:
+        return
+    _UNDERSTANDING_LOOP_LATENCY_GAUGE.set(value)
+
+
+def set_understanding_loop_latency_status(status: object) -> None:
+    """Record the latency SLO status (0=pass, 1=warn, 2=fail)."""
+
+    value = _slo_status_to_value(status)
+    if value is None:
+        return
+    _UNDERSTANDING_LOOP_LATENCY_STATUS_GAUGE.set(value)
+
+
+def set_understanding_loop_drift_freshness(seconds: float | None) -> None:
+    """Record seconds since the last drift alert for the loop."""
+
+    value = _coerce_non_negative(seconds)
+    if value is None:
+        return
+    _UNDERSTANDING_LOOP_DRIFT_FRESHNESS_GAUGE.set(value)
+
+
+def set_understanding_loop_drift_status(status: object) -> None:
+    """Record the drift freshness SLO status (0=pass, 1=warn, 2=fail)."""
+
+    value = _slo_status_to_value(status)
+    if value is None:
+        return
+    _UNDERSTANDING_LOOP_DRIFT_STATUS_GAUGE.set(value)
+
+
+def set_understanding_loop_replay_determinism(ratio: float | None) -> None:
+    """Record the replay determinism ratio (0–1)."""
+
+    value = _coerce_ratio(ratio)
+    if value is None:
+        return
+    _UNDERSTANDING_LOOP_REPLAY_RATIO_GAUGE.set(value)
+
+
+def set_understanding_loop_replay_status(status: object) -> None:
+    """Record the replay determinism SLO status (0=pass, 1=warn, 2=fail)."""
+
+    value = _slo_status_to_value(status)
+    if value is None:
+        return
+    _UNDERSTANDING_LOOP_REPLAY_STATUS_GAUGE.set(value)
 
 
 # Heartbeat

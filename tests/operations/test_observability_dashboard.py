@@ -111,6 +111,38 @@ def _slo_snapshot() -> OperationalSLOSnapshot:
     )
 
 
+def _loop_slo_snapshot() -> OperationalSLOSnapshot:
+    moment = _now()
+    summary = ServiceSLO(
+        name="understanding_loop",
+        status=SLOStatus.at_risk,
+        message="1 loop SLO at risk",
+        target={},
+        observed={},
+    )
+    latency = ServiceSLO(
+        name="understanding_loop.latency",
+        status=SLOStatus.met,
+        message="Latency within target",
+        target={"p95_seconds": 0.9},
+        observed={"latency_seconds": 0.6},
+    )
+    drift = ServiceSLO(
+        name="understanding_loop.drift_freshness",
+        status=SLOStatus.at_risk,
+        message="Freshness nearing limit",
+        target={"freshness_seconds": 400.0},
+        observed={"age_seconds": 420.0},
+    )
+    return OperationalSLOSnapshot(
+        service="understanding_loop",
+        generated_at=moment,
+        status=SLOStatus.at_risk,
+        slos=(summary, latency, drift),
+        metadata={"environment": "paper"},
+    )
+
+
 def _backbone_snapshot() -> DataBackboneReadinessSnapshot:
     moment = _now()
     components = (
@@ -184,6 +216,7 @@ def test_build_dashboard_composes_panels_and_status() -> None:
         risk_limits={"parametric_var": 10_000.0, "expected_shortfall": 12_000.0},
         event_bus_snapshot=_event_bus_snapshot(),
         slo_snapshot=_slo_snapshot(),
+        loop_slo_snapshot=_loop_slo_snapshot(),
         backbone_snapshot=_backbone_snapshot(),
         operational_readiness_snapshot=_operational_readiness_snapshot(),
         quality_snapshot=_quality_snapshot(),
@@ -225,6 +258,7 @@ def test_build_dashboard_composes_panels_and_status() -> None:
     assert "Add ingest backfill tests" in "\n".join(quality_panel.details)
     assert "event_bus" in latency_panel.metadata
     assert "slos" in latency_panel.metadata
+    assert "loop_slos" in latency_panel.metadata
 
     system_panel = next(
         panel for panel in dashboard.panels if panel.name == "System health"
@@ -250,7 +284,7 @@ def test_build_dashboard_composes_panels_and_status() -> None:
     metadata_counts = dashboard.metadata["panel_status_counts"]
     assert metadata_counts == {
         DashboardStatus.ok.value: 1,
-        DashboardStatus.warn.value: 3,
+        DashboardStatus.warn.value: 4,
         DashboardStatus.fail.value: 1,
     }
     metadata_statuses = dashboard.metadata["panel_statuses"]
@@ -260,13 +294,14 @@ def test_build_dashboard_composes_panels_and_status() -> None:
     remediation = dashboard.remediation_summary()
     assert remediation["overall_status"] == DashboardStatus.fail.value
     assert remediation["panel_counts"][DashboardStatus.fail.value] == 1
-    assert remediation["panel_counts"][DashboardStatus.warn.value] == 3
+    assert remediation["panel_counts"][DashboardStatus.warn.value] == 4
     assert remediation["panel_counts"][DashboardStatus.ok.value] == 1
     assert remediation["failing_panels"] == ("Risk & exposure",)
     assert set(remediation["warning_panels"]) == {
         "Latency & throughput",
         "System health",
         "Operational readiness",
+        "Quality & coverage",
     }
     assert remediation["healthy_panels"] == ("PnL & ROI",)
 

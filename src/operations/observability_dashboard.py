@@ -254,6 +254,7 @@ def build_observability_dashboard(
     risk_limits: Mapping[str, float] | None = None,
     event_bus_snapshot: EventBusHealthSnapshot | None = None,
     slo_snapshot: OperationalSLOSnapshot | None = None,
+    loop_slo_snapshot: OperationalSLOSnapshot | None = None,
     backbone_snapshot: DataBackboneReadinessSnapshot | None = None,
     operational_readiness_snapshot: OperationalReadinessSnapshot | None = None,
     quality_snapshot: QualityTelemetrySnapshot | None = None,
@@ -371,7 +372,7 @@ def build_observability_dashboard(
             )
         )
 
-    if event_bus_snapshot is not None or slo_snapshot is not None:
+    if event_bus_snapshot is not None or slo_snapshot is not None or loop_slo_snapshot is not None:
         latency_status = DashboardStatus.ok
         details: list[str] = []
         latency_metadata: dict[str, Any] = {}
@@ -416,6 +417,20 @@ def build_observability_dashboard(
             )
             latency_metadata["slos"] = slo_snapshot.as_dict()
             headline_parts.append(f"Ingest SLOs {slo_snapshot.status.value}")
+
+        if loop_slo_snapshot is not None:
+            loop_status = _map_slo_status(loop_slo_snapshot.status)
+            latency_status = _escalate(latency_status, loop_status)
+            counts = Counter(slo.status for slo in loop_slo_snapshot.slos)
+            details.append(
+                "Loop SLOs pass {ok} / warn {warn} / fail {fail}".format(
+                    ok=counts.get(SLOStatus.met, 0),
+                    warn=counts.get(SLOStatus.at_risk, 0),
+                    fail=counts.get(SLOStatus.breached, 0),
+                )
+            )
+            latency_metadata["loop_slos"] = loop_slo_snapshot.as_dict()
+            headline_parts.append(f"Loop SLOs {loop_slo_snapshot.status.value}")
 
         headline = "; ".join(headline_parts) if headline_parts else "Latency overview"
 

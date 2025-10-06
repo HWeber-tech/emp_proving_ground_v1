@@ -263,6 +263,11 @@
   with delta call-outs, honours slice limits, omits deltas for non-numeric
   statuses, and ships with a CLI/pytest contract so status updates and briefs
   stay in sync without manual collation.【F:tools/telemetry/remediation_summary.py†L1-L220】【F:tests/tools/test_remediation_summary.py†L22-L125】
+- CI dashboard rows and weekly status updates now flow from
+  `python -m tools.telemetry.status_digest`, which fuses coverage, formatter,
+  remediation, freshness, and observability telemetry into Markdown with pytest
+  backing so stakeholders can paste evidence-backed updates directly into
+  briefs or sprint notes.【F:tools/telemetry/status_digest.py†L1-L667】【F:tests/tools/test_status_digest.py†L1-L217】
 - Maintain CI dashboard entries for ingest, risk, sensory, evolution, and
   operational telemetry, updating notes/tests as suites land so reviewers can
   trace validation hooks directly from the brief.【F:docs/status/ci_health.md†L21-L73】

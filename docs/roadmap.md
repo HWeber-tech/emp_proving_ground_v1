@@ -237,6 +237,19 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
     coverage.【F:src/trading/integration/fix_broker_interface.py†L211-L604】【F:tests/trading/test_fix_broker_interface_events.py†L14-L239】【F:docs/operations/runbooks/manual_fix_order_risk_block.md†L1-L38】
 - [ ] **Quality and observability** – Expand regression coverage, close the
   documentation gap, and track remediation progress through CI snapshots.
+  - [ ] Publish decision narration capsules that link policy-ledger diffs, sigma
+    stability metrics, and throttle states into the observability diary schema
+    so AlphaTrade reviewers inherit a single provenance trail.【F:docs/context/alignment_briefs/quality_observability.md†L168-L171】
+  - [ ] Extend sensory drift regressions with Page–Hinkley sentries, replay
+    determinism fixtures, and Prometheus exports that document throttle
+    behaviour for the understanding loop.【F:docs/context/alignment_briefs/quality_observability.md†L172-L175】
+  - [ ] Instrument SLO probes for loop latency, drift alert freshness, and replay
+    determinism across Prometheus exporters and guardrail suites.【F:docs/context/alignment_briefs/quality_observability.md†L176-L178】
+  - [ ] Wire Slack/webhook alert mirrors, rehearse forced-failure drills, and log
+    MTTA/MTTR in CI dashboards so responders stay aligned with telemetry
+    changes.【F:docs/context/alignment_briefs/quality_observability.md†L162-L164】
+  - [ ] Refresh CI dashboard rows and weekly status updates with telemetry
+    deltas so roadmap evidence remains synchronised with delivery.【F:docs/context/alignment_briefs/quality_observability.md†L165-L167】
   - *Progress*: Event bus health publishing now routes through the shared
     failover helper, logging runtime publish failures, propagating metadata to
     the global bus, and raising typed errors when both transports degrade so
@@ -534,6 +547,24 @@ Encyclopedia while acknowledging that most subsystems remain scaffolding.
     drawdown/exposure/liquidity guardrails, and publishes policy decisions so
     trading managers consume the same deterministic risk manager path as the
     runtime builder.【F:src/trading/trading_manager.py†L1-L320】【F:src/trading/risk/risk_gateway.py†L161-L379】【F:tests/current/test_risk_gateway_validation.py†L74-L206】
+- [ ] **Understanding loop AlphaTrade shadow pilot** – Deliver the live-shadow
+  Perception → Adaptation → Reflection loop so AlphaTrade parity work can
+  proceed without risking capital.【F:docs/High-Impact Development Roadmap.md†L5-L45】
+  - [ ] Ship belief/regime scaffolding with `BeliefState` buffers,
+    `RegimeSignal` publication, and health-checked BeliefEmitter/RegimeFSM
+    contracts ready for live-shadow inputs.【F:docs/context/sprint_briefs/understanding_loop_v1.md†L33-L58】【F:docs/High-Impact Development Roadmap.md†L48-L59】
+  - [ ] Implement `UnderstandingRouter` fast-weight adapters with feature
+    gating, configuration schema, and guardrail tests so strategy routing stays
+    auditable.【F:docs/context/sprint_briefs/understanding_loop_v1.md†L38-L62】【F:docs/High-Impact Development Roadmap.md†L50-L52】
+  - [ ] Automate decision diaries and the probe registry with CLI exports and
+    governance hooks so reviewers inherit narrated decisions and probe
+    ownership.【F:docs/context/sprint_briefs/understanding_loop_v1.md†L63-L76】
+  - [ ] Stand up drift sentry detectors, alert policies, and runbook updates that
+    tie Page–Hinkley/variance thresholds into readiness dashboards.【F:docs/context/sprint_briefs/understanding_loop_v1.md†L78-L91】【F:docs/High-Impact Development Roadmap.md†L52-L53】
+  - [ ] Deliver the policy ledger store, rebuild CLI, and governance checklist so
+    promotions trace back to DecisionDiary evidence.【F:docs/context/sprint_briefs/understanding_loop_v1.md†L93-L107】【F:docs/High-Impact Development Roadmap.md†L53-L54】
+  - [ ] Provide graph diagnostics CLI, guardrailed acceptance workflow, and
+    operational dashboard tile so AlphaTrade deltas remain observable.【F:docs/context/sprint_briefs/understanding_loop_v1.md†L108-L128】
 
 ### Later (90+ days)
 

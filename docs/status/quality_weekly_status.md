@@ -4,10 +4,12 @@ This log captures the CI telemetry deltas that back the quality and
 observability roadmap stream. Generate updates with:
 
 ```bash
-python -m tools.telemetry.ci_digest --mode weekly --metrics tests/.telemetry/ci_metrics.json
+python -m tools.telemetry.status_digest --mode weekly-status --metrics tests/.telemetry/ci_metrics.json
 ```
 
-Run the command after refreshing coverage reports and telemetry trendlines so the
+Add `--dashboard docs/status/ci_dashboard.json` (or another snapshot path) when
+you want the observability panel summary in the digest. Run the command after
+refreshing coverage reports and telemetry trendlines so the
 roadmap, dashboards, and status updates stay in sync. Keep the most recent entry
 at the top of the log.
 

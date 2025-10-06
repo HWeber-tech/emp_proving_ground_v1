@@ -110,6 +110,10 @@
     failover helper so dashboards and responders inherit machine-readable
     remediation context under pytest coverage documenting alert derivation and
     publish fallbacks.【F:src/operations/operational_readiness.py†L113-L373】【F:tests/operations/test_operational_readiness.py†L86-L221】【F:docs/status/operational_readiness.md†L1-L73】【F:tests/runtime/test_professional_app_timescale.py†L722-L799】
+  - Progress: Runtime builder now consumes the sensory organ status feed,
+    publishes the hardened summary/metrics telemetry, and stores the latest
+    snapshots on the professional app so the summary surface emits Markdown and
+    JSON blocks for responders under regression coverage.【F:src/runtime/runtime_builder.py†L322-L368】【F:src/runtime/predator_app.py†L600-L1139】【F:tests/runtime/test_runtime_builder.py†L121-L207】【F:tests/runtime/test_professional_app_timescale.py†L1328-L1404】
 - Progress: Coverage matrix CLI now exposes lagging domains via the
   `identify_laggards` helper, exports the list of covered source files, and
   enforces required regression suites through `--require-file`, failing the

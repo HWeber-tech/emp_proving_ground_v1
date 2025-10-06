@@ -130,6 +130,37 @@ def test_suppression_window_skips_duplicate_events() -> None:
     ]
 
 
+def test_operational_readiness_rule_routes_alerts() -> None:
+    manager, captures = _make_manager()
+
+    event = AlertEvent(
+        category="operational.readiness",
+        severity=AlertSeverity.warning,
+        message="Operational readiness degraded",
+    )
+
+    result = manager.dispatch(event)
+
+    assert set(result.triggered_channels) == {"ops-email", "ops-webhook"}
+    assert {channel for channel, _, _ in captures} == {"ops-email", "ops-webhook"}
+
+
+def test_incident_response_critical_routes_sms() -> None:
+    manager, captures = _make_manager()
+
+    event = AlertEvent(
+        category="incident_response.missing_runbooks",
+        severity=AlertSeverity.critical,
+        message="Missing runbooks",
+    )
+
+    result = manager.dispatch(event)
+
+    assert set(result.triggered_channels) == {"ops-email", "ops-webhook", "ops-sms"}
+    channel_names = {channel for channel, _, _ in captures}
+    assert channel_names == {"ops-email", "ops-webhook", "ops-sms"}
+
+
 def test_rule_tag_filters() -> None:
     config = default_alert_policy_config()
     config["channels"].append({"name": "prod-email", "type": "email"})

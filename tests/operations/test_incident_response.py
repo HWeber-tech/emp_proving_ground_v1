@@ -105,6 +105,18 @@ def test_evaluate_incident_response_escalates() -> None:
     assert any("missing" in issue.lower() for issue in snapshot.issues)
     assert any("postmortem" in issue.lower() for issue in snapshot.issues)
     assert snapshot.metadata["postmortem_backlog_hours"] == 30.0
+    issue_counts = snapshot.metadata.get("issue_counts")
+    assert issue_counts and issue_counts["fail"] >= 1
+    assert snapshot.metadata.get("highest_issue_severity") == "fail"
+    issue_details = snapshot.metadata.get("issue_details")
+    assert issue_details
+    by_message = {detail["message"]: detail for detail in issue_details}  # type: ignore[index]
+    assert any("Missing required runbooks" in message for message in by_message)
+    missing_detail = next(
+        detail for message, detail in by_message.items() if "Missing required runbooks" in message
+    )
+    assert missing_detail["category"] == "missing_runbooks"
+    assert missing_detail["severity"] == "fail"
 
 
 def test_incident_response_mapping_parsing() -> None:
@@ -213,6 +225,10 @@ def test_incident_response_alert_generation_from_snapshot() -> None:
     assert "training overdue" in categories["incident_response.training"].message.lower()
     assert "incident" in categories["incident_response.open_incidents"].message.lower()
     assert categories["incident_response.chatops"].context["chatops_ready"] is False
+    issue_event = categories["incident_response.issue"]
+    assert "detail" in issue_event.context
+    detail = issue_event.context["detail"]
+    assert detail["category"] in issue_event.tags
 
 
 def test_route_incident_response_alerts_dispatches_events() -> None:

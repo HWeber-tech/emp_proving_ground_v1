@@ -16,6 +16,12 @@ fields:
 - `component_statuses` – a mapping from component name to its status value so
   dashboards can highlight degraded services directly (for example,
   `{ "incident_response": "fail" }`).
+- `issue_counts` – rolled-up WARN/FAIL totals sourced from each component’s
+  issue metadata so responders can see the breadth of active incidents without
+  drilling into every payload.
+- `component_issue_details` – per-component issue catalogs (counts, highest
+  severity, structured entries) that observability dashboards can surface when
+  a component reports WARN/FAIL conditions.【F:src/operations/operational_readiness.py†L113-L184】
 
 Both fields accompany the existing `component_count` and remain present in the
 snapshot dictionary returned by `OperationalReadinessSnapshot.as_dict()` and the
@@ -27,6 +33,9 @@ if the breakdown or component mapping drift.
 
 - Dashboards can render stacked bar charts or summary chips by reading the
   `status_breakdown` map instead of recomputing severities.
+- Incident response drill-downs reuse `component_issue_details` to highlight
+  missing runbooks, roster gaps, and backlog breaches with their recorded
+  severities.
 - Alerting policies receive the enriched metadata via the alert context, making
   it trivial to route failures for specific components.
 - Additional metadata can still be supplied via the `metadata` parameter when
@@ -50,6 +59,18 @@ log runtime bus failures, raise typed errors on unexpected exceptions, and fall
 back to the global bus when necessary, with regression coverage locking the
 runtime/global escalation paths.【F:src/operations/operational_readiness.py†L319-L373】【F:tests/operations/test_operational_readiness.py†L186-L221】
 
+## Incident response issue catalog
+
+Incident response telemetry now records a structured issue catalog alongside the
+string summaries. `IncidentResponseSnapshot.metadata` exposes `issue_details`,
+`issue_counts`, `issue_category_severity`, and the `highest_issue_severity`
+driver so dashboards and alert policies can branch on the dominant failure mode
+without re-parsing Markdown.【F:src/operations/incident_response.py†L242-L354】
+`derive_incident_response_alerts` includes the structured detail in alert
+contexts and tags category names onto issue events, enabling routing policies to
+escalate missing runbooks or postmortem backlogs via dedicated channels under
+pytest coverage.【F:tests/operations/test_incident_response.py†L132-L167】
+
 ## Feeder snapshots
 
 - `evaluate_incident_response` turns policy/state mappings into a readiness
@@ -61,6 +82,15 @@ runtime/global escalation paths.【F:src/operations/operational_readiness.py†L
   so readiness retains validator metadata and degraded-check evidence even when
   the runtime bus falters, with regressions covering evaluation, alerting, and
   failover paths.【F:src/operations/system_validation.py†L1-L312】【F:tests/operations/test_system_validation.py†L1-L195】
+
+## Gating deployments with system validation
+
+Call `evaluate_system_validation_gate` on the snapshot to enforce deployment
+requirements: FAIL always blocks, `block_on_warn=True` escalates WARN to a
+blocking condition, `min_success_rate` guards aggregate pass thresholds, and
+`required_checks` ensures critical checks are both present and successful. The
+returned `SystemValidationGateResult` records blocking reasons and exposes an
+`as_dict()` helper for dashboards and guardrails.【F:src/operations/system_validation.py†L332-L452】【F:tests/operations/test_system_validation.py†L189-L279】
 
 ## Dashboard integration
 

@@ -517,6 +517,60 @@ def default_alert_policy_config() -> dict[str, object]:
                 "channels": ["ops-email", "ops-sms", "ops-webhook"],
                 "suppress_seconds": 120,
             },
+            {
+                "name": "operational-readiness",
+                "categories": ["operational.readiness"],
+                "min_severity": "warning",
+                "channels": ["ops-email", "ops-webhook"],
+                "suppress_seconds": 600,
+            },
+            {
+                "name": "operational-component",
+                "categories": [
+                    "operational.system_validation",
+                    "operational.incident_response",
+                    "operational.operational_slos",
+                ],
+                "min_severity": "warning",
+                "channels": ["ops-email", "ops-webhook"],
+                "suppress_seconds": 300,
+            },
+            {
+                "name": "system-validation",
+                "categories": [
+                    "system_validation.status",
+                    "system_validation.check",
+                ],
+                "min_severity": "warning",
+                "channels": ["ops-email", "ops-webhook"],
+                "suppress_seconds": 300,
+            },
+            {
+                "name": "incident-response-critical",
+                "categories": [
+                    "incident_response.missing_runbooks",
+                    "incident_response.postmortem_backlog",
+                    "incident_response.roster.primary",
+                ],
+                "min_severity": "warning",
+                "channels": ["ops-email", "ops-webhook", "ops-sms"],
+                "suppress_seconds": 300,
+            },
+            {
+                "name": "incident-response-notifications",
+                "categories": [
+                    "incident_response.status",
+                    "incident_response.issue",
+                    "incident_response.drill",
+                    "incident_response.training",
+                    "incident_response.open_incidents",
+                    "incident_response.roster.secondary",
+                    "incident_response.chatops",
+                ],
+                "min_severity": "warning",
+                "channels": ["ops-email", "ops-webhook"],
+                "suppress_seconds": 300,
+            },
         ],
     }
 

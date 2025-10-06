@@ -197,6 +197,48 @@ def _slo_component(snapshot: OperationalSLOSnapshot) -> OperationalReadinessComp
     )
 
 
+def _capture_component_issues(
+    component: OperationalReadinessComponent,
+    aggregated_issue_counts: dict[str, int],
+    component_issue_details: dict[str, dict[str, object]],
+) -> None:
+    metadata = component.metadata if isinstance(component.metadata, Mapping) else None
+    if not metadata:
+        return
+
+    detail_payload: dict[str, object] = {}
+
+    issue_counts = metadata.get("issue_counts")
+    if isinstance(issue_counts, Mapping):
+        counts_copy: dict[str, int] = {}
+        for raw_severity, raw_count in issue_counts.items():
+            severity = str(raw_severity)
+            try:
+                count_value = int(raw_count)
+            except (TypeError, ValueError):
+                continue
+            aggregated_issue_counts[severity] = (
+                aggregated_issue_counts.get(severity, 0) + count_value
+            )
+            counts_copy[severity] = count_value
+        if counts_copy:
+            detail_payload["issue_counts"] = counts_copy
+
+    for key in ("issue_details", "issue_catalog", "issue_category_severity", "highest_issue_severity"):
+        value = metadata.get(key)
+        if value is None:
+            continue
+        if isinstance(value, Mapping):
+            detail_payload[key] = dict(value)
+        elif isinstance(value, (list, tuple)):
+            detail_payload[key] = list(value)
+        else:
+            detail_payload[key] = value
+
+    if detail_payload:
+        component_issue_details[component.name] = detail_payload
+
+
 def evaluate_operational_readiness(
     *,
     system_validation: SystemValidationSnapshot | None = None,
@@ -209,24 +251,29 @@ def evaluate_operational_readiness(
     components: list[OperationalReadinessComponent] = []
     moments: list[datetime] = []
     overall_status = OperationalReadinessStatus.ok
+    aggregated_issue_counts: dict[str, int] = {}
+    component_issue_details: dict[str, dict[str, object]] = {}
 
     if system_validation is not None:
         component = _system_validation_component(system_validation)
         components.append(component)
         overall_status = _escalate(overall_status, component.status)
         moments.append(system_validation.generated_at)
+        _capture_component_issues(component, aggregated_issue_counts, component_issue_details)
 
     if incident_response is not None:
         component = _incident_response_component(incident_response)
         components.append(component)
         overall_status = _escalate(overall_status, component.status)
         moments.append(incident_response.generated_at)
+        _capture_component_issues(component, aggregated_issue_counts, component_issue_details)
 
     if slo_snapshot is not None:
         component = _slo_component(slo_snapshot)
         components.append(component)
         overall_status = _escalate(overall_status, component.status)
         moments.append(slo_snapshot.generated_at)
+        _capture_component_issues(component, aggregated_issue_counts, component_issue_details)
 
     generated_at = max(moments) if moments else datetime.now(tz=UTC)
 
@@ -240,6 +287,10 @@ def evaluate_operational_readiness(
             component_statuses[component.name] = status_value
         snapshot_metadata["status_breakdown"] = breakdown
         snapshot_metadata["component_statuses"] = component_statuses
+    if aggregated_issue_counts:
+        snapshot_metadata["issue_counts"] = dict(aggregated_issue_counts)
+    if component_issue_details:
+        snapshot_metadata["component_issue_details"] = component_issue_details
     if metadata:
         snapshot_metadata.update(dict(metadata))
 
@@ -380,4 +431,3 @@ __all__ = [
     "publish_operational_readiness_snapshot",
     "route_operational_readiness_alerts",
 ]
-

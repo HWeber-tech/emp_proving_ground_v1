@@ -298,6 +298,15 @@ def evaluate_system_validation(
             tuple(check.name for check in failing_checks),
         )
 
+    if total_checks:
+        snapshot_metadata.setdefault(
+            "check_status_breakdown",
+            {
+                "passed": passed_checks,
+                "failed": failed_checks,
+            },
+        )
+
     return SystemValidationSnapshot(
         status=status,
         generated_at=_parse_timestamp(report.get("timestamp")),
@@ -448,12 +457,81 @@ def load_system_validation_snapshot(
     return evaluate_system_validation(payload, metadata=merged_metadata)
 
 
+@dataclass(frozen=True)
+class SystemValidationGateResult:
+    """Gate evaluation result for system validation telemetry."""
+
+    status: SystemValidationStatus
+    should_block: bool
+    reasons: tuple[str, ...]
+    metadata: Mapping[str, object] = field(default_factory=dict)
+
+    def as_dict(self) -> dict[str, object]:
+        return {
+            "status": self.status.value,
+            "should_block": self.should_block,
+            "reasons": list(self.reasons),
+            "metadata": dict(self.metadata),
+        }
+
+
+def evaluate_system_validation_gate(
+    snapshot: SystemValidationSnapshot,
+    *,
+    min_success_rate: float = 0.95,
+    block_on_warn: bool = False,
+    required_checks: Sequence[str] = (),
+) -> SystemValidationGateResult:
+    """Determine whether a snapshot meets deployment expectations."""
+
+    reasons: list[str] = []
+
+    if snapshot.status is SystemValidationStatus.fail:
+        reasons.append("System validation status is FAIL")
+    elif block_on_warn and snapshot.status is SystemValidationStatus.warn:
+        reasons.append("System validation status is WARN and block_on_warn is enabled")
+
+    if snapshot.success_rate < min_success_rate:
+        reasons.append(
+            "Success rate "
+            f"{snapshot.success_rate:.1%} below minimum {min_success_rate:.1%}"
+        )
+
+    if required_checks:
+        checks_by_name = {check.name.lower(): check for check in snapshot.checks}
+        for required in required_checks:
+            key = required.lower()
+            check = checks_by_name.get(key)
+            if check is None:
+                reasons.append(f"Required check missing from snapshot: {required}")
+                continue
+            if not check.passed:
+                reasons.append(f"Required check failed: {check.name}")
+
+    gate_metadata: dict[str, object] = {
+        "min_success_rate": min_success_rate,
+        "block_on_warn": block_on_warn,
+        "required_checks": tuple(required_checks),
+        "success_rate": snapshot.success_rate,
+        "snapshot_metadata": dict(snapshot.metadata),
+    }
+
+    return SystemValidationGateResult(
+        status=snapshot.status,
+        should_block=bool(reasons),
+        reasons=tuple(reasons),
+        metadata=gate_metadata,
+    )
+
+
 __all__ = [
     "SystemValidationStatus",
     "SystemValidationCheck",
     "SystemValidationSnapshot",
+    "SystemValidationGateResult",
     "derive_system_validation_alerts",
     "evaluate_system_validation",
+    "evaluate_system_validation_gate",
     "format_system_validation_markdown",
     "route_system_validation_alerts",
     "publish_system_validation_snapshot",

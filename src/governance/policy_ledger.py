@@ -16,22 +16,32 @@ shadow mode, paper trading, or eligible for limited live deployment.
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
-from typing import Any, Callable, Iterable, Mapping, MutableMapping
+from typing import Any, Callable, Iterable, Mapping, MutableMapping, Sequence
 
 import json
 import logging
 
 logger = logging.getLogger(__name__)
 
+try:  # Python < 3.11 compatibility
+    from datetime import UTC  # type: ignore[attr-defined]
+except ImportError:  # pragma: no cover - fallback for 3.10 runtimes
+    UTC = timezone.utc  # type: ignore[assignment]
+
+
 __all__ = [
     "PolicyLedgerStage",
     "PolicyLedgerRecord",
     "PolicyLedgerStore",
     "LedgerReleaseManager",
+    "PolicyDelta",
+    "PolicyLedgerFeatureFlags",
+    "build_policy_governance_workflow",
 ]
 
 
@@ -81,6 +91,7 @@ class PolicyLedgerRecord:
     approvals: tuple[str, ...] = ()
     evidence_id: str | None = None
     threshold_overrides: Mapping[str, float | str] = field(default_factory=dict)
+    policy_delta: PolicyDelta | None = None
     metadata: Mapping[str, Any] = field(default_factory=dict)
     created_at: datetime = field(default_factory=lambda: datetime.now(tz=UTC))
     updated_at: datetime = field(default_factory=lambda: datetime.now(tz=UTC))
@@ -93,11 +104,13 @@ class PolicyLedgerRecord:
         approvals: Iterable[str] | None = None,
         evidence_id: str | None = None,
         threshold_overrides: Mapping[str, float | str] | None = None,
+        policy_delta: PolicyDelta | Mapping[str, Any] | None = None,
         metadata: Mapping[str, Any] | None = None,
         timestamp: datetime | None = None,
     ) -> "PolicyLedgerRecord":
         _validate_stage_progress(self.stage, stage)
         applied_timestamp = timestamp or datetime.now(tz=UTC)
+        delta = self.policy_delta if policy_delta is None else _coerce_policy_delta(policy_delta)
         history_entry = {
             "prior_stage": self.stage.value,
             "next_stage": stage.value,
@@ -105,6 +118,8 @@ class PolicyLedgerRecord:
             "approvals": sorted(tuple(approvals or self.approvals)),
             "evidence_id": evidence_id or self.evidence_id,
         }
+        if delta is not None and not delta.is_empty():
+            history_entry["policy_delta"] = dict(delta.as_dict())
         new_history = self.history + (history_entry,)
         return PolicyLedgerRecord(
             policy_id=self.policy_id,
@@ -113,6 +128,7 @@ class PolicyLedgerRecord:
             approvals=tuple(sorted(tuple(approvals or self.approvals))),
             evidence_id=evidence_id or self.evidence_id,
             threshold_overrides=dict(threshold_overrides or self.threshold_overrides),
+            policy_delta=delta,
             metadata=dict(self.metadata) | (dict(metadata) if metadata else {}),
             created_at=self.created_at,
             updated_at=applied_timestamp,
@@ -133,6 +149,8 @@ class PolicyLedgerRecord:
             payload["evidence_id"] = self.evidence_id
         if self.threshold_overrides:
             payload["threshold_overrides"] = dict(self.threshold_overrides)
+        if self.policy_delta is not None and not self.policy_delta.is_empty():
+            payload["policy_delta"] = dict(self.policy_delta.as_dict())
         if self.metadata:
             payload["metadata"] = dict(self.metadata)
         return payload
@@ -145,6 +163,17 @@ class PolicyLedgerRecord:
         approvals = tuple(str(value) for value in data.get("approvals", ()))
         evidence_id = data.get("evidence_id")
         threshold_overrides = dict(data.get("threshold_overrides") or {})
+        policy_delta_payload = data.get("policy_delta")
+        policy_delta = None
+        if isinstance(policy_delta_payload, Mapping):
+            try:
+                policy_delta = PolicyDelta.from_dict(policy_delta_payload)
+            except Exception as exc:
+                logger.warning(
+                    "Skipping policy_delta for %s due to error: %s",
+                    policy_id,
+                    exc,
+                )
         metadata = dict(data.get("metadata") or {})
         created_at_raw = data.get("created_at")
         updated_at_raw = data.get("updated_at")
@@ -174,6 +203,7 @@ class PolicyLedgerRecord:
             approvals=approvals,
             evidence_id=str(evidence_id) if evidence_id else None,
             threshold_overrides=threshold_overrides,
+            policy_delta=policy_delta,
             metadata=metadata,
             created_at=created_at,
             updated_at=updated_at,
@@ -240,9 +270,15 @@ class PolicyLedgerStore:
         approvals: Iterable[str] = (),
         evidence_id: str | None = None,
         threshold_overrides: Mapping[str, float | str] | None = None,
+        policy_delta: PolicyDelta | Mapping[str, Any] | None = None,
         metadata: Mapping[str, Any] | None = None,
     ) -> PolicyLedgerRecord:
         approvals_tuple = tuple(sorted(str(value) for value in approvals if value))
+        delta = _coerce_policy_delta(policy_delta)
+        if delta is not None and delta.is_empty():
+            delta = None
+        if delta is not None and not approvals_tuple:
+            raise ValueError("Policy delta updates require reviewer approvals metadata")
         timestamp = self._now()
         if policy_id in self._records:
             record = self._records[policy_id]
@@ -251,10 +287,20 @@ class PolicyLedgerStore:
                 approvals=approvals_tuple,
                 evidence_id=evidence_id,
                 threshold_overrides=threshold_overrides,
+                policy_delta=delta,
                 metadata=metadata,
                 timestamp=timestamp,
             )
         else:
+            history_entry: MutableMapping[str, Any] = {
+                "prior_stage": None,
+                "next_stage": stage.value,
+                "applied_at": timestamp.isoformat(),
+                "approvals": list(approvals_tuple),
+                "evidence_id": evidence_id,
+            }
+            if delta is not None:
+                history_entry["policy_delta"] = dict(delta.as_dict())
             updated = PolicyLedgerRecord(
                 policy_id=policy_id,
                 tactic_id=tactic_id,
@@ -262,10 +308,11 @@ class PolicyLedgerStore:
                 approvals=approvals_tuple,
                 evidence_id=evidence_id,
                 threshold_overrides=dict(threshold_overrides or {}),
+                policy_delta=delta,
                 metadata=dict(metadata or {}),
                 created_at=timestamp,
                 updated_at=timestamp,
-                history=(),
+                history=(history_entry,),
             )
         self._records[policy_id] = updated
         self._dump()
@@ -305,6 +352,8 @@ class LedgerReleaseManager:
         *,
         default_stage: PolicyLedgerStage = PolicyLedgerStage.EXPERIMENT,
         stage_thresholds: Mapping[PolicyLedgerStage, Mapping[str, float | str]] | None = None,
+        feature_flags: PolicyLedgerFeatureFlags | None = None,
+        evidence_resolver: Callable[[str], bool] | None = None,
     ) -> None:
         self._store = store
         self._default_stage = default_stage
@@ -312,6 +361,8 @@ class LedgerReleaseManager:
         if stage_thresholds:
             for stage, overrides in stage_thresholds.items():
                 self._stage_thresholds[PolicyLedgerStage.from_value(stage)] = dict(overrides)
+        self._feature_flags = feature_flags or PolicyLedgerFeatureFlags.from_env()
+        self._evidence_resolver = evidence_resolver
 
     def resolve_stage(self, policy_id: str | None) -> PolicyLedgerStage:
         if not policy_id:
@@ -354,9 +405,20 @@ class LedgerReleaseManager:
         approvals: Iterable[str] = (),
         evidence_id: str | None = None,
         threshold_overrides: Mapping[str, float | str] | None = None,
+        policy_delta: PolicyDelta | Mapping[str, Any] | None = None,
         metadata: Mapping[str, Any] | None = None,
     ) -> PolicyLedgerRecord:
         stage_value = PolicyLedgerStage.from_value(stage)
+        if self._feature_flags.require_diary_evidence and not evidence_id:
+            raise ValueError("DecisionDiary evidence_id is required for ledger promotions")
+        if evidence_id and self._evidence_resolver is not None:
+            try:
+                if not self._evidence_resolver(evidence_id):
+                    raise ValueError(
+                        f"No DecisionDiary evidence located for {evidence_id}"
+                    )
+            except Exception as exc:
+                raise ValueError(f"Failed to validate DecisionDiary evidence: {exc}") from exc
         record = self._store.upsert(
             policy_id=policy_id,
             tactic_id=tactic_id,
@@ -364,6 +426,7 @@ class LedgerReleaseManager:
             approvals=approvals,
             evidence_id=evidence_id,
             threshold_overrides=threshold_overrides,
+            policy_delta=policy_delta,
             metadata=metadata,
         )
         logger.info(
@@ -377,9 +440,191 @@ class LedgerReleaseManager:
         return record
 
 
-__all__ = [
-    "PolicyLedgerStage",
-    "PolicyLedgerRecord",
-    "PolicyLedgerStore",
-    "LedgerReleaseManager",
-]
+def build_policy_governance_workflow(
+    store: PolicyLedgerStore,
+    *,
+    regulation: str = "AlphaTrade Governance",
+    generated_at: datetime | None = None,
+) -> ComplianceWorkflowSnapshot:
+    """Build a compliance workflow snapshot linked to policy ledger posture."""
+
+    from src.compliance.workflow import (
+        ComplianceWorkflowChecklist,
+        ComplianceWorkflowSnapshot,
+        ComplianceWorkflowTask,
+        WorkflowTaskStatus,
+    )
+
+    workflow_status_order: Mapping[WorkflowTaskStatus, int] = {
+        WorkflowTaskStatus.completed: 0,
+        WorkflowTaskStatus.in_progress: 1,
+        WorkflowTaskStatus.todo: 2,
+        WorkflowTaskStatus.blocked: 3,
+    }
+
+    def _resolve_task_status(record: PolicyLedgerRecord) -> WorkflowTaskStatus:
+        if not record.evidence_id:
+            return WorkflowTaskStatus.blocked
+        if not record.approvals:
+            return WorkflowTaskStatus.todo
+        if len(record.approvals) < 2:
+            return WorkflowTaskStatus.in_progress
+        if record.policy_delta is None or record.policy_delta.is_empty():
+            return WorkflowTaskStatus.in_progress
+        return WorkflowTaskStatus.completed
+
+    generated_ts = generated_at or datetime.now(tz=UTC)
+    records = sorted(
+        store.iter_records(),
+        key=lambda record: (_STAGE_ORDER.get(record.stage, 0), record.policy_id),
+    )
+    tasks: list[ComplianceWorkflowTask] = []
+    for record in records:
+        status = _resolve_task_status(record)
+        summary_parts = [f"tactic={record.tactic_id}"]
+        if record.approvals:
+            summary_parts.append("approvals=" + ",".join(record.approvals))
+        if record.evidence_id:
+            summary_parts.append(f"evidence={record.evidence_id}")
+        else:
+            summary_parts.append("evidence=missing")
+        if record.policy_delta and record.policy_delta.regime:
+            summary_parts.append(f"regime={record.policy_delta.regime}")
+        severity = "high" if status is WorkflowTaskStatus.blocked else "medium"
+        metadata: dict[str, Any] = {
+            "policy_id": record.policy_id,
+            "stage": record.stage.value,
+            "approvals": list(record.approvals),
+            "evidence_id": record.evidence_id,
+            "updated_at": record.updated_at.isoformat(),
+        }
+        if record.policy_delta is not None and not record.policy_delta.is_empty():
+            metadata["policy_delta"] = dict(record.policy_delta.as_dict())
+        task = ComplianceWorkflowTask(
+            task_id=f"policy::{record.policy_id}",
+            title=f"{record.policy_id} → {record.stage.value}",
+            status=status,
+            summary="; ".join(summary_parts),
+            severity=severity,
+            metadata=metadata,
+        )
+        tasks.append(task)
+
+    if tasks:
+        workflow_status = max(tasks, key=lambda task: workflow_status_order[task.status]).status
+    else:
+        workflow_status = WorkflowTaskStatus.todo
+
+    checklist_metadata: dict[str, Any] = {
+        "policies": len(records),
+        "completed": sum(1 for task in tasks if task.status is WorkflowTaskStatus.completed),
+        "blocked": sum(1 for task in tasks if task.status is WorkflowTaskStatus.blocked),
+    }
+    checklist = ComplianceWorkflowChecklist(
+        name="Policy Ledger Governance",
+        regulation=regulation,
+        status=workflow_status,
+        tasks=tuple(tasks),
+        metadata=checklist_metadata,
+    )
+    snapshot_metadata = {
+        "source": "policy_ledger",
+        "policy_count": len(records),
+    }
+    return ComplianceWorkflowSnapshot(
+        status=workflow_status,
+        generated_at=generated_ts,
+        workflows=(checklist,),
+        metadata=snapshot_metadata,
+    )
+
+
+def _parse_bool(value: str | None) -> bool:
+    if value is None:
+        return False
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+@dataclass(slots=True, frozen=True)
+class PolicyDelta:
+    """Delta applied to risk policy and router guardrails for a given regime."""
+
+    regime: str | None = None
+    regime_confidence: float | None = None
+    risk_config: Mapping[str, Any] = field(default_factory=dict)
+    router_guardrails: Mapping[str, Any] = field(default_factory=dict)
+    notes: tuple[str, ...] = field(default_factory=tuple)
+    metadata: Mapping[str, Any] = field(default_factory=dict)
+
+    def as_dict(self) -> Mapping[str, Any]:
+        payload: MutableMapping[str, Any] = {
+            "risk_config": dict(self.risk_config),
+            "router_guardrails": dict(self.router_guardrails),
+            "notes": list(self.notes),
+            "metadata": dict(self.metadata),
+        }
+        if self.regime is not None:
+            payload["regime"] = self.regime
+        if self.regime_confidence is not None:
+            payload["regime_confidence"] = float(self.regime_confidence)
+        return payload
+
+    def is_empty(self) -> bool:
+        return not (self.risk_config or self.router_guardrails or self.notes or self.metadata)
+
+    @classmethod
+    def from_dict(cls, payload: Mapping[str, Any]) -> "PolicyDelta":
+        regime = payload.get("regime")
+        regime_confidence = payload.get("regime_confidence")
+        if isinstance(regime_confidence, str):
+            try:
+                regime_confidence = float(regime_confidence)
+            except ValueError:
+                regime_confidence = None
+        elif regime_confidence is not None:
+            try:
+                regime_confidence = float(regime_confidence)
+            except (TypeError, ValueError):
+                regime_confidence = None
+        risk_config = dict(payload.get("risk_config") or {})
+        router_guardrails = dict(payload.get("router_guardrails") or {})
+        notes_payload = payload.get("notes")
+        if isinstance(notes_payload, Sequence) and not isinstance(notes_payload, (str, bytes)):
+            notes = tuple(str(item).strip() for item in notes_payload if str(item).strip())
+        else:
+            notes = ()
+        metadata = dict(payload.get("metadata") or {})
+        return cls(
+            regime=str(regime) if regime is not None else None,
+            regime_confidence=regime_confidence if isinstance(regime_confidence, float) else None,
+            risk_config=risk_config,
+            router_guardrails=router_guardrails,
+            notes=notes,
+            metadata=metadata,
+        )
+
+
+@dataclass(slots=True, frozen=True)
+class PolicyLedgerFeatureFlags:
+    """Feature switches guarding policy ledger promotions."""
+
+    require_diary_evidence: bool = True
+
+    @classmethod
+    def from_env(cls, env: Mapping[str, str] | None = None) -> "PolicyLedgerFeatureFlags":
+        env = env or os.environ
+        require_diary_env = env.get("POLICY_LEDGER_REQUIRE_DIARY")
+        require_diary = _parse_bool(require_diary_env) if require_diary_env is not None else True
+        return cls(require_diary_evidence=require_diary)
+
+
+def _coerce_policy_delta(
+    delta: PolicyDelta | Mapping[str, Any] | None,
+) -> PolicyDelta | None:
+    if delta is None:
+        return None
+    if isinstance(delta, PolicyDelta):
+        return delta
+    if isinstance(delta, Mapping):
+        return PolicyDelta.from_dict(delta)
+    raise TypeError("policy_delta must be a mapping or PolicyDelta instance")

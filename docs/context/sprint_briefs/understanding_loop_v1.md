@@ -93,6 +93,8 @@
   - CI guard verifying drift sentry publishes WARN within N ticks when synthetic drift fixtures exceed threshold.
   - Alert-router integration test ensuring incident response receives drift alerts through failover helper.【F:docs/context/alignment_briefs/operational_readiness.md†L40-L88】
   - Static config validator requiring drift thresholds reference documented policy IDs.
+- **Progress**
+  - DriftSentry gate now consumes sensory drift snapshots, enforces confidence/notional guardrails before trade execution, and publishes gating summaries through the runtime bootstrap and Predator telemetry with regression coverage around the dedicated gate helper and trading manager integration.【F:src/trading/gating/drift_sentry_gate.py†L1-L200】【F:src/runtime/bootstrap_runtime.py†L161-L177】【F:src/runtime/predator_app.py†L1012-L1024】【F:tests/trading/test_trading_manager_execution.py†L187-L260】【F:tests/trading/test_drift_sentry_gate.py†L61-L153】
 
 ### Days 10–11 – Policy ledger & gate (≈3 tickets)
 
@@ -124,6 +126,9 @@
   - Guardrail marker for acceptance suite to fail fast on drift between telemetry schemas and diagnostics.
   - Static doc check verifying context-pack appendix stays in sync with CLI help output.
   - Observability dashboard guard ensuring missing diagnostic payloads escalate to WARN.【F:docs/context/alignment_briefs/quality_observability.md†L10-L188】
+- **Progress**
+  - Understanding diagnostics builder exports sensory→belief→router→policy graphs as structured snapshots, surfaced via the `tools/understanding/graph_diagnostics.py` CLI with JSON/DOT/Markdown renderers under dedicated pytest coverage and the `understanding_acceptance` marker.【F:src/understanding/diagnostics.py†L395-L542】【F:tools/understanding/graph_diagnostics.py†L1-L82】【F:tests/understanding/test_understanding_diagnostics.py†L15-L29】【F:pytest.ini†L2-L27】
+  - Observability dashboard now renders an understanding-loop panel summarising regime confidence, drift exceedances, ledger approvals, and experiment mix whenever diagnostics snapshots are supplied, keeping the acceptance telemetry contract under guardrail coverage.【F:src/operations/observability_dashboard.py†L513-L548】【F:tests/operations/test_observability_dashboard.py†L371-L384】
 
 ## Definition of Done checkpoints
 

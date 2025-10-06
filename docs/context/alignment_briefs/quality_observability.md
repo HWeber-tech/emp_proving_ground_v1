@@ -179,6 +179,7 @@
   Markdown/JSON payloads through the shared failover helper so AlphaTrade
   reviewers inherit a resilient, single-trail diary feed aligned with the
   observability schema under pytest coverage.【F:src/operations/observability_diary.py†L3-L392】【F:tests/operations/test_observability_diary.py†L1-L190】
+- Progress: Understanding diagnostics builder and CLI emit sensory→belief→router→policy snapshots, add a dedicated `understanding_acceptance` pytest marker, and guard the export contract with tests so graph diagnostics stay aligned with observability deliverables.【F:src/understanding/diagnostics.py†L395-L542】【F:tools/understanding/graph_diagnostics.py†L1-L82】【F:tests/understanding/test_understanding_diagnostics.py†L15-L29】【F:pytest.ini†L2-L27】
 - Extend sensory drift regressions with Page–Hinkley detectors and throttle
   exercises, persisting deterministic replay artefacts and Prometheus export
   fixtures that demonstrate the fast-weight loop’s drift/throttle controls are

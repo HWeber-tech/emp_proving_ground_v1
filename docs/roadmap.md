@@ -186,6 +186,7 @@ kit that the roadmap calls back to in each checklist.
     rely on deterministic capture/replay under pytest coverage.【F:src/operational/md_capture.py†L1-L87】【F:tests/operational/test_md_capture.py†L1-L53】
 - [ ] **Risk and runtime safety** – Enforce `RiskConfig`, finish the builder rollout,
   adopt supervised async lifecycles, and purge deprecated facades.
+  - *Progress*: Safety manager normalises kill-switch paths (including env and relative inputs), logs unreadable sentinels, and keeps system config exports in sync so live-mode guardrails stay enforceable with regression coverage for the configuration shim.【F:src/governance/safety_manager.py†L21-L74】【F:src/governance/system_config.py†L139-L413】【F:tests/governance/test_security_phase0.py†L47-L85】
   - *Progress*: The trading risk gateway now drives portfolio checks through the
     real risk manager, records liquidity and policy telemetry, rejects intents
     that breach drawdown/exposure/liquidity limits, and publishes a
@@ -584,10 +585,13 @@ kit that the roadmap calls back to in each checklist.
     ownership.【F:docs/context/sprint_briefs/understanding_loop_v1.md†L63-L76】
   - [ ] Stand up drift sentry detectors, alert policies, and runbook updates that
     tie Page–Hinkley/variance thresholds into readiness dashboards.【F:docs/context/sprint_briefs/understanding_loop_v1.md†L78-L91】【F:docs/High-Impact Development Roadmap.md†L52-L53】
+  - *Progress*: DriftSentry gate now ingests sensory drift snapshots, applies confidence/notional guardrails, and surfaces gating telemetry through runtime bootstrap and Predator app summaries under dedicated trading manager regressions so drift incidents halt paper promotions with documented evidence.【F:src/trading/gating/drift_sentry_gate.py†L1-L200】【F:src/runtime/bootstrap_runtime.py†L161-L177】【F:src/runtime/predator_app.py†L1012-L1024】【F:tests/trading/test_trading_manager_execution.py†L187-L260】【F:tests/trading/test_drift_sentry_gate.py†L61-L153】
   - [ ] Deliver the policy ledger store, rebuild CLI, and governance checklist so
     promotions trace back to DecisionDiary evidence.【F:docs/context/sprint_briefs/understanding_loop_v1.md†L93-L107】【F:docs/High-Impact Development Roadmap.md†L53-L54】
   - [ ] Provide graph diagnostics CLI, guardrailed acceptance workflow, and
     operational dashboard tile so AlphaTrade deltas remain observable.【F:docs/context/sprint_briefs/understanding_loop_v1.md†L108-L128】
+  - *Progress*: Understanding diagnostics builder now emits sensory→belief→router→policy graphs with snapshot exports, wrapped by a CLI that renders JSON/DOT/Markdown and guarded by the `understanding_acceptance` marker plus dedicated pytest suite.【F:src/understanding/diagnostics.py†L395-L542】【F:src/understanding/__init__.py†L3-L22】【F:tools/understanding/graph_diagnostics.py†L1-L82】【F:tests/understanding/test_understanding_diagnostics.py†L15-L29】【F:pytest.ini†L2-L27】
+  - *Progress*: Observability dashboard now renders an understanding-loop panel summarising regime confidence, drift exceedances, experiments, and ledger approvals when provided with diagnostics snapshots, keeping the telemetry contract under regression coverage.【F:src/operations/observability_dashboard.py†L513-L548】【F:tests/operations/test_observability_dashboard.py†L371-L384】
 
 ### Next (30–90 days)
 
@@ -618,6 +622,7 @@ kit that the roadmap calls back to in each checklist.
   - [ ] Enable selective paper-trade execution with DriftSentry gating
     promotions and PolicyLedger enforcing audit coverage ahead of live capital
     exposure.【F:docs/High-Impact Development Roadmap.md†L75-L75】
+  - *Progress*: Trading manager now wires in DriftSentry gating, recording decisions, experiment events, and risk summaries whenever drift blocks or warns on paper trades so selective execution honours governance guardrails under pytest coverage.【F:src/trading/trading_manager.py†L219】【F:src/trading/trading_manager.py†L415】【F:src/trading/trading_manager.py†L558】【F:tests/trading/test_trading_manager_execution.py†L187-L260】
   - [ ] Introduce adaptive drift thresholds and ledger-based release management so
     vetted tactics can graduate to limited live capital without bypassing
     governance.【F:docs/High-Impact Development Roadmap.md†L76-L76】

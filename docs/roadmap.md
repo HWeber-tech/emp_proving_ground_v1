@@ -46,7 +46,13 @@ kit that the roadmap calls back to in each checklist.
     cut-offs, jitter bounds, supervisor telemetry, and snapshot publishing so
     the guardrail remains deterministic. The guardrail manifest now pins the
     ingest scheduler regression to the `guardrail` matrix, ensuring CI fails
-    fast if the scheduler suite drifts or loses its guardrail marker.【F:src/data_foundation/ingest/scheduler.py†L1-L138】【F:tests/data_foundation/test_ingest_scheduler.py†L1-L200】【F:tests/runtime/test_guardrail_suite_manifest.py†L18-L40】
+    fast if the scheduler suite drifts or loses its guardrail marker.【F:src/data_foundation/ingest/scheduler.py†L1-L138】【F:tests/data_foundation/test_ingest_scheduler.py†L1-L200】【F:tests/runtime/test_guardrail_suite_manifest.py†L18-L90】
+  - *Progress*: Cobertura coverage guardrail tooling now parses XML reports,
+    asserts coverage for ingest, risk, and observability hotspots, flags missing
+    targets, and exits non-zero for WARN/FAIL thresholds so CI pipelines and
+    local audits block on regression drift; pytest locks success/failure paths
+    and the guardrail manifest keeps the guardrail suites wired into the
+    dedicated CI marker.【F:tools/telemetry/coverage_guardrails.py†L1-L268】【F:tests/tools/test_coverage_guardrails.py†L1-L83】【F:tests/runtime/test_guardrail_suite_manifest.py†L18-L90】
   - *Progress*: Production ingest slice now orchestrates Timescale runs and
     supervised services from a single entrypoint, wiring the institutional
     provisioner, Kafka bridge, and Redis cache through the shared
@@ -88,6 +94,12 @@ kit that the roadmap calls back to in each checklist.
     failures, escalates unexpected exceptions, and falls back to the global bus
     under pytest coverage so ingest snapshots are not silently dropped when the
     runtime transport degrades.【F:src/data_foundation/ingest/telemetry.py†L33-L99】【F:tests/data_foundation/test_ingest_publishers.py†L1-L164】
+  - *Progress*: Operational readiness aggregation fuses system validation,
+    incident response, alerts, and dashboard telemetry into enriched snapshots
+    that expose per-status counts, component issue catalogs, and structured
+    alert contexts; publishing now rides the shared failover helper with pytest
+    coverage for alert routing and bus failover so responders inherit actionable
+    metadata when WARN/FAIL posture shifts.【F:src/operations/operational_readiness.py†L113-L373】【F:src/operations/incident_response.py†L242-L715】【F:src/operations/system_validation.py†L1-L312】【F:tests/operations/test_operational_readiness.py†L86-L221】【F:docs/status/operational_readiness.md†L1-L73】
 - [ ] **Sensory + evolution execution** – Replace HOW/ANOMALY stubs, wire lineage
   telemetry, and prove adaptive strategies against recorded data.
   - *Progress*: Ecosystem optimizer now defends against unsafe genomes and

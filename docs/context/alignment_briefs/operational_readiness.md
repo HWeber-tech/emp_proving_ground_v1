@@ -43,23 +43,27 @@
   professional readiness feeds warn on runtime bus failures, fall back
   deterministically, and raise on unexpected errors with pytest coverage
   guarding the behaviour. The system validation track now evaluates structured
-  reports into readiness snapshots, derives alert events, and publishes via the
-  shared failover helper while preserving failing-check metadata in Markdown and
-  payloads so responders see the exact degradation.【F:src/operations/security.py†L536-L579】【F:tests/operations/test_security.py†L101-L211】【F:src/operations/system_validation.py†L1-L312】【F:tests/operations/test_system_validation.py†L1-L195】【F:src/operations/professional_readiness.py†L268-L305】【F:tests/operations/test_professional_readiness.py†L164-L239】
+  reports into readiness snapshots, derives alert events, publishes via the
+  shared failover helper, and exposes gating helpers that return blocking
+  reasons and success metrics so responders see the exact degradation and
+  deployment posture.【F:src/operations/security.py†L536-L579】【F:tests/operations/test_security.py†L101-L211】【F:src/operations/system_validation.py†L1-L452】【F:tests/operations/test_system_validation.py†L1-L279】【F:src/operations/professional_readiness.py†L268-L305】【F:tests/operations/test_professional_readiness.py†L164-L239】
 - Harden incident response readiness by parsing policy/state mappings into a
   severity snapshot, deriving targeted alert events, and publishing telemetry
   via the guarded runtime→global failover path so outage evidence, roster gaps,
-  and postmortem backlog context stay visible under pytest coverage documenting
-  escalation and publish failures.【F:src/operations/incident_response.py†L1-L715】【F:tests/operations/test_incident_response.py†L1-L200】【F:src/operations/event_bus_failover.py†L1-L174】
+  postmortem backlog context, and structured issue catalogs (counts, highest
+  severity, category tags) stay visible under pytest coverage documenting
+  escalation and publish failures.【F:src/operations/incident_response.py†L242-L715】【F:tests/operations/test_incident_response.py†L1-L200】【F:src/operations/event_bus_failover.py†L1-L174】
 - Document Timescale failover drill requirements via the institutional ingest
   provisioner, which now exposes drill metadata from configuration and captures
   the workflow in updated runbooks so operators can rehearse recoveries using a
   consistent source of truth.【F:src/data_foundation/ingest/institutional_vertical.py†L160-L239】【F:docs/operations/timescale_failover_drills.md†L1-L27】
 - Aggregate operational readiness into a single severity snapshot that merges
   system validation, incident response, and ingest SLO posture, emits Markdown
-  summaries, derives alert events, and now exposes status breakdown/component
-  metadata so dashboards can render severity chips without recomputing logic,
-  with pytest guarding the contract and docs capturing the payload update.【F:src/operations/operational_readiness.py†L1-L256】【F:tests/operations/test_operational_readiness.py†L1-L86】【F:docs/status/operational_readiness.md†L1-L34】【F:tests/runtime/test_professional_app_timescale.py†L722-L799】
+  summaries, derives alert events, and exposes status breakdowns, component
+  status maps, issue counts, and per-component issue catalogs so dashboards can
+  render severity chips and remediation context without recomputing logic, with
+  pytest guarding alert derivation, routing, and the failover publish path while
+  docs capture the enriched payload contract.【F:src/operations/operational_readiness.py†L113-L373】【F:tests/operations/test_operational_readiness.py†L86-L221】【F:docs/status/operational_readiness.md†L1-L73】【F:tests/runtime/test_professional_app_timescale.py†L722-L799】
 - Wire the observability dashboard to consume the readiness snapshot directly,
   rendering a dedicated panel with component summaries and remediation roll-ups
   under pytest coverage so operators see readiness posture alongside risk,

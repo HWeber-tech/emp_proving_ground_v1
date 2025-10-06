@@ -105,9 +105,11 @@
     regression coverage so CI exporters can consume a canonical operational
     readiness signal without recomputing severities.【F:src/operations/observability_dashboard.py†L60-L109】【F:tests/operations/test_observability_dashboard.py†L60-L116】
   - Progress: Operational readiness telemetry now enriches snapshots with
-    per-status breakdowns and component maps so dashboards can render severity
-    chips without reimplementing escalation logic, with pytest and docs locking
-    the contract alongside the runtime exposure.【F:src/operations/operational_readiness.py†L200-L256】【F:tests/operations/test_operational_readiness.py†L1-L86】【F:docs/status/operational_readiness.md†L1-L34】【F:tests/runtime/test_professional_app_timescale.py†L722-L799】
+    per-status breakdowns, component status maps, rolled-up issue counts, and
+    per-component issue catalogs while routing derived alerts through the
+    failover helper so dashboards and responders inherit machine-readable
+    remediation context under pytest coverage documenting alert derivation and
+    publish fallbacks.【F:src/operations/operational_readiness.py†L113-L373】【F:tests/operations/test_operational_readiness.py†L86-L221】【F:docs/status/operational_readiness.md†L1-L73】【F:tests/runtime/test_professional_app_timescale.py†L722-L799】
 - Progress: Coverage matrix CLI now exposes lagging domains via the
   `identify_laggards` helper, exports the list of covered source files, and
   enforces required regression suites through `--require-file`, failing the

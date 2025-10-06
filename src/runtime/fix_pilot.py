@@ -7,13 +7,18 @@ import logging
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Callable, Mapping
 
 from src.runtime.task_supervisor import TaskSupervisor
 from src.trading.order_management import (
     OrderEventJournal,
     OrderLifecycleProcessor,
     PositionTracker,
+)
+from src.trading.risk.risk_api import (
+    RISK_API_RUNBOOK,
+    RiskApiError,
+    resolve_trading_risk_interface,
 )
 
 logger = logging.getLogger(__name__)
@@ -97,6 +102,50 @@ class FixIntegrationPilot:
 
         self.lifecycle_processor = lifecycle_processor
         self.position_tracker = tracker
+        self._sync_risk_interface_provider()
+
+    def attach_trading_manager(self, trading_manager: Any | None) -> None:
+        """Attach a trading manager and refresh risk interface wiring."""
+
+        self.trading_manager = trading_manager
+        self._sync_risk_interface_provider()
+
+    def _sync_risk_interface_provider(self) -> None:
+        setter = getattr(self.broker_interface, "set_risk_interface_provider", None)
+        if not callable(setter):
+            return
+
+        provider: Callable[[], Any] | None = None
+        manager = self.trading_manager
+        if manager is not None:
+            provider = self._build_risk_interface_provider(manager)
+
+        try:
+            setter(provider)
+        except Exception:  # pragma: no cover - diagnostic path
+            self._logger.debug("Failed to update broker risk interface provider", exc_info=True)
+
+    def _build_risk_interface_provider(self, manager: Any) -> Callable[[], Any]:
+        def _provider() -> Any:
+            describe = getattr(manager, "describe_risk_interface", None)
+            if callable(describe):
+                try:
+                    return describe()
+                except Exception:  # pragma: no cover - diagnostic guard
+                    self._logger.debug("trading_manager.describe_risk_interface failed", exc_info=True)
+            try:
+                return resolve_trading_risk_interface(manager)
+            except RiskApiError as exc:
+                return {
+                    "error": str(exc),
+                    "runbook": exc.runbook,
+                    "details": exc.to_metadata().get("details", {}),
+                }
+            except Exception as exc:  # pragma: no cover - diagnostic guard
+                self._logger.debug("risk_interface_provider_unexpected_error", exc_info=True)
+                return {"error": str(exc), "runbook": RISK_API_RUNBOOK}
+
+        return _provider
 
     async def start(self) -> None:
         if self._running:
@@ -105,6 +154,7 @@ class FixIntegrationPilot:
         self._sessions_started = bool(self.connection_manager.start_sessions())
         self._bind_message_queues()
         self._refresh_initiator()
+        self._sync_risk_interface_provider()
         await self._start_component(self.sensory_organ)
         await self._start_component(self.broker_interface)
         await self._start_component(self.dropcopy_listener)

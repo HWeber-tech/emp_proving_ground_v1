@@ -87,6 +87,7 @@ class _StubBroker(_StubComponent):
         self.fix_initiator = None
         self.orders = {"ORD-1": {"status": "ACK"}}
         self.listeners: dict[str, list] = {}
+        self._risk_interface_provider = None
 
     def get_all_orders(self):
         return dict(self.orders)
@@ -105,6 +106,9 @@ class _StubBroker(_StubComponent):
     def emit(self, event_type: str, order_id: str, payload: dict):
         for callback in list(self.listeners.get(event_type, [])):
             callback(order_id, payload)
+
+    def set_risk_interface_provider(self, provider):
+        self._risk_interface_provider = provider
 
 
 class _StubComplianceMonitor:
@@ -149,6 +153,8 @@ async def test_fix_integration_pilot_start_stop_and_snapshot():
         trading_manager=trading_manager,
         dropcopy_listener=dropcopy,
     )
+
+    assert broker._risk_interface_provider is not None
 
     await pilot.start()
     assert supervisor.active_count >= 1

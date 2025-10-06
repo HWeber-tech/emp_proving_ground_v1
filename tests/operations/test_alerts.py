@@ -2,6 +2,36 @@
 
 from __future__ import annotations
 
+import datetime as _datetime
+import enum as _enum
+import typing as _typing
+
+if not hasattr(_datetime, "UTC"):
+    _datetime.UTC = _datetime.timezone.utc  # type: ignore[attr-defined]
+
+if not hasattr(_enum, "StrEnum"):
+    class _StrEnum(str, _enum.Enum):
+        pass
+
+    _enum.StrEnum = _StrEnum
+
+
+def _shim_class_getitem(name: str) -> type:
+    class _Placeholder:
+        @classmethod
+        def __class_getitem__(cls, item):
+            return item
+
+    _Placeholder.__name__ = name
+    return _Placeholder
+
+
+if not hasattr(_typing, "Unpack"):
+    _typing.Unpack = _shim_class_getitem("Unpack")  # type: ignore[attr-defined]
+
+if not hasattr(_typing, "NotRequired"):
+    _typing.NotRequired = _shim_class_getitem("NotRequired")  # type: ignore[attr-defined]
+
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -143,6 +173,27 @@ def test_operational_readiness_rule_routes_alerts() -> None:
 
     assert set(result.triggered_channels) == {"ops-email", "ops-webhook"}
     assert {channel for channel, _, _ in captures} == {"ops-email", "ops-webhook"}
+
+
+def test_drift_sentry_rules_route_alerts() -> None:
+    manager, captures = _make_manager()
+
+    component_event = AlertEvent(
+        category="operational.drift_sentry",
+        severity=AlertSeverity.warning,
+        message="Drift sentry warn",
+    )
+    overall_event = AlertEvent(
+        category="sensory.drift.why",
+        severity=AlertSeverity.warning,
+        message="WHY drift warn",
+    )
+
+    manager.dispatch(component_event)
+    manager.dispatch(overall_event)
+
+    triggered = {channel for channel, _, _ in captures}
+    assert triggered == {"ops-email", "ops-webhook"}
 
 
 def test_incident_response_critical_routes_sms() -> None:

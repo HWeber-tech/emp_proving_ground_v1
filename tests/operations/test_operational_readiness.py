@@ -1,3 +1,33 @@
+import datetime as _datetime
+import enum as _enum
+import typing as _typing
+
+if not hasattr(_datetime, "UTC"):
+    _datetime.UTC = _datetime.timezone.utc  # type: ignore[attr-defined]
+
+if not hasattr(_enum, "StrEnum"):
+    class _StrEnum(str, _enum.Enum):
+        pass
+
+    _enum.StrEnum = _StrEnum
+
+
+def _shim_class_getitem(name: str) -> type:
+    class _Placeholder:
+        @classmethod
+        def __class_getitem__(cls, item):
+            return item
+
+    _Placeholder.__name__ = name
+    return _Placeholder
+
+
+if not hasattr(_typing, "Unpack"):
+    _typing.Unpack = _shim_class_getitem("Unpack")  # type: ignore[attr-defined]
+
+if not hasattr(_typing, "NotRequired"):
+    _typing.NotRequired = _shim_class_getitem("NotRequired")  # type: ignore[attr-defined]
+
 from datetime import UTC, datetime
 
 import pytest
@@ -16,6 +46,11 @@ from src.operations.incident_response import (
     IncidentResponseState,
     IncidentResponseStatus,
     evaluate_incident_response,
+)
+from src.operations.sensory_drift import (
+    DriftSeverity,
+    SensoryDimensionDrift,
+    SensoryDriftSnapshot,
 )
 from src.operations.operational_readiness import (
     OperationalReadinessStatus,
@@ -63,6 +98,30 @@ def _incident_response_snapshot(status: IncidentResponseStatus) -> IncidentRespo
     )
 
 
+def _drift_snapshot(severity: DriftSeverity) -> SensoryDriftSnapshot:
+    dimension = SensoryDimensionDrift(
+        name="WHY",
+        current_signal=0.8,
+        baseline_signal=0.1,
+        delta=0.7,
+        current_confidence=0.75,
+        baseline_confidence=0.65,
+        confidence_delta=0.1,
+        severity=severity,
+        samples=12,
+        page_hinkley_stat=1.2,
+        variance_ratio=1.7,
+        detectors=("page_hinkley_alert",),
+    )
+    return SensoryDriftSnapshot(
+        generated_at=datetime(2025, 1, 3, tzinfo=UTC),
+        status=severity,
+        dimensions={"WHY": dimension},
+        sample_window=12,
+        metadata={"source": "test"},
+    )
+
+
 def test_operational_readiness_combines_components() -> None:
     readiness = evaluate_operational_readiness(
         system_validation=_system_validation_snapshot(SystemValidationStatus.warn),
@@ -89,6 +148,22 @@ def test_operational_readiness_combines_components() -> None:
     assert "incident_response" in markdown
 
 
+def test_operational_readiness_includes_drift_component() -> None:
+    readiness = evaluate_operational_readiness(
+        drift_snapshot=_drift_snapshot(DriftSeverity.warn)
+    )
+
+    assert readiness.status is OperationalReadinessStatus.warn
+    component_statuses = readiness.metadata["component_statuses"]
+    assert component_statuses == {"drift_sentry": "warn"}
+
+    drift_component = readiness.components[0]
+    assert drift_component.name == "drift_sentry"
+    assert drift_component.summary.startswith("WHY:warn")
+    assert "page_hinkley_alert" in drift_component.summary
+    assert drift_component.metadata.get("issue_counts", {}).get("warn") == 1
+
+
 def test_operational_readiness_alert_generation() -> None:
     readiness = evaluate_operational_readiness(
         system_validation=_system_validation_snapshot(SystemValidationStatus.warn)
@@ -112,6 +187,20 @@ def test_operational_readiness_alert_generation() -> None:
         readiness, threshold=OperationalReadinessStatus.fail, include_overall=False
     )
     assert suppressed == []
+
+
+def test_operational_readiness_alerts_include_drift_component() -> None:
+    readiness = evaluate_operational_readiness(
+        drift_snapshot=_drift_snapshot(DriftSeverity.alert)
+    )
+
+    events = derive_operational_alerts(readiness)
+    categories = {event.category: event for event in events}
+    assert "operational.drift_sentry" in categories
+    drift_event = categories["operational.drift_sentry"]
+    assert drift_event.severity is AlertSeverity.critical
+    assert drift_event.tags == ("operational-readiness", "drift_sentry")
+    assert drift_event.context["component"]["name"] == "drift_sentry"
 
 
 def test_operational_readiness_aggregates_issue_counts() -> None:

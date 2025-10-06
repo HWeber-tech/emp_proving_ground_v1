@@ -20,6 +20,7 @@ from src.operations.incident_response import (
     IncidentResponseSnapshot,
     IncidentResponseStatus,
 )
+from src.operations.sensory_drift import DriftSeverity, SensoryDriftSnapshot
 from src.operations.slo import OperationalSLOSnapshot, SLOStatus
 from src.operations.system_validation import (
     SystemValidationSnapshot,
@@ -75,6 +76,14 @@ def _map_slo_status(status: SLOStatus) -> OperationalReadinessStatus:
     if status is SLOStatus.breached:
         return OperationalReadinessStatus.fail
     if status is SLOStatus.at_risk:
+        return OperationalReadinessStatus.warn
+    return OperationalReadinessStatus.ok
+
+
+def _map_drift_status(severity: DriftSeverity) -> OperationalReadinessStatus:
+    if severity is DriftSeverity.alert:
+        return OperationalReadinessStatus.fail
+    if severity is DriftSeverity.warn:
         return OperationalReadinessStatus.warn
     return OperationalReadinessStatus.ok
 
@@ -197,6 +206,53 @@ def _slo_component(snapshot: OperationalSLOSnapshot) -> OperationalReadinessComp
     )
 
 
+def _drift_component(snapshot: SensoryDriftSnapshot) -> OperationalReadinessComponent:
+    status = _map_drift_status(snapshot.status)
+    degraded: list[str] = []
+    issue_counts: dict[str, int] = {}
+    issue_details: dict[str, dict[str, object]] = {}
+
+    for name, dimension in snapshot.dimensions.items():
+        severity = dimension.severity
+        if severity is DriftSeverity.normal:
+            continue
+        if severity is DriftSeverity.warn:
+            issue_counts["warn"] = issue_counts.get("warn", 0) + 1
+        elif severity is DriftSeverity.alert:
+            issue_counts["fail"] = issue_counts.get("fail", 0) + 1
+
+        detector_suffix = f" ({', '.join(dimension.detectors)})" if dimension.detectors else ""
+        degraded.append(f"{name}:{severity.value}{detector_suffix}")
+
+        detail: dict[str, object] = {"severity": severity.value}
+        if dimension.detectors:
+            detail["detectors"] = list(dimension.detectors)
+        if dimension.page_hinkley_stat is not None:
+            detail["page_hinkley_stat"] = dimension.page_hinkley_stat
+        if dimension.variance_ratio is not None:
+            detail["variance_ratio"] = dimension.variance_ratio
+        issue_details[name] = detail
+
+    summary = (
+        "no drift exceedances"
+        if not degraded
+        else "; ".join(sorted(degraded))
+    )
+
+    metadata: dict[str, object] = {"snapshot": snapshot.as_dict()}
+    if issue_counts:
+        metadata["issue_counts"] = issue_counts
+    if issue_details:
+        metadata["issue_details"] = issue_details
+
+    return OperationalReadinessComponent(
+        name="drift_sentry",
+        status=status,
+        summary=summary,
+        metadata=metadata,
+    )
+
+
 def _capture_component_issues(
     component: OperationalReadinessComponent,
     aggregated_issue_counts: dict[str, int],
@@ -243,6 +299,7 @@ def evaluate_operational_readiness(
     *,
     system_validation: SystemValidationSnapshot | None = None,
     incident_response: IncidentResponseSnapshot | None = None,
+    drift_snapshot: SensoryDriftSnapshot | None = None,
     slo_snapshot: OperationalSLOSnapshot | None = None,
     metadata: Mapping[str, object] | None = None,
 ) -> OperationalReadinessSnapshot:
@@ -268,6 +325,16 @@ def evaluate_operational_readiness(
         moments.append(incident_response.generated_at)
         _capture_component_issues(component, aggregated_issue_counts, component_issue_details)
 
+    if drift_snapshot is not None:
+        component = _drift_component(drift_snapshot)
+        components.append(component)
+        overall_status = _escalate(overall_status, component.status)
+        drift_generated_at = drift_snapshot.generated_at
+        if drift_generated_at.tzinfo is None:
+            drift_generated_at = drift_generated_at.replace(tzinfo=UTC)
+        moments.append(drift_generated_at)
+        _capture_component_issues(component, aggregated_issue_counts, component_issue_details)
+
     if slo_snapshot is not None:
         component = _slo_component(slo_snapshot)
         components.append(component)
@@ -287,8 +354,27 @@ def evaluate_operational_readiness(
             component_statuses[component.name] = status_value
         snapshot_metadata["status_breakdown"] = breakdown
         snapshot_metadata["component_statuses"] = component_statuses
+    fallback_issue_counts: dict[str, int] = {}
+    for component in components:
+        if component.status is OperationalReadinessStatus.warn:
+            fallback_issue_counts["warn"] = fallback_issue_counts.get("warn", 0) + 1
+        elif component.status is OperationalReadinessStatus.fail:
+            fallback_issue_counts["fail"] = fallback_issue_counts.get("fail", 0) + 1
+        if component.status is not OperationalReadinessStatus.ok:
+            detail = component_issue_details.setdefault(
+                component.name,
+                {
+                    "severity": component.status.value,
+                    "summary": component.summary,
+                },
+            )
+            counts = detail.setdefault("issue_counts", {})
+            if isinstance(counts, dict):
+                counts.setdefault(component.status.value, 1)
     if aggregated_issue_counts:
         snapshot_metadata["issue_counts"] = dict(aggregated_issue_counts)
+    elif fallback_issue_counts:
+        snapshot_metadata["issue_counts"] = fallback_issue_counts
     if component_issue_details:
         snapshot_metadata["component_issue_details"] = component_issue_details
     if metadata:

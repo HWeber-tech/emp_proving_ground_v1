@@ -164,6 +164,7 @@ from .sensory_drift import (
     DriftSeverity,
     SensoryDimensionDrift,
     SensoryDriftSnapshot,
+    derive_drift_alerts,
     evaluate_sensory_drift,
     publish_sensory_drift,
 )

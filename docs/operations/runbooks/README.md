@@ -20,6 +20,9 @@ briefs and CI health snapshot.
 - [Manual FIX order risk block](manual_fix_order_risk_block.md) – Documents the
   telemetry contract emitted by `FIXBrokerInterface` when manual orders are
   denied and links to the deterministic risk API remediation path.
+- [Drift sentry response](drift_sentry_response.md) – Maps Page–Hinkley and
+  variance detector severities to alert policies, readiness dashboards, and
+  remediation steps so operators can halt promotions when sensory drift spikes.
 
 Keep these documents close to the institutional data backbone alignment brief so
 runbooks, roadmap status, and acceptance hooks evolve together.

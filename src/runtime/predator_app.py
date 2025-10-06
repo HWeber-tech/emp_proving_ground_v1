@@ -1258,6 +1258,7 @@ class ProfessionalPredatorApp:
             readiness_snapshot = evaluate_operational_readiness(
                 system_validation=self._last_system_validation_snapshot,
                 incident_response=self._last_incident_response_snapshot,
+                drift_snapshot=self._last_sensory_drift_snapshot,
                 slo_snapshot=self._last_operational_slo_snapshot,
                 metadata={"protocol": self.config.connection_protocol.value},
             )

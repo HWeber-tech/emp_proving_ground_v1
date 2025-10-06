@@ -22,6 +22,10 @@ fields:
 - `component_issue_details` – per-component issue catalogs (counts, highest
   severity, structured entries) that observability dashboards can surface when
   a component reports WARN/FAIL conditions.【F:src/operations/operational_readiness.py†L113-L184】
+- `drift_sentry` component – aggregates the Page–Hinkley and variance detector
+  outputs from the sensory drift snapshot, surfaces degraded dimensions with
+  detector reasons, and feeds WARN/FAIL counts plus rich issue details into the
+  readiness metadata and alert contexts.【F:src/operations/operational_readiness.py†L83-L253】
 
 Both fields accompany the existing `component_count` and remain present in the
 snapshot dictionary returned by `OperationalReadinessSnapshot.as_dict()` and the

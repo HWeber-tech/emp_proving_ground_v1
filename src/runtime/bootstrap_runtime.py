@@ -227,6 +227,22 @@ class BootstrapRuntime:
                 audit = []
             if audit:
                 status["sensor_audit"] = audit
+
+        describe_interface = getattr(self.trading_manager, "describe_risk_interface", None)
+        if callable(describe_interface):
+            try:
+                interface_payload = describe_interface()
+            except Exception:  # pragma: no cover - diagnostics only
+                logger.debug(
+                    "Failed to resolve trading risk interface for bootstrap status",
+                    exc_info=True,
+                )
+            else:
+                if interface_payload is not None:
+                    if isinstance(interface_payload, Mapping):
+                        status["risk_interface"] = dict(interface_payload)
+                    else:
+                        status["risk_interface"] = interface_payload
         return status
 
     async def start(self, *, task_supervisor: TaskSupervisor | None = None) -> None:

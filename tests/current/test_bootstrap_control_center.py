@@ -17,6 +17,7 @@ from src.orchestration.enhanced_intelligence_engine import ContextualFusionEngin
 from src.trading.execution.paper_execution import ImmediateFillExecutionAdapter
 from src.trading.liquidity.depth_aware_prober import DepthAwareLiquidityProber
 from src.trading.monitoring.portfolio_monitor import InMemoryRedis, PortfolioMonitor
+from src.trading.risk.risk_api import RISK_API_RUNBOOK
 from src.trading.trading_manager import TradingManager
 
 
@@ -154,6 +155,9 @@ async def test_control_center_compiles_telemetry_report() -> None:
     assert report["risk"]["snapshot"]["status"] in {"ok", "warn", "alert"}
     assert report["risk"]["policy"] is not None
     assert report["risk"]["policy"]["snapshot"]["symbol"] == "EURUSD"
+    interface = report["risk"].get("interface")
+    assert interface is not None
+    assert interface.get("summary", {}).get("runbook") == RISK_API_RUNBOOK
     assert report["performance"]["fills"] >= 1
     assert "roi" in report["performance"]
     assert report["performance"]["roi"]["snapshot"]["status"] in {"ahead", "tracking", "at_risk"}
@@ -170,6 +174,9 @@ async def test_control_center_compiles_telemetry_report() -> None:
     assert overview["last_decision"] is not None
     assert overview["risk_posture"]["status"] in {"ok", "warn", "alert"}
     assert overview["risk_policy"]["symbol"] == "EURUSD"
+    interface_overview = overview.get("risk_interface")
+    assert interface_overview is not None
+    assert interface_overview.get("summary", {}).get("runbook") == RISK_API_RUNBOOK
     assert overview["roi_posture"]["status"] in {"ahead", "tracking", "at_risk"}
     assert overview["evolution"]["generations"] == orchestrator.telemetry["total_generations"]
     assert overview["vision_alignment"]["status"] in {"ready", "progressing", "gap"}

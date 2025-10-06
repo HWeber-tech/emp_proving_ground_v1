@@ -31,6 +31,7 @@ class FixPilotState:
     last_order: Mapping[str, Any] | None
     compliance_summary: Mapping[str, Any] | None
     risk_summary: Mapping[str, Any] | None
+    risk_interface: Mapping[str, Any] | None = None
     dropcopy_running: bool
     dropcopy_backlog: int
     last_dropcopy_event: Mapping[str, Any] | None
@@ -179,6 +180,24 @@ class FixIntegrationPilot:
             except Exception:  # pragma: no cover - diagnostics only
                 self._logger.debug("Risk stats fetch failed", exc_info=True)
 
+        risk_interface: Mapping[str, Any] | None = None
+        if self.trading_manager is not None:
+            describe_interface = getattr(self.trading_manager, "describe_risk_interface", None)
+            if callable(describe_interface):
+                try:
+                    interface_payload = describe_interface()
+                except Exception:  # pragma: no cover - diagnostics only
+                    self._logger.debug(
+                        "Failed to describe trading risk interface",
+                        exc_info=True,
+                    )
+                else:
+                    if interface_payload is not None:
+                        if isinstance(interface_payload, Mapping):
+                            risk_interface = dict(interface_payload)
+                        else:
+                            risk_interface = {"value": interface_payload}
+
         dropcopy_running = False
         dropcopy_backlog = 0
         last_dropcopy: Mapping[str, Any] | None = None
@@ -284,6 +303,9 @@ class FixIntegrationPilot:
             if isinstance(compliance_summary, Mapping)
             else None,
             risk_summary=dict(risk_summary) if isinstance(risk_summary, Mapping) else None,
+            risk_interface=dict(risk_interface)
+            if isinstance(risk_interface, Mapping)
+            else None,
             dropcopy_running=dropcopy_running,
             dropcopy_backlog=dropcopy_backlog,
             last_dropcopy_event=last_dropcopy,

@@ -50,6 +50,10 @@ kit that the roadmap calls back to in each checklist.
     the guardrail remains deterministic. The guardrail manifest now pins the
     ingest scheduler regression to the `guardrail` matrix, ensuring CI fails
     fast if the scheduler suite drifts or loses its guardrail marker.【F:src/data_foundation/ingest/scheduler.py†L1-L138】【F:tests/data_foundation/test_ingest_scheduler.py†L1-L200】【F:tests/runtime/test_guardrail_suite_manifest.py†L18-L90】
+  - *Progress*: Bootstrap runtime integration tests now stub the `_execute_timescale_ingest`
+    hook and export list, locking the runtime builder’s ingest entrypoint so
+    supervised launches keep wiring institutional ingest toggles under guardrail
+    coverage.【F:tests/current/test_bootstrap_runtime_integration.py†L96-L111】【F:tests/runtime/test_bootstrap_runtime_sensory.py†L96-L110】
   - *Progress*: Pricing cache now hashes ingest parameters with `blake2b` for
     deterministic dataset artefacts, writes metadata and issues manifests,
     enforces retention policies, and logs cleanup failures under regression
@@ -276,7 +280,7 @@ kit that the roadmap calls back to in each checklist.
     breaches, leverage warnings, research-mode overrides, closing-position
     allowances, price fallbacks, ratio metadata, and derived-equity scenarios
     under the `guardrail` marker so CI fails fast when institutional limit
-    enforcement or telemetry contracts regress.【F:tests/trading/test_risk_policy.py†L1-L465】
+    enforcement or telemetry contracts regress.【F:tests/trading/test_risk_policy.py†L1-L511】
   - *Progress*: Runtime builder now resolves the canonical `RiskConfig` from the
     trading manager, validates mandatory thresholds, wraps invalid payloads in a
     deterministic runtime error, and logs the enforced posture under regression
@@ -291,10 +295,10 @@ kit that the roadmap calls back to in each checklist.
     lifecycle guarantees as the builder, with pytest exercising normal and
     timeout-driven exits.【F:src/runtime/runtime_runner.py†L1-L120】【F:main.py†L71-L125】【F:tests/runtime/test_runtime_runner.py†L1-L58】
   - *Progress*: Risk policy evaluation now derives equity from cash and open
-    positions when the portfolio omits a balance, records consistent ratio
-    metadata for risk and exposure checks even when budgets are missing, and
-    continues to enforce mandatory stop losses plus resolved price fallbacks so
-    CI catches policy drift before it reaches execution flows.【F:src/trading/risk/risk_policy.py†L29-L238】【F:tests/trading/test_risk_policy.py†L178-L465】
+    positions when balances are missing, normalises string portfolio payloads,
+    skips malformed position entries, and continues to enforce mandatory stop
+    losses plus resolved price fallbacks so CI catches guardrail drift before it
+    reaches execution flows.【F:src/trading/risk/risk_policy.py†L29-L238】【F:tests/trading/test_risk_policy.py†L178-L511】
   - *Progress*: Policy telemetry helpers now serialise deterministic decision
     snapshots, render Markdown summaries, and publish violation alerts with
     embedded runbook metadata while the trading manager escalates breached
@@ -474,6 +478,10 @@ kit that the roadmap calls back to in each checklist.
     execution, FIX wrapper sanitisation, and bounded latency histograms so guardrail
     telemetry captures instrumentation failures instead of dropping them silently.
     【F:src/operational/metrics.py†L1-L200】【F:tests/operational/test_metrics.py†L200-L328】
+  - *Progress*: Prometheus exporter hardening now narrows port parsing failures
+    to typed errors, logs the parsing context, and records telemetry sink import
+    issues so metrics startup surfaces actionable warnings instead of swallowing
+    unexpected exceptions.【F:src/operational/metrics.py†L545-L608】
   - *Progress*: Guardrail manifest tests now enforce the presence and pytest marker
     coverage of ingest orchestration, risk policy, and observability suites, and
     assert that the CI workflow runs `pytest -m guardrail` plus enumerates the
@@ -630,7 +638,7 @@ kit that the roadmap calls back to in each checklist.
   - *Progress*: Runtime builder coverage now snapshots ingest plan dimensions,
     trading metadata, and enforced risk summaries, while risk policy regressions
     assert portfolio price fallbacks so ingest orchestration and risk sizing
-    guardrails stay under deterministic pytest coverage.【F:tests/runtime/test_runtime_builder.py†L1-L196】【F:tests/trading/test_risk_policy.py†L1-L465】
+    guardrails stay under deterministic pytest coverage.【F:tests/runtime/test_runtime_builder.py†L1-L196】【F:tests/trading/test_risk_policy.py†L1-L511】
   - *Progress*: Risk policy regression enforces minimum position sizing while the
     observability dashboard tests assert limit-status escalation so CI catches
     governance and telemetry drift before it hits production surfaces.【F:tests/trading/test_risk_policy.py†L311-L333】【F:tests/operations/test_observability_dashboard.py†L222-L241】
@@ -703,6 +711,10 @@ kit that the roadmap calls back to in each checklist.
     caching the metadata for approved and rejected intents while broker events
     surface the same context under regression coverage so responders inherit a
     single audit trail across telemetry surfaces.【F:src/trading/risk/risk_gateway.py†L224-L519】【F:tests/current/test_risk_gateway_validation.py†L93-L407】【F:tests/trading/test_fix_broker_interface_events.py†L15-L152】
+  - *Progress*: Professional runtime summaries now pin the shared risk API
+    runbook, attach runtime metadata, merge resolved interface details, and
+    surface structured `RiskApiError` payloads so operators inherit actionable
+    posture even when integrations degrade under pytest coverage.【F:src/runtime/predator_app.py†L995-L1063】【F:tests/current/test_runtime_professional_app.py†L304-L364】
 - [ ] **AlphaTrade loop expansion (Days 15–90)** – Graduate the live-shadow pilot
   into tactic experimentation, paper trading, and limited live promotions once V1
   stabilises.【F:docs/High-Impact Development Roadmap.md†L74-L76】
@@ -711,9 +723,14 @@ kit that the roadmap calls back to in each checklist.
     spelunking telemetry dumps.【F:docs/High-Impact Development Roadmap.md†L74-L74】
   - *Progress*: PolicyRouter now tracks tactic objectives/tags, bulk-registers and
     updates tactics, exposes experiment registries, and ships a reflection digest
-    that summarises streaks, regime mix, and experiment share so reviewers spot
-    emerging strategies without spelunking telemetry dumps under expanded pytest
-    coverage.【F:src/thinking/adaptation/policy_router.py†L30-L412】【F:tests/thinking/test_policy_router.py†L120-L210】
+    that summarises streaks, regime mix, and experiment share while pruning
+    expired experiments and exporting reviewer-ready reflection reports so
+    reviewers spot emerging strategies without spelunking telemetry dumps under
+    expanded pytest coverage.【F:src/thinking/adaptation/policy_router.py†L175-L525】【F:tests/thinking/test_policy_router.py†L248-L308】
+  - *Progress*: AdversarialTrainer now logs generator signature mismatches,
+    captures unexpected training failures with stack traces, and preserves
+    heuristic fallbacks so migration bugs surface during experimentation without
+    stalling adaptive runs.【F:src/thinking/adversarial/adversarial_trainer.py†L14-L140】
   - [ ] Enable selective paper-trade execution with DriftSentry gating
     promotions and PolicyLedger enforcing audit coverage ahead of live capital
     exposure.【F:docs/High-Impact Development Roadmap.md†L75-L75】

@@ -39,17 +39,17 @@
 - Extend CI to include baseline risk regression tests covering exposure, leverage,
   and drawdown limits; capture findings in `docs/status`.
   - Progress: Risk policy regression now derives equity from cash and open
-    positions when balances are missing, records consistent risk/exposure ratio
-    metadata, and enforces mandatory stop losses so CI flags policy guardrail
-    drift before it reaches execution.【F:src/trading/risk/risk_policy.py†L29-L238】【F:tests/trading/test_risk_policy.py†L178-L465】
+    positions when balances are missing, normalises string payloads, skips
+    malformed positions, and enforces mandatory stop losses so CI flags policy
+    guardrail drift before it reaches execution.【F:src/trading/risk/risk_policy.py†L29-L238】【F:tests/trading/test_risk_policy.py†L178-L511】
   - Progress: Risk policy warn-threshold coverage asserts leverage and exposure
     checks escalate to warnings before breaching limits, capturing ratios,
     thresholds, and projected exposure metadata so compliance teams can monitor
     approaching guardrails without waiting for outright violations.【F:tests/trading/test_risk_policy.py†L125-L170】
-  - Progress: Guardrail-marked risk policy suite now covers approvals,
-    research-mode overrides, minimum size enforcement, closing trades, derived
-    equity, and market price fallbacks so institutional limit enforcement remains
-    pinned to the `guardrail` CI job.【F:tests/trading/test_risk_policy.py†L1-L465】
+- Progress: Guardrail-marked risk policy suite now covers approvals,
+  research-mode overrides, minimum size enforcement, closing trades, derived
+  equity, and market price fallbacks so institutional limit enforcement remains
+  pinned to the `guardrail` CI job.【F:tests/trading/test_risk_policy.py†L1-L511】
 - Progress: Policy telemetry builders serialise decision snapshots, emit Markdown
   summaries, and publish violation alerts with embedded escalation metadata while
   the trading manager mirrors the feed and the new runbook documents the response,
@@ -58,6 +58,10 @@
   with the risk API runbook, enforced limits, and policy/config summaries, and
   expose the same metadata through broker events so responders inherit a single
   audit context across telemetry surfaces under regression coverage.【F:src/trading/risk/risk_gateway.py†L224-L519】【F:tests/current/test_risk_gateway_validation.py†L93-L407】【F:tests/trading/test_fix_broker_interface_events.py†L15-L152】
+- Progress: Professional runtime summaries now pin the shared risk API runbook,
+  attach runtime metadata, merge resolved interface details, and surface
+  structured `RiskApiError` payloads so operators inherit actionable posture
+  even when integrations degrade under pytest coverage.【F:src/runtime/predator_app.py†L995-L1063】【F:tests/current/test_runtime_professional_app.py†L304-L364】
 - Progress: Parity checker telemetry now wraps gauge publication in defensive
   logging, recording order and position mismatches even when the metrics sink
   misbehaves so compliance dashboards surface reconciliation issues instead of

@@ -64,9 +64,10 @@
   - Static analysis hook verifying router configs declare policy references found in the policy ledger.
 - **Progress**
   - PolicyRouter now tracks tactic objectives/tags, bulk registers and updates tactics,
-    exposes experiment registries, and ships a reflection digest summarising streaks,
-    regime mix, and experiment share so reviewers inherit emerging-strategy telemetry
-    without spelunking raw summaries under expanded pytest coverage.【F:src/thinking/adaptation/policy_router.py†L30-L412】【F:tests/thinking/test_policy_router.py†L120-L210】
+    exposes experiment registries, prunes expired fast-weight experiments, and ships
+    both reflection digests and reviewer-ready reports so reviewers inherit
+    emerging-strategy telemetry without spelunking raw summaries under expanded pytest
+    coverage.【F:src/thinking/adaptation/policy_router.py†L175-L525】【F:tests/thinking/test_policy_router.py†L248-L308】
   - Understanding router now supports Hebbian fast-weight adapters with
     deterministic decay, persists multiplier history, and serialises gate thresholds,
     feature values, required flags, and expiry metadata in guardrail coverage so

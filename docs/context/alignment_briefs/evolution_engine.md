@@ -75,6 +75,14 @@
   population seed metadata, and lineage telemetry into a governance snapshot,
   rendering Markdown/JSON summaries with champion provenance and blocking issues
   so reviewers can gate adaptive runs deterministically under pytest coverage.【F:src/operations/evolution_readiness.py†L1-L206】【F:tests/operations/test_evolution_readiness.py†L1-L118】
+- Progress: PolicyRouter now prunes expired fast-weight experiments and exposes
+  a reflection report helper that packages digest metadata and reviewer-ready
+  artifacts so experimentation stays current while governance receives
+  consumable summaries under regression coverage.【F:src/thinking/adaptation/policy_router.py†L175-L525】【F:tests/thinking/test_policy_router.py†L248-L308】
+- Progress: AdversarialTrainer now logs generator signature mismatches and
+  unexpected training failures while preserving heuristic fallbacks so
+  experimentation surfaces actionable diagnostics without stalling adaptive
+  loops.【F:src/thinking/adversarial/adversarial_trainer.py†L14-L140】
 - Progress: Evolution engine now records seed provenance on population
   initialization and after each generation, summarising catalogue templates,
   seed tags, and totals for the population manager while lineage telemetry emits

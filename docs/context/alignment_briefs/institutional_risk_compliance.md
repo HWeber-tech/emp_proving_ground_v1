@@ -83,6 +83,10 @@
   expectations. Launches now fail fast when mandatory stop-loss enforcement is
   disabled outside research mode, surfacing the shared risk API runbook alias so
   supervisors inherit a consistent escalation path.【F:src/runtime/runtime_builder.py†L323-L353】【F:tests/runtime/test_runtime_builder.py†L200-L234】
+- Progress: Builder enforcement now refuses to launch when the trading manager
+  is missing, recording a `risk_error` payload with the shared runbook and
+  raising a deterministic runtime exception so miswired deployments cannot
+  bypass mandatory risk controls, with pytest guarding the contract.【F:src/runtime/runtime_builder.py†L690-L739】【F:tests/runtime/test_runtime_builder.py†L268-L294】
 - Progress: Deterministic trading risk API continues to centralise config/status
   resolution and surface the shared `RISK_API_RUNBOOK`, while the trading manager
   now merges gateway limits, runtime summaries, and cached decisions into
@@ -98,6 +102,10 @@
   control centre, and Predator summaries whenever a policy ledger is present,
   exposing default stages, engine routing, and forced overrides so compliance
   reviewers inherit audited execution posture under pytest coverage.【F:src/runtime/bootstrap_runtime.py†L195-L428】【F:src/operations/bootstrap_control_center.py†L341-L359】【F:src/runtime/predator_app.py†L1001-L1141】【F:src/trading/trading_manager.py†L823-L983】【F:tests/current/test_bootstrap_runtime_integration.py†L238-L268】【F:tests/trading/test_trading_manager_execution.py†L960-L983】
+- Progress: Trading manager release posture now includes the last routed
+  execution decision from the release-aware router, capturing forced paper
+  routes and escalation reasons so dashboards and audits inherit the exact
+  enforcement evidence under regression coverage.【F:src/trading/trading_manager.py†L760-L817】【F:tests/trading/test_trading_manager_execution.py†L960-L991】
 
 - Progress: Mock FIX manager coercion helpers now reject non-ASCII payloads,
   guard order-book adapters that raise exceptions, and keep deterministic
@@ -122,6 +130,10 @@
   publish compiled KYC/AML, regulatory, and audit evidence bundles with typed
   escalation logs so runtime outages still deliver governance telemetry, with
   pytest scenarios covering fallback behaviour.【F:src/operations/governance_reporting.py†L437-L519】【F:tests/operations/test_governance_reporting.py†L1-L200】
+- Progress: Timescale compliance and KYC journals now emit recent-activity counts
+  with window metadata, and the governance report flags stale journals while
+  recording collection timestamps and strategy scope so reviewers see timely
+  evidence under regression coverage.【F:src/data_foundation/persist/timescale.py†L1232-L1322】【F:src/data_foundation/persist/timescale.py†L1617-L1702】【F:src/operations/governance_reporting.py†L336-L444】【F:tests/data_foundation/test_timescale_compliance_journal.py†L103-L117】【F:tests/data_foundation/test_timescale_compliance_journal.py†L199-L210】【F:tests/operations/test_governance_reporting.py†L129-L218】
 - Progress: Policy ledger store now enforces staged promotions with diary
   evidence, approval metadata, and threshold overrides, and the rebuild CLI
   regenerates enforceable risk configs plus router guardrails while exporting

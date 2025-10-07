@@ -69,6 +69,10 @@
   to JSONL with lineage metadata, strict/append guards, and replay integration
   tests so adaptive runs can hydrate governance evidence without bespoke
   capture scripts.【F:src/evolution/evaluation/datasets.py†L1-L171】【F:src/evolution/__init__.py†L21-L71】【F:tests/evolution/test_recorded_dataset.py†L1-L108】
+- Progress: Bootstrap runtime now builds the evolution orchestrator from system
+  config extras, executes cycles on a configurable cadence, and surfaces
+  evolution telemetry plus cadence metadata through `status()` so governance and
+  runtime summaries observe adaptive readiness under integration coverage.【F:src/runtime/predator_app.py†L1992-L2124】【F:src/runtime/bootstrap_runtime.py†L310-L624】【F:tests/current/test_bootstrap_runtime_integration.py†L153-L169】【F:tests/runtime/test_bootstrap_runtime_sensory.py†L162-L194】
 - Surface lineage telemetry and integrate with compliance workflow templates for
   strategy approvals.
 - Progress: Evolution experiment telemetry now guards publish failures, records

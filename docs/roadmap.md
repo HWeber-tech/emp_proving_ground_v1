@@ -299,6 +299,10 @@ kit that the roadmap calls back to in each checklist.
     are disabled outside research mode, emitting the shared risk API runbook
     alias so supervisors inherit a consistent escalation path under pytest
     coverage.【F:src/runtime/runtime_builder.py†L323-L353】【F:src/trading/risk/risk_api.py†L23-L44】【F:tests/runtime/test_runtime_builder.py†L200-L234】
+  - *Progress*: Builder enforcement now fails fast when the trading manager is
+    missing, recording a `risk_error` payload with the shared runbook reference
+    and raising a deterministic runtime exception so miswired runtimes cannot
+    bypass risk controls, with pytest guarding the contract.【F:src/runtime/runtime_builder.py†L690-L739】【F:tests/runtime/test_runtime_builder.py†L268-L294】
   - *Progress*: A supervised runtime runner now wraps professional workloads in a
     shared `TaskSupervisor`, wiring graceful signal handling, optional timeouts,
     and deterministic shutdown callbacks so runtime launches inherit the same
@@ -726,6 +730,11 @@ kit that the roadmap calls back to in each checklist.
   complete.【F:docs/development/remediation_plan.md†L92-L167】
   - *Progress*: Realistic genome seeding now materialises catalogue templates with jitter bounds, attaches lineage and performance metadata to spawned genomes, and refreshes orchestrator lineage snapshots so population statistics expose provenance under guardrail tests.【F:src/core/evolution/seeding.py†L1-L200】【F:src/orchestration/evolution_cycle.py†L125-L220】【F:tests/current/test_evolution_orchestrator.py†L60-L133】【F:tests/current/test_population_manager_with_genome.py†L91-L127】
   - *Progress*: Recorded dataset helpers now persist real sensory observations to JSONL, keep lineage/drift metadata intact, and reload them into replay evaluators with strict/append guards so adaptive fitness runs can hydrate live evidence instead of mocks under pytest coverage.【F:src/evolution/evaluation/datasets.py†L1-L171】【F:src/evolution/__init__.py†L21-L71】【F:tests/evolution/test_recorded_dataset.py†L1-L108】
+  - *Progress*: Bootstrap runtime now constructs the evolution orchestrator from
+    system config extras, schedules cycle execution on a configurable interval,
+    and surfaces evolution telemetry plus cadence metadata via `status()` so
+    governance can observe adaptive readiness, with integration and runtime
+    tests guarding the wiring.【F:src/runtime/predator_app.py†L1992-L2124】【F:src/runtime/bootstrap_runtime.py†L310-L624】【F:tests/current/test_bootstrap_runtime_integration.py†L153-L169】【F:tests/runtime/test_bootstrap_runtime_sensory.py†L162-L194】
 - [ ] **Risk API enforcement** – Align trading modules with deterministic risk
   interfaces, surface policy violations via telemetry, and add escalation runbooks.
   - *Progress*: Risk gateway wiring now normalises intents, enforces
@@ -786,6 +795,10 @@ kit that the roadmap calls back to in each checklist.
     stage and engine routing metadata, and record forced paper routes alongside
     drift reasons so governance reviewers see execution posture under pytest
     coverage.【F:src/runtime/bootstrap_runtime.py†L195-L428】【F:src/operations/bootstrap_control_center.py†L341-L359】【F:src/runtime/predator_app.py†L1001-L1141】【F:src/trading/trading_manager.py†L823-L983】【F:tests/current/test_bootstrap_runtime_integration.py†L238-L268】【F:tests/trading/test_trading_manager_execution.py†L960-L983】
+  - *Progress*: Trading manager release posture now surfaces the most recent
+    execution route from the release-aware router, including forced paper
+    routes and escalation reasons, so dashboards and audits inherit the same
+    enforcement evidence under regression coverage.【F:src/trading/trading_manager.py†L760-L817】【F:tests/trading/test_trading_manager_execution.py†L960-L991】
 
 ### Later (90+ days)
 
@@ -815,6 +828,10 @@ kit that the roadmap calls back to in each checklist.
     escalates overall status, publishes via the event-bus failover helper, and
     trims persisted histories so audits inherit deterministic evidence with
     pytest covering scheduling, publishing, and storage flows.【F:src/operations/governance_reporting.py†L1-L520】【F:tests/operations/test_governance_reporting.py†L1-L226】
+  - *Progress*: Timescale compliance and KYC journals now return recent-activity
+    counts with window metadata, and the governance report flags stale journals
+    while recording collection timestamps and strategy scope so reviewers see
+    timely evidence with pytest guarding the contract.【F:src/data_foundation/persist/timescale.py†L1232-L1322】【F:src/data_foundation/persist/timescale.py†L1617-L1702】【F:src/operations/governance_reporting.py†L336-L444】【F:tests/data_foundation/test_timescale_compliance_journal.py†L103-L117】【F:tests/data_foundation/test_timescale_compliance_journal.py†L199-L210】【F:tests/operations/test_governance_reporting.py†L129-L218】
   - *Progress*: Compliance readiness snapshots now normalise trade-surveillance and
     KYC components, escalate severities deterministically, and render markdown
     evidence with regression coverage so governance cadences inherit reliable

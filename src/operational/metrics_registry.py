@@ -113,10 +113,20 @@ class MetricsRegistry:
             self._hist_ctor = cast(HistogramCtor, Histogram)
             self._enabled = True
             return True
-        except Exception:
+        except ModuleNotFoundError:
             self._enabled = False
             if not self._logged_no_prom:
                 _log.debug("prometheus_client unavailable; metrics will be no-op")
+                self._logged_no_prom = True
+            return False
+        except Exception as exc:
+            self._enabled = False
+            if not self._logged_no_prom:
+                _log.warning(
+                    "Failed to initialise prometheus_client backend: %s",
+                    exc,
+                    exc_info=exc,
+                )
                 self._logged_no_prom = True
             return False
 

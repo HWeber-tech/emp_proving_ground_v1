@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections import deque
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Any, Mapping, Sequence
+from typing import Any, Mapping, MutableMapping, Sequence
 
 import pandas as pd
 
@@ -394,6 +394,8 @@ class RealSensoryOrgan:
                 name: {
                     "signal": entry.get("signal"),
                     "confidence": entry.get("confidence"),
+                    "value": self._serialise_value(entry.get("value")),
+                    "metadata": self._serialise_mapping(entry.get("metadata")),
                 }
                 for name, entry in dimensions.items()
                 if isinstance(entry, Mapping)
@@ -414,12 +416,16 @@ class RealSensoryOrgan:
             value = thresholds.get("state")
             if isinstance(value, str):
                 threshold_state = value
-        return {
+        metrics: dict[str, Any] = {
             "signal": signal,
             "confidence": confidence,
             "state": state,
             "threshold_state": threshold_state,
         }
+        telemetry = self._extract_dimension_telemetry(metadata)
+        if telemetry:
+            metrics["telemetry"] = telemetry
+        return metrics
 
     def _format_timestamp(self, value: Any) -> str | None:
         if isinstance(value, datetime):
@@ -444,6 +450,43 @@ class RealSensoryOrgan:
         if value <= 0:
             return 1
         return int(value)
+
+    def _extract_dimension_telemetry(
+        self, metadata: Mapping[str, Any] | None
+    ) -> Mapping[str, float]:
+        if not isinstance(metadata, Mapping) or not metadata:
+            return {}
+
+        telemetry: dict[str, float] = {}
+        sections: tuple[tuple[str, str], ...] = (
+            ("audit", "audit"),
+            ("threshold_assessment", "threshold"),
+            ("order_book", "order_book"),
+            ("telemetry", "telemetry"),
+        )
+
+        for key, prefix in sections:
+            payload = metadata.get(key)
+            if isinstance(payload, Mapping):
+                self._harvest_numeric(prefix, payload, telemetry)
+
+        return telemetry
+
+    def _harvest_numeric(
+        self,
+        prefix: str,
+        payload: Mapping[str, Any],
+        telemetry: MutableMapping[str, float],
+    ) -> None:
+        for name, value in payload.items():
+            label = f"{prefix}_{name}" if prefix else str(name)
+            if isinstance(value, (int, float)):
+                telemetry[label] = float(value)
+            elif isinstance(value, Mapping):
+                nested_prefix = f"{label}"
+                for nested_key, nested_value in value.items():
+                    if isinstance(nested_value, (int, float)):
+                        telemetry[f"{nested_prefix}_{nested_key}"] = float(nested_value)
 
     def _validate_drift_config(
         self, drift_config: SensoryDriftConfig | None

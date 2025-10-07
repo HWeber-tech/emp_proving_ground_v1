@@ -4,7 +4,9 @@ from typing import Any
 import pytest
 
 from src.compliance.workflow import (
+    ComplianceWorkflowChecklist,
     ComplianceWorkflowSnapshot,
+    ComplianceWorkflowTask,
     WorkflowTaskStatus,
     evaluate_compliance_workflows,
     publish_compliance_workflows,
@@ -177,3 +179,44 @@ def test_publish_compliance_workflows_emits_event(monkeypatch: pytest.MonkeyPatc
     assert event.payload["status"] == snapshot.status.value
     assert kwargs["logger"].name == "src.compliance.workflow"
     assert "runtime" in kwargs["runtime_fallback_message"].lower()
+
+
+def test_evaluate_compliance_workflows_includes_policy_governance_snapshot() -> None:
+    policy_snapshot = ComplianceWorkflowSnapshot(
+        status=WorkflowTaskStatus.todo,
+        generated_at=datetime(2025, 1, 5, tzinfo=UTC),
+        workflows=(
+            ComplianceWorkflowChecklist(
+                name="Policy Ledger Governance",
+                regulation="AlphaTrade Governance",
+                status=WorkflowTaskStatus.todo,
+                tasks=(
+                    ComplianceWorkflowTask(
+                        task_id="ledger-evidence",
+                        title="DecisionDiary evidence linked",
+                        status=WorkflowTaskStatus.todo,
+                        summary="Ledger entries missing diary evidence",
+                        severity="high",
+                    ),
+                ),
+                metadata={"policy_count": 1},
+            ),
+        ),
+        metadata={"source": "policy_ledger"},
+    )
+
+    snapshot = evaluate_compliance_workflows(
+        trade_summary=_build_trade_summary(),
+        kyc_summary=_build_kyc_summary(),
+        strategy_registry=None,
+        policy_workflow_snapshot=policy_snapshot,
+    )
+
+    policy_workflow = next(
+        workflow for workflow in snapshot.workflows if workflow.name == "Policy Ledger Governance"
+    )
+    assert policy_workflow.status is WorkflowTaskStatus.todo
+    assert snapshot.metadata["policy_workflow_status"] == WorkflowTaskStatus.todo.value
+    assert snapshot.metadata["policy_workflow_count"] == 1
+    assert "policy_workflow_names" in snapshot.metadata
+    assert "policy_ledger" in snapshot.metadata.get("policy_workflow_metadata", {}).get("source", "")

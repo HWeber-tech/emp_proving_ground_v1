@@ -2890,6 +2890,22 @@ def build_professional_runtime_application(
                             },
                             "strategy_registry": strategy_registry_summary,
                         }
+                        policy_workflow_snapshot = None
+                        trading_manager = _locate_trading_manager(app)
+                        if trading_manager is not None:
+                            build_governance_snapshot = getattr(
+                                trading_manager,
+                                "build_policy_governance_snapshot",
+                                None,
+                            )
+                            if callable(build_governance_snapshot):
+                                try:
+                                    policy_workflow_snapshot = build_governance_snapshot()
+                                except Exception:  # pragma: no cover - diagnostics only
+                                    logger.debug(
+                                        "Failed to build policy governance workflow snapshot",
+                                        exc_info=True,
+                                    )
                         compliance_snapshot = evaluate_compliance_readiness(
                             trade_summary=trade_summary,
                             kyc_summary=kyc_summary,
@@ -2917,6 +2933,7 @@ def build_professional_runtime_application(
                             trade_summary=trade_summary,
                             kyc_summary=kyc_summary,
                             strategy_registry=strategy_registry_summary,
+                            policy_workflow_snapshot=policy_workflow_snapshot,
                             metadata=workflow_metadata,
                         )
                         logger.info(

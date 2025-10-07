@@ -230,6 +230,15 @@ class RiskGateway:
             "checks": [],
         }
 
+        limits_snapshot = self._build_limits_snapshot()
+        risk_reference = self._resolve_risk_reference()
+        if risk_reference is None:
+            reference_payload: dict[str, Any] = {"risk_api_runbook": RISK_API_RUNBOOK}
+        else:
+            reference_payload = dict(risk_reference)
+        reference_payload.setdefault("limits", dict(limits_snapshot))
+        decision["risk_reference"] = reference_payload
+
         try:
             if not self._check_strategy(decision["strategy_id"]):
                 decision.update(status="rejected", reason="strategy_disabled")
@@ -371,21 +380,21 @@ class RiskGateway:
     def get_risk_limits(self) -> dict[str, Any]:
         """Return a snapshot of configured limits and recent telemetry."""
 
-        limits = {
-            "max_open_positions": self.max_open_positions,
-            "max_daily_drawdown": self.max_daily_drawdown,
-            "min_intent_confidence": self.min_intent_confidence,
-            "liquidity_probe_threshold": self.liquidity_probe_threshold,
-            "min_liquidity_confidence": self.min_liquidity_confidence,
-            "risk_per_trade": float(self.risk_per_trade),
-        }
-        if self.risk_policy is not None:
-            limits.update(self.risk_policy.limit_snapshot())
-            if self.risk_policy.research_mode:
-                limits["research_mode"] = True
-        payload: dict[str, Any] = {"limits": limits, "telemetry": dict(self.telemetry)}
-        if self._risk_config is not None:
+        limits = self._build_limits_snapshot()
+        payload: dict[str, Any] = {"limits": dict(limits), "telemetry": dict(self.telemetry)}
+        risk_reference = self._resolve_risk_reference()
+        if risk_reference is not None:
+            summary = risk_reference.get("risk_config_summary")
+            if isinstance(summary, Mapping):
+                payload["risk_config_summary"] = dict(summary)
+            payload["runbook"] = str(risk_reference.get("risk_api_runbook", RISK_API_RUNBOOK))
+            config_payload = risk_reference.get("risk_config")
+            if isinstance(config_payload, Mapping):
+                payload["risk_config"] = dict(config_payload)
+        elif self._risk_config is not None:
             payload["risk_config_summary"] = summarise_risk_config(self._risk_config)
+            payload["runbook"] = RISK_API_RUNBOOK
+        else:
             payload["runbook"] = RISK_API_RUNBOOK
         return payload
 
@@ -403,6 +412,47 @@ class RiskGateway:
         """Expose the last :class:`RiskPolicyEvaluationSnapshot`, if available."""
 
         return self._last_policy_snapshot
+
+    def _build_limits_snapshot(self) -> dict[str, Any]:
+        """Construct the current limits payload exposed by the gateway."""
+
+        limits = {
+            "max_open_positions": self.max_open_positions,
+            "max_daily_drawdown": self.max_daily_drawdown,
+            "min_intent_confidence": self.min_intent_confidence,
+            "liquidity_probe_threshold": self.liquidity_probe_threshold,
+            "min_liquidity_confidence": self.min_liquidity_confidence,
+            "risk_per_trade": float(self.risk_per_trade),
+        }
+        if self.risk_policy is not None:
+            limits.update(self.risk_policy.limit_snapshot())
+            if self.risk_policy.research_mode:
+                limits["research_mode"] = True
+        return limits
+
+    def _resolve_risk_reference(self) -> dict[str, Any] | None:
+        """Build a deterministic risk reference payload for telemetry surfaces."""
+
+        config = self._risk_config
+        if config is None:
+            return None
+        try:
+            summary = summarise_risk_config(config)
+        except Exception:  # pragma: no cover - defensive guard
+            logger.debug("Failed to summarise risk config for reference", exc_info=True)
+            return None
+
+        reference: dict[str, Any] = {
+            "risk_config_summary": summary,
+            "risk_api_runbook": RISK_API_RUNBOOK,
+        }
+        try:
+            config_payload = config.dict()
+        except Exception:  # pragma: no cover - diagnostics only
+            config_payload = None
+        if isinstance(config_payload, Mapping):
+            reference["risk_config"] = dict(config_payload)
+        return reference
 
     # ------------------------------------------------------------------
     # Internal helpers
@@ -595,6 +645,10 @@ class RiskGateway:
         risk_summary = decision.get("risk_manager")
         if isinstance(risk_summary, Mapping):
             assessment["portfolio_risk"] = dict(risk_summary)
+
+        risk_reference = decision.get("risk_reference")
+        if isinstance(risk_reference, Mapping):
+            assessment["risk_reference"] = dict(risk_reference)
 
         if hasattr(intent, "liquidity_confidence_score"):
             try:

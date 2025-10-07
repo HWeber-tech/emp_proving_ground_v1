@@ -7,8 +7,8 @@ from pathlib import Path
 
 import pytest
 
-from src.config.portfolio_config import PortfolioConfig
 from src.trading.models.position import Position
+from src.trading.portfolio.config import PortfolioMonitorConfig
 from src.trading.portfolio.real_portfolio_monitor import RealPortfolioMonitor
 
 
@@ -19,7 +19,7 @@ def portfolio_monitor(tmp_path: Path) -> RealPortfolioMonitor:
     db_dir = tmp_path / "portfolio"
     db_dir.mkdir()
     db_path = db_dir / "portfolio.db"
-    config = PortfolioConfig(database_path=str(db_path), initial_balance=10_000.0)
+    config = PortfolioMonitorConfig(database_path=db_path, initial_balance=10_000.0)
     return RealPortfolioMonitor(config)
 
 

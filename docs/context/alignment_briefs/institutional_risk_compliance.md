@@ -136,6 +136,10 @@
     telemetry and the professional runtime records the broadcast payload so risk
     summaries mirror the exact configuration emitted to operations dashboards
     under pytest coverage of the event flow and summary surface.【F:src/runtime/runtime_builder.py†L633-L734】【F:src/runtime/predator_app.py†L472-L1009】【F:tests/runtime/test_runtime_builder.py†L340-L420】
+  - Progress: Trading manager now merges gateway limit snapshots, resolved risk
+    metadata, and runtime summaries into deterministic `risk_reference`
+    payloads while surfacing shared runbooks so telemetry, dashboards, and
+    audits inherit the same risk configuration under pytest coverage.【F:src/trading/trading_manager.py†L786-L939】【F:src/trading/risk/risk_gateway.py†L396-L429】【F:tests/trading/test_trading_manager_execution.py†L1125-L1171】【F:tests/current/test_risk_gateway_validation.py†L391-L460】
 - Progress: Governance cadence runner now honours forced executions, metadata
   overrides, and context-pack lookups while orchestrating interval gating,
   audit evidence collection, report persistence, and event-bus publishing so the

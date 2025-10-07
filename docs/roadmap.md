@@ -701,6 +701,11 @@ kit that the roadmap calls back to in each checklist.
 - [ ] **Sensory cortex uplift** – Deliver executable HOW/ANOMALY organs, instrument
   drift telemetry, and expose metrics through runtime summaries and the event
   bus.
+  - *Progress*: Real sensory organ now attaches metrics payloads to every
+    snapshot broadcast, wrapping dimension strength/confidence telemetry and the
+    integrated signal alongside drift summaries so downstream dashboards receive
+    a single event with metrics, lineage, and posture metadata under pytest
+    coverage.【F:src/sensory/real_sensory_organ.py†L198-L205】【F:tests/sensory/test_real_sensory_organ.py†L132-L158】
 - [ ] **Evolution engine foundation** – Seed realistic genomes, wire lineage
   snapshots, and gate adaptive runs behind feature flags until governance reviews
   complete.【F:docs/development/remediation_plan.md†L92-L167】
@@ -717,6 +722,11 @@ kit that the roadmap calls back to in each checklist.
     caching the metadata for approved and rejected intents while broker events
     surface the same context under regression coverage so responders inherit a
     single audit trail across telemetry surfaces.【F:src/trading/risk/risk_gateway.py†L224-L519】【F:tests/current/test_risk_gateway_validation.py†L93-L407】【F:tests/trading/test_fix_broker_interface_events.py†L15-L152】
+  - *Progress*: Trading manager now hydrates governance surfaces with the
+    gateway’s limits snapshot, merges runtime-derived risk metadata, and
+    normalises `risk_reference` payloads while surfacing shared runbooks so
+    operations dashboards, status calls, and interface inspectors expose the
+    same audited configuration under pytest coverage.【F:src/trading/trading_manager.py†L786-L939】【F:src/trading/risk/risk_gateway.py†L396-L485】【F:tests/trading/test_trading_manager_execution.py†L1125-L1171】【F:tests/current/test_risk_gateway_validation.py†L391-L424】
   - *Progress*: Professional runtime summaries now pin the shared risk API
     runbook, attach runtime metadata, merge resolved interface details, and
     surface structured `RiskApiError` payloads so operators inherit actionable
@@ -853,10 +863,10 @@ kit that the roadmap calls back to in each checklist.
 - b42e927 Auto cherry-pick variant 2 (2025-10-07)
 - 5561e6a Auto cherry-pick variant 1 (2025-10-07)
 
-## Automation updates — 2025-10-07T20:48:40Z
+## Automation updates — 2025-10-07T21:11:11Z
 
 ### Last 4 commits
+- 40007e8 refactor(trading): tune 4 files (2025-10-07)
+- bddd656 refactor(sensory): tune 2 files (2025-10-07)
+- eb32f08 docs(docs): tune 3 files (2025-10-07)
 - 5622148 refactor(docs): tune 3 files (2025-10-07)
-- 97094e9 feat(operations): add 4 files (2025-10-07)
-- 308edd4 refactor(runtime): tune 3 files (2025-10-07)
-- 3cca21b docs(docs): tune 1 file (2025-10-07)

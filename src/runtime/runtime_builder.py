@@ -34,7 +34,12 @@ from src.data_foundation.batch.spark_export import (
     SparkExportStatus,
     execute_spark_export_plan,
 )
-from src.data_foundation.cache.redis_cache import InMemoryRedis, ManagedRedisCache
+from src.data_foundation.cache.redis_cache import (
+    InMemoryRedis,
+    ManagedRedisCache,
+    RedisConnectionSettings,
+    configure_redis_client,
+)
 from src.data_foundation.ingest.configuration import (
     InstitutionalIngestConfig,
     TimescaleFailoverDrillSettings,
@@ -69,6 +74,10 @@ from src.data_foundation.ingest.scheduler_telemetry import (
 from src.data_foundation.ingest.telemetry import (
     EventBusIngestPublisher,
     combine_ingest_publishers,
+)
+from src.data_foundation.ingest.institutional_vertical import (
+    InstitutionalIngestProvisioner,
+    InstitutionalIngestServices,
 )
 from src.data_foundation.ingest.quality import (
     IngestQualityReport,
@@ -1866,6 +1875,10 @@ async def _execute_timescale_ingest(
         logger.info("💾 Timescale backup readiness snapshot:\n%s", markdown)
     _publish_backup_snapshot(event_bus, backup_snapshot)
 
+    if managed_manifest:
+        telemetry_metadata = dict(telemetry_metadata)
+        telemetry_metadata["managed_connectors"] = list(managed_manifest)
+
     backbone_snapshot = evaluate_data_backbone_readiness(
         ingest_config=ingest_config,
         health_report=health_report,
@@ -2357,6 +2370,24 @@ def build_professional_runtime_application(
                     kafka_publisher,
                 )
 
+                redis_settings = RedisConnectionSettings.from_mapping(extras_mapping)
+                services_holder: dict[str, InstitutionalIngestServices] = {}
+                skip_next_scheduler_run = False
+
+                def _redis_client_factory(settings: RedisConnectionSettings) -> object:
+                    existing_client = getattr(app, "redis_client", None)
+                    if isinstance(existing_client, ManagedRedisCache):
+                        raw_client = existing_client.raw_client
+                        if raw_client is not None:
+                            return raw_client
+                    client = configure_redis_client(settings)
+                    if client is not None:
+                        return client
+                    logger.warning(
+                        "Redis configuration present but ingest vertical falling back to in-memory cache",
+                    )
+                    return InMemoryRedis()
+
                 async def _fallback() -> None:
                     fallback_metadata: dict[str, object] = {
                         "ingest.fallback.symbols": len(base_symbols),
@@ -2388,8 +2419,6 @@ def build_professional_runtime_application(
                                 fallback_span.set_attribute(
                                     "runtime.ingest.fallback_status", "completed"
                                 )
-
-                scheduler_ref: TimescaleIngestScheduler | None = None
 
                 async def _run_timescale_ingest() -> bool:
                     redis_client = getattr(app, "redis_client", None)
@@ -2432,17 +2461,26 @@ def build_professional_runtime_application(
                     else:
                         kafka_topics = tuple()
 
-                    if scheduler_ref is not None:
+                    services = services_holder.get("services")
+                    scheduler_state = None
+                    managed_manifest: tuple[dict[str, object], ...] = ()
+                    if services is not None:
                         try:
-                            scheduler_state = scheduler_ref.state()
+                            scheduler_state = services.scheduler.state()
                         except Exception:  # pragma: no cover - defensive logging
                             logger.debug("Failed to capture scheduler state", exc_info=True)
-                            scheduler_state = None
-                    else:
-                        scheduler_state = None
+                        try:
+                            managed_manifest = tuple(
+                                snapshot.as_dict() for snapshot in services.managed_manifest()
+                            )
+                        except Exception:  # pragma: no cover - defensive logging
+                            logger.debug(
+                                "Failed to build managed connector manifest for telemetry",
+                                exc_info=True,
+                            )
 
                     scheduler_snapshot = build_scheduler_snapshot(
-                        enabled=ingest_config.schedule is not None,
+                        enabled=services is not None,
                         schedule=ingest_config.schedule,
                         state=scheduler_state,
                     )
@@ -2460,7 +2498,7 @@ def build_professional_runtime_application(
                         kafka_configured=kafka_settings.configured,
                         kafka_topics=kafka_topics,
                         kafka_publishers=kafka_publishers,
-                        scheduler_enabled=ingest_config.schedule is not None,
+                        scheduler_enabled=services is not None,
                         scheduler_state=scheduler_state,
                     )
                     recorder = getattr(app, "record_data_backbone_snapshot", None)
@@ -2487,6 +2525,8 @@ def build_professional_runtime_application(
                     if kafka_provisioning_summary is not None:
                         created_topics = getattr(kafka_provisioning_summary, "created", ()) or ()
                         execution_metadata["ingest.kafka_provisioned"] = len(tuple(created_topics))
+                    if managed_manifest:
+                        execution_metadata["ingest.managed_connectors"] = len(managed_manifest)
 
                     with runtime_tracer.operation_span(
                         name="ingest.timescale_execute",
@@ -2525,15 +2565,15 @@ def build_professional_runtime_application(
                         execution_span.set_attribute(
                             "runtime.ingest.backup_snapshot", backup_snapshot is not None
                         )
-                    if scheduler_ref is not None:
+                    services = services_holder.get("services")
+                    if services is not None:
                         try:
-                            scheduler_state = scheduler_ref.state()
+                            scheduler_state = services.scheduler.state()
                         except Exception:  # pragma: no cover - defensive logging
                             logger.debug("Failed to refresh scheduler state", exc_info=True)
-                            # Preserve prior snapshot when telemetry retrieval fails.
                         else:
                             scheduler_snapshot = build_scheduler_snapshot(
-                                enabled=ingest_config.schedule is not None,
+                                enabled=True,
                                 schedule=ingest_config.schedule,
                                 state=scheduler_state,
                             )
@@ -3085,27 +3125,37 @@ def build_professional_runtime_application(
                             )
                     return success
 
-                await _run_timescale_ingest()
+                async def _scheduled_ingest() -> bool:
+                    nonlocal skip_next_scheduler_run
+                    if skip_next_scheduler_run:
+                        skip_next_scheduler_run = False
+                        return True
+                    return await _run_timescale_ingest()
 
-                if ingest_config.schedule is not None:
-                    scheduler = TimescaleIngestScheduler(
-                        schedule=ingest_config.schedule,
-                        run_callback=_run_timescale_ingest,
-                    )
-                    scheduler_ref = scheduler
-                    task = scheduler.start()
-                    app.register_background_task(task)
+                provisioner = InstitutionalIngestProvisioner(
+                    ingest_config,
+                    redis_settings=redis_settings,
+                    kafka_mapping=extras_mapping,
+                )
+                services = provisioner.provision(
+                    run_ingest=_scheduled_ingest,
+                    event_bus=app.event_bus,
+                    task_supervisor=app.task_supervisor,
+                    redis_client_factory=_redis_client_factory,
+                )
+                services_holder["services"] = services
+                app.add_cleanup_callback(services.stop)
 
-                    async def _stop_scheduler() -> None:
-                        await scheduler.stop()
+                manifest_snapshot = [snapshot.as_dict() for snapshot in services.managed_manifest()]
+                if manifest_snapshot:
+                    logger.info("🛰️ Managed ingest connectors provisioned: %s", manifest_snapshot)
 
-                    app.add_cleanup_callback(_stop_scheduler)
-                    logger.info(
-                        "⏱️ Timescale ingest scheduler active: interval=%ss jitter=%ss max_failures=%s",
-                        ingest_config.schedule.interval_seconds,
-                        ingest_config.schedule.jitter_seconds,
-                        ingest_config.schedule.max_failures,
-                    )
+                manual_success = await _run_timescale_ingest()
+                if manual_success:
+                    skip_next_scheduler_run = True
+
+                services.start()
+                logger.info("⏱️ Timescale ingest scheduler active under supervisor")
 
             ingestion = RuntimeWorkload(
                 name="timescale-ingest",

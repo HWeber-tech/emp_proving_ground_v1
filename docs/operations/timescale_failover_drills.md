@@ -4,7 +4,9 @@ The institutional ingest vertical now provisions managed Timescale, Redis, and
 Kafka services through `InstitutionalIngestProvisioner`.  Operators can call the
 provisioner when constructing runtime applications to ensure the ingest
 scheduler and Kafka bridge run under a `TaskSupervisor`, while the Redis cache is
-configured with the institutional policy.  The `InstitutionalIngestServices`
+configured with the institutional policy.  The professional runtime builder now
+invokes the provisioner automatically, so Tier‑1 deployments inherit supervised
+connectors without custom wiring.  The `InstitutionalIngestServices`
 bundle exposes a `failover_metadata()` helper that returns the serialized
 `TimescaleFailoverDrillSettings`, making it trivial to surface drill
 requirements in dashboards or to kick off `execute_failover_drill()` workflows.

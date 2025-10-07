@@ -66,6 +66,14 @@ class FeatureGate:
             return False
         return True
 
+    def as_dict(self) -> Mapping[str, object]:
+        payload: dict[str, object] = {"feature": self.feature}
+        if self.minimum is not None:
+            payload["minimum"] = float(self.minimum)
+        if self.maximum is not None:
+            payload["maximum"] = float(self.maximum)
+        return payload
+
 
 @dataclass(frozen=True)
 class FastWeightAdapter:
@@ -93,12 +101,17 @@ class FastWeightAdapter:
         return True
 
     def summary(self) -> Mapping[str, object]:
-        return {
+        payload: dict[str, object] = {
             "adapter_id": self.adapter_id,
             "tactic_id": self.tactic_id,
             "multiplier": float(self.multiplier),
             "rationale": self.rationale,
+            "feature_gates": [gate.as_dict() for gate in self.feature_gates],
+            "required_flags": {flag: bool(expected) for flag, expected in self.required_flags.items()},
         }
+        if self.expires_at:
+            payload["expires_at"] = self.expires_at.isoformat()
+        return payload
 
 
 @dataclass(frozen=True)

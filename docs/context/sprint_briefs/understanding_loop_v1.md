@@ -146,7 +146,9 @@
 ## Definition of Done checkpoints
 
 - Belief/regime models publish documented schemas with guardrail tests covering Hebbian updates, regime routing, and drift triggers.
-- Bootstrap runtime status surfaces sensory cortex samples, drift metrics, and audit metadata so live-shadow reviewers can observe the loop without bespoke scripts.【F:src/runtime/bootstrap_runtime.py†L210-L334】【F:tests/runtime/test_bootstrap_runtime_sensory.py†L107-L132】
+- Bootstrap runtime publishes sensory summary/metrics/drift telemetry via the
+  failover helper and exposes samples/audits/metrics through `status()` so
+  live-shadow reviewers can observe the loop without bespoke scripts.【F:src/runtime/bootstrap_runtime.py†L214-L492】【F:tests/runtime/test_bootstrap_runtime_sensory.py†L120-L196】
 - Router, diary, and ledger artifacts integrate with governance/operational readiness dashboards without bespoke tooling, updating context packs alongside code.【F:docs/context/alignment_briefs/quality_observability.md†L10-L188】【F:docs/context/alignment_briefs/operational_readiness.md†L40-L88】
 - Acceptance workflow exercises the full understanding loop and is marked as a guardrail job in CI, with reproducible fixtures for ticket derivation.【F:docs/roadmap.md†L523-L537】
 

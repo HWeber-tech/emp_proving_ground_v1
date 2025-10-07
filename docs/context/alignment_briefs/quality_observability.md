@@ -119,10 +119,10 @@
   enforces required regression suites through `--require-file`, failing the
   build and logging missing paths under pytest coverage when critical files
   fall out of reports.【F:tools/telemetry/coverage_matrix.py†L83-L357】【F:tests/tools/test_coverage_matrix.py†L136-L225】
-- Progress: CI workflow now runs the coverage matrix guard after the guarded
-  pytest job, requiring `coverage.xml`, enforcing ingest pipeline coverage, and
-  appending the Markdown matrix to the GitHub Actions summary while the
-  guardrail manifest asserts the step remains in place.【F:.github/workflows/ci.yml†L95-L120】【F:tests/runtime/test_guardrail_suite_manifest.py†L98-L114】
+- Progress: CI workflow now runs the coverage matrix and minimum coverage
+  guardrail steps after the guarded pytest job, enforcing ingest/risk targets,
+  writing Markdown/summary outputs, and failing builds when thresholds slip,
+  with guardrail tests asserting the steps remain in place.【F:.github/workflows/ci.yml†L90-L135】【F:tests/runtime/test_guardrail_suite_manifest.py†L98-L135】
 - Progress: Coverage guardrail evaluator now parses Cobertura XML, checks
   ingest/risk targets against configurable thresholds, highlights missing
   modules, and surfaces JSON/text reports with failure exit codes so CI hooks and

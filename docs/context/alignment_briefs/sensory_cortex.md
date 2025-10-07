@@ -64,9 +64,11 @@
   new metrics publisher can build dashboard payloads without rehydrating raw
   snapshots.【F:src/sensory/real_sensory_organ.py†L201-L233】【F:tests/sensory/test_real_sensory_organ.py†L130-L162】
 - Progress: Bootstrap runtime now instantiates the real sensory organ with a
-  drift-configured history buffer, streams observations into cortex metrics, and
-  surfaces samples/audits via `status()` so supervisors inherit sensory posture
-  during live-shadow runs under regression coverage.【F:src/runtime/bootstrap_runtime.py†L210-L334】【F:tests/runtime/test_bootstrap_runtime_sensory.py†L107-L132】
+  drift-configured history buffer, streams observations into cortex metrics,
+  publishes summary/metrics/drift telemetry via the event-bus failover helper,
+  and surfaces samples/audits via `status()` so supervisors inherit sensory
+  posture and live telemetry during live-shadow runs under regression
+  coverage.【F:src/runtime/bootstrap_runtime.py†L214-L492】【F:tests/runtime/test_bootstrap_runtime_sensory.py†L120-L196】
 
 ### Next (30–90 days)
 
@@ -74,8 +76,10 @@
   detection tied to ingest feeds; record audit trails in runtime summaries.
 - Extend WHY/WHAT/WHEN organs with calibrated signals sourced from Timescale once
   the institutional backbone is live.
-- Publish drift telemetry (`telemetry.sensory.drift`) and ensure event bus
-  consumers plus storage layers capture the payloads with regression coverage.
+- Progress: Bootstrap runtime publishes `telemetry.sensory.summary`,
+  `.metrics`, and `.drift` payloads through the failover helper, caching the
+  latest metrics for status reports while guardrail tests lock the telemetry
+  path; downstream consumers/storage remain to be wired.【F:src/runtime/bootstrap_runtime.py†L214-L492】【F:tests/runtime/test_bootstrap_runtime_sensory.py†L120-L196】
 
 ### Later (90+ days)
 

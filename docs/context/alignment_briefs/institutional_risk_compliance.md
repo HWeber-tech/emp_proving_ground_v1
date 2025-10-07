@@ -91,6 +91,11 @@
   snapshots, provider summaries, and deterministic risk API fallbacks while
   always attaching the shared runbook so manual pilots inherit actionable
   escalation metadata even when provider lookups fail, under pytest coverage.【F:src/trading/integration/fix_broker_interface.py†L211-L330】【F:tests/trading/test_fix_broker_interface_events.py†L170-L239】
+- Progress: FIX integration pilot now exposes supervised runtime metadata,
+  publishes a `run_forever` workload wrapper, and wires a runtime builder helper
+  so pilots surface the risk runbook, task-supervisor posture, and trading
+  manager risk summary while guaranteeing graceful shutdown, under pytest
+  coverage of the runtime harness and public exports.【F:src/runtime/fix_pilot.py†L112-L165】【F:src/runtime/fix_pilot.py†L225-L236】【F:src/runtime/fix_pilot.py†L496-L517】【F:src/runtime/__init__.py†L15-L107】【F:tests/runtime/test_fix_pilot.py†L166-L260】
 - Progress: Compliance readiness snapshots now consolidate trade surveillance,
   KYC telemetry, and workflow checklist status, escalating blocked items,
   surfacing active task counts, and exposing markdown evidence with pytest

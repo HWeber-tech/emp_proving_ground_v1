@@ -49,9 +49,12 @@
   harvests recorded experiment manifests into additional templates, derives
   jitter/metrics/tags from those artifacts, and applies lineage/performance
   metadata to default populations so baseline genomes reflect the strategy
-  library plus recent experiments, with pytest verifying sampler cycling,
-  artifact harvesting, and seeded context on the evolution engine.
-  【F:src/core/evolution/seeding.py†L159-L400】【F:src/core/evolution/engine.py†L250-L335】【F:tests/evolution/test_realistic_seeding.py†L1-L88】
+  library plus recent experiments. The sampler now enriches genomes with parent
+  IDs, mutation histories, and performance fingerprints, doubles as the bootstrap
+  path in the population manager, and surfaces parent/mutation counts via lineage
+  telemetry so orchestrator dashboards inherit richer provenance under pytest
+  coverage of sampler cycling, metadata propagation, and seeded context on the
+  evolution engine.【F:src/core/evolution/seeding.py†L82-L140】【F:src/core/population_manager.py†L62-L383】【F:src/core/evolution/engine.py†L267-L335】【F:src/evolution/lineage_telemetry.py†L200-L228】【F:tests/evolution/test_realistic_seeding.py†L48-L88】【F:tests/current/test_population_manager_with_genome.py†L86-L108】
 - Build population management routines (selection, mutation, evaluation) tied to
   recorded datasets; expose metrics via runtime summaries.
 - Progress: Recorded sensory replay evaluator converts archived sensory

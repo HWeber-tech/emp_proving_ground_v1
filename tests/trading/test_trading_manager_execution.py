@@ -629,6 +629,53 @@ def test_describe_release_posture(tmp_path: Path) -> None:
     thresholds = summary["thresholds"]
     assert thresholds.get("adaptive_source") == DriftSeverity.normal.value
     assert summary.get("approvals") == ["ops", "risk"]
+
+
+@pytest.mark.asyncio()
+async def test_install_release_execution_router(tmp_path: Path) -> None:
+    store = PolicyLedgerStore(tmp_path / "policy.json")
+    release_manager = LedgerReleaseManager(store)
+
+    bus = DummyBus()
+    manager = TradingManager(
+        event_bus=bus,
+        strategy_registry=AlwaysActiveRegistry(),
+        execution_engine=None,
+        initial_equity=25_000.0,
+        risk_config=RiskConfig(
+            min_position_size=1,
+            mandatory_stop_loss=False,
+            research_mode=True,
+        ),
+        release_manager=release_manager,
+    )
+
+    paper_engine = RecordingExecutionEngine()
+    manager.execution_engine = paper_engine
+    live_engine = RecordingExecutionEngine()
+
+    router = manager.install_release_execution_router(live_engine=live_engine)
+    assert manager.execution_engine is router
+
+    intent = ConfidenceIntent(symbol="EURUSD", quantity=1.0, price=1.1, confidence=0.8)
+    await router.process_order(intent)
+    assert paper_engine.calls == 1
+    assert live_engine.calls == 0
+
+    release_manager.promote(
+        policy_id="alpha",
+        tactic_id="alpha",
+        stage=PolicyLedgerStage.LIMITED_LIVE,
+        approvals=("ops", "risk"),
+        evidence_id="diary-alpha",
+    )
+
+    await router.process_order(intent)
+    assert live_engine.calls == 1
+    last_route = router.last_route()
+    assert last_route is not None
+    assert last_route["stage"] == PolicyLedgerStage.LIMITED_LIVE.value
+    assert last_route["route"] == "live"
 @pytest.mark.asyncio()
 async def test_trading_manager_emits_policy_violation_alert(
     monkeypatch: pytest.MonkeyPatch,

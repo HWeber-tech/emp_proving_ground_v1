@@ -6,7 +6,7 @@ from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 
-from core.coercion import coerce_float, coerce_int
+from src.core.coercion import coerce_float, coerce_int
 
 from .failover import IngestFailoverDecision
 from .health import IngestHealthCheck, IngestHealthReport, IngestHealthStatus

@@ -165,18 +165,18 @@ Dead code candidates (first 100):
 -  src\sensory\organs\price_organ.py
 -  src\sensory\organs\sentiment_organ.py
 -  src\sensory\organs\volume_organ.py
--  src\sensory\organs\yahoo_finance_organ.py
+-  ~~src\\sensory\\organs\\yahoo_finance_organ.py~~ (retired; market data ingress uses the hardened Yahoo gateway with adapter fallbacks.)【F:src/data_foundation/ingest/yahoo_gateway.py†L1-L320】【F:src/orchestration/compose.py†L40-L140】
 -  src\sensory\organs\analyzers\anomaly_organ.py
 -  src\sensory\organs\dimensions\anomaly_detection.py
 -  src\sensory\organs\dimensions\anomaly_dimension.py
 -  src\sensory\organs\dimensions\base_organ.py
--  src\sensory\organs\dimensions\chaos_adaptation.py
+-  ~~src\\sensory\\organs\\dimensions\\chaos_adaptation.py~~ (retired; antifragile chaos adapters now live under `src/sensory/enhanced/chaos/antifragile_adaptation.py`, and the consolidated organ consumes the canonical antifragile pipeline.)【F:src/sensory/real_sensory_organ.py†L392-L489】【F:src/sensory/enhanced/chaos/antifragile_adaptation.py†L1-L200】
 -  src\sensory\organs\dimensions\chaos_dimension.py
 -  src\sensory\organs\dimensions\data_integration.py
--  src\sensory\organs\dimensions\how_organ.py
+-  ~~src\\sensory\\organs\\dimensions\\how_organ.py~~ (retired; institutional footprint telemetry is delivered by the canonical HOW sensor.)【F:src/sensory/how/how_sensor.py†L21-L210】【F:src/sensory/real_sensory_organ.py†L23-L233】
 -  src\sensory\organs\dimensions\institutional_tracker.py
 -  ~~src\sensory\organs\dimensions\integration_orchestrator.py~~ (removed)
--  src\sensory\organs\dimensions\macro_intelligence.py
+-  ~~src\\sensory\\organs\\dimensions\\macro_intelligence.py~~ (retired; macro predator intelligence is provided by the canonical WHY sensor stack.)【F:src/sensory/why/why_sensor.py†L21-L260】【F:src/sensory/real_sensory_organ.py†L204-L379】
 -  src\sensory\organs\dimensions\pattern_engine.py
 -  src\sensory\organs\dimensions\real_sensory_organ.py
 -  src\sensory\organs\dimensions\sensory_signal.py

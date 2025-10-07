@@ -52,12 +52,10 @@ class SensoryStructureConsolidator:
             "src/sensory/core/utils.py": "src/sensory/organs/dimensions/utils.py",
             # Enhanced structure -> Primary structure
             "src/sensory/enhanced/anomaly/manipulation_detection.py": "src/sensory/organs/dimensions/anomaly_detection.py",
-            "src/sensory/enhanced/chaos/antifragile_adaptation.py": "src/sensory/organs/dimensions/chaos_adaptation.py",
             "src/sensory/enhanced/how/institutional_footprint_hunter.py": "src/sensory/organs/dimensions/institutional_tracker.py",
             "src/sensory/enhanced/integration/sensory_integration_orchestrator.py": "src/sensory/organs/dimensions/integration_orchestrator.py",
             "src/sensory/enhanced/what/pattern_synthesis_engine.py": "src/sensory/organs/dimensions/pattern_engine.py",
             "src/sensory/enhanced/when/temporal_advantage_system.py": "src/sensory/organs/dimensions/temporal_system.py",
-            "src/sensory/enhanced/why/macro_predator_intelligence.py": "src/sensory/organs/dimensions/macro_intelligence.py",
         }
 
         # Execute consolidation
@@ -131,7 +129,6 @@ class SensoryStructureConsolidator:
             "from sensory.core.real_sensory_organ import": "from sensory.organs.dimensions.real_sensory_organ import",
             "from sensory.core.data_integration import": "from sensory.organs.dimensions.data_integration import",
             "from sensory.enhanced.anomaly.manipulation_detection import": "from sensory.organs.dimensions.anomaly_detection import",
-            "from sensory.enhanced.chaos.antifragile_adaptation import": "from sensory.organs.dimensions.chaos_adaptation import",
             "from sensory.enhanced.integration.sensory_integration_orchestrator import": "from sensory.organs.dimensions.integration_orchestrator import",
         }
 
@@ -177,12 +174,10 @@ The following files were moved to the primary structure:
 
 #### Enhanced Structure → Dimensions
 - `src/sensory/enhanced/anomaly/manipulation_detection.py` → `src/sensory/organs/dimensions/anomaly_detection.py`
-- `src/sensory/enhanced/chaos/antifragile_adaptation.py` → `src/sensory/organs/dimensions/chaos_adaptation.py`
 - `src/sensory/enhanced/how/institutional_footprint_hunter.py` → `src/sensory/organs/dimensions/institutional_tracker.py`
 - `src/sensory/enhanced/integration/sensory_integration_orchestrator.py` → `src/sensory/organs/dimensions/integration_orchestrator.py`
 - `src/sensory/enhanced/what/pattern_synthesis_engine.py` → `src/sensory/organs/dimensions/pattern_engine.py`
 - `src/sensory/enhanced/when/temporal_advantage_system.py` → `src/sensory/organs/dimensions/temporal_system.py`
-- `src/sensory/enhanced/why/macro_predator_intelligence.py` → `src/sensory/organs/dimensions/macro_intelligence.py`
 
 ### 3. Duplicate File Handling
 - **Duplicate**: `src/sensory/real_sensory_organ.py` → **Removed** (consolidated into dimensions)

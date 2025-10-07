@@ -202,18 +202,19 @@ kit that the roadmap calls back to in each checklist.
     combined budget totals, volatility targets, leverage windows,
     sector-instrument counts, and latest policy snapshots in its summaries so
     downstream telemetry inherits the full allocation context plus escalation
-    guidance; runtime builder and trading manager continue to surface the
-    runbook URL for deterministic triage.【F:docs/api/risk.md†L1-L24】【F:docs/operations/runbooks/risk_api_contract.md†L1-L31】【F:src/trading/risk/risk_api.py†L1-L158】【F:src/runtime/runtime_builder.py†L323-L353】【F:src/trading/trading_manager.py†L493-L529】【F:tests/runtime/test_runtime_builder.py†L200-L234】【F:tests/trading/test_risk_api.py†L90-L152】【F:tests/trading/test_trading_manager_execution.py†L222-L247】
+    guidance; runtime builder and trading manager summarise the enforced risk
+    config, with `get_risk_status()` exporting the canonical summary plus the
+    shared runbook pointer for deterministic triage.【F:docs/api/risk.md†L1-L24】【F:docs/operations/runbooks/risk_api_contract.md†L1-L31】【F:src/trading/risk/risk_api.py†L1-L158】【F:src/runtime/runtime_builder.py†L323-L353】【F:src/trading/trading_manager.py†L672-L714】【F:tests/runtime/test_runtime_builder.py†L200-L234】【F:tests/trading/test_risk_api.py†L90-L152】【F:tests/trading/test_trading_manager_execution.py†L670-L684】
   - *Progress*: Trading manager now emits dedicated risk interface telemetry via
     snapshot/error helpers that render Markdown summaries, publish structured
     payloads on the event bus, and persist the latest posture for discovery,
     with pytest asserting snapshot and alert propagation so supervisors inherit
-    actionable evidence when enforcement fails.【F:src/trading/risk/risk_interface_telemetry.py†L1-L156】【F:src/trading/trading_manager.py†L635-L678】【F:tests/trading/test_trading_manager_execution.py†L190-L287】
+    actionable evidence when enforcement fails.【F:src/trading/risk/risk_interface_telemetry.py†L1-L156】【F:src/trading/trading_manager.py†L741-L759】【F:tests/trading/test_trading_manager_execution.py†L651-L667】
   - *Progress*: Bootstrap control center, bootstrap runtime status, and FIX pilot
     snapshots now resolve the trading manager’s risk interface payload, cache the
     shared runbook metadata, and surface it in operator telemetry so control
     rooms, status CLIs, and pilot dashboards expose the same escalation guidance
-    under regression coverage.【F:src/operations/bootstrap_control_center.py†L99-L350】【F:src/runtime/bootstrap_runtime.py†L206-L246】【F:src/runtime/fix_pilot.py†L22-L318】【F:tests/current/test_bootstrap_control_center.py†L151-L180】【F:tests/runtime/test_fix_pilot.py†L115-L178】
+    under regression coverage.【F:src/operations/bootstrap_control_center.py†L99-L350】【F:src/runtime/bootstrap_runtime.py†L210-L334】【F:src/runtime/fix_pilot.py†L22-L318】【F:tests/current/test_bootstrap_control_center.py†L151-L180】【F:tests/runtime/test_fix_pilot.py†L115-L178】
   - *Progress*: `RiskConfig` now normalises sector/instrument mappings, rejects
     duplicate or missing sector limits, enforces that individual and combined
     sector budgets never exceed the global exposure cap, and continues to
@@ -246,7 +247,7 @@ kit that the roadmap calls back to in each checklist.
     embedded runbook metadata while the trading manager escalates breached
     guardrails and regression tests lock the payload contract, giving operators
     an actionable feed plus an escalation playbook whenever policy violations
-    surface.【F:src/trading/risk/policy_telemetry.py†L1-L285】【F:src/trading/trading_manager.py†L642-L686】【F:docs/operations/runbooks/risk_policy_violation.md†L1-L51】【F:tests/trading/test_risk_policy_telemetry.py†L1-L199】
+    surface.【F:src/trading/risk/policy_telemetry.py†L1-L285】【F:src/trading/trading_manager.py†L920-L991】【F:docs/operations/runbooks/risk_policy_violation.md†L1-L51】【F:tests/trading/test_risk_policy_telemetry.py†L1-L199】
   - *Progress*: Parity checker telemetry now resolves the metrics sink once,
     logs failures to access or publish gauges, and emits guarded order/position
     mismatch counts so institutional monitors see parity outages instead of
@@ -579,9 +580,10 @@ kit that the roadmap calls back to in each checklist.
 - [ ] **AlphaTrade understanding loop sprint (Days 0–14)** – Stand up the live-shadow
   Perception → Adaptation → Reflection loop so AlphaTrade parity work can ship
   without capital risk.【F:docs/High-Impact Development Roadmap.md†L5-L21】【F:docs/High-Impact Development Roadmap.md†L73-L76】
-  - [ ] Ship belief/regime scaffolding with `BeliefState` buffers, `RegimeSignal`
-    publication, and health-checked BeliefEmitter/RegimeFSM contracts ready for
-    live-shadow inputs.【F:docs/context/sprint_briefs/understanding_loop_v1.md†L33-L58】【F:docs/High-Impact Development Roadmap.md†L48-L59】
+  - *Progress*: Belief/regime scaffolding now ships `BeliefState` buffers,
+    Hebbian updates, and regime FSM emitters that publish event-bus payloads with
+    PSD guardrails, golden fixtures, and guardrail pytest coverage so live-shadow
+    inputs bind to stable schemas.【F:src/understanding/belief.py†L39-L347】【F:tests/intelligence/test_belief_updates.py†L129-L200】【F:tests/intelligence/golden/belief_snapshot.json†L1-L120】
   - [ ] Implement `UnderstandingRouter` fast-weight adapters with feature gating,
     configuration schema, and guardrail tests so strategy routing stays
     auditable.【F:docs/context/sprint_briefs/understanding_loop_v1.md†L38-L62】【F:docs/High-Impact Development Roadmap.md†L50-L52】
@@ -602,7 +604,11 @@ kit that the roadmap calls back to in each checklist.
   - [ ] Provide graph diagnostics CLI, guardrailed acceptance workflow, and
     operational dashboard tile so AlphaTrade deltas remain observable.【F:docs/context/sprint_briefs/understanding_loop_v1.md†L108-L128】
   - *Progress*: Understanding diagnostics builder now emits sensory→belief→router→policy graphs with snapshot exports, wrapped by a CLI that renders JSON/DOT/Markdown and guarded by the `understanding_acceptance` marker plus dedicated pytest suite.【F:src/understanding/diagnostics.py†L395-L542】【F:src/understanding/__init__.py†L3-L22】【F:tools/understanding/graph_diagnostics.py†L1-L82】【F:tests/understanding/test_understanding_diagnostics.py†L15-L29】【F:pytest.ini†L2-L27】
-  - *Progress*: Observability dashboard now renders an understanding-loop panel summarising regime confidence, drift exceedances, experiments, and ledger approvals when provided with diagnostics snapshots, keeping the telemetry contract under regression coverage.【F:src/operations/observability_dashboard.py†L513-L548】【F:tests/operations/test_observability_dashboard.py†L371-L384】
+  - *Progress*: Observability dashboard now renders an understanding-loop panel summarising regime confidence, drift exceedances, experiments, and ledger approvals when diagnostics land, and escalates to WARN with CLI guidance whenever snapshots are missing so operators rebuild artifacts deterministically under guardrail tests.【F:src/operations/observability_dashboard.py†L536-L565】【F:tests/operations/test_observability_dashboard.py†L389-L413】
+  - *Progress*: Bootstrap runtime now instantiates the real sensory organ with a
+    drift-tuned history buffer, streams observations into cortex metrics, and
+    exposes samples/audits via `status()` so supervisors inherit sensory posture
+    under dedicated runtime coverage.【F:src/runtime/bootstrap_runtime.py†L210-L334】【F:tests/runtime/test_bootstrap_runtime_sensory.py†L107-L132】
 
 ### Next (30–90 days)
 
@@ -634,10 +640,11 @@ kit that the roadmap calls back to in each checklist.
   - [ ] Enable selective paper-trade execution with DriftSentry gating
     promotions and PolicyLedger enforcing audit coverage ahead of live capital
     exposure.【F:docs/High-Impact Development Roadmap.md†L75-L75】
-  - *Progress*: Trading manager now wires in DriftSentry gating, recording decisions, experiment events, and risk summaries whenever drift blocks or warns on paper trades so selective execution honours governance guardrails under pytest coverage.【F:src/trading/trading_manager.py†L219】【F:src/trading/trading_manager.py†L415】【F:src/trading/trading_manager.py†L558】【F:tests/trading/test_trading_manager_execution.py†L187-L260】
-  - [ ] Introduce adaptive drift thresholds and ledger-based release management so
-    vetted tactics can graduate to limited live capital without bypassing
-    governance.【F:docs/High-Impact Development Roadmap.md†L76-L76】
+  - *Progress*: Trading manager now wires in DriftSentry gating, recording decisions, experiment events, and risk summaries whenever drift blocks or warns on paper trades so selective execution honours governance guardrails under pytest coverage.【F:src/trading/trading_manager.py†L183-L367】【F:src/trading/trading_manager.py†L584-L612】【F:tests/trading/test_trading_manager_execution.py†L187-L260】
+  - *Progress*: Adaptive release thresholds now derive ledger stages,
+    tighten confidence/notional guardrails based on sensory drift severity, and
+    feed TradingManager gating plus release posture telemetry so promotions
+    honour governance approvals under guardrail tests.【F:src/trading/gating/adaptive_release.py†L47-L211】【F:src/trading/trading_manager.py†L183-L659】【F:tests/trading/test_adaptive_release_thresholds.py†L57-L138】【F:tests/trading/test_trading_manager_execution.py†L423-L472】
 
 ### Later (90+ days)
 

@@ -52,7 +52,7 @@
 - Progress: Policy telemetry builders serialise decision snapshots, emit Markdown
   summaries, and publish violation alerts with embedded escalation metadata while
   the trading manager mirrors the feed and the new runbook documents the response,
-  giving governance a deterministic alert surface when violations occur.【F:src/trading/risk/policy_telemetry.py†L1-L285】【F:src/trading/trading_manager.py†L642-L686】【F:docs/operations/runbooks/risk_policy_violation.md†L1-L51】【F:tests/trading/test_risk_policy_telemetry.py†L1-L199】
+  giving governance a deterministic alert surface when violations occur.【F:src/trading/risk/policy_telemetry.py†L1-L285】【F:src/trading/trading_manager.py†L920-L991】【F:docs/operations/runbooks/risk_policy_violation.md†L1-L51】【F:tests/trading/test_risk_policy_telemetry.py†L1-L199】
 - Progress: Parity checker telemetry now wraps gauge publication in defensive
   logging, recording order and position mismatches even when the metrics sink
   misbehaves so compliance dashboards surface reconciliation issues instead of
@@ -81,7 +81,7 @@
   trading manager’s cached posture, while bootstrap control center, bootstrap
   runtime status, and FIX pilot snapshots resolve the interface payload to embed
   the shared runbook in operator telemetry under pytest coverage so governance
-  receives actionable enforcement evidence when the interface degrades.【F:src/trading/risk/risk_interface_telemetry.py†L1-L156】【F:src/trading/trading_manager.py†L635-L678】【F:src/operations/bootstrap_control_center.py†L99-L350】【F:src/runtime/bootstrap_runtime.py†L206-L246】【F:src/runtime/fix_pilot.py†L22-L318】【F:tests/trading/test_trading_manager_execution.py†L190-L287】【F:tests/current/test_bootstrap_control_center.py†L151-L180】【F:tests/runtime/test_fix_pilot.py†L115-L178】
+  receives actionable enforcement evidence when the interface degrades.【F:src/trading/risk/risk_interface_telemetry.py†L1-L156】【F:src/trading/trading_manager.py†L741-L759】【F:src/operations/bootstrap_control_center.py†L99-L350】【F:src/runtime/bootstrap_runtime.py†L210-L334】【F:src/runtime/fix_pilot.py†L22-L318】【F:tests/trading/test_trading_manager_execution.py†L651-L667】【F:tests/current/test_bootstrap_control_center.py†L151-L180】【F:tests/runtime/test_fix_pilot.py†L115-L178】
 - Progress: FIX broker interface risk rejections now merge gateway policy
   snapshots, provider summaries, and deterministic risk API fallbacks while
   always attaching the shared runbook so manual pilots inherit actionable

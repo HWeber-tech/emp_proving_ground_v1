@@ -11,7 +11,7 @@ operators must follow during a breach.
    - Every rejection publishes a structured alert containing the serialized
      policy snapshot and a Markdown summary.【F:src/trading/risk/policy_telemetry.py†L214-L285】
    - The trading manager forwards alerts whenever a policy decision is rejected
-     or recorded with outstanding violations.【F:src/trading/trading_manager.py†L617-L666】
+     or recorded with outstanding violations.【F:src/trading/trading_manager.py†L920-L991】
 2. Secondary confirmation is available on `telemetry.risk.policy`, which
    streams the latest decision snapshot for dashboards and notebooks.
 3. The FIX broker adapter mirrors the last snapshot in the rejection payload

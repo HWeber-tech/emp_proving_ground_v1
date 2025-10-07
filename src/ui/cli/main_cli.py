@@ -39,11 +39,13 @@ def _fmt_date(val: object) -> str:
         if isinstance(val, str):
             try:
                 dt2 = datetime.fromisoformat(val)
+            except ValueError:
+                dt2 = None
+            else:
                 return dt2.strftime("%Y-%m-%d")
-            except Exception:
-                pass
         return str(val)
-    except Exception:
+    except Exception as exc:
+        logger.debug("Failed to format date value %r", val, exc_info=exc)
         return str(val)
 
 

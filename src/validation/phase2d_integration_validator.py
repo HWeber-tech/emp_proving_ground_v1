@@ -22,19 +22,23 @@ from src.core.regime import NoOpRegimeClassifier, RegimeClassifier
 from src.core.risk.manager import RiskManager, get_risk_manager
 from src.config.risk.risk_config import RiskConfig
 
+logger = logging.getLogger(__name__)
+
 try:
     from src.core.interfaces import DecisionGenome
-except Exception:  # pragma: no cover
-    pass
-if TYPE_CHECKING:
-    from src.core.interfaces import DecisionGenome as _DecisionGenome  # noqa: F401
+except Exception as exc:  # pragma: no cover
+    logger.debug(
+        "Falling back to placeholder DecisionGenome due to import failure", exc_info=exc
+    )
+    if TYPE_CHECKING:  # pragma: no cover - typing branch
+        from src.core.interfaces import DecisionGenome as _DecisionGenome  # type: ignore
+    else:
+
+        class DecisionGenome:  # minimal runtime placeholder to avoid rebinding a type alias
+            pass
 else:
-
-    class DecisionGenome:  # minimal runtime placeholder to avoid rebinding a type alias
-        pass
-
-
-logger = logging.getLogger(__name__)
+    if TYPE_CHECKING:  # pragma: no cover - typing branch
+        from src.core.interfaces import DecisionGenome as _DecisionGenome  # noqa: F401
 
 
 class Phase2DIntegrationValidator:
@@ -155,8 +159,11 @@ class Phase2DIntegrationValidator:
                                 "research_mode": bool(risk_config.research_mode),
                             }
                         )
-                    except AttributeError:
-                        pass
+                    except AttributeError as exc:
+                        logger.debug(
+                            "Risk manager lacks update_limits; skipping dynamic limit update",
+                            exc_info=exc,
+                        )
                 risk_manager.update_equity(float(equity))
 
                 position = {

@@ -132,8 +132,8 @@ def _ensure_metadata(intent: Any) -> MutableMapping[str, Any]:
     new_meta: dict[str, Any] = {}
     try:
         setattr(intent, "metadata", new_meta)
-    except Exception:  # pragma: no cover - best effort when attribute blocked
-        pass
+    except Exception as exc:  # pragma: no cover - best effort when attribute blocked
+        logger.debug("Unable to attach metadata attribute to intent %r", intent, exc_info=exc)
     return new_meta
 
 
@@ -160,8 +160,10 @@ def _set_attr(intent: Any, value: Any, *names: str) -> None:
         if hasattr(intent, name):
             try:
                 setattr(intent, name, value)
-            except Exception:  # pragma: no cover - best effort
-                pass
+            except Exception as exc:  # pragma: no cover - best effort
+                logger.debug(
+                    "Failed to set attribute %s on intent %r", name, intent, exc_info=exc
+                )
             return
 
     # Attribute was missing entirely; fall back to first candidate for dicts
@@ -760,8 +762,12 @@ class RiskGateway:
         if hasattr(intent, "liquidity_confidence_score"):
             try:
                 setattr(intent, "liquidity_confidence_score", liquidity_score)
-            except Exception:  # pragma: no cover - attribute blocked
-                pass
+            except Exception as exc:  # pragma: no cover - attribute blocked
+                logger.debug(
+                    "Failed to persist liquidity confidence score on intent %r",
+                    intent,
+                    exc_info=exc,
+                )
 
         if is_dataclass(intent):
             try:
@@ -780,10 +786,15 @@ class RiskGateway:
                     for field, value in data.items():
                         try:
                             setattr(intent, field, value)
-                        except Exception:
-                            pass
-            except Exception:  # pragma: no cover
-                pass
+                        except Exception as exc:
+                            logger.debug(
+                                "Unable to update frozen dataclass field %s on %r",
+                                field,
+                                intent,
+                                exc_info=exc,
+                            )
+            except Exception as exc:  # pragma: no cover
+                logger.debug("Failed to update dataclass intent %r", intent, exc_info=exc)
 
     def _evaluate_execution_cost(
         self,

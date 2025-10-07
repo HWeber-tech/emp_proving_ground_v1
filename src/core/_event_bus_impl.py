@@ -429,8 +429,8 @@ class AsyncEventBus:
             if name is not None:
                 try:
                     task.set_name(name)
-                except Exception:  # pragma: no cover - defensive fallback
-                    pass
+                except Exception as exc:  # pragma: no cover - defensive fallback
+                    logger.debug("Failed to assign task name %s", name, exc_info=exc)
             return task
 
     @staticmethod
@@ -647,8 +647,8 @@ def _ensure_global_bus_running_in_background() -> None:
                     try:
                         if event_bus.is_running():
                             loop.run_until_complete(event_bus.stop())
-                    except Exception:  # pragma: no cover
-                        pass
+                    except Exception as exc:  # pragma: no cover - defensive shutdown logging
+                        logger.warning("Failed to shutdown event bus cleanly", exc_info=exc)
                     loop.close()
 
             _BG_THREAD = threading.Thread(

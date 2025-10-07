@@ -17,10 +17,14 @@ Provided:
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from typing import Any, Optional, Protocol, TypeAlias, Union, cast, runtime_checkable
+
+
+logger = logging.getLogger(__name__)
 
 
 class MarketRegime(Enum):
@@ -160,27 +164,29 @@ class MarketData:
         for k, v in kwargs.items():
             try:
                 setattr(self, k, v)
-            except Exception:
-                # Ignore non-assignable extras
-                pass
+            except Exception as exc:
+                logger.debug("Ignoring extra MarketData attribute %s", k, exc_info=exc)
 
     @property
     def mid_price(self) -> float:
-        try:
-            if self.bid or self.ask:
+        if self.bid or self.ask:
+            try:
                 return (float(self.bid) + float(self.ask)) / 2.0
-        except Exception:
-            pass
+            except (TypeError, ValueError) as exc:
+                logger.debug("Failed to derive mid price from bid/ask", exc_info=exc)
+
         try:
             return float(self.close)
-        except Exception:
+        except (TypeError, ValueError) as exc:
+            logger.debug("Failed to derive mid price fallback from close", exc_info=exc)
             return 0.0
 
     @property
     def spread(self) -> float:
         try:
             return max(0.0, float(self.ask) - float(self.bid))
-        except Exception:
+        except (TypeError, ValueError) as exc:
+            logger.debug("Failed to compute spread", exc_info=exc)
             return 0.0
 
 

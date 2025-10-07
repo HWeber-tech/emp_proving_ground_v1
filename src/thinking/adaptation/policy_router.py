@@ -266,6 +266,82 @@ class PolicyRouter:
     def history(self) -> Sequence[Mapping[str, object]]:
         return tuple(self._history)
 
+    def ingest_reflection_history(self, entries: Iterable[Mapping[str, object]]) -> int:
+        """Seed the reflection history with pre-recorded summaries.
+
+        Decision diary exports and governance workflows often capture
+        ``reflection_summary`` payloads emitted by the router.  This helper lets
+        those persisted summaries be replayed into a fresh router instance so the
+        automated digest and reflection builder can operate on historical data
+        without re-running the full understanding loop.
+
+        Entries missing a ``tactic_id`` or ``timestamp`` are ignored.  The method
+        returns the number of summaries accepted.
+        """
+
+        appended = 0
+        for entry in entries:
+            if not isinstance(entry, Mapping):
+                continue
+
+            summary: dict[str, object] = dict(entry)
+
+            tactic_id = summary.get("tactic_id")
+            if not isinstance(tactic_id, str) or not tactic_id.strip():
+                continue
+            summary["tactic_id"] = tactic_id.strip()
+
+            timestamp = summary.get("timestamp")
+            if isinstance(timestamp, datetime):
+                normalised_ts = timestamp.astimezone(timezone.utc)
+                summary["timestamp"] = normalised_ts.isoformat()
+            elif isinstance(timestamp, str):
+                candidate = timestamp.strip()
+                if not candidate:
+                    continue
+                try:
+                    parsed = datetime.fromisoformat(candidate)
+                except ValueError:
+                    continue
+                summary["timestamp"] = parsed.astimezone(timezone.utc).isoformat()
+            else:
+                continue
+
+            score = summary.get("score", 0.0)
+            try:
+                summary["score"] = float(score)
+            except (TypeError, ValueError):
+                summary["score"] = 0.0
+
+            experiments = summary.get("experiments")
+            if isinstance(experiments, Sequence):
+                cleaned_experiments: list[Mapping[str, object]] = []
+                for experiment in experiments:
+                    if not isinstance(experiment, Mapping):
+                        continue
+                    payload = dict(experiment)
+                    exp_id = payload.get("experiment_id")
+                    if not isinstance(exp_id, str) or not exp_id.strip():
+                        continue
+                    payload["experiment_id"] = exp_id.strip()
+                    cleaned_experiments.append(payload)
+                summary["experiments"] = cleaned_experiments
+            else:
+                summary["experiments"] = []
+
+            tags = summary.get("tactic_tags")
+            if isinstance(tags, Sequence) and not isinstance(tags, (str, bytes)):
+                summary["tactic_tags"] = [str(tag) for tag in tags]
+
+            objectives = summary.get("tactic_objectives")
+            if isinstance(objectives, Sequence) and not isinstance(objectives, (str, bytes)):
+                summary["tactic_objectives"] = [str(obj) for obj in objectives]
+
+            self._history.append(summary)
+            appended += 1
+
+        return appended
+
     def reflection_digest(self, *, window: int | None = None) -> Mapping[str, object]:
         """Return an aggregated view of recent reflection summaries.
 

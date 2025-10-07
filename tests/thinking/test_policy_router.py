@@ -306,3 +306,66 @@ def test_reflection_report_wraps_builder_helpers() -> None:
     assert artifacts.payload["metadata"]["generated_at"] == generated_at.isoformat()
     assert artifacts.digest["total_decisions"] == 3
     assert "PolicyRouter reflection summary" in artifacts.markdown
+
+
+def test_ingest_reflection_history_replays_summaries() -> None:
+    router = PolicyRouter(reflection_history=10)
+    base = datetime(2024, 3, 15, 12, 0, tzinfo=timezone.utc)
+
+    entries = (
+        {
+            "headline": "Selected alpha for bull",
+            "tactic_id": "alpha",
+            "score": 1.25,
+            "regime": "bull",
+            "timestamp": base.isoformat(),
+            "tactic_tags": ["momentum"],
+            "tactic_objectives": ["alpha"],
+        },
+        {
+            "headline": "Selected beta for bear",
+            "tactic_id": "beta",
+            "score": 0.95,
+            "regime": "bear",
+            "timestamp": (base + timedelta(minutes=5)),
+            "tactic_tags": ("reversion",),
+            "tactic_objectives": ("stability",),
+            "experiments": (
+                {
+                    "experiment_id": "exp-rebalance",
+                    "tactic_id": "beta",
+                    "multiplier": 1.1,
+                    "rationale": "Promote bear defence",
+                },
+            ),
+        },
+    )
+
+    appended = router.ingest_reflection_history(entries)
+
+    assert appended == 2
+    history = router.history()
+    assert len(history) == 2
+    assert history[0]["tactic_id"] == "alpha"
+    assert history[1]["tactic_id"] == "beta"
+
+    digest = router.reflection_digest()
+    assert digest["total_decisions"] == 2
+    assert set(entry["tactic_id"] for entry in digest["tactics"]) == {"alpha", "beta"}
+    experiments = digest["experiments"]
+    assert experiments[0]["experiment_id"] == "exp-rebalance"
+
+
+def test_ingest_reflection_history_skips_invalid_entries() -> None:
+    router = PolicyRouter()
+
+    entries = (
+        {"headline": "missing timestamp", "tactic_id": "alpha"},
+        {"headline": "bad tactic", "timestamp": "2024-03-15T12:00:00+00:00", "tactic_id": ""},
+        {"headline": "invalid timestamp", "tactic_id": "beta", "timestamp": "not-iso"},
+    )
+
+    appended = router.ingest_reflection_history(entries)
+
+    assert appended == 0
+    assert router.history() == ()

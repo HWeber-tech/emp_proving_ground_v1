@@ -7,8 +7,9 @@ import json
 import logging
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Sequence
+from typing import Mapping, Sequence
 
+from src.thinking.adaptation import PolicyReflectionBuilder, PolicyRouter
 from src.understanding import DecisionDiaryStore, ProbeRegistry
 
 logger = logging.getLogger(__name__)
@@ -126,6 +127,60 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Optional path for the rendered registry payload.",
     )
 
+    summary_parser = subparsers.add_parser(
+        "summarise-reflection",
+        help=(
+            "Generate PolicyRouter reflection summaries from recorded decision "
+            "diaries so reviewers can analyse tactics without raw telemetry."
+        ),
+    )
+    summary_parser.add_argument(
+        "--diary",
+        required=True,
+        type=Path,
+        help="Path to the decision diary JSON store.",
+    )
+    summary_parser.add_argument(
+        "--window",
+        type=int,
+        help="Optional number of most recent decisions to include in the reflection digest.",
+    )
+    summary_parser.add_argument(
+        "--max-tactics",
+        type=int,
+        default=5,
+        help="Maximum number of tactics shown in the summary tables (default: 5).",
+    )
+    summary_parser.add_argument(
+        "--max-experiments",
+        type=int,
+        default=5,
+        help="Maximum number of experiments included in the digest (default: 5).",
+    )
+    summary_parser.add_argument(
+        "--max-headlines",
+        type=int,
+        default=5,
+        help="Maximum number of key insight bullet points (default: 5).",
+    )
+    summary_parser.add_argument(
+        "--format",
+        choices=("json", "markdown"),
+        default="markdown",
+        help="Output format for the summary (defaults to markdown).",
+    )
+    summary_parser.add_argument(
+        "--indent",
+        type=int,
+        default=2,
+        help="JSON indentation level when --format json is used.",
+    )
+    summary_parser.add_argument(
+        "--output",
+        type=Path,
+        help="Optional file path for the reflection summary payload.",
+    )
+
     return parser
 
 
@@ -178,6 +233,55 @@ def _handle_export_probes(args: argparse.Namespace) -> int:
     return 0
 
 
+def _handle_summarise_reflection(args: argparse.Namespace) -> int:
+    diary_path: Path = args.diary
+    if not diary_path.exists():
+        logger.error("Decision diary not found at %s", diary_path)
+        return 1
+    try:
+        store = DecisionDiaryStore(diary_path)
+    except Exception:
+        logger.exception("Failed to load decision diary from %s", diary_path)
+        return 1
+
+    reflections: list[Mapping[str, object]] = []
+    for entry in store.entries():
+        decision = entry.decision
+        summary = decision.get("reflection_summary") if isinstance(decision, Mapping) else None
+        if isinstance(summary, Mapping) and summary:
+            reflections.append(dict(summary))
+
+    if not reflections:
+        logger.error("No reflection summaries available in diary %s", diary_path)
+        return 1
+
+    history_size = max(len(reflections), 50)
+    router = PolicyRouter(reflection_history=history_size)
+    router.ingest_reflection_history(reflections)
+
+    builder = PolicyReflectionBuilder(
+        router,
+        default_window=args.window,
+        max_tactics=max(1, args.max_tactics),
+        max_experiments=max(1, args.max_experiments),
+        max_headlines=max(1, args.max_headlines),
+    )
+
+    try:
+        artifacts = builder.build(window=args.window)
+    except Exception:
+        logger.exception("Failed to build reflection summary")
+        return 1
+
+    if args.format == "json":
+        payload = json.dumps(artifacts.payload, indent=args.indent, sort_keys=True)
+    else:
+        payload = artifacts.markdown
+
+    _emit(payload, args.output)
+    return 0
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv)
@@ -185,6 +289,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _handle_export_diary(args)
     if args.command == "export-probes":
         return _handle_export_probes(args)
+    if args.command == "summarise-reflection":
+        return _handle_summarise_reflection(args)
     parser.error(f"unknown command: {args.command}")
     return 1
 

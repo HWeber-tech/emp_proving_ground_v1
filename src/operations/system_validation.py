@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from enum import StrEnum
 from pathlib import Path
 from typing import Iterable, Mapping, Sequence
@@ -163,6 +163,29 @@ class SystemValidationSnapshot:
             summary_message = self.metadata.get("summary_message")
             if summary_message:
                 lines.append(f"- Summary: {summary_message}")
+            reliability = self.metadata.get("reliability")
+            if isinstance(reliability, Mapping):
+                rel_status = reliability.get("status")
+                if rel_status:
+                    lines.append(f"- Reliability status: {rel_status}")
+                stale_hours = reliability.get("stale_hours")
+                if isinstance(stale_hours, (int, float)):
+                    lines.append(f"- Snapshot staleness (hours): {stale_hours:.1f}")
+                avg_rate = reliability.get("average_success_rate")
+                if isinstance(avg_rate, (int, float)):
+                    lines.append(f"- Reliability average success rate: {avg_rate:.2%}")
+                fail_streak = reliability.get("fail_streak")
+                if isinstance(fail_streak, int) and fail_streak > 0:
+                    lines.append(f"- Consecutive FAIL streak: {fail_streak}")
+                warn_streak = reliability.get("warn_streak")
+                if isinstance(warn_streak, int) and warn_streak > 0:
+                    lines.append(f"- Consecutive WARN streak: {warn_streak}")
+                reliability_issues = reliability.get("issues")
+                if isinstance(reliability_issues, Sequence) and reliability_issues:
+                    lines.append("")
+                    lines.append("**Reliability issues:**")
+                    for issue in reliability_issues:
+                        lines.append(f"- {issue}")
         if self.checks:
             lines.append("")
             lines.append("**Checks:**")
@@ -171,6 +194,85 @@ class SystemValidationSnapshot:
                 message_part = f": {check.message}" if check.message else ""
                 lines.append(f"- {icon} {check.name}{message_part}")
         return "\n".join(lines)
+
+
+@dataclass(frozen=True)
+class SystemValidationHistoryEntry:
+    """Historical record used for reliability calculations."""
+
+    generated_at: datetime
+    status: SystemValidationStatus
+    success_rate: float
+
+    def as_dict(self) -> dict[str, object]:
+        return {
+            "generated_at": self.generated_at.isoformat(),
+            "status": self.status.value,
+            "success_rate": self.success_rate,
+        }
+
+    @classmethod
+    def from_snapshot(cls, snapshot: SystemValidationSnapshot) -> "SystemValidationHistoryEntry":
+        return cls(
+            generated_at=snapshot.generated_at,
+            status=snapshot.status,
+            success_rate=snapshot.success_rate,
+        )
+
+    @classmethod
+    def from_mapping(
+        cls, payload: Mapping[str, object] | None
+    ) -> "SystemValidationHistoryEntry | None":
+        if not isinstance(payload, Mapping):
+            return None
+        try:
+            generated_at = _parse_timestamp(payload.get("generated_at"))
+            status = _coerce_status(payload.get("status"), SystemValidationStatus.warn)
+            success_rate_value = coerce_float(payload.get("success_rate"), default=None)
+        except Exception:  # pragma: no cover - defensive guard
+            return None
+        if success_rate_value is None:
+            success_rate_value = 0.0
+        return cls(
+            generated_at=generated_at,
+            status=status,
+            success_rate=max(0.0, min(1.0, float(success_rate_value))),
+        )
+
+
+@dataclass(frozen=True)
+class SystemValidationReliabilitySummary:
+    """Summary describing reliability of recent system validation runs."""
+
+    status: SystemValidationStatus
+    evaluated_at: datetime
+    window_hours: float
+    samples_considered: int
+    fail_streak: int
+    warn_streak: int
+    average_success_rate: float | None
+    latest_timestamp: datetime | None
+    stale_hours: float | None
+    issues: tuple[str, ...]
+    metadata: Mapping[str, object] = field(default_factory=dict)
+
+    def as_dict(self) -> dict[str, object]:
+        payload: dict[str, object] = {
+            "status": self.status.value,
+            "evaluated_at": self.evaluated_at.isoformat(),
+            "window_hours": self.window_hours,
+            "samples_considered": self.samples_considered,
+            "fail_streak": self.fail_streak,
+            "warn_streak": self.warn_streak,
+            "average_success_rate": self.average_success_rate,
+            "stale_hours": self.stale_hours,
+            "issues": list(self.issues),
+        }
+        if self.latest_timestamp is not None:
+            payload["latest_timestamp"] = self.latest_timestamp.isoformat()
+        if self.metadata:
+            payload["metadata"] = dict(self.metadata)
+        return payload
 
 
 def format_system_validation_markdown(snapshot: SystemValidationSnapshot) -> str:
@@ -220,11 +322,165 @@ def _extract_checks(results: object | None) -> Iterable[SystemValidationCheck]:
             )
 
 
+def _normalise_success_threshold(value: float | None) -> float | None:
+    if value is None:
+        return None
+    if value > 1.0:
+        return min(1.0, value / 100.0)
+    if value < 0.0:
+        return 0.0
+    return value
+
+
+def _summarise_system_validation_reliability(
+    entries: Sequence[SystemValidationHistoryEntry],
+    *,
+    now: datetime,
+    window_hours: float,
+    stale_warn_hours: float | None,
+    stale_fail_hours: float | None,
+    warn_success_rate: float,
+    fail_success_rate: float,
+    warn_fail_streak: int,
+    fail_fail_streak: int,
+) -> SystemValidationReliabilitySummary:
+    evaluated_at = now
+    if not entries:
+        issues = ("No system validation history available",)
+        return SystemValidationReliabilitySummary(
+            status=SystemValidationStatus.fail,
+            evaluated_at=evaluated_at,
+            window_hours=window_hours,
+            samples_considered=0,
+            fail_streak=0,
+            warn_streak=0,
+            average_success_rate=None,
+            latest_timestamp=None,
+            stale_hours=None,
+            issues=issues,
+            metadata={
+                "reason": "no_history",
+                "warn_success_rate": warn_success_rate,
+                "fail_success_rate": fail_success_rate,
+            },
+        )
+
+    ordered = sorted(entries, key=lambda entry: entry.generated_at)
+    latest_entry = ordered[-1]
+    stale_delta = now - latest_entry.generated_at
+    stale_hours = max(stale_delta.total_seconds() / 3600.0, 0.0)
+
+    status = SystemValidationStatus.passed
+    issues: list[str] = []
+
+    if stale_fail_hours is not None and stale_hours > stale_fail_hours:
+        status = SystemValidationStatus.fail
+        issues.append(
+            f"Latest system validation snapshot stale {stale_hours:.1f}h (fail>={stale_fail_hours:.1f}h)"
+        )
+    elif stale_warn_hours is not None and stale_hours > stale_warn_hours:
+        status = _escalate(status, SystemValidationStatus.warn)
+        issues.append(
+            f"Latest system validation snapshot stale {stale_hours:.1f}h (warn>={stale_warn_hours:.1f}h)"
+        )
+
+    fail_streak = 0
+    for entry in reversed(ordered):
+        if entry.status is SystemValidationStatus.fail:
+            fail_streak += 1
+        else:
+            break
+
+    warn_streak = 0
+    for entry in reversed(ordered):
+        if entry.status is SystemValidationStatus.warn:
+            warn_streak += 1
+        else:
+            break
+
+    if fail_fail_streak > 0 and fail_streak >= fail_fail_streak:
+        status = SystemValidationStatus.fail
+        issues.append(f"{fail_streak} consecutive FAIL snapshots")
+    elif warn_fail_streak > 0 and fail_streak >= warn_fail_streak:
+        status = _escalate(status, SystemValidationStatus.warn)
+        issues.append(f"{fail_streak} consecutive FAIL snapshots")
+
+    if warn_streak >= 2 and fail_streak == 0:
+        status = _escalate(status, SystemValidationStatus.warn)
+        issues.append(f"{warn_streak} consecutive WARN snapshots")
+
+    if window_hours <= 0:
+        window_cutoff = None
+    else:
+        window_cutoff = now - timedelta(hours=window_hours)
+
+    if window_cutoff is None:
+        window_entries = list(ordered)
+    else:
+        window_entries = [entry for entry in ordered if entry.generated_at >= window_cutoff]
+
+    samples_considered = len(window_entries)
+    average_success_rate: float | None
+    if window_entries:
+        average_success_rate = (
+            sum(entry.success_rate for entry in window_entries) / samples_considered
+        )
+        fail_threshold = _normalise_success_threshold(fail_success_rate) or 0.0
+        warn_threshold = _normalise_success_threshold(warn_success_rate) or 0.0
+        if average_success_rate < fail_threshold:
+            status = SystemValidationStatus.fail
+            issues.append(
+                f"Average success rate {average_success_rate:.0%} below fail threshold {fail_threshold:.0%}"
+            )
+        elif average_success_rate < warn_threshold:
+            status = _escalate(status, SystemValidationStatus.warn)
+            issues.append(
+                f"Average success rate {average_success_rate:.0%} below warn threshold {warn_threshold:.0%}"
+            )
+    else:
+        average_success_rate = None
+        issues.append("No system validation runs within reliability window")
+        status = _escalate(status, SystemValidationStatus.warn)
+
+    metadata = {
+        "warn_success_rate": warn_success_rate,
+        "fail_success_rate": fail_success_rate,
+        "warn_fail_streak": warn_fail_streak,
+        "fail_fail_streak": fail_fail_streak,
+        "stale_warn_hours": stale_warn_hours,
+        "stale_fail_hours": stale_fail_hours,
+    }
+
+    return SystemValidationReliabilitySummary(
+        status=status,
+        evaluated_at=evaluated_at,
+        window_hours=window_hours,
+        samples_considered=samples_considered,
+        fail_streak=fail_streak,
+        warn_streak=warn_streak,
+        average_success_rate=average_success_rate,
+        latest_timestamp=latest_entry.generated_at,
+        stale_hours=stale_hours,
+        issues=tuple(issues),
+        metadata=metadata,
+    )
+
+
 def evaluate_system_validation(
     report: Mapping[str, object],
     *,
     metadata: Mapping[str, object] | None = None,
+    history: Sequence[SystemValidationSnapshot | Mapping[str, object]] | None = None,
+    reliability_window_hours: float = 72.0,
+    reliability_stale_warn_hours: float | None = 24.0,
+    reliability_stale_fail_hours: float | None = 48.0,
+    reliability_warn_success_rate: float = 0.95,
+    reliability_fail_success_rate: float = 0.85,
+    reliability_warn_fail_streak: int = 1,
+    reliability_fail_fail_streak: int = 2,
+    now: datetime | None = None,
 ) -> SystemValidationSnapshot:
+    generated_at = _parse_timestamp(report.get("timestamp"))
     checks = tuple(_extract_checks(report.get("results") or report.get("checks")))
     total_checks_value = coerce_int(report.get("total_checks"), default=None)
     total_checks = total_checks_value if total_checks_value is not None else len(checks)
@@ -307,9 +563,70 @@ def evaluate_system_validation(
             },
         )
 
+    current_entry = SystemValidationHistoryEntry(
+        generated_at=generated_at,
+        status=status,
+        success_rate=success_rate,
+    )
+
+    history_entries: list[SystemValidationHistoryEntry] = [current_entry]
+    if history:
+        for item in history:
+            if isinstance(item, SystemValidationSnapshot):
+                history_entries.append(SystemValidationHistoryEntry.from_snapshot(item))
+            elif isinstance(item, Mapping):
+                entry = SystemValidationHistoryEntry.from_mapping(item)
+                if entry is not None:
+                    history_entries.append(entry)
+
+    now_dt = now or datetime.now(timezone.utc)
+    reliability_summary = _summarise_system_validation_reliability(
+        history_entries,
+        now=now_dt,
+        window_hours=reliability_window_hours,
+        stale_warn_hours=reliability_stale_warn_hours,
+        stale_fail_hours=reliability_stale_fail_hours,
+        warn_success_rate=reliability_warn_success_rate,
+        fail_success_rate=reliability_fail_success_rate,
+        warn_fail_streak=reliability_warn_fail_streak,
+        fail_fail_streak=reliability_fail_fail_streak,
+    )
+
+    status = _escalate(status, reliability_summary.status)
+    snapshot_metadata["reliability"] = reliability_summary.as_dict()
+    if reliability_summary.issues:
+        snapshot_metadata.setdefault("reliability_issues", reliability_summary.issues)
+        reliability_entries = tuple(
+            {
+                "category": "reliability",
+                "severity": reliability_summary.status.value,
+                "message": issue,
+            }
+            for issue in reliability_summary.issues
+        )
+        existing_details = list(snapshot_metadata.get("issue_details", ()))
+        existing_details.extend(reliability_entries)
+        snapshot_metadata["issue_details"] = tuple(existing_details)
+        catalog = dict(snapshot_metadata.get("issue_catalog", {}))
+        catalog["reliability"] = reliability_entries
+        snapshot_metadata["issue_catalog"] = catalog
+        counts = dict(snapshot_metadata.get("issue_counts", {}))
+        counts[reliability_summary.status.value] = (
+            counts.get(reliability_summary.status.value, 0) + len(reliability_summary.issues)
+        )
+        snapshot_metadata["issue_counts"] = counts
+        try:
+            highest = max(
+                counts,
+                key=lambda value: _STATUS_ORDER[SystemValidationStatus(value)],
+            )
+            snapshot_metadata["highest_issue_severity"] = highest
+        except ValueError:
+            pass
+
     return SystemValidationSnapshot(
         status=status,
-        generated_at=_parse_timestamp(report.get("timestamp")),
+        generated_at=generated_at,
         total_checks=total_checks,
         passed_checks=passed_checks,
         failed_checks=failed_checks,
@@ -325,6 +642,7 @@ def derive_system_validation_alerts(
     threshold: SystemValidationStatus = SystemValidationStatus.warn,
     include_status_event: bool = True,
     include_failing_checks: bool = True,
+    include_reliability_event: bool = True,
     base_tags: Sequence[str] = ("system-validation",),
 ) -> list[AlertEvent]:
     """Translate a system validation snapshot into alert events."""
@@ -371,6 +689,34 @@ def derive_system_validation_alerts(
                         )
                     )
 
+    if include_reliability_event:
+        metadata = snapshot.metadata if isinstance(snapshot.metadata, Mapping) else {}
+        reliability = metadata.get("reliability") if isinstance(metadata, Mapping) else None
+        if isinstance(reliability, Mapping):
+            raw_status = reliability.get("status", snapshot.status.value)
+            try:
+                reliability_status = SystemValidationStatus(str(raw_status))
+            except ValueError:
+                reliability_status = None
+            if reliability_status is not None and _meets_threshold(reliability_status, threshold):
+                issues = reliability.get("issues")
+                if isinstance(issues, Sequence) and issues:
+                    message = str(issues[0])
+                else:
+                    message = f"System validation reliability {reliability_status.value}"
+                events.append(
+                    AlertEvent(
+                        category="system_validation.reliability",
+                        severity=_SEVERITY_MAP[reliability_status],
+                        message=message,
+                        tags=tags + ("reliability",),
+                        context={
+                            "snapshot": payload,
+                            "reliability": dict(reliability),
+                        },
+                    )
+                )
+
     return events
 
 
@@ -381,6 +727,7 @@ def route_system_validation_alerts(
     threshold: SystemValidationStatus = SystemValidationStatus.warn,
     include_status_event: bool = True,
     include_failing_checks: bool = True,
+    include_reliability_event: bool = True,
     base_tags: Sequence[str] = ("system-validation",),
 ) -> list[AlertDispatchResult]:
     """Dispatch system validation alerts via an alert manager."""
@@ -390,6 +737,7 @@ def route_system_validation_alerts(
         threshold=threshold,
         include_status_event=include_status_event,
         include_failing_checks=include_failing_checks,
+        include_reliability_event=include_reliability_event,
         base_tags=base_tags,
     )
     results: list[AlertDispatchResult] = []
@@ -528,6 +876,8 @@ __all__ = [
     "SystemValidationStatus",
     "SystemValidationCheck",
     "SystemValidationSnapshot",
+    "SystemValidationHistoryEntry",
+    "SystemValidationReliabilitySummary",
     "SystemValidationGateResult",
     "derive_system_validation_alerts",
     "evaluate_system_validation",

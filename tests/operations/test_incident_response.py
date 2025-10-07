@@ -6,6 +6,7 @@ import pytest
 from src.core.event_bus import Event
 from src.operations.alerts import AlertDispatchResult, AlertEvent, AlertSeverity
 from src.operations.incident_response import (
+    IncidentResponseMetrics,
     IncidentResponsePolicy,
     IncidentResponseSnapshot,
     IncidentResponseState,
@@ -252,3 +253,55 @@ def test_route_incident_response_alerts_dispatches_events() -> None:
     assert results, "expected at least one alert dispatch"
     assert all(result.triggered_channels == ("stub",) for result in results)
     assert manager.events
+
+
+def test_incident_response_metrics_escalation_and_alerts() -> None:
+    policy = IncidentResponsePolicy(
+        required_runbooks=tuple(),
+        training_interval_days=30,
+        drill_interval_days=30,
+        minimum_primary_responders=1,
+        minimum_secondary_responders=1,
+        postmortem_sla_hours=24.0,
+        maximum_open_incidents=1,
+        require_chatops=True,
+        mtta_warn_minutes=20.0,
+        mtta_fail_minutes=40.0,
+        mttr_warn_minutes=120.0,
+        mttr_fail_minutes=240.0,
+        metrics_stale_warn_hours=12.0,
+        metrics_stale_fail_hours=24.0,
+    )
+    state = IncidentResponseState(
+        available_runbooks=("redis_outage",),
+        training_age_days=10.0,
+        drill_age_days=15.0,
+        primary_oncall=("alice",),
+        secondary_oncall=("bob",),
+        open_incidents=("INC-1",),
+        postmortem_backlog_hours=8.0,
+        chatops_ready=True,
+        metrics=IncidentResponseMetrics(
+            mtta_minutes=55.0,
+            mttr_minutes=250.0,
+            acknowledged_incidents=5,
+            resolved_incidents=4,
+            sample_window_days=7.0,
+            data_age_hours=30.0,
+        ),
+    )
+
+    snapshot = evaluate_incident_response(policy, state)
+
+    assert snapshot.status is IncidentResponseStatus.fail
+    assert snapshot.metrics is not None
+    assert snapshot.metrics.mtta_minutes == pytest.approx(55.0)
+    reliability = snapshot.metadata.get("reliability_metrics")
+    assert isinstance(reliability, dict)
+    assert reliability["mttr_minutes"] == pytest.approx(250.0)
+
+    events = derive_incident_response_alerts(snapshot)
+    categories = {event.category for event in events}
+    assert "incident_response.mtta" in categories
+    assert "incident_response.mttr" in categories
+    assert "incident_response.metrics_staleness" in categories

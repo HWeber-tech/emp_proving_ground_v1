@@ -126,6 +126,43 @@ fix_parity_mismatched_positions = LazyGaugeProxy(
     "fix_parity_mismatched_positions", "Parity mismatched positions"
 )
 
+# Understanding-loop SLO probes
+_understanding_loop_latency_seconds = LazyGaugeProxy(
+    "understanding_loop_latency_seconds",
+    "Understanding loop latency in seconds by statistic",
+    ["loop", "stat"],
+)
+_understanding_loop_latency_status = LazyGaugeProxy(
+    "understanding_loop_latency_status",
+    "Status level for understanding loop latency SLO (0=pass,1=warn,2=fail)",
+    ["loop"],
+)
+_drift_alert_freshness_seconds = LazyGaugeProxy(
+    "drift_alert_freshness_seconds",
+    "Freshness of drift alert telemetry in seconds",
+    ["alert"],
+)
+_drift_alert_freshness_status = LazyGaugeProxy(
+    "drift_alert_freshness_status",
+    "Status level for drift alert freshness SLO (0=pass,1=warn,2=fail)",
+    ["alert"],
+)
+_replay_determinism_drift = LazyGaugeProxy(
+    "replay_determinism_drift",
+    "Drift score for replay determinism probes",
+    ["probe"],
+)
+_replay_determinism_status = LazyGaugeProxy(
+    "replay_determinism_status",
+    "Status level for replay determinism SLO (0=pass,1=warn,2=fail)",
+    ["probe"],
+)
+_replay_determinism_mismatches = LazyGaugeProxy(
+    "replay_determinism_mismatches",
+    "Count of mismatched fields detected by replay determinism probes",
+    ["probe"],
+)
+
 
 # FIX/MD wrappers (all non-raising)
 def inc_md_reject(reason: str) -> None:
@@ -425,6 +462,84 @@ def set_understanding_throttle_state(
         ).labels(**labels).set(multiplier_value)
 
     _call_metric("understanding_throttle_multiplier.set", _set_multiplier)
+
+
+# Understanding-loop SLO probe exporters
+def set_understanding_loop_latency(
+    loop: str, stat: str, value: float | None
+) -> None:
+    if value is None:
+        return
+
+    labels = {
+        "loop": _normalise_label(loop),
+        "stat": _normalise_label(stat),
+    }
+
+    def _action() -> None:
+        _understanding_loop_latency_seconds.labels(**labels).set(float(value))
+
+    _call_metric("understanding_loop_latency_seconds.set", _action)
+
+
+def set_understanding_loop_latency_status(loop: str, level: int) -> None:
+    labels = {"loop": _normalise_label(loop)}
+
+    def _action() -> None:
+        _understanding_loop_latency_status.labels(**labels).set(float(level))
+
+    _call_metric("understanding_loop_latency_status.set", _action)
+
+
+def set_drift_alert_freshness(alert: str, freshness_seconds: float | None) -> None:
+    if freshness_seconds is None:
+        return
+
+    labels = {"alert": _normalise_label(alert)}
+
+    def _action() -> None:
+        _drift_alert_freshness_seconds.labels(**labels).set(float(freshness_seconds))
+
+    _call_metric("drift_alert_freshness_seconds.set", _action)
+
+
+def set_drift_alert_status(alert: str, level: int) -> None:
+    labels = {"alert": _normalise_label(alert)}
+
+    def _action() -> None:
+        _drift_alert_freshness_status.labels(**labels).set(float(level))
+
+    _call_metric("drift_alert_freshness_status.set", _action)
+
+
+def set_replay_determinism_drift(probe: str, drift: float | None) -> None:
+    if drift is None:
+        return
+
+    labels = {"probe": _normalise_label(probe)}
+
+    def _action() -> None:
+        _replay_determinism_drift.labels(**labels).set(float(drift))
+
+    _call_metric("replay_determinism_drift.set", _action)
+
+
+def set_replay_determinism_status(probe: str, level: int) -> None:
+    labels = {"probe": _normalise_label(probe)}
+
+    def _action() -> None:
+        _replay_determinism_status.labels(**labels).set(float(level))
+
+    _call_metric("replay_determinism_status.set", _action)
+
+
+def set_replay_determinism_mismatches(probe: str, count: int) -> None:
+    labels = {"probe": _normalise_label(probe)}
+
+    def _action() -> None:
+        _replay_determinism_mismatches.labels(**labels).set(float(max(count, 0)))
+
+    _call_metric("replay_determinism_mismatches.set", _action)
 
 
 # Exporter

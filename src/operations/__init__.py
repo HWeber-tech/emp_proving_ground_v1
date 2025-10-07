@@ -184,10 +184,14 @@ from .sensory_summary import (
 )
 from .slo import (
     DEFAULT_ALERT_ROUTES,
+    DriftAlertFreshnessProbe,
+    LoopLatencyProbe,
     OperationalSLOSnapshot,
+    ReplayDeterminismProbe,
     ServiceSLO,
     SLOStatus,
     evaluate_ingest_slos,
+    evaluate_understanding_loop_slos,
 )
 from .observability_dashboard import (
     DashboardPanel,
@@ -379,10 +383,14 @@ __all__ = [
     "build_sensory_summary",
     "publish_sensory_summary",
     "DEFAULT_ALERT_ROUTES",
+    "DriftAlertFreshnessProbe",
+    "LoopLatencyProbe",
     "OperationalSLOSnapshot",
+    "ReplayDeterminismProbe",
     "ServiceSLO",
     "SLOStatus",
     "evaluate_ingest_slos",
+    "evaluate_understanding_loop_slos",
     "IngestDimensionTrend",
     "IngestTrendSnapshot",
     "IngestTrendStatus",

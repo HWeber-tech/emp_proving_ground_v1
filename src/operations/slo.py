@@ -13,7 +13,7 @@ from collections import Counter
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import StrEnum
-from typing import Mapping
+from typing import Mapping, Sequence
 
 from src.data_foundation.ingest.health import (
     IngestHealthCheck,
@@ -24,6 +24,7 @@ from src.data_foundation.ingest.metrics import (
     IngestDimensionMetrics,
     IngestMetricsSnapshot,
 )
+from src.operational import metrics as operational_metrics
 
 
 class SLOStatus(StrEnum):
@@ -88,6 +89,48 @@ class ServiceSLO:
         if self.metadata:
             payload["metadata"] = dict(self.metadata)
         return payload
+
+
+@dataclass(frozen=True)
+class LoopLatencyProbe:
+    """Observed latency metrics for a single understanding-loop cycle."""
+
+    loop: str
+    target_p95_seconds: float
+    p95_seconds: float | None
+    max_seconds: float | None
+    breach_p95_seconds: float | None = None
+    sample_count: int | None = None
+    window_seconds: float | None = None
+    runbook: str | None = None
+    metadata: Mapping[str, object] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class DriftAlertFreshnessProbe:
+    """Freshness posture for sensory drift alerting."""
+
+    alert: str
+    warn_after_seconds: float
+    fail_after_seconds: float
+    last_alert_at: datetime | None
+    alerts_sent: int = 0
+    runbook: str | None = None
+    metadata: Mapping[str, object] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class ReplayDeterminismProbe:
+    """Determinism checks for recorded sensory replays."""
+
+    probe: str
+    warn_threshold: float
+    fail_threshold: float
+    drift_score: float | None
+    checksum_match: bool | None = None
+    mismatched_fields: tuple[str, ...] = ()
+    runbook: str | None = None
+    metadata: Mapping[str, object] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -254,10 +297,274 @@ def evaluate_ingest_slos(
     )
 
 
+def evaluate_understanding_loop_slos(
+    *,
+    loop_latency_probes: Sequence[LoopLatencyProbe] | None = None,
+    drift_alert_probes: Sequence[DriftAlertFreshnessProbe] | None = None,
+    replay_probes: Sequence[ReplayDeterminismProbe] | None = None,
+    generated_at: datetime | None = None,
+    metadata: Mapping[str, object] | None = None,
+    now: datetime | None = None,
+) -> OperationalSLOSnapshot:
+    """Grade understanding-loop SLO probes and export Prometheus gauges."""
+
+    probes_latency: Sequence[LoopLatencyProbe] = loop_latency_probes or ()
+    probes_drift: Sequence[DriftAlertFreshnessProbe] = drift_alert_probes or ()
+    probes_replay: Sequence[ReplayDeterminismProbe] = replay_probes or ()
+
+    evaluation_moment = now or datetime.now(tz=UTC)
+    snapshot_moment = generated_at or evaluation_moment
+
+    slo_records: list[ServiceSLO] = []
+    overall_status = SLOStatus.met
+
+    def _escalate_overall(status: SLOStatus) -> None:
+        nonlocal overall_status
+        overall_status = _escalate(overall_status, status)
+
+    for probe in probes_latency:
+        loop_name = probe.loop or "loop"
+        target = max(float(probe.target_p95_seconds), 0.0)
+        breach = (
+            float(probe.breach_p95_seconds)
+            if probe.breach_p95_seconds is not None
+            else target * 1.5 if target else 0.0
+        )
+        p95 = float(probe.p95_seconds) if probe.p95_seconds is not None else None
+        max_latency = float(probe.max_seconds) if probe.max_seconds is not None else None
+
+        status = SLOStatus.met
+        if p95 is None:
+            status = SLOStatus.breached
+            message = "Missing loop latency telemetry"
+        else:
+            if p95 > target:
+                status = SLOStatus.at_risk if p95 <= breach else SLOStatus.breached
+            if max_latency is not None and max_latency > breach:
+                status = SLOStatus.breached
+            if status is SLOStatus.met:
+                message = f"p95 {p95:.2f}s within target {target:.2f}s"
+            elif status is SLOStatus.at_risk:
+                message = f"p95 {p95:.2f}s above target {target:.2f}s"
+            else:
+                message = f"p95 {p95:.2f}s exceeds breach threshold {breach:.2f}s"
+
+        observed: dict[str, object] = {}
+        if p95 is not None:
+            observed["p95_seconds"] = p95
+        if max_latency is not None:
+            observed["max_seconds"] = max_latency
+        if probe.sample_count is not None:
+            observed["samples"] = int(probe.sample_count)
+        if probe.window_seconds is not None:
+            observed["window_seconds"] = float(probe.window_seconds)
+
+        target_payload: dict[str, object] = {"p95_seconds": target}
+        if breach:
+            target_payload["p95_fail_seconds"] = breach
+
+        record_metadata: dict[str, object] = dict(probe.metadata)
+        if probe.runbook:
+            record_metadata.setdefault("runbook", probe.runbook)
+
+        slo_records.append(
+            ServiceSLO(
+                name=f"understanding_loop.latency.{loop_name}",
+                status=status,
+                message=message,
+                target=target_payload,
+                observed=observed,
+                metadata=record_metadata,
+            )
+        )
+
+        if p95 is not None:
+            operational_metrics.set_understanding_loop_latency(loop_name, "p95", p95)
+        if max_latency is not None:
+            operational_metrics.set_understanding_loop_latency(loop_name, "max", max_latency)
+        operational_metrics.set_understanding_loop_latency_status(
+            loop_name, _SLO_ORDER[status]
+        )
+        _escalate_overall(status)
+
+    for probe in probes_drift:
+        alert = probe.alert or "drift_alert"
+        warn_after = max(float(probe.warn_after_seconds), 0.0)
+        fail_after = max(float(probe.fail_after_seconds), warn_after)
+        last_alert = probe.last_alert_at
+        if last_alert is not None and last_alert.tzinfo is None:
+            last_alert = last_alert.replace(tzinfo=UTC)
+        freshness: float | None
+        if last_alert is None:
+            freshness = None
+        else:
+            freshness = max(
+                (evaluation_moment - last_alert.astimezone(UTC)).total_seconds(),
+                0.0,
+            )
+
+        if freshness is None:
+            status = SLOStatus.breached
+            message = "No drift alert observed"
+        elif freshness <= warn_after:
+            status = SLOStatus.met
+            message = f"Freshness {freshness:.0f}s within {warn_after:.0f}s target"
+        elif freshness <= fail_after:
+            status = SLOStatus.at_risk
+            message = f"Freshness {freshness:.0f}s approaching limit {fail_after:.0f}s"
+        else:
+            status = SLOStatus.breached
+            message = f"Freshness {freshness:.0f}s exceeds limit {fail_after:.0f}s"
+
+        observed = {
+            "alerts_sent": int(probe.alerts_sent),
+        }
+        if freshness is not None:
+            observed["freshness_seconds"] = freshness
+        if last_alert is not None:
+            observed["last_alert_at"] = last_alert.astimezone(UTC).isoformat()
+
+        target_payload = {
+            "freshness_warn_seconds": warn_after,
+            "freshness_fail_seconds": fail_after,
+        }
+
+        record_metadata: dict[str, object] = dict(probe.metadata)
+        if probe.runbook:
+            record_metadata.setdefault("runbook", probe.runbook)
+
+        slo_records.append(
+            ServiceSLO(
+                name=f"understanding_loop.drift_alert.{alert}",
+                status=status,
+                message=message,
+                target=target_payload,
+                observed=observed,
+                metadata=record_metadata,
+            )
+        )
+
+        operational_metrics.set_drift_alert_freshness(alert, freshness)
+        operational_metrics.set_drift_alert_status(alert, _SLO_ORDER[status])
+        _escalate_overall(status)
+
+    for probe in probes_replay:
+        probe_name = probe.probe or "replay"
+        warn_threshold = float(probe.warn_threshold)
+        fail_threshold = max(float(probe.fail_threshold), warn_threshold)
+        drift = float(probe.drift_score) if probe.drift_score is not None else None
+
+        status = SLOStatus.met
+        issues: list[str] = []
+        checksum_match = probe.checksum_match
+        if checksum_match is False:
+            status = SLOStatus.breached
+            issues.append("checksum mismatch")
+        elif checksum_match is None:
+            status = SLOStatus.at_risk
+            issues.append("checksum unknown")
+
+        if drift is None:
+            status = SLOStatus.breached
+            issues.append("missing drift telemetry")
+        else:
+            if drift > fail_threshold:
+                status = SLOStatus.breached
+                issues.append(f"drift {drift:.3f} exceeds {fail_threshold:.3f}")
+            elif drift > warn_threshold and status is not SLOStatus.breached:
+                status = _escalate(status, SLOStatus.at_risk)
+                issues.append(f"drift {drift:.3f} above warn {warn_threshold:.3f}")
+
+        if probe.mismatched_fields:
+            status = SLOStatus.breached
+            issues.append("mismatched fields present")
+
+        if not issues:
+            message = "Replay determinism within thresholds"
+        else:
+            message = "; ".join(issues)
+
+        observed: dict[str, object] = {
+            "checksum_match": checksum_match,
+            "mismatched_fields": list(probe.mismatched_fields),
+        }
+        if drift is not None:
+            observed["drift_score"] = drift
+
+        target_payload = {
+            "warn_threshold": warn_threshold,
+            "fail_threshold": fail_threshold,
+        }
+
+        record_metadata: dict[str, object] = dict(probe.metadata)
+        if probe.runbook:
+            record_metadata.setdefault("runbook", probe.runbook)
+
+        slo_records.append(
+            ServiceSLO(
+                name=f"understanding_loop.replay.{probe_name}",
+                status=status,
+                message=message,
+                target=target_payload,
+                observed=observed,
+                metadata=record_metadata,
+            )
+        )
+
+        operational_metrics.set_replay_determinism_drift(probe_name, drift)
+        operational_metrics.set_replay_determinism_status(probe_name, _SLO_ORDER[status])
+        operational_metrics.set_replay_determinism_mismatches(
+            probe_name, len(probe.mismatched_fields)
+        )
+        _escalate_overall(status)
+
+    detail_records = tuple(slo_records)
+    counter = Counter(record.status for record in detail_records)
+    if counter[SLOStatus.breached]:
+        summary_message = f"{counter[SLOStatus.breached]} loop SLOs breached"
+    elif counter[SLOStatus.at_risk]:
+        summary_message = f"{counter[SLOStatus.at_risk]} loop SLOs at risk"
+    elif detail_records:
+        summary_message = "All understanding-loop SLOs met"
+    else:
+        summary_message = "No understanding-loop probes evaluated"
+
+    summary_observed: dict[str, object] = {
+        "loop_latency_probes": len(probes_latency),
+        "drift_alert_probes": len(probes_drift),
+        "replay_probes": len(probes_replay),
+    }
+
+    summary_record = ServiceSLO(
+        name="understanding_loop",
+        status=overall_status,
+        message=summary_message,
+        target={},
+        observed=summary_observed,
+        metadata={"status_counts": {status.value: count for status, count in counter.items()}},
+    )
+
+    snapshot_metadata: dict[str, object] = {}
+    if metadata:
+        snapshot_metadata.update({str(k): v for k, v in metadata.items()})
+
+    return OperationalSLOSnapshot(
+        service="understanding_loop",
+        generated_at=snapshot_moment,
+        status=overall_status,
+        slos=tuple([summary_record, *detail_records]),
+        metadata=snapshot_metadata,
+    )
+
+
 __all__ = [
     "DEFAULT_ALERT_ROUTES",
+    "DriftAlertFreshnessProbe",
+    "LoopLatencyProbe",
     "OperationalSLOSnapshot",
+    "ReplayDeterminismProbe",
     "ServiceSLO",
     "SLOStatus",
     "evaluate_ingest_slos",
+    "evaluate_understanding_loop_slos",
 ]

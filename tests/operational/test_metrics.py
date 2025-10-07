@@ -391,3 +391,49 @@ def test_set_understanding_throttle_state_exports_metrics(
     assert inactive_gauge.set_calls == [0.0]
 
     assert inactive_multiplier.set_calls == [0.0]
+
+
+def test_understanding_loop_slo_metrics(monkeypatch: pytest.MonkeyPatch) -> None:
+    registry = _RecordingRegistry()
+    monkeypatch.setattr(metrics, "get_registry", lambda: registry)
+
+    metrics.set_understanding_loop_latency("professional", "p95", 1.75)
+    metrics.set_understanding_loop_latency_status("professional", 2)
+    metrics.set_drift_alert_freshness("page_hinkley", 240.0)
+    metrics.set_drift_alert_status("page_hinkley", 1)
+    metrics.set_replay_determinism_drift("fast_weights", 0.08)
+    metrics.set_replay_determinism_status("fast_weights", 0)
+    metrics.set_replay_determinism_mismatches("fast_weights", 3)
+
+    expected_gauges = {
+        "understanding_loop_latency_seconds": ("loop", "stat"),
+        "understanding_loop_latency_status": ("loop",),
+        "drift_alert_freshness_seconds": ("alert",),
+        "drift_alert_freshness_status": ("alert",),
+        "replay_determinism_drift": ("probe",),
+        "replay_determinism_status": ("probe",),
+        "replay_determinism_mismatches": ("probe",),
+    }
+
+    recorded = {name: labels for name, labels in registry.gauge_requests}
+    for gauge_name, labelnames in expected_gauges.items():
+        assert recorded[gauge_name] == labelnames
+
+    latency_gauge = registry.gauges[0]
+    assert latency_gauge.labels_calls == [{"loop": "professional", "stat": "p95"}]
+    assert latency_gauge.set_calls == [pytest.approx(1.75)]
+
+    status_gauge = registry.gauges[1]
+    assert status_gauge.labels_calls == [{"loop": "professional"}]
+    assert status_gauge.set_calls == [2.0]
+
+    drift_gauge = registry.gauges[2]
+    assert drift_gauge.labels_calls == [{"alert": "page_hinkley"}]
+    assert drift_gauge.set_calls == [pytest.approx(240.0)]
+
+    replay_status_gauge = registry.gauges[5]
+    assert replay_status_gauge.labels_calls == [{"probe": "fast_weights"}]
+    assert replay_status_gauge.set_calls == [0.0]
+
+    mismatches_gauge = registry.gauges[6]
+    assert mismatches_gauge.set_calls == [3.0]

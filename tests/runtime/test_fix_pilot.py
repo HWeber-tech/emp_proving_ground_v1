@@ -7,10 +7,15 @@ import pytest
 
 from src.operations.fix_pilot import FixPilotPolicy, FixPilotStatus, evaluate_fix_pilot
 from src.runtime.fix_dropcopy import FixDropcopyReconciler
-from src.runtime.fix_pilot import FixIntegrationPilot, FixPilotState
+from src.runtime.fix_pilot import (
+    FixIntegrationPilot,
+    FixPilotState,
+    build_fix_pilot_runtime_application,
+)
 from src.runtime.task_supervisor import TaskSupervisor
 from src.trading.order_management import OrderMetadata
 from src.trading.risk.risk_api import RISK_API_RUNBOOK
+from src.config.risk.risk_config import RiskConfig
 
 
 class _StubAdapter:
@@ -119,21 +124,23 @@ class _StubComplianceMonitor:
 class _StubTradingManager:
     def __init__(self) -> None:
         self._stats = {"orders_submitted": 1}
+        self._risk_config = RiskConfig()
 
     def get_execution_stats(self):
         return dict(self._stats)
+
+    def get_risk_status(self):
+        return {"risk_config": self._risk_config.dict()}
 
     def describe_risk_interface(self):
         return {"summary": {"runbook": RISK_API_RUNBOOK}}
 
 
-@pytest.mark.asyncio
-async def test_fix_integration_pilot_start_stop_and_snapshot():
+def _build_pilot_fixture(namespace: str = "test"):
     manager = _StubManager()
     sensory = _StubComponent()
     broker = _StubBroker()
-    supervisor = TaskSupervisor(namespace="test", logger=logging.getLogger(__name__))
-    trading_manager = _StubTradingManager()
+    supervisor = TaskSupervisor(namespace=namespace, logger=logging.getLogger(__name__))
 
     def factory(coro, name=None):
         return supervisor.create(coro, name=name)
@@ -150,9 +157,15 @@ async def test_fix_integration_pilot_start_stop_and_snapshot():
         task_supervisor=supervisor,
         event_bus=None,
         compliance_monitor=_StubComplianceMonitor(),
-        trading_manager=trading_manager,
+        trading_manager=_StubTradingManager(),
         dropcopy_listener=dropcopy,
     )
+    return pilot, supervisor, manager, sensory, broker, dropcopy
+
+
+@pytest.mark.asyncio
+async def test_fix_integration_pilot_start_stop_and_snapshot():
+    pilot, supervisor, manager, sensory, broker, dropcopy = _build_pilot_fixture()
 
     assert broker._risk_interface_provider is not None
 
@@ -206,6 +219,50 @@ async def test_fix_integration_pilot_start_stop_and_snapshot():
     assert manager.stopped == 1
     assert sensory.stopped == 1
     assert broker.stopped == 1
+    assert supervisor.active_count == 0
+
+
+def test_fix_pilot_runtime_metadata_includes_risk_summary():
+    pilot, supervisor, *_ = _build_pilot_fixture(namespace="meta")
+
+    metadata = pilot.runtime_metadata()
+
+    assert metadata["risk_runbook"] == RISK_API_RUNBOOK
+    assert metadata["task_supervisor_namespace"] == supervisor.namespace
+    assert metadata["task_supervisor_active"] == 0
+    risk_summary = metadata.get("risk")
+    assert risk_summary is not None
+    assert risk_summary.get("mandatory_stop_loss") is True
+
+
+@pytest.mark.asyncio
+async def test_build_fix_pilot_runtime_application_wraps_pilot_runtime():
+    pilot, supervisor, *_ = _build_pilot_fixture(namespace="runtime")
+
+    runtime_app = build_fix_pilot_runtime_application(pilot)
+
+    assert runtime_app.trading is not None
+    assert runtime_app.trading.metadata["risk_runbook"] == RISK_API_RUNBOOK
+
+    run_task = asyncio.create_task(runtime_app.run())
+    for _ in range(20):
+        if pilot.running:
+            break
+        assert not run_task.done(), "Runtime task finished before pilot became active"
+        await asyncio.sleep(0.01)
+
+    assert pilot.running is True
+
+    run_task.cancel()
+    with suppress(asyncio.CancelledError):
+        await run_task
+
+    await runtime_app.shutdown()
+    await asyncio.sleep(0)
+
+    assert pilot.running is False
+
+    await supervisor.cancel_all()
     assert supervisor.active_count == 0
 
 

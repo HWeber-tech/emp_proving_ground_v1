@@ -9,6 +9,7 @@ from src.runtime.task_supervisor import TaskSupervisor
 @pytest.mark.asyncio()
 async def test_supervisor_tracks_created_tasks_and_cancels() -> None:
     supervisor = TaskSupervisor(namespace="test")
+    assert supervisor.namespace == "test"
 
     async def _worker() -> None:
         await asyncio.sleep(0.05)

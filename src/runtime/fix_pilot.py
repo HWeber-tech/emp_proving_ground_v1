@@ -7,7 +7,7 @@ import logging
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Callable, Mapping
+from typing import TYPE_CHECKING, Any, Callable, Mapping
 
 from src.runtime.task_supervisor import TaskSupervisor
 from src.trading.order_management import (
@@ -18,8 +18,13 @@ from src.trading.order_management import (
 from src.trading.risk.risk_api import (
     RISK_API_RUNBOOK,
     RiskApiError,
+    build_runtime_risk_metadata,
     resolve_trading_risk_interface,
 )
+
+if TYPE_CHECKING:  # pragma: no cover - import for type checking only
+    from src.runtime.runtime_builder import RuntimeApplication, RuntimeWorkload
+    from src.runtime.runtime_builder import RuntimeTracer
 
 logger = logging.getLogger(__name__)
 
@@ -104,6 +109,12 @@ class FixIntegrationPilot:
         self.position_tracker = tracker
         self._sync_risk_interface_provider()
 
+    @property
+    def running(self) -> bool:
+        """Return whether the pilot is currently running."""
+
+        return self._running
+
     def attach_trading_manager(self, trading_manager: Any | None) -> None:
         """Attach a trading manager and refresh risk interface wiring."""
 
@@ -124,6 +135,34 @@ class FixIntegrationPilot:
             setter(provider)
         except Exception:  # pragma: no cover - diagnostic path
             self._logger.debug("Failed to update broker risk interface provider", exc_info=True)
+
+    def runtime_metadata(self) -> dict[str, object]:
+        """Return metadata describing the supervised runtime workload."""
+
+        metadata: dict[str, object] = {
+            "risk_runbook": RISK_API_RUNBOOK,
+            "task_supervisor_namespace": getattr(self.task_supervisor, "namespace", None),
+            "task_supervisor_active": self.task_supervisor.active_count,
+            "broker_component": type(self.broker_interface).__name__,
+        }
+
+        if self.sensory_organ is not None:
+            metadata["sensory_component"] = type(self.sensory_organ).__name__
+        if self.dropcopy_listener is not None:
+            metadata["dropcopy_channel"] = getattr(self.dropcopy_listener, "_channel", None)
+        if self.compliance_monitor is not None:
+            metadata["compliance_monitor"] = type(self.compliance_monitor).__name__
+
+        manager = self.trading_manager
+        if manager is None:
+            metadata["risk_attached"] = False
+        else:
+            try:
+                metadata["risk"] = build_runtime_risk_metadata(manager)
+            except RiskApiError as exc:
+                metadata["risk_error"] = exc.to_metadata()
+
+        return {key: value for key, value in metadata.items() if value is not None}
 
     def _build_risk_interface_provider(self, manager: Any) -> Callable[[], Any]:
         def _provider() -> Any:
@@ -182,6 +221,18 @@ class FixIntegrationPilot:
         self.connection_manager.stop_sessions()
         self._running = False
         self._logger.info("✅ FIX integration pilot stopped")
+
+    async def run_forever(self) -> None:
+        """Run the pilot until cancelled, ensuring supervised shutdown."""
+
+        await self.start()
+        try:
+            while True:
+                await asyncio.sleep(3600)
+        except asyncio.CancelledError:
+            raise
+        finally:
+            await self.stop()
 
     def snapshot(self) -> FixPilotState:
         queue_metrics: dict[str, Mapping[str, int]] = {}
@@ -442,7 +493,32 @@ class FixIntegrationPilot:
             self.task_supervisor.track(drop_task)
 
 
+def build_fix_pilot_runtime_application(
+    pilot: FixIntegrationPilot,
+    *,
+    ingestion_workload: "RuntimeWorkload" | None = None,
+    tracer: "RuntimeTracer" | None = None,
+) -> "RuntimeApplication":
+    """Construct a supervised runtime application for the FIX pilot."""
+
+    from src.runtime.runtime_builder import RuntimeApplication, RuntimeWorkload
+
+    trading_workload = RuntimeWorkload(
+        name="fix-integration-pilot",
+        factory=pilot.run_forever,
+        description="FIX integration pilot trading workload",
+        metadata=pilot.runtime_metadata(),
+    )
+
+    return RuntimeApplication(
+        ingestion=ingestion_workload,
+        trading=trading_workload,
+        tracer=tracer,
+    )
+
+
 __all__ = [
     "FixIntegrationPilot",
     "FixPilotState",
+    "build_fix_pilot_runtime_application",
 ]

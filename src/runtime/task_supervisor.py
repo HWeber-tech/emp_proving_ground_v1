@@ -71,6 +71,12 @@ class TaskSupervisor:
 
         return len(self._tasks)
 
+    @property
+    def namespace(self) -> str:
+        """Expose the namespace assigned to this supervisor."""
+
+        return self._namespace
+
     def create(
         self,
         coro: Coroutine[Any, Any, _T],

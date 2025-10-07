@@ -21,6 +21,9 @@ __all__ = [
     "RuntimeWorkload",
     "build_professional_predator_app",
     "build_professional_runtime_application",
+    "FixIntegrationPilot",
+    "FixPilotState",
+    "build_fix_pilot_runtime_application",
     "run_runtime_application",
     "TaskSupervisor",
 ]
@@ -57,6 +60,24 @@ def __getattr__(name: str) -> Any:
             "ProfessionalPredatorApp": _ProfessionalPredatorApp,
             "build_professional_predator_app": _build_professional_predator_app,
         }
+        return mapping[name]
+    if name in {
+        "FixIntegrationPilot",
+        "FixPilotState",
+        "build_fix_pilot_runtime_application",
+    }:
+        from .fix_pilot import (
+            FixIntegrationPilot as _FixIntegrationPilot,
+            FixPilotState as _FixPilotState,
+            build_fix_pilot_runtime_application as _build_fix_pilot_runtime_application,
+        )
+
+        mapping = {
+            "FixIntegrationPilot": _FixIntegrationPilot,
+            "FixPilotState": _FixPilotState,
+            "build_fix_pilot_runtime_application": _build_fix_pilot_runtime_application,
+        }
+
         return mapping[name]
     if name in {
         "RuntimeApplication",

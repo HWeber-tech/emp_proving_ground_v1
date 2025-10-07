@@ -20,6 +20,9 @@ backlog grooming, release readiness reviews, and post-mortems.
 - SQL is still assembled dynamically in legacy helpers, and async ingestion tasks
   use unsupervised `create_task` calls, leaving failure recovery and shutdown
   undefined.【F:docs/technical_debt_assessment.md†L33-L56】
+- Production ingest slice now coordinates the Timescale orchestrator, Redis cache
+  invalidation, and supervised lifecycles behind a managed entrypoint, though
+  the backing Timescale/Redis/Kafka services are still pending real provisioning.【F:src/data_foundation/ingest/production_slice.py†L1-L220】【F:tests/data_foundation/test_production_ingest_slice.py†L1-L220】
 
 **Gaps to close:**
 1. Provision real Timescale/Redis/Kafka services with parameterised access layers
@@ -101,9 +104,10 @@ backlog grooming, release readiness reviews, and post-mortems.
 - Public exports advertise helpers that do not exist (`get_risk_manager`), and
   configuration drift is reduced now that evolution imports resolve directly
   through the canonical engine implementation.【F:src/core/__init__.py†L14-L33】【F:src/core/evolution/engine.py†L13-L43】
-- Risk API contract violations now surface structured metadata and a documented
-  runbook so supervisors can escalate invalid trading manager payloads without
-  spelunking logs.【F:docs/api/risk.md†L1-L23】【F:docs/operations/runbooks/risk_api_contract.md†L1-L31】【F:src/trading/risk/risk_api.py†L20-L118】【F:src/runtime/runtime_builder.py†L321-L337】【F:src/trading/trading_manager.py†L672-L714】
+- Risk gateway and trading manager now attach runbook-backed `risk_reference`
+  payloads to decisions, limit snapshots, and interface summaries so operators
+  inherit consistent escalation metadata even while broader risk enforcement
+  remains under construction.【F:src/trading/risk/risk_gateway.py†L232-L430】【F:src/trading/trading_manager.py†L815-L968】【F:tests/current/test_risk_gateway_validation.py†L1-L213】【F:tests/trading/test_trading_manager_execution.py†L1157-L1240】
 - Regulatory telemetry publisher uses the shared failover helper, logging
   runtime failures and falling back to the global bus so compliance snapshots
   persist through outages.【F:src/operations/regulatory_telemetry.py†L11-L388】【F:tests/operations/test_regulatory_telemetry.py†L18-L160】

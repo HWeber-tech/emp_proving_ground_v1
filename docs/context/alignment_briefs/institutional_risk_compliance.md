@@ -54,10 +54,11 @@
   summaries, and publish violation alerts with embedded escalation metadata while
   the trading manager mirrors the feed and the new runbook documents the response,
   giving governance a deterministic alert surface when violations occur.【F:src/trading/risk/policy_telemetry.py†L1-L285】【F:src/trading/trading_manager.py†L920-L991】【F:docs/operations/runbooks/risk_policy_violation.md†L1-L51】【F:tests/trading/test_risk_policy_telemetry.py†L1-L199】
-- Progress: Risk gateway decisions now attach cached `risk_reference` payloads
-  with the risk API runbook, enforced limits, and policy/config summaries, and
-  expose the same metadata through broker events so responders inherit a single
-  audit context across telemetry surfaces under regression coverage.【F:src/trading/risk/risk_gateway.py†L224-L519】【F:tests/current/test_risk_gateway_validation.py†L93-L407】【F:tests/trading/test_fix_broker_interface_events.py†L15-L152】
+- Progress: Risk gateway decisions now cache risk API summaries, embed
+  runbook-backed `risk_reference` payloads on approvals and rejections, and
+  publish the same enriched metadata through broker events so responders inherit
+  a single audited context across telemetry surfaces under regression
+  coverage.【F:src/trading/risk/risk_gateway.py†L232-L430】【F:tests/current/test_risk_gateway_validation.py†L1-L213】【F:tests/trading/test_fix_broker_interface_events.py†L15-L152】
 - Progress: Professional runtime summaries now pin the shared risk API runbook,
   attach runtime metadata, merge resolved interface details, and surface
   structured `RiskApiError` payloads so operators inherit actionable posture
@@ -82,19 +83,23 @@
   expectations. Launches now fail fast when mandatory stop-loss enforcement is
   disabled outside research mode, surfacing the shared risk API runbook alias so
   supervisors inherit a consistent escalation path.【F:src/runtime/runtime_builder.py†L323-L353】【F:tests/runtime/test_runtime_builder.py†L200-L234】
-- Progress: Deterministic trading risk API centralises config/status resolution,
-  exposes runtime-ready metadata snapshots, advertises the shared
-  `RISK_API_RUNBOOK` alias, and drives the runtime builder’s enforcement path so
-  supervisors and docs consume a single hardened contract under pytest coverage,
-  exporting volatility targets, leverage windows, sector-instrument counts, and
-  latest policy metadata with runbook links so downstream telemetry and runtime
-  errors point to the same remediation guide.【F:src/trading/risk/risk_api.py†L1-L158】【F:src/runtime/runtime_builder.py†L323-L353】【F:tests/trading/test_risk_api.py†L90-L152】【F:tests/runtime/test_runtime_builder.py†L200-L234】
+- Progress: Deterministic trading risk API continues to centralise config/status
+  resolution and surface the shared `RISK_API_RUNBOOK`, while the trading manager
+  now merges gateway limits, runtime summaries, and cached decisions into
+  `risk_reference` payloads exposed by `get_risk_status()` so supervisors and docs
+  consume a single hardened contract under pytest coverage.【F:src/trading/risk/risk_api.py†L1-L158】【F:src/runtime/runtime_builder.py†L323-L353】【F:src/trading/trading_manager.py†L815-L903】【F:tests/trading/test_risk_api.py†L90-L152】【F:tests/trading/test_trading_manager_execution.py†L1228-L1239】【F:tests/runtime/test_runtime_builder.py†L200-L234】
 - Progress: Trading risk interface telemetry helpers now publish structured
-  snapshots and contract-violation alerts with Markdown summaries, updating the
-  trading manager’s cached posture, while bootstrap control center, bootstrap
-  runtime status, and FIX pilot snapshots resolve the interface payload to embed
-  the shared runbook in operator telemetry under pytest coverage so governance
-  receives actionable enforcement evidence when the interface degrades.【F:src/trading/risk/risk_interface_telemetry.py†L1-L156】【F:src/trading/trading_manager.py†L741-L759】【F:src/operations/bootstrap_control_center.py†L99-L350】【F:src/runtime/bootstrap_runtime.py†L210-L334】【F:src/runtime/fix_pilot.py†L22-L318】【F:tests/trading/test_trading_manager_execution.py†L651-L667】【F:tests/current/test_bootstrap_control_center.py†L151-L180】【F:tests/runtime/test_fix_pilot.py†L115-L178】
+  snapshots and contract-violation alerts with Markdown summaries, update the
+  trading manager’s cached posture via `describe_risk_interface()`, and ensure
+  bootstrap control center, runtime status, and FIX pilot snapshots embed the
+  shared runbook so governance receives actionable evidence when the interface
+  degrades under pytest coverage.【F:src/trading/risk/risk_interface_telemetry.py†L1-L156】【F:src/trading/trading_manager.py†L905-L968】【F:src/operations/bootstrap_control_center.py†L99-L350】【F:src/runtime/bootstrap_runtime.py†L210-L334】【F:src/runtime/fix_pilot.py†L22-L318】【F:tests/trading/test_trading_manager_execution.py†L1157-L1240】【F:tests/current/test_bootstrap_control_center.py†L151-L180】【F:tests/runtime/test_fix_pilot.py†L115-L178】
+
+- Progress: Mock FIX manager coercion helpers now reject non-ASCII payloads,
+  guard order-book adapters that raise exceptions, and keep deterministic
+  fallbacks under pytest coverage so offline pilots and regression fuzzers
+  cannot trigger decoding faults or leak stack traces through operational mock
+  flows.【F:src/operational/mock_fix.py†L303-L360】【F:tests/operational/test_mock_fix_security.py†L1-L56】
 - Progress: FIX broker interface risk rejections now merge gateway policy
   snapshots, provider summaries, and deterministic risk API fallbacks while
   always attaching the shared runbook so manual pilots inherit actionable

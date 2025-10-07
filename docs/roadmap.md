@@ -241,29 +241,30 @@ kit that the roadmap calls back to in each checklist.
 - [ ] **Risk and runtime safety** – Enforce `RiskConfig`, finish the builder rollout,
   adopt supervised async lifecycles, and purge deprecated facades.
   - *Progress*: Safety manager normalises kill-switch paths (including env and relative inputs), logs unreadable sentinels, and keeps system config exports in sync so live-mode guardrails stay enforceable with regression coverage for the configuration shim.【F:src/governance/safety_manager.py†L21-L74】【F:src/governance/system_config.py†L139-L413】【F:tests/governance/test_security_phase0.py†L47-L85】
-  - *Progress*: The trading risk gateway now drives portfolio checks through the
-    real risk manager, records liquidity and policy telemetry, rejects intents
-    that breach drawdown/exposure/liquidity limits, and publishes a
-    runbook-backed `risk_config_summary` snapshot so downstream tooling inherits
-    the enforced configuration and escalation URL with every limit payload.【F:src/trading/risk/risk_gateway.py†L170-L390】【F:src/trading/trading_manager.py†L105-L210】【F:tests/current/test_risk_gateway_validation.py†L326-L350】
+  - *Progress*: The trading risk gateway now caches risk API summaries, attaches
+    runbook-backed `risk_reference` payloads to decisions and limit snapshots,
+    enforces drawdown/exposure/liquidity/policy checks through the real risk
+    manager, and records portfolio telemetry so downstream tooling inherits
+    deterministic escalation metadata under regression coverage.【F:src/trading/risk/risk_gateway.py†L232-L430】【F:src/trading/trading_manager.py†L134-L210】【F:tests/current/test_risk_gateway_validation.py†L1-L213】
   - *Progress*: Canonical `RiskManager` facade now lives in `src.risk`, with core
     exports, the component integrator, and trading manager resolving factories
     from the same module while capturing risk-config summaries so orchestration
     and runtime share deterministic enforcement under regression coverage.【F:src/risk/manager.py†L1-L128】【F:src/core/__init__.py†L14-L33】【F:src/integration/component_integrator.py†L17-L169】【F:src/trading/trading_manager.py†L17-L175】【F:tests/current/test_orchestration_compose.py†L12-L159】
-  - *Progress*: Deterministic trading risk API now attaches structured metadata
-    and a contract runbook to every `RiskApiError`, exposes a shared
-    `RISK_API_RUNBOOK` alias for supervisors, and renders sector exposure maps,
-    combined budget totals, volatility targets, leverage windows,
-    sector-instrument counts, and latest policy snapshots in its summaries so
-    downstream telemetry inherits the full allocation context plus escalation
-    guidance; runtime builder and trading manager summarise the enforced risk
-    config, with `get_risk_status()` exporting the canonical summary plus the
-    shared runbook pointer for deterministic triage.【F:docs/api/risk.md†L1-L24】【F:docs/operations/runbooks/risk_api_contract.md†L1-L31】【F:src/trading/risk/risk_api.py†L1-L158】【F:src/runtime/runtime_builder.py†L323-L353】【F:src/trading/trading_manager.py†L672-L714】【F:tests/runtime/test_runtime_builder.py†L200-L234】【F:tests/trading/test_risk_api.py†L90-L152】【F:tests/trading/test_trading_manager_execution.py†L670-L684】
-  - *Progress*: Trading manager now emits dedicated risk interface telemetry via
-    snapshot/error helpers that render Markdown summaries, publish structured
-    payloads on the event bus, and persist the latest posture for discovery,
-    with pytest asserting snapshot and alert propagation so supervisors inherit
-    actionable evidence when enforcement fails.【F:src/trading/risk/risk_interface_telemetry.py†L1-L156】【F:src/trading/trading_manager.py†L741-L759】【F:tests/trading/test_trading_manager_execution.py†L651-L667】
+  - *Progress*: Deterministic trading risk API still exposes structured metadata
+    and the shared `RISK_API_RUNBOOK`, while the trading manager now merges the
+    gateway limits, runtime risk summary, and cached decisions into
+    `risk_reference` payloads returned from `get_risk_status()` so supervisors
+    receive the enforced configuration plus escalation pointers under pytest
+    coverage.【F:docs/api/risk.md†L1-L24】【F:docs/operations/runbooks/risk_api_contract.md†L1-L31】【F:src/trading/risk/risk_api.py†L1-L158】【F:src/runtime/runtime_builder.py†L323-L353】【F:src/trading/trading_manager.py†L815-L903】【F:tests/runtime/test_runtime_builder.py†L200-L234】【F:tests/trading/test_risk_api.py†L90-L152】【F:tests/trading/test_trading_manager_execution.py†L1228-L1239】
+  - *Progress*: Trading manager now emits dedicated risk interface telemetry,
+    hydrates `describe_risk_interface()` with merged runbook summaries, and
+    persists the last snapshot/error so dashboards, bootstrap tools, and pilots
+    surface consistent escalation metadata under pytest coverage of snapshot and
+    alert propagation.【F:src/trading/risk/risk_interface_telemetry.py†L1-L156】【F:src/trading/trading_manager.py†L905-L968】【F:tests/trading/test_trading_manager_execution.py†L1157-L1240】
+  - *Progress*: Mock FIX manager coercion helpers now reject non-ASCII payloads,
+    guard exploding order-book adapters, and keep safe fallbacks under pytest
+    coverage so offline pilots cannot trigger Unicode decode errors or leak
+    exceptions when fuzzed inputs arrive.【F:src/operational/mock_fix.py†L303-L360】【F:tests/operational/test_mock_fix_security.py†L1-L56】
   - *Progress*: FIX integration pilot now exports supervised runtime metadata,
     exposes a `run_forever` trading workload, and ships a builder helper that
     wraps the pilot into a runtime application so brokers inherit the risk API
@@ -842,6 +843,14 @@ kit that the roadmap calls back to in each checklist.
   work; stale documentation is considered a regression.【F:docs/technical_debt_assessment.md†L90-L112】
 - Maintain the truth-first status culture: mock implementations must remain
   labelled and roadmapped until replaced by production-grade systems.【F:docs/DEVELOPMENT_STATUS.md†L7-L35】
+
+## Automation updates — 2025-10-07T22:04:09Z
+
+### Last 4 commits
+- 731e592 feat(data_foundation): add 4 files (2025-10-08)
+- 285a2c2 refactor(data_foundation): tune 2 files (2025-10-08)
+- 3fb6103 refactor(trading): tune 4 files (2025-10-08)
+- 7b47484 docs(docs): tune 9 files (2025-10-07)
 
 ## Automation updates — 2025-10-07T21:40:17Z
 

@@ -74,10 +74,11 @@
   guardrail tests lock macro window fallbacks and zero-payload execution so
   institutional telemetry reflects what was ingested or skipped.【F:src/data_foundation/ingest/timescale_pipeline.py†L70-L213】【F:tests/data_foundation/test_timescale_backbone_orchestrator.py†L1-L200】
 - Progress: Production ingest slice coordinates the orchestrator, provisioner,
-  Redis cache, and Kafka bridge behind a supervised `TaskSupervisor`, exposes
-  deterministic summaries, and supports scheduler lifecycles under pytest
-  coverage so institutional environments inherit a single managed entrypoint
-  instead of bespoke ingest wiring.【F:src/data_foundation/ingest/production_slice.py†L1-L170】【F:tests/data_foundation/test_production_ingest_slice.py†L1-L176】
+  Redis cache, and Kafka bridge behind a supervised `TaskSupervisor`, records
+  last results/timestamps, invalidates Redis caches after successful runs, and
+  exposes deterministic summaries so institutional environments inherit a
+  single managed entrypoint instead of bespoke ingest wiring under guardrail
+  coverage.【F:src/data_foundation/ingest/production_slice.py†L1-L220】【F:tests/data_foundation/test_production_ingest_slice.py†L1-L220】
 - Progress: Institutional ingest provisioner now spins up supervised Timescale
   schedules alongside Redis caches and Kafka consumers, wiring the bridge into
   the task supervisor with redacted metadata, publishing a managed manifest that
@@ -98,7 +99,7 @@
   enforces mutually exclusive period/start-end windows, normalises timestamps,
   and persists via a DuckDB helper that escapes table identifiers and binds
   parameters while the gateway adapter logs rejected fetches, with pytest
-  coverage locking the contract for institutional bootstrap datasets.【F:src/data_foundation/ingest/yahoo_ingest.py†L82-L305】【F:src/data_foundation/ingest/yahoo_gateway.py†L1-L53】【F:tests/data_foundation/test_yahoo_ingest_security.py†L1-L132】【F:tests/data_foundation/test_yahoo_gateway.py†L1-L69】
+  coverage locking the contract for institutional bootstrap datasets.【F:src/data_foundation/ingest/yahoo_ingest.py†L23-L355】【F:src/data_foundation/ingest/yahoo_gateway.py†L1-L53】【F:tests/data_foundation/test_yahoo_ingest_security.py†L1-L132】【F:tests/data_foundation/test_yahoo_gateway.py†L1-L69】
 - Progress: Timescale ingest helpers now validate schema/table identifiers at
   construction time and assert the contract under regression coverage so policy
   payloads cannot inject unsafe SQL into institutional ingest jobs.【F:src/data_foundation/persist/timescale.py†L1-L120】【F:tests/data_foundation/test_timescale_ingest.py†L1-L83】

@@ -159,3 +159,114 @@ async def test_production_slice_handles_disabled_configuration() -> None:
     assert summary["services"] is None
     assert summary["last_results"] == {}
     assert summary["last_error"] == "Timescale ingest disabled"
+
+
+class _StubCache:
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, ...]] = []
+
+    def invalidate(self, prefixes: tuple[str, ...] | list[str] | None = None) -> int:
+        if prefixes is None:
+            resolved: tuple[str, ...] = tuple()
+        elif isinstance(prefixes, list):
+            resolved = tuple(prefixes)
+        else:
+            resolved = prefixes
+        self.calls.append(resolved)
+        return 1
+
+
+class _StubServices:
+    def __init__(self, cache: _StubCache) -> None:
+        self.redis_cache = cache
+
+    def start(self) -> None:  # pragma: no cover - not exercised in tests
+        return None
+
+    async def stop(self) -> None:  # pragma: no cover - not exercised in tests
+        return None
+
+    def summary(self) -> dict[str, object]:  # pragma: no cover - defensive default
+        return {}
+
+
+class _StubProvisioner:
+    def __init__(self, services: _StubServices) -> None:
+        self._services = services
+
+    def provision(self, *args, **kwargs) -> _StubServices:
+        return self._services
+
+
+@pytest.mark.asyncio
+async def test_production_slice_invalidates_redis_cache_after_ingest() -> None:
+    config = _ingest_config()
+    bus = _DummyEventBus()
+    supervisor = TaskSupervisor(namespace="ingest-invalidations")
+
+    cache = _StubCache()
+    services = _StubServices(cache)
+
+    class _StubOrchestrator:
+        def run(self, *, plan: TimescaleBackbonePlan) -> dict[str, TimescaleIngestResult]:
+            return {
+                "daily_bars": TimescaleIngestResult(
+                    rows_written=5,
+                    symbols=("EURUSD",),
+                    start_ts=None,
+                    end_ts=None,
+                    ingest_duration_seconds=0.5,
+                    freshness_seconds=12.0,
+                    dimension="daily_bars",
+                    source="yahoo",
+                )
+            }
+
+    orchestrator = _StubOrchestrator()
+
+    slice_runtime = ProductionIngestSlice(
+        config,
+        bus,
+        supervisor,
+        orchestrator_factory=lambda settings, publisher: orchestrator,
+        provisioner_factory=lambda *args, **kwargs: _StubProvisioner(services),
+    )
+
+    success = await slice_runtime.run_once()
+
+    assert success is True
+    assert cache.calls
+    assert cache.calls[-1] == ("timescale:daily_bars",)
+
+
+@pytest.mark.asyncio
+async def test_production_slice_skips_cache_invalidation_when_no_rows() -> None:
+    config = _ingest_config()
+    bus = _DummyEventBus()
+    supervisor = TaskSupervisor(namespace="ingest-invalidations-skip")
+
+    cache = _StubCache()
+    services = _StubServices(cache)
+
+    class _StubOrchestrator:
+        def run(self, *, plan: TimescaleBackbonePlan) -> dict[str, TimescaleIngestResult]:
+            return {
+                "daily_bars": TimescaleIngestResult.empty(
+                    dimension="daily_bars", source="yahoo"
+                )
+            }
+
+    orchestrator = _StubOrchestrator()
+
+    slice_runtime = ProductionIngestSlice(
+        config,
+        bus,
+        supervisor,
+        orchestrator_factory=lambda settings, publisher: orchestrator,
+        provisioner_factory=lambda *args, **kwargs: _StubProvisioner(services),
+    )
+
+    success = await slice_runtime.run_once()
+
+    assert success is True
+    assert cache.calls == []

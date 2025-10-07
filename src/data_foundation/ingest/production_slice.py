@@ -115,6 +115,7 @@ class ProductionIngestSlice:
         self._last_results = results
         self._last_run_at = datetime.now(tz=UTC)
         self._last_error = None
+        self._invalidate_result_caches(services, results)
         return bool(results)
 
     def start(self) -> None:
@@ -175,6 +176,50 @@ class ProductionIngestSlice:
         except Exception:  # pragma: no cover - defensive logging handled in run_once
             logger.exception("Timescale ingest scheduler run raised an exception")
             return False
+
+    def _invalidate_result_caches(
+        self,
+        services: InstitutionalIngestServices,
+        results: Mapping[str, TimescaleIngestResult],
+    ) -> None:
+        """Purge Redis-backed Timescale query caches for refreshed dimensions."""
+
+        cache = getattr(services, "redis_cache", None)
+        if cache is None:
+            return
+
+        prefixes: list[str] = []
+        for dimension, result in results.items():
+            if not isinstance(result, TimescaleIngestResult):
+                continue
+            if result.rows_written <= 0:
+                continue
+            prefixes.append(f"timescale:{dimension}")
+
+        if not prefixes:
+            return
+
+        invalidate = getattr(cache, "invalidate", None)
+        if not callable(invalidate):  # pragma: no cover - ManagedRedisCache always implements
+            logger.debug(
+                "Redis cache for Timescale ingest does not expose invalidate(); skipping",
+            )
+            return
+
+        try:
+            removed = invalidate(prefixes)
+        except Exception:  # pragma: no cover - defensive logging for redis failures
+            logger.exception(
+                "Timescale ingest failed to invalidate Redis cache for prefixes %s",
+                prefixes,
+            )
+            return
+
+        logger.debug(
+            "Timescale ingest invalidated Redis cache prefixes %s (removed=%s)",
+            prefixes,
+            removed,
+        )
 
 
 __all__ = ["ProductionIngestSlice"]

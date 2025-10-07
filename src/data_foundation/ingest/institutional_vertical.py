@@ -28,6 +28,18 @@ from typing import Awaitable, Callable, Mapping, MutableMapping, Sequence
 
 from sqlalchemy import text
 
+try:  # pragma: no cover - optional dependency
+    from sqlalchemy.exc import SQLAlchemyError as _SQLAlchemyError
+except ModuleNotFoundError:  # pragma: no cover - test fallback when sqlalchemy absent
+    class _SQLAlchemyError(Exception):
+        """Fallback SQLAlchemyError used when SQLAlchemy is unavailable."""
+
+try:  # pragma: no cover - optional dependency
+    from redis.exceptions import RedisError as _RedisError
+except ModuleNotFoundError:  # pragma: no cover - redis optional in tests
+    class _RedisError(Exception):
+        """Fallback RedisError used when redis is unavailable."""
+
 from src.data_foundation.cache.redis_cache import (
     ManagedRedisCache,
     RedisCachePolicy,
@@ -58,6 +70,36 @@ ProbeCallable = Callable[[], Awaitable[bool] | bool]
 
 DEFAULT_INTERVAL_SECONDS = 3_600.0
 DEFAULT_JITTER_SECONDS = 120.0
+
+
+class ConnectivityProbeError(RuntimeError):
+    """Raised when a managed connector health probe hits an expected failure."""
+
+
+_EXPECTED_TIMESCALE_ERRORS: tuple[type[Exception], ...] = (
+    _SQLAlchemyError,
+    OSError,
+    TimeoutError,
+)
+_EXPECTED_REDIS_ERRORS: tuple[type[Exception], ...] = (
+    _RedisError,
+    OSError,
+    TimeoutError,
+)
+_EXPECTED_KAFKA_ERRORS: tuple[type[Exception], ...] = (
+    RuntimeError,
+    ValueError,
+    TimeoutError,
+    ConnectionError,
+    AttributeError,
+)
+
+
+def _log_probe_failure(component: str, error: Exception, message: str | None = None) -> None:
+    """Emit a warning with stack trace for expected probe failures."""
+
+    summary = message or f"{component} connectivity probe failed"
+    logger.warning("%s: %s", summary, error, exc_info=error)
 DEFAULT_MAX_FAILURES = 3
 
 
@@ -271,20 +313,43 @@ class InstitutionalIngestServices:
         manifest = {snapshot.name: snapshot for snapshot in self.managed_manifest()}
         probe_mapping = probes or self._default_connectivity_probes()
 
-        async def _evaluate(name: str, snapshot: ManagedConnectorSnapshot) -> ManagedConnectorSnapshot:
+        async def _evaluate(
+            name: str, snapshot: ManagedConnectorSnapshot
+        ) -> ManagedConnectorSnapshot:
             probe = probe_mapping.get(name)
             if probe is None:
                 return snapshot
+
             try:
                 result = probe()
-                if asyncio.iscoroutine(result):
-                    healthy = await asyncio.wait_for(result, timeout=timeout)
-                else:
-                    healthy = bool(result)
-                return snapshot.with_health(bool(healthy))
-            except Exception:  # pragma: no cover - defensive logging
-                logger.exception("Connectivity probe for %s failed", name)
+            except ConnectivityProbeError as exc:
+                _log_probe_failure(name, exc)
                 return snapshot.with_health(False)
+            except Exception as exc:  # pragma: no cover - unexpected guardrail
+                logger.exception("Unexpected connectivity probe failure for %s", name, exc_info=exc)
+                raise
+
+            if asyncio.iscoroutine(result):
+                try:
+                    awaited = await asyncio.wait_for(result, timeout=timeout)
+                except ConnectivityProbeError as exc:
+                    _log_probe_failure(name, exc)
+                    return snapshot.with_health(False)
+                except asyncio.TimeoutError as exc:
+                    _log_probe_failure(name, exc, message=f"{name} connectivity probe timed out")
+                    return snapshot.with_health(False)
+                except Exception as exc:  # pragma: no cover - unexpected guardrail
+                    logger.exception(
+                        "Unexpected async connectivity probe failure for %s",
+                        name,
+                        exc_info=exc,
+                    )
+                    raise
+                healthy = awaited
+            else:
+                healthy = result
+
+            return snapshot.with_health(bool(healthy))
 
         evaluated: list[ManagedConnectorSnapshot] = []
         for name, snapshot in manifest.items():
@@ -299,16 +364,20 @@ class InstitutionalIngestServices:
 
         def _timescale_probe() -> bool:
             settings = self.config.timescale_settings
-            engine = settings.create_engine()
+            engine: object | None = None
             try:
+                engine = settings.create_engine()
                 with engine.connect() as conn:
                     conn.execute(text("SELECT 1"))
-                return True
-            except Exception:  # pragma: no cover - defensive logging
-                logger.exception("Timescale connectivity probe failed")
-                return False
+            except _EXPECTED_TIMESCALE_ERRORS as exc:
+                _log_probe_failure("timescale", exc)
+                raise ConnectivityProbeError("timescale probe failed") from exc
             finally:
-                engine.dispose()
+                if engine is not None:
+                    with contextlib.suppress(Exception):
+                        engine.dispose()
+
+            return True
 
         probes["timescale"] = _timescale_probe
 
@@ -323,9 +392,9 @@ class InstitutionalIngestServices:
                     return False
                 try:
                     return bool(ping())
-                except Exception:  # pragma: no cover - defensive logging
-                    logger.exception("Redis connectivity probe failed")
-                    return False
+                except _EXPECTED_REDIS_ERRORS as exc:
+                    _log_probe_failure("redis", exc)
+                    raise ConnectivityProbeError("redis probe failed") from exc
 
             probes["redis"] = _redis_probe
 
@@ -333,9 +402,9 @@ class InstitutionalIngestServices:
             def _kafka_probe() -> bool:
                 try:
                     return bool(self.kafka_consumer.ping())
-                except Exception:  # pragma: no cover - defensive logging
-                    logger.exception("Kafka connectivity probe failed")
-                    return False
+                except _EXPECTED_KAFKA_ERRORS as exc:
+                    _log_probe_failure("kafka", exc)
+                    raise ConnectivityProbeError("kafka probe failed") from exc
 
             probes["kafka"] = _kafka_probe
 
@@ -454,6 +523,7 @@ class InstitutionalIngestProvisioner:
 
 
 __all__ = [
+    "ConnectivityProbeError",
     "InstitutionalIngestProvisioner",
     "InstitutionalIngestServices",
     "default_institutional_schedule",

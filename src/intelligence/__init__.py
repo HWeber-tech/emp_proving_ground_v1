@@ -16,7 +16,7 @@ Design goals:
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +28,6 @@ __all__ = [
     "AdversarialTrainer",
     "RedTeamAI",
     "SpecializedPredatorEvolution",
-    "PortfolioEvolutionEngine",
     "CompetitiveIntelligenceSystem",
     "Phase3IntelligenceOrchestrator",
 ]
@@ -43,7 +42,6 @@ _LAZY_EXPORTS: dict[str, str] = {
     "AdversarialTrainer": "src.thinking.adversarial.adversarial_trainer:AdversarialTrainer",
     "RedTeamAI": "src.thinking.adversarial.red_team_ai:RedTeamAI",
     "SpecializedPredatorEvolution": "src.intelligence.specialized_predators:SpecializedPredatorEvolution",
-    "PortfolioEvolutionEngine": "src.intelligence.portfolio_evolution:PortfolioEvolutionEngine",
     "CompetitiveIntelligenceSystem": (
         "src.thinking.competitive.competitive_intelligence_system:CompetitiveIntelligenceSystem"
     ),
@@ -79,8 +77,10 @@ class Phase3IntelligenceOrchestrator:
         self.adversarial_trainer = None
         self.red_team = None
         self.specialized_evolution = None
-        self.portfolio_evolution = None
         self.competitive_intelligence = None
+        # Portfolio evolution surface was removed during dead-code cleanup; keep
+        # attribute stub so callers referencing it get a clear None.
+        self.portfolio_evolution: Any | None = None
 
     async def initialize_phase3(self) -> None:
         # Localized imports to avoid import-time cost
@@ -93,7 +93,6 @@ class Phase3IntelligenceOrchestrator:
         AdversarialTrainer = __getattr__("AdversarialTrainer")
         RedTeamAI = __getattr__("RedTeamAI")
         SpecializedPredatorEvolution = __getattr__("SpecializedPredatorEvolution")
-        PortfolioEvolutionEngine = __getattr__("PortfolioEvolutionEngine")
         CompetitiveIntelligenceSystem = __getattr__("CompetitiveIntelligenceSystem")
 
         # Instantiate components
@@ -103,7 +102,7 @@ class Phase3IntelligenceOrchestrator:
         self.adversarial_trainer = MarketGAN()
         self.red_team = RedTeamAI()
         self.specialized_evolution = SpecializedPredatorEvolution()
-        self.portfolio_evolution = PortfolioEvolutionEngine()
+        self.portfolio_evolution = None
         self.competitive_intelligence = CompetitiveIntelligenceSystem()
 
         # If any components expose initialize coroutines, call them defensively
@@ -115,7 +114,6 @@ class Phase3IntelligenceOrchestrator:
             self.adversarial_trainer,
             self.red_team,
             self.specialized_evolution,
-            self.portfolio_evolution,
             self.competitive_intelligence,
         ):
             init = getattr(comp, "initialize", None)
@@ -135,7 +133,6 @@ class Phase3IntelligenceOrchestrator:
         assert self.adversarial_trainer is not None
         assert self.red_team is not None
         assert self.specialized_evolution is not None
-        assert self.portfolio_evolution is not None
         assert self.competitive_intelligence is not None
 
         results: dict[str, Any] = {
@@ -178,10 +175,10 @@ class Phase3IntelligenceOrchestrator:
         results["specialized_predators"] = specialized_predators
 
         # 6. Portfolio evolution
-        portfolio_result = await self.portfolio_evolution.evolve_portfolio(
-            current_strategies, market_data
-        )
-        results["portfolio_evolution"] = portfolio_result
+        results["portfolio_evolution"] = {
+            "status": "removed",
+            "detail": "Portfolio evolution surface retired during dead-code cleanup",
+        }
 
         # 7. Competitive intelligence
         competitive_analysis = await self.competitive_intelligence.analyze_competitive_landscape(
@@ -198,7 +195,6 @@ class Phase3IntelligenceOrchestrator:
         assert self.adversarial_trainer is not None
         assert self.red_team is not None
         assert self.specialized_evolution is not None
-        assert self.portfolio_evolution is not None
         assert self.competitive_intelligence is not None
 
         return {
@@ -207,7 +203,10 @@ class Phase3IntelligenceOrchestrator:
             "adversarial_trainer": self.adversarial_trainer.get_status(),
             "red_team": self.red_team.get_status(),
             "specialized_evolution": self.specialized_evolution.get_status(),
-            "portfolio_evolution": self.portfolio_evolution.get_evolution_stats(),
+            "portfolio_evolution": {
+                "status": "removed",
+                "detail": "Legacy portfolio evolution facade retired",
+            },
             "competitive_intelligence": self.competitive_intelligence.get_intelligence_summary(),
         }
 

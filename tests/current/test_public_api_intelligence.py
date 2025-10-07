@@ -23,7 +23,6 @@ def test_intelligence_public_api_no_side_effects_and_lazy(caplog):
         "AdversarialTrainer",
         "RedTeamAI",
         "SpecializedPredatorEvolution",
-        "PortfolioEvolutionEngine",
         "CompetitiveIntelligenceSystem",
         "Phase3IntelligenceOrchestrator",
     }

@@ -31,6 +31,7 @@ from src.understanding.diagnostics import (
     UnderstandingGraphStatus,
     UnderstandingLoopSnapshot,
 )
+from src.understanding.metrics import export_understanding_throttle_metrics
 
 try:  # Python 3.10 compatibility
     from datetime import UTC
@@ -511,6 +512,7 @@ def build_observability_dashboard(
         )
 
     if understanding_snapshot is not None:
+        export_understanding_throttle_metrics(understanding_snapshot)
         understanding_status = _map_understanding_status(understanding_snapshot.status)
         regime = understanding_snapshot.regime_state
         decision = understanding_snapshot.decision

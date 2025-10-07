@@ -20,6 +20,7 @@ from src.operations.event_bus_health import (
     EventBusHealthSnapshot,
     EventBusHealthStatus,
 )
+import src.operations.observability_dashboard as dashboard_module
 from src.operations.observability_dashboard import (
     DashboardPanel,
     DashboardStatus,
@@ -35,7 +36,11 @@ from src.operations.roi import RoiStatus, RoiTelemetrySnapshot
 from src.operations.slo import OperationalSLOSnapshot, ServiceSLO, SLOStatus
 from src.risk.analytics.expected_shortfall import ExpectedShortfallResult
 from src.risk.analytics.var import VarResult
-from src.understanding import UnderstandingDiagnosticsBuilder, UnderstandingGraphStatus
+from src.understanding import (
+    UnderstandingDiagnosticsBuilder,
+    UnderstandingGraphStatus,
+    UnderstandingLoopSnapshot,
+)
 
 
 pytestmark = pytest.mark.guardrail
@@ -411,3 +416,21 @@ def test_understanding_panel_warns_when_snapshot_missing() -> None:
     assert panel.status is DashboardStatus.warn
     assert metadata["status"] == "missing"
     assert metadata["recommended_cli"].endswith("graph_diagnostics")
+
+
+def test_understanding_panel_exports_throttle_metrics(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    builder = UnderstandingDiagnosticsBuilder(now=lambda: datetime(2024, 1, 1, tzinfo=UTC))
+    snapshot = builder.build().to_snapshot()
+
+    calls: list[UnderstandingLoopSnapshot] = []
+    monkeypatch.setattr(
+        dashboard_module,
+        "export_understanding_throttle_metrics",
+        lambda value: calls.append(value),
+    )
+
+    build_observability_dashboard(understanding_snapshot=snapshot)
+
+    assert calls == [snapshot]

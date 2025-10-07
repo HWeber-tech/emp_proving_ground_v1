@@ -39,6 +39,15 @@ class _NoopGauge:
 
 _NOOP_GAUGE = _NoopGauge()
 
+
+def _normalise_label(value: Optional[str], *, fallback: str = "unknown") -> str:
+    """Coerce metric label values into stable strings."""
+
+    if value is None:
+        return fallback
+    text = str(value).strip()
+    return text or fallback
+
 _T = TypeVar("_T")
 
 
@@ -377,6 +386,45 @@ def set_why_feature(
         ).labels(**merged_labels).set(gauge_value)
 
     _call_metric("why_feature_available.set", _action)
+
+
+def set_understanding_throttle_state(
+    name: str,
+    *,
+    state: str,
+    active: bool,
+    multiplier: Optional[float],
+    regime: Optional[str] = None,
+    decision: Optional[str] = None,
+) -> None:
+    """Record understanding-loop throttle posture in Prometheus-compatible gauges."""
+
+    labels = {
+        "throttle": _normalise_label(name),
+        "state": _normalise_label(state),
+        "regime": _normalise_label(regime),
+        "decision": _normalise_label(decision),
+    }
+
+    def _set_active() -> None:
+        get_registry().get_gauge(
+            "understanding_throttle_active",
+            "Active state (1/0) for understanding loop throttles",
+            ["throttle", "state", "regime", "decision"],
+        ).labels(**labels).set(1.0 if active else 0.0)
+
+    _call_metric("understanding_throttle_active.set", _set_active)
+
+    multiplier_value = float(multiplier) if multiplier is not None else 0.0
+
+    def _set_multiplier() -> None:
+        get_registry().get_gauge(
+            "understanding_throttle_multiplier",
+            "Multiplier applied by understanding loop throttles",
+            ["throttle", "state", "regime", "decision"],
+        ).labels(**labels).set(multiplier_value)
+
+    _call_metric("understanding_throttle_multiplier.set", _set_multiplier)
 
 
 # Exporter

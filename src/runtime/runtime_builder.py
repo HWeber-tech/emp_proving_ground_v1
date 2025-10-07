@@ -148,10 +148,15 @@ from src.operations.data_backbone import (
     evaluate_data_backbone_validation,
 )
 from src.compliance.workflow import (
+    ComplianceWorkflowChecklist,
+    ComplianceWorkflowSnapshot,
+    WorkflowTaskStatus,
     evaluate_compliance_workflows,
     publish_compliance_workflows,
 )
 from src.operations.compliance_readiness import (
+    ComplianceReadinessSnapshot,
+    ComplianceReadinessStatus,
     evaluate_compliance_readiness,
     publish_compliance_readiness,
 )
@@ -182,6 +187,18 @@ from src.operations.sensory_metrics import (
 from src.operations.sensory_summary import (
     build_sensory_summary,
     publish_sensory_summary,
+)
+from src.operations.regulatory_telemetry import (
+    RegulatoryTelemetrySnapshot,
+    RegulatoryTelemetryStatus,
+    evaluate_regulatory_telemetry,
+    publish_regulatory_telemetry,
+)
+from src.operations.governance_reporting import (
+    GovernanceReport,
+    collect_audit_evidence,
+    generate_governance_report,
+    publish_governance_report,
 )
 from src.operations.spark_stress import (
     SparkStressSnapshot,
@@ -314,6 +331,242 @@ def _normalise_ingest_plan_metadata(value: object) -> list[str]:
     if value is None:
         return []
     return [str(value)]
+
+
+_REGULATORY_STATUS_ORDER: Mapping[RegulatoryTelemetryStatus, int] = {
+    RegulatoryTelemetryStatus.ok: 0,
+    RegulatoryTelemetryStatus.warn: 1,
+    RegulatoryTelemetryStatus.fail: 2,
+}
+
+
+def _escalate_regulatory_status(
+    current: RegulatoryTelemetryStatus,
+    candidate: RegulatoryTelemetryStatus,
+) -> RegulatoryTelemetryStatus:
+    if _REGULATORY_STATUS_ORDER[candidate] > _REGULATORY_STATUS_ORDER[current]:
+        return candidate
+    return current
+
+
+def _compliance_status_to_regulatory(
+    status: ComplianceReadinessStatus | None,
+) -> RegulatoryTelemetryStatus:
+    if status is ComplianceReadinessStatus.fail:
+        return RegulatoryTelemetryStatus.fail
+    if status is ComplianceReadinessStatus.warn:
+        return RegulatoryTelemetryStatus.warn
+    if status is ComplianceReadinessStatus.ok:
+        return RegulatoryTelemetryStatus.ok
+    return RegulatoryTelemetryStatus.warn
+
+
+def _workflow_status_to_regulatory(
+    status: WorkflowTaskStatus | None,
+) -> RegulatoryTelemetryStatus:
+    if status is WorkflowTaskStatus.blocked:
+        return RegulatoryTelemetryStatus.fail
+    if status in {WorkflowTaskStatus.in_progress, WorkflowTaskStatus.todo}:
+        return RegulatoryTelemetryStatus.warn
+    if status is WorkflowTaskStatus.completed:
+        return RegulatoryTelemetryStatus.ok
+    return RegulatoryTelemetryStatus.warn
+
+
+def _workflow_details(workflow: ComplianceWorkflowChecklist) -> Mapping[str, object]:
+    return {
+        "name": workflow.name,
+        "regulation": workflow.regulation,
+        "status": workflow.status.value,
+        "tasks": [
+            {
+                "task_id": task.task_id,
+                "status": task.status.value,
+                "summary": task.summary,
+                "severity": task.severity,
+                "metadata": dict(task.metadata),
+            }
+            for task in workflow.tasks
+        ],
+        "metadata": dict(workflow.metadata),
+    }
+
+
+def _summarise_workflows(
+    workflows: Sequence[ComplianceWorkflowChecklist],
+) -> tuple[RegulatoryTelemetryStatus, str, list[Mapping[str, object]]]:
+    if not workflows:
+        return (
+            RegulatoryTelemetryStatus.warn,
+            "no workflows configured",
+            [],
+        )
+
+    status = RegulatoryTelemetryStatus.ok
+    summary_parts: list[str] = []
+    details: list[Mapping[str, object]] = []
+    for workflow in workflows:
+        workflow_status = _workflow_status_to_regulatory(workflow.status)
+        status = _escalate_regulatory_status(status, workflow_status)
+        summary_parts.append(f"{workflow.name} {workflow.status.value.upper()}")
+        details.append(_workflow_details(workflow))
+
+    return status, "; ".join(summary_parts), details
+
+
+def _is_trade_reporting_workflow(workflow: ComplianceWorkflowChecklist) -> bool:
+    name = workflow.name.lower()
+    regulation = workflow.regulation.lower()
+    return (
+        "mifid" in name
+        or "dodd" in name
+        or "transaction" in name
+        or regulation in {"mifid ii", "dodd-frank"}
+    )
+
+
+def _is_surveillance_workflow(workflow: ComplianceWorkflowChecklist) -> bool:
+    name = workflow.name.lower()
+    regulation = workflow.regulation.lower()
+    return (
+        "kyc" in name
+        or "aml" in name
+        or "surveillance" in name
+        or "audit trail" in name
+        or regulation in {"kyc/aml"}
+    )
+
+
+def _build_regulatory_signals(
+    compliance_snapshot: ComplianceReadinessSnapshot | None,
+    workflow_snapshot: ComplianceWorkflowSnapshot | None,
+) -> list[Mapping[str, object]]:
+    signals: list[Mapping[str, object]] = []
+
+    component_map: dict[str, Any] = {}
+    compliance_generated_at: datetime | None = None
+    if isinstance(compliance_snapshot, ComplianceReadinessSnapshot):
+        component_map = {component.name: component for component in compliance_snapshot.components}
+        compliance_generated_at = compliance_snapshot.generated_at
+
+    trade_component = component_map.get("trade_compliance")
+    if trade_component is not None:
+        signals.append(
+            {
+                "name": "trade_compliance",
+                "status": trade_component.status.value,
+                "summary": trade_component.summary,
+                "observed_at": compliance_generated_at,
+                "metadata": {
+                    "source": "compliance_readiness",
+                    "component": "trade_compliance",
+                    "details": dict(trade_component.metadata),
+                },
+            }
+        )
+    else:
+        signals.append(
+            {
+                "name": "trade_compliance",
+                "status": RegulatoryTelemetryStatus.warn.value,
+                "summary": "trade compliance readiness component missing",
+                "metadata": {"reason": "component_missing"},
+            }
+        )
+
+    kyc_component = component_map.get("kyc_aml")
+    if kyc_component is not None:
+        signals.append(
+            {
+                "name": "kyc_aml",
+                "status": kyc_component.status.value,
+                "summary": kyc_component.summary,
+                "observed_at": compliance_generated_at,
+                "metadata": {
+                    "source": "compliance_readiness",
+                    "component": "kyc_aml",
+                    "details": dict(kyc_component.metadata),
+                },
+            }
+        )
+    else:
+        signals.append(
+            {
+                "name": "kyc_aml",
+                "status": RegulatoryTelemetryStatus.warn.value,
+                "summary": "kyc readiness component missing",
+                "metadata": {"reason": "component_missing"},
+            }
+        )
+
+    workflows = () if workflow_snapshot is None else workflow_snapshot.workflows
+    trade_reporting_workflows = [wf for wf in workflows if _is_trade_reporting_workflow(wf)]
+    trade_status, trade_summary, trade_details = _summarise_workflows(trade_reporting_workflows)
+    trade_metadata: dict[str, object] = {
+        "workflows": trade_details,
+    }
+    if workflow_snapshot is not None and workflow_snapshot.metadata:
+        trade_metadata["workflow_metadata"] = dict(workflow_snapshot.metadata)
+
+    signals.append(
+        {
+            "name": "trade_reporting",
+            "status": trade_status.value,
+            "summary": trade_summary,
+            "observed_at": None if workflow_snapshot is None else workflow_snapshot.generated_at,
+            "metadata": trade_metadata,
+        }
+    )
+
+    surveillance_workflows = [wf for wf in workflows if _is_surveillance_workflow(wf)]
+    surveillance_status, surveillance_summary, surveillance_details = _summarise_workflows(
+        surveillance_workflows
+    )
+
+    if kyc_component is not None:
+        surveillance_status = _escalate_regulatory_status(
+            surveillance_status, _compliance_status_to_regulatory(kyc_component.status)
+        )
+
+    surveillance_metadata: dict[str, object] = {
+        "workflows": surveillance_details,
+    }
+    if kyc_component is not None:
+        surveillance_metadata["kyc_component"] = {
+            "status": kyc_component.status.value,
+            "summary": kyc_component.summary,
+            "metadata": dict(kyc_component.metadata),
+        }
+    if workflow_snapshot is not None and workflow_snapshot.metadata:
+        surveillance_metadata.setdefault("workflow_metadata", dict(workflow_snapshot.metadata))
+
+    signals.append(
+        {
+            "name": "surveillance",
+            "status": surveillance_status.value,
+            "summary": surveillance_summary,
+            "observed_at": None if workflow_snapshot is None else workflow_snapshot.generated_at,
+            "metadata": surveillance_metadata,
+        }
+    )
+
+    return signals
+
+
+def _resolve_strategy_identifier(extras: Mapping[str, object] | None) -> str | None:
+    if not extras:
+        return None
+    for key in (
+        "COMPLIANCE_STRATEGY_ID",
+        "KYC_STRATEGY_ID",
+        "EXECUTION_STRATEGY_ID",
+        "TRADE_STRATEGY_ID",
+        "STRATEGY_ID",
+    ):
+        value = extras.get(key)
+        if value:
+            return str(value)
+    return None
 
 
 StartupCallback = Callable[[], Awaitable[None] | None]
@@ -2678,6 +2931,83 @@ def build_professional_runtime_application(
                             except Exception:  # pragma: no cover - diagnostics only
                                 logger.debug(
                                     "Failed to record compliance workflow snapshot on runtime app",
+                                    exc_info=True,
+                                )
+
+                        regulatory_signals = _build_regulatory_signals(
+                            compliance_snapshot,
+                            workflow_snapshot,
+                        )
+                        regulatory_metadata: dict[str, object] = {
+                            "ingest_success": success,
+                            "compliance_status": compliance_snapshot.status.value,
+                        }
+                        if workflow_snapshot is not None:
+                            regulatory_metadata["workflow_status"] = workflow_snapshot.status.value
+                        if strategy_registry_summary is not None:
+                            regulatory_metadata["strategy_registry"] = strategy_registry_summary
+
+                        regulatory_snapshot = evaluate_regulatory_telemetry(
+                            signals=regulatory_signals,
+                            metadata=regulatory_metadata,
+                        )
+                        missing_domains = ",".join(regulatory_snapshot.missing_domains) or "none"
+                        logger.info(
+                            "🛡️ Regulatory telemetry status=%s coverage=%.2f missing=%s",
+                            regulatory_snapshot.status.value.upper(),
+                            regulatory_snapshot.coverage_ratio,
+                            missing_domains,
+                        )
+                        publish_regulatory_telemetry(app.event_bus, regulatory_snapshot)
+                        record_regulatory = getattr(app, "record_regulatory_snapshot", None)
+                        if callable(record_regulatory):
+                            try:
+                                record_regulatory(regulatory_snapshot)
+                            except Exception:  # pragma: no cover - diagnostics only
+                                logger.debug(
+                                    "Failed to record regulatory telemetry snapshot on runtime app",
+                                    exc_info=True,
+                                )
+
+                        strategy_identifier = _resolve_strategy_identifier(extras_mapping)
+                        try:
+                            audit_evidence = collect_audit_evidence(
+                                cfg,
+                                strategy_id=strategy_identifier,
+                            )
+                        except Exception:  # pragma: no cover - diagnostics only
+                            logger.exception("Failed to collect audit evidence for governance report")
+                            audit_evidence = {"metadata": {"errors": ["audit_collection_failed"]}}
+
+                        governance_metadata: dict[str, object] = {
+                            "ingest_success": success,
+                            "compliance_status": compliance_snapshot.status.value,
+                            "regulatory_status": regulatory_snapshot.status.value,
+                            "regulatory_coverage": regulatory_snapshot.coverage_ratio,
+                        }
+                        if strategy_identifier is not None:
+                            governance_metadata["strategy_id"] = strategy_identifier
+
+                        governance_report = generate_governance_report(
+                            compliance_readiness=compliance_snapshot,
+                            regulatory_snapshot=regulatory_snapshot,
+                            audit_evidence=audit_evidence,
+                            metadata=governance_metadata,
+                        )
+                        section_names = ",".join(section.name for section in governance_report.sections)
+                        logger.info(
+                            "📑 Governance report status=%s sections=%s",
+                            governance_report.status.value.upper(),
+                            section_names,
+                        )
+                        publish_governance_report(app.event_bus, governance_report)
+                        record_governance = getattr(app, "record_governance_report", None)
+                        if callable(record_governance):
+                            try:
+                                record_governance(governance_report)
+                            except Exception:  # pragma: no cover - diagnostics only
+                                logger.debug(
+                                    "Failed to record governance report on runtime app",
                                     exc_info=True,
                                 )
 

@@ -560,6 +560,8 @@ async def test_builder_records_backup_snapshot(monkeypatch, tmp_path):
     strategy_published: list[object] = []
     incident_published: list[object] = []
     tuning_published: list[object] = []
+    regulatory_published: list[object] = []
+    governance_published: list[object] = []
     backbone_validation_recorded: list[DataBackboneValidationSnapshot] = []
     backbone_validation_published: list[DataBackboneValidationSnapshot] = []
     backbone_recorded: list[DataBackboneReadinessSnapshot] = []
@@ -657,6 +659,22 @@ async def test_builder_records_backup_snapshot(monkeypatch, tmp_path):
     monkeypatch.setattr(
         "src.runtime.runtime_builder.publish_compliance_workflows",
         _fake_publish_compliance_workflows,
+    )
+    monkeypatch.setattr(
+        "src.runtime.runtime_builder.publish_regulatory_telemetry",
+        lambda event_bus, snapshot: regulatory_published.append(snapshot),
+    )
+    monkeypatch.setattr(
+        "src.runtime.runtime_builder.publish_governance_report",
+        lambda event_bus, report: governance_published.append(report),
+    )
+    monkeypatch.setattr(
+        "src.runtime.runtime_builder.collect_audit_evidence",
+        lambda _cfg, strategy_id=None: {
+            "metadata": {"configured": True, "dialect": "sqlite"},
+            "compliance": {"stats": {"total_records": 5}},
+            "kyc": {"stats": {"total_cases": 1}},
+        },
     )
     monkeypatch.setattr(
         "src.runtime.runtime_builder.publish_security_posture",
@@ -771,9 +789,19 @@ async def test_builder_records_backup_snapshot(monkeypatch, tmp_path):
     assert retention_recorded
     assert app.get_last_data_retention_snapshot() is retention_recorded[0]
     assert compliance_published
-    assert app.get_last_compliance_readiness_snapshot() is compliance_published[0]
+    last_compliance = app.get_last_compliance_readiness_snapshot()
+    assert last_compliance is compliance_published[0]
     assert workflow_published
     assert app.get_last_compliance_workflow_snapshot() is workflow_published[0]
+    assert regulatory_published
+    regulatory_snapshot = app.get_last_regulatory_snapshot()
+    assert regulatory_snapshot is regulatory_published[0]
+    assert regulatory_snapshot.metadata.get("compliance_status") == last_compliance.status.value
+    assert governance_published
+    governance_report = app.get_last_governance_report()
+    assert governance_report is governance_published[0]
+    assert governance_report.metadata.get("regulatory_status") == regulatory_snapshot.status.value
+    assert governance_report.sections
     assert security_published
     security_snapshot = app.get_last_security_snapshot()
     assert security_snapshot is security_published[0]

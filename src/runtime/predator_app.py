@@ -117,6 +117,8 @@ from src.operations.system_validation import (
     SystemValidationSnapshot,
     format_system_validation_markdown,
 )
+from src.operations.regulatory_telemetry import RegulatoryTelemetrySnapshot
+from src.operations.governance_reporting import GovernanceReport
 from src.operations.operational_readiness import (
     evaluate_operational_readiness,
     format_operational_readiness_markdown,
@@ -281,6 +283,8 @@ class ProfessionalPredatorApp:
         self._last_operational_slo_snapshot: OperationalSLOSnapshot | None = None
         self._last_compliance_snapshot: ComplianceReadinessSnapshot | None = None
         self._last_compliance_workflow_snapshot: ComplianceWorkflowSnapshot | None = None
+        self._last_regulatory_snapshot: RegulatoryTelemetrySnapshot | None = None
+        self._last_governance_report: GovernanceReport | None = None
         self._last_security_snapshot: SecurityPostureSnapshot | None = None
         self._last_incident_response_snapshot: IncidentResponseSnapshot | None = None
         self._last_cache_snapshot: CacheHealthSnapshot | None = None
@@ -403,6 +407,16 @@ class ProfessionalPredatorApp:
 
         self._last_compliance_workflow_snapshot = snapshot
 
+    def record_regulatory_snapshot(self, snapshot: RegulatoryTelemetrySnapshot) -> None:
+        """Store the latest regulatory telemetry snapshot."""
+
+        self._last_regulatory_snapshot = snapshot
+
+    def record_governance_report(self, report: GovernanceReport) -> None:
+        """Store the latest governance compliance report."""
+
+        self._last_governance_report = report
+
     def record_security_snapshot(self, snapshot: SecurityPostureSnapshot) -> None:
         """Store the most recent security posture snapshot."""
 
@@ -508,6 +522,16 @@ class ProfessionalPredatorApp:
         """Return the last compliance workflow snapshot captured by the runtime."""
 
         return self._last_compliance_workflow_snapshot
+
+    def get_last_regulatory_snapshot(self) -> RegulatoryTelemetrySnapshot | None:
+        """Return the last regulatory telemetry snapshot captured by the runtime."""
+
+        return self._last_regulatory_snapshot
+
+    def get_last_governance_report(self) -> GovernanceReport | None:
+        """Return the last governance report assembled by the runtime."""
+
+        return self._last_governance_report
 
     def get_last_security_snapshot(self) -> SecurityPostureSnapshot | None:
         """Return the most recent security posture snapshot, if any."""
@@ -1122,6 +1146,55 @@ class ProfessionalPredatorApp:
             if markdown:
                 compliance_payload["markdown"] = markdown
             summary_payload["compliance_readiness"] = compliance_payload
+
+        if self._last_regulatory_snapshot is not None:
+            regulatory_snapshot = self._last_regulatory_snapshot
+            regulatory_payload: dict[str, object] = {
+                "snapshot": regulatory_snapshot.as_dict(),
+                "coverage_ratio": regulatory_snapshot.coverage_ratio,
+                "missing_domains": list(regulatory_snapshot.missing_domains),
+                "signals": [
+                    {
+                        "name": signal.name,
+                        "status": signal.status.value,
+                        "summary": signal.summary,
+                        "metadata": dict(signal.metadata),
+                        "observed_at": signal.observed_at.isoformat()
+                        if signal.observed_at is not None
+                        else None,
+                    }
+                    for signal in regulatory_snapshot.signals
+                ],
+            }
+            if regulatory_snapshot.metadata:
+                regulatory_payload["metadata"] = dict(regulatory_snapshot.metadata)
+            summary_payload["regulatory_telemetry"] = regulatory_payload
+
+        if self._last_governance_report is not None:
+            report = self._last_governance_report
+            governance_payload: dict[str, object] = {
+                "status": report.status.value,
+                "generated_at": report.generated_at.isoformat(),
+                "period": {
+                    "start": report.period_start.isoformat(),
+                    "end": report.period_end.isoformat(),
+                },
+                "sections": [
+                    {
+                        "name": section.name,
+                        "status": section.status.value,
+                        "summary": section.summary,
+                        "metadata": dict(section.metadata),
+                    }
+                    for section in report.sections
+                ],
+            }
+            if report.metadata:
+                governance_payload["metadata"] = dict(report.metadata)
+            markdown = report.to_markdown()
+            if markdown:
+                governance_payload["markdown"] = markdown
+            summary_payload["governance_report"] = governance_payload
 
         if self._last_security_snapshot is not None:
             security_snapshot = self._last_security_snapshot

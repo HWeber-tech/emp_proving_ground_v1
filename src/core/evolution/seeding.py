@@ -11,9 +11,11 @@ before adaptive runs are enabled.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import json
 import random
 from functools import lru_cache
-from typing import Mapping, MutableMapping, Sequence
+from pathlib import Path
+from typing import Any, Mapping, MutableMapping, Sequence
 
 from src.genome.catalogue import CatalogueEntry, GenomeCatalogue, load_default_catalogue
 
@@ -159,14 +161,202 @@ def _template_from_entry(entry: CatalogueEntry) -> GenomeSeedTemplate:
     )
 
 
+def _project_root() -> Path:
+    return Path(__file__).resolve().parents[3]
+
+
+def _coerce_float_mapping(payload: Mapping[str, Any] | None) -> dict[str, float]:
+    result: dict[str, float] = {}
+    if not isinstance(payload, Mapping):
+        return result
+    for key, value in payload.items():
+        try:
+            result[str(key)] = float(value)
+        except Exception:
+            if isinstance(value, bool):
+                result[str(key)] = 1.0 if value else 0.0
+            else:
+                continue
+    return result
+
+
+def _derive_jitter_from_bounds(
+    key: str,
+    base_value: float,
+    bounds: Mapping[str, Any] | None,
+) -> float | None:
+    if not isinstance(bounds, Mapping):
+        return None
+    raw = bounds.get(key)
+    if not isinstance(raw, Sequence) or isinstance(raw, (str, bytes)) or len(raw) < 2:
+        return None
+    try:
+        low = float(raw[0])
+        high = float(raw[1])
+    except Exception:
+        return None
+    span = abs(high - low)
+    if span <= 0.0:
+        return None
+    reference = abs(base_value)
+    if reference <= 1e-6:
+        reference = max(abs(low), abs(high), 1.0)
+    jitter = span / max(reference, 1.0)
+    # Clamp to a sensible percentage band to avoid explosive variance
+    jitter = min(0.5, max(0.02, jitter * 0.15))
+    return jitter
+
+
+def _extract_manifest_tags(
+    experiment: str,
+    seed_value: Any,
+    dataset_info: Mapping[str, Any] | None,
+    genome_payload: Mapping[str, Any] | None,
+) -> tuple[str, ...]:
+    tags: list[str] = [f"experiment:{experiment}"]
+    if seed_value is not None:
+        tags.append(f"seed:{seed_value}")
+    if isinstance(dataset_info, Mapping):
+        dataset_name = dataset_info.get("name")
+        if dataset_name:
+            tags.append(f"dataset:{dataset_name}")
+    if isinstance(genome_payload, Mapping):
+        for key, value in genome_payload.items():
+            if isinstance(value, bool):
+                tags.append(f"{key}:{'on' if value else 'off'}")
+    return tuple(tags)
+
+
+def _extract_manifest_mutations(
+    experiment: str,
+    seed_value: Any,
+    dataset_info: Mapping[str, Any] | None,
+) -> tuple[str, ...]:
+    mutation_history: list[str] = [f"artifact:{experiment}"]
+    if seed_value is not None:
+        mutation_history.append(f"seed:{seed_value}")
+    if isinstance(dataset_info, Mapping):
+        dataset_name = dataset_info.get("name")
+        if dataset_name:
+            mutation_history.append(f"dataset:{dataset_name}")
+    return tuple(mutation_history)
+
+
+def _extract_manifest_parents(
+    experiment: str,
+    leaderboard: Sequence[Mapping[str, Any]] | None,
+) -> tuple[str, ...]:
+    parents: list[str] = []
+    if leaderboard:
+        for entry in leaderboard[:2]:
+            if not isinstance(entry, Mapping):
+                continue
+            generation = entry.get("generation")
+            if generation is None:
+                continue
+            parents.append(f"{experiment}-gen-{generation}")
+    return tuple(parents)
+
+
+@lru_cache(maxsize=1)
+def load_experiment_seed_templates(
+    artifacts_dir: Path | None = None,
+) -> tuple[GenomeSeedTemplate, ...]:
+    """Load genome seed templates from recorded evolution experiment manifests."""
+
+    if artifacts_dir is None:
+        artifacts_dir = _project_root() / "artifacts" / "evolution"
+
+    templates: list[GenomeSeedTemplate] = []
+    if not artifacts_dir.exists():
+        return tuple()
+
+    for manifest_path in sorted(artifacts_dir.glob("*/manifest.json")):
+        try:
+            content = manifest_path.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        try:
+            manifest = json.loads(content)
+        except json.JSONDecodeError:
+            continue
+
+        best_genome = manifest.get("best_genome")
+        if not isinstance(best_genome, Mapping):
+            continue
+
+        parameters = _coerce_float_mapping(best_genome)
+        if not parameters:
+            continue
+
+        bounds = None
+        config = manifest.get("config")
+        if isinstance(config, Mapping):
+            maybe_bounds = config.get("bounds")
+            if isinstance(maybe_bounds, Mapping):
+                bounds = maybe_bounds
+
+        parameter_jitter: dict[str, float] = {}
+        for key, value in parameters.items():
+            jitter = _derive_jitter_from_bounds(key, value, bounds)
+            if jitter is not None:
+                parameter_jitter[key] = jitter
+
+        best_metrics = manifest.get("best_metrics") if isinstance(manifest, Mapping) else None
+        metrics = _coerce_float_mapping(best_metrics if isinstance(best_metrics, Mapping) else None)
+
+        experiment = str(manifest.get("experiment") or manifest_path.parent.name)
+        seed_value = manifest.get("seed")
+        dataset_info = manifest.get("dataset") if isinstance(manifest, Mapping) else None
+        leaderboard = manifest.get("leaderboard")
+        leaderboard_seq: Sequence[Mapping[str, Any]] | None
+        if isinstance(leaderboard, Sequence) and not isinstance(leaderboard, (str, bytes)):
+            leaderboard_seq = leaderboard
+        else:
+            leaderboard_seq = None
+
+        parents = _extract_manifest_parents(experiment, leaderboard_seq)
+        mutation_history = _extract_manifest_mutations(experiment, seed_value, dataset_info)
+        tags = _extract_manifest_tags(experiment, seed_value, dataset_info, best_genome)
+
+        catalogue_entry_id = f"artifact/{experiment}"
+        if seed_value is not None:
+            catalogue_entry_id = f"{catalogue_entry_id}/seed-{seed_value}"
+
+        template = GenomeSeedTemplate(
+            name=f"{experiment} seed {seed_value}" if seed_value is not None else experiment,
+            species=str(manifest.get("species") or experiment),
+            base_parameters=parameters,
+            parameter_jitter=parameter_jitter,
+            parent_ids=parents,
+            mutation_history=mutation_history,
+            performance_metrics=metrics,
+            tags=tags,
+            catalogue_entry_id=catalogue_entry_id,
+        )
+        templates.append(template)
+
+    return tuple(templates)
+
+
 @lru_cache(maxsize=1)
 def _load_catalogue_templates() -> tuple[GenomeSeedTemplate, ...]:
+    templates: list[GenomeSeedTemplate] = []
     try:
         catalogue: GenomeCatalogue = load_default_catalogue()
     except Exception:
-        return _FALLBACK_TEMPLATES
-    entries = tuple(_template_from_entry(entry) for entry in catalogue.entries)
-    return entries if entries else _FALLBACK_TEMPLATES
+        catalogue_entries: tuple[GenomeSeedTemplate, ...] = tuple()
+    else:
+        catalogue_entries = tuple(_template_from_entry(entry) for entry in catalogue.entries)
+        templates.extend(catalogue_entries)
+
+    experiment_templates = load_experiment_seed_templates()
+    if experiment_templates:
+        templates.extend(experiment_templates)
+
+    if templates:
+        return tuple(templates)
+    return _FALLBACK_TEMPLATES
 
 
 _FALLBACK_TEMPLATES: tuple[GenomeSeedTemplate, ...] = (
@@ -401,4 +591,5 @@ __all__ = [
     "GenomeSeed",
     "GenomeSeedTemplate",
     "RealisticGenomeSeeder",
+    "load_experiment_seed_templates",
 ]

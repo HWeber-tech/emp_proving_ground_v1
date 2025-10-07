@@ -311,8 +311,13 @@ def _coerce_positive_int(
         return None
     if isinstance(value, (bytes, bytearray)):
         try:
-            value = value.decode("ascii", "ignore")
-        except Exception:
+            value = value.decode("ascii")
+        except UnicodeDecodeError as exc:
+            logger.debug(
+                "Failed to decode positive int from bytes payload: %s",
+                exc,
+                exc_info=exc,
+            )
             return None
     try:
         number = int(float(value))
@@ -352,7 +357,7 @@ def _coerce_order_book_level(value: object) -> MockOrderBookLevel | None:
                 price=_coerce_float(getattr(value, "price", 0.0)),
                 size=_coerce_float(getattr(value, "size", 0.0)),
             )
-    except Exception as exc:
+    except (AttributeError, TypeError, ValueError) as exc:
         logger.debug(
             "Failed to coerce order book protocol instance %s: %s",
             value,
@@ -389,7 +394,7 @@ def _coerce_order_book_level(value: object) -> MockOrderBookLevel | None:
                 price=_coerce_float(getattr(value, "price")),
                 size=_coerce_float(getattr(value, "size")),
             )
-        except Exception as exc:
+        except (AttributeError, TypeError, ValueError) as exc:
             logger.debug(
                 "Failed to coerce order book level from %s: %s",
                 value,

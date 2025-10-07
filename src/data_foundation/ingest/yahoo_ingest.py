@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import logging
 import re
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -14,6 +15,9 @@ import pandas as pd
 import yfinance as yf
 
 from src.core.types import JSONObject
+
+
+logger = logging.getLogger(__name__)
 
 
 def fetch_daily_bars(symbols: list[str], days: int = 60) -> pd.DataFrame:
@@ -293,10 +297,24 @@ def fetch_price_history(
 def store_duckdb(df: pd.DataFrame, db_path: Path, table: str = "daily_bars") -> None:
     try:
         import duckdb
-    except Exception:
+    except ModuleNotFoundError:
         # Fallback to CSV if duckdb not available
         csv_path = db_path.with_suffix(".csv")
         df.to_csv(csv_path, index=False)
+        logger.warning(
+            "duckdb unavailable; wrote %s rows to CSV fallback at %s", len(df), csv_path
+        )
+        return
+    except ImportError as exc:
+        csv_path = db_path.with_suffix(".csv")
+        df.to_csv(csv_path, index=False)
+        logger.warning(
+            "duckdb import failed (%s); wrote %s rows to CSV fallback at %s",
+            exc,
+            len(df),
+            csv_path,
+            exc_info=exc,
+        )
         return
 
     table_def = _resolve_duckdb_table(table)

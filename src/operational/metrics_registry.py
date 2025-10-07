@@ -119,7 +119,7 @@ class MetricsRegistry:
                 _log.debug("prometheus_client unavailable; metrics will be no-op")
                 self._logged_no_prom = True
             return False
-        except Exception as exc:
+        except (ImportError, RuntimeError, AttributeError) as exc:
             self._enabled = False
             if not self._logged_no_prom:
                 _log.warning(

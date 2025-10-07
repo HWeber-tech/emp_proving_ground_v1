@@ -17,6 +17,16 @@ class _StubBus:
         return 1
 
 
+class _RecordingPublisher:
+    def __init__(self) -> None:
+        self.records: list[dict[str, Any]] = []
+
+    def record(self, dimension: str, lineage: Any, **kwargs: Any) -> None:
+        payload = {"dimension": dimension, "lineage": lineage}
+        payload.update(kwargs)
+        self.records.append(payload)
+
+
 def _build_market_frame() -> pd.DataFrame:
     base = datetime.now(timezone.utc) - timedelta(minutes=40)
     rows: list[dict[str, Any]] = []
@@ -157,3 +167,21 @@ def test_real_sensory_organ_metrics_exposes_dimension_state() -> None:
     how_metrics = dimensions["HOW"]
     assert "signal" in how_metrics
     assert "threshold_state" in how_metrics
+
+
+def test_real_sensory_organ_wires_lineage_publisher() -> None:
+    frame = _build_market_frame()
+    publisher = _RecordingPublisher()
+    organ = RealSensoryOrgan(lineage_publisher=publisher)
+
+    snapshot = organ.observe(frame)
+
+    assert publisher.records, "expected lineage publisher to receive records"
+    recorded_dimensions = {record["dimension"] for record in publisher.records}
+    assert {"HOW", "ANOMALY"}.issubset(recorded_dimensions)
+
+    for record in publisher.records:
+        assert record["symbol"] == snapshot["symbol"]
+        lineage = record["lineage"]
+        if isinstance(lineage, dict):
+            assert lineage.get("dimension") == record["dimension"]

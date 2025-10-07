@@ -11,6 +11,7 @@ from src.core.event_bus import Event
 from src.sensory.anomaly.anomaly_sensor import AnomalySensor
 from src.sensory.how.how_sensor import HowSensor
 from src.sensory.lineage import build_lineage_record
+from src.sensory.lineage_publisher import SensoryLineagePublisher
 from src.sensory.monitoring.sensor_drift import SensorDriftSummary, evaluate_sensor_drift
 from src.sensory.signals import IntegratedSignal, SensorSignal
 from src.sensory.what.what_sensor import WhatSensor
@@ -49,6 +50,7 @@ class RealSensoryOrgan:
         event_type: str = "telemetry.sensory.snapshot",
         audit_window: int = 128,
         drift_config: SensoryDriftConfig | None = None,
+        lineage_publisher: SensoryLineagePublisher | None = None,
     ) -> None:
         self._why = why_sensor or WhySensor()
         self._how = how_sensor or HowSensor()
@@ -62,6 +64,7 @@ class RealSensoryOrgan:
         self._audit_trail: deque[Mapping[str, Any]] = deque(maxlen=min_window)
         self._latest_snapshot: Mapping[str, Any] | None = None
         self._latest_drift: SensorDriftSummary | None = None
+        self._lineage_publisher = lineage_publisher
 
     # ------------------------------------------------------------------
     def observe(
@@ -159,6 +162,12 @@ class RealSensoryOrgan:
             "metadata": dict(metadata or {}),
             "lineage": lineage,
         }
+
+        self._record_sensor_lineage(
+            dimension_payloads,
+            symbol=resolved_symbol,
+            generated_at=timestamp,
+        )
 
         audit_entry = {
             "symbol": resolved_symbol,
@@ -319,6 +328,50 @@ class RealSensoryOrgan:
         if not mapping:
             return {}
         return {str(key): self._serialise_value(val) for key, val in mapping.items()}
+
+    def _record_sensor_lineage(
+        self,
+        dimension_payloads: Mapping[str, Mapping[str, Any]],
+        *,
+        symbol: str,
+        generated_at: datetime,
+    ) -> None:
+        publisher = self._lineage_publisher
+        if publisher is None:
+            return
+
+        for dimension, payload in dimension_payloads.items():
+            raw_metadata = payload.get("metadata")
+            metadata = raw_metadata if isinstance(raw_metadata, Mapping) else None
+            if not metadata:
+                continue
+            lineage_payload = metadata.get("lineage")
+            if lineage_payload is None:
+                continue
+
+            state_value = metadata.get("state")
+            state = state_value if isinstance(state_value, str) else None
+
+            threshold_state: str | None = None
+            threshold_metadata = metadata.get("threshold_assessment")
+            if isinstance(threshold_metadata, Mapping):
+                threshold_state_value = threshold_metadata.get("state")
+                if isinstance(threshold_state_value, str):
+                    threshold_state = threshold_state_value
+
+            extra_metadata = {k: v for k, v in metadata.items() if k != "lineage"}
+
+            publisher.record(
+                dimension,
+                lineage_payload,
+                symbol=symbol,
+                generated_at=generated_at,
+                strength=payload.get("signal"),
+                confidence=payload.get("confidence"),
+                state=state,
+                threshold_state=threshold_state,
+                metadata=extra_metadata,
+            )
 
     def _serialise_snapshot(self, snapshot: Mapping[str, Any] | None) -> Mapping[str, Any] | None:
         if snapshot is None:
@@ -520,4 +573,3 @@ class RealSensoryOrgan:
                 publish_sync(self._event_type, event_payload, source="sensory.real_organ")
             except Exception:
                 return
-

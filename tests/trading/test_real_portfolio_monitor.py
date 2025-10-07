@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 from src.config.portfolio_config import PortfolioConfig
-from src.trading.models import Position
+from src.trading.models.position import Position
 from src.trading.portfolio.real_portfolio_monitor import RealPortfolioMonitor
 
 

@@ -1,94 +1,143 @@
 {
-  "version": 1,
   "canonical_style": "src",
   "mappings": [
     {
-      "sources": ["operational.event_bus", "src.operational.event_bus"],
-      "target_module": "src.core.event_bus",
-      "symbols": ["*"]
+      "sources": [
+        "operational.event_bus",
+        "src.operational.event_bus"
+      ],
+      "symbols": [
+        "*"
+      ],
+      "target_module": "src.core.event_bus"
     },
     {
-      "sources": ["performance", "src.performance"],
-      "target_module": "src.core.performance.market_data_cache",
-      "symbols": ["get_global_cache"]
+      "sources": [
+        "trading.models",
+        "src.trading.models"
+      ],
+      "symbols": [
+        "Position"
+      ],
+      "target_module": "src.trading.models.position"
     },
     {
-      "sources": ["performance", "src.performance"],
-      "target_module": "src.core.performance.market_data_cache",
-      "symbols": ["GlobalCache"],
-      "rename": {"GlobalCache": "MarketDataCache"}
+      "sources": [
+        "trading.models.order",
+        "src.trading.models.order"
+      ],
+      "symbols": [
+        "*"
+      ],
+      "target_module": "src.trading.models.order"
     },
     {
-      "sources": ["performance.market_data_cache", "src.performance.market_data_cache"],
-      "target_module": "src.core.performance.market_data_cache",
-      "symbols": ["*"]
+      "sources": [
+        "core.sensory_organ",
+        "src.core.sensory_organ"
+      ],
+      "symbols": [
+        "SensoryOrgan"
+      ],
+      "target_module": "src.sensory.organs.dimensions.base_organ"
     },
     {
-      "sources": ["trading.models", "src.trading.models"],
-      "target_module": "src.trading.models.position",
-      "symbols": ["Position"]
+      "sources": [
+        "intelligence.red_team_ai",
+        "src.intelligence.red_team_ai"
+      ],
+      "symbols": [
+        "StrategyAnalyzer",
+        "WeaknessDetector",
+        "AttackGenerator",
+        "ExploitDeveloper",
+        "RedTeamAI"
+      ],
+      "target_module": "src.thinking.adversarial.red_team_ai"
     },
     {
-      "sources": ["trading.models.order", "src.trading.models.order"],
-      "target_module": "src.trading.models.order",
-      "symbols": ["*"]
+      "sources": [
+        "phase2d_integration_validator",
+        "src.phase2d_integration_validator"
+      ],
+      "symbols": [
+        "Phase2DIntegrationValidator"
+      ],
+      "target_module": "src.validation.phase2d_integration_validator"
     },
     {
-      "sources": ["sensory.models", "src.sensory.models"],
-      "target_module": "src.sensory.organs.dimensions.base_organ",
-      "symbols": ["SensoryReading"]
+      "sources": [
+        "thinking.sentient_adaptation_engine",
+        "src.thinking.sentient_adaptation_engine"
+      ],
+      "symbols": [
+        "SentientAdaptationEngine"
+      ],
+      "target_module": "src.intelligence.sentient_adaptation"
     },
     {
-      "sources": ["core.sensory_organ", "src.core.sensory_organ"],
-      "target_module": "src.sensory.organs.dimensions.base_organ",
-      "symbols": ["SensoryOrgan"]
+      "preserve_alias": true,
+      "rename": {
+        "MemoryEntry": "PatternMemoryEntry"
+      },
+      "sources": [
+        "src.thinking.memory.pattern_memory"
+      ],
+      "symbols": [
+        "MemoryEntry"
+      ],
+      "target_module": "src.thinking.memory.pattern_memory"
     },
     {
-      "sources": ["intelligence.red_team_ai", "src.intelligence.red_team_ai"],
-      "target_module": "src.thinking.adversarial.red_team_ai",
-      "symbols": ["StrategyAnalyzer","WeaknessDetector","AttackGenerator","ExploitDeveloper","RedTeamAI"]
+      "sources": [
+        "core.performance.market_data_cache",
+        "src.core.performance.market_data_cache"
+      ],
+      "symbols": [
+        "*"
+      ],
+      "target_module": "src.core.performance.market_data_cache"
     },
     {
-      "sources": ["phase2d_integration_validator", "src.phase2d_integration_validator"],
-      "target_module": "src.validation.phase2d_integration_validator",
-      "symbols": ["Phase2DIntegrationValidator"]
+      "sources": [
+        "trading.models.position",
+        "src.trading.models.position"
+      ],
+      "symbols": [
+        "*"
+      ],
+      "target_module": "src.trading.models.position"
     },
     {
-      "sources": ["thinking.sentient_adaptation_engine", "src.thinking.sentient_adaptation_engine"],
-      "target_module": "src.intelligence.sentient_adaptation",
-      "symbols": ["SentientAdaptationEngine"]
+      "sources": [
+        "core.interfaces",
+        "src.core.interfaces"
+      ],
+      "symbols": [
+        "*"
+      ],
+      "target_module": "src.core.interfaces"
     },
     {
-      "sources": ["src.thinking.memory.pattern_memory"],
-      "target_module": "src.thinking.memory.pattern_memory",
-      "symbols": ["MemoryEntry"],
-      "rename": {"MemoryEntry": "PatternMemoryEntry"},
-      "preserve_alias": true
+      "sources": [
+        "core.exceptions",
+        "src.core.exceptions"
+      ],
+      "symbols": [
+        "*"
+      ],
+      "target_module": "src.core.exceptions"
     },
     {
-      "sources": ["core.performance.market_data_cache", "src.core.performance.market_data_cache"],
-      "target_module": "src.core.performance.market_data_cache",
-      "symbols": ["*"]
-    },
-    {
-      "sources": ["trading.models.position", "src.trading.models.position"],
-      "target_module": "src.trading.models.position",
-      "symbols": ["*"]
-    },
-    {
-      "sources": ["core.interfaces", "src.core.interfaces"],
-      "target_module": "src.core.interfaces",
-      "symbols": ["*"]
-    },
-    {
-      "sources": ["core.exceptions", "src.core.exceptions"],
-      "target_module": "src.core.exceptions",
-      "symbols": ["*"]
-    },
-    {
-      "sources": ["trading.models", "src.trading.models"],
-      "target_module": "src.trading.models",
-      "symbols": ["*"]
+      "sources": [
+        "trading.models",
+        "src.trading.models"
+      ],
+      "symbols": [
+        "*"
+      ],
+      "target_module": "src.trading.models"
     }
-  ]
+  ],
+  "version": 1
 }

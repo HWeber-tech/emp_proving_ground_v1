@@ -18,8 +18,8 @@ from typing import Any, Dict, Iterator, List, Optional, cast
 import pandas as pd
 
 from ...config.portfolio_config import PortfolioConfig
-from ..models import Position
 from ..models.portfolio_snapshot import PortfolioSnapshot
+from ..models.position import Position
 from ..monitoring.performance_metrics import PerformanceMetrics
 
 logger = logging.getLogger(__name__)

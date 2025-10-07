@@ -93,11 +93,21 @@ if "src.runtime.runtime_builder" not in sys.modules:
     def _stub_build_runtime_application(*_args, **_kwargs):  # pragma: no cover
         raise NotImplementedError
 
+    async def _stub_execute_timescale_ingest(*_args, **__kwargs):  # pragma: no cover - stubbed runtime hook
+        return True, None
+
     runtime_builder_module.RuntimeApplication = _StubRuntimeApplication  # type: ignore[attr-defined]
     runtime_builder_module.RuntimeWorkload = _StubRuntimeWorkload  # type: ignore[attr-defined]
     runtime_builder_module.build_professional_runtime_application = (  # type: ignore[attr-defined]
         _stub_build_runtime_application
     )
+    runtime_builder_module._execute_timescale_ingest = _stub_execute_timescale_ingest  # type: ignore[attr-defined]
+    runtime_builder_module.__all__ = [  # type: ignore[attr-defined]
+        "RuntimeApplication",
+        "RuntimeWorkload",
+        "build_professional_runtime_application",
+        "_execute_timescale_ingest",
+    ]
     sys.modules["src.runtime.runtime_builder"] = runtime_builder_module
 
 from src.core.event_bus import EventBus

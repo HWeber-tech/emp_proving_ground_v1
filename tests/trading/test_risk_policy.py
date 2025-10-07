@@ -463,3 +463,49 @@ def test_risk_policy_derives_equity_from_cash_and_positions() -> None:
     assert total_exposure_check["ratio"] == pytest.approx(
         decision.metadata["projected_total_exposure"] / decision.metadata["max_total_exposure"]
     )
+
+
+def test_risk_policy_handles_string_payloads_and_ignored_positions() -> None:
+    config = RiskConfig(
+        max_risk_per_trade_pct=Decimal("0.05"),
+        max_total_exposure_pct=Decimal("0.8"),
+        max_leverage=Decimal("3.5"),
+        max_drawdown_pct=Decimal("0.5"),
+        min_position_size=1,
+        max_position_size=10_000,
+        mandatory_stop_loss=False,
+    )
+    policy = RiskPolicy.from_config(config)
+
+    state = {
+        "equity": " ",
+        "cash": "2500.5",
+        "current_price": "1.3",
+        "current_daily_drawdown": "0.0",
+        "open_positions": {
+            "EURUSD": {"quantity": "300", "current_value": "360"},
+            "GBPUSD": "not-a-position",
+            "AUDUSD": {"quantity": "invalid", "avg_price": "1.0"},
+        },
+    }
+
+    decision = policy.evaluate(
+        symbol="EURUSD",
+        quantity=100.0,
+        price=0.0,
+        stop_loss_pct=0.01,
+        portfolio_state=state,
+    )
+
+    assert decision.approved is True
+    assert decision.violations == tuple()
+    assert decision.metadata["resolved_price"] == pytest.approx(1.2)
+    assert decision.metadata["equity"] == pytest.approx(2_860.5)
+    assert decision.metadata["current_total_exposure"] == pytest.approx(360.0)
+    assert decision.metadata["projected_total_exposure"] == pytest.approx(480.0)
+    assert decision.metadata["risk_budget"] == pytest.approx(143.025)
+    total_exposure_check = next(
+        check for check in decision.checks if check["name"] == "policy.max_total_exposure_pct"
+    )
+    assert total_exposure_check["status"] == "ok"
+    assert total_exposure_check["value"] == pytest.approx(480.0)

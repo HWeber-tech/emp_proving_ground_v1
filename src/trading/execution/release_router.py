@@ -192,7 +192,23 @@ class ReleaseAwareExecutionRouter:
                 severity = None
 
         if allowed is False:
-            return True, "drift_gate_blocked", severity
+            forced_reason = gate_payload.get("reason") or "drift_gate_blocked"
+            return True, forced_reason, severity
+
+        force_flag = gate_payload.get("force_paper")
+        if isinstance(force_flag, bool) and force_flag:
+            forced_reason = gate_payload.get("reason")
+            if not forced_reason:
+                requirements = gate_payload.get("requirements")
+                if isinstance(requirements, Mapping):
+                    candidate = requirements.get("release_stage_gate")
+                    if isinstance(candidate, str) and candidate:
+                        forced_reason = candidate
+            if not forced_reason and severity is not None and severity is not DriftSeverity.normal:
+                forced_reason = f"drift_gate_severity_{severity.value}"
+            if not forced_reason:
+                forced_reason = "drift_gate_force_paper"
+            return True, forced_reason, severity
 
         if severity is None or severity is DriftSeverity.normal:
             return False, None, severity

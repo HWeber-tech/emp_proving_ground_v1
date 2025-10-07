@@ -268,10 +268,12 @@ async def test_trading_manager_gates_on_drift(monkeypatch: pytest.MonkeyPatch) -
     assert isinstance(gate_payload, dict)
     assert gate_payload.get("allowed") is False
     assert gate_payload.get("severity") == DriftSeverity.warn.value
+    assert gate_payload.get("force_paper") is True
     decision = manager.get_last_drift_gate_decision()
     assert decision is not None
     assert not decision.allowed
     assert decision.severity is DriftSeverity.warn
+    assert decision.force_paper is True
 
 
 @pytest.mark.asyncio()
@@ -347,6 +349,7 @@ async def test_trading_manager_records_gate_metadata_on_execution(
     assert isinstance(gate_payload, dict)
     assert gate_payload.get("allowed") is True
     assert gate_payload.get("severity") == DriftSeverity.warn.value
+    assert gate_payload.get("force_paper") is True
     thresholds = gate_payload.get("requirements", {})
     assert thresholds.get("confidence_floor") == pytest.approx(0.6)
     assert execution_engine.calls == 1
@@ -425,6 +428,7 @@ async def test_trading_manager_attaches_gate_metadata_to_fills(
     assert isinstance(payload, dict)
     assert payload.get("allowed") is True
     assert payload.get("severity") == DriftSeverity.warn.value
+    assert payload.get("force_paper") is True
     assert validate_mock.await_count == 1
 
 
@@ -505,6 +509,7 @@ async def test_trading_manager_release_thresholds(tmp_path: Path, monkeypatch: p
     decision = manager.get_last_drift_gate_decision()
     assert decision is not None
     assert not decision.allowed, "confidence below release-managed floor should block"
+    assert decision.force_paper is True
     assert "0.870" in (decision.reason or "")
     requirements = dict(decision.requirements)
     assert requirements["release_stage"] == PolicyLedgerStage.PAPER.value
@@ -519,13 +524,14 @@ async def test_trading_manager_release_thresholds(tmp_path: Path, monkeypatch: p
     gate_payload = metadata.get("drift_gate")
     assert isinstance(gate_payload, dict)
     gate_requirements = gate_payload.get("requirements", {})
+    assert gate_payload.get("force_paper") is True
     assert gate_requirements.get("release_stage") == PolicyLedgerStage.PAPER.value
     assert gate_requirements.get("confidence_floor") == pytest.approx(0.87, rel=1e-6)
     assert gate_requirements.get("warn_notional_limit") == pytest.approx(35_625.0)
 
 
 @pytest.mark.asyncio()
-async def test_trading_manager_blocks_experiment_stage(
+async def test_trading_manager_forces_paper_experiment_stage(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     async def _noop(*_args, **_kwargs) -> None:
@@ -557,10 +563,20 @@ async def test_trading_manager_blocks_experiment_stage(
         drift_gate=gate,
         release_manager=release_manager,
     )
-    execution_engine = RecordingExecutionEngine()
-    manager.execution_engine = execution_engine
+    paper_engine = RecordingExecutionEngine()
+    manager.execution_engine = paper_engine
+    live_engine = RecordingExecutionEngine()
+    router = manager.install_release_execution_router(live_engine=live_engine)
 
-    validate_mock: AsyncMock = AsyncMock(return_value=None)
+    intent = ConfidenceIntent(
+        symbol="EURUSD",
+        quantity=1.0,
+        price=1.2010,
+        confidence=0.9,
+        strategy_id="alpha",
+    )
+
+    validate_mock: AsyncMock = AsyncMock(return_value=intent)
     manager.risk_gateway.validate_trade_intent = validate_mock  # type: ignore[assignment]
 
     snapshot = SensoryDriftSnapshot(
@@ -572,42 +588,41 @@ async def test_trading_manager_blocks_experiment_stage(
     )
     manager.update_drift_sentry_snapshot(snapshot)
 
-    intent = ConfidenceIntent(
-        symbol="EURUSD",
-        quantity=1.0,
-        price=1.2010,
-        confidence=0.9,
-        strategy_id="alpha",
-    )
-
     await manager.on_trade_intent(intent)
-
-    assert validate_mock.await_count == 0, "Expected intent to be blocked before risk gateway"
-    assert execution_engine.calls == 0
 
     decision = manager.get_last_drift_gate_decision()
     assert decision is not None
-    assert not decision.allowed
+    assert decision.allowed is True
     assert decision.reason == "release_stage_experiment_requires_paper_or_better"
+    assert decision.force_paper is True
     assert decision.requirements.get("release_stage") == PolicyLedgerStage.EXPERIMENT.value
 
     events = manager.get_experiment_events()
-    assert events, "Expected gating event to be recorded"
+    assert events, "Expected experiment event to be recorded"
     event = events[0]
-    assert event["status"] == "gated"
+    assert event["status"] == "executed"
     metadata = event.get("metadata")
     assert isinstance(metadata, dict)
     gate_payload = metadata.get("drift_gate")
     assert isinstance(gate_payload, dict)
-    assert gate_payload.get("allowed") is False
+    assert gate_payload.get("allowed") is True
+    assert gate_payload.get("force_paper") is True
     assert (
         gate_payload.get("reason")
         == "release_stage_experiment_requires_paper_or_better"
     )
 
+    assert validate_mock.await_count == 1
+    assert paper_engine.calls == 1
+    assert live_engine.calls == 0
+    last_route = router.last_route()
+    assert last_route is not None
+    assert last_route.get("forced_reason") == "release_stage_experiment_requires_paper_or_better"
+    assert last_route.get("route") == "paper"
+
 
 @pytest.mark.asyncio()
-async def test_trading_manager_blocks_without_audit_coverage(
+async def test_trading_manager_forces_paper_without_audit_coverage(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     async def _noop(*_args, **_kwargs) -> None:
@@ -648,11 +663,10 @@ async def test_trading_manager_blocks_without_audit_coverage(
         drift_gate=gate,
         release_manager=release_manager,
     )
-    execution_engine = RecordingExecutionEngine()
-    manager.execution_engine = execution_engine
-
-    validate_mock: AsyncMock = AsyncMock(return_value=None)
-    manager.risk_gateway.validate_trade_intent = validate_mock  # type: ignore[assignment]
+    paper_engine = RecordingExecutionEngine()
+    manager.execution_engine = paper_engine
+    live_engine = RecordingExecutionEngine()
+    router = manager.install_release_execution_router(live_engine=live_engine)
 
     intent = ConfidenceIntent(
         symbol="EURUSD",
@@ -662,20 +676,35 @@ async def test_trading_manager_blocks_without_audit_coverage(
         strategy_id="alpha",
     )
 
+    validate_mock: AsyncMock = AsyncMock(return_value=intent)
+    manager.risk_gateway.validate_trade_intent = validate_mock  # type: ignore[assignment]
+
     await manager.on_trade_intent(intent)
 
     decision = manager.get_last_drift_gate_decision()
     assert decision is not None
-    assert decision.allowed is False
+    assert decision.allowed is True
+    assert decision.force_paper is True
     assert decision.reason == "release_stage_experiment_requires_paper_or_better"
-    assert validate_mock.await_count == 0
+    assert validate_mock.await_count == 1
+    assert paper_engine.calls == 1
+    assert live_engine.calls == 0
+    last_route = router.last_route()
+    assert last_route is not None
+    assert last_route.get("forced_reason") == "release_stage_experiment_requires_paper_or_better"
+    assert last_route.get("route") == "paper"
     summary = manager.describe_release_posture("alpha")
     assert summary["stage"] == PolicyLedgerStage.EXPERIMENT.value
     assert summary["declared_stage"] == PolicyLedgerStage.LIMITED_LIVE.value
     assert summary.get("audit_enforced") is True
     assert "missing_evidence" in summary.get("audit_gaps", [])
     events = manager.get_experiment_events()
-    assert events and events[0]["status"] == "gated"
+    assert events and events[0]["status"] == "executed"
+    metadata = events[0].get("metadata")
+    assert isinstance(metadata, dict)
+    gate_payload = metadata.get("drift_gate")
+    assert isinstance(gate_payload, dict)
+    assert gate_payload.get("force_paper") is True
 
 
 def test_describe_release_posture(tmp_path: Path) -> None:
@@ -828,6 +857,7 @@ async def test_release_router_forces_paper_on_drift_warn(tmp_path: Path) -> None
             "blocked_dimensions": [],
             "requirements": {},
             "snapshot_metadata": {},
+            "force_paper": True,
         }
     }
 

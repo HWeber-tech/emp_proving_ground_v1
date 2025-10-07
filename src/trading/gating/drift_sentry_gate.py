@@ -42,6 +42,7 @@ class DriftSentryDecision:
     requirements: Mapping[str, Any] = field(default_factory=dict)
     blocked_dimensions: tuple[str, ...] = ()
     snapshot_metadata: Mapping[str, Any] = field(default_factory=dict)
+    force_paper: bool = False
 
     def as_dict(self) -> dict[str, Any]:
         payload: dict[str, Any] = {
@@ -51,6 +52,7 @@ class DriftSentryDecision:
             "blocked_dimensions": list(self.blocked_dimensions),
             "requirements": dict(self.requirements),
             "snapshot_metadata": dict(self.snapshot_metadata),
+            "force_paper": self.force_paper,
         }
         if self.reason:
             payload["reason"] = self.reason
@@ -314,20 +316,30 @@ class DriftSentryGate:
     ) -> DriftSentryDecision:
         final_allowed = bool(allowed)
         final_reason = reason
+        requirements_payload = dict(requirements)
+        force_paper = False
 
-        stage_reason = self._stage_gate_reason(applied_stage) if final_allowed else None
+        stage_reason = self._stage_gate_reason(applied_stage)
         if stage_reason:
-            final_allowed = False
-            final_reason = stage_reason
+            force_paper = True
+            requirements_payload.setdefault("release_stage_gate", stage_reason)
+            if final_allowed:
+                final_reason = stage_reason
+            elif final_reason is None:
+                final_reason = stage_reason
+
+        if _severity_ge(severity, DriftSeverity.warn):
+            force_paper = True
 
         decision = DriftSentryDecision(
             allowed=final_allowed,
             severity=severity,
             evaluated_at=evaluated_at,
             reason=final_reason,
-            requirements=requirements,
+            requirements=requirements_payload,
             blocked_dimensions=tuple(blocked_dimensions),
             snapshot_metadata=snapshot_metadata,
+            force_paper=force_paper,
         )
         self._last_decision = decision
         return decision

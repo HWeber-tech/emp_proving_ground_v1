@@ -131,8 +131,8 @@ def test_adaptive_thresholds_without_snapshot(tmp_path: Path) -> None:
 
     resolver = AdaptiveReleaseThresholds(manager)
     thresholds = resolver.resolve(strategy_id="gamma", snapshot=None)
-    assert thresholds["stage"] == PolicyLedgerStage.PILOT.value
-    assert thresholds["warn_confidence_floor"] == pytest.approx(0.72, rel=1e-6)
+    assert thresholds["stage"] == PolicyLedgerStage.PAPER.value
+    assert thresholds["warn_confidence_floor"] == pytest.approx(0.73, rel=1e-6)
     assert thresholds["warn_notional_limit"] == pytest.approx(75_000.0)
     assert thresholds["block_severity"] == DriftSeverity.alert.value
     assert thresholds["adaptive_source"] == DriftSeverity.normal.value

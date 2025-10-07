@@ -20,6 +20,7 @@ from src.data_foundation.ingest.institutional_vertical import (
     InstitutionalIngestProvisioner,
     ManagedConnectorSnapshot,
     default_institutional_schedule,
+    plan_managed_manifest,
 )
 from src.data_foundation.ingest.scheduler import IngestSchedule
 from src.data_foundation.ingest.timescale_pipeline import TimescaleBackbonePlan
@@ -332,3 +333,39 @@ def test_manifest_snapshot_structure() -> None:
     assert timescale_snapshot.supervised is False
     assert timescale_snapshot.configured is True
     assert "dimensions" in timescale_snapshot.metadata
+
+
+def test_plan_managed_manifest_uses_configuration() -> None:
+    config = _ingest_config()
+    redis_settings = RedisConnectionSettings.from_mapping(
+        {"REDIS_URL": "redis://cache.example.com:6379/1"}
+    )
+    kafka_mapping = {
+        "KAFKA_BROKERS": "broker:9092",
+        "KAFKA_INGEST_CONSUMER_TOPICS": "telemetry.ingest, telemetry.drills",
+    }
+
+    manifest = plan_managed_manifest(
+        config,
+        redis_settings=redis_settings,
+        kafka_mapping=kafka_mapping,
+    )
+
+    snapshots = {snapshot.name: snapshot for snapshot in manifest}
+    timescale_metadata = snapshots["timescale"].metadata
+    assert timescale_metadata["application_name"] == config.timescale_settings.application_name
+    assert "***" in timescale_metadata["url"]
+    assert snapshots["redis"].metadata["summary"].startswith("Redis")
+    kafka_metadata = snapshots["kafka"].metadata
+    assert kafka_metadata["bootstrap_servers"] == "broker:9092"
+    assert set(kafka_metadata["topics"]) == {"telemetry.ingest", "telemetry.drills"}
+    assert kafka_metadata["consumer_topics_configured"] is True
+
+
+def test_plan_managed_manifest_adds_default_topic_when_missing() -> None:
+    config = _ingest_config()
+
+    manifest = plan_managed_manifest(config, kafka_mapping={})
+    kafka_metadata = next(snapshot for snapshot in manifest if snapshot.name == "kafka").metadata
+    assert "telemetry.ingest" in kafka_metadata["topics"]
+    assert kafka_metadata["consumer_topics_configured"] is True

@@ -24,7 +24,7 @@ import asyncio
 import contextlib
 import logging
 from dataclasses import dataclass, field
-from typing import Awaitable, Callable, Mapping, MutableMapping
+from typing import Awaitable, Callable, Mapping, MutableMapping, Sequence
 
 from sqlalchemy import text
 
@@ -59,6 +59,29 @@ ProbeCallable = Callable[[], Awaitable[bool] | bool]
 DEFAULT_INTERVAL_SECONDS = 3_600.0
 DEFAULT_JITTER_SECONDS = 120.0
 DEFAULT_MAX_FAILURES = 3
+
+
+def _extract_kafka_topics(mapping: Mapping[str, str]) -> tuple[str, ...]:
+    topics: set[str] = set()
+    topic_map, default_topic = ingest_topic_config_from_mapping(mapping)
+    for topic in topic_map.values():
+        cleaned = topic.strip()
+        if cleaned:
+            topics.add(cleaned)
+
+    raw_consumer_topics = mapping.get("KAFKA_INGEST_CONSUMER_TOPICS")
+    if raw_consumer_topics:
+        for entry in str(raw_consumer_topics).split(","):
+            cleaned = entry.strip()
+            if cleaned:
+                topics.add(cleaned)
+
+    if default_topic:
+        cleaned_default = default_topic.strip()
+        if cleaned_default:
+            topics.add(cleaned_default)
+
+    return tuple(sorted(topics))
 
 
 def default_institutional_schedule() -> IngestSchedule:
@@ -153,50 +176,21 @@ class InstitutionalIngestServices:
     def managed_manifest(self) -> tuple["ManagedConnectorSnapshot", ...]:
         """Return structured metadata for provisioned managed services."""
 
-        timescale_snapshot = ManagedConnectorSnapshot(
-            name="timescale",
-            configured=self.config.timescale_settings.configured,
-            supervised=self.scheduler.running,
-            metadata={
-                "application_name": self.config.timescale_settings.application_name,
-                "url": _redacted_url(self.config.timescale_settings.url),
-                "dimensions": list(_plan_dimensions(self.config)),
-            },
+        kafka_topics: Sequence[str] | None = None
+        if self.kafka_consumer is not None:
+            kafka_topics = self.kafka_consumer.topics
+
+        return _build_managed_manifest(
+            self.config,
+            scheduler_running=self.scheduler.running,
+            redis_settings=self.redis_settings,
+            redis_cache=self.redis_cache,
+            kafka_settings=self.kafka_settings,
+            kafka_consumer=self.kafka_consumer,
+            kafka_supervised=self._kafka_task is not None,
+            kafka_metadata=self.kafka_metadata,
+            kafka_topics=kafka_topics,
         )
-
-        redis_backing: str | None = None
-        if self.redis_cache is not None:
-            raw_client = getattr(self.redis_cache, "raw_client", None)
-            if raw_client is not None:
-                redis_backing = raw_client.__class__.__name__
-
-        redis_snapshot = ManagedConnectorSnapshot(
-            name="redis",
-            configured=bool(self.redis_settings and self.redis_settings.configured),
-            supervised=False,
-            metadata={
-                "summary": self.redis_settings.summary(redacted=True)
-                if self.redis_settings and self.redis_settings.configured
-                else None,
-                "backing": redis_backing,
-            },
-        )
-
-        kafka_snapshot = ManagedConnectorSnapshot(
-            name="kafka",
-            configured=bool(self.kafka_settings and self.kafka_settings.configured),
-            supervised=self._kafka_task is not None,
-            metadata={
-                "bootstrap_servers": (
-                    self.kafka_settings.bootstrap_servers if self.kafka_settings else None
-                ),
-                "topics": list(self.kafka_consumer.topics)
-                if self.kafka_consumer is not None
-                else [],
-            },
-        )
-
-        return (timescale_snapshot, redis_snapshot, kafka_snapshot)
 
     def summary(self) -> Mapping[str, object]:
         """Summarise managed connectors for observability dashboards."""
@@ -437,12 +431,125 @@ class InstitutionalIngestProvisioner:
             mapping["KAFKA_INGEST_CONSUMER_TOPICS"] = fallback_topic
         return mapping
 
+    def resolved_kafka_mapping(self) -> dict[str, str]:
+        """Expose the resolved Kafka mapping with institutional fallbacks applied."""
+
+        return self._resolved_kafka_mapping()
+
 
 __all__ = [
     "InstitutionalIngestProvisioner",
     "InstitutionalIngestServices",
     "default_institutional_schedule",
 ]
+
+
+def _build_managed_manifest(
+    config: InstitutionalIngestConfig,
+    *,
+    scheduler_running: bool,
+    redis_settings: RedisConnectionSettings | None,
+    redis_cache: ManagedRedisCache | None,
+    kafka_settings: KafkaConnectionSettings | None,
+    kafka_consumer: KafkaIngestEventConsumer | None,
+    kafka_supervised: bool,
+    kafka_metadata: Mapping[str, object] | None,
+    kafka_topics: Sequence[str] | None,
+) -> tuple["ManagedConnectorSnapshot", ...]:
+    timescale_metadata = {
+        "application_name": config.timescale_settings.application_name,
+        "url": _redacted_url(config.timescale_settings.url),
+        "dimensions": list(_plan_dimensions(config)),
+    }
+
+    redis_summary: str | None = None
+    if redis_settings is not None:
+        try:
+            redis_summary = redis_settings.summary(redacted=True)
+        except RuntimeError:  # pragma: no cover - redis optional dependency
+            redis_summary = "Redis client unavailable"
+
+    redis_backing: str | None = None
+    if redis_cache is not None:
+        raw_client = getattr(redis_cache, "raw_client", None)
+        if raw_client is not None:
+            redis_backing = raw_client.__class__.__name__
+
+    kafka_topics_list: list[str] = []
+    if kafka_topics is not None:
+        kafka_topics_list = [str(topic) for topic in kafka_topics if str(topic).strip()]
+    elif kafka_consumer is not None:
+        kafka_topics_list = list(kafka_consumer.topics)
+
+    kafka_snapshot_metadata: dict[str, object] = {
+        "summary": kafka_settings.summary(redacted=True)
+        if kafka_settings is not None
+        else None,
+        "bootstrap_servers": (
+            kafka_settings.bootstrap_servers if kafka_settings is not None else None
+        ),
+        "topics": kafka_topics_list,
+    }
+    if kafka_metadata:
+        kafka_snapshot_metadata.update(dict(kafka_metadata))
+
+    timescale_snapshot = ManagedConnectorSnapshot(
+        name="timescale",
+        configured=config.timescale_settings.configured,
+        supervised=scheduler_running,
+        metadata=timescale_metadata,
+    )
+
+    redis_snapshot = ManagedConnectorSnapshot(
+        name="redis",
+        configured=bool(redis_settings and redis_settings.configured),
+        supervised=False,
+        metadata={"summary": redis_summary, "backing": redis_backing},
+    )
+
+    kafka_snapshot = ManagedConnectorSnapshot(
+        name="kafka",
+        configured=bool(kafka_settings and kafka_settings.configured),
+        supervised=kafka_supervised,
+        metadata=kafka_snapshot_metadata,
+    )
+
+    return (timescale_snapshot, redis_snapshot, kafka_snapshot)
+
+
+def plan_managed_manifest(
+    config: InstitutionalIngestConfig,
+    *,
+    redis_settings: RedisConnectionSettings | None = None,
+    kafka_mapping: Mapping[str, str] | None = None,
+) -> tuple["ManagedConnectorSnapshot", ...]:
+    """Return a manifest snapshot without instantiating managed connectors."""
+
+    mapping = {str(k): str(v) for k, v in (kafka_mapping or {}).items()}
+    provisioner = InstitutionalIngestProvisioner(
+        config,
+        redis_settings=redis_settings,
+        kafka_mapping=mapping,
+    )
+    resolved_mapping = provisioner.resolved_kafka_mapping()
+    kafka_topics = _extract_kafka_topics(resolved_mapping)
+
+    kafka_metadata: dict[str, object] = {
+        "timescale_dimensions": list(_plan_dimensions(config)),
+        "consumer_topics_configured": bool(kafka_topics),
+    }
+
+    return _build_managed_manifest(
+        config,
+        scheduler_running=False,
+        redis_settings=redis_settings,
+        redis_cache=None,
+        kafka_settings=config.kafka_settings,
+        kafka_consumer=None,
+        kafka_supervised=False,
+        kafka_metadata=kafka_metadata,
+        kafka_topics=kafka_topics,
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -477,3 +584,4 @@ class ManagedConnectorSnapshot:
 
 
 __all__.append("ManagedConnectorSnapshot")
+__all__.append("plan_managed_manifest")

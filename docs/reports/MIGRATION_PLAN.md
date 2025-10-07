@@ -63,7 +63,7 @@ Batch 2 — Core market models
 - Actions:
   - Create [src/core/instrument_provider.py](src/core/instrument_provider.py) if missing; move Provider implementation here.
   - Convert [src/trading/models.py](src/trading/models.py) to re-export Position only.
-  - Replace inline OrderStatus in [src/operational/icmarkets_robust_application.py](src/operational/icmarkets_robust_application.py) with import from trading.models.order.
+  - ~~Replace inline OrderStatus in [src/operational/icmarkets_robust_application.py](src/operational/icmarkets_robust_application.py) with import from trading.models.order.~~ (module removed)
   - Move order book types into snapshot.py and rewire imports in trading and sensory.
 - Tests:
   - Run trading model tests; run scanner; confirm the above families disappear from duplicates.

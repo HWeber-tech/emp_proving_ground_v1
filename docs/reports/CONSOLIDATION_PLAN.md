@@ -19,7 +19,7 @@ Target single sources of truth (SoT):
 - Event system: keep `src/core/event_bus.py`; legacy `src/operational.event_bus` shim has been removed in favour of direct aliases that point to the canonical module.
 - Trading models: keep `src/trading/models/order.py`, `position.py`, `trade.py`; deprecate `src/trading/models.py` duplicates.
 - Execution: keep `src/trading/execution/execution_model.py` (slippage/fees) and integrate it into pre‑trade checks. Review `fix_executor.py`; either align with `FIXBrokerInterface` or move to legacy.
-- FIX connectivity: keep `src/operational/fix_connection_manager.py` and `src/trading/integration/fix_broker_interface.py`. Retire `icmarkets_robust_application.py` if overlapping.
+- FIX connectivity: keep `src/operational/fix_connection_manager.py` and `src/trading/integration/fix_broker_interface.py`. Legacy `icmarkets_robust_application.py` has already been removed.
 - Risk: consolidate under `src/core/risk/` with one `RiskManager` and one `RiskConfig`. Retire `src/risk/risk_manager_impl.py` if not the SoT.
 - Liquidity prober: refactor `src/trading/execution/liquidity_prober.py` to depend on `FIXBrokerInterface` (remove `mock_ctrader_interface` coupling) or move to `docs/legacy/` until refactored.
 - Configs: prefer typed configs under `src/data_foundation/config/` and YAML under `config/`. Remove duplicate config modules under `src/config/`.
@@ -59,4 +59,3 @@ Acceptance criteria:
 
 Notes:
 - This plan preserves the FIX‑only execution pathway and avoids introducing non‑FIX paths.
-

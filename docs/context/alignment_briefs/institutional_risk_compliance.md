@@ -128,8 +128,16 @@
   evidence collection, report persistence, and event-bus publishing so the
   compliance squad has a single supervised entrypoint for regulatory reporting
   under pytest coverage.【F:src/operations/governance_cadence.py†L1-L167】【F:tests/operations/test_governance_cadence.py†L1-L206】
-- Wire compliance workflows (KYC, trade surveillance) with markdown exports and
-  optional Timescale journaling to satisfy audit requirements.
+- [x] Wire compliance workflows (KYC, trade surveillance) with markdown exports
+  and optional Timescale journaling to satisfy audit requirements.
+  - Progress: Compliance workflow evaluation now converts trade,
+    KYC, and strategy-registry telemetry into MiFID, Dodd-Frank, audit, and
+    governance checklists with Markdown exports and failover-hardened publishes
+    under regression coverage.【F:src/compliance/workflow.py†L1-L419】【F:tests/compliance/test_compliance_workflow.py†L1-L182】
+  - Progress: Policy ledger release manager records promotions, approvals, and
+    adaptive thresholds while the trading manager/runtime builder publish the
+    staged governance workflow so release gating and compliance readiness share
+    the same evidence trail under pytest coverage.【F:src/governance/policy_ledger.py†L1-L405】【F:src/trading/trading_manager.py†L640-L764】【F:src/runtime/runtime_builder.py†L2920-L2987】【F:tests/trading/test_trading_manager_execution.py†L430-L512】
 - Complete runtime builder adoption so FIX pilots, simulators, and eventual live
   bridges share the same supervised entrypoint.【F:docs/technical_debt_assessment.md†L33-L56】
 

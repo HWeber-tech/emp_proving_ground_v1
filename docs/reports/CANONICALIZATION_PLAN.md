@@ -101,10 +101,10 @@ Phase 1 scope — families and decisions
 
 7) OrderStatus (2)
 - Observed in:
-  - [src/operational/icmarkets_robust_application.py](src/operational/icmarkets_robust_application.py)
+  - ~~[src/operational/icmarkets_robust_application.py](src/operational/icmarkets_robust_application.py)~~ (removed)
   - [src/trading/models/order.py](src/trading/models/order.py)
 - Canonical: [src/trading/models/order.py](src/trading/models/order.py)
-- Legacy shim: operational site references import from trading; if inline enum/class exists, replace with alias.
+- Legacy shim: operational site references import from trading; removed stub no longer needs migration.
 - Rationale: trading owns order models.
 
 8) PerformanceTracker (2) and PerformanceMetrics (2)

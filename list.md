@@ -48,10 +48,10 @@
 48 - Define CounterLike, GaugeLike, HistogramLike protocols in [src/operational/metrics_registry.py](src/operational/metrics_registry.py:1) or in [src/core/interfaces/__init__.py](src/core/interfaces/__init__.py:1)
 49 - Type the memoization dictionaries in [src/operational/metrics_registry.py](src/operational/metrics_registry.py:1) with precise keys and values
 50 - Ensure registry getters in [src/operational/metrics_registry.py](src/operational/metrics_registry.py:1) return protocol types, not Any
-51 - Refactor [src/operational/icmarkets_robust_application.py](src/operational/icmarkets_robust_application.py:1) to type sockets, SSL sockets, threads, and message_queue properly
-52 - Guard Optional socket/SSL fields before use in [src/operational/icmarkets_robust_application.py](src/operational/icmarkets_robust_application.py:1)
-53 - Add missing returns and consistent bool return flow in [src/operational/icmarkets_robust_application.py](src/operational/icmarkets_robust_application.py:1)
-54 - Replace Any payloads with small dataclasses or TypedDicts in [src/operational/icmarkets_robust_application.py](src/operational/icmarkets_robust_application.py:1)
+51 - ~~Refactor [src/operational/icmarkets_robust_application.py](src/operational/icmarkets_robust_application.py:1) to type sockets, SSL sockets, threads, and message_queue properly~~ (module removed; see [docs/reports/CLEANUP_REPORT.md](docs/reports/CLEANUP_REPORT.md:152))
+52 - ~~Guard Optional socket/SSL fields before use in [src/operational/icmarkets_robust_application.py](src/operational/icmarkets_robust_application.py:1)~~ (module removed)
+53 - ~~Add missing returns and consistent bool return flow in [src/operational/icmarkets_robust_application.py](src/operational/icmarkets_robust_application.py:1)~~ (module removed)
+54 - ~~Replace Any payloads with small dataclasses or TypedDicts in [src/operational/icmarkets_robust_application.py](src/operational/icmarkets_robust_application.py:1)~~ (module removed)
 55 - Replace anonymous type() constructs with typed dataclasses in [src/operational/mock_fix.py](src/operational/mock_fix.py:1)
 56 - Fully type callbacks and queues in [src/operational/mock_fix.py](src/operational/mock_fix.py:1) and [src/operational/fix_connection_manager.py](src/operational/fix_connection_manager.py:1)
 57 - Remove “unused type: ignore” and fix generics for asyncio.Queue in [src/operational/fix_connection_manager.py](src/operational/fix_connection_manager.py:1)

@@ -85,7 +85,7 @@ Dead code candidates (first 100):
    resolves through `src/core/evolution/engine.py`).【F:src/core/evolution/engine.py†L13-L43】
 -  src\config\portfolio_config.py
 -  ~~src\config\risk_config.py~~ (removed; canonical risk config lives at `src/config/risk/risk_config.py`).【F:src/config/risk/risk_config.py†L1-L72】
--  src\config\sensory_config.py
+-  ~~src\config\sensory_config.py~~ (removed; sensory presets live in the canonical organ registry)
 -  src\core\configuration.py
 -  ~~src\core\context_packet.py~~ (removed; canonical context events now live
    under the thinking domain.)【F:src/thinking/models/context_packet.py†L1-L51】
@@ -117,10 +117,10 @@ Dead code candidates (first 100):
 -  src\data_foundation\config\sizing_config.py
 -  src\data_foundation\config\vol_config.py
 -  src\data_foundation\config\why_config.py
--  src\data_foundation\ingest\fred_calendar.py
+-  ~~src\data_foundation\ingest\fred_calendar.py~~ (removed; macro events default to no-op fetcher)
 -  src\data_foundation\ingest\yahoo_ingest.py
 -  src\data_foundation\persist\jsonl_writer.py
--  src\data_foundation\persist\parquet_writer.py
+-  ~~src\data_foundation\persist\parquet_writer.py~~ (removed; pricing cache owns dataset persistence)
 -  src\data_foundation\replay\multidim_replayer.py
 -  src\data_integration\data_fusion.py
 -  src\data_integration\dukascopy_ingestor.py
@@ -130,8 +130,8 @@ Dead code candidates (first 100):
 -  src\ecosystem\evaluation\niche_detector.py
 -  src\ecosystem\optimization\ecosystem_optimizer.py
 -  src\ecosystem\species\factories.py
--  src\evolution\ambusher\ambusher_orchestrator.py
--  src\evolution\mutation\gaussian_mutation.py
+-  ~~src\evolution\ambusher\ambusher_orchestrator.py~~ (removed)
+-  ~~src\evolution\mutation\gaussian_mutation.py~~ (removed)
 -  src\genome\models\genome.py
 -  src\governance\audit_logger.py
 -  src\governance\safety_manager.py
@@ -149,7 +149,7 @@ Dead code candidates (first 100):
 -  ~~src\\operational\\event_bus.py~~ (removed; canonical imports now resolve through `src/core/event_bus.py` with legacy aliases registered during `src.operational` package import.)
 -  src\operational\fix_connection_manager.py
 -  src\operational\health_monitor.py
--  src\operational\icmarkets_robust_application.py
+-  ~~src\operational\icmarkets_robust_application.py~~ (removed; FIX connectivity consolidated under `fix_connection_manager`)
 -  src\operational\md_capture.py
 -  src\operational\metrics.py
 -  src\operational\mock_fix.py
@@ -175,7 +175,7 @@ Dead code candidates (first 100):
 -  src\sensory\organs\dimensions\data_integration.py
 -  src\sensory\organs\dimensions\how_organ.py
 -  src\sensory\organs\dimensions\institutional_tracker.py
--  src\sensory\organs\dimensions\integration_orchestrator.py
+-  ~~src\sensory\organs\dimensions\integration_orchestrator.py~~ (removed)
 -  src\sensory\organs\dimensions\macro_intelligence.py
 -  src\sensory\organs\dimensions\pattern_engine.py
 -  src\sensory\organs\dimensions\real_sensory_organ.py

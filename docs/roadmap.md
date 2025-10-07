@@ -47,6 +47,10 @@ kit that the roadmap calls back to in each checklist.
     the guardrail remains deterministic. The guardrail manifest now pins the
     ingest scheduler regression to the `guardrail` matrix, ensuring CI fails
     fast if the scheduler suite drifts or loses its guardrail marker.【F:src/data_foundation/ingest/scheduler.py†L1-L138】【F:tests/data_foundation/test_ingest_scheduler.py†L1-L200】【F:tests/runtime/test_guardrail_suite_manifest.py†L18-L90】
+  - *Progress*: Pricing cache now hashes ingest parameters into deterministic
+    dataset artefacts, writes metadata and issues manifests, enforces retention
+    policies, and logs cleanup failures under regression coverage so bootstrap
+    slices leave auditable evidence without leaking stale files.【F:src/data_foundation/cache/pricing_cache.py†L1-L194】【F:tests/data_foundation/cache/test_pricing_cache.py†L1-L41】
   - *Progress*: Cobertura coverage guardrail tooling now parses XML reports,
     asserts coverage for ingest, risk, and observability hotspots, flags missing
     targets, and exits non-zero for WARN/FAIL thresholds so CI pipelines and
@@ -101,11 +105,10 @@ kit that the roadmap calls back to in each checklist.
     logs filesystem failures, and cleans up partial files so ingest tooling surfaces
     genuine persistence faults instead of emitting empty paths under silent
     fallbacks.【F:src/data_foundation/persist/jsonl_writer.py†L1-L69】【F:tests/data_foundation/test_jsonl_writer.py†L1-L37】
-  - *Progress*: Parquet ingest persistence now resolves the pandas DataFrame
-    constructor defensively, logs conversion and filesystem failures, and
-    returns explicit sentinels under regression coverage so institutional
-    ingest slices capture telemetry write issues instead of silently losing
-    events.【F:src/data_foundation/persist/parquet_writer.py†L1-L75】【F:tests/data_foundation/test_parquet_writer.py†L1-L93】
+  - *Progress*: Legacy parquet-writer scaffolding has been removed so ingest
+    persistence now routes through the pricing cache helpers that hash
+    parameters, write manifests, and enforce retention under regression
+    coverage, shrinking the operational dead-code surface.【F:docs/reports/CLEANUP_REPORT.md†L110-L170】【F:src/data_foundation/cache/pricing_cache.py†L1-L194】
   - *Progress*: Ingest telemetry publisher now logs recoverable local bus
     failures, escalates unexpected exceptions, and falls back to the global bus
     under pytest coverage so ingest snapshots are not silently dropped when the
@@ -535,9 +538,14 @@ kit that the roadmap calls back to in each checklist.
       parameterised deletes, and asserts gateway error handling so bootstrap
       persistence cannot be hijacked by crafted identifiers or silent
       failures.【F:src/data_foundation/ingest/yahoo_ingest.py†L82-L151】【F:tests/data_foundation/test_yahoo_ingest_security.py†L32-L80】【F:tests/data_integration/test_yfinance_gateway_security.py†L12-L56】
-    - *Progress*: Hardened the IC Markets operational bridge with classified
-      network/message error handling, managed retries, and structured logging so
-      FIX connectivity failures surface instead of stalling silent loops.【F:src/operational/icmarkets_robust_application.py†L22-L333】
+    - *Progress*: Retired the legacy `icmarkets_robust_application` scaffolding so
+      the security sweep no longer claims coverage for a deleted stub; the
+      cleanup report now records the removal while the typed FIX connection
+      manager remains the canonical broker entrypoint.【F:docs/reports/CLEANUP_REPORT.md†L110-L170】【F:src/operational/fix_connection_manager.py†L21-L320】
+    - *Progress*: Portfolio tracker now falls back to an atomic JSON state store,
+      logs corrupted or missing snapshots, and persists fills by symbol with
+      regression coverage so parity checks and compliance telemetry inherit a
+      deterministic portfolio view even without Redis.【F:src/trading/monitoring/portfolio_tracker.py†L1-L139】【F:tests/trading/test_portfolio_tracker_security.py†L1-L30】
     - *Progress*: Security posture publishing now warns and falls back to the
       global bus when runtime publishing fails, raises on unexpected errors, and
       documents the error-handling paths under pytest so telemetry outages cannot
@@ -736,6 +744,11 @@ kit that the roadmap calls back to in each checklist.
     snapshots, persists history with metadata, emits Markdown alongside JSON, and
     records regression coverage so operators can script cadence exports without
     bespoke tooling.【F:tools/telemetry/export_governance_report.py†L1-L260】【F:tests/tools/test_export_governance_report.py†L1-L139】
+  - *Progress*: Policy ledger now records tactic promotions, approvals, and
+    threshold overrides, builds governance workflow checklists, and the trading
+    manager/runtime builder publish the combined compliance snapshots so KYC and
+    trade surveillance inherit staged release thresholds under regression
+    coverage.【F:src/governance/policy_ledger.py†L1-L405】【F:src/compliance/workflow.py†L1-L419】【F:src/trading/trading_manager.py†L640-L764】【F:src/runtime/runtime_builder.py†L2920-L2987】【F:tests/compliance/test_compliance_workflow.py†L1-L182】【F:tests/trading/test_trading_manager_execution.py†L430-L512】
 
 ## Actionable to-do tracker
 

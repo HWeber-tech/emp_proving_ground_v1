@@ -35,10 +35,12 @@ The system has a well-defined architectural framework with clear separation of c
 **Status**: Limited working components
 
 **Components**:
-- `icmarkets_api.py`: FIX API connectivity (authentication working)
-- `icmarkets_config.py`: Configuration for IC Markets integration
+- `fix_connection_manager.py`: FIX session bootstrapping helpers and typed configuration hooks
+- `mock_fix.py`: Simplified FIX manager used for tests and rehearsals
 
-**Reality**: Basic FIX connectivity works for authentication and basic messaging. No real trading execution beyond test orders.
+**Reality**: Legacy IC Markets connectors have been removed; only the connection
+manager scaffolding and mocks remain. There is no live broker execution, only
+bootstrap wiring for future pilots.
 
 ### Evolution Layer (`src/evolution/`)
 
@@ -176,4 +178,3 @@ When working with this architecture:
 
 *This document reflects the actual architectural state as of January 2025*  
 *Status: Framework Architecture - Implementation Required*
-

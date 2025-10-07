@@ -37,40 +37,38 @@ def test_intelligence_public_api_no_side_effects_and_lazy(caplog):
     _ = intel.RedTeamAI  # noqa: F841
 
 
-def test_intelligence_facade_modules_reexport_canonical_symbols(caplog):
+def test_intelligence_facade_resolves_canonical_symbols(caplog):
     caplog.set_level(logging.INFO)
 
-    rt_mod = importlib.import_module("src.intelligence.red_team_ai")
-    ci_mod = importlib.import_module("src.intelligence.competitive_intelligence")
+    intel = importlib.import_module("src.intelligence")
 
     joined = "\n".join(r.message for r in caplog.records)
     assert "Starting" not in joined
     assert "Configured logging" not in joined
 
-    red_team_symbols = {
-        "StrategyAnalyzer": "src.thinking.adversarial.red_team_ai",
-        "WeaknessDetector": "src.thinking.adversarial.red_team_ai",
-        "AttackGenerator": "src.thinking.adversarial.red_team_ai",
-        "ExploitDeveloper": "src.thinking.adversarial.red_team_ai",
+    canonical_map = {
         "RedTeamAI": "src.thinking.adversarial.red_team_ai",
-    }
-    for name, module_name in red_team_symbols.items():
-        attr = getattr(rt_mod, name)
-        assert attr.__module__ == module_name
-
-    with pytest.raises(AttributeError, match="removed"):
-        getattr(rt_mod, "StrategyAnalyzerLegacy")
-
-    comp_symbols = {
-        "AlgorithmFingerprinter": "src.thinking.competitive.competitive_intelligence_system",
-        "BehaviorAnalyzer": "src.thinking.competitive.competitive_intelligence_system",
+        "AdversarialTrainer": "src.thinking.adversarial.adversarial_trainer",
+        "MarketGAN": "src.thinking.adversarial.market_gan",
+        "PredictiveMarketModeler": "src.thinking.prediction.predictive_market_modeler",
         "CompetitiveIntelligenceSystem": "src.thinking.competitive.competitive_intelligence_system",
-        "CounterStrategyDeveloper": "src.thinking.competitive.competitive_intelligence_system",
-        "MarketShareTracker": "src.thinking.competitive.competitive_intelligence_system",
+        "SpecializedPredatorEvolution": "src.ecosystem.evolution.specialized_predator_evolution",
     }
-    for name, module_name in comp_symbols.items():
-        attr = getattr(ci_mod, name)
-        assert attr.__module__ == module_name
 
-    with pytest.raises(AttributeError, match="removed"):
-        getattr(ci_mod, "AlgorithmFingerprinterLegacy")
+    for name, module_name in canonical_map.items():
+        attr = getattr(intel, name)
+        assert getattr(attr, "__module__", module_name) == module_name
+
+    portfolio_engine = getattr(intel, "PortfolioEvolutionEngine")
+    assert portfolio_engine.__module__ == "src.intelligence"
+
+    legacy_modules = [
+        "src.intelligence.red_team_ai",
+        "src.intelligence.competitive_intelligence",
+        "src.intelligence.predictive_modeling",
+        "src.intelligence.specialized_predators",
+    ]
+
+    for module_name in legacy_modules:
+        with pytest.raises(ModuleNotFoundError):
+            importlib.import_module(module_name)

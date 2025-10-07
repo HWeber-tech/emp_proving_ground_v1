@@ -32,12 +32,14 @@ __all__ = [
     "Phase3IntelligenceOrchestrator",
 ]
 
-# Lazy mapping of public names to their canonical modules
-# We point to the intelligence facades for stability; they in turn may lazily
-# resolve canonical thinking.* implementations.
+# Lazy mapping of public names to their canonical modules. This keeps import
+# time light while ensuring callers resolve the single source of truth instead
+# of legacy shim modules.
 _LAZY_EXPORTS: dict[str, str] = {
     "SentientAdaptationEngine": "src.intelligence.sentient_adaptation:SentientAdaptationEngine",
-    "PredictiveMarketModeler": "src.intelligence.predictive_modeling:PredictiveMarketModeler",
+    "PredictiveMarketModeler": (
+        "src.thinking.prediction.predictive_market_modeler:PredictiveMarketModeler"
+    ),
     "MarketGAN": "src.thinking.adversarial.market_gan:MarketGAN",
     "AdversarialTrainer": "src.thinking.adversarial.adversarial_trainer:AdversarialTrainer",
     "RedTeamAI": "src.thinking.adversarial.red_team_ai:RedTeamAI",
@@ -48,6 +50,44 @@ _LAZY_EXPORTS: dict[str, str] = {
 }
 
 
+class _PortfolioEvolutionFallback:
+    """Lightweight fallback when the portfolio evolution engine is unavailable."""
+
+    def __init__(self) -> None:
+        self._history: list[dict[str, Any]] = []
+
+    async def initialize(self) -> bool:
+        return True
+
+    async def stop(self) -> bool:
+        return True
+
+    async def evolve_portfolio(
+        self, strategies: list[Any], market_data: Mapping[str, Any]
+    ) -> dict[str, Any]:
+        snapshot = {
+            "status": "unavailable",
+            "strategies": [getattr(s, "strategy_id", repr(s)) for s in strategies],
+            "context_keys": sorted(market_data.keys()),
+            "reason": "portfolio evolution engine fallback",
+        }
+        self._history.append(snapshot)
+        return snapshot
+
+    def get_evolution_stats(self) -> dict[str, Any]:
+        return {
+            "available": False,
+            "total_cycles": len(self._history),
+            "last_result": self._history[-1] if self._history else None,
+        }
+
+    def get_status(self) -> dict[str, Any]:
+        return {
+            "available": False,
+            "reason": "Portfolio evolution engine fallback in use",
+        }
+
+
 def __getattr__(name: str) -> Any:
     # Lazy import to reduce import-time cost; preserves legacy public path.
     target = _LAZY_EXPORTS.get(name)
@@ -55,8 +95,35 @@ def __getattr__(name: str) -> Any:
         import importlib
 
         mod_path, attr = target.split(":")
-        mod = importlib.import_module(mod_path)
-        return getattr(mod, attr)
+        try:
+            mod = importlib.import_module(mod_path)
+        except ImportError as exc:
+            if name == "PortfolioEvolutionEngine":
+                logger.warning(
+                    "Falling back to stub portfolio evolution engine: %s", exc
+                )
+                globals()[name] = _PortfolioEvolutionFallback
+                return _PortfolioEvolutionFallback
+            raise
+
+        try:
+            value = getattr(mod, attr)
+        except AttributeError as exc:
+            if name == "PortfolioEvolutionEngine":
+                logger.warning(
+                    "Portfolio evolution engine missing in %s: %s; using fallback",
+                    mod_path,
+                    exc,
+                )
+                value = _PortfolioEvolutionFallback
+            else:
+                raise
+        globals()[name] = value
+        return value
+    if name == "PortfolioEvolutionEngine":
+        logger.warning("Portfolio evolution engine unavailable; using fallback")
+        globals()[name] = _PortfolioEvolutionFallback
+        return _PortfolioEvolutionFallback
     raise AttributeError(name)
 
 

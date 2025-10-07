@@ -81,7 +81,11 @@ class HowSensor:
         if order_book is not None:
             order_snapshot = self._order_book_analytics.describe(order_book)
             if order_snapshot is not None:
-                telemetry.update(order_snapshot.as_dict())
+                order_metrics = {
+                    f"order_book_{name}": float(value)
+                    for name, value in order_snapshot.as_dict().items()
+                }
+                telemetry.update(order_metrics)
 
         audit: dict[str, object] = {
             "signal": signal_strength,

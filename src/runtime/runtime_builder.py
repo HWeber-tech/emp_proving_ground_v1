@@ -3243,4 +3243,6 @@ __all__ = [
     "RuntimeApplication",
     "RuntimeWorkload",
     "build_professional_runtime_application",
+    "_normalise_ingest_plan_metadata",
+    "_execute_timescale_ingest",
 ]

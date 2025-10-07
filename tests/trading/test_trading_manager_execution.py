@@ -661,6 +661,23 @@ def test_describe_risk_interface_exposes_canonical_payload() -> None:
     assert "policy_limits" in description["status"]
 
 
+def test_get_risk_status_includes_risk_api_summary() -> None:
+    manager = TradingManager(
+        event_bus=DummyBus(),
+        strategy_registry=AlwaysActiveRegistry(),
+        execution_engine=None,
+        initial_equity=10_000.0,
+        risk_config=RiskConfig(),
+    )
+
+    status = manager.get_risk_status()
+
+    summary = status.get("risk_config_summary")
+    assert isinstance(summary, dict)
+    assert summary["max_risk_per_trade_pct"] == pytest.approx(0.02)
+    assert status.get("risk_api_runbook", "").endswith("risk_api_contract.md")
+
+
 def test_describe_risk_interface_returns_runbook_on_error() -> None:
     class BrokenTradingManager(TradingManager):
         def __init__(self) -> None:

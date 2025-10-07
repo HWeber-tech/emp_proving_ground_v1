@@ -37,7 +37,12 @@ from src.trading.risk.policy_telemetry import (
 )
 from src.trading.risk.risk_gateway import RiskGateway
 from src.trading.risk.risk_policy import RiskPolicy
-from src.trading.risk.risk_api import RiskApiError, resolve_trading_risk_interface
+from src.trading.risk.risk_api import (
+    RISK_API_RUNBOOK,
+    RiskApiError,
+    resolve_trading_risk_interface,
+    summarise_risk_config,
+)
 from src.trading.risk.risk_interface_telemetry import (
     RiskInterfaceErrorAlert,
     RiskInterfaceSnapshot,
@@ -665,11 +670,22 @@ class TradingManager:
         if hasattr(self, "_risk_policy"):
             payload["policy_limits"] = self._risk_policy.limit_snapshot()
             payload["policy_research_mode"] = self._risk_policy.research_mode
-        if hasattr(self, "_risk_config"):
+        config = getattr(self, "_risk_config", None)
+        if isinstance(config, TradingRiskConfig):
             try:
-                payload["risk_config"] = self._risk_config.dict()
+                payload["risk_config"] = config.dict()
             except Exception:
                 payload["risk_config"] = {}
+            else:
+                try:
+                    summary = summarise_risk_config(config)
+                except Exception:
+                    logger.debug("Failed to summarise trading risk config", exc_info=True)
+                else:
+                    payload["risk_config_summary"] = summary
+        else:
+            payload["risk_config"] = {}
+        payload.setdefault("risk_api_runbook", RISK_API_RUNBOOK)
         if self._last_risk_snapshot is not None:
             payload["snapshot"] = self._last_risk_snapshot.as_dict()
         return payload

@@ -21,13 +21,14 @@ import json
 import logging
 import uuid
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional, Protocol, Sequence, TypedDict, cast, runtime_checkable
+from typing import Any, Coroutine, Dict, List, Optional, Protocol, Sequence, TypedDict, cast, runtime_checkable
 
 import numpy as np
 
 from src.core.adaptation import AdaptationService, NoOpAdaptationService
 from src.core.event_bus import EventBus
 from src.core.state_store import StateStore
+from src.runtime.task_supervisor import TaskSupervisor
 from src.thinking.adversarial.market_gan import MarketGAN
 from src.thinking.adversarial.red_team_ai import RedTeamAI
 from src.thinking.competitive.competitive_intelligence_system import CompetitiveIntelligenceSystem
@@ -104,9 +105,13 @@ class Phase3Orchestrator:
         state_store: StateStore,
         event_bus: EventBus,
         adaptation_service: Optional[AdaptationService] = None,
+        *,
+        task_supervisor: TaskSupervisor | None = None,
     ):
         self.state_store = state_store
         self.event_bus = event_bus
+        self._task_supervisor = task_supervisor
+        self._background_tasks: set[asyncio.Task[Any]] = set()
 
         # Initialize all Phase 3 systems
         self.sentient_engine = adaptation_service or NoOpAdaptationService()
@@ -174,12 +179,50 @@ class Phase3Orchestrator:
             logger.error(f"Error initializing Phase 3 systems: {e}")
             return False
 
-    async def start(self) -> bool:
+    def _spawn_background_task(
+        self,
+        coro: Coroutine[Any, Any, Any],
+        *,
+        name: str,
+        task_label: str,
+    ) -> asyncio.Task[Any]:
+        """Create and track a background task under the shared supervisor when available."""
+
+        metadata = {
+            "component": "thinking.phase3_orchestrator",
+            "task": task_label,
+        }
+        supervisor = self._task_supervisor
+        if supervisor is not None:
+            task = supervisor.create(coro, name=name, metadata=metadata)
+        else:
+            task = asyncio.create_task(coro, name=name)
+        self._background_tasks.add(task)
+        task.add_done_callback(lambda completed: self._background_tasks.discard(completed))
+        return task
+
+    async def _cancel_background_tasks(self) -> None:
+        """Cancel managed background tasks and await their completion."""
+
+        if not self._background_tasks:
+            return
+
+        tasks = tuple(self._background_tasks)
+        self._background_tasks.clear()
+        for task in tasks:
+            if not task.done():
+                task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
+
+    async def start(self, *, task_supervisor: TaskSupervisor | None = None) -> bool:
         """Start the Phase 3 orchestrator."""
         try:
             if self.is_running:
                 logger.warning("Phase 3 orchestrator already running")
                 return True
+
+            if task_supervisor is not None:
+                self._task_supervisor = task_supervisor
 
             logger.info("Starting Phase 3 orchestrator...")
 
@@ -190,8 +233,16 @@ class Phase3Orchestrator:
             self.is_running = True
 
             # Start background tasks
-            asyncio.create_task(self._run_continuous_analysis())
-            asyncio.create_task(self._run_performance_monitoring())
+            self._spawn_background_task(
+                self._run_continuous_analysis(),
+                name="phase3-continuous-analysis",
+                task_label="continuous_analysis",
+            )
+            self._spawn_background_task(
+                self._run_performance_monitoring(),
+                name="phase3-performance-monitor",
+                task_label="performance_monitoring",
+            )
 
             logger.info("Phase 3 orchestrator started successfully")
             return True
@@ -210,6 +261,8 @@ class Phase3Orchestrator:
             logger.info("Stopping Phase 3 orchestrator...")
 
             self.is_running = False
+
+            await self._cancel_background_tasks()
 
             # Stop all systems
             await self.sentient_engine.stop()

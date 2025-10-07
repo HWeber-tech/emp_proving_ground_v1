@@ -9,6 +9,7 @@ import pytest
 
 from src.core.event_bus import Event, EventBus
 from src.orchestration.compose import compose_validation_adapters
+from src.runtime.task_supervisor import TaskSupervisor
 from tests.util.orchestration_stubs import (
     InMemoryStateStore,
     install_phase3_orchestrator,
@@ -68,4 +69,34 @@ async def test_phase3_orchestrator_pipeline_smoke(monkeypatch: pytest.MonkeyPatc
         assert overall["presence"]["adversarial"] is True
     finally:
         await orchestrator.stop()
+        await event_bus.stop()
+
+
+@pytest.mark.asyncio
+async def test_phase3_orchestrator_supervised_tasks(monkeypatch: pytest.MonkeyPatch) -> None:
+    adapters = compose_validation_adapters()
+    orchestrator_module = install_phase3_orchestrator(monkeypatch)
+
+    event_bus = EventBus()
+    await event_bus.start()
+    supervisor = TaskSupervisor(namespace="phase3-supervisor-test")
+
+    state_store = InMemoryStateStore()
+    orchestrator = orchestrator_module.Phase3Orchestrator(
+        state_store=state_store,
+        event_bus=event_bus,
+        adaptation_service=adapters["adaptation_service"],
+        task_supervisor=supervisor,
+    )
+
+    try:
+        assert await orchestrator.initialize() is True
+        assert await orchestrator.start() is True
+        await asyncio.sleep(0.05)
+        assert supervisor.active_count >= 2
+        await orchestrator.stop()
+        await asyncio.sleep(0)
+        assert supervisor.active_count == 0
+    finally:
+        await supervisor.cancel_all()
         await event_bus.stop()

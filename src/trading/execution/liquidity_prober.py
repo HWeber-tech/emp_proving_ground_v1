@@ -13,9 +13,15 @@ import logging
 import uuid
 from datetime import datetime
 from decimal import Decimal
-from typing import Any, Literal, Optional
+from typing import Any, Callable, Coroutine, Iterable, Literal, Mapping, Optional
 
+from src.runtime.task_supervisor import TaskSupervisor
 from src.trading.integration.fix_broker_interface import FIXBrokerInterface
+from src.trading.risk.risk_api import (
+    RISK_API_RUNBOOK,
+    RiskApiError,
+    build_runtime_risk_metadata,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +36,12 @@ class LiquidityProber:
     """
 
     def __init__(
-        self, broker_interface: FIXBrokerInterface, config: Optional[dict[str, object]] = None
+        self,
+        broker_interface: FIXBrokerInterface,
+        config: Optional[dict[str, object]] = None,
+        *,
+        task_supervisor: TaskSupervisor | None = None,
+        risk_context_provider: Callable[[], Any] | None = None,
     ):
         """
         Initialize the LiquidityProber with broker interface and configuration.
@@ -41,6 +52,12 @@ class LiquidityProber:
         """
         self.broker = broker_interface
         self.config = config or {}
+        self._task_supervisor = task_supervisor
+        self._risk_context_provider = risk_context_provider
+
+        self._last_risk_metadata: dict[str, object] | None = None
+        self._last_risk_error: dict[str, object] | None = None
+        self._probe_counter = 0
 
         # Probe configuration
         self.probe_size = Decimal(str(self.config.get("probe_size", 0.001)))  # 0.001 lots default
@@ -57,6 +74,78 @@ class LiquidityProber:
             f"LiquidityProber initialized: probe_size={self.probe_size}, "
             f"timeout={self.timeout_seconds}s, max_concurrent={self.max_concurrent_probes}"
         )
+
+    def _capture_risk_context(self) -> None:
+        """Capture the latest deterministic risk metadata for telemetry surfaces."""
+
+        self._last_risk_metadata = None
+        self._last_risk_error = None
+
+        provider = self._risk_context_provider
+        if provider is None:
+            return
+
+        try:
+            candidate = provider()
+        except Exception as exc:  # pragma: no cover - defensive metadata guard
+            self._last_risk_error = {
+                "message": "Risk context provider failed",
+                "error": str(exc),
+                "runbook": RISK_API_RUNBOOK,
+            }
+            return
+
+        if candidate is None:
+            self._last_risk_error = {
+                "message": "Risk context provider returned no trading manager",
+                "runbook": RISK_API_RUNBOOK,
+            }
+            return
+
+        try:
+            self._last_risk_metadata = build_runtime_risk_metadata(candidate)
+        except RiskApiError as exc:
+            self._last_risk_error = exc.to_metadata()
+        except Exception as exc:  # pragma: no cover - unexpected metadata issue
+            self._last_risk_error = {
+                "message": "Unexpected risk metadata failure",
+                "error": str(exc),
+                "runbook": RISK_API_RUNBOOK,
+            }
+
+    def _spawn_probe_task(
+        self,
+        coro: Coroutine[Any, Any, float],
+        *,
+        name: str,
+        metadata: Mapping[str, object] | None = None,
+    ) -> asyncio.Task[float]:
+        """Create and track a probe task, delegating to the task supervisor when present."""
+
+        metadata_payload = dict(metadata) if metadata is not None else None
+        if self._task_supervisor is not None:
+            task = self._task_supervisor.create(
+                coro,
+                name=name,
+                metadata=metadata_payload,
+            )
+        else:
+            task = asyncio.create_task(coro, name=name)
+
+        self.active_probes[name] = task
+        task.add_done_callback(lambda completed, key=name: self.active_probes.pop(key, None))
+        return task
+
+    async def _drain_probe_tasks(
+        self, tasks: Iterable[asyncio.Task[float]]
+    ) -> None:
+        """Cancel any remaining probe tasks and await their completion."""
+
+        pending = [task for task in tasks if not task.done()]
+        for task in pending:
+            task.cancel()
+        if pending:
+            await asyncio.gather(*pending, return_exceptions=True)
 
     async def probe_liquidity(
         self, symbol: str, price_levels: list[float], side: Literal["buy", "sell"]
@@ -81,33 +170,58 @@ class LiquidityProber:
             f"at {len(price_levels)} price levels"
         )
 
+        self._capture_risk_context()
+
+        normalised_levels = [float(level) for level in price_levels]
+        if not normalised_levels:
+            self.probe_results[symbol] = {}
+            return {}
+
         results: dict[float, float] = {}
         semaphore = asyncio.Semaphore(self.max_concurrent_probes)
 
-        # Create probe tasks
+        # Create probe tasks under supervision when available
         probe_tasks: list[tuple[float, asyncio.Task[float]]] = []
-        for price in price_levels:
-            task: asyncio.Task[float] = asyncio.create_task(
-                self._single_probe(semaphore, symbol, price, side)
+        start_index = self._probe_counter
+        for offset, price in enumerate(normalised_levels, start=1):
+            task_name = f"liquidity-probe-{symbol}-{side}-{start_index + offset}"
+            metadata = {
+                "component": "trading.liquidity_prober",
+                "symbol": symbol,
+                "side": side,
+                "price": price,
+            }
+            task = self._spawn_probe_task(
+                self._single_probe(semaphore, symbol, price, side),
+                name=task_name,
+                metadata=metadata,
             )
             probe_tasks.append((price, task))
+        self._probe_counter = start_index + len(probe_tasks)
 
-        # Execute probes with timeout
         try:
             completed_probes = await asyncio.wait_for(
-                self._execute_probes(probe_tasks), timeout=self.timeout_seconds * len(price_levels)
+                self._execute_probes(probe_tasks),
+                timeout=self.timeout_seconds * len(normalised_levels),
             )
-
-            # Collect results
             for price, filled_volume in completed_probes:
                 results[price] = filled_volume
 
         except asyncio.TimeoutError:
             logger.warning("Liquidity probe timed out, returning partial results")
-            # Return whatever results we have
             for price, task in probe_tasks:
-                if task.done() and not task.exception():
+                if not task.done():
+                    continue
+                try:
+                    exception = task.exception()
+                except asyncio.CancelledError:
+                    continue
+                if exception is None:
                     results[price] = task.result()
+        finally:
+            await self._drain_probe_tasks(task for _, task in probe_tasks)
+
+        self.probe_results[symbol] = dict(results)
 
         logger.info(
             f"Completed liquidity probe for {symbol} - found liquidity at {len(results)} levels"
@@ -209,6 +323,16 @@ class LiquidityProber:
         logger.debug(f"Order {order_id} execution timeout after {timeout}s")
         return 0.0
 
+    def describe_risk_context(self) -> dict[str, object]:
+        """Expose the most recent deterministic risk context for telemetry surfaces."""
+
+        payload: dict[str, object] = {"runbook": RISK_API_RUNBOOK}
+        if self._last_risk_metadata is not None:
+            payload["metadata"] = dict(self._last_risk_metadata)
+        if self._last_risk_error is not None:
+            payload["error"] = dict(self._last_risk_error)
+        return payload
+
     def calculate_liquidity_confidence_score(
         self, probe_results: dict[float, float], intended_volume: float
     ) -> float:
@@ -297,5 +421,6 @@ class LiquidityProber:
                 "timeout_seconds": self.timeout_seconds,
                 "max_concurrent_probes": self.max_concurrent_probes,
             },
+            "risk_context": self.describe_risk_context(),
             "timestamp": datetime.now().isoformat(),
         }

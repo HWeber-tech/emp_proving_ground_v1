@@ -24,6 +24,7 @@ _DEFAULT_TARGETS: dict[str, str] = {
     "timescale_pipeline": "src/data_foundation/ingest/timescale_pipeline.py",
     "ingest_institutional_vertical": "src/data_foundation/ingest/institutional_vertical.py",
     "ingest_scheduler": "src/data_foundation/ingest/scheduler.py",
+    "ingest_configuration": "src/data_foundation/ingest/configuration.py",
     "risk_policy": "src/trading/risk/risk_policy.py",
     "risk_policy_telemetry": "src/trading/risk/policy_telemetry.py",
     "ingest_observability": "src/data_foundation/ingest/observability.py",

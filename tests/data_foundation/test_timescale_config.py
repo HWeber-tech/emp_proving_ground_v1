@@ -16,6 +16,9 @@ from src.governance.system_config import (
 )
 
 
+pytestmark = pytest.mark.guardrail
+
+
 def _base_config(**extras: str) -> SystemConfig:
     return SystemConfig(
         run_mode=RunMode.paper,

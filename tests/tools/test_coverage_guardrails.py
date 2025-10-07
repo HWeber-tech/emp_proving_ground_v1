@@ -42,6 +42,7 @@ def sample_report(tmp_path: Path) -> Path:
         "src/data_foundation/ingest/timescale_pipeline.py": [1, 1, 1, 1, 0],
         "src/data_foundation/ingest/institutional_vertical.py": [1, 1, 1, 1, 1, 0],
         "src/data_foundation/ingest/scheduler.py": [1, 1, 1, 1],
+        "src/data_foundation/ingest/configuration.py": [1, 1, 1, 1, 1, 0],
         "src/trading/risk/risk_policy.py": [1, 1, 0, 1, 1],
         "src/trading/risk/policy_telemetry.py": [1, 1, 1, 0],
         "src/data_foundation/ingest/observability.py": [1, 1, 1, 1, 1],
@@ -58,6 +59,7 @@ def test_evaluate_guardrails_passes_when_threshold_met(sample_report: Path) -> N
         "ingest_institutional_vertical",
         "timescale_pipeline",
         "ingest_scheduler",
+        "ingest_configuration",
         "risk_policy",
         "risk_policy_telemetry",
         "ingest_observability",
@@ -88,6 +90,7 @@ def test_evaluate_guardrails_marks_missing_targets(tmp_path: Path) -> None:
         "ingest_observability",
         "observability_dashboard",
         "risk_policy_telemetry",
+        "ingest_configuration",
     }
     missing = {target.label for target in report.targets if target.missing}
     assert missing == {
@@ -97,6 +100,7 @@ def test_evaluate_guardrails_marks_missing_targets(tmp_path: Path) -> None:
         "ingest_observability",
         "observability_dashboard",
         "risk_policy_telemetry",
+        "ingest_configuration",
     }
 
 

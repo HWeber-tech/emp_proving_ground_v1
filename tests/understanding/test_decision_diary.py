@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import json
+import logging
 import uuid
 from datetime import datetime, timezone
 
 import pytest
 
+from src.operations.event_bus_failover import EventPublishError
 from src.understanding.decision_diary import DecisionDiaryStore
 from src.understanding.probe_registry import ProbeDefinition, ProbeRegistry
 from src.thinking.adaptation.policy_router import PolicyDecision, RegimeState
@@ -94,3 +96,98 @@ def test_decision_diary_record_and_reload(tmp_path, fixed_uuid) -> None:
     assert reloaded.probe_registry.get("drift.sentry").owner == "governance"
 
     assert store.exists(entry.entry_id)
+
+
+def test_decision_diary_publish_event(tmp_path, fixed_uuid, monkeypatch) -> None:
+    events: list[object] = []
+
+    def _fake_publish_event_with_failover(event_bus, event, **_kwargs):
+        events.append(event)
+
+    monkeypatch.setattr(
+        "src.understanding.decision_diary.publish_event_with_failover",
+        _fake_publish_event_with_failover,
+    )
+
+    registry = ProbeRegistry()
+
+    store = DecisionDiaryStore(
+        tmp_path / "diary.json",
+        now=_fixed_now,
+        probe_registry=registry,
+        event_bus=object(),
+    )
+
+    decision = PolicyDecision(
+        tactic_id="alpha.shadow",
+        parameters={"size": 1},
+        selected_weight=1.0,
+        guardrails={},
+        rationale="",
+        experiments_applied=(),
+        reflection_summary={},
+    )
+    regime = RegimeState(
+        regime="calm",
+        confidence=0.5,
+        features={},
+        timestamp=_fixed_now(),
+    )
+
+    entry = store.record(
+        policy_id="alpha.policy",
+        decision=decision,
+        regime_state=regime,
+        outcomes={},
+    )
+
+    assert events, "expected decision diary event to be published"
+    event = events[0]
+    assert event.type == "governance.decision_diary.recorded"
+    assert event.payload["entry"]["policy_id"] == "alpha.policy"
+    assert entry.entry_id in event.payload["entry"]["entry_id"]
+    assert "markdown" in event.payload
+
+
+def test_decision_diary_publish_event_failure(tmp_path, fixed_uuid, monkeypatch, caplog) -> None:
+    def _raise_publish(*_args, **_kwargs):
+        raise EventPublishError(stage="runtime", event_type="governance.decision_diary.recorded")
+
+    monkeypatch.setattr(
+        "src.understanding.decision_diary.publish_event_with_failover",
+        _raise_publish,
+    )
+
+    registry = ProbeRegistry()
+    store = DecisionDiaryStore(
+        tmp_path / "diary.json",
+        now=_fixed_now,
+        probe_registry=registry,
+        event_bus=object(),
+    )
+
+    decision = PolicyDecision(
+        tactic_id="alpha.shadow",
+        parameters={},
+        selected_weight=1.0,
+        guardrails={},
+        rationale="",
+        experiments_applied=(),
+        reflection_summary={},
+    )
+    regime = RegimeState(
+        regime="calm",
+        confidence=0.5,
+        features={},
+        timestamp=_fixed_now(),
+    )
+
+    caplog.set_level(logging.WARNING)
+    store.record(
+        policy_id="alpha.policy",
+        decision=decision,
+        regime_state=regime,
+        outcomes={},
+    )
+
+    assert "Decision diary event publish failed" in caplog.text

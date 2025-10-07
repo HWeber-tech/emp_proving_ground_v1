@@ -19,6 +19,8 @@ from typing import Any, Callable, Iterable, Mapping, MutableMapping, Sequence
 from src.thinking.adaptation.policy_router import PolicyDecision, RegimeState
 from src.understanding.belief import BeliefState
 from src.understanding.probe_registry import ProbeDefinition, ProbeRegistry
+from src.core.event_bus import Event, EventBus
+from src.operations.event_bus_failover import EventPublishError, publish_event_with_failover
 
 logger = logging.getLogger(__name__)
 
@@ -356,12 +358,20 @@ class DecisionDiaryStore:
         *,
         now: Callable[[], datetime] | None = None,
         probe_registry: ProbeRegistry | None = None,
+        event_bus: EventBus | None = None,
+        event_type: str = "governance.decision_diary.recorded",
+        event_source: str = "understanding.decision_diary",
+        publish_on_record: bool = True,
     ) -> None:
         self._path = Path(path)
         self._path.parent.mkdir(parents=True, exist_ok=True)
         self._now = now or (lambda: datetime.now(tz=UTC))
         self._entries: MutableMapping[str, DecisionDiaryEntry] = {}
         self._probe_registry = probe_registry or ProbeRegistry()
+        self._event_bus = event_bus
+        self._event_type = event_type
+        self._event_source = event_source
+        self._publish_on_record = publish_on_record
         self._load()
 
     @property
@@ -477,6 +487,7 @@ class DecisionDiaryStore:
             "Decision diary entry recorded",
             extra={"entry_id": entry.entry_id, "policy_id": policy_id},
         )
+        self._publish_entry(entry)
         return entry
 
     def export_markdown(self, *, since: datetime | None = None) -> str:
@@ -494,3 +505,42 @@ class DecisionDiaryStore:
             "entries": [entry.as_dict() for entry in self.entries() if since_ts is None or entry.recorded_at >= since_ts],
         }
         return json.dumps(payload, indent=indent, sort_keys=True)
+
+    def _publish_entry(self, entry: DecisionDiaryEntry) -> None:
+        if not self._publish_on_record or self._event_bus is None:
+            return
+
+        event = Event(
+            type=self._event_type,
+            payload={
+                "generated_at": self._now().isoformat(),
+                "entry": entry.as_dict(),
+                "markdown": entry.to_markdown(),
+                "probe_registry": self._probe_registry.as_dict(),
+            },
+            source=self._event_source,
+        )
+
+        try:
+            publish_event_with_failover(
+                event_bus=self._event_bus,
+                event=event,
+                logger=logger,
+                runtime_fallback_message="Decision diary event publish failed via runtime bus; attempting global bus",
+                runtime_unexpected_message="Unexpected failure publishing decision diary event via runtime bus",
+                runtime_none_message="Runtime bus returned None for decision diary event; attempting global bus",
+                global_not_running_message="Global event bus not running for decision diary event",
+                global_unexpected_message="Unexpected failure publishing decision diary event via global bus",
+            )
+        except EventPublishError as exc:
+            logger.warning(
+                "Decision diary event publish failed",
+                exc_info=exc,
+                extra={"entry_id": entry.entry_id, "policy_id": entry.policy_id},
+            )
+        except Exception as exc:  # pragma: no cover - defensive guard
+            logger.exception(
+                "Unexpected error while publishing decision diary event",
+                exc_info=exc,
+                extra={"entry_id": entry.entry_id, "policy_id": entry.policy_id},
+            )

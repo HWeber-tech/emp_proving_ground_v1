@@ -15,6 +15,7 @@ except Exception:  # pragma: no cover
     redis = None  # type: ignore
 
 from src.config.risk.risk_config import RiskConfig as TradingRiskConfig
+from src.compliance.workflow import ComplianceWorkflowSnapshot
 from src.governance.policy_ledger import LedgerReleaseManager, PolicyLedgerStage
 from src.core.coercion import coerce_float, coerce_int
 from src.core.risk.manager import RiskManager, get_risk_manager
@@ -709,6 +710,28 @@ class TradingManager:
         if strategy_id and "strategy_id" not in summary:
             summary["strategy_id"] = strategy_id
         return summary
+
+    def build_policy_governance_snapshot(
+        self,
+        *,
+        regulation: str = "AlphaTrade Governance",
+        generated_at: datetime | None = None,
+    ) -> ComplianceWorkflowSnapshot | None:
+        """Return the governance checklist derived from the policy ledger."""
+
+        if self._release_manager is None:
+            return None
+        try:
+            return self._release_manager.build_governance_workflow(
+                regulation=regulation,
+                generated_at=generated_at,
+            )
+        except Exception:  # pragma: no cover - diagnostic fallback
+            logger.debug(
+                "Failed to build policy governance workflow snapshot",
+                exc_info=True,
+            )
+            return None
 
     def install_release_execution_router(
         self,

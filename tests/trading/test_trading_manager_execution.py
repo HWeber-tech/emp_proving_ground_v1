@@ -37,8 +37,10 @@ if not hasattr(_typing, "NotRequired"):
 import pytest
 
 from src.config.risk.risk_config import RiskConfig
+from src.compliance.workflow import WorkflowTaskStatus
 from src.governance.policy_ledger import (
     LedgerReleaseManager,
+    PolicyDelta,
     PolicyLedgerStage,
     PolicyLedgerStore,
 )
@@ -630,6 +632,47 @@ def test_describe_release_posture(tmp_path: Path) -> None:
     thresholds = summary["thresholds"]
     assert thresholds.get("adaptive_source") == DriftSeverity.normal.value
     assert summary.get("approvals") == ["ops", "risk"]
+
+
+def test_build_policy_governance_snapshot(tmp_path: Path) -> None:
+    store = PolicyLedgerStore(tmp_path / "policy_ledger.json")
+    release_manager = LedgerReleaseManager(store)
+    release_manager.promote(
+        policy_id="alpha",
+        tactic_id="alpha",
+        stage=PolicyLedgerStage.PILOT,
+        approvals=("risk", "compliance"),
+        evidence_id="diary-alpha",
+        policy_delta=PolicyDelta(
+            regime="balanced",
+            risk_config={"max_leverage": 6},
+            router_guardrails={"requires_diary": True},
+        ),
+    )
+
+    manager = TradingManager(
+        event_bus=DummyBus(),
+        strategy_registry=AlwaysActiveRegistry(),
+        execution_engine=None,
+        initial_equity=10_000.0,
+        drift_gate=None,
+        release_manager=release_manager,
+    )
+
+    snapshot = manager.build_policy_governance_snapshot()
+    assert snapshot is not None
+    assert snapshot.metadata.get("policy_count") == 1
+    checklist = next(
+        workflow for workflow in snapshot.workflows if workflow.name == "Policy Ledger Governance"
+    )
+    assert checklist.status in {
+        WorkflowTaskStatus.completed,
+        WorkflowTaskStatus.in_progress,
+    }
+    assert checklist.tasks
+    first_task = checklist.tasks[0]
+    assert first_task.metadata["policy_id"] == "alpha"
+    assert "diary-alpha" in first_task.summary
 
 
 @pytest.mark.asyncio()

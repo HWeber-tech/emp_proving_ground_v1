@@ -822,6 +822,7 @@ def evaluate_compliance_workflows(
     trade_summary: Mapping[str, object] | None,
     kyc_summary: Mapping[str, object] | None,
     strategy_registry: Mapping[str, object] | None = None,
+    policy_workflow_snapshot: ComplianceWorkflowSnapshot | None = None,
     metadata: Mapping[str, object] | None = None,
 ) -> ComplianceWorkflowSnapshot:
     """Convert compliance monitor telemetry into workflow snapshots."""
@@ -836,6 +837,13 @@ def evaluate_compliance_workflows(
         _build_audit_workflow(trade_details, kyc_details),
         _build_strategy_governance_workflow(strategy_registry),
     ]
+
+    policy_workflow_names: tuple[str, ...] = ()
+    if policy_workflow_snapshot is not None:
+        workflows.extend(policy_workflow_snapshot.workflows)
+        policy_workflow_names = tuple(
+            workflow.name for workflow in policy_workflow_snapshot.workflows
+        )
 
     status = WorkflowTaskStatus.completed
     for workflow in workflows:
@@ -852,6 +860,17 @@ def evaluate_compliance_workflows(
     }
     if strategy_registry:
         snapshot_metadata["strategy_registry"] = dict(strategy_registry)
+    if policy_workflow_snapshot is not None:
+        snapshot_metadata["policy_workflow_status"] = policy_workflow_snapshot.status.value
+        snapshot_metadata["policy_workflow_generated_at"] = (
+            policy_workflow_snapshot.generated_at.isoformat()
+        )
+        if policy_workflow_snapshot.metadata:
+            snapshot_metadata["policy_workflow_metadata"] = dict(
+                policy_workflow_snapshot.metadata
+            )
+        snapshot_metadata["policy_workflow_names"] = list(policy_workflow_names)
+        snapshot_metadata["policy_workflow_count"] = len(policy_workflow_names)
     if metadata:
         snapshot_metadata.update(metadata)
 

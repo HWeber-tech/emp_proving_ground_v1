@@ -21,7 +21,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
-from typing import Any, Callable, Iterable, Mapping, MutableMapping, Sequence
+from typing import TYPE_CHECKING, Any, Callable, Iterable, Mapping, MutableMapping, Sequence
 
 import json
 import logging
@@ -32,6 +32,10 @@ try:  # Python < 3.11 compatibility
     from datetime import UTC  # type: ignore[attr-defined]
 except ImportError:  # pragma: no cover - fallback for 3.10 runtimes
     UTC = timezone.utc  # type: ignore[assignment]
+
+
+if TYPE_CHECKING:  # pragma: no cover - typing convenience
+    from src.compliance.workflow import ComplianceWorkflowSnapshot
 
 
 __all__ = [
@@ -380,6 +384,20 @@ class LedgerReleaseManager:
             base.update(record.threshold_overrides)
         base["stage"] = stage.value
         return base
+
+    def build_governance_workflow(
+        self,
+        *,
+        regulation: str = "AlphaTrade Governance",
+        generated_at: datetime | None = None,
+    ) -> "ComplianceWorkflowSnapshot":
+        """Construct a governance checklist snapshot from the ledger state."""
+
+        return build_policy_governance_workflow(
+            self._store,
+            regulation=regulation,
+            generated_at=generated_at,
+        )
 
     def describe(self, policy_id: str | None) -> Mapping[str, Any]:
         stage = self.resolve_stage(policy_id)

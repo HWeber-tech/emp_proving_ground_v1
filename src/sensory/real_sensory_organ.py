@@ -3,11 +3,10 @@ from __future__ import annotations
 from collections import deque
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Any, Mapping, MutableMapping, Sequence
+from typing import TYPE_CHECKING, Any, Mapping, MutableMapping, Sequence
 
 import pandas as pd
 
-from src.core.event_bus import Event
 from src.sensory.anomaly.anomaly_sensor import AnomalySensor
 from src.sensory.how.how_sensor import HowSensor
 from src.sensory.lineage import build_lineage_record
@@ -17,6 +16,9 @@ from src.sensory.signals import IntegratedSignal, SensorSignal
 from src.sensory.what.what_sensor import WhatSensor
 from src.sensory.when.when_sensor import WhenSensor
 from src.sensory.why.why_sensor import WhySensor
+
+if TYPE_CHECKING:  # pragma: no cover - typing only
+    from src.core.event_bus import Event
 
 __all__ = ["RealSensoryOrgan", "SensoryDriftConfig"]
 
@@ -200,12 +202,23 @@ class RealSensoryOrgan:
         """Expose latest snapshot metadata for runtime summaries."""
 
         latest = self._latest_snapshot
-        return {
+        lineage_history: list[Mapping[str, Any]] | None = None
+        lineage_latest: Mapping[str, Any] | None = None
+        if self._lineage_publisher is not None:
+            lineage_history = self._lineage_publisher.history(limit=5)
+            lineage_latest = self._lineage_publisher.latest()
+
+        status: dict[str, Any] = {
             "samples": len(self._audit_trail),
             "latest": self._serialise_snapshot(latest) if latest else None,
             "sensor_audit": self.audit_trail(limit=5),
             "drift_summary": self._serialise_drift_summary(self._latest_drift),
         }
+        if lineage_history is not None:
+            status["lineage"] = lineage_history
+        if lineage_latest is not None:
+            status["lineage_latest"] = lineage_latest
+        return status
 
     def metrics(self) -> Mapping[str, Any]:
         """Expose dimension-level metrics for runtime summaries and telemetry."""
@@ -567,6 +580,8 @@ class RealSensoryOrgan:
     def _publish_snapshot(self, snapshot: Mapping[str, Any]) -> None:
         if self._event_bus is None:
             return
+
+        from src.core.event_bus import Event
 
         event_payload = {
             "symbol": snapshot.get("symbol"),

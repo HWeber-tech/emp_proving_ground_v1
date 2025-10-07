@@ -425,9 +425,11 @@ async def test_trading_manager_release_thresholds(tmp_path: Path, monkeypatch: p
     decision = manager.get_last_drift_gate_decision()
     assert decision is not None
     assert not decision.allowed, "confidence below release-managed floor should block"
-    assert "0.820" in (decision.reason or "")
+    assert "0.870" in (decision.reason or "")
     requirements = dict(decision.requirements)
     assert requirements["release_stage"] == PolicyLedgerStage.PAPER.value
+    assert requirements["confidence_floor"] == pytest.approx(0.87, rel=1e-6)
+    assert requirements.get("warn_notional_limit") == pytest.approx(35_625.0)
     assert validate_mock.await_count == 0
     assert execution_engine.calls == 0
     events = manager.get_experiment_events()
@@ -438,6 +440,8 @@ async def test_trading_manager_release_thresholds(tmp_path: Path, monkeypatch: p
     assert isinstance(gate_payload, dict)
     gate_requirements = gate_payload.get("requirements", {})
     assert gate_requirements.get("release_stage") == PolicyLedgerStage.PAPER.value
+    assert gate_requirements.get("confidence_floor") == pytest.approx(0.87, rel=1e-6)
+    assert gate_requirements.get("warn_notional_limit") == pytest.approx(35_625.0)
 
 
 def test_describe_release_posture(tmp_path: Path) -> None:
@@ -464,6 +468,8 @@ def test_describe_release_posture(tmp_path: Path) -> None:
     assert summary["stage"] == PolicyLedgerStage.LIMITED_LIVE.value
     assert summary["managed"] is True
     assert "thresholds" in summary
+    thresholds = summary["thresholds"]
+    assert thresholds.get("adaptive_source") == DriftSeverity.normal.value
     assert summary.get("approvals") == ["ops", "risk"]
 @pytest.mark.asyncio()
 async def test_trading_manager_emits_policy_violation_alert(

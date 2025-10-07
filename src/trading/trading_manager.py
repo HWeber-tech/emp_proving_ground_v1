@@ -57,6 +57,7 @@ from src.operations.roi import (
 )
 from src.operations.sensory_drift import SensoryDriftSnapshot
 from src.trading.gating import DriftSentryDecision, DriftSentryGate
+from src.trading.gating.adaptive_release import AdaptiveReleaseThresholds
 
 try:
     from src.core.events import TradeIntent  # legacy
@@ -176,6 +177,11 @@ class TradingManager:
 
         self._drift_gate = drift_gate
         self._release_manager = release_manager
+        self._adaptive_thresholds: Optional[AdaptiveReleaseThresholds] = (
+            AdaptiveReleaseThresholds(release_manager)
+            if release_manager is not None
+            else None
+        )
         self._last_drift_gate_decision: DriftSentryDecision | None = None
 
         self._execution_stats: dict[str, object] = {
@@ -456,13 +462,18 @@ class TradingManager:
             context_metadata["notional"] = notional
 
         threshold_payload: Mapping[str, Any] | None = None
-        if self._release_manager is not None:
+        snapshot = self._drift_gate.latest_snapshot
+        if self._adaptive_thresholds is not None:
             try:
-                threshold_payload = (
-                    self._release_manager.resolve_thresholds(strategy_id)
-                    if strategy_id
-                    else None
+                threshold_payload = self._adaptive_thresholds.resolve(
+                    strategy_id=strategy_id,
+                    snapshot=snapshot,
                 )
+            except Exception:  # pragma: no cover - defensive guard
+                threshold_payload = None
+        elif self._release_manager is not None:
+            try:
+                threshold_payload = self._release_manager.resolve_thresholds(strategy_id)
             except Exception:  # pragma: no cover - defensive guard
                 threshold_payload = None
         if threshold_payload:
@@ -625,6 +636,18 @@ class TradingManager:
             except Exception:
                 thresholds = {}
             summary = {"stage": stage.value, "thresholds": thresholds}
+        else:
+            if self._adaptive_thresholds is not None:
+                snapshot = self._drift_gate.latest_snapshot if self._drift_gate else None
+                try:
+                    adaptive_thresholds = self._adaptive_thresholds.resolve(
+                        strategy_id=strategy_id,
+                        snapshot=snapshot,
+                    )
+                except Exception:  # pragma: no cover - defensive guard
+                    adaptive_thresholds = None
+                if adaptive_thresholds:
+                    summary["thresholds"] = dict(adaptive_thresholds)
         summary.setdefault("managed", True)
         if strategy_id and "strategy_id" not in summary:
             summary["strategy_id"] = strategy_id

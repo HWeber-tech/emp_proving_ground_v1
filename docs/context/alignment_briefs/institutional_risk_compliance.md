@@ -62,6 +62,10 @@
   attach runtime metadata, merge resolved interface details, and surface
   structured `RiskApiError` payloads so operators inherit actionable posture
   even when integrations degrade under pytest coverage.【F:src/runtime/predator_app.py†L995-L1063】【F:tests/current/test_runtime_professional_app.py†L304-L364】
+- Progress: Liquidity prober now routes probe tasks through the shared supervisor
+  and records deterministic risk metadata or runbook-tagged errors on every run,
+  with regression coverage asserting the supervised probes and risk context so
+  execution telemetry feeds inherit auditable guardrails.【F:src/trading/execution/liquidity_prober.py†L38-L334】【F:tests/trading/test_execution_liquidity_prober.py†L64-L123】
 - Progress: Parity checker telemetry now wraps gauge publication in defensive
   logging, recording order and position mismatches even when the metrics sink
   misbehaves so compliance dashboards surface reconciliation issues instead of

@@ -542,6 +542,10 @@ kit that the roadmap calls back to in each checklist.
   eliminate unsupervised `create_task` usage. Runtime CLI invocations and the
   bootstrap sensory loop now run under `TaskSupervisor`, ensuring graceful
   signal/time-based shutdown paths.【F:docs/technical_debt_assessment.md†L33-L56】【F:src/runtime/cli.py†L206-L249】【F:src/runtime/bootstrap_runtime.py†L227-L268】
+  - *Progress*: Phase 3 orchestrator now spawns continuous analysis and performance
+    monitors via the shared task supervisor, drains background tasks on stop, and
+    ships a guardrail smoke test so thinking pipelines inherit the same supervised
+    lifecycle contract as runtime entrypoints.【F:src/thinking/phase3_orchestrator.py†L103-L276】【F:tests/current/test_orchestration_runtime_smoke.py†L19-L102】
 - [ ] **Security hardening sprint** – Execute the remediation plan’s Phase 0:
   parameterise SQL, remove `eval`, and address blanket exception handlers in
   operational modules.【F:docs/development/remediation_plan.md†L34-L72】
@@ -717,6 +721,10 @@ kit that the roadmap calls back to in each checklist.
     runbook, attach runtime metadata, merge resolved interface details, and
     surface structured `RiskApiError` payloads so operators inherit actionable
     posture even when integrations degrade under pytest coverage.【F:src/runtime/predator_app.py†L995-L1063】【F:tests/current/test_runtime_professional_app.py†L304-L364】
+  - *Progress*: Liquidity prober tasks now run under the shared supervisor,
+    capture deterministic risk metadata or runbook-tagged failures, and expose
+    regression coverage so execution telemetry inherits auditable risk context
+    for every probe burst.【F:src/trading/execution/liquidity_prober.py†L38-L334】【F:tests/trading/test_execution_liquidity_prober.py†L64-L123】
 - [ ] **AlphaTrade loop expansion (Days 15–90)** – Graduate the live-shadow pilot
   into tactic experimentation, paper trading, and limited live promotions once V1
   stabilises.【F:docs/High-Impact Development Roadmap.md†L74-L76】
@@ -733,6 +741,10 @@ kit that the roadmap calls back to in each checklist.
     captures unexpected training failures with stack traces, and preserves
     heuristic fallbacks so migration bugs surface during experimentation without
     stalling adaptive runs.【F:src/thinking/adversarial/adversarial_trainer.py†L14-L140】
+  - *Progress*: Prediction, survival, and red-team normalisers now swallow
+    exploding `.dict()` calls and attribute errors while regression tests lock the
+    defensive paths so AlphaTrade analysis surfaces stay resilient to integration
+    payload drift.【F:src/thinking/models/normalizers.py†L26-L182】【F:tests/thinking/test_normalizers.py†L1-L85】
   - [ ] Enable selective paper-trade execution with DriftSentry gating
     promotions and PolicyLedger enforcing audit coverage ahead of live capital
     exposure.【F:docs/High-Impact Development Roadmap.md†L75-L75】
@@ -808,13 +820,13 @@ kit that the roadmap calls back to in each checklist.
 - Maintain the truth-first status culture: mock implementations must remain
   labelled and roadmapped until replaced by production-grade systems.【F:docs/DEVELOPMENT_STATUS.md†L7-L35】
 
-## Automation updates — 2025-10-07T18:48:30Z
+## Automation updates — 2025-10-07T19:26:47Z
 
 ### Last 4 commits
+- 98fd31f variant-4 (2025-10-07)
+- 2aa59b0 variant-3 (2025-10-07)
+- f9c0243 docs(docs): tune 4 files (2025-10-07)
 - a0152f4 docs(docs): tune 2 files (2025-10-07)
-- 4d43c27 feat(evolution): add 3 files (2025-10-07)
-- 6344ea1 test(.telemetry): tune 1 file (2025-10-07)
-- 6dabc4f feat(_automation): add 2 files (2025-10-07)
 
 ## Automation updates — 2025-10-07T15:30:42Z
 

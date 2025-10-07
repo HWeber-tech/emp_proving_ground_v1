@@ -66,6 +66,10 @@
     helper, logging runtime publish failures, escalating unexpected exceptions,
     and falling back to the global bus under pytest coverage so dashboards keep
     receiving readiness snapshots even when the runtime transport degrades.【F:src/operations/execution.py†L611-L648】【F:tests/operations/test_execution.py†L100-L134】
+  - Progress: Thinking-model normalisers now guard against exploding `.dict()`
+    payloads and attribute errors, with dedicated regression tests proving the
+    defensive paths so AlphaTrade narration surfaces keep ingesting predictive and
+    adversarial outputs without flake-prone casts.【F:src/thinking/models/normalizers.py†L26-L182】【F:tests/thinking/test_normalizers.py†L1-L85】
   - Progress: Incident response readiness now evaluates policy/state mappings,
     emits Markdown snapshots, derives roster/backlog alerts, and publishes via
     the failover helper under pytest coverage so operators inherit actionable

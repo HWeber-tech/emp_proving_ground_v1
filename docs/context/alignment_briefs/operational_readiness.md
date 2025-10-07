@@ -39,6 +39,11 @@
     shutdown callbacks so production launches share the same supervised lifecycle
     contract as the builder, with pytest covering normal completion and timeout
     cancellation flows.【F:src/runtime/runtime_runner.py†L1-L120】【F:main.py†L71-L125】【F:tests/runtime/test_runtime_runner.py†L1-L58】
+  - Progress: Phase 3 orchestrator registers its continuous analysis and
+    performance monitors with the shared supervisor, drains background tasks on
+    shutdown, and ships a smoke test validating the supervised lifecycle so
+    thinking pipelines inherit the same operational guardrails as runtime
+    entrypoints.【F:src/thinking/phase3_orchestrator.py†L103-L276】【F:tests/current/test_orchestration_runtime_smoke.py†L19-L102】
 - Harden operational telemetry publishers so security, system validation, and
   professional readiness feeds warn on runtime bus failures, fall back
   deterministically, and raise on unexpected errors with pytest coverage

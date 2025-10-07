@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Mapping
 
 try:  # Python 3.10 compatibility
     from datetime import UTC
@@ -55,7 +56,12 @@ def _build_router() -> UnderstandingRouter:
     return router
 
 
-def _build_snapshot(*, fast_weights_enabled: bool = True, liquidity_z: float = -0.4) -> BeliefSnapshot:
+def _build_snapshot(
+    *,
+    fast_weights_enabled: bool = True,
+    liquidity_z: float = -0.4,
+    feature_flags: Mapping[str, bool] | None = None,
+) -> BeliefSnapshot:
     regime_state = RegimeState(
         regime="balanced",
         confidence=0.5,
@@ -68,7 +74,7 @@ def _build_snapshot(*, fast_weights_enabled: bool = True, liquidity_z: float = -
         features=regime_state.features,
         metadata={"window": "15m"},
         fast_weights_enabled=fast_weights_enabled,
-        feature_flags={"fast_weights_live": True},
+        feature_flags=feature_flags or {"fast_weights_live": True},
     )
 
 
@@ -82,6 +88,9 @@ def test_understanding_router_applies_feature_gated_adapters() -> None:
     assert decision_bundle.applied_adapters == ("liquidity_rescue",)
     summary = decision_bundle.fast_weight_summary["liquidity_rescue"]
     assert summary["multiplier"] == pytest.approx(1.35)
+    assert summary["feature_gates"] == [{"feature": "liquidity_z", "maximum": -0.2}]
+    assert summary["required_flags"] == {"fast_weights_live": True}
+    assert "expires_at" not in summary
 
 
 def test_understanding_router_respects_fast_weight_disable_flag() -> None:
@@ -103,3 +112,35 @@ def test_understanding_router_feature_gate_blocks_without_threshold() -> None:
 
     assert decision_bundle.decision.tactic_id == "beta_hold"
     assert decision_bundle.applied_adapters == ()
+
+
+def test_understanding_router_requires_feature_flag_enablement() -> None:
+    router = _build_router()
+    snapshot = _build_snapshot(feature_flags={"fast_weights_live": False})
+
+    decision_bundle = router.route(snapshot)
+
+    assert decision_bundle.decision.tactic_id == "beta_hold"
+    assert decision_bundle.applied_adapters == ()
+    assert decision_bundle.fast_weight_summary == {}
+
+
+def test_understanding_router_respects_adapter_expiry() -> None:
+    router = _build_router()
+    expiring_adapter = FastWeightAdapter(
+        adapter_id="expiry_gate",
+        tactic_id="alpha_strike",
+        multiplier=1.2,
+        rationale="Temporary boost during market opening",
+        expires_at=datetime(2024, 1, 2, tzinfo=UTC),
+    )
+    router.register_adapter(expiring_adapter)
+    snapshot = _build_snapshot()
+
+    active_bundle = router.route(snapshot)
+    assert active_bundle.applied_adapters == ("liquidity_rescue", "expiry_gate")
+    assert "expiry_gate" in active_bundle.fast_weight_summary
+
+    expired_bundle = router.route(snapshot, as_of=datetime(2024, 1, 3, tzinfo=UTC))
+    assert expired_bundle.applied_adapters == ("liquidity_rescue",)
+    assert "expiry_gate" not in expired_bundle.fast_weight_summary

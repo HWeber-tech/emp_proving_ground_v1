@@ -1,21 +1,15 @@
-"""
-Context Packet Event Model
-Enhanced with CVD divergence analysis for the Thinking Layer
-"""
+"""Canonical context packet definitions for the thinking domain."""
 
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Literal, Optional
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
 
 class ContextPacket(BaseModel):
-    """
-    The Thinking Layer's primary output event.
-    v4.1 Schema: Enhanced with CVD divergence analysis.
-    """
+    """Primary thinking-layer event emitted by understanding pipelines."""
 
     timestamp: datetime
     symbol: str
@@ -24,21 +18,17 @@ class ContextPacket(BaseModel):
     current_price: float
     current_cvd: float
 
-    # CVD Divergence Analysis
-    cvd_divergence: Optional[Literal["bullish", "bearish"]] = None
+    # CVD divergence analysis
+    cvd_divergence: Literal["bullish", "bearish"] | None = None
+    divergence_confidence: float | None = Field(default=None, ge=0.0, le=1.0)
 
-    # Confidence metrics
-    divergence_confidence: Optional[float] = Field(None, ge=0.0, le=1.0)
-
-    # Supporting data
+    # Supporting telemetry
     price_history: list[float] = Field(default_factory=list)
     cvd_history: list[float] = Field(default_factory=list)
 
-    # Metadata
-    analysis_window: int = 20  # Number of data points analyzed
+    # Metadata and provenance
+    analysis_window: int = 20
     source: str = "CVDDivergenceDetector"
-
-    # Additional context
     metadata: dict[str, object] = Field(default_factory=dict)
 
     def __str__(self) -> str:
@@ -47,10 +37,15 @@ class ContextPacket(BaseModel):
 
     @property
     def has_signal(self) -> bool:
-        """Check if this packet contains a trading signal."""
+        """Return ``True`` when divergence analysis produced a signal."""
+
         return self.cvd_divergence is not None
 
     @property
     def signal_strength(self) -> float:
-        """Calculate signal strength based on confidence."""
+        """Expose a float representation of the divergence confidence."""
+
         return self.divergence_confidence or 0.0
+
+
+__all__ = ["ContextPacket"]

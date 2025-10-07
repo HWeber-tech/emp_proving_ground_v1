@@ -1,3 +1,5 @@
 from __future__ import annotations
 
-__all__: list[str] = []
+from .context_packet import ContextPacket
+
+__all__ = ["ContextPacket"]

@@ -87,7 +87,8 @@ Dead code candidates (first 100):
 -  ~~src\config\risk_config.py~~ (removed; canonical risk config lives at `src/config/risk/risk_config.py`).【F:src/config/risk/risk_config.py†L1-L72】
 -  src\config\sensory_config.py
 -  src\core\configuration.py
--  src\core\context_packet.py
+-  ~~src\core\context_packet.py~~ (removed; canonical context events now live
+   under the thinking domain.)【F:src/thinking/models/context_packet.py†L1-L51】
 -  src\core\event_bus.py
 -  src\core\exceptions.py
 -  src\core\instrument.py

@@ -17,11 +17,12 @@ import numpy as np
 from src.core.state_store import StateStore
 from src.thinking.models.normalizers import normalize_prediction
 from src.thinking.models.types import PredictionLike
+from src.thinking.models import ContextPacket
 
 try:
-    from src.core.events import ContextPacket, PredictionResult  # legacy
+    from src.core.events import PredictionResult  # legacy placeholder
 except Exception:  # pragma: no cover
-    ContextPacket = PredictionResult = object
+    PredictionResult = object
 
 logger = logging.getLogger(__name__)
 

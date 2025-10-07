@@ -31,10 +31,13 @@ kit that the roadmap calls back to in each checklist.
     policy catalogue, and publishes through the shared failover helper so
     dashboards inherit severity-aware retention evidence even when the runtime
     bus degrades.【F:src/operations/retention.py†L1-L334】【F:tests/operations/test_data_retention.py†L1-L220】
-  - *Progress*: Timescale reader guards schema/table/column identifiers, normalises
-    symbol filters, and parameterises queries before execution so ingest consumers
-    cannot smuggle unsafe SQL through configuration, with security regressions
-    covering identifier fuzzing.【F:src/data_foundation/persist/timescale_reader.py†L19-L210】【F:tests/data_foundation/test_timescale_reader_security.py†L1-L45】
+  - *Progress*: Timescale reader now builds SQLAlchemy Core selects with sanitised
+    identifiers and bound filters, eliminating hand-written SQL while the security
+    regression keeps fuzzed identifier guards in place.【F:src/data_foundation/persist/timescale_reader.py†L352】【F:tests/data_foundation/test_timescale_reader_security.py†L1】
+  - *Progress*: Execution readiness journal reflects tables via SQLAlchemy, inserts
+    snapshots with bound parameters, and summarises status/service counts so
+    Timescale auditing no longer shells out raw text queries under the regression
+    suite.【F:src/data_foundation/persist/timescale.py†L1972】【F:tests/data_foundation/test_timescale_execution_journal.py†L104】
   - *Progress*: Data backbone readiness telemetry now exposes failover triggers,
     optional trigger metadata, and recovery plan payloads under pytest coverage so
     institutional dashboards surface degraded optional slices alongside the
@@ -47,10 +50,11 @@ kit that the roadmap calls back to in each checklist.
     the guardrail remains deterministic. The guardrail manifest now pins the
     ingest scheduler regression to the `guardrail` matrix, ensuring CI fails
     fast if the scheduler suite drifts or loses its guardrail marker.【F:src/data_foundation/ingest/scheduler.py†L1-L138】【F:tests/data_foundation/test_ingest_scheduler.py†L1-L200】【F:tests/runtime/test_guardrail_suite_manifest.py†L18-L90】
-  - *Progress*: Pricing cache now hashes ingest parameters into deterministic
-    dataset artefacts, writes metadata and issues manifests, enforces retention
-    policies, and logs cleanup failures under regression coverage so bootstrap
-    slices leave auditable evidence without leaking stale files.【F:src/data_foundation/cache/pricing_cache.py†L1-L194】【F:tests/data_foundation/cache/test_pricing_cache.py†L1-L41】
+  - *Progress*: Pricing cache now hashes ingest parameters with `blake2b` for
+    deterministic dataset artefacts, writes metadata and issues manifests,
+    enforces retention policies, and logs cleanup failures under regression
+    coverage so bootstrap slices leave auditable evidence without leaking stale
+    files.【F:src/data_foundation/cache/pricing_cache.py†L68】【F:tests/data_foundation/cache/test_pricing_cache.py†L1】
   - *Progress*: Cobertura coverage guardrail tooling now parses XML reports,
     asserts coverage for ingest, risk, and observability hotspots, flags missing
     targets, and exits non-zero for WARN/FAIL thresholds so CI pipelines and
@@ -74,6 +78,9 @@ kit that the roadmap calls back to in each checklist.
     cover macro window fallbacks, empty payloads, publisher failure logging, and
     metadata emission to prevent regressions in institutional ingest
     coverage.【F:src/data_foundation/ingest/timescale_pipeline.py†L70-L213】【F:tests/data_foundation/test_timescale_backbone_orchestrator.py†L1-L426】
+  - *Progress*: Macro ingest now falls back to an internal no-op fetcher when no
+    provider is wired, letting backbone drills drop the legacy FRED scaffold while
+    keeping optional macro windows explicit in the cleanup report.【F:src/data_foundation/ingest/timescale_pipeline.py†L21】【F:docs/reports/CLEANUP_REPORT.md†L120】
   - *Progress*: Institutional ingest provisioner now spins up supervised
     Timescale schedules alongside Redis caches and Kafka consumers, wiring the
     bridge into the task supervisor with redacted metadata, publishing a managed
@@ -725,6 +732,9 @@ kit that the roadmap calls back to in each checklist.
     and retargeted the intelligence facade to load the canonical
     `thinking.adversarial` implementations directly, shrinking the cleanup
     backlog while preserving lazy public imports for phase-three orchestrators.【F:src/intelligence/__init__.py†L40-L105】
+  - *Progress*: Retired the placeholder sensory config and macro ingest helpers,
+    noting their removal in the cleanup report so hygiene reviews reflect the new
+    Timescale fallback wiring instead of dead scaffolding.【F:docs/reports/CLEANUP_REPORT.md†L88】【F:src/data_foundation/ingest/timescale_pipeline.py†L21】
 - [ ] **Governance and compliance** – Build the reporting cadence for KYC/AML,
   regulatory telemetry, and audit storage prior to live-broker pilots.【F:docs/technical_debt_assessment.md†L58-L112】
   - *Progress*: Governance reporting cadence now assembles compliance readiness,

@@ -44,6 +44,7 @@ from src.governance.policy_ledger import (
 )
 from src.operations.sensory_drift import DriftSeverity, SensoryDimensionDrift, SensoryDriftSnapshot
 from src.trading.execution.paper_execution import ImmediateFillExecutionAdapter
+from src.trading.execution.release_router import ReleaseAwareExecutionRouter
 from src.trading.gating import DriftSentryGate
 from src.trading.trading_manager import TradingManager
 
@@ -676,6 +677,154 @@ async def test_install_release_execution_router(tmp_path: Path) -> None:
     assert last_route is not None
     assert last_route["stage"] == PolicyLedgerStage.LIMITED_LIVE.value
     assert last_route["route"] == "live"
+
+
+@pytest.mark.asyncio()
+async def test_release_router_forces_paper_on_drift_warn(tmp_path: Path) -> None:
+    store = PolicyLedgerStore(tmp_path / "policy_forced.json")
+    release_manager = LedgerReleaseManager(store)
+    release_manager.promote(
+        policy_id="alpha",
+        tactic_id="alpha",
+        stage=PolicyLedgerStage.LIMITED_LIVE,
+        approvals=("ops", "risk"),
+        evidence_id="diary-alpha",
+    )
+
+    paper_engine = RecordingExecutionEngine()
+    live_engine = RecordingExecutionEngine()
+    router = ReleaseAwareExecutionRouter(
+        release_manager=release_manager,
+        paper_engine=paper_engine,
+        live_engine=live_engine,
+    )
+
+    intent = ConfidenceIntent(symbol="EURUSD", quantity=1.0, price=1.2, confidence=0.85)
+    intent.metadata = {
+        "drift_gate": {
+            "allowed": True,
+            "severity": DriftSeverity.warn.value,
+            "evaluated_at": datetime.now(tz=timezone.utc).isoformat(),
+            "blocked_dimensions": [],
+            "requirements": {},
+            "snapshot_metadata": {},
+        }
+    }
+
+    await router.process_order(intent)
+
+    assert paper_engine.calls == 1
+    assert live_engine.calls == 0
+    metadata = getattr(intent, "metadata", {})
+    assert metadata.get("release_execution_route") == "paper"
+    assert metadata.get("release_execution_forced") == "drift_gate_severity_warn"
+    last_route = router.last_route()
+    assert last_route is not None
+    assert last_route.get("stage") == PolicyLedgerStage.LIMITED_LIVE.value
+    assert last_route.get("route") == "paper"
+    assert last_route.get("forced_reason") == "drift_gate_severity_warn"
+    assert last_route.get("drift_severity") == DriftSeverity.warn.value
+
+
+@pytest.mark.asyncio()
+async def test_trading_manager_forces_paper_execution_under_drift_warn(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    async def _noop(*_args, **_kwargs) -> None:
+        return None
+
+    monkeypatch.setattr("src.trading.trading_manager.publish_risk_snapshot", _noop)
+    monkeypatch.setattr("src.trading.trading_manager.publish_roi_snapshot", _noop)
+    monkeypatch.setattr("src.trading.trading_manager.publish_policy_snapshot", _noop)
+    monkeypatch.setattr("src.trading.trading_manager.publish_policy_violation", _noop)
+    monkeypatch.setattr(
+        "src.trading.trading_manager.publish_risk_interface_snapshot", _noop
+    )
+    monkeypatch.setattr("src.trading.trading_manager.publish_risk_interface_error", _noop)
+
+    gate = DriftSentryGate(warn_confidence_floor=0.6)
+    store = PolicyLedgerStore(tmp_path / "policy_forced_manager.json")
+    release_manager = LedgerReleaseManager(store)
+    release_manager.promote(
+        policy_id="alpha",
+        tactic_id="alpha",
+        stage=PolicyLedgerStage.LIMITED_LIVE,
+        approvals=("ops", "risk"),
+        evidence_id="diary-alpha",
+    )
+
+    manager = TradingManager(
+        event_bus=DummyBus(),
+        strategy_registry=AlwaysActiveRegistry(),
+        execution_engine=None,
+        initial_equity=25_000.0,
+        risk_config=RiskConfig(
+            min_position_size=1,
+            mandatory_stop_loss=False,
+            research_mode=True,
+        ),
+        drift_gate=gate,
+        release_manager=release_manager,
+    )
+
+    paper_engine = RecordingExecutionEngine()
+    manager.execution_engine = paper_engine
+    live_engine = RecordingExecutionEngine()
+    router = manager.install_release_execution_router(live_engine=live_engine)
+
+    dimension = SensoryDimensionDrift(
+        name="HOW",
+        current_signal=0.9,
+        baseline_signal=0.6,
+        delta=0.3,
+        current_confidence=0.82,
+        baseline_confidence=0.8,
+        confidence_delta=0.02,
+        severity=DriftSeverity.warn,
+        samples=12,
+    )
+    snapshot = SensoryDriftSnapshot(
+        generated_at=datetime(2024, 1, 5, tzinfo=timezone.utc),
+        status=DriftSeverity.warn,
+        dimensions={"HOW": dimension},
+        sample_window=12,
+        metadata={"source": "test"},
+    )
+    manager.update_drift_sentry_snapshot(snapshot)
+
+    intent = ConfidenceIntent(
+        symbol="EURUSD",
+        quantity=1.0,
+        price=1.2345,
+        confidence=0.9,
+        strategy_id="alpha",
+    )
+
+    validate_mock: AsyncMock = AsyncMock(return_value=intent)
+    manager.risk_gateway.validate_trade_intent = validate_mock  # type: ignore[assignment]
+
+    await manager.on_trade_intent(intent)
+
+    assert paper_engine.calls == 1
+    assert live_engine.calls == 0
+    last_route = router.last_route()
+    assert last_route is not None
+    assert last_route.get("forced_reason") == "drift_gate_severity_warn"
+    assert last_route.get("route") == "paper"
+    decision = manager.get_last_drift_gate_decision()
+    assert decision is not None
+    assert decision.allowed is True
+    assert decision.severity is DriftSeverity.warn
+    events = manager.get_experiment_events()
+    assert events, "Expected experiment event recorded"
+    metadata = events[0].get("metadata")
+    assert isinstance(metadata, dict)
+    gate_payload = metadata.get("drift_gate")
+    assert isinstance(gate_payload, dict)
+    assert gate_payload.get("allowed") is True
+    assert gate_payload.get("severity") == DriftSeverity.warn.value
+
+
 @pytest.mark.asyncio()
 async def test_trading_manager_emits_policy_violation_alert(
     monkeypatch: pytest.MonkeyPatch,

@@ -7,6 +7,7 @@ import pandas as pd
 
 from src.sensory.anomaly import AnomalySensor
 from src.sensory.how.how_sensor import HowSensor
+from src.sensory.lineage import SensorLineageRecorder
 
 
 @dataclass(slots=True)
@@ -173,3 +174,38 @@ def test_anomaly_sensor_threshold_state_escalates() -> None:
     assessment = metadata.get("threshold_assessment")
     assert assessment["state"] == "warning"
     assert assessment["breached_level"] == "warn"
+
+
+def test_how_sensor_records_lineage() -> None:
+    recorder = SensorLineageRecorder(max_records=2)
+    engine = _StubHowEngine(strength=0.55, confidence=0.7, liquidity=0.4, participation=0.6)
+    sensor = HowSensor(engine=engine, lineage_recorder=recorder)
+    frame = _build_market_frame()
+
+    sensor.process(frame)
+    sensor.process(frame)
+
+    history = recorder.history()
+    assert len(history) == 2
+    latest = recorder.latest()
+    assert latest is not None
+    assert latest["dimension"] == "HOW"
+    assert latest["source"] == "sensory.how"
+    assert latest["outputs"]["signal"] == 0.55
+    assert "liquidity" in latest["telemetry"]
+
+
+def test_anomaly_sensor_records_lineage() -> None:
+    recorder = SensorLineageRecorder(max_records=1)
+    engine = _StubAnomalyEngine(strength=0.72, confidence=0.88, baseline=0.22, latest=0.51)
+    sensor = AnomalySensor(engine=engine, lineage_recorder=recorder)
+
+    signal = sensor.process({"key": "value"})[0]
+    assert signal.signal_type == "ANOMALY"
+
+    history = recorder.history()
+    assert len(history) == 1
+    entry = history[0]
+    assert entry["dimension"] == "ANOMALY"
+    assert entry["outputs"]["signal"] == 0.72
+    assert entry["metadata"]["mode"] == "sequence"

@@ -6,7 +6,11 @@ from typing import Any, Mapping, Sequence
 import pandas as pd
 
 from src.sensory.enhanced.anomaly_dimension import AnomalyIntelligenceEngine
-from src.sensory.lineage import build_lineage_record
+from src.sensory.lineage import (
+    SensorLineageRecord,
+    SensorLineageRecorder,
+    build_lineage_record,
+)
 from src.sensory.signals import SensorSignal
 from src.sensory.thresholds import ThresholdAssessment, evaluate_thresholds
 
@@ -30,9 +34,11 @@ class AnomalySensor:
         config: AnomalySensorConfig | None = None,
         *,
         engine: AnomalyIntelligenceEngine | None = None,
+        lineage_recorder: SensorLineageRecorder | None = None,
     ) -> None:
         self._engine = engine or AnomalyIntelligenceEngine()
         self._config = config or AnomalySensorConfig()
+        self._lineage_recorder = lineage_recorder
 
     def process(
         self, data: pd.DataFrame | Mapping[str, Any] | Sequence[float] | None
@@ -169,6 +175,7 @@ class AnomalySensor:
             "context": context,
             "state": assessment.state,
         }
+        self._record_lineage(lineage)
         return SensorSignal(
             signal_type="ANOMALY",
             value=value,
@@ -212,6 +219,7 @@ class AnomalySensor:
             "state": assessment.state,
             "threshold_assessment": assessment.as_dict(),
         }
+        self._record_lineage(lineage)
         return SensorSignal(
             signal_type="ANOMALY",
             value={
@@ -222,3 +230,7 @@ class AnomalySensor:
             confidence=0.0,
             metadata=metadata,
         )
+
+    def _record_lineage(self, lineage: SensorLineageRecord) -> None:
+        if self._lineage_recorder is not None:
+            self._lineage_recorder.record(lineage)

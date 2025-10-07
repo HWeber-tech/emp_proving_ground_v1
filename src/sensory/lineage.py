@@ -8,13 +8,19 @@ the HOW/ANOMALY sensors can embed inside their metadata payloads.
 
 from __future__ import annotations
 
+from collections import deque
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import date, datetime
 from decimal import Decimal
+from threading import Lock
 from typing import Any, MutableMapping
 
-__all__ = ["SensorLineageRecord", "build_lineage_record"]
+__all__ = [
+    "SensorLineageRecord",
+    "SensorLineageRecorder",
+    "build_lineage_record",
+]
 
 
 def _coerce_value(value: Any) -> Any:
@@ -97,3 +103,66 @@ def build_lineage_record(
         metadata=dict(metadata or {}),
     )
 
+
+class SensorLineageRecorder:
+    """Bounded recorder that preserves recent sensory lineage payloads."""
+
+    def __init__(self, *, max_records: int = 256) -> None:
+        if max_records <= 0:
+            raise ValueError("max_records must be positive")
+        self._records: deque[SensorLineageRecord] = deque(maxlen=max_records)
+        self._lock = Lock()
+
+    def record(self, record: SensorLineageRecord) -> None:
+        """Store a lineage record, keeping only the most recent entries."""
+
+        if not isinstance(record, SensorLineageRecord):  # defensive guard for callers
+            raise TypeError("record must be a SensorLineageRecord instance")
+        with self._lock:
+            self._records.append(record)
+
+    def history(
+        self,
+        limit: int | None = None,
+        *,
+        serialise: bool = True,
+    ) -> list[dict[str, Any]] | list[SensorLineageRecord]:
+        """Return recorded lineage records, newest first.
+
+        When ``serialise`` is ``True`` (the default), the payloads are returned as
+        JSON-safe dictionaries via :meth:`SensorLineageRecord.as_dict`.
+        """
+
+        with self._lock:
+            items = list(self._records)
+
+        if limit is not None:
+            if limit <= 0:
+                return []
+            items = items[-limit:]
+
+        items = list(reversed(items))
+
+        if not serialise:
+            return items
+
+        return [record.as_dict() for record in items]
+
+    def latest(self) -> dict[str, Any] | None:
+        """Return the most recent lineage payload, if available."""
+
+        with self._lock:
+            if not self._records:
+                return None
+            record = self._records[-1]
+        return record.as_dict()
+
+    def clear(self) -> None:
+        """Remove all stored lineage records."""
+
+        with self._lock:
+            self._records.clear()
+
+    def __len__(self) -> int:  # pragma: no cover - trivial
+        with self._lock:
+            return len(self._records)

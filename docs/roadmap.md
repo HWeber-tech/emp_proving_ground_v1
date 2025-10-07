@@ -53,6 +53,10 @@ kit that the roadmap calls back to in each checklist.
     local audits block on regression drift; pytest locks success/failure paths
     and the guardrail manifest keeps the guardrail suites wired into the
     dedicated CI marker.【F:tools/telemetry/coverage_guardrails.py†L1-L268】【F:tests/tools/test_coverage_guardrails.py†L1-L83】【F:tests/runtime/test_guardrail_suite_manifest.py†L18-L90】
+  - *Progress*: CI workflow now runs the coverage matrix and minimum coverage
+    guardrail steps after the guarded pytest job, enforcing ingest/risk targets,
+    appending Markdown summaries, and failing the build when thresholds slip,
+    with guardrail tests asserting the steps remain in place.【F:.github/workflows/ci.yml†L90-L135】【F:tests/runtime/test_guardrail_suite_manifest.py†L98-L135】
   - *Progress*: Production ingest slice now orchestrates Timescale runs and
     supervised services from a single entrypoint, wiring the institutional
     provisioner, Kafka bridge, and Redis cache through the shared
@@ -73,9 +77,11 @@ kit that the roadmap calls back to in each checklist.
     without bespoke wiring.【F:src/data_foundation/ingest/institutional_vertical.py†L96-L260】【F:tests/runtime/test_institutional_ingest_vertical.py†L86-L262】【F:docs/operations/timescale_failover_drills.md†L1-L27】
   - *Progress*: Professional runtime builder now invokes the institutional
     provisioner automatically, reuses managed Redis clients when present,
-    defers the next scheduled run after manual ingest, and records
-    managed-connector manifests plus scheduler snapshots so Tier‑1 launches
-    inherit supervised ingest connectors with telemetry baked in.【F:src/runtime/runtime_builder.py†L2373-L2581】【F:src/runtime/runtime_builder.py†L3125-L3156】【F:docs/operations/timescale_failover_drills.md†L7-L33】
+    defers the next scheduled run after manual ingest, records
+    managed-connector manifests plus scheduler snapshots, and propagates the
+    managed manifest into data-backbone readiness telemetry so Tier‑1 launches
+    inherit supervised ingest connectors with explicit connector listings in
+    readiness dashboards.【F:src/runtime/runtime_builder.py†L1124-L1895】【F:src/runtime/runtime_builder.py†L2453-L2568】【F:docs/operations/timescale_failover_drills.md†L7-L33】
   - *Progress*: Tier-0 Yahoo ingest now sanitises symbols/intervals, enforces
     mutually exclusive period versus window arguments, normalises timestamps,
     and writes through a DuckDB helper that escapes table identifiers and binds
@@ -116,10 +122,11 @@ kit that the roadmap calls back to in each checklist.
     non-numeric parameters, and logging adapter failures with pytest coverage on
     each guardrail so evolution runs cannot silently corrupt state.【F:src/ecosystem/optimization/ecosystem_optimizer.py†L59-L230】【F:tests/ecosystem/test_ecosystem_optimizer_hardening.py†L1-L70】
   - *Progress*: Default evolution seeding now cycles through catalogue-inspired
-    genome templates, injecting lineage metadata, realistic performance
-    fingerprints, and species diversity so baseline populations resemble the
-    institutional strategy library, with pytest guarding the sampler rotation and
-    seeded genome context.【F:src/core/evolution/seeding.py†L1-L335】【F:src/core/evolution/engine.py†L250-L335】【F:tests/evolution/test_realistic_seeding.py†L1-L47】
+    genome templates, ingests recorded experiment manifests into additional
+    templates, derives jitter/metrics/tags from those artifacts, and injects
+    lineage metadata so baseline populations mirror the institutional strategy
+    library plus recent experiments, with pytest guarding sampler rotation,
+    artifact harvesting, and seeded genome context.【F:src/core/evolution/seeding.py†L159-L400】【F:src/core/evolution/engine.py†L250-L335】【F:tests/evolution/test_realistic_seeding.py†L1-L88】
   - *Progress*: Portfolio evolution falls back gracefully when optional
     scikit-learn dependencies are missing by logging the degraded path, returning
     deterministic cluster bucketing, and exercising the guards under
@@ -620,9 +627,10 @@ kit that the roadmap calls back to in each checklist.
   - *Progress*: Understanding diagnostics builder now emits sensory→belief→router→policy graphs with snapshot exports, wrapped by a CLI that renders JSON/DOT/Markdown and guarded by the `understanding_acceptance` marker plus dedicated pytest suite.【F:src/understanding/diagnostics.py†L395-L542】【F:src/understanding/__init__.py†L3-L22】【F:tools/understanding/graph_diagnostics.py†L1-L82】【F:tests/understanding/test_understanding_diagnostics.py†L15-L29】【F:pytest.ini†L2-L27】
   - *Progress*: Observability dashboard now renders an understanding-loop panel summarising regime confidence, drift exceedances, experiments, and ledger approvals when diagnostics land, and escalates to WARN with CLI guidance whenever snapshots are missing so operators rebuild artifacts deterministically under guardrail tests.【F:src/operations/observability_dashboard.py†L536-L565】【F:tests/operations/test_observability_dashboard.py†L389-L413】
   - *Progress*: Bootstrap runtime now instantiates the real sensory organ with a
-    drift-tuned history buffer, streams observations into cortex metrics, and
-    exposes samples/audits via `status()` so supervisors inherit sensory posture
-    under dedicated runtime coverage.【F:src/runtime/bootstrap_runtime.py†L210-L334】【F:tests/runtime/test_bootstrap_runtime_sensory.py†L107-L132】
+    drift-tuned history buffer, streams observations into cortex metrics,
+    publishes summary/metrics/drift telemetry via the event-bus failover helper,
+    and exposes samples/audits via `status()` so supervisors inherit sensory
+    posture and live telemetry under dedicated runtime coverage.【F:src/runtime/bootstrap_runtime.py†L214-L492】【F:tests/runtime/test_bootstrap_runtime_sensory.py†L120-L196】
 
 ### Next (30–90 days)
 

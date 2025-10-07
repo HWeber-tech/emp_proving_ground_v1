@@ -86,9 +86,10 @@
   bespoke wiring.【F:src/data_foundation/ingest/institutional_vertical.py†L96-L260】【F:tests/runtime/test_institutional_ingest_vertical.py†L86-L262】【F:docs/operations/timescale_failover_drills.md†L1-L27】
 - Progress: Professional runtime builder now calls the provisioner automatically,
   reuses any managed Redis client already attached to the app, records managed
-  connector manifests, and defers the first scheduled Timescale run after the
-  bootstrap ingest so supervised deployments inherit telemetry-backed connectors
-  without extra wiring.【F:src/runtime/runtime_builder.py†L2373-L2581】【F:src/runtime/runtime_builder.py†L3125-L3156】【F:docs/operations/timescale_failover_drills.md†L7-L33】
+  connector manifests, propagates the manifest into data-backbone readiness
+  telemetry, and defers the first scheduled Timescale run after the bootstrap
+  ingest so supervised deployments inherit telemetry-backed connectors without
+  extra wiring.【F:src/runtime/runtime_builder.py†L1124-L1895】【F:src/runtime/runtime_builder.py†L2453-L2568】【F:docs/operations/timescale_failover_drills.md†L7-L33】
 - Progress: Tier-0 Yahoo ingest script now sanitises symbols and intervals,
   enforces mutually exclusive period/start-end windows, normalises timestamps,
   and persists via a DuckDB helper that escapes table identifiers and binds

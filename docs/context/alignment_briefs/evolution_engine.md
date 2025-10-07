@@ -46,10 +46,12 @@
 - Implement catalogue-backed genome seeding with configuration toggles and pytest
   coverage.
 - Progress: Realistic genome seeding now rotates through catalogue templates,
-  jitters institutional parameters, and applies lineage/performance metadata to
-  default populations so baseline genomes reflect the strategy library, with
-  pytest verifying sampler cycling and seeded context on the evolution engine.
-  【F:src/core/evolution/seeding.py†L1-L335】【F:src/core/evolution/engine.py†L250-L335】【F:tests/evolution/test_realistic_seeding.py†L1-L47】
+  harvests recorded experiment manifests into additional templates, derives
+  jitter/metrics/tags from those artifacts, and applies lineage/performance
+  metadata to default populations so baseline genomes reflect the strategy
+  library plus recent experiments, with pytest verifying sampler cycling,
+  artifact harvesting, and seeded context on the evolution engine.
+  【F:src/core/evolution/seeding.py†L159-L400】【F:src/core/evolution/engine.py†L250-L335】【F:tests/evolution/test_realistic_seeding.py†L1-L88】
 - Build population management routines (selection, mutation, evaluation) tied to
   recorded datasets; expose metrics via runtime summaries.
 - Progress: Recorded sensory replay evaluator converts archived sensory

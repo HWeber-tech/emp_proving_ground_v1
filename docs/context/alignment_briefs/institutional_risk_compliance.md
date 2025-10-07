@@ -14,7 +14,7 @@
   mock frameworks without real broker connectivity or portfolio management.【F:docs/DEVELOPMENT_STATUS.md†L19-L35】
 - Technical debt audits highlight hollow risk enforcement and unsupervised async
   entrypoints; the legacy `get_risk_manager` shim has now been removed so the
-  canonical export reflects the real implementation.【F:docs/technical_debt_assessment.md†L33-L80】【F:src/core/__init__.py†L16-L46】【F:docs/reports/CLEANUP_REPORT.md†L71-L104】
+  canonical export reflects the real implementation.【F:docs/technical_debt_assessment.md†L33-L80】【F:src/core/__init__.py†L11-L36】【F:docs/reports/CLEANUP_REPORT.md†L71-L104】
 - Canonical risk configuration now resides in `src/config/risk/risk_config.py`,
   yet dead-code sweeps still list additional risk and compliance files as unused,
   complicating canonicalisation.【F:src/config/risk/risk_config.py†L1-L72】【F:docs/reports/CLEANUP_REPORT.md†L71-L175】
@@ -38,17 +38,18 @@
   plan Phase 0.【F:docs/development/remediation_plan.md†L34-L72】
 - Extend CI to include baseline risk regression tests covering exposure, leverage,
   and drawdown limits; capture findings in `docs/status`.
-  - Progress: Risk policy regression enforces mandatory stop losses, positive
-    equity budgets, and violation telemetry so CI fails fast when policy guardrails
-    drift, keeping execution blockers visible to compliance reviewers.【F:src/trading/risk/risk_policy.py†L120-L246】【F:tests/trading/test_risk_policy.py†L117-L205】
-  - Progress: Risk policy warn-threshold coverage now asserts leverage and
-    exposure checks escalate to warnings before breaching limits, capturing
-    ratios, thresholds, and projected exposure metadata so compliance teams can
-    monitor approaching guardrails without waiting for outright violations.【F:tests/trading/test_risk_policy.py†L69-L142】
+  - Progress: Risk policy regression now derives equity from cash and open
+    positions when balances are missing, records consistent risk/exposure ratio
+    metadata, and enforces mandatory stop losses so CI flags policy guardrail
+    drift before it reaches execution.【F:src/trading/risk/risk_policy.py†L29-L238】【F:tests/trading/test_risk_policy.py†L178-L465】
+  - Progress: Risk policy warn-threshold coverage asserts leverage and exposure
+    checks escalate to warnings before breaching limits, capturing ratios,
+    thresholds, and projected exposure metadata so compliance teams can monitor
+    approaching guardrails without waiting for outright violations.【F:tests/trading/test_risk_policy.py†L125-L170】
   - Progress: Guardrail-marked risk policy suite now covers approvals,
-    research-mode overrides, minimum size enforcement, closing trades, and
-    market price fallbacks so institutional limit enforcement remains pinned to
-    the `guardrail` CI job.【F:tests/trading/test_risk_policy.py†L1-L220】
+    research-mode overrides, minimum size enforcement, closing trades, derived
+    equity, and market price fallbacks so institutional limit enforcement remains
+    pinned to the `guardrail` CI job.【F:tests/trading/test_risk_policy.py†L1-L465】
 - Progress: Policy telemetry builders serialise decision snapshots, emit Markdown
   summaries, and publish violation alerts with embedded escalation metadata while
   the trading manager mirrors the feed and the new runbook documents the response,

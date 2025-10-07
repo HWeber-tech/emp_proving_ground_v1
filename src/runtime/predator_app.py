@@ -75,6 +75,7 @@ from src.governance.policy_ledger import (
     PolicyLedgerStage,
     PolicyLedgerStore,
 )
+from src.understanding import DecisionDiaryStore, ProbeRegistry
 from src.governance.system_config import ConnectionProtocol, DataBackboneMode, EmpTier, SystemConfig
 from src.operational.fix_connection_manager import FIXConnectionManager, SystemConfigProtocol
 from src.operations.backup import BackupReadinessSnapshot, format_backup_markdown
@@ -1721,6 +1722,37 @@ def _build_bootstrap_runtime(
     )
 
     release_manager: LedgerReleaseManager | None = None
+    diary_store: DecisionDiaryStore | None = None
+    diary_path_resolved: Path | None = None
+    diary_path_hint = extras.get("DECISION_DIARY_PATH") or extras.get("DECISION_DIARY_ARTIFACT")
+    probe_registry_hint = extras.get("PROBE_REGISTRY_PATH")
+    if diary_path_hint:
+        diary_path = Path(str(diary_path_hint)).expanduser()
+        diary_path_resolved = diary_path
+        probe_registry: ProbeRegistry | None = None
+        if probe_registry_hint:
+            registry_path = Path(str(probe_registry_hint)).expanduser()
+            try:
+                probe_registry = ProbeRegistry.from_file(registry_path)
+            except Exception as exc:
+                logger.warning(
+                    "Failed to load probe registry",
+                    exc_info=exc,
+                    extra={"probe_registry_path": str(registry_path)},
+                )
+        try:
+            diary_store = DecisionDiaryStore(diary_path, probe_registry=probe_registry)
+        except Exception as exc:
+            logger.warning(
+                "Failed to initialise decision diary store",
+                exc_info=exc,
+                extra={"decision_diary_path": str(diary_path)},
+            )
+        else:
+            logger.info(
+                "📝 Decision diary store ready",
+                extra={"decision_diary_path": str(diary_path)},
+            )
     ledger_path_hint = extras.get("POLICY_LEDGER_PATH") or extras.get("POLICY_LEDGER_ARTIFACT")
     if ledger_path_hint:
         ledger_path = Path(str(ledger_path_hint)).expanduser()
@@ -1745,12 +1777,18 @@ def _build_bootstrap_runtime(
                         default_stage.value,
                         extra={"policy_ledger_path": str(ledger_path)},
                     )
-            release_manager = LedgerReleaseManager(store, default_stage=default_stage)
+            evidence_resolver = diary_store.exists if diary_store else None
+            release_manager = LedgerReleaseManager(
+                store,
+                default_stage=default_stage,
+                evidence_resolver=evidence_resolver,
+            )
             logger.info(
                 "📘 Policy ledger release manager enabled",
                 extra={
                     "policy_ledger_path": str(ledger_path),
                     "default_stage": default_stage.value,
+                    "decision_diary_path": str(diary_path_resolved) if diary_path_resolved else None,
                 },
             )
 

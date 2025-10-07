@@ -73,6 +73,11 @@
   config extras, executes cycles on a configurable cadence, and surfaces
   evolution telemetry plus cadence metadata through `status()` so governance and
   runtime summaries observe adaptive readiness under integration coverage.【F:src/runtime/predator_app.py†L1992-L2124】【F:src/runtime/bootstrap_runtime.py†L310-L624】【F:tests/current/test_bootstrap_runtime_integration.py†L153-L169】【F:tests/runtime/test_bootstrap_runtime_sensory.py†L162-L194】
+- Progress: Evolution guardrails now log structured warnings when genome
+  normalisers, mutation metadata updates, or seed attribute mutations fail,
+  capturing the genome identifier and action while continuing execution so
+  adaptive runs surface unsafe integrations without crashing, with pytest
+  coverage around the defensive helpers.【F:src/core/evolution/engine.py†L1-L342】【F:src/core/evolution/seeding.py†L1-L220】【F:tests/evolution/test_evolution_security.py†L1-L95】
 - Surface lineage telemetry and integrate with compliance workflow templates for
   strategy approvals.
 - Progress: Evolution experiment telemetry now guards publish failures, records

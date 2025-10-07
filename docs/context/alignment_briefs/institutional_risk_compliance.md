@@ -106,6 +106,11 @@
   execution decision from the release-aware router, capturing forced paper
   routes and escalation reasons so dashboards and audits inherit the exact
   enforcement evidence under regression coverage.【F:src/trading/trading_manager.py†L760-L817】【F:tests/trading/test_trading_manager_execution.py†L960-L991】
+- Progress: Drift gate telemetry now publishes structured event-bus payloads and
+  Markdown summaries covering severity, forced-paper posture, and routing
+  metadata whenever gating decisions fire so compliance dashboards inherit
+  auditable drift enforcement, with pytest guarding the trading manager and
+  dedicated telemetry helpers.【F:src/trading/gating/telemetry.py†L1-L216】【F:src/trading/trading_manager.py†L273-L1009】【F:tests/trading/test_drift_gate_telemetry.py†L1-L118】【F:tests/trading/test_trading_manager_execution.py†L270-L1014】
 
 - Progress: Mock FIX manager coercion helpers now reject non-ASCII payloads,
   guard order-book adapters that raise exceptions, and keep deterministic

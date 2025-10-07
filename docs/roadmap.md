@@ -54,6 +54,11 @@ kit that the roadmap calls back to in each checklist.
     hook and export list, locking the runtime builder’s ingest entrypoint so
     supervised launches keep wiring institutional ingest toggles under guardrail
     coverage.【F:tests/current/test_bootstrap_runtime_integration.py†L96-L111】【F:tests/runtime/test_bootstrap_runtime_sensory.py†L96-L110】
+  - *Progress*: SystemConfig extras now drive institutional ingest Redis cache
+    policy overrides, parsing TTL, capacity, namespace, and invalidation
+    prefixes into the resolved config, runtime summary, and managed manifest so
+    operators can tune hot datasets without code patches under guardrail tests
+    that exercise supervised caches and CLI manifests.【F:src/data_foundation/ingest/configuration.py†L738-L942】【F:src/data_foundation/ingest/production_slice.py†L34-L120】【F:tests/data_foundation/test_timescale_config.py†L130-L150】【F:tests/runtime/test_institutional_ingest_vertical.py†L120-L205】【F:tools/operations/managed_ingest_connectors.py†L147-L194】
   - *Progress*: Pricing cache now hashes ingest parameters with `blake2b` for
     deterministic dataset artefacts, writes metadata and issues manifests,
     enforces retention policies, and logs cleanup failures under regression
@@ -163,6 +168,11 @@ kit that the roadmap calls back to in each checklist.
     parent/mutation counts through lineage telemetry so orchestrator dashboards
     expose richer provenance, with pytest guarding sampler rotation, metadata
     propagation, and seeded genome context.【F:src/core/evolution/seeding.py†L82-L140】【F:src/core/population_manager.py†L62-L383】【F:src/evolution/lineage_telemetry.py†L200-L228】【F:tests/evolution/test_realistic_seeding.py†L48-L88】【F:tests/current/test_population_manager_with_genome.py†L86-L108】【F:tests/current/test_evolution_orchestrator.py†L112-L310】
+  - *Progress*: Evolution guardrails now log structured warnings when genome
+    normalisers, `with_updated` helpers, or seed attribute mutations fail,
+    capturing the genome ID and action while continuing execution so adaptive
+    runs surface integration regressions instead of swallowing them, with
+    dedicated pytest coverage around the defensive helpers.【F:src/core/evolution/engine.py†L1-L342】【F:src/core/evolution/seeding.py†L1-L220】【F:tests/evolution/test_evolution_security.py†L1-L95】
   - *Progress*: Portfolio evolution falls back gracefully when optional
     scikit-learn dependencies are missing by logging the degraded path, returning
     deterministic cluster bucketing, and exercising the guards under
@@ -786,6 +796,11 @@ kit that the roadmap calls back to in each checklist.
     promotions and PolicyLedger enforcing audit coverage ahead of live capital
     exposure.【F:docs/High-Impact Development Roadmap.md†L75-L75】
   - *Progress*: Trading manager now wires in DriftSentry gating, recording decisions, experiment events, and risk summaries whenever drift blocks or warns on paper trades so selective execution honours governance guardrails under pytest coverage.【F:src/trading/trading_manager.py†L183-L367】【F:src/trading/trading_manager.py†L584-L612】【F:tests/trading/test_trading_manager_execution.py†L187-L260】
+  - *Progress*: Drift gate telemetry now publishes structured events and Markdown
+    summaries through the event bus whenever gating decisions fire, capturing
+    status, severity, forced-paper posture, and routing metadata so dashboards
+    and audits inherit auditable drift enforcement under new pytest coverage in
+    the trading manager suite.【F:src/trading/gating/telemetry.py†L1-L216】【F:src/trading/trading_manager.py†L273-L1009】【F:tests/trading/test_drift_gate_telemetry.py†L1-L118】【F:tests/trading/test_trading_manager_execution.py†L270-L1014】
   - *Progress*: Adaptive release thresholds now derive ledger stages,
     tighten confidence/notional guardrails based on sensory drift severity, and
     feed TradingManager gating plus release posture telemetry so promotions
@@ -881,6 +896,14 @@ kit that the roadmap calls back to in each checklist.
   work; stale documentation is considered a regression.【F:docs/technical_debt_assessment.md†L90-L112】
 - Maintain the truth-first status culture: mock implementations must remain
   labelled and roadmapped until replaced by production-grade systems.【F:docs/DEVELOPMENT_STATUS.md†L7-L35】
+
+## Automation updates — 2025-10-08T00:38:23Z
+
+### Last 4 commits
+- 16bb275 feat(trading): add 5 files (2025-10-08)
+- 9e91ea3 feat(core): add 3 files (2025-10-08)
+- 4a55340 refactor(docs): tune 9 files (2025-10-08)
+- df38814 docs(docs): tune 3 files (2025-10-08)
 
 ## Automation updates — 2025-10-07T22:25:27Z
 

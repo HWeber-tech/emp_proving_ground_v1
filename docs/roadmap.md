@@ -71,6 +71,11 @@ kit that the roadmap calls back to in each checklist.
     manifest that lists configured topics, and exposing async/sync connectivity
     probes so dashboards can surface recovery requirements and live health checks
     without bespoke wiring.【F:src/data_foundation/ingest/institutional_vertical.py†L96-L260】【F:tests/runtime/test_institutional_ingest_vertical.py†L86-L262】【F:docs/operations/timescale_failover_drills.md†L1-L27】
+  - *Progress*: Professional runtime builder now invokes the institutional
+    provisioner automatically, reuses managed Redis clients when present,
+    defers the next scheduled run after manual ingest, and records
+    managed-connector manifests plus scheduler snapshots so Tier‑1 launches
+    inherit supervised ingest connectors with telemetry baked in.【F:src/runtime/runtime_builder.py†L2373-L2581】【F:src/runtime/runtime_builder.py†L3125-L3156】【F:docs/operations/timescale_failover_drills.md†L7-L33】
   - *Progress*: Tier-0 Yahoo ingest now sanitises symbols/intervals, enforces
     mutually exclusive period versus window arguments, normalises timestamps,
     and writes through a DuckDB helper that escapes table identifiers and binds
@@ -102,6 +107,10 @@ kit that the roadmap calls back to in each checklist.
     metadata when WARN/FAIL posture shifts.【F:src/operations/operational_readiness.py†L113-L373】【F:src/operations/incident_response.py†L242-L715】【F:src/operations/system_validation.py†L1-L312】【F:tests/operations/test_operational_readiness.py†L86-L221】【F:docs/status/operational_readiness.md†L1-L73】
 - [ ] **Sensory + evolution execution** – Replace HOW/ANOMALY stubs, wire lineage
   telemetry, and prove adaptive strategies against recorded data.
+  - *Progress*: HOW and ANOMALY sensors now clamp minimum confidence, sanitise
+    sequence payloads, surface dropped-sample counts, attach order-book
+    analytics, and persist lineage metadata with shared threshold assessments so
+    downstream telemetry inherits auditable context under pytest coverage.【F:src/sensory/anomaly/anomaly_sensor.py†L21-L277】【F:src/sensory/how/how_sensor.py†L21-L210】【F:tests/sensory/test_how_anomaly_sensors.py†L187-L302】
   - *Progress*: Ecosystem optimizer now defends against unsafe genomes and
     malformed regime metadata by normalising canonical models, skipping
     non-numeric parameters, and logging adapter failures with pytest coverage on
@@ -522,6 +531,11 @@ kit that the roadmap calls back to in each checklist.
   - *Progress*: Coverage telemetry now emits per-domain matrices from the
     coverage XML, with CLI tooling and pytest coverage documenting the JSON/markdown
     contract so dashboards can flag lagging domains without scraping CI logs.【F:tools/telemetry/coverage_matrix.py†L1-L199】【F:tests/tools/test_coverage_matrix.py†L1-L123】【F:docs/status/ci_health.md†L13-L31】
+  - *Progress*: CI now renders an ingest coverage matrix after every guarded
+    pytest run, enforcing `coverage.xml` generation and minimum coverage for the
+    institutional Timescale pipeline while appending the Markdown summary to the
+    GitHub Actions run; the guardrail manifest locks the workflow step so
+    coverage gating cannot be removed silently.【F:.github/workflows/ci.yml†L95-L120】【F:tools/telemetry/coverage_matrix.py†L1-L199】【F:tests/runtime/test_guardrail_suite_manifest.py†L98-L114】
   - *Progress*: CI workflow now fails fast if ingest, operations, trading, and
     governance suites regress by pinning pytest entrypoints and coverage include
     lists to those domains, preventing partial runs from passing unnoticed.【F:.github/workflows/ci.yml†L79-L120】【F:pytest.ini†L1-L14】【F:pyproject.toml†L45-L85】
@@ -656,6 +670,10 @@ kit that the roadmap calls back to in each checklist.
     live shim exports, flags missing candidates, and emits text/JSON summaries
     so platform hygiene reviews can prioritise deletions and wire guardrails
     without manually scraping Markdown lists.【F:tools/cleanup/dead_code_tracker.py†L1-L145】【F:tests/tools/test_dead_code_tracker.py†L1-L42】
+  - *Progress*: Removed the legacy `src.intelligence.adversarial_training` shim
+    and retargeted the intelligence facade to load the canonical
+    `thinking.adversarial` implementations directly, shrinking the cleanup
+    backlog while preserving lazy public imports for phase-three orchestrators.【F:src/intelligence/__init__.py†L40-L105】
 - [ ] **Governance and compliance** – Build the reporting cadence for KYC/AML,
   regulatory telemetry, and audit storage prior to live-broker pilots.【F:docs/technical_debt_assessment.md†L58-L112】
   - *Progress*: Governance reporting cadence now assembles compliance readiness,

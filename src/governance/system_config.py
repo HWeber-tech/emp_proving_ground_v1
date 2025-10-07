@@ -8,7 +8,11 @@ import tempfile
 from dataclasses import dataclass, field
 from enum import StrEnum
 from pathlib import Path
-from typing import Mapping, TypedDict, TypeVar, Unpack
+try:
+    from typing import Mapping, TypedDict, TypeVar, Unpack
+except ImportError:  # pragma: no cover - Python < 3.11 compatibility
+    from typing import Mapping, TypedDict, TypeVar
+    from typing_extensions import Unpack
 
 logger = logging.getLogger(__name__)
 

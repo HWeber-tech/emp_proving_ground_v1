@@ -546,6 +546,23 @@ def build_observability_dashboard(
                 },
             )
         )
+    else:
+        panels.append(
+            DashboardPanel(
+                name="Understanding loop",
+                status=DashboardStatus.warn,
+                headline="Understanding diagnostics unavailable",
+                details=(
+                    "No understanding loop snapshot provided; run the graph diagnostics CLI to rebuild artifacts.",
+                ),
+                metadata={
+                    "understanding_loop": {
+                        "status": "missing",
+                        "recommended_cli": "python -m tools.understanding.graph_diagnostics",
+                    }
+                },
+            )
+        )
 
     if quality_snapshot is not None:
         quality_status = _map_quality_status(quality_snapshot.status)

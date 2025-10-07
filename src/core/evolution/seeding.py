@@ -10,6 +10,7 @@ before adaptive runs are enabled.
 
 from __future__ import annotations
 
+from collections import Counter
 from dataclasses import dataclass, field
 import json
 import random
@@ -112,6 +113,153 @@ class GenomeSeed:
         if self.catalogue_entry_id:
             payload["seed_catalogue_id"] = self.catalogue_entry_id
         return dict(payload)
+
+
+def apply_seed_to_genome(genome: Any, seed: GenomeSeed) -> Any:
+    """Apply lineage metadata from a seed to a realised genome."""
+
+    updates: dict[str, object] = {}
+    if seed.parent_ids:
+        updates["parent_ids"] = list(seed.parent_ids)
+    if seed.mutation_history:
+        updates["mutation_history"] = list(seed.mutation_history)
+    if seed.performance_metrics:
+        existing = getattr(genome, "performance_metrics", {}) or {}
+        merged: MutableMapping[str, float]
+        if isinstance(existing, Mapping):
+            merged = dict(existing)
+        else:
+            merged = {}
+        merged.update({str(k): float(v) for k, v in seed.performance_metrics.items()})
+        updates["performance_metrics"] = merged
+
+    if updates and hasattr(genome, "with_updated"):
+        try:
+            genome = genome.with_updated(**updates)
+        except Exception:
+            pass
+
+    for key, value in updates.items():
+        try:
+            setattr(genome, key, value)
+        except Exception:
+            pass
+
+    metadata = seed.metadata()
+    if metadata:
+        try:
+            existing_meta = getattr(genome, "metadata", {}) or {}
+            if isinstance(existing_meta, Mapping):
+                merged_meta = dict(existing_meta)
+            else:
+                merged_meta = {}
+            merged_meta.update(metadata)
+            setattr(genome, "metadata", merged_meta)
+        except Exception:
+            pass
+
+    return genome
+
+
+def _extract_seed_metadata(candidate: Any) -> Mapping[str, object] | None:
+    metadata = getattr(candidate, "metadata", None)
+    if isinstance(metadata, Mapping):
+        if any(str(key).startswith("seed_") for key in metadata.keys()):
+            return metadata
+    direct_seed = {
+        key: getattr(candidate, key)
+        for key in ("seed_name", "seed_tags", "seed_species")
+        if hasattr(candidate, key)
+    }
+    return direct_seed or None
+
+
+def _normalise_seed_tags(tags: object) -> tuple[str, ...]:
+    if tags is None:
+        return tuple()
+    if isinstance(tags, str):
+        text = tags.strip()
+        return (text,) if text else tuple()
+    if isinstance(tags, Mapping):
+        values = tags.values()
+    else:
+        values = tags
+
+    result: list[str] = []
+    for item in values:
+        text = str(item).strip()
+        if text:
+            result.append(text)
+    return tuple(result)
+
+
+def _ordered_counter(counter: Counter[str]) -> dict[str, int]:
+    ordered_keys = sorted(counter.keys(), key=lambda item: (-counter[item], item))
+    return {key: counter[key] for key in ordered_keys}
+
+
+def summarize_seed_metadata(population: Sequence[Any]) -> dict[str, object] | None:
+    """Return aggregated seed provenance metadata for a population."""
+
+    name_counts: Counter[str] = Counter()
+    tag_counts: Counter[str] = Counter()
+    seed_species_counts: Counter[str] = Counter()
+    catalogue_id_counts: Counter[str] = Counter()
+    total_with_metadata = 0
+
+    for candidate in population:
+        metadata = _extract_seed_metadata(candidate)
+        if metadata is None:
+            continue
+
+        seed_name = metadata.get("seed_name")
+        if isinstance(seed_name, str) and seed_name:
+            name_counts[seed_name] += 1
+
+        tags = metadata.get("seed_tags")
+        for tag in _normalise_seed_tags(tags):
+            tag_counts[tag] += 1
+
+        seed_species = metadata.get("seed_species")
+        if isinstance(seed_species, str) and seed_species:
+            seed_species_counts[seed_species] += 1
+
+        catalogue_id = metadata.get("seed_catalogue_id")
+        if isinstance(catalogue_id, str) and catalogue_id:
+            catalogue_id_counts[catalogue_id] += 1
+
+        total_with_metadata += 1
+
+    if not name_counts and not tag_counts and not seed_species_counts and not catalogue_id_counts:
+        return None
+
+    summary: dict[str, object] = {}
+    if total_with_metadata:
+        summary["total_seeded"] = total_with_metadata
+
+    if name_counts:
+        ordered_names = _ordered_counter(name_counts)
+        summary["seed_names"] = ordered_names
+        total_named = sum(name_counts.values())
+        summary["seed_templates"] = [
+            {
+                "name": name,
+                "count": count,
+                "share": count / float(total_named),
+            }
+            for name, count in ordered_names.items()
+        ]
+
+    if tag_counts:
+        summary["seed_tags"] = _ordered_counter(tag_counts)
+
+    if seed_species_counts:
+        summary["seed_species"] = _ordered_counter(seed_species_counts)
+
+    if catalogue_id_counts:
+        summary["seed_catalogue_ids"] = _ordered_counter(catalogue_id_counts)
+
+    return summary
 
 
 _CATALOGUE_JITTER_OVERRIDES: dict[str, Mapping[str, float]] = {
@@ -588,6 +736,8 @@ class RealisticGenomeSeeder:
 
 
 __all__ = [
+    "apply_seed_to_genome",
+    "summarize_seed_metadata",
     "GenomeSeed",
     "GenomeSeedTemplate",
     "RealisticGenomeSeeder",

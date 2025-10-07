@@ -86,3 +86,24 @@ def test_mutation_flow_integrates():
             changed = True
             break
     assert changed
+
+
+def test_generate_initial_population_uses_realistic_seeds():
+    pm = PopulationManager(population_size=3, cache_ttl=1)
+
+    pm.population.clear()
+    pm._catalogue_flag = False  # type: ignore[attr-defined]
+    pm._catalogue = None  # type: ignore[attr-defined]
+
+    pm._generate_initial_population()
+
+    assert len(pm.population) == 3
+    stats = pm.get_population_statistics()
+    assert stats["seed_source"] == "realistic_sampler"
+    seed_metadata = stats.get("seed_metadata")
+    assert seed_metadata is not None
+    assert seed_metadata.get("seed_names")
+    for genome in pm.population:
+        metadata = getattr(genome, "metadata", {}) or {}
+        assert metadata.get("seed_name")
+        assert metadata.get("seed_species")

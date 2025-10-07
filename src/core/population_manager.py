@@ -11,10 +11,15 @@ from __future__ import annotations
 import logging
 import os
 import time
-from typing import Callable, Dict, List, Mapping, Optional, cast
+from typing import Callable, Dict, List, Mapping, Optional, Tuple, cast
 
 import numpy as np
 
+from src.core.evolution.seeding import (
+    RealisticGenomeSeeder,
+    apply_seed_to_genome,
+    summarize_seed_metadata,
+)
 from src.core.genome import GenomeProvider, get_genome_provider
 from src.core.performance.market_data_cache import get_global_cache
 from src.genome.catalogue import GenomeCatalogue, load_default_catalogue
@@ -54,6 +59,7 @@ class PopulationManager(IPopulationManager):
         self._catalogue_seeded_at: float | None = None
         self._seed_source: str = "factory"
         self._seed_metadata: Dict[str, object] | None = None
+        self._seed_sampler: RealisticGenomeSeeder | None = self._build_seed_sampler()
 
     def initialize_population(self, genome_factory: Callable) -> None:
         """Initialize population with new genomes."""
@@ -76,7 +82,8 @@ class PopulationManager(IPopulationManager):
             ]
             self._catalogue_summary = None
             self._catalogue_seeded_at = None
-            self.record_seed_metadata(None, seed_source="factory")
+            seed_summary = summarize_seed_metadata(self.population)
+            self.record_seed_metadata(seed_summary, seed_source="factory")
         else:
             self.record_seed_metadata(None, seed_source="catalogue")
         self.generation = 0
@@ -250,6 +257,13 @@ class PopulationManager(IPopulationManager):
                 self.record_seed_metadata(None, seed_source="catalogue")
                 return
 
+        seeded, summary = self._seed_with_sampler(provider)
+        if seeded:
+            self.population.extend(seeded)
+            logger.info("Seeded %s genomes using realistic sampler", len(seeded))
+            self.record_seed_metadata(summary, seed_source="realistic_sampler")
+            return
+
         try:
             import random
 
@@ -274,7 +288,7 @@ class PopulationManager(IPopulationManager):
                     generation=0,
                     species_type="trading_strategy",
                 )
-                self.population.append(cast(DecisionGenome, genome))
+            self.population.append(cast(DecisionGenome, genome))
 
             logger.info(f"Successfully generated {len(self.population)} genomes")
             self.record_seed_metadata(None, seed_source="factory")
@@ -334,6 +348,39 @@ class PopulationManager(IPopulationManager):
         self._catalogue_seeded_at = seeded_at
         self.record_seed_metadata(None, seed_source="catalogue")
         return resolved
+
+    def _build_seed_sampler(self) -> RealisticGenomeSeeder | None:
+        try:
+            return RealisticGenomeSeeder()
+        except Exception as exc:
+            logger.warning("Realistic genome seeding unavailable: %s", exc)
+            return None
+
+    def _seed_with_sampler(
+        self, provider: GenomeProvider
+    ) -> Tuple[List[DecisionGenome], Dict[str, object] | None]:
+        if self._seed_sampler is None:
+            return [], None
+
+        seeded: List[DecisionGenome] = []
+        try:
+            for index in range(self.population_size):
+                seed = self._seed_sampler.sample()
+                genome = provider.new_genome(
+                    id=f"realistic_seed_{index:05d}",
+                    parameters=dict(seed.parameters),
+                    generation=0,
+                    species_type=seed.species,
+                )
+                resolved = cast(DecisionGenome, provider.from_legacy(genome))
+                resolved = cast(DecisionGenome, apply_seed_to_genome(resolved, seed))
+                seeded.append(resolved)
+        except Exception as exc:
+            logger.error("Realistic genome seeding failed: %s", exc)
+            return [], None
+
+        summary = summarize_seed_metadata(seeded)
+        return seeded, summary
 
     def evolve_population(self, market_data: Dict, performance_metrics: Dict) -> None:
         """Evolve the population based on market data and performance."""

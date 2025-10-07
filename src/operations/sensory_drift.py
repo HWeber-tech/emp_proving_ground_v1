@@ -21,7 +21,9 @@ import logging
 
 from src.core.event_bus import Event, EventBus, TopicBus
 from src.operations.alerts import AlertEvent, AlertSeverity
+from src.operations.observability_diary import ThrottleStateSnapshot
 from src.operations.event_bus_failover import publish_event_with_failover
+from src.understanding.metrics import export_throttle_metrics
 
 
 logger = logging.getLogger(__name__)
@@ -455,6 +457,34 @@ def derive_drift_alerts(
     return events
 
 
+def export_drift_throttle_metrics(
+    snapshot: SensoryDriftSnapshot,
+    throttle_states: Iterable[ThrottleStateSnapshot | Mapping[str, Any]],
+    *,
+    regime: str | None = None,
+    decision_id: str | None = None,
+    threshold: DriftSeverity = DriftSeverity.warn,
+) -> bool:
+    """Export throttle posture to Prometheus when drift escalates."""
+
+    states = tuple(throttle_states)
+    if not states:
+        return False
+
+    should_export = _should_emit(snapshot.status, threshold)
+    if not should_export:
+        should_export = any(
+            _should_emit(dimension.severity, threshold)
+            for dimension in snapshot.dimensions.values()
+        )
+
+    if not should_export:
+        return False
+
+    export_throttle_metrics(states, regime=regime, decision_id=decision_id)
+    return True
+
+
 __all__ = [
     "DriftSeverity",
     "SensoryDimensionDrift",
@@ -462,4 +492,5 @@ __all__ = [
     "evaluate_sensory_drift",
     "derive_drift_alerts",
     "publish_sensory_drift",
+    "export_drift_throttle_metrics",
 ]

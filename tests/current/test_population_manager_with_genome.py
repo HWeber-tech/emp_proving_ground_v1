@@ -107,3 +107,21 @@ def test_generate_initial_population_uses_realistic_seeds():
         metadata = getattr(genome, "metadata", {}) or {}
         assert metadata.get("seed_name")
         assert metadata.get("seed_species")
+
+
+def test_generate_initial_population_factory_fallback(monkeypatch):
+    pm = PopulationManager(population_size=3, cache_ttl=1)
+
+    pm.population.clear()
+    pm._catalogue_flag = False  # type: ignore[attr-defined]
+    pm._catalogue = None  # type: ignore[attr-defined]
+    pm._seed_sampler = None  # type: ignore[attr-defined]
+
+    monkeypatch.setattr(pm, "_seed_with_sampler", lambda provider: ([], None))
+
+    pm._generate_initial_population()
+
+    assert len(pm.population) == 3
+    stats = pm.get_population_statistics()
+    assert stats["seed_source"] == "factory"
+    assert stats["population_size"] == 3

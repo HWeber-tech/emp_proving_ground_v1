@@ -203,6 +203,7 @@ class AnomalySensor:
             value=value,
             confidence=confidence,
             metadata=metadata,
+            lineage=lineage,
         )
 
     def _default_signal(self, *, reason: str | None = None) -> SensorSignal:
@@ -253,6 +254,7 @@ class AnomalySensor:
             },
             confidence=0.0,
             metadata=metadata,
+            lineage=lineage,
         )
 
     def _record_lineage(self, lineage: SensorLineageRecord) -> None:

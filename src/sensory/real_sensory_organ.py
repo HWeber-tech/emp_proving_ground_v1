@@ -10,7 +10,7 @@ import pandas as pd
 
 from src.sensory.anomaly.anomaly_sensor import AnomalySensor
 from src.sensory.how.how_sensor import HowSensor
-from src.sensory.lineage import build_lineage_record
+from src.sensory.lineage import SensorLineageRecord, build_lineage_record
 from src.sensory.lineage_publisher import SensoryLineagePublisher
 from src.sensory.monitoring.sensor_drift import SensorDriftSummary, evaluate_sensor_drift
 from src.sensory.signals import IntegratedSignal, SensorSignal
@@ -135,13 +135,18 @@ class RealSensoryOrgan:
         }
 
         dimension_payloads: dict[str, dict[str, Any]] = {}
+        dimension_lineage_records: dict[str, SensorLineageRecord] = {}
         for name, signal in signals.items():
+            metadata = self._serialise_mapping(signal.metadata)
             dimension_payloads[name] = {
                 "signal": self._extract_strength(signal),
                 "confidence": float(signal.confidence),
                 "value": self._serialise_value(signal.value),
-                "metadata": self._serialise_mapping(signal.metadata),
+                "metadata": metadata,
             }
+            lineage_record = getattr(signal, "lineage", None)
+            if isinstance(lineage_record, SensorLineageRecord):
+                dimension_lineage_records[name] = lineage_record
 
         integrated = self._build_integrated_signal(signals)
         lineage = build_lineage_record(
@@ -175,6 +180,7 @@ class RealSensoryOrgan:
             dimension_payloads,
             symbol=resolved_symbol,
             generated_at=timestamp,
+            lineage_records=dimension_lineage_records,
         )
 
         audit_entry = {
@@ -361,6 +367,7 @@ class RealSensoryOrgan:
         *,
         symbol: str,
         generated_at: datetime,
+        lineage_records: Mapping[str, SensorLineageRecord] | None = None,
     ) -> None:
         publisher = self._lineage_publisher
         if publisher is None:
@@ -371,9 +378,16 @@ class RealSensoryOrgan:
             metadata = raw_metadata if isinstance(raw_metadata, Mapping) else None
             if not metadata:
                 continue
-            lineage_payload = metadata.get("lineage")
-            if lineage_payload is None:
-                continue
+            lineage_record: SensorLineageRecord | None = None
+            if lineage_records is not None:
+                lineage_record = lineage_records.get(dimension)
+
+            if lineage_record is not None:
+                lineage_payload: object = lineage_record
+            else:
+                lineage_payload = metadata.get("lineage")
+                if lineage_payload is None:
+                    continue
 
             state_value = metadata.get("state")
             state = state_value if isinstance(state_value, str) else None

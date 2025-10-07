@@ -140,6 +140,7 @@ class HowSensor:
                 value=value,
                 confidence=confidence,
                 metadata=metadata,
+                lineage=lineage,
             )
         ]
 
@@ -206,6 +207,7 @@ class HowSensor:
             },
             confidence=confidence,
             metadata=metadata,
+            lineage=lineage,
         )
 
     def _record_lineage(self, lineage: SensorLineageRecord) -> None:

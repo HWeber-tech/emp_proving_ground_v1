@@ -8,7 +8,7 @@ import pandas as pd
 from src.sensory.anomaly import AnomalySensor
 from src.sensory.anomaly.anomaly_sensor import AnomalySensorConfig
 from src.sensory.how.how_sensor import HowSensor
-from src.sensory.lineage import SensorLineageRecorder
+from src.sensory.lineage import SensorLineageRecord, SensorLineageRecorder
 
 
 @dataclass(slots=True)
@@ -129,6 +129,8 @@ def test_how_sensor_emits_liquidity_audit() -> None:
     assert len(signals) == 1
     signal = signals[0]
     assert signal.signal_type == "HOW"
+    assert isinstance(signal.lineage, SensorLineageRecord)
+    assert signal.lineage.dimension == "HOW"
     assert -1.0 <= float(signal.value["strength"]) <= 1.0
     metadata = signal.metadata or {}
     assert metadata.get("source") == "sensory.how"
@@ -154,6 +156,8 @@ def test_anomaly_sensor_sequence_mode_detects_spike() -> None:
     assert len(signals) == 1
     signal = signals[0]
     assert signal.signal_type == "ANOMALY"
+    assert isinstance(signal.lineage, SensorLineageRecord)
+    assert signal.lineage.dimension == "ANOMALY"
     metadata = signal.metadata or {}
     assert metadata.get("source") == "sensory.anomaly"
     assert metadata.get("mode") == "sequence"
@@ -175,6 +179,7 @@ def test_anomaly_sensor_falls_back_to_market_payload() -> None:
     assert len(signals) == 1
     signal = signals[0]
     assert signal.signal_type == "ANOMALY"
+    assert isinstance(signal.lineage, SensorLineageRecord)
     metadata = signal.metadata or {}
     assert metadata.get("mode") == "market_data"
     assert "baseline" in metadata.get("audit", {})
@@ -192,6 +197,8 @@ def test_how_sensor_threshold_state_escalates() -> None:
     signal = sensor.process(frame)[0]
 
     assert signal.value["state"] == "alert"
+    assert isinstance(signal.lineage, SensorLineageRecord)
+    assert signal.lineage.dimension == "HOW"
     metadata = signal.metadata or {}
     assessment = metadata.get("threshold_assessment")
     assert assessment["breached_level"] == "alert"
@@ -205,6 +212,8 @@ def test_anomaly_sensor_threshold_state_escalates() -> None:
     signal = sensor.process({"payload": "ignored"})[0]
 
     assert signal.value["state"] == "warning"
+    assert isinstance(signal.lineage, SensorLineageRecord)
+    assert signal.lineage.dimension == "ANOMALY"
     metadata = signal.metadata or {}
     assessment = metadata.get("threshold_assessment")
     assert assessment["state"] == "warning"
@@ -283,6 +292,7 @@ def test_anomaly_sensor_sequence_filters_invalid_samples() -> None:
 
     assert isinstance(engine.seen_payload, list)
     assert engine.seen_payload == [1.0, 2.0, 3.0]
+    assert isinstance(signal.lineage, SensorLineageRecord)
     metadata = signal.metadata or {}
     assert metadata.get("dropped_samples") == 2
     lineage = metadata.get("lineage")
@@ -299,4 +309,5 @@ def test_anomaly_sensor_clamps_confidence() -> None:
     signal = sensor.process([0.1] * 10)[0]
 
     assert signal.confidence == 0.35
+    assert isinstance(signal.lineage, SensorLineageRecord)
     assert signal.metadata["threshold_assessment"]["state"] in {"nominal", "warning", "alert"}

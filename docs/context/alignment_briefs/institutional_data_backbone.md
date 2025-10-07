@@ -101,6 +101,10 @@
   telemetry, and defers the first scheduled Timescale run after the bootstrap
   ingest so supervised deployments inherit telemetry-backed connectors without
   extra wiring.【F:src/runtime/runtime_builder.py†L1124-L1895】【F:src/runtime/runtime_builder.py†L2453-L2568】【F:docs/operations/timescale_failover_drills.md†L7-L33】
+- Progress: Managed connector snapshots now include probe error text, and the
+  managed-ingest CLI hydrates `SystemConfig` extras before rendering manifest and
+  connectivity payloads so responders see actionable failure reasons and reason
+  codes when institutional pipelines degrade under regression coverage.【F:src/data_foundation/ingest/institutional_vertical.py†L305-L370】【F:src/data_foundation/ingest/institutional_vertical.py†L662-L698】【F:tools/operations/managed_ingest_connectors.py†L200-L259】【F:tests/data_foundation/test_institutional_vertical.py†L94-L104】【F:tests/tools/test_managed_ingest_connectors.py†L30-L77】
 - Progress: Tier-0 Yahoo ingest script now sanitises symbols and intervals,
   enforces mutually exclusive period/start-end windows, normalises timestamps,
   and persists via a DuckDB helper that escapes table identifiers and binds

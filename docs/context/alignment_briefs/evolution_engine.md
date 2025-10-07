@@ -92,6 +92,10 @@
   a reflection report helper that packages digest metadata and reviewer-ready
   artifacts so experimentation stays current while governance receives
   consumable summaries under regression coverage.【F:src/thinking/adaptation/policy_router.py†L175-L525】【F:tests/thinking/test_policy_router.py†L248-L308】
+- Progress: Reflection digest now tracks confidence curves, feature highlights,
+  and weight-multiplier statistics while decision diaries include weight
+  breakdowns so reviewers can trace how fast weights and experiments influenced
+  each recommendation under expanded pytest coverage.【F:src/thinking/adaptation/policy_router.py†L320-L377】【F:src/thinking/adaptation/policy_reflection.py†L205-L334】【F:src/understanding/decision_diary.py†L52-L82】【F:tests/thinking/test_policy_router.py†L59-L333】【F:tests/understanding/test_decision_diary.py†L68-L118】
 - Progress: AdversarialTrainer now logs generator signature mismatches and
   unexpected training failures while preserving heuristic fallbacks so
   experimentation surfaces actionable diagnostics without stalling adaptive

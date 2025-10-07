@@ -106,6 +106,10 @@
   execution decision from the release-aware router, capturing forced paper
   routes and escalation reasons so dashboards and audits inherit the exact
   enforcement evidence under regression coverage.【F:src/trading/trading_manager.py†L760-L817】【F:tests/trading/test_trading_manager_execution.py†L960-L991】
+- Progress: Release-aware execution router now inspects policy-ledger audit
+  posture, merges DriftSentry overrides with audit enforcement, and records the
+  forced-reason history plus audit metadata so compliance snapshots explain why
+  routes were downgraded to paper under new guardrail coverage.【F:src/trading/execution/release_router.py†L39-L214】【F:src/trading/execution/release_router.py†L260-L332】【F:src/trading/trading_manager.py†L700-L880】【F:tests/trading/test_release_execution_router.py†L1-L240】【F:tests/trading/test_trading_manager_execution.py†L886-L1030】
 - Progress: Drift gate telemetry now publishes structured event-bus payloads and
   Markdown summaries covering severity, forced-paper posture, and routing
   metadata whenever gating decisions fire so compliance dashboards inherit

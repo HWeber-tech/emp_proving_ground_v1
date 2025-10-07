@@ -722,6 +722,10 @@ kit that the roadmap calls back to in each checklist.
 
 - [ ] **Institutional ingest vertical** – Provision managed Timescale/Redis/Kafka
   environments, implement supervised connectors, and document failover drills.
+  - *Progress*: Managed connector snapshots now capture probe error text and the
+    CLI resolves `SystemConfig` extras before rendering manifest/connectivity
+    health so operators inherit actionable failure reasons when institutional
+    pipelines degrade, under pytest coverage for the vertical and CLI surfaces.【F:src/data_foundation/ingest/institutional_vertical.py†L305-L370】【F:src/data_foundation/ingest/institutional_vertical.py†L662-L698】【F:tools/operations/managed_ingest_connectors.py†L200-L259】【F:tests/data_foundation/test_institutional_vertical.py†L94-L104】【F:tests/tools/test_managed_ingest_connectors.py†L10-L77】
 - [x] **Sensory cortex uplift** – Deliver executable HOW/ANOMALY organs, instrument
   drift telemetry, and expose metrics through runtime summaries and the event
   bus.
@@ -779,6 +783,10 @@ kit that the roadmap calls back to in each checklist.
     gates, and feature bounds into the reflection digest while the builder renders
     the new gating columns and reviewer insights so experiment-driven tactics stay
     auditable without replaying telemetry, covered by expanded pytest fixtures.【F:src/thinking/adaptation/policy_router.py†L16-L163】【F:src/thinking/adaptation/policy_reflection.py†L273-L307】【F:tests/thinking/test_policy_router.py†L230-L239】【F:tests/thinking/test_policy_reflection_builder.py†L80-L107】
+  - *Progress*: Reflection digest now tracks confidence trends, feature
+    highlights, and weight multipliers while decision diaries and router
+    decisions surface weight-breakdown provenance so reviewers see how fast
+    weights and experiments shaped each promotion under new regression coverage.【F:src/thinking/adaptation/policy_router.py†L320-L377】【F:src/thinking/adaptation/policy_reflection.py†L205-L334】【F:src/understanding/decision_diary.py†L52-L82】【F:tests/thinking/test_policy_router.py†L59-L333】【F:tests/understanding/test_decision_diary.py†L68-L118】
   - *Progress*: Observability dashboard now ships a policy reflection panel that
     summarises analysed decisions, highlights top tactics/experiments/tags,
     embeds reviewer insights, and retains exported Markdown/metadata so
@@ -814,6 +822,10 @@ kit that the roadmap calls back to in each checklist.
     execution route from the release-aware router, including forced paper
     routes and escalation reasons, so dashboards and audits inherit the same
     enforcement evidence under regression coverage.【F:src/trading/trading_manager.py†L760-L817】【F:tests/trading/test_trading_manager_execution.py†L960-L991】
+  - *Progress*: Release-aware execution router now inspects policy-ledger audit
+    posture, merges drift gating with audit enforcement, and propagates forced
+    reason histories plus audit metadata into trading manager summaries so
+    governance trails explain every paper override under pytest coverage.【F:src/trading/execution/release_router.py†L39-L214】【F:src/trading/execution/release_router.py†L260-L332】【F:src/trading/trading_manager.py†L700-L880】【F:tests/trading/test_release_execution_router.py†L1-L240】【F:tests/trading/test_trading_manager_execution.py†L886-L1030】
 
 ### Later (90+ days)
 
@@ -897,13 +909,13 @@ kit that the roadmap calls back to in each checklist.
 - Maintain the truth-first status culture: mock implementations must remain
   labelled and roadmapped until replaced by production-grade systems.【F:docs/DEVELOPMENT_STATUS.md†L7-L35】
 
-## Automation updates — 2025-10-08T00:38:23Z
+## Automation updates — 2025-10-08T01:54:02Z
 
 ### Last 4 commits
-- 16bb275 feat(trading): add 5 files (2025-10-08)
-- 9e91ea3 feat(core): add 3 files (2025-10-08)
-- 4a55340 refactor(docs): tune 9 files (2025-10-08)
-- df38814 docs(docs): tune 3 files (2025-10-08)
+- 54d52ad refactor(trading): tune 4 files (2025-10-08)
+- fd5fb05 refactor(thinking): tune 6 files (2025-10-08)
+- eb0d791 refactor(thinking): tune 4 files (2025-10-08)
+- 523302b refactor(data_foundation): tune 4 files (2025-10-08)
 
 ## Automation updates — 2025-10-07T22:25:27Z
 

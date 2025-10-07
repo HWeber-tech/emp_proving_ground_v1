@@ -38,7 +38,7 @@ def test_intelligence_public_api_no_side_effects_and_lazy(caplog):
 
 
 def test_intelligence_facade_modules_import_without_heavy_deps(caplog, monkeypatch):
-    # Block heavy libs at import-time to ensure modules don't try to import them on import
+    # Block heavy libs at import-time to ensure façade modules stay lightweight
     blocked = {"enabled": True}
     real_import = __import__
 
@@ -50,7 +50,6 @@ def test_intelligence_facade_modules_import_without_heavy_deps(caplog, monkeypat
     monkeypatch.setattr("builtins.__import__", guarded_import)
 
     caplog.set_level(logging.INFO)
-    # Import façade modules; should succeed without importing sklearn/torch
     rt_mod = importlib.import_module("src.intelligence.red_team_ai")
     ci_mod = importlib.import_module("src.intelligence.competitive_intelligence")
 
@@ -58,62 +57,24 @@ def test_intelligence_facade_modules_import_without_heavy_deps(caplog, monkeypat
     assert "Starting" not in joined
     assert "Configured logging" not in joined
 
-    # Accessing legacy classes should not trigger heavy imports until constructed
-    assert hasattr(rt_mod, "StrategyAnalyzerLegacy")
-    assert hasattr(ci_mod, "AlgorithmFingerprinterLegacy")
+    # Facades should behave as pure re-exports with no legacy shims
+    assert not hasattr(rt_mod, "StrategyAnalyzerLegacy")
+    assert not hasattr(ci_mod, "AlgorithmFingerprinterLegacy")
 
-    # Constructing them while blocked should raise ImportError due to localized heavy deps
-    try:
-        _ = rt_mod.StrategyAnalyzerLegacy()
-        raised = False
-    except ImportError:
-        raised = True
-    assert raised, "Expected ImportError due to blocked sklearn during construction"
+    assert rt_mod.StrategyAnalyzer.__module__ == "src.thinking.adversarial.red_team_ai"
+    assert rt_mod.RedTeamAI.__module__ == "src.thinking.adversarial.red_team_ai"
+    assert ci_mod.CompetitiveIntelligenceSystem.__module__ == (
+        "src.thinking.competitive.competitive_intelligence_system"
+    )
+    assert ci_mod.AlgorithmFingerprinter.__module__ == (
+        "src.thinking.competitive.competitive_intelligence_system"
+    )
 
-    try:
-        _ = ci_mod.AlgorithmFingerprinterLegacy()
-        raised = False
-    except ImportError:
-        raised = True
-    assert raised, "Expected ImportError due to blocked sklearn during construction"
+    # Unblock heavy imports and ensure objects are instantiable for sanity
+    blocked["enabled"] = False
+    _ = rt_mod.StrategyAnalyzer()
+    _ = ci_mod.AlgorithmFingerprinter()
 
-    # Now allow heavy imports with simple stubs to prove the path is executed lazily
-    import types
-
-    blocked["enabled"] = False  # stop blocking
-    # Provide minimal sklearn stubs
-    sklearn = types.ModuleType("sklearn")
-    cluster = types.ModuleType("sklearn.cluster")
-    ensemble = types.ModuleType("sklearn.ensemble")
-    preprocessing = types.ModuleType("sklearn.preprocessing")
-
-    class _DBSCAN:
-        def __init__(self, *args, **kwargs):
-            pass
-
-        def fit_predict(self, X):
-            return [0] * len(X)
-
-    class _IsolationForest:
-        def __init__(self, *args, **kwargs):
-            pass
-
-        def decision_function(self, X):
-            return [0.0]
-
-    class _StandardScaler:
-        def fit_transform(self, X):
-            return X
-
-    cluster.DBSCAN = _DBSCAN
-    ensemble.IsolationForest = _IsolationForest
-    preprocessing.StandardScaler = _StandardScaler
-
-    sys.modules["sklearn"] = sklearn
-    sys.modules["sklearn.cluster"] = cluster
-    sys.modules["sklearn.ensemble"] = ensemble
-    sys.modules["sklearn.preprocessing"] = preprocessing
-
-    # Construct again; should succeed with stubs
-    _ = rt_mod.StrategyAnalyzerLegacy()
-    _ = ci_mod.AlgorithmFingerprinterLegacy()
+    # Explicitly clean up patched imports
+    for key in ["sklearn", "sklearn.cluster", "sklearn.ensemble", "torch"]:
+        sys.modules.pop(key, None)

@@ -101,6 +101,9 @@ if "src.runtime.runtime_builder" not in sys.modules:
     sys.modules["src.runtime.runtime_builder"] = runtime_builder_module
 
 from src.core.event_bus import EventBus
+from src.operations.sensory_drift import SensoryDriftSnapshot
+from src.operations.sensory_metrics import SensoryMetrics
+from src.operations.sensory_summary import SensorySummary
 from src.runtime.bootstrap_runtime import BootstrapRuntime
 
 
@@ -131,3 +134,63 @@ async def test_bootstrap_runtime_exposes_sensory_status() -> None:
         assert audit_entries
     finally:
         await runtime.stop()
+
+
+@pytest.mark.asyncio()
+async def test_bootstrap_runtime_publishes_sensory_telemetry(monkeypatch) -> None:
+    import src.runtime.bootstrap_runtime as bootstrap_module
+
+    summary_calls: list[SensorySummary] = []
+    metrics_calls: list[SensoryMetrics] = []
+    drift_calls: list[SensoryDriftSnapshot] = []
+
+    def _capture_summary(
+        summary: SensorySummary,
+        *,
+        event_bus: EventBus,
+        event_type: str = "telemetry.sensory.summary",
+        global_bus_factory=None,
+    ) -> None:
+        summary_calls.append(summary)
+
+    def _capture_metrics(
+        metrics: SensoryMetrics,
+        *,
+        event_bus: EventBus,
+        event_type: str = "telemetry.sensory.metrics",
+        global_bus_factory=None,
+    ) -> None:
+        metrics_calls.append(metrics)
+
+    def _capture_drift(
+        event_bus: EventBus,
+        snapshot: SensoryDriftSnapshot,
+        *,
+        global_bus_factory=None,
+    ) -> None:
+        drift_calls.append(snapshot)
+
+    monkeypatch.setattr(bootstrap_module, "publish_sensory_summary", _capture_summary)
+    monkeypatch.setattr(bootstrap_module, "publish_sensory_metrics", _capture_metrics)
+    monkeypatch.setattr(bootstrap_module, "publish_sensory_drift", _capture_drift)
+
+    event_bus = EventBus()
+    runtime = BootstrapRuntime(event_bus=event_bus, tick_interval=0.0, max_ticks=4)
+
+    await runtime.start()
+    try:
+        await asyncio.sleep(0.1)
+    finally:
+        await runtime.stop()
+
+    assert summary_calls
+    assert metrics_calls
+    assert drift_calls
+
+    assert isinstance(summary_calls[-1], SensorySummary)
+    assert isinstance(metrics_calls[-1], SensoryMetrics)
+    assert isinstance(drift_calls[-1], SensoryDriftSnapshot)
+
+    status = runtime.status()
+    metrics_payload = status.get("sensory_metrics")
+    assert metrics_payload == metrics_calls[-1].as_dict()

@@ -1,10 +1,12 @@
 import datetime
 import importlib
+import logging
 import sys
 import types
 import typing
 from statistics import mean, median
-import logging
+
+import pytest
 
 
 def _install_structlog_stub() -> None:
@@ -159,20 +161,13 @@ if not hasattr(typing, "Unpack"):
     typing.Unpack = Any  # type: ignore[attr-defined,assignment]
 
 
-def test_operational_event_bus_aliases_core_module() -> None:
+def test_operational_event_bus_module_removed() -> None:
     sys.modules.pop("src.operational.event_bus", None)
     sys.modules.pop("src.operational", None)
     sys.modules.pop("src.core.event_bus", None)
 
-    core_stub = types.ModuleType("src.core.event_bus")
+    with pytest.raises(ModuleNotFoundError) as excinfo:
+        importlib.import_module("src.operational.event_bus")
 
-    class _DummyEventBus:
-        pass
-
-    core_stub.EventBus = _DummyEventBus  # type: ignore[attr-defined]
-    sys.modules["src.core.event_bus"] = core_stub
-
-    legacy_mod = importlib.import_module("src.operational.event_bus")
-
-    assert legacy_mod is core_stub
-    assert legacy_mod.EventBus is _DummyEventBus
+    message = str(excinfo.value)
+    assert "src.operational.event_bus" in message

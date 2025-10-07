@@ -146,7 +146,7 @@ Dead code candidates (first 100):
 -  src\intelligence\red_team_ai.py
 -  src\intelligence\sentient_adaptation.py
 -  src\intelligence\specialized_predators.py
--  ~~src\\operational\\event_bus.py~~ (removed; canonical imports now resolve through `src/core/event_bus.py` with legacy aliases registered during `src.operational` package import.)
+-  ~~src\\operational\\event_bus.py~~ (removed; canonical imports now resolve through `src/core/event_bus.py` and legacy module paths now raise a descriptive import error.)
 -  src\operational\fix_connection_manager.py
 -  src\operational\health_monitor.py
 -  ~~src\operational\icmarkets_robust_application.py~~ (removed; FIX connectivity consolidated under `fix_connection_manager`)
@@ -184,6 +184,9 @@ Total candidates: 168
 
 Cleanup updates since last audit:
 -  Retired the legacy `scripts/verify_complete_system.py` harness which depended on removed strategy templates.
+-  Removed the fallback alias that exposed `src.operational.event_bus` via
+   `src.operational.__init__`, enforcing `src.core.event_bus` as the single
+   import path and covering the legacy failure mode with regression tests.【F:src/operational/__init__.py†L1-L32】【F:tests/operational/test_event_bus_alias.py†L1-L206】
 
 ## Latest Duplicate Map (AST-based, Phase 1)
 
@@ -219,7 +222,7 @@ Phase 1 Canonicalization Scope (committed)
 - Migration batches and steps: [MIGRATION_PLAN.md](docs/reports/MIGRATION_PLAN.md)
 
 Batch 1 (to execute next)
-- EventBus → canonical [src/core/event_bus.py](src/core/event_bus.py); legacy shim removed (aliases registered during `src.operational` package import)
+- EventBus → canonical [src/core/event_bus.py](src/core/event_bus.py); legacy shim removed and legacy module path now raises a descriptive `ModuleNotFoundError`
 - get_global_cache → canonical [src/core/performance/market_data_cache.py](src/core/performance/market_data_cache.py); legacy shim [src/performance/__init__.py](src/performance/__init__.py)
 - Command to regenerate map:
   - python [duplicate_map.py](scripts/cleanup/duplicate_map.py:1) --root src --out docs/reports --min-count 2
@@ -234,7 +237,7 @@ Parser warnings (non-blocking, fix in relevant batches)
 
 - EventBus
   - Canonical: [src/core/event_bus.py](src/core/event_bus.py)
-  - Legacy shim: ~~[src/operational/event_bus.py](src/operational/event_bus.py)~~ (removed; aliases registered during `src.operational` import)
+  - Legacy shim: ~~[src/operational/event_bus.py](src/operational/event_bus.py)~~ (removed; legacy alias removed so imports now fail fast with `ModuleNotFoundError`)
 - get_global_cache
   - Canonical: [src/core/performance/market_data_cache.py](src/core/performance/market_data_cache.py)
   - Legacy shim: [src/performance/__init__.py](src/performance/__init__.py)

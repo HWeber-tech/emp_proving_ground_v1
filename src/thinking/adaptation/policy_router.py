@@ -470,6 +470,17 @@ class PolicyRouter:
                 "recent_headlines": [],
                 "current_streak": {"tactic_id": None, "length": 0},
                 "longest_streak": {"tactic_id": None, "length": 0},
+                "confidence": {
+                    "count": 0,
+                    "average": None,
+                    "min": None,
+                    "max": None,
+                    "latest": None,
+                    "change": None,
+                    "first_seen": None,
+                    "last_seen": None,
+                },
+                "features": [],
             }
 
         tactic_counts: Counter[str] = Counter()
@@ -501,6 +512,19 @@ class PolicyRouter:
         objective_scores: dict[str, float] = {}
         objective_tactics: dict[str, Counter[str]] = {}
 
+        confidence_values: list[tuple[datetime | None, float]] = []
+        confidence_first_value: float | None = None
+        confidence_first_timestamp: datetime | None = None
+
+        feature_counts: Counter[str] = Counter()
+        feature_sums: dict[str, float] = {}
+        feature_min: dict[str, float] = {}
+        feature_max: dict[str, float] = {}
+        feature_first_value: dict[str, float] = {}
+        feature_first_seen: dict[str, datetime | None] = {}
+        feature_last_value: dict[str, float] = {}
+        feature_last_seen: dict[str, datetime | None] = {}
+
         recent_headlines: list[str] = []
         as_of: datetime | None = None
 
@@ -517,6 +541,35 @@ class PolicyRouter:
             timestamp = self._parse_timestamp(entry.get("timestamp"))
             if timestamp and (as_of is None or timestamp > as_of):
                 as_of = timestamp
+
+            confidence_value = entry.get("confidence")
+            if isinstance(confidence_value, (int, float)):
+                numeric_confidence = float(confidence_value)
+                confidence_values.append((timestamp, numeric_confidence))
+                if confidence_first_value is None:
+                    confidence_first_value = numeric_confidence
+                    confidence_first_timestamp = timestamp
+
+            regime_features = entry.get("regime_features")
+            if isinstance(regime_features, Mapping):
+                for feature_name, raw_value in regime_features.items():
+                    try:
+                        numeric_value = float(raw_value)
+                    except (TypeError, ValueError):
+                        continue
+                    feature_counts[feature_name] += 1
+                    feature_sums[feature_name] = feature_sums.get(feature_name, 0.0) + numeric_value
+                    current_min = feature_min.get(feature_name)
+                    if current_min is None or numeric_value < current_min:
+                        feature_min[feature_name] = numeric_value
+                    current_max = feature_max.get(feature_name)
+                    if current_max is None or numeric_value > current_max:
+                        feature_max[feature_name] = numeric_value
+                    if feature_name not in feature_first_value:
+                        feature_first_value[feature_name] = numeric_value
+                        feature_first_seen[feature_name] = timestamp
+                    feature_last_value[feature_name] = numeric_value
+                    feature_last_seen[feature_name] = timestamp
 
             if tactic_id:
                 tactic_counts[tactic_id] += 1
@@ -726,6 +779,71 @@ class PolicyRouter:
 
         recent_headlines = recent_headlines[-5:]
 
+        if confidence_values:
+            sentinel = datetime.min.replace(tzinfo=timezone.utc)
+            sorted_confidence = sorted(confidence_values, key=lambda item: item[0] or sentinel)
+            values = [value for _, value in sorted_confidence]
+            latest_timestamp = next((ts for ts, _ in reversed(sorted_confidence) if ts), None)
+            confidence_summary: Mapping[str, object] = {
+                "count": len(values),
+                "average": sum(values) / len(values),
+                "min": min(values),
+                "max": max(values),
+                "latest": values[-1],
+                "change": (
+                    values[-1] - confidence_first_value
+                    if confidence_first_value is not None
+                    else values[-1] - values[0]
+                ),
+                "first_seen": (
+                    confidence_first_timestamp.isoformat()
+                    if confidence_first_timestamp
+                    else None
+                ),
+                "last_seen": latest_timestamp.isoformat() if latest_timestamp else None,
+            }
+        else:
+            confidence_summary = {
+                "count": 0,
+                "average": None,
+                "min": None,
+                "max": None,
+                "latest": None,
+                "change": None,
+                "first_seen": None,
+                "last_seen": None,
+            }
+
+        feature_summaries: list[Mapping[str, object]] = []
+        if feature_counts:
+            for feature_name, count in feature_counts.most_common():
+                total = feature_sums.get(feature_name, 0.0)
+                average = total / count if count else 0.0
+                latest_value = feature_last_value.get(feature_name)
+                last_seen = feature_last_seen.get(feature_name)
+                first_value = feature_first_value.get(feature_name)
+                trend = None
+                if latest_value is not None and first_value is not None:
+                    trend = latest_value - first_value
+                first_seen = feature_first_seen.get(feature_name)
+                feature_summaries.append(
+                    {
+                        "feature": feature_name,
+                        "count": count,
+                        "average": average,
+                        "latest": latest_value,
+                        "min": feature_min.get(feature_name),
+                        "max": feature_max.get(feature_name),
+                        "trend": trend,
+                        "first_seen": first_seen.isoformat()
+                        if isinstance(first_seen, datetime)
+                        else None,
+                        "last_seen": last_seen.isoformat()
+                        if isinstance(last_seen, datetime)
+                        else None,
+                    }
+                )
+
         return {
             "total_decisions": total_decisions,
             "as_of": as_of.isoformat() if as_of else None,
@@ -743,6 +861,8 @@ class PolicyRouter:
                 "tactic_id": longest_streak[0],
                 "length": longest_streak[1],
             },
+            "confidence": confidence_summary,
+            "features": feature_summaries,
         }
 
     def reflection_report(
@@ -753,6 +873,7 @@ class PolicyRouter:
         max_tactics: int = 5,
         max_experiments: int = 5,
         max_headlines: int = 5,
+        max_features: int = 5,
     ) -> "PolicyReflectionArtifacts":
         """Convenience helper that builds reviewer-ready reflection artifacts."""
 
@@ -765,6 +886,7 @@ class PolicyRouter:
             max_tactics=max_tactics,
             max_experiments=max_experiments,
             max_headlines=max_headlines,
+            max_features=max_features,
         )
         return builder.build(window=window)
 
@@ -818,6 +940,7 @@ class PolicyRouter:
             "rationale": rationale,
             "regime_features": dict(regime_state.features),
             "regime": regime_state.regime,
+            "confidence": float(regime_state.confidence),
             "score": float(winner["score"]),
             "total_multiplier": float(winner.get("multiplier", 1.0)),
             "tactic_id": winning_tactic.tactic_id,

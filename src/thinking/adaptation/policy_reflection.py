@@ -41,6 +41,7 @@ class PolicyReflectionBuilder:
         max_tactics: int = 5,
         max_experiments: int = 5,
         max_headlines: int = 5,
+        max_features: int = 5,
     ) -> None:
         self._router = policy_router
         self._now = now or _default_now
@@ -48,6 +49,7 @@ class PolicyReflectionBuilder:
         self._max_tactics = max(1, max_tactics)
         self._max_experiments = max(1, max_experiments)
         self._max_headlines = max(1, max_headlines)
+        self._max_features = max(1, max_features)
 
     def build(self, *, window: int | None = None) -> PolicyReflectionArtifacts:
         digest = self._router.reflection_digest(window=window or self._default_window)
@@ -147,6 +149,39 @@ class PolicyReflectionBuilder:
                 )
             )
 
+        confidence = digest.get("confidence", {})
+        if isinstance(confidence, Mapping) and int(confidence.get("count", 0) or 0) > 0:
+            avg_conf = float(confidence.get("average", 0.0) or 0.0)
+            latest_conf = confidence.get("latest")
+            latest_text = (
+                f"{float(latest_conf):.2f}" if isinstance(latest_conf, (int, float)) else "n/a"
+            )
+            change = confidence.get("change")
+            change_text = (
+                f"{float(change):+.2f}" if isinstance(change, (int, float)) else None
+            )
+            insight = f"Average confidence {avg_conf:.2f} (latest {latest_text})"
+            if change_text is not None:
+                insight += f"; change {change_text}"
+            insights.append(insight)
+
+        feature_entries = self._slice_entries(digest.get("features", ()), self._max_features)
+        if feature_entries:
+            top_feature = feature_entries[0]
+            name = top_feature.get("feature", "unknown")
+            latest = top_feature.get("latest")
+            latest_text = f"{float(latest):.2f}" if isinstance(latest, (int, float)) else "n/a"
+            avg_value = top_feature.get("average")
+            avg_text = f"{float(avg_value):.2f}" if isinstance(avg_value, (int, float)) else "n/a"
+            trend = top_feature.get("trend")
+            trend_text = (
+                f"{float(trend):+.2f}" if isinstance(trend, (int, float)) else None
+            )
+            insight = f"Feature {name} averaging {avg_text} (latest {latest_text})"
+            if trend_text is not None:
+                insight += f"; trend {trend_text}"
+            insights.append(insight)
+
         longest = digest.get("longest_streak", {})
         streak_tactic = longest.get("tactic_id")
         streak_len = int(longest.get("length") or 0)
@@ -199,6 +234,83 @@ class PolicyReflectionBuilder:
         if int(digest.get("total_decisions", 0) or 0) == 0:
             lines.append("_No decisions available. Run the understanding loop to capture telemetry._")
             return "\n".join(lines)
+
+        confidence = digest.get("confidence", {})
+        if isinstance(confidence, Mapping) and int(confidence.get("count", 0) or 0) > 0:
+            lines.append("## Confidence summary")
+            average = confidence.get("average")
+            latest = confidence.get("latest")
+            change = confidence.get("change")
+            lines.append(
+                "- Average: {}".format(
+                    f"{float(average):.2f}" if isinstance(average, (int, float)) else "n/a"
+                )
+            )
+            lines.append(
+                "- Latest: {}".format(
+                    f"{float(latest):.2f}" if isinstance(latest, (int, float)) else "n/a"
+                )
+            )
+            if isinstance(change, (int, float)):
+                lines.append(f"- Change: {float(change):+.2f}")
+            first_seen = confidence.get("first_seen")
+            last_seen = confidence.get("last_seen")
+            if first_seen:
+                lines.append(f"- First observed: {first_seen}")
+            if last_seen:
+                lines.append(f"- Last observed: {last_seen}")
+            lines.append("")
+
+        feature_entries = self._slice_entries(digest.get("features", ()), self._max_features)
+        if feature_entries:
+            lines.extend(
+                self._render_table(
+                    title="Feature highlights",
+                    headers=(
+                        "Feature",
+                        "Avg",
+                        "Latest",
+                        "Trend",
+                        "Min",
+                        "Max",
+                        "Count",
+                        "Last seen",
+                    ),
+                    rows=[
+                        (
+                            str(entry.get("feature", "")),
+                            (
+                                f"{float(entry.get('average', 0.0)):.3f}"
+                                if isinstance(entry.get("average"), (int, float))
+                                else "n/a"
+                            ),
+                            (
+                                f"{float(entry.get('latest', 0.0)):.3f}"
+                                if isinstance(entry.get("latest"), (int, float))
+                                else "n/a"
+                            ),
+                            (
+                                f"{float(entry.get('trend', 0.0)):+.3f}"
+                                if isinstance(entry.get("trend"), (int, float))
+                                else "n/a"
+                            ),
+                            (
+                                f"{float(entry.get('min', 0.0)):.3f}"
+                                if isinstance(entry.get("min"), (int, float))
+                                else "n/a"
+                            ),
+                            (
+                                f"{float(entry.get('max', 0.0)):.3f}"
+                                if isinstance(entry.get("max"), (int, float))
+                                else "n/a"
+                            ),
+                            str(entry.get("count", 0)),
+                            str(entry.get("last_seen", "")),
+                        )
+                        for entry in feature_entries
+                    ],
+                )
+            )
 
         tactics = self._slice_entries(digest.get("tactics", ()), self._max_tactics)
         if tactics:

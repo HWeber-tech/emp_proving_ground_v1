@@ -34,6 +34,7 @@ def test_builder_handles_empty_history() -> None:
     artifacts = builder.build()
 
     assert artifacts.digest["total_decisions"] == 0
+    assert artifacts.digest["confidence"]["count"] == 0
     assert "No decisions" in artifacts.markdown
     assert artifacts.payload["metadata"]["total_decisions"] == 0
 
@@ -91,6 +92,8 @@ def test_builder_generates_markdown_with_insights() -> None:
     assert "Active experiments" in markdown
     assert "Tag spotlight" in markdown
     assert "Objective coverage" in markdown
+    assert "Confidence summary" in markdown
+    assert "Feature highlights" in markdown
     assert "exp-boost" in markdown
     assert "Conf >=" in markdown
 
@@ -100,6 +103,8 @@ def test_builder_generates_markdown_with_insights() -> None:
     assert any("Dominant tag" in insight for insight in insights)
     assert any("Leading objective" in insight for insight in insights)
     assert any("confidence >= 0.60" in insight for insight in insights)
+    assert any("Average confidence" in insight for insight in insights)
+    assert any("Feature" in insight for insight in insights)
 
     digest = artifacts.payload["digest"]
     experiments = digest["experiments"]

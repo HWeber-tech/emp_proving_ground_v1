@@ -217,6 +217,14 @@ def test_reflection_digest_surfaces_emerging_strategies() -> None:
     assert digest["total_decisions"] == 3
     assert digest["as_of"].endswith("+00:00")
 
+    confidence = digest["confidence"]
+    assert confidence["count"] == 3
+    assert confidence["average"] == pytest.approx(0.8)
+    assert confidence["latest"] == pytest.approx(0.8)
+    assert confidence["change"] == pytest.approx(0.0)
+    assert confidence["first_seen"] is not None
+    assert confidence["last_seen"].endswith("+00:00")
+
     top_tactic = digest["tactics"][0]
     assert top_tactic["tactic_id"] == "breakout"
     assert top_tactic["count"] == 2
@@ -250,6 +258,12 @@ def test_reflection_digest_surfaces_emerging_strategies() -> None:
 
     regimes = digest["regimes"]
     assert regimes["bull"]["share"] == pytest.approx(1.0)
+
+    feature_entries = digest["features"]
+    volatility_entry = next(item for item in feature_entries if item["feature"] == "volatility")
+    assert volatility_entry["count"] == 3
+    assert volatility_entry["latest"] == pytest.approx(0.25)
+    assert volatility_entry["trend"] == pytest.approx(0.05)
 
     assert digest["current_streak"] == {"tactic_id": "mean_reversion", "length": 1}
     assert digest["longest_streak"] == {"tactic_id": "breakout", "length": 2}
@@ -319,6 +333,7 @@ def test_reflection_report_wraps_builder_helpers() -> None:
 
     assert artifacts.payload["metadata"]["generated_at"] == generated_at.isoformat()
     assert artifacts.digest["total_decisions"] == 3
+    assert artifacts.digest["confidence"]["count"] == 3
     assert "PolicyRouter reflection summary" in artifacts.markdown
 
 

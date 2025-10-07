@@ -84,6 +84,7 @@ def test_decision_diary_record_and_reload(tmp_path, fixed_uuid) -> None:
     exported = json.loads(store.export_json())
     assert exported["entries"][0]["policy_id"] == "alpha.policy"
     assert exported["entries"][0]["probes"][0]["owner"] == "governance"
+    assert "weight_breakdown" in exported["entries"][0]["decision"]
 
     markdown = store.export_markdown()
     assert "## Probe ownership" in markdown
@@ -147,6 +148,7 @@ def test_decision_diary_publish_event(tmp_path, fixed_uuid, monkeypatch) -> None
     assert event.payload["entry"]["policy_id"] == "alpha.policy"
     assert entry.entry_id in event.payload["entry"]["entry_id"]
     assert "markdown" in event.payload
+    assert "weight_breakdown" in event.payload["entry"]["decision"]
 
 
 def test_decision_diary_publish_event_failure(tmp_path, fixed_uuid, monkeypatch, caplog) -> None:

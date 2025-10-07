@@ -88,6 +88,7 @@ def test_builder_generates_markdown_with_insights() -> None:
     markdown = artifacts.markdown
     assert "PolicyRouter reflection summary" in markdown
     assert "Decisions analysed: 3" in markdown
+    assert "Weight provenance" in markdown
     assert "Top tactics" in markdown
     assert "Active experiments" in markdown
     assert "Tag spotlight" in markdown
@@ -110,3 +111,6 @@ def test_builder_generates_markdown_with_insights() -> None:
     experiments = digest["experiments"]
     assert experiments[0]["regimes"] == ["bull"]
     assert experiments[0]["min_confidence"] == pytest.approx(0.6)
+    weight_stats = digest["weight_stats"]
+    assert weight_stats["average_total_multiplier"] == pytest.approx(1.5)
+    assert weight_stats["average_base_score"] == pytest.approx(1.035)

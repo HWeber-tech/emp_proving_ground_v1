@@ -7,6 +7,7 @@ operators can understand emerging strategies without combing through telemetry.
 
 from __future__ import annotations
 
+import math
 from collections import Counter, deque
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -174,6 +175,7 @@ class PolicyDecision:
     rationale: str
     experiments_applied: tuple[str, ...]
     reflection_summary: Mapping[str, object]
+    weight_breakdown: Mapping[str, object] = field(default_factory=dict)
 
 
 if TYPE_CHECKING:  # pragma: no cover - import cycle guard for type checking
@@ -336,6 +338,7 @@ class PolicyRouter:
                     "breakdown": breakdown,
                     "experiments": tuple(applied_experiments),
                     "multiplier": multiplier,
+                    "base_score": base_score,
                 }
             )
 
@@ -348,11 +351,17 @@ class PolicyRouter:
         guardrails.update(tactic.guardrails)
 
         rationale = self._build_rationale(tactic, regime_state, experiments, winner)
+        weight_breakdown = self._build_weight_breakdown(
+            tactic=tactic,
+            summary=winner,
+            experiments=experiments,
+        )
         reflection_summary = self._build_reflection_summary(
             regime_state=regime_state,
             ranked=ranked,
             winner=winner,
             rationale=rationale,
+            weight_breakdown=weight_breakdown,
         )
         self._history.append(reflection_summary)
 
@@ -364,6 +373,7 @@ class PolicyRouter:
             rationale=rationale,
             experiments_applied=tuple(exp.experiment_id for exp in experiments),
             reflection_summary=reflection_summary,
+            weight_breakdown=weight_breakdown,
         )
 
     def history(self) -> Sequence[Mapping[str, object]]:
@@ -532,6 +542,17 @@ class PolicyRouter:
         streak_length = 0
         longest_streak: tuple[str | None, int] = (None, 0)
 
+        base_score_sum = 0.0
+        base_score_count = 0
+        total_multiplier_sum = 0.0
+        total_multiplier_count = 0
+        total_score_sum = 0.0
+        fast_weight_sum = 0.0
+        fast_weight_count = 0
+        fast_weight_applications = 0
+        fast_weight_max: float | None = None
+        fast_weight_min: float | None = None
+
         for entry in history:
             tactic_id = str(entry.get("tactic_id", "")) or None
             headline = entry.get("headline")
@@ -574,6 +595,7 @@ class PolicyRouter:
             if tactic_id:
                 tactic_counts[tactic_id] += 1
                 score = float(entry.get("score", 0.0))
+                total_score_sum += score
                 tactic_scores[tactic_id] = tactic_scores.get(tactic_id, 0.0) + score
                 if timestamp and (
                     tactic_id not in tactic_last_seen or timestamp > tactic_last_seen[tactic_id]
@@ -665,6 +687,41 @@ class PolicyRouter:
             regime = entry.get("regime")
             if isinstance(regime, str) and regime:
                 regime_counts[regime] += 1
+
+            weight_breakdown = entry.get("weight_breakdown")
+            if isinstance(weight_breakdown, Mapping):
+                base_score = weight_breakdown.get("base_score")
+                if isinstance(base_score, (int, float)):
+                    base_score_sum += float(base_score)
+                    base_score_count += 1
+                total_multiplier = weight_breakdown.get("total_multiplier")
+                if isinstance(total_multiplier, (int, float)):
+                    multiplier_value = float(total_multiplier)
+                    total_multiplier_sum += multiplier_value
+                    total_multiplier_count += 1
+                fast_weight_multiplier = weight_breakdown.get("fast_weight_multiplier")
+                if isinstance(fast_weight_multiplier, (int, float)):
+                    fast_multiplier_value = float(fast_weight_multiplier)
+                    fast_weight_sum += fast_multiplier_value
+                    fast_weight_count += 1
+                    fast_weight_max = (
+                        fast_multiplier_value
+                        if fast_weight_max is None
+                        else max(fast_weight_max, fast_multiplier_value)
+                    )
+                    fast_weight_min = (
+                        fast_multiplier_value
+                        if fast_weight_min is None
+                        else min(fast_weight_min, fast_multiplier_value)
+                    )
+                    if not math.isclose(fast_multiplier_value, 1.0, rel_tol=1e-9, abs_tol=1e-9):
+                        fast_weight_applications += 1
+                elif isinstance(entry.get("total_multiplier"), (int, float)):
+                    # fall back when fast weight multiplier missing but total recorded
+                    total_multiplier_sum += float(entry["total_multiplier"])
+                    total_multiplier_count += 1
+        if total_score_sum == 0.0 and tactic_counts:
+            total_score_sum = sum(tactic_scores.values())
 
         total_decisions = len(history)
 
@@ -914,6 +971,7 @@ class PolicyRouter:
         ranked: Sequence[Mapping[str, object]],
         winner: Mapping[str, object],
         rationale: str,
+        weight_breakdown: Mapping[str, object],
     ) -> Mapping[str, object]:
         top_candidates: list[Mapping[str, object]] = []
         for entry in ranked[: self._summary_top_k]:
@@ -926,6 +984,7 @@ class PolicyRouter:
                     "breakdown": dict(entry["breakdown"]),
                     "multiplier": float(entry.get("multiplier", 1.0)),
                     "experiments": [exp.reflection_payload() for exp in experiments],
+                    "base_score": float(entry.get("base_score", 0.0)),
                 }
             )
 
@@ -950,8 +1009,37 @@ class PolicyRouter:
             "top_candidates": top_candidates,
             "experiments": [exp.reflection_payload() for exp in winning_experiments],
             "timestamp": regime_state.timestamp.isoformat(),
+            "weight_breakdown": dict(weight_breakdown),
         }
         return summary
+
+    @staticmethod
+    def _build_weight_breakdown(
+        *,
+        tactic: PolicyTactic,
+        summary: Mapping[str, object],
+        experiments: Sequence[FastWeightExperiment],
+    ) -> Mapping[str, object]:
+        breakdown = dict(summary.get("breakdown", {}))
+        total_multiplier = float(summary.get("multiplier", 1.0))
+        fast_weight_multiplier = float(breakdown.get("fast_weight_multiplier", 1.0))
+        experiment_multipliers = {
+            experiment.experiment_id: float(experiment.multiplier)
+            for experiment in experiments
+        }
+        base_score = float(summary.get("base_score", 0.0))
+
+        payload: dict[str, object] = {
+            "base_weight": float(tactic.base_weight),
+            "regime_bias": float(breakdown.get("regime_bias", 1.0)),
+            "confidence_multiplier": float(breakdown.get("confidence_multiplier", 1.0)),
+            "fast_weight_multiplier": fast_weight_multiplier,
+            "experiment_multipliers": experiment_multipliers,
+            "total_multiplier": total_multiplier,
+            "base_score": base_score,
+            "final_score": float(summary.get("score", base_score * total_multiplier)),
+        }
+        return payload
 
     @staticmethod
     def _parse_timestamp(value: object) -> datetime | None:

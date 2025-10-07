@@ -62,6 +62,7 @@ def _serialise_policy_decision(decision: PolicyDecision | Mapping[str, Any]) -> 
         "rationale": decision.rationale,
         "experiments_applied": list(decision.experiments_applied),
         "reflection_summary": dict(decision.reflection_summary),
+        "weight_breakdown": dict(decision.weight_breakdown),
     }
 
 

@@ -9,6 +9,7 @@ and machine-readable payloads ready for observability surfaces or CLI exports.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Callable, Mapping, MutableMapping, Sequence
@@ -200,6 +201,37 @@ class PolicyReflectionBuilder:
         if isinstance(headlines, Sequence) and headlines:
             latest = str(headlines[-1])
             insights.append(f"Latest headline: {latest}")
+
+        weight_stats = digest.get("weight_stats", {})
+        if isinstance(weight_stats, Mapping) and weight_stats:
+            fast_weight = weight_stats.get("fast_weight", {})
+            applications = int(fast_weight.get("applications", 0) or 0)
+            average_fast = fast_weight.get("average_multiplier")
+            if applications:
+                insights.append(
+                    "Fast weights engaged {} times (avg multiplier {:.2f})".format(
+                        applications,
+                        float(average_fast or 0.0),
+                    )
+                )
+            elif isinstance(average_fast, (int, float)) and not math.isclose(
+                float(average_fast), 1.0, rel_tol=1e-3, abs_tol=1e-3
+            ):
+                insights.append(
+                    "Fast-weight posture avg multiplier {:.2f}".format(
+                        float(average_fast)
+                    )
+                )
+
+            avg_total_multiplier = weight_stats.get("average_total_multiplier")
+            if isinstance(avg_total_multiplier, (int, float)) and not math.isclose(
+                float(avg_total_multiplier), 1.0, rel_tol=1e-3, abs_tol=1e-3
+            ):
+                insights.append(
+                    "Average multiplier {:.2f} across decisions".format(
+                        float(avg_total_multiplier)
+                    )
+                )
 
         return tuple(insights)
 

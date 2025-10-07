@@ -59,6 +59,11 @@ def test_route_selects_highest_weight_with_regime_bias() -> None:
     assert decision.guardrails["max_latency_ms"] == 250
     assert decision.parameters["regime_hint"] == "bull"
     assert decision.reflection_summary["headline"].startswith("Selected breakout")
+    breakdown = decision.weight_breakdown
+    assert breakdown["base_weight"] == pytest.approx(1.0)
+    assert breakdown["fast_weight_multiplier"] == pytest.approx(1.0)
+    assert breakdown["experiment_multipliers"] == {}
+    assert breakdown["final_score"] == pytest.approx(decision.selected_weight)
 
 
 def test_fast_weight_experiment_overrides_base_score() -> None:
@@ -102,6 +107,12 @@ def test_fast_weight_experiment_overrides_base_score() -> None:
     gates = summary_experiments[0]["feature_gates"]
     assert isinstance(gates, list) and gates[0]["feature"] == "volatility"
     assert gates[0]["maximum"] == pytest.approx(0.3)
+    breakdown = decision.weight_breakdown
+    assert breakdown["experiment_multipliers"]["exp-fast-weights"] == pytest.approx(1.8)
+    assert breakdown["fast_weight_multiplier"] == pytest.approx(1.0)
+    assert breakdown["total_multiplier"] == pytest.approx(1.8)
+    assert breakdown["final_score"] == pytest.approx(decision.selected_weight)
+    assert decision.reflection_summary["weight_breakdown"]["total_multiplier"] == pytest.approx(1.8)
 
 
 def test_route_respects_external_fast_weights() -> None:
@@ -114,6 +125,10 @@ def test_route_respects_external_fast_weights() -> None:
     assert decision.tactic_id == "alt"
     top_candidates = decision.reflection_summary["top_candidates"]
     assert {candidate["tactic_id"] for candidate in top_candidates} == {"base", "alt"}
+    breakdown = decision.weight_breakdown
+    assert breakdown["fast_weight_multiplier"] == pytest.approx(2.0)
+    assert breakdown["total_multiplier"] == pytest.approx(2.0)
+    assert breakdown["experiment_multipliers"] == {}
 
 
 def test_registering_duplicate_tactic_raises() -> None:
@@ -271,6 +286,13 @@ def test_reflection_digest_surfaces_emerging_strategies() -> None:
     headlines = digest["recent_headlines"]
     assert len(headlines) == 3
     assert headlines[-1].startswith("Selected mean_reversion")
+    weight_stats = digest["weight_stats"]
+    assert weight_stats["fast_weight"]["applications"] == 0
+    assert weight_stats["fast_weight"]["average_multiplier"] == pytest.approx(1.0)
+    assert weight_stats["average_total_multiplier"] == pytest.approx((1.0 + 1.0 + 1.75) / 3)
+    assert weight_stats["average_final_score"] == pytest.approx(
+        sum(entry["score"] for entry in router.history()) / 3
+    )
 
 
 def test_prune_experiments_removes_expired_entries() -> None:

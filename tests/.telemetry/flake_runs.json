@@ -1,12 +1,20 @@
 {
-  "events": [],
+  "events": [
+    {
+      "duration": 0.0009820109989959747,
+      "longrepr": "tests/trading/test_adaptive_release_thresholds.py:134: in test_adaptive_thresholds_without_snapshot\n    assert thresholds[\"stage\"] == PolicyLedgerStage.PILOT.value\nE   AssertionError: assert 'paper' == 'pilot'\nE     \nE     - pilot\nE     + paper",
+      "nodeid": "tests/trading/test_adaptive_release_thresholds.py::test_adaptive_thresholds_without_snapshot",
+      "outcome": "failed",
+      "was_xfail": false
+    }
+  ],
   "meta": {
     "ci": false,
-    "event_count": 0,
-    "exit_status": 0,
+    "event_count": 1,
+    "exit_status": 1,
     "platform": "linux",
     "python": "3.10.12 (main, Aug 15 2025, 14:32:43) [GCC 11.4.0]",
-    "session_end": 1759858793.5590668,
-    "session_start": 1759858792.5527966
+    "session_end": 1759862485.1667213,
+    "session_start": 1759862482.6991124
   }
 }

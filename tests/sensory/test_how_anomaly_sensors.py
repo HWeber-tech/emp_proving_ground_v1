@@ -6,6 +6,7 @@ from datetime import datetime, timedelta, timezone
 import pandas as pd
 
 from src.sensory.anomaly import AnomalySensor
+from src.sensory.anomaly.anomaly_sensor import AnomalySensorConfig
 from src.sensory.how.how_sensor import HowSensor
 from src.sensory.lineage import SensorLineageRecorder
 
@@ -58,6 +59,25 @@ class _StubAnomalyEngine:
         )
 
 
+class _RecordingAnomalyEngine:
+    def __init__(self) -> None:
+        self.seen_payload: object | None = None
+
+    def analyze_anomaly_intelligence(self, payload):  # type: ignore[override]
+        self.seen_payload = payload
+        latest = payload[-1] if isinstance(payload, list) and payload else 0.0
+        return _StubAdapter(
+            _StubReading(
+                signal_strength=0.52,
+                confidence=0.05,
+                context={"mode": "sequence"},
+            ),
+            baseline=0.4,
+            dispersion=0.12,
+            latest=latest,
+        )
+
+
 def _build_market_frame(rows: int = 12, *, anomaly_spike: bool = False) -> pd.DataFrame:
     base = datetime(2024, 1, 1, tzinfo=timezone.utc)
     data: list[dict[str, object]] = []
@@ -83,6 +103,21 @@ def _build_market_frame(rows: int = 12, *, anomaly_spike: bool = False) -> pd.Da
             }
         )
     return pd.DataFrame(data)
+
+
+def _build_order_book(rows: int = 4) -> pd.DataFrame:
+    price = 1.1
+    entries: list[dict[str, float]] = []
+    for level in range(rows):
+        entries.append(
+            {
+                "bid_price": price - 0.0002 * (level + 1),
+                "ask_price": price + 0.0002 * (level + 1),
+                "bid_size": 1200 - level * 55,
+                "ask_size": 1100 - level * 50,
+            }
+        )
+    return pd.DataFrame(entries)
 
 
 def test_how_sensor_emits_liquidity_audit() -> None:
@@ -209,3 +244,59 @@ def test_anomaly_sensor_records_lineage() -> None:
     assert entry["dimension"] == "ANOMALY"
     assert entry["outputs"]["signal"] == 0.72
     assert entry["metadata"]["mode"] == "sequence"
+
+
+def test_how_sensor_prefixes_order_book_metrics() -> None:
+    engine = _StubHowEngine(
+        strength=0.42,
+        confidence=0.65,
+        liquidity=0.51,
+        participation=0.58,
+        imbalance=0.12,
+        volatility_drag=0.08,
+    )
+    sensor = HowSensor(engine=engine)
+    frame = _build_market_frame()
+    order_book = _build_order_book()
+
+    signal = sensor.process(frame, order_book=order_book)[0]
+
+    metadata = signal.metadata or {}
+    audit = metadata.get("audit", {})
+    assert audit["imbalance"] == 0.12
+    assert "order_book_mid_price" in audit
+    assert audit["order_book_mid_price"] > 0
+    lineage = metadata.get("lineage")
+    assert isinstance(lineage, dict)
+    telemetry = lineage.get("telemetry", {})
+    assert telemetry.get("imbalance") == 0.12
+    assert "order_book_spread" in telemetry
+
+
+def test_anomaly_sensor_sequence_filters_invalid_samples() -> None:
+    engine = _RecordingAnomalyEngine()
+    sensor = AnomalySensor(engine=engine)
+
+    payload = [1.0, None, float("nan"), 2.0, "3.0"]
+
+    signal = sensor.process(payload)[0]
+
+    assert isinstance(engine.seen_payload, list)
+    assert engine.seen_payload == [1.0, 2.0, 3.0]
+    metadata = signal.metadata or {}
+    assert metadata.get("dropped_samples") == 2
+    lineage = metadata.get("lineage")
+    assert isinstance(lineage, dict)
+    assert lineage.get("metadata", {}).get("dropped_samples") == 2
+    assert lineage.get("inputs", {}).get("sequence_length") == 3
+
+
+def test_anomaly_sensor_clamps_confidence() -> None:
+    engine = _RecordingAnomalyEngine()
+    config = AnomalySensorConfig(minimum_confidence=0.35)
+    sensor = AnomalySensor(config=config, engine=engine)
+
+    signal = sensor.process([0.1] * 10)[0]
+
+    assert signal.confidence == 0.35
+    assert signal.metadata["threshold_assessment"]["state"] in {"nominal", "warning", "alert"}

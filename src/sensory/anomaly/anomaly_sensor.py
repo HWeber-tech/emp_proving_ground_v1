@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from math import isfinite
 from typing import Any, Mapping, Sequence
 
 import pandas as pd
@@ -24,6 +25,11 @@ class AnomalySensorConfig:
     window: int = 32
     warn_threshold: float = 0.4
     alert_threshold: float = 0.7
+    minimum_confidence: float = 0.2
+    sequence_min_length: int = 8
+
+    def clamp_confidence(self, confidence: float) -> float:
+        return max(self.minimum_confidence, min(1.0, float(confidence)))
 
 
 class AnomalySensor:
@@ -53,16 +59,24 @@ class AnomalySensor:
         if isinstance(data, Mapping):
             inputs = data
         elif isinstance(data, Sequence) and not isinstance(data, (str, bytes, bytearray)):
-            length = len(data)
-            latest_value: float | None = None
-            if length:
-                try:
-                    latest_value = float(data[-1])  # type: ignore[index]
-                except (TypeError, ValueError):
-                    latest_value = None
-            inputs = {"sequence_length": length}
-            if latest_value is not None:
-                inputs["latest"] = latest_value
+            values, dropped = self._normalise_sequence(data)
+            if not values:
+                return [self._default_signal(reason="empty_sequence")]
+
+            inputs = {"sequence_length": len(values), "latest": values[-1]}
+            extra_metadata: dict[str, Any] | None = None
+            if dropped:
+                inputs["dropped_samples"] = dropped
+                extra_metadata = {"dropped_samples": dropped}
+            reading = self._engine.analyze_anomaly_intelligence(values)
+            return [
+                self._build_signal(
+                    reading,
+                    mode_override="sequence",
+                    inputs=inputs,
+                    extra_metadata=extra_metadata,
+                )
+            ]
         else:
             inputs = {"payload_type": type(data).__name__}
 
@@ -72,10 +86,14 @@ class AnomalySensor:
     # ------------------------------------------------------------------
     def _process_frame(self, df: pd.DataFrame) -> list[SensorSignal]:
         if df.empty or "close" not in df:
-            return [self._default_signal()]
+            return [self._default_signal(reason="empty_frame")]
 
-        sequence = df["close"].astype(float).tail(self._config.window).tolist()
-        if len(sequence) >= 8:
+        sequence = (
+            df["close"].astype(float).tail(self._config.window).tolist()
+            if "close" in df
+            else []
+        )
+        if len(sequence) >= self._config.sequence_min_length:
             reading = self._engine.analyze_anomaly_intelligence(sequence)
             inputs = {"sequence_length": len(sequence), "latest": sequence[-1]}
             return [
@@ -117,10 +135,11 @@ class AnomalySensor:
         *,
         mode_override: str | None,
         inputs: Mapping[str, Any] | None = None,
+        extra_metadata: Mapping[str, Any] | None = None,
     ) -> SensorSignal:
         reading = reading_adapter.reading
         signal_strength = float(getattr(reading, "signal_strength", 0.0))
-        confidence = float(getattr(reading, "confidence", 0.0))
+        confidence = self._config.clamp_confidence(getattr(reading, "confidence", 0.0))
         context = dict(getattr(reading, "context", {}) or {})
         mode = mode_override or reading_adapter.get("mode", "sequence")
 
@@ -148,6 +167,7 @@ class AnomalySensor:
                 "thresholds": assessment.thresholds,
                 "state": assessment.state,
                 "breached_level": assessment.breached_level,
+                **(extra_metadata or {}),
             },
         )
 
@@ -168,6 +188,8 @@ class AnomalySensor:
             "threshold_assessment": assessment.as_dict(),
         }
         metadata["audit"].update(telemetry)
+        if extra_metadata:
+            metadata.update(extra_metadata)
 
         value: dict[str, object] = {
             "strength": signal_strength,
@@ -183,7 +205,7 @@ class AnomalySensor:
             metadata=metadata,
         )
 
-    def _default_signal(self) -> SensorSignal:
+    def _default_signal(self, *, reason: str | None = None) -> SensorSignal:
         thresholds = {
             "warn": self._config.warn_threshold,
             "alert": self._config.alert_threshold,
@@ -219,6 +241,8 @@ class AnomalySensor:
             "state": assessment.state,
             "threshold_assessment": assessment.as_dict(),
         }
+        if reason is not None:
+            metadata["failure_reason"] = reason
         self._record_lineage(lineage)
         return SensorSignal(
             signal_type="ANOMALY",
@@ -234,3 +258,20 @@ class AnomalySensor:
     def _record_lineage(self, lineage: SensorLineageRecord) -> None:
         if self._lineage_recorder is not None:
             self._lineage_recorder.record(lineage)
+
+    def _normalise_sequence(
+        self, values: Sequence[Any]
+    ) -> tuple[list[float], int]:
+        cleaned: list[float] = []
+        dropped = 0
+        for item in values:
+            try:
+                value = float(item)
+            except (TypeError, ValueError):
+                dropped += 1
+                continue
+            if not isfinite(value):
+                dropped += 1
+                continue
+            cleaned.append(value)
+        return cleaned, dropped

@@ -79,14 +79,14 @@ real data feeds.【F:docs/development/remediation_plan.md†L92-L167】
 *Status:* Attention
 *Summary:* The order lifecycle mirrors the encyclopedia chapters, yet risk and
 compliance enforcement are hollow, async entrypoints remain partially migrated,
- and deprecated exports still leak into runtime consumers.【F:docs/technical_debt_assessment.md†L33-L121】【F:src/core/__init__.py†L11-L36】【F:docs/DEVELOPMENT_STATUS.md†L19-L35】
+ and deprecated exports still leak into runtime consumers.【F:docs/technical_debt_assessment.md†L33-L121】【F:src/core/__init__.py†L14-L33】【F:docs/DEVELOPMENT_STATUS.md†L19-L35】
 *Next checkpoint:* Finish the runtime builder rollout, adopt supervised tasks,
 enforce risk policies, and retire deprecated facades before expanding broker
 coverage.【F:docs/technical_debt_assessment.md†L33-L101】【F:docs/development/remediation_plan.md†L34-L167】
 *Actionable checklist:*
   - [ ] Complete the runtime builder migration and introduce a task supervision layer.
   - [ ] Enforce deterministic risk APIs and surface policy breaches through telemetry dashboards.
-  - [ ] Remove deprecated config shims and undefined exports (`get_risk_manager`) from public modules.【F:src/core/__init__.py†L11-L36】
+  - [ ] Remove deprecated config shims and undefined exports (`get_risk_manager`) from public modules.【F:src/core/__init__.py†L14-L33】
 <!-- HIGH_IMPACT_PORTFOLIO:END -->
 
 <!-- HIGH_IMPACT_SUMMARY:START -->

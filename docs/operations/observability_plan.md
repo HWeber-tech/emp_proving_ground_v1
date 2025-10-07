@@ -152,7 +152,7 @@ can layer on without introducing third-party dependencies.
   glue code. The `tools.governance.run_cadence` CLI resolves those context packs,
   layers JSON overrides, supports forced runs, and emits Markdown/JSON outputs.
   Tests cover interval gating, event-bus publishing, persisted history, and the
-  CLI skip/force flows so governance reviews inherit deterministic artefacts.【F:src/operations/governance_reporting.py†L1-L635】【F:src/operations/governance_cadence.py†L1-L166】【F:tools/governance/run_cadence.py†L1-L368】【F:tests/operations/test_governance_reporting.py†L1-L200】【F:tests/operations/test_governance_cadence.py†L1-L120】【F:tests/tools/test_run_governance_cadence.py†L47-L138】
+  CLI skip/force flows so governance reviews inherit deterministic artefacts.【F:src/operations/governance_reporting.py†L1-L668】【F:src/operations/governance_cadence.py†L1-L200】【F:tools/governance/run_cadence.py†L1-L368】【F:tests/operations/test_governance_reporting.py†L1-L200】【F:tests/operations/test_governance_cadence.py†L1-L200】【F:tests/tools/test_run_governance_cadence.py†L47-L138】
 * **Kafka readiness telemetry** – `evaluate_kafka_readiness` merges connection
   settings, topic provisioning summaries, publisher availability, and lag
   snapshots into `telemetry.kafka.readiness`, with the runtime builder

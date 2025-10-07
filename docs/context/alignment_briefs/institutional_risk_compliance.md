@@ -14,7 +14,7 @@
   mock frameworks without real broker connectivity or portfolio management.【F:docs/DEVELOPMENT_STATUS.md†L19-L35】
 - Technical debt audits highlight hollow risk enforcement and unsupervised async
   entrypoints; the legacy `get_risk_manager` shim has now been removed so the
-  canonical export reflects the real implementation.【F:docs/technical_debt_assessment.md†L33-L80】【F:src/core/__init__.py†L11-L36】【F:docs/reports/CLEANUP_REPORT.md†L71-L104】
+  canonical export reflects the real implementation.【F:docs/technical_debt_assessment.md†L33-L80】【F:src/core/__init__.py†L14-L33】【F:docs/reports/CLEANUP_REPORT.md†L71-L104】
 - Canonical risk configuration now resides in `src/config/risk/risk_config.py`,
   yet dead-code sweeps still list additional risk and compliance files as unused,
   complicating canonicalisation.【F:src/config/risk/risk_config.py†L1-L72】【F:docs/reports/CLEANUP_REPORT.md†L71-L175】
@@ -140,11 +140,10 @@
     metadata, and runtime summaries into deterministic `risk_reference`
     payloads while surfacing shared runbooks so telemetry, dashboards, and
     audits inherit the same risk configuration under pytest coverage.【F:src/trading/trading_manager.py†L786-L939】【F:src/trading/risk/risk_gateway.py†L396-L429】【F:tests/trading/test_trading_manager_execution.py†L1125-L1171】【F:tests/current/test_risk_gateway_validation.py†L391-L460】
-- Progress: Governance cadence runner now honours forced executions, metadata
-  overrides, and context-pack lookups while orchestrating interval gating,
-  audit evidence collection, report persistence, and event-bus publishing so the
-  compliance squad can schedule or manually trigger the cadence behind
-  injectable providers under pytest coverage.【F:src/operations/governance_cadence.py†L1-L166】【F:src/operations/governance_reporting.py†L604-L635】【F:tests/operations/test_governance_cadence.py†L1-L120】
+- Progress: Governance cadence runner now persists the last generated timestamp,
+  injects strategy and metadata providers, backfills cadence defaults, and wires
+  audit/persist/publish hooks so the compliance squad can enforce interval
+  gating or force runs under pytest coverage.【F:src/operations/governance_cadence.py†L1-L200】【F:src/operations/governance_reporting.py†L604-L668】【F:tests/operations/test_governance_cadence.py†L1-L200】
 - Progress: Governance cadence CLI resolves SystemConfig extras into context
   packs, layers JSON overrides, supports forced runs, and emits Markdown/JSON
   outputs so operators can execute the cadence outside the runtime while

@@ -100,7 +100,7 @@ backlog grooming, release readiness reviews, and post-mortems.
   spawning unsupervised async tasks, creating shutdown hazards.【F:docs/technical_debt_assessment.md†L33-L56】
 - Public exports advertise helpers that do not exist (`get_risk_manager`), and
   configuration drift is reduced now that evolution imports resolve directly
-  through the canonical engine implementation.【F:src/core/__init__.py†L11-L36】【F:src/core/evolution/engine.py†L13-L43】
+  through the canonical engine implementation.【F:src/core/__init__.py†L14-L33】【F:src/core/evolution/engine.py†L13-L43】
 - Risk API contract violations now surface structured metadata and a documented
   runbook so supervisors can escalate invalid trading manager payloads without
   spelunking logs.【F:docs/api/risk.md†L1-L23】【F:docs/operations/runbooks/risk_api_contract.md†L1-L31】【F:src/trading/risk/risk_api.py†L20-L118】【F:src/runtime/runtime_builder.py†L321-L337】【F:src/trading/trading_manager.py†L672-L714】

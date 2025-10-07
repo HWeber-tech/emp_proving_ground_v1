@@ -38,7 +38,7 @@ runtime output so the context stays anchored to the concept blueprint.
 - `GovernanceCadenceRunner` wraps the cadence helpers behind a single entrypoint,
   loading the previous artefact, enforcing the reporting interval, and wiring
   publication and persistence so runtimes can schedule governance reports without
-  bespoke glue code.【F:src/operations/governance_cadence.py†L1-L164】【F:tests/operations/test_governance_cadence.py†L1-L118】
+  bespoke glue code.【F:src/operations/governance_cadence.py†L1-L200】【F:tests/operations/test_governance_cadence.py†L1-L200】
 - The `export_governance_report` CLI loads readiness snapshots, collects audit
   evidence when required, persists history with metadata, and emits Markdown
   alongside JSON so operators can script cadence exports without bespoke

@@ -40,7 +40,7 @@
 - Core package now re-exports the canonical sensory organ, exposes the drift
   configuration dataclass, and coerces legacy drift-config payloads while
   dropping the defensive stub fallback so runtime consumers always resolve the
-  real implementation under pytest coverage.【F:src/core/__init__.py†L11-L36】【F:src/core/sensory_organ.py†L1-L36】【F:tests/core/test_core_sensory_exports.py†L1-L22】
+  real implementation under pytest coverage.【F:src/core/__init__.py†L14-L33】【F:src/core/sensory_organ.py†L1-L36】【F:tests/core/test_core_sensory_exports.py†L1-L22】
 
 ## Gap themes
 

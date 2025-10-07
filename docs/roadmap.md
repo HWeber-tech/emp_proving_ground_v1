@@ -16,8 +16,8 @@ kit that the roadmap calls back to in each checklist.
 | Architecture | Layered domains and canonical `SystemConfig` definitions are in place, enforcing the core → sensory → thinking → trading → orchestration stack described in the encyclopedia. | 【F:docs/architecture/overview.md†L9-L48】 |
 | Delivery state | The codebase is still a development framework: evolution, intelligence, execution, and strategy layers run on mocks; there is no production ingest, risk sizing, or portfolio management. | 【F:docs/DEVELOPMENT_STATUS.md†L7-L35】 |
 | Quality posture | CI passes with 76% coverage, but hotspots include operational metrics, position models, and configuration loaders; runtime validation checks still fail. | 【F:docs/ci_baseline_report.md†L8-L27】【F:docs/technical_debt_assessment.md†L31-L112】 |
-| Debt hotspots | Hollow risk management, unsupervised async tasks, namespace drift, and deprecated exports continue to surface in audits. | 【F:docs/technical_debt_assessment.md†L33-L80】【F:src/core/__init__.py†L11-L36】 |
-| Legacy footprint | Canonical risk, evolution, and analytics modules now resolve through their source packages: the deprecated core risk manager shim is gone, stress/VaR helpers route through `src/risk/analytics`, and integration guides still trail reality. | 【F:src/config/risk/risk_config.py†L1-L161】【F:src/core/__init__.py†L11-L36】【F:docs/reports/CLEANUP_REPORT.md†L71-L104】【F:src/risk/analytics/var.py†L19-L121】 |
+| Debt hotspots | Hollow risk management, unsupervised async tasks, namespace drift, and deprecated exports continue to surface in audits. | 【F:docs/technical_debt_assessment.md†L33-L80】【F:src/core/__init__.py†L14-L33】 |
+| Legacy footprint | Canonical risk facade now lives in `src/risk`, core exports point at it, and the retired `src.core.configuration` shim raises a guard that directs callers to `SystemConfig`; cleanup reports still flag integration docs lagging reality. | 【F:src/risk/manager.py†L1-L128】【F:src/core/__init__.py†L14-L33】【F:src/core/configuration.py†L1-L13】【F:tests/current/test_core_configuration_runtime.py†L1-L14】【F:docs/reports/CLEANUP_REPORT.md†L71-L110】 |
 
 ## Gaps to close
 
@@ -233,7 +233,7 @@ kit that the roadmap calls back to in each checklist.
   - *Progress*: Core module now re-exports the canonical sensory organ
     implementation, normalises drift-config inputs, and drops the legacy stub
     fallback so runtime consumers always receive the real organ with regression
-    coverage verifying alias stability and drift configuration coercion.【F:src/core/__init__.py†L11-L36】【F:src/core/sensory_organ.py†L1-L36】【F:tests/core/test_core_sensory_exports.py†L1-L22】
+    coverage verifying alias stability and drift configuration coercion.【F:src/core/__init__.py†L14-L33】【F:src/core/sensory_organ.py†L1-L36】【F:tests/core/test_core_sensory_exports.py†L1-L22】
   - *Progress*: Market data recorder/replayer now serialises lightweight order
     books to JSONL, logs feature-writer failures, skips malformed payloads, and
     guards file-handle shutdown so sensory backtests and feature pipelines can
@@ -246,10 +246,10 @@ kit that the roadmap calls back to in each checklist.
     that breach drawdown/exposure/liquidity limits, and publishes a
     runbook-backed `risk_config_summary` snapshot so downstream tooling inherits
     the enforced configuration and escalation URL with every limit payload.【F:src/trading/risk/risk_gateway.py†L170-L390】【F:src/trading/trading_manager.py†L105-L210】【F:tests/current/test_risk_gateway_validation.py†L326-L350】
-  - *Progress*: Trading manager initialises its portfolio risk manager via the
-    canonical `get_risk_manager` facade, exposes the core engine’s snapshot and
-    assessment APIs, and keeps execution telemetry aligned with the deterministic
-    risk manager surfaced by the runtime builder.【F:src/trading/trading_manager.py†L105-L147】【F:src/risk/risk_manager_impl.py†L533-L573】
+  - *Progress*: Canonical `RiskManager` facade now lives in `src.risk`, with core
+    exports, the component integrator, and trading manager resolving factories
+    from the same module while capturing risk-config summaries so orchestration
+    and runtime share deterministic enforcement under regression coverage.【F:src/risk/manager.py†L1-L128】【F:src/core/__init__.py†L14-L33】【F:src/integration/component_integrator.py†L17-L169】【F:src/trading/trading_manager.py†L17-L175】【F:tests/current/test_orchestration_compose.py†L12-L159】
   - *Progress*: Deterministic trading risk API now attaches structured metadata
     and a contract runbook to every `RiskApiError`, exposes a shared
     `RISK_API_RUNBOOK` alias for supervisors, and renders sector exposure maps,
@@ -528,11 +528,10 @@ kit that the roadmap calls back to in each checklist.
     canonical mean reversion regression to exercise the modern trading
     strategies API, shrinking the dead-code backlog and aligning tests with the
     production surface.【F:docs/reports/CLEANUP_REPORT.md†L87-L106】【F:tests/current/test_mean_reversion_strategy.py†L1-L80】
-  - *Progress*: Core configuration module now proxies every legacy accessor to
-    the canonical `SystemConfig`, preserving environment overrides, YAML import
-    compatibility, and debug coercion so downstream consumers can migrate
-    without duplicating parsing logic while the shim stops drifting from the
-    source of truth.【F:src/core/configuration.py†L1-L188】
+  - *Progress*: `src.core.configuration` now raises a descriptive
+    `ModuleNotFoundError` directing teams to import `SystemConfig`, with
+    regression coverage asserting the guidance so the retired shim cannot
+    silently resurface.【F:src/core/configuration.py†L1-L13】【F:tests/current/test_core_configuration_runtime.py†L1-L14】
   - *Progress*: Operational package import now aliases `src.operational.event_bus`
     to the canonical core implementation, keeping legacy paths alive while tests
     assert the wiring so cleanup work can retire the shim safely.【F:src/operational/__init__.py†L1-L38】【F:tests/operational/test_event_bus_alias.py†L162-L178】
@@ -798,11 +797,10 @@ kit that the roadmap calls back to in each checklist.
     KYC components, escalate severities deterministically, and render markdown
     evidence with regression coverage so governance cadences inherit reliable
     compliance posture telemetry.【F:src/operations/compliance_readiness.py†L1-L220】【F:tests/operations/test_compliance_readiness.py†L1-L173】
-  - *Progress*: Governance cadence runner now honours forced executions,
-    metadata overrides, and context-pack lookups while orchestrating interval
-    gating, audit evidence collection, report persistence, and event-bus
-    publishing so institutional deployments can schedule or manually trigger the
-    cadence behind injectable providers under pytest coverage.【F:src/operations/governance_cadence.py†L1-L166】【F:src/operations/governance_reporting.py†L604-L635】【F:tests/operations/test_governance_cadence.py†L1-L120】
+  - *Progress*: Governance cadence runner now persists the last generated
+    timestamp, injects strategy and metadata providers, backfills cadence
+    defaults, and wires audit/persist/publish hooks so operations can enforce
+    interval gating or force runs under pytest coverage.【F:src/operations/governance_cadence.py†L1-L200】【F:src/operations/governance_reporting.py†L604-L668】【F:tests/operations/test_governance_cadence.py†L1-L200】
   - *Progress*: Governance cadence CLI resolves SystemConfig extras into JSON
     context packs, layers optional snapshot overrides, supports forced runs, and
     emits Markdown/JSON outputs so operators can run the cadence without the
@@ -844,6 +842,14 @@ kit that the roadmap calls back to in each checklist.
   work; stale documentation is considered a regression.【F:docs/technical_debt_assessment.md†L90-L112】
 - Maintain the truth-first status culture: mock implementations must remain
   labelled and roadmapped until replaced by production-grade systems.【F:docs/DEVELOPMENT_STATUS.md†L7-L35】
+
+## Automation updates — 2025-10-07T21:40:17Z
+
+### Last 4 commits
+- 9bad935 refactor(operations): tune 2 files (2025-10-07)
+- 1da1ddb refactor(core): tune 2 files (2025-10-07)
+- 9f12b1f feat(docs): add 15 files (2025-10-07)
+- c9ace45 docs(docs): tune 3 files (2025-10-07)
 
 ## Automation updates — 2025-10-07T23:24:00Z
 

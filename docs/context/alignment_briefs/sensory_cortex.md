@@ -25,7 +25,11 @@
   live.【F:src/sensory/how/how_sensor.py†L21-L210】【F:src/sensory/anomaly/anomaly_sensor.py†L21-L277】【F:src/sensory/thresholds.py†L1-L76】【F:tests/sensory/test_how_anomaly_sensors.py†L187-L302】【F:tests/sensory/test_thresholds.py†L1-L57】
 - Real sensory organ fuses WHY/WHAT/WHEN/HOW/ANOMALY outputs, publishes
   telemetry snapshots with lineage metadata, and exposes audit/status helpers
-  while still consuming synthetic data until institutional ingest arrives.【F:src/sensory/real_sensory_organ.py†L20-L208】【F:src/sensory/real_sensory_organ.py†L210-L336】【F:tests/sensory/test_real_sensory_organ.py†L1-L107】
+  while still consuming synthetic data until institutional ingest arrives. It
+  now wires an optional sensory lineage publisher that normalises HOW/ANOMALY
+  payloads, keeps a bounded inspection history, and emits lineage telemetry via
+  runtime or fallback buses under pytest coverage so responders can audit
+  provenance from real-time snapshots.【F:src/sensory/real_sensory_organ.py†L41-L376】【F:src/sensory/lineage_publisher.py†L1-L193】【F:tests/sensory/test_real_sensory_organ.py†L172-L187】【F:tests/sensory/test_lineage.py†L85-L145】
 - Sensory metrics layer now converts organ status snapshots into
   dimension-strength/confidence metrics, captures drift alerts, and publishes via
   the failover helper so dashboards can surface cortex posture even when the

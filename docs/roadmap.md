@@ -74,7 +74,11 @@ kit that the roadmap calls back to in each checklist.
     bridge into the task supervisor with redacted metadata, publishing a managed
     manifest that lists configured topics, and exposing async/sync connectivity
     probes so dashboards can surface recovery requirements and live health checks
-    without bespoke wiring.【F:src/data_foundation/ingest/institutional_vertical.py†L96-L260】【F:tests/runtime/test_institutional_ingest_vertical.py†L86-L262】【F:docs/operations/timescale_failover_drills.md†L1-L27】
+    without bespoke wiring. It now auto-configures Redis via the shared client
+    helper when no factory is supplied, warns when a client cannot be created,
+    and surfaces the active Redis backing class in service summaries and
+    manifests so operators know which cache implementation is live under pytest
+    coverage of the configure path.【F:src/data_foundation/ingest/institutional_vertical.py†L96-L399】【F:tests/runtime/test_institutional_ingest_vertical.py†L140-L185】【F:docs/operations/timescale_failover_drills.md†L1-L27】
   - *Progress*: Professional runtime builder now invokes the institutional
     provisioner automatically, reuses managed Redis clients when present,
     defers the next scheduled run after manual ingest, records
@@ -188,6 +192,11 @@ kit that the roadmap calls back to in each checklist.
     emits telemetry via the event-bus failover helper so dashboards inherit
     resilient sensory rollups backed by pytest coverage of runtime and failover
     paths.【F:src/operations/sensory_summary.py†L1-L215】【F:tests/operations/test_sensory_summary.py†L1-L155】
+  - *Progress*: Sensory lineage publisher now normalises HOW/ANOMALY lineage
+    records, keeps a bounded inspection history, and publishes via either
+    runtime or global event-bus bridges while the real sensory organ pipes its
+    dimension metadata through the publisher so responders inherit auditable
+    provenance snapshots under pytest coverage of publish/fallback paths.【F:src/sensory/lineage_publisher.py†L1-L193】【F:src/sensory/real_sensory_organ.py†L41-L376】【F:tests/sensory/test_lineage.py†L11-L145】【F:tests/sensory/test_real_sensory_organ.py†L172-L187】
   - *Progress*: Professional runtime now captures the integrated sensory status
     feed, publishes the hardened summary/metrics telemetry, and caches the last
     snapshots so the Predator app summary exposes Markdown/JSON payloads for
@@ -328,6 +337,11 @@ kit that the roadmap calls back to in each checklist.
     coverage, formatter, domain, and remediation feeds, flagging stale
     telemetry windows with timestamps and age calculations so roadmap evidence
     highlights expired observability snapshots under pytest coverage.【F:tools/telemetry/ci_metrics.py†L214-L320】【F:tests/tools/test_ci_metrics.py†L210-L360】
+  - *Progress*: Alert drill CLI and metrics updater now generate timeline JSON
+    payloads for forced-failure rehearsals, parse MTTA/MTTR data, and append
+    alert-response entries to the CI metrics feed so dashboards surface
+    acknowledgement and recovery cadence alongside coverage trends under pytest
+    coverage of the CLI/aggregator path.【F:tools/telemetry/alert_drill.py†L29-L172】【F:tools/telemetry/update_ci_metrics.py†L134-L279】【F:tools/telemetry/ci_metrics.py†L597-L658】【F:tests/tools/test_alert_drill.py†L9-L58】【F:tests/tools/test_ci_metrics.py†L340-L618】
   - *Progress*: Incident response readiness now parses policy/state mappings into
     a severity snapshot, derives targeted alert events, and publishes telemetry
     via the shared failover helper so operators get actionable runbook, roster,

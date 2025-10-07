@@ -83,7 +83,11 @@
   the task supervisor with redacted metadata, publishing a managed manifest that
   lists configured topics, and exposing async/sync connectivity probes so
   operators can surface recovery requirements and live health checks without
-  bespoke wiring.【F:src/data_foundation/ingest/institutional_vertical.py†L96-L260】【F:tests/runtime/test_institutional_ingest_vertical.py†L86-L262】【F:docs/operations/timescale_failover_drills.md†L1-L27】
+  bespoke wiring. The provisioner now auto-configures Redis via the shared
+  client helper when no factory is supplied, warns when a client cannot be
+  created, and surfaces the active Redis backing class in service summaries and
+  manifests so responders know which cache implementation is live under pytest
+  coverage of the configure path.【F:src/data_foundation/ingest/institutional_vertical.py†L96-L399】【F:tests/runtime/test_institutional_ingest_vertical.py†L140-L185】【F:docs/operations/timescale_failover_drills.md†L1-L27】
 - Progress: Professional runtime builder now calls the provisioner automatically,
   reuses any managed Redis client already attached to the app, records managed
   connector manifests, propagates the manifest into data-backbone readiness

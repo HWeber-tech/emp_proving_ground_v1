@@ -162,6 +162,12 @@ class PolicyRouter:
     def register_experiment(self, experiment: FastWeightExperiment) -> None:
         self._experiments[experiment.experiment_id] = experiment
 
+    def register_experiments(self, experiments: Iterable[FastWeightExperiment]) -> None:
+        """Register multiple fast-weight experiments."""
+
+        for experiment in experiments:
+            self.register_experiment(experiment)
+
     def remove_experiment(self, experiment_id: str) -> None:
         self._experiments.pop(experiment_id, None)
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from .policy_reflection import PolicyReflectionArtifacts, PolicyReflectionBuilder
 from .policy_router import (
     FastWeightExperiment,
     PolicyDecision,
@@ -9,6 +10,8 @@ from .policy_router import (
 )
 
 __all__ = [
+    "PolicyReflectionArtifacts",
+    "PolicyReflectionBuilder",
     "FastWeightExperiment",
     "PolicyDecision",
     "PolicyRouter",

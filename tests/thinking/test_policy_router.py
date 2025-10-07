@@ -141,6 +141,30 @@ def test_update_tactic_replaces_existing_definition() -> None:
         router.update_tactic(PolicyTactic(tactic_id="missing", base_weight=0.5))
 
 
+def test_register_experiments_bulk() -> None:
+    router = PolicyRouter()
+    router.register_tactic(PolicyTactic(tactic_id="alpha", base_weight=1.0))
+
+    experiments = (
+        FastWeightExperiment(
+            experiment_id="exp-one",
+            tactic_id="alpha",
+            delta=0.2,
+            rationale="Boost alpha",
+        ),
+        FastWeightExperiment(
+            experiment_id="exp-two",
+            tactic_id="alpha",
+            delta=-0.1,
+            rationale="Throttle alpha",
+        ),
+    )
+
+    router.register_experiments(experiments)
+
+    assert set(router.experiments()) == {"exp-one", "exp-two"}
+
+
 def test_reflection_digest_surfaces_emerging_strategies() -> None:
     router = PolicyRouter(reflection_history=10)
     router.register_tactics(

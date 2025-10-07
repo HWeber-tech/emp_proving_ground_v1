@@ -17,8 +17,12 @@ from src.understanding.router import (
     BeliefSnapshot,
     FastWeightAdapter,
     FeatureGate,
+    HebbianConfig,
     UnderstandingRouter,
 )
+
+
+pytestmark = pytest.mark.guardrail
 
 
 def _build_router() -> UnderstandingRouter:
@@ -71,7 +75,7 @@ def _build_snapshot(
     return BeliefSnapshot(
         belief_id="belief-balanced",
         regime_state=regime_state,
-        features=regime_state.features,
+        features={"liquidity_z": liquidity_z, "momentum": 0.25},
         metadata={"window": "15m"},
         fast_weights_enabled=fast_weights_enabled,
         feature_flags=feature_flags or {"fast_weights_live": True},
@@ -90,6 +94,7 @@ def test_understanding_router_applies_feature_gated_adapters() -> None:
     assert summary["multiplier"] == pytest.approx(1.35)
     assert summary["feature_gates"] == [{"feature": "liquidity_z", "maximum": -0.2}]
     assert summary["required_flags"] == {"fast_weights_live": True}
+    assert summary["current_multiplier"] == pytest.approx(1.35)
     assert "expires_at" not in summary
 
 
@@ -144,3 +149,41 @@ def test_understanding_router_respects_adapter_expiry() -> None:
     expired_bundle = router.route(snapshot, as_of=datetime(2024, 1, 3, tzinfo=UTC))
     assert expired_bundle.applied_adapters == ("liquidity_rescue",)
     assert "expiry_gate" not in expired_bundle.fast_weight_summary
+
+
+def test_understanding_router_updates_hebbian_multiplier() -> None:
+    router = _build_router()
+    hebbian_adapter = FastWeightAdapter(
+        adapter_id="momentum_boost",
+        tactic_id="alpha_strike",
+        rationale="Boost alpha when momentum is positive",
+        hebbian=HebbianConfig(
+            feature="momentum",
+            learning_rate=0.5,
+            decay=0.2,
+            baseline=1.0,
+            floor=0.5,
+            ceiling=2.0,
+        ),
+    )
+    router.register_adapter(hebbian_adapter)
+
+    snapshot = _build_snapshot()
+
+    first = router.route(snapshot)
+    second = router.route(snapshot)
+
+    first_summary = first.fast_weight_summary["momentum_boost"]
+    assert first_summary["current_multiplier"] == pytest.approx(0.925)
+
+    summary = second.fast_weight_summary["momentum_boost"]
+    assert summary["previous_multiplier"] == pytest.approx(first_summary["current_multiplier"])
+    assert summary["current_multiplier"] == pytest.approx(0.865)
+    assert summary["current_multiplier"] <= 2.0
+    assert summary["hebbian"]["feature"] == "momentum"
+    assert pytest.approx(summary["feature_value"]) == 0.25
+
+    # Disable fast weights and ensure Hebbian state does not apply.
+    snapshot_disabled = _build_snapshot(fast_weights_enabled=False)
+    disabled_bundle = router.route(snapshot_disabled)
+    assert "momentum_boost" not in disabled_bundle.fast_weight_summary

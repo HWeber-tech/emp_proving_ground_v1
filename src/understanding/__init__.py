@@ -23,8 +23,16 @@ from .router import (
     BeliefSnapshot,
     FastWeightAdapter,
     FeatureGate,
+    HebbianConfig,
     UnderstandingDecision,
     UnderstandingRouter,
+)
+from .router_config import (
+    FeatureGateDefinition,
+    HebbianAdapterDefinition,
+    TierDefaults,
+    UnderstandingAdapterConfig,
+    UnderstandingRouterConfig,
 )
 
 __all__ = [
@@ -46,6 +54,12 @@ __all__ = [
     "BeliefSnapshot",
     "FastWeightAdapter",
     "FeatureGate",
+    "HebbianConfig",
     "UnderstandingDecision",
     "UnderstandingRouter",
+    "FeatureGateDefinition",
+    "HebbianAdapterDefinition",
+    "TierDefaults",
+    "UnderstandingAdapterConfig",
+    "UnderstandingRouterConfig",
 ]

@@ -211,6 +211,7 @@ class RiskGateway:
         self._last_policy_decision: RiskPolicyDecision | None = None
         self._last_policy_snapshot: RiskPolicyEvaluationSnapshot | None = None
         self._risk_config: RiskConfig | None = risk_config
+        self._risk_reference_cache: dict[str, object] | None = None
 
     # ------------------------------------------------------------------
     # Public API
@@ -367,8 +368,9 @@ class RiskGateway:
                 )
 
             decision.update(status="approved", quantity=float(adjusted_quantity))
+            decision_payload = self._augment_with_risk_reference(decision)
             self.telemetry["approved"] += 1
-            self.telemetry["last_decision"] = decision
+            self.telemetry["last_decision"] = decision_payload
             return intent
 
         except Exception as exc:  # pragma: no cover - defensive logging path
@@ -458,18 +460,63 @@ class RiskGateway:
     # Internal helpers
     # ------------------------------------------------------------------
     def _reject(self, decision: Mapping[str, Any]) -> None:
+        decision_payload = self._augment_with_risk_reference(decision)
         self.telemetry["rejected"] += 1
-        self.telemetry["last_decision"] = dict(decision)
-        reason = str(decision.get("reason") or "")
-        symbol = str(decision.get("symbol") or "")
+        self.telemetry["last_decision"] = decision_payload
+        reason = str(decision_payload.get("reason") or "")
+        symbol = str(decision_payload.get("symbol") or "")
         if operational_metrics is not None:
             safe_reason = reason or "unknown"
             try:
                 operational_metrics.inc_pretrade_denial(symbol, safe_reason)
             except Exception:  # pragma: no cover - metrics layer optional
                 logger.debug("Failed to emit pre-trade denial metric", exc_info=True)
-        logger.info("RiskGateway rejected trade: %s", decision)
+        logger.info("RiskGateway rejected trade: %s", decision_payload)
         return None
+
+    def _risk_reference_base(self) -> dict[str, object]:
+        if self._risk_reference_cache is None:
+            reference: dict[str, object] = {"risk_api_runbook": RISK_API_RUNBOOK}
+            if self._risk_config is not None:
+                try:
+                    reference["risk_config_summary"] = summarise_risk_config(self._risk_config)
+                except Exception:  # pragma: no cover - defensive metadata guard
+                    logger.debug(
+                        "Failed to summarise risk config for risk reference cache",
+                        exc_info=True,
+                    )
+            elif self.risk_policy is not None:
+                reference["risk_config_summary"] = self._policy_summary()
+            self._risk_reference_cache = reference
+        return dict(self._risk_reference_cache)
+
+    def _augment_with_risk_reference(self, decision: Mapping[str, Any]) -> dict[str, Any]:
+        payload = dict(decision)
+        existing = payload.get("risk_reference")
+        base_reference = self._risk_reference_base()
+        if isinstance(existing, Mapping):
+            merged = dict(base_reference)
+            merged.update(existing)
+            payload["risk_reference"] = merged
+        else:
+            payload["risk_reference"] = base_reference
+        return payload
+
+    def _policy_summary(self) -> dict[str, object]:
+        policy = self.risk_policy
+        if policy is None:
+            return {}
+        summary = {
+            "max_risk_per_trade_pct": float(policy.max_risk_per_trade_pct),
+            "max_total_exposure_pct": float(policy.max_total_exposure_pct),
+            "max_leverage": float(policy.max_leverage),
+            "max_drawdown_pct": float(policy.max_drawdown_pct),
+            "min_position_size": float(policy.min_position_size),
+            "max_position_size": float(policy.max_position_size),
+            "mandatory_stop_loss": bool(policy.mandatory_stop_loss),
+            "research_mode": bool(policy.research_mode),
+        }
+        return summary
 
     def _check_strategy(self, strategy_id: str | None) -> bool:
         if not strategy_id or self.strategy_registry is None:

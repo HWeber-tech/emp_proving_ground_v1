@@ -93,3 +93,22 @@ def test_ci_guardrail_job_targets_ingest_risk_observability_domains() -> None:
         "tests/observability",
     ):
         assert domain in run_script, f"Coverage pytest step does not target {domain}"
+
+
+def test_ci_guardrail_job_validates_ingest_coverage() -> None:
+    """CI must enforce coverage guardrails for ingest orchestration."""
+
+    workflow = _load_ci_workflow()
+    coverage_guard_step = next(
+        (
+            step
+            for step in workflow["jobs"]["tests"]["steps"]
+            if step.get("name") == "Coverage matrix (ingest guardrail)"
+        ),
+        None,
+    )
+    assert coverage_guard_step is not None, "Coverage matrix ingest guardrail step missing from CI workflow"
+    run_script = coverage_guard_step.get("run", "")
+    assert "tools.telemetry.coverage_matrix" in run_script
+    assert "coverage.xml" in run_script
+    assert "src/data_foundation/ingest/timescale_pipeline.py" in run_script

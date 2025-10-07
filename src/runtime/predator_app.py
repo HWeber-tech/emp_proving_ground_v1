@@ -166,6 +166,12 @@ from src.sensory.when.when_sensor import WhenSensor
 from src.sensory.why.why_sensor import WhySensor
 from src.trading.integration.fix_broker_interface import FIXBrokerInterface
 from src.trading.risk.policy_telemetry import format_policy_markdown
+from src.trading.risk.risk_api import (
+    RISK_API_RUNBOOK,
+    RiskApiError,
+    build_runtime_risk_metadata,
+    resolve_trading_risk_interface,
+)
 from src.runtime.bootstrap_runtime import BootstrapRuntime
 from src.runtime.fix_dropcopy import FixDropcopyReconciler
 from src.runtime.fix_pilot import FixIntegrationPilot
@@ -988,6 +994,9 @@ class ProfessionalPredatorApp:
 
         trading_manager = getattr(self.sensory_organ, "trading_manager", None)
         if trading_manager is not None:
+            risk_section = summary_payload.setdefault("risk", {})
+            risk_section.setdefault("runbook", RISK_API_RUNBOOK)
+
             snapshot_obj = _call_manager_method(trading_manager, "get_last_risk_snapshot")
             snapshot_dict = _snapshot_to_dict(snapshot_obj)
             risk_markdown = (
@@ -996,26 +1005,61 @@ class ProfessionalPredatorApp:
                 else None
             )
             if snapshot_dict is not None:
-                summary_payload["risk"] = {"snapshot": snapshot_dict}
+                risk_section["snapshot"] = snapshot_dict
                 if risk_markdown:
-                    summary_payload["risk"]["markdown"] = risk_markdown
+                    risk_section["markdown"] = risk_markdown
 
+            try:
+                runtime_metadata = build_runtime_risk_metadata(trading_manager)
+            except RiskApiError as exc:
+                errors = risk_section.setdefault("errors", {})
+                errors["runtime"] = exc.to_metadata()
+            else:
+                risk_section["runtime"] = runtime_metadata
+
+            extra_interface_payload: dict[str, Any] | None = None
             describe_interface = getattr(trading_manager, "describe_risk_interface", None)
             if callable(describe_interface):
                 try:
-                    interface_payload = describe_interface()
+                    interface_candidate = describe_interface()
+                except RiskApiError as exc:
+                    errors = risk_section.setdefault("errors", {})
+                    errors["interface"] = exc.to_metadata()
                 except Exception:  # pragma: no cover - diagnostics only
                     self._logger.debug(
                         "Failed to resolve trading risk interface for runtime summary",
                         exc_info=True,
                     )
                 else:
-                    if interface_payload is not None:
-                        risk_section = summary_payload.setdefault("risk", {})
-                        if isinstance(interface_payload, Mapping):
-                            risk_section["interface"] = dict(interface_payload)
+                    if interface_candidate is not None:
+                        if isinstance(interface_candidate, Mapping):
+                            extra_interface_payload = dict(interface_candidate)
                         else:
-                            risk_section["interface"] = interface_payload
+                            extra_interface_payload = {"value": interface_candidate}
+
+            try:
+                interface = resolve_trading_risk_interface(trading_manager)
+            except RiskApiError as exc:
+                errors = risk_section.setdefault("errors", {})
+                errors.setdefault("interface", exc.to_metadata())
+                if extra_interface_payload is not None:
+                    risk_section["interface"] = extra_interface_payload
+            else:
+                interface_payload: dict[str, Any] = {
+                    "summary": interface.summary(),
+                    "config": interface.config.dict(),
+                }
+                if interface.status is not None:
+                    interface_payload["status"] = dict(interface.status)
+                if extra_interface_payload is None:
+                    risk_section["interface"] = interface_payload
+                else:
+                    merged = dict(extra_interface_payload)
+                    merged.setdefault("summary", interface_payload["summary"])
+                    merged.setdefault("config", interface_payload["config"])
+                    if "status" not in merged and "status" in interface_payload:
+                        merged["status"] = interface_payload["status"]
+                    risk_section["interface"] = merged
 
             policy_obj = _call_manager_method(trading_manager, "get_last_policy_snapshot")
             policy_snapshot = _snapshot_to_dict(policy_obj)
@@ -1025,7 +1069,6 @@ class ProfessionalPredatorApp:
                 else None
             )
             if policy_snapshot is not None:
-                risk_section = summary_payload.setdefault("risk", {})
                 policy_block: dict[str, Any] = {"snapshot": policy_snapshot}
                 if policy_markdown:
                     policy_block["markdown"] = policy_markdown
@@ -1054,7 +1097,6 @@ class ProfessionalPredatorApp:
                     )
                 else:
                     if gate_payload:
-                        risk_section = summary_payload.setdefault("risk", {})
                         risk_section["drift_gate"] = gate_payload
 
             describe_release = getattr(trading_manager, "describe_release_posture", None)
@@ -1068,7 +1110,6 @@ class ProfessionalPredatorApp:
                     )
                 else:
                     if release_payload:
-                        risk_section = summary_payload.setdefault("risk", {})
                         risk_section["release"] = dict(release_payload)
 
         if self._last_execution_snapshot is not None:

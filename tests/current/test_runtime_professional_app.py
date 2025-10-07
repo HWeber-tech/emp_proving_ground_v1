@@ -1,13 +1,16 @@
 import asyncio
 from contextlib import suppress
 from datetime import UTC, datetime
+from decimal import Decimal
 
 import pytest
 
 from src.core.event_bus import EventBus
 from src.governance.system_config import SystemConfig
 from src.operations.fix_pilot import FixPilotComponent, FixPilotSnapshot, FixPilotStatus
+from src.config.risk.risk_config import RiskConfig
 from src.runtime.predator_app import ProfessionalPredatorApp
+from src.trading.risk.risk_api import RISK_API_RUNBOOK, RiskApiError
 from src.runtime.task_supervisor import TaskSupervisor
 from src.sensory.organs.fix_sensory_organ import FIXSensoryOrgan
 from src.trading.integration.fix_broker_interface import FIXBrokerInterface
@@ -94,14 +97,18 @@ class _StubBroker:
 
 class _StubTradingManager:
     def __init__(self) -> None:
-        self.interface_payload = {
-            "summary": {"max_total_exposure_pct": 50.0},
-            "config": {"max_total_exposure_pct": 50.0},
-            "runbook": "docs/operations/runbooks/risk_api_contract.md",
-        }
+        self._risk_config = RiskConfig(max_total_exposure_pct=Decimal("0.5"))
+        self._interface_metadata = {"metadata": {"source": "stub"}}
 
     def describe_risk_interface(self):
-        return dict(self.interface_payload)
+        return dict(self._interface_metadata)
+
+    def get_risk_status(self):
+        return {
+            "risk_config": self._risk_config.dict(),
+            "policy_limits": {"max_positions": 5},
+            "policy_research_mode": False,
+        }
 
     def get_last_risk_snapshot(self):
         return None
@@ -110,6 +117,23 @@ class _StubTradingManager:
         return None
 
     def get_last_roi_snapshot(self):
+        return None
+
+
+class _BrokenTradingManager:
+    def describe_risk_interface(self):
+        raise RiskApiError("broken interface", details={"manager": "broken"})
+
+    def get_risk_status(self):
+        return {"risk_config": "invalid"}
+
+    def get_last_risk_snapshot(self):  # pragma: no cover - returning None is sufficient
+        return None
+
+    def get_last_policy_snapshot(self):  # pragma: no cover - returning None is sufficient
+        return None
+
+    def get_last_roi_snapshot(self):  # pragma: no cover - returning None is sufficient
         return None
 
 
@@ -296,8 +320,47 @@ async def test_professional_predator_app_summary_includes_risk_interface():
 
     await app.start()
     summary = app.summary()
-    interface_payload = summary["risk"]["interface"]
-    assert interface_payload["summary"]["max_total_exposure_pct"] == 50.0
-    assert interface_payload.get("runbook") == "docs/operations/runbooks/risk_api_contract.md"
+    risk_section = summary["risk"]
+    assert risk_section["runbook"] == RISK_API_RUNBOOK
+    runtime_metadata = risk_section["runtime"]
+    assert runtime_metadata["runbook"] == RISK_API_RUNBOOK
+    assert runtime_metadata["policy_limits"]["max_positions"] == 5
+
+    interface_payload = risk_section["interface"]
+    assert interface_payload["summary"]["max_total_exposure_pct"] == 0.5
+    assert interface_payload["config"]["max_total_exposure_pct"] == 0.5
+    assert interface_payload["metadata"]["source"] == "stub"
+
+    await app.shutdown()
+
+
+@pytest.mark.asyncio
+async def test_professional_predator_app_summary_exposes_risk_api_errors():
+    config = SystemConfig()
+    event_bus = EventBus()
+    sensory = _StubSensory()
+    sensory.trading_manager = _BrokenTradingManager()
+    broker = _StubBroker()
+
+    app = ProfessionalPredatorApp(
+        config=config,
+        event_bus=event_bus,
+        sensory_organ=sensory,
+        broker_interface=broker,
+        fix_connection_manager=_StubFixManager(),
+        sensors={"stub": _StubSensor()},
+    )
+
+    await app.start()
+    summary = app.summary()
+    risk_section = summary["risk"]
+    errors = risk_section.get("errors") or {}
+    assert "runtime" in errors
+    assert errors["runtime"]["runbook"] == RISK_API_RUNBOOK
+    runtime_details = errors["runtime"].get("details") or {}
+    assert runtime_details.get("manager") == "_BrokenTradingManager"
+    assert "interface" in errors
+    interface_details = errors["interface"].get("details") or {}
+    assert interface_details.get("manager") == "broken"
 
     await app.shutdown()

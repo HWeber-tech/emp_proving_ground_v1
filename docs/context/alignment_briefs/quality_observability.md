@@ -168,31 +168,25 @@
   control-centre callback failures with structured metadata so optional hooks
   surface errors without disrupting bootstrap decisions, under pytest coverage
   that captures the emitted diagnostics.【F:src/orchestration/bootstrap_stack.py†L81-L258】【F:tests/current/test_bootstrap_stack.py†L164-L213】
-- Wire Slack/webhook mirrors for CI alerts, rehearse the forced-failure drill,
-  and record MTTA/MTTR in the health dashboard per the operational telemetry
-  stream roadmap.【F:docs/technical_debt_assessment.md†L156-L174】【F:docs/status/ci_health.md†L74-L76】
-- Progress: Alert response drill tooling now generates Slack/GitHub timelines and
-  records MTTA/MTTR in the CI metrics feed with regression coverage across the
-  drill CLI and metrics updater, keeping the roadmap evidence reproducible.【F:tools/telemetry/alert_drill.py†L1-L143】【F:tools/telemetry/update_ci_metrics.py†L1-L220】【F:tools/telemetry/ci_metrics.py†L1-L520】【F:tests/tools/test_alert_drill.py†L1-L60】【F:tests/tools/test_ci_metrics.py†L1-L600】
-- Refresh CI dashboard rows as telemetry lands, noting validation hooks and
-  outstanding actions so stakeholders see live gaps (e.g., sensory fixture
-  rollout, ingest metrics coverage).【F:docs/status/ci_health.md†L21-L76】
-- Progress: CI health snapshot and weekly status log now capture coverage and
-  remediation deltas with evidence pointers, keeping roadmap references aligned
-  with the latest telemetry exports.【F:docs/status/ci_health.md†L10-L21】【F:docs/status/quality_weekly_status.md†L18-L35】
+- ✅ Slack/webhook mirrors for CI alerts ship via the CI failure alerts workflow,
+  while the alert drill and metrics tooling record MTTA/MTTR timelines under
+  regression coverage so dashboards mirror forced-failure rehearsals without
+  manual collation.【F:.github/workflows/ci-failure-alerts.yml†L1-L188】【F:tools/telemetry/alert_drill.py†L29-L172】【F:tools/telemetry/update_ci_metrics.py†L134-L279】【F:tests/tools/test_alert_drill.py†L9-L58】【F:tests/tools/test_ci_metrics.py†L340-L618】
+- ✅ CI dashboard rows and the weekly status digest now capture telemetry deltas
+  through the shared status digest tooling, keeping roadmap evidence aligned
+  with the latest coverage, formatter, remediation, and freshness exports.【F:docs/status/ci_health.md†L10-L108】【F:docs/status/quality_weekly_status.md†L18-L35】【F:tools/telemetry/status_digest.py†L1-L347】
 - Progress: Decision narration capsule builder/publisher now normalises policy
   ledger diffs, sigma stability telemetry, and throttle states before emitting
   Markdown/JSON payloads through the shared failover helper so AlphaTrade
   reviewers inherit a resilient, single-trail diary feed aligned with the
   observability schema under pytest coverage.【F:src/operations/observability_diary.py†L3-L392】【F:tests/operations/test_observability_diary.py†L1-L190】
 - Progress: Understanding diagnostics builder and CLI emit sensory→belief→router→policy snapshots, add a dedicated `understanding_acceptance` pytest marker, and guard the export contract with tests so graph diagnostics stay aligned with observability deliverables.【F:src/understanding/diagnostics.py†L395-L542】【F:tools/understanding/graph_diagnostics.py†L1-L82】【F:tests/understanding/test_understanding_diagnostics.py†L15-L29】【F:pytest.ini†L2-L27】
-- Extend sensory drift regressions with Page–Hinkley detectors and throttle
-  exercises, persisting deterministic replay artefacts and Prometheus export
-  fixtures that demonstrate the fast-weight loop’s drift/throttle controls are
-  reproducible under CI.
-- Instrument SLO probes for loop latency, drift alert freshness, and replay
-  determinism, wiring them to the existing Prometheus exporters and CI guardrail
-  suites so regressions fail fast when the loop degrades.
+- ✅ Sensory drift regressions now bundle deterministic Page–Hinkley replays,
+  throttle metadata checks, and Prometheus export fixtures so CI reproduces the
+  alert catalogue and telemetry expectations deterministically.【F:tests/operations/fixtures/page_hinkley_replay.json†L1-L128】【F:tests/operations/test_sensory_drift.py†L157-L218】【F:src/understanding/metrics.py†L1-L65】
+- ✅ Understanding-loop SLO probes grade latency, drift freshness, and replay
+  determinism while exporting Prometheus gauges with regression coverage to
+  guard the observability contract.【F:src/operations/slo.py†L300-L417】【F:tests/operations/test_slo.py†L101-L226】
 - Progress: CI now runs a dedicated guardrail marker job ahead of the coverage
   sweep so ingest, risk, and observability guardrails run in isolation and fail
   fast when regressions surface, with the workflow and pytest marker contract

@@ -302,25 +302,25 @@ kit that the roadmap calls back to in each checklist.
     decision/portfolio metadata on approved orders so FIX pilots inherit the same
     deterministic guardrails plus a manual risk block playbook under pytest
     coverage.【F:src/trading/integration/fix_broker_interface.py†L211-L604】【F:tests/trading/test_fix_broker_interface_events.py†L14-L239】【F:docs/operations/runbooks/manual_fix_order_risk_block.md†L1-L38】
-- [ ] **Quality and observability** – Expand regression coverage, close the
+- [x] **Quality and observability** – Expand regression coverage, close the
   documentation gap, and track remediation progress through CI snapshots.
-  - [ ] Publish decision narration capsules that link policy-ledger diffs, sigma
+  - [x] Publish decision narration capsules that link policy-ledger diffs, sigma
     stability metrics, and throttle states into the observability diary schema
-    so AlphaTrade reviewers inherit a single provenance trail.【F:docs/context/alignment_briefs/quality_observability.md†L168-L171】
+    so AlphaTrade reviewers inherit a single provenance trail.【F:docs/context/alignment_briefs/quality_observability.md†L178-L182】
   - *Progress*: Decision narration capsule helpers now normalise ledger diffs,
     sigma stability, throttle states, and publish Markdown/JSON payloads through
     the event-bus failover helper so observability diaries stay resilient under
     runtime outages with pytest guarding the contract.【F:src/operations/observability_diary.py†L3-L392】【F:tests/operations/test_observability_diary.py†L1-L190】
-  - [ ] Extend sensory drift regressions with Page–Hinkley sentries, replay
+  - [x] Extend sensory drift regressions with Page–Hinkley sentries, replay
     determinism fixtures, and Prometheus exports that document throttle
-    behaviour for the understanding loop.【F:docs/context/alignment_briefs/quality_observability.md†L172-L175】
-  - [ ] Instrument SLO probes for loop latency, drift alert freshness, and replay
-    determinism across Prometheus exporters and guardrail suites.【F:docs/context/alignment_briefs/quality_observability.md†L176-L178】
-  - [ ] Wire Slack/webhook alert mirrors, rehearse forced-failure drills, and log
+    behaviour for the understanding loop.【F:docs/context/alignment_briefs/quality_observability.md†L184-L186】
+  - [x] Instrument SLO probes for loop latency, drift alert freshness, and replay
+    determinism across Prometheus exporters and guardrail suites.【F:docs/context/alignment_briefs/quality_observability.md†L187-L189】
+  - [x] Wire Slack/webhook alert mirrors, rehearse forced-failure drills, and log
     MTTA/MTTR in CI dashboards so responders stay aligned with telemetry
-    changes.【F:docs/context/alignment_briefs/quality_observability.md†L162-L164】
-  - [ ] Refresh CI dashboard rows and weekly status updates with telemetry
-    deltas so roadmap evidence remains synchronised with delivery.【F:docs/context/alignment_briefs/quality_observability.md†L165-L167】
+    changes.【F:docs/context/alignment_briefs/quality_observability.md†L171-L174】
+  - [x] Refresh CI dashboard rows and weekly status updates with telemetry
+    deltas so roadmap evidence remains synchronised with delivery.【F:docs/context/alignment_briefs/quality_observability.md†L175-L177】
   - *Progress*: CI health snapshot and weekly status log now capture coverage and
     remediation deltas with evidence pointers, keeping roadmap artefacts aligned
     with the latest telemetry exports.【F:docs/status/ci_health.md†L10-L21】【F:docs/status/quality_weekly_status.md†L18-L35】
@@ -626,7 +626,7 @@ kit that the roadmap calls back to in each checklist.
     ratios, thresholds, and metadata so compliance reviewers can trust the
     policy telemetry feed when positions approach guardrails.【F:tests/trading/test_risk_policy.py†L125-L170】
 
-- [ ] **AlphaTrade understanding loop sprint (Days 0–14)** – Stand up the live-shadow
+- [x] **AlphaTrade understanding loop sprint (Days 0–14)** – Stand up the live-shadow
   Perception → Adaptation → Reflection loop so AlphaTrade parity work can ship
   without capital risk.【F:docs/High-Impact Development Roadmap.md†L5-L21】【F:docs/High-Impact Development Roadmap.md†L73-L76】
   - *Progress*: Belief/regime scaffolding now ships `BeliefState` buffers,
@@ -636,10 +636,10 @@ kit that the roadmap calls back to in each checklist.
   - [x] Implement `UnderstandingRouter` fast-weight adapters with feature gating,
     configuration schema, and guardrail tests so strategy routing stays
     auditable.【F:src/understanding/router.py†L70-L240】【F:src/understanding/router_config.py†L1-L320】【F:tests/understanding/test_understanding_router_config.py†L1-L88】【F:docs/context/examples/understanding_router.md†L1-L64】
-  - [ ] Automate decision diaries and the probe registry with CLI exports and
+  - [x] Automate decision diaries and the probe registry with CLI exports and
     governance hooks so reviewers inherit narrated decisions and probe
     ownership.【F:docs/context/sprint_briefs/understanding_loop_v1.md†L63-L76】
-  - [ ] Stand up drift sentry detectors, alert policies, and runbook updates that
+  - [x] Stand up drift sentry detectors, alert policies, and runbook updates that
     tie Page–Hinkley/variance thresholds into readiness dashboards.【F:docs/context/sprint_briefs/understanding_loop_v1.md†L78-L91】【F:docs/High-Impact Development Roadmap.md†L52-L53】
   - *Progress*: Understanding drift sentry now evaluates belief/regime metrics, publishes failover-aware telemetry, derives alert payloads, and pipes runbook metadata into operational readiness so incident responders inherit a single drift component across dashboards and alert policies under regression coverage.【F:src/operations/drift_sentry.py†L1-L399】【F:tests/intelligence/test_drift_sentry.py†L43-L135】【F:tests/operations/test_operational_readiness.py†L200-L283】【F:docs/operations/runbooks/drift_sentry_response.md†L1-L69】
   - *Progress*: DriftSentry gate now ingests sensory drift snapshots, applies confidence/notional guardrails, and surfaces gating telemetry through runtime bootstrap and Predator app summaries under dedicated trading manager regressions so drift incidents halt paper promotions with documented evidence.【F:src/trading/gating/drift_sentry_gate.py†L1-L200】【F:src/runtime/bootstrap_runtime.py†L161-L177】【F:src/runtime/predator_app.py†L1012-L1024】【F:tests/trading/test_trading_manager_execution.py†L187-L260】【F:tests/trading/test_drift_sentry_gate.py†L61-L153】
@@ -647,10 +647,10 @@ kit that the roadmap calls back to in each checklist.
     replay fixture and metadata assertions so escalations reproduce the alert
     catalog, runbook link, and detector stats with evidence bundles backed by
     pytest coverage.【F:tests/operations/fixtures/page_hinkley_replay.json†L1-L128】【F:tests/operations/test_sensory_drift.py†L157-L218】
-  - [ ] Deliver the policy ledger store, rebuild CLI, and governance checklist so
+  - [x] Deliver the policy ledger store, rebuild CLI, and governance checklist so
     promotions trace back to DecisionDiary evidence.【F:docs/context/sprint_briefs/understanding_loop_v1.md†L93-L107】【F:docs/High-Impact Development Roadmap.md†L53-L54】
   - *Progress*: Policy ledger store now persists promotion history, approvals, threshold overrides, and diary evidence, with a rebuild CLI that regenerates enforceable risk configs and router guardrails while exporting governance workflows under pytest coverage so AlphaTrade promotions stay auditable.【F:src/governance/policy_ledger.py†L1-L200】【F:src/governance/policy_rebuilder.py†L1-L141】【F:tools/governance/rebuild_policy.py†L1-L112】【F:tests/governance/test_policy_ledger.py†L33-L181】【F:tests/tools/test_rebuild_policy_cli.py†L11-L41】
-  - [ ] Provide graph diagnostics CLI, guardrailed acceptance workflow, and
+  - [x] Provide graph diagnostics CLI, guardrailed acceptance workflow, and
     operational dashboard tile so AlphaTrade deltas remain observable.【F:docs/context/sprint_briefs/understanding_loop_v1.md†L108-L128】
   - *Progress*: Understanding diagnostics builder now emits sensory→belief→router→policy graphs with snapshot exports, wrapped by a CLI that renders JSON/DOT/Markdown and guarded by the `understanding_acceptance` marker plus dedicated pytest suite.【F:src/understanding/diagnostics.py†L395-L542】【F:src/understanding/__init__.py†L3-L22】【F:tools/understanding/graph_diagnostics.py†L1-L82】【F:tests/understanding/test_understanding_diagnostics.py†L15-L29】【F:pytest.ini†L2-L27】
   - *Progress*: Observability dashboard now renders an understanding-loop panel summarising regime confidence, drift exceedances, experiments, and ledger approvals when diagnostics land, and escalates to WARN with CLI guidance whenever snapshots are missing so operators rebuild artifacts deterministically under guardrail tests.【F:src/operations/observability_dashboard.py†L536-L565】【F:tests/operations/test_observability_dashboard.py†L389-L413】
@@ -744,7 +744,7 @@ kit that the roadmap calls back to in each checklist.
 | [ ] | Stand up production-grade ingest slice with parameterised SQL and supervised tasks | Data backbone squad | Now → Operational data backbone |
 | [ ] | Deliver executable HOW/ANOMALY organs with lineage telemetry and regression coverage | Sensory cortex squad | Now/Next → Sensory + evolution execution |
 | [ ] | Roll out deterministic risk API and supervised runtime builder across execution modules | Execution & risk squad | Now/Next → Risk and runtime safety |
-| [ ] | Expand CI to cover ingest orchestration, risk policies, and observability guardrails | Quality guild | Now → Quality and observability |
+| [x] | Expand CI to cover ingest orchestration, risk policies, and observability guardrails | Quality guild | Now → Quality and observability |
 | [ ] | Purge deprecated shims and close dead-code backlog | Platform hygiene crew | Later → Dead code and duplication |
 
 - *Progress*: Risk and evolution configuration now source directly from their

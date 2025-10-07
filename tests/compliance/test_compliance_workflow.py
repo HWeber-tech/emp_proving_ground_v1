@@ -1,4 +1,7 @@
 from datetime import UTC, datetime
+from typing import Any
+
+import pytest
 
 from src.compliance.workflow import (
     ComplianceWorkflowSnapshot,
@@ -129,7 +132,7 @@ def test_evaluate_compliance_workflows_handles_missing_monitors() -> None:
     assert governance.status is WorkflowTaskStatus.blocked
 
 
-def test_publish_compliance_workflows_emits_event() -> None:
+def test_publish_compliance_workflows_emits_event(monkeypatch: pytest.MonkeyPatch) -> None:
     bus = _StubEventBus()
     snapshot = evaluate_compliance_workflows(
         trade_summary=_build_trade_summary("warn"),
@@ -152,9 +155,25 @@ def test_publish_compliance_workflows_emits_event() -> None:
         },
     )
 
+    captured: dict[str, Any] = {}
+
+    def _fake_publish_event_with_failover(*args: Any, **kwargs: Any) -> None:
+        captured["args"] = args
+        captured["kwargs"] = kwargs
+
+    monkeypatch.setattr(
+        "src.operations.event_bus_failover.publish_event_with_failover",
+        _fake_publish_event_with_failover,
+    )
+
     publish_compliance_workflows(bus, snapshot)
 
-    assert bus.events
-    event = bus.events[0]
+    args = captured["args"]
+    kwargs = captured["kwargs"]
+
+    assert args[0] is bus
+    event = args[1]
     assert event.type == "telemetry.compliance.workflow"
     assert event.payload["status"] == snapshot.status.value
+    assert kwargs["logger"].name == "src.compliance.workflow"
+    assert "runtime" in kwargs["runtime_fallback_message"].lower()

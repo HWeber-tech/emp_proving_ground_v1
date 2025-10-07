@@ -2,13 +2,17 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import Enum
 from typing import Mapping, MutableMapping, Sequence
 
-from src.core.event_bus import Event, EventBus, get_global_bus
+from src.core.event_bus import Event, EventBus
 from src.core.coercion import coerce_int
+
+
+logger = logging.getLogger(__name__)
 
 
 class WorkflowTaskStatus(Enum):
@@ -873,19 +877,23 @@ def publish_compliance_workflows(
         source="compliance_workflows",
     )
 
-    publish_from_sync = getattr(event_bus, "publish_from_sync", None)
-    if callable(publish_from_sync) and event_bus.is_running():
-        try:
-            publish_from_sync(event)
-            return
-        except Exception:  # pragma: no cover - best-effort telemetry
-            pass
+    from src.operations.event_bus_failover import publish_event_with_failover
 
-    try:
-        bus = get_global_bus()
-        bus.publish_sync(event.type, event.payload, source=event.source)
-    except Exception:  # pragma: no cover - best-effort telemetry
-        pass
+    publish_event_with_failover(
+        event_bus,
+        event,
+        logger=logger,
+        runtime_fallback_message=
+        "Runtime bus rejected compliance workflow publish; falling back to global bus",
+        runtime_unexpected_message=
+        "Unexpected error publishing compliance workflow snapshot via runtime bus",
+        runtime_none_message=
+        "Compliance workflow publish returned None; falling back to global bus",
+        global_not_running_message=
+        "Global bus not running while publishing compliance workflow snapshot",
+        global_unexpected_message=
+        "Unexpected error publishing compliance workflow snapshot via global bus",
+    )
 
 
 __all__ = [

@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import logging
 from collections import deque
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING, Any, Mapping, MutableMapping, Sequence
+from typing import Any, Callable, Mapping, MutableMapping, Sequence
 
 import pandas as pd
 
@@ -17,10 +18,13 @@ from src.sensory.what.what_sensor import WhatSensor
 from src.sensory.when.when_sensor import WhenSensor
 from src.sensory.why.why_sensor import WhySensor
 
-if TYPE_CHECKING:  # pragma: no cover - typing only
-    from src.core.event_bus import Event
+from src.core.event_bus import Event, TopicBus, get_global_bus
+from src.operations.event_bus_failover import EventPublishError, publish_event_with_failover
 
 __all__ = ["RealSensoryOrgan", "SensoryDriftConfig"]
+
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(slots=True)
@@ -53,6 +57,7 @@ class RealSensoryOrgan:
         audit_window: int = 128,
         drift_config: SensoryDriftConfig | None = None,
         lineage_publisher: SensoryLineagePublisher | None = None,
+        global_bus_factory: Callable[[], TopicBus] | None = None,
     ) -> None:
         self._why = why_sensor or WhySensor()
         self._how = how_sensor or HowSensor()
@@ -67,6 +72,7 @@ class RealSensoryOrgan:
         self._latest_snapshot: Mapping[str, Any] | None = None
         self._latest_drift: SensorDriftSummary | None = None
         self._lineage_publisher = lineage_publisher
+        self._global_bus_factory = global_bus_factory or get_global_bus
 
     # ------------------------------------------------------------------
     def observe(
@@ -578,10 +584,9 @@ class RealSensoryOrgan:
         return data
 
     def _publish_snapshot(self, snapshot: Mapping[str, Any]) -> None:
-        if self._event_bus is None:
+        event_bus = self._event_bus
+        if event_bus is None:
             return
-
-        from src.core.event_bus import Event
 
         event_payload = {
             "symbol": snapshot.get("symbol"),
@@ -618,16 +623,54 @@ class RealSensoryOrgan:
             source="sensory.real_organ",
         )
 
-        publish_from_sync = getattr(self._event_bus, "publish_from_sync", None)
+        try:
+            publish_event_with_failover(
+                event_bus,
+                event,
+                logger=logger,
+                runtime_fallback_message=(
+                    "Runtime bus rejected sensory snapshot; falling back to global bus"
+                ),
+                runtime_unexpected_message=(
+                    "Unexpected error publishing sensory snapshot via runtime bus"
+                ),
+                runtime_none_message=(
+                    "Runtime bus returned no result while publishing sensory snapshot"
+                ),
+                global_not_running_message=(
+                    "Global event bus not running while publishing sensory snapshot"
+                ),
+                global_unexpected_message=(
+                    "Unexpected error publishing sensory snapshot via global bus"
+                ),
+                global_bus_factory=self._global_bus_factory,
+            )
+            return
+        except EventPublishError:
+            logger.debug(
+                "Failed to publish sensory snapshot via runtime and global buses",
+                exc_info=True,
+            )
+            return
+        except (AttributeError, TypeError):  # pragma: no cover - compatibility path
+            self._legacy_publish_snapshot(event_bus, event, event_payload)
+
+    def _legacy_publish_snapshot(
+        self,
+        event_bus: Any,
+        event: Event,
+        payload: Mapping[str, Any],
+    ) -> None:
+        publish_from_sync = getattr(event_bus, "publish_from_sync", None)
         if callable(publish_from_sync):
             try:
                 publish_from_sync(event)
                 return
             except Exception:
                 return
-        publish_sync = getattr(self._event_bus, "publish_sync", None)
+        publish_sync = getattr(event_bus, "publish_sync", None)
         if callable(publish_sync):
             try:
-                publish_sync(self._event_type, event_payload, source="sensory.real_organ")
+                publish_sync(self._event_type, payload, source=event.source)
             except Exception:
                 return

@@ -9,14 +9,20 @@ small inspection buffer for runtime diagnostics.
 
 from __future__ import annotations
 
+import logging
 from collections import deque
 from datetime import datetime, timezone
 from threading import Lock
-from typing import Any, Mapping, MutableMapping
+from typing import Any, Callable, Mapping, MutableMapping
 
+from src.core.event_bus import Event, TopicBus, get_global_bus
+from src.operations.event_bus_failover import EventPublishError, publish_event_with_failover
 from src.sensory.lineage import SensorLineageRecord
 
 __all__ = ["SensoryLineagePublisher"]
+
+
+logger = logging.getLogger(__name__)
 
 
 def _as_utc_timestamp(value: datetime | None) -> datetime:
@@ -72,6 +78,7 @@ class SensoryLineagePublisher:
         event_bus: Any | None = None,
         event_type: str = "telemetry.sensory.lineage",
         max_records: int = 256,
+        global_bus_factory: Callable[[], TopicBus] | None = None,
     ) -> None:
         if max_records <= 0:
             raise ValueError("max_records must be positive")
@@ -79,6 +86,7 @@ class SensoryLineagePublisher:
         self._event_type = event_type
         self._records: deque[dict[str, Any]] = deque(maxlen=max_records)
         self._lock = Lock()
+        self._global_bus_factory = global_bus_factory or get_global_bus
 
     # ------------------------------------------------------------------
     def record(
@@ -143,11 +151,9 @@ class SensoryLineagePublisher:
 
     # ------------------------------------------------------------------
     def _publish(self, record: Mapping[str, Any]) -> None:
-        if self._event_bus is None:
+        event_bus = self._event_bus
+        if event_bus is None:
             return
-
-        from src.core.event_bus import Event  # local import to avoid circular dependency
-
         event_payload = dict(record)
         event = Event(
             type=self._event_type,
@@ -155,7 +161,45 @@ class SensoryLineagePublisher:
             source="sensory.lineage_publisher",
         )
 
-        publish_from_sync = getattr(self._event_bus, "publish_from_sync", None)
+        publish_from_sync = getattr(event_bus, "publish_from_sync", None)
+        if not callable(publish_from_sync) or not hasattr(event_bus, "is_running"):
+            self._legacy_publish(event_bus, event, event_payload)
+            return
+
+        try:
+            publish_event_with_failover(
+                event_bus,
+                event,
+                logger=logger,
+                runtime_fallback_message=(
+                    "Runtime bus rejected sensory lineage; falling back to global bus"
+                ),
+                runtime_unexpected_message=(
+                    "Unexpected error publishing sensory lineage via runtime bus"
+                ),
+                runtime_none_message=(
+                    "Runtime bus returned no result while publishing sensory lineage"
+                ),
+                global_not_running_message=(
+                    "Global event bus not running while publishing sensory lineage"
+                ),
+                global_unexpected_message=(
+                    "Unexpected error publishing sensory lineage via global bus"
+                ),
+                global_bus_factory=self._global_bus_factory,
+            )
+            return
+        except EventPublishError:
+            logger.debug(
+                "Failed to publish sensory lineage via runtime and global buses",
+                exc_info=True,
+            )
+            return
+        except (AttributeError, TypeError):  # pragma: no cover - compatibility path
+            self._legacy_publish(event_bus, event, event_payload)
+
+    def _legacy_publish(self, event_bus: Any, event: Event, payload: Mapping[str, Any]) -> None:
+        publish_from_sync = getattr(event_bus, "publish_from_sync", None)
         if callable(publish_from_sync):
             try:
                 publish_from_sync(event)
@@ -163,10 +207,10 @@ class SensoryLineagePublisher:
             except Exception:
                 return
 
-        publish_sync = getattr(self._event_bus, "publish_sync", None)
+        publish_sync = getattr(event_bus, "publish_sync", None)
         if callable(publish_sync):
             try:
-                publish_sync(self._event_type, event_payload, source="sensory.lineage_publisher")
+                publish_sync(self._event_type, payload, source=event.source)
             except Exception:
                 return
 

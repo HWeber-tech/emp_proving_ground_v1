@@ -13,9 +13,32 @@ class _StubBus:
     def __init__(self) -> None:
         self.events: list[tuple[str, Any]] = []
 
+    def is_running(self) -> bool:
+        return True
+
     def publish_from_sync(self, event: Any) -> int:
         self.events.append((event.type, event.payload))
         return 1
+
+
+class _FailingBus:
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def is_running(self) -> bool:
+        return True
+
+    def publish_from_sync(self, _event: Any) -> None:
+        self.calls += 1
+        raise RuntimeError("runtime bus failure")
+
+
+class _RecordingTopicBus:
+    def __init__(self) -> None:
+        self.events: list[tuple[str, Any, str]] = []
+
+    def publish_sync(self, event_type: str, payload: Any, *, source: str) -> None:
+        self.events.append((event_type, payload, source))
 
 
 class _RecordingPublisher:
@@ -220,3 +243,22 @@ def test_real_sensory_organ_status_exposes_lineage_history() -> None:
     latest = status.get("lineage_latest")
     assert isinstance(latest, dict)
     assert latest.get("dimension") == first_entry.get("dimension")
+
+
+def test_real_sensory_organ_falls_back_to_global_bus() -> None:
+    frame = _build_market_frame()
+    failing_bus = _FailingBus()
+    topic_bus = _RecordingTopicBus()
+
+    organ = RealSensoryOrgan(
+        event_bus=failing_bus,
+        global_bus_factory=lambda: topic_bus,
+    )
+
+    organ.observe(frame)
+
+    assert topic_bus.events, "expected global bus to capture sensory snapshot"
+    event_type, payload, source = topic_bus.events[-1]
+    assert event_type == "telemetry.sensory.snapshot"
+    assert source == "sensory.real_organ"
+    assert payload["symbol"] == "EURUSD"

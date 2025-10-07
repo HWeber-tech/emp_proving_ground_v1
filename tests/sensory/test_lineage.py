@@ -12,11 +12,34 @@ class _RecordingBus:
     def __init__(self) -> None:
         self.events: list[Any] = []
 
+    def is_running(self) -> bool:
+        return True
+
     def publish_from_sync(self, event: Any) -> None:
         self.events.append(event)
 
 
 class _FallbackBus:
+    def __init__(self) -> None:
+        self.events: list[tuple[str, Any, str]] = []
+
+    def publish_sync(self, event_type: str, payload: Any, *, source: str) -> None:
+        self.events.append((event_type, payload, source))
+
+
+class _RuntimeFailingBus:
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def is_running(self) -> bool:
+        return True
+
+    def publish_from_sync(self, _event: Any) -> None:
+        self.calls += 1
+        raise RuntimeError("runtime bus failure")
+
+
+class _RecordingTopicBus:
     def __init__(self) -> None:
         self.events: list[tuple[str, Any, str]] = []
 
@@ -143,3 +166,25 @@ def test_sensory_lineage_publisher_falls_back_to_publish_sync() -> None:
     assert event_type == "telemetry.sensory.lineage"
     assert payload["dimension"] == "ANOMALY"
     assert source == "sensory.lineage_publisher"
+
+
+def test_sensory_lineage_publisher_falls_back_to_global_bus() -> None:
+    bus = _RuntimeFailingBus()
+    topic_bus = _RecordingTopicBus()
+    publisher = SensoryLineagePublisher(
+        event_bus=bus,
+        max_records=1,
+        global_bus_factory=lambda: topic_bus,
+    )
+
+    publisher.record(
+        "HOW",
+        {"dimension": "HOW", "outputs": {"signal": 0.5, "confidence": 0.75}},
+        symbol="EURUSD",
+    )
+
+    assert topic_bus.events, "expected lineage event on global bus"
+    event_type, payload, source = topic_bus.events[0]
+    assert event_type == "telemetry.sensory.lineage"
+    assert source == "sensory.lineage_publisher"
+    assert payload["dimension"] == "HOW"

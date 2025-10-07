@@ -4,6 +4,9 @@ from collections import deque
 
 import pytest
 
+
+pytestmark = pytest.mark.guardrail
+
 from src.data_foundation.ingest.configuration import (
     InstitutionalIngestConfig,
     TimescaleBackbonePlan,

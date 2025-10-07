@@ -7,6 +7,9 @@ from unittest.mock import Mock
 
 import pytest
 
+
+pytestmark = pytest.mark.guardrail
+
 from src.data_foundation.ingest.configuration import InstitutionalIngestConfig
 from src.data_foundation.ingest.institutional_vertical import (
     ConnectivityProbeError,

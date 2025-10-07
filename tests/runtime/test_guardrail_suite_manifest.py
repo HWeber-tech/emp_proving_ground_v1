@@ -20,6 +20,8 @@ pytestmark = pytest.mark.guardrail
 
 _GUARDRAIL_TARGETS: dict[str, Path] = {
     "ingest_orchestration": Path("tests/data_foundation/test_timescale_backbone_orchestrator.py"),
+    "ingest_production_slice": Path("tests/data_foundation/test_production_ingest_slice.py"),
+    "ingest_institutional_vertical": Path("tests/data_foundation/test_institutional_vertical.py"),
     "ingest_scheduler": Path("tests/data_foundation/test_ingest_scheduler.py"),
     "risk_policy": Path("tests/trading/test_risk_policy.py"),
     "risk_policy_telemetry": Path("tests/trading/test_risk_policy_telemetry.py"),
@@ -112,6 +114,8 @@ def test_ci_guardrail_job_validates_ingest_coverage() -> None:
     assert "tools.telemetry.coverage_matrix" in run_script
     assert "coverage.xml" in run_script
     assert "src/data_foundation/ingest/timescale_pipeline.py" in run_script
+    assert "src/data_foundation/ingest/production_slice.py" in run_script
+    assert "src/data_foundation/ingest/institutional_vertical.py" in run_script
     assert "src/trading/risk/risk_policy.py" in run_script
     assert "src/trading/risk/policy_telemetry.py" in run_script
 

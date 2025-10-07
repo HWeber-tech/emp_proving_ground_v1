@@ -17,7 +17,7 @@ from typing import Any, Dict, Iterator, List, Optional, cast
 
 import pandas as pd
 
-from ...config.portfolio_config import PortfolioConfig
+from .config import PortfolioMonitorConfig
 from ..models.portfolio_snapshot import PortfolioSnapshot
 from ..models.position import Position
 from ..monitoring.performance_metrics import PerformanceMetrics
@@ -50,9 +50,10 @@ class RealPortfolioMonitor:
     Replaces the mock with functional portfolio tracking
     """
 
-    def __init__(self, config: PortfolioConfig):
+    def __init__(self, config: PortfolioMonitorConfig):
+        config.validate()
         self.config = config
-        self.db_path = config.database_path
+        self.db_path = str(config.database_path)
         self.initial_balance = config.initial_balance
 
         # Initialize database

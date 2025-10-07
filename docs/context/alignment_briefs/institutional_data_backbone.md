@@ -89,6 +89,12 @@
   created, and surfaces the active Redis backing class in service summaries and
   manifests so responders know which cache implementation is live under pytest
   coverage of the configure path.【F:src/data_foundation/ingest/institutional_vertical.py†L96-L399】【F:tests/runtime/test_institutional_ingest_vertical.py†L140-L185】【F:docs/operations/timescale_failover_drills.md†L1-L27】
+- Progress: SystemConfig extras now drive Redis cache policy overrides for the
+  institutional ingest slice, parsing TTL, capacity, namespace, and invalidation
+  prefixes into the resolved config, surfacing the metadata in runtime summaries
+  and managed manifests, and propagating the custom policy into supervised Redis
+  caches so operators can tune hot datasets without code changes under guardrail
+  coverage.【F:src/data_foundation/ingest/configuration.py†L814-L908】【F:src/data_foundation/ingest/production_slice.py†L34-L120】【F:tests/data_foundation/test_timescale_config.py†L130-L150】【F:tests/runtime/test_institutional_ingest_vertical.py†L120-L205】
 - Progress: Professional runtime builder now calls the provisioner automatically,
   reuses any managed Redis client already attached to the app, records managed
   connector manifests, propagates the manifest into data-backbone readiness

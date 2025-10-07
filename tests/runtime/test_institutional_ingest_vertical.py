@@ -7,7 +7,11 @@ from typing import Callable
 
 import pytest
 
-from src.data_foundation.cache.redis_cache import InMemoryRedis, RedisConnectionSettings
+from src.data_foundation.cache.redis_cache import (
+    InMemoryRedis,
+    RedisCachePolicy,
+    RedisConnectionSettings,
+)
 from src.data_foundation.ingest.configuration import (
     InstitutionalIngestConfig,
     KafkaReadinessSettings,
@@ -103,6 +107,7 @@ async def test_provisioned_services_supervise_components() -> None:
     provisioner = InstitutionalIngestProvisioner(
         config,
         redis_settings=redis_settings,
+        redis_policy=config.redis_policy,
         kafka_mapping={
             "KAFKA_INGEST_CONSUMER_TOPICS": "telemetry.ingest",
             "KAFKA_INGEST_CONSUMER_POLL_TIMEOUT": "0",
@@ -152,6 +157,45 @@ async def test_provisioned_services_supervise_components() -> None:
             assert entry["metadata"]["policy"] == _EXPECTED_POLICY_METADATA
 
 
+def test_provision_respects_custom_redis_policy() -> None:
+    config = _ingest_config()
+    custom_policy = RedisCachePolicy(
+        ttl_seconds=30,
+        max_keys=64,
+        namespace="emp:custom",
+        invalidate_prefixes=("timescale:daily",),
+    )
+    config = dataclasses.replace(config, redis_policy=custom_policy)
+
+    provisioner = InstitutionalIngestProvisioner(
+        config,
+        redis_settings=RedisConnectionSettings.from_mapping(
+            {"REDIS_URL": "redis://localhost:6379/0"}
+        ),
+        redis_policy=config.redis_policy,
+    )
+
+    services = provisioner.provision(
+        run_ingest=lambda: True,
+        event_bus=_DummyEventBus(),
+        task_supervisor=TaskSupervisor(namespace="custom-policy"),
+        redis_client_factory=lambda *_: InMemoryRedis(),
+    )
+
+    assert services.redis_policy is custom_policy
+    assert services.redis_cache is not None
+    assert services.redis_cache.policy is custom_policy
+
+    summary = services.summary()
+    policy_snapshot = summary["redis_policy"]
+    assert policy_snapshot == {
+        "ttl_seconds": 30,
+        "max_keys": 64,
+        "namespace": "emp:custom",
+        "invalidate_prefixes": ["timescale:daily"],
+    }
+
+
 def test_provision_configures_redis_when_factory_missing(monkeypatch: pytest.MonkeyPatch) -> None:
     config = _ingest_config()
     redis_settings = RedisConnectionSettings.from_mapping(
@@ -160,6 +204,7 @@ def test_provision_configures_redis_when_factory_missing(monkeypatch: pytest.Mon
     provisioner = InstitutionalIngestProvisioner(
         config,
         redis_settings=redis_settings,
+        redis_policy=config.redis_policy,
         kafka_mapping={"KAFKA_INGEST_CONSUMER_TOPICS": "telemetry.ingest"},
     )
 
@@ -200,7 +245,10 @@ def test_provision_configures_redis_when_factory_missing(monkeypatch: pytest.Mon
 
 def test_summary_includes_failover_metadata() -> None:
     config = _ingest_config(schedule=default_institutional_schedule())
-    provisioner = InstitutionalIngestProvisioner(config)
+    provisioner = InstitutionalIngestProvisioner(
+        config,
+        redis_policy=config.redis_policy,
+    )
     services = provisioner.provision(
         run_ingest=lambda: asyncio.sleep(0),
         event_bus=_DummyEventBus(),
@@ -228,6 +276,7 @@ async def test_provision_skips_optional_connectors_when_unconfigured() -> None:
     provisioner = InstitutionalIngestProvisioner(
         config,
         redis_settings=RedisConnectionSettings(),
+        redis_policy=config.redis_policy,
     )
 
     services = provisioner.provision(
@@ -256,6 +305,7 @@ async def test_connectivity_report_uses_optional_probes() -> None:
         redis_settings=RedisConnectionSettings.from_mapping(
             {"REDIS_URL": "redis://localhost:6379/0"}
         ),
+        redis_policy=config.redis_policy,
     )
 
     services = provisioner.provision(
@@ -305,6 +355,7 @@ async def test_connectivity_report_defaults_use_managed_probes(tmp_path) -> None
         redis_settings=RedisConnectionSettings.from_mapping(
             {"REDIS_URL": "redis://localhost:6379/0"}
         ),
+        redis_policy=config.redis_policy,
     )
 
     services = provisioner.provision(
@@ -335,6 +386,7 @@ def test_manifest_snapshot_structure() -> None:
     provisioner = InstitutionalIngestProvisioner(
         config,
         redis_settings=RedisConnectionSettings(),
+        redis_policy=config.redis_policy,
     )
 
     services = provisioner.provision(

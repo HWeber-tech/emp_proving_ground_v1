@@ -55,6 +55,7 @@ def _default_provisioner_factory(
     return InstitutionalIngestProvisioner(
         config,
         redis_settings=redis_settings,
+        redis_policy=config.redis_policy,
         kafka_mapping=kafka_mapping,
     )
 

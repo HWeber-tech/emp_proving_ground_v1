@@ -37,6 +37,7 @@ from ..batch.spark_export import (
     SparkExportJob,
     SparkExportPlan,
 )
+from ..cache.redis_cache import RedisCachePolicy
 
 logger = logging.getLogger(__name__)
 
@@ -737,6 +738,9 @@ class InstitutionalIngestConfig:
     kafka_settings: KafkaConnectionSettings = field(
         default_factory=KafkaConnectionSettings.from_env
     )
+    redis_policy: RedisCachePolicy = field(
+        default_factory=RedisCachePolicy.institutional_defaults
+    )
     metadata: dict[str, object] = field(default_factory=dict)
     schedule: IngestSchedule | None = None
     recovery: TimescaleIngestRecoverySettings = field(
@@ -817,6 +821,17 @@ def build_institutional_ingest_config(
         metadata["macro_events"] = len(macro_plan.events)
     if macro_plan and macro_plan.has_window():
         metadata["macro_window"] = {"start": macro_plan.start, "end": macro_plan.end}
+
+    redis_policy = RedisCachePolicy.from_mapping(
+        extras,
+        fallback=RedisCachePolicy.institutional_defaults(),
+    )
+    metadata["redis_cache_policy"] = {
+        "ttl_seconds": redis_policy.ttl_seconds,
+        "max_keys": redis_policy.max_keys,
+        "namespace": redis_policy.namespace,
+        "invalidate_prefixes": list(redis_policy.invalidate_prefixes),
+    }
 
     alert_routes = _parse_alert_routes(extras)
     if alert_routes:
@@ -927,6 +942,7 @@ def build_institutional_ingest_config(
         plan=plan,
         timescale_settings=timescale_settings,
         kafka_settings=kafka_settings,
+        redis_policy=redis_policy,
         metadata=metadata,
         schedule=schedule,
         recovery=recovery_settings,

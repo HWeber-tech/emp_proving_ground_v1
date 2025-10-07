@@ -118,6 +118,35 @@ def test_config_builder_creates_intraday_and_macro_event_plan() -> None:
     assert readiness["min_publishers"] == 1
 
 
+def test_config_builder_resolves_redis_cache_policy_overrides() -> None:
+    cfg = _base_config(
+        TIMESCALE_SYMBOLS="EURUSD",
+        REDIS_CACHE_TTL_SECONDS="45",
+        REDIS_CACHE_MAX_KEYS="128",
+        REDIS_CACHE_NAMESPACE="emp:test",
+        REDIS_CACHE_INVALIDATE_PREFIXES="timescale:daily,timescale:intraday",
+    )
+
+    resolved = build_institutional_ingest_config(cfg)
+
+    assert resolved.redis_policy.ttl_seconds == 45
+    assert resolved.redis_policy.max_keys == 128
+    assert resolved.redis_policy.namespace == "emp:test"
+    assert resolved.redis_policy.invalidate_prefixes == (
+        "timescale:daily",
+        "timescale:intraday",
+    )
+
+    policy_metadata = resolved.metadata["redis_cache_policy"]
+    assert policy_metadata["ttl_seconds"] == 45
+    assert policy_metadata["max_keys"] == 128
+    assert policy_metadata["namespace"] == "emp:test"
+    assert policy_metadata["invalidate_prefixes"] == [
+        "timescale:daily",
+        "timescale:intraday",
+    ]
+
+
 def test_config_builder_falls_back_to_macro_window_when_events_missing() -> None:
     cfg = _base_config(
         TIMESCALE_SYMBOLS="EURUSD",

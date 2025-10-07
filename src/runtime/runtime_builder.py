@@ -3552,6 +3552,7 @@ def build_professional_runtime_application(
                 provisioner = InstitutionalIngestProvisioner(
                     ingest_config,
                     redis_settings=redis_settings,
+                    redis_policy=ingest_config.redis_policy,
                     kafka_mapping=extras_mapping,
                 )
                 services = provisioner.provision(

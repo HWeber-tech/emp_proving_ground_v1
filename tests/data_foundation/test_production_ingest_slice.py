@@ -7,6 +7,11 @@ import pytest
 
 pytestmark = pytest.mark.guardrail
 
+from src.data_foundation.cache.redis_cache import (
+    InMemoryRedis,
+    RedisCachePolicy,
+    RedisConnectionSettings,
+)
 from src.data_foundation.ingest.configuration import (
     InstitutionalIngestConfig,
     TimescaleBackbonePlan,
@@ -270,3 +275,54 @@ async def test_production_slice_skips_cache_invalidation_when_no_rows() -> None:
 
     assert success is True
     assert cache.calls == []
+
+
+@pytest.mark.asyncio
+async def test_production_slice_summary_reflects_custom_redis_policy() -> None:
+    config = _ingest_config()
+    custom_policy = RedisCachePolicy(
+        ttl_seconds=60,
+        max_keys=32,
+        namespace="emp:test",
+        invalidate_prefixes=("timescale:daily",),
+    )
+    config = dataclasses.replace(config, redis_policy=custom_policy)
+
+    bus = _DummyEventBus()
+    supervisor = TaskSupervisor(namespace="ingest-policy")
+    redis_settings = RedisConnectionSettings.from_mapping(
+        {"REDIS_URL": "redis://localhost:6379/0"}
+    )
+
+    class _StubOrchestrator:
+        def run(self, *, plan: TimescaleBackbonePlan) -> dict[str, TimescaleIngestResult]:
+            return {
+                "daily_bars": TimescaleIngestResult.empty(
+                    dimension="daily_bars", source="yahoo"
+                )
+            }
+
+    slice_runtime = ProductionIngestSlice(
+        config,
+        bus,
+        supervisor,
+        redis_settings=redis_settings,
+        redis_client_factory=lambda _: InMemoryRedis(),
+        orchestrator_factory=lambda settings, publisher: _StubOrchestrator(),
+    )
+
+    success = await slice_runtime.run_once()
+    assert success is True
+
+    summary = slice_runtime.summary()
+    services = summary["services"]
+    assert services is not None
+    policy_snapshot = services["redis_policy"]
+    assert policy_snapshot == {
+        "ttl_seconds": 60,
+        "max_keys": 32,
+        "namespace": "emp:test",
+        "invalidate_prefixes": ["timescale:daily"],
+    }
+
+    await slice_runtime.stop()

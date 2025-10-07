@@ -622,6 +622,7 @@ def plan_managed_manifest(
     provisioner = InstitutionalIngestProvisioner(
         config,
         redis_settings=redis_settings,
+        redis_policy=config.redis_policy,
         kafka_mapping=mapping,
     )
     resolved_mapping = provisioner.resolved_kafka_mapping()

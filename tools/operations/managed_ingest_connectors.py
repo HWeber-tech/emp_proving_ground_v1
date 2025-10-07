@@ -147,6 +147,7 @@ async def _collect_connectivity(
     provisioner = InstitutionalIngestProvisioner(
         ingest_config,
         redis_settings=redis_settings,
+        redis_policy=ingest_config.redis_policy,
         kafka_mapping=kafka_mapping,
     )
     supervisor = TaskSupervisor(namespace="managed-connectors-cli")

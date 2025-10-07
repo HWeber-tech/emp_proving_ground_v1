@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 try:
     from datetime import UTC  # type: ignore[attr-defined]
@@ -26,6 +26,7 @@ def _empty_metrics() -> dict[str, Any]:
         "formatter_trend": [],
         "coverage_domain_trend": [],
         "remediation_trend": [],
+        "alert_response_trend": [],
     }
 
 
@@ -34,6 +35,7 @@ def _ensure_defaults(data: dict[str, Any]) -> dict[str, Any]:
     data.setdefault("formatter_trend", [])
     data.setdefault("coverage_domain_trend", [])
     data.setdefault("remediation_trend", [])
+    data.setdefault("alert_response_trend", [])
     return data
 
 
@@ -53,6 +55,7 @@ def save_metrics(path: Path, data: dict[str, Any]) -> None:
         "formatter_trend": list(data.get("formatter_trend", [])),
         "coverage_domain_trend": list(data.get("coverage_domain_trend", [])),
         "remediation_trend": list(data.get("remediation_trend", [])),
+        "alert_response_trend": list(data.get("alert_response_trend", [])),
     }
     path.write_text(json.dumps(serialisable, indent=2, sort_keys=True) + "\n")
 
@@ -422,6 +425,239 @@ def record_dashboard_remediation(
     )
 
 
+def _normalise_event_type(value: object) -> str:
+    return str(value or "").strip().lower()
+
+
+def _format_duration(seconds: float | None) -> tuple[str | None, str | None, str | None]:
+    if seconds is None:
+        return None, None, None
+    total_seconds = max(0.0, float(seconds))
+    rounded_seconds = int(round(total_seconds))
+    minutes = total_seconds / 60.0
+    human = str(timedelta(seconds=rounded_seconds))
+    return str(rounded_seconds), f"{minutes:.2f}", human
+
+
+def summarise_alert_timeline(timeline: Mapping[str, Any]) -> dict[str, Any]:
+    """Summarise a CI alert timeline for MTTA/MTTR tracking."""
+
+    if not isinstance(timeline, Mapping):
+        raise TypeError("Alert timeline payload must be mapping-like")
+
+    raw_events = timeline.get("events", [])
+    events: list[tuple[datetime, Mapping[str, Any]]] = []
+    if isinstance(raw_events, Iterable):
+        for raw_event in raw_events:
+            if not isinstance(raw_event, Mapping):
+                continue
+            timestamp = _parse_timestamp(raw_event.get("timestamp"))
+            if timestamp is None:
+                continue
+            events.append((timestamp, raw_event))
+    events.sort(key=lambda entry: entry[0])
+
+    def pick_event(
+        candidates: Iterable[str],
+        *,
+        timestamp_field: str | None = None,
+        channel_field: str | None = None,
+        actor_field: str | None = None,
+    ) -> tuple[datetime | None, Mapping[str, Any] | None]:
+        candidate_set = {_normalise_event_type(value) for value in candidates}
+        for event_timestamp, event in events:
+            event_type = _normalise_event_type(event.get("type"))
+            if event_type in candidate_set:
+                return event_timestamp, event
+
+        if timestamp_field is not None:
+            fallback_timestamp = _parse_timestamp(timeline.get(timestamp_field))
+            if fallback_timestamp is not None:
+                fallback_event: dict[str, Any] = {"type": timestamp_field}
+                if channel_field is not None:
+                    fallback_event["channel"] = timeline.get(channel_field)
+                if actor_field is not None:
+                    fallback_event["actor"] = timeline.get(actor_field)
+                return fallback_timestamp, fallback_event
+
+        return None, None
+
+    opened_ts, opened_event = pick_event(
+        {
+            "alert_opened",
+            "opened",
+            "failure_detected",
+            "issue_opened",
+            "failure_logged",
+        },
+        timestamp_field="opened_at",
+        channel_field="opened_channel",
+        actor_field="opened_by",
+    )
+
+    ack_ts, ack_event = pick_event(
+        {
+            "alert_acknowledged",
+            "acknowledged",
+            "ack",
+            "acknowledge",
+            "slack_ack",
+        },
+        timestamp_field="acknowledged_at",
+        channel_field="ack_channel",
+        actor_field="ack_actor",
+    )
+
+    resolved_ts, resolved_event = pick_event(
+        {
+            "alert_resolved",
+            "resolved",
+            "recovered",
+            "closed",
+            "issue_closed",
+        },
+        timestamp_field="resolved_at",
+        channel_field="resolve_channel",
+        actor_field="resolve_actor",
+    )
+
+    mtta_seconds: float | None = None
+    if opened_ts is not None and ack_ts is not None:
+        mtta_seconds = (ack_ts - opened_ts).total_seconds()
+
+    mttr_seconds: float | None = None
+    if opened_ts is not None and resolved_ts is not None:
+        mttr_seconds = (resolved_ts - opened_ts).total_seconds()
+
+    incident_id = timeline.get("incident_id") or timeline.get("id")
+    incident_label = timeline.get("label") or incident_id
+    generated_at = _parse_timestamp(timeline.get("generated_at"))
+
+    ack_channel = None
+    ack_actor = None
+    if isinstance(ack_event, Mapping):
+        ack_channel = ack_event.get("channel")
+        ack_actor = ack_event.get("actor")
+
+    resolve_channel = None
+    resolve_actor = None
+    if isinstance(resolved_event, Mapping):
+        resolve_channel = resolved_event.get("channel")
+        resolve_actor = resolved_event.get("actor")
+
+    note_parts: list[str] = []
+    mtta_seconds_str, mtta_minutes_str, mtta_human = _format_duration(mtta_seconds)
+    mttr_seconds_str, mttr_minutes_str, mttr_human = _format_duration(mttr_seconds)
+
+    if mtta_human is not None:
+        channel = str(ack_channel or "unknown")
+        note_parts.append(f"Ack via {channel} in {mtta_human}")
+    if mttr_human is not None:
+        channel = str(resolve_channel or "unknown")
+        note_parts.append(f"Resolve via {channel} in {mttr_human}")
+
+    default_note = "; ".join(note_parts) if note_parts else None
+    note = str(timeline.get("note")) if timeline.get("note") else default_note
+
+    summary_generated_at = (
+        generated_at
+        or opened_ts
+        or ack_ts
+        or resolved_ts
+        or _now()
+    )
+
+    return {
+        "incident_id": str(incident_id) if incident_id is not None else None,
+        "label": str(incident_label) if incident_label is not None else None,
+        "drill": bool(timeline.get("drill", False)),
+        "opened_at": opened_ts.isoformat(timespec="seconds") if opened_ts else None,
+        "acknowledged_at": ack_ts.isoformat(timespec="seconds") if ack_ts else None,
+        "resolved_at": resolved_ts.isoformat(timespec="seconds") if resolved_ts else None,
+        "ack_channel": str(ack_channel) if ack_channel not in (None, "") else None,
+        "ack_actor": str(ack_actor) if ack_actor not in (None, "") else None,
+        "resolve_channel": str(resolve_channel)
+        if resolve_channel not in (None, "")
+        else None,
+        "resolve_actor": str(resolve_actor)
+        if resolve_actor not in (None, "")
+        else None,
+        "mtta_seconds": int(round(mtta_seconds)) if mtta_seconds is not None else None,
+        "mtta_minutes": float(mtta_minutes_str) if mtta_minutes_str is not None else None,
+        "mtta_readable": mtta_human,
+        "mttr_seconds": int(round(mttr_seconds)) if mttr_seconds is not None else None,
+        "mttr_minutes": float(mttr_minutes_str) if mttr_minutes_str is not None else None,
+        "mttr_readable": mttr_human,
+        "generated_at": summary_generated_at.isoformat(timespec="seconds"),
+        "note": note,
+        "source": timeline.get("source"),
+    }
+
+
+def record_alert_response(
+    metrics_path: Path,
+    *,
+    timeline: Mapping[str, Any],
+    label: str | None = None,
+    source: str | None = None,
+    data: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Record MTTA/MTTR metrics from a CI alert timeline."""
+
+    metrics = _ensure_defaults(data or load_metrics(metrics_path))
+    summary = summarise_alert_timeline(timeline)
+
+    entry_label = label or summary.get("label") or summary.get("incident_id")
+    if entry_label is None:
+        entry_label = _timestamp_label()
+
+    def _string_or_na(value: object, *, fallback: str = "n/a") -> str:
+        if value is None:
+            return fallback
+        return str(value)
+
+    statuses = {
+        "mtta_seconds": _string_or_na(summary.get("mtta_seconds")),
+        "mtta_minutes": _string_or_na(summary.get("mtta_minutes")),
+        "mtta_readable": _string_or_na(summary.get("mtta_readable")),
+        "mttr_seconds": _string_or_na(summary.get("mttr_seconds")),
+        "mttr_minutes": _string_or_na(summary.get("mttr_minutes")),
+        "mttr_readable": _string_or_na(summary.get("mttr_readable")),
+        "ack_channel": _string_or_na(summary.get("ack_channel"), fallback="unknown"),
+        "ack_actor": _string_or_na(summary.get("ack_actor"), fallback="unknown"),
+        "resolve_channel": _string_or_na(
+            summary.get("resolve_channel"), fallback="unknown"
+        ),
+        "resolve_actor": _string_or_na(
+            summary.get("resolve_actor"), fallback="unknown"
+        ),
+        "drill": "true" if summary.get("drill") else "false",
+    }
+
+    entry: dict[str, Any] = {
+        "label": entry_label,
+        "incident_id": summary.get("incident_id"),
+        "drill": bool(summary.get("drill")),
+        "opened_at": summary.get("opened_at"),
+        "acknowledged_at": summary.get("acknowledged_at"),
+        "resolved_at": summary.get("resolved_at"),
+        "generated_at": summary.get("generated_at"),
+        "statuses": statuses,
+    }
+
+    entry_source = source or summary.get("source")
+    if entry_source:
+        entry["source"] = entry_source
+
+    note = summary.get("note")
+    if note:
+        entry["note"] = str(note)
+
+    metrics["alert_response_trend"].append(entry)
+    save_metrics(metrics_path, metrics)
+    return metrics
+
+
 def _parse_timestamp(value: object) -> datetime | None:
     if not isinstance(value, str):
         return None
@@ -457,6 +693,7 @@ def summarise_trend_staleness(
         "coverage_domain_trend",
         "formatter_trend",
         "remediation_trend",
+        "alert_response_trend",
     ):
         raw_entries = metrics.get(key, [])
         entries: list[Mapping[str, Any]] = (
@@ -507,7 +744,9 @@ __all__ = [
     "record_formatter",
     "record_remediation",
     "record_dashboard_remediation",
+    "record_alert_response",
     "summarise_dashboard_payload",
+    "summarise_alert_timeline",
     "summarise_trend_staleness",
     "parse_coverage_percentage",
     "save_metrics",

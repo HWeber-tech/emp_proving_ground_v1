@@ -17,6 +17,12 @@ can layer on without introducing third-party dependencies.
   message with run metadata and links back to the alert issue so responders can
   jump between GitHub and the `#ci-alerts` channel without losing context. The
   step no-ops when the webhook secret is absent so forks do not fail builds.
+* **Alert response metrics** – `python -m tools.telemetry.update_ci_metrics --alert-timeline
+  drills/<timestamp>.json --alert-label ci-alert-<timestamp>` appends MTTA/MTTR entries
+  to `tests/.telemetry/ci_metrics.json` so CI dashboards can track acknowledgement and
+  recovery cadence next to coverage trends. The drill JSONs are generated locally via
+  `python -m tools.telemetry.alert_drill` and regression-tested alongside the metrics
+  CLI.【F:tools/telemetry/alert_drill.py†L1-L143】【F:tools/telemetry/update_ci_metrics.py†L1-L220】【F:tests/tools/test_ci_metrics.py†L1-L600】【F:tests/tools/test_alert_drill.py†L1-L60】
 * **CI step summaries** – The `tests` job in `.github/workflows/ci.yml` tees
   pytest output into `pytest.log`, appends the last chunk to the GitHub Step
   Summary, and uploads the full log as an artifact even on failure. This
@@ -203,6 +209,12 @@ can layer on without introducing third-party dependencies.
 | Provision webhook | Platform (M. Rivera) | Create an incoming webhook in the shared `#ci-alerts` Slack channel and store the URL in the existing GitHub Actions secret `SLACK_CI_WEBHOOK`. |
 | Deploy relay | Reliability (C. Gomez) | Extend `.github/workflows/ci-failure-alerts.yml` with a job that posts issue updates to the webhook. Re-use the existing JSON payload so the Slack message links back to the issue and run. **Status:** Completed via the `notify-slack` job; verified during the September 2025 alert drill. |
 | Validation drill | Trading (J. McKay) | Trigger `workflow_dispatch` with `alert_drill=true` after the relay ships. Confirm the Slack message arrives with run context, then re-run CI to close the loop. |
+
+## Forced-failure drill checklist
+
+1. **Generate drill timeline** – Run `python -m tools.telemetry.alert_drill --incident-id ci-alert-<date> --opened-at <iso> --ack-at <iso> --resolve-at <iso> --output drills/ci-alert-<date>.json --drill` immediately after the rehearsal to capture the Slack acknowledge and GitHub close timestamps.
+2. **Record MTTA/MTTR** – Append the drill to the CI metrics feed with `python -m tools.telemetry.update_ci_metrics --alert-timeline drills/ci-alert-<date>.json --alert-label ci-alert-<date>` so dashboards reflect the latest acknowledgement/resolution cadence.
+3. **Verify publication** – Open `tests/.telemetry/ci_metrics.json` to confirm the new `alert_response_trend` entry, and spot-check `docs/status/ci_health.md` for updated guidance. Guardrail tests in `tests/tools/test_ci_metrics.py` and `tests/tools/test_alert_drill.py` cover parsing, validation, and CLI wiring so the drill workflow stays regression-safe.
 | Documentation refresh | Observability (L. Chen) | Update this plan and `docs/status/ci_health.md` with the relay go-live date and add screenshots to the team wiki. |
 
 The relay job should run only on failure/cancelled outcomes to avoid noise. The
@@ -271,4 +283,3 @@ flakes or fixes in the team retrospective notes.
 
 Owners should revisit this plan quarterly and adjust the roadmap as new
 observability gaps surface.
-

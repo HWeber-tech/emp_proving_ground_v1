@@ -10,8 +10,10 @@ from tools.telemetry.ci_metrics import (
     record_coverage,
     record_coverage_domains,
     record_dashboard_remediation,
+    record_alert_response,
     record_formatter,
     record_remediation,
+    summarise_alert_timeline,
     summarise_dashboard_payload,
     summarise_trend_staleness,
 )
@@ -81,6 +83,47 @@ DASHBOARD_PAYLOAD = {
     ],
 }
 
+ALERT_TIMELINE = {
+    "incident_id": "ci-alert-2025-10-07",
+    "drill": True,
+    "events": [
+        {
+            "type": "alert_opened",
+            "timestamp": "2025-10-07T12:00:00+00:00",
+            "channel": "github",
+            "actor": "ci-bot",
+        },
+        {
+            "type": "alert_acknowledged",
+            "timestamp": "2025-10-07T12:03:00+00:00",
+            "channel": "slack",
+            "actor": "oncall-analyst",
+        },
+        {
+            "type": "alert_resolved",
+            "timestamp": "2025-10-07T12:18:30+00:00",
+            "channel": "github",
+            "actor": "maintainer",
+        },
+    ],
+}
+
+ALERT_TIMELINE_NO_ACK = {
+    "incident_id": "ci-alert-2025-10-08",
+    "events": [
+        {
+            "type": "alert_opened",
+            "timestamp": "2025-10-08T09:00:00+00:00",
+            "channel": "github",
+        },
+        {
+            "type": "alert_resolved",
+            "timestamp": "2025-10-08T09:20:15+00:00",
+            "channel": "github",
+        },
+    ],
+}
+
 
 @pytest.mark.parametrize(
     "content,expected",
@@ -118,6 +161,7 @@ def test_record_coverage_appends_entry(tmp_path: Path) -> None:
     assert stored["formatter_trend"] == []
     assert stored["coverage_domain_trend"] == []
     assert stored["remediation_trend"] == []
+    assert stored["alert_response_trend"] == []
 
 
 def test_record_formatter_counts_allowlist_entries(tmp_path: Path) -> None:
@@ -140,6 +184,7 @@ def test_record_formatter_counts_allowlist_entries(tmp_path: Path) -> None:
     assert stored["coverage_trend"] == []
     assert stored["coverage_domain_trend"] == []
     assert stored["remediation_trend"] == []
+    assert stored["alert_response_trend"] == []
 
 
 def test_record_formatter_global_mode_records_zero_counts(tmp_path: Path) -> None:
@@ -160,6 +205,7 @@ def test_record_formatter_global_mode_records_zero_counts(tmp_path: Path) -> Non
     assert stored["coverage_trend"] == []
     assert stored["coverage_domain_trend"] == []
     assert stored["remediation_trend"] == []
+    assert stored["alert_response_trend"] == []
 
 
 def test_record_coverage_domains_appends_entry(tmp_path: Path) -> None:
@@ -268,6 +314,50 @@ def test_record_dashboard_remediation_appends_entry(tmp_path: Path) -> None:
     assert entry["note"] == "Failing panels: Operational readiness; Warning panels: System health"
 
 
+def test_summarise_alert_timeline_computes_durations() -> None:
+    summary = summarise_alert_timeline(ALERT_TIMELINE)
+
+    assert summary["incident_id"] == "ci-alert-2025-10-07"
+    assert summary["mtta_seconds"] == 180
+    assert summary["mtta_minutes"] == pytest.approx(3.0)
+    assert summary["mttr_seconds"] == 1110
+    assert summary["mttr_minutes"] == pytest.approx(18.5)
+    assert summary["ack_channel"] == "slack"
+    assert summary["resolve_channel"] == "github"
+    assert summary["drill"] is True
+    assert summary["note"] and "Ack via slack" in summary["note"]
+
+
+def test_summarise_alert_timeline_handles_missing_ack() -> None:
+    summary = summarise_alert_timeline(ALERT_TIMELINE_NO_ACK)
+
+    assert summary["mtta_seconds"] is None
+    assert summary["mttr_seconds"] == 1215
+    assert summary["ack_channel"] is None
+    assert summary["resolve_channel"] == "github"
+
+
+def test_record_alert_response_appends_entry(tmp_path: Path) -> None:
+    metrics_path = tmp_path / "metrics.json"
+
+    record_alert_response(
+        metrics_path,
+        timeline=ALERT_TIMELINE,
+        label="drill-2025-10-07",
+        source="drills/ci-alert-2025-10-07.json",
+    )
+
+    stored = json.loads(metrics_path.read_text())
+    entry = stored["alert_response_trend"][0]
+    assert entry["label"] == "drill-2025-10-07"
+    assert entry["incident_id"] == "ci-alert-2025-10-07"
+    assert entry["drill"] is True
+    assert entry["statuses"]["mtta_seconds"] == "180"
+    assert entry["statuses"]["mttr_seconds"] == "1110"
+    assert entry["source"] == "drills/ci-alert-2025-10-07.json"
+    assert entry["note"].startswith("Ack via slack")
+
+
 def test_record_remediation_appends_entry(tmp_path: Path) -> None:
     metrics_path = tmp_path / "metrics.json"
 
@@ -294,6 +384,7 @@ def test_record_remediation_appends_entry(tmp_path: Path) -> None:
     assert stored["coverage_trend"] == []
     assert stored["formatter_trend"] == []
     assert stored["coverage_domain_trend"] == []
+    assert stored["alert_response_trend"] == []
 
 
 def test_update_ci_metrics_cli_updates_both(tmp_path: Path) -> None:
@@ -332,6 +423,7 @@ def test_update_ci_metrics_cli_updates_both(tmp_path: Path) -> None:
     assert coverage_entry["lagging_count"] == len(coverage_entry["lagging_domains"])
     assert coverage_entry["worst_domain"]["name"] in coverage_entry["lagging_domains"]
     assert stored["remediation_trend"] == []
+    assert stored["alert_response_trend"] == []
 
 
 def test_update_ci_metrics_cli_records_coverage_remediation(tmp_path: Path) -> None:
@@ -362,6 +454,7 @@ def test_update_ci_metrics_cli_records_coverage_remediation(tmp_path: Path) -> N
     assert statuses["lagging_count"] == str(len(stored["coverage_domain_trend"][0]["lagging_domains"]))
     assert "overall_coverage" in statuses
     assert remediation_entry["source"] == str(coverage_path)
+    assert stored["alert_response_trend"] == []
 
 
 def test_update_ci_metrics_cli_handles_global_mode(tmp_path: Path) -> None:
@@ -390,6 +483,7 @@ def test_update_ci_metrics_cli_handles_global_mode(tmp_path: Path) -> None:
     }
     assert stored["coverage_domain_trend"] == []
     assert stored["remediation_trend"] == []
+    assert stored["alert_response_trend"] == []
 
 
 def test_update_ci_metrics_cli_can_skip_domain_breakdown(tmp_path: Path) -> None:
@@ -413,6 +507,58 @@ def test_update_ci_metrics_cli_can_skip_domain_breakdown(tmp_path: Path) -> None
     assert stored["coverage_trend"]
     assert stored["coverage_domain_trend"] == []
     assert stored["remediation_trend"] == []
+    assert stored["alert_response_trend"] == []
+
+
+def test_update_ci_metrics_cli_records_dashboard_payload(tmp_path: Path) -> None:
+    metrics_path = tmp_path / "metrics.json"
+    dashboard_path = tmp_path / "dashboard.json"
+    dashboard_path.write_text(json.dumps(DASHBOARD_PAYLOAD))
+
+    exit_code = update_ci_metrics(
+        [
+            "--metrics",
+            str(metrics_path),
+            "--dashboard-json",
+            str(dashboard_path),
+            "--dashboard-label",
+            "ops-scan",
+        ]
+    )
+
+    assert exit_code == 0
+    stored = json.loads(metrics_path.read_text())
+    entry = stored["remediation_trend"][0]
+    assert entry["label"] == "ops-scan"
+    assert entry["source"] == str(dashboard_path)
+    assert entry["statuses"]["panels_fail"] == "1"
+    assert stored["alert_response_trend"] == []
+
+
+def test_update_ci_metrics_cli_records_alert_timeline(tmp_path: Path) -> None:
+    metrics_path = tmp_path / "metrics.json"
+    timeline_path = tmp_path / "timeline.json"
+    timeline_path.write_text(json.dumps(ALERT_TIMELINE))
+
+    exit_code = update_ci_metrics(
+        [
+            "--metrics",
+            str(metrics_path),
+            "--alert-timeline",
+            str(timeline_path),
+            "--alert-label",
+            "ci-alert-drill",
+        ]
+    )
+
+    assert exit_code == 0
+
+    stored = json.loads(metrics_path.read_text())
+    entry = stored["alert_response_trend"][0]
+    assert entry["label"] == "ci-alert-drill"
+    assert entry["incident_id"] == "ci-alert-2025-10-07"
+    assert entry["statuses"]["mtta_seconds"] == "180"
+    assert entry["statuses"]["mttr_seconds"] == "1110"
 
 
 def test_summarise_trend_staleness_flags_outdated_trends(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -431,6 +577,11 @@ def test_summarise_trend_staleness_flags_outdated_trends(monkeypatch: pytest.Mon
             {"generated_at": "not-a-timestamp"},
         ],
         "remediation_trend": [],
+        "alert_response_trend": [
+            {
+                "generated_at": "2024-06-05T08:00:00+00:00",
+            }
+        ],
     }
 
     frozen_now = datetime(2024, 6, 5, 12, 0, 0, tzinfo=UTC)
@@ -463,6 +614,12 @@ def test_summarise_trend_staleness_flags_outdated_trends(monkeypatch: pytest.Mon
     assert remediation["entry_count"] == 0
     assert remediation["is_stale"] is True
     assert remediation["age_hours"] is None
+
+    alerts = summary["trends"]["alert_response_trend"]
+    assert alerts["entry_count"] == 1
+    assert alerts["last_timestamp"] == "2024-06-05T08:00:00+00:00"
+    assert alerts["is_stale"] is False
+    assert alerts["age_hours"] == pytest.approx(4.0, rel=1e-6)
 
 
 def test_update_ci_metrics_records_dashboard_payload(tmp_path: Path) -> None:
@@ -535,4 +692,5 @@ def test_load_metrics_returns_defaults_when_missing(tmp_path: Path) -> None:
         "formatter_trend": [],
         "coverage_domain_trend": [],
         "remediation_trend": [],
+        "alert_response_trend": [],
     }

@@ -10,6 +10,9 @@ operators must follow during a breach.
 1. Monitor the runtime event bus topic `telemetry.risk.policy_violation`.
    - Every rejection publishes a structured alert containing the serialized
      policy snapshot and a Markdown summary.【F:src/trading/risk/policy_telemetry.py†L214-L285】
+   - The risk gateway emits the alert as soon as a policy decision is rejected,
+     so manual workflows and FIX pilots inherit the same escalation signal as
+     the trading manager.【F:src/trading/risk/risk_gateway.py†L231-L340】
    - The trading manager forwards alerts whenever a policy decision is rejected
      or recorded with outstanding violations.【F:src/trading/trading_manager.py†L920-L991】
 2. Secondary confirmation is available on `telemetry.risk.policy`, which

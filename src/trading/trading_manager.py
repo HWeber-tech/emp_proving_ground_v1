@@ -28,6 +28,7 @@ from src.trading.monitoring.portfolio_monitor import InMemoryRedis, PortfolioMon
 from src.trading.risk.policy_telemetry import (
     RiskPolicyEvaluationSnapshot,
     RiskPolicyViolationAlert,
+    RISK_POLICY_VIOLATION_RUNBOOK,
     build_policy_snapshot,
     build_policy_violation_alert,
     format_policy_markdown,
@@ -169,6 +170,7 @@ class TradingManager:
             risk_policy=self._risk_policy,
             portfolio_risk_manager=self._portfolio_risk_manager,
             risk_config=effective_config,
+            event_bus=self.event_bus,
         )
 
         self._last_risk_snapshot: RiskTelemetrySnapshot | None = None
@@ -978,7 +980,7 @@ class TradingManager:
             alert: RiskPolicyViolationAlert = build_policy_violation_alert(
                 snapshot,
                 severity=severity,
-                runbook="docs/operations/runbooks/risk_policy_violation.md",
+                runbook=RISK_POLICY_VIOLATION_RUNBOOK,
             )
             logger.warning("🚨 Policy violation alert\n%s", format_policy_violation_markdown(alert))
             try:

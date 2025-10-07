@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
@@ -19,6 +20,7 @@ from src.risk.real_risk_manager import RealRiskConfig, RealRiskManager
 from src.trading.liquidity.depth_aware_prober import DepthAwareLiquidityProber
 from src.trading.monitoring.portfolio_monitor import InMemoryRedis, PortfolioMonitor
 from src.trading.risk.risk_api import RISK_API_RUNBOOK
+from src.trading.risk.policy_telemetry import RISK_POLICY_VIOLATION_RUNBOOK
 from src.trading.risk.risk_gateway import RiskGateway
 from src.trading.risk.risk_policy import RiskPolicy
 
@@ -236,6 +238,57 @@ async def test_risk_gateway_rejects_on_policy_violation(
     snapshot = gateway.get_last_policy_snapshot()
     assert snapshot is not None
     assert "policy.min_position_size" in snapshot.violations
+
+
+@pytest.mark.asyncio()
+async def test_risk_gateway_policy_violation_emits_telemetry(
+    portfolio_monitor: PortfolioMonitor,
+) -> None:
+    registry = DummyStrategyRegistry(active=True)
+    restrictive_policy = RiskPolicy.from_config(
+        RiskConfig(min_position_size=10_000, max_total_exposure_pct=Decimal("0.05"))
+    )
+    event_bus = EventBus()
+    await event_bus.start()
+
+    events: list[Any] = []
+    received = asyncio.Event()
+
+    async def _on_violation(event: Any) -> None:
+        events.append(event)
+        received.set()
+
+    handle = event_bus.subscribe("telemetry.risk.policy_violation", _on_violation)
+    gateway = RiskGateway(
+        strategy_registry=registry,
+        position_sizer=None,
+        portfolio_monitor=portfolio_monitor,
+        risk_policy=restrictive_policy,
+        event_bus=event_bus,
+    )
+
+    state = portfolio_monitor.get_state()
+    state["open_positions"] = {}
+    state["equity"] = 100_000.0
+    state["current_daily_drawdown"] = 0.0
+
+    intent = Intent("EURUSD", Decimal("10"))
+
+    try:
+        result = await gateway.validate_trade_intent(intent, state)
+        assert result is None
+
+        await asyncio.wait_for(received.wait(), timeout=1.0)
+    finally:
+        event_bus.unsubscribe(handle)
+        await event_bus.stop()
+
+    assert events, "expected policy violation telemetry"
+    payload = events[-1].payload
+    assert payload["runbook"] == RISK_POLICY_VIOLATION_RUNBOOK
+    snapshot = payload.get("snapshot", {})
+    assert snapshot.get("approved") is False
+    assert payload.get("severity") == "critical"
 
 
 @pytest.mark.asyncio()

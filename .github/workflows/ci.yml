@@ -104,7 +104,7 @@ jobs:
             --cov-report=term \
             --cov-report=xml:coverage.xml \
             -q | tee pytest.log
-      - name: Coverage matrix (ingest guardrail)
+      - name: Coverage matrix (ingest + risk guardrail)
         env:
           PYTHONPATH: ${{ github.workspace }}
         run: |
@@ -113,10 +113,25 @@ jobs:
             --coverage-report coverage.xml \
             --format markdown \
             --require-file src/data_foundation/ingest/timescale_pipeline.py \
+            --require-file src/trading/risk/risk_policy.py \
+            --require-file src/trading/risk/policy_telemetry.py \
             > coverage-matrix.md
           {
-            echo "## Coverage matrix (ingest guardrail)";
+            echo "## Coverage matrix (ingest + risk guardrail)";
             cat coverage-matrix.md;
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Coverage guardrails (critical domains)
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: |
+          set -euo pipefail
+          python -m tools.telemetry.coverage_guardrails \
+            --report coverage.xml \
+            --min-percent 82.0 \
+            > coverage-guardrails.txt
+          {
+            echo "## Coverage guardrails (critical domains)";
+            cat coverage-guardrails.txt;
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Publish pytest summary
         if: always()

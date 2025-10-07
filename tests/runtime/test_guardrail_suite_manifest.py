@@ -103,12 +103,33 @@ def test_ci_guardrail_job_validates_ingest_coverage() -> None:
         (
             step
             for step in workflow["jobs"]["tests"]["steps"]
-            if step.get("name") == "Coverage matrix (ingest guardrail)"
+            if step.get("name") == "Coverage matrix (ingest + risk guardrail)"
         ),
         None,
     )
-    assert coverage_guard_step is not None, "Coverage matrix ingest guardrail step missing from CI workflow"
+    assert coverage_guard_step is not None, "Coverage matrix ingest/risk guardrail step missing from CI workflow"
     run_script = coverage_guard_step.get("run", "")
     assert "tools.telemetry.coverage_matrix" in run_script
     assert "coverage.xml" in run_script
     assert "src/data_foundation/ingest/timescale_pipeline.py" in run_script
+    assert "src/trading/risk/risk_policy.py" in run_script
+    assert "src/trading/risk/policy_telemetry.py" in run_script
+
+
+def test_ci_guardrail_job_runs_coverage_guardrails() -> None:
+    """CI must enforce coverage guardrails for critical ingest and risk domains."""
+
+    workflow = _load_ci_workflow()
+    guardrail_step = next(
+        (
+            step
+            for step in workflow["jobs"]["tests"]["steps"]
+            if step.get("name") == "Coverage guardrails (critical domains)"
+        ),
+        None,
+    )
+    assert guardrail_step is not None, "Coverage guardrails step missing from CI workflow"
+    run_script = guardrail_step.get("run", "")
+    assert "tools.telemetry.coverage_guardrails" in run_script
+    assert "--report coverage.xml" in run_script
+    assert "--min-percent" in run_script

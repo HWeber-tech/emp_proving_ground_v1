@@ -215,6 +215,35 @@ class TradingManager:
         )
         logger.info("💹 ROI cost model configured: %s", self._roi_cost_model.as_dict())
 
+    def apply_risk_config(
+        self,
+        config: TradingRiskConfig | Mapping[str, object],
+        *,
+        propagate: bool = True,
+    ) -> TradingRiskConfig:
+        """Apply ``config`` and refresh dependent risk components."""
+
+        new_config = config
+        if not isinstance(new_config, TradingRiskConfig):
+            new_config = TradingRiskConfig.parse_obj(dict(new_config))
+
+        self._risk_config = new_config
+        self._risk_policy = RiskPolicy.from_config(new_config)
+        self._last_policy_snapshot = None
+
+        if propagate:
+            try:
+                self.risk_gateway.apply_risk_config(new_config, risk_policy=self._risk_policy)
+            except Exception:  # pragma: no cover - defensive guard for integration drift
+                logger.debug("RiskGateway.apply_risk_config failed", exc_info=True)
+
+            try:
+                self._portfolio_risk_manager.update_limits(new_config.dict())
+            except Exception:  # pragma: no cover - defensive guard for integration drift
+                logger.debug("RiskManager.update_limits failed", exc_info=True)
+
+        return self._risk_config
+
     async def on_trade_intent(self, event: TradeIntent) -> None:
         """
         Handle incoming trade intents with integrated risk management.

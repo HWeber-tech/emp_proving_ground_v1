@@ -4,6 +4,8 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock
 
+from decimal import Decimal
+
 import datetime as _datetime
 import enum as _enum
 import typing as _typing
@@ -1177,6 +1179,42 @@ def test_describe_risk_interface_exposes_canonical_payload() -> None:
     assert reference_summary["mandatory_stop_loss"] is True
     assert description.get("runbook", "").endswith("risk_api_contract.md")
 
+
+def test_apply_risk_config_refreshes_gateway_and_policy() -> None:
+    manager = TradingManager(
+        event_bus=DummyBus(),
+        strategy_registry=AlwaysActiveRegistry(),
+        execution_engine=None,
+        initial_equity=50_000.0,
+        risk_config=RiskConfig(),
+    )
+
+    updated = manager.apply_risk_config(
+        RiskConfig(
+            max_risk_per_trade_pct=Decimal("0.03"),
+            max_total_exposure_pct=Decimal("0.60"),
+            max_drawdown_pct=Decimal("0.12"),
+            mandatory_stop_loss=False,
+            research_mode=True,
+        )
+    )
+
+    assert updated.max_risk_per_trade_pct == Decimal("0.03")
+    assert manager._risk_policy is not None  # type: ignore[attr-defined]
+    assert manager._risk_policy.research_mode is True  # type: ignore[attr-defined]
+
+    description = manager.describe_risk_interface()
+    summary = description["summary"]
+    assert summary["max_risk_per_trade_pct"] == pytest.approx(0.03)
+    assert summary["max_drawdown_pct"] == pytest.approx(0.12)
+    assert summary["mandatory_stop_loss"] is False
+
+    limits_payload = manager.risk_gateway.get_risk_limits()
+    assert limits_payload["limits"]["max_risk_per_trade_pct"] == pytest.approx(0.03)
+    assert limits_payload["risk_config_summary"]["research_mode"] is True
+
+    risk_manager_config = manager._portfolio_risk_manager.config  # type: ignore[attr-defined]
+    assert risk_manager_config.max_position_risk == pytest.approx(0.03)
 
 def test_get_risk_status_includes_risk_api_summary() -> None:
     manager = TradingManager(

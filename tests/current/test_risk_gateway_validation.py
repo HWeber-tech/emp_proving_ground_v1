@@ -155,6 +155,48 @@ async def test_risk_gateway_clips_position_and_adds_liquidity_metadata(
 
 
 @pytest.mark.asyncio()
+async def test_risk_gateway_apply_risk_config_refreshes_limits(
+    portfolio_monitor: PortfolioMonitor,
+) -> None:
+    registry = DummyStrategyRegistry(active=True)
+    base_config = RiskConfig(
+        max_risk_per_trade_pct=Decimal("0.02"),
+        max_total_exposure_pct=Decimal("0.50"),
+    )
+    base_policy = RiskPolicy.from_config(base_config)
+    gateway = RiskGateway(
+        strategy_registry=registry,
+        position_sizer=None,
+        portfolio_monitor=portfolio_monitor,
+        risk_policy=base_policy,
+        risk_config=base_config,
+    )
+
+    updated_config = base_config.copy(
+        update={
+            "max_risk_per_trade_pct": Decimal("0.03"),
+            "max_total_exposure_pct": Decimal("0.70"),
+            "max_drawdown_pct": Decimal("0.15"),
+            "mandatory_stop_loss": False,
+            "research_mode": True,
+        }
+    )
+    updated_policy = RiskPolicy.from_config(updated_config)
+
+    gateway.apply_risk_config(updated_config, risk_policy=updated_policy)
+
+    limits_payload = gateway.get_risk_limits()
+    assert limits_payload["limits"]["max_risk_per_trade_pct"] == pytest.approx(0.03)
+    summary = limits_payload["risk_config_summary"]
+    assert summary["max_total_exposure_pct"] == pytest.approx(0.70)
+    assert summary["mandatory_stop_loss"] is False
+    assert summary["research_mode"] is True
+    assert gateway.risk_policy is updated_policy
+    assert gateway.risk_per_trade == Decimal("0.03")
+    assert gateway.max_daily_drawdown == pytest.approx(0.15)
+
+
+@pytest.mark.asyncio()
 async def test_risk_gateway_rejects_on_insufficient_liquidity(
     portfolio_monitor: PortfolioMonitor,
 ) -> None:

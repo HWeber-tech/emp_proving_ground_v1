@@ -443,6 +443,31 @@ class RiskGateway:
 
         return self._last_policy_snapshot
 
+    def apply_risk_config(
+        self,
+        config: RiskConfig,
+        *,
+        risk_policy: RiskPolicy | None = None,
+    ) -> None:
+        """Refresh the gateway with ``config`` and optional ``risk_policy``."""
+
+        if not isinstance(config, RiskConfig):
+            raise TypeError("config must be an instance of RiskConfig")
+
+        self._risk_config = config
+        self._risk_reference_cache = None
+
+        self.risk_per_trade = _to_decimal(
+            config.max_risk_per_trade_pct, default=self.risk_per_trade
+        )
+        self._risk_per_trade_float = float(self.risk_per_trade)
+        self.max_daily_drawdown = float(config.max_drawdown_pct)
+
+        if risk_policy is not None:
+            self.risk_policy = risk_policy
+        elif self.risk_policy is not None:
+            self.risk_policy = RiskPolicy.from_config(config)
+
     def _build_limits_snapshot(self) -> dict[str, Any]:
         """Construct the current limits payload exposed by the gateway."""
 

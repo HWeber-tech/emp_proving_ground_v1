@@ -65,6 +65,10 @@
   Markdown/JSON summaries, flags drawdown/return severities, and records best/
   worst trade diagnostics so governance reviewers inherit ready-to-publish
   replay dossiers.【F:src/evolution/evaluation/recorded_replay.py†L160-L389】【F:src/evolution/evaluation/telemetry.py†L1-L203】【F:tests/evolution/test_recorded_replay_evaluator.py†L37-L98】【F:tests/evolution/test_recorded_replay_telemetry.py†L1-L88】
+- Progress: Recorded dataset helpers now dump and reload real sensory snapshots
+  to JSONL with lineage metadata, strict/append guards, and replay integration
+  tests so adaptive runs can hydrate governance evidence without bespoke
+  capture scripts.【F:src/evolution/evaluation/datasets.py†L1-L171】【F:src/evolution/__init__.py†L21-L71】【F:tests/evolution/test_recorded_dataset.py†L1-L108】
 - Surface lineage telemetry and integrate with compliance workflow templates for
   strategy approvals.
 - Progress: Evolution experiment telemetry now guards publish failures, records

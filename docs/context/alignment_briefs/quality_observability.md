@@ -249,6 +249,9 @@
 - Track coverage deltas via `tests/.telemetry/ci_metrics.json` and surface them
   in dashboards; add assertions in regression suites to prevent silent drops.
   【F:docs/status/ci_health.md†L13-L15】
+- Flake telemetry feed now captures the adaptive release thresholds regression
+  signature (node id, diff, duration) so automation reviews can prioritise
+  gating fixes with deterministic evidence.【F:tests/.telemetry/flake_runs.json†L1-L20】
 - Domain snapshots are now captured alongside overall coverage in
   `tests/.telemetry/ci_metrics.json`, flagging lagging domains directly in CI
   telemetry so remediation progress is visible without ad-hoc parsing.

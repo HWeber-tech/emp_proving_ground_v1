@@ -496,6 +496,7 @@ kit that the roadmap calls back to in each checklist.
     feed while the CLI ingests observability dashboard snapshots into the
     remediation trend so status exports inherit actionable coverage and
     operational readiness deltas.【F:tools/telemetry/ci_metrics.py†L112-L337】【F:tools/telemetry/update_ci_metrics.py†L1-L169】【F:tests/tools/test_ci_metrics.py†L180-L309】
+  - *Progress*: Flake telemetry feed now records the adaptive release thresholds regression (node id, diff, duration) so automation reviews surface the gating failure alongside deterministic metadata for triage.【F:tests/.telemetry/flake_runs.json†L1-L20】
   - *Progress*: CI digest CLI now renders dashboard rows and weekly digests from
     the metrics JSON, calculating coverage/domain/remediation deltas with pytest
     coverage and wiring straight into the status log so teams can paste evidence
@@ -700,6 +701,7 @@ kit that the roadmap calls back to in each checklist.
   snapshots, and gate adaptive runs behind feature flags until governance reviews
   complete.【F:docs/development/remediation_plan.md†L92-L167】
   - *Progress*: Realistic genome seeding now materialises catalogue templates with jitter bounds, attaches lineage and performance metadata to spawned genomes, and refreshes orchestrator lineage snapshots so population statistics expose provenance under guardrail tests.【F:src/core/evolution/seeding.py†L1-L200】【F:src/orchestration/evolution_cycle.py†L125-L220】【F:tests/current/test_evolution_orchestrator.py†L60-L133】【F:tests/current/test_population_manager_with_genome.py†L91-L127】
+  - *Progress*: Recorded dataset helpers now persist real sensory observations to JSONL, keep lineage/drift metadata intact, and reload them into replay evaluators with strict/append guards so adaptive fitness runs can hydrate live evidence instead of mocks under pytest coverage.【F:src/evolution/evaluation/datasets.py†L1-L171】【F:src/evolution/__init__.py†L21-L71】【F:tests/evolution/test_recorded_dataset.py†L1-L108】
 - [ ] **Risk API enforcement** – Align trading modules with deterministic risk
   interfaces, surface policy violations via telemetry, and add escalation runbooks.
   - *Progress*: Risk gateway wiring now normalises intents, enforces
@@ -757,6 +759,7 @@ kit that the roadmap calls back to in each checklist.
   - *Progress*: Retired the placeholder sensory config and macro ingest helpers,
     noting their removal in the cleanup report so hygiene reviews reflect the new
     Timescale fallback wiring instead of dead scaffolding.【F:docs/reports/CLEANUP_REPORT.md†L88】【F:src/data_foundation/ingest/timescale_pipeline.py†L21】
+  - *Progress*: Cleanup automation now flags the retired sensory dimension shims directly in the report and drops them from the phase-two consolidation script so dead organs stay archived instead of being rehydrated by tooling.【F:docs/reports/CLEANUP_REPORT.md†L168-L179】【F:scripts/phase2_sensory_consolidation.py†L45-L144】
 - [ ] **Governance and compliance** – Build the reporting cadence for KYC/AML,
   regulatory telemetry, and audit storage prior to live-broker pilots.【F:docs/technical_debt_assessment.md†L58-L112】
   - *Progress*: Governance reporting cadence now assembles compliance readiness,
@@ -804,6 +807,14 @@ kit that the roadmap calls back to in each checklist.
   work; stale documentation is considered a regression.【F:docs/technical_debt_assessment.md†L90-L112】
 - Maintain the truth-first status culture: mock implementations must remain
   labelled and roadmapped until replaced by production-grade systems.【F:docs/DEVELOPMENT_STATUS.md†L7-L35】
+
+## Automation updates — 2025-10-07T18:48:30Z
+
+### Last 4 commits
+- a0152f4 docs(docs): tune 2 files (2025-10-07)
+- 4d43c27 feat(evolution): add 3 files (2025-10-07)
+- 6344ea1 test(.telemetry): tune 1 file (2025-10-07)
+- 6dabc4f feat(_automation): add 2 files (2025-10-07)
 
 ## Automation updates — 2025-10-07T15:30:42Z
 

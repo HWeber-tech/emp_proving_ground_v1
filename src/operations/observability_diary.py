@@ -9,6 +9,7 @@ from typing import Any, Callable, Iterable, Mapping, MutableMapping, Sequence
 
 from src.core.event_bus import Event, EventBus, TopicBus
 from src.operations.event_bus_failover import publish_event_with_failover
+from src.governance.policy_ledger import PolicyLedgerRecord
 
 __all__ = [
     "PolicyLedgerDiff",
@@ -17,6 +18,9 @@ __all__ = [
     "DecisionNarrationCapsule",
     "build_decision_narration_capsule",
     "publish_decision_narration_capsule",
+    "derive_policy_ledger_diff",
+    "build_decision_narration_from_ledger",
+    "publish_decision_narration_from_ledger",
 ]
 
 
@@ -327,6 +331,232 @@ class DecisionNarrationCapsule:
                 lines.append(f"- **{key}**: {value}")
 
         return "\n".join(lines)
+
+
+def _serialise_policy_delta(delta: Any) -> Mapping[str, Any] | None:
+    if delta is None:
+        return None
+    if hasattr(delta, "is_empty") and hasattr(delta, "as_dict"):
+        if delta.is_empty():  # type: ignore[attr-defined]
+            return None
+        return dict(delta.as_dict())  # type: ignore[attr-defined]
+    if isinstance(delta, Mapping):
+        return dict(delta)
+    return None
+
+
+def _merge_notes(*collections: Iterable[object] | None) -> tuple[str, ...]:
+    merged: list[str] = []
+    for collection in collections:
+        if not collection:
+            continue
+        for note in collection:
+            if note is None:
+                continue
+            text = str(note).strip()
+            if text:
+                merged.append(text)
+    return tuple(merged)
+
+
+def derive_policy_ledger_diff(
+    record: PolicyLedgerRecord,
+    *,
+    previous_record: PolicyLedgerRecord | Mapping[str, Any] | None = None,
+    change_type: str | None = None,
+    additional_notes: Iterable[object] | None = None,
+) -> PolicyLedgerDiff:
+    """Translate a ledger record into a narration-friendly diff."""
+
+    before_payload: MutableMapping[str, Any] = {}
+    prior_stage: str | None = None
+
+    if previous_record is None:
+        if record.history:
+            last_history = record.history[-1]
+            prior_stage_value = last_history.get("prior_stage")
+            if isinstance(prior_stage_value, str):
+                prior_stage = prior_stage_value
+                before_payload["stage"] = prior_stage_value
+            history_policy_delta = last_history.get("policy_delta")
+            if isinstance(history_policy_delta, Mapping):
+                before_payload["policy_delta"] = dict(history_policy_delta)
+            history_evidence_id = last_history.get("evidence_id")
+            if isinstance(history_evidence_id, str) and history_evidence_id:
+                before_payload["evidence_id"] = history_evidence_id
+    elif isinstance(previous_record, PolicyLedgerRecord):
+        prior_stage = previous_record.stage.value
+        before_payload["stage"] = prior_stage
+        if previous_record.threshold_overrides:
+            before_payload["threshold_overrides"] = dict(previous_record.threshold_overrides)
+        previous_delta = _serialise_policy_delta(previous_record.policy_delta)
+        if previous_delta:
+            before_payload["policy_delta"] = previous_delta
+        if previous_record.metadata:
+            before_payload["metadata"] = dict(previous_record.metadata)
+        if previous_record.evidence_id:
+            before_payload["evidence_id"] = previous_record.evidence_id
+    elif isinstance(previous_record, Mapping):
+        prior_stage_value = previous_record.get("stage")
+        if isinstance(prior_stage_value, str):
+            prior_stage = prior_stage_value
+            before_payload["stage"] = prior_stage_value
+        prev_thresholds = previous_record.get("threshold_overrides")
+        if isinstance(prev_thresholds, Mapping):
+            before_payload["threshold_overrides"] = dict(prev_thresholds)
+        prev_delta = previous_record.get("policy_delta")
+        if isinstance(prev_delta, Mapping):
+            before_payload["policy_delta"] = dict(prev_delta)
+        prev_metadata = previous_record.get("metadata")
+        if isinstance(prev_metadata, Mapping):
+            before_payload["metadata"] = dict(prev_metadata)
+        prev_evidence = previous_record.get("evidence_id")
+        if isinstance(prev_evidence, str) and prev_evidence:
+            before_payload["evidence_id"] = prev_evidence
+    else:
+        raise TypeError("previous_record must be a PolicyLedgerRecord or mapping if provided")
+
+    after_payload: MutableMapping[str, Any] = {"stage": record.stage.value}
+    if record.threshold_overrides:
+        after_payload["threshold_overrides"] = dict(record.threshold_overrides)
+    current_delta = _serialise_policy_delta(record.policy_delta)
+    if current_delta:
+        after_payload["policy_delta"] = current_delta
+    if record.metadata:
+        after_payload["metadata"] = dict(record.metadata)
+    if record.evidence_id:
+        after_payload["evidence_id"] = record.evidence_id
+
+    effective_change = change_type
+    if effective_change is None:
+        if prior_stage:
+            effective_change = f"stage::{prior_stage}->{record.stage.value}"
+        else:
+            effective_change = f"stage::{record.stage.value}"
+
+    diff_metadata: MutableMapping[str, Any] = {
+        "policy_id": record.policy_id,
+        "tactic_id": record.tactic_id,
+        "stage": record.stage.value,
+        "updated_at": record.updated_at.astimezone(UTC).isoformat(),
+        "history_length": len(record.history),
+    }
+    if record.evidence_id:
+        diff_metadata["evidence_id"] = record.evidence_id
+    if record.threshold_overrides:
+        diff_metadata["threshold_overrides"] = dict(record.threshold_overrides)
+    if current_delta and "metadata" in current_delta:
+        diff_metadata["policy_delta_metadata"] = dict(current_delta["metadata"])
+    if record.metadata:
+        diff_metadata["ledger_metadata"] = dict(record.metadata)
+
+    notes = _merge_notes(
+        getattr(record.policy_delta, "notes", None),
+        additional_notes,
+    )
+
+    return PolicyLedgerDiff(
+        policy_id=record.policy_id,
+        change_type=effective_change,
+        before=dict(before_payload) if before_payload else None,
+        after=dict(after_payload) if after_payload else None,
+        approvals=tuple(record.approvals),
+        notes=notes,
+        metadata=diff_metadata,
+    )
+
+
+def build_decision_narration_from_ledger(
+    *,
+    capsule_id: str,
+    record: PolicyLedgerRecord,
+    sigma_metrics: Mapping[str, Any],
+    throttle_states: Iterable[Mapping[str, Any] | ThrottleStateSnapshot],
+    window_start: datetime | str | None = None,
+    window_end: datetime | str | None = None,
+    generated_at: datetime | None = None,
+    previous_record: PolicyLedgerRecord | Mapping[str, Any] | None = None,
+    notes: Iterable[object] | None = None,
+    metadata: Mapping[str, Any] | None = None,
+) -> DecisionNarrationCapsule:
+    """Compose a narration capsule derived from ledger posture and telemetry."""
+
+    policy_diff = derive_policy_ledger_diff(
+        record,
+        previous_record=previous_record,
+        additional_notes=notes,
+    )
+
+    capsule_notes = _merge_notes(notes, getattr(record.policy_delta, "notes", None))
+
+    capsule_metadata: MutableMapping[str, Any] = {
+        "policy_id": record.policy_id,
+        "tactic_id": record.tactic_id,
+        "stage": record.stage.value,
+    }
+    if record.evidence_id:
+        capsule_metadata["evidence_id"] = record.evidence_id
+    if record.metadata:
+        capsule_metadata["ledger_metadata"] = dict(record.metadata)
+    delta_metadata = getattr(record.policy_delta, "metadata", None)
+    if isinstance(delta_metadata, Mapping) and delta_metadata:
+        capsule_metadata["policy_delta_metadata"] = dict(delta_metadata)
+    if metadata:
+        capsule_metadata.update(dict(metadata))
+
+    return build_decision_narration_capsule(
+        capsule_id=capsule_id,
+        window_start=window_start,
+        window_end=window_end,
+        policy_diffs=[policy_diff],
+        sigma_metrics=sigma_metrics,
+        throttle_states=throttle_states,
+        notes=capsule_notes,
+        metadata=capsule_metadata,
+        generated_at=generated_at,
+    )
+
+
+def publish_decision_narration_from_ledger(
+    event_bus: EventBus,
+    *,
+    capsule_id: str,
+    record: PolicyLedgerRecord,
+    sigma_metrics: Mapping[str, Any],
+    throttle_states: Iterable[Mapping[str, Any] | ThrottleStateSnapshot],
+    window_start: datetime | str | None = None,
+    window_end: datetime | str | None = None,
+    generated_at: datetime | None = None,
+    previous_record: PolicyLedgerRecord | Mapping[str, Any] | None = None,
+    notes: Iterable[object] | None = None,
+    metadata: Mapping[str, Any] | None = None,
+    source: str = "observability.diary",
+    event_type: str = "observability.decision_narration",
+    global_bus_factory: Callable[[], TopicBus] | None = None,
+) -> DecisionNarrationCapsule:
+    """Build and publish a decision narration capsule from ledger context."""
+
+    capsule = build_decision_narration_from_ledger(
+        capsule_id=capsule_id,
+        record=record,
+        sigma_metrics=sigma_metrics,
+        throttle_states=throttle_states,
+        window_start=window_start,
+        window_end=window_end,
+        generated_at=generated_at,
+        previous_record=previous_record,
+        notes=notes,
+        metadata=metadata,
+    )
+
+    publish_decision_narration_capsule(
+        event_bus,
+        capsule,
+        source=source,
+        event_type=event_type,
+        global_bus_factory=global_bus_factory,
+    )
+    return capsule
 
 
 def build_decision_narration_capsule(

@@ -243,3 +243,66 @@ def test_reflection_digest_surfaces_emerging_strategies() -> None:
     headlines = digest["recent_headlines"]
     assert len(headlines) == 3
     assert headlines[-1].startswith("Selected mean_reversion")
+
+
+def test_prune_experiments_removes_expired_entries() -> None:
+    router = PolicyRouter()
+    router.register_tactic(PolicyTactic(tactic_id="alpha", base_weight=1.0))
+
+    expired = FastWeightExperiment(
+        experiment_id="exp-expired",
+        tactic_id="alpha",
+        delta=0.2,
+        rationale="Promote alpha temporarily",
+        expires_at=datetime(2024, 3, 15, 12, 0),
+    )
+    active = FastWeightExperiment(
+        experiment_id="exp-active",
+        tactic_id="alpha",
+        delta=0.1,
+        rationale="Ongoing alpha boost",
+        expires_at=datetime(2024, 3, 15, 13, 0, tzinfo=timezone.utc),
+    )
+    router.register_experiment(expired)
+    router.register_experiment(active)
+
+    removed = router.prune_experiments(now=datetime(2024, 3, 15, 12, 30, tzinfo=timezone.utc))
+
+    assert set(removed) == {"exp-expired"}
+    assert "exp-expired" not in router.experiments()
+    assert "exp-active" in router.experiments()
+
+
+def test_reflection_report_wraps_builder_helpers() -> None:
+    base = datetime(2024, 3, 15, 12, 0, tzinfo=timezone.utc)
+    router = PolicyRouter()
+    router.register_tactics(
+        (
+            PolicyTactic(
+                tactic_id="breakout",
+                base_weight=1.0,
+                regime_bias={"bull": 1.3},
+                description="Momentum breakout",
+                objectives=("alpha",),
+                tags=("momentum",),
+            ),
+            PolicyTactic(
+                tactic_id="mean_reversion",
+                base_weight=0.9,
+                regime_bias={"bull": 1.0},
+                description="Reversion",
+                objectives=("stability",),
+                tags=("reversion",),
+            ),
+        )
+    )
+    router.route(_regime(timestamp=base))
+    router.route(_regime(timestamp=base + timedelta(minutes=3)))
+    router.route(_regime(timestamp=base + timedelta(minutes=6)))
+
+    generated_at = datetime(2024, 3, 15, 12, 30, tzinfo=timezone.utc)
+    artifacts = router.reflection_report(now=generated_at, max_tactics=2, max_experiments=2)
+
+    assert artifacts.payload["metadata"]["generated_at"] == generated_at.isoformat()
+    assert artifacts.digest["total_decisions"] == 3
+    assert "PolicyRouter reflection summary" in artifacts.markdown

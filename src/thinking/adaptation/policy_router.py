@@ -9,8 +9,8 @@ from __future__ import annotations
 
 from collections import Counter, deque
 from dataclasses import dataclass, field
-from datetime import datetime
-from typing import Deque, Iterable, Mapping, MutableMapping, Sequence
+from datetime import datetime, timezone
+from typing import Deque, Iterable, Mapping, MutableMapping, Sequence, TYPE_CHECKING
 
 
 @dataclass(frozen=True)
@@ -120,6 +120,10 @@ class PolicyDecision:
     reflection_summary: Mapping[str, object]
 
 
+if TYPE_CHECKING:  # pragma: no cover - import cycle guard for type checking
+    from .policy_reflection import PolicyReflectionArtifacts
+
+
 class PolicyRouter:
     """Route tactics using fast-weight experimentation and automated reflection summaries."""
 
@@ -170,6 +174,24 @@ class PolicyRouter:
 
     def remove_experiment(self, experiment_id: str) -> None:
         self._experiments.pop(experiment_id, None)
+
+    def prune_experiments(self, *, now: datetime | None = None) -> tuple[str, ...]:
+        """Remove expired fast-weight experiments and return their identifiers."""
+
+        current = now or datetime.now(tz=timezone.utc)
+        if current.tzinfo is None:
+            current = current.replace(tzinfo=timezone.utc)
+
+        removed: list[str] = []
+        for experiment_id, experiment in list(self._experiments.items()):
+            expires_at = experiment.expires_at
+            if expires_at is None:
+                continue
+            expiry = expires_at if expires_at.tzinfo else expires_at.replace(tzinfo=timezone.utc)
+            if expiry <= current:
+                self._experiments.pop(experiment_id, None)
+                removed.append(experiment_id)
+        return tuple(removed)
 
     def experiments(self) -> Mapping[str, FastWeightExperiment]:
         """Return a copy of the registered experiments keyed by identifier."""
@@ -478,6 +500,29 @@ class PolicyRouter:
                 "length": longest_streak[1],
             },
         }
+
+    def reflection_report(
+        self,
+        *,
+        window: int | None = None,
+        now: datetime | None = None,
+        max_tactics: int = 5,
+        max_experiments: int = 5,
+        max_headlines: int = 5,
+    ) -> "PolicyReflectionArtifacts":
+        """Convenience helper that builds reviewer-ready reflection artifacts."""
+
+        from .policy_reflection import PolicyReflectionBuilder
+
+        now_factory = (lambda now=now: now) if now is not None else None
+        builder = PolicyReflectionBuilder(
+            self,
+            now=now_factory,
+            max_tactics=max_tactics,
+            max_experiments=max_experiments,
+            max_headlines=max_headlines,
+        )
+        return builder.build(window=window)
 
     def _build_rationale(
         self,

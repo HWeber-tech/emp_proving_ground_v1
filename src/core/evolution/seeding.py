@@ -112,6 +112,12 @@ class GenomeSeed:
         }
         if self.catalogue_entry_id:
             payload["seed_catalogue_id"] = self.catalogue_entry_id
+        if self.parent_ids:
+            payload["seed_parent_ids"] = list(self.parent_ids)
+        if self.mutation_history:
+            payload["seed_mutation_history"] = list(self.mutation_history)
+        if self.performance_metrics:
+            payload["seed_performance_metrics"] = dict(self.performance_metrics)
         return dict(payload)
 
 

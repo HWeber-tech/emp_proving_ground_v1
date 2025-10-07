@@ -29,6 +29,8 @@ def _build_lineage(*, registered: bool) -> EvolutionLineageSnapshot:
                 {"name": "Trend Surfer Alpha", "count": 4, "share": 0.5},
                 {"name": "Sigma Reversion", "count": 2, "share": 0.25},
             ],
+            "seed_parent_ids": {"desk-trend-2019": 4},
+            "seed_mutations": {"g0:seed:trend-alpha": 4},
         },
     )
 
@@ -42,6 +44,11 @@ def _seed_stats() -> dict[str, object]:
                 {"name": "Trend Surfer Alpha", "count": 4, "share": 0.5},
                 {"name": "Sigma Reversion", "count": 2, "share": 0.25},
             ],
+            "seed_parent_ids": {"desk-trend-2019": 4, "desk-meanrev-2021": 2},
+            "seed_mutations": {
+                "g0:seed:trend-alpha": 4,
+                "g0:seed:mean-reversion": 2,
+            },
         },
     }
 

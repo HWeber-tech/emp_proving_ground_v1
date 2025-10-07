@@ -210,6 +210,22 @@ class EvolutionLineageSnapshot:
             if isinstance(tags, Mapping) and tags:
                 preview = ", ".join(list(tags.keys())[:3])
                 lines.append(f"- **Seed tags** {preview}")
+            parents = (
+                self.seed_metadata.get("seed_parent_ids")
+                if isinstance(self.seed_metadata, Mapping)
+                else None
+            )
+            if isinstance(parents, Mapping) and parents:
+                top_parent, top_parent_count = next(iter(parents.items()))
+                lines.append(f"- **Seed parents** {top_parent} (count: {top_parent_count})")
+            mutations = (
+                self.seed_metadata.get("seed_mutations")
+                if isinstance(self.seed_metadata, Mapping)
+                else None
+            )
+            if isinstance(mutations, Mapping) and mutations:
+                preview_mutations = ", ".join(list(mutations.keys())[:3])
+                lines.append(f"- **Seed mutations** {preview_mutations}")
         return "\n".join(lines)
 
 

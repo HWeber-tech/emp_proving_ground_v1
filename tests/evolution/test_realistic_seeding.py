@@ -48,11 +48,16 @@ def test_evolution_engine_default_population_has_lineage_metadata():
         assert metadata.get("seed_name")
         assert metadata.get("seed_species")
         assert metadata.get("seed_catalogue_id")
+        assert metadata.get("seed_parent_ids")
+        assert metadata.get("seed_mutation_history")
+        assert metadata.get("seed_performance_metrics")
 
     stats = engine.get_population_statistics()
     seed_metadata = stats.get("seed_metadata") if isinstance(stats, dict) else None
     assert seed_metadata is not None
     assert seed_metadata.get("seed_catalogue_ids")
+    assert seed_metadata.get("seed_parent_ids")
+    assert seed_metadata.get("seed_mutations")
 
 
 def test_experiment_templates_loaded_from_artifacts():

@@ -34,16 +34,20 @@ from datetime import UTC, datetime
 
 import pytest
 
-from collections.abc import Callable
+import src.operations.sensory_drift as sensory_drift_module
+
+from collections.abc import Callable, Iterable
 from typing import Any
 
 from src.core.event_bus import Event
 from src.operations.alerts import AlertSeverity
+from src.operations.observability_diary import ThrottleStateSnapshot
 from src.operations.sensory_drift import (
     DriftSeverity,
     SensoryDriftSnapshot,
     derive_drift_alerts,
     evaluate_sensory_drift,
+    export_drift_throttle_metrics,
     publish_sensory_drift,
 )
 
@@ -152,6 +156,31 @@ def _entry(signal: float, confidence: float = 0.6) -> dict[str, object]:
             "why": {"signal": signal, "confidence": confidence},
         },
     }
+
+
+def _load_throttle_fixture() -> tuple[tuple[ThrottleStateSnapshot, ...], str | None, str | None]:
+    fixture_path = (
+        Path(__file__).resolve().parent.parent
+        / "understanding"
+        / "fixtures"
+        / "throttle_prometheus_replay.json"
+    )
+    payload = json.loads(fixture_path.read_text())
+    states: list[ThrottleStateSnapshot] = []
+    for entry in payload.get("throttle_states", []):
+        states.append(
+            ThrottleStateSnapshot(
+                name=str(entry.get("name", "unknown")),
+                state=str(entry.get("state", "observing")),
+                active=bool(entry.get("active", False)),
+                multiplier=float(entry.get("multiplier", 0.0))
+                if entry.get("multiplier") is not None
+                else None,
+                reason=entry.get("reason"),
+                metadata={},
+            )
+        )
+    return tuple(states), payload.get("regime"), payload.get("decision")
 
 
 def test_page_hinkley_drift_escalates_without_delta_trigger() -> None:
@@ -319,3 +348,104 @@ def test_publish_sensory_drift_falls_back_to_global_bus_on_none_result() -> None
     assert event_type == "telemetry.sensory.drift"
     assert source == "operations.sensory_drift"
     assert payload["status"] == snapshot.status.value
+
+
+def test_export_drift_throttle_metrics_emits_when_severity_exceeds_threshold(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fixture_path = Path(__file__).with_name("fixtures") / "page_hinkley_replay.json"
+    payload = json.loads(fixture_path.read_text())
+    snapshot = evaluate_sensory_drift(
+        payload["audit_entries"],
+        lookback=11,
+        page_hinkley_delta=0.0,
+        page_hinkley_warn=0.6,
+        page_hinkley_alert=0.9,
+        min_variance_samples=50,
+    )
+
+    throttle_states, regime, decision = _load_throttle_fixture()
+
+    calls: list[tuple[tuple[ThrottleStateSnapshot, ...], str | None, str | None]] = []
+
+    def _capture(
+        throttle_payload: Iterable[ThrottleStateSnapshot],
+        *,
+        regime: str | None = None,
+        decision_id: str | None = None,
+    ) -> None:
+        calls.append((tuple(throttle_payload), regime, decision_id))
+
+    monkeypatch.setattr(
+        sensory_drift_module,
+        "export_throttle_metrics",
+        _capture,
+    )
+
+    exported = export_drift_throttle_metrics(
+        snapshot,
+        throttle_states,
+        regime=regime,
+        decision_id=decision,
+    )
+
+    assert exported is True
+    assert len(calls) == 1
+    exported_states, exported_regime, exported_decision = calls[0]
+    assert exported_regime == regime
+    assert exported_decision == decision
+    assert [state.name for state in exported_states] == [state.name for state in throttle_states]
+
+
+def test_export_drift_throttle_metrics_respects_threshold(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    throttle_states, _, _ = _load_throttle_fixture()
+    calls: list[object] = []
+
+    monkeypatch.setattr(
+        sensory_drift_module,
+        "export_throttle_metrics",
+        lambda *args, **kwargs: calls.append((args, kwargs)),
+    )
+
+    baseline_entries = [_entry(0.11), _entry(0.1), _entry(0.09), _entry(0.12)]
+    snapshot = evaluate_sensory_drift(
+        baseline_entries,
+        warn_threshold=0.5,
+        alert_threshold=0.75,
+    )
+
+    exported = export_drift_throttle_metrics(
+        snapshot,
+        throttle_states,
+        threshold=DriftSeverity.alert,
+    )
+
+    assert exported is False
+    assert calls == []
+
+
+def test_export_drift_throttle_metrics_requires_states(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fixture_path = Path(__file__).with_name("fixtures") / "page_hinkley_replay.json"
+    payload = json.loads(fixture_path.read_text())
+    snapshot = evaluate_sensory_drift(
+        payload["audit_entries"],
+        lookback=11,
+        page_hinkley_delta=0.0,
+        page_hinkley_warn=0.6,
+        page_hinkley_alert=0.9,
+        min_variance_samples=50,
+    )
+
+    monkeypatch.setattr(
+        sensory_drift_module,
+        "export_throttle_metrics",
+        lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("should not call")),
+    )
+
+    exported = export_drift_throttle_metrics(snapshot, ())
+
+    assert exported is False

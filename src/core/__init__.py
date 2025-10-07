@@ -51,7 +51,3 @@ def __getattr__(name: str) -> Any:
     if name in _SENSORY_EXPORTS:
         return _resolve_sensory_export(name)
     raise AttributeError(name)
-
-
-# Re-export for convenience
-from .population_manager import PopulationManager

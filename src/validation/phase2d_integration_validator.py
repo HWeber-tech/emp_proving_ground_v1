@@ -19,6 +19,8 @@ import pandas as pd
 from src.core.anomaly import AnomalyDetector, NoOpAnomalyDetector
 from src.core.market_data import MarketDataGateway, NoOpMarketDataGateway
 from src.core.regime import NoOpRegimeClassifier, RegimeClassifier
+from src.core.risk.manager import RiskManager, get_risk_manager
+from src.config.risk.risk_config import RiskConfig
 
 try:
     from src.core.interfaces import DecisionGenome
@@ -31,8 +33,6 @@ else:
     class DecisionGenome:  # minimal runtime placeholder to avoid rebinding a type alias
         pass
 
-
-from src.core.risk_ports import NoOpRiskManager, RiskConfigDecl, RiskManagerPort
 
 logger = logging.getLogger(__name__)
 
@@ -48,13 +48,19 @@ class Phase2DIntegrationValidator:
         market_data_gateway: Optional[MarketDataGateway] = None,
         anomaly_detector: Optional[AnomalyDetector] = None,
         regime_classifier: Optional[RegimeClassifier] = None,
-        risk_manager: Optional[RiskManagerPort] = None,
+        risk_manager: Optional[RiskManager] = None,
+        risk_config: Optional[RiskConfig] = None,
     ):
         self.results: List[Dict[str, Any]] = []
         self.market_data = market_data_gateway or NoOpMarketDataGateway()
         self.anomaly_detector = anomaly_detector or NoOpAnomalyDetector()
         self.regime_classifier = regime_classifier or NoOpRegimeClassifier()
-        self.risk_manager = risk_manager
+        if risk_manager is not None:
+            self.risk_manager = risk_manager
+            self._risk_config = risk_config or getattr(risk_manager, "_risk_config", RiskConfig())
+        else:
+            self._risk_config = risk_config or RiskConfig()
+            self.risk_manager = get_risk_manager(config=self._risk_config)
         self.strategy_manager = None
 
     async def test_real_data_flow(self) -> Dict[str, Any]:
@@ -114,26 +120,57 @@ class Phase2DIntegrationValidator:
             # Test 4: Risk management integration
             start_time = time.time()
             if decision_complete:
-                risk_config = RiskConfigDecl(
-                    max_risk_per_trade_pct=Decimal("0.02"),
-                    max_leverage=Decimal("10.0"),
-                    max_total_exposure_pct=Decimal("0.5"),
-                    max_drawdown_pct=Decimal("0.25"),
+                equity = Decimal("100000")
+                risk_config = self._risk_config.copy(
+                    update={
+                        "max_drawdown_pct": Decimal("0.25"),
+                        "min_position_size": 1000,
+                        "max_position_size": 100000,
+                    }
                 )
-                risk_manager = self.risk_manager or NoOpRiskManager(risk_config)
 
-                # Test risk validation
+                risk_manager = self.risk_manager
+                if risk_manager is None:
+                    risk_manager = get_risk_manager(
+                        config=risk_config, initial_balance=float(equity)
+                    )
+                    self.risk_manager = risk_manager
+                else:
+                    try:
+                        risk_manager.update_limits(
+                            {
+                                "max_risk_per_trade_pct": float(
+                                    risk_config.max_risk_per_trade_pct
+                                ),
+                                "max_total_exposure_pct": float(
+                                    risk_config.max_total_exposure_pct
+                                ),
+                                "max_drawdown": float(risk_config.max_drawdown_pct),
+                                "max_leverage": float(risk_config.max_leverage),
+                                "min_position_size": int(risk_config.min_position_size),
+                                "max_position_size": int(risk_config.max_position_size),
+                                "mandatory_stop_loss": bool(
+                                    risk_config.mandatory_stop_loss
+                                ),
+                                "research_mode": bool(risk_config.research_mode),
+                            }
+                        )
+                    except AttributeError:
+                        pass
+                risk_manager.update_equity(float(equity))
+
                 position = {
                     "symbol": "EURUSD",
                     "quantity": 10000,
-                    "avg_price": float(Decimal("1.1000")),
+                    "avg_price": Decimal("1.1000"),
                     "entry_timestamp": datetime.now().isoformat(),
                 }
 
-                is_valid = risk_manager.validate_position(
-                    position=position,
-                    instrument={"symbol": "EURUSD", "type": "Currency"},
-                    equity=Decimal("100000"),
+                is_valid = risk_manager.validate_trade(
+                    size=Decimal(position["quantity"]),
+                    entry_price=Decimal(str(position["avg_price"])),
+                    symbol=str(position["symbol"]),
+                    stop_loss_pct=float(risk_config.max_risk_per_trade_pct),
                 )
 
                 risk_management_time = time.time() - start_time

@@ -23,6 +23,8 @@ import pandas as pd
 from src.core.anomaly import AnomalyDetector, NoOpAnomalyDetector
 from src.core.market_data import MarketDataGateway, NoOpMarketDataGateway
 from src.core.regime import NoOpRegimeClassifier, RegimeClassifier
+from src.core.risk.manager import RiskManager, get_risk_manager
+from src.config.risk.risk_config import RiskConfig
 
 if TYPE_CHECKING:
     from src.core.interfaces import DecisionGenome as DecisionGenome  # noqa: F401
@@ -31,8 +33,6 @@ else:
     class DecisionGenome:
         pass
 
-
-from src.core.risk_ports import NoOpRiskManager, RiskConfigDecl, RiskManagerPort
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -46,12 +46,18 @@ class SimplePhase2DValidator:
         market_data_gateway: Optional[MarketDataGateway] = None,
         anomaly_detector: Optional[AnomalyDetector] = None,
         regime_classifier: Optional[RegimeClassifier] = None,
-        risk_manager: Optional[RiskManagerPort] = None,
+        risk_manager: Optional[RiskManager] = None,
+        risk_config: Optional[RiskConfig] = None,
     ):
         self.market_data = market_data_gateway or NoOpMarketDataGateway()
         self.anomaly_detector = anomaly_detector or NoOpAnomalyDetector()
         self.regime_classifier = regime_classifier or NoOpRegimeClassifier()
-        self.risk_manager = risk_manager
+        if risk_manager is not None:
+            self.risk_manager = risk_manager
+            self._risk_config = risk_config or getattr(risk_manager, "_risk_config", RiskConfig())
+        else:
+            self._risk_config = risk_config or RiskConfig()
+            self.risk_manager = get_risk_manager(config=self._risk_config)
 
     async def test_real_data_integration(self) -> Dict[str, Any]:
         """Test real market data integration"""
@@ -182,17 +188,40 @@ class SimplePhase2DValidator:
         try:
             logger.info("Testing risk management integration...")
 
-            # Test risk configuration
-            risk_config = RiskConfigDecl(
-                max_risk_per_trade_pct=Decimal("0.02"),
-                max_leverage=Decimal("10.0"),
-                max_total_exposure_pct=Decimal("0.5"),
-                max_drawdown_pct=Decimal("0.03"),  # 3% max drawdown target
-                min_position_size=1000,
-                max_position_size=100000,
+            equity = Decimal("100000")
+
+            risk_config = self._risk_config.copy(
+                update={
+                    "max_drawdown_pct": Decimal("0.03"),
+                    "min_position_size": 1000,
+                    "max_position_size": 100000,
+                }
             )
 
-            risk_manager = self.risk_manager or NoOpRiskManager(risk_config)
+            risk_manager = self.risk_manager
+            if risk_manager is None:
+                risk_manager = get_risk_manager(
+                    config=risk_config, initial_balance=float(equity)
+                )
+                self.risk_manager = risk_manager
+            else:
+                try:
+                    risk_manager.update_limits(
+                        {
+                            "max_risk_per_trade_pct": float(risk_config.max_risk_per_trade_pct),
+                            "max_total_exposure_pct": float(risk_config.max_total_exposure_pct),
+                            "max_drawdown": float(risk_config.max_drawdown_pct),
+                            "max_leverage": float(risk_config.max_leverage),
+                            "min_position_size": int(risk_config.min_position_size),
+                            "max_position_size": int(risk_config.max_position_size),
+                            "mandatory_stop_loss": bool(risk_config.mandatory_stop_loss),
+                            "research_mode": bool(risk_config.research_mode),
+                        }
+                    )
+                except AttributeError:
+                    pass
+
+            risk_manager.update_equity(float(equity))
 
             # Test position validation
             position = {
@@ -202,11 +231,11 @@ class SimplePhase2DValidator:
                 "entry_timestamp": datetime.now(),
             }
 
-            instrument = {"symbol": "EURUSD", "type": "Currency"}
-            equity = Decimal("100000")
-
-            is_valid = risk_manager.validate_position(
-                position=position, instrument=instrument, equity=equity
+            is_valid = risk_manager.validate_trade(
+                size=Decimal(position["quantity"]),
+                entry_price=Decimal(str(position["avg_price"])),
+                symbol=str(position["symbol"]),
+                stop_loss_pct=float(risk_config.max_risk_per_trade_pct),
             )
 
             return {
@@ -235,12 +264,10 @@ class SimplePhase2DValidator:
             start_time = time.time()
 
             # Concurrent data fetching
-            tasks = []
-            for symbol in symbols:
-                task = asyncio.create_task(self._fetch_symbol_async(symbol))
-                tasks.append(task)
-
-            results = await asyncio.gather(*tasks, return_exceptions=True)
+            results = await asyncio.gather(
+                *(self._fetch_symbol_async(symbol) for symbol in symbols),
+                return_exceptions=True,
+            )
 
             concurrent_time = time.time() - start_time
 

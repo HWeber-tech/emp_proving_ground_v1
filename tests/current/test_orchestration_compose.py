@@ -11,8 +11,8 @@ import pytest
 
 from src.core.market_data import NoOpMarketDataGateway
 from src.core.anomaly import NoOpAnomalyDetector
-from src.core.risk_ports import NoOpRiskManager
 from src.core.genome import NoOpGenomeProvider
+from src.core.risk.manager import RiskManager
 from src.orchestration.compose import (
     AdaptationServiceAdapter,
     ConfigurationProviderAdapter,
@@ -120,6 +120,15 @@ def test_compose_validation_adapters_handles_missing_modules(
 
     monkeypatch.setattr(importlib, "import_module", fake_import)
 
+    class FailingGateway:
+        def __init__(self, *_: Any, **__: Any) -> None:
+            raise RuntimeError("gateway not available")
+
+    monkeypatch.setattr(
+        "src.orchestration.compose.YahooMarketDataGateway",
+        FailingGateway,
+    )
+
     adapters = compose_validation_adapters()
 
     from src.orchestration.compose import (
@@ -131,7 +140,7 @@ def test_compose_validation_adapters_handles_missing_modules(
     assert isinstance(adapters["market_data_gateway"], NoOpMarketDataGateway)
     assert isinstance(adapters["anomaly_detector"], NoOpAnomalyDetector)
     assert isinstance(adapters["regime_classifier"], RegimeClassifierAdapter)
-    assert isinstance(adapters["risk_manager"], NoOpRiskManager)
+    assert isinstance(adapters["risk_manager"], RiskManager)
     assert isinstance(adapters["adaptation_service"], AdaptationServiceAdapter)
     assert getattr(adapters["adaptation_service"], "_engine") is None
     assert isinstance(adapters["configuration_provider"], ConfigurationProviderAdapter)

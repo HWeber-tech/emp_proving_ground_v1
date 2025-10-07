@@ -28,7 +28,7 @@ from src.core.config_access import ConfigurationProvider, NoOpConfigurationProvi
 from src.core.genome import GenomeProvider, NoOpGenomeProvider
 from src.core.market_data import MarketDataGateway, NoOpMarketDataGateway
 from src.core.regime import NoOpRegimeClassifier, RegimeClassifier, RegimeResult
-from src.core.risk_ports import NoOpRiskManager, RiskManagerPort
+from src.core.risk.manager import RiskManager, get_risk_manager
 from src.data_foundation.ingest.yahoo_gateway import YahooMarketDataGateway
 
 
@@ -36,7 +36,7 @@ class ComposeAdaptersTD(TypedDict, total=False):
     market_data_gateway: MarketDataGateway
     anomaly_detector: AnomalyDetector
     regime_classifier: RegimeClassifier
-    risk_manager: RiskManagerPort
+    risk_manager: RiskManager
     adaptation_service: AdaptationService
     configuration_provider: ConfigurationProvider
     genome_provider: GenomeProvider
@@ -542,11 +542,11 @@ def compose_validation_adapters() -> ComposeAdaptersTD:
     except Exception:
         adapters["regime_classifier"] = NoOpRegimeClassifier()
 
-    # Risk manager (NoOp by default)
+    # Risk manager (prefer canonical implementation)
     try:
-        adapters["risk_manager"] = NoOpRiskManager()
+        adapters["risk_manager"] = get_risk_manager()
     except Exception:
-        adapters["risk_manager"] = NoOpRiskManager()
+        adapters["risk_manager"] = RiskManager()
 
     # Adaptation service
     try:

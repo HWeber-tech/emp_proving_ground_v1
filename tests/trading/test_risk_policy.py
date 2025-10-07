@@ -210,6 +210,15 @@ def test_risk_policy_requires_stop_loss_and_equity_budget() -> None:
     assert "policy.max_drawdown_pct" in decision.violations
     assert decision.metadata["resolved_price"] == pytest.approx(1.15)
     assert decision.metadata["risk_budget"] == pytest.approx(0.0)
+    max_risk_check = next(
+        check for check in decision.checks if check["name"] == "policy.max_risk_per_trade_pct"
+    )
+    assert max_risk_check["ratio"] is None
+
+    exposure_check = next(
+        check for check in decision.checks if check["name"] == "policy.max_total_exposure_pct"
+    )
+    assert exposure_check["ratio"] is None
 
 
 def test_risk_policy_resolves_price_from_existing_position_value() -> None:
@@ -410,3 +419,47 @@ def test_risk_policy_rejects_when_exceeding_max_position_size() -> None:
     assert max_position_check["threshold"] == pytest.approx(5_000.0)
 
     assert decision.metadata["violations"] == ("policy.max_position_size",)
+
+
+def test_risk_policy_derives_equity_from_cash_and_positions() -> None:
+    config = RiskConfig(
+        max_risk_per_trade_pct=Decimal("0.02"),
+        max_total_exposure_pct=Decimal("0.4"),
+        max_leverage=Decimal("3.0"),
+        max_drawdown_pct=Decimal("0.1"),
+        min_position_size=1,
+    )
+    policy = RiskPolicy.from_config(config)
+
+    state = {
+        "equity": None,
+        "cash": 5_000.0,
+        "open_positions": {
+            "EURUSD": {
+                "quantity": 1_000.0,
+                "last_price": 1.1,
+            }
+        },
+        "current_daily_drawdown": 0.01,
+    }
+
+    decision = policy.evaluate(
+        symbol="EURUSD",
+        quantity=100.0,
+        price=1.1,
+        stop_loss_pct=0.01,
+        portfolio_state=state,
+    )
+
+    assert decision.approved is True
+    assert decision.violations == tuple()
+    assert decision.metadata["equity"] == pytest.approx(6_100.0)
+    assert decision.metadata["current_total_exposure"] == pytest.approx(1_100.0)
+    assert decision.metadata["risk_budget"] == pytest.approx(122.0)
+    total_exposure_check = next(
+        check for check in decision.checks if check["name"] == "policy.max_total_exposure_pct"
+    )
+    assert total_exposure_check["status"] == "ok"
+    assert total_exposure_check["ratio"] == pytest.approx(
+        decision.metadata["projected_total_exposure"] / decision.metadata["max_total_exposure"]
+    )

@@ -385,3 +385,42 @@ def test_orchestrator_warns_when_macro_plan_lacks_events_and_window(
     assert metadata["frame_rows"] == 0
     assert "fetched_via_window" not in metadata
 
+
+def test_orchestrator_logs_publisher_failures(caplog: pytest.LogCaptureFixture) -> None:
+    """Publisher exceptions should be logged and not stop ingest execution."""
+
+    settings = _RecordingSettings()
+
+    class _ExplodingPublisher:
+        def publish(
+            self,
+            result: TimescaleIngestResult,
+            *,
+            metadata: dict[str, Any] | None = None,
+        ) -> None:  # pragma: no cover - exercised via orchestrator
+            raise RuntimeError("downstream bus offline")
+
+    orchestrator = TimescaleBackboneOrchestrator(
+        settings,
+        migrator_cls=_RecordingMigrator,
+        ingestor_cls=_RecordingIngestor,
+        event_publisher=_ExplodingPublisher(),
+    )
+
+    plan = TimescaleBackbonePlan(
+        daily=DailyBarIngestPlan(symbols=["AAPL"], lookback_days=1, source="yahoo"),
+    )
+
+    def fake_fetch_daily(symbols: list[str], lookback: int) -> pd.DataFrame:
+        assert symbols == ["AAPL"]
+        assert lookback == 1
+        return pd.DataFrame({"symbol": symbols, "open": [1.0], "close": [1.1]})
+
+    with caplog.at_level("ERROR"):
+        results = orchestrator.run(plan=plan, fetch_daily=fake_fetch_daily)
+
+    assert settings.engine.disposed is True
+    assert set(results) == {"daily_bars"}
+    daily_result = results["daily_bars"]
+    assert daily_result.rows_written == 1
+    assert "Failed to publish Timescale ingest result" in caplog.text

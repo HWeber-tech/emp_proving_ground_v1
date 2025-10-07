@@ -194,7 +194,14 @@ class RealSensoryOrgan:
         self._refresh_drift_summary()
         snapshot["drift_summary"] = self._latest_drift
         self._latest_snapshot = snapshot
-        self._publish_snapshot(snapshot)
+
+        metrics_payload: Mapping[str, Any] | None = None
+        try:
+            metrics_payload = self.metrics()
+        except Exception:  # pragma: no cover - defensive guard for telemetry path
+            logger.debug("Failed to build sensory metrics payload for snapshot", exc_info=True)
+
+        self._publish_snapshot(snapshot, metrics_payload=metrics_payload)
         return snapshot
 
     # ------------------------------------------------------------------
@@ -583,7 +590,12 @@ class RealSensoryOrgan:
         data["exceeded"] = [result.as_dict() for result in summary.exceeded]
         return data
 
-    def _publish_snapshot(self, snapshot: Mapping[str, Any]) -> None:
+    def _publish_snapshot(
+        self,
+        snapshot: Mapping[str, Any],
+        *,
+        metrics_payload: Mapping[str, Any] | None = None,
+    ) -> None:
         event_bus = self._event_bus
         if event_bus is None:
             return
@@ -616,6 +628,9 @@ class RealSensoryOrgan:
                 else None
             ),
         }
+
+        if isinstance(metrics_payload, Mapping):
+            event_payload["metrics"] = metrics_payload
 
         event = Event(
             type=self._event_type,

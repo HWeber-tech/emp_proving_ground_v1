@@ -137,6 +137,11 @@ def test_real_sensory_organ_observe_builds_snapshot() -> None:
     assert payload["symbol"] == "EURUSD"
     assert "drift_summary" in payload
     assert payload["drift_summary"] is None
+    metrics_payload = payload.get("metrics")
+    assert isinstance(metrics_payload, Mapping)
+    dimensions_metrics = metrics_payload.get("dimensions")
+    assert isinstance(dimensions_metrics, Mapping)
+    assert {"HOW", "ANOMALY"}.issubset(dimensions_metrics.keys())
 
     status = organ.status()
     latest = status["latest"]

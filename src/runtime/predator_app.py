@@ -5,9 +5,13 @@ from __future__ import annotations
 import asyncio
 import inspect
 import logging
+import math
+import os
+from collections import ChainMap
 from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
+from statistics import fmean, pstdev
 from types import MappingProxyType
 from typing import (
     Any,
@@ -26,7 +30,9 @@ from typing import (
 from src.compliance.kyc import KycAmlMonitor
 from src.compliance.trade_compliance import TradeComplianceMonitor, TradeCompliancePolicy
 from src.config.risk.risk_config import RiskConfig
+from src.core.evolution.engine import EvolutionConfig, EvolutionEngine
 from src.core.event_bus import EventBus
+from src.core.interfaces import DecisionGenome
 from src.data_foundation.batch.spark_export import (
     SparkExportSnapshot,
     format_spark_export_markdown,
@@ -70,6 +76,7 @@ from src.operations.ingest_trends import (
 from src.governance.audit_logger import AuditLogger
 from src.governance.safety_manager import SafetyManager
 from src.governance.strategy_registry import StrategyRegistry
+from src.evolution.feature_flags import ADAPTIVE_RUNS_FLAG, EvolutionFeatureFlags
 from src.governance.policy_ledger import (
     LedgerReleaseManager,
     PolicyLedgerStage,
@@ -173,6 +180,7 @@ from src.trading.risk.risk_api import (
     resolve_trading_risk_interface,
 )
 from src.runtime.bootstrap_runtime import BootstrapRuntime
+from src.orchestration.evolution_cycle import EvolutionCycleOrchestrator
 from src.runtime.fix_dropcopy import FixDropcopyReconciler
 from src.runtime.fix_pilot import FixIntegrationPilot
 from src.runtime.task_supervisor import TaskSupervisor
@@ -1518,6 +1526,148 @@ def _extra_decimal(extras: Mapping[str, str], key: str, default: Decimal) -> Dec
         return default
 
 
+def _parse_optional_bool_flag(value: str | None) -> bool | None:
+    if value is None:
+        return None
+    normalised = str(value).strip().lower()
+    if not normalised or normalised in {"auto", "default"}:
+        return None
+    if normalised in {"1", "true", "yes", "y", "on", "enable", "enabled"}:
+        return True
+    if normalised in {"0", "false", "no", "n", "off", "disable", "disabled"}:
+        return False
+    return None
+
+
+def _collect_numeric_parameters(genome: DecisionGenome) -> list[float]:
+    params = getattr(genome, "parameters", {}) or {}
+    if isinstance(params, Mapping):
+        candidate_values = params.values()
+    elif hasattr(params, "__dict__"):
+        candidate_values = vars(params).values()
+    else:
+        candidate_values = []
+
+    values: list[float] = []
+    for item in candidate_values:
+        try:
+            number = float(item)
+        except (TypeError, ValueError):
+            continue
+        if not math.isfinite(number):
+            continue
+        values.append(number)
+    return values
+
+
+def _bootstrap_evolution_evaluator() -> Callable[[DecisionGenome], Mapping[str, Any]]:
+    def _evaluate(genome: DecisionGenome) -> Mapping[str, Any]:
+        values = _collect_numeric_parameters(genome)
+        if values:
+            average = fmean(values)
+            volatility = pstdev(values) if len(values) > 1 else 0.0
+            total_return = average / len(values)
+            max_drawdown = max(0.0, volatility * 0.1)
+            fitness = average - max_drawdown
+        else:
+            average = 0.0
+            volatility = 0.0
+            total_return = 0.0
+            max_drawdown = 0.0
+            fitness = 0.0
+
+        metadata = {
+            "evaluated": True,
+            "evaluation": "bootstrap_average_score",
+            "parameter_count": len(values),
+            "parameter_mean": float(average),
+            "volatility_estimate": float(volatility),
+        }
+
+        return {
+            "fitness_score": float(fitness),
+            "max_drawdown": float(max_drawdown),
+            "sharpe_ratio": float(average),
+            "total_return": float(total_return),
+            "volatility": float(volatility),
+            "metadata": metadata,
+        }
+
+    return _evaluate
+
+
+def _build_evolution_config(extras: Mapping[str, str]) -> EvolutionConfig:
+    population_default = 12
+    population = _extra_int(extras, "EVOLUTION_POPULATION_SIZE", population_default) or population_default
+    population = max(2, population)
+
+    elite_baseline = max(1, min(population // 4 or 1, population - 1))
+    elite = _extra_int(extras, "EVOLUTION_ELITE_COUNT", elite_baseline) or elite_baseline
+    elite = max(1, min(elite, population - 1))
+
+    crossover = _extra_float(extras, "EVOLUTION_CROSSOVER_RATE", 0.6)
+    mutation = _extra_float(extras, "EVOLUTION_MUTATION_RATE", 0.2)
+    crossover = min(max(crossover, 0.0), 1.0)
+    mutation = min(max(mutation, 0.0), 1.0)
+
+    max_generations = _extra_int(extras, "EVOLUTION_MAX_GENERATIONS", 100) or 100
+    max_generations = max(1, max_generations)
+
+    use_catalogue_hint = _parse_optional_bool_flag(extras.get("EVOLUTION_USE_CATALOGUE"))
+
+    config_kwargs: dict[str, Any] = {
+        "population_size": population,
+        "elite_count": elite,
+        "crossover_rate": crossover,
+        "mutation_rate": mutation,
+        "max_generations": max_generations,
+    }
+    if use_catalogue_hint is not None:
+        config_kwargs["use_catalogue"] = use_catalogue_hint
+
+    return EvolutionConfig(**config_kwargs)
+
+
+def _build_evolution_feature_flags(extras: Mapping[str, str]) -> EvolutionFeatureFlags:
+    flag_value = extras.get(ADAPTIVE_RUNS_FLAG)
+    if flag_value is None:
+        return EvolutionFeatureFlags()
+    overlay = ChainMap({ADAPTIVE_RUNS_FLAG: flag_value}, os.environ)
+    return EvolutionFeatureFlags(env=overlay)
+
+
+def _build_evolution_orchestrator(
+    config: SystemConfig,
+    *,
+    event_bus: EventBus,
+    strategy_registry: StrategyRegistry | None,
+) -> EvolutionCycleOrchestrator | None:
+    extras = config.extras or {}
+    enabled_hint = _parse_optional_bool_flag(extras.get("EVOLUTION_ORCHESTRATOR_ENABLED"))
+    if enabled_hint is False:
+        return None
+
+    evolution_config = _build_evolution_config(extras)
+    engine = EvolutionEngine(config=evolution_config)
+    try:
+        engine.ensure_population()
+    except Exception:  # pragma: no cover - defensive guard
+        logger.debug("Failed to pre-seed evolution population", exc_info=True)
+
+    feature_flags = _build_evolution_feature_flags(extras)
+    adaptive_override = _parse_optional_bool_flag(extras.get("EVOLUTION_ADAPTIVE_RUNS_OVERRIDE"))
+    evaluator = _bootstrap_evolution_evaluator()
+
+    return EvolutionCycleOrchestrator(
+        engine,
+        evaluator,
+        strategy_registry=strategy_registry,
+        event_bus=event_bus,
+        adaptive_runs_enabled=adaptive_override,
+        feature_flags=feature_flags,
+    )
+
+
 def _extra_symbols(extras: Mapping[str, str], key: str) -> list[str]:
     raw = extras.get(key)
     if not raw:
@@ -1842,6 +1992,7 @@ def _build_bootstrap_runtime(
     *,
     redis_client: Any | None = None,
     connectors: Mapping[str, MarketDataConnector] | None = None,
+    strategy_registry: StrategyRegistry | None = None,
 ) -> BootstrapRuntime:
     extras = config.extras or {}
     symbols = _extra_symbols(extras, "BOOTSTRAP_SYMBOLS") or ["EURUSD"]
@@ -1938,6 +2089,16 @@ def _build_bootstrap_runtime(
                 },
             )
 
+    orchestrator = _build_evolution_orchestrator(
+        config,
+        event_bus=bus,
+        strategy_registry=strategy_registry,
+    )
+
+    evolution_interval = _extra_int(extras, "EVOLUTION_CYCLE_INTERVAL", 5) or 5
+    if evolution_interval <= 0:
+        evolution_interval = 1
+
     return BootstrapRuntime(
         event_bus=bus,
         symbols=symbols,
@@ -1959,6 +2120,8 @@ def _build_bootstrap_runtime(
         roi_cost_model=roi_cost_model,
         risk_config=risk_config,
         release_manager=release_manager,
+        evolution_orchestrator=orchestrator,
+        evolution_cycle_interval=evolution_interval,
     )
 
 
@@ -2087,6 +2250,7 @@ async def build_professional_predator_app(
             bus,
             redis_client=redis_client,
             connectors=connector_map or None,
+            strategy_registry=registry,
         )
         app = ProfessionalPredatorApp(
             config=cfg,

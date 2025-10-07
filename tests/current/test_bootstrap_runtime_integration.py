@@ -153,6 +153,7 @@ async def test_bootstrap_runtime_build_and_run() -> None:
     app = await build_professional_predator_app(config=cfg)
     assert isinstance(app.sensory_organ, BootstrapRuntime)
     runtime = app.sensory_organ
+    assert runtime.evolution_orchestrator is not None
 
     async with app:
         await asyncio.sleep(0.1)
@@ -162,6 +163,9 @@ async def test_bootstrap_runtime_build_and_run() -> None:
         assert "telemetry" in status
         assert status["telemetry"]["equity"] >= 0
         assert status["telemetry"]["last_decision"] is not None
+        assert status["evolution_cycle_interval"] >= 1
+        evolution_overview = status["telemetry"].get("evolution")
+        assert isinstance(evolution_overview, Mapping)
         assert status["vision_alignment"]["status"] in {"ready", "progressing", "gap"}
 
         summary = app.summary()

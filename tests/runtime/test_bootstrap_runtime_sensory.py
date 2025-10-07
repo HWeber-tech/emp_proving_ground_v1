@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-from typing import Mapping
+from typing import Any, Mapping
 
 import sys
 import types
@@ -157,6 +157,40 @@ async def test_bootstrap_runtime_exposes_sensory_status() -> None:
         assert latest_lineage.get("dimension") in {"WHY", "WHAT", "WHEN", "HOW", "ANOMALY"}
     finally:
         await runtime.stop()
+
+
+class _StubEvolutionOrchestrator:
+    def __init__(self) -> None:
+        self.calls = 0
+        self.telemetry: dict[str, Any] = {}
+        self.champion = None
+        self.population_statistics: Mapping[str, Any] = {}
+
+    async def run_cycle(self) -> None:
+        self.calls += 1
+        self.telemetry["calls"] = self.calls
+
+
+@pytest.mark.asyncio()
+async def test_bootstrap_runtime_invokes_evolution_orchestrator() -> None:
+    event_bus = EventBus()
+    orchestrator = _StubEvolutionOrchestrator()
+    runtime = BootstrapRuntime(
+        event_bus=event_bus,
+        tick_interval=0.0,
+        max_ticks=3,
+        evolution_orchestrator=orchestrator,
+        evolution_cycle_interval=1,
+    )
+
+    await runtime.start()
+    try:
+        await asyncio.sleep(0.05)
+    finally:
+        await runtime.stop()
+
+    assert orchestrator.calls >= 1
+    assert orchestrator.telemetry.get("calls") == orchestrator.calls
 
 
 @pytest.mark.asyncio()

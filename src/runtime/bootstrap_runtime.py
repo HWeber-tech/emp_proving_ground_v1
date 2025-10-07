@@ -115,6 +115,7 @@ class BootstrapRuntime:
         min_liquidity_confidence: float = 0.25,
         liquidity_prober: DepthAwareLiquidityProber | None = None,
         evolution_orchestrator: Any | None = None,
+        evolution_cycle_interval: int = 5,
         redis_client: RedisLike | None = None,
         roi_cost_model: RoiCostModel | None = None,
         risk_config: RiskConfig | None = None,
@@ -149,6 +150,7 @@ class BootstrapRuntime:
 
         self.liquidity_prober = liquidity_prober or DepthAwareLiquidityProber()
         self.evolution_orchestrator = evolution_orchestrator
+        self._evolution_cycle_interval = max(1, int(evolution_cycle_interval or 1))
 
         if isinstance(redis_client, ManagedRedisCache):
             cache_client = redis_client
@@ -316,6 +318,7 @@ class BootstrapRuntime:
             "fills": len(self.execution_engine.fills),
             "last_error": self._last_error.__class__.__name__ if self._last_error else None,
             "telemetry": telemetry,
+            "evolution_cycle_interval": self._evolution_cycle_interval,
         }
         vision_summary = (
             telemetry.get("vision_alignment") if isinstance(telemetry, Mapping) else None
@@ -604,6 +607,20 @@ class BootstrapRuntime:
                     except Exception as exc:  # pragma: no cover - defensive guard
                         self._last_error = exc
                         logger.warning("BootstrapRuntime tick failure for %s: %s", symbol, exc)
+                should_run_evolution = False
+                if self.evolution_orchestrator is not None:
+                    if self._tick_counter == 0:
+                        should_run_evolution = True
+                    elif self._tick_counter % self._evolution_cycle_interval == 0:
+                        should_run_evolution = True
+                if should_run_evolution:
+                    try:
+                        await self.evolution_orchestrator.run_cycle()
+                    except Exception:  # pragma: no cover - defensive guard for evolution path
+                        logger.warning(
+                            "Bootstrap evolution orchestrator cycle failed",
+                            exc_info=True,
+                        )
                 self._tick_counter += 1
                 if self.max_ticks is not None and self._tick_counter >= self.max_ticks:
                     break

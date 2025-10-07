@@ -103,6 +103,42 @@ class PolicyReflectionBuilder:
                 )
             )
 
+        tag_entries = self._slice_entries(digest.get("tags", ()), self._max_tactics)
+        if tag_entries:
+            top_tag = tag_entries[0]
+            share = self._format_percentage(top_tag.get("share", 0.0))
+            top_tag_tactics = top_tag.get("top_tactics")
+            top_tactic = (
+                top_tag_tactics[0]
+                if isinstance(top_tag_tactics, Sequence) and top_tag_tactics
+                else "n/a"
+            )
+            insights.append(
+                "Dominant tag {} at {} (top tactic {})".format(
+                    top_tag.get("tag", "unknown"),
+                    share,
+                    top_tactic,
+                )
+            )
+
+        objective_entries = self._slice_entries(digest.get("objectives", ()), self._max_tactics)
+        if objective_entries:
+            top_objective = objective_entries[0]
+            share = self._format_percentage(top_objective.get("share", 0.0))
+            top_obj_tactics = top_objective.get("top_tactics")
+            top_tactic = (
+                top_obj_tactics[0]
+                if isinstance(top_obj_tactics, Sequence) and top_obj_tactics
+                else "n/a"
+            )
+            insights.append(
+                "Leading objective {} across {} share (top tactic {})".format(
+                    top_objective.get("objective", "unknown"),
+                    share,
+                    top_tactic,
+                )
+            )
+
         longest = digest.get("longest_streak", {})
         streak_tactic = longest.get("tactic_id")
         streak_len = int(longest.get("length") or 0)
@@ -174,6 +210,57 @@ class PolicyReflectionBuilder:
                     for entry in tactics
                 ],
             ))
+
+        tag_entries = self._slice_entries(digest.get("tags", ()), self._max_tactics)
+        if tag_entries:
+            lines.extend(
+                self._render_table(
+                    title="Tag spotlight",
+                    headers=("Tag", "Decisions", "Share", "Avg score", "Last seen", "Top tactics"),
+                    rows=[
+                        (
+                            str(entry.get("tag", "")),
+                            str(entry.get("count", 0)),
+                            self._format_percentage(entry.get("share", 0.0)),
+                            f"{float(entry.get('avg_score', 0.0)):.3f}",
+                            str(entry.get("last_seen", "")),
+                            ", ".join(entry.get("top_tactics", ()))
+                            if entry.get("top_tactics")
+                            else "-",
+                        )
+                        for entry in tag_entries
+                    ],
+                )
+            )
+
+        objective_entries = self._slice_entries(digest.get("objectives", ()), self._max_tactics)
+        if objective_entries:
+            lines.extend(
+                self._render_table(
+                    title="Objective coverage",
+                    headers=(
+                        "Objective",
+                        "Decisions",
+                        "Share",
+                        "Avg score",
+                        "Last seen",
+                        "Top tactics",
+                    ),
+                    rows=[
+                        (
+                            str(entry.get("objective", "")),
+                            str(entry.get("count", 0)),
+                            self._format_percentage(entry.get("share", 0.0)),
+                            f"{float(entry.get('avg_score', 0.0)):.3f}",
+                            str(entry.get("last_seen", "")),
+                            ", ".join(entry.get("top_tactics", ()))
+                            if entry.get("top_tactics")
+                            else "-",
+                        )
+                        for entry in objective_entries
+                    ],
+                )
+            )
 
         experiments = self._slice_entries(digest.get("experiments", ()), self._max_experiments)
         if experiments:
@@ -278,4 +365,3 @@ __all__ = [
     "PolicyReflectionArtifacts",
     "PolicyReflectionBuilder",
 ]
-

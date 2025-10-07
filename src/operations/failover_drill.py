@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import inspect
+import logging
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import StrEnum
@@ -20,6 +21,9 @@ from src.data_foundation.ingest.health import (
 )
 from src.data_foundation.ingest.timescale_pipeline import TimescaleBackbonePlan
 from src.data_foundation.persist.timescale import TimescaleIngestResult
+
+
+logger = logging.getLogger(__name__)
 
 
 class FailoverDrillStatus(StrEnum):
@@ -162,6 +166,7 @@ async def execute_failover_drill(
             if inspect.isawaitable(outcome):
                 await outcome
         except Exception as exc:  # pragma: no cover - defensive logging
+            logger.exception("Failover drill fallback execution failed")
             fallback_error = str(exc)
 
     components: list[FailoverDrillComponent] = []

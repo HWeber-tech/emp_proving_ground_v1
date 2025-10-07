@@ -23,7 +23,9 @@ import re
 from typing import Sequence, cast
 
 import pandas as pd
+from sqlalchemy import select
 from sqlalchemy.engine import Engine
+from sqlalchemy.sql import column, table
 
 
 def _table_name(schema: str, table: str, dialect: str) -> str:
@@ -274,14 +276,7 @@ class TimescaleReader:
                 limit=limit,
                 dialect=dialect,
             )
-            params = self._build_params(
-                symbols=normalized_symbols,
-                start=start,
-                end=end,
-                limit=limit,
-                dialect=dialect,
-            )
-            frame = pd.read_sql_query(sql, conn, params=params)
+            frame = pd.read_sql_query(sql, conn)
 
         if frame.empty:
             empty_frame = pd.DataFrame(columns=safe_columns)
@@ -344,54 +339,34 @@ class TimescaleReader:
         end: datetime | None,
         limit: int | None,
         dialect: str,
-    ) -> str:
-        selected = ", ".join(columns)
-        query = [f"SELECT {selected} FROM {table_name} WHERE 1=1"]
+    ):
+        schema_name: str | None = None
+        table_identifier = table_name
+        if dialect == "postgresql" and "." in table_name:
+            schema_name, table_identifier = table_name.split(".", 1)
 
-        if start is not None:
-            query.append(f"AND {timestamp_column} >= :start_ts")
-        if end is not None:
-            query.append(f"AND {timestamp_column} <= :end_ts")
+        column_objects = [column(name) for name in columns]
+        column_map = dict(zip(columns, column_objects))
+        table_clause = table(table_identifier, *column_objects, schema=schema_name)
 
-        if symbols:
-            if dialect == "postgresql":
-                query.append(f"AND {symbol_column} = ANY(:symbols)")
-            else:
-                placeholders = ", ".join(f":symbol_{idx}" for idx in range(len(symbols)))
-                query.append(f"AND {symbol_column} IN ({placeholders})")
+        stmt = select(*(column_map[name] for name in columns)).select_from(table_clause)
 
-        query.append(f"ORDER BY {timestamp_column} ASC")
-        if limit is not None:
-            query.append("LIMIT :limit")
-
-        return " ".join(query)
-
-    def _build_params(
-        self,
-        *,
-        symbols: Sequence[str],
-        start: datetime | None,
-        end: datetime | None,
-        limit: int | None,
-        dialect: str,
-    ) -> dict[str, object]:
-        params: dict[str, object] = {}
         start_bound = self._coerce_bound(start, dialect)
-        end_bound = self._coerce_bound(end, dialect)
         if start_bound is not None:
-            params["start_ts"] = start_bound
+            stmt = stmt.where(column_map[timestamp_column] >= start_bound)
+
+        end_bound = self._coerce_bound(end, dialect)
         if end_bound is not None:
-            params["end_ts"] = end_bound
-        if limit is not None:
-            params["limit"] = int(limit)
+            stmt = stmt.where(column_map[timestamp_column] <= end_bound)
 
         if symbols:
-            if dialect == "postgresql":
-                params["symbols"] = list(symbols)
-            else:
-                params.update({f"symbol_{idx}": symbol for idx, symbol in enumerate(symbols)})
+            stmt = stmt.where(column_map[symbol_column].in_(list(symbols)))
 
-        return params
+        stmt = stmt.order_by(column_map[timestamp_column].asc())
+        if limit is not None:
+            stmt = stmt.limit(int(limit))
+
+        return stmt
 
     @staticmethod
     def _to_datetime(value: object) -> datetime | None:

@@ -30,8 +30,9 @@ import json
 import re
 
 import pandas as pd
-from sqlalchemy import MetaData, Table, case, create_engine, func, select, text
+from sqlalchemy import MetaData, Table, and_, bindparam, case, create_engine, func, select, text
 from sqlalchemy.engine import Connection, Engine, Row, RowMapping
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from src.core.coercion import coerce_float, coerce_int
 
@@ -1969,57 +1970,8 @@ class TimescaleExecutionJournal:
         row = record.as_row()
 
         with self._engine.begin() as conn:
-            table = _table_name(*TimescaleMigrator._EXECUTION_SNAPSHOTS, conn.dialect.name)
-            statement = text(
-                f"""
-                INSERT INTO {table} (
-                    snapshot_id,
-                    service,
-                    strategy_id,
-                    status,
-                    fill_rate,
-                    failure_rate,
-                    orders_submitted,
-                    orders_executed,
-                    orders_failed,
-                    pending_orders,
-                    avg_latency_ms,
-                    max_latency_ms,
-                    drop_copy_lag_seconds,
-                    drop_copy_active,
-                    connection_healthy,
-                    sessions_active,
-                    issues,
-                    policy,
-                    state,
-                    metadata,
-                    recorded_at
-                ) VALUES (
-                    :snapshot_id,
-                    :service,
-                    :strategy_id,
-                    :status,
-                    :fill_rate,
-                    :failure_rate,
-                    :orders_submitted,
-                    :orders_executed,
-                    :orders_failed,
-                    :pending_orders,
-                    :avg_latency_ms,
-                    :max_latency_ms,
-                    :drop_copy_lag_seconds,
-                    :drop_copy_active,
-                    :connection_healthy,
-                    :sessions_active,
-                    :issues,
-                    :policy,
-                    :state,
-                    :metadata,
-                    :recorded_at
-                )
-                """
-            )
-            conn.execute(statement, row)
+            table = _reflect_table(conn, TimescaleMigrator._EXECUTION_SNAPSHOTS)
+            conn.execute(table.insert().values(**row))
 
         return record.as_dict()
 
@@ -2033,20 +1985,15 @@ class TimescaleExecutionJournal:
         if limit <= 0:
             return []
 
-        with self._engine.begin() as conn:
-            table = _table_name(*TimescaleMigrator._EXECUTION_SNAPSHOTS, conn.dialect.name)
-            clauses: list[str] = []
-            params: dict[str, object] = {}
+        with self._engine.connect() as conn:
+            table = _reflect_table(conn, TimescaleMigrator._EXECUTION_SNAPSHOTS)
+            stmt = select(table)
             if service:
-                clauses.append("service = :service")
-                params["service"] = service
+                stmt = stmt.where(table.c.service == service)
             if strategy_id:
-                clauses.append("strategy_id = :strategy_id")
-                params["strategy_id"] = strategy_id
-            where = " WHERE " + " AND ".join(clauses) if clauses else ""
-            statement = text(f"SELECT * FROM {table}{where} ORDER BY recorded_at DESC LIMIT :limit")
-            params["limit"] = int(limit)
-            rows = conn.execute(statement, params).fetchall()
+                stmt = stmt.where(table.c.strategy_id == strategy_id)
+            stmt = stmt.order_by(table.c.recorded_at.desc()).limit(int(limit))
+            rows = conn.execute(stmt).fetchall()
         return [TimescaleExecutionSnapshotRecord.from_row(row) for row in rows]
 
     def summarise(
@@ -2058,31 +2005,34 @@ class TimescaleExecutionJournal:
         """Aggregate execution readiness journal statistics."""
 
         with self._engine.connect() as conn:
-            table = _table_name(*TimescaleMigrator._EXECUTION_SNAPSHOTS, conn.dialect.name)
-            clauses: list[str] = []
-            params: dict[str, object] = {}
+            table = _reflect_table(conn, TimescaleMigrator._EXECUTION_SNAPSHOTS)
+            filters = []
             if service:
-                clauses.append("service = :service")
-                params["service"] = service
+                filters.append(table.c.service == service)
             if strategy_id:
-                clauses.append("strategy_id = :strategy_id")
-                params["strategy_id"] = strategy_id
-            where = " WHERE " + " AND ".join(clauses) if clauses else ""
+                filters.append(table.c.strategy_id == strategy_id)
 
-            summary_stmt = text(
-                f"SELECT COUNT(*) AS total_snapshots, MAX(recorded_at) AS last_recorded_at "
-                f"FROM {table}{where}"
+            summary_stmt = select(
+                func.count().label("total_snapshots"),
+                func.max(table.c.recorded_at).label("last_recorded_at"),
             )
-            row = conn.execute(summary_stmt, params).first()
+            if filters:
+                summary_stmt = summary_stmt.where(and_(*filters))
+
+            row = conn.execute(summary_stmt).first()
             mapping = row._mapping if row is not None else {}
 
             total = int(mapping.get("total_snapshots") or 0)
             last_recorded = _normalise_timestamp(mapping.get("last_recorded_at"))
 
-            status_rows = conn.execute(
-                text(f"SELECT status, COUNT(*) AS count FROM {table}{where} GROUP BY status"),
-                params,
-            ).fetchall()
+            status_stmt = select(
+                table.c.status,
+                func.count().label("count"),
+            )
+            if filters:
+                status_stmt = status_stmt.where(and_(*filters))
+            status_stmt = status_stmt.group_by(table.c.status)
+            status_rows = conn.execute(status_stmt).fetchall()
             status_counts: dict[str, int] = {}
             for row in status_rows:
                 status_value = row._mapping.get("status") if hasattr(row, "_mapping") else row[0]
@@ -2091,10 +2041,14 @@ class TimescaleExecutionJournal:
                     (row._mapping.get("count") if hasattr(row, "_mapping") else row[1]) or 0
                 )
 
-            service_rows = conn.execute(
-                text(f"SELECT service, COUNT(*) AS count FROM {table}{where} GROUP BY service"),
-                params,
-            ).fetchall()
+            service_stmt = select(
+                table.c.service,
+                func.count().label("count"),
+            )
+            if filters:
+                service_stmt = service_stmt.where(and_(*filters))
+            service_stmt = service_stmt.group_by(table.c.service)
+            service_rows = conn.execute(service_stmt).fetchall()
             service_counts: dict[str, int] = {}
             for row in service_rows:
                 service_value = row._mapping.get("service") if hasattr(row, "_mapping") else row[0]
@@ -2139,36 +2093,11 @@ class TimescaleIngestJournal:
 
         rows = [record.as_row() for record in records]
         with self._engine.begin() as conn:
-            table = _table_name(*TimescaleMigrator._INGEST_RUNS, conn.dialect.name)
-            statement = text(
-                f"""
-                INSERT INTO {table} (
-                    run_id,
-                    dimension,
-                    status,
-                    rows_written,
-                    freshness_seconds,
-                    ingest_duration_seconds,
-                    executed_at,
-                    source,
-                    symbols,
-                    metadata
-                ) VALUES (
-                    :run_id,
-                    :dimension,
-                    :status,
-                    :rows_written,
-                    :freshness_seconds,
-                    :ingest_duration_seconds,
-                    :executed_at,
-                    :source,
-                    :symbols,
-                    :metadata
-                )
-                """
-            )
+            table = _reflect_table(conn, TimescaleMigrator._INGEST_RUNS)
+            insert_stmt = table.insert()
             for chunk in _chunk_records(rows, 100):
-                conn.execute(statement, chunk)
+                if chunk:
+                    conn.execute(insert_stmt, chunk)
 
     def fetch_recent(
         self,
@@ -2178,22 +2107,12 @@ class TimescaleIngestJournal:
     ) -> list[TimescaleIngestRunRecord]:
         limit = max(1, int(limit))
         with self._engine.connect() as conn:
-            table = _table_name(*TimescaleMigrator._INGEST_RUNS, conn.dialect.name)
+            table = _reflect_table(conn, TimescaleMigrator._INGEST_RUNS)
+            stmt = select(table)
             if dimension:
-                stmt = text(
-                    f"SELECT run_id, dimension, status, rows_written, freshness_seconds, "
-                    "ingest_duration_seconds, executed_at, source, symbols, metadata "
-                    f"FROM {table} WHERE dimension = :dimension "
-                    "ORDER BY executed_at DESC LIMIT :limit"
-                )
-                rows = conn.execute(stmt, {"dimension": dimension, "limit": limit}).fetchall()
-            else:
-                stmt = text(
-                    f"SELECT run_id, dimension, status, rows_written, freshness_seconds, "
-                    "ingest_duration_seconds, executed_at, source, symbols, metadata "
-                    f"FROM {table} ORDER BY executed_at DESC LIMIT :limit"
-                )
-                rows = conn.execute(stmt, {"limit": limit}).fetchall()
+                stmt = stmt.where(table.c.dimension == dimension)
+            stmt = stmt.order_by(table.c.executed_at.desc()).limit(limit)
+            rows = conn.execute(stmt).fetchall()
 
         return [TimescaleIngestRunRecord.from_row(row) for row in rows]
 
@@ -2203,40 +2122,29 @@ class TimescaleIngestJournal:
         """Return the most recent record for each dimension."""
 
         with self._engine.connect() as conn:
-            table = _table_name(*TimescaleMigrator._INGEST_RUNS, conn.dialect.name)
-            params: dict[str, object] = {}
-            filter_clause = ""
+            table = _reflect_table(conn, TimescaleMigrator._INGEST_RUNS)
+            stmt = select(
+                table,
+                func.row_number()
+                .over(
+                    partition_by=table.c.dimension,
+                    order_by=(table.c.executed_at.desc(), table.c.run_id.desc()),
+                )
+                .label("rn"),
+            )
             if dimensions:
                 unique_dimensions = tuple(dict.fromkeys(dimensions))
                 if unique_dimensions:
-                    placeholders = ", ".join(
-                        f":dimension_{idx}" for idx, _ in enumerate(unique_dimensions)
-                    )
-                    filter_clause = f"WHERE dimension IN ({placeholders})"
-                    params = {f"dimension_{idx}": dim for idx, dim in enumerate(unique_dimensions)}
+                    stmt = stmt.where(table.c.dimension.in_(unique_dimensions))
 
-            stmt = text(
-                f"""
-                SELECT run_id, dimension, status, rows_written, freshness_seconds,
-                       ingest_duration_seconds, executed_at, source, symbols, metadata
-                FROM (
-                    SELECT run_id, dimension, status, rows_written, freshness_seconds,
-                           ingest_duration_seconds, executed_at, source, symbols, metadata,
-                           ROW_NUMBER() OVER (
-                               PARTITION BY dimension
-                               ORDER BY executed_at DESC, run_id DESC
-                           ) AS rn
-                    FROM {table}
-                    {filter_clause}
-                ) AS ranked
-                WHERE rn = 1
-                """
-            )
-            rows = conn.execute(stmt, params).fetchall()
+            ranked = stmt.subquery()
+            latest_stmt = select(ranked).where(ranked.c.rn == 1)
+            rows = conn.execute(latest_stmt).fetchall()
 
         results: dict[str, TimescaleIngestRunRecord] = {}
         for row in rows:
-            record = TimescaleIngestRunRecord.from_row(row)
+            mapping = row._mapping if hasattr(row, "_mapping") else row
+            record = TimescaleIngestRunRecord.from_row(mapping)
             results[record.dimension] = record
         return results
 
@@ -2387,44 +2295,15 @@ class TimescaleConfigurationAuditJournal:
         row = record.as_row()
 
         with self._engine.begin() as conn:
-            table = _table_name(*TimescaleMigrator._CONFIGURATION_AUDIT, conn.dialect.name)
-            statement = text(
-                f"""
-                INSERT INTO {table} (
-                    snapshot_id,
-                    applied_at,
-                    severity,
-                    changes,
-                    current_config,
-                    previous_config,
-                    metadata
-                ) VALUES (
-                    :snapshot_id,
-                    :applied_at,
-                    :severity,
-                    :changes,
-                    :current_config,
-                    :previous_config,
-                    :metadata
-                )
-                """
-            )
-            conn.execute(statement, row)
+            table = _reflect_table(conn, TimescaleMigrator._CONFIGURATION_AUDIT)
+            conn.execute(table.insert().values(**row))
 
         return record.as_dict()
 
     def fetch_latest(self) -> TimescaleConfigurationAuditRecord | None:
         with self._engine.connect() as conn:
-            table = _table_name(*TimescaleMigrator._CONFIGURATION_AUDIT, conn.dialect.name)
-            stmt = text(
-                f"""
-                SELECT snapshot_id, applied_at, severity, changes,
-                       current_config, previous_config, metadata
-                FROM {table}
-                ORDER BY applied_at DESC
-                LIMIT 1
-                """
-            )
+            table = _reflect_table(conn, TimescaleMigrator._CONFIGURATION_AUDIT)
+            stmt = select(table).order_by(table.c.applied_at.desc()).limit(1)
             row = conn.execute(stmt).fetchone()
 
         if row is None:
@@ -2434,17 +2313,9 @@ class TimescaleConfigurationAuditJournal:
     def fetch_recent(self, *, limit: int = 5) -> list[TimescaleConfigurationAuditRecord]:
         limit = max(1, int(limit))
         with self._engine.connect() as conn:
-            table = _table_name(*TimescaleMigrator._CONFIGURATION_AUDIT, conn.dialect.name)
-            stmt = text(
-                f"""
-                SELECT snapshot_id, applied_at, severity, changes,
-                       current_config, previous_config, metadata
-                FROM {table}
-                ORDER BY applied_at DESC
-                LIMIT :limit
-                """
-            )
-            rows = conn.execute(stmt, {"limit": limit}).fetchall()
+            table = _reflect_table(conn, TimescaleMigrator._CONFIGURATION_AUDIT)
+            stmt = select(table).order_by(table.c.applied_at.desc()).limit(limit)
+            rows = conn.execute(stmt).fetchall()
 
         return [TimescaleConfigurationAuditRecord.from_row(row) for row in rows]
 
@@ -2498,30 +2369,30 @@ class TimescaleIngestor:
 
         with self._engine.begin() as conn:
             dialect = conn.dialect.name
-            table_name = _table_name(schema, table, dialect)
+            table_ref = _reflect_table(conn, (schema, table))
             if dialect != "postgresql":
                 _normalize_sqlite_records(records, ("ts", "ingested_at"))
 
             if dialect == "postgresql":
-                cols = ", ".join(all_columns)
-                placeholders = ", ".join(f":{col}" for col in all_columns)
-                conflict = ", ".join(key_columns)
-                updates = ", ".join(f"{col} = EXCLUDED.{col}" for col in update_columns)
-                statement = text(
-                    f"INSERT INTO {table_name} ({cols}) VALUES ({placeholders}) "
-                    f"ON CONFLICT ({conflict}) DO UPDATE SET {updates}"
+                insert_stmt = pg_insert(table_ref)
+                conflict_cols = [table_ref.c[column] for column in key_columns]
+                update_mapping = {col: insert_stmt.excluded[col] for col in update_columns}
+                upsert_stmt = insert_stmt.on_conflict_do_update(
+                    index_elements=conflict_cols,
+                    set_=update_mapping,
                 )
                 for chunk in _chunk_records(records, self._chunk_size):
-                    conn.execute(statement, chunk)
+                    if chunk:
+                        conn.execute(upsert_stmt, chunk)
             else:
-                predicate = " AND ".join(f"{col} = :{col}" for col in key_columns)
-                delete_stmt = text(f"DELETE FROM {table_name} WHERE {predicate}")
-                cols = ", ".join(all_columns)
-                placeholders = ", ".join(f":{col}" for col in all_columns)
-                insert_stmt = text(f"INSERT INTO {table_name} ({cols}) VALUES ({placeholders})")
+                delete_stmt = table_ref.delete()
+                for column in key_columns:
+                    delete_stmt = delete_stmt.where(table_ref.c[column] == bindparam(column))
+                insert_stmt = table_ref.insert()
                 for chunk in _chunk_records(records, self._chunk_size):
                     for record in chunk:
-                        conn.execute(delete_stmt, record)
+                        key_payload = {column: record[column] for column in key_columns}
+                        conn.execute(delete_stmt, key_payload)
                         conn.execute(insert_stmt, record)
 
         ingest_end = time.perf_counter()

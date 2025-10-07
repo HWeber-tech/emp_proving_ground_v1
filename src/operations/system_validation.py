@@ -229,7 +229,8 @@ class SystemValidationHistoryEntry:
             generated_at = _parse_timestamp(payload.get("generated_at"))
             status = _coerce_status(payload.get("status"), SystemValidationStatus.warn)
             success_rate_value = coerce_float(payload.get("success_rate"), default=None)
-        except Exception:  # pragma: no cover - defensive guard
+        except (TypeError, ValueError) as exc:  # pragma: no cover - defensive guard
+            logger.debug("Invalid system validation history payload: %s", payload, exc_info=exc)
             return None
         if success_rate_value is None:
             success_rate_value = 0.0

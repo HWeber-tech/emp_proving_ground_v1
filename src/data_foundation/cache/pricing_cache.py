@@ -65,7 +65,8 @@ class PricingCache:
             },
             sort_keys=True,
         ).encode("utf-8")
-        digest = hashlib.sha1(key).hexdigest()[:12]
+        # Use a modern hash to avoid Bandit B324 (weak hash) findings.
+        digest = hashlib.blake2b(key, digest_size=6).hexdigest()
 
         timestamp = created_at.strftime("%Y%m%dT%H%M%SZ")
         base_name = f"{timestamp}_{config.vendor}_{config.interval}_{digest}"

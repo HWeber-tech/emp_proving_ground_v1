@@ -3,7 +3,7 @@
 import logging
 import time
 from collections import deque
-from collections.abc import Mapping as MappingABC
+from collections.abc import Mapping as MappingABC, MutableMapping as MutableMappingABC
 from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any, Callable, Mapping, Optional, cast
@@ -284,11 +284,16 @@ class TradingManager:
                 )
                 return
 
+            if gate_decision_payload is not None:
+                self._attach_drift_gate_metadata(event, gate_decision_payload)
+
             validated_intent = await self.risk_gateway.validate_trade_intent(
                 intent=event, portfolio_state=portfolio_state
             )
 
             if validated_intent:
+                if gate_decision_payload is not None:
+                    self._attach_drift_gate_metadata(validated_intent, gate_decision_payload)
                 logger.info(
                     f"Trade intent {event_id} validated successfully. "
                     f"Calculated size: {self._extract_quantity(validated_intent)}"
@@ -534,6 +539,49 @@ class TradingManager:
         if decision and isinstance(decision, Mapping):
             entry["decision"] = dict(decision)
         self._experiment_events.appendleft(entry)
+
+    def _attach_drift_gate_metadata(
+        self,
+        intent: Any,
+        gate_payload: Mapping[str, Any] | None,
+    ) -> None:
+        """Inject DriftSentry metadata into an intent for downstream consumers."""
+
+        if intent is None or not gate_payload:
+            return
+
+        try:
+            payload = dict(gate_payload)
+        except Exception:
+            return
+
+        if isinstance(intent, MutableMappingABC):
+            metadata = intent.get("metadata")
+            if isinstance(metadata, MutableMappingABC):
+                metadata["drift_gate"] = payload
+            else:
+                intent["metadata"] = {"drift_gate": payload}
+            return
+
+        metadata_attr = getattr(intent, "metadata", None)
+        if isinstance(metadata_attr, MutableMappingABC):
+            metadata_attr["drift_gate"] = payload
+            return
+
+        if metadata_attr is None:
+            setattr(intent, "metadata", {"drift_gate": payload})
+            return
+
+        if isinstance(metadata_attr, MappingABC):
+            metadata_dict = dict(metadata_attr)
+        else:
+            try:
+                metadata_dict = dict(metadata_attr)  # type: ignore[arg-type]
+            except Exception:
+                metadata_dict = {"original_metadata": metadata_attr}
+
+        metadata_dict["drift_gate"] = payload
+        setattr(intent, "metadata", metadata_dict)
 
     def _get_last_risk_decision(self) -> Mapping[str, Any] | None:
         """Safely fetch the last risk decision from the gateway."""

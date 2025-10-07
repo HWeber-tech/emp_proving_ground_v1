@@ -39,20 +39,29 @@ class PortfolioTracker:
         return "portfolio_state"
 
     def _load(self) -> None:
+        data: dict[str, Any] = {}
+        state_path: str | None = None
         try:
-            data = {}
             # Use JSONStateStore interface
             # It stores by name; reuse its API to load generic dict
             if isinstance(self._store, JSONStateStore):
-                path = os.path.join(self._store.base_dir, f"{self._key()}.json")
-                if os.path.exists(path):
-                    with open(path, "r", encoding="utf-8") as f:
+                state_path = os.path.join(self._store.base_dir, f"{self._key()}.json")
+                if os.path.exists(state_path):
+                    with open(state_path, "r", encoding="utf-8") as f:
                         data = json.load(f)
-            else:
-                pass
             self.cash = float(data.get("cash", 0.0))
-            self.positions = {s: PositionState(**p) for s, p in data.get("positions", {}).items()}
-        except Exception:
+            self.positions = {
+                s: PositionState(**p)
+                for s, p in data.get("positions", {}).items()
+                if isinstance(p, dict)
+            }
+        except (OSError, json.JSONDecodeError, TypeError, ValueError) as exc:
+            logger.warning(
+                "Failed to load portfolio state%s: %s",
+                f" from {state_path}" if state_path else "",
+                exc,
+                exc_info=True,
+            )
             self.cash = 0.0
             self.positions = {}
 

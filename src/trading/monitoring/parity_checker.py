@@ -47,8 +47,14 @@ class ParityChecker:
                 if str(b.get("status")) != str(getattr(order.status, "value", order.status)):
                     mismatches += 1
                     continue
-            except Exception:
+            except (AttributeError, KeyError, TypeError, ValueError) as exc:
                 mismatches += 1
+                logger.warning(
+                    "Order parity comparison failed for %s: %s",
+                    cl_id,
+                    exc,
+                    exc_info=True,
+                )
                 continue
         self._record_gauge(
             "fix_parity_mismatched_orders",
@@ -96,7 +102,13 @@ class ParityChecker:
                     continue
                 if str(lvv) != str(bvv):
                     diffs[name] = {"local": lv, "broker": bv}
-        except Exception:
+        except (AttributeError, KeyError, TypeError, ValueError) as exc:
+            logger.warning(
+                "Order field comparison failed for %s: %s",
+                getattr(local_order, "order_id", "unknown"),
+                exc,
+                exc_info=True,
+            )
             diffs["error"] = "compare_failed"
         return diffs
 
@@ -108,7 +120,15 @@ class ParityChecker:
 
             pt = PortfolioTracker()
             local_positions = pt.positions
-        except Exception:
+        except ImportError as exc:
+            logger.warning("PortfolioTracker unavailable for parity checks: %s", exc)
+            local_positions = {}
+        except Exception as exc:
+            logger.warning(
+                "Failed to load local positions for parity checks: %s",
+                exc,
+                exc_info=True,
+            )
             local_positions = {}
         for sym, pos in local_positions.items():
             b = broker_positions.get(sym)
@@ -119,8 +139,14 @@ class ParityChecker:
                 if abs(float(b.get("quantity", 0.0)) - float(pos.quantity)) > 1e-6:
                     mismatches += 1
                     continue
-            except Exception:
+            except (AttributeError, KeyError, TypeError, ValueError) as exc:
                 mismatches += 1
+                logger.warning(
+                    "Position parity comparison failed for %s: %s",
+                    sym,
+                    exc,
+                    exc_info=True,
+                )
                 continue
         self._record_gauge(
             "fix_parity_mismatched_positions",

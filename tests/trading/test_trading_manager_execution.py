@@ -349,6 +349,82 @@ async def test_trading_manager_records_gate_metadata_on_execution(
 
 
 @pytest.mark.asyncio()
+async def test_trading_manager_attaches_gate_metadata_to_fills(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def _noop(*_args, **_kwargs) -> None:
+        return None
+
+    monkeypatch.setattr("src.trading.trading_manager.publish_risk_snapshot", _noop)
+    monkeypatch.setattr("src.trading.trading_manager.publish_roi_snapshot", _noop)
+    monkeypatch.setattr("src.trading.trading_manager.publish_policy_snapshot", _noop)
+    monkeypatch.setattr("src.trading.trading_manager.publish_policy_violation", _noop)
+    monkeypatch.setattr(
+        "src.trading.trading_manager.publish_risk_interface_snapshot", _noop
+    )
+    monkeypatch.setattr("src.trading.trading_manager.publish_risk_interface_error", _noop)
+
+    gate = DriftSentryGate(warn_confidence_floor=0.6)
+    dimension = SensoryDimensionDrift(
+        name="WHEN",
+        current_signal=0.30,
+        baseline_signal=0.12,
+        delta=0.18,
+        current_confidence=0.80,
+        baseline_confidence=0.70,
+        confidence_delta=0.10,
+        severity=DriftSeverity.warn,
+        samples=8,
+    )
+    snapshot = SensoryDriftSnapshot(
+        generated_at=datetime(2024, 2, 2, tzinfo=timezone.utc),
+        status=DriftSeverity.warn,
+        dimensions={"WHEN": dimension},
+        sample_window=8,
+        metadata={"source": "test"},
+    )
+    gate.update_snapshot(snapshot)
+
+    manager = TradingManager(
+        event_bus=DummyBus(),
+        strategy_registry=AlwaysActiveRegistry(),
+        execution_engine=None,
+        initial_equity=75_000.0,
+        risk_config=RiskConfig(
+            min_position_size=1,
+            mandatory_stop_loss=False,
+            research_mode=True,
+        ),
+        drift_gate=gate,
+    )
+    engine = ImmediateFillExecutionAdapter(manager.portfolio_monitor)
+    manager.execution_engine = engine
+
+    validated_intent = ConfidenceIntent(
+        symbol="EURUSD",
+        quantity=2.0,
+        price=1.2050,
+        confidence=0.92,
+        strategy_id="paper-alpha",
+    )
+
+    validate_mock: AsyncMock = AsyncMock(return_value=validated_intent)
+    manager.risk_gateway.validate_trade_intent = validate_mock  # type: ignore[assignment]
+
+    await manager.on_trade_intent(validated_intent)
+
+    assert engine.fills, "expected paper execution to record a fill"
+    fill = engine.fills[-1]
+    metadata = fill.get("metadata")
+    assert isinstance(metadata, dict)
+    payload = metadata.get("drift_gate")
+    assert isinstance(payload, dict)
+    assert payload.get("allowed") is True
+    assert payload.get("severity") == DriftSeverity.warn.value
+    assert validate_mock.await_count == 1
+
+
+@pytest.mark.asyncio()
 async def test_trading_manager_release_thresholds(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     async def _noop(*_args, **_kwargs) -> None:
         return None

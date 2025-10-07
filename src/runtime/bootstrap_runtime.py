@@ -5,9 +5,12 @@ from __future__ import annotations
 import asyncio
 import logging
 import math
+from collections import defaultdict, deque
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
-from typing import Any, Mapping, Sequence
+from typing import Any, Deque, Mapping, Sequence
+
+import pandas as pd
 
 from src.config.risk.risk_config import RiskConfig
 from src.core.base import MarketData
@@ -18,6 +21,7 @@ from src.data_foundation.fabric.market_data_fabric import MarketDataConnector, M
 from src.operations.bootstrap_control_center import BootstrapControlCenter
 from src.operations.roi import RoiCostModel
 from src.orchestration.bootstrap_stack import BootstrapSensoryPipeline, BootstrapTradingStack
+from src.sensory.real_sensory_organ import RealSensoryOrgan, SensoryDriftConfig
 from src.runtime.task_supervisor import TaskSupervisor
 from src.trading.execution.paper_execution import ImmediateFillExecutionAdapter
 from src.trading.liquidity.depth_aware_prober import DepthAwareLiquidityProber
@@ -203,9 +207,70 @@ class BootstrapRuntime:
             control_center=self.control_center,
         )
 
+        drift_config = SensoryDriftConfig(
+            baseline_window=24,
+            evaluation_window=12,
+            min_observations=6,
+            sensors=("WHY", "WHAT", "WHEN", "HOW", "ANOMALY"),
+        )
+        self._sensory_cortex = RealSensoryOrgan(
+            event_bus=event_bus,
+            drift_config=drift_config,
+        )
+        self._sensory_history_window = 256
+        self._sensory_history: dict[str, Deque[dict[str, Any]]] = defaultdict(
+            lambda: deque(maxlen=self._sensory_history_window)
+        )
+        self._latest_sensory_metrics: Mapping[str, Any] | None = None
+
     @property
     def decisions(self) -> list[dict[str, Any]]:
         return self.trading_stack.decisions
+
+    def _market_data_to_record(self, data: MarketData) -> dict[str, Any]:
+        record = {
+            "timestamp": getattr(data, "timestamp", datetime.now(timezone.utc)),
+            "symbol": getattr(data, "symbol", "UNKNOWN"),
+            "open": float(getattr(data, "open", 0.0) or 0.0),
+            "high": float(getattr(data, "high", 0.0) or 0.0),
+            "low": float(getattr(data, "low", 0.0) or 0.0),
+            "close": float(getattr(data, "close", 0.0) or 0.0),
+            "volume": float(getattr(data, "volume", 0.0) or 0.0),
+            "volatility": float(getattr(data, "volatility", 0.0) or 0.0),
+            "spread": float(getattr(data, "spread", 0.0) or 0.0),
+            "depth": float(getattr(data, "depth", 0.0) or 0.0),
+            "order_imbalance": float(getattr(data, "order_imbalance", 0.0) or 0.0),
+            "data_quality": float(getattr(data, "data_quality", 0.85) or 0.85),
+            "macro_bias": float(getattr(data, "macro_bias", 0.0) or 0.0),
+        }
+
+        for yield_attr in ("yield_curve", "yield_2y", "yield_5y", "yield_10y", "yield_30y"):
+            value = getattr(data, yield_attr, None)
+            if value is not None:
+                record[yield_attr] = value
+
+        return record
+
+    def _update_sensory_observation(self, snapshot: "SensorySnapshot") -> None:
+        try:
+            record = self._market_data_to_record(snapshot.market_data)
+            history = self._sensory_history[snapshot.symbol]
+            history.append(record)
+            frame = pd.DataFrame(list(history))
+            metadata = {
+                "runtime": "bootstrap",
+                "tick": self._tick_counter,
+                "strategy_id": getattr(self.trading_stack, "strategy_id", None),
+            }
+            self._sensory_cortex.observe(
+                frame,
+                symbol=snapshot.symbol,
+                as_of=record["timestamp"],
+                metadata=metadata,
+            )
+            self._latest_sensory_metrics = self._sensory_cortex.metrics()
+        except Exception:  # pragma: no cover - defensive guard for telemetry path
+            logger.debug("Failed to update sensory cortex observation", exc_info=True)
 
     def status(self) -> Mapping[str, Any]:
         telemetry = self.control_center.overview()
@@ -224,13 +289,51 @@ class BootstrapRuntime:
         )
         if isinstance(vision_summary, Mapping):
             status["vision_alignment"] = vision_summary
+        pipeline_audit: list[Mapping[str, Any]] = []
         if hasattr(self.pipeline, "audit_trail"):
             try:
-                audit = self.pipeline.audit_trail(limit=5)
+                audit_entries = self.pipeline.audit_trail(limit=5)
             except Exception:  # pragma: no cover - diagnostics must not break status
-                audit = []
-            if audit:
-                status["sensor_audit"] = audit
+                audit_entries = []
+            if audit_entries:
+                pipeline_audit = [
+                    dict(entry) for entry in audit_entries if isinstance(entry, Mapping)
+                ]
+                status["legacy_sensor_audit"] = pipeline_audit
+
+        sensory_status = self._sensory_cortex.status()
+        if isinstance(sensory_status, Mapping):
+            status["sensory_cortex"] = sensory_status
+            try:
+                status["samples"] = int(sensory_status.get("samples") or 0)
+            except Exception:
+                status["samples"] = 0
+
+            latest_payload = sensory_status.get("latest")
+            if isinstance(latest_payload, Mapping):
+                status["latest"] = dict(latest_payload)
+
+            drift_summary = sensory_status.get("drift_summary")
+            if isinstance(drift_summary, Mapping):
+                status["drift_summary"] = drift_summary
+
+            audit_payload = sensory_status.get("sensor_audit")
+            if isinstance(audit_payload, list) and audit_payload:
+                status["sensor_audit"] = [
+                    dict(entry) if isinstance(entry, Mapping) else entry
+                    for entry in audit_payload
+                ]
+            elif pipeline_audit:
+                status["sensor_audit"] = pipeline_audit
+
+            metrics_payload = self._latest_sensory_metrics or self._sensory_cortex.metrics()
+            if isinstance(metrics_payload, Mapping):
+                status["sensory_metrics"] = metrics_payload
+
+            if pipeline_audit:
+                status.setdefault("legacy_sensor_audit", pipeline_audit)
+        elif pipeline_audit:
+            status["sensor_audit"] = pipeline_audit
 
         describe_interface = getattr(self.trading_manager, "describe_risk_interface", None)
         if callable(describe_interface):
@@ -308,7 +411,14 @@ class BootstrapRuntime:
                     if self._stop_event.is_set():
                         break
                     try:
-                        await self.trading_stack.evaluate_tick(symbol)
+                        result = await self.trading_stack.evaluate_tick(symbol)
+                        snapshot = (
+                            result.get("snapshot")
+                            if isinstance(result, Mapping)
+                            else None
+                        )
+                        if snapshot is not None:
+                            self._update_sensory_observation(snapshot)
                     except Exception as exc:  # pragma: no cover - defensive guard
                         self._last_error = exc
                         logger.warning("BootstrapRuntime tick failure for %s: %s", symbol, exc)

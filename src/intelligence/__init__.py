@@ -39,8 +39,8 @@ __all__ = [
 _LAZY_EXPORTS: dict[str, str] = {
     "SentientAdaptationEngine": "src.intelligence.sentient_adaptation:SentientAdaptationEngine",
     "PredictiveMarketModeler": "src.intelligence.predictive_modeling:PredictiveMarketModeler",
-    "MarketGAN": "src.intelligence.adversarial_training:MarketGAN",
-    "AdversarialTrainer": "src.intelligence.adversarial_training:AdversarialTrainer",
+    "MarketGAN": "src.thinking.adversarial.market_gan:MarketGAN",
+    "AdversarialTrainer": "src.thinking.adversarial.adversarial_trainer:AdversarialTrainer",
     "RedTeamAI": "src.intelligence.red_team_ai:RedTeamAI",
     "SpecializedPredatorEvolution": "src.intelligence.specialized_predators:SpecializedPredatorEvolution",
     "PortfolioEvolutionEngine": "src.intelligence.portfolio_evolution:PortfolioEvolutionEngine",

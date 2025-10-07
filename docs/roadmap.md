@@ -37,7 +37,7 @@ kit that the roadmap calls back to in each checklist.
   - *Progress*: Execution readiness journal reflects tables via SQLAlchemy, inserts
     snapshots with bound parameters, and summarises status/service counts so
     Timescale auditing no longer shells out raw text queries under the regression
-    suite.【F:src/data_foundation/persist/timescale.py†L1972】【F:tests/data_foundation/test_timescale_execution_journal.py†L104】
+    suite.【F:src/data_foundation/persist/timescale.py†L1956-L2064】【F:tests/data_foundation/test_timescale_execution_journal.py†L104】
   - *Progress*: Data backbone readiness telemetry now exposes failover triggers,
     optional trigger metadata, and recovery plan payloads under pytest coverage so
     institutional dashboards surface degraded optional slices alongside the
@@ -108,6 +108,10 @@ kit that the roadmap calls back to in each checklist.
     before emitting SQL, raising deterministic errors on unsafe names and
     pinning the contract via regression tests so institutional slices cannot
     smuggle raw SQL through policy or schedule configuration.【F:src/data_foundation/persist/timescale.py†L1-L120】【F:tests/data_foundation/test_timescale_ingest.py†L1-L83】
+  - *Progress*: Timescale ingestor now reflects tables through SQLAlchemy,
+    performs PostgreSQL upserts via `pg_insert`, binds SQLite fallbacks, and
+    chunks writes so ingest runs avoid hand-written SQL while retaining
+    deterministic freshness metrics under regression coverage.【F:src/data_foundation/persist/timescale.py†L2337-L2489】【F:tests/data_foundation/test_timescale_ingest.py†L165-L220】
   - *Progress*: JSONL persistence now raises typed errors for unserialisable payloads,
     logs filesystem failures, and cleans up partial files so ingest tooling surfaces
     genuine persistence faults instead of emitting empty paths under silent
@@ -125,7 +129,7 @@ kit that the roadmap calls back to in each checklist.
     that expose per-status counts, component issue catalogs, and structured
     alert contexts; publishing now rides the shared failover helper with pytest
     coverage for alert routing and bus failover so responders inherit actionable
-    metadata when WARN/FAIL posture shifts.【F:src/operations/operational_readiness.py†L113-L373】【F:src/operations/incident_response.py†L242-L715】【F:src/operations/system_validation.py†L1-L312】【F:tests/operations/test_operational_readiness.py†L86-L221】【F:docs/status/operational_readiness.md†L1-L73】
+    metadata when WARN/FAIL posture shifts.【F:src/operations/operational_readiness.py†L113-L373】【F:src/operations/incident_response.py†L242-L715】【F:src/operations/system_validation.py†L470-L889】【F:tests/operations/test_operational_readiness.py†L86-L221】【F:docs/status/operational_readiness.md†L1-L73】
 - [ ] **Sensory + evolution execution** – Replace HOW/ANOMALY stubs, wire lineage
   telemetry, and prove adaptive strategies against recorded data.
   - *Progress*: HOW and ANOMALY sensors now clamp minimum confidence, sanitise
@@ -372,10 +376,11 @@ kit that the roadmap calls back to in each checklist.
     and backlog evidence under pytest coverage covering escalation, dispatch,
     and publish failure paths.【F:src/operations/incident_response.py†L1-L715】【F:tests/operations/test_incident_response.py†L1-L200】
   - *Progress*: System validation evaluator ingests JSON/structured reports,
-    normalises timestamps and success rates, renders Markdown, derives alert
-    events, and routes/publishes snapshots through the failover helper so
-    readiness dashboards retain failing-check context even when the runtime bus
-    degrades, with pytest guarding evaluation, alerting, and failover flows.【F:src/operations/system_validation.py†L1-L312】【F:tests/operations/test_system_validation.py†L1-L195】
+    normalises timestamps and success rates, logs malformed history payloads at
+    debug, renders Markdown, derives alert events, and routes/publishes snapshots
+    through the failover helper so readiness dashboards retain failing-check
+    context even when the runtime bus degrades, with pytest guarding evaluation,
+    alerting, and failover flows.【F:src/operations/system_validation.py†L233-L889】【F:tests/operations/test_system_validation.py†L1-L195】
   - *Progress*: Coverage matrix CLI now surfaces lagging domains, exports the
     full set of covered source files, and enforces required guardrail suites via
     `--require-file`, failing CI when critical reports disappear and logging
@@ -455,7 +460,7 @@ kit that the roadmap calls back to in each checklist.
     messages to snapshot metadata and Markdown output while continuing to route
     through the shared failover helper, so readiness dashboards surface the
     precise failing checks even when the runtime bus degrades, with pytest
-    verifying metadata capture and failover escalation.【F:src/operations/system_validation.py†L127-L321】【F:tests/operations/test_system_validation.py†L77-L160】
+    verifying metadata capture and failover escalation.【F:src/operations/system_validation.py†L724-L889】【F:tests/operations/test_system_validation.py†L77-L160】
   - *Progress*: Professional readiness publisher now reuses the hardened
     failover helper, logging runtime fallbacks, refusing unexpected errors, and
     supporting injected global bus factories under pytest coverage so

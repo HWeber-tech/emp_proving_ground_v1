@@ -102,6 +102,10 @@
 - Progress: Timescale ingest helpers now validate schema/table identifiers at
   construction time and assert the contract under regression coverage so policy
   payloads cannot inject unsafe SQL into institutional ingest jobs.【F:src/data_foundation/persist/timescale.py†L1-L120】【F:tests/data_foundation/test_timescale_ingest.py†L1-L83】
+- Progress: Timescale ingestor now reflects tables through SQLAlchemy, streams
+  PostgreSQL upserts via `pg_insert`, binds SQLite fallbacks, and chunks writes
+  so ingest runs avoid manual SQL while retaining deterministic freshness
+  metrics under regression coverage.【F:src/data_foundation/persist/timescale.py†L2337-L2489】【F:tests/data_foundation/test_timescale_ingest.py†L165-L220】
 - Wire all runtime entrypoints through `RuntimeApplication` and a task supervisor
   so ingest, cache, and stream jobs are supervised.【F:docs/technical_debt_assessment.md†L33-L56】
 - Document current gaps and expected telemetry in updated runbooks and status

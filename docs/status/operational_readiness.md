@@ -33,7 +33,7 @@ fields:
   timelines.【F:src/operations/incident_response.py†L295-L640】【F:tests/operations/test_incident_response.py†L195-L248】
 - `system_validation.reliability` – summarises recent validation runs with fail
   streaks, stale-age detection, and rolling success-rate thresholds, exposing
-  structured issues plus alert contexts for reliability regressions.【F:src/operations/system_validation.py†L150-L618】【F:tests/operations/test_system_validation.py†L201-L342】
+  structured issues plus alert contexts for reliability regressions.【F:src/operations/system_validation.py†L245-L618】【F:tests/operations/test_system_validation.py†L201-L342】
 
 Both fields accompany the existing `component_count` and remain present in the
 snapshot dictionary returned by `OperationalReadinessSnapshot.as_dict()` and the
@@ -97,7 +97,7 @@ pytest coverage.【F:tests/operations/test_incident_response.py†L132-L167】
   rates, annotates failing checks, and publishes via the shared failover helper
   so readiness retains validator metadata and degraded-check evidence even when
   the runtime bus falters, with regressions covering evaluation, alerting, and
-  failover paths.【F:src/operations/system_validation.py†L1-L312】【F:tests/operations/test_system_validation.py†L1-L195】
+  failover paths.【F:src/operations/system_validation.py†L470-L889】【F:tests/operations/test_system_validation.py†L1-L195】
 
 ## Gating deployments with system validation
 
@@ -106,7 +106,7 @@ requirements: FAIL always blocks, `block_on_warn=True` escalates WARN to a
 blocking condition, `min_success_rate` guards aggregate pass thresholds, and
 `required_checks` ensures critical checks are both present and successful. The
 returned `SystemValidationGateResult` records blocking reasons and exposes an
-`as_dict()` helper for dashboards and guardrails.【F:src/operations/system_validation.py†L332-L452】【F:tests/operations/test_system_validation.py†L189-L279】
+`as_dict()` helper for dashboards and guardrails.【F:src/operations/system_validation.py†L724-L889】【F:tests/operations/test_system_validation.py†L189-L279】
 
 ## Dashboard integration
 

@@ -46,7 +46,7 @@
   reports into readiness snapshots, derives alert events, publishes via the
   shared failover helper, and exposes gating helpers that return blocking
   reasons and success metrics so responders see the exact degradation and
-  deployment posture.【F:src/operations/security.py†L536-L579】【F:tests/operations/test_security.py†L101-L211】【F:src/operations/system_validation.py†L1-L452】【F:tests/operations/test_system_validation.py†L1-L279】【F:src/operations/professional_readiness.py†L268-L305】【F:tests/operations/test_professional_readiness.py†L164-L239】
+  deployment posture.【F:src/operations/security.py†L536-L579】【F:tests/operations/test_security.py†L101-L211】【F:src/operations/system_validation.py†L470-L889】【F:tests/operations/test_system_validation.py†L1-L279】【F:src/operations/professional_readiness.py†L268-L305】【F:tests/operations/test_professional_readiness.py†L164-L239】
 - Harden incident response readiness by parsing policy/state mappings into a
   severity snapshot, deriving targeted alert events, and publishing telemetry
   via the guarded runtime→global failover path so outage evidence, roster gaps,

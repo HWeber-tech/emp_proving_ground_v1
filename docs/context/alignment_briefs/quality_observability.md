@@ -56,7 +56,7 @@
   - Progress: System validation evaluator now normalises structured reports into
     readiness snapshots, annotates failing checks, derives alert events, and
     publishes via the failover helper under pytest coverage so dashboards retain
-    degradation evidence even when the runtime bus misbehaves.【F:src/operations/system_validation.py†L1-L312】【F:tests/operations/test_system_validation.py†L1-L195】
+  degradation evidence even when the runtime bus misbehaves.【F:src/operations/system_validation.py†L233-L889】【F:tests/operations/test_system_validation.py†L1-L195】
   - Progress: Event bus failover helper now powers security, system validation,
     compliance readiness, incident response, evolution experiment, and evolution
     tuning publishers, replacing ad-hoc blanket handlers with typed errors and
@@ -199,7 +199,7 @@
 - Progress: System validation snapshots now attach failing-check names and
   messages to metadata and Markdown while reusing the shared failover helper so
   operational dashboards display the exact broken checks even during runtime bus
-  degradation, with pytest covering metadata capture and failover paths.【F:src/operations/system_validation.py†L127-L321】【F:tests/operations/test_system_validation.py†L77-L160】
+  degradation, with pytest covering metadata capture and failover paths.【F:src/operations/system_validation.py†L724-L889】【F:tests/operations/test_system_validation.py†L77-L160】
 
 ### Next (30–90 days)
 

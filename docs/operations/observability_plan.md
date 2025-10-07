@@ -64,7 +64,7 @@ can layer on without introducing third-party dependencies.
 * **Risk & compliance snapshot export** – `tools/telemetry/export_risk_compliance_snapshots.py`
   bundles risk policy, execution readiness, compliance readiness/workflow snapshots, and Timescale
   journal statistics into a governance-ready JSON feed, letting reviewers pull evidence without manual
-  SQL. pytest covers the CLI flow while journal tests exercise the aggregation helpers that power the export.【F:tools/telemetry/export_risk_compliance_snapshots.py†L1-L308】【F:tests/tools/test_risk_compliance_export.py†L1-L113】【F:src/data_foundation/persist/timescale.py†L1211-L2163】【F:tests/data_foundation/test_timescale_compliance_journal.py†L57-L206】【F:tests/data_foundation/test_timescale_execution_journal.py†L86-L123】
+  SQL. pytest covers the CLI flow while journal tests exercise the aggregation helpers that power the export.【F:tools/telemetry/export_risk_compliance_snapshots.py†L1-L308】【F:tests/tools/test_risk_compliance_export.py†L1-L113】【F:src/data_foundation/persist/timescale.py†L1171-L2149】【F:tests/data_foundation/test_timescale_compliance_journal.py†L57-L206】【F:tests/data_foundation/test_timescale_execution_journal.py†L86-L123】
 * **Health snapshot** – [`docs/status/ci_health.md`](../status/ci_health.md)
   tracks the latest pipeline status, coverage baseline, formatter rollout
   progress, and where to look first when jobs fail.
@@ -112,7 +112,7 @@ can layer on without introducing third-party dependencies.
   execution snapshot to Timescale (`telemetry.execution_snapshots`) and the
   professional runtime summary exposes recent and latest entries via the
   `execution_journal` block so operators inherit an auditable execution history
-  without leaving the runtime interface.【F:src/data_foundation/persist/timescale.py†L900-L1290】【F:src/runtime/predator_app.py†L200-L760】【F:tests/data_foundation/test_timescale_execution_journal.py†L1-L91】【F:tests/runtime/test_professional_app_timescale.py†L400-L460】
+  without leaving the runtime interface.【F:src/data_foundation/persist/timescale.py†L1956-L2064】【F:src/runtime/predator_app.py†L200-L760】【F:tests/data_foundation/test_timescale_execution_journal.py†L1-L91】【F:tests/runtime/test_professional_app_timescale.py†L400-L460】
 * **Sensory drift telemetry** – `evaluate_sensory_drift` analyses the fused
   sensory audit trail, publishes `telemetry.sensory.drift`, and records the
   latest snapshot in the professional runtime summary so operators can monitor
@@ -159,7 +159,7 @@ can layer on without introducing third-party dependencies.
 * **System validation telemetry** – `evaluate_system_validation` parses the
   roadmap-aligned validation report, publishes `telemetry.operational.system_validation`,
   and records the markdown snapshot in the professional runtime so operators can
-  confirm architecture checks alongside ingest, security, and readiness feeds.【F:src/operations/system_validation.py†L1-L230】【F:src/runtime/runtime_builder.py†L1905-L1950】【F:src/runtime/predator_app.py†L120-L360】【F:tests/operations/test_system_validation.py†L1-L120】【F:tests/runtime/test_professional_app_timescale.py†L400-L455】【F:tests/runtime/test_runtime_builder.py†L200-L360】
+  confirm architecture checks alongside ingest, security, and readiness feeds.【F:src/operations/system_validation.py†L470-L889】【F:src/runtime/runtime_builder.py†L1905-L1950】【F:src/runtime/predator_app.py†L120-L360】【F:tests/operations/test_system_validation.py†L1-L120】【F:tests/runtime/test_professional_app_timescale.py†L400-L455】【F:tests/runtime/test_runtime_builder.py†L200-L360】
 * **Data backbone runbooks** – The [Redis cache outage](runbooks/redis_cache_outage.md)
   and [Kafka ingest offset recovery](runbooks/kafka_ingest_offset_recovery.md)
   playbooks translate the cache health and Kafka lag telemetry into on-call

@@ -1121,6 +1121,7 @@ async def _execute_timescale_ingest(
     kafka_provisioning: KafkaTopicProvisioningSummary | None = None,
     kafka_lag_snapshot: KafkaConsumerLagSnapshot | None = None,
     record_kafka_readiness_snapshot: Callable[[KafkaReadinessSnapshot], None] | None = None,
+    managed_manifest: Sequence[Mapping[str, object]] | None = None,
 ) -> tuple[bool, BackupReadinessSnapshot | None]:
     try:
         orchestrator = orchestrator_cls(
@@ -1140,6 +1141,10 @@ async def _execute_timescale_ingest(
     kafka_settings = kafka_settings or ingest_config.kafka_settings
     kafka_topics_tuple = tuple(kafka_topics)
     kafka_publishers_tuple = tuple(kafka_publishers)
+    if managed_manifest is None:
+        managed_manifest_tuple: tuple[dict[str, object], ...] = ()
+    else:
+        managed_manifest_tuple = tuple(dict(snapshot) for snapshot in managed_manifest)
     aggregated_results: dict[str, TimescaleIngestResult] = dict(initial_results)
 
     for dimension, outcome in initial_results.items():
@@ -1875,9 +1880,9 @@ async def _execute_timescale_ingest(
         logger.info("💾 Timescale backup readiness snapshot:\n%s", markdown)
     _publish_backup_snapshot(event_bus, backup_snapshot)
 
-    if managed_manifest:
+    if managed_manifest_tuple:
         telemetry_metadata = dict(telemetry_metadata)
-        telemetry_metadata["managed_connectors"] = list(managed_manifest)
+        telemetry_metadata["managed_connectors"] = list(managed_manifest_tuple)
 
     backbone_snapshot = evaluate_data_backbone_readiness(
         ingest_config=ingest_config,
@@ -2559,6 +2564,7 @@ def build_professional_runtime_application(
                             kafka_provisioning=kafka_provisioning_summary,
                             kafka_lag_snapshot=None,
                             record_kafka_readiness_snapshot=kafka_readiness_recorder,
+                            managed_manifest=managed_manifest,
                         )
                     if execution_span is not None and hasattr(execution_span, "set_attribute"):
                         execution_span.set_attribute("runtime.ingest.success", bool(success))

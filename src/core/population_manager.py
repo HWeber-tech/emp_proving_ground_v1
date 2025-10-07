@@ -288,7 +288,7 @@ class PopulationManager(IPopulationManager):
                     generation=0,
                     species_type="trading_strategy",
                 )
-            self.population.append(cast(DecisionGenome, genome))
+                self.population.append(cast(DecisionGenome, genome))
 
             logger.info(f"Successfully generated {len(self.population)} genomes")
             self.record_seed_metadata(None, seed_source="factory")

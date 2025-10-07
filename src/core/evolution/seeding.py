@@ -199,6 +199,29 @@ def _normalise_seed_tags(tags: object) -> tuple[str, ...]:
     return tuple(result)
 
 
+def _normalise_seed_sequence(values: object) -> tuple[str, ...]:
+    """Normalise sequence-like metadata fields into comparable tuples."""
+
+    if values is None:
+        return tuple()
+    if isinstance(values, str):
+        text = values.strip()
+        return (text,) if text else tuple()
+    if isinstance(values, Mapping):
+        values = values.values()
+
+    if isinstance(values, Sequence) and not isinstance(values, (str, bytes)):
+        normalised: list[str] = []
+        for entry in values:
+            if entry is None:
+                continue
+            text = str(entry).strip()
+            if text:
+                normalised.append(text)
+        return tuple(normalised)
+    return tuple()
+
+
 def _ordered_counter(counter: Counter[str]) -> dict[str, int]:
     ordered_keys = sorted(counter.keys(), key=lambda item: (-counter[item], item))
     return {key: counter[key] for key in ordered_keys}
@@ -211,6 +234,8 @@ def summarize_seed_metadata(population: Sequence[Any]) -> dict[str, object] | No
     tag_counts: Counter[str] = Counter()
     seed_species_counts: Counter[str] = Counter()
     catalogue_id_counts: Counter[str] = Counter()
+    parent_counts: Counter[str] = Counter()
+    mutation_counts: Counter[str] = Counter()
     total_with_metadata = 0
 
     for candidate in population:
@@ -234,9 +259,25 @@ def summarize_seed_metadata(population: Sequence[Any]) -> dict[str, object] | No
         if isinstance(catalogue_id, str) and catalogue_id:
             catalogue_id_counts[catalogue_id] += 1
 
+        for parent in _normalise_seed_sequence(metadata.get("seed_parent_ids")):
+            parent_counts[parent] += 1
+
+        mutations = metadata.get("seed_mutation_history")
+        if not mutations:
+            mutations = metadata.get("seed_mutations")
+        for mutation in _normalise_seed_sequence(mutations):
+            mutation_counts[mutation] += 1
+
         total_with_metadata += 1
 
-    if not name_counts and not tag_counts and not seed_species_counts and not catalogue_id_counts:
+    if (
+        not name_counts
+        and not tag_counts
+        and not seed_species_counts
+        and not catalogue_id_counts
+        and not parent_counts
+        and not mutation_counts
+    ):
         return None
 
     summary: dict[str, object] = {}
@@ -264,6 +305,12 @@ def summarize_seed_metadata(population: Sequence[Any]) -> dict[str, object] | No
 
     if catalogue_id_counts:
         summary["seed_catalogue_ids"] = _ordered_counter(catalogue_id_counts)
+
+    if parent_counts:
+        summary["seed_parent_ids"] = _ordered_counter(parent_counts)
+
+    if mutation_counts:
+        summary["seed_mutations"] = _ordered_counter(mutation_counts)
 
     return summary
 

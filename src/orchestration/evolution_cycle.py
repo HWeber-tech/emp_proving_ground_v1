@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import inspect
 import time
+from datetime import datetime
 from dataclasses import asdict, dataclass, field, is_dataclass
 from typing import (
     TYPE_CHECKING,
@@ -33,6 +34,7 @@ from src.evolution.lineage_telemetry import (
 
 if TYPE_CHECKING:  # pragma: no cover - import for typing only
     from src.governance.strategy_registry import StrategyRegistry
+    from src.operations.evolution_readiness import EvolutionReadinessSnapshot
 
 __all__ = [
     "FitnessReport",
@@ -439,6 +441,34 @@ class EvolutionCycleOrchestrator:
         """Expose the latest lineage snapshot for monitoring surfaces."""
 
         return self._latest_lineage_snapshot
+
+    def build_readiness_snapshot(
+        self,
+        *,
+        now: datetime | None = None,
+    ) -> "EvolutionReadinessSnapshot":
+        """Fuse feature-flag, seed, and lineage state into a readiness snapshot."""
+
+        from src.operations.evolution_readiness import evaluate_evolution_readiness
+
+        decision = self._adaptive_runs_decision or self._resolve_adaptive_runs_decision()
+        population_stats = self._engine.get_population_statistics()
+        lineage = self._latest_lineage_snapshot
+
+        snapshot = evaluate_evolution_readiness(
+            adaptive_runs_enabled=decision.enabled,
+            population_stats=population_stats,
+            lineage_snapshot=lineage,
+            now=now,
+        )
+
+        decision_payload = decision.as_dict()
+        snapshot.metadata.setdefault("adaptive_run_decision", decision_payload)
+        snapshot.metadata.setdefault("seed_source", population_stats.get("seed_source"))
+        if lineage is not None:
+            snapshot.metadata.setdefault("lineage_fingerprint", lineage.fingerprint())
+
+        return snapshot
 
     @property
     def population_statistics(self) -> Mapping[str, object]:

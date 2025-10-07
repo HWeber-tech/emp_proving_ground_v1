@@ -7,6 +7,7 @@ import pytest
 from src.core.evolution.engine import EvolutionConfig, EvolutionEngine
 from src.governance.strategy_registry import StrategyRegistry
 from src.orchestration.evolution_cycle import EvolutionCycleOrchestrator
+from src.operations.evolution_readiness import EvolutionReadinessStatus
 
 
 class RecordingBus:
@@ -335,3 +336,67 @@ async def test_orchestrator_uses_environment_flag(monkeypatch):
     assert decision.source == "environment"
     assert decision.reason == "flag_enabled"
     assert orchestrator.telemetry["adaptive_runs"]["reason"] == "flag_enabled"
+
+
+@pytest.mark.asyncio
+async def test_readiness_snapshot_reflects_gating_and_seed_metadata():
+    engine = EvolutionEngine(
+        EvolutionConfig(
+            population_size=4,
+            elite_count=1,
+            crossover_rate=0.5,
+            mutation_rate=0.1,
+            use_catalogue=False,
+        )
+    )
+    engine._rng.seed(41)  # type: ignore[attr-defined]
+
+    async def evaluator(genome):
+        return {"fitness_score": _score_parameters(genome), "sharpe_ratio": 1.0}
+
+    orchestrator = EvolutionCycleOrchestrator(engine, evaluator, adaptive_runs_enabled=False)
+
+    result = await orchestrator.run_cycle()
+    assert result.champion is not None
+
+    snapshot = orchestrator.build_readiness_snapshot()
+
+    assert snapshot.status is EvolutionReadinessStatus.review
+    assert snapshot.adaptive_runs_enabled is False
+    assert snapshot.seed_source in {"realistic_sampler", "factory", "catalogue"}
+    assert snapshot.seed_templates, "expected seed templates from realistic seeding"
+    assert snapshot.metadata["adaptive_run_decision"]["enabled"] is False
+    assert snapshot.metadata["adaptive_run_decision"]["reason"] == "override_disabled"
+    assert snapshot.lineage_generation is not None
+    assert snapshot.champion_id == result.champion.genome_id
+
+
+@pytest.mark.asyncio
+async def test_readiness_snapshot_ready_when_adaptive_runs_enabled():
+    engine = EvolutionEngine(
+        EvolutionConfig(
+            population_size=3,
+            elite_count=1,
+            crossover_rate=0.4,
+            mutation_rate=0.1,
+            use_catalogue=False,
+        )
+    )
+    engine._rng.seed(47)  # type: ignore[attr-defined]
+
+    async def evaluator(genome):
+        return {"fitness_score": _score_parameters(genome), "sharpe_ratio": 1.05}
+
+    orchestrator = EvolutionCycleOrchestrator(engine, evaluator, adaptive_runs_enabled=True)
+
+    result = await orchestrator.run_cycle()
+    assert result.champion is not None
+
+    snapshot = orchestrator.build_readiness_snapshot()
+
+    assert snapshot.status is EvolutionReadinessStatus.ready
+    assert snapshot.adaptive_runs_enabled is True
+    assert snapshot.metadata["adaptive_run_decision"]["enabled"] is True
+    assert snapshot.metadata["adaptive_run_decision"]["reason"] == "override_enabled"
+    assert snapshot.seed_templates
+    assert snapshot.champion_id == result.champion.genome_id

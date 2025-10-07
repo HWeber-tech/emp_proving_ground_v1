@@ -5,7 +5,7 @@ is unavailable. Never raises on import; safe to use in any environment.
 
 import logging
 from threading import RLock
-from typing import Dict, List, Optional, Protocol, Self, Sequence, Tuple, Union, cast
+from typing import Dict, List, Optional, Protocol, Sequence, Tuple, Union, cast
 from src.core.interfaces import CounterLike, GaugeLike, HistogramLike
 
 _log = logging.getLogger(__name__)
@@ -24,7 +24,7 @@ class NoOpCounter:
         return self
 
     # convenience API not part of the protocol
-    def with_labels(self, labels: Dict[str, str]) -> Self:
+    def with_labels(self, labels: Dict[str, str]) -> "NoOpCounter":
         return self
 
 
@@ -42,7 +42,7 @@ class NoOpGauge:
         return self
 
     # convenience API not part of the protocol
-    def with_labels(self, labels: Dict[str, str]) -> Self:
+    def with_labels(self, labels: Dict[str, str]) -> "NoOpGauge":
         return self
 
 
@@ -54,7 +54,7 @@ class NoOpHistogram:
         return self
 
     # convenience API not part of the protocol
-    def with_labels(self, labels: Dict[str, str]) -> Self:
+    def with_labels(self, labels: Dict[str, str]) -> "NoOpHistogram":
         return self
 
 

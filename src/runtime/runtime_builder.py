@@ -527,22 +527,35 @@ class RuntimeApplication:
                     else:
                         if span is not None and hasattr(span, "set_attribute"):
                             span.set_attribute("runtime.operation.status", "completed")
-            async with asyncio.TaskGroup() as task_group:
-                if self.ingestion is not None:
-                    task_group.create_task(
+            workloads: list[tuple[str, Any]] = []
+            if self.ingestion is not None:
+                workloads.append(
+                    (
+                        f"{self.ingestion.name}-workload",
                         self._run_workload(self.ingestion),
-                        name=f"{self.ingestion.name}-workload",
                     )
-                if self.trading is not None:
-                    task_group.create_task(
+                )
+            if self.trading is not None:
+                workloads.append(
+                    (
+                        f"{self.trading.name}-workload",
                         self._run_workload(self.trading),
-                        name=f"{self.trading.name}-workload",
                     )
-        except* Exception as exc_group:  # pragma: no cover - handled by caller
-            for exc in exc_group.exceptions:
-                if not isinstance(exc, asyncio.CancelledError):
-                    self._logger.error("Runtime workload error: %s", exc)
-            raise
+                )
+            if workloads:
+                results = await asyncio.gather(
+                    *(coro for _, coro in workloads), return_exceptions=True
+                )
+                errors: list[BaseException] = []
+                for (task_name, _), result in zip(workloads, results):
+                    if isinstance(result, BaseException):
+                        errors.append(result)
+                        if not isinstance(result, asyncio.CancelledError):
+                            self._logger.error(
+                                "Runtime workload error (%s): %s", task_name, result
+                            )
+                if errors:
+                    raise errors[0]
         finally:
             await self.shutdown()
 

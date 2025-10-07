@@ -124,6 +124,8 @@ def test_release_manager_threshold_resolution(tmp_path: Path) -> None:
         policy_id="alpha.policy",
         tactic_id="tactic.alpha",
         stage=PolicyLedgerStage.LIMITED_LIVE,
+        approvals=("risk", "ops"),
+        evidence_id="diary-alpha",
         threshold_overrides={"warn_confidence_floor": 0.58},
     )
 
@@ -179,3 +181,56 @@ def test_policy_governance_workflow_builds_tasks(tmp_path: Path) -> None:
     task = checklist.tasks[0]
     assert task.status.value in {"completed", "in_progress"}
     assert task.metadata["policy_id"] == "alpha.policy"
+
+
+def test_release_manager_enforces_audit_coverage(tmp_path: Path) -> None:
+    path = tmp_path / "policy_ledger.json"
+    store = PolicyLedgerStore(path)
+    manager = LedgerReleaseManager(
+        store,
+        feature_flags=PolicyLedgerFeatureFlags(require_diary_evidence=False),
+    )
+
+    manager.promote(
+        policy_id="alpha",
+        tactic_id="alpha",
+        stage=PolicyLedgerStage.LIMITED_LIVE,
+    )
+
+    enforced_stage = manager.resolve_stage("alpha")
+    assert enforced_stage is PolicyLedgerStage.EXPERIMENT
+    summary = manager.describe("alpha")
+    assert summary["stage"] == PolicyLedgerStage.EXPERIMENT.value
+    assert summary["declared_stage"] == PolicyLedgerStage.LIMITED_LIVE.value
+    assert summary["audit_enforced"] is True
+    assert "missing_evidence" in summary.get("audit_gaps", [])
+
+    manager.promote(
+        policy_id="alpha",
+        tactic_id="alpha",
+        stage=PolicyLedgerStage.LIMITED_LIVE,
+        evidence_id="diary-alpha",
+        approvals=("risk",),
+    )
+
+    enforced_stage = manager.resolve_stage("alpha")
+    assert enforced_stage is PolicyLedgerStage.PILOT
+    summary = manager.describe("alpha")
+    assert summary["stage"] == PolicyLedgerStage.PILOT.value
+    assert summary["audit_stage"] == PolicyLedgerStage.PILOT.value
+    assert "additional_approval_needed" in summary.get("audit_gaps", [])
+
+    manager.promote(
+        policy_id="alpha",
+        tactic_id="alpha",
+        stage=PolicyLedgerStage.LIMITED_LIVE,
+        evidence_id="diary-alpha",
+        approvals=("risk", "ops"),
+    )
+
+    enforced_stage = manager.resolve_stage("alpha")
+    assert enforced_stage is PolicyLedgerStage.LIMITED_LIVE
+    summary = manager.describe("alpha")
+    assert summary["stage"] == PolicyLedgerStage.LIMITED_LIVE.value
+    assert summary.get("audit_gaps", []) == []
+    assert summary["audit_enforced"] is False

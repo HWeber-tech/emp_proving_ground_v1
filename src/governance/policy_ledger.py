@@ -159,6 +159,36 @@ class PolicyLedgerRecord:
             payload["metadata"] = dict(self.metadata)
         return payload
 
+    def audit_gaps(
+        self,
+        *,
+        expected_stage: "PolicyLedgerStage" | str | None = None,
+    ) -> tuple[str, ...]:
+        """Return audit prerequisites missing for the expected release stage."""
+
+        stage = (
+            PolicyLedgerStage.from_value(expected_stage)
+            if expected_stage is not None
+            else self.stage
+        )
+        gaps: list[str] = []
+
+        if stage in (
+            PolicyLedgerStage.PAPER,
+            PolicyLedgerStage.PILOT,
+            PolicyLedgerStage.LIMITED_LIVE,
+        ) and not self.evidence_id:
+            gaps.append("missing_evidence")
+
+        if stage in (PolicyLedgerStage.PILOT, PolicyLedgerStage.LIMITED_LIVE):
+            if not self.approvals:
+                gaps.append("missing_approvals")
+            elif stage is PolicyLedgerStage.LIMITED_LIVE and len(self.approvals) < 2:
+                gaps.append("additional_approval_needed")
+
+        # De-duplicate while preserving order for deterministic payloads.
+        return tuple(dict.fromkeys(gaps))
+
     @classmethod
     def from_dict(cls, data: Mapping[str, Any]) -> "PolicyLedgerRecord":
         policy_id = str(data.get("policy_id"))
@@ -368,12 +398,34 @@ class LedgerReleaseManager:
         self._feature_flags = feature_flags or PolicyLedgerFeatureFlags.from_env()
         self._evidence_resolver = evidence_resolver
 
+    @staticmethod
+    def _coverage_stage(record: PolicyLedgerRecord) -> PolicyLedgerStage:
+        """Determine the highest stage permitted by audit coverage."""
+
+        if not record.evidence_id:
+            return PolicyLedgerStage.EXPERIMENT
+
+        if not record.approvals:
+            return PolicyLedgerStage.PAPER
+
+        if len(record.approvals) < 2:
+            return PolicyLedgerStage.PILOT
+
+        return PolicyLedgerStage.LIMITED_LIVE
+
+    @staticmethod
+    def _audit_gaps(record: PolicyLedgerRecord) -> tuple[str, ...]:
+        return record.audit_gaps(expected_stage=record.stage)
+
     def resolve_stage(self, policy_id: str | None) -> PolicyLedgerStage:
         if not policy_id:
             return self._default_stage
         record = self._store.get(policy_id)
         if record is None:
             return self._default_stage
+        coverage_stage = self._coverage_stage(record)
+        if _STAGE_ORDER[coverage_stage] < _STAGE_ORDER[record.stage]:
+            return coverage_stage
         return record.stage
 
     def resolve_thresholds(self, policy_id: str | None) -> Mapping[str, float | str]:
@@ -408,10 +460,17 @@ class LedgerReleaseManager:
             "thresholds": dict(thresholds),
         }
         if record is not None:
+            coverage_stage = self._coverage_stage(record)
+            audit_gaps = self._audit_gaps(record)
             payload["approvals"] = list(record.approvals)
             if record.evidence_id:
                 payload["evidence_id"] = record.evidence_id
             payload["updated_at"] = record.updated_at.isoformat()
+            payload["declared_stage"] = record.stage.value
+            payload["audit_stage"] = coverage_stage.value
+            if audit_gaps:
+                payload["audit_gaps"] = list(audit_gaps)
+            payload["audit_enforced"] = record.stage != stage
         return payload
 
     def promote(

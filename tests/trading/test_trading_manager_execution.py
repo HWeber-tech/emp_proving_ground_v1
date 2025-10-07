@@ -41,6 +41,7 @@ from src.compliance.workflow import WorkflowTaskStatus
 from src.governance.policy_ledger import (
     LedgerReleaseManager,
     PolicyDelta,
+    PolicyLedgerFeatureFlags,
     PolicyLedgerStage,
     PolicyLedgerStore,
 )
@@ -605,6 +606,78 @@ async def test_trading_manager_blocks_experiment_stage(
     )
 
 
+@pytest.mark.asyncio()
+async def test_trading_manager_blocks_without_audit_coverage(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    async def _noop(*_args, **_kwargs) -> None:
+        return None
+
+    monkeypatch.setattr("src.trading.trading_manager.publish_risk_snapshot", _noop)
+    monkeypatch.setattr("src.trading.trading_manager.publish_roi_snapshot", _noop)
+    monkeypatch.setattr("src.trading.trading_manager.publish_policy_snapshot", _noop)
+    monkeypatch.setattr("src.trading.trading_manager.publish_policy_violation", _noop)
+    monkeypatch.setattr(
+        "src.trading.trading_manager.publish_risk_interface_snapshot",
+        _noop,
+    )
+    monkeypatch.setattr("src.trading.trading_manager.publish_risk_interface_error", _noop)
+
+    gate = DriftSentryGate(warn_confidence_floor=0.2)
+    store = PolicyLedgerStore(tmp_path / "policy_ledger.json")
+    release_manager = LedgerReleaseManager(
+        store,
+        feature_flags=PolicyLedgerFeatureFlags(require_diary_evidence=False),
+    )
+    release_manager.promote(
+        policy_id="alpha",
+        tactic_id="alpha",
+        stage=PolicyLedgerStage.LIMITED_LIVE,
+    )
+
+    manager = TradingManager(
+        event_bus=DummyBus(),
+        strategy_registry=AlwaysActiveRegistry(),
+        execution_engine=None,
+        initial_equity=50_000.0,
+        risk_config=RiskConfig(
+            min_position_size=1,
+            mandatory_stop_loss=False,
+            research_mode=True,
+        ),
+        drift_gate=gate,
+        release_manager=release_manager,
+    )
+    execution_engine = RecordingExecutionEngine()
+    manager.execution_engine = execution_engine
+
+    validate_mock: AsyncMock = AsyncMock(return_value=None)
+    manager.risk_gateway.validate_trade_intent = validate_mock  # type: ignore[assignment]
+
+    intent = ConfidenceIntent(
+        symbol="EURUSD",
+        quantity=1.0,
+        price=1.2050,
+        confidence=0.95,
+        strategy_id="alpha",
+    )
+
+    await manager.on_trade_intent(intent)
+
+    decision = manager.get_last_drift_gate_decision()
+    assert decision is not None
+    assert decision.allowed is False
+    assert decision.reason == "release_stage_experiment_requires_paper_or_better"
+    assert validate_mock.await_count == 0
+    summary = manager.describe_release_posture("alpha")
+    assert summary["stage"] == PolicyLedgerStage.EXPERIMENT.value
+    assert summary["declared_stage"] == PolicyLedgerStage.LIMITED_LIVE.value
+    assert summary.get("audit_enforced") is True
+    assert "missing_evidence" in summary.get("audit_gaps", [])
+    events = manager.get_experiment_events()
+    assert events and events[0]["status"] == "gated"
+
+
 def test_describe_release_posture(tmp_path: Path) -> None:
     store = PolicyLedgerStore(tmp_path / "policy_ledger.json")
     release_manager = LedgerReleaseManager(store)
@@ -628,6 +701,10 @@ def test_describe_release_posture(tmp_path: Path) -> None:
     summary = manager.describe_release_posture("alpha")
     assert summary["stage"] == PolicyLedgerStage.LIMITED_LIVE.value
     assert summary["managed"] is True
+    assert summary["declared_stage"] == PolicyLedgerStage.LIMITED_LIVE.value
+    assert summary.get("audit_stage") == PolicyLedgerStage.LIMITED_LIVE.value
+    assert summary.get("audit_enforced") is False
+    assert summary.get("audit_gaps", []) == []
     assert "thresholds" in summary
     thresholds = summary["thresholds"]
     assert thresholds.get("adaptive_source") == DriftSeverity.normal.value

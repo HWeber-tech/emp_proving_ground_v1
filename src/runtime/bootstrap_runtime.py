@@ -25,6 +25,7 @@ from src.operations.sensory_drift import evaluate_sensory_drift, publish_sensory
 from src.operations.sensory_metrics import build_sensory_metrics, publish_sensory_metrics
 from src.operations.sensory_summary import build_sensory_summary, publish_sensory_summary
 from src.orchestration.bootstrap_stack import BootstrapSensoryPipeline, BootstrapTradingStack
+from src.sensory.lineage_publisher import SensoryLineagePublisher
 from src.sensory.real_sensory_organ import RealSensoryOrgan, SensoryDriftConfig
 from src.runtime.task_supervisor import TaskSupervisor
 from src.trading.execution.paper_execution import ImmediateFillExecutionAdapter
@@ -218,9 +219,12 @@ class BootstrapRuntime:
             sensors=("WHY", "WHAT", "WHEN", "HOW", "ANOMALY"),
         )
         self._sensory_drift_config = drift_config
+        self._sensory_lineage_publisher = SensoryLineagePublisher(event_bus=event_bus)
+        self._sensory_lineage_history_limit = 15
         self._sensory_cortex = RealSensoryOrgan(
             event_bus=event_bus,
             drift_config=drift_config,
+            lineage_publisher=self._sensory_lineage_publisher,
         )
         self._sensory_history_window = 256
         self._sensory_history: dict[str, Deque[dict[str, Any]]] = defaultdict(
@@ -337,6 +341,21 @@ class BootstrapRuntime:
 
             if pipeline_audit:
                 status.setdefault("legacy_sensor_audit", pipeline_audit)
+
+            if self._sensory_lineage_publisher is not None:
+                try:
+                    lineage_history = self._sensory_lineage_publisher.history(
+                        limit=self._sensory_lineage_history_limit
+                    )
+                except Exception:  # pragma: no cover - defensive telemetry guard
+                    logger.debug(
+                        "Failed to collect sensory lineage history for bootstrap status",
+                        exc_info=True,
+                    )
+                else:
+                    if lineage_history:
+                        status["sensory_lineage"] = lineage_history
+                        status["sensory_lineage_latest"] = lineage_history[0]
         elif pipeline_audit:
             status["sensor_audit"] = pipeline_audit
 

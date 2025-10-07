@@ -132,6 +132,19 @@ async def test_bootstrap_runtime_exposes_sensory_status() -> None:
 
         audit_entries = status.get("sensor_audit") or status.get("legacy_sensor_audit")
         assert audit_entries
+
+        lineage_history = status.get("sensory_lineage")
+        assert isinstance(lineage_history, list)
+        dimensions = {
+            entry.get("dimension")
+            for entry in lineage_history
+            if isinstance(entry, Mapping)
+        }
+        assert {"HOW", "ANOMALY"}.issubset(dimensions)
+
+        latest_lineage = status.get("sensory_lineage_latest")
+        assert isinstance(latest_lineage, Mapping)
+        assert latest_lineage.get("dimension") in {"WHY", "WHAT", "WHEN", "HOW", "ANOMALY"}
     finally:
         await runtime.stop()
 

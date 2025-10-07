@@ -975,6 +975,12 @@ async def test_trading_manager_forces_paper_execution_under_drift_warn(
     assert isinstance(gate_payload, dict)
     assert gate_payload.get("allowed") is True
     assert gate_payload.get("severity") == DriftSeverity.warn.value
+    release_metadata = metadata.get("release_execution")
+    assert isinstance(release_metadata, dict)
+    assert release_metadata.get("stage") == PolicyLedgerStage.LIMITED_LIVE.value
+    assert release_metadata.get("route") == "paper"
+    assert release_metadata.get("forced") is True
+    assert release_metadata.get("forced_reason") == "drift_gate_severity_warn"
 
 
 @pytest.mark.asyncio()

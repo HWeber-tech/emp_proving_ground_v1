@@ -338,6 +338,15 @@ class BootstrapControlCenter:
                 block["markdown"] = policy_markdown
             policy_block = block
 
+        release_execution = _call_trading_manager_method(
+            self.trading_manager, "describe_release_execution"
+        )
+        release_block: Mapping[str, Any] | None
+        if isinstance(release_execution, Mapping):
+            release_block = dict(release_execution)
+        else:
+            release_block = None
+
         return {
             "limits": dict(limits_payload.get("limits", {})),
             "telemetry": dict(limits_payload.get("telemetry", {})),
@@ -347,6 +356,7 @@ class BootstrapControlCenter:
             "snapshot": dict(snapshot) if isinstance(snapshot, Mapping) else None,
             "policy": policy_block,
             "interface": interface_payload,
+            "release_execution": release_block,
         }
 
     def _build_intelligence_section(self) -> Mapping[str, Any]:

@@ -29,6 +29,7 @@ from src.sensory.lineage_publisher import SensoryLineagePublisher
 from src.sensory.real_sensory_organ import RealSensoryOrgan, SensoryDriftConfig
 from src.runtime.task_supervisor import TaskSupervisor
 from src.trading.execution.paper_execution import ImmediateFillExecutionAdapter
+from src.trading.execution.release_router import ReleaseAwareExecutionRouter
 from src.trading.liquidity.depth_aware_prober import DepthAwareLiquidityProber
 from src.trading.monitoring.portfolio_monitor import PortfolioMonitor, RedisLike
 from src.trading.gating import DriftSentryGate
@@ -191,6 +192,29 @@ class BootstrapRuntime:
         self.portfolio_monitor: PortfolioMonitor = self.trading_manager.portfolio_monitor
         self.execution_engine = ImmediateFillExecutionAdapter(self.portfolio_monitor)
         self.trading_manager.execution_engine = self.execution_engine
+        self._release_router: ReleaseAwareExecutionRouter | None = None
+        if release_manager is not None:
+            try:
+                default_stage = release_manager.resolve_stage(strategy_id)
+            except Exception:  # pragma: no cover - diagnostics only
+                logger.debug(
+                    "Failed to resolve initial release stage for bootstrap runtime",
+                    exc_info=True,
+                )
+                default_stage = None
+            try:
+                self._release_router = self.trading_manager.install_release_execution_router(
+                    paper_engine=self.execution_engine,
+                    pilot_engine=self.execution_engine,
+                    live_engine=self.execution_engine,
+                    default_stage=default_stage,
+                )
+            except Exception:  # pragma: no cover - diagnostics only
+                logger.debug(
+                    "Failed to install release-aware execution router",
+                    exc_info=True,
+                )
+                self._release_router = None
 
         self.control_center = BootstrapControlCenter(
             pipeline=self.pipeline,
@@ -388,6 +412,20 @@ class BootstrapRuntime:
             else:
                 if release_payload:
                     status["release_posture"] = dict(release_payload)
+        describe_execution = getattr(self.trading_manager, "describe_release_execution", None)
+        if callable(describe_execution):
+            try:
+                release_execution = describe_execution()
+            except Exception:  # pragma: no cover - diagnostics only
+                logger.debug(
+                    "Failed to resolve release execution routing for bootstrap status",
+                    exc_info=True,
+                )
+            else:
+                if isinstance(release_execution, Mapping):
+                    status["release_execution"] = dict(release_execution)
+                elif release_execution is not None:
+                    status["release_execution"] = release_execution
         return status
 
     def _publish_sensory_outputs(self, snapshot: Mapping[str, Any] | None) -> None:

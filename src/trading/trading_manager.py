@@ -356,6 +356,9 @@ class TradingManager:
                     confidence = self._extract_confidence(validated_intent)
                     if confidence is None:
                         confidence = base_confidence
+                    release_metadata = self._extract_release_execution_metadata(validated_intent)
+                    if release_metadata:
+                        failure_metadata["release_execution"] = release_metadata
                     self._record_experiment_event(
                         event_id=event_id,
                         status="failed",
@@ -385,6 +388,11 @@ class TradingManager:
                         }
                         if gate_decision_payload is not None:
                             success_metadata["drift_gate"] = dict(gate_decision_payload)
+                        release_metadata = self._extract_release_execution_metadata(
+                            validated_intent
+                        )
+                        if release_metadata:
+                            success_metadata["release_execution"] = release_metadata
                         self._record_experiment_event(
                             event_id=event_id,
                             status="executed",
@@ -404,6 +412,11 @@ class TradingManager:
                             fallback_metadata["notional"] = float(notional)
                         if gate_decision_payload is not None:
                             fallback_metadata["drift_gate"] = dict(gate_decision_payload)
+                        release_metadata = self._extract_release_execution_metadata(
+                            validated_intent
+                        )
+                        if release_metadata:
+                            fallback_metadata["release_execution"] = release_metadata
                         self._record_experiment_event(
                             event_id=event_id,
                             status="failed",
@@ -616,6 +629,50 @@ class TradingManager:
         metadata_dict["drift_gate"] = payload
         setattr(intent, "metadata", metadata_dict)
 
+    def _extract_release_execution_metadata(self, intent: Any) -> Mapping[str, Any] | None:
+        """Extract release routing details exposed by the execution router."""
+
+        metadata_candidate: Mapping[str, Any] | None
+        if isinstance(intent, MutableMappingABC):
+            raw = intent.get("metadata")
+            metadata_candidate = raw if isinstance(raw, Mapping) else None
+        else:
+            raw_attr = getattr(intent, "metadata", None)
+            metadata_candidate = raw_attr if isinstance(raw_attr, Mapping) else None
+
+        if not metadata_candidate:
+            return None
+
+        payload: dict[str, Any] = {}
+
+        stage = metadata_candidate.get("release_stage")
+        if stage:
+            payload["stage"] = str(stage)
+
+        route = metadata_candidate.get("release_execution_route")
+        if route:
+            payload["route"] = str(route)
+
+        forced_reason = metadata_candidate.get("release_execution_forced")
+        if forced_reason:
+            payload["forced_reason"] = str(forced_reason)
+
+        overridden_flag = metadata_candidate.get("release_execution_route_overridden")
+        overridden = overridden_flag if isinstance(overridden_flag, bool) else None
+        if overridden is not None:
+            payload["overridden"] = overridden
+
+        if forced_reason or overridden:
+            payload["forced"] = True
+
+        drift_gate_payload = metadata_candidate.get("drift_gate")
+        if isinstance(drift_gate_payload, Mapping):
+            severity = drift_gate_payload.get("severity")
+            if severity:
+                payload.setdefault("drift_severity", str(severity))
+
+        return payload or None
+
     def _get_last_risk_decision(self) -> Mapping[str, Any] | None:
         """Safely fetch the last risk decision from the gateway."""
 
@@ -800,6 +857,20 @@ class TradingManager:
         self.execution_engine = router
         self._release_router = router
         return router
+
+    def describe_release_execution(self) -> Mapping[str, Any] | None:
+        """Expose the configured release-aware execution routing summary."""
+
+        if self._release_router is None:
+            return None
+        try:
+            return self._release_router.describe()
+        except Exception:  # pragma: no cover - diagnostic fallback
+            logger.debug(
+                "Failed to describe release execution router",
+                exc_info=True,
+            )
+            return None
 
     async def start(self) -> None:
         """Start the TradingManager and subscribe to trade intents."""

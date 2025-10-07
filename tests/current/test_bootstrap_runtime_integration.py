@@ -127,6 +127,7 @@ from src.governance.system_config import (
 )
 from src.runtime import build_professional_predator_app
 from src.runtime.bootstrap_runtime import BootstrapRuntime
+from src.trading.execution.release_router import ReleaseAwareExecutionRouter
 from src.understanding.decision_diary import DecisionDiaryStore
 
 
@@ -237,6 +238,7 @@ async def test_bootstrap_runtime_release_posture(tmp_path) -> None:
     app = await build_professional_predator_app(config=cfg)
     assert isinstance(app.sensory_organ, BootstrapRuntime)
     runtime = app.sensory_organ
+    assert isinstance(runtime.trading_manager.execution_engine, ReleaseAwareExecutionRouter)
 
     async with app:
         await asyncio.sleep(0.1)
@@ -244,6 +246,14 @@ async def test_bootstrap_runtime_release_posture(tmp_path) -> None:
         release_posture = status.get("release_posture")
         assert isinstance(release_posture, dict)
         assert release_posture.get("stage") == PolicyLedgerStage.PAPER.value
+        release_execution = status.get("release_execution")
+        assert isinstance(release_execution, dict)
+        assert release_execution.get("default_stage") == PolicyLedgerStage.PAPER.value
+        engines = release_execution.get("engines", {})
+        assert engines.get("paper") == "ImmediateFillExecutionAdapter"
+        last_route = release_execution.get("last_route")
+        if last_route is not None:
+            assert last_route.get("route") == "paper"
         summary = app.summary()
         risk_section = summary.get("risk")
         assert isinstance(risk_section, dict)
@@ -252,5 +262,8 @@ async def test_bootstrap_runtime_release_posture(tmp_path) -> None:
         assert release_summary.get("stage") == PolicyLedgerStage.PAPER.value
         thresholds = release_summary.get("thresholds", {})
         assert thresholds.get("stage") == PolicyLedgerStage.PAPER.value
+        release_exec_section = risk_section.get("release_execution")
+        assert isinstance(release_exec_section, dict)
+        assert release_exec_section.get("default_stage") == PolicyLedgerStage.PAPER.value
 
     assert runtime.status()["running"] is False

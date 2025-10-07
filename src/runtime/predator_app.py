@@ -1123,6 +1123,23 @@ class ProfessionalPredatorApp:
                     if release_payload:
                         risk_section["release"] = dict(release_payload)
 
+            describe_release_execution = getattr(
+                trading_manager, "describe_release_execution", None
+            )
+            if callable(describe_release_execution):
+                try:
+                    release_execution_payload = describe_release_execution()
+                except Exception:  # pragma: no cover - diagnostics only
+                    self._logger.debug(
+                        "Failed to resolve release execution routing for runtime summary",
+                        exc_info=True,
+                    )
+                else:
+                    if isinstance(release_execution_payload, Mapping):
+                        risk_section["release_execution"] = dict(release_execution_payload)
+                    elif release_execution_payload is not None:
+                        risk_section["release_execution"] = release_execution_payload
+
         if self._last_execution_snapshot is not None:
             execution_snapshot = self._last_execution_snapshot
             execution_payload: dict[str, object] = {"snapshot": execution_snapshot.as_dict()}

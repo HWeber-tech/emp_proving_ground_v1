@@ -60,11 +60,3 @@ layers = [
   "src.trading",
   "src.trading.models"
 ]
-
-[[contract]]
-name = "sensory-models-bottom"
-type = "layers"
-layers = [
-  "src.sensory",
-  "src.sensory.models"
-]

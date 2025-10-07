@@ -1814,7 +1814,11 @@ def _build_bootstrap_runtime(
                     extra={"probe_registry_path": str(registry_path)},
                 )
         try:
-            diary_store = DecisionDiaryStore(diary_path, probe_registry=probe_registry)
+            diary_store = DecisionDiaryStore(
+                diary_path,
+                probe_registry=probe_registry,
+                event_bus=bus,
+            )
         except Exception as exc:
             logger.warning(
                 "Failed to initialise decision diary store",

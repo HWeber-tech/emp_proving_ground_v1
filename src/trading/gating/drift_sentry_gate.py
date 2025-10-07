@@ -11,6 +11,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any, Callable, Mapping, Sequence
 
+from src.governance.policy_ledger import PolicyLedgerStage
 from src.operations.sensory_drift import DriftSeverity, SensoryDimensionDrift, SensoryDriftSnapshot
 
 __all__ = [
@@ -144,48 +145,47 @@ class DriftSentryGate:
         if metadata:
             requirements.update({f"context.{key}": value for key, value in metadata.items()})
 
+        finalize = self._finalise_decision
+
         if snapshot is None:
-            decision = DriftSentryDecision(
+            return finalize(
                 allowed=True,
                 severity=severity,
                 evaluated_at=evaluated_at,
-                reason="no_snapshot",
                 requirements=requirements,
                 blocked_dimensions=blocked_dimensions,
                 snapshot_metadata=snapshot_metadata,
+                applied_stage=applied_stage,
+                reason="no_snapshot",
             )
-            self._last_decision = decision
-            return decision
 
         strategy_key = strategy_id.strip().lower() if strategy_id else None
         if strategy_key and strategy_key in self._exempt_strategies:
-            decision = DriftSentryDecision(
+            return finalize(
                 allowed=True,
                 severity=severity,
                 evaluated_at=evaluated_at,
-                reason="strategy_exempt",
                 requirements=requirements,
                 blocked_dimensions=blocked_dimensions,
                 snapshot_metadata=snapshot_metadata,
+                applied_stage=applied_stage,
+                reason="strategy_exempt",
             )
-            self._last_decision = decision
-            return decision
 
         if _severity_ge(severity, block_severity):
             reason = (
                 f"drift severity {severity.value} reached block threshold {block_severity.value}"
             )
-            decision = DriftSentryDecision(
+            return finalize(
                 allowed=False,
                 severity=severity,
                 evaluated_at=evaluated_at,
-                reason=reason,
                 requirements=requirements,
                 blocked_dimensions=blocked_dimensions,
                 snapshot_metadata=snapshot_metadata,
+                applied_stage=applied_stage,
+                reason=reason,
             )
-            self._last_decision = decision
-            return decision
 
         if _severity_ge(severity, DriftSeverity.warn):
             allowed = True
@@ -209,28 +209,26 @@ class DriftSentryGate:
                         f"{warn_notional_limit:,.2f}"
                     )
 
-            decision = DriftSentryDecision(
+            return finalize(
                 allowed=allowed,
                 severity=severity,
                 evaluated_at=evaluated_at,
-                reason=reason,
                 requirements=requirements,
                 blocked_dimensions=blocked_dimensions,
                 snapshot_metadata=snapshot_metadata,
+                applied_stage=applied_stage,
+                reason=reason,
             )
-            self._last_decision = decision
-            return decision
 
-        decision = DriftSentryDecision(
+        return finalize(
             allowed=True,
             severity=severity,
             evaluated_at=evaluated_at,
             requirements=requirements,
             blocked_dimensions=blocked_dimensions,
             snapshot_metadata=snapshot_metadata,
+            applied_stage=applied_stage,
         )
-        self._last_decision = decision
-        return decision
 
     @staticmethod
     def _blocked_dimensions(snapshot: SensoryDriftSnapshot | None) -> tuple[str, ...]:
@@ -301,3 +299,47 @@ class DriftSentryGate:
                 block_severity = self._block_severity
 
         return warn_confidence, warn_notional, block_severity, applied_stage
+
+    def _finalise_decision(
+        self,
+        *,
+        allowed: bool,
+        severity: DriftSeverity,
+        evaluated_at: datetime,
+        requirements: Mapping[str, Any],
+        blocked_dimensions: Sequence[str],
+        snapshot_metadata: Mapping[str, Any],
+        applied_stage: str | None,
+        reason: str | None = None,
+    ) -> DriftSentryDecision:
+        final_allowed = bool(allowed)
+        final_reason = reason
+
+        stage_reason = self._stage_gate_reason(applied_stage) if final_allowed else None
+        if stage_reason:
+            final_allowed = False
+            final_reason = stage_reason
+
+        decision = DriftSentryDecision(
+            allowed=final_allowed,
+            severity=severity,
+            evaluated_at=evaluated_at,
+            reason=final_reason,
+            requirements=requirements,
+            blocked_dimensions=tuple(blocked_dimensions),
+            snapshot_metadata=snapshot_metadata,
+        )
+        self._last_decision = decision
+        return decision
+
+    @staticmethod
+    def _stage_gate_reason(stage: str | None) -> str | None:
+        if not stage:
+            return None
+        try:
+            resolved_stage = PolicyLedgerStage.from_value(stage)
+        except Exception:
+            return None
+        if resolved_stage is PolicyLedgerStage.EXPERIMENT:
+            return "release_stage_experiment_requires_paper_or_better"
+        return None

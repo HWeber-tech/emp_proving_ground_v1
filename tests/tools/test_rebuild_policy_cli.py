@@ -22,6 +22,7 @@ def test_rebuild_policy_cli_outputs_payload(tmp_path: Path) -> None:
     )
 
     output_path = tmp_path / "rebuild.json"
+    changelog_path = tmp_path / "governance.md"
     exit_code = main(
         [
             "--ledger",
@@ -30,6 +31,10 @@ def test_rebuild_policy_cli_outputs_payload(tmp_path: Path) -> None:
             str(output_path),
             "--indent",
             "0",
+            "--changelog",
+            str(changelog_path),
+            "--runbook-url",
+            "https://runbooks/policy",
         ]
     )
     assert exit_code == 0
@@ -40,3 +45,7 @@ def test_rebuild_policy_cli_outputs_payload(tmp_path: Path) -> None:
     policy_payload = payload["policies"]["alpha.policy"]
     assert policy_payload["risk_config"]["max_leverage"] == 6.0
     assert payload["governance_workflow"]["status"] in {"completed", "in_progress"}
+
+    changelog = changelog_path.read_text()
+    assert "alpha.policy" in changelog
+    assert "https://runbooks/policy" in changelog

@@ -444,6 +444,88 @@ async def test_trading_manager_release_thresholds(tmp_path: Path, monkeypatch: p
     assert gate_requirements.get("warn_notional_limit") == pytest.approx(35_625.0)
 
 
+@pytest.mark.asyncio()
+async def test_trading_manager_blocks_experiment_stage(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    async def _noop(*_args, **_kwargs) -> None:
+        return None
+
+    monkeypatch.setattr("src.trading.trading_manager.publish_risk_snapshot", _noop)
+    monkeypatch.setattr("src.trading.trading_manager.publish_roi_snapshot", _noop)
+    monkeypatch.setattr("src.trading.trading_manager.publish_policy_snapshot", _noop)
+    monkeypatch.setattr("src.trading.trading_manager.publish_policy_violation", _noop)
+    monkeypatch.setattr(
+        "src.trading.trading_manager.publish_risk_interface_snapshot", _noop
+    )
+    monkeypatch.setattr("src.trading.trading_manager.publish_risk_interface_error", _noop)
+
+    gate = DriftSentryGate(warn_confidence_floor=0.4)
+    store = PolicyLedgerStore(tmp_path / "policy_ledger.json")
+    release_manager = LedgerReleaseManager(store)
+
+    manager = TradingManager(
+        event_bus=DummyBus(),
+        strategy_registry=AlwaysActiveRegistry(),
+        execution_engine=None,
+        initial_equity=50_000.0,
+        risk_config=RiskConfig(
+            min_position_size=1,
+            mandatory_stop_loss=False,
+            research_mode=True,
+        ),
+        drift_gate=gate,
+        release_manager=release_manager,
+    )
+    execution_engine = RecordingExecutionEngine()
+    manager.execution_engine = execution_engine
+
+    validate_mock: AsyncMock = AsyncMock(return_value=None)
+    manager.risk_gateway.validate_trade_intent = validate_mock  # type: ignore[assignment]
+
+    snapshot = SensoryDriftSnapshot(
+        generated_at=datetime(2024, 1, 5, tzinfo=timezone.utc),
+        status=DriftSeverity.normal,
+        dimensions={},
+        sample_window=6,
+        metadata={"source": "test"},
+    )
+    manager.update_drift_sentry_snapshot(snapshot)
+
+    intent = ConfidenceIntent(
+        symbol="EURUSD",
+        quantity=1.0,
+        price=1.2010,
+        confidence=0.9,
+        strategy_id="alpha",
+    )
+
+    await manager.on_trade_intent(intent)
+
+    assert validate_mock.await_count == 0, "Expected intent to be blocked before risk gateway"
+    assert execution_engine.calls == 0
+
+    decision = manager.get_last_drift_gate_decision()
+    assert decision is not None
+    assert not decision.allowed
+    assert decision.reason == "release_stage_experiment_requires_paper_or_better"
+    assert decision.requirements.get("release_stage") == PolicyLedgerStage.EXPERIMENT.value
+
+    events = manager.get_experiment_events()
+    assert events, "Expected gating event to be recorded"
+    event = events[0]
+    assert event["status"] == "gated"
+    metadata = event.get("metadata")
+    assert isinstance(metadata, dict)
+    gate_payload = metadata.get("drift_gate")
+    assert isinstance(gate_payload, dict)
+    assert gate_payload.get("allowed") is False
+    assert (
+        gate_payload.get("reason")
+        == "release_stage_experiment_requires_paper_or_better"
+    )
+
+
 def test_describe_release_posture(tmp_path: Path) -> None:
     store = PolicyLedgerStore(tmp_path / "policy_ledger.json")
     release_manager = LedgerReleaseManager(store)

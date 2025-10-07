@@ -1,41 +1,37 @@
+"""Canonical sensory organ exports for the public ``src.core`` API."""
+
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Protocol, runtime_checkable
+from typing import Any
+
+from src.sensory.real_sensory_organ import RealSensoryOrgan, SensoryDriftConfig
+
+SensoryOrgan = RealSensoryOrgan
+
+__all__ = [
+    "SensoryOrgan",
+    "RealSensoryOrgan",
+    "SensoryDriftConfig",
+    "create_sensory_organ",
+]
 
 
-@runtime_checkable
-class SensoryOrganProto(Protocol):
-    """Structural type for sensory organs (process-only surface we rely on)."""
+def _coerce_drift_config(candidate: object | None) -> SensoryDriftConfig | None:
+    """Normalise drift configuration inputs used by legacy callers."""
 
-    def process(self, data: Mapping[str, object]) -> dict[str, object]: ...
-
-
-class CoreSensoryOrgan:
-    """Minimal sensory organ abstraction (legacy shim).
-
-    Notes:
-    - This module intentionally avoids importing from src.sensory.* to satisfy
-      layered architecture contracts. Use orchestration to wire concrete sensory organs.
-    """
-
-    def __init__(self, organ_type: str) -> None:
-        self.organ_type = organ_type
-
-    def process(self, data: Mapping[str, object]) -> dict[str, object]:
-        return {"processed": True, "organ": self.organ_type, "data": data}
+    if candidate is None or isinstance(candidate, SensoryDriftConfig):
+        return candidate
+    if isinstance(candidate, Mapping):
+        return SensoryDriftConfig(**dict(candidate))
+    raise TypeError(
+        "drift_config must be None, a SensoryDriftConfig, or a mapping of overrides"
+    )
 
 
-# Backward-compat alias for legacy imports that expect `SensoryOrgan` to exist
-SensoryOrgan = CoreSensoryOrgan
+def create_sensory_organ(*, drift_config: object | None = None, **kwargs: Any) -> RealSensoryOrgan:
+    """Factory that mirrors the historical shim while delegating to the real organ."""
 
+    normalised_config = _coerce_drift_config(drift_config)
+    return RealSensoryOrgan(drift_config=normalised_config, **kwargs)
 
-def create_sensory_organ(organ_type: str) -> CoreSensoryOrgan:
-    return CoreSensoryOrgan(organ_type)
-
-
-# Predefined organ instances for compatibility
-WHAT_ORGAN = create_sensory_organ("what")
-WHEN_ORGAN = create_sensory_organ("when")
-ANOMALY_ORGAN = create_sensory_organ("anomaly")
-CHAOS_ORGAN = create_sensory_organ("chaos")

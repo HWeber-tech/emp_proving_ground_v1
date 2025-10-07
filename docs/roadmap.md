@@ -633,9 +633,9 @@ kit that the roadmap calls back to in each checklist.
     Hebbian updates, and regime FSM emitters that publish event-bus payloads with
     PSD guardrails, golden fixtures, and guardrail pytest coverage so live-shadow
     inputs bind to stable schemas.【F:src/understanding/belief.py†L39-L347】【F:tests/intelligence/test_belief_updates.py†L129-L200】【F:tests/intelligence/golden/belief_snapshot.json†L1-L120】
-  - [ ] Implement `UnderstandingRouter` fast-weight adapters with feature gating,
+  - [x] Implement `UnderstandingRouter` fast-weight adapters with feature gating,
     configuration schema, and guardrail tests so strategy routing stays
-    auditable.【F:docs/context/sprint_briefs/understanding_loop_v1.md†L38-L62】【F:docs/High-Impact Development Roadmap.md†L50-L52】
+    auditable.【F:src/understanding/router.py†L70-L240】【F:src/understanding/router_config.py†L1-L320】【F:tests/understanding/test_understanding_router_config.py†L1-L88】【F:docs/context/examples/understanding_router.md†L1-L64】
   - [ ] Automate decision diaries and the probe registry with CLI exports and
     governance hooks so reviewers inherit narrated decisions and probe
     ownership.【F:docs/context/sprint_briefs/understanding_loop_v1.md†L63-L76】
@@ -654,6 +654,7 @@ kit that the roadmap calls back to in each checklist.
     operational dashboard tile so AlphaTrade deltas remain observable.【F:docs/context/sprint_briefs/understanding_loop_v1.md†L108-L128】
   - *Progress*: Understanding diagnostics builder now emits sensory→belief→router→policy graphs with snapshot exports, wrapped by a CLI that renders JSON/DOT/Markdown and guarded by the `understanding_acceptance` marker plus dedicated pytest suite.【F:src/understanding/diagnostics.py†L395-L542】【F:src/understanding/__init__.py†L3-L22】【F:tools/understanding/graph_diagnostics.py†L1-L82】【F:tests/understanding/test_understanding_diagnostics.py†L15-L29】【F:pytest.ini†L2-L27】
   - *Progress*: Observability dashboard now renders an understanding-loop panel summarising regime confidence, drift exceedances, experiments, and ledger approvals when diagnostics land, and escalates to WARN with CLI guidance whenever snapshots are missing so operators rebuild artifacts deterministically under guardrail tests.【F:src/operations/observability_dashboard.py†L536-L565】【F:tests/operations/test_observability_dashboard.py†L389-L413】
+  - *Progress*: Understanding metrics exporter now normalises throttle states into Prometheus gauges and hooks the observability dashboard so every loop snapshot publishes throttle posture, with replay fixtures and guardrail tests locking the gauge contract.【F:src/operational/metrics.py†L43-L428】【F:src/understanding/metrics.py†L1-L65】【F:tests/operational/test_metrics.py†L310-L360】【F:tests/understanding/test_understanding_metrics.py†L62-L125】【F:tests/operations/test_observability_dashboard.py†L394-L436】
   - *Progress*: Bootstrap runtime now instantiates the real sensory organ with a
     drift-tuned history buffer, streams observations into cortex metrics,
     publishes summary/metrics/drift telemetry via the event-bus failover helper,
@@ -670,6 +671,7 @@ kit that the roadmap calls back to in each checklist.
 - [ ] **Evolution engine foundation** – Seed realistic genomes, wire lineage
   snapshots, and gate adaptive runs behind feature flags until governance reviews
   complete.【F:docs/development/remediation_plan.md†L92-L167】
+  - *Progress*: Realistic genome seeding now materialises catalogue templates with jitter bounds, attaches lineage and performance metadata to spawned genomes, and refreshes orchestrator lineage snapshots so population statistics expose provenance under guardrail tests.【F:src/core/evolution/seeding.py†L1-L200】【F:src/orchestration/evolution_cycle.py†L125-L220】【F:tests/current/test_evolution_orchestrator.py†L60-L133】【F:tests/current/test_population_manager_with_genome.py†L91-L127】
 - [ ] **Risk API enforcement** – Align trading modules with deterministic risk
   interfaces, surface policy violations via telemetry, and add escalation runbooks.
   - *Progress*: Risk gateway wiring now normalises intents, enforces

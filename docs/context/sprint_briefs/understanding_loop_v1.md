@@ -76,6 +76,7 @@
     guardrailed examples so bootstrap vs. institutional deployments stay in sync with
     governance policy; context-pack examples document canonical YAML snippets for ticket
     templating.【F:src/understanding/router_config.py†L1-L320】【F:tests/understanding/test_understanding_router_config.py†L1-L88】【F:docs/context/examples/understanding_router.md†L1-L64】
+  - Understanding metrics exporter now publishes throttle posture to Prometheus and wires the observability dashboard to emit those gauges whenever loop snapshots land, with replay fixtures and guardrail tests documenting the contract so fast-weight throttles stay observable.【F:src/operational/metrics.py†L43-L428】【F:src/understanding/metrics.py†L1-L65】【F:tests/understanding/test_understanding_metrics.py†L62-L125】【F:tests/operations/test_observability_dashboard.py†L394-L436】
 
 ### Days 6–7 – Decision diary & probes (≈3 tickets)
 

@@ -9,7 +9,6 @@ from typing import Mapping, Sequence
 
 from sqlalchemy.engine import make_url
 
-from src.core.configuration import Configuration
 from src.data_foundation.cache.redis_cache import InMemoryRedis, RedisConnectionSettings
 from src.data_foundation.ingest.configuration import build_institutional_ingest_config
 from src.data_foundation.ingest.institutional_vertical import (
@@ -98,8 +97,7 @@ def _parse_extra_arguments(entries: Sequence[str] | None) -> dict[str, str]:
 def _load_system_config(config_path: Path | None) -> SystemConfig:
     if config_path is None:
         return SystemConfig.from_env()
-    configuration = Configuration.from_yaml(config_path)
-    return configuration.system_config
+    return SystemConfig.from_yaml(config_path)
 
 
 def _apply_extras(config: SystemConfig, overrides: Mapping[str, str]) -> SystemConfig:

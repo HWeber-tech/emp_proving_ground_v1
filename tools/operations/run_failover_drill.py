@@ -7,7 +7,6 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Iterable, Mapping, Sequence
 
-from src.core.configuration import Configuration
 from src.data_foundation.ingest.configuration import build_institutional_ingest_config
 from src.data_foundation.persist.timescale import TimescaleIngestResult
 from src.governance.system_config import SystemConfig
@@ -57,8 +56,7 @@ def _build_parser() -> argparse.ArgumentParser:
 def _load_system_config(config_path: Path | None) -> SystemConfig:
     if config_path is None:
         return SystemConfig.from_env()
-    configuration = Configuration.from_yaml(config_path)
-    return configuration.system_config
+    return SystemConfig.from_yaml(config_path)
 
 
 def _normalise_value(value: object) -> object:

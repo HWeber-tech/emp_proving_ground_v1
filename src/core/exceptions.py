@@ -259,21 +259,6 @@ class SystemException(EMPException):
     pass
 
 
-class ConfigurationException(SystemException):
-    """Exception raised for configuration errors."""
-
-    def __init__(
-        self,
-        message: str,
-        config_key: str | None = None,
-        config_value: JSONValue | None = None,
-        **kwargs: JSONValue,
-    ) -> None:
-        context: JSONObject = {"config_key": config_key, "config_value": str(config_value)}
-        context.update(kwargs)
-        super().__init__(message, context=context)
-
-
 class ResourceException(SystemException):
     """Exception raised for resource management errors."""
 
@@ -438,7 +423,6 @@ __all__ = [
     "FitnessEvaluationException",
     "GeneticOperationException",
     "SystemException",
-    "ConfigurationException",
     "ResourceException",
     "ValidationException",
 ]

@@ -14,7 +14,13 @@ except ImportError:  # pragma: no cover - Python < 3.11 compatibility
     from typing import Mapping, TypedDict, TypeVar
     from typing_extensions import Unpack
 
+import yaml
+
 logger = logging.getLogger(__name__)
+
+
+class SystemConfigLoadError(RuntimeError):
+    """Raised when a SystemConfig YAML payload cannot be decoded."""
 
 
 class RunMode(StrEnum):
@@ -60,6 +66,18 @@ class SystemConfigUpdate(TypedDict, total=False):
     data_backbone_mode: DataBackboneMode | str
     kill_switch_path: str | os.PathLike[str] | Path | None
     extras: dict[str, str]
+
+
+_SYSTEM_CONFIG_FIELDS = (
+    "run_mode",
+    "environment",
+    "tier",
+    "confirm_live",
+    "connection_protocol",
+    "data_backbone_mode",
+    "kill_switch_path",
+    "extras",
+)
 
 
 def _coerce_enum(
@@ -129,6 +147,37 @@ def _normalize_kill_switch_path(
     if not candidate.is_absolute():
         candidate = Path(tempfile.gettempdir()) / candidate
     return candidate
+
+
+def _normalise_extras(payload: Mapping[str, object]) -> dict[str, str]:
+    """Convert arbitrary mapping values to ``dict[str, str]``."""
+
+    extras: dict[str, str] = {}
+    for key, value in payload.items():
+        extras[str(key)] = str(value)
+    return extras
+
+
+def _merge_config_overrides(target: dict[str, object], source: Mapping[str, object]) -> None:
+    """Merge supported SystemConfig fields from ``source`` into ``target``."""
+
+    for field in _SYSTEM_CONFIG_FIELDS:
+        if field not in source:
+            continue
+        if field == "extras":
+            raw_extras = source[field]
+            if not isinstance(raw_extras, Mapping):
+                continue
+            existing = target.get("extras")
+            merged: dict[str, str]
+            if isinstance(existing, Mapping):
+                merged = dict(existing)
+            else:
+                merged = {}
+            merged.update(_normalise_extras(raw_extras))
+            target["extras"] = merged
+            continue
+        target[field] = source[field]
 
 
 @dataclass
@@ -418,6 +467,46 @@ class SystemConfig:
             extras=extras,
         )
 
+    @classmethod
+    def from_yaml(
+        cls,
+        path: str | Path,
+        *,
+        env: Mapping[str, str] | None = None,
+    ) -> SystemConfig:
+        """Load a ``SystemConfig`` from a YAML payload.
+
+        The loader keeps backward compatibility with legacy configuration files by
+        accepting either top-level configuration keys or a nested ``system_config``
+        mapping. Extras are normalised to ``dict[str, str]`` and environment
+        variables remain authoritative unless the YAML file explicitly overrides
+        them.
+        """
+
+        cfg_path = Path(path)
+        if not cfg_path.exists():
+            raise SystemConfigLoadError(f"Configuration file not found: {cfg_path}")
+
+        try:
+            payload = yaml.safe_load(cfg_path.read_text(encoding="utf-8")) or {}
+        except (OSError, yaml.YAMLError) as exc:  # pragma: no cover - defensive
+            raise SystemConfigLoadError(f"Error loading configuration: {exc}") from exc
+
+        if not isinstance(payload, Mapping):
+            raise SystemConfigLoadError("Configuration file must contain a mapping")
+
+        overrides: dict[str, object] = {}
+        _merge_config_overrides(overrides, payload)
+
+        nested = payload.get("system_config")
+        if isinstance(nested, Mapping):
+            _merge_config_overrides(overrides, nested)
+
+        base = cls.from_env(env=env)
+        if overrides:
+            base = base.with_updated(**overrides)
+        return base
+
 
 __all__ = [
     "SystemConfig",
@@ -426,4 +515,5 @@ __all__ = [
     "EmpEnvironment",
     "ConnectionProtocol",
     "DataBackboneMode",
+    "SystemConfigLoadError",
 ]

@@ -17,7 +17,6 @@ import sys
 from pathlib import Path
 from typing import Mapping, Sequence
 
-from src.core.configuration import Configuration
 from src.core.event_bus import get_global_bus
 from src.data_foundation.cache.redis_cache import RedisConnectionSettings
 from src.data_foundation.ingest.configuration import (
@@ -107,8 +106,7 @@ def _parse_extra_arguments(entries: Sequence[str] | None) -> Mapping[str, str]:
 def _load_system_config(config_path: Path | None) -> SystemConfig:
     if config_path is None:
         return SystemConfig.from_env()
-    configuration = Configuration.from_yaml(config_path)
-    return configuration.system_config
+    return SystemConfig.from_yaml(config_path)
 
 
 def _apply_extras(config: SystemConfig, overrides: Mapping[str, str]) -> SystemConfig:
@@ -301,4 +299,3 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
-

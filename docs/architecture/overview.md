@@ -39,11 +39,12 @@ it and communicates up-stack via domain events.  Import-linter contracts in
 ## Configuration story
 
 * **SystemConfig** (in `src/governance/system_config.py`) is the canonical,
-  strongly typed configuration object used by new code.  It guarantees enums,
-  strict coercion, and environment overrides.
-* **Legacy `core.configuration.Configuration`** remains for older integration
-  glue.  Regression tests now cover its environment overrides, dot-path
-  accessors, and YAML round-tripping so refactors can proceed safely.
+  strongly typed configuration object.  The helper now exposes
+  `SystemConfig.from_yaml` alongside `from_env` so CLI tools and orchestrators
+  can load production overrides without touching legacy shims.
+* The legacy `src.core.configuration` module has been retired; its YAML loader
+  and environment bridge logic now resolve through the canonical SystemConfig
+  API to prevent shim code from resurfacing.
 * Runtime defaults live in `config.yaml`, which is aligned with the FIX-only
   policy and simulator-first posture.
 

@@ -56,10 +56,10 @@
   logs conversion and filesystem errors, and returns explicit sentinels under
   regression coverage so institutional ingest slices capture failed telemetry
   persists rather than silently discarding events.【F:src/data_foundation/persist/parquet_writer.py†L1-L75】【F:tests/data_foundation/test_parquet_writer.py†L1-L93】
-- Progress: Core configuration shim now proxies legacy sections to the canonical
-  `SystemConfig`, normalising environment overrides and YAML parsing so ingest and
-  runtime modules consume the same source of truth while migration off the legacy
-  surface continues.【F:src/core/configuration.py†L1-L188】
+- Progress: Retired the legacy core configuration shim and migrated ingestion
+  tooling to `SystemConfig.from_yaml`, eliminating the duplicate YAML parser and
+  ensuring runtime modules consume the canonical configuration loader without a
+  shim layer that can drift.【F:src/governance/system_config.py†L200-L292】【F:tests/governance/test_system_config_yaml.py†L1-L96】
 - Progress: Timescale ingest scheduler now registers with the runtime task
   supervisor, tagging interval/jitter metadata and exposing live snapshots so
   institutional pipelines inherit supervised background jobs instead of orphaned

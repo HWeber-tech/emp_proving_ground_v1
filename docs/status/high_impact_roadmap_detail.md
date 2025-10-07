@@ -66,17 +66,21 @@ backlog grooming, release readiness reviews, and post-mortems.
   lineage, and publishes telemetry snapshots so runtime summaries have a single
   executable sensory surface, though feeds remain synthetic pending the
   institutional backbone.【F:src/sensory/real_sensory_organ.py†L20-L208】【F:src/sensory/real_sensory_organ.py†L210-L336】【F:tests/sensory/test_real_sensory_organ.py†L1-L107】
+- Executable HOW/ANOMALY organs now wrap the canonical sensors, normalise market
+  frames or sequences, track calibrated windows, emit telemetry/lineage metadata,
+  and expose structured readings under guardrail coverage so runtime summaries
+  inherit deterministic dimension organs instead of placeholders.【F:src/sensory/organs/dimensions/executable_organs.py†L1-L226】【F:tests/sensory/test_dimension_organs.py†L1-L93】
 
 **Gaps to close:**
-1. Implement HOW and ANOMALY organs with deterministic inputs, documented drift
-   metrics, and integration into the runtime summary.
+1. Calibrate HOW/ANOMALY organs against institutional ingest once live, wiring
+   real feeds and documenting validation metrics for governance sign-off.
 2. Replace placeholder genomes with catalogue-backed evolution cycles and surface
    lineage telemetry for governance.
 3. Expand regression suites beyond FIX mocks to cover sensory drift, catalogue
    seeding, and adaptive decision loops.
 
 **Actionable checklist:**
-- [ ] Executable HOW/ANOMALY organs integrated with runtime summary and drift telemetry.
+- [x] Executable HOW/ANOMALY organs integrated with runtime summary and drift telemetry.【F:src/sensory/organs/dimensions/executable_organs.py†L1-L226】【F:tests/sensory/test_dimension_organs.py†L1-L93】
 - [ ] Catalogue-backed genomes with lineage telemetry captured for governance review.
 - [ ] Regression suites covering sensory drift, catalogue seeding, and adaptive loops.【F:docs/reports/CLEANUP_REPORT.md†L71-L175】
 

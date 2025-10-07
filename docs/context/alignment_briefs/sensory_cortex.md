@@ -32,6 +32,10 @@
   runtime or fallback buses, and serialises per-dimension metadata plus numeric
   telemetry so responders and downstream metrics inherit audit-ready payloads
   under pytest coverage.【F:src/sensory/real_sensory_organ.py†L41-L489】【F:src/sensory/real_sensory_organ.py†L198-L205】【F:src/sensory/lineage_publisher.py†L1-L193】【F:tests/sensory/test_real_sensory_organ.py†L96-L183】【F:tests/sensory/test_real_sensory_organ.py†L132-L144】【F:tests/sensory/test_lineage.py†L85-L145】
+- Executable HOW/ANOMALY sensory organs now wrap the canonical sensors, normalise
+  market frames or sequences, maintain calibrated windows, and emit structured
+  lineage/telemetry payloads under guardrail regression coverage, though they
+  still consume synthetic payloads until ingest is live.【F:src/sensory/organs/dimensions/executable_organs.py†L1-L226】【F:tests/sensory/test_dimension_organs.py†L1-L93】
 - Sensory metrics layer now converts organ status snapshots into
   dimension-strength/confidence metrics, harvests numeric telemetry from audit
   and order-book metadata, captures drift alerts, and publishes via the failover
@@ -71,6 +75,10 @@
   strength/confidence snapshots, dimension posture, and drift metadata so the
   new metrics publisher can build dashboard payloads without rehydrating raw
   snapshots.【F:src/sensory/real_sensory_organ.py†L201-L233】【F:tests/sensory/test_real_sensory_organ.py†L130-L162】
+- Progress: Executable dimension organs now publish HOW/ANOMALY readings backed
+  by canonical sensors, windowed history, and threshold posture metadata so
+  runtime summaries and downstream telemetry inherit deterministic dimension
+  payloads under guardrail coverage.【F:src/sensory/organs/dimensions/executable_organs.py†L1-L226】【F:tests/sensory/test_dimension_organs.py†L1-L93】
 - Progress: Bootstrap runtime now instantiates the real sensory organ with a
   drift-configured history buffer, streams observations into cortex metrics,
   publishes summary/metrics/drift telemetry via the event-bus failover helper,

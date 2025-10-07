@@ -69,6 +69,11 @@ kit that the roadmap calls back to in each checklist.
     markers, the manifest asserts coverage jobs require the production slice and
     institutional vertical, and the coverage guardrail CLI tracks the
     institutional vertical target so CI fails when coverage drifts.【F:tests/data_foundation/test_production_ingest_slice.py†L8】【F:tests/data_foundation/test_institutional_vertical.py†L11】【F:tests/runtime/test_guardrail_suite_manifest.py†L21】【F:tests/runtime/test_guardrail_suite_manifest.py†L113】【F:.github/workflows/ci.yml†L112】【F:tools/telemetry/coverage_guardrails.py†L22】【F:tests/tools/test_coverage_guardrails.py†L40】
+  - *Progress*: Coverage guardrails now require the ingest configuration loader,
+    with the CI workflow enforcing the `--require-file` flag, the guardrail
+    manifest enumerating the target, the evaluator treating it as a default
+    requirement, and guardrail-marked regression tests pinning the new target so
+    configuration policy drift fails fast under pytest coverage.【F:.github/workflows/ci.yml†L118-L123】【F:tests/runtime/test_guardrail_suite_manifest.py†L23-L118】【F:tools/telemetry/coverage_guardrails.py†L24-L36】【F:tests/tools/test_coverage_guardrails.py†L40-L101】【F:tests/data_foundation/test_timescale_config.py†L1-L44】
   - *Progress*: CI workflow now runs the coverage matrix and minimum coverage
     guardrail steps after the guarded pytest job, enforcing ingest/risk targets,
     appending Markdown summaries, and failing the build when thresholds slip,
@@ -703,9 +708,14 @@ kit that the roadmap calls back to in each checklist.
 
 - [ ] **Institutional ingest vertical** – Provision managed Timescale/Redis/Kafka
   environments, implement supervised connectors, and document failover drills.
-- [ ] **Sensory cortex uplift** – Deliver executable HOW/ANOMALY organs, instrument
+- [x] **Sensory cortex uplift** – Deliver executable HOW/ANOMALY organs, instrument
   drift telemetry, and expose metrics through runtime summaries and the event
   bus.
+  - *Progress*: Executable HOW/ANOMALY sensory organs now wrap the canonical
+    sensors, normalise frame/sequence payloads, maintain calibrated history
+    windows, and emit lineage, telemetry, and threshold posture metadata through
+    structured `SensoryReading`s with guardrail regression coverage so runtime
+    consumers inherit deterministic organs instead of placeholders.【F:src/sensory/organs/dimensions/executable_organs.py†L1-L226】【F:src/sensory/organs/__init__.py†L1-L9】【F:tests/sensory/test_dimension_organs.py†L1-L93】
   - *Progress*: Real sensory organ now attaches metrics payloads to every
     snapshot broadcast, wrapping dimension strength/confidence telemetry and the
     integrated signal alongside drift summaries so downstream dashboards receive
@@ -750,6 +760,11 @@ kit that the roadmap calls back to in each checklist.
     gates, and feature bounds into the reflection digest while the builder renders
     the new gating columns and reviewer insights so experiment-driven tactics stay
     auditable without replaying telemetry, covered by expanded pytest fixtures.【F:src/thinking/adaptation/policy_router.py†L16-L163】【F:src/thinking/adaptation/policy_reflection.py†L273-L307】【F:tests/thinking/test_policy_router.py†L230-L239】【F:tests/thinking/test_policy_reflection_builder.py†L80-L107】
+  - *Progress*: Observability dashboard now ships a policy reflection panel that
+    summarises analysed decisions, highlights top tactics/experiments/tags,
+    embeds reviewer insights, and retains exported Markdown/metadata so
+    compliance reviewers see reflection posture alongside readiness snapshots
+    under new guardrail coverage.【F:src/operations/observability_dashboard.py†L257-L404】【F:tests/operations/test_observability_dashboard.py†L435-L528】
   - *Progress*: AdversarialTrainer now logs generator signature mismatches,
     captures unexpected training failures with stack traces, and preserves
     heuristic fallbacks so migration bugs surface during experimentation without
@@ -832,7 +847,7 @@ kit that the roadmap calls back to in each checklist.
 | Status | Task | Owner hint | Linkage |
 | --- | --- | --- | --- |
 | [ ] | Stand up production-grade ingest slice with parameterised SQL and supervised tasks | Data backbone squad | Now → Operational data backbone |
-| [ ] | Deliver executable HOW/ANOMALY organs with lineage telemetry and regression coverage | Sensory cortex squad | Now/Next → Sensory + evolution execution |
+| [x] | Deliver executable HOW/ANOMALY organs with lineage telemetry and regression coverage | Sensory cortex squad | Now/Next → Sensory + evolution execution |
 | [ ] | Roll out deterministic risk API and supervised runtime builder across execution modules | Execution & risk squad | Now/Next → Risk and runtime safety |
 | [x] | Expand CI to cover ingest orchestration, risk policies, and observability guardrails | Quality guild | Now → Quality and observability |
 | [ ] | Purge deprecated shims and close dead-code backlog | Platform hygiene crew | Later → Dead code and duplication |

@@ -131,6 +131,11 @@
   ingest/risk targets against configurable thresholds, highlights missing
   modules, and surfaces JSON/text reports with failure exit codes so CI hooks and
   local audits can block on coverage regressions deterministically.【F:tools/telemetry/coverage_guardrails.py†L1-L268】【F:tests/tools/test_coverage_guardrails.py†L1-L83】
+  - Progress: Coverage guardrails now require the ingest configuration loader, with
+    CI enforcing the `--require-file` flag, the manifest enumerating the new
+    target, the evaluator treating it as a default requirement, and the guarded
+    Timescale config test marked so configuration coverage gaps fail fast under
+    regression coverage.【F:.github/workflows/ci.yml†L118-L123】【F:tests/runtime/test_guardrail_suite_manifest.py†L23-L118】【F:tools/telemetry/coverage_guardrails.py†L24-L36】【F:tests/tools/test_coverage_guardrails.py†L40-L101】【F:tests/data_foundation/test_timescale_config.py†L1-L44】
   - Progress: Quality telemetry snapshot builder now normalises coverage,
     staleness, and remediation trends into a typed `QualityTelemetrySnapshot`,
     escalating WARN/FAIL severities, retaining lagging-domain metadata, and
@@ -140,6 +145,11 @@
     first-class panel, counting component severities, embedding metadata, and
     feeding remediation summaries under pytest coverage so responders inherit a
     consolidated operational view without bespoke wiring.【F:src/operations/observability_dashboard.py†L443-L493】【F:tests/operations/test_observability_dashboard.py†L135-L236】
+  - Progress: Observability dashboard now renders a policy reflection panel that
+    summarises analysed decisions, highlights top tactics/experiments/tags, embeds
+    reviewer insights, and preserves exported Markdown/metadata so compliance and
+    readiness dashboards inherit adaptive strategy evidence under guardrail
+    coverage.【F:src/operations/observability_dashboard.py†L257-L404】【F:tests/operations/test_observability_dashboard.py†L435-L528】
   - Progress: Observability dashboard guard CLI grades snapshot freshness,
     required panels, failing slices, and normalised overall status strings while
     emitting JSON or human-readable summaries with status-driven exit codes so

@@ -288,6 +288,8 @@ class EvolutionEngine:
         tag_counts: Counter[str] = Counter()
         seed_species_counts: Counter[str] = Counter()
         catalogue_id_counts: Counter[str] = Counter()
+        parent_counts: Counter[str] = Counter()
+        mutation_counts: Counter[str] = Counter()
         total_with_metadata = 0
 
         for genome in population:
@@ -310,6 +312,26 @@ class EvolutionEngine:
             catalogue_id = metadata.get("seed_catalogue_id")
             if isinstance(catalogue_id, str) and catalogue_id:
                 catalogue_id_counts[catalogue_id] += 1
+
+            parent_values = self._normalise_sequence_values(
+                metadata.get("seed_parent_ids")
+            )
+            if not parent_values:
+                parent_values = self._normalise_sequence_values(
+                    getattr(genome, "parent_ids", None)
+                )
+            for parent in parent_values:
+                parent_counts[parent] += 1
+
+            mutation_values = self._normalise_sequence_values(
+                metadata.get("seed_mutation_history")
+            )
+            if not mutation_values:
+                mutation_values = self._normalise_sequence_values(
+                    getattr(genome, "mutation_history", None)
+                )
+            for mutation in mutation_values:
+                mutation_counts[mutation] += 1
 
             total_with_metadata += 1
 
@@ -342,6 +364,12 @@ class EvolutionEngine:
         if catalogue_id_counts:
             summary["seed_catalogue_ids"] = self._ordered_counter(catalogue_id_counts)
 
+        if parent_counts:
+            summary["seed_parent_ids"] = self._ordered_counter(parent_counts)
+
+        if mutation_counts:
+            summary["seed_mutations"] = self._ordered_counter(mutation_counts)
+
         return summary
 
     def _extract_seed_metadata(
@@ -359,22 +387,27 @@ class EvolutionEngine:
         return direct_seed or None
 
     def _normalise_seed_tags(self, tags: object) -> tuple[str, ...]:
-        if tags is None:
-            return tuple()
-        if isinstance(tags, str):
-            text = tags.strip()
-            return (text,) if text else tuple()
-        if isinstance(tags, Mapping):
-            values = tags.values()
-        else:
-            values = tags
+        return self._normalise_sequence_values(tags)
 
-        result: list[str] = []
-        for item in values:
+    def _normalise_sequence_values(self, values: object) -> tuple[str, ...]:
+        if values is None:
+            return tuple()
+        if isinstance(values, str):
+            text = values.strip()
+            return (text,) if text else tuple()
+        if isinstance(values, Mapping):
+            iterator = values.values()
+        elif isinstance(values, Sequence) and not isinstance(values, (str, bytes)):
+            iterator = values
+        else:
+            return tuple()
+
+        normalised: list[str] = []
+        for item in iterator:
             text = str(item).strip()
             if text:
-                result.append(text)
-        return tuple(result)
+                normalised.append(text)
+        return tuple(normalised)
 
     def _ordered_counter(self, counter: Counter[str]) -> Dict[str, int]:
         ordered_keys = sorted(counter.keys(), key=lambda item: (-counter[item], item))

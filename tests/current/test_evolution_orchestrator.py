@@ -112,6 +112,8 @@ async def test_orchestrator_registers_champion_and_updates_registry(tmp_path):
         assert seed_metadata["seed_names"]
         assert seed_metadata["seed_templates"]
         assert seed_metadata.get("seed_catalogue_ids")
+        assert seed_metadata.get("seed_parent_ids")
+        assert seed_metadata.get("seed_mutations")
 
     snapshot = orchestrator.lineage_snapshot
     assert snapshot is not None
@@ -258,6 +260,9 @@ async def test_orchestrator_skips_adaptive_runs_when_disabled(monkeypatch, tmp_p
     seed_metadata = orchestrator.telemetry["lineage"]["population"].get("seed_metadata")
     if seed_metadata:
         assert seed_metadata["seed_names"]
+        assert seed_metadata["seed_templates"]
+        assert seed_metadata.get("seed_parent_ids")
+        assert seed_metadata.get("seed_mutations")
 
     second = await orchestrator.run_cycle()
     assert second.summary.generation == 0
@@ -298,11 +303,14 @@ async def test_seed_metadata_present_when_realistic_seeder_used(monkeypatch):
     assert seed_metadata, "expected seed metadata from realistic sampler"
     assert seed_metadata["seed_names"]
     assert seed_metadata["seed_templates"]
+    assert seed_metadata.get("seed_parent_ids")
+    assert seed_metadata.get("seed_mutations")
 
     snapshot = orchestrator.lineage_snapshot
     assert snapshot is not None
     assert snapshot.seed_metadata
     assert snapshot.seed_metadata.get("seed_names")
+    assert snapshot.seed_metadata.get("seed_parent_ids")
 
 
 @pytest.mark.asyncio

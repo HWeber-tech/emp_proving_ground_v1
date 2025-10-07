@@ -42,6 +42,7 @@ from src.trading.risk.risk_policy import RiskPolicy
 from src.trading.risk.risk_api import (
     RISK_API_RUNBOOK,
     RiskApiError,
+    build_runtime_risk_metadata,
     resolve_trading_risk_interface,
     summarise_risk_config,
 )
@@ -789,11 +790,25 @@ class TradingManager:
         Returns:
             Dictionary with current risk configuration and portfolio state
         """
+        gateway = cast(Any, self.risk_gateway)
+        limits_payload = self._resolve_gateway_limits()
+
         payload: dict[str, object] = {
-            "risk_limits": cast(Any, self.risk_gateway).get_risk_limits(),
+            "risk_limits": dict(limits_payload) if limits_payload is not None else {},
             "portfolio_state": cast(Any, self.portfolio_monitor).get_state(),
         }
-        last_decision = cast(Any, self.risk_gateway).get_last_decision()
+
+        gateway_reference: Mapping[str, object] | None = None
+        if isinstance(limits_payload, Mapping):
+            runbook_candidate = limits_payload.get("runbook")
+            if isinstance(runbook_candidate, str) and runbook_candidate:
+                payload["risk_api_runbook"] = runbook_candidate
+            reference_candidate = limits_payload.get("risk_reference")
+            if isinstance(reference_candidate, Mapping):
+                gateway_reference = reference_candidate
+                payload["risk_reference"] = dict(reference_candidate)
+
+        last_decision = gateway.get_last_decision()
         if isinstance(last_decision, Mapping):
             risk_manager_info = last_decision.get("risk_manager")
             if isinstance(risk_manager_info, Mapping):
@@ -821,7 +836,39 @@ class TradingManager:
                     payload["risk_config_summary"] = summary
         else:
             payload["risk_config"] = {}
+
+        resolved_summary, metadata_error = self._resolve_risk_metadata()
+        if resolved_summary is not None:
+            summary_copy = dict(resolved_summary)
+            payload["risk_config_summary"] = summary_copy
+            runbook = summary_copy.get("runbook")
+            if isinstance(runbook, str) and runbook:
+                payload["risk_api_runbook"] = runbook
+            reference_update: dict[str, object] = {
+                "risk_api_runbook": payload.get("risk_api_runbook", RISK_API_RUNBOOK),
+                "risk_config_summary": {
+                    key: value for key, value in summary_copy.items() if key != "runbook"
+                },
+            }
+            existing_reference = payload.get("risk_reference")
+            base_reference = (
+                existing_reference if isinstance(existing_reference, Mapping) else gateway_reference
+            )
+            payload["risk_reference"] = self._merge_risk_reference(
+                base_reference,
+                reference_update,
+            )
+        elif metadata_error is not None:
+            payload["risk_interface_error"] = metadata_error
+            runbook = metadata_error.get("runbook")
+            if isinstance(runbook, str) and runbook:
+                payload["risk_api_runbook"] = runbook
+
         payload.setdefault("risk_api_runbook", RISK_API_RUNBOOK)
+        if "risk_reference" not in payload:
+            payload["risk_reference"] = {
+                "risk_api_runbook": payload["risk_api_runbook"],
+            }
         if self._last_risk_snapshot is not None:
             payload["snapshot"] = self._last_risk_snapshot.as_dict()
         return payload
@@ -863,12 +910,32 @@ class TradingManager:
                 "details": exc.to_metadata().get("details", {}),
             }
 
+        summary = interface.summary()
         payload: dict[str, object] = {
             "config": interface.config.dict(),
-            "summary": interface.summary(),
+            "summary": summary,
         }
         if interface.status is not None:
             payload["status"] = dict(interface.status)
+
+        runbook = summary.get("runbook") if isinstance(summary, Mapping) else None
+        if isinstance(runbook, str) and runbook:
+            payload["runbook"] = runbook
+
+        gateway_reference = self._extract_gateway_reference()
+        summary_reference: dict[str, object] = {
+            "risk_api_runbook": payload.get("runbook", RISK_API_RUNBOOK),
+            "risk_config_summary": {
+                key: value for key, value in summary.items() if key != "runbook"
+            }
+            if isinstance(summary, Mapping)
+            else {},
+        }
+        payload["risk_reference"] = self._merge_risk_reference(
+            gateway_reference,
+            summary_reference,
+        )
+        payload.setdefault("runbook", payload["risk_reference"].get("risk_api_runbook", RISK_API_RUNBOOK))
         return payload
 
     def _resolve_redis_client(self, provided: Any | None) -> Any:
@@ -885,6 +952,67 @@ class TradingManager:
                     "Redis connection unavailable, reverting to in-memory portfolio store"
                 )
         return InMemoryRedis()
+
+    def _resolve_gateway_limits(self) -> Mapping[str, object] | None:
+        try:
+            payload = cast(Any, self.risk_gateway).get_risk_limits()
+        except Exception:
+            logger.debug("Failed to resolve risk gateway limits", exc_info=True)
+            return None
+        if isinstance(payload, Mapping):
+            return payload
+        return None
+
+    def _extract_gateway_reference(self) -> Mapping[str, object] | None:
+        limits_payload = self._resolve_gateway_limits()
+        if not isinstance(limits_payload, Mapping):
+            return None
+        candidate = limits_payload.get("risk_reference")
+        if isinstance(candidate, Mapping):
+            return candidate
+        return None
+
+    def _resolve_risk_metadata(self) -> tuple[dict[str, object] | None, dict[str, object] | None]:
+        try:
+            summary = build_runtime_risk_metadata(self)
+        except RiskApiError as exc:
+            logger.debug("Trading risk metadata resolution failed", exc_info=True)
+            return None, exc.to_metadata()
+        except Exception as exc:  # pragma: no cover - defensive diagnostics
+            logger.debug("Unexpected risk metadata failure", exc_info=True)
+            return (
+                None,
+                {
+                    "message": "Trading risk metadata resolution failed",
+                    "error": str(exc),
+                    "runbook": RISK_API_RUNBOOK,
+                },
+            )
+        return dict(summary), None
+
+    @staticmethod
+    def _merge_risk_reference(
+        existing: Mapping[str, object] | None, addition: Mapping[str, object]
+    ) -> dict[str, object]:
+        normalised = TradingManager._coerce_reference_mapping(existing)
+        for key, value in addition.items():
+            if isinstance(value, Mapping):
+                normalised[key] = dict(value)
+            else:
+                normalised[key] = value
+        return normalised
+
+    @staticmethod
+    def _coerce_reference_mapping(candidate: Mapping[str, object] | None) -> dict[str, object]:
+        if not isinstance(candidate, Mapping):
+            return {}
+        coerced: dict[str, object] = {}
+        for key, value in candidate.items():
+            if isinstance(value, Mapping):
+                coerced[key] = dict(value)
+            else:
+                coerced[key] = value
+        return coerced
 
     @staticmethod
     def _extract_symbol(intent: Any) -> str:

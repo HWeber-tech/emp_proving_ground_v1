@@ -1139,6 +1139,13 @@ def test_describe_risk_interface_exposes_canonical_payload() -> None:
         float(manager._risk_config.max_risk_per_trade_pct)  # type: ignore[attr-defined]
     )
     assert "policy_limits" in description["status"]
+    reference = description.get("risk_reference")
+    assert isinstance(reference, dict)
+    assert reference.get("risk_api_runbook", "").endswith("risk_api_contract.md")
+    reference_summary = reference.get("risk_config_summary")
+    assert isinstance(reference_summary, dict)
+    assert reference_summary["mandatory_stop_loss"] is True
+    assert description.get("runbook", "").endswith("risk_api_contract.md")
 
 
 def test_get_risk_status_includes_risk_api_summary() -> None:
@@ -1156,6 +1163,12 @@ def test_get_risk_status_includes_risk_api_summary() -> None:
     assert isinstance(summary, dict)
     assert summary["max_risk_per_trade_pct"] == pytest.approx(0.02)
     assert status.get("risk_api_runbook", "").endswith("risk_api_contract.md")
+    reference = status.get("risk_reference")
+    assert isinstance(reference, dict)
+    assert reference.get("risk_api_runbook", "").endswith("risk_api_contract.md")
+    reference_summary = reference.get("risk_config_summary")
+    assert isinstance(reference_summary, dict)
+    assert reference_summary["max_total_exposure_pct"] == pytest.approx(0.5)
 
 
 def test_describe_risk_interface_returns_runbook_on_error() -> None:

@@ -413,6 +413,15 @@ def test_risk_gateway_limits_include_risk_api_summary(
     assert summary["max_risk_per_trade_pct"] == pytest.approx(float(config.max_risk_per_trade_pct))
     assert summary["mandatory_stop_loss"] is True
     assert limits.get("runbook") == RISK_API_RUNBOOK
+    reference = limits.get("risk_reference")
+    assert isinstance(reference, dict)
+    assert reference.get("risk_api_runbook") == RISK_API_RUNBOOK
+    reference_summary = reference.get("risk_config_summary")
+    assert isinstance(reference_summary, dict)
+    assert reference_summary["mandatory_stop_loss"] is True
+    config_payload = reference.get("risk_config")
+    assert isinstance(config_payload, dict)
+    assert config_payload.get("mandatory_stop_loss") is True
 
 
 @pytest.mark.asyncio()

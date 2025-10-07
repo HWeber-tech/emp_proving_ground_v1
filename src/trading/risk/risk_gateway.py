@@ -400,6 +400,10 @@ class RiskGateway:
         payload: dict[str, Any] = {"limits": dict(limits), "telemetry": dict(self.telemetry)}
         risk_reference = self._resolve_risk_reference()
         if risk_reference is not None:
+            payload["risk_reference"] = {
+                key: dict(value) if isinstance(value, Mapping) else value
+                for key, value in risk_reference.items()
+            }
             summary = risk_reference.get("risk_config_summary")
             if isinstance(summary, Mapping):
                 payload["risk_config_summary"] = dict(summary)
@@ -408,10 +412,20 @@ class RiskGateway:
             if isinstance(config_payload, Mapping):
                 payload["risk_config"] = dict(config_payload)
         elif self._risk_config is not None:
-            payload["risk_config_summary"] = summarise_risk_config(self._risk_config)
+            summary = summarise_risk_config(self._risk_config)
+            payload["risk_config_summary"] = summary
+            payload["risk_reference"] = {
+                "risk_config_summary": dict(summary),
+                "risk_api_runbook": RISK_API_RUNBOOK,
+            }
+            try:
+                payload["risk_reference"]["risk_config"] = self._risk_config.dict()
+            except Exception:  # pragma: no cover - dict conversion guard
+                logger.debug("Failed to serialise risk config for limits", exc_info=True)
             payload["runbook"] = RISK_API_RUNBOOK
         else:
             payload["runbook"] = RISK_API_RUNBOOK
+            payload["risk_reference"] = {"risk_api_runbook": RISK_API_RUNBOOK}
         return payload
 
     def get_last_decision(self) -> Mapping[str, Any] | None:

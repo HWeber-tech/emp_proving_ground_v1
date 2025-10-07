@@ -740,6 +740,7 @@ def test_describe_release_posture(tmp_path: Path) -> None:
     thresholds = summary["thresholds"]
     assert thresholds.get("adaptive_source") == DriftSeverity.normal.value
     assert summary.get("approvals") == ["ops", "risk"]
+    assert "last_route" not in summary
 
 
 def test_build_policy_governance_snapshot(tmp_path: Path) -> None:
@@ -981,6 +982,13 @@ async def test_trading_manager_forces_paper_execution_under_drift_warn(
     assert release_metadata.get("route") == "paper"
     assert release_metadata.get("forced") is True
     assert release_metadata.get("forced_reason") == "drift_gate_severity_warn"
+    posture = manager.describe_release_posture("alpha")
+    assert posture.get("stage") == PolicyLedgerStage.LIMITED_LIVE.value
+    last_posture_route = posture.get("last_route")
+    assert isinstance(last_posture_route, dict)
+    assert last_posture_route.get("route") == "paper"
+    assert last_posture_route.get("forced_reason") == "drift_gate_severity_warn"
+    assert manager.get_last_release_route() == last_posture_route
 
 
 @pytest.mark.asyncio()

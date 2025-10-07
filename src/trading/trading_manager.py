@@ -751,6 +751,23 @@ class TradingManager:
 
         return self._last_drift_gate_decision
 
+    def get_last_release_route(self) -> Mapping[str, Any] | None:
+        """Expose the most recent release-aware execution routing decision."""
+
+        if self._release_router is None:
+            return None
+        try:
+            last_route = self._release_router.last_route()
+        except Exception:  # pragma: no cover - diagnostic fallback
+            logger.debug(
+                "Failed to fetch last release route from execution router",
+                exc_info=True,
+            )
+            return None
+        if not last_route:
+            return None
+        return dict(last_route)
+
     def describe_drift_gate(self) -> Mapping[str, Any]:
         """Return a serialisable posture for the DriftSentry gate."""
 
@@ -794,6 +811,9 @@ class TradingManager:
                     adaptive_thresholds = None
                 if adaptive_thresholds:
                     summary["thresholds"] = dict(adaptive_thresholds)
+            last_route = self.get_last_release_route()
+            if last_route:
+                summary["last_route"] = last_route
         summary.setdefault("managed", True)
         if strategy_id and "strategy_id" not in summary:
             summary["strategy_id"] = strategy_id

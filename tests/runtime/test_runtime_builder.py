@@ -341,6 +341,92 @@ async def test_builder_rejects_stop_loss_disabled_outside_research_mode(tmp_path
 
 
 @pytest.mark.asyncio()
+async def test_builder_publishes_risk_configuration_event(monkeypatch, tmp_path):
+    cfg = SystemConfig().with_updated(
+        connection_protocol=ConnectionProtocol.bootstrap,
+        data_backbone_mode=DataBackboneMode.bootstrap,
+        extras={
+            "BOOTSTRAP_SYMBOLS": "EURUSD",
+            "RUNTIME_HEALTHCHECK_ENABLED": False,
+        },
+    )
+
+    app = await build_professional_predator_app(config=cfg)
+
+    class StubTradingManager:
+        def __init__(self) -> None:
+            self._risk_config = RiskConfig()
+
+        def get_risk_status(self) -> Mapping[str, object]:
+            return {"risk_config": self._risk_config.dict()}
+
+    if getattr(app, "sensory_organ", None) is None:
+        app.sensory_organ = SimpleNamespace(trading_manager=StubTradingManager())
+    else:
+        setattr(app.sensory_organ, "trading_manager", StubTradingManager())
+
+    runtime_app: RuntimeApplication | None = None
+
+    try:
+        runtime_app = build_professional_runtime_application(
+            app,
+            skip_ingest=True,
+            symbols_csv="EURUSD",
+            duckdb_path=str(tmp_path / "tier0.duckdb"),
+        )
+
+        captured_events: list[Any] = []
+
+        def _capture_publish_from_sync(event: Any) -> int:
+            captured_events.append(event)
+            return 1
+
+        async def _capture_publish(event: Any) -> None:
+            captured_events.append(event)
+
+        monkeypatch.setattr(
+            app.event_bus,
+            "publish_from_sync",
+            _capture_publish_from_sync,
+            raising=False,
+        )
+        monkeypatch.setattr(
+            app.event_bus,
+            "publish",
+            _capture_publish,
+            raising=False,
+        )
+        monkeypatch.setattr(app.event_bus, "is_running", lambda: True, raising=False)
+
+        callbacks = [
+            callback
+            for callback in runtime_app.startup_callbacks
+            if getattr(callback, "__name__", "") == "enforce_trading_risk_config"
+        ]
+        assert callbacks, "expected risk enforcement callback to be registered"
+        await callbacks[0]()
+
+        risk_events = [
+            event
+            for event in captured_events
+            if getattr(event, "type", None) == "telemetry.risk.configuration"
+        ]
+        assert risk_events, "risk configuration event was not published"
+        payload = risk_events[0].payload
+        assert payload["risk"]["mandatory_stop_loss"] is True
+        assert payload["runbook"].endswith("risk_api_contract.md")
+
+        summary = app.summary()
+        configuration_event = summary.get("risk", {}).get("configuration_event")
+        assert configuration_event is not None
+        assert configuration_event["risk"]["max_risk_per_trade_pct"] == pytest.approx(0.02)
+    finally:
+        if runtime_app is not None:
+            await runtime_app.shutdown()
+        await app.shutdown()
+
+
+@pytest.mark.asyncio()
 async def test_configuration_audit_runs_without_timescale(monkeypatch, tmp_path):
     cfg = SystemConfig().with_updated(
         connection_protocol=ConnectionProtocol.bootstrap,

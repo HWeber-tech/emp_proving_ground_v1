@@ -312,6 +312,7 @@ class ProfessionalPredatorApp:
         self._last_fix_pilot_snapshot: "FixPilotSnapshot" | None = None
         self._last_ingest_trend_snapshot: IngestTrendSnapshot | None = None
         self._last_configuration_snapshot: ConfigurationAuditSnapshot | None = None
+        self._last_risk_configuration: dict[str, Any] | None = None
 
     async def __aenter__(self) -> "ProfessionalPredatorApp":
         await self.start()
@@ -467,6 +468,11 @@ class ProfessionalPredatorApp:
         """Store the latest configuration audit snapshot."""
 
         self._last_configuration_snapshot = snapshot
+
+    def record_risk_configuration(self, payload: Mapping[str, object]) -> None:
+        """Store the latest risk configuration payload for runtime summaries."""
+
+        self._last_risk_configuration = dict(payload)
 
     def record_execution_snapshot(self, snapshot: ExecutionReadinessSnapshot) -> None:
         """Store the latest execution readiness snapshot."""
@@ -996,6 +1002,11 @@ class ProfessionalPredatorApp:
         if trading_manager is not None:
             risk_section = summary_payload.setdefault("risk", {})
             risk_section.setdefault("runbook", RISK_API_RUNBOOK)
+            if self._last_risk_configuration is not None:
+                risk_section.setdefault(
+                    "configuration_event",
+                    dict(self._last_risk_configuration),
+                )
 
             snapshot_obj = _call_manager_method(trading_manager, "get_last_risk_snapshot")
             snapshot_dict = _snapshot_to_dict(snapshot_obj)

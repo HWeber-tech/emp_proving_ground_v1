@@ -630,6 +630,63 @@ def _process_sensory_status(
     return [dict(entry) for entry in summary.audit_entries]
 
 
+def _publish_runtime_risk_configuration(
+    event_bus: EventBus, payload: Mapping[str, object]
+) -> None:
+    """Publish a risk configuration telemetry event via the supplied bus."""
+
+    event = Event(
+        type="telemetry.risk.configuration",
+        payload=dict(payload),
+        source="runtime.builder",
+    )
+
+    publish_from_sync = getattr(event_bus, "publish_from_sync", None)
+    if callable(publish_from_sync) and event_bus.is_running():
+        try:
+            publish_from_sync(event)
+            return
+        except Exception:  # pragma: no cover - diagnostics only
+            logger.debug("Failed to publish risk configuration via publish_from_sync", exc_info=True)
+
+    publish_async = getattr(event_bus, "publish", None)
+    if callable(publish_async):
+        try:
+            maybe_coro = publish_async(event)
+        except Exception:  # pragma: no cover - diagnostics only
+            logger.debug("Failed to publish risk configuration asynchronously", exc_info=True)
+        else:
+            if inspect.isawaitable(maybe_coro):
+                asyncio.create_task(maybe_coro)
+
+
+def _record_and_publish_risk_configuration(
+    app: ProfessionalPredatorApp,
+    trading_manager: Any,
+    risk_metadata: Mapping[str, object],
+) -> None:
+    """Persist and emit the enforced risk configuration snapshot."""
+
+    payload: dict[str, object] = {
+        "timestamp": datetime.now(UTC).isoformat(),
+        "manager": type(trading_manager).__name__,
+        "risk": dict(risk_metadata),
+        "runbook": RISK_API_RUNBOOK,
+    }
+
+    try:
+        _publish_runtime_risk_configuration(app.event_bus, payload)
+    except Exception:  # pragma: no cover - diagnostics only
+        logger.debug("Failed to publish runtime risk configuration", exc_info=True)
+
+    record_risk_configuration = getattr(app, "record_risk_configuration", None)
+    if callable(record_risk_configuration):
+        try:
+            record_risk_configuration(payload)
+        except Exception:  # pragma: no cover - diagnostics only
+            logger.debug("Failed to record runtime risk configuration on app", exc_info=True)
+
+
 def _prepare_trading_risk_enforcement(
     app: ProfessionalPredatorApp, metadata: MutableMapping[str, object]
 ) -> StartupCallback | None:
@@ -659,7 +716,8 @@ def _prepare_trading_risk_enforcement(
     if risk_config.max_total_exposure_pct <= 0:
         raise RuntimeError("RiskConfig.max_total_exposure_pct must be positive")
 
-    metadata["risk"] = build_runtime_risk_metadata(trading_manager)
+    risk_metadata = dict(build_runtime_risk_metadata(trading_manager))
+    metadata["risk"] = risk_metadata
 
     async def _enforce_trading_risk_config() -> None:
         logger.info(
@@ -670,6 +728,7 @@ def _prepare_trading_risk_enforcement(
             bool(risk_config.mandatory_stop_loss),
             bool(risk_config.research_mode),
         )
+        _record_and_publish_risk_configuration(app, trading_manager, risk_metadata)
 
     _enforce_trading_risk_config.__name__ = "enforce_trading_risk_config"
     return _enforce_trading_risk_config

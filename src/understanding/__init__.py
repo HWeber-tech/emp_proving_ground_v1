@@ -26,6 +26,7 @@ from .router import (
     UnderstandingDecision,
     UnderstandingRouter,
 )
+from .metrics import export_throttle_metrics, export_understanding_throttle_metrics
 
 __all__ = [
     "BeliefBuffer",
@@ -48,4 +49,6 @@ __all__ = [
     "FeatureGate",
     "UnderstandingDecision",
     "UnderstandingRouter",
+    "export_throttle_metrics",
+    "export_understanding_throttle_metrics",
 ]

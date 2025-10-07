@@ -326,3 +326,68 @@ def test_why_feature_metric_sorts_labels(monkeypatch: pytest.MonkeyPatch) -> Non
     assert registry.gauge_requests[-1] == ("why_feature_available", ("feature",))
     assert registry.gauges[-1].labels_calls == [{"feature": "macro_bias"}]
     assert registry.gauges[-1].set_calls == [0.0]
+
+
+def test_set_understanding_throttle_state_exports_metrics(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    registry = _RecordingRegistry()
+    monkeypatch.setattr(metrics, "get_registry", lambda: registry)
+
+    metrics.set_understanding_throttle_state(
+        "volatility",
+        state="reduced",
+        active=True,
+        multiplier=0.75,
+        regime="balanced",
+        decision="momentum_breakout",
+    )
+    metrics.set_understanding_throttle_state(
+        "",
+        state="",
+        active=False,
+        multiplier=None,
+        regime=None,
+        decision=None,
+    )
+
+    assert registry.gauge_requests[:2] == [
+        ("understanding_throttle_active", ("throttle", "state", "regime", "decision")),
+        ("understanding_throttle_multiplier", ("throttle", "state", "regime", "decision")),
+    ]
+
+    active_gauge = registry.gauges[0]
+    multiplier_gauge = registry.gauges[1]
+    assert active_gauge.labels_calls == [
+        {
+            "throttle": "volatility",
+            "state": "reduced",
+            "regime": "balanced",
+            "decision": "momentum_breakout",
+        }
+    ]
+    assert active_gauge.set_calls == [1.0]
+
+    assert multiplier_gauge.labels_calls == [
+        {
+            "throttle": "volatility",
+            "state": "reduced",
+            "regime": "balanced",
+            "decision": "momentum_breakout",
+        }
+    ]
+    assert multiplier_gauge.set_calls == [pytest.approx(0.75)]
+
+    inactive_gauge = registry.gauges[2]
+    inactive_multiplier = registry.gauges[3]
+    assert inactive_gauge.labels_calls == [
+        {
+            "throttle": "unknown",
+            "state": "unknown",
+            "regime": "unknown",
+            "decision": "unknown",
+        }
+    ]
+    assert inactive_gauge.set_calls == [0.0]
+
+    assert inactive_multiplier.set_calls == [0.0]

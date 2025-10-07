@@ -10,7 +10,7 @@ unit tests (that import submodules directly) lightweight.
 
 from __future__ import annotations
 
-__all__ = ["ExecutionEngine"]
+__all__ = ["ExecutionEngine", "ReleaseAwareExecutionRouter"]
 
 
 def __getattr__(name: str) -> object:
@@ -18,4 +18,8 @@ def __getattr__(name: str) -> object:
         from .execution_engine import ExecutionEngine
 
         return ExecutionEngine
+    if name == "ReleaseAwareExecutionRouter":
+        from .release_router import ReleaseAwareExecutionRouter
+
+        return ReleaseAwareExecutionRouter
     raise AttributeError(name)

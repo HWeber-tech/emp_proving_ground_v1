@@ -62,6 +62,7 @@ from src.operations.roi import (
     publish_roi_snapshot,
 )
 from src.operations.sensory_drift import SensoryDriftSnapshot
+from src.trading.execution.release_router import ReleaseAwareExecutionRouter
 from src.trading.gating import DriftSentryDecision, DriftSentryGate
 from src.trading.gating.adaptive_release import AdaptiveReleaseThresholds
 
@@ -189,6 +190,7 @@ class TradingManager:
             if release_manager is not None
             else None
         )
+        self._release_router: ReleaseAwareExecutionRouter | None = None
         self._last_drift_gate_decision: DriftSentryDecision | None = None
 
         self._execution_stats: dict[str, object] = {
@@ -707,6 +709,44 @@ class TradingManager:
         if strategy_id and "strategy_id" not in summary:
             summary["strategy_id"] = strategy_id
         return summary
+
+    def install_release_execution_router(
+        self,
+        *,
+        paper_engine: Any | None = None,
+        pilot_engine: Any | None = None,
+        live_engine: Any | None = None,
+        default_stage: PolicyLedgerStage | str | None = None,
+    ) -> ReleaseAwareExecutionRouter:
+        """Wrap execution with release-aware routing tied to the policy ledger."""
+
+        if self._release_manager is None:
+            raise RuntimeError("Release manager is not configured")
+
+        if isinstance(self.execution_engine, ReleaseAwareExecutionRouter):
+            base_paper = self.execution_engine.paper_engine
+        else:
+            base_paper = paper_engine or self.execution_engine
+
+        if base_paper is None:
+            raise ValueError("paper_engine must be provided when no base engine is configured")
+
+        stage_default = (
+            PolicyLedgerStage.from_value(default_stage)
+            if default_stage is not None
+            else PolicyLedgerStage.EXPERIMENT
+        )
+
+        router = ReleaseAwareExecutionRouter(
+            release_manager=self._release_manager,
+            paper_engine=base_paper,
+            pilot_engine=pilot_engine,
+            live_engine=live_engine,
+            default_stage=stage_default,
+        )
+        self.execution_engine = router
+        self._release_router = router
+        return router
 
     async def start(self) -> None:
         """Start the TradingManager and subscribe to trade intents."""

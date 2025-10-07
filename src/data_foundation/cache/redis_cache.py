@@ -9,7 +9,7 @@ from importlib import import_module
 from collections import OrderedDict
 from dataclasses import dataclass, field
 from typing import Any, Callable, Iterable, Mapping, MutableMapping, Protocol, cast
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urlunparse
 
 _redis_mod: object | None
 try:  # pragma: no cover - redis optional in bootstrap environments
@@ -238,10 +238,40 @@ class RedisConnectionSettings:
             url = self.connection_url()
         except ValueError:
             url = self.url or "redis://<incomplete>"
-        if redacted and self.password:
-            redacted_url = url.replace(self.password, "***")
+        parsed = urlparse(url)
+        username = parsed.username or self.username
+        password = parsed.password or self.password
+        host = parsed.hostname or self.host or ""
+        port = parsed.port or (self.port if host else None)
+
+        def _mask_host(raw: str) -> str:
+            if not raw:
+                return "***"
+            if raw.startswith("[") and raw.endswith("]"):
+                return "[***]"
+            parts = raw.split(".")
+            if len(parts) <= 1:
+                return "***"
+            return "***." + ".".join(parts[-2:])
+
+        if redacted:
+            if password:
+                user_display = username or "***"
+                host_display = host or "***"
+                if host_display and ":" in host_display and not host_display.startswith("["):
+                    host_display = f"[{host_display}]"
+                port_segment = f":{port}" if port is not None else ""
+                netloc = f"{user_display}:***@{host_display}{port_segment}"
+            else:
+                masked_host = _mask_host(host)
+                if host and ":" in host and not host.startswith("["):
+                    masked_host = f"[{masked_host.strip('[]')}]"
+                user_segment = "***@" if username else ""
+                port_segment = f":{port}" if port is not None else ""
+                netloc = f"{user_segment}{masked_host}{port_segment}"
+            redacted_url = urlunparse(parsed._replace(netloc=netloc))
         else:
-            redacted_url = url.replace(self.password or "", "***") if self.password else url
+            redacted_url = url
         suffix = " (ssl)" if self.ssl else ""
         return f"Redis endpoint {redacted_url}{suffix}"
 

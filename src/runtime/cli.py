@@ -16,6 +16,10 @@ import json
 import logging
 import sys
 from contextlib import suppress
+from datetime import date, datetime
+from decimal import Decimal
+from enum import Enum
+from pathlib import Path
 from typing import Any, Awaitable, Callable, Mapping, Sequence
 
 from src.governance.system_config import SystemConfig
@@ -28,6 +32,31 @@ logger = logging.getLogger(__name__)
 
 
 AsyncRuntimeHandler = Callable[[argparse.Namespace], Awaitable[int]]
+
+
+def _json_ready(value: Any) -> Any:
+    if isinstance(value, (str, int, float, bool)) or value is None:
+        return value
+    if isinstance(value, Decimal):
+        return float(value)
+    if isinstance(value, Enum):
+        return value.value
+    if isinstance(value, (datetime, date)):
+        return value.isoformat()
+    if isinstance(value, Path):
+        return str(value)
+    if hasattr(value, "as_dict") and callable(value.as_dict):
+        try:
+            return _json_ready(value.as_dict())
+        except Exception:  # pragma: no cover - defensive guard
+            return str(value)
+    if isinstance(value, Mapping):
+        return {str(key): _json_ready(item) for key, item in value.items()}
+    if isinstance(value, (set, frozenset)):
+        return [_json_ready(item) for item in value]
+    if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
+        return [_json_ready(item) for item in value]
+    return str(value)
 
 
 def _positive_float(value: str) -> float:
@@ -192,12 +221,12 @@ async def _handle_summary(
         }
 
         if args.json:
-            print(json.dumps(payload, indent=2, sort_keys=True))
+            print(json.dumps(_json_ready(payload), indent=2, sort_keys=True))
         else:
             print("Runtime summary:")
-            print(json.dumps(runtime_summary, indent=2, sort_keys=True))
+            print(json.dumps(_json_ready(runtime_summary), indent=2, sort_keys=True))
             print("Application summary:")
-            print(json.dumps(app_summary, indent=2, sort_keys=True))
+            print(json.dumps(_json_ready(app_summary), indent=2, sort_keys=True))
 
         return 0
 

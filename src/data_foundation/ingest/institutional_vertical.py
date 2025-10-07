@@ -45,6 +45,7 @@ from src.data_foundation.streaming.kafka_stream import (
     KafkaIngestEventConsumer,
     KafkaConsumerFactory,
     create_ingest_event_consumer,
+    ingest_topic_config_from_mapping,
 )
 from src.runtime.task_supervisor import TaskSupervisor
 
@@ -376,9 +377,10 @@ class InstitutionalIngestProvisioner:
         kafka_consumer: KafkaIngestEventConsumer | None = None
         kafka_settings = self.ingest_config.kafka_settings
         if kafka_settings and kafka_settings.configured:
+            kafka_mapping = self._resolved_kafka_mapping()
             kafka_consumer = create_ingest_event_consumer(
                 kafka_settings,
-                self.kafka_mapping,
+                kafka_mapping or None,
                 event_bus=event_bus,
                 consumer_factory=kafka_consumer_factory,
                 deserializer=kafka_deserializer,
@@ -398,6 +400,20 @@ class InstitutionalIngestProvisioner:
             kafka_consumer=kafka_consumer,
             kafka_metadata=kafka_metadata,
         )
+
+    def _resolved_kafka_mapping(self) -> dict[str, str]:
+        """Merge provided Kafka mapping with institutional defaults."""
+
+        mapping = {str(key): str(value) for key, value in (self.kafka_mapping or {}).items()}
+        consumer_topics_raw = mapping.get("KAFKA_INGEST_CONSUMER_TOPICS", "").strip()
+        topic_map, default_topic = ingest_topic_config_from_mapping(mapping)
+        has_topics = bool(consumer_topics_raw or topic_map or (default_topic and default_topic.strip()))
+        if not has_topics:
+            fallback_topic = mapping.get("KAFKA_INGEST_DEFAULT_TOPIC", "telemetry.ingest").strip()
+            if not fallback_topic:
+                fallback_topic = "telemetry.ingest"
+            mapping["KAFKA_INGEST_CONSUMER_TOPICS"] = fallback_topic
+        return mapping
 
 
 __all__ = [

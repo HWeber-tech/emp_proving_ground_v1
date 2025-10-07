@@ -36,12 +36,12 @@ class FixPilotState:
     last_order: Mapping[str, Any] | None
     compliance_summary: Mapping[str, Any] | None
     risk_summary: Mapping[str, Any] | None
-    risk_interface: Mapping[str, Any] | None = None
     dropcopy_running: bool
     dropcopy_backlog: int
     last_dropcopy_event: Mapping[str, Any] | None
     dropcopy_reconciliation: Mapping[str, Any] | None
     timestamp: datetime
+    risk_interface: Mapping[str, Any] | None = None
     open_orders: tuple[Mapping[str, Any], ...] = field(default_factory=tuple)
     positions: tuple[Mapping[str, Any], ...] = field(default_factory=tuple)
     total_exposure: float | None = None

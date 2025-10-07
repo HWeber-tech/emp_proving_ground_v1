@@ -58,6 +58,14 @@ class _DummyKafkaConsumer:
         self.closed = True
 
 
+_EXPECTED_POLICY_METADATA = {
+    "ttl_seconds": 900,
+    "max_keys": 1024,
+    "namespace": "emp:cache",
+    "invalidate_prefixes": [],
+}
+
+
 def _ingest_config(*, schedule: IngestSchedule | None = None) -> InstitutionalIngestConfig:
     return InstitutionalIngestConfig(
         should_run=True,
@@ -133,12 +141,15 @@ async def test_provisioned_services_supervise_components() -> None:
     summary = services.summary()
     assert summary["timescale"]["configured"] is True
     assert summary["redis"] is not None
+    assert summary["redis_policy"] == _EXPECTED_POLICY_METADATA
     assert summary["kafka_topics"] == ["telemetry.ingest"]
+    assert summary["kafka_metadata"]["timescale_dimensions"] == []
     manifest = summary["managed_manifest"]
     assert {entry["name"] for entry in manifest} == {"timescale", "redis", "kafka"}
     for entry in manifest:
         if entry["name"] == "redis" and entry["metadata"]["summary"]:
             assert "***" in entry["metadata"]["summary"]
+            assert entry["metadata"]["policy"] == _EXPECTED_POLICY_METADATA
 
 
 def test_provision_configures_redis_when_factory_missing(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -179,6 +190,7 @@ def test_provision_configures_redis_when_factory_missing(monkeypatch: pytest.Mon
 
     assert services.redis_cache is not None
     assert isinstance(services.redis_cache.raw_client, InMemoryRedis)
+    assert services.redis_policy is provisioner.redis_policy
     assert captured == {
         "settings": redis_settings,
         "factory": None,
@@ -202,6 +214,7 @@ def test_summary_includes_failover_metadata() -> None:
         "label": "required_timescale_failover",
         "run_fallback": True,
     }
+    assert services.summary()["redis_policy"] is not None
 
 
 @pytest.mark.asyncio
@@ -232,6 +245,7 @@ async def test_provision_skips_optional_connectors_when_unconfigured() -> None:
     summary = services.summary()
     assert summary["redis"] is None
     assert summary["kafka"] is None
+    assert summary["redis_policy"] == _EXPECTED_POLICY_METADATA
 
 
 @pytest.mark.asyncio
@@ -272,6 +286,7 @@ async def test_connectivity_report_uses_optional_probes() -> None:
     assert manifest["timescale"].healthy is True
     assert manifest["redis"].healthy is False
     assert manifest["kafka"].healthy is None
+    assert manifest["redis"].metadata["policy"] == _EXPECTED_POLICY_METADATA
     assert probes_called == {"timescale": True, "redis": True}
 
     await services.stop()
@@ -306,6 +321,7 @@ async def test_connectivity_report_defaults_use_managed_probes(tmp_path) -> None
     assert manifest["timescale"].healthy is True
     assert manifest["redis"].healthy is True
     assert manifest["kafka"].healthy is True
+    assert manifest["redis"].metadata["policy"] == _EXPECTED_POLICY_METADATA
 
     await services.stop()
 
@@ -333,6 +349,8 @@ def test_manifest_snapshot_structure() -> None:
     assert timescale_snapshot.supervised is False
     assert timescale_snapshot.configured is True
     assert "dimensions" in timescale_snapshot.metadata
+    redis_snapshot = next(snap for snap in snapshots if snap.name == "redis")
+    assert redis_snapshot.metadata["policy"] == _EXPECTED_POLICY_METADATA
 
 
 def test_plan_managed_manifest_uses_configuration() -> None:
@@ -360,6 +378,7 @@ def test_plan_managed_manifest_uses_configuration() -> None:
     assert kafka_metadata["bootstrap_servers"] == "broker:9092"
     assert set(kafka_metadata["topics"]) == {"telemetry.ingest", "telemetry.drills"}
     assert kafka_metadata["consumer_topics_configured"] is True
+    assert snapshots["redis"].metadata["policy"] == _EXPECTED_POLICY_METADATA
 
 
 def test_plan_managed_manifest_adds_default_topic_when_missing() -> None:
@@ -369,3 +388,5 @@ def test_plan_managed_manifest_adds_default_topic_when_missing() -> None:
     kafka_metadata = next(snapshot for snapshot in manifest if snapshot.name == "kafka").metadata
     assert "telemetry.ingest" in kafka_metadata["topics"]
     assert kafka_metadata["consumer_topics_configured"] is True
+    redis_metadata = next(snapshot for snapshot in manifest if snapshot.name == "redis").metadata
+    assert redis_metadata["policy"] == _EXPECTED_POLICY_METADATA

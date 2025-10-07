@@ -6,7 +6,7 @@ from collections import Counter
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import StrEnum
-from typing import Any, Iterable, Mapping, MutableMapping, Sequence
+from typing import TYPE_CHECKING, Any, Iterable, Mapping, MutableMapping, Sequence
 
 from src.operations.data_backbone import (
     BackboneComponentSnapshot,
@@ -32,6 +32,9 @@ from src.understanding.diagnostics import (
     UnderstandingLoopSnapshot,
 )
 from src.understanding.metrics import export_understanding_throttle_metrics
+
+if TYPE_CHECKING:
+    from src.thinking.adaptation.policy_reflection import PolicyReflectionArtifacts
 
 try:  # Python 3.10 compatibility
     from datetime import UTC
@@ -254,6 +257,129 @@ def _normalise_risk_result(result: Any) -> Mapping[str, Any]:
     return normalised
 
 
+def _format_percentage(value: object) -> str:
+    try:
+        return f"{float(value) * 100:.1f}%"
+    except (TypeError, ValueError):
+        return "0.0%"
+
+
+def _first_mapping(entry: object) -> Mapping[str, Any] | None:
+    if isinstance(entry, Sequence) and not isinstance(entry, (str, bytes)):
+        for element in entry:
+            if isinstance(element, Mapping):
+                return element
+    return None
+
+
+def _build_policy_reflection_panel(
+    artifacts: "PolicyReflectionArtifacts",
+) -> DashboardPanel:
+    digest = dict(artifacts.digest)
+    payload = dict(artifacts.payload)
+    insights = tuple(
+        str(item)
+        for item in payload.get("insights", ())
+        if isinstance(item, str) and item.strip()
+    )
+    total = int(digest.get("total_decisions", 0) or 0)
+    status = DashboardStatus.ok if total > 0 else DashboardStatus.warn
+    headline = (
+        f"Policy reflections analysed {total} decision{'s' if total != 1 else ''}"
+        if total
+        else "Policy reflections awaiting decisions"
+    )
+
+    details: list[str] = []
+    top_tactic = _first_mapping(digest.get("tactics"))
+    if top_tactic:
+        tactic_id = str(top_tactic.get("tactic_id", "unknown"))
+        share = _format_percentage(top_tactic.get("share", 0.0))
+        avg_score = float(top_tactic.get("avg_score", 0.0))
+        last_seen = top_tactic.get("last_seen")
+        last_seen_text = str(last_seen) if last_seen else "unknown"
+        details.append(
+            "Top tactic {tactic} ({share}, avg score {score:.3f}, last {last})".format(
+                tactic=tactic_id,
+                share=share,
+                score=avg_score,
+                last=last_seen_text,
+            )
+        )
+
+    top_experiment = _first_mapping(digest.get("experiments"))
+    if top_experiment:
+        experiment_id = str(top_experiment.get("experiment_id", "unknown"))
+        count = int(top_experiment.get("count", 0) or 0)
+        share = _format_percentage(top_experiment.get("share", 0.0))
+        gating_bits: list[str] = []
+        regimes = top_experiment.get("regimes")
+        if isinstance(regimes, Sequence) and regimes and not isinstance(regimes, (str, bytes)):
+            gating_bits.append(
+                "regimes " + ", ".join(str(regime) for regime in regimes if str(regime).strip())
+            )
+        min_conf = top_experiment.get("min_confidence")
+        if isinstance(min_conf, (int, float)) and float(min_conf) > 0.0:
+            gating_bits.append(f"confidence >= {float(min_conf):.2f}")
+        rationale = top_experiment.get("rationale")
+        rationale_text = str(rationale).strip() if isinstance(rationale, str) else ""
+        descriptor = "; ".join(gating_bits)
+        details.append(
+            "Top experiment {experiment} applied {count}x ({share}{gating}){rationale}".format(
+                experiment=experiment_id,
+                count=count,
+                share=share,
+                gating=f"; {descriptor}" if descriptor else "",
+                rationale=f" - {rationale_text}" if rationale_text else "",
+            )
+        )
+
+    top_tag = _first_mapping(digest.get("tags"))
+    if top_tag:
+        tag_name = str(top_tag.get("tag", "unknown"))
+        share = _format_percentage(top_tag.get("share", 0.0))
+        details.append(f"Dominant tag {tag_name} at {share}")
+
+    top_objective = _first_mapping(digest.get("objectives"))
+    if top_objective:
+        objective_name = str(top_objective.get("objective", "unknown"))
+        share = _format_percentage(top_objective.get("share", 0.0))
+        details.append(f"Leading objective {objective_name} at {share}")
+
+    headlines = digest.get("recent_headlines")
+    if isinstance(headlines, Sequence) and headlines and not isinstance(headlines, (str, bytes)):
+        if details:
+            details.append("")
+        details.extend(
+            f"Headline: {str(headline)}"
+            for headline in headlines[-3:]
+            if str(headline).strip()
+        )
+
+    if insights:
+        if details:
+            details.append("")
+        details.extend(f"Insight: {insight}" for insight in insights[:5])
+
+    if not details:
+        details.append("No reflection insights available; capture decision telemetry.")
+
+    metadata_payload: dict[str, Any] = {
+        "metadata": dict(payload.get("metadata", {})),
+        "digest": digest,
+        "insights": list(insights),
+        "markdown": artifacts.markdown,
+    }
+
+    return DashboardPanel(
+        name="Policy reflections",
+        status=status,
+        headline=headline,
+        details=tuple(details),
+        metadata={"policy_reflection": metadata_payload},
+    )
+
+
 def _summarise_components(
     components: Iterable[BackboneComponentSnapshot],
 ) -> tuple[str, ...]:
@@ -275,6 +401,7 @@ def build_observability_dashboard(
     backbone_snapshot: DataBackboneReadinessSnapshot | None = None,
     operational_readiness_snapshot: OperationalReadinessSnapshot | None = None,
     quality_snapshot: QualityTelemetrySnapshot | None = None,
+    policy_reflection: "PolicyReflectionArtifacts" | None = None,
     understanding_snapshot: UnderstandingLoopSnapshot | None = None,
     additional_panels: Sequence[DashboardPanel] | None = None,
     generated_at: datetime | None = None,
@@ -565,6 +692,9 @@ def build_observability_dashboard(
                 },
             )
         )
+
+    if policy_reflection is not None:
+        panels.append(_build_policy_reflection_panel(policy_reflection))
 
     if quality_snapshot is not None:
         quality_status = _map_quality_status(quality_snapshot.status)

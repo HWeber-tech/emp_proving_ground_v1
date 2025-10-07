@@ -41,6 +41,7 @@ from src.understanding import (
     UnderstandingGraphStatus,
     UnderstandingLoopSnapshot,
 )
+from src.thinking.adaptation.policy_reflection import PolicyReflectionArtifacts
 
 
 pytestmark = pytest.mark.guardrail
@@ -434,3 +435,88 @@ def test_understanding_panel_exports_throttle_metrics(
     build_observability_dashboard(understanding_snapshot=snapshot)
 
     assert calls == [snapshot]
+
+
+def test_policy_reflection_panel_included_with_artifacts() -> None:
+    digest = {
+        "total_decisions": 4,
+        "as_of": "2024-03-15T12:00:00+00:00",
+        "tactics": [
+            {
+                "tactic_id": "breakout",
+                "count": 3,
+                "share": 0.75,
+                "avg_score": 1.42,
+                "last_seen": "2024-03-15T11:59:00+00:00",
+            }
+        ],
+        "experiments": [
+            {
+                "experiment_id": "exp-boost",
+                "count": 2,
+                "share": 0.5,
+                "last_seen": "2024-03-15T11:58:00+00:00",
+                "regimes": ["bull"],
+                "min_confidence": 0.6,
+                "rationale": "Promote reversion in calm regimes",
+            }
+        ],
+        "tags": [
+            {
+                "tag": "momentum",
+                "count": 3,
+                "share": 0.75,
+            }
+        ],
+        "objectives": [
+            {
+                "objective": "alpha",
+                "count": 3,
+                "share": 0.75,
+            }
+        ],
+        "recent_headlines": [
+            "Selected breakout for bull (confidence=0.80)",
+        ],
+    }
+    payload = {
+        "metadata": {
+            "generated_at": "2024-03-15T12:10:00+00:00",
+            "total_decisions": 4,
+            "as_of": "2024-03-15T12:00:00+00:00",
+        },
+        "digest": digest,
+        "insights": (
+            "Leading tactic breakout at 75.0% share (avg score 1.420)",
+            "Top experiment exp-boost applied 2 times (50.0%)",
+            "Dominant regime bull at 75.0%",
+        ),
+    }
+    artifacts = PolicyReflectionArtifacts(
+        digest=digest,
+        markdown="# PolicyRouter reflection summary\n\nDecisions analysed: 4\n",
+        payload=payload,
+    )
+
+    builder = UnderstandingDiagnosticsBuilder(
+        now=lambda: datetime(2024, 3, 15, 12, 15, tzinfo=UTC)
+    )
+    snapshot = builder.build().to_snapshot()
+
+    dashboard = build_observability_dashboard(
+        understanding_snapshot=snapshot,
+        policy_reflection=artifacts,
+    )
+
+    panel = next(panel for panel in dashboard.panels if panel.name == "Policy reflections")
+    assert panel.status is DashboardStatus.ok
+    assert "Top tactic breakout" in panel.details[0]
+    assert any("Insight:" in detail for detail in panel.details)
+
+    metadata = panel.metadata["policy_reflection"]
+    assert metadata["metadata"]["total_decisions"] == 4
+    assert metadata["markdown"].startswith("# PolicyRouter reflection summary")
+    assert metadata["insights"][0].startswith("Leading tactic breakout")
+
+    counts = dashboard.metadata["panel_status_counts"]
+    assert counts[DashboardStatus.ok.value] >= 2

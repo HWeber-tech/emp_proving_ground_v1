@@ -5,6 +5,7 @@ from typing import Any, Mapping
 
 import pandas as pd
 
+from src.sensory.lineage_publisher import SensoryLineagePublisher
 from src.sensory.real_sensory_organ import RealSensoryOrgan, SensoryDriftConfig
 
 
@@ -199,3 +200,23 @@ def test_real_sensory_organ_wires_lineage_publisher() -> None:
         lineage = record["lineage"]
         if isinstance(lineage, dict):
             assert lineage.get("dimension") == record["dimension"]
+
+
+def test_real_sensory_organ_status_exposes_lineage_history() -> None:
+    frame = _build_market_frame()
+    publisher = SensoryLineagePublisher(max_records=3)
+    organ = RealSensoryOrgan(lineage_publisher=publisher)
+
+    organ.observe(frame)
+
+    status = organ.status()
+    assert "lineage" in status
+    history = status["lineage"]
+    assert isinstance(history, list)
+    assert history, "expected lineage history to contain recent records"
+    first_entry = history[0]
+    assert first_entry.get("dimension") in {"HOW", "ANOMALY"}
+
+    latest = status.get("lineage_latest")
+    assert isinstance(latest, dict)
+    assert latest.get("dimension") == first_entry.get("dimension")

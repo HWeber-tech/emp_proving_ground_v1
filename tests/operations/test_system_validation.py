@@ -316,6 +316,47 @@ def test_system_validation_gate_enforces_required_checks() -> None:
     assert any("ingest" in reason.lower() for reason in result.reasons)
 
 
+def test_system_validation_alerts_include_gate_event() -> None:
+    snapshot = SystemValidationSnapshot(
+        status=SystemValidationStatus.warn,
+        generated_at=datetime(2025, 1, 7, tzinfo=timezone.utc),
+        total_checks=4,
+        passed_checks=3,
+        failed_checks=1,
+        success_rate=0.75,
+        checks=(
+            SystemValidationCheck(name="core", passed=True),
+            SystemValidationCheck(name="ingest", passed=True),
+            SystemValidationCheck(name="risk", passed=True),
+            SystemValidationCheck(name="ops", passed=False, message="ops degraded"),
+        ),
+        metadata={},
+    )
+
+    gate_result = evaluate_system_validation_gate(
+        snapshot,
+        min_success_rate=0.9,
+        block_on_warn=True,
+    )
+
+    assert isinstance(gate_result, SystemValidationGateResult)
+    assert gate_result.should_block is True
+
+    events = derive_system_validation_alerts(
+        snapshot,
+        include_gate_event=True,
+        gate_result=gate_result,
+    )
+
+    gate_events = [event for event in events if event.category == "system_validation.gate"]
+    assert gate_events
+    gate_event = gate_events[0]
+    assert gate_event.severity is AlertSeverity.critical
+    context_gate = gate_event.context.get("gate")
+    assert isinstance(context_gate, dict)
+    assert context_gate.get("should_block") is True
+
+
 def test_route_system_validation_alerts_dispatches() -> None:
     snapshot = SystemValidationSnapshot(
         status=SystemValidationStatus.fail,
@@ -337,6 +378,34 @@ def test_route_system_validation_alerts_dispatches() -> None:
     assert results
     assert all(result.triggered_channels == ("stub",) for result in results)
     assert len(manager.events) == len(results)
+
+
+def test_route_system_validation_alerts_includes_gate_event() -> None:
+    snapshot = SystemValidationSnapshot(
+        status=SystemValidationStatus.warn,
+        generated_at=datetime(2025, 1, 8, tzinfo=timezone.utc),
+        total_checks=3,
+        passed_checks=2,
+        failed_checks=1,
+        success_rate=2 / 3,
+        checks=(
+            SystemValidationCheck(name="core", passed=True),
+            SystemValidationCheck(name="ingest", passed=True),
+            SystemValidationCheck(name="ops", passed=False),
+        ),
+        metadata={},
+    )
+
+    manager = StubAlertManager()
+
+    results = route_system_validation_alerts(
+        manager,
+        snapshot,
+        include_gate_event=True,
+    )
+
+    categories = {result.event.category for result in results}
+    assert "system_validation.gate" in categories
 
 
 def test_system_validation_alert_threshold_filtering() -> None:

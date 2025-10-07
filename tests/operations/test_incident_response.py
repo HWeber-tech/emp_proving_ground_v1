@@ -6,6 +6,7 @@ import pytest
 from src.core.event_bus import Event
 from src.operations.alerts import AlertDispatchResult, AlertEvent, AlertSeverity
 from src.operations.incident_response import (
+    IncidentResponseGateResult,
     IncidentResponseMetrics,
     IncidentResponsePolicy,
     IncidentResponseSnapshot,
@@ -13,6 +14,7 @@ from src.operations.incident_response import (
     IncidentResponseStatus,
     derive_incident_response_alerts,
     evaluate_incident_response,
+    evaluate_incident_response_gate,
     publish_incident_response_snapshot,
     route_incident_response_alerts,
 )
@@ -305,3 +307,100 @@ def test_incident_response_metrics_escalation_and_alerts() -> None:
     assert "incident_response.mtta" in categories
     assert "incident_response.mttr" in categories
     assert "incident_response.metrics_staleness" in categories
+
+
+def test_incident_response_gate_warn_and_block() -> None:
+    policy = IncidentResponsePolicy(
+        required_runbooks=("redis_outage",),
+        training_interval_days=30,
+        drill_interval_days=30,
+        minimum_primary_responders=1,
+        minimum_secondary_responders=1,
+        maximum_open_incidents=1,
+        require_chatops=True,
+    )
+    state = IncidentResponseState(
+        available_runbooks=("redis_outage",),
+        training_age_days=35.0,
+        drill_age_days=10.0,
+        primary_oncall=("alice",),
+        secondary_oncall=("bob",),
+        open_incidents=tuple(),
+        postmortem_backlog_hours=2.0,
+        chatops_ready=True,
+    )
+
+    snapshot = evaluate_incident_response(policy, state)
+    gate_default = evaluate_incident_response_gate(snapshot)
+
+    assert isinstance(gate_default, IncidentResponseGateResult)
+
+    assert snapshot.status is IncidentResponseStatus.warn
+    assert gate_default.status is IncidentResponseStatus.warn
+    assert not gate_default.is_blocking()
+    assert gate_default.warnings, "expected training warning to be recorded"
+
+    gate_block = evaluate_incident_response_gate(snapshot, block_on_warn=True)
+
+    assert isinstance(gate_block, IncidentResponseGateResult)
+
+    assert gate_block.status is IncidentResponseStatus.fail
+    assert gate_block.is_blocking()
+    assert any("training" in reason.lower() for reason in gate_block.blocking_reasons)
+
+
+def test_incident_response_alerts_include_gate_event() -> None:
+    policy = IncidentResponsePolicy(required_runbooks=("redis_outage",))
+    state = IncidentResponseState(
+        available_runbooks=tuple(),
+        training_age_days=None,
+        drill_age_days=None,
+        primary_oncall=("alice",),
+        secondary_oncall=tuple(),
+        open_incidents=("INGEST-1",),
+        postmortem_backlog_hours=12.0,
+        chatops_ready=False,
+    )
+
+    snapshot = evaluate_incident_response(policy, state)
+    gate_result = evaluate_incident_response_gate(snapshot)
+
+    events = derive_incident_response_alerts(
+        snapshot,
+        include_gate_event=True,
+        gate_result=gate_result,
+    )
+
+    gate_events = [event for event in events if event.category == "incident_response.gate"]
+    assert gate_events, "expected gate alert event"
+    gate_event = gate_events[0]
+    assert gate_event.severity is AlertSeverity.critical
+    gate_context = gate_event.context.get("gate")
+    assert isinstance(gate_context, dict)
+    assert gate_context.get("blocking_reasons")
+
+
+def test_route_incident_response_alerts_includes_gate_event() -> None:
+    policy = IncidentResponsePolicy(required_runbooks=("redis_outage",))
+    state = IncidentResponseState(
+        available_runbooks=tuple(),
+        training_age_days=None,
+        drill_age_days=None,
+        primary_oncall=("alice",),
+        secondary_oncall=tuple(),
+        open_incidents=("INGEST-2",),
+        postmortem_backlog_hours=18.0,
+        chatops_ready=False,
+    )
+
+    snapshot = evaluate_incident_response(policy, state)
+    manager = _StubAlertManager()
+
+    results = route_incident_response_alerts(
+        manager,
+        snapshot,
+        include_gate_event=True,
+    )
+
+    categories = {result.event.category for result in results}
+    assert "incident_response.gate" in categories

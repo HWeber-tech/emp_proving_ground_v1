@@ -665,6 +665,112 @@ def evaluate_incident_response(
     )
 
 
+@dataclass(frozen=True)
+class IncidentResponseGateResult:
+    """Gate decision derived from an :class:`IncidentResponseSnapshot`."""
+
+    status: IncidentResponseStatus
+    blocking_reasons: tuple[str, ...]
+    warnings: tuple[str, ...]
+    metadata: Mapping[str, object] = field(default_factory=dict)
+
+    def is_blocking(self) -> bool:
+        """Return ``True`` when the gate indicates a blocking state."""
+
+        return self.status is IncidentResponseStatus.fail or bool(self.blocking_reasons)
+
+    def as_dict(self) -> dict[str, object]:
+        payload: dict[str, object] = {
+            "status": self.status.value,
+            "blocking_reasons": list(self.blocking_reasons),
+            "warnings": list(self.warnings),
+        }
+        if self.metadata:
+            payload["metadata"] = dict(self.metadata)
+        return payload
+
+
+def evaluate_incident_response_gate(
+    snapshot: IncidentResponseSnapshot,
+    *,
+    block_on_warn: bool = False,
+    warn_block_categories: Sequence[str] = (
+        "missing_runbooks",
+        "primary_roster",
+        "open_incidents",
+        "postmortem_backlog",
+        "metrics_mtta",
+        "metrics_mttr",
+    ),
+    extra_metadata: Mapping[str, object] | None = None,
+) -> IncidentResponseGateResult:
+    """Derive a gate decision from an incident response snapshot."""
+
+    snapshot_metadata = snapshot.metadata if isinstance(snapshot.metadata, Mapping) else {}
+    raw_issue_details = snapshot_metadata.get("issue_details")
+    issue_details: list[Mapping[str, object]] = []
+    if isinstance(raw_issue_details, Sequence):
+        for entry in raw_issue_details:
+            if isinstance(entry, Mapping):
+                issue_details.append(entry)
+
+    blocking: list[str] = []
+    warnings: list[str] = []
+    warn_categories = {category.lower() for category in warn_block_categories}
+
+    for entry in issue_details:
+        severity_raw = entry.get("severity")
+        category_raw = entry.get("category")
+        message = str(entry.get("message", "")) or "incident response issue"
+        category = str(category_raw or "").lower()
+
+        try:
+            severity = IncidentResponseStatus(str(severity_raw))
+        except ValueError:
+            continue
+
+        if severity is IncidentResponseStatus.fail:
+            blocking.append(message)
+            continue
+
+        if severity is IncidentResponseStatus.warn:
+            if block_on_warn or category in warn_categories:
+                blocking.append(message)
+            else:
+                warnings.append(message)
+
+    if snapshot.status is IncidentResponseStatus.fail and not blocking:
+        blocking.extend(snapshot.issues or (f"Incident response status {snapshot.status.value}",))
+
+    if snapshot.status is IncidentResponseStatus.warn and not warnings and not blocking:
+        warnings.extend(snapshot.issues)
+
+    status = snapshot.status
+    if blocking:
+        status = IncidentResponseStatus.fail
+
+    gate_metadata: dict[str, object] = {
+        "snapshot_status": snapshot.status.value,
+        "issue_counts": dict(snapshot_metadata.get("issue_counts", {})),
+        "issue_catalog": dict(snapshot_metadata.get("issue_catalog", {})),
+        "issue_category_severity": dict(snapshot_metadata.get("issue_category_severity", {})),
+        "highest_issue_severity": snapshot_metadata.get("highest_issue_severity"),
+        "block_on_warn": block_on_warn,
+        "warn_block_categories": tuple(sorted(warn_categories)),
+    }
+    if snapshot.metadata:
+        gate_metadata["snapshot_metadata"] = dict(snapshot_metadata)
+    if extra_metadata:
+        gate_metadata.update(dict(extra_metadata))
+
+    return IncidentResponseGateResult(
+        status=status,
+        blocking_reasons=tuple(dict.fromkeys(blocking)),
+        warnings=tuple(dict.fromkeys(warnings)),
+        metadata=gate_metadata,
+    )
+
+
 def _meets_threshold(
     status: IncidentResponseStatus, threshold: IncidentResponseStatus
 ) -> bool:
@@ -687,6 +793,8 @@ def derive_incident_response_alerts(
     threshold: IncidentResponseStatus = IncidentResponseStatus.warn,
     include_status_event: bool = True,
     include_detail_events: bool = True,
+    include_gate_event: bool = False,
+    gate_result: IncidentResponseGateResult | None = None,
     base_tags: Sequence[str] = ("incident-response",),
 ) -> list[AlertEvent]:
     """Translate an incident response snapshot into alert events."""
@@ -705,6 +813,31 @@ def derive_incident_response_alerts(
                 context={"snapshot": snapshot_payload},
             )
         )
+
+    if include_gate_event:
+        evaluated_gate = gate_result
+        if evaluated_gate is None:
+            evaluated_gate = evaluate_incident_response_gate(snapshot)
+        gate_status = evaluated_gate.status
+        if _meets_threshold(gate_status, threshold):
+            if evaluated_gate.blocking_reasons:
+                headline = "; ".join(evaluated_gate.blocking_reasons[:2])
+            elif evaluated_gate.warnings:
+                headline = "; ".join(evaluated_gate.warnings[:2])
+            else:
+                headline = "no additional context"
+            events.append(
+                AlertEvent(
+                    category="incident_response.gate",
+                    severity=_SEVERITY_MAP[gate_status],
+                    message=f"Incident response gate {gate_status.value}: {headline}",
+                    tags=tags + ("gate",),
+                    context={
+                        "snapshot": snapshot_payload,
+                        "gate": evaluated_gate.as_dict(),
+                    },
+                )
+            )
 
     if not include_detail_events:
         return events
@@ -1087,15 +1220,23 @@ def route_incident_response_alerts(
     threshold: IncidentResponseStatus = IncidentResponseStatus.warn,
     include_status_event: bool = True,
     include_detail_events: bool = True,
+    include_gate_event: bool = False,
+    gate_result: IncidentResponseGateResult | None = None,
     base_tags: Sequence[str] = ("incident-response",),
 ) -> list[AlertDispatchResult]:
     """Dispatch incident response alerts via an alert manager."""
+
+    evaluated_gate = gate_result
+    if include_gate_event and evaluated_gate is None:
+        evaluated_gate = evaluate_incident_response_gate(snapshot)
 
     events = derive_incident_response_alerts(
         snapshot,
         threshold=threshold,
         include_status_event=include_status_event,
         include_detail_events=include_detail_events,
+        include_gate_event=include_gate_event,
+        gate_result=evaluated_gate,
         base_tags=base_tags,
     )
     results: list[AlertDispatchResult] = []
@@ -1138,8 +1279,10 @@ __all__ = [
     "IncidentResponseSnapshot",
     "IncidentResponseState",
     "IncidentResponseStatus",
+    "IncidentResponseGateResult",
     "derive_incident_response_alerts",
     "evaluate_incident_response",
+    "evaluate_incident_response_gate",
     "format_incident_response_markdown",
     "publish_incident_response_snapshot",
     "route_incident_response_alerts",

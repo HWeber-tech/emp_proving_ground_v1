@@ -70,6 +70,11 @@ MTTA/MTTR breaches and system validation reliability regressions so SMS/webhook
 escalations fire when acknowledgement cadence or validation quality drifts from
 institutional targets.【F:src/operations/alerts.py†L158-L226】【F:tests/operations/test_alerts.py†L200-L240】
 
+Incident response and system validation alert helpers now expose gate events via
+`include_gate_event=True`, propagating gate metadata (blocking reasons, decision
+status, and guardrail configuration) into alert contexts so routing policies can
+escalate deployment blockers without re-running gate evaluation logic.【F:src/operations/incident_response.py†L826-L905】【F:tests/operations/test_incident_response.py†L306-L352】【F:src/operations/system_validation.py†L660-L742】【F:tests/operations/test_system_validation.py†L249-L309】
+
 `publish_operational_readiness_snapshot` now reuses the shared failover helper to
 log runtime bus failures, raise typed errors on unexpected exceptions, and fall
 back to the global bus when necessary, with regression coverage locking the

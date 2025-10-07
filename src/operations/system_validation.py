@@ -644,6 +644,8 @@ def derive_system_validation_alerts(
     include_status_event: bool = True,
     include_failing_checks: bool = True,
     include_reliability_event: bool = True,
+    include_gate_event: bool = False,
+    gate_result: SystemValidationGateResult | None = None,
     base_tags: Sequence[str] = ("system-validation",),
 ) -> list[AlertEvent]:
     """Translate a system validation snapshot into alert events."""
@@ -718,6 +720,31 @@ def derive_system_validation_alerts(
                     )
                 )
 
+    if include_gate_event:
+        evaluated_gate = gate_result
+        if evaluated_gate is None:
+            evaluated_gate = evaluate_system_validation_gate(snapshot)
+        gate_status = (
+            SystemValidationStatus.fail if evaluated_gate.should_block else evaluated_gate.status
+        )
+        if evaluated_gate.should_block or _meets_threshold(gate_status, threshold):
+            if evaluated_gate.reasons:
+                headline = evaluated_gate.reasons[0]
+            else:
+                headline = f"System validation gate {gate_status.value}"
+            events.append(
+                AlertEvent(
+                    category="system_validation.gate",
+                    severity=_SEVERITY_MAP[gate_status],
+                    message=headline,
+                    tags=tags + ("gate",),
+                    context={
+                        "snapshot": payload,
+                        "gate": evaluated_gate.as_dict(),
+                    },
+                )
+            )
+
     return events
 
 
@@ -729,9 +756,15 @@ def route_system_validation_alerts(
     include_status_event: bool = True,
     include_failing_checks: bool = True,
     include_reliability_event: bool = True,
+    include_gate_event: bool = False,
+    gate_result: SystemValidationGateResult | None = None,
     base_tags: Sequence[str] = ("system-validation",),
 ) -> list[AlertDispatchResult]:
     """Dispatch system validation alerts via an alert manager."""
+
+    evaluated_gate = gate_result
+    if include_gate_event and evaluated_gate is None:
+        evaluated_gate = evaluate_system_validation_gate(snapshot)
 
     events = derive_system_validation_alerts(
         snapshot,
@@ -739,6 +772,8 @@ def route_system_validation_alerts(
         include_status_event=include_status_event,
         include_failing_checks=include_failing_checks,
         include_reliability_event=include_reliability_event,
+        include_gate_event=include_gate_event,
+        gate_result=evaluated_gate,
         base_tags=base_tags,
     )
     results: list[AlertDispatchResult] = []

@@ -122,10 +122,17 @@ class GovernanceCadenceRunner:
     def last_generated_at(self) -> datetime | None:
         return self._last_generated_at
 
-    def run(self, *, reference: datetime | None = None) -> GovernanceReport | None:
-        """Execute the cadence if the interval has elapsed."""
+    def run(
+        self,
+        *,
+        reference: datetime | None = None,
+        force: bool = False,
+    ) -> GovernanceReport | None:
+        """Execute the cadence if the interval has elapsed or ``force`` is set."""
 
-        if not should_generate_report(self._last_generated_at, self.interval, reference=reference):
+        if not force and not should_generate_report(
+            self._last_generated_at, self.interval, reference=reference
+        ):
             return None
 
         generated_at = reference
@@ -156,4 +163,3 @@ class GovernanceCadenceRunner:
         self.persister(report, self.report_path, self.history_limit)
         self._last_generated_at = report.generated_at
         return report
-

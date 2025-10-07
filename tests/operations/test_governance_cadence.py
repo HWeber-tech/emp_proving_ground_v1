@@ -126,3 +126,62 @@ def test_governance_cadence_runs_and_persists(tmp_path: Path) -> None:
     assert len(bus.events) == 1
     assert persisted == [{"status": GovernanceReportStatus.ok.value, "limit": 3}]
 
+
+def test_governance_cadence_force_overrides_interval(tmp_path: Path) -> None:
+    path = tmp_path / "governance.json"
+    path.write_text(
+        """
+        {
+          "latest": {
+            "generated_at": "2024-01-02T00:00:00+00:00"
+          }
+        }
+        """.strip(),
+        encoding="utf-8",
+    )
+
+    bus = _StubEventBus()
+
+    compliance_snapshot = ComplianceReadinessSnapshot(
+        status=ComplianceReadinessStatus.ok,
+        generated_at=datetime(2024, 1, 2, tzinfo=UTC),
+        components=(
+            ComplianceReadinessComponent(
+                name="kyc_aml",
+                status=ComplianceReadinessStatus.ok,
+                summary="Stable",
+                metadata={},
+            ),
+        ),
+        metadata={},
+    )
+
+    regulatory_snapshot = RegulatoryTelemetrySnapshot(
+        generated_at=datetime(2024, 1, 2, 6, tzinfo=UTC),
+        status=RegulatoryTelemetryStatus.ok,
+        coverage_ratio=1.0,
+        signals=(),
+        required_domains=(),
+        missing_domains=(),
+        metadata={},
+    )
+
+    runner = GovernanceCadenceRunner(
+        event_bus=bus,
+        config_provider=SystemConfig,
+        compliance_provider=lambda: compliance_snapshot,
+        regulatory_provider=lambda: regulatory_snapshot,
+        report_path=path,
+        interval=timedelta(days=7),
+        audit_collector=lambda _config, _strategy_id: {
+            "metadata": {"configured": True, "dialect": "sqlite"}
+        },
+        persister=lambda _report, _path, _limit: None,
+    )
+
+    reference = datetime(2024, 1, 2, 6, tzinfo=UTC)
+    report = runner.run(reference=reference, force=True)
+
+    assert report is not None
+    assert runner.last_generated_at == reference
+    assert len(bus.events) == 1

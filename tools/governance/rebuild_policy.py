@@ -10,6 +10,10 @@ from pathlib import Path
 from typing import Mapping, Sequence
 
 from src.config.risk.risk_config import RiskConfig
+from src.governance.policy_changelog import (
+    DEFAULT_POLICY_PROMOTION_RUNBOOK,
+    render_policy_ledger_changelog,
+)
 from src.governance.policy_ledger import PolicyLedgerStore, build_policy_governance_workflow
 from src.governance.policy_rebuilder import rebuild_policy_artifacts
 
@@ -45,6 +49,20 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Optional destination for the rebuilt policy payload (prints to stdout when omitted).",
     )
     parser.add_argument(
+        "--changelog",
+        type=Path,
+        help="Optional destination for a Markdown governance changelog derived from the ledger.",
+    )
+    parser.add_argument(
+        "--runbook-url",
+        type=str,
+        default=DEFAULT_POLICY_PROMOTION_RUNBOOK,
+        help=(
+            "Runbook URL to embed in the governance changelog output. "
+            f"Defaults to {DEFAULT_POLICY_PROMOTION_RUNBOOK}."
+        ),
+    )
+    parser.add_argument(
         "--indent",
         type=int,
         default=2,
@@ -74,6 +92,12 @@ def _emit(payload: Mapping[str, object], output: Path | None, *, indent: int) ->
         return
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(f"{text}\n", encoding="utf-8")
+
+
+def _emit_markdown(content: str, output: Path) -> None:
+    output.parent.mkdir(parents=True, exist_ok=True)
+    text = content if content.endswith("\n") else f"{content}\n"
+    output.write_text(text, encoding="utf-8")
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -109,6 +133,17 @@ def main(argv: Sequence[str] | None = None) -> int:
     except Exception as exc:
         logger.error("Failed to emit policy rebuild payload: %s", exc)
         return 1
+
+    if args.changelog is not None:
+        try:
+            markdown = render_policy_ledger_changelog(
+                store,
+                runbook_url=args.runbook_url,
+            )
+            _emit_markdown(markdown, args.changelog)
+        except Exception as exc:
+            logger.error("Failed to emit policy governance changelog: %s", exc)
+            return 1
     return 0
 
 

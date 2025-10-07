@@ -30,7 +30,7 @@ import json
 import re
 
 import pandas as pd
-from sqlalchemy import create_engine, text
+from sqlalchemy import MetaData, Table, case, create_engine, func, select, text
 from sqlalchemy.engine import Connection, Engine, Row, RowMapping
 
 from src.core.coercion import coerce_float, coerce_int
@@ -197,6 +197,26 @@ def _table_name(schema: str, table: str, dialect_name: str) -> str:
     if dialect_name == "postgresql":
         return f"{safe_schema}.{safe_table}"
     return f"{safe_schema}_{safe_table}"
+
+
+def _table_identity(
+    schema: str, table: str, dialect_name: str
+) -> tuple[str | None, str]:
+    """Return schema/name pair suitable for SQLAlchemy table reflection."""
+
+    safe_schema = _validate_identifier(schema, label="schema")
+    safe_table = _validate_identifier(table, label="table")
+    if dialect_name == "postgresql":
+        return safe_schema, safe_table
+    return None, f"{safe_schema}_{safe_table}"
+
+
+def _reflect_table(conn: Connection, identifier: tuple[str, str]) -> Table:
+    """Reflect an allow-listed Timescale table using the current dialect."""
+
+    schema, table_name = _table_identity(*identifier, conn.dialect.name)
+    metadata = MetaData()
+    return Table(table_name, metadata, schema=schema, autoload_with=conn)
 
 
 def _timestamp_type(dialect: str) -> str:
@@ -1164,53 +1184,8 @@ class TimescaleComplianceJournal:
         row = record.as_row()
 
         with self._engine.begin() as conn:
-            table = _table_name(*TimescaleMigrator._COMPLIANCE_AUDIT, conn.dialect.name)
-            statement = text(
-                f"""
-                INSERT INTO {table} (
-                    event_id,
-                    strategy_id,
-                    trade_id,
-                    intent_id,
-                    symbol,
-                    side,
-                    status,
-                    policy_name,
-                    quantity,
-                    price,
-                    notional,
-                    passed,
-                    worst_severity,
-                    violations,
-                    checks,
-                    totals,
-                    snapshot,
-                    recorded_at,
-                    execution_ts
-                ) VALUES (
-                    :event_id,
-                    :strategy_id,
-                    :trade_id,
-                    :intent_id,
-                    :symbol,
-                    :side,
-                    :status,
-                    :policy_name,
-                    :quantity,
-                    :price,
-                    :notional,
-                    :passed,
-                    :worst_severity,
-                    :violations,
-                    :checks,
-                    :totals,
-                    :snapshot,
-                    :recorded_at,
-                    :execution_ts
-                )
-                """
-            )
-            conn.execute(statement, row)
+            table = _reflect_table(conn, TimescaleMigrator._COMPLIANCE_AUDIT)
+            conn.execute(table.insert().values(**row))
 
         return record.as_dict()
 
@@ -1222,26 +1197,34 @@ class TimescaleComplianceJournal:
     ) -> list[dict[str, Any]]:
         limit = max(1, int(limit))
         with self._engine.connect() as conn:
-            table = _table_name(*TimescaleMigrator._COMPLIANCE_AUDIT, conn.dialect.name)
-            params: dict[str, object] = {"limit": limit}
-            if strategy_id is not None:
-                params["strategy_id"] = strategy_id
-                stmt = text(
-                    f"SELECT event_id, strategy_id, trade_id, intent_id, symbol, side, status, "
-                    f"policy_name, quantity, price, notional, passed, worst_severity, violations, "
-                    f"checks, totals, snapshot, recorded_at, execution_ts "
-                    f"FROM {table} WHERE strategy_id = :strategy_id "
-                    "ORDER BY recorded_at DESC LIMIT :limit"
-                )
-            else:
-                stmt = text(
-                    f"SELECT event_id, strategy_id, trade_id, intent_id, symbol, side, status, "
-                    f"policy_name, quantity, price, notional, passed, worst_severity, violations, "
-                    f"checks, totals, snapshot, recorded_at, execution_ts "
-                    f"FROM {table} ORDER BY recorded_at DESC LIMIT :limit"
-                )
+            table = _reflect_table(conn, TimescaleMigrator._COMPLIANCE_AUDIT)
+            columns = [
+                table.c.event_id,
+                table.c.strategy_id,
+                table.c.trade_id,
+                table.c.intent_id,
+                table.c.symbol,
+                table.c.side,
+                table.c.status,
+                table.c.policy_name,
+                table.c.quantity,
+                table.c.price,
+                table.c.notional,
+                table.c.passed,
+                table.c.worst_severity,
+                table.c.violations,
+                table.c.checks,
+                table.c.totals,
+                table.c.snapshot,
+                table.c.recorded_at,
+                table.c.execution_ts,
+            ]
 
-            rows = conn.execute(stmt, params).fetchall()
+            stmt = select(*columns).order_by(table.c.recorded_at.desc()).limit(limit)
+            if strategy_id is not None:
+                stmt = stmt.where(table.c.strategy_id == strategy_id)
+
+            rows = conn.execute(stmt).fetchall()
 
         return [TimescaleComplianceAuditRecord.from_row(row).as_dict() for row in rows]
 
@@ -1253,36 +1236,37 @@ class TimescaleComplianceJournal:
         """Aggregate compliance audit journal statistics."""
 
         with self._engine.connect() as conn:
-            table = _table_name(*TimescaleMigrator._COMPLIANCE_AUDIT, conn.dialect.name)
-            clauses: list[str] = []
-            params: dict[str, object] = {}
+            table = _reflect_table(conn, TimescaleMigrator._COMPLIANCE_AUDIT)
+            conditions = []
             if strategy_id is not None:
-                clauses.append("strategy_id = :strategy_id")
-                params["strategy_id"] = strategy_id
-            where = " WHERE " + " AND ".join(clauses) if clauses else ""
+                conditions.append(table.c.strategy_id == strategy_id)
 
-            summary_stmt = text(
-                f"SELECT COUNT(*) AS total_records, "
-                "SUM(CASE WHEN passed THEN 1 ELSE 0 END) AS passed_records, "
-                "SUM(CASE WHEN passed THEN 0 ELSE 1 END) AS failed_records, "
-                "MAX(recorded_at) AS last_recorded_at "
-                f"FROM {table}{where}"
+            summary_stmt = select(
+                func.count().label("total_records"),
+                func.sum(
+                    case((table.c.passed == 1, 1), else_=0)
+                ).label("passed_records"),
+                func.max(table.c.recorded_at).label("last_recorded_at"),
             )
-            row = conn.execute(summary_stmt, params).first()
+            for condition in conditions:
+                summary_stmt = summary_stmt.where(condition)
+
+            row = conn.execute(summary_stmt).first()
             mapping = row._mapping if row is not None else {}
 
             total = int(mapping.get("total_records") or 0)
             passed = int(mapping.get("passed_records") or 0)
-            failed = int(mapping.get("failed_records") or 0)
+            failed = max(total - passed, 0)
             last_recorded = _normalise_timestamp(mapping.get("last_recorded_at"))
 
-            severity_rows = conn.execute(
-                text(
-                    f"SELECT worst_severity, COUNT(*) AS count "
-                    f"FROM {table}{where} GROUP BY worst_severity"
-                ),
-                params,
-            ).fetchall()
+            severity_stmt = select(
+                table.c.worst_severity,
+                func.count().label("count"),
+            ).group_by(table.c.worst_severity)
+            for condition in conditions:
+                severity_stmt = severity_stmt.where(condition)
+
+            severity_rows = conn.execute(severity_stmt).fetchall()
             severity_counts = {}
             for row in severity_rows:
                 severity = (
@@ -1293,10 +1277,14 @@ class TimescaleComplianceJournal:
                     (row._mapping.get("count") if hasattr(row, "_mapping") else row[1]) or 0
                 )
 
-            status_rows = conn.execute(
-                text(f"SELECT status, COUNT(*) AS count FROM {table}{where} GROUP BY status"),
-                params,
-            ).fetchall()
+            status_stmt = select(
+                table.c.status,
+                func.count().label("count"),
+            ).group_by(table.c.status)
+            for condition in conditions:
+                status_stmt = status_stmt.where(condition)
+
+            status_rows = conn.execute(status_stmt).fetchall()
             status_counts = {}
             for row in status_rows:
                 status = row._mapping.get("status") if hasattr(row, "_mapping") else row[0]
@@ -1559,55 +1547,8 @@ class TimescaleKycJournal:
         row = record.as_row()
 
         with self._engine.begin() as conn:
-            table = _table_name(*TimescaleMigrator._COMPLIANCE_KYC, conn.dialect.name)
-            statement = text(
-                f"""
-                INSERT INTO {table} (
-                    event_id,
-                    strategy_id,
-                    case_id,
-                    entity_id,
-                    entity_type,
-                    status,
-                    risk_rating,
-                    risk_score,
-                    watchlist_hits,
-                    outstanding_items,
-                    checklist,
-                    alerts,
-                    metadata,
-                    recorded_at,
-                    last_review_at,
-                    next_review_due,
-                    evaluated_at,
-                    assigned_to,
-                    channel,
-                    snapshot
-                ) VALUES (
-                    :event_id,
-                    :strategy_id,
-                    :case_id,
-                    :entity_id,
-                    :entity_type,
-                    :status,
-                    :risk_rating,
-                    :risk_score,
-                    :watchlist_hits,
-                    :outstanding_items,
-                    :checklist,
-                    :alerts,
-                    :metadata,
-                    :recorded_at,
-                    :last_review_at,
-                    :next_review_due,
-                    :evaluated_at,
-                    :assigned_to,
-                    :channel,
-                    :snapshot
-                )
-                """
-            )
-            conn.execute(statement, row)
+            table = _reflect_table(conn, TimescaleMigrator._COMPLIANCE_KYC)
+            conn.execute(table.insert().values(**row))
 
         return record.as_dict()
 
@@ -1620,25 +1561,36 @@ class TimescaleKycJournal:
     ) -> list[dict[str, Any]]:
         limit = max(1, int(limit))
         with self._engine.connect() as conn:
-            table = _table_name(*TimescaleMigrator._COMPLIANCE_KYC, conn.dialect.name)
-            clauses: list[str] = []
-            params: dict[str, object] = {"limit": limit}
+            table = _reflect_table(conn, TimescaleMigrator._COMPLIANCE_KYC)
+            columns = [
+                table.c.event_id,
+                table.c.strategy_id,
+                table.c.case_id,
+                table.c.entity_id,
+                table.c.entity_type,
+                table.c.status,
+                table.c.risk_rating,
+                table.c.risk_score,
+                table.c.watchlist_hits,
+                table.c.outstanding_items,
+                table.c.checklist,
+                table.c.alerts,
+                table.c.metadata,
+                table.c.recorded_at,
+                table.c.last_review_at,
+                table.c.next_review_due,
+                table.c.evaluated_at,
+                table.c.assigned_to,
+                table.c.channel,
+                table.c.snapshot,
+            ]
+            stmt = select(*columns).order_by(table.c.recorded_at.desc()).limit(limit)
             if strategy_id is not None:
-                clauses.append("strategy_id = :strategy_id")
-                params["strategy_id"] = strategy_id
+                stmt = stmt.where(table.c.strategy_id == strategy_id)
             if entity_id is not None:
-                clauses.append("entity_id = :entity_id")
-                params["entity_id"] = entity_id
-            where_clause = ""
-            if clauses:
-                where_clause = "WHERE " + " AND ".join(clauses)
-            stmt = text(
-                f"SELECT event_id, strategy_id, case_id, entity_id, entity_type, status, "
-                f"risk_rating, risk_score, watchlist_hits, outstanding_items, checklist, alerts, "
-                f"metadata, recorded_at, last_review_at, next_review_due, evaluated_at, assigned_to, channel, snapshot "
-                f"FROM {table} {where_clause} ORDER BY recorded_at DESC LIMIT :limit"
-            )
-            rows = conn.execute(stmt, params).fetchall()
+                stmt = stmt.where(table.c.entity_id == entity_id)
+
+            rows = conn.execute(stmt).fetchall()
 
         return [TimescaleKycCaseRecord.from_row(row).as_dict() for row in rows]
 
@@ -1651,31 +1603,34 @@ class TimescaleKycJournal:
         """Aggregate KYC case statistics for governance evidence."""
 
         with self._engine.connect() as conn:
-            table = _table_name(*TimescaleMigrator._COMPLIANCE_KYC, conn.dialect.name)
-            clauses: list[str] = []
-            params: dict[str, object] = {}
+            table = _reflect_table(conn, TimescaleMigrator._COMPLIANCE_KYC)
+            conditions = []
             if strategy_id is not None:
-                clauses.append("strategy_id = :strategy_id")
-                params["strategy_id"] = strategy_id
+                conditions.append(table.c.strategy_id == strategy_id)
             if entity_id is not None:
-                clauses.append("entity_id = :entity_id")
-                params["entity_id"] = entity_id
-            where = " WHERE " + " AND ".join(clauses) if clauses else ""
+                conditions.append(table.c.entity_id == entity_id)
 
-            summary_stmt = text(
-                f"SELECT COUNT(*) AS total_cases, MAX(recorded_at) AS last_recorded_at "
-                f"FROM {table}{where}"
+            summary_stmt = select(
+                func.count().label("total_cases"),
+                func.max(table.c.recorded_at).label("last_recorded_at"),
             )
-            row = conn.execute(summary_stmt, params).first()
+            for condition in conditions:
+                summary_stmt = summary_stmt.where(condition)
+
+            row = conn.execute(summary_stmt).first()
             mapping = row._mapping if row is not None else {}
 
             total_cases = int(mapping.get("total_cases") or 0)
             last_recorded = _normalise_timestamp(mapping.get("last_recorded_at"))
 
-            status_rows = conn.execute(
-                text(f"SELECT status, COUNT(*) AS count FROM {table}{where} GROUP BY status"),
-                params,
-            ).fetchall()
+            status_stmt = select(
+                table.c.status,
+                func.count().label("count"),
+            ).group_by(table.c.status)
+            for condition in conditions:
+                status_stmt = status_stmt.where(condition)
+
+            status_rows = conn.execute(status_stmt).fetchall()
             status_counts: dict[str, int] = {}
             for row in status_rows:
                 status = row._mapping.get("status") if hasattr(row, "_mapping") else row[0]
@@ -1684,13 +1639,14 @@ class TimescaleKycJournal:
                     (row._mapping.get("count") if hasattr(row, "_mapping") else row[1]) or 0
                 )
 
-            rating_rows = conn.execute(
-                text(
-                    f"SELECT risk_rating, COUNT(*) AS count "
-                    f"FROM {table}{where} GROUP BY risk_rating"
-                ),
-                params,
-            ).fetchall()
+            rating_stmt = select(
+                table.c.risk_rating,
+                func.count().label("count"),
+            ).group_by(table.c.risk_rating)
+            for condition in conditions:
+                rating_stmt = rating_stmt.where(condition)
+
+            rating_rows = conn.execute(rating_stmt).fetchall()
             risk_counts: dict[str, int] = {}
             for row in rating_rows:
                 rating = row._mapping.get("risk_rating") if hasattr(row, "_mapping") else row[0]

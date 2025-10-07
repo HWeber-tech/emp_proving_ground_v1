@@ -50,10 +50,7 @@ def test_store_duckdb_sanitizes_and_parameterizes(monkeypatch) -> None:
         assert path.endswith("test.duckdb")
         return fake_connection
 
-    fake_duckdb = types.SimpleNamespace(
-        connect=fake_connect,
-        escape_identifier=lambda identifier: f'"{identifier}"',
-    )
+    fake_duckdb = types.SimpleNamespace(connect=fake_connect)
 
     monkeypatch.setitem(sys.modules, "duckdb", fake_duckdb)
 
@@ -61,18 +58,18 @@ def test_store_duckdb_sanitizes_and_parameterizes(monkeypatch) -> None:
 
     # Validate table name sanitization
     create_stmt, _ = fake_connection.executed[0]
-    assert 'CREATE TABLE IF NOT EXISTS "daily_bars"' in create_stmt
+    assert create_stmt.startswith("CREATE TABLE IF NOT EXISTS daily_bars")
 
     # Delete statements should use parameter binding and the sanitized identifier
     delete_calls = [call for call in fake_connection.executed if "DELETE FROM" in call[0]]
     assert len(delete_calls) == 2
     for statement, params in delete_calls:
-        assert statement == 'DELETE FROM "daily_bars" WHERE symbol = ?'
+        assert statement == "DELETE FROM daily_bars WHERE symbol = ?"
         assert params in (["AAPL"], ["MSFT"])
 
     # Insert uses sanitized identifier and registration occurs once
     insert_stmt, insert_params = fake_connection.executed[-1]
-    assert insert_stmt == 'INSERT INTO "daily_bars" SELECT * FROM tmp_df'
+    assert insert_stmt == "INSERT INTO daily_bars SELECT * FROM tmp_df"
     assert insert_params is None
     assert len(fake_connection.registered) == 1
     name, registered_df = fake_connection.registered[0]

@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import re
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, cast
@@ -125,12 +126,62 @@ _PERIOD_ALIASES = {
 }
 
 
-def _sanitize_table_name(name: str | None, default: str = "daily_bars") -> str:
-    """Return a safe table identifier comprised of alphanumerics/underscores only."""
+@dataclass(frozen=True)
+class _DuckDBTable:
+    name: str
+    ddl: str
+    delete: str
+    insert: str
+
+
+_DUCKDB_TABLES: dict[str, _DuckDBTable] = {
+    "daily_bars": _DuckDBTable(
+        name="daily_bars",
+        ddl="""
+        CREATE TABLE IF NOT EXISTS daily_bars (
+            date TIMESTAMP,
+            open DOUBLE,
+            high DOUBLE,
+            low DOUBLE,
+            close DOUBLE,
+            adj_close DOUBLE,
+            volume DOUBLE,
+            symbol VARCHAR
+        )
+        """.strip(),
+        delete="DELETE FROM daily_bars WHERE symbol = ?",
+        insert="INSERT INTO daily_bars SELECT * FROM tmp_df",
+    ),
+    "intraday_trades": _DuckDBTable(
+        name="intraday_trades",
+        ddl="""
+        CREATE TABLE IF NOT EXISTS intraday_trades (
+            timestamp TIMESTAMP,
+            symbol VARCHAR,
+            price DOUBLE,
+            size DOUBLE,
+            exchange VARCHAR,
+            conditions VARCHAR
+        )
+        """.strip(),
+        delete="DELETE FROM intraday_trades WHERE symbol = ?",
+        insert="INSERT INTO intraday_trades SELECT * FROM tmp_df",
+    ),
+}
+
+
+def _resolve_duckdb_table(name: str | None) -> _DuckDBTable:
+    """Return an allow-listed DuckDB table definition for ingest storage."""
 
     if name and _VALID_IDENTIFIER.fullmatch(name):
-        return name
-    return default
+        candidate = name
+    else:
+        candidate = "daily_bars"
+    table = _DUCKDB_TABLES.get(candidate)
+    if table is not None:
+        return table
+    # Fallback to canonical table when an unknown value is supplied.
+    return _DUCKDB_TABLES["daily_bars"]
 
 
 def _sanitize_symbol(symbol: str) -> str:
@@ -248,39 +299,19 @@ def store_duckdb(df: pd.DataFrame, db_path: Path, table: str = "daily_bars") -> 
         df.to_csv(csv_path, index=False)
         return
 
-    safe_table = _sanitize_table_name(table)
-    escape_identifier = getattr(duckdb, "escape_identifier", None)
-    quoted_table = (
-        escape_identifier(safe_table)
-        if callable(escape_identifier)
-        else safe_table
-    )
+    table_def = _resolve_duckdb_table(table)
 
     connection = cast(Any, duckdb.connect(str(db_path)))
     try:
-        connection.execute(
-            f"""
-            CREATE TABLE IF NOT EXISTS {quoted_table} (
-                date TIMESTAMP,
-                open DOUBLE,
-                high DOUBLE,
-                low DOUBLE,
-                close DOUBLE,
-                adj_close DOUBLE,
-                volume DOUBLE,
-                symbol VARCHAR
-            )
-            """
-        )
+        connection.execute(table_def.ddl)
 
         unique_symbols = list(dict.fromkeys(df["symbol"].tolist()))
         if unique_symbols:
-            delete_statement = f"DELETE FROM {quoted_table} WHERE symbol = ?"
             for symbol in unique_symbols:
-                connection.execute(delete_statement, [symbol])
+                connection.execute(table_def.delete, [symbol])
 
         connection.register("tmp_df", df)
-        connection.execute(f"INSERT INTO {quoted_table} SELECT * FROM tmp_df")
+        connection.execute(table_def.insert)
     finally:
         connection.close()
 

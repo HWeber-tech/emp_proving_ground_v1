@@ -53,6 +53,10 @@
   summaries, and publish violation alerts with embedded escalation metadata while
   the trading manager mirrors the feed and the new runbook documents the response,
   giving governance a deterministic alert surface when violations occur.【F:src/trading/risk/policy_telemetry.py†L1-L285】【F:src/trading/trading_manager.py†L920-L991】【F:docs/operations/runbooks/risk_policy_violation.md†L1-L51】【F:tests/trading/test_risk_policy_telemetry.py†L1-L199】
+- Progress: Risk gateway decisions now attach cached `risk_reference` payloads
+  with the risk API runbook, enforced limits, and policy/config summaries, and
+  expose the same metadata through broker events so responders inherit a single
+  audit context across telemetry surfaces under regression coverage.【F:src/trading/risk/risk_gateway.py†L224-L519】【F:tests/current/test_risk_gateway_validation.py†L93-L407】【F:tests/trading/test_fix_broker_interface_events.py†L15-L152】
 - Progress: Parity checker telemetry now wraps gauge publication in defensive
   logging, recording order and position mismatches even when the metrics sink
   misbehaves so compliance dashboards surface reconciliation issues instead of

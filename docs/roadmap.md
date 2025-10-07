@@ -175,18 +175,20 @@ kit that the roadmap calls back to in each checklist.
   - *Progress*: Integrated sensory organ fuses WHY/WHAT/WHEN/HOW/ANOMALY signals,
     records lineage and audit trails, instruments sensor-drift windows with a
     configurable baseline/evaluation policy, publishes telemetry snapshots, and
-    surfaces status summaries so runtime consumers inherit a single executable
-    sensory surface with drift alerts under pytest coverage.【F:src/sensory/real_sensory_organ.py†L23-L233】【F:src/sensory/real_sensory_organ.py†L201-L355】【F:tests/sensory/test_real_sensory_organ.py†L96-L156】
+    now serialises per-dimension metadata plus harvested numeric telemetry so
+    runtime status/metrics surfaces inherit audit-ready values under pytest
+    coverage.【F:src/sensory/real_sensory_organ.py†L23-L233】【F:src/sensory/real_sensory_organ.py†L392-L489】【F:tests/sensory/test_real_sensory_organ.py†L96-L183】
   - *Progress*: Component integrator now instantiates canonical sensory, trading,
     evolution, risk, and governance subsystems, registers legacy aliases for the
     HOW/WHAT/WHEN organs, captures the enforced `RiskConfig` summary, and surfaces
     the shared risk API runbook so integration checks and governance reviews
     observe the true wiring under pytest coverage.【F:src/integration/component_integrator.py†L1-L170】【F:src/integration/component_integrator_impl.py†L1-L139】【F:tests/integration/test_component_integrator_impl.py†L1-L44】
   - *Progress*: Sensory metrics telemetry now converts the organ status feed into
-    dimension-level metrics, captures drift-alert provenance, and publishes via
-    the event-bus failover helper so dashboards receive ranked strength,
-    confidence, and threshold-state summaries even when the runtime bus fails,
-    with pytest locking the contract and failover path.【F:src/operations/sensory_metrics.py†L1-L159】【F:tests/operations/test_sensory_metrics.py†L1-L92】
+    dimension-level metrics, extracts numeric audit/order-book telemetry for each
+    dimension, captures drift-alert provenance, and publishes via the event-bus
+    failover helper so dashboards receive strength/confidence/threshold and raw
+    telemetry snapshots even when the runtime bus fails, with pytest locking the
+    contract and failover path.【F:src/operations/sensory_metrics.py†L1-L200】【F:tests/operations/test_sensory_metrics.py†L1-L130】
   - *Progress*: Sensory summary publisher now normalises integrated sensor
     payloads into ranked Markdown/JSON snapshots, captures drift metadata, and
     emits telemetry via the event-bus failover helper so dashboards inherit
@@ -662,6 +664,11 @@ kit that the roadmap calls back to in each checklist.
     drawdown/exposure/liquidity guardrails, and publishes policy decisions so
     trading managers consume the same deterministic risk manager path as the
     runtime builder.【F:src/trading/trading_manager.py†L1-L320】【F:src/trading/risk/risk_gateway.py†L161-L379】【F:tests/current/test_risk_gateway_validation.py†L74-L206】
+  - *Progress*: Risk gateway decisions now attach deterministic `risk_reference`
+    payloads with runbook links, limit snapshots, and risk-config summaries,
+    caching the metadata for approved and rejected intents while broker events
+    surface the same context under regression coverage so responders inherit a
+    single audit trail across telemetry surfaces.【F:src/trading/risk/risk_gateway.py†L224-L519】【F:tests/current/test_risk_gateway_validation.py†L93-L407】【F:tests/trading/test_fix_broker_interface_events.py†L15-L152】
 - [ ] **AlphaTrade loop expansion (Days 15–90)** – Graduate the live-shadow pilot
   into tactic experimentation, paper trading, and limited live promotions once V1
   stabilises.【F:docs/High-Impact Development Roadmap.md†L74-L76】

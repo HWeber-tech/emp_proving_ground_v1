@@ -27,13 +27,15 @@
   telemetry snapshots with lineage metadata, and exposes audit/status helpers
   while still consuming synthetic data until institutional ingest arrives. It
   now wires an optional sensory lineage publisher that normalises HOW/ANOMALY
-  payloads, keeps a bounded inspection history, and emits lineage telemetry via
-  runtime or fallback buses under pytest coverage so responders can audit
-  provenance from real-time snapshots.【F:src/sensory/real_sensory_organ.py†L41-L376】【F:src/sensory/lineage_publisher.py†L1-L193】【F:tests/sensory/test_real_sensory_organ.py†L172-L187】【F:tests/sensory/test_lineage.py†L85-L145】
+  payloads, keeps a bounded inspection history, emits lineage telemetry via
+  runtime or fallback buses, and serialises per-dimension metadata plus numeric
+  telemetry so responders and downstream metrics inherit audit-ready payloads
+  under pytest coverage.【F:src/sensory/real_sensory_organ.py†L41-L489】【F:src/sensory/lineage_publisher.py†L1-L193】【F:tests/sensory/test_real_sensory_organ.py†L96-L183】【F:tests/sensory/test_lineage.py†L85-L145】
 - Sensory metrics layer now converts organ status snapshots into
-  dimension-strength/confidence metrics, captures drift alerts, and publishes via
-  the failover helper so dashboards can surface cortex posture even when the
-  runtime bus degrades.【F:src/operations/sensory_metrics.py†L1-L159】【F:tests/operations/test_sensory_metrics.py†L1-L92】
+  dimension-strength/confidence metrics, harvests numeric telemetry from audit
+  and order-book metadata, captures drift alerts, and publishes via the failover
+  helper so dashboards surface cortex posture and raw telemetry even when the
+  runtime bus degrades.【F:src/operations/sensory_metrics.py†L1-L200】【F:tests/operations/test_sensory_metrics.py†L1-L130】
 - Core package now logs and documents the sensory organ import fallback, keeping
   stub exports visible under pytest coverage so bootstrap environments surface
   degraded wiring instead of silently masking missing dependencies.【F:src/core/__init__.py†L11-L45】【F:tests/core/test_core_init_fallback.py†L1-L43】

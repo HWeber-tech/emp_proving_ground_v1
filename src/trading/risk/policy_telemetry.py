@@ -10,6 +10,9 @@ from typing import Any, Mapping, MutableMapping, Sequence, cast
 
 from src.core.event_bus import Event, EventBus
 
+
+RISK_POLICY_VIOLATION_RUNBOOK = "docs/operations/runbooks/risk_policy_violation.md"
+
 from .risk_policy import RiskPolicy, RiskPolicyDecision
 
 
@@ -254,7 +257,7 @@ def build_policy_violation_alert(
     snapshot: RiskPolicyEvaluationSnapshot,
     *,
     severity: str = "critical",
-    runbook: str | None = None,
+    runbook: str | None = RISK_POLICY_VIOLATION_RUNBOOK,
     generated_at: datetime | None = None,
 ) -> RiskPolicyViolationAlert:
     """Create a structured alert for policy violations."""
@@ -323,4 +326,5 @@ __all__ = [
     "format_policy_violation_markdown",
     "publish_policy_snapshot",
     "publish_policy_violation",
+    "RISK_POLICY_VIOLATION_RUNBOOK",
 ]

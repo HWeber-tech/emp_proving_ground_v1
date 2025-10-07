@@ -34,6 +34,7 @@ from src.data_foundation.config.execution_config import (
     ExecutionRiskLimits,
     load_execution_config,
 )
+from src.core.event_bus import EventBus
 from src.trading.execution.execution_model import (
     ExecContext,
     estimate_commission_bps,
@@ -42,6 +43,10 @@ from src.trading.execution.execution_model import (
 from .policy_telemetry import (
     RiskPolicyEvaluationSnapshot,
     build_policy_snapshot,
+    build_policy_violation_alert,
+    format_policy_violation_markdown,
+    publish_policy_violation,
+    RISK_POLICY_VIOLATION_RUNBOOK,
 )
 from .risk_api import RISK_API_RUNBOOK, summarise_risk_config
 from .risk_policy import RiskPolicy, RiskPolicyDecision
@@ -185,6 +190,8 @@ class RiskGateway:
         execution_config: ExecutionConfig | None = None,
         portfolio_risk_manager: SupportsPortfolioRisk | None = None,
         risk_config: RiskConfig | None = None,
+        event_bus: EventBus | None = None,
+        policy_violation_runbook: str | None = None,
     ) -> None:
         self.strategy_registry = strategy_registry
         self.position_sizer = position_sizer
@@ -212,6 +219,10 @@ class RiskGateway:
         self._last_policy_snapshot: RiskPolicyEvaluationSnapshot | None = None
         self._risk_config: RiskConfig | None = risk_config
         self._risk_reference_cache: dict[str, object] | None = None
+        self.event_bus = event_bus
+        self._policy_violation_runbook = (
+            policy_violation_runbook or RISK_POLICY_VIOLATION_RUNBOOK
+        )
 
     # ------------------------------------------------------------------
     # Public API
@@ -243,7 +254,7 @@ class RiskGateway:
         try:
             if not self._check_strategy(decision["strategy_id"]):
                 decision.update(status="rejected", reason="strategy_disabled")
-                self._reject(decision)
+                await self._reject_and_maybe_publish(decision)
                 return None
 
             quantity = self._extract_quantity(intent)
@@ -259,18 +270,18 @@ class RiskGateway:
                         "threshold": self.min_intent_confidence,
                     }
                 )
-                self._reject(decision)
+                await self._reject_and_maybe_publish(decision)
                 return None
 
             portfolio_state = portfolio_state or {}
             if not self._check_drawdown(portfolio_state, decision):
                 decision.update(status="rejected", reason="max_drawdown_exceeded")
-                self._reject(decision)
+                await self._reject_and_maybe_publish(decision)
                 return None
 
             if not self._check_open_positions(portfolio_state, decision):
                 decision.update(status="rejected", reason="too_many_open_positions")
-                self._reject(decision)
+                await self._reject_and_maybe_publish(decision)
                 return None
 
             adjusted_quantity = self._apply_position_sizing(intent, portfolio_state, decision)
@@ -308,7 +319,7 @@ class RiskGateway:
                         status="rejected",
                         reason=policy_decision.reason or "policy_violation",
                     )
-                    self._reject(decision)
+                    await self._reject_and_maybe_publish(decision)
                     return None
 
             if not self._enforce_portfolio_risk(
@@ -319,6 +330,7 @@ class RiskGateway:
                 market_price=market_price,
                 stop_loss_pct=stop_loss_pct,
             ):
+                await self._reject_and_maybe_publish(decision)
                 return None
 
             execution_assessment = self._evaluate_execution_cost(
@@ -337,7 +349,7 @@ class RiskGateway:
                     status="rejected",
                     reason=execution_assessment["reason"],
                 )
-                self._reject(decision)
+                await self._reject_and_maybe_publish(decision)
                 return None
 
             liquidity_summary: Mapping[str, Any] | None = None
@@ -348,7 +360,7 @@ class RiskGateway:
                 )
                 if liquidity_score is not None and liquidity_score < self.min_liquidity_confidence:
                     decision.update(status="rejected", reason="insufficient_liquidity")
-                    self._reject(decision)
+                    await self._reject_and_maybe_publish(decision)
                     return None
 
             self._enrich_intent(
@@ -376,7 +388,7 @@ class RiskGateway:
         except Exception as exc:  # pragma: no cover - defensive logging path
             logger.exception("RiskGateway encountered unexpected error: %s", exc)
             decision.update(status="rejected", reason="exception", error=str(exc))
-            self._reject(decision)
+            await self._reject_and_maybe_publish(decision)
             return None
 
     def get_risk_limits(self) -> dict[str, Any]:
@@ -473,6 +485,54 @@ class RiskGateway:
                 logger.debug("Failed to emit pre-trade denial metric", exc_info=True)
         logger.info("RiskGateway rejected trade: %s", decision_payload)
         return None
+
+    async def _reject_and_maybe_publish(self, decision: Mapping[str, Any]) -> None:
+        """Record a rejection and emit policy telemetry when applicable."""
+
+        self._reject(decision)
+        await self._maybe_publish_policy_violation()
+
+    async def _maybe_publish_policy_violation(self) -> None:
+        """Publish a policy violation alert when the last snapshot failed."""
+
+        event_bus = self.event_bus
+        if event_bus is None:
+            return
+
+        snapshot = self._last_policy_snapshot
+        if snapshot is None:
+            return
+
+        if snapshot.approved and not snapshot.violations:
+            return
+
+        try:
+            severity = "critical" if not snapshot.approved else "warning"
+            alert = build_policy_violation_alert(
+                snapshot,
+                severity=severity,
+                runbook=self._policy_violation_runbook,
+            )
+        except Exception:  # pragma: no cover - defensive telemetry path
+            logger.debug("Failed to build policy violation alert", exc_info=True)
+            return
+
+        try:
+            logger.warning(
+                "🚨 Policy violation alert\n%s",
+                format_policy_violation_markdown(alert),
+            )
+        except Exception:  # pragma: no cover - formatting guardrail
+            logger.debug("Failed to format policy violation alert", exc_info=True)
+
+        try:
+            await publish_policy_violation(
+                event_bus,
+                alert,
+                source="risk_gateway",
+            )
+        except Exception:  # pragma: no cover - event bus optional/diagnostic
+            logger.debug("Failed to publish policy violation telemetry", exc_info=True)
 
     def _risk_reference_base(self) -> dict[str, object]:
         if self._risk_reference_cache is None:
@@ -850,7 +910,6 @@ class RiskGateway:
                 }
             )
             decision.update(status="rejected", reason="portfolio_risk_error")
-            self._reject(decision)
             return False
 
         check_entry = {
@@ -873,7 +932,6 @@ class RiskGateway:
 
         if risk_score > 1.0:
             decision.update(status="rejected", reason="portfolio_risk_breach")
-            self._reject(decision)
             return False
 
         return True

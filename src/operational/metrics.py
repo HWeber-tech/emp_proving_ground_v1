@@ -558,7 +558,7 @@ def start_metrics_server(port: Optional[int] = None) -> None:
         raw_port = port if port is not None else env_port
         try:
             effective_port = int(raw_port)
-        except Exception as exc:  # pragma: no cover - hard to trigger deterministically
+        except (TypeError, ValueError) as exc:  # pragma: no cover - hard to trigger deterministically
             _log.warning(
                 "Invalid metrics port %r (from %s); defaulting to 8081",
                 raw_port,
@@ -575,7 +575,7 @@ def start_metrics_server(port: Optional[int] = None) -> None:
 
         try:
             start_http_server(effective_port)
-        except Exception as exc:  # pragma: no cover - depends on runtime environment
+        except (OSError, RuntimeError, ValueError) as exc:  # pragma: no cover - depends on runtime
             _log.warning(
                 "Failed to start metrics exporter on port %s: %s", effective_port, exc, exc_info=exc
             )
@@ -599,7 +599,13 @@ else:  # Runtime fallback base to avoid import-time failures
 _rt_set_metrics_sink: Optional[Callable[[_MetricsSinkBase], None]] = None
 try:
     from src.core.telemetry import set_metrics_sink as _rt_set_metrics_sink
-except Exception:  # pragma: no cover
+except ImportError as exc:  # pragma: no cover - optional dependency not present
+    _log.debug("Telemetry metrics sink unavailable; registration skipped", exc_info=exc)
+    _rt_set_metrics_sink = None
+except Exception as exc:  # pragma: no cover - defensive guardrail during import
+    _log.warning(
+        "Failed to import telemetry metrics sink; registration skipped", exc_info=exc
+    )
     _rt_set_metrics_sink = None
 
 

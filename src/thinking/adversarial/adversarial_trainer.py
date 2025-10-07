@@ -11,6 +11,11 @@ It intentionally avoids domain-specific logic to minimize coupling and enable st
 
 from __future__ import annotations
 
+import logging
+
+
+logger = logging.getLogger(__name__)
+
 
 class AdversarialTrainer:
     """
@@ -39,12 +44,17 @@ class AdversarialTrainer:
             try:
                 result = await generator.train_generator(survival_results, target_failure_rate)
                 return bool(result)
-            except TypeError:
+            except TypeError as exc:
                 # Fallback to difficulty tuning if signature mismatch
-                pass
-            except Exception:
-                # Swallow to avoid breaking training loops during structural migration
-                pass
+                logger.debug(
+                    "Generator.train_generator signature mismatch; falling back to heuristic",
+                    exc_info=exc,
+                )
+            except Exception as exc:  # pragma: no cover - defensive barrier during migration
+                logger.exception(
+                    "Generator.train_generator failed; falling back to heuristic",
+                    exc_info=exc,
+                )
 
         # Heuristic difficulty tuning
         try:
@@ -73,9 +83,11 @@ class AdversarialTrainer:
                 self.current_difficulty = min(1.0, self.current_difficulty + 0.1)
             elif failure_rate > target_failure_rate:
                 self.current_difficulty = max(0.1, self.current_difficulty - 0.05)
-        except Exception:
-            # Non-fatal; keep loop going
-            pass
+        except Exception as exc:  # pragma: no cover - defensive barrier during migration
+            logger.exception(
+                "Heuristic generator difficulty tuning failed; continuing with last difficulty",
+                exc_info=exc,
+            )
 
         return True
 
@@ -122,8 +134,11 @@ class AdversarialTrainer:
                 else:
                     # Leave non-dict strategies unchanged
                     improved.append(strategy)
-        except Exception:
-            # Non-fatal; return population unchanged on error
+        except Exception as exc:  # pragma: no cover - defensive barrier during migration
+            logger.exception(
+                "Failed to train discriminator; returning population unchanged",
+                exc_info=exc,
+            )
             return strategy_population
 
         return improved

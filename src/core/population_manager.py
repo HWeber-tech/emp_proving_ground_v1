@@ -84,8 +84,6 @@ class PopulationManager(IPopulationManager):
             self._catalogue_seeded_at = None
             seed_summary = summarize_seed_metadata(self.population)
             self.record_seed_metadata(seed_summary, seed_source="factory")
-        else:
-            self.record_seed_metadata(None, seed_source="catalogue")
         self.generation = 0
         self._cache_population_stats()
 
@@ -346,7 +344,9 @@ class PopulationManager(IPopulationManager):
         summary["seeded_at"] = seeded_at
         self._catalogue_summary = summary
         self._catalogue_seeded_at = seeded_at
-        self.record_seed_metadata(None, seed_source="catalogue")
+
+        seed_summary = summarize_seed_metadata(resolved)
+        self.record_seed_metadata(seed_summary, seed_source="catalogue")
         return resolved
 
     def _build_seed_sampler(self) -> RealisticGenomeSeeder | None:

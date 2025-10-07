@@ -125,3 +125,17 @@ def test_generate_initial_population_factory_fallback(monkeypatch):
     stats = pm.get_population_statistics()
     assert stats["seed_source"] == "factory"
     assert stats["population_size"] == 3
+
+
+def test_catalogue_initialization_records_seed_metadata():
+    pm = PopulationManager(population_size=3, cache_ttl=1, use_catalogue=True)
+    pm.initialize_population(_legacy_factory_closure())
+
+    stats = pm.get_population_statistics()
+    assert stats["seed_source"] == "catalogue"
+
+    seed_metadata = stats.get("seed_metadata")
+    assert seed_metadata is not None
+    assert seed_metadata["total_seeded"] == 3
+    assert seed_metadata["seed_names"]
+    assert seed_metadata["seed_catalogue_ids"]

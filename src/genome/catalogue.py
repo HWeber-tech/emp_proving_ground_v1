@@ -68,6 +68,32 @@ class CatalogueEntry:
     def instantiate(self, *, instance_suffix: str | None = None) -> DecisionGenome:
         """Materialise the entry as a ``DecisionGenome`` instance."""
 
+        performance_metrics = _coerce_metrics(self.performance_metrics)
+
+        metadata_payload: dict[str, object] = {
+            "seed_name": self.name,
+            "seed_species": self.species,
+            "seed_catalogue_id": self.identifier,
+            "seed_source": "catalogue",
+        }
+
+        tags = [str(tag).strip() for tag in self.tags if str(tag).strip()]
+        if tags:
+            metadata_payload["seed_tags"] = tags
+
+        parent_ids = [str(pid).strip() for pid in self.parent_ids if str(pid).strip()]
+        if parent_ids:
+            metadata_payload["seed_parent_ids"] = parent_ids
+
+        mutation_history = [
+            str(entry).strip() for entry in self.mutation_history if str(entry).strip()
+        ]
+        if mutation_history:
+            metadata_payload["seed_mutation_history"] = mutation_history
+
+        if performance_metrics:
+            metadata_payload["seed_performance_metrics"] = dict(performance_metrics)
+
         payload: dict[str, object] = {
             "id": self.identifier
             if instance_suffix is None
@@ -78,8 +104,9 @@ class CatalogueEntry:
             "species_type": self.species,
             "parent_ids": list(self.parent_ids),
             "mutation_history": list(self.mutation_history),
-            "performance_metrics": _coerce_metrics(self.performance_metrics),
+            "performance_metrics": performance_metrics,
             "created_at": self.created_at or time.time(),
+            "metadata": metadata_payload,
         }
         return DecisionGenome.from_dict(payload)
 

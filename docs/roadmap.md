@@ -17,7 +17,7 @@ kit that the roadmap calls back to in each checklist.
 | Delivery state | The codebase is still a development framework: evolution, intelligence, execution, and strategy layers run on mocks; there is no production ingest, risk sizing, or portfolio management. | 【F:docs/DEVELOPMENT_STATUS.md†L7-L35】 |
 | Quality posture | CI passes with 76% coverage, but hotspots include operational metrics, position models, and configuration loaders; runtime validation checks still fail. | 【F:docs/ci_baseline_report.md†L8-L27】【F:docs/technical_debt_assessment.md†L31-L112】 |
 | Debt hotspots | Hollow risk management, unsupervised async tasks, namespace drift, and deprecated exports continue to surface in audits. | 【F:docs/technical_debt_assessment.md†L33-L80】【F:src/core/__init__.py†L14-L33】 |
-| Legacy footprint | Canonical risk facade now lives in `src/risk`, core exports point at it, and the retired `src.core.configuration` shim raises a guard that directs callers to `SystemConfig`; cleanup reports still flag integration docs lagging reality. | 【F:src/risk/manager.py†L1-L128】【F:src/core/__init__.py†L14-L33】【F:src/core/configuration.py†L1-L13】【F:tests/current/test_core_configuration_runtime.py†L1-L14】【F:docs/reports/CLEANUP_REPORT.md†L71-L110】 |
+| Legacy footprint | Canonical risk facade now lives in `src/risk`, and the retired `src.core.risk.manager`/`src.trading.risk_management` shims now raise guided `ModuleNotFoundError`s under regression coverage so callers jump straight to the canonical modules while cleanup reports still flag integration docs lagging reality. | 【F:src/core/risk/manager.py†L1-L14】【F:src/trading/risk_management/__init__.py†L1-L8】【F:tests/current/test_risk_shims_retired.py†L1-L23】【F:docs/reports/CLEANUP_REPORT.md†L71-L110】 |
 
 ## Gaps to close
 
@@ -746,12 +746,10 @@ kit that the roadmap calls back to in each checklist.
   - [ ] Expand PolicyRouter tactics and fast-weight experimentation while
     automating reflection summaries so reviewers see emerging strategies without
     spelunking telemetry dumps.【F:docs/High-Impact Development Roadmap.md†L74-L74】
-  - *Progress*: PolicyRouter now tracks tactic objectives/tags, bulk-registers and
-    updates tactics, exposes experiment registries, and ships a reflection digest
-    that summarises streaks, regime mix, and experiment share while pruning
-    expired experiments and exporting reviewer-ready reflection reports so
-    reviewers spot emerging strategies without spelunking telemetry dumps under
-    expanded pytest coverage.【F:src/thinking/adaptation/policy_router.py†L175-L525】【F:tests/thinking/test_policy_router.py†L248-L308】
+  - *Progress*: PolicyRouter now serialises experiment regime filters, confidence
+    gates, and feature bounds into the reflection digest while the builder renders
+    the new gating columns and reviewer insights so experiment-driven tactics stay
+    auditable without replaying telemetry, covered by expanded pytest fixtures.【F:src/thinking/adaptation/policy_router.py†L16-L163】【F:src/thinking/adaptation/policy_reflection.py†L273-L307】【F:tests/thinking/test_policy_router.py†L230-L239】【F:tests/thinking/test_policy_reflection_builder.py†L80-L107】
   - *Progress*: AdversarialTrainer now logs generator signature mismatches,
     captures unexpected training failures with stack traces, and preserves
     heuristic fallbacks so migration bugs surface during experimentation without
@@ -768,6 +766,11 @@ kit that the roadmap calls back to in each checklist.
     tighten confidence/notional guardrails based on sensory drift severity, and
     feed TradingManager gating plus release posture telemetry so promotions
     honour governance approvals under guardrail tests.【F:src/trading/gating/adaptive_release.py†L47-L211】【F:src/trading/trading_manager.py†L183-L659】【F:tests/trading/test_adaptive_release_thresholds.py†L57-L138】【F:tests/trading/test_trading_manager_execution.py†L423-L472】
+  - *Progress*: Bootstrap runtime, control centre, and Predator app now install the
+    release-aware execution router when a policy ledger is present, expose default
+    stage and engine routing metadata, and record forced paper routes alongside
+    drift reasons so governance reviewers see execution posture under pytest
+    coverage.【F:src/runtime/bootstrap_runtime.py†L195-L428】【F:src/operations/bootstrap_control_center.py†L341-L359】【F:src/runtime/predator_app.py†L1001-L1141】【F:src/trading/trading_manager.py†L823-L983】【F:tests/current/test_bootstrap_runtime_integration.py†L238-L268】【F:tests/trading/test_trading_manager_execution.py†L960-L983】
 
 ### Later (90+ days)
 
@@ -787,6 +790,9 @@ kit that the roadmap calls back to in each checklist.
     noting their removal in the cleanup report so hygiene reviews reflect the new
     Timescale fallback wiring instead of dead scaffolding.【F:docs/reports/CLEANUP_REPORT.md†L88】【F:src/data_foundation/ingest/timescale_pipeline.py†L21】
   - *Progress*: Cleanup automation now flags the retired sensory dimension shims directly in the report and drops them from the phase-two consolidation script so dead organs stay archived instead of being rehydrated by tooling.【F:docs/reports/CLEANUP_REPORT.md†L168-L179】【F:scripts/phase2_sensory_consolidation.py†L45-L144】
+  - *Progress*: Retired the legacy `src.core.risk.manager` and `src.trading.risk_management`
+    facades by raising guided module errors under regression coverage so callers
+    migrate to `src.risk` implementations and the cleanup backlog shrinks.【F:src/core/risk/manager.py†L1-L14】【F:src/trading/risk_management/__init__.py†L1-L8】【F:tests/current/test_risk_shims_retired.py†L1-L23】
 - [ ] **Governance and compliance** – Build the reporting cadence for KYC/AML,
   regulatory telemetry, and audit storage prior to live-broker pilots.【F:docs/technical_debt_assessment.md†L58-L112】
   - *Progress*: Governance reporting cadence now assembles compliance readiness,
@@ -843,6 +849,14 @@ kit that the roadmap calls back to in each checklist.
   work; stale documentation is considered a regression.【F:docs/technical_debt_assessment.md†L90-L112】
 - Maintain the truth-first status culture: mock implementations must remain
   labelled and roadmapped until replaced by production-grade systems.【F:docs/DEVELOPMENT_STATUS.md†L7-L35】
+
+## Automation updates — 2025-10-07T22:25:27Z
+
+### Last 4 commits
+- 1a6d30e refactor(thinking): tune 4 files (2025-10-08)
+- c186993 refactor(operations): tune 6 files (2025-10-08)
+- fb6c09a feat(core): add 3 files (2025-10-08)
+- 91cf3fc docs(docs): tune 4 files (2025-10-08)
 
 ## Automation updates — 2025-10-07T22:04:09Z
 

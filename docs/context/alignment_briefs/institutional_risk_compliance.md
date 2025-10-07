@@ -94,6 +94,10 @@
   bootstrap control center, runtime status, and FIX pilot snapshots embed the
   shared runbook so governance receives actionable evidence when the interface
   degrades under pytest coverage.【F:src/trading/risk/risk_interface_telemetry.py†L1-L156】【F:src/trading/trading_manager.py†L905-L968】【F:src/operations/bootstrap_control_center.py†L99-L350】【F:src/runtime/bootstrap_runtime.py†L210-L334】【F:src/runtime/fix_pilot.py†L22-L318】【F:tests/trading/test_trading_manager_execution.py†L1157-L1240】【F:tests/current/test_bootstrap_control_center.py†L151-L180】【F:tests/runtime/test_fix_pilot.py†L115-L178】
+- Progress: Release-aware execution router now installs across bootstrap runtime,
+  control centre, and Predator summaries whenever a policy ledger is present,
+  exposing default stages, engine routing, and forced overrides so compliance
+  reviewers inherit audited execution posture under pytest coverage.【F:src/runtime/bootstrap_runtime.py†L195-L428】【F:src/operations/bootstrap_control_center.py†L341-L359】【F:src/runtime/predator_app.py†L1001-L1141】【F:src/trading/trading_manager.py†L823-L983】【F:tests/current/test_bootstrap_runtime_integration.py†L238-L268】【F:tests/trading/test_trading_manager_execution.py†L960-L983】
 
 - Progress: Mock FIX manager coercion helpers now reject non-ASCII payloads,
   guard order-book adapters that raise exceptions, and keep deterministic

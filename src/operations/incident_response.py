@@ -117,6 +117,12 @@ class IncidentResponsePolicy:
     postmortem_sla_hours: float = 24.0
     maximum_open_incidents: int = 1
     require_chatops: bool = True
+    mtta_warn_minutes: float | None = 30.0
+    mtta_fail_minutes: float | None = 60.0
+    mttr_warn_minutes: float | None = 180.0
+    mttr_fail_minutes: float | None = 360.0
+    metrics_stale_warn_hours: float | None = 24.0
+    metrics_stale_fail_hours: float | None = 48.0
 
     @classmethod
     def from_mapping(cls, mapping: Mapping[str, object] | None) -> "IncidentResponsePolicy":
@@ -129,6 +135,12 @@ class IncidentResponsePolicy:
         postmortem_sla = _coerce_float(mapping.get("INCIDENT_POSTMORTEM_SLA_HOURS"), 24.0)
         max_open = max(_coerce_int(mapping.get("INCIDENT_MAX_OPEN_INCIDENTS"), 1), 0)
         require_chatops = _coerce_bool(mapping.get("INCIDENT_REQUIRE_CHATOPS"), True)
+        mtta_warn = _coerce_float(mapping.get("INCIDENT_MTTA_WARN_MINUTES"), 30.0)
+        mtta_fail = _coerce_float(mapping.get("INCIDENT_MTTA_FAIL_MINUTES"), 60.0)
+        mttr_warn = _coerce_float(mapping.get("INCIDENT_MTTR_WARN_MINUTES"), 180.0)
+        mttr_fail = _coerce_float(mapping.get("INCIDENT_MTTR_FAIL_MINUTES"), 360.0)
+        stale_warn = _coerce_float(mapping.get("INCIDENT_METRICS_STALE_WARN_HOURS"), 24.0)
+        stale_fail = _coerce_float(mapping.get("INCIDENT_METRICS_STALE_FAIL_HOURS"), 48.0)
 
         return cls(
             required_runbooks=required_runbooks,
@@ -139,7 +151,77 @@ class IncidentResponsePolicy:
             postmortem_sla_hours=float(postmortem_sla or 0.0),
             maximum_open_incidents=max_open,
             require_chatops=require_chatops,
+            mtta_warn_minutes=(mtta_warn if mtta_warn and mtta_warn > 0 else None),
+            mtta_fail_minutes=(mtta_fail if mtta_fail and mtta_fail > 0 else None),
+            mttr_warn_minutes=(mttr_warn if mttr_warn and mttr_warn > 0 else None),
+            mttr_fail_minutes=(mttr_fail if mttr_fail and mttr_fail > 0 else None),
+            metrics_stale_warn_hours=(
+                stale_warn if stale_warn and stale_warn > 0 else None
+            ),
+            metrics_stale_fail_hours=(
+                stale_fail if stale_fail and stale_fail > 0 else None
+            ),
         )
+
+
+@dataclass(frozen=True)
+class IncidentResponseMetrics:
+    """Observed MTTA/MTTR metrics captured from alert timelines."""
+
+    mtta_minutes: float | None = None
+    mttr_minutes: float | None = None
+    acknowledged_incidents: int | None = None
+    resolved_incidents: int | None = None
+    sample_window_days: float | None = None
+    data_age_hours: float | None = None
+
+    def as_dict(self) -> dict[str, object]:
+        return {
+            "mtta_minutes": self.mtta_minutes,
+            "mttr_minutes": self.mttr_minutes,
+            "acknowledged_incidents": self.acknowledged_incidents,
+            "resolved_incidents": self.resolved_incidents,
+            "sample_window_days": self.sample_window_days,
+            "data_age_hours": self.data_age_hours,
+        }
+
+    def has_signal(self) -> bool:
+        return any(
+            value not in (None, 0, 0.0)
+            for value in (
+                self.mtta_minutes,
+                self.mttr_minutes,
+                self.acknowledged_incidents,
+                self.resolved_incidents,
+            )
+        )
+
+    @classmethod
+    def from_mapping(
+        cls, mapping: Mapping[str, object] | None
+    ) -> "IncidentResponseMetrics | None":
+        if not mapping:
+            return None
+
+        mtta = _coerce_float(mapping.get("INCIDENT_METRICS_MTTA_MINUTES"))
+        mttr = _coerce_float(mapping.get("INCIDENT_METRICS_MTTR_MINUTES"))
+        acknowledged = _coerce_int(mapping.get("INCIDENT_METRICS_ACKNOWLEDGED"), 0)
+        resolved = _coerce_int(mapping.get("INCIDENT_METRICS_RESOLVED"), 0)
+        window_days = _coerce_float(mapping.get("INCIDENT_METRICS_SAMPLE_WINDOW_DAYS"))
+        age_hours = _coerce_float(mapping.get("INCIDENT_METRICS_DATA_AGE_HOURS"))
+
+        metrics = cls(
+            mtta_minutes=mtta,
+            mttr_minutes=mttr,
+            acknowledged_incidents=acknowledged if acknowledged else None,
+            resolved_incidents=resolved if resolved else None,
+            sample_window_days=window_days,
+            data_age_hours=age_hours,
+        )
+
+        if metrics.has_signal():
+            return metrics
+        return None
 
 
 @dataclass(frozen=True)
@@ -155,6 +237,7 @@ class IncidentResponseState:
     postmortem_backlog_hours: float | None = None
     chatops_ready: bool = False
     last_major_incident_age_days: float | None = None
+    metrics: IncidentResponseMetrics | None = None
 
     @classmethod
     def from_mapping(cls, mapping: Mapping[str, object] | None) -> "IncidentResponseState":
@@ -171,6 +254,7 @@ class IncidentResponseState:
             ),
             chatops_ready=_coerce_bool(mapping.get("INCIDENT_CHATOPS_READY"), False),
             last_major_incident_age_days=_coerce_float(mapping.get("INCIDENT_LAST_MAJOR_AGE_DAYS")),
+            metrics=IncidentResponseMetrics.from_mapping(mapping),
         )
 
 
@@ -189,6 +273,7 @@ class IncidentResponseSnapshot:
     open_incidents: tuple[str, ...]
     issues: tuple[str, ...] = field(default_factory=tuple)
     metadata: Mapping[str, object] = field(default_factory=dict)
+    metrics: IncidentResponseMetrics | None = None
 
     def as_dict(self) -> dict[str, object]:
         payload: dict[str, object] = {
@@ -204,6 +289,8 @@ class IncidentResponseSnapshot:
             "issues": list(self.issues),
             "metadata": dict(self.metadata),
         }
+        if self.metrics is not None:
+            payload["metrics"] = self.metrics.as_dict()
         return payload
 
     def to_markdown(self) -> str:
@@ -226,6 +313,37 @@ class IncidentResponseSnapshot:
         backlog = self.metadata.get("postmortem_backlog_hours")
         if isinstance(backlog, (int, float)):
             lines.append(f"- Postmortem backlog (hours): {backlog:.1f}")
+        metrics = self.metrics
+        if metrics is None:
+            metrics_payload = self.metadata.get("reliability_metrics")
+            if isinstance(metrics_payload, Mapping):
+                metrics = IncidentResponseMetrics.from_mapping(
+                    {
+                        "INCIDENT_METRICS_MTTA_MINUTES": metrics_payload.get("mtta_minutes"),
+                        "INCIDENT_METRICS_MTTR_MINUTES": metrics_payload.get("mttr_minutes"),
+                        "INCIDENT_METRICS_ACKNOWLEDGED": metrics_payload.get("acknowledged_incidents"),
+                        "INCIDENT_METRICS_RESOLVED": metrics_payload.get("resolved_incidents"),
+                        "INCIDENT_METRICS_SAMPLE_WINDOW_DAYS": metrics_payload.get("sample_window_days"),
+                        "INCIDENT_METRICS_DATA_AGE_HOURS": metrics_payload.get("data_age_hours"),
+                    }
+                )
+        if metrics is not None and metrics.has_signal():
+            lines.append("")
+            lines.append("**Reliability metrics:**")
+            if metrics.mtta_minutes is not None:
+                lines.append(f"- MTTA (minutes): {metrics.mtta_minutes:.1f}")
+            if metrics.mttr_minutes is not None:
+                lines.append(f"- MTTR (minutes): {metrics.mttr_minutes:.1f}")
+            if metrics.acknowledged_incidents is not None:
+                lines.append(
+                    f"- Incidents acknowledged: {metrics.acknowledged_incidents}"
+                )
+            if metrics.resolved_incidents is not None:
+                lines.append(f"- Incidents resolved: {metrics.resolved_incidents}")
+            if metrics.sample_window_days is not None:
+                lines.append(f"- Metrics window (days): {metrics.sample_window_days:.1f}")
+            if metrics.data_age_hours is not None:
+                lines.append(f"- Metrics age (hours): {metrics.data_age_hours:.1f}")
         context = self.metadata.get("context")
         if isinstance(context, Mapping):
             lines.append("")
@@ -267,6 +385,8 @@ def evaluate_incident_response(
         category: str,
         severity: IncidentResponseStatus,
         message: str,
+        *,
+        detail: Mapping[str, object] | None = None,
     ) -> None:
         """Track an issue, escalating status and metadata consistently."""
 
@@ -278,6 +398,8 @@ def evaluate_incident_response(
             "severity": severity.value,
             "message": message,
         }
+        if detail:
+            entry["detail"] = dict(detail)
         issue_details.append(entry)
         issue_catalog.setdefault(category, []).append(entry)
         issue_counts[severity.value] = issue_counts.get(severity.value, 0) + 1
@@ -386,6 +508,88 @@ def evaluate_incident_response(
             "ChatOps automations disabled or unavailable",
         )
 
+    metrics = state.metrics
+
+    if metrics is not None:
+
+        def _metric_issue(
+            *,
+            value_minutes: float | None,
+            warn_minutes: float | None,
+            fail_minutes: float | None,
+            category: str,
+            label: str,
+        ) -> None:
+            if value_minutes is None:
+                return
+            threshold = None
+            severity: IncidentResponseStatus | None = None
+            if fail_minutes is not None and value_minutes >= fail_minutes:
+                threshold = fail_minutes
+                severity = IncidentResponseStatus.fail
+            elif warn_minutes is not None and value_minutes >= warn_minutes:
+                threshold = warn_minutes
+                severity = IncidentResponseStatus.warn
+            if severity is None or threshold is None:
+                return
+            comparison = "exceeds" if severity is IncidentResponseStatus.fail else "approaches"
+            _record_issue(
+                category,
+                severity,
+                f"{label} {value_minutes:.1f} minutes {comparison} threshold {threshold:.1f} minutes",
+                detail={
+                    "value_minutes": value_minutes,
+                    "warn_minutes": warn_minutes,
+                    "fail_minutes": fail_minutes,
+                },
+            )
+
+        _metric_issue(
+            value_minutes=metrics.mtta_minutes,
+            warn_minutes=policy.mtta_warn_minutes,
+            fail_minutes=policy.mtta_fail_minutes,
+            category="metrics_mtta",
+            label="MTTA",
+        )
+        _metric_issue(
+            value_minutes=metrics.mttr_minutes,
+            warn_minutes=policy.mttr_warn_minutes,
+            fail_minutes=policy.mttr_fail_minutes,
+            category="metrics_mttr",
+            label="MTTR",
+        )
+
+        if metrics.data_age_hours is not None:
+            stale_threshold = policy.metrics_stale_fail_hours
+            warn_threshold = policy.metrics_stale_warn_hours
+            staleness_threshold = None
+            staleness_severity: IncidentResponseStatus | None = None
+            if stale_threshold is not None and metrics.data_age_hours >= stale_threshold:
+                staleness_threshold = stale_threshold
+                staleness_severity = IncidentResponseStatus.fail
+            elif warn_threshold is not None and metrics.data_age_hours >= warn_threshold:
+                staleness_threshold = warn_threshold
+                staleness_severity = IncidentResponseStatus.warn
+            if staleness_threshold is not None and staleness_severity is not None:
+                comparison = (
+                    "exceeds"
+                    if staleness_severity is IncidentResponseStatus.fail
+                    else "approaches"
+                )
+                _record_issue(
+                    "metrics_staleness",
+                    staleness_severity,
+                    (
+                        f"Incident metrics age {metrics.data_age_hours:.1f} hours {comparison} "
+                        f"threshold {staleness_threshold:.1f} hours"
+                    ),
+                    detail={
+                        "age_hours": metrics.data_age_hours,
+                        "warn_hours": warn_threshold,
+                        "fail_hours": stale_threshold,
+                    },
+                )
+
     combined_metadata: MutableMapping[str, object] = {
         "policy": {
             "required_runbooks": list(policy.required_runbooks),
@@ -396,6 +600,12 @@ def evaluate_incident_response(
             "postmortem_sla_hours": policy.postmortem_sla_hours,
             "maximum_open_incidents": policy.maximum_open_incidents,
             "require_chatops": policy.require_chatops,
+            "mtta_warn_minutes": policy.mtta_warn_minutes,
+            "mtta_fail_minutes": policy.mtta_fail_minutes,
+            "mttr_warn_minutes": policy.mttr_warn_minutes,
+            "mttr_fail_minutes": policy.mttr_fail_minutes,
+            "metrics_stale_warn_hours": policy.metrics_stale_warn_hours,
+            "metrics_stale_fail_hours": policy.metrics_stale_fail_hours,
         },
         "postmortem_backlog_hours": backlog if backlog is not None else 0.0,
         "primary_responders": list(state.primary_oncall),
@@ -406,6 +616,8 @@ def evaluate_incident_response(
     }
     if state.last_major_incident_age_days is not None:
         combined_metadata["last_major_incident_age_days"] = state.last_major_incident_age_days
+    if metrics is not None and metrics.has_signal():
+        combined_metadata["reliability_metrics"] = metrics.as_dict()
     if issue_details:
         combined_metadata["issue_details"] = tuple(issue_details)
         combined_metadata["issue_counts"] = dict(issue_counts)
@@ -449,6 +661,7 @@ def evaluate_incident_response(
         open_incidents=state.open_incidents,
         issues=tuple(issues),
         metadata=combined_metadata,
+        metrics=metrics if metrics and metrics.has_signal() else None,
     )
 
 
@@ -518,6 +731,120 @@ def derive_incident_response_alerts(
         if key not in policy_mapping:
             return default
         return _coerce_float(policy_mapping.get(key), default)
+
+    metrics_payload: Mapping[str, object] | None = None
+    if snapshot.metrics is not None:
+        metrics_payload = snapshot.metrics.as_dict()
+    else:
+        reliability_metrics = metadata.get("reliability_metrics")
+        if isinstance(reliability_metrics, Mapping):
+            metrics_payload = reliability_metrics
+
+    def _metric_status(
+        value_minutes: float | None,
+        warn_minutes: float | None,
+        fail_minutes: float | None,
+    ) -> IncidentResponseStatus | None:
+        if value_minutes is None:
+            return None
+        if fail_minutes is not None and value_minutes >= fail_minutes:
+            return IncidentResponseStatus.fail
+        if warn_minutes is not None and value_minutes >= warn_minutes:
+            return IncidentResponseStatus.warn
+        return None
+
+    if metrics_payload is not None:
+        mtta_value = _coerce_float(metrics_payload.get("mtta_minutes"))
+        mttr_value = _coerce_float(metrics_payload.get("mttr_minutes"))
+        acknowledged = _coerce_int(metrics_payload.get("acknowledged_incidents"), None)
+        resolved = _coerce_int(metrics_payload.get("resolved_incidents"), None)
+
+        def _emit_metric_alert(
+            *,
+            metric_value: float | None,
+            warn_limit: float | None,
+            fail_limit: float | None,
+            category: str,
+            label: str,
+        ) -> None:
+            metric_status = _metric_status(metric_value, warn_limit, fail_limit)
+            if metric_status is None or not _meets_threshold(metric_status, threshold):
+                return
+            limit = fail_limit if metric_status is IncidentResponseStatus.fail else warn_limit
+            if metric_value is None or limit is None:
+                return
+            comparison = "exceeds" if metric_status is IncidentResponseStatus.fail else "approaches"
+            events.append(
+                AlertEvent(
+                    category=category,
+                    severity=_SEVERITY_MAP[metric_status],
+                    message=f"{label} {metric_value:.1f} minutes {comparison} {limit:.1f} minute threshold",
+                    tags=tags + ("reliability", label.lower()),
+                    context={
+                        "snapshot": snapshot_payload,
+                        "metrics": dict(metrics_payload),
+                        "policy": dict(policy_mapping),
+                        "acknowledged_incidents": acknowledged,
+                        "resolved_incidents": resolved,
+                    },
+                )
+            )
+
+        _emit_metric_alert(
+            metric_value=mtta_value,
+            warn_limit=_policy_float("mtta_warn_minutes"),
+            fail_limit=_policy_float("mtta_fail_minutes"),
+            category="incident_response.mtta",
+            label="MTTA",
+        )
+        _emit_metric_alert(
+            metric_value=mttr_value,
+            warn_limit=_policy_float("mttr_warn_minutes"),
+            fail_limit=_policy_float("mttr_fail_minutes"),
+            category="incident_response.mttr",
+            label="MTTR",
+        )
+
+        age_hours = _coerce_float(metrics_payload.get("data_age_hours"))
+        if age_hours is not None:
+            warn_hours = _policy_float("metrics_stale_warn_hours")
+            fail_hours = _policy_float("metrics_stale_fail_hours")
+            staleness_status: IncidentResponseStatus | None = None
+            limit_hours: float | None = None
+            if fail_hours is not None and age_hours >= fail_hours:
+                staleness_status = IncidentResponseStatus.fail
+                limit_hours = fail_hours
+            elif warn_hours is not None and age_hours >= warn_hours:
+                staleness_status = IncidentResponseStatus.warn
+                limit_hours = warn_hours
+            if (
+                staleness_status is not None
+                and limit_hours is not None
+                and _meets_threshold(staleness_status, threshold)
+            ):
+                comparison = (
+                    "exceeds"
+                    if staleness_status is IncidentResponseStatus.fail
+                    else "approaches"
+                )
+                events.append(
+                    AlertEvent(
+                        category="incident_response.metrics_staleness",
+                        severity=_SEVERITY_MAP[staleness_status],
+                        message=(
+                            f"Incident metrics age {age_hours:.1f} hours {comparison} "
+                            f"{limit_hours:.1f} hour threshold"
+                        ),
+                        tags=tags + ("reliability", "staleness"),
+                        context={
+                            "snapshot": snapshot_payload,
+                            "metrics": dict(metrics_payload),
+                            "policy": dict(policy_mapping),
+                            "acknowledged_incidents": acknowledged,
+                            "resolved_incidents": resolved,
+                        },
+                    )
+                )
 
     # Missing runbook escalation
     if snapshot.missing_runbooks and _meets_threshold(
@@ -806,6 +1133,7 @@ def publish_incident_response_snapshot(
 
 
 __all__ = [
+    "IncidentResponseMetrics",
     "IncidentResponsePolicy",
     "IncidentResponseSnapshot",
     "IncidentResponseState",

@@ -212,6 +212,36 @@ def test_incident_response_critical_routes_sms() -> None:
     assert channel_names == {"ops-email", "ops-webhook", "ops-sms"}
 
 
+def test_incident_response_reliability_rule_includes_sms_escalation() -> None:
+    manager, captures = _make_manager()
+
+    event = AlertEvent(
+        category="incident_response.mtta",
+        severity=AlertSeverity.critical,
+        message="MTTA failure",
+    )
+
+    result = manager.dispatch(event)
+
+    assert set(result.triggered_channels) == {"ops-email", "ops-webhook", "ops-sms"}
+    assert {channel for channel, _, _ in captures} == {"ops-email", "ops-webhook", "ops-sms"}
+
+
+def test_system_validation_reliability_rule_routes_alerts() -> None:
+    manager, captures = _make_manager()
+
+    event = AlertEvent(
+        category="system_validation.reliability",
+        severity=AlertSeverity.warning,
+        message="Reliability degraded",
+    )
+
+    result = manager.dispatch(event)
+
+    assert set(result.triggered_channels) == {"ops-email", "ops-webhook"}
+    assert {channel for channel, _, _ in captures} == {"ops-email", "ops-webhook"}
+
+
 def test_rule_tag_filters() -> None:
     config = default_alert_policy_config()
     config["channels"].append({"name": "prod-email", "type": "email"})

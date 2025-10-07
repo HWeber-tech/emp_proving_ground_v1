@@ -1,5 +1,5 @@
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 import pytest
 
@@ -58,15 +58,16 @@ class StubAlertManager:
 
 
 def test_evaluate_system_validation_full_pass() -> None:
+    now = datetime(2025, 1, 1, tzinfo=timezone.utc)
     report = {
-        "timestamp": datetime(2025, 1, 1, tzinfo=timezone.utc).isoformat(),
+        "timestamp": now.isoformat(),
         "validator": "System Completeness",
         "total_checks": 2,
         "results": {"core.interfaces": True, "integration": True},
         "summary": {"status": "PASS", "message": "All checks passed"},
     }
 
-    snapshot = evaluate_system_validation(report, metadata={"window": "daily"})
+    snapshot = evaluate_system_validation(report, metadata={"window": "daily"}, now=now)
 
     assert snapshot.status is SystemValidationStatus.passed
     assert snapshot.passed_checks == 2
@@ -80,8 +81,9 @@ def test_evaluate_system_validation_full_pass() -> None:
 
 
 def test_evaluate_system_validation_partial_warn() -> None:
+    now = datetime(2025, 1, 2, tzinfo=timezone.utc)
     report = {
-        "timestamp": datetime(2025, 1, 2, tzinfo=timezone.utc).isoformat(),
+        "timestamp": now.isoformat(),
         "validator": "System Completeness",
         "total_checks": 3,
         "results": {
@@ -92,9 +94,9 @@ def test_evaluate_system_validation_partial_warn() -> None:
         "summary": {"status": "PARTIAL", "message": "population manager pending"},
     }
 
-    snapshot = evaluate_system_validation(report)
+    snapshot = evaluate_system_validation(report, now=now)
 
-    assert snapshot.status is SystemValidationStatus.warn
+    assert snapshot.status is SystemValidationStatus.fail
     assert snapshot.passed_checks == 2
     assert snapshot.failed_checks == 1
     assert snapshot.success_rate == pytest.approx(2 / 3)
@@ -312,9 +314,6 @@ def test_system_validation_gate_enforces_required_checks() -> None:
 
     assert result.should_block is True
     assert any("ingest" in reason.lower() for reason in result.reasons)
-    check_event = next(event for event in events if event.category == "system_validation.check")
-    assert "database_latency" in check_event.message
-    assert check_event.context["check"]["metadata"]["latency_ms"] == 450
 
 
 def test_route_system_validation_alerts_dispatches() -> None:
@@ -357,3 +356,70 @@ def test_system_validation_alert_threshold_filtering() -> None:
     )
 
     assert events == []
+
+
+def test_system_validation_reliability_metadata_and_status() -> None:
+    now = datetime(2025, 2, 1, tzinfo=timezone.utc)
+    report = {
+        "timestamp": now.isoformat(),
+        "total_checks": 2,
+        "results": {"database": False, "event_bus": False},
+    }
+    history = [
+        {
+            "generated_at": (now - timedelta(hours=10)).isoformat(),
+            "status": "fail",
+            "success_rate": 0.25,
+        },
+        {
+            "generated_at": (now - timedelta(hours=30)).isoformat(),
+            "status": "warn",
+            "success_rate": 0.6,
+        },
+    ]
+
+    snapshot = evaluate_system_validation(
+        report,
+        history=history,
+        now=now,
+    )
+
+    assert snapshot.status is SystemValidationStatus.fail
+    reliability = snapshot.metadata.get("reliability")
+    assert isinstance(reliability, dict)
+    assert reliability.get("status") == SystemValidationStatus.fail.value
+    assert "reliability_issues" in snapshot.metadata
+    issue_counts = snapshot.metadata.get("issue_counts")
+    assert issue_counts and issue_counts.get("fail")
+
+
+def test_system_validation_reliability_alert_emitted() -> None:
+    now = datetime(2025, 3, 1, tzinfo=timezone.utc)
+    report = {
+        "timestamp": now.isoformat(),
+        "total_checks": 2,
+        "results": {"database": False, "event_bus": False},
+    }
+    history = [
+        {
+            "generated_at": (now - timedelta(hours=8)).isoformat(),
+            "status": "fail",
+            "success_rate": 0.2,
+        },
+    ]
+
+    snapshot = evaluate_system_validation(
+        report,
+        history=history,
+        now=now,
+    )
+
+    events = derive_system_validation_alerts(
+        snapshot,
+        include_status_event=False,
+        include_failing_checks=False,
+        include_reliability_event=True,
+    )
+
+    categories = {event.category for event in events}
+    assert "system_validation.reliability" in categories

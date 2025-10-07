@@ -562,6 +562,13 @@ def default_alert_policy_config() -> dict[str, object]:
                 "suppress_seconds": 300,
             },
             {
+                "name": "system-validation-reliability",
+                "categories": ["system_validation.reliability"],
+                "min_severity": "warning",
+                "channels": ["ops-email", "ops-webhook"],
+                "suppress_seconds": 600,
+            },
+            {
                 "name": "incident-response-critical",
                 "categories": [
                     "incident_response.missing_runbooks",
@@ -571,6 +578,17 @@ def default_alert_policy_config() -> dict[str, object]:
                 "min_severity": "warning",
                 "channels": ["ops-email", "ops-webhook", "ops-sms"],
                 "suppress_seconds": 300,
+            },
+            {
+                "name": "incident-response-reliability",
+                "categories": [
+                    "incident_response.mtta",
+                    "incident_response.mttr",
+                    "incident_response.metrics_staleness",
+                ],
+                "min_severity": "warning",
+                "channels": ["ops-email", "ops-webhook", "ops-sms"],
+                "suppress_seconds": 600,
             },
             {
                 "name": "incident-response-notifications",

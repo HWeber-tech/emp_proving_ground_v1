@@ -17,6 +17,7 @@ from src.operations.alerts import (
 )
 from src.operations.event_bus_failover import publish_event_with_failover
 from src.operations.incident_response import (
+    IncidentResponseMetrics,
     IncidentResponseSnapshot,
     IncidentResponseStatus,
 )
@@ -181,6 +182,19 @@ def _incident_response_component(
         f"open incidents={len(snapshot.open_incidents)}",
         f"missing runbooks={len(snapshot.missing_runbooks)}",
     ]
+    metrics = snapshot.metrics
+    if metrics is None:
+        metrics_payload = snapshot.metadata.get("reliability_metrics")
+        if isinstance(metrics_payload, Mapping):
+            metrics = IncidentResponseMetrics.from_mapping({
+                "INCIDENT_METRICS_MTTA_MINUTES": metrics_payload.get("mtta_minutes"),
+                "INCIDENT_METRICS_MTTR_MINUTES": metrics_payload.get("mttr_minutes"),
+            })
+    if metrics is not None:
+        if metrics.mtta_minutes is not None:
+            summary_parts.append(f"MTTA={metrics.mtta_minutes:.1f}m")
+        if metrics.mttr_minutes is not None:
+            summary_parts.append(f"MTTR={metrics.mttr_minutes:.1f}m")
     if snapshot.issues:
         summary_parts.append("issues: " + "; ".join(snapshot.issues))
     summary = ", ".join(summary_parts)

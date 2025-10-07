@@ -27,6 +27,13 @@ fields:
   surfaces degraded dimensions/metrics with detector reasons, attaches the
   shared runbook path, and feeds WARN/FAIL counts plus rich issue details into
   the readiness metadata and alert contexts.【F:src/operations/operational_readiness.py†L83-L347】【F:src/operations/drift_sentry.py†L1-L279】
+- `incident_response.reliability_metrics` – captures MTTA/MTTR samples,
+  acknowledgement/resolution counts, and metric staleness so dashboards and
+  alert policies can grade acknowledgement/resolution cadence without recomputing
+  timelines.【F:src/operations/incident_response.py†L295-L640】【F:tests/operations/test_incident_response.py†L195-L248】
+- `system_validation.reliability` – summarises recent validation runs with fail
+  streaks, stale-age detection, and rolling success-rate thresholds, exposing
+  structured issues plus alert contexts for reliability regressions.【F:src/operations/system_validation.py†L150-L618】【F:tests/operations/test_system_validation.py†L201-L342】
 
 Both fields accompany the existing `component_count` and remain present in the
 snapshot dictionary returned by `OperationalReadinessSnapshot.as_dict()` and the
@@ -58,6 +65,10 @@ evidence that dashboards render.【F:src/operations/operational_readiness.py†L
 `route_operational_readiness_alerts` pipes those events through any
 `AlertManager`, returning dispatch results for guardrail assertions and ensuring
 context packs capture which transports emitted notifications.【F:src/operations/operational_readiness.py†L294-L317】【F:tests/operations/test_operational_readiness.py†L147-L184】
+The default alert policy now includes dedicated routes for incident response
+MTTA/MTTR breaches and system validation reliability regressions so SMS/webhook
+escalations fire when acknowledgement cadence or validation quality drifts from
+institutional targets.【F:src/operations/alerts.py†L158-L226】【F:tests/operations/test_alerts.py†L200-L240】
 
 `publish_operational_readiness_snapshot` now reuses the shared failover helper to
 log runtime bus failures, raise typed errors on unexpected exceptions, and fall

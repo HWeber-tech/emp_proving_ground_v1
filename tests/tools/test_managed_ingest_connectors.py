@@ -1,59 +1,77 @@
-from __future__ import annotations
-
 import json
 
 import pytest
 
-from tools.operations.managed_ingest_connectors import main
+from src.governance.system_config import DataBackboneMode, EmpTier, SystemConfig
+
+from tools.operations import managed_ingest_connectors as mic
 
 
-@pytest.fixture(autouse=True)
-def reset_env(monkeypatch: pytest.MonkeyPatch) -> None:
-    # Ensure unrelated environment variables from the host do not leak into tests.
-    monkeypatch.delenv("TIMESCALE_SYMBOLS", raising=False)
-    monkeypatch.delenv("TIMESCALE_ENABLE_INTRADAY", raising=False)
-    monkeypatch.delenv("TIMESCALEDB_URL", raising=False)
-    monkeypatch.delenv("REDIS_URL", raising=False)
-    monkeypatch.delenv("KAFKA_BROKERS", raising=False)
-    monkeypatch.delenv("KAFKA_INGEST_CONSUMER_TOPICS", raising=False)
-    monkeypatch.delenv("DATA_BACKBONE_MODE", raising=False)
-    monkeypatch.delenv("EMP_TIER", raising=False)
+def _build_config(extras: dict[str, str] | None = None) -> SystemConfig:
+    payload = {
+        "TIMESCALE_URL": "sqlite:///:memory:",
+        "TIMESCALE_SYMBOLS": "EURUSD",
+        "REDIS_URL": "redis://localhost:6379/0",
+        "KAFKA_BOOTSTRAP_SERVERS": "localhost:9092",
+    }
+    if extras:
+        payload.update(extras)
+    return SystemConfig(
+        tier=EmpTier.tier_1,
+        data_backbone_mode=DataBackboneMode.institutional,
+        extras=payload,
+    )
 
 
-def test_cli_outputs_json(monkeypatch: pytest.MonkeyPatch, tmp_path, capsys: pytest.CaptureFixture[str]) -> None:
-    timescale_db = tmp_path / "timescale.db"
-    monkeypatch.setenv("DATA_BACKBONE_MODE", "institutional")
-    monkeypatch.setenv("EMP_TIER", "tier_1")
-    monkeypatch.setenv("TIMESCALE_SYMBOLS", "AAPL")
-    monkeypatch.setenv("TIMESCALEDB_URL", f"sqlite:///{timescale_db}")
-    monkeypatch.setenv("REDIS_URL", "redis://cache:6379/0")
-    monkeypatch.setenv("KAFKA_BROKERS", "broker:9092")
-    monkeypatch.setenv("KAFKA_INGEST_CONSUMER_TOPICS", "telemetry.ingest")
+def _patch_config(monkeypatch: pytest.MonkeyPatch, config: SystemConfig) -> None:
+    monkeypatch.setattr(mic, "_load_system_config", lambda _: config)
 
-    exit_code = main(["--format", "json"])
+
+def test_managed_connectors_cli_reports_success(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
+    config = _build_config()
+    _patch_config(monkeypatch, config)
+
+    exit_code = mic.main(["--connectivity", "--format", "json"])
     assert exit_code == 0
 
-    captured = capsys.readouterr().out
+    captured = capsys.readouterr().out.strip()
+    assert captured
     report = json.loads(captured)
+
     assert report["should_run"] is True
-    assert report["dimensions"] == ["daily"]
+
     manifest = {entry["name"]: entry for entry in report["manifest"]}
-    assert "telemetry.ingest" in manifest["kafka"]["metadata"]["topics"]
-    assert manifest["redis"]["metadata"]["summary"].startswith("Redis")
+    assert manifest["timescale"]["configured"] is True
+    assert manifest["redis"]["configured"] is True
+    assert manifest["kafka"]["configured"] is True
+
+    connectivity = {entry["name"]: entry for entry in report["connectivity"]}
+    assert connectivity["timescale"]["healthy"] is True
+    assert "error" not in connectivity["timescale"]
+    assert connectivity["redis"]["healthy"] is True
+    assert "error" not in connectivity["redis"]
 
 
-def test_cli_markdown_with_connectivity(monkeypatch: pytest.MonkeyPatch, tmp_path, capsys: pytest.CaptureFixture[str]) -> None:
-    timescale_db = tmp_path / "timescale-connectivity.db"
-    monkeypatch.setenv("DATA_BACKBONE_MODE", "institutional")
-    monkeypatch.setenv("EMP_TIER", "tier_1")
-    monkeypatch.setenv("TIMESCALE_SYMBOLS", "AAPL")
-    monkeypatch.setenv("TIMESCALEDB_URL", f"sqlite:///{timescale_db}")
-    monkeypatch.setenv("KAFKA_BROKERS", "broker:9092")
+def test_managed_connectors_cli_reports_probe_failure(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    config = _build_config()
+    _patch_config(monkeypatch, config)
 
-    exit_code = main(["--format", "markdown", "--connectivity", "--timeout", "0.1"])
+    def failing_engine(self, *_args, **_kwargs):
+        raise OSError("timescale unreachable")
+
+    monkeypatch.setattr(
+        "src.data_foundation.persist.timescale.TimescaleConnectionSettings.create_engine",
+        failing_engine,
+    )
+
+    exit_code = mic.main(["--connectivity", "--format", "json"])
     assert exit_code == 0
 
-    output = capsys.readouterr().out
-    assert "# Institutional Ingest Managed Connectors" in output
-    assert "Managed Connectors" in output
-    assert "Connectivity" in output
+    report = json.loads(capsys.readouterr().out.strip())
+    connectivity = {entry["name"]: entry for entry in report["connectivity"]}
+    timescale_snapshot = connectivity["timescale"]
+    assert timescale_snapshot["healthy"] is False
+    assert "timescale unreachable" in timescale_snapshot["error"]

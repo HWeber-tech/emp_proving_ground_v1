@@ -94,6 +94,7 @@ async def test_connectivity_report_marks_probe_failure(monkeypatch: pytest.Monke
 
     result = await services.connectivity_report(probes={"timescale": failing_probe})
     assert result[0].healthy is False
+    assert result[0].error == "expected failure"
 
 
 @pytest.mark.asyncio

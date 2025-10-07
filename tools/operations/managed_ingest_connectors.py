@@ -215,7 +215,11 @@ def _render_markdown(report: Mapping[str, object]) -> str:
                 status_label = "unknown"
             else:
                 status_label = "healthy" if status else "unhealthy"
-            lines.append(f"- {snapshot.get('name')}: {status_label}")
+            line = f"- {snapshot.get('name')}: {status_label}"
+            error = snapshot.get("error")
+            if error:
+                line += f" - {error}"
+            lines.append(line)
     return "\n".join(lines)
 
 

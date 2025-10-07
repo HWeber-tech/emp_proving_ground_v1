@@ -320,11 +320,21 @@ class InstitutionalIngestServices:
             if probe is None:
                 return snapshot
 
+            def _format_probe_error(error: ConnectivityProbeError) -> str:
+                base_message = str(error) or f"{name} probe failed"
+                cause = error.__cause__ or error.__context__
+                if cause:
+                    cause_text = str(cause).strip()
+                    if cause_text:
+                        return f"{base_message}: {cause_text}"
+                return base_message
+
             try:
                 result = probe()
             except ConnectivityProbeError as exc:
-                _log_probe_failure(name, exc)
-                return snapshot.with_health(False)
+                message = _format_probe_error(exc)
+                _log_probe_failure(name, exc, message=message)
+                return snapshot.with_health(False, message)
             except Exception as exc:  # pragma: no cover - unexpected guardrail
                 logger.exception("Unexpected connectivity probe failure for %s", name, exc_info=exc)
                 raise
@@ -333,11 +343,13 @@ class InstitutionalIngestServices:
                 try:
                     awaited = await asyncio.wait_for(result, timeout=timeout)
                 except ConnectivityProbeError as exc:
-                    _log_probe_failure(name, exc)
-                    return snapshot.with_health(False)
+                    message = _format_probe_error(exc)
+                    _log_probe_failure(name, exc, message=message)
+                    return snapshot.with_health(False, message)
                 except asyncio.TimeoutError as exc:
-                    _log_probe_failure(name, exc, message=f"{name} connectivity probe timed out")
-                    return snapshot.with_health(False)
+                    message = f"{name} connectivity probe timed out after {timeout:.1f}s"
+                    _log_probe_failure(name, exc, message=message)
+                    return snapshot.with_health(False, message)
                 except Exception as exc:  # pragma: no cover - unexpected guardrail
                     logger.exception(
                         "Unexpected async connectivity probe failure for %s",
@@ -656,6 +668,7 @@ class ManagedConnectorSnapshot:
     supervised: bool
     metadata: Mapping[str, object]
     healthy: bool | None = None
+    error: str | None = None
 
     def as_dict(self) -> dict[str, object]:
         payload: dict[str, object] = {
@@ -666,15 +679,22 @@ class ManagedConnectorSnapshot:
         }
         if self.healthy is not None:
             payload["healthy"] = self.healthy
+        if self.error:
+            payload["error"] = self.error
         return payload
 
-    def with_health(self, healthy: bool | None) -> "ManagedConnectorSnapshot":
+    def with_health(
+        self,
+        healthy: bool | None,
+        error: str | None = None,
+    ) -> "ManagedConnectorSnapshot":
         return ManagedConnectorSnapshot(
             name=self.name,
             configured=self.configured,
             supervised=self.supervised,
             metadata=self.metadata,
             healthy=healthy,
+            error=error,
         )
 
 

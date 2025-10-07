@@ -19,7 +19,11 @@ from src.data_foundation.cache import ManagedRedisCache, RedisCachePolicy, wrap_
 from src.data_foundation.fabric.historical_connector import HistoricalReplayConnector
 from src.data_foundation.fabric.market_data_fabric import MarketDataConnector, MarketDataFabric
 from src.operations.bootstrap_control_center import BootstrapControlCenter
+from src.operations.event_bus_failover import EventPublishError
 from src.operations.roi import RoiCostModel
+from src.operations.sensory_drift import evaluate_sensory_drift, publish_sensory_drift
+from src.operations.sensory_metrics import build_sensory_metrics, publish_sensory_metrics
+from src.operations.sensory_summary import build_sensory_summary, publish_sensory_summary
 from src.orchestration.bootstrap_stack import BootstrapSensoryPipeline, BootstrapTradingStack
 from src.sensory.real_sensory_organ import RealSensoryOrgan, SensoryDriftConfig
 from src.runtime.task_supervisor import TaskSupervisor
@@ -213,6 +217,7 @@ class BootstrapRuntime:
             min_observations=6,
             sensors=("WHY", "WHAT", "WHEN", "HOW", "ANOMALY"),
         )
+        self._sensory_drift_config = drift_config
         self._sensory_cortex = RealSensoryOrgan(
             event_bus=event_bus,
             drift_config=drift_config,
@@ -268,7 +273,7 @@ class BootstrapRuntime:
                 as_of=record["timestamp"],
                 metadata=metadata,
             )
-            self._latest_sensory_metrics = self._sensory_cortex.metrics()
+            self._publish_sensory_outputs(snapshot)
         except Exception:  # pragma: no cover - defensive guard for telemetry path
             logger.debug("Failed to update sensory cortex observation", exc_info=True)
 
@@ -365,6 +370,126 @@ class BootstrapRuntime:
                 if release_payload:
                     status["release_posture"] = dict(release_payload)
         return status
+
+    def _publish_sensory_outputs(self, snapshot: Mapping[str, Any] | None) -> None:
+        status_payload: Mapping[str, Any] | None
+        try:
+            status_payload = self._sensory_cortex.status()
+        except Exception:
+            logger.debug("Failed to capture sensory status for bootstrap telemetry", exc_info=True)
+            status_payload = None
+
+        metrics_payload = None
+        try:
+            metrics_payload = self._sensory_cortex.metrics()
+        except Exception:
+            logger.debug(
+                "Failed to capture sensory metrics payload prior to publishing",
+                exc_info=True,
+            )
+
+        if isinstance(metrics_payload, Mapping):
+            self._latest_sensory_metrics = metrics_payload
+        else:
+            self._latest_sensory_metrics = None
+
+        summary = None
+        try:
+            summary = build_sensory_summary(status_payload)
+        except Exception:
+            logger.debug(
+                "Failed to build sensory summary for bootstrap runtime",
+                exc_info=True,
+            )
+        else:
+            try:
+                publish_sensory_summary(summary, event_bus=self.event_bus)
+            except EventPublishError:
+                logger.debug(
+                    "Failed to publish sensory summary during bootstrap runtime",
+                    exc_info=True,
+                )
+            except Exception:
+                logger.debug(
+                    "Unexpected error publishing sensory summary during bootstrap runtime",
+                    exc_info=True,
+                )
+
+            try:
+                metrics_dataclass = build_sensory_metrics(summary)
+            except Exception:
+                logger.debug(
+                    "Failed to build sensory metrics from summary during bootstrap runtime",
+                    exc_info=True,
+                )
+            else:
+                self._latest_sensory_metrics = metrics_dataclass.as_dict()
+                try:
+                    publish_sensory_metrics(metrics_dataclass, event_bus=self.event_bus)
+                except EventPublishError:
+                    logger.debug(
+                        "Failed to publish sensory metrics during bootstrap runtime",
+                        exc_info=True,
+                    )
+                except Exception:
+                    logger.debug(
+                        "Unexpected error publishing sensory metrics during bootstrap runtime",
+                        exc_info=True,
+                    )
+
+        audit_entries: list[Mapping[str, Any]]
+        try:
+            audit_entries = self._sensory_cortex.audit_trail(
+                limit=self._sensory_drift_config.required_samples()
+            )
+        except Exception:
+            logger.debug(
+                "Failed to collect sensory audit trail for drift telemetry",
+                exc_info=True,
+            )
+            return
+
+        if not audit_entries:
+            return
+
+        drift_metadata: dict[str, Any] = {
+            "runtime": "bootstrap",
+            "tick": self._tick_counter,
+        }
+
+        if isinstance(snapshot, Mapping):
+            symbol = snapshot.get("symbol")
+            if symbol is not None:
+                drift_metadata["symbol"] = symbol
+            generated_at = snapshot.get("generated_at")
+            if generated_at is not None:
+                drift_metadata["generated_at"] = generated_at
+
+        try:
+            drift_snapshot = evaluate_sensory_drift(
+                audit_entries,
+                lookback=self._sensory_drift_config.required_samples(),
+                metadata=drift_metadata,
+            )
+        except Exception:
+            logger.debug(
+                "Failed to evaluate sensory drift telemetry during bootstrap runtime",
+                exc_info=True,
+            )
+            return
+
+        try:
+            publish_sensory_drift(self.event_bus, drift_snapshot)
+        except EventPublishError:
+            logger.debug(
+                "Failed to publish sensory drift telemetry during bootstrap runtime",
+                exc_info=True,
+            )
+        except Exception:
+            logger.debug(
+                "Unexpected error publishing sensory drift telemetry during bootstrap runtime",
+                exc_info=True,
+            )
 
     async def start(self, *, task_supervisor: TaskSupervisor | None = None) -> None:
         if self.running:

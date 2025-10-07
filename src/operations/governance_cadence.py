@@ -47,6 +47,59 @@ RegulatorySnapshot = (
 )
 
 
+__all__ = [
+    "GovernanceCadenceRunner",
+    "build_governance_cadence_runner_from_config",
+]
+
+
+class _CadenceContextResolver:
+    """Resolve governance context packs alongside SystemConfig snapshots."""
+
+    def __init__(
+        self,
+        config_provider: Callable[[], SystemConfig],
+        *,
+        base_path: Path | None,
+    ) -> None:
+        self._config_provider = config_provider
+        self._base_path = base_path
+        self._context: GovernanceContextSources | None = None
+
+    def config(self) -> SystemConfig:
+        config = self._config_provider()
+        self._context = load_governance_context_from_config(
+            config,
+            base_path=self._base_path,
+        )
+        return config
+
+    def _ensure_context(self) -> GovernanceContextSources:
+        if self._context is None:
+            # Loading the config refreshes the cached context.
+            self.config()
+        assert self._context is not None
+        return self._context
+
+    def compliance(self) -> GovernanceSnapshot:
+        return self._ensure_context().compliance
+
+    def regulatory(self) -> RegulatorySnapshot:
+        return self._ensure_context().regulatory
+
+    def audit(self) -> Mapping[str, object] | None:
+        return self._ensure_context().audit
+
+    def context_paths(self) -> Mapping[str, Path | None]:
+        if self._context is None:
+            return {}
+        return {
+            "compliance": self._context.compliance_path,
+            "regulatory": self._context.regulatory_path,
+            "audit": self._context.audit_path,
+        }
+
+
 def _parse_timestamp(value: object | None) -> datetime | None:
     if value is None:
         return None
@@ -166,3 +219,118 @@ class GovernanceCadenceRunner:
         self.persister(report, self.report_path, self.history_limit)
         self._last_generated_at = report.generated_at
         return report
+
+
+def build_governance_cadence_runner_from_config(
+    *,
+    event_bus: EventBus,
+    report_path: Path,
+    interval: timedelta,
+    config: SystemConfig | None = None,
+    config_provider: Callable[[], SystemConfig] | None = None,
+    base_path: Path | None = None,
+    history_limit: int = 12,
+    compliance_provider: Callable[[], GovernanceSnapshot] | None = None,
+    regulatory_provider: Callable[[], RegulatorySnapshot] | None = None,
+    audit_collector: Callable[[SystemConfig, str | None], Mapping[str, object] | None]
+    | None = None,
+    metadata: Mapping[str, object] | None = None,
+    metadata_provider: Callable[[], Mapping[str, object] | None] | None = None,
+    strategy_id: str | None = None,
+    strategy_id_provider: Callable[[], str | None] | None = None,
+    publisher: Callable[[EventBus, GovernanceReport], None] | None = None,
+) -> GovernanceCadenceRunner:
+    """Build a cadence runner wired to governance context packs.
+
+    Parameters mirror :class:`GovernanceCadenceRunner` with convenience hooks for
+    configuration-driven context resolution.  The caller may supply either a
+    ``config`` instance or a ``config_provider`` callable; when neither is
+    provided the environment-backed :meth:`SystemConfig.from_env` loader is
+    used.  Compliance, regulatory, and audit telemetry fall back to the JSON
+    context packs referenced by ``SystemConfig.extras``.
+    """
+
+    if config is not None and config_provider is not None:
+        raise ValueError("Provide either config or config_provider, not both")
+
+    if config_provider is None:
+        if config is not None:
+            config_provider_fn: Callable[[], SystemConfig] = lambda: config
+        else:
+            config_provider_fn = lambda: SystemConfig.from_env()
+    else:
+        config_provider_fn = config_provider
+
+    resolver = _CadenceContextResolver(
+        config_provider_fn,
+        base_path=base_path,
+    )
+
+    config_callable = resolver.config
+
+    compliance_callable = compliance_provider or resolver.compliance
+    regulatory_callable = regulatory_provider or resolver.regulatory
+
+    def _audit_collector(
+        config_obj: SystemConfig, strategy_id_value: str | None
+    ) -> Mapping[str, object] | None:
+        if audit_collector is not None:
+            return audit_collector(config_obj, strategy_id_value)
+        context_payload = resolver.audit()
+        if context_payload is not None:
+            return context_payload
+        return collect_audit_evidence(config_obj, strategy_id=strategy_id_value)
+
+    base_metadata = dict(metadata or {})
+
+    def _metadata_callable() -> Mapping[str, object] | None:
+        merged: dict[str, object] = dict(base_metadata)
+
+        if metadata_provider is not None:
+            extra = metadata_provider()
+            if isinstance(extra, Mapping):
+                for key, value in extra.items():
+                    merged[str(key)] = value
+
+        context_paths = {
+            key: path
+            for key, path in resolver.context_paths().items()
+            if path is not None
+        }
+        if context_paths:
+            merged.setdefault("source", "governance_context")
+            existing = merged.get("context_sources")
+            context_metadata: dict[str, str] = {}
+            if isinstance(existing, Mapping):
+                context_metadata.update(
+                    {str(key): str(value) for key, value in existing.items()}
+                )
+            context_metadata.update({key: str(path) for key, path in context_paths.items()})
+            merged["context_sources"] = context_metadata
+
+        return merged or None
+
+    if strategy_id is not None and strategy_id_provider is not None:
+        raise ValueError(
+            "Provide either strategy_id or strategy_id_provider, not both"
+        )
+
+    resolved_strategy_provider = strategy_id_provider
+    if resolved_strategy_provider is None and strategy_id is not None:
+        resolved_strategy_provider = lambda: strategy_id
+
+    publisher_callable = publisher or publish_governance_report
+
+    return GovernanceCadenceRunner(
+        event_bus=event_bus,
+        config_provider=config_callable,
+        compliance_provider=compliance_callable,
+        regulatory_provider=regulatory_callable,
+        report_path=report_path,
+        interval=interval,
+        history_limit=history_limit,
+        strategy_id_provider=resolved_strategy_provider,
+        metadata_provider=_metadata_callable,
+        audit_collector=_audit_collector,
+        publisher=publisher_callable,
+    )

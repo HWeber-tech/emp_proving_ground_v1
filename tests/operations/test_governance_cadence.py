@@ -189,3 +189,103 @@ def test_governance_cadence_force_overrides_interval(tmp_path: Path) -> None:
     assert report is not None
     assert runner.last_generated_at == reference
     assert len(bus.events) == 1
+
+
+def test_build_governance_cadence_runner_from_config(tmp_path: Path) -> None:
+    compliance_path = tmp_path / "compliance.json"
+    compliance_path.write_text(
+        json.dumps(
+            {
+                "status": "ok",
+                "components": [
+                    {
+                        "name": "kyc_aml",
+                        "status": "ok",
+                        "summary": "KYC monitors stable",
+                        "metadata": {"open_cases": 0},
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    regulatory_path = tmp_path / "regulatory.json"
+    regulatory_path.write_text(
+        json.dumps(
+            {
+                "generated_at": "2024-03-01T12:00:00+00:00",
+                "status": "ok",
+                "coverage_ratio": 1.0,
+                "required_domains": ["kyc_aml"],
+                "missing_domains": [],
+                "signals": [
+                    {
+                        "name": "kyc_aml",
+                        "status": "ok",
+                        "summary": "Telemetry green",
+                        "observed_at": "2024-03-01T12:00:00+00:00",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    audit_path = tmp_path / "audit.json"
+    audit_path.write_text(
+        json.dumps(
+            {
+                "metadata": {"configured": True, "dialect": "sqlite"},
+                "compliance": {"stats": {"total_records": 5}},
+                "kyc": {"stats": {"total_cases": 2}},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    report_path = tmp_path / "reports" / "governance.json"
+
+    config = SystemConfig(
+        extras={
+            "GOVERNANCE_CONTEXT_DIR": str(tmp_path),
+            "GOVERNANCE_COMPLIANCE_CONTEXT": "compliance.json",
+            "GOVERNANCE_REGULATORY_CONTEXT": "regulatory.json",
+            "GOVERNANCE_AUDIT_CONTEXT": "audit.json",
+        }
+    )
+
+    bus = _StubEventBus()
+
+    runner = build_governance_cadence_runner_from_config(
+        event_bus=bus,
+        config=config,
+        report_path=report_path,
+        interval=timedelta(hours=12),
+        base_path=tmp_path,
+        history_limit=2,
+        metadata={"owner": "ops"},
+    )
+
+    reference = datetime(2024, 3, 2, tzinfo=UTC)
+    report = runner.run(reference=reference, force=True)
+
+    assert report is not None
+    assert report.status is GovernanceReportStatus.ok
+    assert report.metadata["owner"] == "ops"
+    assert report.metadata["source"] == "governance_context"
+    context_sources = report.metadata["context_sources"]
+    assert context_sources["compliance"].endswith("compliance.json")
+    assert context_sources["regulatory"].endswith("regulatory.json")
+    assert context_sources["audit"].endswith("audit.json")
+
+    audit_section = next(
+        section for section in report.sections if section.name == "audit_storage"
+    )
+    assert "records=5" in audit_section.summary
+
+    persisted = json.loads(report_path.read_text(encoding="utf-8"))
+    assert persisted["latest"]["status"] == GovernanceReportStatus.ok.value
+
+    assert runner.last_generated_at == reference
+    assert len(bus.events) == 1

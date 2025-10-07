@@ -22,7 +22,7 @@ import logging
 import os
 import time
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any, Iterable, Mapping, Sequence, cast
 from uuid import uuid4
 
@@ -1233,6 +1233,7 @@ class TimescaleComplianceJournal:
         self,
         *,
         strategy_id: str | None = None,
+        recent: timedelta | None = timedelta(hours=24),
     ) -> dict[str, Any]:
         """Aggregate compliance audit journal statistics."""
 
@@ -1259,6 +1260,22 @@ class TimescaleComplianceJournal:
             passed = int(mapping.get("passed_records") or 0)
             failed = max(total - passed, 0)
             last_recorded = _normalise_timestamp(mapping.get("last_recorded_at"))
+
+            recent_records: int | None = None
+            recent_window_seconds: int | None = None
+            if recent is not None and recent.total_seconds() > 0:
+                cutoff = datetime.now(tz=UTC) - recent
+                recent_stmt = select(func.count().label("recent_records"))
+                for condition in conditions:
+                    recent_stmt = recent_stmt.where(condition)
+                recent_stmt = recent_stmt.where(table.c.recorded_at >= cutoff)
+                recent_row = conn.execute(recent_stmt).first()
+                if recent_row is not None:
+                    recent_mapping = _ensure_mapping(recent_row)
+                    recent_records = int(recent_mapping.get("recent_records") or 0)
+                else:
+                    recent_records = 0
+                recent_window_seconds = int(recent.total_seconds())
 
             severity_stmt = select(
                 table.c.worst_severity,
@@ -1301,6 +1318,8 @@ class TimescaleComplianceJournal:
             "last_recorded_at": last_recorded,
             "severity_counts": severity_counts,
             "status_counts": status_counts,
+            "recent_records": recent_records,
+            "recent_window_seconds": recent_window_seconds,
         }
 
     def close(self) -> None:
@@ -1600,6 +1619,7 @@ class TimescaleKycJournal:
         *,
         strategy_id: str | None = None,
         entity_id: str | None = None,
+        recent: timedelta | None = timedelta(hours=24),
     ) -> dict[str, Any]:
         """Aggregate KYC case statistics for governance evidence."""
 
@@ -1623,6 +1643,22 @@ class TimescaleKycJournal:
 
             total_cases = int(mapping.get("total_cases") or 0)
             last_recorded = _normalise_timestamp(mapping.get("last_recorded_at"))
+
+            recent_cases: int | None = None
+            recent_window_seconds: int | None = None
+            if recent is not None and recent.total_seconds() > 0:
+                cutoff = datetime.now(tz=UTC) - recent
+                recent_stmt = select(func.count().label("recent_cases"))
+                for condition in conditions:
+                    recent_stmt = recent_stmt.where(condition)
+                recent_stmt = recent_stmt.where(table.c.recorded_at >= cutoff)
+                recent_row = conn.execute(recent_stmt).first()
+                if recent_row is not None:
+                    recent_mapping = _ensure_mapping(recent_row)
+                    recent_cases = int(recent_mapping.get("recent_cases") or 0)
+                else:
+                    recent_cases = 0
+                recent_window_seconds = int(recent.total_seconds())
 
             status_stmt = select(
                 table.c.status,
@@ -1661,6 +1697,8 @@ class TimescaleKycJournal:
             "last_recorded_at": last_recorded,
             "status_counts": status_counts,
             "risk_rating_counts": risk_counts,
+            "recent_cases": recent_cases,
+            "recent_window_seconds": recent_window_seconds,
         }
 
     def close(self) -> None:

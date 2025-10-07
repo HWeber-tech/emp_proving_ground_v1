@@ -133,6 +133,7 @@ def test_collect_audit_evidence_records_errors() -> None:
 
     evidence = collect_audit_evidence(
         config,
+        strategy_id="alpha",
         journal_factories={
             "compliance": lambda _: _StubJournal(stats=compliance_stats),
             "kyc": lambda _: _StubJournal(
@@ -142,6 +143,8 @@ def test_collect_audit_evidence_records_errors() -> None:
     )
 
     assert evidence["metadata"]["dialect"] == "sqlite"
+    assert evidence["metadata"]["strategy_id"] == "alpha"
+    assert "collected_at" in evidence["metadata"]
     assert evidence["compliance"]["stats"] == compliance_stats
     assert "error" in evidence["kyc"]
     assert "errors" in evidence["metadata"]
@@ -181,6 +184,38 @@ def test_persist_governance_report_trims_history(tmp_path: Path) -> None:
     assert len(payload["history"]) == 2
     statuses = [entry["metadata"]["status"] for entry in payload["history"]]
     assert statuses == [GovernanceReportStatus.warn.value, GovernanceReportStatus.fail.value]
+
+
+def test_audit_section_marks_stale_journals() -> None:
+    stale_audit = {
+        "metadata": {"configured": True, "dialect": "sqlite"},
+        "compliance": {
+            "stats": {
+                "total_records": 5,
+                "recent_records": 0,
+                "recent_window_seconds": 86_400,
+                "last_recorded_at": "2023-01-01T00:00:00+00:00",
+            }
+        },
+        "kyc": {
+            "stats": {
+                "total_cases": 2,
+                "recent_cases": 0,
+                "recent_window_seconds": 86_400,
+                "last_recorded_at": "2023-01-01T00:00:00+00:00",
+            }
+        },
+    }
+
+    report = generate_governance_report(
+        compliance_readiness=None,
+        regulatory_snapshot=None,
+        audit_evidence=stale_audit,
+    )
+
+    audit_section = next(section for section in report.sections if section.name == "audit_storage")
+    assert audit_section.status is GovernanceReportStatus.warn
+    assert "stale" in audit_section.summary.lower()
 
 
 def test_publish_governance_report_falls_back_to_global_bus() -> None:

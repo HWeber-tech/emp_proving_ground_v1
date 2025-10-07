@@ -316,6 +316,23 @@ def _coerce_int(value: object | None) -> int:
         return 0
 
 
+def _parse_timestamp(value: object | None) -> datetime | None:
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return value.astimezone(UTC) if value.tzinfo else value.replace(tzinfo=UTC)
+    if isinstance(value, str):
+        text = value.strip()
+        if not text:
+            return None
+        try:
+            parsed = datetime.fromisoformat(text)
+        except ValueError:
+            return None
+        return parsed.astimezone(UTC) if parsed.tzinfo else parsed.replace(tzinfo=UTC)
+    return None
+
+
 def _section_from_audit_evidence(evidence: Mapping[str, object] | None) -> GovernanceReportSection:
     if evidence is None:
         return GovernanceReportSection(
@@ -361,6 +378,24 @@ def _section_from_audit_evidence(evidence: Mapping[str, object] | None) -> Gover
         else:
             summary_parts.append(f"{key} journal records={total}")
 
+        recent_key = None
+        for candidate in ("recent_records", "recent_cases", "recent_entries"):
+            if candidate in stats:
+                recent_key = candidate
+                break
+        if recent_key is not None:
+            recent_total = _coerce_int(stats.get(recent_key))
+            if recent_total <= 0:
+                status = _escalate(status, GovernanceReportStatus.warn)
+                last_recorded_raw = stats.get("last_recorded_at")
+                last_recorded = _parse_timestamp(last_recorded_raw)
+                stale_message = f"{key} journal stale"
+                if last_recorded is not None:
+                    age = datetime.now(tz=UTC) - last_recorded
+                    hours = max(age.total_seconds() / 3600.0, 0.0)
+                    stale_message += f" (last {hours:.1f}h ago)"
+                summary_parts.append(stale_message)
+
     if not errors:
         _summarise_block(compliance, key="compliance")
         _summarise_block(kyc, key="kyc")
@@ -403,6 +438,9 @@ def collect_audit_evidence(
         "configured": settings.configured,
         "dialect": "postgresql" if settings.is_postgres() else "sqlite",
     }
+    metadata["collected_at"] = datetime.now(tz=UTC).isoformat()
+    if strategy_id is not None:
+        metadata["strategy_id"] = strategy_id
 
     factories = journal_factories or {
         "compliance": lambda s: TimescaleComplianceJournal(s.create_engine()),
@@ -696,4 +734,3 @@ def build_governance_report_from_config(
         publish_governance_report(event_bus, report)
 
     return report
-

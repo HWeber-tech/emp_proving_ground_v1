@@ -106,11 +106,14 @@ def test_timescale_compliance_journal_summarise(tmp_path) -> None:
     assert summary_all["failed_records"] == 1
     assert summary_all["severity_counts"]["error"] == 1
     assert summary_all["status_counts"]["REJECTED"] == 1
+    assert summary_all["recent_records"] == 2
+    assert summary_all["recent_window_seconds"] == 24 * 3600
 
     summary_alpha = journal.summarise(strategy_id="alpha")
     assert summary_alpha["total_records"] == 1
     assert summary_alpha["passed_records"] == 1
     assert summary_alpha["failed_records"] == 0
+    assert summary_alpha["recent_records"] == 1
 
     journal.close()
 
@@ -198,9 +201,12 @@ def test_timescale_kyc_journal_summarise(tmp_path) -> None:
     assert summary_all["status_counts"]["APPROVED"] == 1
     assert summary_all["status_counts"]["ESCALATED"] == 1
     assert summary_all["risk_rating_counts"]["CRITICAL"] == 1
+    assert summary_all["recent_cases"] == 2
+    assert summary_all["recent_window_seconds"] == 24 * 3600
 
     summary_alpha = journal.summarise(strategy_id="alpha")
     assert summary_alpha["total_cases"] == 1
     assert summary_alpha["status_counts"]["APPROVED"] == 1
+    assert summary_alpha["recent_cases"] == 1
 
     journal.close()

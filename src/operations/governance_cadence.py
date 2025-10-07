@@ -18,18 +18,21 @@ used by other operational modules.
 from __future__ import annotations
 
 import json
+import inspect
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Callable, Mapping, MutableMapping
+from typing import Callable, Mapping, MutableMapping, Optional, TypeVar, cast
 
 from src.core.event_bus import EventBus
 from src.governance.system_config import SystemConfig
 from src.operations.compliance_readiness import ComplianceReadinessSnapshot
 from src.operations.governance_reporting import (
+    GovernanceContextSources,
     GovernanceReport,
     collect_audit_evidence,
     generate_governance_report,
+    load_governance_context_from_config,
     persist_governance_report,
     publish_governance_report,
     should_generate_report,

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Mapping
@@ -10,7 +11,10 @@ from src.operations.compliance_readiness import (
     ComplianceReadinessSnapshot,
     ComplianceReadinessStatus,
 )
-from src.operations.governance_cadence import GovernanceCadenceRunner
+from src.operations.governance_cadence import (
+    GovernanceCadenceRunner,
+    build_governance_cadence_runner_from_config,
+)
 from src.operations.governance_reporting import GovernanceReportStatus
 from src.operations.regulatory_telemetry import (
     RegulatoryTelemetrySnapshot,

@@ -54,6 +54,10 @@ runtime output so the context stays anchored to the concept blueprint.
   weekly), `collect_audit_evidence` to hydrate Timescale journals, and persist the
   JSON bundle so reviewers can trace changes over time without ad-hoc exports.
   【F:src/operations/governance_reporting.py†L1-L520】
+- `build_governance_cadence_runner_from_config` wires the cadence runner to the
+  JSON context packs referenced by `SystemConfig.extras`, enabling overrides for
+  live telemetry while still falling back to the packaged compliance/regulatory
+  artefacts under pytest coverage.【F:src/operations/governance_cadence.py†L200-L336】【F:tests/operations/test_governance_cadence.py†L1-L220】
 - The workflow metadata mirrors ingest success and readiness status so operators
   can correlate regulatory blockers with underlying data backbone issues.
 - Extend the default tasks with desk-specific controls by feeding additional

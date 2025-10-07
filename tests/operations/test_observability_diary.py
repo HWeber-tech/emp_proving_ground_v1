@@ -5,7 +5,7 @@ import enum as _enum
 import importlib.util
 import sys
 import types
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -43,6 +43,13 @@ if "src.operations" not in sys.modules:
     sys.modules["src.operations"] = ops_pkg
 else:
     sys.modules["src.operations"].__path__ = [str(SRC_DIR / "operations")]  # type: ignore[attr-defined]
+
+if "src.governance" not in sys.modules:
+    governance_pkg = types.ModuleType("src.governance")
+    governance_pkg.__path__ = [str(SRC_DIR / "governance")]
+    sys.modules["src.governance"] = governance_pkg
+else:
+    sys.modules["src.governance"].__path__ = [str(SRC_DIR / "governance")]  # type: ignore[attr-defined]
 
 
 core_event_bus = types.ModuleType("src.core.event_bus")
@@ -90,13 +97,22 @@ def _load_module(module_name: str, path: Path) -> None:
 
 
 _load_module("src.operations.event_bus_failover", SRC_DIR / "operations" / "event_bus_failover.py")
+_load_module("src.governance.policy_ledger", SRC_DIR / "governance" / "policy_ledger.py")
 _load_module("src.operations.observability_diary", SRC_DIR / "operations" / "observability_diary.py")
 
 from src.operations.observability_diary import (  # noqa: E402  (module loaded dynamically)
     DecisionNarrationCapsule,
     PolicyLedgerDiff,
     build_decision_narration_capsule,
+    build_decision_narration_from_ledger,
+    derive_policy_ledger_diff,
     publish_decision_narration_capsule,
+    publish_decision_narration_from_ledger,
+)
+from src.governance.policy_ledger import (  # noqa: E402  (module loaded dynamically)
+    PolicyDelta,
+    PolicyLedgerRecord,
+    PolicyLedgerStage,
 )
 
 
@@ -250,3 +266,103 @@ def test_policy_ledger_diff_instance_passthrough() -> None:
     )
     assert capsule.policy_diffs == (diff,)
     assert isinstance(capsule, DecisionNarrationCapsule)
+
+
+def _ledger_records() -> tuple[PolicyLedgerRecord, PolicyLedgerRecord]:
+    created_at = datetime(2024, 6, 1, 0, tzinfo=UTC)
+    previous = PolicyLedgerRecord(
+        policy_id="alpha.policy",
+        tactic_id="tactic-01",
+        stage=PolicyLedgerStage.EXPERIMENT,
+        approvals=("ops",),
+        metadata={"owner": "alpha"},
+        created_at=created_at,
+        updated_at=created_at,
+    )
+    delta = PolicyDelta(
+        regime="balanced",
+        regime_confidence=0.78,
+        risk_config={"max_notional": 50_000.0},
+        router_guardrails={"max_trade": 5_000.0},
+        notes=("tightened limit",),
+        metadata={"ticket": "AUTH-99"},
+    )
+    current = previous.with_stage(
+        PolicyLedgerStage.PAPER,
+        approvals=("risk", "compliance"),
+        evidence_id="EVID-123",
+        threshold_overrides={"warn_confidence_floor": 0.72},
+        policy_delta=delta,
+        metadata={"owner": "alpha", "review_cycle": "weekly"},
+        timestamp=created_at + timedelta(hours=4),
+    )
+    return previous, current
+
+
+def test_derive_policy_ledger_diff_with_previous_record() -> None:
+    previous, current = _ledger_records()
+
+    diff = derive_policy_ledger_diff(current, previous_record=previous)
+
+    assert diff.policy_id == current.policy_id
+    assert diff.change_type == "stage::experiment->paper"
+    assert diff.before == {"stage": "experiment", "metadata": {"owner": "alpha"}}
+    assert diff.after["stage"] == "paper"
+    assert "policy_delta" in diff.after
+    assert diff.metadata["tactic_id"] == current.tactic_id
+    assert diff.metadata["evidence_id"] == "EVID-123"
+    assert "tightened limit" in diff.notes
+
+
+def test_build_decision_narration_from_ledger_includes_metadata_and_notes() -> None:
+    previous, current = _ledger_records()
+
+    capsule = build_decision_narration_from_ledger(
+        capsule_id="capsule-123",
+        record=current,
+        sigma_metrics={
+            "symbol": "EURUSD",
+            "sigma_before": 0.24,
+            "sigma_after": 0.21,
+            "sigma_target": 0.20,
+            "stability_index": 0.93,
+        },
+        throttle_states=[
+            {"name": "volatility", "state": "reduced", "active": True, "multiplier": 0.7},
+        ],
+        window_start="2024-06-01T03:30:00+00:00",
+        window_end="2024-06-01T04:00:00+00:00",
+        generated_at=datetime(2024, 6, 1, 4, tzinfo=UTC),
+        previous_record=previous,
+        notes=["Manual review complete"],
+        metadata={"review_cycle": "weekly"},
+    )
+
+    assert capsule.metadata["policy_id"] == current.policy_id
+    assert capsule.metadata["stage"] == "paper"
+    assert capsule.metadata["review_cycle"] == "weekly"
+    assert "alpha" in capsule.metadata["ledger_metadata"]["owner"]
+    assert "tightened limit" in capsule.notes
+    assert "Manual review complete" in capsule.notes
+    assert capsule.policy_diffs[0].change_type == "stage::experiment->paper"
+
+
+def test_publish_decision_narration_from_ledger_publishes_event() -> None:
+    previous, current = _ledger_records()
+    bus = _StubEventBus()
+    topic_bus = _StubTopicBus()
+
+    capsule = publish_decision_narration_from_ledger(
+        bus,
+        capsule_id="capsule-456",
+        record=current,
+        sigma_metrics={"symbol": "EURUSD", "sigma_before": 0.25, "sigma_after": 0.22},
+        throttle_states=[],
+        previous_record=previous,
+        global_bus_factory=lambda: topic_bus,
+    )
+
+    assert bus.events
+    event = bus.events[0]
+    assert event.payload["capsule"]["capsule_id"] == capsule.capsule_id
+    assert topic_bus.events == []

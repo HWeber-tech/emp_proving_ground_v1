@@ -205,8 +205,11 @@ from .observability_diary import (
     PolicyLedgerDiff,
     SigmaStabilitySnapshot,
     ThrottleStateSnapshot,
+    build_decision_narration_from_ledger,
     build_decision_narration_capsule,
+    derive_policy_ledger_diff,
     publish_decision_narration_capsule,
+    publish_decision_narration_from_ledger,
 )
 from .operational_readiness import (
     OperationalReadinessComponent,

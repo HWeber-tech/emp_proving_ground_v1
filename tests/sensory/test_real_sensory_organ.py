@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
-from typing import Any
+from typing import Any, Mapping
 
 import pandas as pd
 
@@ -114,6 +114,19 @@ def test_real_sensory_organ_observe_builds_snapshot() -> None:
     assert "drift_summary" in payload
     assert payload["drift_summary"] is None
 
+    status = organ.status()
+    latest = status["latest"]
+    assert isinstance(latest, Mapping)
+    how_summary = latest["dimensions"]["HOW"]
+    assert "metadata" in how_summary
+    assert "audit" in how_summary["metadata"]
+
+    metrics = organ.metrics()
+    how_metrics = metrics["dimensions"]["HOW"]
+    telemetry = how_metrics.get("telemetry")
+    assert telemetry is not None
+    assert "audit_liquidity" in telemetry
+
 
 def test_real_sensory_organ_handles_empty_frame() -> None:
     organ = RealSensoryOrgan()
@@ -167,6 +180,7 @@ def test_real_sensory_organ_metrics_exposes_dimension_state() -> None:
     how_metrics = dimensions["HOW"]
     assert "signal" in how_metrics
     assert "threshold_state" in how_metrics
+    assert "telemetry" in how_metrics
 
 
 def test_real_sensory_organ_wires_lineage_publisher() -> None:

@@ -32,12 +32,20 @@ def _sample_status() -> dict[str, Any]:
                 "HOW": {
                     "signal": 0.22,
                     "confidence": 0.55,
-                    "metadata": {"state": "nominal", "threshold_assessment": {"state": "nominal"}},
+                    "metadata": {
+                        "state": "nominal",
+                        "threshold_assessment": {"state": "nominal"},
+                        "audit": {"liquidity": 0.42, "participation": 0.58},
+                    },
                 },
                 "ANOMALY": {
                     "signal": -0.6,
                     "confidence": 0.65,
-                    "metadata": {"state": "alert", "threshold_assessment": {"state": "alert"}},
+                    "metadata": {
+                        "state": "alert",
+                        "threshold_assessment": {"state": "alert"},
+                        "audit": {"baseline": 0.12, "dispersion": 0.08},
+                    },
                 },
             },
         },
@@ -87,8 +95,12 @@ def test_build_sensory_metrics_from_status_focuses_on_dimensions() -> None:
     how_metric = {metric.name: metric for metric in metrics.dimensions}["HOW"]
     assert how_metric.state == "nominal"
     assert how_metric.threshold_state == "nominal"
+    assert how_metric.telemetry["audit_liquidity"] == pytest.approx(0.42)
 
     assert metrics.drift_alerts == ("ANOMALY",)
+
+    anomaly_metric = {metric.name: metric for metric in metrics.dimensions}["ANOMALY"]
+    assert anomaly_metric.telemetry["audit_baseline"] == pytest.approx(0.12)
 
 
 def test_publish_sensory_metrics_uses_event_bus() -> None:

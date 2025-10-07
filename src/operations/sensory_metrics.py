@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Callable, Iterable, Mapping, MutableMapping, Sequence
+from typing import Any, Callable, Iterable, Mapping, MutableMapping, Sequence
 
 from src.core.event_bus import Event, EventBus, TopicBus
 from src.operations.event_bus_failover import publish_event_with_failover
@@ -32,6 +32,7 @@ class DimensionMetric:
     confidence: float | None
     state: str | None
     threshold_state: str | None
+    telemetry: Mapping[str, float]
 
     def as_dict(self) -> Mapping[str, object]:
         payload: MutableMapping[str, object] = {"name": self.name}
@@ -43,6 +44,8 @@ class DimensionMetric:
             payload["state"] = self.state
         if self.threshold_state is not None:
             payload["threshold_state"] = self.threshold_state
+        if self.telemetry:
+            payload["telemetry"] = dict(self.telemetry)
         return payload
 
 
@@ -90,6 +93,7 @@ def build_sensory_metrics(summary: SensorySummary) -> SensoryMetrics:
             confidence=dimension.confidence,
             state=dimension.state,
             threshold_state=dimension.threshold_state,
+            telemetry=_extract_numeric_telemetry(dimension.metadata),
         )
         for dimension in summary.dimensions
     )
@@ -141,6 +145,43 @@ def publish_sensory_metrics(
         global_unexpected_message="Unexpected error publishing sensory metrics via global bus",
         global_bus_factory=global_bus_factory,  # type: ignore[arg-type]
     )
+
+
+def _extract_numeric_telemetry(metadata: Mapping[str, Any]) -> Mapping[str, float]:
+    if not metadata:
+        return {}
+
+    metrics: dict[str, float] = {}
+    sections = (
+        ("audit", "audit"),
+        ("threshold_assessment", "threshold"),
+        ("order_book", "order_book"),
+        ("telemetry", "telemetry"),
+    )
+
+    for key, prefix in sections:
+        payload = metadata.get(key)
+        if isinstance(payload, Mapping):
+            _harvest_numeric(payload, metrics, prefix)
+
+    return metrics
+
+
+def _harvest_numeric(
+    payload: Mapping[str, Any],
+    metrics: MutableMapping[str, float],
+    prefix: str,
+) -> None:
+    for key, value in payload.items():
+        label = f"{prefix}_{key}" if prefix else str(key)
+        if isinstance(value, (int, float)):
+            metrics[label] = float(value)
+        elif isinstance(value, Mapping):
+            # Only recurse one additional level to avoid exploding payload size.
+            nested_prefix = f"{label}"
+            for nested_key, nested_value in value.items():
+                if isinstance(nested_value, (int, float)):
+                    metrics[f"{nested_prefix}_{nested_key}"] = float(nested_value)
 
 
 def _extract_drift_alerts(summary: SensorySummary) -> tuple[str, ...]:

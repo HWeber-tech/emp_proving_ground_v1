@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import time
 from types import SimpleNamespace
 
@@ -11,7 +12,34 @@ from src.operational.mock_fix import (
     MockMarketDataStep,
     MockOrderBookLevel,
     MockOrderInfo,
+    _coerce_optional_bool,
+    _coerce_optional_fix_date,
+    _coerce_optional_float,
+    _coerce_optional_str,
+    _coerce_order_book_level,
 )
+
+
+def test_mock_fix_coercers_harden_against_invalid_bytes():
+    assert _coerce_optional_float(b"\xff", default=3.14) == pytest.approx(3.14)
+    assert _coerce_optional_str(b"\xff", default="fallback") == "fallback"
+    assert _coerce_optional_bool(b"\xff") is None
+    assert _coerce_optional_fix_date(float("nan")) is None
+
+
+def test_mock_fix_order_book_coercion_logs_on_failure(caplog):
+    class FaultyLevel:
+        @property
+        def price(self):
+            raise RuntimeError("boom")
+
+        @property
+        def size(self):
+            return 1.0
+
+    caplog.set_level(logging.DEBUG, logger="src.operational.mock_fix")
+    assert _coerce_order_book_level(FaultyLevel()) is None
+    assert any("Failed to coerce order book" in message for message in caplog.messages)
 
 
 def test_mock_fix_emits_enriched_order_info_and_telemetry():

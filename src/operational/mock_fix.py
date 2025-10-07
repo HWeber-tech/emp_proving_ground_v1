@@ -240,10 +240,7 @@ def _coerce_optional_float(
     if value is None:
         return default
     if isinstance(value, (bytes, bytearray)):
-        try:
-            value = value.decode("ascii", "ignore")
-        except Exception:
-            return default
+        value = value.decode("ascii", "ignore")
     try:
         return float(value)
     except (TypeError, ValueError):
@@ -254,10 +251,7 @@ def _coerce_optional_str(value: object | None, *, default: str | None = None) ->
     if value is None:
         return default
     if isinstance(value, (bytes, bytearray)):
-        try:
-            value = value.decode("utf-8", "ignore")
-        except Exception:
-            return default
+        value = value.decode("utf-8", "ignore")
     text = str(value).strip()
     return text or default
 
@@ -268,10 +262,7 @@ def _coerce_optional_fix_date(value: object | None) -> str | None:
     if value is None:
         return None
     if isinstance(value, (bytes, bytearray)):
-        try:
-            value = value.decode("utf-8", "ignore")
-        except Exception:
-            return None
+        value = value.decode("utf-8", "ignore")
     if isinstance(value, datetime):
         return value.strftime("%Y%m%d")
     if isinstance(value, date):
@@ -279,7 +270,7 @@ def _coerce_optional_fix_date(value: object | None) -> str | None:
     if isinstance(value, (int, float)):
         try:
             return f"{int(value):08d}"
-        except Exception:
+        except (OverflowError, TypeError, ValueError):
             return None
     text = str(value).strip()
     if not text:
@@ -300,10 +291,7 @@ def _coerce_optional_bool(value: object | None) -> bool | None:
     if isinstance(value, (int, float)):
         return bool(value)
     if isinstance(value, (bytes, bytearray)):
-        try:
-            value = value.decode("utf-8", "ignore")
-        except Exception:
-            return None
+        value = value.decode("utf-8", "ignore")
     text = str(value).strip().lower()
     if text in {"1", "true", "yes", "y"}:
         return True
@@ -358,11 +346,20 @@ def _coerce_repetition(value: SupportsFloat | str | bytes | None) -> int | None:
 
 
 def _coerce_order_book_level(value: object) -> MockOrderBookLevel | None:
-    if isinstance(value, OrderBookLevelProtocol):
-        return MockOrderBookLevel(
-            price=_coerce_float(getattr(value, "price", 0.0)),
-            size=_coerce_float(getattr(value, "size", 0.0)),
+    try:
+        if isinstance(value, OrderBookLevelProtocol):
+            return MockOrderBookLevel(
+                price=_coerce_float(getattr(value, "price", 0.0)),
+                size=_coerce_float(getattr(value, "size", 0.0)),
+            )
+    except Exception as exc:
+        logger.debug(
+            "Failed to coerce order book protocol instance %s: %s",
+            value,
+            exc,
+            exc_info=exc,
         )
+        return None
     if isinstance(value, Mapping):
         price = _coerce_float(
             cast(
@@ -392,7 +389,13 @@ def _coerce_order_book_level(value: object) -> MockOrderBookLevel | None:
                 price=_coerce_float(getattr(value, "price")),
                 size=_coerce_float(getattr(value, "size")),
             )
-        except Exception:
+        except Exception as exc:
+            logger.debug(
+                "Failed to coerce order book level from %s: %s",
+                value,
+                exc,
+                exc_info=exc,
+            )
             return None
     return None
 

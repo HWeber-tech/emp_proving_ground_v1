@@ -13,12 +13,36 @@ from __future__ import annotations
 from collections import Counter
 from dataclasses import dataclass, field
 import json
+import logging
 import random
 from functools import lru_cache
 from pathlib import Path
 from typing import Any, Mapping, MutableMapping, Sequence
 
 from src.genome.catalogue import CatalogueEntry, GenomeCatalogue, load_default_catalogue
+
+
+logger = logging.getLogger(__name__)
+
+
+def _log_seed_warning(genome: object, action: str, exc: Exception) -> None:
+    """Record failures when injecting seed metadata into genomes."""
+
+    genome_id = getattr(genome, "id", "<unknown>")
+    logger.warning(
+        "Seed hardening: %s for genome %s failed: %s",
+        action,
+        genome_id,
+        exc,
+        exc_info=exc,
+    )
+
+
+def _safe_seed_setattr(genome: object, attribute: str, value: object) -> None:
+    try:
+        setattr(genome, attribute, value)
+    except Exception as exc:  # pragma: no cover - defensive guardrail
+        _log_seed_warning(genome, f"setting attribute '{attribute}'", exc)
 
 
 def _ensure_float(value: float) -> float:
@@ -139,17 +163,17 @@ def apply_seed_to_genome(genome: Any, seed: GenomeSeed) -> Any:
         merged.update({str(k): float(v) for k, v in seed.performance_metrics.items()})
         updates["performance_metrics"] = merged
 
+    applied_via_update = False
     if updates and hasattr(genome, "with_updated"):
         try:
             genome = genome.with_updated(**updates)
-        except Exception:
-            pass
+            applied_via_update = True
+        except Exception as exc:  # pragma: no cover - defensive guardrail
+            _log_seed_warning(genome, "applying seed updates via with_updated", exc)
 
-    for key, value in updates.items():
-        try:
-            setattr(genome, key, value)
-        except Exception:
-            pass
+    if not applied_via_update:
+        for key, value in updates.items():
+            _safe_seed_setattr(genome, key, value)
 
     metadata = seed.metadata()
     if metadata:
@@ -161,8 +185,8 @@ def apply_seed_to_genome(genome: Any, seed: GenomeSeed) -> Any:
                 merged_meta = {}
             merged_meta.update(metadata)
             setattr(genome, "metadata", merged_meta)
-        except Exception:
-            pass
+        except Exception as exc:  # pragma: no cover - defensive guardrail
+            _log_seed_warning(genome, "merging seed metadata", exc)
 
     return genome
 

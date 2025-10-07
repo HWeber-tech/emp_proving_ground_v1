@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import random
 from dataclasses import dataclass
 from time import time
@@ -14,6 +15,30 @@ from src.core.evolution.seeding import (
     apply_seed_to_genome,
     summarize_seed_metadata,
 )
+
+
+logger = logging.getLogger(__name__)
+
+def _log_genome_warning(genome: object, action: str, exc: Exception) -> None:
+    """Log failures when mutating genome metadata so they are not silently ignored."""
+
+    genome_id = getattr(genome, "id", "<unknown>")
+    logger.warning(
+        "%s for genome %s failed: %s",
+        action,
+        genome_id,
+        exc,
+        exc_info=exc,
+    )
+
+
+def _safe_setattr(genome: object, attribute: str, value: object) -> None:
+    """Attempt to set a genome attribute while logging mutation failures."""
+
+    try:
+        setattr(genome, attribute, value)
+    except Exception as exc:  # pragma: no cover - defensive guardrail
+        _log_genome_warning(genome, f"Setting attribute '{attribute}'", exc)
 
 
 @dataclass
@@ -251,8 +276,8 @@ class EvolutionEngine:
         self._normalize_genome(genome)
         try:
             setattr(genome, "fitness", None)
-        except Exception:
-            pass
+        except Exception as exc:  # pragma: no cover - defensive guardrail
+            _log_genome_warning(genome, "Resetting genome fitness", exc)
         return genome
 
     def _record_seed_metadata(self) -> None:
@@ -286,28 +311,33 @@ class EvolutionEngine:
     def _apply_parent_metadata(
         self, genome: DecisionGenome, parent_ids: Sequence[str], generation: int
     ) -> DecisionGenome:
-        try:
-            if hasattr(genome, "with_updated"):
-                genome = cast(
-                    DecisionGenome,
-                    genome.with_updated(parent_ids=list(parent_ids), generation=int(generation)),
-                )
-            else:
-                if parent_ids and hasattr(genome, "parent_ids"):
-                    setattr(genome, "parent_ids", list(parent_ids))
-                if hasattr(genome, "generation"):
-                    setattr(genome, "generation", int(generation))
-        except Exception:
-            pass
+        applied_via_update = False
+        update_payload = {
+            "parent_ids": list(parent_ids),
+            "generation": int(generation),
+        }
+        if hasattr(genome, "with_updated"):
+            try:
+                genome = cast(DecisionGenome, genome.with_updated(**update_payload))
+                applied_via_update = True
+            except Exception as exc:  # pragma: no cover - defensive guardrail
+                _log_genome_warning(genome, "Applying parent metadata via with_updated", exc)
+
+        if not applied_via_update:
+            if parent_ids and hasattr(genome, "parent_ids"):
+                _safe_setattr(genome, "parent_ids", list(parent_ids))
+            if hasattr(genome, "generation"):
+                _safe_setattr(genome, "generation", int(generation))
         return genome
 
     def _normalize_genome(self, genome: DecisionGenome) -> None:
+        normalizer = getattr(genome, "_normalize_weights", None)
+        if not callable(normalizer):
+            return
         try:
-            normalizer = getattr(genome, "_normalize_weights", None)
-            if callable(normalizer):
-                normalizer()
-        except Exception:
-            pass
+            normalizer()
+        except Exception as exc:  # pragma: no cover - defensive guardrail
+            _log_genome_warning(genome, "Normalizing genome weights", exc)
 
     def _default_genome_factory(self) -> DecisionGenome:
         provider = get_genome_provider()

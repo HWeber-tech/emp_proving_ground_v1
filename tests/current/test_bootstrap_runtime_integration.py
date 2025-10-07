@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from datetime import datetime, timezone
 from typing import Any, Mapping
 
 import typing as _typing
@@ -116,6 +117,7 @@ from src.governance.system_config import (
 )
 from src.runtime import build_professional_predator_app
 from src.runtime.bootstrap_runtime import BootstrapRuntime
+from src.understanding.decision_diary import DecisionDiaryStore
 
 
 @pytest.mark.asyncio()
@@ -173,13 +175,33 @@ async def test_bootstrap_runtime_build_and_run() -> None:
 async def test_bootstrap_runtime_release_posture(tmp_path) -> None:
     ledger_path = tmp_path / "policy_ledger.json"
     store = PolicyLedgerStore(ledger_path)
+    diary_path = tmp_path / "decision_diary.json"
+    diary_store = DecisionDiaryStore(diary_path)
+    diary_entry = diary_store.record(
+        policy_id="alpha",
+        decision={
+            "tactic_id": "alpha",
+            "parameters": {},
+            "guardrails": {},
+            "rationale": "bootstrap release",
+            "experiments_applied": (),
+            "reflection_summary": {},
+        },
+        regime_state={
+            "regime": "calm",
+            "confidence": 1.0,
+            "features": {},
+            "timestamp": datetime.now(tz=timezone.utc).isoformat(),
+        },
+        outcomes={},
+    )
     release_manager = LedgerReleaseManager(store)
     release_manager.promote(
         policy_id="alpha",
         tactic_id="alpha",
         stage=PolicyLedgerStage.PAPER,
         approvals=("risk",),
-        evidence_id="diary-alpha",
+        evidence_id=diary_entry.entry_id,
     )
 
     cfg = SystemConfig(
@@ -198,6 +220,7 @@ async def test_bootstrap_runtime_release_posture(tmp_path) -> None:
             "BOOTSTRAP_MIN_CONFIDENCE": "0.0",
             "BOOTSTRAP_STRATEGY_ID": "alpha",
             "POLICY_LEDGER_PATH": str(ledger_path),
+            "DECISION_DIARY_PATH": str(diary_path),
         },
     )
 

@@ -34,6 +34,12 @@ from .router_config import (
     UnderstandingAdapterConfig,
     UnderstandingRouterConfig,
 )
+from .decision_diary import (
+    DecisionDiaryEntry,
+    DecisionDiaryStore,
+    ProbeActivation,
+)
+from .probe_registry import ProbeDefinition, ProbeRegistry
 
 __all__ = [
     "BeliefBuffer",
@@ -62,4 +68,9 @@ __all__ = [
     "TierDefaults",
     "UnderstandingAdapterConfig",
     "UnderstandingRouterConfig",
+    "DecisionDiaryEntry",
+    "DecisionDiaryStore",
+    "ProbeActivation",
+    "ProbeDefinition",
+    "ProbeRegistry",
 ]

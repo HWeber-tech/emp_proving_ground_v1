@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 import logging
-from typing import Any, Mapping, MutableMapping
+from typing import Any, Mapping, MutableMapping, Sequence
 
 from src.governance.policy_ledger import LedgerReleaseManager, PolicyLedgerStage
 from src.operations.sensory_drift import DriftSeverity
@@ -39,14 +39,28 @@ class ReleaseAwareExecutionRouter:
 
         metadata = self._extract_metadata(intent)
         strategy_id = self._extract_policy_id(intent)
-        stage = self._resolve_stage(strategy_id)
-        force_paper, forced_reason, forced_severity = self._should_force_paper(metadata)
-        engine, route_label = self._select_engine(stage, force_paper=force_paper)
+        stage, posture = self._resolve_stage(strategy_id)
+
+        audit_force_paper, audit_reason, audit_details = self._audit_enforcement(stage, posture)
+
+        gate_force_paper, gate_reason, forced_severity = self._should_force_paper(metadata)
+
+        combined_force_paper = audit_force_paper or gate_force_paper
+        forced_reasons: list[str] = []
+        if gate_force_paper:
+            forced_reasons.append(gate_reason or "drift_gate_force_paper")
+        if audit_force_paper:
+            forced_reasons.append(audit_reason or "release_audit_enforced")
+        primary_forced_reason = forced_reasons[0] if forced_reasons else None
+
+        engine, route_label = self._select_engine(stage, force_paper=combined_force_paper)
         self._attach_metadata(
             intent,
             stage,
             route_label,
-            forced_reason=forced_reason,
+            forced_reason=primary_forced_reason,
+            forced_reasons=forced_reasons or None,
+            audit_details=audit_details,
         )
 
         result = await engine.process_order(intent)
@@ -60,12 +74,18 @@ class ReleaseAwareExecutionRouter:
                 "timestamp": datetime.now(tz=timezone.utc).isoformat(),
             }
         )
-        if force_paper:
+        if combined_force_paper:
             self._last_route["forced_route"] = "paper"
-            if forced_reason:
-                self._last_route["forced_reason"] = forced_reason
+            if primary_forced_reason:
+                self._last_route["forced_reason"] = primary_forced_reason
+            if forced_reasons:
+                self._last_route["forced_reasons"] = list(dict.fromkeys(forced_reasons))
             if forced_severity:
                 self._last_route["drift_severity"] = forced_severity.value
+            if audit_details:
+                self._last_route["audit_forced"] = audit_force_paper
+        if audit_details:
+            self._last_route["audit"] = audit_details
         return result
 
     def describe(self) -> Mapping[str, Any]:
@@ -97,15 +117,101 @@ class ReleaseAwareExecutionRouter:
     # Internal helpers
     # ------------------------------------------------------------------
 
-    def _resolve_stage(self, policy_id: str | None) -> PolicyLedgerStage:
+    def _resolve_stage(
+        self, policy_id: str | None
+    ) -> tuple[PolicyLedgerStage, Mapping[str, Any] | None]:
         if not policy_id:
-            return self.default_stage
+            return self.default_stage, None
+
+        posture: Mapping[str, Any] | None = None
+        describe = getattr(self.release_manager, "describe", None)
+        if callable(describe):
+            try:
+                candidate = describe(policy_id)
+            except Exception:  # pragma: no cover - diagnostics only
+                logger.debug(
+                    "Failed to describe release posture for %s", policy_id, exc_info=True
+                )
+            else:
+                if isinstance(candidate, Mapping) and candidate.get("stage"):
+                    posture = candidate
+                    try:
+                        stage_value = PolicyLedgerStage.from_value(candidate["stage"])
+                    except Exception:
+                        posture = None
+                    else:
+                        return stage_value, posture
+
         try:
             stage = self.release_manager.resolve_stage(policy_id)
         except Exception as exc:  # pragma: no cover - defensive logging guard
             logger.warning("Failed to resolve release stage for %s: %s", policy_id, exc)
-            return self.default_stage
-        return stage or self.default_stage
+            return self.default_stage, posture
+        return (stage or self.default_stage), posture
+
+    @staticmethod
+    def _audit_enforcement(
+        stage: PolicyLedgerStage,
+        posture: Mapping[str, Any] | None,
+    ) -> tuple[bool, str | None, Mapping[str, Any] | None]:
+        if not posture:
+            return False, None, None
+
+        audit_details: dict[str, Any] = {}
+        declared_raw = posture.get("declared_stage")
+        audit_stage_raw = posture.get("audit_stage")
+        audit_gaps_raw = posture.get("audit_gaps")
+        audit_enforced_flag = bool(posture.get("audit_enforced"))
+
+        declared_stage: PolicyLedgerStage | None = None
+        if declared_raw:
+            try:
+                declared_stage = PolicyLedgerStage.from_value(declared_raw)
+            except Exception:
+                declared_stage = None
+            else:
+                audit_details["declared_stage"] = declared_stage.value
+
+        audit_stage: PolicyLedgerStage | None = None
+        if audit_stage_raw:
+            try:
+                audit_stage = PolicyLedgerStage.from_value(audit_stage_raw)
+            except Exception:
+                audit_stage = None
+            else:
+                audit_details["audit_stage"] = audit_stage.value
+
+        audit_gaps: list[str] = []
+        if isinstance(audit_gaps_raw, (list, tuple)):
+            audit_gaps = [str(gap) for gap in audit_gaps_raw if gap]
+            if audit_gaps:
+                audit_details["gaps"] = audit_gaps
+
+        if declared_stage is not None and declared_stage is not stage:
+            audit_enforced_flag = True
+
+        if audit_stage is not None and audit_stage is not stage:
+            audit_enforced_flag = True
+
+        if audit_enforced_flag:
+            audit_details["enforced"] = True
+
+        if posture.get("updated_at") and "updated_at" not in audit_details:
+            audit_details["updated_at"] = posture["updated_at"]
+
+        audit_force_paper = audit_enforced_flag and stage in (
+            PolicyLedgerStage.EXPERIMENT,
+            PolicyLedgerStage.PAPER,
+        )
+
+        audit_reason: str | None = None
+        if audit_force_paper:
+            if audit_gaps:
+                audit_reason = f"release_audit_gap_{audit_gaps[0]}"
+            else:
+                audit_reason = "release_audit_enforced"
+
+        return audit_force_paper, audit_reason, audit_details or None
 
     def _select_engine(
         self,
@@ -223,20 +329,58 @@ class ReleaseAwareExecutionRouter:
         route_label: str,
         *,
         forced_reason: str | None = None,
+        forced_reasons: Sequence[str] | None = None,
+        audit_details: Mapping[str, Any] | None = None,
     ) -> None:
         metadata: MutableMapping[str, Any] | None = None
+        created_metadata = False
         if isinstance(intent, MutableMapping):
             meta_value = intent.get("metadata")
             if isinstance(meta_value, MutableMapping):
                 metadata = meta_value
+            else:
+                metadata = {}
+                intent["metadata"] = metadata
+                created_metadata = True
         else:
             meta_value = getattr(intent, "metadata", None)
             if isinstance(meta_value, MutableMapping):
                 metadata = meta_value
+            else:
+                if meta_value is None:
+                    metadata = {}
+                elif isinstance(meta_value, Mapping):
+                    metadata = dict(meta_value)
+                else:
+                    metadata = {"original_metadata": meta_value}
+                setattr(intent, "metadata", metadata)
+                created_metadata = True
         if metadata is None:
             return
         metadata["release_stage"] = stage.value
         metadata["release_execution_route"] = route_label
+        override_flag = False
+        reasons_list: list[str] = []
+        if forced_reasons:
+            reasons_list.extend(str(reason) for reason in forced_reasons if reason)
+
         if forced_reason:
             metadata["release_execution_forced"] = forced_reason
+            override_flag = True
+        elif reasons_list:
+            metadata["release_execution_forced"] = reasons_list[0]
+            override_flag = True
+
+        if reasons_list:
+            metadata["release_execution_forced_reasons"] = list(dict.fromkeys(reasons_list))
+
+        if override_flag:
+            metadata.setdefault("release_execution_route_overridden", True)
+
+        if audit_details:
+            metadata["release_execution_audit"] = dict(audit_details)
+
+        # When we materialise metadata for previously missing payloads, ensure
+        # we still surface that a forced route was applied.
+        if created_metadata and (forced_reason or reasons_list):
             metadata.setdefault("release_execution_route_overridden", True)

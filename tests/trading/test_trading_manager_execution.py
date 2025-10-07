@@ -886,12 +886,23 @@ async def test_release_router_forces_paper_on_drift_warn(tmp_path: Path) -> None
     metadata = getattr(intent, "metadata", {})
     assert metadata.get("release_execution_route") == "paper"
     assert metadata.get("release_execution_forced") == "drift_gate_severity_warn"
+    forced_reasons = metadata.get("release_execution_forced_reasons")
+    assert forced_reasons == ["drift_gate_severity_warn"]
+    audit_meta = metadata.get("release_execution_audit")
+    assert isinstance(audit_meta, dict)
+    assert audit_meta.get("declared_stage") == PolicyLedgerStage.LIMITED_LIVE.value
+    assert audit_meta.get("audit_stage") == PolicyLedgerStage.LIMITED_LIVE.value
     last_route = router.last_route()
     assert last_route is not None
     assert last_route.get("stage") == PolicyLedgerStage.LIMITED_LIVE.value
     assert last_route.get("route") == "paper"
     assert last_route.get("forced_reason") == "drift_gate_severity_warn"
+    assert last_route.get("forced_reasons") == ["drift_gate_severity_warn"]
     assert last_route.get("drift_severity") == DriftSeverity.warn.value
+    audit_payload = last_route.get("audit")
+    assert isinstance(audit_payload, dict)
+    assert audit_payload.get("declared_stage") == PolicyLedgerStage.LIMITED_LIVE.value
+    assert audit_payload.get("audit_stage") == PolicyLedgerStage.LIMITED_LIVE.value
 
 
 @pytest.mark.asyncio()
@@ -998,12 +1009,22 @@ async def test_trading_manager_forces_paper_execution_under_drift_warn(
     assert release_metadata.get("route") == "paper"
     assert release_metadata.get("forced") is True
     assert release_metadata.get("forced_reason") == "drift_gate_severity_warn"
+    assert release_metadata.get("forced_reasons") == ["drift_gate_severity_warn"]
+    audit_section = release_metadata.get("audit")
+    assert isinstance(audit_section, dict)
+    assert audit_section.get("declared_stage") == PolicyLedgerStage.LIMITED_LIVE.value
+    assert audit_section.get("audit_stage") == PolicyLedgerStage.LIMITED_LIVE.value
     posture = manager.describe_release_posture("alpha")
     assert posture.get("stage") == PolicyLedgerStage.LIMITED_LIVE.value
     last_posture_route = posture.get("last_route")
     assert isinstance(last_posture_route, dict)
     assert last_posture_route.get("route") == "paper"
     assert last_posture_route.get("forced_reason") == "drift_gate_severity_warn"
+    assert last_posture_route.get("forced_reasons") == ["drift_gate_severity_warn"]
+    audit_payload = last_posture_route.get("audit")
+    assert isinstance(audit_payload, dict)
+    assert audit_payload.get("declared_stage") == PolicyLedgerStage.LIMITED_LIVE.value
+    assert audit_payload.get("audit_stage") == PolicyLedgerStage.LIMITED_LIVE.value
     assert manager.get_last_release_route() == last_posture_route
 
     assert bus.events, "expected drift gate telemetry"

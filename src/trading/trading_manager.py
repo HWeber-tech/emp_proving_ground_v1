@@ -827,7 +827,18 @@ class TradingManager:
         if overridden is not None:
             payload["overridden"] = overridden
 
-        if forced_reason or overridden:
+        forced_reasons_candidate = metadata_candidate.get("release_execution_forced_reasons")
+        forced_reasons: list[str] = []
+        if isinstance(forced_reasons_candidate, (list, tuple)):
+            forced_reasons = [str(reason) for reason in forced_reasons_candidate if reason]
+            if forced_reasons:
+                payload["forced_reasons"] = forced_reasons
+
+        audit_payload = metadata_candidate.get("release_execution_audit")
+        if isinstance(audit_payload, Mapping):
+            payload["audit"] = dict(audit_payload)
+
+        if forced_reason or overridden or forced_reasons:
             payload["forced"] = True
 
         drift_gate_payload = metadata_candidate.get("drift_gate")

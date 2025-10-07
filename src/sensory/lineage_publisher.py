@@ -14,7 +14,6 @@ from datetime import datetime, timezone
 from threading import Lock
 from typing import Any, Mapping, MutableMapping
 
-from src.core.event_bus import Event
 from src.sensory.lineage import SensorLineageRecord
 
 __all__ = ["SensoryLineagePublisher"]
@@ -146,6 +145,8 @@ class SensoryLineagePublisher:
     def _publish(self, record: Mapping[str, Any]) -> None:
         if self._event_bus is None:
             return
+
+        from src.core.event_bus import Event  # local import to avoid circular dependency
 
         event_payload = dict(record)
         event = Event(

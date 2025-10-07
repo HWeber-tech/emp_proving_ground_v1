@@ -132,10 +132,20 @@
     gateway, publishes structured rejection telemetry, and records approved
     decisions on order state so FIX pilots inherit the same guardrails and
     evidence trail under pytest coverage as orchestrated runtimes.【F:src/trading/integration/fix_broker_interface.py†L38-L524】【F:tests/trading/test_fix_broker_interface_events.py†L13-L202】
-- Progress: Governance cadence runner orchestrates interval gating, audit
-  evidence collection, report persistence, and event-bus publishing so the
-  compliance squad has a single supervised entrypoint for regulatory reporting
-  under pytest coverage.【F:src/operations/governance_cadence.py†L1-L167】【F:tests/operations/test_governance_cadence.py†L1-L206】
+  - Progress: Runtime builder now publishes the enforced risk configuration as
+    telemetry and the professional runtime records the broadcast payload so risk
+    summaries mirror the exact configuration emitted to operations dashboards
+    under pytest coverage of the event flow and summary surface.【F:src/runtime/runtime_builder.py†L633-L734】【F:src/runtime/predator_app.py†L472-L1009】【F:tests/runtime/test_runtime_builder.py†L340-L420】
+- Progress: Governance cadence runner now honours forced executions, metadata
+  overrides, and context-pack lookups while orchestrating interval gating,
+  audit evidence collection, report persistence, and event-bus publishing so the
+  compliance squad can schedule or manually trigger the cadence behind
+  injectable providers under pytest coverage.【F:src/operations/governance_cadence.py†L1-L166】【F:src/operations/governance_reporting.py†L604-L635】【F:tests/operations/test_governance_cadence.py†L1-L120】
+- Progress: Governance cadence CLI resolves SystemConfig extras into context
+  packs, layers JSON overrides, supports forced runs, and emits Markdown/JSON
+  outputs so operators can execute the cadence outside the runtime while
+  preserving persisted history and metadata provenance under pytest
+  coverage.【F:tools/governance/run_cadence.py†L1-L368】【F:tests/tools/test_run_governance_cadence.py†L47-L138】
 - [x] Wire compliance workflows (KYC, trade surveillance) with markdown exports
   and optional Timescale journaling to satisfy audit requirements.
   - Progress: Compliance workflow evaluation now converts trade,

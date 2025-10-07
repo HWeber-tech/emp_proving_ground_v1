@@ -146,11 +146,13 @@ can layer on without introducing third-party dependencies.
   report, while `publish_governance_report` emits
   `telemetry.compliance.governance` snapshots and `persist_governance_report`
   maintains an on-disk history for audit drills. `GovernanceCadenceRunner`
-  loads the prior artefact, enforces the cadence interval, and orchestrates the
-  publish/persist flow so runtimes can schedule the governance feed without
-  bespoke glue code. Tests document the cadence intervals, section escalation,
-  event-bus publishing, JSON persistence, and orchestration flow so governance
-  reviews inherit deterministic artefacts.【F:src/operations/governance_reporting.py†L1-L520】【F:src/operations/governance_cadence.py†L1-L164】【F:tests/operations/test_governance_reporting.py†L1-L152】【F:tests/operations/test_governance_cadence.py†L1-L118】
+  now honours forced executions, metadata overrides, and SystemConfig-derived
+  context packs (via `load_governance_context_from_config`) while enforcing the
+  cadence interval so runtimes or operators can schedule the feed without bespoke
+  glue code. The `tools.governance.run_cadence` CLI resolves those context packs,
+  layers JSON overrides, supports forced runs, and emits Markdown/JSON outputs.
+  Tests cover interval gating, event-bus publishing, persisted history, and the
+  CLI skip/force flows so governance reviews inherit deterministic artefacts.【F:src/operations/governance_reporting.py†L1-L635】【F:src/operations/governance_cadence.py†L1-L166】【F:tools/governance/run_cadence.py†L1-L368】【F:tests/operations/test_governance_reporting.py†L1-L200】【F:tests/operations/test_governance_cadence.py†L1-L120】【F:tests/tools/test_run_governance_cadence.py†L47-L138】
 * **Kafka readiness telemetry** – `evaluate_kafka_readiness` merges connection
   settings, topic provisioning summaries, publisher availability, and lag
   snapshots into `telemetry.kafka.readiness`, with the runtime builder

@@ -783,10 +783,16 @@ kit that the roadmap calls back to in each checklist.
     KYC components, escalate severities deterministically, and render markdown
     evidence with regression coverage so governance cadences inherit reliable
     compliance posture telemetry.【F:src/operations/compliance_readiness.py†L1-L220】【F:tests/operations/test_compliance_readiness.py†L1-L173】
-  - *Progress*: Governance cadence runner orchestrates interval gating, audit
-    evidence collection, report persistence, and event-bus publishing with
-    injectable providers so institutional deployments can trigger the cadence
-    from a single supervised entrypoint under pytest coverage.【F:src/operations/governance_cadence.py†L1-L167】【F:tests/operations/test_governance_cadence.py†L1-L206】
+  - *Progress*: Governance cadence runner now honours forced executions,
+    metadata overrides, and context-pack lookups while orchestrating interval
+    gating, audit evidence collection, report persistence, and event-bus
+    publishing so institutional deployments can schedule or manually trigger the
+    cadence behind injectable providers under pytest coverage.【F:src/operations/governance_cadence.py†L1-L166】【F:src/operations/governance_reporting.py†L604-L635】【F:tests/operations/test_governance_cadence.py†L1-L120】
+  - *Progress*: Governance cadence CLI resolves SystemConfig extras into JSON
+    context packs, layers optional snapshot overrides, supports forced runs, and
+    emits Markdown/JSON outputs so operators can run the cadence without the
+    runtime while preserving persisted history and metadata provenance under
+    pytest coverage.【F:tools/governance/run_cadence.py†L1-L368】【F:tests/tools/test_run_governance_cadence.py†L47-L138】
   - *Progress*: Governance report export CLI now loads compliance/regulatory/audit
     snapshots, persists history with metadata, emits Markdown alongside JSON, and
     records regression coverage so operators can script cadence exports without
@@ -796,6 +802,10 @@ kit that the roadmap calls back to in each checklist.
     manager/runtime builder publish the combined compliance snapshots so KYC and
     trade surveillance inherit staged release thresholds under regression
     coverage.【F:src/governance/policy_ledger.py†L1-L405】【F:src/compliance/workflow.py†L1-L419】【F:src/trading/trading_manager.py†L640-L764】【F:src/runtime/runtime_builder.py†L2920-L2987】【F:tests/compliance/test_compliance_workflow.py†L1-L182】【F:tests/trading/test_trading_manager_execution.py†L430-L512】
+  - *Progress*: Runtime builder now publishes the enforced risk configuration as
+    telemetry and the professional runtime records the broadcast payload so risk
+    summaries mirror the exact configuration emitted to operations dashboards
+    under pytest coverage of the event flow and summary surface.【F:src/runtime/runtime_builder.py†L633-L734】【F:src/runtime/predator_app.py†L472-L1009】【F:tests/runtime/test_runtime_builder.py†L340-L420】
 
 ## Actionable to-do tracker
 
@@ -843,10 +853,10 @@ kit that the roadmap calls back to in each checklist.
 - b42e927 Auto cherry-pick variant 2 (2025-10-07)
 - 5561e6a Auto cherry-pick variant 1 (2025-10-07)
 
-## Automation updates — 2025-10-07T20:15:09Z
+## Automation updates — 2025-10-07T20:48:40Z
 
 ### Last 4 commits
-- 3da77b0 refactor(docs): tune 4 files (2025-10-07)
-- 814b916 feat(data_foundation): add 2 files (2025-10-07)
-- 8f44368 refactor(sensory): tune 5 files (2025-10-07)
-- 33d2076 refactor(core): tune 5 files (2025-10-07)
+- 5622148 refactor(docs): tune 3 files (2025-10-07)
+- 97094e9 feat(operations): add 4 files (2025-10-07)
+- 308edd4 refactor(runtime): tune 3 files (2025-10-07)
+- 3cca21b docs(docs): tune 1 file (2025-10-07)

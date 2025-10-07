@@ -292,7 +292,7 @@ class ValidationFramework:
                 return True
 
             results = await asyncio.gather(
-                *[asyncio.create_task(_simulate_operation(i)) for i in range(test_iterations)]
+                *(_simulate_operation(i) for i in range(test_iterations))
             )
             success_count = sum(1 for r in results if r)
 

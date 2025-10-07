@@ -141,11 +141,12 @@
   - Observability dashboard guard ensuring missing diagnostic payloads escalate to WARN.【F:docs/context/alignment_briefs/quality_observability.md†L10-L188】
 - **Progress**
   - Understanding diagnostics builder exports sensory→belief→router→policy graphs as structured snapshots, surfaced via the `tools/understanding/graph_diagnostics.py` CLI with JSON/DOT/Markdown renderers under dedicated pytest coverage and the `understanding_acceptance` marker.【F:src/understanding/diagnostics.py†L395-L542】【F:tools/understanding/graph_diagnostics.py†L1-L82】【F:tests/understanding/test_understanding_diagnostics.py†L15-L29】【F:pytest.ini†L2-L27】
-  - Observability dashboard now renders an understanding-loop panel summarising regime confidence, drift exceedances, ledger approvals, and experiment mix whenever diagnostics snapshots are supplied, keeping the acceptance telemetry contract under guardrail coverage.【F:src/operations/observability_dashboard.py†L513-L548】【F:tests/operations/test_observability_dashboard.py†L371-L384】
+  - Observability dashboard now renders an understanding-loop panel summarising regime confidence, drift exceedances, ledger approvals, and experiment mix whenever diagnostics snapshots are supplied, and escalates to WARN with CLI guidance when artifacts are missing so operators can rebuild acceptance payloads deterministically under guardrail coverage.【F:src/operations/observability_dashboard.py†L536-L565】【F:tests/operations/test_observability_dashboard.py†L389-L413】
 
 ## Definition of Done checkpoints
 
 - Belief/regime models publish documented schemas with guardrail tests covering Hebbian updates, regime routing, and drift triggers.
+- Bootstrap runtime status surfaces sensory cortex samples, drift metrics, and audit metadata so live-shadow reviewers can observe the loop without bespoke scripts.【F:src/runtime/bootstrap_runtime.py†L210-L334】【F:tests/runtime/test_bootstrap_runtime_sensory.py†L107-L132】
 - Router, diary, and ledger artifacts integrate with governance/operational readiness dashboards without bespoke tooling, updating context packs alongside code.【F:docs/context/alignment_briefs/quality_observability.md†L10-L188】【F:docs/context/alignment_briefs/operational_readiness.md†L40-L88】
 - Acceptance workflow exercises the full understanding loop and is marked as a guardrail job in CI, with reproducible fixtures for ticket derivation.【F:docs/roadmap.md†L523-L537】
 

@@ -36,9 +36,10 @@
   and order-book metadata, captures drift alerts, and publishes via the failover
   helper so dashboards surface cortex posture and raw telemetry even when the
   runtime bus degrades.【F:src/operations/sensory_metrics.py†L1-L200】【F:tests/operations/test_sensory_metrics.py†L1-L130】
-- Core package now logs and documents the sensory organ import fallback, keeping
-  stub exports visible under pytest coverage so bootstrap environments surface
-  degraded wiring instead of silently masking missing dependencies.【F:src/core/__init__.py†L11-L45】【F:tests/core/test_core_init_fallback.py†L1-L43】
+- Core package now re-exports the canonical sensory organ, exposes the drift
+  configuration dataclass, and coerces legacy drift-config payloads while
+  dropping the defensive stub fallback so runtime consumers always resolve the
+  real implementation under pytest coverage.【F:src/core/__init__.py†L11-L36】【F:src/core/sensory_organ.py†L1-L36】【F:tests/core/test_core_sensory_exports.py†L1-L22】
 
 ## Gap themes
 

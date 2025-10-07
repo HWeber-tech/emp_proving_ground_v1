@@ -73,7 +73,7 @@ Dependency Analysis
 
 Dead code candidates (first 100):
 -  ~~src\core.py~~ (removed; canonical core exports live in the `src/core` package and
-   remain covered by the defensive import tests).【F:src/core/__init__.py†L1-L52】【F:tests/core/test_core_init_fallback.py†L1-L48】
+   remain covered by regression tests that validate the sensory organ exports).【F:src/core/__init__.py†L1-L36】【F:tests/core/test_core_sensory_exports.py†L1-L22】
 -  ~~src\phase2d_integration_validator.py~~ (removed; orchestration now consumes the
    typed validator in `src/validation/phase2d_integration_validator.py`).【F:src/validation/phase2d_integration_validator.py†L1-L204】
 -  ~~src\phase3_integration.py~~ (removed; evolution phase orchestration is housed in

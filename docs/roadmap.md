@@ -16,8 +16,8 @@ kit that the roadmap calls back to in each checklist.
 | Architecture | Layered domains and canonical `SystemConfig` definitions are in place, enforcing the core → sensory → thinking → trading → orchestration stack described in the encyclopedia. | 【F:docs/architecture/overview.md†L9-L48】 |
 | Delivery state | The codebase is still a development framework: evolution, intelligence, execution, and strategy layers run on mocks; there is no production ingest, risk sizing, or portfolio management. | 【F:docs/DEVELOPMENT_STATUS.md†L7-L35】 |
 | Quality posture | CI passes with 76% coverage, but hotspots include operational metrics, position models, and configuration loaders; runtime validation checks still fail. | 【F:docs/ci_baseline_report.md†L8-L27】【F:docs/technical_debt_assessment.md†L31-L112】 |
-| Debt hotspots | Hollow risk management, unsupervised async tasks, namespace drift, and deprecated exports continue to surface in audits. | 【F:docs/technical_debt_assessment.md†L33-L80】【F:src/core/__init__.py†L11-L51】 |
-| Legacy footprint | Canonical risk, evolution, and analytics modules now resolve through their source packages: the deprecated core risk manager shim is gone, stress/VaR helpers route through `src/risk/analytics`, and integration guides still trail reality. | 【F:src/config/risk/risk_config.py†L1-L161】【F:src/core/__init__.py†L16-L46】【F:docs/reports/CLEANUP_REPORT.md†L71-L104】【F:src/risk/analytics/var.py†L19-L121】 |
+| Debt hotspots | Hollow risk management, unsupervised async tasks, namespace drift, and deprecated exports continue to surface in audits. | 【F:docs/technical_debt_assessment.md†L33-L80】【F:src/core/__init__.py†L11-L36】 |
+| Legacy footprint | Canonical risk, evolution, and analytics modules now resolve through their source packages: the deprecated core risk manager shim is gone, stress/VaR helpers route through `src/risk/analytics`, and integration guides still trail reality. | 【F:src/config/risk/risk_config.py†L1-L161】【F:src/core/__init__.py†L11-L36】【F:docs/reports/CLEANUP_REPORT.md†L71-L104】【F:src/risk/analytics/var.py†L19-L121】 |
 
 ## Gaps to close
 
@@ -67,8 +67,9 @@ kit that the roadmap calls back to in each checklist.
     intraday, and macro slice with requested symbol/event counts, fetched row
     totals, ingest result metadata, and macro window provenance so ingest
     telemetry exposes what was fetched, normalised, or skipped; guardrail tests
-    cover macro window fallbacks, empty payloads, and metadata emission to
-    prevent regressions in institutional ingest coverage.【F:src/data_foundation/ingest/timescale_pipeline.py†L70-L213】【F:tests/data_foundation/test_timescale_backbone_orchestrator.py†L1-L200】
+    cover macro window fallbacks, empty payloads, publisher failure logging, and
+    metadata emission to prevent regressions in institutional ingest
+    coverage.【F:src/data_foundation/ingest/timescale_pipeline.py†L70-L213】【F:tests/data_foundation/test_timescale_backbone_orchestrator.py†L1-L426】
   - *Progress*: Institutional ingest provisioner now spins up supervised
     Timescale schedules alongside Redis caches and Kafka consumers, wiring the
     bridge into the task supervisor with redacted metadata, publishing a managed
@@ -198,15 +199,15 @@ kit that the roadmap calls back to in each checklist.
     records, keeps a bounded inspection history, and publishes via either
     runtime or global event-bus bridges while the real sensory organ pipes its
     dimension metadata through the publisher so responders inherit auditable
-    provenance snapshots under pytest coverage of publish/fallback paths.【F:src/sensory/lineage_publisher.py†L1-L193】【F:src/sensory/real_sensory_organ.py†L41-L376】【F:tests/sensory/test_lineage.py†L11-L145】【F:tests/sensory/test_real_sensory_organ.py†L172-L187】
+    provenance snapshots under pytest coverage of publish/fallback paths.【F:src/sensory/lineage_publisher.py†L1-L193】【F:src/sensory/real_sensory_organ.py†L41-L489】【F:tests/sensory/test_lineage.py†L11-L145】【F:tests/sensory/test_real_sensory_organ.py†L96-L183】
   - *Progress*: Professional runtime now captures the integrated sensory status
     feed, publishes the hardened summary/metrics telemetry, and caches the last
     snapshots so the Predator app summary exposes Markdown/JSON payloads for
     responders under regression coverage of the builder and app surfaces.【F:src/runtime/runtime_builder.py†L322-L368】【F:src/runtime/predator_app.py†L600-L1139】【F:tests/runtime/test_runtime_builder.py†L121-L207】【F:tests/runtime/test_professional_app_timescale.py†L1328-L1404】
-  - *Progress*: Core module now logs and documents the sensory organ import
-    fallback, emitting warnings and restoring stub exports under regression
-    coverage so bootstrap environments surface degraded sensory wiring instead of
-    silently masking missing dependencies.【F:src/core/__init__.py†L11-L45】【F:tests/core/test_core_init_fallback.py†L1-L43】
+  - *Progress*: Core module now re-exports the canonical sensory organ
+    implementation, normalises drift-config inputs, and drops the legacy stub
+    fallback so runtime consumers always receive the real organ with regression
+    coverage verifying alias stability and drift configuration coercion.【F:src/core/__init__.py†L11-L36】【F:src/core/sensory_organ.py†L1-L36】【F:tests/core/test_core_sensory_exports.py†L1-L22】
   - *Progress*: Market data recorder/replayer now serialises lightweight order
     books to JSONL, logs feature-writer failures, skips malformed payloads, and
     guards file-handle shutdown so sensory backtests and feature pipelines can
@@ -250,8 +251,9 @@ kit that the roadmap calls back to in each checklist.
     coverage.【F:src/config/risk/risk_config.py†L10-L213】【F:tests/risk/test_risk_config_validation.py†L39-L90】
   - *Progress*: Risk policy guardrail suite now exercises approvals, exposure
     breaches, leverage warnings, research-mode overrides, closing-position
-    allowances, and price fallbacks under the `guardrail` marker so CI fails
-    fast when institutional limit enforcement regresses.【F:tests/trading/test_risk_policy.py†L1-L220】
+    allowances, price fallbacks, ratio metadata, and derived-equity scenarios
+    under the `guardrail` marker so CI fails fast when institutional limit
+    enforcement or telemetry contracts regress.【F:tests/trading/test_risk_policy.py†L1-L465】
   - *Progress*: Runtime builder now resolves the canonical `RiskConfig` from the
     trading manager, validates mandatory thresholds, wraps invalid payloads in a
     deterministic runtime error, and logs the enforced posture under regression
@@ -265,10 +267,11 @@ kit that the roadmap calls back to in each checklist.
     and deterministic shutdown callbacks so runtime launches inherit the same
     lifecycle guarantees as the builder, with pytest exercising normal and
     timeout-driven exits.【F:src/runtime/runtime_runner.py†L1-L120】【F:main.py†L71-L125】【F:tests/runtime/test_runtime_runner.py†L1-L58】
-  - *Progress*: Risk policy regression now enforces mandatory stop losses,
-    positive equity budgets, and resolved price fallbacks, documenting violation
-    telemetry and metadata so CI catches policy drift before it reaches
-    execution flows.【F:src/trading/risk/risk_policy.py†L120-L246】【F:tests/trading/test_risk_policy.py†L117-L205】
+  - *Progress*: Risk policy evaluation now derives equity from cash and open
+    positions when the portfolio omits a balance, records consistent ratio
+    metadata for risk and exposure checks even when budgets are missing, and
+    continues to enforce mandatory stop losses plus resolved price fallbacks so
+    CI catches policy drift before it reaches execution flows.【F:src/trading/risk/risk_policy.py†L29-L238】【F:tests/trading/test_risk_policy.py†L178-L465】
   - *Progress*: Policy telemetry helpers now serialise deterministic decision
     snapshots, render Markdown summaries, and publish violation alerts with
     embedded runbook metadata while the trading manager escalates breached
@@ -550,7 +553,7 @@ kit that the roadmap calls back to in each checklist.
     metadata and Timescale recovery plan serialisation, while risk policy
     regression tests lock mandatory stop-loss and equity budget enforcement so
     coverage extensions land with actionable guardrails instead of brittle
-    placeholders.【F:tests/operations/test_data_backbone.py†L289-L347】【F:tests/trading/test_risk_policy.py†L117-L157】
+    placeholders.【F:tests/operations/test_data_backbone.py†L289-L347】【F:tests/trading/test_risk_policy.py†L178-L222】
   - *Progress*: Coverage telemetry now emits per-domain matrices from the
     coverage XML, with CLI tooling and pytest coverage documenting the JSON/markdown
     contract so dashboards can flag lagging domains without scraping CI logs.【F:tools/telemetry/coverage_matrix.py†L1-L199】【F:tests/tools/test_coverage_matrix.py†L1-L123】【F:docs/status/ci_health.md†L13-L31】
@@ -598,10 +601,10 @@ kit that the roadmap calls back to in each checklist.
   - *Progress*: Runtime builder coverage now snapshots ingest plan dimensions,
     trading metadata, and enforced risk summaries, while risk policy regressions
     assert portfolio price fallbacks so ingest orchestration and risk sizing
-    guardrails stay under deterministic pytest coverage.【F:tests/runtime/test_runtime_builder.py†L1-L196】【F:tests/trading/test_risk_policy.py†L1-L205】
+    guardrails stay under deterministic pytest coverage.【F:tests/runtime/test_runtime_builder.py†L1-L196】【F:tests/trading/test_risk_policy.py†L1-L465】
   - *Progress*: Risk policy regression enforces minimum position sizing while the
     observability dashboard tests assert limit-status escalation so CI catches
-    governance and telemetry drift before it hits production surfaces.【F:tests/trading/test_risk_policy.py†L213-L240】【F:tests/operations/test_observability_dashboard.py†L222-L241】
+    governance and telemetry drift before it hits production surfaces.【F:tests/trading/test_risk_policy.py†L311-L333】【F:tests/operations/test_observability_dashboard.py†L222-L241】
   - *Progress*: Observability logging and dashboard suites now carry the
     `guardrail` marker so CI can gatekeep their execution ahead of the broader
     coverage sweep.【F:tests/observability/test_logging.py†L18-L24】【F:tests/operations/test_observability_dashboard.py†L24-L31】
@@ -612,7 +615,7 @@ kit that the roadmap calls back to in each checklist.
   - *Progress*: Risk policy warn-threshold coverage asserts that leverage and
     exposure checks flip to warning states before violating limits, capturing
     ratios, thresholds, and metadata so compliance reviewers can trust the
-    policy telemetry feed when positions approach guardrails.【F:tests/trading/test_risk_policy.py†L69-L142】
+    policy telemetry feed when positions approach guardrails.【F:tests/trading/test_risk_policy.py†L125-L170】
 
 - [ ] **AlphaTrade understanding loop sprint (Days 0–14)** – Stand up the live-shadow
   Perception → Adaptation → Reflection loop so AlphaTrade parity work can ship

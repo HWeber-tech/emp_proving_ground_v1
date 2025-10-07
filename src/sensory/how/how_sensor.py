@@ -7,7 +7,11 @@ import pandas as pd
 
 from src.sensory.enhanced.how_dimension import InstitutionalIntelligenceEngine
 from src.sensory.how.order_book_analytics import OrderBookAnalytics, OrderBookSnapshot
-from src.sensory.lineage import build_lineage_record
+from src.sensory.lineage import (
+    SensorLineageRecord,
+    SensorLineageRecorder,
+    build_lineage_record,
+)
 from src.sensory.signals import SensorSignal
 from src.sensory.thresholds import ThresholdAssessment, evaluate_thresholds
 
@@ -35,10 +39,12 @@ class HowSensor:
         *,
         order_book_analytics: OrderBookAnalytics | None = None,
         engine: InstitutionalIntelligenceEngine | None = None,
+        lineage_recorder: SensorLineageRecorder | None = None,
     ) -> None:
         self._engine = engine or InstitutionalIntelligenceEngine()
         self._config = config or HowSensorConfig()
         self._order_book_analytics = order_book_analytics or OrderBookAnalytics()
+        self._lineage_recorder = lineage_recorder
 
     def process(
         self,
@@ -103,6 +109,7 @@ class HowSensor:
                 "breached_level": assessment.breached_level,
             },
         )
+        self._record_lineage(lineage)
 
         metadata: dict[str, object] = {
             "source": "sensory.how",
@@ -176,6 +183,7 @@ class HowSensor:
                 "state": assessment.state,
             },
         )
+        self._record_lineage(lineage)
 
         metadata: dict[str, object] = {
             "source": "sensory.how",
@@ -195,3 +203,7 @@ class HowSensor:
             confidence=confidence,
             metadata=metadata,
         )
+
+    def _record_lineage(self, lineage: SensorLineageRecord) -> None:
+        if self._lineage_recorder is not None:
+            self._lineage_recorder.record(lineage)

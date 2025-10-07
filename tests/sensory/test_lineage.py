@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from decimal import Decimal
 
-from src.sensory.lineage import build_lineage_record
+from src.sensory.lineage import SensorLineageRecorder, build_lineage_record
 
 
 def test_build_lineage_record_sanitises_inputs() -> None:
@@ -26,3 +26,37 @@ def test_build_lineage_record_sanitises_inputs() -> None:
     assert payload["telemetry"]["liquidity"] == 0.9
     assert payload["metadata"]["mode"] == "market_data"
     assert "generated_at" in payload
+
+
+def test_sensor_lineage_recorder_tracks_recent_payloads() -> None:
+    recorder = SensorLineageRecorder(max_records=2)
+
+    first = build_lineage_record(
+        "HOW",
+        "sensory.how",
+        inputs={"volume": 1},
+        outputs={"signal": 0.1, "confidence": 0.4},
+    )
+    second = build_lineage_record(
+        "ANOMALY",
+        "sensory.anomaly",
+        outputs={"signal": 0.3, "confidence": 0.6},
+    )
+    third = build_lineage_record(
+        "HOW",
+        "sensory.how",
+        outputs={"signal": 0.5, "confidence": 0.8},
+    )
+
+    recorder.record(first)
+    recorder.record(second)
+    recorder.record(third)
+
+    history = recorder.history()
+    assert [item["dimension"] for item in history] == ["HOW", "ANOMALY"]
+    assert recorder.latest()["outputs"]["signal"] == 0.5
+    assert recorder.history(limit=1)[0]["dimension"] == "HOW"
+
+    recorder.clear()
+    assert recorder.latest() is None
+    assert recorder.history() == []

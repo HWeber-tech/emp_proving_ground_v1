@@ -8,7 +8,6 @@ from typing import Callable, Mapping, Sequence, Protocol
 
 import pandas as pd
 
-from .fred_calendar import fetch_fred_calendar
 from .yahoo_ingest import fetch_daily_bars, fetch_intraday_trades
 from ..persist.timescale import (
     TimescaleConnectionSettings,
@@ -17,6 +16,12 @@ from ..persist.timescale import (
     TimescaleMigrator,
 )
 from ..schemas import MacroEvent
+
+
+def _default_fetch_fred_calendar(start: str, end: str) -> list[MacroEvent]:
+    """Return placeholder macro events when no calendar provider is available."""
+
+    return []
 
 
 def _normalise_symbols(symbols: Sequence[str]) -> list[str]:
@@ -141,7 +146,7 @@ class TimescaleBackboneOrchestrator:
         fetch_daily: Callable[[list[str], int], pd.DataFrame] = fetch_daily_bars,
         fetch_intraday: Callable[[list[str], int, str], pd.DataFrame]
         | None = fetch_intraday_trades,
-        fetch_macro: Callable[[str, str], Sequence[MacroEvent]] = fetch_fred_calendar,
+        fetch_macro: Callable[[str, str], Sequence[MacroEvent]] = _default_fetch_fred_calendar,
     ) -> dict[str, TimescaleIngestResult]:
         if plan.is_empty():
             self._logger.info("Timescale backbone ingest: nothing to execute")

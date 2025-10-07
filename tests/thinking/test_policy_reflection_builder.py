@@ -86,8 +86,12 @@ def test_builder_generates_markdown_with_insights() -> None:
     assert "Decisions analysed: 3" in markdown
     assert "Top tactics" in markdown
     assert "Active experiments" in markdown
+    assert "Tag spotlight" in markdown
+    assert "Objective coverage" in markdown
     assert "exp-boost" in markdown
 
     insights = artifacts.payload["insights"]
     assert any("Leading tactic" in insight for insight in insights)
     assert any("Top experiment exp-boost" in insight for insight in insights)
+    assert any("Dominant tag" in insight for insight in insights)
+    assert any("Leading objective" in insight for insight in insights)

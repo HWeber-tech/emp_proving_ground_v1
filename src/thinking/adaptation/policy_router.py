@@ -284,6 +284,16 @@ class PolicyRouter:
 
         regime_counts: Counter[str] = Counter()
 
+        tag_counts: Counter[str] = Counter()
+        tag_last_seen: dict[str, datetime] = {}
+        tag_scores: dict[str, float] = {}
+        tag_tactics: dict[str, Counter[str]] = {}
+
+        objective_counts: Counter[str] = Counter()
+        objective_last_seen: dict[str, datetime] = {}
+        objective_scores: dict[str, float] = {}
+        objective_tactics: dict[str, Counter[str]] = {}
+
         recent_headlines: list[str] = []
         as_of: datetime | None = None
 
@@ -311,10 +321,29 @@ class PolicyRouter:
                     tactic_last_seen[tactic_id] = timestamp
                 tags = entry.get("tactic_tags")
                 if isinstance(tags, (list, tuple)):
-                    tactic_tags[tactic_id] = tuple(str(tag) for tag in tags)
+                    cleaned_tags = tuple(str(tag) for tag in tags)
+                    tactic_tags[tactic_id] = cleaned_tags
+                    for tag in cleaned_tags:
+                        tag_counts[tag] += 1
+                        tag_scores[tag] = tag_scores.get(tag, 0.0) + score
+                        if timestamp and (
+                            tag not in tag_last_seen or timestamp > tag_last_seen[tag]
+                        ):
+                            tag_last_seen[tag] = timestamp
+                        tag_tactics.setdefault(tag, Counter())[tactic_id] += 1
                 objectives = entry.get("tactic_objectives")
                 if isinstance(objectives, (list, tuple)):
-                    tactic_objectives[tactic_id] = tuple(str(obj) for obj in objectives)
+                    cleaned_objectives = tuple(str(obj) for obj in objectives)
+                    tactic_objectives[tactic_id] = cleaned_objectives
+                    for objective in cleaned_objectives:
+                        objective_counts[objective] += 1
+                        objective_scores[objective] = objective_scores.get(objective, 0.0) + score
+                        if timestamp and (
+                            objective not in objective_last_seen
+                            or timestamp > objective_last_seen[objective]
+                        ):
+                            objective_last_seen[objective] = timestamp
+                        objective_tactics.setdefault(objective, Counter())[tactic_id] += 1
 
                 if tactic_id == streak_tactic:
                     streak_length += 1
@@ -388,6 +417,47 @@ class PolicyRouter:
             for regime, count in regime_counts.most_common()
         }
 
+        def _sorted_entries(counter: Counter[str]) -> list[tuple[str, int]]:
+            return sorted(counter.items(), key=lambda item: (-item[1], item[0]))
+
+        tag_summaries = []
+        for tag, count in _sorted_entries(tag_counts):
+            top_tactics = []
+            if tag in tag_tactics and tag_tactics[tag]:
+                top_tactics = [tactic for tactic, _ in tag_tactics[tag].most_common(3)]
+            tag_summaries.append(
+                {
+                    "tag": tag,
+                    "count": count,
+                    "share": count / total_decisions,
+                    "avg_score": tag_scores[tag] / count if count else 0.0,
+                    "last_seen": tag_last_seen.get(tag).isoformat()
+                    if tag in tag_last_seen
+                    else None,
+                    "top_tactics": top_tactics,
+                }
+            )
+
+        objective_summaries = []
+        for objective, count in _sorted_entries(objective_counts):
+            top_tactics = []
+            if objective in objective_tactics and objective_tactics[objective]:
+                top_tactics = [
+                    tactic for tactic, _ in objective_tactics[objective].most_common(3)
+                ]
+            objective_summaries.append(
+                {
+                    "objective": objective,
+                    "count": count,
+                    "share": count / total_decisions,
+                    "avg_score": objective_scores[objective] / count if count else 0.0,
+                    "last_seen": objective_last_seen.get(objective).isoformat()
+                    if objective in objective_last_seen
+                    else None,
+                    "top_tactics": top_tactics,
+                }
+            )
+
         recent_headlines = recent_headlines[-5:]
 
         return {
@@ -397,6 +467,8 @@ class PolicyRouter:
             "experiments": experiment_summaries,
             "regimes": regime_summary,
             "recent_headlines": recent_headlines,
+            "tags": tag_summaries,
+            "objectives": objective_summaries,
             "current_streak": {
                 "tactic_id": streak_tactic,
                 "length": streak_length,

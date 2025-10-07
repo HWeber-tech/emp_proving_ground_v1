@@ -224,6 +224,16 @@ def test_reflection_digest_surfaces_emerging_strategies() -> None:
     assert experiments[0]["count"] == 1
     assert experiments[0]["most_common_tactic"] == "mean_reversion"
 
+    tag_entries = digest["tags"]
+    assert [entry["tag"] for entry in tag_entries[:2]] == ["fast-weight", "momentum"]
+    assert tag_entries[0]["count"] == 2
+    assert tag_entries[0]["top_tactics"][0] == "breakout"
+
+    objective_entries = digest["objectives"]
+    assert objective_entries[0]["objective"] == "alpha-capture"
+    assert objective_entries[0]["share"] == pytest.approx(2 / 3)
+    assert "breakout" in objective_entries[0]["top_tactics"]
+
     regimes = digest["regimes"]
     assert regimes["bull"]["share"] == pytest.approx(1.0)
 

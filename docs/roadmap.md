@@ -130,8 +130,12 @@ kit that the roadmap calls back to in each checklist.
     genome templates, ingests recorded experiment manifests into additional
     templates, derives jitter/metrics/tags from those artifacts, and injects
     lineage metadata so baseline populations mirror the institutional strategy
-    library plus recent experiments, with pytest guarding sampler rotation,
-    artifact harvesting, and seeded genome context.【F:src/core/evolution/seeding.py†L159-L400】【F:src/core/evolution/engine.py†L250-L335】【F:tests/evolution/test_realistic_seeding.py†L1-L88】
+    library plus recent experiments. The sampler now writes parent IDs,
+    mutation histories, and performance fingerprints onto each genome, doubles
+    as the default bootstrap path inside the population manager, and surfaces
+    parent/mutation counts through lineage telemetry so orchestrator dashboards
+    expose richer provenance, with pytest guarding sampler rotation, metadata
+    propagation, and seeded genome context.【F:src/core/evolution/seeding.py†L82-L140】【F:src/core/population_manager.py†L62-L383】【F:src/evolution/lineage_telemetry.py†L200-L228】【F:tests/evolution/test_realistic_seeding.py†L48-L88】【F:tests/current/test_population_manager_with_genome.py†L86-L108】【F:tests/current/test_evolution_orchestrator.py†L112-L310】
   - *Progress*: Portfolio evolution falls back gracefully when optional
     scikit-learn dependencies are missing by logging the degraded path, returning
     deterministic cluster bucketing, and exercising the guards under
@@ -238,6 +242,11 @@ kit that the roadmap calls back to in each checklist.
     payloads on the event bus, and persist the latest posture for discovery,
     with pytest asserting snapshot and alert propagation so supervisors inherit
     actionable evidence when enforcement fails.【F:src/trading/risk/risk_interface_telemetry.py†L1-L156】【F:src/trading/trading_manager.py†L741-L759】【F:tests/trading/test_trading_manager_execution.py†L651-L667】
+  - *Progress*: FIX integration pilot now exports supervised runtime metadata,
+    exposes a `run_forever` trading workload, and ships a builder helper that
+    wraps the pilot into a runtime application so brokers inherit the risk API
+    runbook, task-supervisor stats, trading-manager risk summary, and graceful
+    shutdown semantics under pytest coverage of the runtime harness.【F:src/runtime/fix_pilot.py†L112-L165】【F:src/runtime/fix_pilot.py†L225-L236】【F:src/runtime/fix_pilot.py†L496-L517】【F:src/runtime/__init__.py†L15-L107】【F:tests/runtime/test_fix_pilot.py†L166-L260】
   - *Progress*: Bootstrap control center, bootstrap runtime status, and FIX pilot
     snapshots now resolve the trading manager’s risk interface payload, cache the
     shared runbook metadata, and surface it in operator telemetry so control

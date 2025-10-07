@@ -67,6 +67,11 @@
     exposes experiment registries, and ships a reflection digest summarising streaks,
     regime mix, and experiment share so reviewers inherit emerging-strategy telemetry
     without spelunking raw summaries under expanded pytest coverage.【F:src/thinking/adaptation/policy_router.py†L30-L412】【F:tests/thinking/test_policy_router.py†L120-L210】
+  - Understanding router now serialises feature-gate thresholds, required feature
+    flags, and adapter expiry windows into the fast-weight summary so governance
+    reviews see why fast-weight multipliers applied; adapters also respect flag
+    disablement and expiry timestamps under pytest coverage of the routing
+    scenarios.【F:src/understanding/router.py†L69-L114】【F:tests/understanding/test_understanding_router.py†L81-L146】
 
 ### Days 6–7 – Decision diary & probes (≈3 tickets)
 

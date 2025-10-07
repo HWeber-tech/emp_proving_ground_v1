@@ -65,6 +65,10 @@ kit that the roadmap calls back to in each checklist.
     local audits block on regression drift; pytest locks success/failure paths
     and the guardrail manifest keeps the guardrail suites wired into the
     dedicated CI marker.【F:tools/telemetry/coverage_guardrails.py†L1-L268】【F:tests/tools/test_coverage_guardrails.py†L1-L83】【F:tests/runtime/test_guardrail_suite_manifest.py†L18-L90】
+  - *Progress*: Institutional ingest guardrails now carry dedicated `guardrail`
+    markers, the manifest asserts coverage jobs require the production slice and
+    institutional vertical, and the coverage guardrail CLI tracks the
+    institutional vertical target so CI fails when coverage drifts.【F:tests/data_foundation/test_production_ingest_slice.py†L8】【F:tests/data_foundation/test_institutional_vertical.py†L11】【F:tests/runtime/test_guardrail_suite_manifest.py†L21】【F:tests/runtime/test_guardrail_suite_manifest.py†L113】【F:.github/workflows/ci.yml†L112】【F:tools/telemetry/coverage_guardrails.py†L22】【F:tests/tools/test_coverage_guardrails.py†L40】
   - *Progress*: CI workflow now runs the coverage matrix and minimum coverage
     guardrail steps after the guarded pytest job, enforcing ingest/risk targets,
     appending Markdown summaries, and failing the build when thresholds slip,
@@ -675,7 +679,7 @@ kit that the roadmap calls back to in each checklist.
   - [x] Stand up drift sentry detectors, alert policies, and runbook updates that
     tie Page–Hinkley/variance thresholds into readiness dashboards.【F:docs/context/sprint_briefs/understanding_loop_v1.md†L78-L91】【F:docs/High-Impact Development Roadmap.md†L52-L53】
   - *Progress*: Understanding drift sentry now evaluates belief/regime metrics, publishes failover-aware telemetry, derives alert payloads, and pipes runbook metadata into operational readiness so incident responders inherit a single drift component across dashboards and alert policies under regression coverage.【F:src/operations/drift_sentry.py†L1-L399】【F:tests/intelligence/test_drift_sentry.py†L43-L135】【F:tests/operations/test_operational_readiness.py†L200-L283】【F:docs/operations/runbooks/drift_sentry_response.md†L1-L69】
-  - *Progress*: DriftSentry gate now ingests sensory drift snapshots, applies confidence/notional guardrails, and surfaces gating telemetry through runtime bootstrap and Predator app summaries under dedicated trading manager regressions so drift incidents halt paper promotions with documented evidence.【F:src/trading/gating/drift_sentry_gate.py†L1-L200】【F:src/runtime/bootstrap_runtime.py†L161-L177】【F:src/runtime/predator_app.py†L1012-L1024】【F:tests/trading/test_trading_manager_execution.py†L187-L260】【F:tests/trading/test_drift_sentry_gate.py†L61-L153】
+  - *Progress*: DriftSentry gate now ingests sensory drift snapshots, applies confidence/notional guardrails, and surfaces gating telemetry through runtime bootstrap and Predator app summaries; WARN severities and stage gates flip a `force_paper` flag that the release router turns into forced paper routes so drift incidents record audited reasons under enhanced trading manager regressions.【F:src/trading/gating/drift_sentry_gate.py†L321】【F:src/trading/execution/release_router.py†L175】【F:src/runtime/bootstrap_runtime.py†L161】【F:src/runtime/predator_app.py†L1012】【F:tests/trading/test_trading_manager_execution.py†L533】【F:tests/trading/test_drift_sentry_gate.py†L61】
   - *Progress*: Sensory drift regression suite now ships a deterministic Page–Hinkley
     replay fixture and metadata assertions so escalations reproduce the alert
     catalog, runbook link, and detector stats with evidence bundles backed by
@@ -683,6 +687,7 @@ kit that the roadmap calls back to in each checklist.
   - [x] Deliver the policy ledger store, rebuild CLI, and governance checklist so
     promotions trace back to DecisionDiary evidence.【F:docs/context/sprint_briefs/understanding_loop_v1.md†L93-L107】【F:docs/High-Impact Development Roadmap.md†L53-L54】
   - *Progress*: Policy ledger store now persists promotion history, approvals, threshold overrides, and diary evidence, with a rebuild CLI that regenerates enforceable risk configs and router guardrails while exporting governance workflows under pytest coverage so AlphaTrade promotions stay auditable.【F:src/governance/policy_ledger.py†L1-L200】【F:src/governance/policy_rebuilder.py†L1-L141】【F:tools/governance/rebuild_policy.py†L1-L112】【F:tests/governance/test_policy_ledger.py†L33-L181】【F:tests/tools/test_rebuild_policy_cli.py†L11-L41】
+  - *Progress*: Policy router now ingests recorded reflection summaries and the decision diary CLI renders reflection digests with tactic, experiment, and window limits so reviewers rebuild understanding insights from stored diaries without replaying the loop.【F:src/thinking/adaptation/policy_router.py†L269】【F:tools/understanding/decision_diary_cli.py†L172】【F:tests/thinking/test_policy_router.py†L311】【F:tests/tools/test_decision_diary_cli.py†L173】
   - [x] Provide graph diagnostics CLI, guardrailed acceptance workflow, and
     operational dashboard tile so AlphaTrade deltas remain observable.【F:docs/context/sprint_briefs/understanding_loop_v1.md†L108-L128】
   - *Progress*: Understanding diagnostics builder now emits sensory→belief→router→policy graphs with snapshot exports, wrapped by a CLI that renders JSON/DOT/Markdown and guarded by the `understanding_acceptance` marker plus dedicated pytest suite.【F:src/understanding/diagnostics.py†L395-L542】【F:src/understanding/__init__.py†L3-L22】【F:tools/understanding/graph_diagnostics.py†L1-L82】【F:tests/understanding/test_understanding_diagnostics.py†L15-L29】【F:pytest.ini†L2-L27】
@@ -840,13 +845,13 @@ kit that the roadmap calls back to in each checklist.
 - Maintain the truth-first status culture: mock implementations must remain
   labelled and roadmapped until replaced by production-grade systems.【F:docs/DEVELOPMENT_STATUS.md†L7-L35】
 
-## Automation updates — 2025-10-07T19:26:47Z
+## Automation updates — 2025-10-07T23:24:00Z
 
 ### Last 4 commits
-- 98fd31f variant-4 (2025-10-07)
-- 2aa59b0 variant-3 (2025-10-07)
-- f9c0243 docs(docs): tune 4 files (2025-10-07)
-- a0152f4 docs(docs): tune 2 files (2025-10-07)
+- 2a3d2cf test(.github): tune 6 files (2025-10-07)
+- d169fc8 refactor(thinking): tune 4 files (2025-10-07)
+- 7036205 refactor(trading): tune 4 files (2025-10-07)
+- 38024ce docs(docs): tune 3 files (2025-10-07)
 
 ## Automation updates — 2025-10-07T15:30:42Z
 

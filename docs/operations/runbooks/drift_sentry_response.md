@@ -46,7 +46,10 @@ to adaptation leads.
    includes baseline/evaluation stats to speed the comparison.
 4. **Escalate if ALERT** – On ALERT severity the runbook requires notifying the
    incident response lead, pausing paper-trade promotions, and logging a
-   decision diary entry referencing the drift snapshot ID.
+   decision diary entry referencing the drift snapshot ID. Confirm the latest
+   TradingManager event shows the drift gate `force_paper` flag and that release
+   execution metadata records the forced reason before attempting any live
+   fills.【F:src/trading/gating/drift_sentry_gate.py†L321】【F:src/trading/execution/release_router.py†L175】【F:tests/trading/test_trading_manager_execution.py†L533】
 5. **Adjust guardrails (optional)** – If drift is expected (e.g. scheduled data
    migrations), update the configuration pack to widen thresholds and link the
    change ticket in the decision diary for audit completeness.

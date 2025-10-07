@@ -95,6 +95,7 @@
   - Observability dashboard row automatically failing if diary export lag exceeds SLA (hooked via coverage matrix helper).【F:docs/context/alignment_briefs/quality_observability.md†L10-L188】
 - **Progress**
   - Decision narration capsule builder/publisher now normalises ledger diffs, sigma stability, and throttle states, then publishes Markdown/JSON payloads via the shared failover helper so diary deliverables can plug directly into governance and observability dashboards.【F:src/operations/observability_diary.py†L3-L392】【F:tests/operations/test_observability_diary.py†L1-L190】
+  - Policy router can ingest recorded reflection summaries and the decision diary CLI renders reflection digests with window, tactic, and experiment limits so reviewers rebuild adaptive insights from stored diaries without rerunning the loop, under regression coverage for ingestion and CLI flows.【F:src/thinking/adaptation/policy_router.py†L269】【F:tests/thinking/test_policy_router.py†L311】【F:tools/understanding/decision_diary_cli.py†L172】【F:tests/tools/test_decision_diary_cli.py†L173】
 
 ### Days 8–9 – Drift sentry (≈3 tickets)
 

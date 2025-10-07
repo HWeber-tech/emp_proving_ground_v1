@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 from collections import deque
 import dataclasses
+from typing import Callable
 
 import pytest
 
@@ -137,6 +138,51 @@ async def test_provisioned_services_supervise_components() -> None:
     for entry in manifest:
         if entry["name"] == "redis" and entry["metadata"]["summary"]:
             assert "***" in entry["metadata"]["summary"]
+
+
+def test_provision_configures_redis_when_factory_missing(monkeypatch: pytest.MonkeyPatch) -> None:
+    config = _ingest_config()
+    redis_settings = RedisConnectionSettings.from_mapping(
+        {"REDIS_URL": "redis://cache.example.com:6379/0"}
+    )
+    provisioner = InstitutionalIngestProvisioner(
+        config,
+        redis_settings=redis_settings,
+        kafka_mapping={"KAFKA_INGEST_CONSUMER_TOPICS": "telemetry.ingest"},
+    )
+
+    captured: dict[str, object] = {}
+
+    def _fake_configure(
+        settings: RedisConnectionSettings,
+        *,
+        factory: Callable[[RedisConnectionSettings], object] | None = None,
+        ping: bool = True,
+    ) -> object:
+        captured["settings"] = settings
+        captured["factory"] = factory
+        captured["ping"] = ping
+        return InMemoryRedis()
+
+    monkeypatch.setattr(
+        "src.data_foundation.ingest.institutional_vertical.configure_redis_client",
+        _fake_configure,
+    )
+
+    services = provisioner.provision(
+        run_ingest=lambda: asyncio.sleep(0),
+        event_bus=_DummyEventBus(),
+        task_supervisor=TaskSupervisor(namespace="configure"),
+        kafka_consumer_factory=lambda *_: _DummyKafkaConsumer(),
+    )
+
+    assert services.redis_cache is not None
+    assert isinstance(services.redis_cache.raw_client, InMemoryRedis)
+    assert captured == {
+        "settings": redis_settings,
+        "factory": None,
+        "ping": True,
+    }
 
 
 def test_summary_includes_failover_metadata() -> None:

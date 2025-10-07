@@ -32,7 +32,7 @@ from src.data_foundation.cache.redis_cache import (
     ManagedRedisCache,
     RedisCachePolicy,
     RedisConnectionSettings,
-    InMemoryRedis,
+    configure_redis_client,
 )
 from src.data_foundation.ingest.configuration import InstitutionalIngestConfig
 from src.data_foundation.ingest.scheduler import (
@@ -164,6 +164,12 @@ class InstitutionalIngestServices:
             },
         )
 
+        redis_backing: str | None = None
+        if self.redis_cache is not None:
+            raw_client = getattr(self.redis_cache, "raw_client", None)
+            if raw_client is not None:
+                redis_backing = raw_client.__class__.__name__
+
         redis_snapshot = ManagedConnectorSnapshot(
             name="redis",
             configured=bool(self.redis_settings and self.redis_settings.configured),
@@ -172,6 +178,7 @@ class InstitutionalIngestServices:
                 "summary": self.redis_settings.summary(redacted=True)
                 if self.redis_settings and self.redis_settings.configured
                 else None,
+                "backing": redis_backing,
             },
         )
 
@@ -198,8 +205,13 @@ class InstitutionalIngestServices:
         schedule_state = schedule.state()
 
         redis_summary: str | None = None
+        redis_backing: str | None = None
         if self.redis_settings is not None and self.redis_settings.configured:
             redis_summary = self.redis_settings.summary(redacted=True)
+        if self.redis_cache is not None:
+            raw_client = getattr(self.redis_cache, "raw_client", None)
+            if raw_client is not None:
+                redis_backing = raw_client.__class__.__name__
 
         kafka_summary: str | None = None
         if self.kafka_settings is not None and self.kafka_settings.configured:
@@ -222,6 +234,7 @@ class InstitutionalIngestServices:
                 else None,
             },
             "redis": redis_summary,
+            "redis_backing": redis_backing,
             "kafka": kafka_summary,
             "kafka_topics": list(self.kafka_consumer.topics)
             if self.kafka_consumer is not None
@@ -370,9 +383,18 @@ class InstitutionalIngestProvisioner:
         redis_cache: ManagedRedisCache | None = None
         redis_settings = self.redis_settings
         if redis_settings is not None and redis_settings.configured:
-            client_factory = redis_client_factory or (lambda _settings: InMemoryRedis())
-            client = client_factory(redis_settings)
-            redis_cache = ManagedRedisCache(client, self.redis_policy)
+            client: object | None
+            if redis_client_factory is not None:
+                client = redis_client_factory(redis_settings)
+            else:
+                client = configure_redis_client(redis_settings)
+                if client is None:
+                    logger.warning(
+                        "Redis configuration present (%s) but client could not be created; skipping managed cache",
+                        redis_settings.summary(redacted=True),
+                    )
+            if client is not None:
+                redis_cache = ManagedRedisCache(client, self.redis_policy)
 
         kafka_consumer: KafkaIngestEventConsumer | None = None
         kafka_settings = self.ingest_config.kafka_settings

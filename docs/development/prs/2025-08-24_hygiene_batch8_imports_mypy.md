@@ -15,7 +15,7 @@ Batch8 fix1 validations are green; import rewrites have been applied per the map
 
 - Two edited files (surgical dynamic-indirection changes):
   - [src/thinking/adversarial/market_gan.py](src/thinking/adversarial/market_gan.py:1)
-  - [src/core/risk/manager.py](src/core/risk/manager.py:1)
+  - [src/core/risk/manager.py](src/core/risk/manager.py:1) *(relocated to `src/risk/manager.py` during Season reset)*
 
 - Config/docs and tooling:
   - [pyproject.toml](pyproject.toml:1)
@@ -33,7 +33,7 @@ Batch8 fix1 validations are green; import rewrites have been applied per the map
 
 - risk.manager:
   - Removed static import from config
-  - Added [def _risk_cfg(sym: str)](src/core/risk/manager.py:8) for dynamic config access
+  - Added [def _risk_cfg(sym: str)](src/core/risk/manager.py:8) for dynamic config access *(now tracked in `src/risk/manager.py`)*
   - Updated usage [lines 14–15](src/core/risk/manager.py:14)
 
 - Tooling configs:

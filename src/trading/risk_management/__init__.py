@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING, Any, Protocol
 
 
 if TYPE_CHECKING:
-    from src.core.risk.manager import RiskManager
+    from src.risk.manager import RiskManager
     from src.core.risk.position_sizing import kelly_fraction as KellyCriterion  # alias
 
     class StressTester(Protocol): ...
@@ -22,7 +22,7 @@ if TYPE_CHECKING:
 
 else:
     try:
-        from src.core.risk.manager import RiskManager
+        from src.risk.manager import RiskManager
         from src.core.risk.position_sizing import kelly_fraction as KellyCriterion  # alias
     except Exception:  # pragma: no cover
 

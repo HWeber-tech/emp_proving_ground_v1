@@ -18,7 +18,7 @@ from src.config.risk.risk_config import RiskConfig as TradingRiskConfig
 from src.compliance.workflow import ComplianceWorkflowSnapshot
 from src.governance.policy_ledger import LedgerReleaseManager, PolicyLedgerStage
 from src.core.coercion import coerce_float, coerce_int
-from src.core.risk.manager import RiskManager, get_risk_manager
+from src.risk.manager import RiskManager, get_risk_manager
 from src.risk.telemetry import (
     RiskTelemetrySnapshot,
     evaluate_risk_posture,

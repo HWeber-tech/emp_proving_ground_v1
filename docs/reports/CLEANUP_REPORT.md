@@ -94,14 +94,14 @@ Dead code candidates (first 100):
 -  src\core\instrument.py
 -  src\core\interfaces.py
 -  src\core\population_manager.py
--  ~~src\core\risk_manager.py~~ (removed; canonical imports now resolve via `src/core/risk/manager.py`, which core and trading modules already consume).【F:src/core/__init__.py†L34-L43】【F:src/trading/trading_manager.py†L105-L147】
+-  ~~src\core\risk_manager.py~~ (removed; canonical imports now resolve via `src/risk/manager.py`, which core and trading modules already consume).【F:src/core/__init__.py†L11-L36】【F:src/trading/trading_manager.py†L21-L180】
 -  src\core\sensory_organ.py
 -  src\core\evolution\engine.py
 -  src\core\evolution\fitness.py
 -  src\core\evolution\operators.py
 -  src\core\evolution\population.py
 -  src\core\performance\market_data_cache.py
--  src\core\risk\manager.py
+-  ~~src\core\risk\manager.py~~ (removed; canonical facade now lives in `src/risk/manager.py`).
 -  src\core\risk\position_sizing.py
 -  ~~src\core\risk\stress_testing.py~~ (removed; stress testing helpers will
    be rebuilt on top of canonical risk analytics in `src/risk/analytics`).【F:src/risk/analytics/__init__.py†L1-L32】
@@ -276,11 +276,11 @@ Notes
 - RiskConfig
   - Canonical: [src/config/risk/risk_config.py](src/config/risk/risk_config.py)
   - Re-exports for back-compat:
-    - [src/core/risk/manager.py](src/core/risk/manager.py) now imports canonical RiskConfig and continues to expose RiskConfig for legacy imports
+    - [src/risk/manager.py](src/risk/manager.py) now imports canonical RiskConfig and continues to expose RiskConfig for legacy imports
     - Legacy [src/core.py] shim removed once callers switched to the package exports
 - RiskManager
-  - Canonical: [src/core/risk/manager.py](src/core/risk/manager.py)
-  - Legacy shim retired: `src/core/risk_manager.py` removed after trading and core modules switched to importing `src/core/risk/manager.py` directly.【F:src/core/__init__.py†L34-L43】【F:src/trading/trading_manager.py†L105-L147】
+  - Canonical: [src/risk/manager.py](src/risk/manager.py)
+  - Legacy shim retired: `src/core/risk_manager.py` removed after trading and core modules switched to importing `src/risk/manager.py` directly.【F:src/core/__init__.py†L11-L36】【F:src/trading/trading_manager.py†L1-L380】
 - risk module unification
   - Legacy [src/risk.py] shim removed after imports converged on the package module
   - Note: ValidationResult canonicalisation tracked under validation models

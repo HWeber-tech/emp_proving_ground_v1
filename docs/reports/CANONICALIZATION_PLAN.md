@@ -45,17 +45,17 @@ Phase 1 scope — families and decisions
 
 2) RiskManager (3) and RiskConfig (2)
 - Observed in:
-  - [src/core/risk/manager.py](src/core/risk/manager.py)
+  - [src/risk/manager.py](src/risk/manager.py)
   - [src/core/risk_manager.py](src/core/risk_manager.py)
   - ~~src/risk.py~~ (removed; canonical import surface is the package module)
   - ~~src/core.py~~ (removed; package exports provide legacy accessors)
-- Canonical: [src/core/risk/manager.py](src/core/risk/manager.py)
+- Canonical: [src/risk/manager.py](src/risk/manager.py)
 - RiskConfig canonical target: create [src/config/risk/risk_config.py](src/config/risk/risk_config.py) or reuse [src/config/risk/](src/config/risk/) if a module already fits.
 - Legacy shims:
   - [src/core/risk_manager.py](src/core/risk_manager.py) re-exports from core.risk.manager
   - ~~src/risk.py~~ (removed; see above)
   - ~~src/core.py~~ (removed; see above)
-- Rationale: consolidate under core risk package; config lives under config.
+- Rationale: consolidate under the canonical risk package; config lives under config.
 
 3) Instrument (2) and InstrumentProvider (2)
 - Observed in:
@@ -267,7 +267,7 @@ Open questions (to resolve before Phase 2)
 - Exact location for RiskConfig: [src/config/risk/risk_config.py](src/config/risk/risk_config.py) vs re-using an existing config file in [src/config/risk/](src/config/risk/).
 
 Appendix — families with count ≥ 3 (current scan)
-- RiskManager → canonical [src/core/risk/manager.py](src/core/risk/manager.py)
+- RiskManager → canonical [src/risk/manager.py](src/risk/manager.py)
 - ValidationResult → canonical [src/validation/models.py](src/validation/models.py)
 - EcosystemOptimizer → canonical [src/ecosystem/optimization/ecosystem_optimizer.py](src/ecosystem/optimization/ecosystem_optimizer.py)
 - PredictiveMarketModeler → canonical [src/thinking/prediction/predictive_market_modeler.py](src/thinking/prediction/predictive_market_modeler.py)

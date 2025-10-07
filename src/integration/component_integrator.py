@@ -17,17 +17,13 @@ from typing import TYPE_CHECKING, Dict, List, Optional, Protocol, runtime_checka
 from src.core.performance.market_data_cache import get_global_cache
 from src.core.types import JSONObject
 from src.config.risk.risk_config import RiskConfig
+from src.risk.manager import RiskManager, get_risk_manager
 from src.trading.risk.risk_api import RISK_API_RUNBOOK, summarise_risk_config
 
 # Canonical imports (avoid relative package traversals)
 # Note: These may be optional at runtime depending on environment; guarded in methods.
 try:
-    from src.core import (
-        PopulationManager,
-        RiskManager,
-        SensoryOrgan,
-        get_risk_manager as _core_get_risk_manager,
-    )
+    from src.core import PopulationManager, SensoryOrgan
 except Exception:  # pragma: no cover
     # Provide tiny runtime stubs to avoid rebinding type names to None
     class PopulationManager:  # type: ignore[no-redef]
@@ -39,16 +35,12 @@ except Exception:  # pragma: no cover
     class RiskManager:  # type: ignore[no-redef]
         def __init__(self, *args: object, **kwargs: object) -> None: ...
 
-    _core_get_risk_manager = None
-
-get_risk_manager = _core_get_risk_manager
-
 
 if TYPE_CHECKING:
     # Type-only imports to satisfy checkers without runtime coupling
     from src.core import PopulationManager as _TPopulationManager  # noqa: F401
-    from src.core import RiskManager as _TRiskManager  # noqa: F401
     from src.core import SensoryOrgan as _TSensoryOrgan  # noqa: F401
+    from src.risk.manager import RiskManager as _TRiskManager  # noqa: F401
 
 logger = logging.getLogger(__name__)
 

@@ -13,7 +13,7 @@ from typing import Any
 
 from .instrument import Instrument, get_all_instruments, get_instrument
 from .population_manager import PopulationManager
-from .risk.manager import RiskManager, get_risk_manager  # consolidated SoT
+from src.risk.manager import RiskManager, get_risk_manager  # canonical risk facade
 
 __all__ = [
     # Population Manager

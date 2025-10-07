@@ -28,7 +28,7 @@ from src.core.config_access import ConfigurationProvider, NoOpConfigurationProvi
 from src.core.genome import GenomeProvider, NoOpGenomeProvider
 from src.core.market_data import MarketDataGateway, NoOpMarketDataGateway
 from src.core.regime import NoOpRegimeClassifier, RegimeClassifier, RegimeResult
-from src.core.risk.manager import RiskManager, get_risk_manager
+from src.risk.manager import RiskManager, get_risk_manager
 from src.data_foundation.ingest.yahoo_gateway import YahooMarketDataGateway
 
 

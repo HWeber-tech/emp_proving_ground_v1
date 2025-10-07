@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from .manager import RiskManager, create_risk_manager, get_risk_manager
 from .real_risk_manager import RealRiskConfig, RealRiskManager
 from .analytics import (
     VolatilityTargetAllocation,
@@ -36,6 +37,9 @@ from .telemetry import (
 __all__ = [
     "RealRiskManager",
     "RealRiskConfig",
+    "RiskManager",
+    "create_risk_manager",
+    "get_risk_manager",
     "BudgetUtilisation",
     "ExposureBreakdown",
     "PortfolioRiskLimits",

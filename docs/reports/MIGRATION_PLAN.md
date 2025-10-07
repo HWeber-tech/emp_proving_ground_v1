@@ -70,7 +70,7 @@ Batch 2 — Core market models
 
 Batch 3 — Risk layer
 - Families:
-  - RiskManager → canonical [src/core/risk/manager.py](src/core/risk/manager.py)
+  - RiskManager → canonical [src/risk/manager.py](src/risk/manager.py)
   - RiskConfig → canonical [src/config/risk/risk_config.py](src/config/risk/risk_config.py)
 - Actions:
   - Convert [src/core/risk_manager.py](src/core/risk_manager.py) to re-export from core.risk.manager.

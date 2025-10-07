@@ -23,7 +23,7 @@ import pandas as pd
 from src.core.anomaly import AnomalyDetector, NoOpAnomalyDetector
 from src.core.market_data import MarketDataGateway, NoOpMarketDataGateway
 from src.core.regime import NoOpRegimeClassifier, RegimeClassifier
-from src.core.risk.manager import RiskManager, get_risk_manager
+from src.risk.manager import RiskManager, get_risk_manager
 from src.config.risk.risk_config import RiskConfig
 
 if TYPE_CHECKING:

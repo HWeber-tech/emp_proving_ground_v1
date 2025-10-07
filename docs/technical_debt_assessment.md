@@ -158,6 +158,8 @@ Phase 6–9 roadmap streams.
 - **Risk profile** – CI uploads logs and summaries and opens/closes GitHub issue
   alerts automatically, but the Slack/webhook mirror plus a forced-failure drill
   and response metrics still need to be exercised.
+- **Progress** – The Slack relay now ships alongside a forced-failure drill
+  writer (`tools.telemetry.alert_drill`) and MTTA/MTTR recorder (`tools.telemetry.update_ci_metrics --alert-timeline`), with pytest coverage proving the timeline parsing and metrics wiring so drills produce reproducible evidence.【F:tools/telemetry/alert_drill.py†L1-L143】【F:tools/telemetry/update_ci_metrics.py†L1-L220】【F:tools/telemetry/ci_metrics.py†L1-L520】【F:tests/tools/test_alert_drill.py†L1-L60】【F:tests/tools/test_ci_metrics.py†L1-L600】
 - **Leading indicators** – Selected alert channel, successful forced-failure test,
   and freshness of the CI health dashboard.
 - **Immediate actions**

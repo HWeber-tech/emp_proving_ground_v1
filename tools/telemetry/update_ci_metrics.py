@@ -13,6 +13,7 @@ from .ci_metrics import (
     record_coverage_domains,
     record_formatter,
     record_remediation,
+    record_alert_response,
 )
 
 
@@ -133,6 +134,25 @@ def _build_parser() -> argparse.ArgumentParser:
         type=str,
         help="Optional evidence reference for the dashboard entry (defaults to the JSON path)",
     )
+    parser.add_argument(
+        "--alert-timeline",
+        type=Path,
+        help=(
+            "Path to an alert timeline JSON payload describing a CI failure drill or incident"
+        ),
+    )
+    parser.add_argument(
+        "--alert-label",
+        type=str,
+        help="Optional label for the alert response entry (defaults to incident label or ID)",
+    )
+    parser.add_argument(
+        "--alert-source",
+        type=str,
+        help=(
+            "Optional evidence reference for the alert response entry (defaults to the timeline path)"
+        ),
+    )
     return parser
 
 
@@ -171,9 +191,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         and formatter_mode is None
         and not remediation_statuses
         and args.dashboard_json is None
+        and args.alert_timeline is None
     ):
         parser.error(
-            "Provide --coverage-report, --formatter-mode, --remediation-status, or a combination to update metrics"
+            "Provide --coverage-report, --formatter-mode, --remediation-status, --dashboard-json, --alert-timeline, or a combination to update metrics"
         )
 
     if not remediation_statuses and (
@@ -182,6 +203,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         or args.remediation_note is not None
     ):
         parser.error("--remediation-label/source/note require at least one --remediation-status entry")
+
+    if args.alert_timeline is None and (
+        args.alert_label is not None or args.alert_source is not None
+    ):
+        parser.error("--alert-label/source require --alert-timeline")
 
     metrics_data = None
     metrics_path: Path = args.metrics
@@ -250,6 +276,23 @@ def main(argv: Sequence[str] | None = None) -> int:
             summary=payload,
             label=args.dashboard_label,
             source=dashboard_source,
+            data=metrics_data,
+        )
+
+    if args.alert_timeline is not None:
+        if not args.alert_timeline.exists():
+            parser.error(f"Alert timeline not found: {args.alert_timeline}")
+        try:
+            timeline_payload = json.loads(args.alert_timeline.read_text())
+        except json.JSONDecodeError as exc:  # pragma: no cover - defensive guard
+            parser.error(f"Failed to parse alert timeline JSON: {exc}")
+
+        alert_source = args.alert_source or str(args.alert_timeline)
+        metrics_data = record_alert_response(
+            metrics_path,
+            timeline=timeline_payload,
+            label=args.alert_label,
+            source=alert_source,
             data=metrics_data,
         )
 

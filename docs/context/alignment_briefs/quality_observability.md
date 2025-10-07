@@ -172,6 +172,9 @@
 - Wire Slack/webhook mirrors for CI alerts, rehearse the forced-failure drill,
   and record MTTA/MTTR in the health dashboard per the operational telemetry
   stream roadmap.【F:docs/technical_debt_assessment.md†L156-L174】【F:docs/status/ci_health.md†L74-L76】
+- Progress: Alert response drill tooling now generates Slack/GitHub timelines and
+  records MTTA/MTTR in the CI metrics feed with regression coverage across the
+  drill CLI and metrics updater, keeping the roadmap evidence reproducible.【F:tools/telemetry/alert_drill.py†L1-L143】【F:tools/telemetry/update_ci_metrics.py†L1-L220】【F:tools/telemetry/ci_metrics.py†L1-L520】【F:tests/tools/test_alert_drill.py†L1-L60】【F:tests/tools/test_ci_metrics.py†L1-L600】
 - Refresh CI dashboard rows as telemetry lands, noting validation hooks and
   outstanding actions so stakeholders see live gaps (e.g., sensory fixture
   rollout, ingest metrics coverage).【F:docs/status/ci_health.md†L21-L76】

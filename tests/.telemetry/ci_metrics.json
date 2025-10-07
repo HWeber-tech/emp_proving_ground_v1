@@ -221,5 +221,31 @@
       "note": "Lagging domains: evolution (70.2%)",
       "source": "coverage-reports/pytest-2025-10-07.xml"
     }
+  ],
+  "alert_response_trend": [
+    {
+      "label": "ci-alert-2025-10-07",
+      "incident_id": "ci-alert-2025-10-07",
+      "drill": true,
+      "opened_at": "2025-10-07T12:00:00+00:00",
+      "acknowledged_at": "2025-10-07T12:03:00+00:00",
+      "resolved_at": "2025-10-07T12:18:30+00:00",
+      "generated_at": "2025-10-07T12:18:30+00:00",
+      "source": "drills/ci-alert-2025-10-07.json",
+      "statuses": {
+        "mtta_seconds": "180",
+        "mtta_minutes": "3.0",
+        "mtta_readable": "0:03:00",
+        "mttr_seconds": "1110",
+        "mttr_minutes": "18.5",
+        "mttr_readable": "0:18:30",
+        "ack_channel": "slack",
+        "ack_actor": "oncall-analyst",
+        "resolve_channel": "github",
+        "resolve_actor": "maintainer",
+        "drill": "true"
+      },
+      "note": "Ack via slack in 0:03:00; Resolve via github in 0:18:30"
+    }
   ]
 }

@@ -25,6 +25,11 @@ class DummyRiskGateway:
             "risk_config_summary": {"max_risk_per_trade_pct": 0.02},
             "runbook": RISK_API_RUNBOOK,
         }
+        self._risk_reference: Mapping[str, Any] = {
+            "risk_api_runbook": RISK_API_RUNBOOK,
+            "risk_config_summary": dict(self._risk_limits["risk_config_summary"]),
+            "limits": dict(self._risk_limits["limits"]),
+        }
 
     async def validate_trade_intent(
         self, intent: Any, portfolio_state: Mapping[str, Any] | None
@@ -38,6 +43,7 @@ class DummyRiskGateway:
             self._last_decision = {
                 "reason": "policy_violation",
                 "symbol": symbol,
+                "risk_reference": dict(self._risk_reference),
             }
             self._last_policy_snapshot = {
                 "symbol": symbol,
@@ -58,6 +64,7 @@ class DummyRiskGateway:
         self._last_decision = {
             "status": "approved",
             "symbol": symbol,
+            "risk_reference": dict(self._risk_reference),
         }
         self._last_policy_snapshot = {
             "symbol": symbol,
@@ -311,4 +318,3 @@ async def test_fix_interface_uses_risk_gateway_adjustments() -> None:
     policy_snapshot = order_record.get("policy_snapshot")
     assert policy_snapshot is not None
     assert policy_snapshot.get("approved") is True
-

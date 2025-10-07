@@ -86,6 +86,7 @@ async def test_risk_gateway_rejects_when_drawdown_exceeded(
         risk_policy=policy,
     )
 
+    portfolio_monitor.portfolio["current_daily_drawdown"] = 0.0
     state = portfolio_monitor.get_state()
     state["current_daily_drawdown"] = 0.12
 
@@ -348,3 +349,48 @@ def test_risk_gateway_limits_include_risk_api_summary(
     assert summary["max_risk_per_trade_pct"] == pytest.approx(float(config.max_risk_per_trade_pct))
     assert summary["mandatory_stop_loss"] is True
     assert limits.get("runbook") == RISK_API_RUNBOOK
+
+
+@pytest.mark.asyncio()
+async def test_risk_gateway_decision_includes_risk_reference(
+    portfolio_monitor: PortfolioMonitor,
+) -> None:
+    registry = DummyStrategyRegistry(active=True)
+    config = RiskConfig(
+        max_risk_per_trade_pct=Decimal("0.02"),
+        max_total_exposure_pct=Decimal("0.5"),
+        mandatory_stop_loss=True,
+        min_position_size=Decimal("1"),
+        research_mode=True,
+    )
+    policy = RiskPolicy.from_config(config)
+    gateway = RiskGateway(
+        strategy_registry=registry,
+        position_sizer=position_size,
+        portfolio_monitor=portfolio_monitor,
+        risk_policy=policy,
+        risk_config=config,
+    )
+
+    intent = Intent("EURUSD", Decimal("1"), confidence=0.9)
+    intent.metadata["stop_loss_pct"] = 0.01
+
+    result = await gateway.validate_trade_intent(intent, None)
+
+    assert result is not None
+    decision = gateway.get_last_decision()
+    assert decision is not None
+    reference = decision.get("risk_reference")
+    assert isinstance(reference, dict)
+    assert reference.get("risk_api_runbook") == RISK_API_RUNBOOK
+    summary = reference.get("risk_config_summary")
+    assert isinstance(summary, dict)
+    assert summary["max_total_exposure_pct"] == pytest.approx(float(config.max_total_exposure_pct))
+    limits_snapshot = reference.get("limits")
+    assert isinstance(limits_snapshot, dict)
+    assert limits_snapshot["max_open_positions"] == gateway.max_open_positions
+
+    risk_assessment = intent.metadata.get("risk_assessment", {})
+    embedded_reference = risk_assessment.get("risk_reference")
+    assert isinstance(embedded_reference, dict)
+    assert embedded_reference.get("risk_api_runbook") == RISK_API_RUNBOOK

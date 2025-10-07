@@ -9,7 +9,7 @@ from datetime import datetime
 from typing import Any, Literal, Optional, TypeAlias, cast
 
 from src.core.config_access import ConfigurationProvider, NoOpConfigurationProvider
-from src.core.context_packet import ContextPacket  # legacy
+from src.thinking.models import ContextPacket
 
 logger = logging.getLogger(__name__)
 

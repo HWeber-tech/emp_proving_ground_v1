@@ -9,12 +9,11 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 from typing import Any, Dict, List, cast
 
-try:
-    from src.core.events import ContextPacket, LearningSignal, TacticalAdaptation  # legacy
-except Exception:  # pragma: no cover
-    LearningSignal = TacticalAdaptation = ContextPacket = object
 from src.core.state_store import StateStore
 from src.thinking.memory.faiss_memory import FAISSPatternMemory
+
+LearningSignal = Any
+TacticalAdaptation = Any
 
 logger = logging.getLogger(__name__)
 

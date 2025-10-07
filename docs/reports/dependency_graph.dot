@@ -9,7 +9,7 @@ digraph emp_deps {
   "src.core";
   "src.core.base";
   "src.core.configuration";
-  "src.core.context_packet";
+  "src.thinking.models.context_packet";
   "src.core.event_bus";
   "src.core.events";
   "src.core.evolution";
@@ -501,7 +501,7 @@ digraph emp_deps {
   "src.thinking.memory.pattern_memory" -> "src.operational.state_store";
   "src.thinking.patterns.anomaly_detector" -> "src.core.exceptions";
   "src.thinking.patterns.anomaly_detector" -> "src.core.interfaces";
-  "src.thinking.patterns.cvd_divergence_detector" -> "src.core.context_packet";
+  "src.thinking.patterns.cvd_divergence_detector" -> "src.thinking.models.context_packet";
   "src.thinking.patterns.cvd_divergence_detector" -> "src.governance.system_config";
   "src.thinking.patterns.cycle_detector" -> "src.core.exceptions";
   "src.thinking.patterns.cycle_detector" -> "src.core.interfaces";

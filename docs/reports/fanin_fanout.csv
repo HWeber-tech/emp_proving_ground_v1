@@ -7,7 +7,7 @@ src.config.system_config,1,0
 src.core,6,3
 src.core.base,1,0
 src.core.configuration,0,1
-src.core.context_packet,1,0
+src.thinking.models.context_packet,1,0
 src.core.event_bus,7,1
 src.core.events,13,0
 src.core.evolution,0,0

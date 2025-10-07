@@ -11,9 +11,9 @@ from collections import deque
 from datetime import datetime, timedelta
 from typing import Any, Dict, Optional, Union, cast
 
-from src.core.context_packet import ContextPacket
 from src.governance.system_config import SystemConfig
 from src.operational.state_store import StateStore
+from src.thinking.models import ContextPacket
 from src.thinking.prediction.predictive_modeler import PredictiveMarketModeler
 
 # Removed pandas dependency

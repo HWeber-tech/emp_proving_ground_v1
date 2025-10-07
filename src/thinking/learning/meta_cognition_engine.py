@@ -8,11 +8,10 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Any, Dict, List, Optional
 
-try:
-    from src.core.events import ContextPacket, LearningSignal  # legacy
-except Exception:  # pragma: no cover
-    LearningSignal = ContextPacket = object
 from src.core.state_store import StateStore
+from src.thinking.models import ContextPacket
+
+LearningSignal = Any
 
 logger = logging.getLogger(__name__)
 

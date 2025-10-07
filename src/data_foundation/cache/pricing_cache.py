@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -18,6 +19,8 @@ from src.data_foundation.pipelines.pricing_pipeline import (
 )
 
 __all__ = ["PricingCache", "PricingCacheEntry"]
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True, slots=True)
@@ -165,8 +168,13 @@ class PricingCache:
             ):
                 try:
                     Path(path).unlink(missing_ok=True)
-                except Exception:
-                    continue
+                except OSError as exc:
+                    logger.warning(
+                        "Failed to remove pricing cache artefact %s: %s",
+                        path,
+                        exc,
+                        exc_info=True,
+                    )
 
     # ------------------------------------------------------------------
     def _write_dataset(self, frame: pd.DataFrame, base_name: str) -> Path:
@@ -184,4 +192,3 @@ class PricingCache:
         path = self._root / file_name
         path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
         return path
-

@@ -265,6 +265,35 @@ async def test_builder_bootstrap_mode(monkeypatch, tmp_path):
 
 
 @pytest.mark.asyncio()
+async def test_builder_requires_trading_manager(tmp_path):
+    cfg = SystemConfig().with_updated(
+        connection_protocol=ConnectionProtocol.bootstrap,
+        data_backbone_mode=DataBackboneMode.bootstrap,
+        extras={"BOOTSTRAP_SYMBOLS": "EURUSD"},
+    )
+
+    app = await build_professional_predator_app(config=cfg)
+
+    # Remove the trading manager to simulate a misconfigured runtime.
+    app.sensory_organ = SimpleNamespace()
+
+    try:
+        with pytest.raises(RuntimeError) as excinfo:
+            build_professional_runtime_application(
+                app,
+                skip_ingest=True,
+                symbols_csv="EURUSD",
+                duckdb_path=str(tmp_path / "tier0.duckdb"),
+            )
+
+        message = str(excinfo.value)
+        assert "Trading manager not attached" in message
+        assert "risk_api_contract.md" in message
+    finally:
+        await app.shutdown()
+
+
+@pytest.mark.asyncio()
 async def test_builder_rejects_invalid_trading_risk_config(tmp_path):
     cfg = SystemConfig().with_updated(
         connection_protocol=ConnectionProtocol.bootstrap,

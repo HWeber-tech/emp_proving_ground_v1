@@ -692,8 +692,13 @@ def _prepare_trading_risk_enforcement(
 ) -> StartupCallback | None:
     trading_manager = _locate_trading_manager(app)
     if trading_manager is None:
-        logger.debug("Trading manager not attached; skipping runtime risk enforcement")
-        return None
+        message = "Trading manager not attached; cannot enforce RiskConfig"
+        metadata["risk_error"] = {
+            "message": message,
+            "runbook": RISK_API_RUNBOOK,
+        }
+        logger.error(message)
+        raise RuntimeError(f"{message}. See {RISK_API_RUNBOOK}")
 
     try:
         risk_config = resolve_trading_risk_config(trading_manager)

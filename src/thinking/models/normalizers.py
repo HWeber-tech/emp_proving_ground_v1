@@ -13,10 +13,14 @@ Rules:
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Mapping
 from typing import Optional, SupportsFloat, SupportsIndex, cast
 
 from .types import AttackReportTD
+
+
+logger = logging.getLogger(__name__)
 
 
 def _to_float(value: object, default: float = 0.0) -> float:
@@ -27,13 +31,46 @@ def _to_float(value: object, default: float = 0.0) -> float:
     if isinstance(value, str):
         try:
             return float(value)
-        except Exception:
+        except (TypeError, ValueError):
             return default
     try:
         Floatable = str | SupportsFloat | SupportsIndex
         return float(cast(Floatable, value))
-    except Exception:
+    except (TypeError, ValueError):
         return default
+
+
+def _call_dict_method(obj: object) -> Mapping[str, object] | None:
+    """Best-effort ``dict()`` invocation that never raises."""
+
+    dict_method = getattr(obj, "dict", None)
+    if not callable(dict_method):
+        return None
+    try:
+        candidate = dict_method()
+    except Exception as exc:  # pragma: no cover - defensive logging only
+        logger.debug("Object %s.dict() failed during normalization: %s", type(obj).__name__, exc, exc_info=exc)
+        return None
+    if isinstance(candidate, Mapping):
+        return candidate
+    logger.debug(
+        "Object %s.dict() returned non-mapping payload of type %s", type(obj).__name__, type(candidate).__name__
+    )
+    return None
+
+
+def _safe_getattr(obj: object, attr: str) -> object | None:
+    """Fetch attribute while swallowing unexpected getter errors."""
+
+    try:
+        return getattr(obj, attr)
+    except AttributeError:
+        return None
+    except Exception as exc:  # pragma: no cover - getters may raise
+        logger.debug(
+            "Attribute %s access failed on %s: %s", attr, type(obj).__name__, exc, exc_info=exc
+        )
+        return None
 
 
 def normalize_prediction(p: object) -> dict[str, float]:
@@ -45,15 +82,12 @@ def normalize_prediction(p: object) -> dict[str, float]:
       - probability: float
     """
     # If it looks like a pydantic/dataclass-like object with .dict()
-    try:
-        d = p.dict()  # type: ignore[attr-defined]
-        if isinstance(d, Mapping):
-            return {
-                "confidence": _to_float(d.get("confidence", 0.0), 0.0),
-                "probability": _to_float(d.get("probability", 0.0), 0.0),
-            }
-    except Exception:
-        pass
+    payload = _call_dict_method(p)
+    if isinstance(payload, Mapping):
+        return {
+            "confidence": _to_float(payload.get("confidence", 0.0), 0.0),
+            "probability": _to_float(payload.get("probability", 0.0), 0.0),
+        }
 
     # Mapping path
     if isinstance(p, Mapping):
@@ -63,14 +97,8 @@ def normalize_prediction(p: object) -> dict[str, float]:
         }
 
     # Attribute path (structural access)
-    try:
-        conf = _to_float(getattr(p, "confidence", 0.0), 0.0)
-    except Exception:
-        conf = 0.0
-    try:
-        prob = _to_float(getattr(p, "probability", 0.0), 0.0)
-    except Exception:
-        prob = 0.0
+    conf = _to_float(_safe_getattr(p, "confidence"), 0.0)
+    prob = _to_float(_safe_getattr(p, "probability"), 0.0)
 
     return {"confidence": conf, "probability": prob}
 
@@ -91,13 +119,13 @@ def normalize_survival_result(r: object) -> dict[str, float]:
         return {"survival_rate": _to_float(sr, 0.0)}
 
     # Attribute path (GAN discriminator results often expose .survival_rate)
-    try:
-        if hasattr(r, "survival_rate"):
-            return {"survival_rate": _to_float(getattr(r, "survival_rate", 0.0), 0.0)}
-        if hasattr(r, "survival_probability"):
-            return {"survival_rate": _to_float(getattr(r, "survival_probability", 0.0), 0.0)}
-    except Exception:
-        pass
+    attr_value = _safe_getattr(r, "survival_rate")
+    if attr_value is not None:
+        return {"survival_rate": _to_float(attr_value, 0.0)}
+
+    probability = _safe_getattr(r, "survival_probability")
+    if probability is not None:
+        return {"survival_rate": _to_float(probability, 0.0)}
 
     # Default
     return {"survival_rate": 0.0}
@@ -117,51 +145,38 @@ def normalize_attack_report(a: Mapping[str, object] | object) -> AttackReportTD:
     """
 
     def _as_mapping(obj: object) -> Optional[Mapping[str, object]]:
-        try:
-            if isinstance(obj, Mapping):
-                return obj
-            # Pydantic/dataclass-like
-            dict_meth = getattr(obj, "dict", None)
-            if callable(dict_meth):
-                d = dict_meth()
-                if isinstance(d, Mapping):
-                    return d
-        except Exception:
-            pass
+        if isinstance(obj, Mapping):
+            return obj
+        payload = _call_dict_method(obj)
+        if isinstance(payload, Mapping):
+            return payload
         return None
 
     m = _as_mapping(a)
     if m is None:
         # Fallback to attribute access
-        try:
-            return AttackReportTD(
-                attack_id=str(getattr(a, "attack_id", "")),
-                strategy_id=str(getattr(a, "strategy_id", "")),
-                success=bool(getattr(a, "success", False)),
-                impact=_to_float(getattr(a, "impact", 0.0), 0.0),
-                timestamp=str(getattr(a, "timestamp", "")),
-                error=str(getattr(a, "error", "")) if hasattr(a, "error") else "",
-            )
-        except Exception:
-            return AttackReportTD()
+        return AttackReportTD(
+            attack_id=str(_safe_getattr(a, "attack_id") or ""),
+            strategy_id=str(_safe_getattr(a, "strategy_id") or ""),
+            success=bool(_safe_getattr(a, "success") or False),
+            impact=_to_float(_safe_getattr(a, "impact"), 0.0),
+            timestamp=str(_safe_getattr(a, "timestamp") or ""),
+            error=str(_safe_getattr(a, "error") or ""),
+        )
 
     # Mapping normalization
     out: AttackReportTD = AttackReportTD()
-    try:
-        if "attack_id" in m:
-            out["attack_id"] = str(m.get("attack_id", ""))
-        if "strategy_id" in m:
-            out["strategy_id"] = str(m.get("strategy_id", ""))
-        if "success" in m:
-            out["success"] = bool(m.get("success", False))
-        if "impact" in m:
-            out["impact"] = _to_float(m.get("impact", 0.0), 0.0)
-        if "timestamp" in m:
-            out["timestamp"] = str(m.get("timestamp", ""))
-        if "error" in m:
-            out["error"] = str(m.get("error", ""))
-    except Exception:
-        # Always return something shape-compatible
-        return AttackReportTD()
+    if "attack_id" in m:
+        out["attack_id"] = str(m.get("attack_id", ""))
+    if "strategy_id" in m:
+        out["strategy_id"] = str(m.get("strategy_id", ""))
+    if "success" in m:
+        out["success"] = bool(m.get("success", False))
+    if "impact" in m:
+        out["impact"] = _to_float(m.get("impact", 0.0), 0.0)
+    if "timestamp" in m:
+        out["timestamp"] = str(m.get("timestamp", ""))
+    if "error" in m:
+        out["error"] = str(m.get("error", ""))
 
     return out

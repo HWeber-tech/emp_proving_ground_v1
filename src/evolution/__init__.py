@@ -29,6 +29,10 @@ from src.evolution.evaluation import (
     RecordedSensorySnapshot,
     RecordedTrade,
 )
+from src.evolution.evaluation.datasets import (
+    dump_recorded_snapshots,
+    load_recorded_snapshots,
+)
 from src.evolution.evaluation.telemetry import (
     RecordedReplayTelemetrySnapshot,
     summarise_recorded_replay,
@@ -61,5 +65,7 @@ __all__ = [
     "RecordedSensoryEvaluator",
     "RecordedSensorySnapshot",
     "RecordedTrade",
+    "dump_recorded_snapshots",
+    "load_recorded_snapshots",
     "summarise_recorded_replay",
 ]

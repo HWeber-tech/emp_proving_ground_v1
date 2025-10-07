@@ -1,5 +1,14 @@
 """Understanding loop diagnostics and orchestration helpers."""
 
+from .belief import (
+    BeliefBuffer,
+    BeliefDistribution,
+    BeliefEmitter,
+    BeliefState,
+    RegimeFSM,
+    RegimeSignal,
+    hebbian_step,
+)
 from .diagnostics import (
     UnderstandingArtifacts,
     UnderstandingDiagnosticsBuilder,
@@ -19,6 +28,13 @@ from .router import (
 )
 
 __all__ = [
+    "BeliefBuffer",
+    "BeliefDistribution",
+    "BeliefEmitter",
+    "BeliefState",
+    "RegimeFSM",
+    "RegimeSignal",
+    "hebbian_step",
     "UnderstandingArtifacts",
     "UnderstandingDiagnosticsBuilder",
     "UnderstandingEdge",

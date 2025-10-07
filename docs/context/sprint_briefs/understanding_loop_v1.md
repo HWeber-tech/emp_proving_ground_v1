@@ -36,6 +36,9 @@
   - `BeliefState` data model covering priors, posterior snapshots, and decay logic, fed by existing sensory organ summaries and regime classifiers.【F:docs/context/alignment_briefs/sensory_cortex.md†L20-L74】
   - Regime adapter consolidating volatility/market-state detectors into a single `RegimeSignal` published on the event bus with provenance metadata.【F:docs/roadmap.md†L523-L529】
   - Belief state diagram + glossary drop in the context pack to unlock ticket creation for subsequent layers.【F:docs/context/alignment_briefs/sensory_cortex.md†L36-L74】
+  - *Progress*: Belief buffer and emitter publish schema-versioned `BeliefState`
+    snapshots with Hebbian PSD guardrails and regime FSM events, backed by
+    guardrail pytest coverage and golden fixtures to prevent contract drift.【F:src/understanding/belief.py†L39-L347】【F:tests/intelligence/test_belief_updates.py†L111-L239】【F:tests/intelligence/golden/belief_snapshot.json†L1-L939】
 - **Validation artifacts**
   - Pytest suite around `hebbian_step` updater verifying low-rank covariance (`sigma`) remains PSD after updates across calm/normal/storm fixtures.
   - Golden JSON beliefs/regime snapshots used by doctest-like regression to guard schema drift.

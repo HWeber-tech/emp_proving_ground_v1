@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
+import pytest
+
 from src.thinking.adaptation.policy_reflection import (
     PolicyReflectionBuilder,
 )
@@ -67,6 +69,7 @@ def test_builder_generates_markdown_with_insights() -> None:
             rationale="Promote reversion in calm regimes",
             feature_gates={"volatility": (None, 0.3)},
             min_confidence=0.6,
+            regimes=("bull",),
         )
     )
 
@@ -89,9 +92,16 @@ def test_builder_generates_markdown_with_insights() -> None:
     assert "Tag spotlight" in markdown
     assert "Objective coverage" in markdown
     assert "exp-boost" in markdown
+    assert "Conf >=" in markdown
 
     insights = artifacts.payload["insights"]
     assert any("Leading tactic" in insight for insight in insights)
     assert any("Top experiment exp-boost" in insight for insight in insights)
     assert any("Dominant tag" in insight for insight in insights)
     assert any("Leading objective" in insight for insight in insights)
+    assert any("confidence >= 0.60" in insight for insight in insights)
+
+    digest = artifacts.payload["digest"]
+    experiments = digest["experiments"]
+    assert experiments[0]["regimes"] == ["bull"]
+    assert experiments[0]["min_confidence"] == pytest.approx(0.6)

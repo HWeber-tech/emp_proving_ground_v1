@@ -85,6 +85,7 @@ def test_fast_weight_experiment_overrides_base_score() -> None:
             rationale="Promote reversion while volatility is muted",
             min_confidence=0.6,
             feature_gates={"volatility": (None, 0.3)},
+            regimes=("bull",),
         )
     )
 
@@ -95,6 +96,12 @@ def test_fast_weight_experiment_overrides_base_score() -> None:
     summary_experiments = decision.reflection_summary["experiments"]
     assert summary_experiments[0]["experiment_id"] == "exp-fast-weights"
     assert "Promote reversion" in summary_experiments[0]["rationale"]
+    assert summary_experiments[0]["regimes"] == ["bull"]
+    assert summary_experiments[0]["min_confidence"] == pytest.approx(0.6)
+    assert summary_experiments[0]["delta"] == pytest.approx(0.8)
+    gates = summary_experiments[0]["feature_gates"]
+    assert isinstance(gates, list) and gates[0]["feature"] == "volatility"
+    assert gates[0]["maximum"] == pytest.approx(0.3)
 
 
 def test_route_respects_external_fast_weights() -> None:
@@ -200,6 +207,7 @@ def test_reflection_digest_surfaces_emerging_strategies() -> None:
             rationale="Boost reversion while volatility remains muted",
             min_confidence=0.6,
             feature_gates={"volatility": (None, 0.3)},
+            regimes=("bull",),
         )
     )
     router.route(_regime(volatility=0.25, timestamp=base + timedelta(minutes=10)))
@@ -223,6 +231,12 @@ def test_reflection_digest_surfaces_emerging_strategies() -> None:
     assert experiments[0]["experiment_id"] == "exp-reversion"
     assert experiments[0]["count"] == 1
     assert experiments[0]["most_common_tactic"] == "mean_reversion"
+    assert experiments[0]["regimes"] == ["bull"]
+    assert experiments[0]["min_confidence"] == pytest.approx(0.6)
+    assert experiments[0]["multiplier"] == pytest.approx(1.75)
+    assert experiments[0]["delta"] == pytest.approx(0.75)
+    gates = experiments[0]["feature_gates"]
+    assert isinstance(gates, list) and gates[0]["maximum"] == pytest.approx(0.3)
 
     tag_entries = digest["tags"]
     assert [entry["tag"] for entry in tag_entries[:2]] == ["fast-weight", "momentum"]
@@ -369,3 +383,95 @@ def test_ingest_reflection_history_skips_invalid_entries() -> None:
 
     assert appended == 0
     assert router.history() == ()
+
+
+def test_fast_weight_experiment_respects_regime_filters() -> None:
+    router = PolicyRouter()
+    router.register_tactics(
+        (
+            PolicyTactic(tactic_id="baseline", base_weight=1.0, regime_bias={"bull": 1.0}),
+            PolicyTactic(tactic_id="bear_boost", base_weight=0.6, regime_bias={"bear": 1.2}),
+        )
+    )
+    router.register_experiment(
+        FastWeightExperiment(
+            experiment_id="bear-only",
+            tactic_id="bear_boost",
+            delta=0.8,
+            rationale="Promote bear defence",
+            regimes=("bear",),
+        )
+    )
+
+    bull_decision = router.route(_regime(regime="bull"))
+    assert bull_decision.tactic_id == "baseline"
+    assert bull_decision.experiments_applied == ()
+
+    bear_decision = router.route(_regime(regime="bear"))
+    assert bear_decision.tactic_id == "bear_boost"
+    assert bear_decision.experiments_applied == ("bear-only",)
+
+
+def test_experiment_registry_surfaces_metadata() -> None:
+    router = PolicyRouter()
+    router.register_tactic(PolicyTactic(tactic_id="alpha", base_weight=1.0))
+    expires_at = datetime(2024, 3, 15, 13, 0)
+    router.register_experiment(
+        FastWeightExperiment(
+            experiment_id="exp-alpha",
+            tactic_id="alpha",
+            delta=0.25,
+            rationale="Boost alpha in bull regimes",
+            min_confidence=0.55,
+            feature_gates={"volatility": (None, 0.4)},
+            expires_at=expires_at,
+            regimes=("bull", "neutral"),
+        )
+    )
+
+    snapshot = RegimeState(
+        regime="bull",
+        confidence=0.6,
+        features={"volatility": 0.3},
+        timestamp=datetime(2024, 3, 15, 12, 30, tzinfo=timezone.utc),
+    )
+    registry = router.experiment_registry(regime_state=snapshot)
+    assert registry[0]["experiment_id"] == "exp-alpha"
+    assert registry[0]["would_apply"] is True
+    assert registry[0]["regimes"] == ["bull", "neutral"]
+    assert registry[0]["feature_gates"][0]["maximum"] == pytest.approx(0.4)
+    assert registry[0]["min_confidence"] == pytest.approx(0.55)
+    assert registry[0]["expires_at"].startswith("2024-03-15T13:00:00")
+
+    cold_snapshot = RegimeState(
+        regime="bear",
+        confidence=0.6,
+        features={"volatility": 0.3},
+        timestamp=snapshot.timestamp,
+    )
+    registry_cold = router.experiment_registry(regime_state=cold_snapshot)
+    assert registry_cold[0]["would_apply"] is False
+
+
+def test_tactic_catalog_surfaces_metadata() -> None:
+    router = PolicyRouter()
+    router.register_tactic(
+        PolicyTactic(
+            tactic_id="alpha",
+            base_weight=1.1,
+            parameters={"style": "momentum"},
+            guardrails={"requires_diary": True},
+            regime_bias={"bull": 1.3},
+            confidence_sensitivity=0.7,
+            description="Momentum alpha tactic",
+            objectives=("alpha-capture",),
+            tags=("momentum", "fast-weight"),
+        )
+    )
+
+    catalogue = router.tactic_catalog()
+    assert catalogue[0]["tactic_id"] == "alpha"
+    assert catalogue[0]["guardrails"] == {"requires_diary": True}
+    assert catalogue[0]["parameters"]["style"] == "momentum"
+    assert catalogue[0]["objectives"] == ["alpha-capture"]
+    assert "momentum" in catalogue[0]["tags"]

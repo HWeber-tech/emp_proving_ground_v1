@@ -13,6 +13,35 @@ from datetime import datetime, timezone
 from typing import Deque, Iterable, Mapping, MutableMapping, Sequence, TYPE_CHECKING
 
 
+def _serialise_feature_gates(
+    gates: Mapping[str, tuple[float | None, float | None]] | None,
+) -> tuple[Mapping[str, float | None], ...]:
+    """Return a serialisable view of feature gate bounds."""
+
+    if not gates:
+        return ()
+
+    serialised: list[Mapping[str, float | None]] = []
+    for feature in sorted(gates):
+        lower, upper = gates[feature]
+        serialised.append(
+            {
+                "feature": str(feature),
+                "minimum": float(lower) if lower is not None else None,
+                "maximum": float(upper) if upper is not None else None,
+            }
+        )
+    return tuple(serialised)
+
+
+def _normalise_expiry(value: datetime | None) -> datetime | None:
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
+
+
 @dataclass(frozen=True)
 class RegimeState:
     """Snapshot of the active market regime recognised by the understanding loop."""
@@ -75,6 +104,18 @@ class FastWeightExperiment:
     min_confidence: float = 0.0
     feature_gates: Mapping[str, tuple[float | None, float | None]] | None = None
     expires_at: datetime | None = None
+    regimes: Sequence[str] | None = None
+
+    def __post_init__(self) -> None:
+        if self.regimes is None:
+            return
+        cleaned = [
+            str(regime).strip()
+            for regime in self.regimes
+            if isinstance(regime, str) and str(regime).strip()
+        ]
+        unique = tuple(dict.fromkeys(cleaned))
+        object.__setattr__(self, "regimes", unique or None)
 
     @property
     def multiplier(self) -> float:
@@ -83,7 +124,11 @@ class FastWeightExperiment:
     def applies(self, regime_state: RegimeState) -> bool:
         if regime_state.confidence < self.min_confidence:
             return False
-        if self.expires_at and regime_state.timestamp > self.expires_at:
+        if self.expires_at:
+            expiry = _normalise_expiry(self.expires_at)
+            if expiry and regime_state.timestamp > expiry:
+                return False
+        if self.regimes and regime_state.regime not in self.regimes:
             return False
         if not self.feature_gates:
             return True
@@ -99,12 +144,23 @@ class FastWeightExperiment:
         return True
 
     def reflection_payload(self) -> Mapping[str, object]:
-        return {
+        payload: dict[str, object] = {
             "experiment_id": self.experiment_id,
             "tactic_id": self.tactic_id,
             "multiplier": self.multiplier,
+            "delta": self.delta,
             "rationale": self.rationale,
+            "min_confidence": float(self.min_confidence),
         }
+        gates = _serialise_feature_gates(self.feature_gates)
+        if gates:
+            payload["feature_gates"] = list(gates)
+        if self.regimes:
+            payload["regimes"] = list(self.regimes)
+        expiry = _normalise_expiry(self.expires_at)
+        if expiry:
+            payload["expires_at"] = expiry.isoformat()
+        return payload
 
 
 @dataclass(frozen=True)
@@ -163,6 +219,26 @@ class PolicyRouter:
 
         return dict(self._tactics)
 
+    def tactic_catalog(self) -> Sequence[Mapping[str, object]]:
+        """Return a reviewer-oriented catalogue of registered tactics."""
+
+        catalogue: list[Mapping[str, object]] = []
+        for tactic in sorted(self._tactics.values(), key=lambda item: item.tactic_id):
+            catalogue.append(
+                {
+                    "tactic_id": tactic.tactic_id,
+                    "description": tactic.description,
+                    "base_weight": float(tactic.base_weight),
+                    "confidence_sensitivity": float(tactic.confidence_sensitivity),
+                    "regime_bias": dict(tactic.regime_bias),
+                    "parameters": dict(tactic.parameters),
+                    "guardrails": dict(tactic.guardrails),
+                    "objectives": list(tactic.objectives),
+                    "tags": list(tactic.tags),
+                }
+            )
+        return tuple(catalogue)
+
     def register_experiment(self, experiment: FastWeightExperiment) -> None:
         self._experiments[experiment.experiment_id] = experiment
 
@@ -197,6 +273,33 @@ class PolicyRouter:
         """Return a copy of the registered experiments keyed by identifier."""
 
         return dict(self._experiments)
+
+    def experiment_registry(
+        self,
+        *,
+        regime_state: RegimeState | None = None,
+    ) -> Sequence[Mapping[str, object]]:
+        """Summarise fast-weight experiments for reviewers and diagnostics."""
+
+        entries: list[Mapping[str, object]] = []
+        for experiment in sorted(self._experiments.values(), key=lambda item: item.experiment_id):
+            feature_gates = _serialise_feature_gates(experiment.feature_gates)
+            expiry = _normalise_expiry(experiment.expires_at)
+            entry: dict[str, object] = {
+                "experiment_id": experiment.experiment_id,
+                "tactic_id": experiment.tactic_id,
+                "delta": float(experiment.delta),
+                "multiplier": float(experiment.multiplier),
+                "rationale": experiment.rationale,
+                "min_confidence": float(experiment.min_confidence),
+                "feature_gates": list(feature_gates),
+                "expires_at": expiry.isoformat() if expiry else None,
+                "regimes": list(experiment.regimes) if experiment.regimes else [],
+            }
+            if regime_state is not None:
+                entry["would_apply"] = experiment.applies(regime_state)
+            entries.append(entry)
+        return tuple(entries)
 
     def route(
         self,
@@ -379,6 +482,12 @@ class PolicyRouter:
         experiment_last_seen: dict[str, datetime] = {}
         experiment_rationales: dict[str, str] = {}
         experiment_tactics: dict[str, Counter[str]] = {}
+        experiment_regimes: dict[str, set[str]] = {}
+        experiment_min_confidence: dict[str, float] = {}
+        experiment_feature_gates: dict[str, tuple[Mapping[str, object], ...]] = {}
+        experiment_expires_at: dict[str, str] = {}
+        experiment_multipliers: dict[str, float] = {}
+        experiment_deltas: dict[str, float] = {}
 
         regime_counts: Counter[str] = Counter()
 
@@ -468,6 +577,37 @@ class PolicyRouter:
                 tactic = experiment.get("tactic_id")
                 if isinstance(tactic, str):
                     experiment_tactics.setdefault(experiment_id, Counter())[tactic] += 1
+                multiplier = experiment.get("multiplier")
+                if isinstance(multiplier, (int, float)):
+                    experiment_multipliers.setdefault(experiment_id, float(multiplier))
+                delta = experiment.get("delta")
+                if isinstance(delta, (int, float)):
+                    experiment_deltas.setdefault(experiment_id, float(delta))
+                min_confidence = experiment.get("min_confidence")
+                if isinstance(min_confidence, (int, float)):
+                    experiment_min_confidence.setdefault(experiment_id, float(min_confidence))
+                regimes = experiment.get("regimes")
+                if isinstance(regimes, Sequence) and not isinstance(regimes, (str, bytes)):
+                    bucket = experiment_regimes.setdefault(experiment_id, set())
+                    bucket.update(
+                        str(regime).strip()
+                        for regime in regimes
+                        if isinstance(regime, str) and str(regime).strip()
+                    )
+                feature_gates = experiment.get("feature_gates")
+                if isinstance(feature_gates, Sequence) and feature_gates:
+                    cleaned: list[Mapping[str, object]] = []
+                    for gate in feature_gates:
+                        if isinstance(gate, Mapping):
+                            cleaned.append(dict(gate))
+                    if cleaned:
+                        experiment_feature_gates.setdefault(
+                            experiment_id,
+                            tuple(cleaned),
+                        )
+                expiry = experiment.get("expires_at")
+                if isinstance(expiry, str):
+                    experiment_expires_at.setdefault(experiment_id, expiry)
 
             regime = entry.get("regime")
             if isinstance(regime, str) and regime:
@@ -497,18 +637,46 @@ class PolicyRouter:
             top_tactic = None
             if experiment_id in experiment_tactics and experiment_tactics[experiment_id]:
                 top_tactic = experiment_tactics[experiment_id].most_common(1)[0][0]
-            experiment_summaries.append(
-                {
-                    "experiment_id": experiment_id,
-                    "count": count,
-                    "share": count / total_decisions,
-                    "last_seen": experiment_last_seen.get(experiment_id).isoformat()
-                    if experiment_id in experiment_last_seen
-                    else None,
-                    "rationale": experiment_rationales.get(experiment_id),
-                    "most_common_tactic": top_tactic,
-                }
+            last_seen = (
+                experiment_last_seen.get(experiment_id).isoformat()
+                if experiment_id in experiment_last_seen
+                else None
             )
+            entry: dict[str, object] = {
+                "experiment_id": experiment_id,
+                "count": count,
+                "share": count / total_decisions,
+                "last_seen": last_seen,
+                "rationale": experiment_rationales.get(experiment_id),
+                "most_common_tactic": top_tactic,
+            }
+            experiment_model = self._experiments.get(experiment_id)
+            if experiment_model:
+                entry["min_confidence"] = float(experiment_model.min_confidence)
+                entry["regimes"] = (
+                    list(experiment_model.regimes) if experiment_model.regimes else []
+                )
+                entry["feature_gates"] = list(
+                    _serialise_feature_gates(experiment_model.feature_gates)
+                )
+                expiry = _normalise_expiry(experiment_model.expires_at)
+                entry["expires_at"] = expiry.isoformat() if expiry else None
+                entry["multiplier"] = float(experiment_model.multiplier)
+                entry["delta"] = float(experiment_model.delta)
+            else:
+                if experiment_id in experiment_min_confidence:
+                    entry["min_confidence"] = experiment_min_confidence[experiment_id]
+                if experiment_id in experiment_regimes:
+                    entry["regimes"] = sorted(experiment_regimes[experiment_id])
+                if experiment_id in experiment_feature_gates:
+                    entry["feature_gates"] = list(experiment_feature_gates[experiment_id])
+                if experiment_id in experiment_expires_at:
+                    entry["expires_at"] = experiment_expires_at[experiment_id]
+                if experiment_id in experiment_multipliers:
+                    entry["multiplier"] = experiment_multipliers[experiment_id]
+                if experiment_id in experiment_deltas:
+                    entry["delta"] = experiment_deltas[experiment_id]
+            experiment_summaries.append(entry)
 
         regime_summary = {
             regime: {"count": count, "share": count / total_decisions}

@@ -95,12 +95,20 @@ class PolicyReflectionBuilder:
         if experiments:
             top_exp = experiments[0]
             share = self._format_percentage(top_exp.get("share", 0.0))
+            gating_bits: list[str] = []
+            regimes = top_exp.get("regimes")
+            if isinstance(regimes, Sequence) and regimes:
+                gating_bits.append("regimes " + ", ".join(str(regime) for regime in regimes))
+            min_conf = top_exp.get("min_confidence")
+            if isinstance(min_conf, (int, float)) and float(min_conf) > 0:
+                gating_bits.append(f"confidence >= {float(min_conf):.2f}")
             insights.append(
-                "Top experiment {} applied {} times ({} share)".format(
+                "Top experiment {} applied {} times ({} share{})".format(
                     top_exp.get("experiment_id", "unknown"),
                     int(top_exp.get("count", 0)),
                     share,
-                )
+                    f"; {'; '.join(gating_bits)}" if gating_bits else "",
+                ).rstrip(";")
             )
 
         tag_entries = self._slice_entries(digest.get("tags", ()), self._max_tactics)
@@ -266,13 +274,31 @@ class PolicyReflectionBuilder:
         if experiments:
             lines.extend(self._render_table(
                 title="Active experiments",
-                headers=("Experiment", "Decisions", "Share", "Last seen", "Rationale", "Top tactic"),
+                headers=(
+                    "Experiment",
+                    "Decisions",
+                    "Share",
+                    "Last seen",
+                    "Regimes",
+                    "Conf >=",
+                    "Rationale",
+                    "Top tactic",
+                ),
                 rows=[
                     (
                         str(entry.get("experiment_id", "")),
                         str(entry.get("count", 0)),
                         self._format_percentage(entry.get("share", 0.0)),
                         str(entry.get("last_seen", "")),
+                        ", ".join(str(regime) for regime in entry.get("regimes", ()))
+                        if entry.get("regimes")
+                        else "-",
+                        (
+                            f"{float(entry.get('min_confidence', 0.0)):.2f}"
+                            if isinstance(entry.get("min_confidence"), (int, float))
+                            and float(entry.get("min_confidence", 0.0)) > 0.0
+                            else "-"
+                        ),
                         str(entry.get("rationale", "")),
                         str(entry.get("most_common_tactic", "")),
                     )

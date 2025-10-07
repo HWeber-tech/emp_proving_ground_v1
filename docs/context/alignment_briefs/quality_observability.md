@@ -159,12 +159,11 @@
     when runtime failures occur, and raises on unexpected or global-bus outages
     under pytest guardrails so readiness telemetry surfaces real cache incidents
     instead of quietly failing to publish.【F:src/operations/cache_health.py†L143-L245】【F:tests/operations/test_cache_health.py†L15-L138】
-- Progress: Operational metrics instrumentation now has targeted regressions for
-  logging escalation, lazy gauge fallbacks, Prometheus exporter idempotence, and
-  registry sink adapters so CI surfaces metric failures deterministically and
-  remediation plans inherit documented evidence. Latest coverage exercises the
-  failure fallback hook, sanitised FIX wrappers, and latency bounds so telemetry
-  captures degraded instrumentation instead of silently dropping metrics.【F:src/operational/metrics.py†L1-L200】【F:tests/operational/test_metrics.py†L200-L328】
+- Progress: Operational metrics instrumentation now wraps Prometheus access in
+  lazy proxies, records first-failure warnings, and exports understanding throttle
+  gauges via dedicated helpers so CI surfaces degraded instrumentation instead of
+  silently dropping metrics; guardrail suites cover gauge fallbacks, throttle
+  snapshots, and dashboard wiring.【F:src/operational/metrics.py†L43-L428】【F:src/understanding/metrics.py†L1-L65】【F:tests/operational/test_metrics.py†L310-L360】【F:tests/understanding/test_understanding_metrics.py†L62-L125】【F:tests/operations/test_observability_dashboard.py†L394-L436】
 - Progress: Bootstrap stack now logs sensory listener, liquidity prober, and
   control-centre callback failures with structured metadata so optional hooks
   surface errors without disrupting bootstrap decisions, under pytest coverage

@@ -117,6 +117,17 @@ def _redacted_url(url: str) -> str:
     return f"***@{host}"
 
 
+def _policy_metadata(policy: RedisCachePolicy | None) -> dict[str, object] | None:
+    if policy is None:
+        return None
+    return {
+        "ttl_seconds": policy.ttl_seconds,
+        "max_keys": policy.max_keys,
+        "namespace": policy.namespace,
+        "invalidate_prefixes": list(policy.invalidate_prefixes),
+    }
+
+
 @dataclass(slots=True)
 class InstitutionalIngestServices:
     """Runtime objects bound to the managed ingest vertical."""
@@ -126,6 +137,7 @@ class InstitutionalIngestServices:
     task_supervisor: TaskSupervisor
     redis_settings: RedisConnectionSettings | None = None
     redis_cache: ManagedRedisCache | None = None
+    redis_policy: RedisCachePolicy | None = None
     kafka_settings: KafkaConnectionSettings | None = None
     kafka_consumer: KafkaIngestEventConsumer | None = None
     kafka_task_name: str = "timescale-ingest-kafka-bridge"
@@ -185,6 +197,7 @@ class InstitutionalIngestServices:
             scheduler_running=self.scheduler.running,
             redis_settings=self.redis_settings,
             redis_cache=self.redis_cache,
+            redis_policy=self.redis_policy,
             kafka_settings=self.kafka_settings,
             kafka_consumer=self.kafka_consumer,
             kafka_supervised=self._kafka_task is not None,
@@ -229,10 +242,12 @@ class InstitutionalIngestServices:
             },
             "redis": redis_summary,
             "redis_backing": redis_backing,
+            "redis_policy": _policy_metadata(self.redis_policy),
             "kafka": kafka_summary,
             "kafka_topics": list(self.kafka_consumer.topics)
             if self.kafka_consumer is not None
             else [],
+            "kafka_metadata": dict(self.kafka_metadata) if self.kafka_metadata else {},
             "failover": self.failover_metadata(),
             "managed_manifest": [snapshot.as_dict() for snapshot in self.managed_manifest()],
         }
@@ -412,6 +427,7 @@ class InstitutionalIngestProvisioner:
             task_supervisor=task_supervisor,
             redis_settings=redis_settings,
             redis_cache=redis_cache,
+            redis_policy=self.redis_policy,
             kafka_settings=kafka_settings,
             kafka_consumer=kafka_consumer,
             kafka_metadata=kafka_metadata,
@@ -450,6 +466,7 @@ def _build_managed_manifest(
     scheduler_running: bool,
     redis_settings: RedisConnectionSettings | None,
     redis_cache: ManagedRedisCache | None,
+    redis_policy: RedisCachePolicy | None,
     kafka_settings: KafkaConnectionSettings | None,
     kafka_consumer: KafkaIngestEventConsumer | None,
     kafka_supervised: bool,
@@ -474,6 +491,8 @@ def _build_managed_manifest(
         raw_client = getattr(redis_cache, "raw_client", None)
         if raw_client is not None:
             redis_backing = raw_client.__class__.__name__
+
+    redis_policy_metadata = _policy_metadata(redis_policy)
 
     kafka_topics_list: list[str] = []
     if kafka_topics is not None:
@@ -504,7 +523,11 @@ def _build_managed_manifest(
         name="redis",
         configured=bool(redis_settings and redis_settings.configured),
         supervised=False,
-        metadata={"summary": redis_summary, "backing": redis_backing},
+        metadata={
+            "summary": redis_summary,
+            "backing": redis_backing,
+            "policy": redis_policy_metadata,
+        },
     )
 
     kafka_snapshot = ManagedConnectorSnapshot(
@@ -544,6 +567,7 @@ def plan_managed_manifest(
         scheduler_running=False,
         redis_settings=redis_settings,
         redis_cache=None,
+        redis_policy=provisioner.redis_policy,
         kafka_settings=config.kafka_settings,
         kafka_consumer=None,
         kafka_supervised=False,

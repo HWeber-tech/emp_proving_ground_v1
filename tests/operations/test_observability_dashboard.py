@@ -206,6 +206,7 @@ def test_build_dashboard_composes_panels_and_status() -> None:
         "System health",
         "Operational readiness",
         "Quality & coverage",
+        "Understanding loop",
     }
 
     risk_panel = next(
@@ -258,23 +259,26 @@ def test_build_dashboard_composes_panels_and_status() -> None:
     metadata_counts = dashboard.metadata["panel_status_counts"]
     assert metadata_counts == {
         DashboardStatus.ok.value: 1,
-        DashboardStatus.warn.value: 3,
+        DashboardStatus.warn.value: 5,
         DashboardStatus.fail.value: 1,
     }
     metadata_statuses = dashboard.metadata["panel_statuses"]
     assert metadata_statuses["Risk & exposure"] == DashboardStatus.fail.value
     assert metadata_statuses["Operational readiness"] == DashboardStatus.warn.value
+    assert metadata_statuses["Understanding loop"] == DashboardStatus.warn.value
 
     remediation = dashboard.remediation_summary()
     assert remediation["overall_status"] == DashboardStatus.fail.value
     assert remediation["panel_counts"][DashboardStatus.fail.value] == 1
-    assert remediation["panel_counts"][DashboardStatus.warn.value] == 3
+    assert remediation["panel_counts"][DashboardStatus.warn.value] == 5
     assert remediation["panel_counts"][DashboardStatus.ok.value] == 1
     assert remediation["failing_panels"] == ("Risk & exposure",)
     assert set(remediation["warning_panels"]) == {
         "Latency & throughput",
         "System health",
         "Operational readiness",
+        "Quality & coverage",
+        "Understanding loop",
     }
     assert remediation["healthy_panels"] == ("PnL & ROI",)
 
@@ -282,33 +286,40 @@ def test_build_dashboard_composes_panels_and_status() -> None:
 def test_dashboard_handles_missing_inputs() -> None:
     dashboard = build_observability_dashboard()
 
-    assert dashboard.status is DashboardStatus.ok
-    assert dashboard.panels == ()
+    assert dashboard.status is DashboardStatus.warn
+    (panel,) = dashboard.panels
+    assert panel.name == "Understanding loop"
+    assert panel.status is DashboardStatus.warn
+    assert "unavailable" in panel.headline.lower()
+    assert "graph diagnostics" in panel.details[0].lower()
 
     markdown = dashboard.to_markdown()
-    assert "| Panel" not in markdown
+    assert "| Panel" in markdown
+    assert "Understanding loop" in markdown
 
     payload = dashboard.as_dict()
-    assert payload["status"] == DashboardStatus.ok.value
-    assert payload["panels"] == []
+    assert payload["status"] == DashboardStatus.warn.value
+    assert payload["panels"][0]["name"] == "Understanding loop"
     assert payload["metadata"]["panel_status_counts"] == {
         DashboardStatus.ok.value: 0,
-        DashboardStatus.warn.value: 0,
+        DashboardStatus.warn.value: 1,
         DashboardStatus.fail.value: 0,
     }
-    assert payload["metadata"]["panel_statuses"] == {}
-    assert payload["remediation_summary"]["overall_status"] == DashboardStatus.ok.value
+    assert payload["metadata"]["panel_statuses"] == {
+        "Understanding loop": DashboardStatus.warn.value,
+    }
 
-    remediation = dashboard.remediation_summary()
-    assert remediation["overall_status"] == DashboardStatus.ok.value
-    assert remediation["panel_counts"] == {
-        DashboardStatus.ok.value: 0,
-        DashboardStatus.warn.value: 0,
-        DashboardStatus.fail.value: 0,
-    }
-    assert remediation["failing_panels"] == ()
-    assert remediation["warning_panels"] == ()
+    remediation = payload["remediation_summary"]
+    assert remediation["overall_status"] == DashboardStatus.warn.value
+    assert remediation["panel_counts"][DashboardStatus.warn.value] == 1
+    assert remediation["panel_counts"][DashboardStatus.ok.value] == 0
+    assert remediation["panel_counts"][DashboardStatus.fail.value] == 0
+    assert remediation["warning_panels"] == ("Understanding loop",)
     assert remediation["healthy_panels"] == ()
+    assert remediation["failing_panels"] == ()
+
+    remediation_via_method = dashboard.remediation_summary()
+    assert remediation_via_method == remediation
 
 
 def test_dashboard_merges_additional_panels() -> None:
@@ -321,14 +332,19 @@ def test_dashboard_merges_additional_panels() -> None:
     dashboard = build_observability_dashboard(additional_panels=[custom_panel])
 
     assert dashboard.status is DashboardStatus.warn
-    assert dashboard.panels == (custom_panel,)
+    assert len(dashboard.panels) == 2
+    assert dashboard.panels[0] is custom_panel
+    guard_panel = dashboard.panels[1]
+    assert guard_panel.name == "Understanding loop"
+    assert guard_panel.status is DashboardStatus.warn
     assert dashboard.metadata["panel_status_counts"] == {
         DashboardStatus.ok.value: 0,
-        DashboardStatus.warn.value: 1,
+        DashboardStatus.warn.value: 2,
         DashboardStatus.fail.value: 0,
     }
     assert dashboard.metadata["panel_statuses"] == {
         "Custom": DashboardStatus.warn.value,
+        "Understanding loop": DashboardStatus.warn.value,
     }
 
 
@@ -342,7 +358,9 @@ def test_risk_panel_metadata_includes_limit_ratio() -> None:
 
     assert dashboard.status is DashboardStatus.warn
 
-    (risk_panel,) = dashboard.panels
+    risk_panel = next(
+        panel for panel in dashboard.panels if panel.name == "Risk & exposure"
+    )
     payload = risk_panel.metadata["parametric_var"]
     assert payload["limit"] == pytest.approx(10_000.0)
     assert payload["limit_ratio"] == pytest.approx(0.9)
@@ -382,3 +400,14 @@ def test_understanding_panel_included_with_snapshot() -> None:
     payload = panel.metadata["understanding_loop"]
     assert payload["status"] == UnderstandingGraphStatus.ok.value
     assert payload["graph"]["metadata"]["decision_id"] == snapshot.decision.tactic_id
+
+
+def test_understanding_panel_warns_when_snapshot_missing() -> None:
+    dashboard = build_observability_dashboard()
+
+    panel = next(panel for panel in dashboard.panels if panel.name == "Understanding loop")
+    metadata = panel.metadata["understanding_loop"]
+
+    assert panel.status is DashboardStatus.warn
+    assert metadata["status"] == "missing"
+    assert metadata["recommended_cli"].endswith("graph_diagnostics")

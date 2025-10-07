@@ -26,7 +26,11 @@ from typing import (
 import simplefix
 
 from src.operational.structured_logging import get_logger, order_logging_context
-from src.trading.risk.risk_api import RISK_API_RUNBOOK, TradingRiskInterface
+from src.trading.risk.risk_api import (
+    RISK_API_RUNBOOK,
+    TradingRiskInterface,
+    merge_risk_references,
+)
 
 logger = get_logger(__name__)
 
@@ -289,7 +293,7 @@ class FIXBrokerInterface:
         payload["policy_violation"] = policy_violation
         payload["severity"] = "critical" if policy_violation else "warning"
 
-        risk_reference: dict[str, object] = {}
+        reference_candidates: list[Mapping[str, object]] = []
         if gateway is not None:
             try:
                 limits_payload = gateway.get_risk_limits()
@@ -297,15 +301,18 @@ class FIXBrokerInterface:
                 logger.debug("risk_gateway_limits_failed", exc_info=True)
             else:
                 if isinstance(limits_payload, Mapping):
+                    candidate_reference: dict[str, object] = {}
                     limits_section = limits_payload.get("limits")
                     if isinstance(limits_section, Mapping):
-                        risk_reference["limits"] = dict(limits_section)
+                        candidate_reference["limits"] = dict(limits_section)
                     summary = limits_payload.get("risk_config_summary")
                     if isinstance(summary, Mapping):
-                        risk_reference["risk_config_summary"] = dict(summary)
+                        candidate_reference["risk_config_summary"] = dict(summary)
                     runbook = limits_payload.get("runbook")
                     if isinstance(runbook, str) and runbook:
-                        risk_reference["risk_api_runbook"] = runbook
+                        candidate_reference["risk_api_runbook"] = runbook
+                    if candidate_reference:
+                        reference_candidates.append(candidate_reference)
         provider = self._risk_interface_provider
         if provider is not None:
             try:
@@ -314,19 +321,13 @@ class FIXBrokerInterface:
                 logger.debug("risk_interface_provider_failed", exc_info=True)
             else:
                 reference = self._normalise_risk_interface(candidate)
-                for key, value in reference.items():
-                    if isinstance(value, Mapping):
-                        value = dict(value)
-                    existing = risk_reference.get(key)
-                    if isinstance(existing, dict) and isinstance(value, dict):
-                        merged = dict(existing)
-                        merged.update(value)
-                        risk_reference[key] = merged
-                    else:
-                        risk_reference.setdefault(key, value)
-        if risk_reference:
-            risk_reference.setdefault("risk_api_runbook", RISK_API_RUNBOOK)
-            payload["risk_reference"] = risk_reference
+                if reference:
+                    reference_candidates.append(reference)
+        if reference_candidates:
+            payload["risk_reference"] = merge_risk_references(
+                *reference_candidates,
+                runbook=RISK_API_RUNBOOK,
+            )
 
         try:
             await self.event_bus.emit(self._risk_event_topic, payload)

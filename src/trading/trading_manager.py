@@ -43,6 +43,7 @@ from src.trading.risk.risk_api import (
     RISK_API_RUNBOOK,
     RiskApiError,
     build_runtime_risk_metadata,
+    merge_risk_references,
     resolve_trading_risk_interface,
     summarise_risk_config,
 )
@@ -1094,25 +1095,7 @@ class TradingManager:
     def _merge_risk_reference(
         existing: Mapping[str, object] | None, addition: Mapping[str, object]
     ) -> dict[str, object]:
-        normalised = TradingManager._coerce_reference_mapping(existing)
-        for key, value in addition.items():
-            if isinstance(value, Mapping):
-                normalised[key] = dict(value)
-            else:
-                normalised[key] = value
-        return normalised
-
-    @staticmethod
-    def _coerce_reference_mapping(candidate: Mapping[str, object] | None) -> dict[str, object]:
-        if not isinstance(candidate, Mapping):
-            return {}
-        coerced: dict[str, object] = {}
-        for key, value in candidate.items():
-            if isinstance(value, Mapping):
-                coerced[key] = dict(value)
-            else:
-                coerced[key] = value
-        return coerced
+        return merge_risk_references(existing, addition)
 
     @staticmethod
     def _extract_symbol(intent: Any) -> str:

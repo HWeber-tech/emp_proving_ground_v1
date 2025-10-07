@@ -48,7 +48,7 @@ from .policy_telemetry import (
     publish_policy_violation,
     RISK_POLICY_VIOLATION_RUNBOOK,
 )
-from .risk_api import RISK_API_RUNBOOK, summarise_risk_config
+from .risk_api import RISK_API_RUNBOOK, merge_risk_references, summarise_risk_config
 from .risk_policy import RiskPolicy, RiskPolicyDecision
 
 try:  # pragma: no cover - metrics optional in certain runtimes
@@ -249,7 +249,7 @@ class RiskGateway:
         if risk_reference is None:
             reference_payload: dict[str, Any] = {"risk_api_runbook": RISK_API_RUNBOOK}
         else:
-            reference_payload = dict(risk_reference)
+            reference_payload = merge_risk_references(risk_reference)
         reference_payload.setdefault("limits", dict(limits_snapshot))
         decision["risk_reference"] = reference_payload
 
@@ -400,31 +400,19 @@ class RiskGateway:
         payload: dict[str, Any] = {"limits": dict(limits), "telemetry": dict(self.telemetry)}
         risk_reference = self._resolve_risk_reference()
         if risk_reference is not None:
-            payload["risk_reference"] = {
-                key: dict(value) if isinstance(value, Mapping) else value
-                for key, value in risk_reference.items()
-            }
+            payload["risk_reference"] = risk_reference
             summary = risk_reference.get("risk_config_summary")
             if isinstance(summary, Mapping):
                 payload["risk_config_summary"] = dict(summary)
-            payload["runbook"] = str(risk_reference.get("risk_api_runbook", RISK_API_RUNBOOK))
+            runbook = risk_reference.get("risk_api_runbook")
+            if isinstance(runbook, str) and runbook:
+                payload["runbook"] = runbook
             config_payload = risk_reference.get("risk_config")
             if isinstance(config_payload, Mapping):
                 payload["risk_config"] = dict(config_payload)
-        elif self._risk_config is not None:
-            summary = summarise_risk_config(self._risk_config)
-            payload["risk_config_summary"] = summary
-            payload["risk_reference"] = {
-                "risk_config_summary": dict(summary),
-                "risk_api_runbook": RISK_API_RUNBOOK,
-            }
-            try:
-                payload["risk_reference"]["risk_config"] = self._risk_config.dict()
-            except Exception:  # pragma: no cover - dict conversion guard
-                logger.debug("Failed to serialise risk config for limits", exc_info=True)
+        if "runbook" not in payload:
             payload["runbook"] = RISK_API_RUNBOOK
-        else:
-            payload["runbook"] = RISK_API_RUNBOOK
+        if "risk_reference" not in payload:
             payload["risk_reference"] = {"risk_api_runbook": RISK_API_RUNBOOK}
         return payload
 
@@ -488,26 +476,9 @@ class RiskGateway:
     def _resolve_risk_reference(self) -> dict[str, Any] | None:
         """Build a deterministic risk reference payload for telemetry surfaces."""
 
-        config = self._risk_config
-        if config is None:
+        if self._risk_config is None and self.risk_policy is None:
             return None
-        try:
-            summary = summarise_risk_config(config)
-        except Exception:  # pragma: no cover - defensive guard
-            logger.debug("Failed to summarise risk config for reference", exc_info=True)
-            return None
-
-        reference: dict[str, Any] = {
-            "risk_config_summary": summary,
-            "risk_api_runbook": RISK_API_RUNBOOK,
-        }
-        try:
-            config_payload = config.dict()
-        except Exception:  # pragma: no cover - diagnostics only
-            config_payload = None
-        if isinstance(config_payload, Mapping):
-            reference["risk_config"] = dict(config_payload)
-        return reference
+        return self._risk_reference_base()
 
     # ------------------------------------------------------------------
     # Internal helpers
@@ -577,7 +548,7 @@ class RiskGateway:
 
     def _risk_reference_base(self) -> dict[str, object]:
         if self._risk_reference_cache is None:
-            reference: dict[str, object] = {"risk_api_runbook": RISK_API_RUNBOOK}
+            reference: dict[str, object] = {}
             if self._risk_config is not None:
                 try:
                     reference["risk_config_summary"] = summarise_risk_config(self._risk_config)
@@ -586,21 +557,28 @@ class RiskGateway:
                         "Failed to summarise risk config for risk reference cache",
                         exc_info=True,
                     )
-            elif self.risk_policy is not None:
+                else:
+                    try:
+                        config_payload = self._risk_config.dict()
+                    except Exception:  # pragma: no cover - serialisation guard
+                        logger.debug(
+                            "Failed to serialise risk config for risk reference cache",
+                            exc_info=True,
+                        )
+                    else:
+                        if isinstance(config_payload, Mapping):
+                            reference["risk_config"] = dict(config_payload)
+            if not reference and self.risk_policy is not None:
                 reference["risk_config_summary"] = self._policy_summary()
+            reference.setdefault("risk_api_runbook", RISK_API_RUNBOOK)
             self._risk_reference_cache = reference
-        return dict(self._risk_reference_cache)
+        return merge_risk_references(self._risk_reference_cache)
 
     def _augment_with_risk_reference(self, decision: Mapping[str, Any]) -> dict[str, Any]:
         payload = dict(decision)
         existing = payload.get("risk_reference")
         base_reference = self._risk_reference_base()
-        if isinstance(existing, Mapping):
-            merged = dict(base_reference)
-            merged.update(existing)
-            payload["risk_reference"] = merged
-        else:
-            payload["risk_reference"] = base_reference
+        payload["risk_reference"] = merge_risk_references(existing, base_reference)
         return payload
 
     def _policy_summary(self) -> dict[str, object]:

@@ -5,9 +5,11 @@ import pytest
 
 from src.config.risk.risk_config import RiskConfig
 from src.trading.risk.risk_api import (
+    RISK_API_RUNBOOK,
     RiskApiError,
     TradingRiskInterface,
     build_runtime_risk_metadata,
+    merge_risk_references,
     resolve_trading_risk_config,
     resolve_trading_risk_interface,
     summarise_risk_config,
@@ -153,3 +155,32 @@ def test_risk_api_error_surfaces_metadata_and_runbook() -> None:
     assert metadata["runbook"].endswith("risk_api_contract.md")
     assert metadata["details"]["manager"] == "StubManager"
 
+
+def test_merge_risk_references_merges_nested_payloads() -> None:
+    first = {
+        "risk_config_summary": {"max_risk_per_trade_pct": 0.01},
+        "limits": {"max_open_positions": 5},
+    }
+    second = {
+        "runbook": "https://override",
+        "risk_config_summary": {"max_total_exposure_pct": 0.40},
+        "limits": {"max_open_positions": 8},
+        "extra": "flag",
+    }
+
+    merged = merge_risk_references(first, second)
+
+    assert merged["risk_api_runbook"] == "https://override"
+    summary = merged["risk_config_summary"]
+    assert summary["max_risk_per_trade_pct"] == pytest.approx(0.01)
+    assert summary["max_total_exposure_pct"] == pytest.approx(0.40)
+    limits = merged["limits"]
+    assert limits["max_open_positions"] == 8
+    assert merged["extra"] == "flag"
+
+
+def test_merge_risk_references_defaults_runbook() -> None:
+    merged = merge_risk_references({"limits": {"max_open_positions": 3}}, None)
+
+    assert merged["risk_api_runbook"] == RISK_API_RUNBOOK
+    assert merged["limits"]["max_open_positions"] == 3

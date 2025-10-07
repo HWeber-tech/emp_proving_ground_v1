@@ -198,13 +198,53 @@ def build_runtime_risk_metadata(trading_manager: Any) -> dict[str, object]:
     return interface.summary()
 
 
+def _merge_mapping(target: dict[str, object], source: Mapping[str, object]) -> None:
+    """Recursively merge ``source`` into ``target`` while copying nested mappings."""
+
+    for key, value in source.items():
+        normalised_key = "risk_api_runbook" if key == "runbook" else key
+        if isinstance(value, Mapping):
+            existing = target.get(normalised_key)
+            nested: dict[str, object]
+            if isinstance(existing, Mapping):
+                nested = dict(existing)
+            else:
+                nested = {}
+            _merge_mapping(nested, value)
+            target[normalised_key] = nested
+        elif value is not None:
+            target[normalised_key] = value
+
+
+def merge_risk_references(
+    *references: Mapping[str, object] | None,
+    runbook: str | None = None,
+) -> dict[str, object]:
+    """Merge multiple risk reference payloads into a canonical mapping.
+
+    Each ``references`` entry may be ``None`` or a mapping containing nested
+    structures such as ``risk_config_summary`` or ``risk_interface_status``.  The
+    function copies nested mappings so callers can safely mutate the returned
+    payload without affecting the inputs and ensures the canonical
+    ``risk_api_runbook`` key is always present (falling back to
+    :data:`RISK_API_RUNBOOK` when the sources omit a runbook).
+    """
+
+    merged: dict[str, object] = {}
+    for reference in references:
+        if isinstance(reference, Mapping):
+            _merge_mapping(merged, reference)
+    merged.setdefault("risk_api_runbook", runbook or RISK_API_RUNBOOK)
+    return merged
+
+
 __all__ = [
     "RISK_API_RUNBOOK",
     "RiskApiError",
     "TradingRiskInterface",
     "build_runtime_risk_metadata",
+    "merge_risk_references",
     "resolve_trading_risk_config",
     "resolve_trading_risk_interface",
     "summarise_risk_config",
 ]
-

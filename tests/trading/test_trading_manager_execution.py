@@ -208,8 +208,9 @@ async def test_trading_manager_gates_on_drift(monkeypatch: pytest.MonkeyPatch) -
     monkeypatch.setattr("src.trading.trading_manager.publish_risk_interface_error", _noop)
 
     gate = DriftSentryGate(warn_confidence_floor=0.75)
+    bus = RecordingBus()
     manager = TradingManager(
-        event_bus=DummyBus(),
+        event_bus=bus,
         strategy_registry=AlwaysActiveRegistry(),
         execution_engine=None,
         initial_equity=50_000.0,
@@ -277,6 +278,13 @@ async def test_trading_manager_gates_on_drift(monkeypatch: pytest.MonkeyPatch) -
     assert decision.severity is DriftSeverity.warn
     assert decision.force_paper is True
 
+    assert bus.events, "expected drift gate telemetry"
+    drift_event = bus.events[-1]
+    assert drift_event.type == "telemetry.trading.drift_gate"
+    payload = drift_event.payload
+    assert payload["status"] == "gated"
+    assert payload["decision"]["force_paper"] is True
+
 
 @pytest.mark.asyncio()
 async def test_trading_manager_records_gate_metadata_on_execution(
@@ -313,8 +321,9 @@ async def test_trading_manager_records_gate_metadata_on_execution(
     )
     gate.update_snapshot(snapshot)
 
+    bus = RecordingBus()
     manager = TradingManager(
-        event_bus=DummyBus(),
+        event_bus=bus,
         strategy_registry=AlwaysActiveRegistry(),
         execution_engine=None,
         initial_equity=50_000.0,
@@ -394,8 +403,9 @@ async def test_trading_manager_attaches_gate_metadata_to_fills(
     )
     gate.update_snapshot(snapshot)
 
+    bus = RecordingBus()
     manager = TradingManager(
-        event_bus=DummyBus(),
+        event_bus=bus,
         strategy_registry=AlwaysActiveRegistry(),
         execution_engine=None,
         initial_equity=75_000.0,
@@ -459,8 +469,9 @@ async def test_trading_manager_release_thresholds(tmp_path: Path, monkeypatch: p
         evidence_id="diary-alpha",
     )
 
+    bus = RecordingBus()
     manager = TradingManager(
-        event_bus=DummyBus(),
+        event_bus=bus,
         strategy_registry=AlwaysActiveRegistry(),
         execution_engine=None,
         initial_equity=50_000.0,
@@ -552,8 +563,9 @@ async def test_trading_manager_forces_paper_experiment_stage(
     store = PolicyLedgerStore(tmp_path / "policy_ledger.json")
     release_manager = LedgerReleaseManager(store)
 
+    bus = RecordingBus()
     manager = TradingManager(
-        event_bus=DummyBus(),
+        event_bus=bus,
         strategy_registry=AlwaysActiveRegistry(),
         execution_engine=None,
         initial_equity=50_000.0,
@@ -652,8 +664,9 @@ async def test_trading_manager_forces_paper_without_audit_coverage(
         stage=PolicyLedgerStage.LIMITED_LIVE,
     )
 
+    bus = RecordingBus()
     manager = TradingManager(
-        event_bus=DummyBus(),
+        event_bus=bus,
         strategy_registry=AlwaysActiveRegistry(),
         execution_engine=None,
         initial_equity=50_000.0,
@@ -720,8 +733,9 @@ def test_describe_release_posture(tmp_path: Path) -> None:
         evidence_id="diary-alpha",
     )
 
+    bus = RecordingBus()
     manager = TradingManager(
-        event_bus=DummyBus(),
+        event_bus=bus,
         strategy_registry=AlwaysActiveRegistry(),
         execution_engine=None,
         initial_equity=10_000.0,
@@ -759,8 +773,9 @@ def test_build_policy_governance_snapshot(tmp_path: Path) -> None:
         ),
     )
 
+    bus = RecordingBus()
     manager = TradingManager(
-        event_bus=DummyBus(),
+        event_bus=bus,
         strategy_registry=AlwaysActiveRegistry(),
         execution_engine=None,
         initial_equity=10_000.0,
@@ -906,8 +921,9 @@ async def test_trading_manager_forces_paper_execution_under_drift_warn(
         evidence_id="diary-alpha",
     )
 
+    bus = RecordingBus()
     manager = TradingManager(
-        event_bus=DummyBus(),
+        event_bus=bus,
         strategy_registry=AlwaysActiveRegistry(),
         execution_engine=None,
         initial_equity=25_000.0,
@@ -989,6 +1005,14 @@ async def test_trading_manager_forces_paper_execution_under_drift_warn(
     assert last_posture_route.get("route") == "paper"
     assert last_posture_route.get("forced_reason") == "drift_gate_severity_warn"
     assert manager.get_last_release_route() == last_posture_route
+
+    assert bus.events, "expected drift gate telemetry"
+    drift_event = bus.events[-1]
+    assert drift_event.type == "telemetry.trading.drift_gate"
+    payload = drift_event.payload
+    assert payload["status"] == "executed"
+    assert payload["decision"]["force_paper"] is True
+    assert payload.get("release", {}).get("forced_reason") == "drift_gate_severity_warn"
 
 
 @pytest.mark.asyncio()

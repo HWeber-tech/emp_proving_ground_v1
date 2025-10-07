@@ -66,7 +66,12 @@ from src.operations.roi import (
 )
 from src.operations.sensory_drift import SensoryDriftSnapshot
 from src.trading.execution.release_router import ReleaseAwareExecutionRouter
-from src.trading.gating import DriftSentryDecision, DriftSentryGate
+from src.trading.gating import (
+    DriftGateEvent,
+    DriftSentryDecision,
+    DriftSentryGate,
+    publish_drift_gate_event,
+)
 from src.trading.gating.adaptive_release import AdaptiveReleaseThresholds
 
 try:
@@ -257,6 +262,15 @@ class TradingManager:
             event: The trade intent event to process
         """
         event_id = getattr(event, "event_id", getattr(event, "id", "unknown"))
+        gate_decision: DriftSentryDecision | None = None
+        drift_event_emitted = False
+        drift_event_status: str | None = None
+        drift_release_metadata: Mapping[str, Any] | None = None
+        drift_confidence_value: float | None = None
+        drift_notional_value: float | None = None
+        base_symbol: str | None = None
+        strategy_id: str | None = None
+        base_confidence: float | None = None
         try:
             logger.info(f"Received trade intent: {event_id}")
 
@@ -266,6 +280,17 @@ class TradingManager:
 
             portfolio_state = cast(Any, self.portfolio_monitor).get_state()
 
+            try:
+                initial_quantity = self._extract_quantity(event)
+                initial_price = self._extract_price(event, portfolio_state)
+                drift_notional_estimate = (
+                    abs(float(initial_quantity)) * abs(float(initial_price))
+                    if initial_price is not None
+                    else None
+                )
+            except Exception:
+                drift_notional_estimate = None
+
             gate_decision = self._evaluate_drift_gate(
                 event=event,
                 strategy_id=strategy_id,
@@ -274,6 +299,10 @@ class TradingManager:
                 portfolio_state=portfolio_state,
                 event_id=event_id,
             )
+            drift_release_metadata: Mapping[str, Any] | None = None
+            drift_event_status: str | None = None
+            drift_confidence_value = base_confidence
+            drift_notional_value = drift_notional_estimate
             gate_decision_payload = (
                 gate_decision.as_dict() if gate_decision is not None else None
             )
@@ -316,6 +345,19 @@ class TradingManager:
                     metadata=metadata_payload,
                     decision=None,
                 )
+                drift_event_status = "gated"
+                drift_notional_value = notional_for_event
+                await self._publish_drift_gate_event(
+                    decision=gate_decision,
+                    event_id=event_id,
+                    status=drift_event_status,
+                    strategy_id=strategy_id,
+                    symbol=base_symbol,
+                    confidence=base_confidence,
+                    notional=drift_notional_value,
+                    release_metadata=None,
+                )
+                drift_event_emitted = True
                 return
 
             if gate_decision_payload is not None:
@@ -339,6 +381,7 @@ class TradingManager:
                 cast(Any, self.portfolio_monitor).reserve_position(symbol, float(quantity), price)
 
                 notional = abs(float(quantity)) * abs(float(price))
+                drift_notional_value = notional
 
                 start = time.perf_counter()
                 current_submitted = coerce_int(
@@ -370,6 +413,21 @@ class TradingManager:
                         metadata=failure_metadata,
                         decision=decision,
                     )
+                    drift_event_status = "execution_error"
+                    drift_confidence_value = confidence
+                    drift_release_metadata = release_metadata
+                    if gate_decision is not None and not drift_event_emitted:
+                        await self._publish_drift_gate_event(
+                            decision=gate_decision,
+                            event_id=event_id,
+                            status=drift_event_status,
+                            strategy_id=strategy_id,
+                            symbol=symbol,
+                            confidence=drift_confidence_value,
+                            notional=drift_notional_value,
+                            release_metadata=drift_release_metadata,
+                        )
+                        drift_event_emitted = True
                 else:
                     latency_ms = (time.perf_counter() - start) * 1000.0
                     self._record_execution_success(latency_ms, result)
@@ -404,6 +462,21 @@ class TradingManager:
                             metadata=success_metadata,
                             decision=decision,
                         )
+                        drift_event_status = "executed"
+                        drift_confidence_value = confidence
+                        drift_release_metadata = release_metadata
+                        if gate_decision is not None and not drift_event_emitted:
+                            await self._publish_drift_gate_event(
+                                decision=gate_decision,
+                                event_id=event_id,
+                                status=drift_event_status,
+                                strategy_id=strategy_id,
+                                symbol=symbol,
+                                confidence=drift_confidence_value,
+                                notional=drift_notional_value,
+                                release_metadata=drift_release_metadata,
+                            )
+                            drift_event_emitted = True
                     else:
                         error_reason = str(
                             self._execution_stats.get("last_error") or "execution_failed"
@@ -428,6 +501,21 @@ class TradingManager:
                             metadata=fallback_metadata,
                             decision=decision,
                         )
+                        drift_event_status = "execution_failed"
+                        drift_confidence_value = confidence
+                        drift_release_metadata = release_metadata
+                        if gate_decision is not None and not drift_event_emitted:
+                            await self._publish_drift_gate_event(
+                                decision=gate_decision,
+                                event_id=event_id,
+                                status=drift_event_status,
+                                strategy_id=strategy_id,
+                                symbol=symbol,
+                                confidence=drift_confidence_value,
+                                notional=drift_notional_value,
+                                release_metadata=drift_release_metadata,
+                            )
+                            drift_event_emitted = True
 
             else:
                 logger.warning(f"Trade intent {event_id} was rejected by the Risk Gateway")
@@ -449,9 +537,41 @@ class TradingManager:
                     metadata=rejection_metadata or None,
                     decision=decision,
                 )
+                drift_event_status = "risk_rejected"
+                drift_confidence_value = base_confidence
+                if gate_decision is not None and not drift_event_emitted:
+                    await self._publish_drift_gate_event(
+                        decision=gate_decision,
+                        event_id=event_id,
+                        status=drift_event_status,
+                        strategy_id=strategy_id,
+                        symbol=base_symbol,
+                        confidence=drift_confidence_value,
+                        notional=drift_notional_value,
+                        release_metadata=None,
+                    )
+                    drift_event_emitted = True
 
         except Exception as e:
             logger.error(f"Error processing trade intent {event_id}: {e}")
+            if gate_decision is not None and not drift_event_emitted:
+                fallback_status = drift_event_status or "error"
+                confidence_payload = (
+                    drift_confidence_value
+                    if drift_confidence_value is not None
+                    else base_confidence
+                )
+                await self._publish_drift_gate_event(
+                    decision=gate_decision,
+                    event_id=event_id,
+                    status=fallback_status,
+                    strategy_id=strategy_id,
+                    symbol=base_symbol,
+                    confidence=confidence_payload,
+                    notional=drift_notional_value,
+                    release_metadata=drift_release_metadata,
+                )
+                drift_event_emitted = True
         finally:
             await self._emit_policy_snapshot()
             await self._emit_risk_interface_snapshot()
@@ -586,6 +706,50 @@ class TradingManager:
         if decision and isinstance(decision, Mapping):
             entry["decision"] = dict(decision)
         self._experiment_events.appendleft(entry)
+
+    async def _publish_drift_gate_event(
+        self,
+        *,
+        decision: DriftSentryDecision,
+        event_id: str,
+        status: str,
+        strategy_id: str | None,
+        symbol: str | None,
+        confidence: float | None,
+        notional: float | None,
+        release_metadata: Mapping[str, Any] | None = None,
+    ) -> None:
+        """Publish drift gate telemetry without interrupting trade processing."""
+
+        try:
+            event = DriftGateEvent(
+                event_id=event_id,
+                strategy_id=strategy_id,
+                symbol=symbol,
+                status=status,
+                decision=decision,
+                confidence=confidence,
+                notional=notional,
+                release=release_metadata,
+            )
+        except Exception:  # pragma: no cover - telemetry guardrail
+            logger.debug(
+                "Failed to assemble drift gate telemetry payload",
+                exc_info=True,
+            )
+            return
+
+        try:
+            await publish_drift_gate_event(
+                self.event_bus,
+                event,
+                source="trading_manager",
+            )
+        except Exception:  # pragma: no cover - telemetry guardrail
+            logger.debug(
+                "Failed to publish drift gate telemetry event",
+                exc_info=True,
+            )
 
     def _attach_drift_gate_metadata(
         self,

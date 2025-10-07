@@ -4,6 +4,7 @@ import random
 
 from src.core.evolution.engine import EvolutionConfig, EvolutionEngine
 from src.core.evolution.seeding import RealisticGenomeSeeder, load_experiment_seed_templates
+from src.genome.catalogue import load_default_catalogue
 
 
 def test_realistic_genome_seeder_cycles_species():
@@ -81,3 +82,19 @@ def test_experiment_templates_loaded_from_artifacts():
     assert sample_seed.catalogue_entry_id and sample_seed.catalogue_entry_id.startswith("artifact/")
     assert sample_seed.parameters
     assert any(tag.startswith("experiment:") for tag in sample_seed.tags)
+
+
+def test_catalogue_entries_emit_seed_metadata():
+    catalogue = load_default_catalogue()
+    assert catalogue.entries, "expected catalogue entries for metadata coverage"
+
+    genome = catalogue.entries[0].instantiate()
+
+    metadata = getattr(genome, "metadata", {})
+    assert metadata
+    assert metadata["seed_source"] == "catalogue"
+    assert metadata["seed_name"] == catalogue.entries[0].name
+    assert metadata["seed_catalogue_id"] == catalogue.entries[0].identifier
+    assert metadata["seed_species"] == catalogue.entries[0].species
+    assert metadata.get("seed_tags")
+    assert metadata.get("seed_parent_ids")

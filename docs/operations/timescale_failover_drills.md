@@ -42,3 +42,23 @@ By routing failover drills through the new helper, Tier-1 ingest deployments
 retain a consistent picture of which Timescale dimensions must participate in
 disaster-recovery simulations while ensuring all background workloads remain
 observable under the shared task supervisor.
+
+## CLI workflow
+
+The `tools/operations/run_failover_drill.py` helper executes the drill outside
+of the runtime.  Provide recent ingest results (for example, from an export or
+from the runtime summary) as JSON and the CLI will replay the failover using the
+configured scenario and dimensions:
+
+```bash
+python -m tools.operations.run_failover_drill \
+  --results /tmp/ingest_results.json \
+  --scenario staged_drill \
+  --format markdown
+```
+
+The command honours any failover drill configuration in `config.yaml` or the
+environment.  If no dimensions are supplied it falls back to the configured
+drill dimensions (or the dimensions present in the results).  JSON output
+carries the aggregated snapshot from `execute_failover_drill()`, while Markdown
+renders a human-friendly table for runbooks and dashboards.

@@ -95,6 +95,12 @@ async def test_risk_gateway_rejects_when_drawdown_exceeded(
     last_decision = gateway.get_last_decision()
     assert last_decision is not None
     assert last_decision.get("reason") == "max_drawdown_exceeded"
+    reference = last_decision.get("risk_reference")
+    assert isinstance(reference, Mapping)
+    assert reference["risk_api_runbook"] == RISK_API_RUNBOOK
+    summary = reference.get("risk_config_summary")
+    assert isinstance(summary, Mapping)
+    assert summary["max_risk_per_trade_pct"] == pytest.approx(0.02)
     assert gateway.get_last_policy_decision() is None
 
 
@@ -131,7 +137,12 @@ async def test_risk_gateway_clips_position_and_adds_liquidity_metadata(
     assert intent.quantity == Decimal("2")
     assessment = intent.metadata.get("risk_assessment", {})
     assert assessment.get("liquidity_confidence") == pytest.approx(0.9)
-    assert gateway.get_last_decision().get("status") == "approved"
+    last_decision = gateway.get_last_decision()
+    assert last_decision is not None
+    assert last_decision.get("status") == "approved"
+    reference = last_decision.get("risk_reference")
+    assert isinstance(reference, Mapping)
+    assert reference["risk_api_runbook"] == RISK_API_RUNBOOK
     policy_decision = gateway.get_last_policy_decision()
     assert policy_decision is not None
     assert policy_decision.approved is True

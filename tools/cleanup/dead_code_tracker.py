@@ -1,4 +1,11 @@
-"""Utilities for triaging the roadmap dead-code backlog."""
+"""Utilities for triaging the roadmap dead-code backlog.
+
+This module parses the cleanup report, classifies the declared candidates, and
+surfaces actionable categories so roadmap owners can distinguish between
+removed modules, retired shims, and truly orphaned implementations.  The
+classification helps shrink the backlog without deleting files that still
+document canonical import paths.
+"""
 
 from __future__ import annotations
 
@@ -6,9 +13,11 @@ import argparse
 import ast
 import json
 import re
+from collections import Counter
 from collections.abc import Mapping as MappingABC
 from dataclasses import dataclass
 from pathlib import Path
+from types import MappingProxyType
 from typing import Mapping, Sequence
 
 try:
@@ -17,6 +26,7 @@ except Exception:  # pragma: no cover - optional dependency
     yaml = None  # type: ignore[assignment]
 
 __all__ = [
+    "DeadCodeStatus",
     "DeadCodeSummary",
     "ShimResolution",
     "parse_cleanup_report",
@@ -29,6 +39,23 @@ __all__ = [
 _REPORT_PATTERN = re.compile(r"src\\[\\\\\w./]+")
 
 
+class DeadCodeStatus(str):
+    """Categorisation for candidates listed in the cleanup report."""
+
+    MISSING = "missing"
+    MODULE_NOT_FOUND_STUB = "module_not_found_stub"
+    SHIM = "shim"
+    ACTIVE = "active"
+
+
+_KNOWN_STATUSES: tuple[str, ...] = (
+    DeadCodeStatus.MISSING,
+    DeadCodeStatus.MODULE_NOT_FOUND_STUB,
+    DeadCodeStatus.SHIM,
+    DeadCodeStatus.ACTIVE,
+)
+
+
 @dataclass(frozen=True)
 class DeadCodeSummary:
     """Structured view of the dead-code candidates declared in the cleanup report."""
@@ -38,6 +65,7 @@ class DeadCodeSummary:
     missing: tuple[str, ...]
     shim_exports: tuple[str, ...]
     shim_redirects: tuple["ShimResolution", ...]
+    _status_by_path: Mapping[str, DeadCodeStatus]
 
     def as_dict(self) -> Mapping[str, object]:
         return {
@@ -46,10 +74,20 @@ class DeadCodeSummary:
             "missing": list(self.missing),
             "shim_exports": list(self.shim_exports),
             "shim_redirects": [resolution.as_dict() for resolution in self.shim_redirects],
+            "status_by_path": {path: status for path, status in self.status_by_path.items()},
+            "status_breakdown": self.status_breakdown(),
         }
 
     def to_json(self) -> str:
         return json.dumps(self.as_dict(), indent=2, sort_keys=True)
+
+    @property
+    def status_by_path(self) -> Mapping[str, DeadCodeStatus]:
+        return self._status_by_path
+
+    def status_breakdown(self) -> Mapping[str, int]:
+        counts = Counter(self._status_by_path.values())
+        return {status: counts.get(status, 0) for status in _KNOWN_STATUSES}
 
 
 @dataclass(frozen=True)
@@ -99,6 +137,7 @@ def summarise_candidates(
     missing: list[str] = []
     shim_exports: list[str] = []
     shim_redirects: list[ShimResolution] = []
+    status_by_path: dict[str, DeadCodeStatus] = {}
 
     for candidate in sorted(dict.fromkeys(candidates)):
         path = repo_root / candidate
@@ -108,13 +147,17 @@ def summarise_candidates(
                 continue
 
             present.append(candidate)
-            if path.is_file() and path.suffix == ".py" and _looks_like_shim(path):
+            status = _classify_present_candidate(path)
+            if status == DeadCodeStatus.SHIM:
                 shim_exports.append(candidate)
                 shim_redirects.append(
                     _summarise_redirect(candidate, repo_root=repo_root, import_map=import_map)
                 )
         else:
+            status = DeadCodeStatus.MISSING
             missing.append(candidate)
+
+        status_by_path[candidate] = status
 
     return DeadCodeSummary(
         total_candidates=len(candidates),
@@ -122,7 +165,33 @@ def summarise_candidates(
         missing=tuple(missing),
         shim_exports=tuple(shim_exports),
         shim_redirects=tuple(shim_redirects),
+        _status_by_path=MappingProxyType(status_by_path),
     )
+
+
+def _classify_present_candidate(path: Path) -> DeadCodeStatus:
+    if not path.is_file() or path.suffix != ".py":
+        return DeadCodeStatus.ACTIVE
+
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError:
+        return DeadCodeStatus.ACTIVE
+
+    try:
+        tree = ast.parse(text)
+    except SyntaxError:
+        if "ModuleNotFoundError" in text or "ImportError" in text:
+            return DeadCodeStatus.MODULE_NOT_FOUND_STUB
+        return DeadCodeStatus.ACTIVE
+
+    if _is_module_not_found_stub(tree):
+        return DeadCodeStatus.MODULE_NOT_FOUND_STUB
+
+    if _looks_like_shim(path):
+        return DeadCodeStatus.SHIM
+
+    return DeadCodeStatus.ACTIVE
 
 
 def _looks_like_shim(path: Path) -> bool:
@@ -150,6 +219,51 @@ def _looks_like_shim(path: Path) -> bool:
     if "shim" in text.lower():
         return True
 
+    return False
+
+
+def _is_module_not_found_stub(tree: ast.AST) -> bool:
+    body = getattr(tree, "body", [])
+
+    for node in body:
+        if isinstance(node, ast.Expr) and isinstance(node.value, ast.Constant) and isinstance(node.value.value, str):
+            continue
+        if isinstance(node, ast.ImportFrom) and node.module == "__future__":
+            continue
+        if isinstance(node, ast.Import):
+            continue
+        if isinstance(node, ast.Assign):
+            if all(isinstance(target, ast.Name) and target.id == "__all__" for target in node.targets):
+                continue
+        if isinstance(node, ast.AnnAssign):
+            target = node.target
+            if isinstance(target, ast.Name) and target.id == "__all__":
+                continue
+        if isinstance(node, ast.Pass):
+            continue
+
+        if isinstance(node, ast.Raise):
+            return _is_module_not_found_raise(node)
+
+        return False
+
+    return False
+
+
+def _is_module_not_found_raise(node: ast.Raise) -> bool:
+    exc = node.exc
+    if exc is None:
+        return False
+    return _exception_is_module_not_found(exc)
+
+
+def _exception_is_module_not_found(node: ast.AST) -> bool:
+    if isinstance(node, ast.Call):
+        return _exception_is_module_not_found(node.func)
+    if isinstance(node, ast.Name):
+        return node.id in {"ModuleNotFoundError", "ImportError"}
+    if isinstance(node, ast.Attribute):
+        return node.attr in {"ModuleNotFoundError", "ImportError"}
     return False
 
 
@@ -240,6 +354,11 @@ def _format_summary(summary: DeadCodeSummary) -> str:
         f"Missing: {len(summary.missing)}",
         f"Shim exports: {len(summary.shim_exports)}",
     ]
+    breakdown = summary.status_breakdown()
+    if any(breakdown.values()):
+        lines.append("Status breakdown:")
+        for status, count in breakdown.items():
+            lines.append(f"  - {status}: {count}")
     if summary.shim_exports:
         lines.append("Shim modules:")
         lines.extend(f"  - {path}" for path in summary.shim_exports)

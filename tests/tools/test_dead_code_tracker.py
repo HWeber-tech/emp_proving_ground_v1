@@ -3,6 +3,7 @@ from pathlib import Path
 import pytest
 
 from tools.cleanup.dead_code_tracker import (
+    DeadCodeStatus,
     DeadCodeSummary,
     ShimResolution,
     load_import_map,
@@ -37,6 +38,7 @@ def test_summarise_candidates_identifies_shims(_repo_root: Path) -> None:
     first_redirect = summary.shim_redirects[0]
     assert isinstance(first_redirect, ShimResolution)
     assert first_redirect.target_module is None
+    assert summary.status_by_path["src/core/sensory_organ.py"] == DeadCodeStatus.SHIM
 
 
 def test_shim_detection_skips_protocol_getattr_false_positive(_repo_root: Path) -> None:
@@ -47,6 +49,7 @@ def test_shim_detection_skips_protocol_getattr_false_positive(_repo_root: Path) 
 
     assert "src/operational/fix_connection_manager.py" in summary.present
     assert "src/operational/fix_connection_manager.py" not in summary.shim_exports
+    assert summary.status_by_path["src/operational/fix_connection_manager.py"] == DeadCodeStatus.ACTIVE
 
 
 def test_summarise_candidates_uses_import_map(_repo_root: Path) -> None:
@@ -73,27 +76,27 @@ def test_summarise_candidates_uses_import_map(_repo_root: Path) -> None:
     assert redirect.target_exists is True
 
 
-def test_removed_shims_are_reported_missing(_repo_root: Path) -> None:
+def test_module_not_found_stubs_flagged_for_triage(_repo_root: Path) -> None:
     report_path = _repo_root / "docs" / "reports" / "CLEANUP_REPORT.md"
     candidates = parse_cleanup_report(report_path)
 
     summary = summarise_candidates(candidates, repo_root=_repo_root)
 
-    removed = {
+    retired_stubs = {
         "src/core/configuration.py",
         "src/core/risk/manager.py",
         "src/core/risk/position_sizing.py",
-        "src/trading/risk_management/__init__.py",
         "src/thinking/memory/faiss_memory.py",
         "src/thinking/learning/real_time_learner.py",
         "src/thinking/sentient_adaptation_engine.py",
-        "src/sensory/organs/yahoo_finance_organ.py",
     }
 
-    present = set(summary.present)
-    missing = set(summary.missing)
-    candidates_set = set(candidates)
+    available = retired_stubs & summary.status_by_path.keys()
+    assert available, "expected retired stubs to be present in the cleanup report"
 
-    for path in removed & candidates_set:
-        assert path not in present
-        assert path in missing
+    for path in available:
+        assert summary.status_by_path[path] == DeadCodeStatus.MODULE_NOT_FOUND_STUB
+
+    # Ensure the summary breakdown counts the retired stubs.
+    breakdown = summary.status_breakdown()
+    assert breakdown[DeadCodeStatus.MODULE_NOT_FOUND_STUB] >= len(retired_stubs)

@@ -68,6 +68,10 @@
     both reflection digests and reviewer-ready reports so reviewers inherit
     emerging-strategy telemetry without spelunking raw summaries under expanded pytest
     coverage.【F:src/thinking/adaptation/policy_router.py†L175-L525】【F:tests/thinking/test_policy_router.py†L248-L308】
+  - Reflection builder now surfaces emerging tactics and experiments with first/last
+    seen timestamps, decision counts, share, and gating metadata, rendering reviewer
+    insights that call out regime filters and minimum confidence so governance sees
+    new strategies without replaying raw telemetry under refreshed pytest coverage.【F:src/thinking/adaptation/policy_reflection.py†L153-L213】【F:src/thinking/adaptation/policy_router.py†L977-L1033】【F:tests/thinking/test_policy_reflection_builder.py†L80-L113】【F:tests/thinking/test_policy_router.py†L243-L277】
   - Understanding router now supports Hebbian fast-weight adapters with
     deterministic decay, persists multiplier history, and serialises gate thresholds,
     feature values, required flags, and expiry metadata in guardrail coverage so

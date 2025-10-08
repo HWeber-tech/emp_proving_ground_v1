@@ -119,6 +119,11 @@
   telemetry while guarding best-effort collection so operators can audit cache
   effectiveness without shell access under new supervised and production-slice
   coverage.【F:src/data_foundation/ingest/institutional_vertical.py†L256-L337】【F:src/data_foundation/ingest/institutional_vertical.py†L584-L637】【F:tests/runtime/test_institutional_ingest_vertical.py†L138-L210】【F:tests/data_foundation/test_production_ingest_slice.py†L317-L330】
+- Progress: `build_institutional_ingest_config` now resolves Redis connection
+  settings from extras, tags ingest metadata with the active client name/SSL
+  posture, and shares the resolved settings with provisioners plus managed CLI
+  tooling so drills, manifests, and production runs report the exact cache
+  endpoint without manual overrides under refreshed regression coverage.【F:src/data_foundation/ingest/configuration.py†L728-L909】【F:src/data_foundation/ingest/institutional_vertical.py†L522-L611】【F:tests/data_foundation/test_timescale_config.py†L150-L171】【F:tests/runtime/test_institutional_ingest_vertical.py†L80-L140】【F:tools/operations/managed_ingest_connectors.py†L198-L226】【F:tools/operations/run_production_ingest.py†L255-L318】
 - Progress: Tier-0 Yahoo ingest script now sanitises symbols and intervals,
   enforces mutually exclusive period/start-end windows, normalises timestamps,
   and persists via a DuckDB helper that escapes table identifiers and binds

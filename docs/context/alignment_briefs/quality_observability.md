@@ -136,6 +136,10 @@
     target, the evaluator treating it as a default requirement, and the guarded
     Timescale config test marked so configuration coverage gaps fail fast under
     regression coverage.【F:.github/workflows/ci.yml†L118-L123】【F:tests/runtime/test_guardrail_suite_manifest.py†L23-L118】【F:tools/telemetry/coverage_guardrails.py†L24-L36】【F:tests/tools/test_coverage_guardrails.py†L40-L101】【F:tests/data_foundation/test_timescale_config.py†L1-L44】
+  - Progress: Guardrail workflow now requires the ingest scheduler suite in the
+    pytest guardrail step and adds the scheduler module to the coverage matrix so
+    supervised ingest loops stay under explicit enforcement, with manifest tests
+    asserting the workflow keeps both requirements.【F:.github/workflows/ci.yml†L108-L142】【F:tests/runtime/test_guardrail_suite_manifest.py†L103-L151】
   - Progress: Quality telemetry snapshot builder now normalises coverage,
     staleness, and remediation trends into a typed `QualityTelemetrySnapshot`,
     escalating WARN/FAIL severities, retaining lagging-domain metadata, and

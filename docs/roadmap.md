@@ -59,6 +59,12 @@ kit that the roadmap calls back to in each checklist.
     prefixes into the resolved config, runtime summary, and managed manifest so
     operators can tune hot datasets without code patches under guardrail tests
     that exercise supervised caches and CLI manifests.【F:src/data_foundation/ingest/configuration.py†L738-L942】【F:src/data_foundation/ingest/production_slice.py†L34-L120】【F:tests/data_foundation/test_timescale_config.py†L130-L150】【F:tests/runtime/test_institutional_ingest_vertical.py†L120-L205】【F:tools/operations/managed_ingest_connectors.py†L147-L194】
+  - *Progress*: Institutional ingest config now persists Redis connection
+    settings, publishes whether the cache is configured, and threads the
+    resolved client through provisioners and managed CLI tooling so manifests,
+    connectivity drills, and production runs inherit dotenv overrides without
+    bespoke wiring, with pytest guarding metadata and scheduler reuse of the
+    shared settings.【F:src/data_foundation/ingest/configuration.py†L728-L909】【F:src/data_foundation/ingest/institutional_vertical.py†L522-L611】【F:tests/data_foundation/test_timescale_config.py†L150-L171】【F:tests/runtime/test_institutional_ingest_vertical.py†L80-L140】【F:tools/operations/managed_ingest_connectors.py†L198-L226】【F:tools/operations/run_production_ingest.py†L255-L318】
   - *Progress*: Redis cache helpers now parse typed connection settings, TTL/capacity
     overrides, and invalidate prefixes while exposing a managed wrapper that tracks
     hits, misses, expirations, and evictions so ingest and trading services share a
@@ -84,6 +90,10 @@ kit that the roadmap calls back to in each checklist.
     manifest enumerating the target, the evaluator treating it as a default
     requirement, and guardrail-marked regression tests pinning the new target so
     configuration policy drift fails fast under pytest coverage.【F:.github/workflows/ci.yml†L118-L123】【F:tests/runtime/test_guardrail_suite_manifest.py†L23-L118】【F:tools/telemetry/coverage_guardrails.py†L24-L36】【F:tests/tools/test_coverage_guardrails.py†L40-L101】【F:tests/data_foundation/test_timescale_config.py†L1-L44】
+  - *Progress*: CI guardrails now enforce that the ingest scheduler suite runs in
+    the dedicated pytest marker and that coverage matrices include the scheduler
+    module, ensuring supervised scheduling stays under guardrail enforcement with
+    regression tests pinning the workflow requirements.【F:.github/workflows/ci.yml†L108-L142】【F:tests/runtime/test_guardrail_suite_manifest.py†L103-L151】
   - *Progress*: CI workflow now runs the coverage matrix and minimum coverage
     guardrail steps after the guarded pytest job, enforcing ingest/risk targets,
     appending Markdown summaries, and failing the build when thresholds slip,
@@ -825,13 +835,18 @@ kit that the roadmap calls back to in each checklist.
 - [ ] **AlphaTrade loop expansion (Days 15–90)** – Graduate the live-shadow pilot
   into tactic experimentation, paper trading, and limited live promotions once V1
   stabilises.【F:docs/High-Impact Development Roadmap.md†L74-L76】
-  - [ ] Expand PolicyRouter tactics and fast-weight experimentation while
+  - [x] Expand PolicyRouter tactics and fast-weight experimentation while
     automating reflection summaries so reviewers see emerging strategies without
     spelunking telemetry dumps.【F:docs/High-Impact Development Roadmap.md†L74-L74】
   - *Progress*: PolicyRouter now serialises experiment regime filters, confidence
     gates, and feature bounds into the reflection digest while the builder renders
     the new gating columns and reviewer insights so experiment-driven tactics stay
     auditable without replaying telemetry, covered by expanded pytest fixtures.【F:src/thinking/adaptation/policy_router.py†L16-L163】【F:src/thinking/adaptation/policy_reflection.py†L273-L307】【F:tests/thinking/test_policy_router.py†L230-L239】【F:tests/thinking/test_policy_reflection_builder.py†L80-L107】
+  - *Progress*: Reflection digest now highlights emerging tactics and experiments
+    with first/last-seen timestamps, decision counts, share, and gating metadata,
+    emitting reviewer insights that call out confidence thresholds and regime
+    filters so reviewers can spot new behaviour without spelunking raw telemetry,
+    under regression coverage for timezone normalisation and Markdown exports.【F:src/thinking/adaptation/policy_reflection.py†L153-L213】【F:src/thinking/adaptation/policy_router.py†L977-L1033】【F:tests/thinking/test_policy_reflection_builder.py†L80-L113】【F:tests/thinking/test_policy_router.py†L243-L277】
   - *Progress*: Reflection digest now tracks confidence trends, feature
     highlights, and weight multipliers while decision diaries and router
     decisions surface weight-breakdown provenance so reviewers see how fast

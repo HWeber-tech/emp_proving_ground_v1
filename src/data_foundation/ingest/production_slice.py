@@ -81,8 +81,10 @@ class ProductionIngestSlice:
     _last_results: dict[str, TimescaleIngestResult] | None = field(init=False, default=None)
     _last_run_at: datetime | None = field(init=False, default=None)
     _last_error: str | None = field(init=False, default=None)
+    _run_lock: asyncio.Lock = field(init=False, repr=False)
 
     def __post_init__(self) -> None:
+        self._run_lock = asyncio.Lock()
         if self.task_supervisor is None:
             raise ValueError("task_supervisor must be provided for production ingest")
 
@@ -98,26 +100,30 @@ class ProductionIngestSlice:
     async def run_once(self) -> bool:
         """Execute a single Timescale ingest run in a worker thread."""
 
-        services = self._ensure_services()
-        if services is None:
-            self._last_error = self.ingest_config.reason or "Timescale ingest disabled"
-            return False
+        async with self._run_lock:
+            services = self._ensure_services()
+            if services is None:
+                self._last_error = self.ingest_config.reason or "Timescale ingest disabled"
+                return False
 
-        async def _run() -> dict[str, TimescaleIngestResult]:
-            return await asyncio.to_thread(self._orchestrator.run, plan=self.ingest_config.plan)
+            async def _run() -> dict[str, TimescaleIngestResult]:
+                return await asyncio.to_thread(
+                    self._orchestrator.run,
+                    plan=self.ingest_config.plan,
+                )
 
-        try:
-            results = await _run()
-        except Exception as exc:
-            self._last_error = str(exc)
-            logger.exception("Timescale ingest run failed")
-            return False
+            try:
+                results = await _run()
+            except Exception as exc:
+                self._last_error = str(exc)
+                logger.exception("Timescale ingest run failed")
+                return False
 
-        self._last_results = results
-        self._last_run_at = datetime.now(tz=UTC)
-        self._last_error = None
-        self._invalidate_result_caches(services, results)
-        return bool(results)
+            self._last_results = results
+            self._last_run_at = datetime.now(tz=UTC)
+            self._last_error = None
+            self._invalidate_result_caches(services, results)
+            return bool(results)
 
     def start(self) -> None:
         """Start supervised ingest components (scheduler, Kafka bridge)."""

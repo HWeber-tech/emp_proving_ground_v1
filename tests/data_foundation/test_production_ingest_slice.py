@@ -1,5 +1,6 @@
 import asyncio
 import dataclasses
+import threading
 from collections import deque
 
 import pytest
@@ -127,6 +128,66 @@ async def test_production_slice_supervises_scheduler_tasks() -> None:
     summary = slice_runtime.summary()
     assert summary["services"] is not None
     assert summary["services"]["schedule"]["running"] is False
+
+
+@pytest.mark.asyncio
+async def test_production_slice_serialises_concurrent_runs() -> None:
+    config = _ingest_config()
+    bus = _DummyEventBus()
+    supervisor = TaskSupervisor(namespace="ingest-lock")
+
+    class _BlockingOrchestrator:
+        def __init__(self) -> None:
+            self.calls = 0
+            self.active = 0
+            self.max_active = 0
+            self.started = threading.Event()
+            self.release = threading.Event()
+
+        def run(self, *, plan: TimescaleBackbonePlan) -> dict[str, TimescaleIngestResult]:
+            self.calls += 1
+            self.active += 1
+            self.max_active = max(self.max_active, self.active)
+            try:
+                if self.calls == 1:
+                    self.started.set()
+                    # Block until the test releases the first invocation.
+                    self.release.wait(timeout=2.0)
+
+                return {
+                    "daily_bars": TimescaleIngestResult.empty(
+                        dimension="daily_bars",
+                        source="yahoo",
+                    )
+                }
+            finally:
+                self.active -= 1
+
+    orchestrator = _BlockingOrchestrator()
+
+    slice_runtime = ProductionIngestSlice(
+        config,
+        bus,
+        supervisor,
+        orchestrator_factory=lambda settings, publisher: orchestrator,
+    )
+
+    first = asyncio.create_task(slice_runtime.run_once())
+    await asyncio.wait_for(asyncio.to_thread(orchestrator.started.wait), timeout=1.0)
+
+    second = asyncio.create_task(slice_runtime.run_once())
+    await asyncio.sleep(0.05)
+
+    assert orchestrator.calls == 1
+    assert orchestrator.max_active == 1
+
+    orchestrator.release.set()
+
+    await first
+    await second
+
+    assert orchestrator.calls == 2
+    assert orchestrator.max_active == 1
 
 
 @pytest.mark.asyncio

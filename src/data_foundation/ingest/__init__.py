@@ -57,6 +57,7 @@ __all__ = [
     "ProviderSpec",
     "StalenessValidator",
     "ProductionIngestSlice",
+    "fetch_fred_calendar",
 ]
 
 
@@ -112,6 +113,7 @@ _MODULE_MAP = {
     "ProviderSpec": "src.data_foundation.ingest.multi_source",
     "StalenessValidator": "src.data_foundation.ingest.multi_source",
     "ProductionIngestSlice": "src.data_foundation.ingest.production_slice",
+    "fetch_fred_calendar": "src.data_foundation.ingest.fred_calendar",
 }
 
 

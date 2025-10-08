@@ -8,6 +8,7 @@ from typing import Callable, Mapping, Sequence, Protocol
 
 import pandas as pd
 
+from .fred_calendar import fetch_fred_calendar
 from .yahoo_ingest import fetch_daily_bars, fetch_intraday_trades
 from ..persist.timescale import (
     TimescaleConnectionSettings,

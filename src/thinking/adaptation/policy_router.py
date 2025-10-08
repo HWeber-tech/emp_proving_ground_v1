@@ -491,6 +491,18 @@ class PolicyRouter:
                     "last_seen": None,
                 },
                 "features": [],
+                "weight_stats": {
+                    "average_base_score": None,
+                    "average_total_multiplier": None,
+                    "average_final_score": None,
+                    "fast_weight": {
+                        "applications": 0,
+                        "count": 0,
+                        "average_multiplier": None,
+                        "min_multiplier": None,
+                        "max_multiplier": None,
+                    },
+                },
             }
 
         tactic_counts: Counter[str] = Counter()
@@ -594,7 +606,11 @@ class PolicyRouter:
 
             if tactic_id:
                 tactic_counts[tactic_id] += 1
-                score = float(entry.get("score", 0.0))
+                score_value = entry.get("score", 0.0)
+                try:
+                    score = float(score_value)
+                except (TypeError, ValueError):
+                    score = 0.0
                 total_score_sum += score
                 tactic_scores[tactic_id] = tactic_scores.get(tactic_id, 0.0) + score
                 if timestamp and (
@@ -901,6 +917,44 @@ class PolicyRouter:
                     }
                 )
 
+        average_base_score = (
+            base_score_sum / base_score_count if base_score_count else None
+        )
+        average_total_multiplier = (
+            total_multiplier_sum / total_multiplier_count if total_multiplier_count else None
+        )
+        average_final_score = (
+            total_score_sum / total_decisions if total_decisions else None
+        )
+        fast_weight_average = (
+            fast_weight_sum / fast_weight_count if fast_weight_count else None
+        )
+
+        weight_stats = {
+            "average_base_score": float(average_base_score)
+            if average_base_score is not None
+            else None,
+            "average_total_multiplier": float(average_total_multiplier)
+            if average_total_multiplier is not None
+            else None,
+            "average_final_score": float(average_final_score)
+            if average_final_score is not None
+            else None,
+            "fast_weight": {
+                "applications": fast_weight_applications,
+                "count": fast_weight_count,
+                "average_multiplier": float(fast_weight_average)
+                if fast_weight_average is not None
+                else None,
+                "min_multiplier": float(fast_weight_min)
+                if fast_weight_min is not None
+                else None,
+                "max_multiplier": float(fast_weight_max)
+                if fast_weight_max is not None
+                else None,
+            },
+        }
+
         return {
             "total_decisions": total_decisions,
             "as_of": as_of.isoformat() if as_of else None,
@@ -920,6 +974,7 @@ class PolicyRouter:
             },
             "confidence": confidence_summary,
             "features": feature_summaries,
+            "weight_stats": weight_stats,
         }
 
     def reflection_report(

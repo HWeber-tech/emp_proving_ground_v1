@@ -63,12 +63,27 @@ def test_intelligence_facade_resolves_canonical_symbols(caplog):
     assert portfolio_engine.__module__ == "src.intelligence"
 
     legacy_modules = [
-        "src.intelligence.red_team_ai",
-        "src.intelligence.competitive_intelligence",
-        "src.intelligence.predictive_modeling",
-        "src.intelligence.specialized_predators",
+        (
+            "src.intelligence.red_team_ai",
+            "src.thinking.adversarial.red_team_ai",
+        ),
+        (
+            "src.intelligence.competitive_intelligence",
+            "src.thinking.competitive.competitive_intelligence_system",
+        ),
+        (
+            "src.intelligence.predictive_modeling",
+            "src.thinking.prediction.predictive_market_modeler",
+        ),
+        (
+            "src.intelligence.specialized_predators",
+            "src.ecosystem",
+        ),
     ]
 
-    for module_name in legacy_modules:
-        with pytest.raises(ModuleNotFoundError):
+    for module_name, expected_fragment in legacy_modules:
+        with pytest.raises(ModuleNotFoundError) as excinfo:
             importlib.import_module(module_name)
+
+        assert module_name in str(excinfo.value)
+        assert expected_fragment in str(excinfo.value)

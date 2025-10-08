@@ -132,6 +132,12 @@ kit that the roadmap calls back to in each checklist.
     parameters with pytest coverage, while the new market data gateway logs
     rejected requests and reuses the hardened fetcher so entry-level datasets
     inherit safe defaults.【F:src/data_foundation/ingest/yahoo_ingest.py†L82-L305】【F:src/data_foundation/ingest/yahoo_gateway.py†L1-L53】【F:tests/data_foundation/test_yahoo_ingest_security.py†L1-L132】【F:tests/data_foundation/test_yahoo_gateway.py†L1-L69】
+  - *Progress*: Orchestration compose now prefers the canonical
+    `YahooMarketDataGateway`, falls back to injected organs only when provided,
+    and surfaces guarded adapters for anomaly, regime, and adaptation ports,
+    while the retired `yahoo_finance_organ` shim raises a guided
+    `ModuleNotFoundError` so legacy imports fail fast under regression coverage
+    across orchestration and shim tests.【F:src/orchestration/compose.py†L1-L210】【F:src/sensory/organs/yahoo_finance_organ.py†L1-L15】【F:tests/current/test_orchestration_compose.py†L104-L158】【F:tests/thinking/test_shim_import_failures.py†L8-L37】
   - *Progress*: Timescale ingest helpers now validate schema/table identifiers
     before emitting SQL, raising deterministic errors on unsafe names and
     pinning the contract via regression tests so institutional slices cannot
@@ -748,6 +754,12 @@ kit that the roadmap calls back to in each checklist.
     metadata, promoting namespace/hit/miss telemetry into runtime summaries and
     manifest snapshots so operators can confirm cache effectiveness under new
     integration coverage for supervised runs and production slices.【F:src/data_foundation/ingest/institutional_vertical.py†L256-L337】【F:src/data_foundation/ingest/institutional_vertical.py†L584-L637】【F:tests/runtime/test_institutional_ingest_vertical.py†L138-L210】【F:tests/data_foundation/test_production_ingest_slice.py†L317-L330】
+  - *Progress*: A docker compose stack plus dotenv template now provision
+    Timescale, Redis, and Kafka services with matching ingest extras, the
+    managed connector CLI accepts `--env-file` and Kafka topic provisioning
+    flags, and operations docs walk through validation and failover drills so
+    teams can rehearse institutional ingest locally under regression coverage of
+    the CLI helpers.【F:docker/institutional-ingest/docker-compose.yml†L1-L83】【F:env_templates/institutional_ingest.env†L4-L31】【F:tools/operations/managed_ingest_connectors.py†L45-L326】【F:tests/tools/test_managed_ingest_connectors.py†L83-L142】【F:docs/operations/managed_ingest_environment.md†L1-L76】
 - [x] **Sensory cortex uplift** – Deliver executable HOW/ANOMALY organs, instrument
   drift telemetry, and expose metrics through runtime summaries and the event
   bus.
@@ -849,10 +861,10 @@ kit that the roadmap calls back to in each checklist.
     exploding `.dict()` calls and attribute errors while regression tests lock the
     defensive paths so AlphaTrade analysis surfaces stay resilient to integration
     payload drift.【F:src/thinking/models/normalizers.py†L26-L182】【F:tests/thinking/test_normalizers.py†L1-L85】
-  - [ ] Enable selective paper-trade execution with DriftSentry gating
+  - [x] Enable selective paper-trade execution with DriftSentry gating
     promotions and PolicyLedger enforcing audit coverage ahead of live capital
     exposure.【F:docs/High-Impact Development Roadmap.md†L75-L75】
-  - *Progress*: Trading manager now wires in DriftSentry gating, recording decisions, experiment events, and risk summaries whenever drift blocks or warns on paper trades so selective execution honours governance guardrails under pytest coverage.【F:src/trading/trading_manager.py†L183-L367】【F:src/trading/trading_manager.py†L584-L612】【F:tests/trading/test_trading_manager_execution.py†L187-L260】
+  - *Progress*: Trading manager now forces paper execution when DriftSentry blocks a promotion, preserves risk-gateway validation, records forced-paper experiment events, and publishes drift telemetry with the new status so selective execution captures audited reasons under refreshed regression coverage.【F:src/trading/trading_manager.py†L339-L438】【F:tests/trading/test_trading_manager_execution.py†L303-L347】【F:tests/trading/test_trading_manager_execution.py†L577-L607】【F:tests/trading/test_drift_gate_telemetry.py†L82-L103】
   - *Progress*: Drift gate telemetry now publishes structured events and Markdown
     summaries through the event bus whenever gating decisions fire, capturing
     status, severity, forced-paper posture, and routing metadata so dashboards

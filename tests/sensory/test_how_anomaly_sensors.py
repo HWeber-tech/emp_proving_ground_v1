@@ -166,6 +166,13 @@ def test_anomaly_sensor_sequence_mode_detects_spike() -> None:
     assert signal.value["state"] in {"nominal", "warning", "alert"}
     assert signal.value["is_anomaly"] is True
     assert abs(float(signal.value["z_score"])) >= 0.0
+    audit = metadata.get("audit")
+    assert isinstance(audit, dict)
+    assert audit.get("sample_size") >= sensor._config.sequence_min_length
+    detector_meta = metadata.get("anomaly_detector")
+    assert isinstance(detector_meta, dict)
+    assert detector_meta.get("min_samples") == sensor._config.sequence_min_length
+    assert detector_meta.get("sample_size") >= sensor._config.sequence_min_length
     lineage = metadata.get("lineage")
     assert isinstance(lineage, dict)
     assert lineage.get("metadata", {}).get("mode") == "sequence"

@@ -6,6 +6,7 @@ from typing import Any, Mapping, Sequence
 
 import pandas as pd
 
+from src.sensory.anomaly.basic_detector import AnomalyEvaluation, BasicAnomalyDetector
 from src.sensory.enhanced.anomaly_dimension import AnomalyIntelligenceEngine
 from src.sensory.lineage import (
     SensorLineageRecord,
@@ -42,10 +43,17 @@ class AnomalySensor:
         *,
         engine: AnomalyIntelligenceEngine | None = None,
         lineage_recorder: SensorLineageRecorder | None = None,
+        basic_detector: BasicAnomalyDetector | None = None,
     ) -> None:
         self._engine = engine or AnomalyIntelligenceEngine()
         self._config = config or AnomalySensorConfig()
         self._lineage_recorder = lineage_recorder
+        detector = basic_detector or BasicAnomalyDetector(
+            window=self._config.window,
+            min_samples=self._config.sequence_min_length,
+            z_threshold=self._config.z_score_threshold,
+        )
+        self._basic_detector = detector
 
     def process(
         self, data: pd.DataFrame | Mapping[str, Any] | Sequence[float] | None
@@ -69,6 +77,11 @@ class AnomalySensor:
             if dropped:
                 inputs["dropped_samples"] = dropped
                 extra_metadata = {"dropped_samples": dropped}
+            evaluation = self._basic_detector.evaluate(values)
+            inputs["sample_size"] = evaluation.sample_size
+            inputs["mean"] = evaluation.mean
+            inputs["std_dev"] = evaluation.std_dev
+            inputs["z_score"] = evaluation.z_score
             reading = self._engine.analyze_anomaly_intelligence(values)
             return [
                 self._build_signal(
@@ -76,6 +89,7 @@ class AnomalySensor:
                     mode_override="sequence",
                     inputs=inputs,
                     extra_metadata=extra_metadata,
+                    basic_eval=evaluation,
                 )
             ]
         else:
@@ -94,14 +108,23 @@ class AnomalySensor:
             if "close" in df
             else []
         )
+        evaluation: AnomalyEvaluation | None = None
+        if sequence:
+            evaluation = self._basic_detector.evaluate(sequence)
         if len(sequence) >= self._config.sequence_min_length:
             reading = self._engine.analyze_anomaly_intelligence(sequence)
             inputs = {"sequence_length": len(sequence), "latest": sequence[-1]}
+            if evaluation is not None:
+                inputs["sample_size"] = evaluation.sample_size
+                inputs["mean"] = evaluation.mean
+                inputs["std_dev"] = evaluation.std_dev
+                inputs["z_score"] = evaluation.z_score
             return [
                 self._build_signal(
                     reading,
                     mode_override="sequence",
                     inputs=inputs,
+                    basic_eval=evaluation,
                 )
             ]
 
@@ -112,6 +135,7 @@ class AnomalySensor:
                 reading,
                 mode_override="market_data",
                 inputs=payload,
+                basic_eval=evaluation,
             )
         ]
 
@@ -137,6 +161,7 @@ class AnomalySensor:
         mode_override: str | None,
         inputs: Mapping[str, Any] | None = None,
         extra_metadata: Mapping[str, Any] | None = None,
+        basic_eval: AnomalyEvaluation | None = None,
     ) -> SensorSignal:
         reading = reading_adapter.reading
         signal_strength = float(getattr(reading, "signal_strength", 0.0))
@@ -154,10 +179,18 @@ class AnomalySensor:
         baseline = float(reading_adapter.get("baseline", 0.0))
         dispersion = float(reading_adapter.get("dispersion", 0.0))
         latest = float(reading_adapter.get("latest", 0.0))
+        if basic_eval is not None:
+            baseline = basic_eval.mean
+            dispersion = basic_eval.std_dev
+            latest = basic_eval.latest
+
         if dispersion <= 0.0:
-            z_score = 0.0
+            z_score = basic_eval.z_score if basic_eval is not None else 0.0
         else:
             z_score = (latest - baseline) / dispersion
+
+        if basic_eval is not None and dispersion <= 0.0:
+            z_score = basic_eval.z_score
         abs_z_score = abs(z_score)
         telemetry: dict[str, float] = {
             "baseline": baseline,
@@ -165,8 +198,10 @@ class AnomalySensor:
             "latest": latest,
             "z_score": float(z_score),
         }
+        if basic_eval is not None:
+            telemetry["sample_size"] = float(basic_eval.sample_size)
 
-        anomaly_flag = abs_z_score >= self._config.z_score_threshold
+        anomaly_flag = basic_eval.is_anomaly if basic_eval is not None else abs_z_score >= self._config.z_score_threshold
         if assessment.state in {"alert", "critical"}:
             anomaly_flag = True
 
@@ -203,6 +238,17 @@ class AnomalySensor:
             "threshold_assessment": assessment.as_dict(),
             "is_anomaly": anomaly_flag,
         }
+        if basic_eval is not None:
+            metadata["audit"]["sample_size"] = basic_eval.sample_size
+            metadata["audit"]["mean"] = basic_eval.mean
+            metadata["audit"]["std_dev"] = basic_eval.std_dev
+            metadata["audit"]["latest"] = basic_eval.latest
+            metadata["anomaly_detector"] = {
+                "window": self._basic_detector.window,
+                "min_samples": self._basic_detector.min_samples,
+                "z_threshold": self._basic_detector.z_threshold,
+                "sample_size": basic_eval.sample_size,
+            }
         metadata["audit"].update(telemetry)
         if extra_metadata:
             metadata.update(extra_metadata)
@@ -215,6 +261,8 @@ class AnomalySensor:
             "is_anomaly": anomaly_flag,
             "z_score": float(z_score),
         }
+        if basic_eval is not None:
+            value["sample_size"] = basic_eval.sample_size
         self._record_lineage(lineage)
         return SensorSignal(
             signal_type="ANOMALY",

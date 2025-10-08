@@ -461,6 +461,43 @@ def test_kafka_ingest_event_consumer_commits_offsets_when_enabled() -> None:
     assert commit_record["asynchronous"] is False
 
 
+def test_kafka_ingest_event_consumer_exposes_metadata_properties() -> None:
+    class _RecordingBus:
+        def publish_from_sync(self, event) -> int:
+            return 1
+
+        def is_running(self) -> bool:
+            return True
+
+    bridge = KafkaIngestEventConsumer(
+        _FakeConsumer(),
+        topics=["timescale.daily"],
+        event_bus=_RecordingBus(),
+        poll_timeout=0.5,
+        idle_sleep=0.1,
+        commit_offsets=True,
+        commit_asynchronously=True,
+        publish_consumer_lag=True,
+        consumer_lag_event_type="telemetry.kafka.custom",
+        consumer_lag_source="custom.source",
+        consumer_lag_interval=12.5,
+        consumer_group="ingest-bridge",
+    )
+
+    assert bridge.default_event_type == "telemetry.ingest"
+    assert bridge.topic_event_types == {}
+    assert bridge.event_source == "timescale_ingest.kafka"
+    assert bridge.poll_timeout == pytest.approx(0.5)
+    assert bridge.idle_sleep == pytest.approx(0.1)
+    assert bridge.commit_offsets_enabled is True
+    assert bridge.commit_asynchronously is True
+    assert bridge.publish_consumer_lag_enabled is True
+    assert bridge.consumer_lag_event_type == "telemetry.kafka.custom"
+    assert bridge.consumer_lag_source == "custom.source"
+    assert bridge.consumer_lag_interval == pytest.approx(12.5)
+    assert bridge.consumer_group == "ingest-bridge"
+
+
 def test_kafka_ingest_event_consumer_ping_uses_list_topics() -> None:
     bridge = KafkaIngestEventConsumer(
         _FakeConsumer(),
@@ -792,6 +829,7 @@ def test_create_ingest_event_consumer_configures() -> None:
     assert isinstance(consumer, KafkaIngestEventConsumer)
     assert created["config"]["group.id"] == "ingest-bridge"
     assert consumer.topics == ("timescale.daily",)
+    assert consumer.consumer_group == "ingest-bridge"
 
 
 def test_create_ingest_event_consumer_fallback(monkeypatch) -> None:
@@ -886,6 +924,8 @@ def test_create_ingest_event_consumer_commits_when_auto_commit_disabled() -> Non
     )
 
     assert bridge is not None
+    assert bridge.commit_offsets_enabled is True
+    assert bridge.consumer_group == "emp-ingest-bridge"
     consumer.messages.append(
         _FakeKafkaMessage(json.dumps({"result": {"dimension": "intraday_trades"}}))
     )
@@ -969,6 +1009,7 @@ def test_create_ingest_event_consumer_respects_commit_toggle() -> None:
     )
 
     assert bridge is not None
+    assert bridge.commit_offsets_enabled is False
     consumer.messages.append(_FakeKafkaMessage(json.dumps({"result": {"dimension": "daily_bars"}})))
     processed = bridge.poll_once()
     assert processed is True
@@ -1003,6 +1044,8 @@ def test_create_ingest_event_consumer_configures_async_commit() -> None:
     )
 
     assert bridge is not None
+    assert bridge.commit_offsets_enabled is True
+    assert bridge.commit_asynchronously is True
     consumer.messages.append(_FakeKafkaMessage(json.dumps({"result": {"dimension": "daily_bars"}})))
     processed = bridge.poll_once()
     assert processed is True

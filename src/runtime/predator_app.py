@@ -321,6 +321,7 @@ class ProfessionalPredatorApp:
         self._last_ingest_trend_snapshot: IngestTrendSnapshot | None = None
         self._last_configuration_snapshot: ConfigurationAuditSnapshot | None = None
         self._last_risk_configuration: dict[str, Any] | None = None
+        self._kafka_bridge_metadata: dict[str, object] | None = None
 
     async def __aenter__(self) -> "ProfessionalPredatorApp":
         await self.start()
@@ -344,9 +345,13 @@ class ProfessionalPredatorApp:
         self._cleanup_callbacks.append(callback)
 
     def create_background_task(
-        self, coro: Coroutine[Any, Any, Any], *, name: Optional[str] = None
+        self,
+        coro: Coroutine[Any, Any, Any],
+        *,
+        name: Optional[str] = None,
+        metadata: Mapping[str, Any] | None = None,
     ) -> asyncio.Task[Any]:
-        return self._task_supervisor.create(coro, name=name)
+        return self._task_supervisor.create(coro, name=name, metadata=metadata)
 
     def register_background_task(self, task: asyncio.Task[Any]) -> None:
         """Track an externally-created background task for managed shutdown."""
@@ -360,6 +365,13 @@ class ProfessionalPredatorApp:
         """Tracer used for runtime workload instrumentation."""
 
         return self._runtime_tracer
+
+    def get_kafka_bridge_metadata(self) -> Mapping[str, object] | None:
+        """Expose the resolved Kafka ingest bridge metadata for diagnostics."""
+
+        if self._kafka_bridge_metadata is None:
+            return None
+        return dict(self._kafka_bridge_metadata)
 
     def record_backup_snapshot(self, snapshot: BackupReadinessSnapshot) -> None:
         """Store the most recent backup readiness snapshot for summaries."""
@@ -728,6 +740,87 @@ class ProfessionalPredatorApp:
 
         return self._task_supervisor.active_tasks
 
+    def _build_kafka_bridge_metadata(
+        self, kafka_bridge: KafkaIngestEventConsumer
+    ) -> dict[str, object]:
+        metadata: dict[str, object] = {"component": "kafka_ingest_bridge"}
+
+        topics = getattr(kafka_bridge, "topics", ())
+        if topics:
+            metadata["topics"] = [str(topic) for topic in topics if str(topic).strip()]
+
+        default_event_type = getattr(kafka_bridge, "default_event_type", None)
+        if default_event_type:
+            metadata["event_type"] = str(default_event_type)
+
+        topic_event_types = getattr(kafka_bridge, "topic_event_types", None)
+        if topic_event_types:
+            metadata["topic_event_types"] = {
+                str(topic): str(event_type)
+                for topic, event_type in dict(topic_event_types).items()
+                if str(topic).strip() and str(event_type).strip()
+            }
+
+        event_source = getattr(kafka_bridge, "event_source", None)
+        if event_source:
+            metadata["event_source"] = str(event_source)
+
+        consumer_group = getattr(kafka_bridge, "consumer_group", None)
+        if consumer_group:
+            metadata["consumer_group"] = str(consumer_group)
+
+        poll_timeout = getattr(kafka_bridge, "poll_timeout", None)
+        if poll_timeout is not None:
+            metadata["poll_timeout_seconds"] = float(poll_timeout)
+
+        idle_sleep = getattr(kafka_bridge, "idle_sleep", None)
+        if idle_sleep is not None:
+            metadata["idle_sleep_seconds"] = float(idle_sleep)
+
+        commit_offsets = getattr(kafka_bridge, "commit_offsets_enabled", None)
+        if commit_offsets is not None:
+            metadata["commit_offsets"] = bool(commit_offsets)
+
+        commit_async = getattr(kafka_bridge, "commit_asynchronously", None)
+        if commit_async is not None:
+            metadata["commit_async"] = bool(commit_async)
+
+        publish_consumer_lag = getattr(kafka_bridge, "publish_consumer_lag_enabled", None)
+        if publish_consumer_lag is not None:
+            metadata["publish_consumer_lag"] = bool(publish_consumer_lag)
+
+        consumer_lag_event_type = getattr(kafka_bridge, "consumer_lag_event_type", None)
+        if consumer_lag_event_type:
+            metadata["consumer_lag_event_type"] = str(consumer_lag_event_type)
+
+        consumer_lag_source = getattr(kafka_bridge, "consumer_lag_source", None)
+        if consumer_lag_source:
+            metadata["consumer_lag_source"] = str(consumer_lag_source)
+
+        consumer_lag_interval = getattr(kafka_bridge, "consumer_lag_interval", None)
+        if consumer_lag_interval is not None:
+            metadata["consumer_lag_interval_seconds"] = float(consumer_lag_interval)
+
+        return metadata
+
+    def _build_kafka_bridge_summary(
+        self, task_details: Sequence[Mapping[str, Any]]
+    ) -> dict[str, object] | None:
+        if self._kafka_bridge_metadata is None:
+            return None
+
+        payload = dict(self._kafka_bridge_metadata)
+        payload["active"] = False
+
+        for entry in task_details:
+            if entry.get("name") == "kafka-ingest-bridge":
+                payload["active"] = True
+                payload["state"] = entry.get("state")
+                payload["task_created_at"] = entry.get("created_at")
+                break
+
+        return payload
+
     def _register_component_tasks(self, component: Any) -> None:
         """Capture known background tasks emitted by runtime components."""
 
@@ -963,6 +1056,10 @@ class ProfessionalPredatorApp:
         task_details = self._task_supervisor.describe()
         if task_details:
             summary_payload["background_task_details"] = task_details
+
+        kafka_bridge_summary = self._build_kafka_bridge_summary(task_details)
+        if kafka_bridge_summary:
+            summary_payload["kafka_ingest_bridge"] = kafka_bridge_summary
 
         if ingest_journal_summary is not None:
             summary_payload["ingest_journal"] = ingest_journal_summary
@@ -2284,6 +2381,8 @@ async def build_professional_predator_app(
             app.add_cleanup_callback(registry.close)
         if kafka_bridge is not None:
             stop_event = asyncio.Event()
+            bridge_metadata = app._build_kafka_bridge_metadata(kafka_bridge)
+            app._kafka_bridge_metadata = bridge_metadata
 
             async def _consume_kafka() -> None:
                 try:
@@ -2294,11 +2393,16 @@ async def build_professional_predator_app(
             app.create_background_task(
                 _consume_kafka(),
                 name="kafka-ingest-bridge",
+                metadata=bridge_metadata,
             )
 
             async def _shutdown_kafka() -> None:
                 stop_event.set()
                 kafka_bridge.close()
+                if app._kafka_bridge_metadata is not None:
+                    updated = dict(app._kafka_bridge_metadata)
+                    updated.setdefault("stopped_at", datetime.now().isoformat())
+                    app._kafka_bridge_metadata = updated
 
             app.add_cleanup_callback(_shutdown_kafka)
             logger.info("📡 Kafka ingest consumer bridge active: %s", kafka_bridge.summary())

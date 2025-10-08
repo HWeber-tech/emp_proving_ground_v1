@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 from datetime import UTC, datetime, timedelta, timezone
 from types import SimpleNamespace
+from typing import Mapping
 
 import pandas as pd
 import pytest
@@ -219,6 +220,21 @@ async def test_professional_app_registers_kafka_consumer_bridge(monkeypatch, tmp
             self.stop_event: asyncio.Event | None = None
             self.closed = False
             self.summary_calls: int = 0
+            self._topics = ("telemetry.ingest", "telemetry.drills")
+            self._consumer_group = "emp-ingest-bridge"
+            self._default_event_type = "telemetry.ingest"
+            self._topic_event_types = {
+                "telemetry.drills": "telemetry.ingest.drills",
+            }
+            self._event_source = "timescale_ingest.kafka"
+            self._poll_timeout = 0.75
+            self._idle_sleep = 0.1
+            self._commit_offsets_enabled = True
+            self._commit_async = False
+            self._publish_consumer_lag_enabled = True
+            self._consumer_lag_event_type = "telemetry.kafka.lag"
+            self._consumer_lag_source = "timescale_ingest.kafka.lag"
+            self._consumer_lag_interval = 12.0
 
         async def run_forever(self, stop_event: asyncio.Event | None = None) -> None:
             self.stop_event = stop_event
@@ -233,6 +249,58 @@ async def test_professional_app_registers_kafka_consumer_bridge(monkeypatch, tmp
         def summary(self) -> str:
             self.summary_calls += 1
             return "stub-consumer"
+
+        @property
+        def topics(self) -> tuple[str, ...]:
+            return self._topics
+
+        @property
+        def consumer_group(self) -> str:
+            return self._consumer_group
+
+        @property
+        def default_event_type(self) -> str:
+            return self._default_event_type
+
+        @property
+        def topic_event_types(self) -> Mapping[str, str]:
+            return dict(self._topic_event_types)
+
+        @property
+        def event_source(self) -> str:
+            return self._event_source
+
+        @property
+        def poll_timeout(self) -> float:
+            return self._poll_timeout
+
+        @property
+        def idle_sleep(self) -> float:
+            return self._idle_sleep
+
+        @property
+        def commit_offsets_enabled(self) -> bool:
+            return self._commit_offsets_enabled
+
+        @property
+        def commit_asynchronously(self) -> bool:
+            return self._commit_async
+
+        @property
+        def publish_consumer_lag_enabled(self) -> bool:
+            return self._publish_consumer_lag_enabled
+
+        @property
+        def consumer_lag_event_type(self) -> str:
+            return self._consumer_lag_event_type
+
+        @property
+        def consumer_lag_source(self) -> str:
+            return self._consumer_lag_source
+
+        @property
+        def consumer_lag_interval(self) -> float:
+            return self._consumer_lag_interval
 
     stub = _StubConsumer()
 
@@ -261,6 +329,23 @@ async def test_professional_app_registers_kafka_consumer_bridge(monkeypatch, tmp
         summary = app.summary()
         details = summary.get("background_task_details")
         assert details and any(item["name"] == "kafka-ingest-bridge" for item in details)
+        bridge_entry = next(item for item in details if item["name"] == "kafka-ingest-bridge")
+        entry_metadata = bridge_entry.get("metadata")
+        assert entry_metadata is not None
+        assert entry_metadata["component"] == "kafka_ingest_bridge"
+        assert entry_metadata["topics"] == list(stub.topics)
+        assert entry_metadata["consumer_group"] == stub.consumer_group
+        assert entry_metadata["event_type"] == stub.default_event_type
+        bridge_summary = summary.get("kafka_ingest_bridge")
+        assert bridge_summary is not None
+        assert bridge_summary["topics"] == list(stub.topics)
+        assert bridge_summary["consumer_group"] == stub.consumer_group
+        assert bridge_summary["event_type"] == stub.default_event_type
+        assert bridge_summary["active"] is True
+        assert bridge_summary["state"] == bridge_entry.get("state")
+        metadata_snapshot = app.get_kafka_bridge_metadata()
+        assert metadata_snapshot is not None
+        assert metadata_snapshot["topics"] == list(stub.topics)
     finally:
         await app.shutdown()
 

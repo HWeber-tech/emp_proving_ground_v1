@@ -1978,6 +1978,7 @@ class KafkaIngestEventConsumer:
         consumer_lag_event_type: str = "telemetry.kafka.lag",
         consumer_lag_source: str | None = None,
         consumer_lag_interval: float | None = 30.0,
+        consumer_group: str | None = None,
     ) -> None:
         self._consumer = consumer
         self._topics = tuple(dict.fromkeys(topic for topic in topics if topic))
@@ -2008,6 +2009,7 @@ class KafkaIngestEventConsumer:
         else:
             self._consumer_lag_interval = max(0.0, float(consumer_lag_interval))
         self._last_consumer_lag_publish: float | None = None
+        self._consumer_group = consumer_group.strip() if consumer_group else None
 
         if not self._topics:
             raise ValueError("Kafka ingest consumer requires at least one topic")
@@ -2015,6 +2017,54 @@ class KafkaIngestEventConsumer:
     @property
     def topics(self) -> tuple[str, ...]:
         return self._topics
+
+    @property
+    def default_event_type(self) -> str:
+        return self._default_event_type
+
+    @property
+    def topic_event_types(self) -> Mapping[str, str]:
+        return dict(self._topic_event_types)
+
+    @property
+    def event_source(self) -> str:
+        return self._source
+
+    @property
+    def poll_timeout(self) -> float:
+        return self._poll_timeout
+
+    @property
+    def idle_sleep(self) -> float:
+        return self._idle_sleep
+
+    @property
+    def commit_offsets_enabled(self) -> bool:
+        return self._commit_offsets
+
+    @property
+    def commit_asynchronously(self) -> bool:
+        return self._commit_asynchronously
+
+    @property
+    def publish_consumer_lag_enabled(self) -> bool:
+        return self._publish_consumer_lag
+
+    @property
+    def consumer_lag_event_type(self) -> str:
+        return self._consumer_lag_event_type
+
+    @property
+    def consumer_lag_source(self) -> str:
+        return self._consumer_lag_source
+
+    @property
+    def consumer_lag_interval(self) -> float:
+        return self._consumer_lag_interval
+
+    @property
+    def consumer_group(self) -> str | None:
+        return self._consumer_group
 
     def ping(self, *, timeout: float = 0.5) -> bool:
         """Perform a lightweight connectivity check against the underlying consumer."""
@@ -2392,6 +2442,7 @@ def create_ingest_event_consumer(
         consumer_lag_event_type=consumer_lag_event_type,
         consumer_lag_source=consumer_lag_source,
         consumer_lag_interval=consumer_lag_interval,
+        consumer_group=group_id,
     )
 
     logger.info(

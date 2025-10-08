@@ -133,6 +133,12 @@
 - Remove legacy templates and unused evolution files after the new engine ships
   to reduce dead-code noise.【F:docs/reports/CLEANUP_REPORT.md†L71-L175】
 
+## Definition of Done templates
+
+**Fast-Weight Adaptation Tuning.** Consider this deliverable complete when the fast-weight module enforces non-negative, sparsity-aware updates (thresholded or ReLU-style) configurable via `SystemConfig`, telemetry exposes the `%_active_strategies` metric alongside router snapshots, guardrail tests in `tests/thinking/test_policy_router.py` and a dedicated fast-weight suite lock the non-negative constraint with and without the feature flag, and decision diary reflections record the fast-weight summary for each loop iteration.
+
+**Seed the Evolution Engine (Basic).** The seed phase is done when the strategy catalogue contains at least two lineage-tagged variants, EvolutionManager triggers swaps or parameter perturbations after the configured loss streak using live performance telemetry, regression suites in `tests/current/test_population_manager_with_genome.py` and `tests/thinking/test_policy_router.py` assert the replacement path, and governance logs capture the spawned or demoted tactics while the feature flag keeps the behaviour in paper mode.
+
 ## Dependencies & coordination
 
 - Requires institutional ingest and sensory telemetry to provide reliable fitness

@@ -173,6 +173,10 @@
 - Automate dead-code sweeps to delete obsolete ingest paths once new services are
   stable.【F:docs/reports/CLEANUP_REPORT.md†L71-L175】
 
+## Definition of Done template
+
+**Operational Data Backbone Online.** The deliverable is complete when the managed connector CLI provisions Timescale, Redis, and Kafka via the repository docker-compose stack with all connector health probes returning `status == ok`, the guardrails in `tests/integration/test_operational_data_backbone.py::test_full_ingest_cycle` and `tests/operations/test_data_backbone.py::test_evaluate_data_backbone_readiness_combines_signals` exercise a real store→cache→stream cycle without mocks, supervised ingest jobs appear in the TaskSupervisor snapshot and `system_validation_report.json` with zero orphaned tasks, and the operations dashboard together with `docs/operations/managed_ingest_environment.md` capture the updated connection endpoints and retention metrics emitted by `src/operations/data_backbone.py`.
+
 ## Dependencies & coordination
 
 - Risk enforcement work must land concurrently so ingest telemetry feeds policy

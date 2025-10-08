@@ -116,6 +116,12 @@
 - Close dead-code findings by deleting redundant sensory templates once the new
   organs stabilise.【F:docs/reports/CLEANUP_REPORT.md†L71-L175】
 
+## Definition of Done templates
+
+**Executable Sensory Organs (WHAT/WHEN/HOW/WHY/ANOMALY).** The feature is complete when each dimension organ emits lineage, quality, and confidence metadata consumed by `src/sensory/real_sensory_organ.py`, regression suites `tests/sensory/test_dimension_organs.py` and `tests/sensory/test_primary_dimension_sensors.py` assert deterministic trend and anomaly fixtures, the fused payload runs end-to-end through `tests/runtime/test_bootstrap_runtime_sensory.py` without relying on placeholder stubs, and observability topics (`telemetry.sensory.summary`, `.metrics`, `.drift`) surface live updates in the dashboard snapshot captured for operations reviews.
+
+**Belief & Regime Integration with Real Data.** This deliverable is done once Timescale/Kafka ingest populates the belief buffer via the real sensory organ, covariance safeguards in `src/understanding/belief.py` remain PSD during live replays, guardrail tests in `tests/intelligence/test_belief_updates.py` exercise constant versus erratic feeds to assert calm→storm transitions, orchestration smoke tests log regime events with timestamps and volatility tags, and the decision diary records the resulting regime state for each iteration.
+
 ## Dependencies & coordination
 
 - Requires ingest telemetry and risk enforcement to mature in parallel so sensors

@@ -326,6 +326,12 @@ kit that the roadmap calls back to in each checklist.
     surface risk-config summaries alongside the shared escalation link so control
     rooms, status CLIs, and pilots share the same risk evidence under regression
     coverage.【F:src/operations/bootstrap_control_center.py†L232-L511】【F:src/trading/risk/risk_api.py†L201-L238】【F:src/runtime/bootstrap_runtime.py†L210-L334】【F:src/runtime/fix_pilot.py†L22-L318】【F:tests/current/test_bootstrap_control_center.py†L151-L198】【F:tests/runtime/test_fix_pilot.py†L115-L178】
+  - *Progress*: Execution engine now records deterministic risk context metadata
+    via the shared `_risk_context` helper, capturing provider failures with
+    runbook-tagged error payloads, exposing `describe_risk_context()`, and
+    embedding the snapshot inside `reconcile()` so downstream telemetry surfaces
+    inherit the same escalation evidence under asyncio coverage of metadata and
+    error paths.【F:src/trading/execution/execution_engine.py†L12-L231】【F:src/trading/execution/_risk_context.py†L1-L88】【F:tests/current/test_execution_engine.py†L90-L131】
   - *Progress*: `RiskConfig` now normalises sector/instrument mappings, rejects
     duplicate or missing sector limits, enforces that individual and combined
     sector budgets never exceed the global exposure cap, and continues to
@@ -479,14 +485,19 @@ kit that the roadmap calls back to in each checklist.
     failures, log probe errors, retain bounded history, and surface event-bus
     diagnostics so operational responders get actionable state even when optional
     dependencies are missing, with asyncio-loop regressions covering each guardrail.【F:src/operational/health_monitor.py†L61-L200】【F:tests/operational/test_health_monitor.py†L74-L176】
-  - *Progress*: Bootstrap control centre helpers now log champion payload,
-    trading-manager method, and formatter failures, keeping operational
-    diagnostics visible during bootstrap runs and documenting the logging
-    behaviour under pytest.【F:src/operations/bootstrap_control_center.py†L31-L115】【F:tests/current/test_bootstrap_control_center.py†L178-L199】
+  - *Progress*: Bootstrap control centre helpers now whitelist expected
+    runtime/value/type errors across champion payload, trading-manager, snapshot,
+    and formatter hooks, logging those failures while propagating unexpected
+    exceptions so bootstrap diagnostics stay visible without masking genuine
+    defects, with pytest guarding the fallback payload and surfacing behaviour.【F:src/operations/bootstrap_control_center.py†L26-L605】【F:tests/current/test_bootstrap_control_center.py†L204-L252】
   - *Progress*: Bootstrap orchestration now wraps sensory listeners,
     liquidity probers, and control-centre callbacks with structured error
     logging so optional observability hooks surface failures without breaking
     the decision loop, with pytest capturing the emitted diagnostics.【F:src/orchestration/bootstrap_stack.py†L81-L258】【F:tests/current/test_bootstrap_stack.py†L164-L213】
+  - *Progress*: Failover drill fallback execution now only suppresses connection,
+    timeout, runtime, and OS errors, logging the stack trace and returning error
+    metadata so optional drills do not swallow unexpected failures while keeping
+    deterministic snapshot payloads for operators.【F:src/operations/failover_drill.py†L29-L174】【F:tests/operations/test_failover_drill.py†L95-L126】
   - *Progress*: Observability dashboard risk telemetry now annotates each metric
     with limit values, ratios, and violation statuses while preserving serialised
     payloads, backed by regression coverage so operators inherit actionable risk
@@ -657,7 +668,8 @@ kit that the roadmap calls back to in each checklist.
     previously untested gap in the trading surface.【F:tests/trading/test_real_portfolio_monitor.py†L1-L77】
   - *Progress*: Added ingest observability and risk policy telemetry regression tests
     so CI surfaces regressions in data backbone snapshots and policy evaluation
-    markdown output.【F:tests/data_foundation/test_ingest_observability.py†L1-L190】【F:tests/trading/test_risk_policy_telemetry.py†L1-L422】
+    markdown output, covering metadata coercion, research-mode flags, bus publishing,
+    and violation alert payloads.【F:tests/data_foundation/test_ingest_observability.py†L1-L190】【F:tests/trading/test_risk_policy_telemetry.py†L1-L420】
   - *Progress*: Data backbone readiness coverage now asserts failover trigger
     metadata and Timescale recovery plan serialisation, while risk policy
     regression tests lock mandatory stop-loss and equity budget enforcement so
@@ -722,10 +734,11 @@ kit that the roadmap calls back to in each checklist.
     and event publishing so Timescale scheduling instrumentation surfaces issues
     immediately instead of stalling silently.【F:tests/data_foundation/test_ingest_scheduler.py†L1-L200】
   - *Progress*: Institutional ingest services now ship guardrail coverage for
-    Redis/Kafka connectivity probes, scheduler wiring, failover drills, and
-    managed connector manifests, redacting secrets and surfacing supervisor
-    metadata so readiness dashboards inherit deterministic drill evidence even
-    on configuration fallbacks.【F:src/data_foundation/ingest/institutional_vertical.py†L1-L466】【F:tests/data_foundation/test_institutional_vertical.py†L1-L601】
+    Redis/Kafka connectivity probes, scheduler wiring, failover drills, managed
+    manifest planning, and the provisioner’s Redis/Kafka factories, redacting
+    secrets while capturing supervisor state and recorded Kafka topics so
+    readiness dashboards inherit deterministic drill evidence even on
+    configuration fallbacks.【F:src/data_foundation/ingest/institutional_vertical.py†L1-L466】【F:tests/data_foundation/test_institutional_vertical.py†L69-L535】
   - *Progress*: Risk policy warn-threshold coverage asserts that leverage and
     exposure checks flip to warning states before violating limits, capturing
     ratios, thresholds, and metadata so compliance reviewers can trust the

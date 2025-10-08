@@ -20,6 +20,7 @@ from src.governance.policy_ledger import (
     PolicyLedgerStore,
 )
 from src.understanding.decision_diary import DecisionDiaryStore
+from tools.governance._promotion_helpers import build_log_entry, write_promotion_log
 
 
 _STAGE_RANK = {
@@ -78,6 +79,15 @@ def _build_parser() -> argparse.ArgumentParser:
         dest="apply",
         action="store_true",
         help="Promote ledger stages when recommendations clear all blockers.",
+    )
+    parser.add_argument(
+        "--log-file",
+        type=Path,
+        default=Path("artifacts/governance/policy_promotions.log"),
+        help=(
+            "Governance promotion log file to append to when --apply is used "
+            "(default: artifacts/governance/policy_promotions.log)."
+        ),
     )
     return parser
 
@@ -159,6 +169,7 @@ def _apply_promotions(
     release_manager: LedgerReleaseManager,
     ledger_store: PolicyLedgerStore,
     assessments: Sequence[PolicyGraduationAssessment],
+    log_path: Path | None,
 ) -> dict[str, PolicyLedgerStage]:
     """Advance ledger stages when recommendations and audit checks allow it."""
 
@@ -179,7 +190,7 @@ def _apply_promotions(
         if blockers:
             continue
 
-        release_manager.promote(
+        record = release_manager.promote(
             policy_id=policy_id,
             tactic_id=record.tactic_id,
             stage=recommended,
@@ -189,6 +200,13 @@ def _apply_promotions(
             policy_delta=record.policy_delta,
             metadata=record.metadata,
         )
+        if log_path is not None:
+            posture = release_manager.describe(policy_id)
+            log_entry = build_log_entry(record, posture)
+            try:
+                write_promotion_log(log_path, log_entry)
+            except Exception as exc:  # pragma: no cover - filesystem errors are rare
+                raise RuntimeError(f"failed to write promotion log: {exc}")
         applied[policy_id] = recommended
 
     return applied
@@ -220,12 +238,21 @@ def main(argv: Sequence[str] | None = None) -> int:
     assessments = [evaluator.assess(policy_id) for policy_id in policy_ids]
     applied_promotions: dict[str, PolicyLedgerStage] = {}
 
+    log_path: Path | None = args.log_file
+    if log_path is not None and str(log_path) == "-":
+        log_path = None
+
     if args.apply:
-        applied_promotions = _apply_promotions(
-            release_manager=release_manager,
-            ledger_store=ledger_store,
-            assessments=assessments,
-        )
+        try:
+            applied_promotions = _apply_promotions(
+                release_manager=release_manager,
+                ledger_store=ledger_store,
+                assessments=assessments,
+                log_path=log_path,
+            )
+        except RuntimeError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 1
 
     if args.emit_json:
         payload = []

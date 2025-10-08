@@ -276,6 +276,7 @@ def test_cli_apply_promotes_stage(tmp_path: Path, capsys: pytest.CaptureFixture[
     diary = DecisionDiaryStore(diary_path, publish_on_record=False)
     ledger_path = tmp_path / "apply_ledger.json"
     store = PolicyLedgerStore(ledger_path)
+    log_path = tmp_path / "promotions.jsonl"
 
     store.upsert(
         policy_id="alpha",
@@ -321,6 +322,8 @@ def test_cli_apply_promotes_stage(tmp_path: Path, capsys: pytest.CaptureFixture[
             "--policy-id",
             "alpha",
             "--apply",
+            "--log-file",
+            str(log_path),
         ]
     )
     assert exit_code == 0
@@ -333,3 +336,7 @@ def test_cli_apply_promotes_stage(tmp_path: Path, capsys: pytest.CaptureFixture[
     record = refreshed_store.get("alpha")
     assert record is not None
     assert record.stage is PolicyLedgerStage.PILOT
+    log_entries = [json.loads(line) for line in log_path.read_text().splitlines() if line]
+    assert log_entries
+    assert log_entries[0]["policy_id"] == "alpha"
+    assert log_entries[0]["stage"] == PolicyLedgerStage.PILOT.value

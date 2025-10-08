@@ -88,6 +88,15 @@ def _validate_stage_progress(old: PolicyLedgerStage, new: PolicyLedgerStage) -> 
         )
 
 
+def _normalise_approvals(values: Iterable[str]) -> tuple[str, ...]:
+    cleaned = {
+        str(value).strip()
+        for value in values
+        if str(value).strip()
+    }
+    return tuple(sorted(cleaned))
+
+
 @dataclass(slots=True)
 class PolicyLedgerRecord:
     """Ledger entry tying a tactic to its promotion posture."""
@@ -382,7 +391,7 @@ class PolicyLedgerStore:
         policy_delta: PolicyDelta | Mapping[str, Any] | None = None,
         metadata: Mapping[str, Any] | None = None,
     ) -> PolicyLedgerRecord:
-        approvals_tuple = tuple(sorted(str(value) for value in approvals if value))
+        approvals_tuple = _normalise_approvals(approvals)
         delta = _coerce_policy_delta(policy_delta)
         if delta is not None and delta.is_empty():
             delta = None

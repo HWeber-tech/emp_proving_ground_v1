@@ -16,6 +16,11 @@ from src.governance.policy_ledger import (
     PolicyLedgerStore,
 )
 from src.understanding.decision_diary import DecisionDiaryStore
+from tools.governance._promotion_helpers import (
+    build_log_entry,
+    format_markdown_summary,
+    write_promotion_log,
+)
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -114,6 +119,25 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Disable the default requirement for DecisionDiary evidence.",
     )
     parser.add_argument(
+        "--allow-single-approval",
+        action="store_true",
+        help="Allow limited_live promotions with fewer than two distinct approvals.",
+    )
+    parser.add_argument(
+        "--summary-path",
+        type=Path,
+        help="Write a Markdown summary of the promotion to this path.",
+    )
+    parser.add_argument(
+        "--log-file",
+        type=Path,
+        default=Path("artifacts/governance/policy_promotions.log"),
+        help=(
+            "Governance promotion log file to append to "
+            "(default: artifacts/governance/policy_promotions.log)."
+        ),
+    )
+    parser.add_argument(
         "--indent",
         type=int,
         default=2,
@@ -205,6 +229,28 @@ def _build_policy_delta(args: argparse.Namespace) -> PolicyDelta | None:
     )
 
 
+def _distinct_approval_count(approvals: Sequence[str]) -> int:
+    return len({value.strip() for value in approvals if value and value.strip()})
+
+
+def _enforce_stage_approvals(
+    stage: PolicyLedgerStage,
+    approvals: Sequence[str],
+    *,
+    allow_single_live: bool,
+) -> None:
+    unique_count = _distinct_approval_count(approvals)
+    if stage is PolicyLedgerStage.PILOT and unique_count == 0:
+        raise ValueError("Promotions to pilot require at least one approval signature")
+    if stage is PolicyLedgerStage.LIMITED_LIVE:
+        required = 1 if allow_single_live else 2
+        if unique_count < required:
+            raise ValueError(
+                "Promotions to limited_live require at least "
+                f"{required} approval signatures (received {unique_count})."
+            )
+
+
 def _load_diary_store(path: Path | None) -> DecisionDiaryStore | None:
     if path is None:
         return None
@@ -223,6 +269,16 @@ def main(argv: Sequence[str] | None = None) -> int:
         stage = PolicyLedgerStage.from_value(args.stage)
     except ValueError as exc:
         parser.print_usage(sys.stderr)
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+
+    try:
+        _enforce_stage_approvals(
+            stage,
+            args.approvals,
+            allow_single_live=args.allow_single_approval,
+        )
+    except ValueError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
 
@@ -279,22 +335,31 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 1
 
     posture = manager.describe(record.policy_id)
-    payload: dict[str, Any] = {
-        "policy_id": record.policy_id,
-        "tactic_id": record.tactic_id,
-        "stage": record.stage.value,
-        "approvals": list(record.approvals),
-        "updated_at": record.updated_at.isoformat(),
-        "release_posture": posture,
-    }
-    if record.evidence_id:
-        payload["evidence_id"] = record.evidence_id
-    if record.threshold_overrides:
-        payload["threshold_overrides"] = dict(record.threshold_overrides)
-    if record.policy_delta is not None and not record.policy_delta.is_empty():
-        payload["policy_delta"] = dict(record.policy_delta.as_dict())
-    if record.metadata:
-        payload["metadata"] = dict(record.metadata)
+    log_entry = build_log_entry(record, posture)
+    payload: dict[str, Any] = dict(log_entry)
+
+    log_path: Path | None = args.log_file
+    if log_path is not None and str(log_path) != "-":
+        try:
+            write_promotion_log(log_path, log_entry)
+        except Exception as exc:  # pragma: no cover - filesystem errors are rare
+            print(f"error: failed to write promotion log: {exc}", file=sys.stderr)
+            return 1
+        payload["log_path"] = str(log_path)
+
+    summary_path: Path | None = args.summary_path
+    if summary_path is not None:
+        summary_path = summary_path.expanduser()
+        summary_path.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            summary_path.write_text(
+                format_markdown_summary(record, posture),
+                encoding="utf-8",
+            )
+        except Exception as exc:  # pragma: no cover - filesystem errors are rare
+            print(f"error: failed to write promotion summary: {exc}", file=sys.stderr)
+            return 1
+        payload["summary_path"] = str(summary_path)
 
     text = json.dumps(payload, indent=args.indent, sort_keys=True)
     print(text)

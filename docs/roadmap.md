@@ -165,10 +165,11 @@ kit that the roadmap calls back to in each checklist.
     logs filesystem failures, and cleans up partial files so ingest tooling surfaces
     genuine persistence faults instead of emitting empty paths under silent
     fallbacks.【F:src/data_foundation/persist/jsonl_writer.py†L1-L69】【F:tests/data_foundation/test_jsonl_writer.py†L1-L37】
-  - *Progress*: Legacy parquet-writer scaffolding has been removed so ingest
-    persistence now routes through the pricing cache helpers that hash
-    parameters, write manifests, and enforce retention under regression
-    coverage, shrinking the operational dead-code surface.【F:docs/reports/CLEANUP_REPORT.md†L110-L170】【F:src/data_foundation/cache/pricing_cache.py†L1-L194】
+  - *Progress*: Parquet persistence helpers now coerce ingest events, create
+    partitioned output directories, and return explicit sentinels while logging
+    conversion/persist failures so institutional slices capture partitioned
+    Parquet datasets under regression coverage without leaking silent noop
+    writes.【F:src/data_foundation/persist/parquet_writer.py†L1-L85】【F:tests/data_foundation/test_parquet_writer.py†L1-L93】
   - *Progress*: Ingest telemetry publisher now logs recoverable local bus
     failures, escalates unexpected exceptions, and falls back to the global bus
     under pytest coverage so ingest snapshots are not silently dropped when the
@@ -769,6 +770,11 @@ kit that the roadmap calls back to in each checklist.
     promotions trace back to DecisionDiary evidence.【F:docs/context/sprint_briefs/understanding_loop_v1.md†L93-L107】【F:docs/High-Impact Development Roadmap.md†L53-L54】
   - *Progress*: Policy ledger store now persists promotion history, approvals, threshold overrides, and diary evidence, with a rebuild CLI that regenerates enforceable risk configs and router guardrails while exporting governance workflows under pytest coverage so AlphaTrade promotions stay auditable.【F:src/governance/policy_ledger.py†L1-L200】【F:src/governance/policy_rebuilder.py†L1-L141】【F:tools/governance/rebuild_policy.py†L1-L112】【F:tests/governance/test_policy_ledger.py†L33-L181】【F:tests/tools/test_rebuild_policy_cli.py†L11-L41】
   - *Progress*: Policy promotion CLI now stages ledger updates end-to-end, parsing approvals, evidence IDs, threshold overrides, and optional policy deltas while enforcing decision-diary requirements so governance teams can automate promotions without editing JSON by hand under pytest coverage of success and failure paths.【F:tools/governance/promote_policy.py†L1-L240】【F:tests/tools/test_promote_policy_cli.py†L13-L124】
+  - *Progress*: AlphaTrade graduation CLI now supports `--apply`, promoting ledger
+    stages when recommendations clear blockers, annotating JSON/text summaries
+    with applied stages, and persisting the release via the ledger manager so
+    governance runs can execute graduation and evidence capture in one pass
+    under refreshed regression coverage.【F:tools/governance/alpha_trade_graduation.py†L1-L252】【F:tests/governance/test_policy_graduation.py†L253-L335】
   - *Progress*: Policy router now ingests recorded reflection summaries and the decision diary CLI renders reflection digests with tactic, experiment, and window limits so reviewers rebuild understanding insights from stored diaries without replaying the loop.【F:src/thinking/adaptation/policy_router.py†L269】【F:tools/understanding/decision_diary_cli.py†L172】【F:tests/thinking/test_policy_router.py†L311】【F:tests/tools/test_decision_diary_cli.py†L173】
   - [x] Provide graph diagnostics CLI, guardrailed acceptance workflow, and
     operational dashboard tile so AlphaTrade deltas remain observable.【F:docs/context/sprint_briefs/understanding_loop_v1.md†L108-L128】
@@ -888,6 +894,11 @@ kit that the roadmap calls back to in each checklist.
     tactic experiments emit stage-aware drift metadata, diary evidence, and reflection
     artefacts in a single call path, with guardrail tests locking forced-paper decisions
     and recorded payloads.【F:src/orchestration/alpha_trade_loop.py†L1-L200】【F:tests/orchestration/test_alpha_trade_loop.py†L1-L161】
+  - *Progress*: AlphaTrade loop runner now composes the belief emitter, regime
+    FSM, orchestrator, and trading manager, deriving trade plans from sensory
+    snapshots, forwarding intents, and surfacing loop artefacts so end-to-end
+    AlphaTrade ticks execute through one service object under async regression
+    coverage.【F:src/orchestration/alpha_trade_runner.py†L1-L372】【F:tests/orchestration/test_alpha_trade_runner.py†L1-L124】
   - *Progress*: Trading manager now auto-installs the release-aware execution router
     when a policy ledger is configured, reusing the assigned base engine across
     paper/pilot/live routes, resolving the default stage from the ledger, and
@@ -1130,3 +1141,11 @@ kit that the roadmap calls back to in each checklist.
 - 06e7ffa refactor(intelligence): tune 5 files (2025-10-08)
 - 0cd4dd4 feat(governance): add 4 files (2025-10-08)
 - b2ae516 docs(docs): tune 1 file (2025-10-08)
+
+## Automation updates — 2025-10-08T04:42:55Z
+
+### Last 4 commits
+- a7ed502 test(governance): tune 2 files (2025-10-08)
+- c6debda feat(data_foundation): add 7 files (2025-10-08)
+- d0097c8 feat(orchestration): add 3 files (2025-10-08)
+- 20e5ef1 docs(docs): tune 1 file (2025-10-08)

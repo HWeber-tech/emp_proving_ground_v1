@@ -55,7 +55,7 @@
 - Progress: Parquet ingest writer now guards the pandas DataFrame constructor,
   logs conversion and filesystem errors, and returns explicit sentinels under
   regression coverage so institutional ingest slices capture failed telemetry
-  persists rather than silently discarding events.【F:src/data_foundation/persist/parquet_writer.py†L1-L75】【F:tests/data_foundation/test_parquet_writer.py†L1-L93】
+  persists rather than silently discarding events.【F:src/data_foundation/persist/parquet_writer.py†L1-L85】【F:tests/data_foundation/test_parquet_writer.py†L1-L93】
 - Progress: Retired the legacy core configuration shim; the legacy import path now fails under regression tests while ingestion tooling relies on `SystemConfig.from_yaml`, eliminating the duplicate YAML parser and keeping runtime modules on the canonical loader.【F:tests/current/test_core_configuration_runtime.py†L1-L14】【F:src/governance/system_config.py†L200-L292】【F:tests/governance/test_system_config_yaml.py†L1-L96】
 - Progress: Timescale ingest scheduler now registers with the runtime task
   supervisor, tagging interval/jitter metadata and exposing live snapshots so

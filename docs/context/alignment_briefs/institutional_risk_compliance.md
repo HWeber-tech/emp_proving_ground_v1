@@ -155,6 +155,11 @@
   governance workflow snapshots under pytest coverage so compliance reviews can
   trace AlphaTrade tactics from ledger to runtime enforcement without manual
   reconciliation.【F:src/governance/policy_ledger.py†L1-L200】【F:src/governance/policy_rebuilder.py†L1-L141】【F:tools/governance/rebuild_policy.py†L1-L112】【F:tests/governance/test_policy_ledger.py†L33-L181】【F:tests/tools/test_rebuild_policy_cli.py†L11-L41】
+- Progress: AlphaTrade graduation CLI now offers an `--apply` mode that promotes
+  ledger stages when recommendations clear blockers, annotates JSON/text
+  summaries with applied stages, and persists the release via the ledger manager
+  so governance cadences can graduate tactics and capture evidence in one run
+  under refreshed regression coverage.【F:tools/governance/alpha_trade_graduation.py†L1-L252】【F:tests/governance/test_policy_graduation.py†L253-L335】
 
 ### Next (30–90 days)
 

@@ -1635,6 +1635,73 @@ def test_get_risk_status_includes_risk_api_summary() -> None:
     assert reference_summary["max_total_exposure_pct"] == pytest.approx(0.5)
 
 
+@pytest.mark.asyncio()
+async def test_trade_throttle_blocks_and_can_be_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def _noop(*_args, **_kwargs) -> None:
+        return None
+
+    monkeypatch.setattr("src.trading.trading_manager.publish_risk_snapshot", _noop)
+    monkeypatch.setattr("src.trading.trading_manager.publish_roi_snapshot", _noop)
+    monkeypatch.setattr("src.trading.trading_manager.publish_policy_snapshot", _noop)
+    monkeypatch.setattr("src.trading.trading_manager.publish_policy_violation", _noop)
+    monkeypatch.setattr(
+        "src.trading.trading_manager.publish_risk_interface_snapshot", _noop
+    )
+    monkeypatch.setattr("src.trading.trading_manager.publish_risk_interface_error", _noop)
+
+    bus = DummyBus()
+    manager = TradingManager(
+        event_bus=bus,
+        strategy_registry=AlwaysActiveRegistry(),
+        execution_engine=None,
+        initial_equity=25_000.0,
+        risk_config=RiskConfig(
+            min_position_size=1,
+            mandatory_stop_loss=False,
+            research_mode=True,
+        ),
+        trade_throttle={"max_trades": 1, "window_seconds": 120.0},
+    )
+    engine = RecordingExecutionEngine()
+    manager.execution_engine = engine
+
+    intent = ConfidenceIntent(
+        symbol="EURUSD",
+        quantity=1.0,
+        price=1.2345,
+        confidence=0.9,
+        strategy_id="alpha",
+    )
+    validate_mock: AsyncMock = AsyncMock(side_effect=[intent, intent, intent])
+    manager.risk_gateway.validate_trade_intent = validate_mock  # type: ignore[assignment]
+
+    await manager.on_trade_intent(intent)
+    await manager.on_trade_intent(intent)
+
+    assert engine.calls == 1
+    stats = manager.get_execution_stats()
+    assert stats["orders_submitted"] == 1
+    assert stats["throttle_blocks"] == 1
+    throttle_stats = stats.get("trade_throttle")
+    assert isinstance(throttle_stats, dict)
+    assert throttle_stats.get("active") is True
+    events = manager.get_experiment_events()
+    statuses = [event["status"] for event in events]
+    assert "throttled" in statuses
+
+    snapshot = manager.get_trade_throttle_snapshot()
+    assert snapshot is not None
+    assert snapshot.get("state") in {"rate_limited", "cooldown"}
+
+    manager.configure_trade_throttle(None)
+    assert manager.get_trade_throttle_snapshot() is None
+
+    await manager.on_trade_intent(intent)
+    assert engine.calls == 2
+
+
 def test_describe_risk_interface_returns_runbook_on_error() -> None:
     class BrokenTradingManager(TradingManager):
         def __init__(self) -> None:

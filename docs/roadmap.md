@@ -142,11 +142,12 @@ kit that the roadmap calls back to in each checklist.
     disaster-recovery rehearsals share the runtime wiring under regression
     coverage.【F:src/data_foundation/ingest/institutional_vertical.py†L384-L466】【F:tests/runtime/test_institutional_ingest_vertical.py†L434-L496】【F:docs/operations/timescale_failover_drills.md†L25-L45】
   - *Progress*: Institutional ingest services now capture Kafka metadata even when
-    the consumer fails to provision, surface configured topics and policy metrics in
-    summaries, enrich the managed manifest, and expose asynchronous connectivity
-    probes with timeout-aware error formatting so dashboards and drills inherit
-    health-annotated snapshots before running recovery workflows under refreshed
-    pytest coverage.【F:src/data_foundation/ingest/institutional_vertical.py†L240-L701】【F:tests/data_foundation/test_institutional_vertical.py†L128-L200】【F:tests/runtime/test_institutional_ingest_vertical.py†L110-L186】
+    the consumer fails to provision, normalise boolean/timeout settings, record
+    consumer group defaults, configured topics, and topic counts in summaries,
+    enrich managed manifests with the redacted metadata, and expose asynchronous
+    connectivity probes with timeout-aware error formatting so dashboards and drills
+    inherit health-annotated snapshots before running recovery workflows under refreshed
+    pytest coverage.【F:src/data_foundation/ingest/institutional_vertical.py†L132-L420】【F:tests/data_foundation/test_institutional_vertical.py†L309-L351】【F:tests/runtime/test_institutional_ingest_vertical.py†L161-L185】
   - *Progress*: Tier-0 Yahoo ingest now sanitises symbols/intervals, enforces
     mutually exclusive period versus window arguments, normalises timestamps,
     and writes through a DuckDB helper that escapes table identifiers and binds
@@ -341,12 +342,12 @@ kit that the roadmap calls back to in each checklist.
     surface risk-config summaries alongside the shared escalation link so control
     rooms, status CLIs, and pilots share the same risk evidence under regression
     coverage.【F:src/operations/bootstrap_control_center.py†L232-L511】【F:src/trading/risk/risk_api.py†L201-L238】【F:src/runtime/bootstrap_runtime.py†L210-L334】【F:src/runtime/fix_pilot.py†L22-L318】【F:tests/current/test_bootstrap_control_center.py†L151-L198】【F:tests/runtime/test_fix_pilot.py†L115-L178】
-  - *Progress*: Execution engine now records deterministic risk context metadata
-    via the shared `_risk_context` helper, capturing provider failures with
-    runbook-tagged error payloads, exposing `describe_risk_context()`, and
-    embedding the snapshot inside `reconcile()` so downstream telemetry surfaces
-    inherit the same escalation evidence under asyncio coverage of metadata and
-    error paths.【F:src/trading/execution/execution_engine.py†L12-L231】【F:src/trading/execution/_risk_context.py†L1-L88】【F:tests/current/test_execution_engine.py†L90-L131】
+  - *Progress*: Execution engine and the legacy FIX executor now record
+    deterministic risk context metadata via the shared `_risk_context` helper,
+    capturing provider failures with runbook-tagged error payloads, exposing
+    `describe_risk_context()`, and embedding snapshots inside their execution
+    flows so downstream telemetry inherits the same escalation evidence under
+    asyncio coverage of metadata and error paths.【F:src/trading/execution/execution_engine.py†L12-L231】【F:src/trading/execution/fix_executor.py†L65-L152】【F:src/trading/execution/_risk_context.py†L1-L88】【F:tests/current/test_execution_engine.py†L90-L131】【F:tests/current/test_fix_executor.py†L221-L263】
   - *Progress*: `RiskConfig` now normalises sector/instrument mappings, rejects
     duplicate or missing sector limits, enforces that individual and combined
     sector budgets never exceed the global exposure cap, and continues to
@@ -547,10 +548,11 @@ kit that the roadmap calls back to in each checklist.
     governance teams see actionable workflow posture even during runtime bus
     outages.【F:src/operations/compliance_readiness.py†L262-L420】【F:tests/operations/test_compliance_readiness.py†L58-L213】
   - *Progress*: Governance reporting cadence now publishes through the shared
-    failover helper with typed escalation messages, preserving cadence payloads
-    when the runtime bus degrades and documenting fallback behaviour under
+    failover helper with typed escalation messages, merges section statuses and
+    summaries into report metadata, derives top-level compliance/regulatory/audit
+    badges plus status breakdown counts, and documents fallback behaviour under
     regression coverage so compliance reviewers always receive the compiled
-    KYC/AML, regulatory, and audit telemetry bundle.【F:src/operations/governance_reporting.py†L336-L770】【F:src/operations/data/governance_context/compliance_baseline.json†L1-L24】【F:tests/operations/test_governance_reporting.py†L1-L372】
+    KYC/AML, regulatory, and audit telemetry bundle.【F:src/operations/governance_reporting.py†L336-L586】【F:src/operations/data/governance_context/compliance_baseline.json†L1-L24】【F:tests/operations/test_governance_reporting.py†L110-L196】
   - *Progress*: System validation telemetry now attaches failing check names and
     messages to snapshot metadata and Markdown output while continuing to route
     through the shared failover helper, so readiness dashboards surface the

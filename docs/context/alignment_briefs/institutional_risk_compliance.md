@@ -143,8 +143,10 @@
   summaries.【F:src/operations/compliance_readiness.py†L262-L420】【F:tests/operations/test_compliance_readiness.py†L58-L213】
 - Progress: Governance reporting cadence now uses the shared failover helper to
   publish compiled KYC/AML, regulatory, and audit evidence bundles with typed
-  escalation logs so runtime outages still deliver governance telemetry, with
-  pytest scenarios covering fallback behaviour.【F:src/operations/governance_reporting.py†L336-L770】【F:src/operations/data/governance_context/compliance_baseline.json†L1-L24】【F:tests/operations/test_governance_reporting.py†L1-L372】
+  escalation logs, merges section summaries/statuses into metadata, and derives
+  top-level compliance/regulatory/audit badges plus status breakdown counts so
+  runtime outages still deliver governance telemetry with the same context the
+  cadence delta surfaces, under pytest scenarios covering fallback behaviour.【F:src/operations/governance_reporting.py†L336-L586】【F:src/operations/data/governance_context/compliance_baseline.json†L1-L24】【F:tests/operations/test_governance_reporting.py†L110-L196】
 - Progress: Timescale compliance and KYC journals now emit recent-activity counts
   with window metadata, and the governance report flags stale journals while
   recording collection timestamps and strategy scope so reviewers see timely
@@ -181,11 +183,15 @@
     metadata, and runtime summaries into deterministic `risk_reference`
     payloads while surfacing shared runbooks so telemetry, dashboards, and
     audits inherit the same risk configuration under pytest coverage.【F:src/trading/trading_manager.py†L1255-L1744】【F:src/trading/risk/risk_gateway.py†L396-L429】【F:tests/trading/test_trading_manager_execution.py†L1309-L1566】【F:tests/current/test_risk_gateway_validation.py†L391-L460】
+  - Progress: Legacy FIX executor now installs the shared risk-context provider,
+    captures metadata/errors each time it reconciles orders, and exposes
+    `describe_risk_context()` so FIX pilots surface the same runbook-tagged risk
+    evidence as the primary execution engine under pytest coverage.【F:src/trading/execution/fix_executor.py†L65-L152】【F:src/trading/execution/_risk_context.py†L1-L88】【F:tests/current/test_fix_executor.py†L221-L263】
 - Progress: Governance cadence runner now persists the last generated timestamp,
   injects strategy and metadata providers, backfills cadence defaults, loads the
   previous payload, and attaches a structured delta (status shifts, section
   additions/removals, summary changes) so the compliance squad can enforce interval
-  gating with clear change logs under pytest coverage.【F:src/operations/governance_cadence.py†L130-L245】【F:src/operations/governance_reporting.py†L618-L758】【F:tests/operations/test_governance_cadence.py†L126-L299】【F:tests/operations/test_governance_reporting.py†L371-L441】
+  gating with clear change logs under pytest coverage.【F:src/operations/governance_cadence.py†L130-L245】【F:src/operations/governance_reporting.py†L523-L770】【F:tests/operations/test_governance_cadence.py†L126-L299】【F:tests/operations/test_governance_reporting.py†L386-L441】
 - Progress: Governance cadence CLI resolves SystemConfig extras into context
   packs, layers JSON overrides, supports forced runs, renders the delta metadata,
   and emits Markdown/JSON outputs so operators can execute the cadence outside

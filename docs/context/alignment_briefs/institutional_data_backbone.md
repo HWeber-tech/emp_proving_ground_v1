@@ -108,10 +108,11 @@
   reproduce managed `SystemConfig` payloads without exporting secrets, under
   regression coverage and refreshed drill documentation.【F:src/data_foundation/ingest/institutional_vertical.py†L384-L466】【F:tests/runtime/test_institutional_ingest_vertical.py†L434-L496】【F:tools/operations/run_failover_drill.py†L18-L200】【F:tests/tools/test_run_failover_drill_cli.py†L66-L117】【F:docs/operations/timescale_failover_drills.md†L52-L82】
 - Progress: Managed connector summaries now reuse redacted Kafka metadata even
-  when consumers fail to provision, keep configured topics in manifests, and
-  expose asynchronous `connectivity_report()` probes with timeout-aware error
-  formatting so the managed-ingest CLI and readiness dashboards inherit the same
-  health annotations and failure reasons under refreshed pytest coverage.【F:src/data_foundation/ingest/institutional_vertical.py†L240-L701】【F:tools/operations/managed_ingest_connectors.py†L200-L259】【F:tests/data_foundation/test_institutional_vertical.py†L128-L200】【F:tests/tools/test_managed_ingest_connectors.py†L30-L77】
+  when consumers fail to provision, normalise boolean/timeout knobs, capture
+  consumer group defaults plus configured topics and counts, and expose
+  asynchronous `connectivity_report()` probes with timeout-aware error formatting
+  so the managed-ingest CLI and readiness dashboards inherit the same health
+  annotations and failure reasons under refreshed pytest coverage.【F:src/data_foundation/ingest/institutional_vertical.py†L132-L420】【F:tools/operations/managed_ingest_connectors.py†L200-L259】【F:tests/data_foundation/test_institutional_vertical.py†L309-L351】【F:tests/tools/test_managed_ingest_connectors.py†L30-L77】
 - Progress: Institutional ingest services now surface Redis cache metrics in
   runtime summaries and managed manifests, recording namespace, hit, and miss
   telemetry while guarding best-effort collection so operators can audit cache

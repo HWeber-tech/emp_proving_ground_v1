@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import pytest
 
+from src.config.risk.risk_config import RiskConfig
 from src.trading.execution.fix_executor import FIXExecutor
 from src.trading.models.order import Order, OrderStatus, OrderType
+from src.trading.risk.risk_api import RISK_API_RUNBOOK
 
 
 @pytest.mark.asyncio
@@ -203,3 +205,59 @@ async def test_get_active_orders_returns_copy() -> None:
 
     # Original dictionary should remain intact
     assert order.order_id in executor.active_orders
+
+
+class _CompliantManager:
+    def __init__(self) -> None:
+        self._risk_config = RiskConfig()
+
+
+class _BrokenManager:
+    def get_risk_status(self) -> dict[str, object]:  # pragma: no cover - exercised indirectly
+        return {"risk_config": {"max_risk_per_trade_pct": -1}}
+
+
+@pytest.mark.asyncio
+async def test_fix_executor_captures_risk_metadata() -> None:
+    executor = FIXExecutor(risk_context_provider=lambda: _CompliantManager())
+    assert await executor.initialize()
+
+    order = Order(
+        order_id="RISK1",
+        symbol="EURUSD",
+        side="BUY",
+        quantity=1,
+        order_type=OrderType.MARKET,
+        price=1.0,
+    )
+
+    assert await executor.execute_order(order)
+
+    context = executor.describe_risk_context()
+    assert context["runbook"].endswith("risk_api_contract.md")
+    assert context["risk_api_runbook"] == RISK_API_RUNBOOK
+    metadata = context.get("metadata")
+    assert metadata is not None
+    assert metadata["max_risk_per_trade_pct"] > 0
+
+
+@pytest.mark.asyncio
+async def test_fix_executor_records_risk_error() -> None:
+    executor = FIXExecutor(risk_context_provider=_BrokenManager)
+    assert await executor.initialize()
+
+    order = Order(
+        order_id="RISK2",
+        symbol="EURUSD",
+        side="BUY",
+        quantity=1,
+        order_type=OrderType.MARKET,
+        price=1.0,
+    )
+
+    await executor.execute_order(order)
+
+    context = executor.describe_risk_context()
+    error = context.get("error")
+    assert error is not None
+    assert error.get("runbook", "").endswith("risk_api_contract.md")

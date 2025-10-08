@@ -7,10 +7,18 @@ high-level order lifecycle/position tracking. It remains as a stub for
 backward compatibility and will be removed after migration.
 """
 
+from __future__ import annotations
+
 import asyncio
 import logging
 from enum import Enum
 from typing import TYPE_CHECKING, Dict, List, Optional
+
+from ._risk_context import (
+    RiskContextProvider,
+    capture_risk_context,
+    describe_risk_context,
+)
 
 try:
     from src.core.interfaces import IExecutionEngine
@@ -54,12 +62,39 @@ class FIXExecutor(IExecutionEngine):
     and position management through FIX API connections.
     """
 
-    def __init__(self, fix_config: Optional[dict[str, object]] = None):
+    def __init__(
+        self,
+        fix_config: Optional[dict[str, object]] = None,
+        *,
+        risk_context_provider: RiskContextProvider | None = None,
+    ):
         self.fix_config = fix_config or {}
         self.active_orders: Dict[str, Order] = {}
         self.positions: Dict[str, Position] = {}
         self.execution_history: List[dict[str, object]] = []
         self.is_initialized = False
+        self._risk_context_provider: RiskContextProvider | None = None
+        self._last_risk_metadata: dict[str, object] | None = None
+        self._last_risk_error: dict[str, object] | None = None
+        if risk_context_provider is not None:
+            self.set_risk_context_provider(risk_context_provider)
+
+    def set_risk_context_provider(self, provider: RiskContextProvider | None) -> None:
+        """Install or replace the callable that resolves trading risk metadata."""
+
+        if provider is not None and not callable(provider):
+            raise TypeError("risk_context_provider must be callable or None")
+        self._risk_context_provider = provider
+
+    def _capture_risk_context(self) -> None:
+        metadata, error = capture_risk_context(self._risk_context_provider)
+        self._last_risk_metadata = metadata
+        self._last_risk_error = error
+
+    def describe_risk_context(self) -> dict[str, object]:
+        """Expose the most recent deterministic risk context snapshot."""
+
+        return describe_risk_context(self._last_risk_metadata, self._last_risk_error)
 
     async def initialize(self) -> bool:
         """Initialize the FIX executor."""
@@ -87,6 +122,8 @@ class FIXExecutor(IExecutionEngine):
             True if execution successful, False otherwise
         """
         try:
+            self._capture_risk_context()
+
             if not self.is_initialized:
                 logger.error("FIX executor not initialized")
                 return False
@@ -218,27 +255,31 @@ class FIXExecutor(IExecutionEngine):
         position = self.positions[symbol]
 
         if order.side == "BUY":
-            position.quantity += order.filled_quantity
-            position.average_price = (
-                float(position.average_price or 0.0) * (position.quantity - order.filled_quantity)
-                + float(order.average_price or 0.0) * order.filled_quantity
-            ) / max(position.quantity, 1e-9)
-        else:  # SELL
-            position.quantity -= order.filled_quantity
-            position.realized_pnl += (
-                float(order.average_price or 0.0) - float(position.average_price or 0.0)
-            ) * order.filled_quantity
+            current_quantity = position.quantity
+            current_value = current_quantity * position.average_price
+            new_quantity = current_quantity + order.quantity
+            new_value = current_value + order.quantity * order.average_price
+            position.quantity = new_quantity
+            position.average_price = new_value / new_quantity if new_quantity != 0 else 0.0
+        elif order.side == "SELL":
+            position.quantity -= order.quantity
+            realized = (order.average_price - position.average_price) * order.quantity
+            position.realized_pnl += realized
+            if position.quantity <= 0:
+                position.quantity = 0.0
+                position.average_price = 0.0
 
     def _log_execution(self, order: Order) -> None:
-        """Log order execution details."""
-        execution_record = {
+        """Record execution details for audit trail."""
+        entry = {
             "order_id": order.order_id,
             "symbol": order.symbol,
             "side": order.side,
             "quantity": order.quantity,
-            "filled_quantity": order.filled_quantity,
-            "average_price": order.average_price,
+            "price": order.average_price,
             "status": order.status.value,
-            "timestamp": order.filled_at.isoformat() if order.filled_at else None,
         }
-        self.execution_history.append(execution_record)
+        self.execution_history.append(entry)
+
+
+__all__ = ["FIXExecutor"]

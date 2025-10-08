@@ -133,6 +133,8 @@ def test_cli_generates_report_with_force(tmp_path: Path, capsys: pytest.CaptureF
     assert latest["metadata"]["cadence_runner"] == "tools.governance.run_cadence"
     assert latest["metadata"]["cadence_forced"] is True
     assert latest["metadata"]["strategy_id"] == "alpha"
+    delta = latest["metadata"]["delta"]
+    assert delta["current_status"] in {"ok", "warn", "fail"}
+    assert delta["previous_status"] is None
     assert latest["status"] in {"ok", "warn", "fail"}
     assert len(latest["sections"]) == 3
-

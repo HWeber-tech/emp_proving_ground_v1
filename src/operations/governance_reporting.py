@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import json
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime, timedelta
 from enum import StrEnum
 from pathlib import Path
@@ -57,6 +57,7 @@ __all__ = [
     "persist_governance_report",
     "load_governance_context_from_config",
     "build_governance_report_from_config",
+    "summarise_governance_delta",
 ]
 
 
@@ -617,6 +618,132 @@ def persist_governance_report(
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(output, indent=2, sort_keys=True), encoding="utf-8")
 
+
+def _coerce_report_payload(value: object) -> MutableMapping[str, object]:
+    if isinstance(value, GovernanceReport):
+        return _coerce_mapping(value.as_dict())
+    if isinstance(value, Mapping):
+        mapping = _coerce_mapping(value)
+        if "status" in mapping and "sections" in mapping:
+            return mapping
+        latest = mapping.get("latest")
+        if isinstance(latest, Mapping):
+            return _coerce_mapping(latest)
+    return {}
+
+
+def _extract_sections(payload: Mapping[str, object]) -> dict[str, MutableMapping[str, object]]:
+    sections: dict[str, MutableMapping[str, object]] = {}
+    raw_sections = payload.get("sections")
+    if isinstance(raw_sections, Sequence):
+        for candidate in raw_sections:
+            section = _coerce_mapping(candidate)
+            name = section.get("name")
+            if name:
+                sections[str(name)] = section
+    return sections
+
+
+def _text(value: object | None) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value
+    return str(value)
+
+
+def summarise_governance_delta(
+    previous: Mapping[str, object] | GovernanceReport | None,
+    current: GovernanceReport,
+) -> dict[str, object]:
+    """Summarise status deltas between governance reports."""
+
+    previous_payload = _coerce_report_payload(previous)
+    previous_status_raw = previous_payload.get("status") if previous_payload else None
+    previous_status = _text(previous_status_raw) or None
+
+    previous_sections = _extract_sections(previous_payload)
+    current_sections = {
+        section.name: {
+            "status": section.status.value,
+            "summary": section.summary,
+        }
+        for section in current.sections
+    }
+
+    delta_sections: dict[str, object] = {}
+    changed_sections: list[str] = []
+    sections_added: list[dict[str, object]] = []
+
+    for name, current_info in current_sections.items():
+        previous_section = previous_sections.get(name)
+        if previous_section is not None:
+            previous_section_status = _text(previous_section.get("status")) or None
+            previous_section_summary = _text(previous_section.get("summary"))
+        else:
+            previous_section_status = None
+            previous_section_summary = ""
+
+        is_new = previous_section is None
+        status_changed = (
+            not is_new and previous_section_status != current_info["status"]
+        )
+        summary_changed = (
+            not is_new
+            and previous_section_summary != current_info["summary"]
+            and (previous_section_summary or current_info["summary"])
+        )
+
+        entry: dict[str, object] = {
+            "current_status": current_info["status"],
+            "previous_status": previous_section_status,
+            "status_changed": status_changed or is_new,
+        }
+
+        if is_new:
+            entry["new_section"] = True
+            entry["previous_status"] = None
+            entry["current_summary"] = current_info["summary"]
+            entry["previous_summary"] = None
+            sections_added.append(
+                {
+                    "name": name,
+                    "current_status": current_info["status"],
+                    "current_summary": current_info["summary"],
+                }
+            )
+        else:
+            if summary_changed:
+                entry["summary_changed"] = True
+                entry["previous_summary"] = previous_section_summary
+                entry["current_summary"] = current_info["summary"]
+            elif previous_section_summary:
+                entry["previous_summary"] = previous_section_summary
+
+        delta_sections[name] = entry
+
+        if entry.get("status_changed") or entry.get("summary_changed") or entry.get("new_section"):
+            changed_sections.append(name)
+
+    removed_names = sorted(set(previous_sections) - set(current_sections))
+    sections_removed = [
+        {
+            "name": name,
+            "previous_status": _text(previous_sections[name].get("status")) or None,
+            "previous_summary": _text(previous_sections[name].get("summary")) or None,
+        }
+        for name in removed_names
+    ]
+
+    return {
+        "previous_status": previous_status,
+        "current_status": current.status.value,
+        "status_changed": bool(previous_status is not None and previous_status != current.status.value),
+        "sections": delta_sections,
+        "changed_sections": sorted(changed_sections),
+        "sections_added": sections_added,
+        "sections_removed": sections_removed,
+    }
 
 def _context_base_directory(
     extras: Mapping[str, str] | None,

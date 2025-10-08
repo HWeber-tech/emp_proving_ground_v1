@@ -126,6 +126,11 @@ def test_governance_cadence_runs_and_persists(tmp_path: Path) -> None:
     assert report.metadata["cadence"] == "6h"
     assert report.metadata["strategy_id"] == "primary"
     assert report.status is GovernanceReportStatus.ok
+    delta = report.metadata["delta"]
+    assert delta["current_status"] == GovernanceReportStatus.ok.value
+    assert delta["previous_status"] is None
+    added_names = {entry["name"] for entry in delta["sections_added"]}
+    assert {"kyc_aml", "regulatory_telemetry", "audit_storage"} <= added_names
     assert runner.last_generated_at == reference
     assert len(bus.events) == 1
     assert persisted == [{"status": GovernanceReportStatus.ok.value, "limit": 3}]
@@ -189,6 +194,7 @@ def test_governance_cadence_force_overrides_interval(tmp_path: Path) -> None:
     assert report is not None
     assert runner.last_generated_at == reference
     assert len(bus.events) == 1
+    assert "delta" in report.metadata
 
 
 def test_build_governance_cadence_runner_from_config(tmp_path: Path) -> None:
@@ -274,6 +280,13 @@ def test_build_governance_cadence_runner_from_config(tmp_path: Path) -> None:
     assert report.status is GovernanceReportStatus.ok
     assert report.metadata["owner"] == "ops"
     assert report.metadata["source"] == "governance_context"
+    delta = report.metadata["delta"]
+    assert delta["previous_status"] is None
+    assert sorted(entry["name"] for entry in delta["sections_added"]) == [
+        "audit_storage",
+        "kyc_aml",
+        "regulatory_telemetry",
+    ]
     context_sources = report.metadata["context_sources"]
     assert context_sources["compliance"].endswith("compliance.json")
     assert context_sources["regulatory"].endswith("regulatory.json")
@@ -286,6 +299,7 @@ def test_build_governance_cadence_runner_from_config(tmp_path: Path) -> None:
 
     persisted = json.loads(report_path.read_text(encoding="utf-8"))
     assert persisted["latest"]["status"] == GovernanceReportStatus.ok.value
+    assert "delta" in persisted["latest"]["metadata"]
 
     assert runner.last_generated_at == reference
     assert len(bus.events) == 1

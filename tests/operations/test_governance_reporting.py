@@ -22,6 +22,7 @@ from src.operations.governance_reporting import (
     persist_governance_report,
     publish_governance_report,
     should_generate_report,
+    summarise_governance_delta,
 )
 from src.operations.event_bus_failover import EventPublishError
 from src.operations.regulatory_telemetry import (
@@ -370,3 +371,71 @@ def test_build_governance_report_from_config_uses_defaults() -> None:
     assert report.sections[0].name == "kyc_aml"
     audit_section = next(section for section in report.sections if section.name == "audit_storage")
     assert "journal" in audit_section.summary.lower()
+
+
+def test_summarise_governance_delta_flags_changes() -> None:
+    previous_report = generate_governance_report(
+        compliance_readiness={
+            "status": "warn",
+            "components": [
+                {
+                    "name": "kyc_aml",
+                    "status": "warn",
+                    "summary": "3 open cases",
+                }
+            ],
+        },
+        regulatory_snapshot={
+            "status": "ok",
+            "coverage_ratio": 1.0,
+            "signals": [],
+            "required_domains": ["kyc_aml"],
+            "missing_domains": [],
+        },
+        audit_evidence=None,
+    )
+
+    current_report = generate_governance_report(
+        compliance_readiness={
+            "status": "ok",
+            "components": [
+                {
+                    "name": "kyc_aml",
+                    "status": "ok",
+                    "summary": "Cleared",
+                }
+            ],
+        },
+        regulatory_snapshot={
+            "status": "ok",
+            "coverage_ratio": 1.0,
+            "signals": [],
+            "required_domains": ["kyc_aml"],
+            "missing_domains": [],
+        },
+        audit_evidence={
+            "metadata": {"configured": True, "dialect": "sqlite"},
+            "compliance": {"stats": {"total_records": 1}},
+            "kyc": {"stats": {"total_cases": 1}},
+        },
+    )
+
+    delta = summarise_governance_delta(previous_report, current_report)
+
+    assert delta["previous_status"] == "warn"
+    assert delta["current_status"] == "ok"
+    assert delta["status_changed"] is True
+
+    kyc_delta = delta["sections"]["kyc_aml"]
+    assert kyc_delta["status_changed"] is True
+    assert kyc_delta["previous_status"] == "warn"
+    assert "kyc_aml" in delta["changed_sections"]
+
+    audit_delta = delta["sections"]["audit_storage"]
+    assert audit_delta["status_changed"] is True
+    assert audit_delta["previous_status"] == "warn"
+    assert "audit_storage" in delta["changed_sections"]
+
+    delta_from_mapping = summarise_governance_delta({"latest": previous_report.as_dict()}, current_report)
+    assert delta_from_mapping["current_status"] == "ok"
+    assert delta_from_mapping["sections"]["kyc_aml"]["status_changed"] is True

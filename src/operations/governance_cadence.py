@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import json
 import inspect
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Callable, Mapping, MutableMapping, Optional, TypeVar, cast
@@ -36,6 +36,7 @@ from src.operations.governance_reporting import (
     persist_governance_report,
     publish_governance_report,
     should_generate_report,
+    summarise_governance_delta,
 )
 from src.operations.regulatory_telemetry import RegulatoryTelemetrySnapshot
 
@@ -129,6 +130,22 @@ def _load_last_generated(path: Path) -> datetime | None:
     return None
 
 
+def _load_previous_payload(path: Path) -> Mapping[str, object] | None:
+    if not path.exists():
+        return None
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    if isinstance(payload, Mapping):
+        latest = payload.get("latest")
+        if isinstance(latest, Mapping):
+            return latest
+        if "status" in payload and "sections" in payload:
+            return payload
+    return None
+
+
 def _collect_audit(config: SystemConfig, strategy_id: str | None) -> Mapping[str, object]:
     return collect_audit_evidence(config, strategy_id=strategy_id)
 
@@ -166,9 +183,11 @@ class GovernanceCadenceRunner:
     publisher: Callable[[EventBus, GovernanceReport], None] = publish_governance_report
     persister: Callable[[GovernanceReport, Path, int], None] | None = None
     _last_generated_at: datetime | None = field(init=False, default=None, repr=False)
+    _previous_payload: Mapping[str, object] | None = field(init=False, default=None, repr=False)
 
     def __post_init__(self) -> None:
         self._last_generated_at = _load_last_generated(self.report_path)
+        self._previous_payload = _load_previous_payload(self.report_path)
         if self.persister is None:
             self.persister = lambda report, path, limit: _persist_report(
                 report, path, history_limit=limit
@@ -214,10 +233,20 @@ class GovernanceCadenceRunner:
             metadata=metadata,
         )
 
+        delta = summarise_governance_delta(self._previous_payload, report)
+        report = replace(
+            report,
+            metadata={
+                **dict(report.metadata),
+                "delta": delta,
+            },
+        )
+
         self.publisher(self.event_bus, report)
         assert self.persister is not None  # for type checkers
         self.persister(report, self.report_path, self.history_limit)
         self._last_generated_at = report.generated_at
+        self._previous_payload = report.as_dict()
         return report
 
 

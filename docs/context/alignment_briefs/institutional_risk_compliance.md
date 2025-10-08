@@ -66,7 +66,11 @@
 - Progress: Liquidity prober now routes probe tasks through the shared supervisor
   and records deterministic risk metadata or runbook-tagged errors on every run,
   with regression coverage asserting the supervised probes and risk context so
-  execution telemetry feeds inherit auditable guardrails.【F:src/trading/execution/liquidity_prober.py†L38-L334】【F:tests/trading/test_execution_liquidity_prober.py†L64-L123】
+  execution telemetry feeds inherit auditable guardrails.【F:src/trading/execution/liquidity_prober.py†L1-L218】【F:tests/trading/test_execution_liquidity_prober.py†L64-L124】
+- Progress: Execution adapters now rely on a shared risk-context helper so paper
+  fills, release routing, and trading manager snapshots ingest the canonical
+  `build_runtime_risk_metadata` output—and surface runbook-tagged errors—under
+  regression coverage that checks provider propagation and describe surfaces.【F:src/trading/execution/_risk_context.py†L1-L75】【F:src/trading/execution/paper_execution.py†L1-L108】【F:src/trading/execution/release_router.py†L1-L154】【F:src/trading/trading_manager.py†L1028-L1332】【F:tests/trading/test_execution_risk_context.py†L38-L165】
 - Progress: Parity checker telemetry now wraps gauge publication in defensive
   logging, recording order and position mismatches even when the metrics sink
   misbehaves so compliance dashboards surface reconciliation issues instead of
@@ -101,11 +105,11 @@
 - Progress: Release-aware execution router now installs across bootstrap runtime,
   control centre, and Predator summaries whenever a policy ledger is present,
   exposing default stages, engine routing, and forced overrides so compliance
-  reviewers inherit audited execution posture under pytest coverage.【F:src/runtime/bootstrap_runtime.py†L195-L428】【F:src/operations/bootstrap_control_center.py†L341-L359】【F:src/runtime/predator_app.py†L1001-L1141】【F:src/trading/trading_manager.py†L823-L983】【F:tests/current/test_bootstrap_runtime_integration.py†L238-L268】【F:tests/trading/test_trading_manager_execution.py†L960-L983】
+  reviewers inherit audited execution posture under pytest coverage.【F:src/runtime/bootstrap_runtime.py†L190-L238】【F:src/operations/bootstrap_control_center.py†L341-L359】【F:src/runtime/predator_app.py†L1001-L1141】【F:src/trading/trading_manager.py†L1028-L1079】【F:tests/current/test_bootstrap_runtime_integration.py†L238-L268】【F:tests/trading/test_trading_manager_execution.py†L496-L567】
 - Progress: Trading manager release posture now includes the last routed
   execution decision from the release-aware router, capturing forced paper
-  routes and escalation reasons so dashboards and audits inherit the exact
-  enforcement evidence under regression coverage.【F:src/trading/trading_manager.py†L760-L817】【F:tests/trading/test_trading_manager_execution.py†L960-L991】
+  routes, drift severity, and audit metadata so dashboards and audits inherit
+  the exact enforcement evidence under regression coverage.【F:src/trading/trading_manager.py†L1067-L1107】【F:src/trading/execution/release_router.py†L98-L154】【F:tests/trading/test_execution_risk_context.py†L119-L165】
 - Progress: Release-aware execution router now inspects policy-ledger audit
   posture, merges DriftSentry overrides with audit enforcement, and records the
   forced-reason history plus audit metadata so compliance snapshots explain why

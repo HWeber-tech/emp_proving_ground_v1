@@ -753,6 +753,10 @@ kit that the roadmap calls back to in each checklist.
     and surfaces evolution telemetry plus cadence metadata via `status()` so
     governance can observe adaptive readiness, with integration and runtime
     tests guarding the wiring.【F:src/runtime/predator_app.py†L1992-L2124】【F:src/runtime/bootstrap_runtime.py†L310-L624】【F:tests/current/test_bootstrap_runtime_integration.py†L153-L169】【F:tests/runtime/test_bootstrap_runtime_sensory.py†L162-L194】
+  - *Progress*: Recorded replay CLI now evaluates genomes against archived sensory
+    datasets, renders JSON/Markdown dossiers, and enforces dataset/genome guards
+    so evolution squads can publish deterministic evidence without bespoke
+    notebooks.【F:tools/evolution/recorded_replay_cli.py†L1-L320】【F:tests/tools/test_recorded_replay_cli.py†L44-L148】
 - [ ] **Risk API enforcement** – Align trading modules with deterministic risk
   interfaces, surface policy violations via telemetry, and add escalation runbooks.
   - *Progress*: Risk gateway wiring now normalises intents, enforces
@@ -776,7 +780,12 @@ kit that the roadmap calls back to in each checklist.
   - *Progress*: Liquidity prober tasks now run under the shared supervisor,
     capture deterministic risk metadata or runbook-tagged failures, and expose
     regression coverage so execution telemetry inherits auditable risk context
-    for every probe burst.【F:src/trading/execution/liquidity_prober.py†L38-L334】【F:tests/trading/test_execution_liquidity_prober.py†L64-L123】
+    for every probe burst.【F:src/trading/execution/liquidity_prober.py†L1-L218】【F:tests/trading/test_execution_liquidity_prober.py†L64-L124】
+  - *Progress*: Execution adapters now share a dedicated risk-context harness;
+    paper fills, release routing, and trading manager snapshots all ingest the
+    same `build_runtime_risk_metadata` output (or surfaced `RiskApiError`
+    payloads) while tests assert the describe surfaces and provider propagation
+    stay wired across engines.【F:src/trading/execution/_risk_context.py†L1-L75】【F:src/trading/execution/paper_execution.py†L1-L108】【F:src/trading/execution/release_router.py†L1-L154】【F:src/trading/trading_manager.py†L1028-L1332】【F:tests/trading/test_execution_risk_context.py†L38-L165】
 - [ ] **AlphaTrade loop expansion (Days 15–90)** – Graduate the live-shadow pilot
   into tactic experimentation, paper trading, and limited live promotions once V1
   stabilises.【F:docs/High-Impact Development Roadmap.md†L74-L76】
@@ -796,6 +805,10 @@ kit that the roadmap calls back to in each checklist.
     embeds reviewer insights, and retains exported Markdown/metadata so
     compliance reviewers see reflection posture alongside readiness snapshots
     under new guardrail coverage.【F:src/operations/observability_dashboard.py†L257-L404】【F:tests/operations/test_observability_dashboard.py†L435-L528】
+  - *Progress*: Trading manager now installs the release-aware router whenever a
+    policy ledger is present, and bootstrap runtime mirrors the configuration so
+    paper, pilot, and live engines record forced routes, drift severity, audit
+    details, and risk context snapshots under regression coverage.【F:src/runtime/bootstrap_runtime.py†L190-L238】【F:src/trading/trading_manager.py†L1028-L1079】【F:src/trading/execution/release_router.py†L80-L154】【F:tests/trading/test_execution_risk_context.py†L100-L165】【F:tests/trading/test_trading_manager_execution.py†L496-L567】
   - *Progress*: AdversarialTrainer now logs generator signature mismatches,
     captures unexpected training failures with stack traces, and preserves
     heuristic fallbacks so migration bugs surface during experimentation without
@@ -821,15 +834,15 @@ kit that the roadmap calls back to in each checklist.
     release-aware execution router when a policy ledger is present, expose default
     stage and engine routing metadata, and record forced paper routes alongside
     drift reasons so governance reviewers see execution posture under pytest
-    coverage.【F:src/runtime/bootstrap_runtime.py†L195-L428】【F:src/operations/bootstrap_control_center.py†L341-L359】【F:src/runtime/predator_app.py†L1001-L1141】【F:src/trading/trading_manager.py†L823-L983】【F:tests/current/test_bootstrap_runtime_integration.py†L238-L268】【F:tests/trading/test_trading_manager_execution.py†L960-L983】
+    coverage.【F:src/runtime/bootstrap_runtime.py†L190-L238】【F:src/operations/bootstrap_control_center.py†L341-L359】【F:src/runtime/predator_app.py†L1001-L1141】【F:src/trading/trading_manager.py†L1028-L1079】【F:tests/current/test_bootstrap_runtime_integration.py†L238-L268】【F:tests/trading/test_trading_manager_execution.py†L496-L567】
   - *Progress*: Trading manager release posture now surfaces the most recent
     execution route from the release-aware router, including forced paper
     routes and escalation reasons, so dashboards and audits inherit the same
-    enforcement evidence under regression coverage.【F:src/trading/trading_manager.py†L760-L817】【F:tests/trading/test_trading_manager_execution.py†L960-L991】
+    enforcement evidence under regression coverage.【F:src/trading/execution/release_router.py†L98-L154】【F:src/trading/trading_manager.py†L1067-L1107】【F:tests/trading/test_execution_risk_context.py†L119-L165】【F:tests/trading/test_trading_manager_execution.py†L886-L1030】
   - *Progress*: Release-aware execution router now inspects policy-ledger audit
     posture, merges drift gating with audit enforcement, and propagates forced
     reason histories plus audit metadata into trading manager summaries so
-    governance trails explain every paper override under pytest coverage.【F:src/trading/execution/release_router.py†L39-L214】【F:src/trading/execution/release_router.py†L260-L332】【F:src/trading/trading_manager.py†L700-L880】【F:tests/trading/test_release_execution_router.py†L1-L240】【F:tests/trading/test_trading_manager_execution.py†L886-L1030】
+    governance trails explain every paper override under pytest coverage.【F:src/trading/execution/release_router.py†L80-L154】【F:src/trading/execution/release_router.py†L200-L332】【F:src/trading/trading_manager.py†L700-L880】【F:tests/trading/test_release_execution_router.py†L1-L240】【F:tests/trading/test_trading_manager_execution.py†L886-L1030】
 
 ### Later (90+ days)
 
@@ -913,13 +926,13 @@ kit that the roadmap calls back to in each checklist.
 - Maintain the truth-first status culture: mock implementations must remain
   labelled and roadmapped until replaced by production-grade systems.【F:docs/DEVELOPMENT_STATUS.md†L7-L35】
 
-## Automation updates — 2025-10-08T02:10:00Z
+## Automation updates — 2025-10-08T02:30:00Z
 
 ### Last 4 commits
-- c30b5cd test(.telemetry): tune 1 file (2025-10-08)
-- 29b60fe refactor(intelligence): tune 1 file (2025-10-08)
-- 66f3e50 refactor(data_foundation): tune 3 files (2025-10-08)
-- 8e674ba docs(docs): tune 4 files (2025-10-08)
+- f570803 feat(trading): add 5 files (2025-10-08)
+- 67eb6fc refactor(runtime): tune 5 files (2025-10-08)
+- b4fc849 test(.telemetry): add 4 files (2025-10-08)
+- 0e00a28 docs(docs): tune 4 files (2025-10-08)
 
 ## Automation updates — 2025-10-07T22:25:27Z
 

@@ -72,6 +72,10 @@
   to JSONL with lineage metadata, strict/append guards, and replay integration
   tests so adaptive runs can hydrate governance evidence without bespoke
   capture scripts.【F:src/evolution/evaluation/datasets.py†L1-L171】【F:src/evolution/__init__.py†L21-L71】【F:tests/evolution/test_recorded_dataset.py†L1-L108】
+- Progress: Recorded replay CLI now ingests archived sensory datasets,
+  normalises inline genome definitions or JSON files, and renders JSON/Markdown
+  telemetry decks with drawdown thresholds so evolution reviews can publish
+  deterministic evidence without bespoke notebooks.【F:tools/evolution/recorded_replay_cli.py†L1-L320】【F:tests/tools/test_recorded_replay_cli.py†L44-L148】
 - Progress: Bootstrap runtime now builds the evolution orchestrator from system
   config extras, executes cycles on a configurable cadence, and surfaces
   evolution telemetry plus cadence metadata through `status()` so governance and

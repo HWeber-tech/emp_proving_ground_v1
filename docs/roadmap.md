@@ -1,1214 +1,174 @@
-# Modernisation roadmap – Season reset
+AlphaTrade Gap Analysis and Roadmap
+Gap Analysis Report
 
-This reset distils the latest audit, technical debt, and status reports into a
-fresh execution plan. It assumes the conceptual architecture mirrors the EMP
-Encyclopedia while acknowledging that most subsystems remain scaffolding.
+This section compares the current emp_proving_ground_v1 codebase against the envisioned AlphaTrade architecture. The AlphaTrade blueprint organizes the system into five major components – Perception, Adaptation, Reflection, Risk/Execution, and Governance – each corresponding to a stage in the intelligent trading loop. Below, we identify for each component what is already implemented, what is partially in place, what is missing, and any misalignments between the blueprint and the current implementation.
 
-AlphaTrade's Perception → Adaptation → Reflection loop now anchors every near-term
-investment. See `docs/High-Impact Development Roadmap.md` for the live-shadow
-Understanding Loop v1 pilot, follow-on promotion gates, and the telemetry proof
-kit that the roadmap calls back to in each checklist.
+Perception (Sensory Ingest & Belief Formation)
 
-## Current parity snapshot
+Implemented: The code establishes a layered perception pipeline that ingests sensory data (market signals) into an internal belief state. A BeliefState model is in place to represent posterior beliefs and regime context, including Hebbian-style updates to capture recent patterns
+GitHub
+. A sensory cortex framework exists with a “real_sensory_organ” module that fuses multiple signal types (WHAT/WHEN/WHY/HOW/ANOMALY) into unified sensory payloads
+GitHub
+. The belief/regime scaffolding is functional: it buffers sensor inputs, emits finite-state regime indicators, and enforces positive semi-definite (PSD) covariance updates as a stability check
+GitHub
+. Core architecture for perception reflects the encyclopedia’s layered design (core → sensory → thinking…)
+GitHub
+.
 
-| Signal | Reality | Evidence |
-| --- | --- | --- |
-| Architecture | Layered domains and canonical `SystemConfig` definitions are in place, enforcing the core → sensory → thinking → trading → orchestration stack described in the encyclopedia. | 【F:docs/architecture/overview.md†L9-L48】 |
-| Delivery state | The codebase is still a development framework: evolution, intelligence, execution, and strategy layers run on mocks; there is no production ingest, risk sizing, or portfolio management. | 【F:docs/DEVELOPMENT_STATUS.md†L7-L35】 |
-| Quality posture | CI passes with 76% coverage, but hotspots include operational metrics, position models, and configuration loaders; runtime validation checks still fail. | 【F:docs/ci_baseline_report.md†L8-L27】【F:docs/technical_debt_assessment.md†L31-L112】 |
-| Debt hotspots | Hollow risk management, unsupervised async tasks, namespace drift, and deprecated exports continue to surface in audits. | 【F:docs/technical_debt_assessment.md†L33-L80】【F:src/core/__init__.py†L14-L33】 |
-| Legacy footprint | Canonical risk facade now lives in `src/risk`, and the retired `src.core.risk.manager`/`src.trading.risk_management` shims now raise guided `ModuleNotFoundError`s under regression coverage so callers jump straight to the canonical modules while cleanup reports still flag integration docs lagging reality. | 【F:src/core/risk/manager.py†L1-L14】【F:src/trading/risk_management/__init__.py†L1-L8】【F:tests/current/test_risk_shims_retired.py†L1-L23】【F:docs/reports/CLEANUP_REPORT.md†L71-L110】 |
+Partially Implemented: Many sensory inputs are still mock or synthetic. The real-time data ingest is not fully wired – currently relying on placeholders rather than live market feeds
+GitHub
+GitHub
+. Key sensory “organs” (e.g. HOW and ANOMALY detectors) exist only as stubs or thin heuristics with NotImplementedError in places
+GitHub
+. Lineage and telemetry for sensory signals have been started (ensuring each data point carries source metadata), but the system still feeds on sample or generated data until a real data backbone is delivered. Drift detection is present (the Drift Sentry monitors statistical drift in beliefs) but depends on synthetic data and has not been exercised on real streaming input
+GitHub
+.
 
-## Gaps to close
+Missing: A production-grade data backbone for perception is absent – there are no live connections to TimescaleDB, Redis, or Kafka yet
+GitHub
+. The system needs actual market data ingest (e.g. price feeds, order book updates) feeding the sensory organ. Robust anomaly detection (the ANOMALY organ) and explanatory diagnostics (the WHY organ) are not implemented beyond basic placeholders
+GitHub
+. Also missing is the continuous calibration of sensors: e.g. adjusting to new instrument data, handling missing data, etc. Without these, the perception layer cannot fully reflect the blueprint’s vision of a rich sensory cortex driving the loop.
 
-- [ ] **Operational data backbone** – Deliver real Timescale/Redis/Kafka services,
-  parameterise SQL, and supervise ingest tasks instead of relying on mocks.
-  - *Progress*: Timescale retention telemetry now validates schema/table/timestamp
-    identifiers, parameterises retention queries, and documents the contract via
-    regression tests so institutional slices cannot inject raw SQL through policy
-    definitions. The snapshot elevates WARN/FAIL states deterministically,
-    attaches coverage/span metadata for every dimension, records the evaluated
-    policy catalogue, and publishes through the shared failover helper so
-    dashboards inherit severity-aware retention evidence even when the runtime
-    bus degrades.【F:src/operations/retention.py†L1-L334】【F:tests/operations/test_data_retention.py†L1-L220】
-  - *Progress*: Timescale reader now builds SQLAlchemy Core selects with sanitised
-    identifiers and bound filters, eliminating hand-written SQL while the security
-    regression keeps fuzzed identifier guards in place.【F:src/data_foundation/persist/timescale_reader.py†L352】【F:tests/data_foundation/test_timescale_reader_security.py†L1】
-  - *Progress*: Execution readiness journal reflects tables via SQLAlchemy, inserts
-    snapshots with bound parameters, and summarises status/service counts so
-    Timescale auditing no longer shells out raw text queries under the regression
-    suite.【F:src/data_foundation/persist/timescale.py†L1956-L2064】【F:tests/data_foundation/test_timescale_execution_journal.py†L104】
-  - *Progress*: Data backbone readiness telemetry now exposes failover triggers,
-    optional trigger metadata, and recovery plan payloads under pytest coverage so
-    institutional dashboards surface degraded optional slices alongside the
-    Timescale recovery blueprint instead of masking the drill-down details.【F:src/operations/data_backbone.py†L488-L515】【F:tests/operations/test_data_backbone.py†L289-L347】
-  - *Progress*: Timescale ingest scheduler can now register its background loop with
-    the runtime task supervisor, tagging interval/jitter metadata and exposing
-    live snapshots so operators see supervised ingest jobs instead of orphaned
-    `create_task` handles, with pytest covering steady-state execution, failure
-    cut-offs, jitter bounds, supervisor telemetry, and snapshot publishing so
-    the guardrail remains deterministic. The guardrail manifest now pins the
-    ingest scheduler regression to the `guardrail` matrix, ensuring CI fails
-    fast if the scheduler suite drifts or loses its guardrail marker.【F:src/data_foundation/ingest/scheduler.py†L1-L138】【F:tests/data_foundation/test_ingest_scheduler.py†L1-L200】【F:tests/runtime/test_guardrail_suite_manifest.py†L18-L90】
-  - *Progress*: Bootstrap runtime integration tests now stub the `_execute_timescale_ingest`
-    hook and export list, locking the runtime builder’s ingest entrypoint so
-    supervised launches keep wiring institutional ingest toggles under guardrail
-    coverage.【F:tests/current/test_bootstrap_runtime_integration.py†L96-L111】【F:tests/runtime/test_bootstrap_runtime_sensory.py†L96-L110】
-  - *Progress*: SystemConfig extras now drive institutional ingest Redis cache
-    policy overrides, parsing TTL, capacity, namespace, and invalidation
-    prefixes into the resolved config, runtime summary, and managed manifest so
-    operators can tune hot datasets without code patches under guardrail tests
-    that exercise supervised caches and CLI manifests.【F:src/data_foundation/ingest/configuration.py†L738-L942】【F:src/data_foundation/ingest/production_slice.py†L34-L120】【F:tests/data_foundation/test_timescale_config.py†L130-L150】【F:tests/runtime/test_institutional_ingest_vertical.py†L120-L205】【F:tools/operations/managed_ingest_connectors.py†L347-L384】
-  - *Progress*: Institutional ingest config now persists Redis connection
-    settings, publishes whether the cache is configured, and threads the
-    resolved client through provisioners and managed CLI tooling so manifests,
-    connectivity drills, and production runs inherit dotenv overrides without
-    bespoke wiring, with pytest guarding metadata and scheduler reuse of the
-    shared settings.【F:src/data_foundation/ingest/configuration.py†L728-L909】【F:src/data_foundation/ingest/institutional_vertical.py†L522-L611】【F:tests/data_foundation/test_timescale_config.py†L150-L171】【F:tests/runtime/test_institutional_ingest_vertical.py†L80-L140】【F:tools/operations/managed_ingest_connectors.py†L142-L166】【F:tools/operations/managed_ingest_connectors.py†L340-L393】【F:tools/operations/run_production_ingest.py†L255-L318】
-  - *Progress*: Managed ingest tooling now loads dotenv templates, injects
-    overrides, provisions Kafka topics, and emits Markdown/JSON manifests, while
-    the readiness CLI combines the managed connector report, optional
-    connectivity probes, and failover drills so reviews receive a single
-    artefact under pytest coverage and the new operations quickstart.【F:tools/operations/managed_ingest_connectors.py†L47-L416】【F:tools/operations/institutional_ingest_readiness.py†L1-L246】【F:tests/tools/test_institutional_ingest_readiness_cli.py†L30-L95】【F:docs/operations/managed_ingest_environment.md†L40-L100】
-  - *Progress*: Redis cache helpers now parse typed connection settings, TTL/capacity
-    overrides, and invalidate prefixes while exposing a managed wrapper that tracks
-    hits, misses, expirations, and evictions so ingest and trading services share a
-    single Redis contract; the portfolio monitor wraps its state store with the managed
-    cache and publishes cache telemetry via the event bus under regression coverage.【F:src/data_foundation/cache/redis_cache.py†L93-L268】【F:src/trading/monitoring/portfolio_monitor.py†L70-L198】【F:tests/data_foundation/test_redis_cache.py†L1-L167】【F:tests/current/test_portfolio_monitor_runtime.py†L11-L94】
-  - *Progress*: Portfolio monitor cache telemetry now normalises hit/miss counters, derives
-    hit-rate ratios when absent, stamps backing client metadata, and records namespace/
-    configuration flags so event-bus consumers receive consistent cache evidence even on
-    in-memory fallbacks, with regression coverage locking the payload contract.【F:src/trading/monitoring/portfolio_monitor.py†L155-L220】【F:tests/trading/test_portfolio_monitor_cache_metrics.py†L1-L97】
-  - *Progress*: Pricing cache now hashes ingest parameters with `blake2b` for
-    deterministic dataset artefacts, writes metadata and issues manifests,
-    enforces retention policies, and logs cleanup failures under regression
-    coverage so bootstrap slices leave auditable evidence without leaking stale
-    files.【F:src/data_foundation/cache/pricing_cache.py†L68】【F:tests/data_foundation/cache/test_pricing_cache.py†L1】
-  - *Progress*: Cobertura coverage guardrail tooling now parses XML reports,
-    asserts coverage for ingest, risk, and observability hotspots, flags missing
-    targets, and exits non-zero for WARN/FAIL thresholds so CI pipelines and
-    local audits block on regression drift; pytest locks success/failure paths
-    and the guardrail manifest keeps the guardrail suites wired into the
-    dedicated CI marker.【F:tools/telemetry/coverage_guardrails.py†L1-L268】【F:tests/tools/test_coverage_guardrails.py†L1-L83】【F:tests/runtime/test_guardrail_suite_manifest.py†L18-L90】
-  - *Progress*: Institutional ingest guardrails now carry dedicated `guardrail`
-    markers, the manifest asserts coverage jobs require the production slice and
-    institutional vertical, and the coverage guardrail CLI tracks the
-    institutional vertical target so CI fails when coverage drifts.【F:tests/data_foundation/test_production_ingest_slice.py†L8】【F:tests/runtime/test_institutional_ingest_vertical.py:110】【F:tests/runtime/test_guardrail_suite_manifest.py†L21】【F:tests/runtime/test_guardrail_suite_manifest.py†L113】【F:.github/workflows/ci.yml†L112】【F:tools/telemetry/coverage_guardrails.py†L22】【F:tests/tools/test_coverage_guardrails.py†L40】
-  - *Progress*: Coverage guardrails now require the ingest configuration loader,
-    with the CI workflow enforcing the `--require-file` flag, the guardrail
-    manifest enumerating the target, the evaluator treating it as a default
-    requirement, and guardrail-marked regression tests pinning the new target so
-    configuration policy drift fails fast under pytest coverage.【F:.github/workflows/ci.yml†L118-L123】【F:tests/runtime/test_guardrail_suite_manifest.py†L23-L118】【F:tools/telemetry/coverage_guardrails.py†L24-L36】【F:tests/tools/test_coverage_guardrails.py†L40-L101】【F:tests/data_foundation/test_timescale_config.py†L1-L44】
-  - *Progress*: CI guardrails now enforce that the ingest scheduler suite runs in
-    the dedicated pytest marker and that coverage matrices include the scheduler
-    module, ensuring supervised scheduling stays under guardrail enforcement with
-    regression tests pinning the workflow requirements.【F:.github/workflows/ci.yml†L108-L142】【F:tests/runtime/test_guardrail_suite_manifest.py†L103-L151】
-  - *Progress*: CI workflow now runs the coverage matrix and minimum coverage
-    guardrail steps after the guarded pytest job, enforcing ingest/risk targets,
-    appending Markdown summaries, and failing the build when thresholds slip,
-    with guardrail tests asserting the steps remain in place.【F:.github/workflows/ci.yml†L90-L135】【F:tests/runtime/test_guardrail_suite_manifest.py†L98-L135】
-  - *Progress*: Production ingest slice now orchestrates Timescale runs and
-    supervised services from a single entrypoint, wiring the institutional
-    provisioner, Kafka bridge, and Redis cache through the shared
-    `TaskSupervisor` while exposing deterministic summaries for dashboards and
-    start/stop lifecycles under pytest coverage so operators inherit a managed
-    ingest surface instead of bespoke wiring.【F:src/data_foundation/ingest/production_slice.py†L1-L188】【F:tests/data_foundation/test_production_ingest_slice.py†L57-L132】
-  - *Progress*: Timescale backbone orchestrator now enriches every daily,
-    intraday, and macro slice with requested symbol/event counts, fetched row
-    totals, ingest result metadata, and macro window provenance so ingest
-    telemetry exposes what was fetched, normalised, or skipped; guardrail tests
-    cover macro window fallbacks, empty payloads, publisher failure logging, and
-    metadata emission to prevent regressions in institutional ingest
-    coverage.【F:src/data_foundation/ingest/timescale_pipeline.py†L70-L213】【F:tests/data_foundation/test_timescale_backbone_orchestrator.py†L1-L426】
-  - *Progress*: Macro ingest now falls back to an internal no-op fetcher when no
-    provider is wired, letting backbone drills drop the legacy FRED scaffold while
-    keeping optional macro windows explicit in the cleanup report.【F:src/data_foundation/ingest/timescale_pipeline.py†L21】【F:docs/reports/CLEANUP_REPORT.md†L120】
-  - *Progress*: Macro event ingestion now ships a hardened FRED calendar client
-    that normalises release metadata, tolerates missing API keys, sorts results,
-    and exposes the helper through the ingest package so Timescale plans can pull
-    real economic releases under pytest coverage of request handling, JSON
-    parsing, and dotenv overrides.【F:src/data_foundation/ingest/fred_calendar.py†L1-L148】【F:src/data_foundation/ingest/__init__.py†L57-L116】【F:tests/data_foundation/test_fred_calendar.py†L1-L129】
-  - *Progress*: Institutional ingest provisioner now spins up supervised
-    Timescale schedules alongside Redis caches and Kafka consumers, wiring the
-    bridge into the task supervisor with redacted metadata, publishing a managed
-    manifest that lists configured topics, and exposing async/sync connectivity
-    probes so dashboards can surface recovery requirements and live health checks
-    without bespoke wiring. It now auto-configures Redis via the shared client
-    helper when no factory is supplied, warns when a client cannot be created,
-    and surfaces the active Redis backing class in service summaries and
-    manifests so operators know which cache implementation is live under pytest
-    coverage of the configure path.【F:src/data_foundation/ingest/institutional_vertical.py†L96-L399】【F:tests/runtime/test_institutional_ingest_vertical.py†L140-L185】【F:docs/operations/timescale_failover_drills.md†L1-L27】
-  - *Progress*: Professional runtime builder now invokes the institutional
-    provisioner automatically, reuses managed Redis clients when present,
-    defers the next scheduled run after manual ingest, records
-    managed-connector manifests plus scheduler snapshots, and propagates the
-    managed manifest into data-backbone readiness telemetry so Tier‑1 launches
-    inherit supervised ingest connectors with explicit connector listings in
-    readiness dashboards.【F:src/runtime/runtime_builder.py†L1124-L1895】【F:src/runtime/runtime_builder.py†L2453-L2568】【F:docs/operations/timescale_failover_drills.md†L7-L33】
-  - *Progress*: Institutional ingest services now expose `run_failover_drill()` to
-    replay Timescale drills with managed connector manifests, normalised
-    dimensions, supervised fallback execution, and redacted service summaries so
-    disaster-recovery rehearsals share the runtime wiring under regression
-    coverage.【F:src/data_foundation/ingest/institutional_vertical.py†L384-L466】【F:tests/runtime/test_institutional_ingest_vertical.py†L434-L496】【F:docs/operations/timescale_failover_drills.md†L25-L45】
-  - *Progress*: Institutional ingest provisioning now supervises the Kafka bridge via
-    `TaskSupervisor`, builds managed manifests with redacted Timescale/Redis/Kafka
-    metadata, normalises Kafka mapping fallbacks, and exposes connectivity plus
-    failover drill snapshots so readiness dashboards capture health-annotated evidence
-    before drills run under refreshed pytest coverage.【F:src/data_foundation/ingest/institutional_vertical.py:413】【F:src/data_foundation/ingest/institutional_vertical.py:437】【F:src/data_foundation/ingest/institutional_vertical.py:539】【F:src/data_foundation/ingest/institutional_vertical.py:840】【F:src/data_foundation/ingest/institutional_vertical.py:601】【F:tests/runtime/test_institutional_ingest_vertical.py:110】【F:tests/runtime/test_institutional_ingest_vertical.py:336】【F:tests/runtime/test_institutional_ingest_vertical.py:418】【F:tests/runtime/test_institutional_ingest_vertical.py:447】
-  - *Progress*: Tier-0 Yahoo ingest now sanitises symbols/intervals, enforces
-    mutually exclusive period versus window arguments, normalises timestamps,
-    and writes through a DuckDB helper that escapes table identifiers and binds
-    parameters with pytest coverage, while the new market data gateway logs
-    rejected requests and reuses the hardened fetcher so entry-level datasets
-    inherit safe defaults.【F:src/data_foundation/ingest/yahoo_ingest.py†L82-L305】【F:src/data_foundation/ingest/yahoo_gateway.py†L1-L53】【F:tests/data_foundation/test_yahoo_ingest_security.py†L1-L132】【F:tests/data_foundation/test_yahoo_gateway.py†L1-L69】
-  - *Progress*: Orchestration compose now prefers the canonical
-    `YahooMarketDataGateway`, falls back to injected organs only when provided,
-    and surfaces guarded adapters for anomaly, regime, and adaptation ports,
-    while the retired `yahoo_finance_organ` shim raises a guided
-    `ModuleNotFoundError` so legacy imports fail fast under regression coverage
-    across orchestration and shim tests.【F:src/orchestration/compose.py†L1-L210】【F:src/sensory/organs/yahoo_finance_organ.py†L1-L15】【F:tests/current/test_orchestration_compose.py†L104-L158】【F:tests/thinking/test_shim_import_failures.py†L8-L37】
-  - *Progress*: Timescale ingest helpers now validate schema/table identifiers
-    before emitting SQL, raising deterministic errors on unsafe names and
-    pinning the contract via regression tests so institutional slices cannot
-    smuggle raw SQL through policy or schedule configuration.【F:src/data_foundation/persist/timescale.py†L1-L120】【F:tests/data_foundation/test_timescale_ingest.py†L1-L83】
-  - *Progress*: Timescale ingestor now reflects tables through SQLAlchemy,
-    performs PostgreSQL upserts via `pg_insert`, binds SQLite fallbacks, and
-    chunks writes so ingest runs avoid hand-written SQL while retaining
-    deterministic freshness metrics under regression coverage.【F:src/data_foundation/persist/timescale.py†L2337-L2489】【F:tests/data_foundation/test_timescale_ingest.py†L165-L220】
-  - *Progress*: Legacy JSONL persistence shim now raises a guided
-    `ModuleNotFoundError` from the package entry point and stub module so ingest flows
-    migrate to the governed Timescale writers, with regression coverage asserting imports
-    fail fast.【F:src/data_foundation/persist/__init__.py:9】【F:src/data_foundation/persist/jsonl_writer.py:1】【F:tests/data_foundation/test_jsonl_writer.py:1】
-  - *Progress*: Parquet writer shim mirrors the removal guard, raising a descriptive
-    `ModuleNotFoundError` and blocking attribute access so institutional pipelines cannot
-    silently resurrect the legacy path under pytest coverage.【F:src/data_foundation/persist/__init__.py:14】【F:src/data_foundation/persist/parquet_writer.py:1】【F:tests/data_foundation/test_parquet_writer.py:1】
-  - *Progress*: Ingest telemetry publisher now logs recoverable local bus
-    failures, escalates unexpected exceptions, and falls back to the global bus
-    under pytest coverage so ingest snapshots are not silently dropped when the
-    runtime transport degrades.【F:src/data_foundation/ingest/telemetry.py†L33-L99】【F:tests/data_foundation/test_ingest_publishers.py†L1-L164】
-  - *Progress*: Production ingest slice now serialises concurrent runs behind an
-    async lock, records the latest ingest results atomically, and proves the
-    guard with a blocking-orchestrator regression so Timescale jobs cannot
-    stampede the orchestrator when multiple triggers fire.【F:src/data_foundation/ingest/production_slice.py†L106-L138】【F:tests/data_foundation/test_production_ingest_slice.py†L133-L190】
-  - *Progress*: Production ingest slice now invalidates Redis caches for
-    refreshed dimensions, persists ingest journal records with plan/schedule
-    metadata, and returns structured service summaries so dashboards surface
-    the latest run evidence while caches shed stale slices under regression
-    coverage.【F:src/data_foundation/ingest/production_slice.py†L168-L383】【F:tests/data_foundation/test_production_ingest_slice.py†L267-L466】
-  - *Progress*: Kafka streaming toolkit now owns `KafkaConnectionSettings`, topic
-    provisioning specs, managed lag capture, and a supervised ingest bridge that
-    publishes ingest events and consumer lag to the event bus while tolerating
-    Confluent/kafka-python clients under regression coverage for topic resolution,
-    consumer lifecycle, and metrics serialisation.【F:src/data_foundation/streaming/kafka_stream.py:1085】【F:src/data_foundation/streaming/kafka_stream.py:1960】【F:src/data_foundation/streaming/kafka_stream.py:2305】【F:tests/data_foundation/test_kafka_stream.py:236】【F:tests/data_foundation/test_kafka_stream.py:808】【F:tests/data_foundation/test_kafka_stream.py:898】
-  - *Progress*: Professional predator runtime now hydrates Timescale fabric connectors,
-    promotes managed ingest extras, and optionally starts the Kafka ingest consumer so
-    bootstrap runs pull live Timescale snapshots with manifest-backed cleanup hooks,
-    under async regression coverage of the runtime builder and app wiring.【F:src/runtime/predator_app.py:2031】【F:src/runtime/predator_app.py:2345】【F:tests/runtime/test_professional_app_timescale.py:181】【F:tests/runtime/test_professional_app_timescale.py:217】
-  - *Progress*: Operational readiness aggregation now fuses system validation,
-    incident response, drift, and SLO telemetry into enriched snapshots, rolls
-    up issue catalogs, evaluates deployment gates with blocking/warn reasons,
-    and emits optional gate alerts while publishing through the failover helper
-    so responders inherit deterministic guardrails under regression coverage of
-    evaluation, alert routing, and failover paths.【F:src/operations/operational_readiness.py†L113-L744】【F:tests/operations/test_operational_readiness.py†L86-L389】【F:docs/status/operational_readiness.md†L1-L140】
-- [ ] **Sensory + evolution execution** – Replace HOW/ANOMALY stubs, wire lineage
-  telemetry, and prove adaptive strategies against recorded data.
-  - *Progress*: HOW and ANOMALY sensors now clamp minimum confidence, sanitise
-    sequence payloads, surface dropped-sample counts, attach order-book
-    analytics, and persist lineage metadata with shared threshold assessments so
-    downstream telemetry inherits auditable context under pytest coverage.【F:src/sensory/anomaly/anomaly_sensor.py†L21-L277】【F:src/sensory/how/how_sensor.py†L21-L210】【F:tests/sensory/test_how_anomaly_sensors.py†L187-L302】
-  - *Progress*: Legacy sensory dimension shim now exports only the canonical
-    `WhatDimension` and raises guided `ModuleNotFoundError`s for retired
-    dimensions so callers migrate to the enhanced organs instead of silently
-    reviving stale stubs.【F:src/sensory/dimensions/__init__.py†L1-L44】
-  - *Progress*: Ecosystem optimizer now defends against unsafe genomes and
-    malformed regime metadata by normalising canonical models, skipping
-    non-numeric parameters, and logging adapter failures with pytest coverage on
-    each guardrail so evolution runs cannot silently corrupt state.【F:src/ecosystem/optimization/ecosystem_optimizer.py†L59-L230】【F:tests/ecosystem/test_ecosystem_optimizer_hardening.py†L1-L70】
-  - *Progress*: Default evolution seeding now cycles through catalogue-inspired
-    genome templates, ingests recorded experiment manifests into additional
-    templates, derives jitter/metrics/tags from those artifacts, and injects
-    lineage metadata so baseline populations mirror the institutional strategy
-    library plus recent experiments. The sampler now writes parent IDs,
-    mutation histories, and performance fingerprints onto each genome, doubles
-    as the default bootstrap path inside the population manager, and surfaces
-    parent/mutation counts through lineage telemetry so orchestrator dashboards
-    expose richer provenance, with pytest guarding sampler rotation, metadata
-    propagation, and seeded genome context.【F:src/core/evolution/seeding.py†L82-L140】【F:src/core/population_manager.py†L62-L383】【F:src/evolution/lineage_telemetry.py†L200-L228】【F:tests/evolution/test_realistic_seeding.py†L48-L88】【F:tests/current/test_population_manager_with_genome.py†L86-L108】【F:tests/current/test_evolution_orchestrator.py†L112-L310】
-  - *Progress*: Evolution guardrails now log structured warnings when genome
-    normalisers, `with_updated` helpers, or seed attribute mutations fail,
-    capturing the genome ID and action while continuing execution so adaptive
-    runs surface integration regressions instead of swallowing them, with
-    dedicated pytest coverage around the defensive helpers.【F:src/core/evolution/engine.py†L1-L342】【F:src/core/evolution/seeding.py†L1-L220】【F:tests/evolution/test_evolution_security.py†L1-L95】
-  - *Progress*: Legacy portfolio evolution module now raises a descriptive
-    `ModuleNotFoundError`, and guard tests assert the removal so adaptive callers
-    pivot to the canonical ecosystem surfaces instead of reviving the stub.【F:src/intelligence/portfolio_evolution.py:1】【F:tests/intelligence/test_portfolio_evolution_security.py:1】
-  - *Progress*: Evolution orchestrator now honours an `EVOLUTION_ENABLE_ADAPTIVE_RUNS`
-    feature flag, exposing helpers for tests and gating champion registration,
-    catalogue updates, and telemetry so governance can disable adaptive loops
-    until approvals land; the latest uplift records a structured
-    `AdaptiveRunDecision` snapshot (source, raw flag, reason) alongside the
-    boolean gate so dashboards and reviewers inherit auditable evidence of how
-    adaptive runs were resolved.【F:src/evolution/feature_flags.py†L1-L91】【F:src/orchestration/evolution_cycle.py†L150-L325】【F:tests/current/test_evolution_orchestrator.py†L64-L330】【F:tests/evolution/test_feature_flags.py†L1-L46】
-  - *Progress*: Evolution engine now records seed provenance on every
-    initialization and generation, summarising catalogue template counts,
-    species tags, and seeded totals for the population manager while lineage
-    telemetry emits the enriched payload under pytest coverage so dashboards and
-    governance reviews inherit deterministic seed metadata instead of opaque
-    populations.【F:src/core/evolution/engine.py†L65-L336】【F:src/core/population_manager.py†L115-L183】【F:src/evolution/lineage_telemetry.py†L1-L200】【F:tests/current/test_evolution_orchestrator.py†L83-L120】【F:tests/evolution/test_lineage_snapshot.py†L8-L66】
-  - *Progress*: Evolution experiment telemetry hardens publishing with explicit
-    exception capture, markdown fallback logging, and pytest scenarios that
-    simulate transport failures so dashboards and runbooks inherit reliable
-    snapshots of paper-trading ROI and backlog posture.【F:src/operations/evolution_experiments.py†L40-L196】【F:tests/operations/test_evolution_experiments.py†L1-L126】
-  - *Progress*: Evolution readiness evaluator now fuses the adaptive-run feature
-    flag, seed provenance statistics, and lineage telemetry into a governance
-    snapshot, rendering Markdown/JSON summaries, capturing issues, and exposing
-    champion metadata so reviewers can gate adaptive runs deterministically
-    under pytest coverage.【F:src/operations/evolution_readiness.py†L1-L206】【F:tests/operations/test_evolution_readiness.py†L1-L118】
-  - *Progress*: Recorded sensory replay evaluator converts archived sensory
-    snapshots into deterministic fitness metrics, now emitting a structured
-    trade ledger with confidence/strength metadata, tracking maximum loss
-    streaks, and reporting average trade durations so adaptive runs surface
-    auditable replay evidence with richer drawdown diagnostics under pytest
-    coverage. A companion telemetry builder promotes those metrics into
-    lineage-backed Markdown/JSON snapshots, flags drawdown/return severities,
-    and captures best/worst trade diagnostics so governance reviewers inherit a
-    ready-to-publish replay dossier with deterministic thresholds.【F:src/evolution/evaluation/recorded_replay.py†L266-L425】【F:src/evolution/evaluation/telemetry.py†L1-L203】【F:tests/evolution/test_recorded_replay_evaluator.py†L66-L102】【F:tests/evolution/test_recorded_replay_telemetry.py†L1-L88】
-  - *Progress*: HOW and ANOMALY sensors now embed sanitised lineage records,
-    compute shared threshold posture assessments, and surface state/breach
-    metadata on every signal so downstream consumers can audit provenance and
-    escalation context, with pytest coverage locking the helper and sensory
-    flows.【F:src/sensory/how/how_sensor.py†L67-L194】【F:src/sensory/anomaly/anomaly_sensor.py†L121-L220】【F:src/sensory/thresholds.py†L1-L76】【F:tests/sensory/test_how_anomaly_sensors.py†L87-L175】【F:tests/sensory/test_thresholds.py†L1-L57】
-  - *Progress*: Integrated sensory organ fuses WHY/WHAT/WHEN/HOW/ANOMALY signals,
-    records lineage and audit trails, instruments sensor-drift windows with a
-    configurable baseline/evaluation policy, publishes telemetry snapshots, and
-    now serialises per-dimension metadata plus harvested numeric telemetry so
-    runtime status/metrics surfaces inherit audit-ready values under pytest
-    coverage.【F:src/sensory/real_sensory_organ.py†L23-L233】【F:src/sensory/real_sensory_organ.py†L392-L489】【F:tests/sensory/test_real_sensory_organ.py†L96-L183】
-  - *Progress*: Component integrator now builds the full canonical sensory stack
-    (`create_sensory_organ` plus lineage publisher and WHY/HOW/WHAT/WHEN/ANOMALY
-    sensors), registers backward-compatible organ aliases, and keeps restart
-    paths wired so integration checks surface real sensor instances alongside
-    the enforced `RiskConfig` summary and shared risk runbook under refreshed
-    pytest coverage.【F:src/integration/component_integrator.py†L35-L317】【F:src/integration/component_integrator_impl.py†L67-L305】【F:tests/integration/test_component_integrator.py†L1-L25】【F:tests/integration/test_component_integrator_impl.py†L1-L43】
-  - *Progress*: Sensory metrics telemetry now converts the organ status feed into
-    dimension-level metrics, extracts numeric audit/order-book telemetry for each
-    dimension, captures drift-alert provenance, and publishes via the event-bus
-    failover helper so dashboards receive strength/confidence/threshold and raw
-    telemetry snapshots even when the runtime bus fails, with pytest locking the
-    contract and failover path.【F:src/operations/sensory_metrics.py†L1-L200】【F:tests/operations/test_sensory_metrics.py†L1-L130】
-  - *Progress*: Sensory summary publisher now normalises integrated sensor
-    payloads into ranked Markdown/JSON snapshots, captures drift metadata, and
-    emits telemetry via the event-bus failover helper so dashboards inherit
-    resilient sensory rollups backed by pytest coverage of runtime and failover
-    paths.【F:src/operations/sensory_summary.py†L1-L215】【F:tests/operations/test_sensory_summary.py†L1-L155】
-  - *Progress*: Sensory lineage publisher now normalises HOW/ANOMALY lineage
-    records, keeps a bounded inspection history, and publishes via either
-    runtime or global event-bus bridges while the real sensory organ pipes its
-    dimension metadata through the publisher so responders inherit auditable
-    provenance snapshots under pytest coverage of publish/fallback paths.【F:src/sensory/lineage_publisher.py†L1-L193】【F:src/sensory/real_sensory_organ.py†L41-L489】【F:tests/sensory/test_lineage.py†L11-L145】【F:tests/sensory/test_real_sensory_organ.py†L96-L183】
-  - *Progress*: Professional runtime now captures the integrated sensory status
-    feed, publishes the hardened summary/metrics telemetry, and caches the last
-    snapshots so the Predator app summary exposes Markdown/JSON payloads for
-    responders under regression coverage of the builder and app surfaces.【F:src/runtime/runtime_builder.py†L322-L368】【F:src/runtime/predator_app.py†L600-L1139】【F:tests/runtime/test_runtime_builder.py†L121-L207】【F:tests/runtime/test_professional_app_timescale.py†L1328-L1404】
-  - *Progress*: Core module now re-exports the canonical sensory organ
-    implementation, normalises drift-config inputs, and drops the legacy stub
-    fallback so runtime consumers always receive the real organ with regression
-    coverage verifying alias stability and drift configuration coercion.【F:src/core/__init__.py†L14-L33】【F:src/core/sensory_organ.py†L1-L36】【F:tests/core/test_core_sensory_exports.py†L1-L22】
-  - *Progress*: Legacy market-data capture shim now raises a descriptive
-    `ModuleNotFoundError`, and guard tests assert the package-level removal so ingest
-    tooling moves to the managed Timescale pipelines instead of the retired recorder.【F:src/operational/md_capture.py:1】【F:tests/operational/test_md_capture.py:1】
-- [ ] **Risk and runtime safety** – Enforce `RiskConfig`, finish the builder rollout,
-  adopt supervised async lifecycles, and purge deprecated facades.
-  - *Progress*: Safety manager normalises kill-switch paths (including env and relative inputs), logs unreadable sentinels, and keeps system config exports in sync so live-mode guardrails stay enforceable with regression coverage for the configuration shim.【F:src/governance/safety_manager.py†L21-L74】【F:src/governance/system_config.py†L139-L413】【F:tests/governance/test_security_phase0.py†L47-L85】
-  - *Progress*: The trading risk gateway now caches risk API summaries, attaches
-    runbook-backed `risk_reference` payloads to decisions and limit snapshots,
-    enforces drawdown/exposure/liquidity/policy checks through the real risk
-    manager, and records portfolio telemetry so downstream tooling inherits
-    deterministic escalation metadata under regression coverage.【F:src/trading/risk/risk_gateway.py†L232-L430】【F:src/trading/trading_manager.py†L134-L210】【F:tests/current/test_risk_gateway_validation.py†L1-L213】
-  - *Progress*: Canonical `RiskManager` facade now lives in `src.risk`, with core
-    exports, the component integrator, and trading manager resolving factories
-    from the same module while capturing risk-config summaries so orchestration
-    and runtime share deterministic enforcement under regression coverage.【F:src/risk/manager.py†L1-L128】【F:src/core/__init__.py†L14-L33】【F:src/integration/component_integrator.py†L17-L169】【F:src/trading/trading_manager.py†L17-L175】【F:tests/current/test_orchestration_compose.py†L12-L159】
-  - *Progress*: `RuntimeApplication` now owns a shared `TaskSupervisor`, rejects
-    rebinding while workloads are active, and routes workload tasks through the
-    supervisor so shutdown sweeps background jobs cleanly; the runtime runner reuses
-    existing supervisors or binds injected ones, and the professional builder passes
-    the app supervisor into institutional ingest provisioners so managed connectors
-    and governance cadence share lifecycle telemetry under pytest coverage of runner
-    and ingest orchestration flows.【F:src/runtime/runtime_builder.py†L768-L3870】【F:src/runtime/runtime_runner.py†L17-L121】【F:tests/runtime/test_runtime_runner.py†L12-L129】【F:tests/runtime/test_institutional_ingest_vertical.py†L110-L186】
-  - *Progress*: Deterministic trading risk API still exposes structured metadata
-    and the shared `RISK_API_RUNBOOK`, while the trading manager now merges the
-    gateway limits, runtime risk summary, and cached decisions into
-    `risk_reference` payloads returned from `get_risk_status()` so supervisors
-    receive the enforced configuration plus escalation pointers under pytest
-    coverage.【F:docs/api/risk.md†L1-L24】【F:docs/operations/runbooks/risk_api_contract.md†L1-L31】【F:src/trading/risk/risk_api.py†L1-L158】【F:src/runtime/runtime_builder.py†L323-L353】【F:src/trading/trading_manager.py†L1255-L1343】【F:tests/runtime/test_runtime_builder.py†L200-L234】【F:tests/trading/test_risk_api.py†L90-L152】【F:tests/trading/test_trading_manager_execution.py†L1501-L1566】
-  - *Progress*: Trading manager now emits dedicated risk interface telemetry,
-    hydrates `describe_risk_interface()` with merged runbook summaries, and
-    persists the last snapshot/error so dashboards, bootstrap tools, and pilots
-    surface consistent escalation metadata under pytest coverage of snapshot and
-    alert propagation.【F:src/trading/risk/risk_interface_telemetry.py†L1-L156】【F:src/trading/trading_manager.py†L1370-L1409】【F:tests/trading/test_trading_manager_execution.py†L1309-L1541】
-  - *Progress*: Mock FIX manager coercion helpers now reject non-ASCII payloads,
-    guard exploding order-book adapters, and keep safe fallbacks under pytest
-    coverage so offline pilots cannot trigger Unicode decode errors or leak
-    exceptions when fuzzed inputs arrive.【F:src/operational/mock_fix.py†L303-L360】【F:tests/operational/test_mock_fix_security.py†L1-L56】
-  - *Progress*: FIX integration pilot now exports supervised runtime metadata,
-    exposes a `run_forever` trading workload, and ships a builder helper that
-    wraps the pilot into a runtime application so brokers inherit the risk API
-    runbook, task-supervisor stats, trading-manager risk summary, and graceful
-    shutdown semantics under pytest coverage of the runtime harness.【F:src/runtime/fix_pilot.py†L112-L165】【F:src/runtime/fix_pilot.py†L225-L236】【F:src/runtime/fix_pilot.py†L496-L517】【F:src/runtime/__init__.py†L15-L107】【F:tests/runtime/test_fix_pilot.py†L166-L260】
-  - *Progress*: Bootstrap control center, bootstrap runtime status, and FIX pilot
-    snapshots now build deterministic risk metadata, merge gateway/interface
-    references through the canonical helper, cache runbook or error payloads, and
-    surface risk-config summaries alongside the shared escalation link so control
-    rooms, status CLIs, and pilots share the same risk evidence under regression
-    coverage.【F:src/operations/bootstrap_control_center.py†L232-L511】【F:src/trading/risk/risk_api.py†L201-L238】【F:src/runtime/bootstrap_runtime.py†L210-L334】【F:src/runtime/fix_pilot.py†L22-L318】【F:tests/current/test_bootstrap_control_center.py†L151-L198】【F:tests/runtime/test_fix_pilot.py†L115-L178】
-  - *Progress*: Execution engine and the legacy FIX executor now record
-    deterministic risk context metadata via the shared `_risk_context` helper,
-    capturing provider failures with runbook-tagged error payloads, exposing
-    `describe_risk_context()`, and embedding snapshots inside their execution
-    flows so downstream telemetry inherits the same escalation evidence under
-    asyncio coverage of metadata and error paths.【F:src/trading/execution/execution_engine.py†L12-L231】【F:src/trading/execution/fix_executor.py†L65-L152】【F:src/trading/execution/_risk_context.py†L1-L88】【F:tests/current/test_execution_engine.py†L90-L131】【F:tests/current/test_fix_executor.py†L221-L263】
-  - *Progress*: `RiskConfig` now normalises sector/instrument mappings, rejects
-    duplicate or missing sector limits, enforces that individual and combined
-    sector budgets never exceed the global exposure cap, and continues to
-    enforce position sizing plus research-mode overrides so governance reviews
-    inherit deterministic, de-duplicated risk inputs under pytest
-    coverage.【F:src/config/risk/risk_config.py†L10-L213】【F:tests/risk/test_risk_config_validation.py†L39-L90】
-  - *Progress*: Risk policy guardrail suite now exercises approvals, exposure
-    breaches, leverage warnings, research-mode overrides, closing-position
-    allowances, price fallbacks, ratio metadata, and derived-equity scenarios
-    under the `guardrail` marker so CI fails fast when institutional limit
-    enforcement or telemetry contracts regress.【F:tests/trading/test_risk_policy.py†L1-L511】
-  - *Progress*: Runtime builder now resolves the canonical `RiskConfig` from the
-    trading manager, validates mandatory thresholds, wraps invalid payloads in a
-    deterministic runtime error, and logs the enforced posture under regression
-    coverage so supervised launches cannot proceed with missing or malformed
-    limits. The builder now refuses to launch when mandatory stop-loss controls
-    are disabled outside research mode, emitting the shared risk API runbook
-    alias so supervisors inherit a consistent escalation path under pytest
-    coverage.【F:src/runtime/runtime_builder.py†L323-L353】【F:src/trading/risk/risk_api.py†L23-L44】【F:tests/runtime/test_runtime_builder.py†L200-L234】
-  - *Progress*: Builder enforcement now fails fast when the trading manager is
-    missing, recording a `risk_error` payload with the shared runbook reference
-    and raising a deterministic runtime exception so miswired runtimes cannot
-    bypass risk controls, with pytest guarding the contract.【F:src/runtime/runtime_builder.py†L690-L739】【F:tests/runtime/test_runtime_builder.py†L268-L294】
-  - *Progress*: A supervised runtime runner now wraps professional workloads in a
-    shared `TaskSupervisor`, wiring graceful signal handling, optional timeouts,
-    and deterministic shutdown callbacks so runtime launches inherit the same
-    lifecycle guarantees as the builder, with pytest exercising normal and
-    timeout-driven exits.【F:src/runtime/runtime_runner.py†L1-L120】【F:main.py†L71-L125】【F:tests/runtime/test_runtime_runner.py†L1-L58】
-  - *Progress*: Risk policy evaluation now derives equity from cash and open
-    positions when balances are missing, normalises string portfolio payloads,
-    skips malformed position entries, and continues to enforce mandatory stop
-    losses plus resolved price fallbacks so CI catches guardrail drift before it
-    reaches execution flows.【F:src/trading/risk/risk_policy.py†L29-L238】【F:tests/trading/test_risk_policy.py†L178-L511】
-  - *Progress*: Policy telemetry helpers now serialise deterministic decision
-    snapshots, render Markdown summaries, and publish violation alerts with
-    embedded runbook metadata while the trading manager escalates breached
-    guardrails and regression tests lock the payload contract, giving operators
-    an actionable feed plus an escalation playbook whenever policy violations
-    surface.【F:src/trading/risk/policy_telemetry.py†L1-L285】【F:src/trading/trading_manager.py†L1700-L1744】【F:docs/operations/runbooks/risk_policy_violation.md†L1-L51】【F:tests/trading/test_risk_policy_telemetry.py†L1-L422】
-  - *Progress*: Liquidity prober and execution adapters now rely on the shared
-    risk-context helpers to capture deterministic metadata, surface provider
-    failures as structured errors, and propagate custom runbook overrides so
-    telemetry consumers inherit the most specific escalation path available
-    under pytest coverage of success and failure probes.【F:src/trading/execution/_risk_context.py†L1-L120】【F:src/trading/execution/liquidity_prober.py†L40-L340】【F:tests/trading/test_execution_liquidity_prober.py†L96-L138】【F:tests/trading/test_execution_risk_context.py†L40-L88】
-  - *Progress*: Parity checker telemetry now resolves the metrics sink once,
-    logs failures to access or publish gauges, and emits guarded order/position
-    mismatch counts so institutional monitors see parity outages instead of
-    silently dropping telemetry when instrumentation breaks.【F:src/trading/monitoring/parity_checker.py†L53-L156】
-  - *Progress*: FIX broker interface risk telemetry now falls back to the
-    deterministic risk API contract when provider lookups fail, merges gateway
-    limit snapshots with interface summaries, and always includes the shared
-    risk API runbook so manual pilot alerts retain actionable escalation
-    metadata under pytest coverage.【F:src/trading/integration/fix_broker_interface.py†L211-L330】【F:tests/trading/test_fix_broker_interface_events.py†L170-L239】
-  - *Progress*: FIX broker interface now routes every manual intent through the real
-    risk gateway, publishes structured rejection telemetry with policy snapshots,
-    deterministic severity flags, and runbook links, and records the gateway
-    decision/portfolio metadata on approved orders so FIX pilots inherit the same
-    deterministic guardrails plus a manual risk block playbook under pytest
-    coverage.【F:src/trading/integration/fix_broker_interface.py†L211-L604】【F:tests/trading/test_fix_broker_interface_events.py†L14-L239】【F:docs/operations/runbooks/manual_fix_order_risk_block.md†L1-L38】
-- [x] **Quality and observability** – Expand regression coverage, close the
-  documentation gap, and track remediation progress through CI snapshots.
-  - [x] Publish decision narration capsules that link policy-ledger diffs, sigma
-    stability metrics, and throttle states into the observability diary schema
-    so AlphaTrade reviewers inherit a single provenance trail.【F:docs/context/alignment_briefs/quality_observability.md†L178-L182】
-  - *Progress*: Decision narration capsule helpers now normalise ledger diffs,
-    sigma stability, throttle states, and publish Markdown/JSON payloads through
-    the event-bus failover helper so observability diaries stay resilient under
-    runtime outages with pytest guarding the contract.【F:src/operations/observability_diary.py†L3-L392】【F:tests/operations/test_observability_diary.py†L1-L190】
-  - [x] Extend sensory drift regressions with Page–Hinkley sentries, replay
-    determinism fixtures, and Prometheus exports that document throttle
-    behaviour for the understanding loop.【F:docs/context/alignment_briefs/quality_observability.md†L184-L186】
-  - [x] Instrument SLO probes for loop latency, drift alert freshness, and replay
-    determinism across Prometheus exporters and guardrail suites.【F:docs/context/alignment_briefs/quality_observability.md†L187-L189】
-  - [x] Wire Slack/webhook alert mirrors, rehearse forced-failure drills, and log
-    MTTA/MTTR in CI dashboards so responders stay aligned with telemetry
-    changes.【F:docs/context/alignment_briefs/quality_observability.md†L171-L174】
-  - [x] Refresh CI dashboard rows and weekly status updates with telemetry
-    deltas so roadmap evidence remains synchronised with delivery.【F:docs/context/alignment_briefs/quality_observability.md†L175-L177】
-  - *Progress*: CI health snapshot and weekly status log now capture coverage and
-    remediation deltas with evidence pointers, keeping roadmap artefacts aligned
-    with the latest telemetry exports.【F:docs/status/ci_health.md†L10-L21】【F:docs/status/quality_weekly_status.md†L18-L35】
-  - *Progress*: Event bus health publishing now routes through the shared
-    failover helper, logging runtime publish failures, propagating metadata to
-    the global bus, and raising typed errors when both transports degrade so
-    operators see deterministic alerts instead of silent drops. Guardrail tests
-    capture primary fallbacks, global outages, and backlog escalation.【F:src/operations/event_bus_health.py†L143-L259】【F:tests/operations/test_event_bus_health.py†L22-L235】
-  - *Progress*: Evolution tuning telemetry publisher now reuses the shared
-    failover helper, warning on runtime bus outages, escalating unexpected
-    errors, and exercising fallback/global-error coverage so tuning snapshots
-    stay observable when transports degrade.【F:src/operations/evolution_tuning.py†L410-L433】【F:tests/operations/test_evolution_tuning.py†L226-L281】
-  - *Progress*: Execution readiness telemetry now rides the shared failover
-    helper, logging runtime publish failures, escalating unexpected runtime and
-    global bus errors, and falling back deterministically to the global topic
-    so dashboards keep receiving readiness snapshots, with pytest coverage
-    documenting the fallback contract.【F:src/operations/execution.py†L611-L648】【F:tests/operations/test_execution.py†L100-L134】
-  - *Progress*: Regulatory telemetry publisher now reuses the failover helper,
-    logging runtime publish failures, escalating unexpected errors, and
-    documenting global-bus fallbacks so compliance dashboards retain snapshots
-    even during runtime outages.【F:src/operations/regulatory_telemetry.py†L11-L388】【F:tests/operations/test_regulatory_telemetry.py†L18-L160】
-  - *Progress*: Strategy performance telemetry aggregates execution/rejection
-    ratios, ROI snapshots, and rejection reasons into Markdown summaries, then
-    publishes the payload via the shared failover helper so dashboards and
-    runtime reports inherit the same hardened transport guarantees under pytest
-    coverage.【F:src/operations/strategy_performance.py†L200-L531】【F:tests/operations/test_strategy_performance.py†L68-L193】
-  - *Progress*: CI metrics tooling now summarises trend staleness across
-    coverage, formatter, domain, and remediation feeds, flagging stale
-    telemetry windows with timestamps and age calculations so roadmap evidence
-    highlights expired observability snapshots under pytest coverage.【F:tools/telemetry/ci_metrics.py†L214-L320】【F:tests/tools/test_ci_metrics.py†L210-L360】
-  - *Progress*: Alert drill CLI and metrics updater now generate timeline JSON
-    payloads for forced-failure rehearsals, parse MTTA/MTTR data, and append
-    alert-response entries to the CI metrics feed so dashboards surface
-    acknowledgement and recovery cadence alongside coverage trends under pytest
-    coverage of the CLI/aggregator path.【F:tools/telemetry/alert_drill.py†L29-L172】【F:tools/telemetry/update_ci_metrics.py†L134-L279】【F:tools/telemetry/ci_metrics.py†L597-L658】【F:tests/tools/test_alert_drill.py†L9-L58】【F:tests/tools/test_ci_metrics.py†L340-L618】
-  - *Progress*: Incident response readiness now parses policy/state mappings into
-    a severity snapshot, derives targeted alert events, and publishes telemetry
-    via the shared failover helper so operators get actionable runbook, roster,
-    and backlog evidence under pytest coverage covering escalation, dispatch,
-    and publish failure paths.【F:src/operations/incident_response.py†L1-L715】【F:tests/operations/test_incident_response.py†L1-L200】
-  - *Progress*: System validation evaluator ingests JSON/structured reports,
-    normalises timestamps and success rates, logs malformed history payloads at
-    debug, renders Markdown, derives alert events, and routes/publishes snapshots
-    through the failover helper so readiness dashboards retain failing-check
-    context even when the runtime bus degrades, with pytest guarding evaluation,
-    alerting, and failover flows.【F:src/operations/system_validation.py†L233-L889】【F:tests/operations/test_system_validation.py†L1-L195】
-  - *Progress*: Coverage matrix CLI now surfaces lagging domains, exports the
-    full set of covered source files, and enforces required guardrail suites via
-    `--require-file`, failing CI when critical reports disappear and logging
-    missing paths under pytest coverage.【F:tools/telemetry/coverage_matrix.py†L83-L357】【F:tests/tools/test_coverage_matrix.py†L136-L225】
-  - *Progress*: Observability dashboard integrates operational readiness
-    snapshots as a first-class panel, summarising component severities and
-    surfacing degraded services alongside risk, latency, and backbone telemetry
-    under regression coverage so responders inherit a consolidated operational
-    view.【F:src/operations/observability_dashboard.py†L754-L815】【F:tests/operations/test_observability_dashboard.py†L220-L293】
-  - *Progress*: Observability dashboard guard CLI now grades snapshot freshness,
-    required panels, failing slices, and normalised overall status strings with
-    machine-readable output plus severity-driven exit codes so CI pipelines and
-    drills can block on stale, failing, or operator-reported WARN/FAIL snapshots
-    under pytest coverage.【F:tools/telemetry/dashboard_guard.py†L1-L220】【F:tests/tools/test_dashboard_guard.py†L16-L140】
-  - *Progress*: Configuration audit telemetry now normalises `SystemConfig`
-    diffs, grades tracked toggles plus extras, renders Markdown summaries with a
-    severity breakdown, and publishes via the shared failover helper so
-    configuration changes leave a durable, event-bus-backed audit trail with
-    explicit severity counts and highest-risk fields for operators and
-    governance reviewers.【F:src/operations/configuration_audit.py†L90-L210】【F:tests/operations/test_configuration_audit.py†L24-L86】
-  - *Progress*: CI metrics staleness guard CLI summarises coverage, formatter,
-    domain, and remediation telemetry ages, supports human/JSON output, and
-    fails builds when trends go stale or evidence is missing under pytest
-    coverage so roadmap reviews inherit fresh observability evidence without
-    manual checks.【F:tools/telemetry/ci_metrics_guard.py†L1-L142】【F:tests/tools/test_ci_metrics_guard.py†L1-L99】
-  - *Progress*: Legacy operational health monitor shim now raises a guided
-    `ModuleNotFoundError`, and regression tests ensure imports fail so observability
-    tooling adopts the canonical operations telemetry surface instead of the retired
-    implementation.【F:src/operational/health_monitor.py:1】【F:tests/operational/test_health_monitor.py:1】
-  - *Progress*: Bootstrap control centre helpers now whitelist expected
-    runtime/value/type errors across champion payload, trading-manager, snapshot,
-    and formatter hooks, logging those failures while propagating unexpected
-    exceptions so bootstrap diagnostics stay visible without masking genuine
-    defects, with pytest guarding the fallback payload and surfacing behaviour.【F:src/operations/bootstrap_control_center.py†L26-L605】【F:tests/current/test_bootstrap_control_center.py†L204-L252】
-  - *Progress*: Bootstrap orchestration now wraps sensory listeners,
-    liquidity probers, and control-centre callbacks with structured error
-    logging so optional observability hooks surface failures without breaking
-    the decision loop, with pytest capturing the emitted diagnostics.【F:src/orchestration/bootstrap_stack.py†L81-L258】【F:tests/current/test_bootstrap_stack.py†L164-L213】
-  - *Progress*: Failover drill fallback execution now only suppresses connection,
-    timeout, runtime, and OS errors, logging the stack trace and returning error
-    metadata so optional drills do not swallow unexpected failures while keeping
-    deterministic snapshot payloads for operators.【F:src/operations/failover_drill.py†L29-L174】【F:tests/operations/test_failover_drill.py†L95-L126】
-  - *Progress*: Observability dashboard risk telemetry now annotates each metric
-    with limit values, ratios, and violation statuses while preserving serialised
-    payloads, backed by regression coverage so operators inherit actionable risk
-    summaries instead of opaque aggregates.【F:src/operations/observability_dashboard.py†L627-L694】【F:tests/operations/test_observability_dashboard.py†L220-L320】
-  - *Progress*: Observability dashboard composer now fuses ROI, risk, latency,
-    backbone, operational readiness, and quality panels into a single snapshot,
-    escalating severities from ROI status, risk-limit breaches, event-bus/SLO
-    lag, and coverage posture while retaining structured metadata for each panel
-    so dashboards and exporters inherit a complete readiness view.【F:src/operations/observability_dashboard.py†L566-L905】【F:tests/operations/test_observability_dashboard.py†L220-L320】
-  - *Progress*: Observability dashboard metadata now auto-populates panel status
-    counts, exports Markdown summaries, and retains the remediation capsule so
-    CI exporters and runbooks ingest machine-readable readiness snapshots without
-    recomputing counts, under pytest coverage that locks the contract.【F:src/operations/observability_dashboard.py†L147-L177】【F:src/operations/observability_dashboard.py†L907-L924】【F:tests/operations/test_observability_dashboard.py†L294-L316】
-  - *Progress*: Observability dashboard now emits a remediation summary capsule
-    that aggregates panel severities, highlights failing/warning slices, and is
-    regression-tested so CI status exporters can consume a canonical
-    institutional readiness snapshot without re-deriving counts.【F:src/operations/observability_dashboard.py†L110-L145】【F:tests/operations/test_observability_dashboard.py†L309-L316】
-  - *Progress*: Operational readiness aggregation now fuses system validation,
-    incident response, and ingest SLO snapshots into a single severity grade,
-    emits Markdown/JSON for dashboards, derives routed alert events, hardens
-    publish failover via the shared helper, and enriches metadata with status
-    breakdowns so dashboards can render severity chips without recomputing the
-    logic, under pytest coverage and documented contract updates.【F:src/operations/operational_readiness.py†L1-L373】【F:tests/operations/test_operational_readiness.py†L1-L221】【F:docs/status/operational_readiness.md†L1-L60】【F:tests/runtime/test_professional_app_timescale.py†L722-L799】
-  - *Progress*: FIX pilot telemetry now evaluates compliance, risk, drop-copy, and
-    queue posture against configurable policies, publishes snapshots through the
-    failover helper, and documents the publishing contract under pytest so FIX
-    deployments surface actionable readiness evidence even when the runtime bus
-    degrades.【F:src/operations/fix_pilot.py†L62-L373】【F:tests/operations/test_fix_pilot_ops.py†L1-L164】
-  - *Progress*: Compliance readiness snapshots now include workflow portfolio
-    status alongside trade and KYC telemetry, escalating blocked checklists,
-    surfacing active task counts, and retaining the hardened publish failover so
-    governance teams see actionable workflow posture even during runtime bus
-    outages.【F:src/operations/compliance_readiness.py†L262-L420】【F:tests/operations/test_compliance_readiness.py†L58-L213】
-  - *Progress*: Governance reporting cadence now publishes through the shared
-    failover helper with typed escalation messages, merges section statuses and
-    summaries into report metadata, derives top-level compliance/regulatory/audit
-    badges plus status breakdown counts, and documents fallback behaviour under
-    regression coverage so compliance reviewers always receive the compiled
-    KYC/AML, regulatory, and audit telemetry bundle.【F:src/operations/governance_reporting.py†L336-L586】【F:src/operations/data/governance_context/compliance_baseline.json†L1-L24】【F:tests/operations/test_governance_reporting.py†L110-L196】
-  - *Progress*: System validation telemetry now attaches failing check names and
-    messages to snapshot metadata and Markdown output while continuing to route
-    through the shared failover helper, so readiness dashboards surface the
-    precise failing checks even when the runtime bus degrades, with pytest
-    verifying metadata capture and failover escalation.【F:src/operations/system_validation.py†L724-L889】【F:tests/operations/test_system_validation.py†L77-L160】
-  - *Progress*: Professional readiness snapshot builder now normalises component
-    timestamps, ingests operational readiness telemetry as a first-class
-    component, and aggregates issue counts plus status metadata so dashboards
-    inherit a single severity view under expanded regression coverage.【F:src/operations/professional_readiness.py†L193-L405】【F:tests/operations/test_professional_readiness.py†L79-L180】
-  - *Progress*: Sensory drift telemetry publisher now routes through the shared
-    failover helper, logging runtime and global-bus degradation while retaining
-    deterministic payload metadata so dashboards receive alerts even when the
-    primary bus misbehaves.【F:src/operations/sensory_drift.py†L247-L276】【F:tests/operations/test_sensory_drift.py†L17-L163】
-  - *Progress*: Operational metrics regression suite now exercises fallback
-    execution, FIX wrapper sanitisation, and bounded latency histograms so guardrail
-    telemetry captures instrumentation failures instead of dropping them silently.
-    【F:src/operational/metrics.py†L1-L200】【F:tests/operational/test_metrics.py†L200-L328】
-  - *Progress*: Prometheus exporter hardening now narrows port parsing failures
-    to typed errors, logs the parsing context, and records telemetry sink import
-    issues so metrics startup surfaces actionable warnings instead of swallowing
-    unexpected exceptions.【F:src/operational/metrics.py†L545-L608】
-  - *Progress*: Guardrail manifest tests now enforce the presence and pytest marker
-    coverage of ingest orchestration, risk policy, and observability suites, and
-    assert that the CI workflow runs `pytest -m guardrail` plus enumerates the
-    guardrail-critical domains in the coverage sweep so the pipeline fails fast
-    if files, markers, or workflow hooks drift.【F:tests/runtime/test_guardrail_suite_manifest.py†L18-L91】
-  - *Progress*: CI telemetry tooling now records remediation status snapshots via
-    the `--remediation-status` CLI flag and validates the JSON contract under
-    pytest so roadmap evidence, dashboard feeds, and audits inherit structured
-    remediation progress without manual spreadsheets.【F:tools/telemetry/update_ci_metrics.py†L10-L176】【F:tests/tools/test_ci_metrics.py†L180-L332】【F:tests/.telemetry/ci_metrics.json†L1-L6】
-  - *Progress*: Coverage telemetry recorder now flags lagging domains, captures
-    the worst-performing slice, and tags threshold breaches in the CI metrics
-    feed while the CLI ingests observability dashboard snapshots into the
-    remediation trend so status exports inherit actionable coverage and
-    operational readiness deltas.【F:tools/telemetry/ci_metrics.py†L112-L337】【F:tools/telemetry/update_ci_metrics.py†L1-L169】【F:tests/tools/test_ci_metrics.py†L180-L309】
-  - *Progress*: Flake telemetry feed now records the adaptive release thresholds regression (node id, diff, duration) so automation reviews surface the gating failure alongside deterministic metadata for triage.【F:tests/.telemetry/flake_runs.json†L1-L20】
-  - *Progress*: CI digest CLI now renders dashboard rows and weekly digests from
-    the metrics JSON, calculating coverage/domain/remediation deltas with pytest
-    coverage and wiring straight into the status log so teams can paste evidence
-    into the backlog and weekly reports without manual collation.【F:tools/telemetry/ci_digest.py†L1-L240】【F:tests/tools/test_ci_digest.py†L1-L152】【F:docs/status/ci_health.md†L13-L19】【F:docs/status/quality_weekly_status.md†L1-L26】
-  - *Progress*: Quality telemetry snapshot builder now normalises coverage,
-    staleness, and remediation trends into a typed `QualityTelemetrySnapshot`,
-    escalating WARN/FAIL severities, retaining lagging-domain metadata, and
-    capturing remediation notes so CI exports feed dashboards with deterministic
-    coverage posture evidence.【F:src/operations/quality_telemetry.py†L1-L168】【F:tests/operations/test_quality_telemetry.py†L9-L53】
-  - *Progress*: Remediation summary exporter renders telemetry snapshots into
-    Markdown tables with delta call-outs, honours slice limits, omits deltas for
-    non-numeric statuses, and ships with a CLI/pytest contract so status reports
-    can ingest `tests/.telemetry/ci_metrics.json` without hand-curated decks.【F:tools/telemetry/remediation_summary.py†L1-L220】【F:tests/tools/test_remediation_summary.py†L22-L125】
-  - *Progress*: Status digest CLI fuses coverage, formatter, remediation,
-    freshness, and observability dashboard telemetry into Markdown for CI table
-    rows or weekly updates, with pytest locking the CLI contract so briefs and
-    sprint notes stay evidence-backed.【F:tools/telemetry/status_digest.py†L1-L347】【F:tests/tools/test_status_digest.py†L1-L217】【F:docs/context/alignment_briefs/quality_observability.md†L262-L271】
-- [ ] **Dead code and duplication** – Triage the 168-file dead-code backlog and
-  eliminate shim exports so operators see a single canonical API surface.【F:docs/reports/CLEANUP_REPORT.md†L71-L188】
-  - *Progress*: Removed the deprecated risk and evolution configuration shims,
-    deleted the core risk manager/stress/VaR stand-ins, and pointed callers at
-    the canonical implementations so consumers converge on the real modules when
-    new services arrive.【F:docs/reports/CLEANUP_REPORT.md†L71-L104】【F:src/core/__init__.py†L16-L46】【F:src/risk/analytics/var.py†L19-L121】
-  - *Progress*: Retired the legacy strategy template package and rewrote the
-    canonical mean reversion regression to exercise the modern trading
-    strategies API, shrinking the dead-code backlog and aligning tests with the
-    production surface.【F:docs/reports/CLEANUP_REPORT.md†L87-L106】【F:tests/current/test_mean_reversion_strategy.py†L1-L80】
-  - *Progress*: `src.core.configuration` now raises a descriptive
-    `ModuleNotFoundError` directing teams to import `SystemConfig`, with
-    regression coverage asserting the guidance so the retired shim cannot
-    silently resurface.【F:src/core/configuration.py†L1-L13】【F:tests/current/test_core_configuration_runtime.py†L1-L14】
-  - *Progress*: Operational package import now aliases `src.operational.event_bus`
-    to the canonical core implementation, keeping legacy paths alive while tests
-    assert the wiring so cleanup work can retire the shim safely.【F:src/operational/__init__.py†L1-L38】【F:tests/operational/test_event_bus_alias.py†L162-L178】
-  - *Progress*: Retired the remaining thinking-layer shims for FAISS pattern memory,
-    real-time learning, and sentient adaptation by replacing them with descriptive
-    `ModuleNotFoundError`s and guardrail tests so callers migrate to the canonical
-    sentient/intelligence modules without the legacy exports resurfacing.【F:src/thinking/memory/faiss_memory.py†L1-L12】【F:src/thinking/learning/real_time_learner.py†L1-L12】【F:src/thinking/sentient_adaptation_engine.py†L1-L11】【F:tests/thinking/test_shim_import_failures.py†L1-L34】
+Misalignments: The AlphaTrade vision calls for a rich, real-time sensory cortex with multiple specialized detectors and trustworthy signals; currently, the code’s perception layer is conceptually aligned but functionally limited to scaffolding
+GitHub
+. In particular, the blueprint’s emphasis on executable organs and fused signals is only partially realized – the code structure is there, but actual data quality, validation, and anomaly logic are lacking. This means the spirit of Perception (delivering reliable, validated market facts to downstream components) isn’t yet met in practice. The design itself is sound (no major structural misalignment), but the implementation is incomplete, leaving a gap to close before Perception can fully anchor the loop.
 
-## Roadmap cadence
+Adaptation (Policy Routing & Fast-Weight Learning)
 
-### Now (0–30 days)
+Implemented: The code implements an Understanding Router and a Policy Router that together realize the Adaptation stage of AlphaTrade. The UnderstandingRouter ingests belief snapshots and routes them to a chosen strategy/tactic, functioning as the decision-making “brain” that selects an action or intent
+GitHub
+GitHub
+. Crucially, fast-weight adaptation is integrated: the router supports Hebbian fast-weight updates – short-term adjustments to strategy preferences based on recent evidence
+GitHub
+. This means the system can amplify or dampen certain tactics dynamically (“neurons that fire together wire together”), consistent with the BDH-inspired fast-weight principle. The PolicyRouter in the thinking layer tracks strategy metadata (objectives, tags) and manages experiment lifecycles, allowing new tactics to be registered and providing reflection data on their performance
+GitHub
+GitHub
+. The overall Adaptation loop (Perception → Adaptation → Reflection) is coded in the AlphaTradeLoopOrchestrator, which ties router decisions to drift checks and governance gating
+GitHub
+GitHub
+. In summary, the adaptive decision-making framework – including configurable strategy routing and fast-weight toggles – is present and anchoring the system’s logic.
 
-- [x] **Stabilise runtime entrypoints** – Move all application starts through
-  `RuntimeApplication` and register background jobs under a task supervisor to
-  eliminate unsupervised `create_task` usage. Runtime CLI invocations and the
-  bootstrap sensory loop now run under `TaskSupervisor`, ensuring graceful
-  signal/time-based shutdown paths.【F:docs/technical_debt_assessment.md†L33-L56】【F:src/runtime/cli.py†L206-L249】【F:src/runtime/bootstrap_runtime.py†L227-L268】
-  - *Progress*: Phase 3 orchestrator now spawns continuous analysis and performance
-    monitors via the shared task supervisor, drains background tasks on stop, and
-    ships a guardrail smoke test so thinking pipelines inherit the same supervised
-    lifecycle contract as runtime entrypoints.【F:src/thinking/phase3_orchestrator.py†L103-L276】【F:tests/current/test_orchestration_runtime_smoke.py†L19-L102】
-- [ ] **Security hardening sprint** – Execute the remediation plan’s Phase 0:
-  parameterise SQL, remove `eval`, and address blanket exception handlers in
-  operational modules.【F:docs/development/remediation_plan.md†L34-L72】
-    - *Progress*: Hardened the SQLite-backed real portfolio monitor with managed
-      connections, parameterised statements, and narrowed exception handling to
-      surface operational failures instead of masking them.【F:src/trading/portfolio/real_portfolio_monitor.py†L1-L572】
-    - *Progress*: Strategy registry now opens per-operation SQLite connections,
-      raises typed errors, and uses parameterised statements so governance writes
-      are supervised instead of silently swallowed.【F:src/governance/strategy_registry.py†L1-L347】
-    - *Progress*: Data retention telemetry guards schema/table/timestamp
-      identifiers and uses SQLAlchemy parameter binding so operators cannot
-      inject raw SQL through policy configuration, with tests covering the
-      hardened contract.【F:src/operations/retention.py†L42-L195】【F:tests/operations/test_data_retention.py†L1-L118】
-    - *Progress*: Yahoo ingest persistence sanitises DuckDB table names, uses
-      parameterised deletes, and asserts gateway error handling so bootstrap
-      persistence cannot be hijacked by crafted identifiers or silent
-      failures.【F:src/data_foundation/ingest/yahoo_ingest.py†L82-L151】【F:tests/data_foundation/test_yahoo_ingest_security.py†L32-L80】【F:tests/data_integration/test_yfinance_gateway_security.py†L12-L56】
-    - *Progress*: Retired the legacy `icmarkets_robust_application` scaffolding so
-      the security sweep no longer claims coverage for a deleted stub; the
-      cleanup report now records the removal while the typed FIX connection
-      manager remains the canonical broker entrypoint.【F:docs/reports/CLEANUP_REPORT.md†L110-L170】【F:src/operational/fix_connection_manager.py†L21-L320】
-    - *Progress*: Portfolio tracker now falls back to an atomic JSON state store,
-      logs corrupted or missing snapshots, and persists fills by symbol with
-      regression coverage so parity checks and compliance telemetry inherit a
-      deterministic portfolio view even without Redis.【F:src/trading/monitoring/portfolio_tracker.py†L1-L139】【F:tests/trading/test_portfolio_tracker_security.py†L1-L30】
-    - *Progress*: Security posture publishing now warns and falls back to the
-      global bus when runtime publishing fails, raises on unexpected errors, and
-      documents the error-handling paths under pytest so telemetry outages cannot
-      disappear silently.【F:src/operations/security.py†L536-L579】【F:tests/operations/test_security.py†L148-L263】
-    - *Progress*: Event bus failover helper now powers security, system
-      validation, compliance readiness, incident response, and evolution
-      experiment publishing, replacing ad-hoc blanket handlers with typed errors
-      and structured logging so transport regressions escalate deterministically
-      across feeds.【F:src/operations/event_bus_failover.py†L1-L174】【F:src/operations/incident_response.py†L350-L375】【F:src/operations/evolution_experiments.py†L297-L342】【F:tests/operations/test_event_bus_failover.py†L1-L164】【F:tests/operations/test_incident_response.py†L123-L167】【F:tests/operations/test_evolution_experiments.py†L135-L191】
-    - *Progress*: Tactical adaptation and predictive market modeler state stores now decode
-      and persist JSON payloads, discard malicious blobs, and emit sorted serialisation so
-      the Phase 0 "remove eval" remit covers the thinking layer under fresh security
-      regressions guarding strategy parameters and prediction history persistence.【F:src/thinking/adaptation/tactical_adaptation_engine.py†L35-L331】【F:src/thinking/prediction/predictive_market_modeler.py†L444-L489】【F:tests/thinking/test_tactical_adaptation_security.py†L1-L72】【F:tests/thinking/test_predictive_market_modeler_security.py†L1-L62】
-    - *Progress*: Operational health monitor shim has been retired with a descriptive
-      `ModuleNotFoundError`, so context packs now point to the canonical operations telemetry
-      surfaces instead of maintaining a dead-code backlog entry.【F:src/operational/health_monitor.py:1】
-- [x] **Context pack refresh** – Replace legacy briefs with the updated context in
-  `docs/context/alignment_briefs` so discovery and reviews inherit the same
-  narrative reset (this change set).
-- [ ] **Coverage guardrails** – Extend the CI baseline to include ingest orchestration
-  and risk policy regression tests, lifting coverage beyond the fragile 76% line.
-  - *Progress*: Added an end-to-end regression for the real portfolio monitor to
-    exercise data writes, analytics, and reporting flows under pytest, closing a
-    previously untested gap in the trading surface.【F:tests/trading/test_real_portfolio_monitor.py†L1-L77】
-  - *Progress*: Added ingest observability and risk policy telemetry regression tests
-    so CI surfaces regressions in data backbone snapshots and policy evaluation
-    markdown output, covering metadata coercion, research-mode flags, bus publishing,
-    and violation alert payloads.【F:tests/data_foundation/test_ingest_observability.py†L1-L190】【F:tests/trading/test_risk_policy_telemetry.py†L1-L420】
-  - *Progress*: Data backbone readiness coverage now asserts failover trigger
-    metadata and Timescale recovery plan serialisation, while risk policy
-    regression tests lock mandatory stop-loss and equity budget enforcement so
-    coverage extensions land with actionable guardrails instead of brittle
-    placeholders.【F:tests/operations/test_data_backbone.py†L289-L347】【F:tests/trading/test_risk_policy.py†L178-L222】
-  - *Progress*: Coverage telemetry now emits per-domain matrices from the
-    coverage XML, with CLI tooling and pytest coverage documenting the JSON/markdown
-    contract so dashboards can flag lagging domains without scraping CI logs.【F:tools/telemetry/coverage_matrix.py†L1-L199】【F:tests/tools/test_coverage_matrix.py†L1-L123】【F:docs/status/ci_health.md†L13-L31】
-  - *Progress*: CI now renders an ingest coverage matrix after every guarded
-    pytest run, enforcing `coverage.xml` generation and minimum coverage for the
-    institutional Timescale pipeline while appending the Markdown summary to the
-    GitHub Actions run; the guardrail manifest locks the workflow step so
-    coverage gating cannot be removed silently.【F:.github/workflows/ci.yml†L95-L120】【F:tools/telemetry/coverage_matrix.py†L1-L199】【F:tests/runtime/test_guardrail_suite_manifest.py†L98-L114】
-  - *Progress*: CI workflow now fails fast if ingest, operations, trading, and
-    governance suites regress by pinning pytest entrypoints and coverage include
-    lists to those domains, preventing partial runs from passing unnoticed.【F:.github/workflows/ci.yml†L79-L120】【F:pytest.ini†L1-L14】【F:pyproject.toml†L45-L85】
-  - *Progress*: Ingest trend and Kafka readiness publishers now log event bus
-    failures, raise on unexpected exceptions, fall back to the global bus with
-    structured warnings, and surface offline-global cases under pytest coverage so
-    telemetry gaps raise alerts instead of disappearing silently.【F:src/operations/ingest_trends.py†L303-L336】【F:tests/operations/test_ingest_trends.py†L90-L148】【F:src/operations/kafka_readiness.py†L305-L328】【F:tests/operations/test_kafka_readiness.py†L219-L345】
-  - *Progress*: Kafka readiness suite now asserts required-topic and consumer
-    coverage, tolerates epoch millisecond lag timestamps, and renders Markdown
-    summaries so operations can embed readiness tables directly in incident
-    updates.【F:tests/operations/test_kafka_readiness.py†L116-L207】
-  - *Progress*: Security telemetry regression suite now exercises runtime-bus
-    fallbacks, global-bus escalation, and unexpected-error handling so security
-    posture publishing surfaces outages deterministically instead of silently
-    discarding events.【F:tests/operations/test_security.py†L101-L211】
-  - *Progress*: Cache health telemetry now logs primary bus failures, only falls
-    back once runtime errors are captured, and raises on unexpected or global-bus
-    errors with pytest guardrails so readiness dashboards record real outages
-    instead of silent drops.【F:src/operations/cache_health.py†L143-L245】【F:tests/operations/test_cache_health.py†L15-L138】
-  - *Progress*: Trading position model guardrails now run under pytest,
-    asserting timestamp updates, profit recalculations, and close flows so the
-    lightweight execution telemetry remains deterministic under CI coverage.【F:tests/trading/test_position_model_guardrails.py†L1-L105】
-  - *Progress*: Timescale ingest coverage now exercises migrator setup, idempotent
-    daily/intraday upserts, and macro event pathways so empty plans and windowed
-    flows keep writing deterministic telemetry under CI guardrails.【F:tests/data_foundation/test_timescale_ingest.py†L1-L213】
-  - *Progress*: Timescale ingest orchestrator regression suite now validates engine
-    lifecycle hooks, publisher metadata, empty-plan short-circuits, and guardrails
-    for missing intraday fetchers so institutional ingest cannot regress silently.【F:tests/data_foundation/test_timescale_backbone_orchestrator.py†L1-L200】
-  - *Progress*: CI now runs a dedicated `pytest -m guardrail` job ahead of the
-    coverage sweep, ensuring ingest, risk, and observability guardrail tests are
-    executed in isolation with deterministic markers and failing fast when
-    regressions surface.【F:.github/workflows/ci.yml†L79-L123】【F:pytest.ini†L1-L25】【F:tests/data_foundation/test_timescale_backbone_orchestrator.py†L1-L28】【F:tests/operations/test_event_bus_health.py†L1-L155】
-  - *Progress*: Coverage guardrail CLI now parses Cobertura reports, enforces
-    minimum percentages across ingest/risk targets, flags missing files, and
-    exposes JSON/text summaries with failure exit codes so CI and local triage
-    can block on regression hotspots deterministically.【F:tools/telemetry/coverage_guardrails.py†L1-L268】【F:tests/tools/test_coverage_guardrails.py†L1-L83】
-  - *Progress*: Runtime builder coverage now snapshots ingest plan dimensions,
-    trading metadata, and enforced risk summaries, while risk policy regressions
-    assert portfolio price fallbacks so ingest orchestration and risk sizing
-    guardrails stay under deterministic pytest coverage.【F:tests/runtime/test_runtime_builder.py†L1-L196】【F:tests/trading/test_risk_policy.py†L1-L511】
-  - *Progress*: Risk policy regression enforces minimum position sizing while the
-    observability dashboard tests assert limit-status escalation so CI catches
-    governance and telemetry drift before it hits production surfaces.【F:tests/trading/test_risk_policy.py†L311-L333】【F:tests/operations/test_observability_dashboard.py†L220-L320】
-  - *Progress*: Observability logging and dashboard suites now carry the
-    `guardrail` marker so CI can gatekeep their execution ahead of the broader
-    coverage sweep.【F:tests/observability/test_logging.py†L18-L24】【F:tests/operations/test_observability_dashboard.py†L24-L31】
-  - *Progress*: Ingest scheduler guardrails now exercise run-loop shutdown,
-    failure cut-offs, jitter windows, supervisor telemetry, snapshot builders,
-    and event publishing so Timescale scheduling instrumentation surfaces issues
-    immediately instead of stalling silently.【F:tests/data_foundation/test_ingest_scheduler.py†L1-L200】
-  - *Progress*: Institutional ingest services now ship guardrail coverage for
-    Redis/Kafka connectivity probes, scheduler wiring, failover drills, managed
-    manifest planning, and the provisioner’s Redis/Kafka factories, redacting
-    secrets while capturing supervisor state and recorded Kafka topics so
-    readiness dashboards inherit deterministic drill evidence even on
-    configuration fallbacks.【F:src/data_foundation/ingest/institutional_vertical.py:413】【F:src/data_foundation/ingest/institutional_vertical.py:437】【F:src/data_foundation/ingest/institutional_vertical.py:601】【F:tests/runtime/test_institutional_ingest_vertical.py:110】【F:tests/runtime/test_institutional_ingest_vertical.py:336】【F:tests/runtime/test_institutional_ingest_vertical.py:447】
-  - *Progress*: Risk policy warn-threshold coverage asserts that leverage and
-    exposure checks flip to warning states before violating limits, capturing
-    ratios, thresholds, and metadata so compliance reviewers can trust the
-    policy telemetry feed when positions approach guardrails.【F:tests/trading/test_risk_policy.py†L125-L170】
+Partially Implemented: While the routing and fast-weight mechanics exist, the broader Evolution Engine (adaptive intelligence that generates or mutates strategies) remains mostly scaffolding. The alignment plan envisioned an “institutional genome catalogue” and pipeline for evolving new strategies
+GitHub
+, but in code this is limited. The current adaptation relies on predefined strategies and simple heuristic adjustments. There are placeholders for evolutionary pipelines and integration with a strategy catalogue, but these are not fully fleshed out (many “adaptive population” features are toggled off or produce no-ops)
+GitHub
+. Fast-weight experiments are implemented behind a feature flag that requires governance approval
+GitHub
+, indicating that adaptive learning is not yet default. Additionally, the fast-weight updates currently apply a simple decay and boost to strategy weights; more complex behaviors (e.g. long-term learning or meta-learning) are not yet realized. Sparse positive activation – a key BDH principle where neurons have high-dimensional positive activations – is not explicitly enforced, although the groundwork (non-negative weight updates via Hebbian logic) is laid. In short, the adaptation layer has the basic fast-weight loop but is not yet the full intelligent, self-evolving system described in the blueprint.
 
-- [x] **AlphaTrade understanding loop sprint (Days 0–14)** – Stand up the live-shadow
-  Perception → Adaptation → Reflection loop so AlphaTrade parity work can ship
-  without capital risk.【F:docs/High-Impact Development Roadmap.md†L5-L21】【F:docs/High-Impact Development Roadmap.md†L73-L76】
-  - *Progress*: Belief/regime scaffolding now ships `BeliefState` buffers,
-    Hebbian updates, and regime FSM emitters that publish event-bus payloads with
-    PSD guardrails, golden fixtures, and guardrail pytest coverage so live-shadow
-    inputs bind to stable schemas.【F:src/understanding/belief.py†L39-L347】【F:tests/intelligence/test_belief_updates.py†L129-L200】【F:tests/intelligence/golden/belief_snapshot.json†L1-L120】
-  - [x] Implement `UnderstandingRouter` fast-weight adapters with feature gating,
-    configuration schema, and guardrail tests so strategy routing stays
-    auditable.【F:src/understanding/router.py†L70-L240】【F:src/understanding/router_config.py†L1-L320】【F:tests/understanding/test_understanding_router_config.py†L1-L88】【F:docs/context/examples/understanding_router.md†L1-L64】
-  - [x] Automate decision diaries and the probe registry with CLI exports and
-    governance hooks so reviewers inherit narrated decisions and probe
-    ownership.【F:docs/context/sprint_briefs/understanding_loop_v1.md†L63-L76】
-  - [x] Stand up drift sentry detectors, alert policies, and runbook updates that
-    tie Page–Hinkley/variance thresholds into readiness dashboards.【F:docs/context/sprint_briefs/understanding_loop_v1.md†L78-L91】【F:docs/High-Impact Development Roadmap.md†L52-L53】
-  - *Progress*: Understanding drift sentry now evaluates belief/regime metrics, publishes failover-aware telemetry, derives alert payloads, and pipes runbook metadata into operational readiness so incident responders inherit a single drift component across dashboards and alert policies under regression coverage.【F:src/operations/drift_sentry.py†L1-L399】【F:tests/intelligence/test_drift_sentry.py†L43-L135】【F:tests/operations/test_operational_readiness.py†L200-L283】【F:docs/operations/runbooks/drift_sentry_response.md†L1-L69】
-  - *Progress*: DriftSentry gate now ingests sensory drift snapshots, applies confidence/notional guardrails, and surfaces gating telemetry through runtime bootstrap and Predator app summaries; WARN severities and stage gates flip a `force_paper` flag that the release router turns into forced paper routes so drift incidents record audited reasons under enhanced trading manager regressions.【F:src/trading/gating/drift_sentry_gate.py†L321】【F:src/trading/execution/release_router.py†L175】【F:src/runtime/bootstrap_runtime.py†L161】【F:src/runtime/predator_app.py†L1012】【F:tests/trading/test_trading_manager_execution.py†L533】【F:tests/trading/test_drift_sentry_gate.py†L61】
-  - *Progress*: Sensory drift regression suite now ships a deterministic Page–Hinkley
-    replay fixture and metadata assertions so escalations reproduce the alert
-    catalog, runbook link, and detector stats with evidence bundles backed by
-    pytest coverage.【F:tests/operations/fixtures/page_hinkley_replay.json†L1-L128】【F:tests/operations/test_sensory_drift.py†L157-L218】
-  - [x] Deliver the policy ledger store, rebuild CLI, and governance checklist so
-    promotions trace back to DecisionDiary evidence.【F:docs/context/sprint_briefs/understanding_loop_v1.md†L93-L107】【F:docs/High-Impact Development Roadmap.md†L53-L54】
-  - *Progress*: Policy ledger store now persists promotion history, approvals, threshold overrides, and diary evidence, with a rebuild CLI that regenerates enforceable risk configs and router guardrails while exporting governance workflows under pytest coverage so AlphaTrade promotions stay auditable.【F:src/governance/policy_ledger.py†L1-L200】【F:src/governance/policy_rebuilder.py†L1-L141】【F:tools/governance/rebuild_policy.py†L1-L112】【F:tests/governance/test_policy_ledger.py†L33-L181】【F:tests/tools/test_rebuild_policy_cli.py†L11-L41】
-  - *Progress*: Policy promotion CLI now stages ledger updates end-to-end, parsing approvals, evidence IDs, threshold overrides, and optional policy deltas while enforcing decision-diary requirements so governance teams can automate promotions without editing JSON by hand under pytest coverage of success and failure paths.【F:tools/governance/promote_policy.py†L1-L240】【F:tests/tools/test_promote_policy_cli.py†L13-L124】
-  - *Progress*: AlphaTrade graduation CLI now supports `--apply`, promoting ledger
-    stages when recommendations clear blockers, annotating JSON/text summaries
-    with applied stages, and persisting the release via the ledger manager so
-    governance runs can execute graduation and evidence capture in one pass
-    under refreshed regression coverage.【F:tools/governance/alpha_trade_graduation.py†L1-L252】【F:tests/governance/test_policy_graduation.py†L253-L335】
-  - *Progress*: Policy router now ingests recorded reflection summaries and the decision diary CLI renders reflection digests with tactic, experiment, and window limits so reviewers rebuild understanding insights from stored diaries without replaying the loop.【F:src/thinking/adaptation/policy_router.py†L269】【F:tools/understanding/decision_diary_cli.py†L172】【F:tests/thinking/test_policy_router.py†L311】【F:tests/tools/test_decision_diary_cli.py†L173】
-  - [x] Provide graph diagnostics CLI, guardrailed acceptance workflow, and
-    operational dashboard tile so AlphaTrade deltas remain observable.【F:docs/context/sprint_briefs/understanding_loop_v1.md†L108-L128】
-  - *Progress*: Understanding diagnostics builder now emits sensory→belief→router→policy graphs with snapshot exports, wrapped by a CLI that renders JSON/DOT/Markdown and guarded by the `understanding_acceptance` marker plus dedicated pytest suite.【F:src/understanding/diagnostics.py†L395-L542】【F:src/understanding/__init__.py†L3-L22】【F:tools/understanding/graph_diagnostics.py†L1-L82】【F:tests/understanding/test_understanding_diagnostics.py†L15-L29】【F:pytest.ini†L2-L27】
-  - *Progress*: Observability dashboard now renders an understanding-loop panel summarising regime confidence, drift exceedances, experiments, and ledger approvals when diagnostics land, and escalates to WARN with CLI guidance whenever snapshots are missing so operators rebuild artifacts deterministically under guardrail tests.【F:src/operations/observability_dashboard.py†L822-L875】【F:tests/operations/test_observability_dashboard.py†L582-L624】
-  - *Progress*: Understanding metrics exporter now normalises throttle states into Prometheus gauges and hooks the observability dashboard so every loop snapshot publishes throttle posture, with replay fixtures and guardrail tests locking the gauge contract.【F:src/operational/metrics.py†L43-L428】【F:src/understanding/metrics.py†L1-L65】【F:tests/operational/test_metrics.py†L310-L360】【F:tests/understanding/test_understanding_metrics.py†L62-L125】【F:tests/operations/test_observability_dashboard.py†L609-L624】
-  - *Progress*: Bootstrap runtime now instantiates the real sensory organ with a
-    drift-tuned history buffer, streams observations into cortex metrics,
-    publishes summary/metrics/drift telemetry via the event-bus failover helper,
-    and exposes samples/audits via `status()` so supervisors inherit sensory
-    posture and live telemetry under dedicated runtime coverage.【F:src/runtime/bootstrap_runtime.py†L214-L492】【F:tests/runtime/test_bootstrap_runtime_sensory.py†L120-L196】
+Missing: The “Evolution Engine” is largely missing in practice. The system has no mechanism to create entirely new strategies or significantly alter algorithms based on performance – there is no genetic algorithm or gradient descent updating the strategy set. Also absent is the integration with a strategy catalogue or repository: e.g. selecting from a library of tactics or logging new variants into that library for future use
+GitHub
+. Advanced adaptation features like long-term memory of successful patterns, or automatic hyperparameter tuning of strategies over time, are not implemented. Moreover, the blueprint’s notion of adaptation includes mutating against real data feeds
+GitHub
+ – since real feeds aren’t hooked up yet (Perception gap), the adaptation cannot truly learn from live market behavior. Sparse positive activations (ensuring that only a small fraction of strategy “neurons” activate at a time, and that activations are non-negative) are not enforced by any module – this could be a design adjustment needed to align with BDH theory. In essence, the system does not yet learn new trading tactics or significantly improve existing ones on its own; it can only tweak weightings of pre-programmed tactics.
 
-### Next (30–90 days)
+Misalignments: Conceptually, the code aligns with the blueprint’s Adaptation loop – it has a router with fast-weight updates and the idea of evolving strategy preferences. However, there is a gap between the aspirational adaptive behavior (a rich evolution of strategies) and the current simplistic implementation. The BDH-inspired elements (fast weights) are present, but others (sparse activations, graph-based reasoning dynamics) are not explicitly present beyond basic data structures. The blueprint expects Adaptation to be highly dynamic and data-driven, whereas the current state is rule-based and limited. No fundamental architecture changes are needed (the scaffolding is in place), but significant development is required to realize the blueprint’s vision of an autonomous, learning “evolution engine” driving this component
+GitHub
+.
 
-- [ ] **Institutional ingest vertical** – Provision managed Timescale/Redis/Kafka
-  environments, implement supervised connectors, and document failover drills.
-  - *Progress*: Managed connector snapshots now capture probe error text and the
-    CLI resolves `SystemConfig` extras before rendering manifest/connectivity
-    health so operators inherit actionable failure reasons when institutional
-    pipelines degrade, under pytest coverage for the vertical and CLI surfaces.【F:src/data_foundation/ingest/institutional_vertical.py†L305-L370】【F:src/data_foundation/ingest/institutional_vertical.py†L662-L698】【F:tools/operations/managed_ingest_connectors.py†L200-L284】【F:tests/runtime/test_institutional_ingest_vertical.py:513】【F:tests/tools/test_managed_ingest_connectors.py†L33-L121】
-  - *Progress*: Managed services now expose Redis cache metrics alongside policy
-    metadata, promoting namespace/hit/miss telemetry into runtime summaries and
-    manifest snapshots so operators can confirm cache effectiveness under new
-    integration coverage for supervised runs and production slices.【F:src/data_foundation/ingest/institutional_vertical.py†L256-L337】【F:src/data_foundation/ingest/institutional_vertical.py†L584-L637】【F:tests/runtime/test_institutional_ingest_vertical.py†L138-L210】【F:tests/data_foundation/test_production_ingest_slice.py†L317-L330】
-  - *Progress*: A docker compose stack plus dotenv template now provision
-    Timescale, Redis, and Kafka services with matching ingest extras, the
-    managed connector CLI accepts `--env-file` and Kafka topic provisioning
-    flags, and operations docs walk through validation and failover drills so
-    teams can rehearse institutional ingest locally under regression coverage of
-    the CLI helpers.【F:docker/institutional-ingest/docker-compose.yml†L1-L83】【F:env_templates/institutional_ingest.env†L4-L31】【F:tools/operations/managed_ingest_connectors.py†L47-L416】【F:tests/tools/test_managed_ingest_connectors.py†L83-L144】【F:docs/operations/managed_ingest_environment.md†L1-L100】
-- [x] **Sensory cortex uplift** – Deliver executable HOW/ANOMALY organs, instrument
-  drift telemetry, and expose metrics through runtime summaries and the event
-  bus.
-  - *Progress*: Executable HOW/ANOMALY sensory organs now wrap the canonical
-    sensors, normalise frame/sequence payloads, maintain calibrated history
-    windows, and emit lineage, telemetry, and threshold posture metadata through
-    structured `SensoryReading`s with guardrail regression coverage so runtime
-    consumers inherit deterministic organs instead of placeholders.【F:src/sensory/organs/dimensions/executable_organs.py†L1-L226】【F:src/sensory/organs/__init__.py†L1-L9】【F:tests/sensory/test_dimension_organs.py†L1-L93】
-  - *Progress*: Real sensory organ now attaches metrics payloads to every
-    snapshot broadcast, wrapping dimension strength/confidence telemetry and the
-    integrated signal alongside drift summaries so downstream dashboards receive
-    a single event with metrics, lineage, and posture metadata under pytest
-    coverage.【F:src/sensory/real_sensory_organ.py†L198-L205】【F:tests/sensory/test_real_sensory_organ.py†L132-L158】
-- [ ] **Evolution engine foundation** – Seed realistic genomes, wire lineage
-  snapshots, and gate adaptive runs behind feature flags until governance reviews
-  complete.【F:docs/development/remediation_plan.md†L92-L167】
-  - *Progress*: Realistic genome seeding now materialises catalogue templates with jitter bounds, attaches lineage and performance metadata to spawned genomes, and refreshes orchestrator lineage snapshots so population statistics expose provenance under guardrail tests.【F:src/core/evolution/seeding.py†L1-L200】【F:src/orchestration/evolution_cycle.py†L125-L220】【F:tests/current/test_evolution_orchestrator.py†L60-L133】【F:tests/current/test_population_manager_with_genome.py†L91-L127】
-  - *Progress*: Recorded dataset helpers now persist real sensory observations to JSONL, keep lineage/drift metadata intact, and reload them into replay evaluators with strict/append guards so adaptive fitness runs can hydrate live evidence instead of mocks under pytest coverage.【F:src/evolution/evaluation/datasets.py†L1-L171】【F:src/evolution/__init__.py†L21-L71】【F:tests/evolution/test_recorded_dataset.py†L1-L108】
-  - *Progress*: Bootstrap runtime now constructs the evolution orchestrator from
-    system config extras, schedules cycle execution on a configurable interval,
-    and surfaces evolution telemetry plus cadence metadata via `status()` so
-    governance can observe adaptive readiness, with integration and runtime
-    tests guarding the wiring.【F:src/runtime/predator_app.py†L1992-L2124】【F:src/runtime/bootstrap_runtime.py†L310-L624】【F:tests/current/test_bootstrap_runtime_integration.py†L153-L169】【F:tests/runtime/test_bootstrap_runtime_sensory.py†L162-L194】
-  - *Progress*: Recorded replay CLI now evaluates genomes against archived sensory
-    datasets, renders JSON/Markdown dossiers, and enforces dataset/genome guards
-    so evolution squads can publish deterministic evidence without bespoke
-    notebooks.【F:tools/evolution/recorded_replay_cli.py†L1-L320】【F:tests/tools/test_recorded_replay_cli.py†L44-L148】
-- [ ] **Risk API enforcement** – Align trading modules with deterministic risk
-  interfaces, surface policy violations via telemetry, and add escalation runbooks.
-  - *Progress*: Risk gateway wiring now normalises intents, enforces
-    drawdown/exposure/liquidity guardrails, and publishes policy decisions so
-    trading managers consume the same deterministic risk manager path as the
-    runtime builder.【F:src/trading/trading_manager.py†L1-L320】【F:src/trading/risk/risk_gateway.py†L161-L379】【F:tests/current/test_risk_gateway_validation.py†L74-L206】
-  - *Progress*: Risk gateway decisions now attach deterministic `risk_reference`
-    payloads with runbook links, limit snapshots, and risk-config summaries,
-    caching the metadata for approved and rejected intents while broker events
-    surface the same context under regression coverage so responders inherit a
-    single audit trail across telemetry surfaces.【F:src/trading/risk/risk_gateway.py†L224-L519】【F:tests/current/test_risk_gateway_validation.py†L93-L407】【F:tests/trading/test_fix_broker_interface_events.py†L15-L152】
-  - *Progress*: Trading manager now hydrates governance surfaces with the
-    gateway’s limits snapshot, merges runtime-derived risk metadata, and
-    normalises `risk_reference` payloads while surfacing shared runbooks so
-    operations dashboards, status calls, and interface inspectors expose the
-    same audited configuration under pytest coverage.【F:src/trading/trading_manager.py†L1255-L1744】【F:src/trading/risk/risk_gateway.py†L396-L485】【F:tests/trading/test_trading_manager_execution.py†L1309-L1566】【F:tests/current/test_risk_gateway_validation.py†L391-L424】
-  - *Progress*: Professional runtime summaries now pin the shared risk API
-    runbook, attach runtime metadata, merge resolved interface details, and
-    surface structured `RiskApiError` payloads so operators inherit actionable
-    posture even when integrations degrade under pytest coverage.【F:src/runtime/predator_app.py†L995-L1063】【F:tests/current/test_runtime_professional_app.py†L304-L364】
-  - *Progress*: Liquidity prober tasks now run under the shared supervisor,
-    capture deterministic risk metadata or runbook-tagged failures, and expose
-    regression coverage so execution telemetry inherits auditable risk context
-    for every probe burst.【F:src/trading/execution/liquidity_prober.py†L1-L218】【F:tests/trading/test_execution_liquidity_prober.py†L64-L124】
-  - *Progress*: Execution adapters now share a dedicated risk-context harness;
-    paper fills, release routing, and trading manager snapshots all ingest the
-    same `build_runtime_risk_metadata` output (or surfaced `RiskApiError`
-    payloads) while tests assert the describe surfaces and provider propagation
-    stay wired across engines.【F:src/trading/execution/_risk_context.py†L1-L75】【F:src/trading/execution/paper_execution.py†L1-L108】【F:src/trading/execution/release_router.py†L1-L154】【F:src/trading/trading_manager.py†L1255-L1409】【F:tests/trading/test_execution_risk_context.py†L38-L165】
-- [ ] **AlphaTrade loop expansion (Days 15–90)** – Graduate the live-shadow pilot
-  into tactic experimentation, paper trading, and limited live promotions once V1
-  stabilises.【F:docs/High-Impact Development Roadmap.md†L74-L76】
-  - [x] Expand PolicyRouter tactics and fast-weight experimentation while
-    automating reflection summaries so reviewers see emerging strategies without
-    spelunking telemetry dumps.【F:docs/High-Impact Development Roadmap.md†L74-L74】
-  - *Progress*: PolicyRouter now serialises experiment regime filters, confidence
-    gates, and feature bounds into the reflection digest while the builder renders
-    the new gating columns and reviewer insights so experiment-driven tactics stay
-    auditable without replaying telemetry, covered by expanded pytest fixtures.【F:src/thinking/adaptation/policy_router.py†L16-L163】【F:src/thinking/adaptation/policy_reflection.py†L273-L307】【F:tests/thinking/test_policy_router.py†L230-L239】【F:tests/thinking/test_policy_reflection_builder.py†L80-L107】
-  - *Progress*: Reflection digest now highlights emerging tactics and experiments
-    with first/last-seen timestamps, decision counts, share, and gating metadata,
-    emitting reviewer insights that call out confidence thresholds and regime
-    filters so reviewers can spot new behaviour without spelunking raw telemetry,
-    under regression coverage for timezone normalisation and Markdown exports.【F:src/thinking/adaptation/policy_reflection.py†L153-L213】【F:src/thinking/adaptation/policy_router.py†L977-L1033】【F:tests/thinking/test_policy_reflection_builder.py†L80-L113】【F:tests/thinking/test_policy_router.py†L243-L277】
-  - *Progress*: Reflection digest now tracks confidence trends, feature
-    highlights, and weight multipliers while decision diaries and router
-    decisions surface weight-breakdown provenance so reviewers see how fast
-    weights and experiments shaped each promotion under new regression coverage.【F:src/thinking/adaptation/policy_router.py†L320-L377】【F:src/thinking/adaptation/policy_reflection.py†L205-L334】【F:src/understanding/decision_diary.py†L52-L82】【F:tests/thinking/test_policy_router.py†L59-L333】【F:tests/understanding/test_decision_diary.py†L68-L118】
-  - *Progress*: PolicyRouter now aggregates fast-weight applications, multiplier
-    spans, and final-score averages into dedicated `weight_stats` telemetry so
-    reviewers can correlate experiment outcomes with scoring dynamics without
-    replaying raw history payloads.【F:src/thinking/adaptation/policy_router.py†L493-L977】
-  - *Progress*: Observability dashboard now ships a policy reflection panel that
-    summarises analysed decisions, highlights top tactics/experiments/tags,
-    embeds reviewer insights, and retains exported Markdown/metadata so
-    compliance reviewers see reflection posture alongside readiness snapshots
-    under new guardrail coverage.【F:src/operations/observability_dashboard.py†L285-L390】【F:tests/operations/test_observability_dashboard.py†L627-L706】
-  - *Progress*: AlphaTrade loop orchestrator now ties the understanding router,
-    DriftSentry gate, policy ledger thresholds, and decision diary together so
-    tactic experiments emit stage-aware drift metadata, diary evidence, and reflection
-    artefacts in a single call path, with guardrail tests locking forced-paper decisions
-    and recorded payloads.【F:src/orchestration/alpha_trade_loop.py†L1-L200】【F:tests/orchestration/test_alpha_trade_loop.py†L1-L161】
-  - *Progress*: AlphaTrade loop runner now composes the belief emitter, regime
-    FSM, orchestrator, and trading manager, deriving trade plans from sensory
-    snapshots, forwarding intents, and surfacing loop artefacts so end-to-end
-    AlphaTrade ticks execute through one service object under async regression
-    coverage.【F:src/orchestration/alpha_trade_runner.py†L1-L372】【F:tests/orchestration/test_alpha_trade_runner.py†L1-L124】
-  - *Progress*: Trading manager now auto-installs the release-aware execution router
-    when a policy ledger is configured, reusing the assigned base engine across
-    paper/pilot/live routes, resolving the default stage from the ledger, and
-    preserving risk-context instrumentation so release telemetry stays live under
-    regression coverage.【F:src/trading/trading_manager.py†L140-L267】【F:src/trading/trading_manager.py†L1158-L1230】【F:tests/trading/test_trading_manager_execution.py†L775-L914】
-  - *Progress*: Trading manager and telemetry helpers now emit structured
-    release-route events alongside DriftSentry reports, exposing forced reasons,
-    audit metadata, and Markdown summaries so downstream dashboards inherit the
-    full release decision trail under regression coverage.【F:src/trading/gating/telemetry.py†L1-L199】【F:src/trading/trading_manager.py†L863-L935】【F:tests/trading/test_drift_gate_telemetry.py†L10-L159】【F:tests/trading/test_trading_manager_execution.py†L775-L914】
-  - *Progress*: AdversarialTrainer now logs generator signature mismatches,
-    captures unexpected training failures with stack traces, and preserves
-    heuristic fallbacks so migration bugs surface during experimentation without
-    stalling adaptive runs.【F:src/thinking/adversarial/adversarial_trainer.py†L14-L140】
-  - *Progress*: Prediction, survival, and red-team normalisers now swallow
-    exploding `.dict()` calls and attribute errors while regression tests lock the
-    defensive paths so AlphaTrade analysis surfaces stay resilient to integration
-    payload drift.【F:src/thinking/models/normalizers.py†L26-L182】【F:tests/thinking/test_normalizers.py†L1-L85】
-  - [x] Enable selective paper-trade execution with DriftSentry gating
-    promotions and PolicyLedger enforcing audit coverage ahead of live capital
-    exposure.【F:docs/High-Impact Development Roadmap.md†L75-L75】
-  - *Progress*: Trading manager now forces paper execution when DriftSentry blocks a promotion, preserves risk-gateway validation, records forced-paper experiment events, and publishes drift telemetry with the new status so selective execution captures audited reasons under refreshed regression coverage.【F:src/trading/trading_manager.py†L339-L438】【F:tests/trading/test_trading_manager_execution.py†L303-L347】【F:tests/trading/test_trading_manager_execution.py†L577-L607】【F:tests/trading/test_drift_gate_telemetry.py†L82-L103】
-  - *Progress*: Drift gate telemetry now publishes structured events and Markdown
-    summaries through the event bus whenever gating decisions fire, capturing
-    status, severity, forced-paper posture, and routing metadata so dashboards
-    and audits inherit auditable drift enforcement under new pytest coverage in
-    the trading manager suite.【F:src/trading/gating/telemetry.py†L1-L170】【F:src/trading/trading_manager.py†L360-L612】【F:src/trading/trading_manager.py†L863-L935】【F:tests/trading/test_drift_gate_telemetry.py†L1-L118】【F:tests/trading/test_trading_manager_execution.py†L775-L914】
-  - *Progress*: Adaptive release thresholds now derive ledger stages,
-    tighten confidence/notional guardrails based on sensory drift severity, and
-    feed TradingManager gating plus release posture telemetry so promotions
-    honour governance approvals under guardrail tests.【F:src/trading/gating/adaptive_release.py†L47-L211】【F:src/trading/trading_manager.py†L183-L659】【F:tests/trading/test_adaptive_release_thresholds.py†L57-L138】【F:tests/trading/test_trading_manager_execution.py†L423-L472】
-  - *Progress*: Bootstrap runtime, control centre, and Predator app lean on the
-    auto-installed release-aware router to expose default stage metadata, forced
-    routes, and drift reasons so governance reviewers see execution posture under
-    pytest coverage.【F:src/runtime/bootstrap_runtime.py†L214-L492】【F:src/operations/bootstrap_control_center.py†L341-L359】【F:src/runtime/predator_app.py†L1001-L1141】【F:src/trading/trading_manager.py†L1094-L1134】【F:tests/current/test_bootstrap_runtime_integration.py†L238-L268】【F:tests/trading/test_trading_manager_execution.py†L775-L914】
-  - *Progress*: Vision alignment report now captures evolution orchestrator readiness
-    snapshots, champion payloads, and adaptive-run telemetry while the bootstrap control
-    centre threads the same readiness metadata into runtime status/overview responses so
-    governance dashboards inherit deterministic evolution posture under expanded runtime
-    coverage.【F:src/governance/vision_alignment.py†L292-L415】【F:src/operations/bootstrap_control_center.py†L431-L528】【F:tests/current/test_vision_alignment_report.py†L19-L73】【F:tests/runtime/test_bootstrap_runtime_sensory.py†L162-L216】【F:tests/current/test_bootstrap_runtime_integration.py†L166-L186】
-  - *Progress*: Trading manager release posture now surfaces the most recent
-    execution route from the release-aware router, including forced paper
-    routes and escalation reasons, so dashboards and audits inherit the same
-    enforcement evidence under regression coverage.【F:src/trading/execution/release_router.py†L98-L154】【F:src/trading/trading_manager.py†L1068-L1134】【F:tests/trading/test_execution_risk_context.py†L119-L165】【F:tests/trading/test_trading_manager_execution.py†L874-L999】
-  - *Progress*: Release-aware execution router now inspects policy-ledger audit
-    posture, merges drift gating with audit enforcement, and propagates forced
-    reason histories plus audit metadata into trading manager summaries so
-    governance trails explain every paper override under pytest coverage.【F:src/trading/execution/release_router.py†L80-L154】【F:src/trading/execution/release_router.py†L200-L332】【F:src/trading/trading_manager.py†L420-L620】【F:tests/trading/test_release_execution_router.py†L1-L240】【F:tests/trading/test_trading_manager_execution.py†L951-L1038】
+Reflection (Decision Diaries & Learning Feedback)
 
-### Later (90+ days)
+Implemented: The system includes a Reflection stage that records decisions and generates insights from them. A Decision Diary mechanism is implemented – every AlphaTrade loop iteration produces a DecisionDiaryEntry that logs the context, chosen strategy, outcomes, and reasoning notes
+GitHub
+GitHub
+. These diaries are persisted via a DecisionDiaryStore and serve as an auditable trail of “why was this decision made.” The code also provides a PolicyReflectionBuilder which compiles recent decision records into Reflection Artifacts
+GitHub
+GitHub
+. These artifacts summarize emerging tactics, their performance, first/last seen times, and any gating (e.g. if a strategy was forced to paper trading)
+GitHub
+. In effect, the system can produce a reflection digest for reviewers or automated analysis, so that over a window of time one can see which strategies are gaining or losing favor and why. There’s also a graph diagnostics tool that visualizes the understanding loop (sensory → belief → router → policy) as a DAG, helping reflect on the decision pipeline structure
+GitHub
+. The presence of these features means the Reflection component – capturing experience and providing data for learning – is acknowledged in the codebase and partially functional. The blueprint’s intent for an auditable reasoning loop is met at least to the extent that every decision is transparently recorded with metadata
+GitHub
+.
 
-- [ ] **Operational readiness** – Expand incident response, alert routing, and system
-  validation so professional deployments can demonstrate reliability.
-- *Progress*: Incident response snapshots now record major incident review
-  cadence, escalate overdue postmortems with structured issue catalogs, and
-  surface policy thresholds in readiness metadata so gate decisions block when
-  review cadence slips under regression coverage.【F:src/operations/incident_response.py†L526-L558】【F:tests/operations/test_incident_response.py†L206-L276】
-- *Progress*: System validation gating now considers reliability history and
-  stale thresholds, emits gate alerts, and captures reliability warnings in the
-  aggregated metadata so deployments inherit deterministic blockers with pytest
-  guarding warn/fail paths.【F:src/operations/system_validation.py†L583-L746】【F:tests/operations/test_system_validation.py†L360-L432】
-- *Progress*: Default alert policy now ships Slack chatops and GitHub issue transports
-  alongside email/SMS/webhook routes, with regression coverage asserting fan-out for
-  readiness, incident response, and drift sentry categories and updated runbooks/status
-  docs recording the new escalation paths, advancing the 90-day alert routing milestone.【F:src/operations/alerts.py†L407-L823】【F:tests/operations/test_alerts.py†L1-L338】【F:docs/operations/runbooks/drift_sentry_response.md†L28-L33】【F:docs/status/operational_readiness.md†L68-L82】
-- [ ] **Dead-code eradication** – Batch-delete unused modules flagged by the cleanup
-  report and tighten import guards to prevent shims from resurfacing.【F:docs/reports/CLEANUP_REPORT.md†L71-L188】
-  - *Progress*: Dead-code tracker CLI now classifies every candidate, surfaces
-    shim redirects, emits per-status breakdowns, and underpins the new triage
-    snapshot so hygiene reviews target active modules, shims, or removed files
-    without scraping Markdown.【F:tools/cleanup/dead_code_tracker.py†L59-L223】【F:tests/tools/test_dead_code_tracker.py†L1-L147】【F:docs/status/dead_code_triage_status.md†L1-L35】
-  - *Progress*: The ≥80% vulture sweep now reports zero unused symbols after
-    annotating unused protocol/context-manager parameters and dropping redundant
-    ingest arguments, with refreshed audit artefacts recorded for evidence.【F:docs/reports/dead_code_audit.md†L1-L20】【F:docs/reports/deadcode.txt†L1-L4】【F:src/core/risk.py†L40-L63】【F:src/runtime/predator_app.py†L325-L335】【F:src/operational/metrics_registry.py†L66-L86】【F:src/data_foundation/streaming/kafka_stream.py†L25-L150】【F:src/data_foundation/persist/timescale.py†L2375-L2407】
-  - *Progress*: Removed the legacy `src.intelligence.adversarial_training` shim
-    and retargeted the intelligence facade to load the canonical
-    `thinking.adversarial` implementations directly, shrinking the cleanup
-    backlog while preserving lazy public imports for phase-three orchestrators.【F:src/intelligence/__init__.py†L40-L105】
-  - *Progress*: Retired the placeholder sensory config and macro ingest helpers,
-    noting their removal in the cleanup report so hygiene reviews reflect the new
-    Timescale fallback wiring instead of dead scaffolding.【F:docs/reports/CLEANUP_REPORT.md†L88】【F:src/data_foundation/ingest/timescale_pipeline.py†L21】
-  - *Progress*: Cleanup automation now flags the retired sensory dimension shims directly in the report and drops them from the phase-two consolidation script so dead organs stay archived instead of being rehydrated by tooling.【F:docs/reports/CLEANUP_REPORT.md†L168-L179】【F:scripts/phase2_sensory_consolidation.py†L45-L144】
-  - *Progress*: Retired the legacy `src.core.risk.manager` and `src.trading.risk_management`
-    facades by raising guided module errors under regression coverage so callers
-    migrate to `src.risk` implementations and the cleanup backlog shrinks.【F:src/core/risk/manager.py†L1-L14】【F:src/trading/risk_management/__init__.py†L1-L8】【F:tests/current/test_risk_shims_retired.py†L1-L23】
-  - *Progress*: Cleanup report now strikes the deprecated intelligence facades (`competitive_intelligence`, `predictive_modeling`, `red_team_ai`, `specialized_predators`) and links to their canonical replacements so hygiene reviews reflect the current module surface without chasing removed files.【F:docs/reports/CLEANUP_REPORT.md†L143-L148】
-- [ ] **Governance and compliance** – Build the reporting cadence for KYC/AML,
-  regulatory telemetry, and audit storage prior to live-broker pilots.【F:docs/technical_debt_assessment.md†L58-L112】
-  - *Progress*: Governance reporting cadence now assembles compliance readiness,
-    regulatory telemetry, and Timescale audit evidence into a single artefact,
-    escalates overall status, publishes via the event-bus failover helper, and
-    trims persisted histories so audits inherit deterministic evidence with
-    pytest covering scheduling, publishing, and storage flows.【F:src/operations/governance_reporting.py†L1-L770】【F:tests/operations/test_governance_reporting.py†L1-L372】
-  - *Progress*: Timescale compliance and KYC journals now return recent-activity
-    counts with window metadata, and the governance report flags stale journals
-    while recording collection timestamps and strategy scope so reviewers see
-    timely evidence with pytest guarding the contract.【F:src/data_foundation/persist/timescale.py†L1232-L1322】【F:src/data_foundation/persist/timescale.py†L1617-L1702】【F:src/operations/governance_reporting.py†L336-L444】【F:tests/data_foundation/test_timescale_compliance_journal.py†L103-L117】【F:tests/data_foundation/test_timescale_compliance_journal.py†L199-L210】【F:tests/operations/test_governance_reporting.py†L129-L218】
-  - *Progress*: Compliance readiness snapshots now normalise trade-surveillance and
-    KYC components, escalate severities deterministically, and render markdown
-    evidence with regression coverage so governance cadences inherit reliable
-    compliance posture telemetry.【F:src/operations/compliance_readiness.py†L1-L220】【F:tests/operations/test_compliance_readiness.py†L1-L173】
-  - *Progress*: Governance cadence runner now persists the last generated
-    timestamp, injects strategy and metadata providers, backfills cadence
-    defaults, and wires audit/persist/publish hooks so operations can enforce
-    interval gating or force runs under pytest coverage.【F:src/operations/governance_cadence.py†L1-L200】【F:src/operations/governance_reporting.py†L671-L770】【F:tests/operations/test_governance_cadence.py†L1-L200】
-  - *Progress*: Governance cadence CLI resolves SystemConfig extras into JSON
-    context packs, layers optional snapshot overrides, supports forced runs, and
-    emits Markdown/JSON outputs so operators can run the cadence without the
-    runtime while preserving persisted history and metadata provenance under
-    pytest coverage.【F:tools/governance/run_cadence.py†L1-L368】【F:tests/tools/test_run_governance_cadence.py†L47-L138】
-  - *Progress*: Governance cadence runner now loads the previous persisted snapshot,
-    attaches a structured delta (overall status shifts, section adds/removals, and
-    summary changes) to each report, and persists the enriched metadata so dashboards,
-    CLI exports, and runtime cadence runs share the same change log under pytest
-    coverage of runner, reporting helpers, and CLI flows.【F:src/operations/governance_cadence.py†L130-L245】【F:src/operations/governance_reporting.py†L618-L758】【F:tests/operations/test_governance_cadence.py†L126-L299】【F:tests/operations/test_governance_reporting.py†L371-L441】【F:tests/tools/test_run_governance_cadence.py†L133-L140】
-  - *Progress*: Packaged governance context baselines now ship with the repo and
-    the loader falls back to them when SystemConfig overrides are missing,
-    redacting secrets, logging fallback engagements, and keeping governance
-    reports populated during cold starts under pytest coverage.【F:src/operations/data/governance_context/compliance_baseline.json†L1-L24】【F:src/operations/data/governance_context/regulatory_baseline.json†L1-L36】【F:src/operations/data/governance_context/audit_baseline.json†L1-L20】【F:src/operations/governance_reporting.py†L650-L770】【F:tests/operations/test_governance_reporting.py†L320-L372】
-  - *Progress*: Governance report export CLI now loads compliance/regulatory/audit
-    snapshots, persists history with metadata, emits Markdown alongside JSON, and
-    records regression coverage so operators can script cadence exports without
-    bespoke tooling.【F:tools/telemetry/export_governance_report.py†L1-L260】【F:tests/tools/test_export_governance_report.py†L1-L139】
-  - *Progress*: Professional runtime builder wires `GOVERNANCE_CADENCE_*` extras
-    into a supervised cadence loop, deriving report paths, metadata, interval
-    polling, and start/stop callbacks while recording the latest governance
-    report on the app so live runtimes mirror the CLI cadence under regression
-    coverage.【F:src/runtime/runtime_builder.py†L2447-L2633】【F:tests/runtime/test_runtime_builder.py†L1357-L1438】
-  - *Progress*: Policy ledger now records tactic promotions, approvals, and
-    threshold overrides, builds governance workflow checklists, and the trading
-    manager/runtime builder publish the combined compliance snapshots so KYC and
-    trade surveillance inherit staged release thresholds under regression
-    coverage.【F:src/governance/policy_ledger.py†L1-L405】【F:src/compliance/workflow.py†L1-L419】【F:src/trading/trading_manager.py†L1094-L1157】【F:src/runtime/runtime_builder.py†L2920-L2987】【F:tests/compliance/test_compliance_workflow.py†L1-L182】【F:tests/trading/test_trading_manager_execution.py†L874-L949】
-  - *Progress*: Runtime builder now publishes the enforced risk configuration as
-    telemetry and the professional runtime records the broadcast payload so risk
-    summaries mirror the exact configuration emitted to operations dashboards
-    under pytest coverage of the event flow and summary surface.【F:src/runtime/runtime_builder.py†L633-L734】【F:src/runtime/predator_app.py†L472-L1009】【F:tests/runtime/test_runtime_builder.py†L340-L420】
+Partially Implemented: The diaries and reflection summaries exist, but using them for learning feedback is limited. Currently, reflection artifacts are primarily for human governance review (e.g. seeing evidence for strategy promotions) rather than automatically adjusting the system. The fast-weight adaptation loop does not yet incorporate long-term feedback from the diaries – e.g. there is no mechanism like “if a strategy consistently underperforms as seen in diaries, automatically downweight or remove it.” Instead, such adjustments would still be manual (via governance CLI). Some aspects of reflection that the blueprint envisions, like “sigma stability checkpoints” (monitoring the stability of belief updates over time) and other health metrics, are only partly realized via tests (ensuring covariance matrices remain PSD, etc.)
+GitHub
+. The system does export performance telemetry (ROI, P&L) for each strategy
+GitHub
+, which is a form of reflection, but this data is not yet looped back into strategy selection. Interpretability is another partial area: the blueprint highlights interpretability of state and reasoning; the code provides raw data (diaries, graph dumps) but no higher-level analysis like highlighting which “concept synapses” were most active (a nod to BDH’s interpretability). The building blocks for reflection are there, but the feedback loop is not closed – insights are gathered but not yet used to automatically tune the system.
 
-## Actionable to-do tracker
+Missing: Automated post-analysis and learning from the decision records are missing. For example, there’s no module performing trend analysis on the diary entries (e.g. detecting that “Strategy A only works in regime X” or “Strategy B’s performance is deteriorating”). The blueprint suggests a system that can reflect and self-correct; currently, any such reflection-driven changes must be done by a developer or analyst examining the logs. Also missing are formal acceptance tests (validation hooks) for the reflection outputs – while there are some tests (ensuring the diary CLI and reflection builder run
+GitHub
+), the criteria for a “good” reflection (e.g. it correctly identifies new emerging strategies or anomalies in decisions) are not automated. Graph health metrics (e.g. measuring the complexity or sparsity of the decision graph over time) are not gathered, meaning the system isn’t quantifying the health of its reasoning process (the blueprint’s nod to graph dynamics and modularity is not yet instrumented). In summary, Reflection currently records but does not learn; the system lacks an implementation of “reflection as a teacher” to the adaptation process.
 
-| Status | Task | Owner hint | Linkage |
-| --- | --- | --- | --- |
-| [ ] | Stand up production-grade ingest slice with parameterised SQL and supervised tasks | Data backbone squad | Now → Operational data backbone |
-| [x] | Deliver executable HOW/ANOMALY organs with lineage telemetry and regression coverage | Sensory cortex squad | Now/Next → Sensory + evolution execution |
-| [ ] | Roll out deterministic risk API and supervised runtime builder across execution modules | Execution & risk squad | Now/Next → Risk and runtime safety |
-| [x] | Expand CI to cover ingest orchestration, risk policies, and observability guardrails | Quality guild | Now → Quality and observability |
-| [ ] | Purge deprecated shims and close dead-code backlog | Platform hygiene crew | Later → Dead code and duplication |
+Misalignments: The architecture for Reflection is in line with the blueprint – the idea of diaries and reflection artifacts matches the vision of an introspective system. The misalignment lies in purpose and depth: the blueprint (inspired by BDH and similar cognitive architectures) implies that reflection should influence the system’s behavior (closing the loop with adaptation), whereas in the current code reflection is passive (for audit/compliance). Another subtle misalignment is in the metric-driven reflection: the blueprint’s emphasis on metrics like “graph sparsity” or activation patterns for interpretability isn’t yet reflected in the implementation (the code doesn’t ensure activations are sparse positive or measure concept-level activity). Addressing these gaps will bring Reflection from a compliance log towards a true learning mechanism.
 
-- *Progress*: Risk and evolution configuration now source directly from their
-  canonical modules with the legacy shims removed, shrinking the cleanup queue
-  and preventing namespace drift.【F:docs/reports/CLEANUP_REPORT.md†L74-L84】【F:src/config/risk/risk_config.py†L1-L72】【F:src/core/evolution/engine.py†L13-L52】
+Risk/Execution (Risk Management and Trade Execution)
 
-## Execution guardrails
+Implemented: The codebase contains foundational elements of risk management and execution control. A DriftSentryGate is implemented to act as a risk gate on execution – it evaluates each proposed trade against drift metrics and confidence thresholds, potentially flipping a force_paper flag to prevent live execution if conditions look anomalous
+GitHub
+. Risk policies (like leverage and exposure limits) are defined in configurations and there are tests ensuring warnings trigger before limits are breached
+GitHub
+. An execution release router exists to decide how orders are routed (e.g. to paper trading vs live, based on the drift gate’s decision and policy stage)
+GitHub
+. The system also includes a portfolio monitor for tracking positions and P&L, albeit in a basic form, and an execution readiness journal that logs whether services (like data feeds or brokers) are up before trading
+GitHub
+. These show that the scaffolding for execution – the order lifecycle and risk checks – mirrors the encyclopedia’s prescribed order of operations
+GitHub
+. Additionally, compliance telemetry hooks are present (audit logs, incident response stubs) indicating the system’s awareness of compliance needs. In short, the codebase has risk check structures and toggles to ensure that trades are gated by risk evaluations and that execution can be toggled between simulation and real mode.
 
-- Keep policy, lint, types, and pytest checks green on every PR; treat CI failures
-  as blockers.
-- Update context packs and roadmap status pages alongside significant feature
-  work; stale documentation is considered a regression.【F:docs/technical_debt_assessment.md†L90-L112】
-- Maintain the truth-first status culture: mock implementations must remain
-  labelled and roadmapped until replaced by production-grade systems.【F:docs/DEVELOPMENT_STATUS.md†L7-L35】
+Partially Implemented: Actual trade execution is still running on “paper.” The trading and execution modules operate on simulated orders and mock broker interfaces – there is no live broker integration or order routing to markets yet
+GitHub
+. Risk enforcement is described as “hollow” in assessments
+GitHub
+: while limits exist on paper, the system doesn’t yet connect to real capital constraints (e.g. it’s not hooked to an account to truly prevent an order). Some risk checks (like those for position sizing or portfolio diversification) may not be fully implemented beyond placeholders. The async task supervision for execution (running order placements in background tasks, ensuring none hang or crash) is only partially migrated – the runtime builder and task supervisor are in progress, meaning execution tasks might still be launched unsupervised in some paths
+GitHub
+. Compliance monitoring (e.g. checking regulatory rules or logging trade data for compliance) is minimal: there are audit log structures, but no active enforcement beyond risk limits. In summary, the mechanics to simulate trading are there and the safety switches exist, but real execution capabilities and robust risk responses are not yet complete.
 
-## Automation updates — 2025-10-08T07:04:55Z
+Missing: Key pieces missing include production integration for execution – for example, connections to brokerage APIs or trading exchanges are not implemented, so the system cannot place a real order. Also missing is risk-based position sizing: the blueprint expects that given a strategy signal, the system calculates an optimal position size under risk limits, but currently there is “no risk sizing” at all
+GitHub
+. The institutional risk and compliance layer is incomplete – features like pre-trade compliance checks, post-trade reconciliation, or regulatory audit trail generation are absent. Ops readiness items like stress tests or kill-switches for the trading engine need to be added to match the blueprint’s focus on safety (some incident response hooks exist, but likely not end-to-end). Additionally, the blueprint calls for expanding broker coverage after internal gates are solid
+GitHub
+, implying that multi-broker or multi-exchange handling is on the roadmap but currently missing. Finally, while the system can force trades to paper mode, a robust policy enforcement that only allows fully approved strategies to execute live is not yet guaranteed (it depends on humans using the CLI to promote stages). In essence, AlphaTrade cannot yet execute a real trade in production with full confidence – the pipeline from decision to execution is incomplete.
 
-### Last 4 commits
-- eae9c3e refactor(data_foundation): tune 2 files (2025-10-08)
-- 2a78f7c refactor(docs): tune 17 files (2025-10-08)
-- e6af8a8 refactor(data_foundation): tune 4 files (2025-10-08)
-- 49671f3 refactor(data_foundation): tune 2 files (2025-10-08)
+Misalignments: The major misalignment is that the current system is still a simulation framework, whereas the AlphaTrade blueprint assumes a trajectory toward a real trading platform with enforceable risk controls. The architecture is on the right track, but practically, capital is not at risk because the system isn’t ready to handle real capital
+GitHub
+. For instance, the blueprint emphasizes deterministic risk APIs and policy breach telemetry
+GitHub
+ – the code has placeholders for these, but until actual execution is attempted, it’s unclear how effective they are. There’s also a structural note: risk management in the code has been refactored (old risk modules deprecated in favor of a canonical core risk module)
+GitHub
+GitHub
+, which aligns with the blueprint’s intent to have a single source of truth for risk. However, until the execution layer is fully functional, the risk management can’t be truly battle-tested. In summary, the design largely aligns with the envisioned risk/execution loop (no major redesign needed), but there is a significant gap in implementation maturity.
 
-## Automation updates — 2025-10-08T02:30:00Z
+Governance (Policy Governance & Promotion Process)
 
-### Last 4 commits
-- b5c2a64 refactor(docs): tune 4 files (2025-10-08)
-- 0df4d8d refactor(docs): tune 7 files (2025-10-08)
-- 2a682bc refactor(docs): tune 3 files (2025-10-08)
-- 6465d75 docs(docs): tune 3 files (2025-10-08)
+Implemented: A robust Governance layer is present to oversee which strategies can trade and under what conditions. The system includes a Policy Ledger (in src/governance) that records each strategy (“policy”) and its approval stage – e.g. experimental, paper-trade, or live
+GitHub
+GitHub
+. The ledger persists promotion history, approvals, threshold overrides, and links to decision diary evidence for each promotion
+GitHub
+. On top of this, a suite of governance CLI tools is implemented: for example, rebuild_policy to regenerate risk config from the ledger, promote_policy to approve a strategy’s next stage with proper sign-offs, and alpha_trade_graduation to batch-promote strategies that meet all criteria
+GitHub
+GitHub
+. These tools ensure that any strategy going from backtest to paper or paper to live is traceable and auditable. The AlphaTrade loop orchestrator itself uses the ledger: it queries the LedgerReleaseManager to fetch the current release stage and risk thresholds for the chosen policy, and uses that to enforce stage-appropriate gates (for example, ensuring a strategy in “paper” stage cannot execute real trades, by activating the force_paper flag)
+GitHub
+GitHub
+. Overall, the governance processes and data structures described in the blueprint (promotion gates, evidence-backed approvals, deterministic governance metadata on each decision) are present and functioning in the code.
 
-## Automation updates — 2025-10-07T22:25:27Z
+Partially Implemented: The governance features exist, but their integration into day-to-day operations is partial. Enforcement of governance policies relies on the developers/operators running the CLI tools and monitoring outputs – there isn’t a live UI or automated daemon that, for example, halts an unapproved strategy (though the architecture would allow it via the ledger checks). Some governance checks are enforced in code (like requiring a decision diary entry ID when promoting a policy, to ensure evidence is cited
+GitHub
+), but others may be more procedural (outside the code’s automatic handling). The governance telemetry (dashboards showing how many strategies at each stage, any pending approvals, etc.) is not fully developed – observability panels exist for the understanding loop and drift, but governance info might only be in logs or JSON manifests. Additionally, while the ledger captures threshold overrides per strategy, the system still needs human input to decide those overrides; there’s no AI deciding “this strategy should have tighter risk limits” – governance in that sense is manual. The blueprint’s notion of deterministic promotion gates is implemented at a basic level (stages in ledger), but dynamic policy enforcement (like auto-downgrading a strategy if it triggers too many alerts) is not implemented. In summary, governance is structurally in place but not yet a “hands-off” autonomous module – it provides tools for humans to govern the system.
 
-### Last 4 commits
-- 1a6d30e refactor(thinking): tune 4 files (2025-10-08)
-- c186993 refactor(operations): tune 6 files (2025-10-08)
-- fb6c09a feat(core): add 3 files (2025-10-08)
-- 91cf3fc docs(docs): tune 4 files (2025-10-08)
+Missing: A few things are missing to fully realize the governance vision. Real-time governance monitoring – e.g. a continuously running process or dashboard that flags when a strategy is eligible for promotion or needs demotion – is not present. Integration with enterprise governance (approvals via UI, or embedding in a larger workflow system) is beyond the current scope. Also, policy documentation and rationales might need to be auto-generated for each promotion (currently, one must read the diaries and ledger entries manually). The blueprint’s focus on compliance telemetry suggests that every governance action should be visible and testable; while the ledger provides data, the system lacks a user-friendly presentation of compliance status (e.g. “All strategies trading live have passed X criteria”). Another missing piece is Governance of configuration: ensuring any config changes go through similar review (the current ledger is strategy-focused). Finally, as a future feature, one could imagine machine-supported governance (ML suggestions for promotions or flagging anomalies in strategy performance for review) – needless to say, this is not yet implemented. Essentially, the governance is policy-driven but not yet intelligent or fully automated.
 
-## Automation updates — 2025-10-07T22:04:09Z
+Misalignments: The code’s governance approach aligns well with the blueprint’s intent: it provides structured, auditable control over system behavior. There is no major misalignment in design; rather, the misalignment is in maturity – the blueprint likely envisions a seamless promotion pipeline with clear metrics at each gate, whereas currently it’s a set of powerful but developer-operated tools. One area to watch is whether all blueprint governance rules are enforced: for example, the blueprint implies that understanding loop outputs should feed governance decisions (ensuring “AlphaTrade parity work can ship without capital risk” by using live-shadow mode until ready
+GitHub
+). The current system does enforce a “live-shadow” (paper) mode by default for new strategies via drift gating and ledger stage, which is correct. However, if there are any blueprint policies not coded (such as time-based graduation criteria or multi-approval requirements), those would be gaps. In summary, governance in code is largely faithful to the plan, with the remaining work being operational integration and perhaps adding intelligence to assist human governors.
 
-### Last 4 commits
-- 731e592 feat(data_foundation): add 4 files (2025-10-08)
-- 285a2c2 refactor(data_foundation): tune 2 files (2025-10-08)
-- 3fb6103 refactor(trading): tune 4 files (2025-10-08)
-- 7b47484 docs(docs): tune 9 files (2025-10-07)
+Summary of Gaps: In all, the emp_proving_ground_v1 codebase has established the core architecture (the five components exist and interact as intended
+GitHub
+), but most components are only partially realized. Many subsystems still rely on scaffolding or mocks, and several advanced features from the AlphaTrade vision (live data ingestion, adaptive evolution of strategies, automated reflective learning, real trade execution, and fully automated governance oversight) are incomplete or absent. There are few fundamental design misalignments – the gaps are mostly feature-completeness and integration gaps rather than structural flaws. This is a strong position to be in: the blueprint is validated by the current design, and the task ahead is to close the implementation gaps with focused development in each area
+GitHub
+GitHub
+.
 
-## Automation updates — 2025-10-07T21:40:17Z
+90-Day Roadmap (Phased Execution Plan)
 
-### Last 4 commits
-- 9bad935 refactor(operations): tune 2 files (2025-10-07)
-- 1da1ddb refactor(core): tune 2 files (2025-10-07)
-- 9f12b1f feat(docs): add 15 files (2025-10-07)
-- c9ace45 docs(docs): tune 3 files (2025-10-07)
+Below is a refreshed 90-day roadmap to guide the next phase of AlphaTrade development. This plan is organized into three phases, each roughly one month, aligning with: Phase I – Understanding Loop & Data Backbone, Phase II – Governance & Risk Hardening, and Phase III – Full Integration & “Paper-Ready” System. Each phase is broken down into key milestones with checklist deliverables and measurable acceptance criteria (Definitions of Done). We also include a “Start Now” section for immediate next steps (first 48 hours) to build momentum. Throughout, we incorporate BDH-inspired primitives – specifically fast-weights (already in use), sparse positive activations, and graph health metrics – to ensure the system stays aligned with cutting-edge architectural principles. All new development will adhere to the preferred project directory structure (layered by core/sensory/thinking/trading/governance domains) and maintain strict code contracts (typed interfaces, data model schemas, and regression tests) for clarity and reliability
+GitHub
+GitHub
+.
 
-## Automation updates — 2025-10-07T23:24:00Z
-
-### Last 4 commits
-- 2a3d2cf test(.github): tune 6 files (2025-10-07)
-- d169fc8 refactor(thinking): tune 4 files (2025-10-07)
-- 7036205 refactor(trading): tune 4 files (2025-10-07)
-- 38024ce docs(docs): tune 3 files (2025-10-07)
-
-## Automation updates — 2025-10-07T15:30:42Z
-
-### Last 4 commits
-- eb9f8db Auto squash docs (2025-10-07)
-- 85a2db9 Auto squash watch-docs (2025-10-07)
-- 2fced69 Auto squash watch-variant (2025-10-07)
-- bc3da75 Auto squash watch-docs (2025-10-07)
-## Automation updates — 2025-10-07T16:13:29Z
-
-### Last 4 commits
-- ed2d3f8 Auto cherry-pick variant 4 (2025-10-07)
-- ba15189 Auto cherry-pick variant 3 (2025-10-07)
-- b42e927 Auto cherry-pick variant 2 (2025-10-07)
-- 5561e6a Auto cherry-pick variant 1 (2025-10-07)
-
-## Automation updates — 2025-10-07T21:11:11Z
-
-### Last 4 commits
-- 40007e8 refactor(trading): tune 4 files (2025-10-07)
-- bddd656 refactor(sensory): tune 2 files (2025-10-07)
-- eb32f08 docs(docs): tune 3 files (2025-10-07)
-- 5622148 refactor(docs): tune 3 files (2025-10-07)
-
-## Automation updates — 2025-10-07T22:55:18Z
-
-### Last 4 commits
-- c577a9d refactor(trading): tune 5 files (2025-10-08)
-- 22c3684 refactor(intelligence): tune 3 files (2025-10-08)
-- ec0ce78 refactor(sensory): tune 5 files (2025-10-08)
-- a6f3936 refactor(intelligence): tune 2 files (2025-10-08)
-
-## Automation updates — 2025-10-08T02:54:53Z
-
-### Last 4 commits
-- 49a28c0 test(.telemetry): tune 3 files (2025-10-08)
-- 6151ae6 test(.github): add 5 files (2025-10-08)
-- 2963588 refactor(data_foundation): tune 3 files (2025-10-08)
-- 1fd74af feat(core): add 18 files (2025-10-08)
-
-## Automation updates — 2025-10-08T03:04:28Z
-
-### Last 4 commits
-- ef039a6 refactor(operations): tune 2 files (2025-10-08)
-- 43008dd feat(data_foundation): add 4 files (2025-10-08)
-- 4fe4905 docs(docs): tune 1 file (2025-10-08)
-- 49a28c0 test(.telemetry): tune 3 files (2025-10-08)
-
-## Automation updates — 2025-10-08T04:36:03Z
-
-### Last 4 commits
-- 6e63138 docs(contracts): tune 12 files (2025-10-08)
-- 06e7ffa refactor(intelligence): tune 5 files (2025-10-08)
-- 0cd4dd4 feat(governance): add 4 files (2025-10-08)
-- b2ae516 docs(docs): tune 1 file (2025-10-08)
-
-## Automation updates — 2025-10-08T04:42:55Z
-
-### Last 4 commits
-- a7ed502 test(governance): tune 2 files (2025-10-08)
-- c6debda feat(data_foundation): add 7 files (2025-10-08)
-- d0097c8 feat(orchestration): add 3 files (2025-10-08)
-- 20e5ef1 docs(docs): tune 1 file (2025-10-08)
+Start Now (Next 48 Hours) – Jumpstart and Quick Wins

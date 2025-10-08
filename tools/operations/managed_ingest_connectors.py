@@ -10,7 +10,7 @@ from typing import Mapping, Sequence
 
 from sqlalchemy.engine import make_url
 
-from src.data_foundation.cache.redis_cache import InMemoryRedis, RedisConnectionSettings
+from src.data_foundation.cache.redis_cache import InMemoryRedis
 from src.data_foundation.ingest.configuration import build_institutional_ingest_config
 from src.data_foundation.ingest.institutional_vertical import (
     InstitutionalIngestProvisioner,
@@ -197,18 +197,18 @@ def _plan_dimensions(ingest_config: object) -> list[str]:
 
 async def _collect_connectivity(
     ingest_config,
-    redis_settings: RedisConnectionSettings,
     kafka_mapping,
     timeout: float,
 ) -> list[dict[str, object]]:
     provisioner = InstitutionalIngestProvisioner(
         ingest_config,
-        redis_settings=redis_settings,
+        redis_settings=ingest_config.redis_settings,
         redis_policy=ingest_config.redis_policy,
         kafka_mapping=kafka_mapping,
     )
     supervisor = TaskSupervisor(namespace="managed-connectors-cli")
     redis_factory = None
+    redis_settings = ingest_config.redis_settings
     if redis_settings.configured:
         redis_factory = lambda _settings: InMemoryRedis()
 
@@ -332,12 +332,11 @@ def _generate_report(args: argparse.Namespace) -> dict[str, object]:
     config = _apply_extras(config, extras)
 
     ingest_config = build_institutional_ingest_config(config)
-    redis_settings = RedisConnectionSettings.from_mapping(config.extras)
     kafka_mapping = dict(config.extras)
 
     manifest_snapshots = plan_managed_manifest(
         ingest_config,
-        redis_settings=redis_settings,
+        redis_settings=ingest_config.redis_settings,
         kafka_mapping=kafka_mapping,
     )
 
@@ -367,7 +366,6 @@ def _generate_report(args: argparse.Namespace) -> dict[str, object]:
         connectivity = asyncio.run(
             _collect_connectivity(
                 ingest_config,
-                redis_settings,
                 kafka_mapping,
                 timeout=max(0.1, float(args.timeout)),
             )

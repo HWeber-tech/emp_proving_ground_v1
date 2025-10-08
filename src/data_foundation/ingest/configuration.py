@@ -37,7 +37,7 @@ from ..batch.spark_export import (
     SparkExportJob,
     SparkExportPlan,
 )
-from ..cache.redis_cache import RedisCachePolicy
+from ..cache.redis_cache import RedisCachePolicy, RedisConnectionSettings
 
 logger = logging.getLogger(__name__)
 
@@ -738,6 +738,9 @@ class InstitutionalIngestConfig:
     kafka_settings: KafkaConnectionSettings = field(
         default_factory=KafkaConnectionSettings.from_env
     )
+    redis_settings: RedisConnectionSettings = field(
+        default_factory=RedisConnectionSettings.from_env
+    )
     redis_policy: RedisCachePolicy = field(
         default_factory=RedisCachePolicy.institutional_defaults
     )
@@ -765,6 +768,7 @@ def build_institutional_ingest_config(
 
     extras = _normalise_extras(config.extras)
     fallback = fallback_symbols or ()
+    redis_settings = RedisConnectionSettings.from_mapping(extras)
 
     reason: str | None = None
     if config.data_backbone_mode is not DataBackboneMode.institutional:
@@ -772,6 +776,7 @@ def build_institutional_ingest_config(
         return InstitutionalIngestConfig(
             should_run=False,
             reason=reason,
+            redis_settings=redis_settings,
             metadata={"mode": config.data_backbone_mode.value},
         )
 
@@ -780,6 +785,7 @@ def build_institutional_ingest_config(
         return InstitutionalIngestConfig(
             should_run=False,
             reason=reason,
+            redis_settings=redis_settings,
             metadata={"tier": config.tier.value},
         )
 
@@ -832,6 +838,9 @@ def build_institutional_ingest_config(
         "namespace": redis_policy.namespace,
         "invalidate_prefixes": list(redis_policy.invalidate_prefixes),
     }
+    metadata["redis_configured"] = redis_settings.configured
+    metadata["redis_client_name"] = redis_settings.client_name
+    metadata["redis_ssl"] = redis_settings.ssl
 
     alert_routes = _parse_alert_routes(extras)
     if alert_routes:
@@ -942,6 +951,7 @@ def build_institutional_ingest_config(
         plan=plan,
         timescale_settings=timescale_settings,
         kafka_settings=kafka_settings,
+        redis_settings=redis_settings,
         redis_policy=redis_policy,
         metadata=metadata,
         schedule=schedule,

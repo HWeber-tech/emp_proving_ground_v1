@@ -147,6 +147,30 @@ def test_config_builder_resolves_redis_cache_policy_overrides() -> None:
     ]
 
 
+def test_config_builder_populates_redis_settings_metadata() -> None:
+    cfg = _base_config(
+        TIMESCALE_SYMBOLS="EURUSD",
+        REDIS_URL="redis://cache.example.com:6380/2",
+        REDIS_CLIENT_NAME="emp-ingest",
+        REDIS_SSL="1",
+    )
+
+    resolved = build_institutional_ingest_config(cfg)
+
+    settings = resolved.redis_settings
+    assert settings.configured is True
+    assert settings.host == "cache.example.com"
+    assert settings.port == 6380
+    assert settings.db == 2
+    assert settings.client_name == "emp-ingest"
+    assert settings.ssl is True
+
+    metadata = resolved.metadata
+    assert metadata["redis_configured"] is True
+    assert metadata["redis_client_name"] == "emp-ingest"
+    assert metadata["redis_ssl"] is True
+
+
 def test_config_builder_falls_back_to_macro_window_when_events_missing() -> None:
     cfg = _base_config(
         TIMESCALE_SYMBOLS="EURUSD",

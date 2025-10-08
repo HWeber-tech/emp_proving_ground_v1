@@ -2920,7 +2920,7 @@ def build_professional_runtime_application(
                     kafka_publisher,
                 )
 
-                redis_settings = RedisConnectionSettings.from_mapping(extras_mapping)
+                redis_settings = ingest_config.redis_settings
                 services_holder: dict[str, InstitutionalIngestServices] = {}
                 skip_next_scheduler_run = False
 

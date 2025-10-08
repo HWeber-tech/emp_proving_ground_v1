@@ -567,7 +567,7 @@ class InstitutionalIngestProvisioner:
         )
 
         redis_cache: ManagedRedisCache | None = None
-        redis_settings = self.redis_settings
+        redis_settings = self.redis_settings or self.ingest_config.redis_settings
         if redis_settings is not None and redis_settings.configured:
             client: object | None
             if redis_client_factory is not None:
@@ -736,9 +736,10 @@ def plan_managed_manifest(
     """Return a manifest snapshot without instantiating managed connectors."""
 
     mapping = {str(k): str(v) for k, v in (kafka_mapping or {}).items()}
+    resolved_redis_settings = redis_settings or config.redis_settings
     provisioner = InstitutionalIngestProvisioner(
         config,
-        redis_settings=redis_settings,
+        redis_settings=resolved_redis_settings,
         redis_policy=config.redis_policy,
         kafka_mapping=mapping,
     )
@@ -753,7 +754,7 @@ def plan_managed_manifest(
     return _build_managed_manifest(
         config,
         scheduler_running=False,
-        redis_settings=redis_settings,
+        redis_settings=resolved_redis_settings,
         redis_cache=None,
         redis_policy=provisioner.redis_policy,
         kafka_settings=config.kafka_settings,

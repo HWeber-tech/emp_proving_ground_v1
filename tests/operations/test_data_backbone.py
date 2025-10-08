@@ -6,6 +6,7 @@ from src.data_foundation.batch.spark_export import (
     SparkExportSnapshot,
     SparkExportStatus,
 )
+from src.data_foundation.cache.redis_cache import RedisConnectionSettings
 from src.data_foundation.ingest.configuration import InstitutionalIngestConfig
 from src.data_foundation.ingest.failover import IngestFailoverDecision
 from src.data_foundation.ingest.health import (
@@ -54,6 +55,7 @@ def _sample_ingest_config() -> InstitutionalIngestConfig:
         reason=None,
         plan=plan,
         metadata=metadata,
+        redis_settings=RedisConnectionSettings(),
     )
 
 
@@ -257,6 +259,7 @@ def test_evaluate_data_backbone_validation_passes_when_configured() -> None:
             url="postgresql://example", application_name="test"
         ),
         kafka_settings=config.kafka_settings,
+        redis_settings=config.redis_settings,
         metadata=config.metadata,
         schedule=config.schedule,
         recovery=config.recovery,

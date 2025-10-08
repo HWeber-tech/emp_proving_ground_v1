@@ -10,6 +10,7 @@ from sqlalchemy import create_engine
 
 from main import _execute_timescale_ingest
 from src.core.event_bus import EventBus
+from src.data_foundation.cache.redis_cache import RedisConnectionSettings
 from src.data_foundation.ingest.configuration import (
     InstitutionalIngestConfig,
     TimescaleIngestRecoverySettings,
@@ -108,6 +109,7 @@ async def test_execute_timescale_ingest_records_journal(tmp_path) -> None:
         ),
         timescale_settings=settings,
         kafka_settings=KafkaConnectionSettings.from_mapping({}),
+        redis_settings=RedisConnectionSettings(),
         metadata={"test": True},
         schedule=None,
     )
@@ -201,6 +203,7 @@ async def test_execute_timescale_ingest_publishes_kafka_metrics(tmp_path) -> Non
         ),
         timescale_settings=settings,
         kafka_settings=KafkaConnectionSettings.from_mapping({}),
+        redis_settings=RedisConnectionSettings(),
         metadata={"slice": "daily"},
         schedule=None,
     )
@@ -292,6 +295,7 @@ async def test_execute_timescale_ingest_runs_recovery(tmp_path) -> None:
         ),
         timescale_settings=settings,
         kafka_settings=KafkaConnectionSettings.from_mapping({}),
+        redis_settings=RedisConnectionSettings(),
         metadata={},
         schedule=None,
         recovery=TimescaleIngestRecoverySettings(
@@ -418,6 +422,7 @@ async def test_execute_timescale_ingest_short_circuits_when_validation_fails(
         ),
         timescale_settings=settings,
         kafka_settings=KafkaConnectionSettings.from_mapping({}),
+        redis_settings=RedisConnectionSettings(),
         metadata={"plan": {"daily_bars": {"symbols": ["EURUSD"], "lookback_days": 60}}},
         schedule=None,
     )
@@ -543,6 +548,7 @@ async def test_execute_timescale_ingest_runs_spark_export(tmp_path) -> None:
         plan=TimescaleBackbonePlan(daily=DailyBarIngestPlan(symbols=["EURUSD"])),
         timescale_settings=settings,
         kafka_settings=KafkaConnectionSettings.from_mapping({}),
+        redis_settings=RedisConnectionSettings(),
         metadata={},
         schedule=None,
         spark_export=spark_plan,

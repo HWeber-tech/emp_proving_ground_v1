@@ -49,6 +49,7 @@ def _ingest_config(*, schedule: IngestSchedule | None = None) -> InstitutionalIn
         plan=plan,
         timescale_settings=TimescaleConnectionSettings(url="sqlite:///ingest_test.db"),
         kafka_settings=KafkaConnectionSettings.from_mapping({}),
+        redis_settings=RedisConnectionSettings(),
         metadata={},
         schedule=schedule,
     )

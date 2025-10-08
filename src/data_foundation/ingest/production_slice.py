@@ -95,7 +95,9 @@ class ProductionIngestSlice:
 
         self._orchestrator = self.orchestrator_factory(settings, self.event_publisher)
         self._provisioner = self.provisioner_factory(
-            self.ingest_config, self.redis_settings, self.kafka_mapping
+            self.ingest_config,
+            self.redis_settings or self.ingest_config.redis_settings,
+            self.kafka_mapping,
         )
 
     async def run_once(self) -> bool:

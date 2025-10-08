@@ -88,6 +88,9 @@ def _ingest_config(*, schedule: IngestSchedule | None = None) -> InstitutionalIn
         kafka_settings=KafkaConnectionSettings.from_mapping(
             {"KAFKA_BROKERS": "broker:9092"}
         ),
+        redis_settings=RedisConnectionSettings.from_mapping(
+            {"REDIS_URL": "redis://localhost:6379/0"}
+        ),
         metadata={},
         schedule=schedule,
         recovery=TimescaleIngestRecoverySettings(),

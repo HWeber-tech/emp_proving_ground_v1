@@ -10,6 +10,7 @@ import pytest
 
 pytestmark = pytest.mark.guardrail
 
+from src.data_foundation.cache.redis_cache import RedisConnectionSettings
 from src.data_foundation.ingest.configuration import InstitutionalIngestConfig
 from src.data_foundation.ingest.institutional_vertical import (
     ConnectivityProbeError,
@@ -30,6 +31,7 @@ def _make_services() -> InstitutionalIngestServices:
         plan=TimescaleBackbonePlan(),
         timescale_settings=TimescaleConnectionSettings(url="sqlite:///tmp/test.db"),
         kafka_settings=KafkaConnectionSettings(bootstrap_servers=""),
+        redis_settings=RedisConnectionSettings(),
     )
     scheduler = Mock(spec=TimescaleIngestScheduler)
     supervisor = Mock(spec=TaskSupervisor)

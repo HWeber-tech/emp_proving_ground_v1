@@ -18,7 +18,6 @@ from pathlib import Path
 from typing import Mapping, Sequence
 
 from src.core.event_bus import get_global_bus
-from src.data_foundation.cache.redis_cache import RedisConnectionSettings
 from src.data_foundation.ingest.configuration import (
     InstitutionalIngestConfig,
     build_institutional_ingest_config,
@@ -130,12 +129,6 @@ def _fallback_symbols(payload: str | None) -> Sequence[str]:
         return ()
     tokens = [segment.strip() for segment in payload.split(",")]
     return [token for token in tokens if token]
-
-
-def _redis_settings(config: SystemConfig) -> RedisConnectionSettings | None:
-    settings = RedisConnectionSettings.from_mapping(config.extras)
-    return settings if settings.configured else None
-
 
 def _kafka_mapping(config: SystemConfig) -> Mapping[str, str]:
     return {str(key): str(value) for key, value in config.extras.items() if key.startswith("KAFKA_")}
@@ -281,7 +274,7 @@ async def _main_async(args: argparse.Namespace) -> int:
             print(payload)
         return 0
 
-    redis_settings = _redis_settings(config)
+    redis_settings = ingest_config.redis_settings if ingest_config.redis_settings.configured else None
     kafka_mapping = _kafka_mapping(config)
 
     supervisor = TaskSupervisor(namespace=args.namespace)

@@ -19,10 +19,15 @@
   reliable runtime wiring for sensory subscriptions.【F:docs/technical_debt_assessment.md†L33-L80】
 - HOW and ANOMALY organs now clamp minimum confidence, sanitise sequence input,
   surface dropped-sample counts, enrich telemetry with order-book analytics, and
-  emit sanitised lineage records plus shared threshold posture metadata so
-  downstream consumers can trace provenance and escalation context under pytest
+  emit sanitised lineage records plus shared threshold posture metadata; the
+  anomaly stack now wraps a shared `BasicAnomalyDetector` that enforces rolling
+  z-score windows with deterministic sampling constraints and guardrail
   coverage, though inputs remain synthetic until the ingest backbone is
-  live.【F:src/sensory/how/how_sensor.py†L21-L210】【F:src/sensory/anomaly/anomaly_sensor.py†L21-L277】【F:src/sensory/thresholds.py†L1-L76】【F:tests/sensory/test_how_anomaly_sensors.py†L187-L302】【F:tests/sensory/test_thresholds.py†L1-L57】
+  live.【F:src/sensory/how/how_sensor.py†L21-L210】【F:src/sensory/anomaly/anomaly_sensor.py†L21-L302】【F:src/sensory/anomaly/basic_detector.py†L1-L140】【F:tests/sensory/test_how_anomaly_sensors.py†L170-L294】【F:tests/sensory/test_basic_anomaly_detector.py†L1-L39】
+- WHAT/WHEN/WHY sensors now attach structured `quality` metadata (source,
+  timestamp, confidence) alongside lineage dictionaries, and regression tests
+  assert the enriched payloads to keep downstream consumers aligned while real
+  data feeds remain forthcoming.【F:src/sensory/what/what_sensor.py†L131-L210】【F:src/sensory/when/when_sensor.py†L147-L230】【F:src/sensory/why/why_sensor.py†L126-L238】【F:tests/sensory/test_primary_dimension_sensors.py†L1-L98】
 - Real sensory organ fuses WHY/WHAT/WHEN/HOW/ANOMALY outputs, publishes
   telemetry snapshots with lineage metadata and bundled metrics payloads, and
   exposes audit/status helpers

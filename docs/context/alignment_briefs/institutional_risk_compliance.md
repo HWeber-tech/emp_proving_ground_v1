@@ -18,6 +18,9 @@
 - Canonical risk configuration now resides in `src/config/risk/risk_config.py`,
   yet dead-code sweeps still list additional risk and compliance files as unused,
   complicating canonicalisation.【F:src/config/risk/risk_config.py†L1-L72】【F:docs/reports/CLEANUP_REPORT.md†L71-L175】
+- Risk manager now returns `0.0` when the risk budget is exhausted or lot sizes
+  fall below configured minimums, preventing orphaned orders in depleted paper
+  accounts while regression coverage exercises zero-budget flows.【F:src/risk/risk_manager_impl.py†L220-L268】【F:tests/risk/test_risk_manager_impl_additional.py†L27-L70】
 
 ## Gap themes
 
@@ -164,6 +167,7 @@
   trace AlphaTrade tactics from ledger to runtime enforcement without manual
   reconciliation.【F:src/governance/policy_ledger.py†L1-L200】【F:src/governance/policy_rebuilder.py†L1-L141】【F:tools/governance/rebuild_policy.py†L1-L112】【F:tests/governance/test_policy_ledger.py†L33-L181】【F:tests/tools/test_rebuild_policy_cli.py†L11-L41】
 - Progress: Ledger persistence now acquires filesystem locks, swaps atomic temp files, and surfaces JSONL/Markdown promotion artifacts through the CLI helpers with concurrency regression coverage so concurrent operators cannot clobber governance state.【F:src/governance/policy_ledger.py†L260-L374】【F:tools/governance/_promotion_helpers.py†L13-L108】【F:tools/governance/promote_policy.py†L122-L335】【F:tests/governance/test_policy_ledger_locking.py†L11-L53】【F:tests/tools/test_promote_policy_cli.py†L1-L180】
+  - Progress: Promotion workflows now normalise whitespace around evidence IDs, reject blank submissions, and persist trimmed identifiers across history with guardrail tests covering both governance manager and store surfaces.【F:src/governance/policy_ledger.py†L97-L218】【F:tests/governance/test_policy_ledger.py†L147-L225】【F:tests/governance/test_policy_ledger_locking.py†L51-L65】
 - Progress: AlphaTrade graduation CLI now offers an `--apply` mode that promotes
   ledger stages when recommendations clear blockers, annotates JSON/text
   summaries with applied stages, and persists the release via the ledger manager

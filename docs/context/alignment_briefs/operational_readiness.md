@@ -68,6 +68,10 @@
   and exposes status breakdowns plus per-component issue catalogs so dashboards
   and alerts share deterministic remediation context under regression coverage
   and updated status docs.【F:src/operations/operational_readiness.py†L113-L744】【F:tests/operations/test_operational_readiness.py†L86-L389】【F:docs/status/operational_readiness.md†L1-L140】【F:tests/runtime/test_professional_app_timescale.py†L722-L799】
+  - Progress: Strategy performance tracker now computes per-strategy KPIs,
+    loop metrics, ROI posture, and Markdown summaries so readiness dashboards
+    can surface trading-loop health from one aggregation surface under pytest
+    coverage.【F:src/operations/strategy_performance_tracker.py†L1-L596】【F:tests/operations/test_strategy_performance_tracker.py†L1-L122】
 - Progress: Default alert policy now delivers email, SMS, webhook, Slack, and
   GitHub issue transports out of the box, with regression coverage asserting
   channel fan-out for readiness, incident response, and drift sentry alerts and

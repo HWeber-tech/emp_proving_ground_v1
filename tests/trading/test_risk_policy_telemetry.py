@@ -9,7 +9,13 @@ import pytest
 from src.config.risk.risk_config import RiskConfig
 from src.trading.risk.policy_telemetry import (
     PolicyCheckStatus,
+    RiskPolicyCheckSnapshot,
+    RiskPolicyEvaluationSnapshot,
     RiskPolicyViolationAlert,
+    _coerce_float,
+    _coerce_mapping,
+    _first_violation,
+    _normalise_status,
     build_policy_snapshot,
     build_policy_violation_alert,
     format_policy_markdown,
@@ -239,3 +245,178 @@ async def test_publish_policy_violation_emits_event() -> None:
     assert event.payload["severity"] == "warning"
     assert event.payload["snapshot"]["approved"] is snapshot.approved
     assert "markdown" in event.payload
+
+
+def test_check_snapshot_as_dict_includes_optional_fields() -> None:
+    snapshot = RiskPolicyCheckSnapshot(
+        name="policy.max_total_exposure_pct",
+        status=PolicyCheckStatus.warn,
+        value=42.0,
+        threshold=50.0,
+        metadata={"ratio": 0.84},
+    )
+
+    payload = snapshot.as_dict()
+
+    assert payload["value"] == pytest.approx(42.0)
+    assert payload["threshold"] == pytest.approx(50.0)
+    assert payload["metadata"] == {"ratio": 0.84}
+
+
+@pytest.mark.parametrize(
+    "input_value",
+    [PolicyCheckStatus.warn, "violation", "unknown"],
+    ids=["enum", "string", "fallback"],
+)
+def test_normalise_status_handles_enum_and_invalid_values(input_value: object) -> None:
+    result = _normalise_status(input_value)
+    if input_value == "unknown":
+        assert result is PolicyCheckStatus.ok
+    elif isinstance(input_value, PolicyCheckStatus):
+        assert result is input_value
+    else:
+        assert result is PolicyCheckStatus.violation
+
+
+@pytest.mark.parametrize(
+    "payload,expected",
+    [
+        (None, None),
+        (" ", None),
+        ("1.23", 1.23),
+        (Decimal("2.5"), 2.5),
+        ({"__float__": lambda: 3.3}, None),
+    ],
+)
+def test_coerce_float_normalises_inputs(payload: object | None, expected: float | None) -> None:
+    assert _coerce_float(payload) == expected
+
+
+def test_coerce_mapping_converts_sequences_and_scalars() -> None:
+    assert _coerce_mapping({"a": 1}) == {"a": 1}
+    assert _coerce_mapping(["x", "y"]) == {"0": "x", "1": "y"}
+    assert _coerce_mapping(None) == {}
+    assert _coerce_mapping(True) == {"value": True}
+
+
+def test_build_policy_snapshot_ignores_non_mapping_entries() -> None:
+    decision = RiskPolicyDecision(
+        approved=False,
+        reason="policy.max_total_exposure_pct",
+        checks=(
+            {
+                "name": "policy.max_total_exposure_pct",
+                "status": "warn",
+                "value": "10",
+                "threshold": "20",
+                "extra": {"ratio": "0.5"},
+            },
+            ["not-a-mapping"],
+        ),
+        metadata={"symbol": "GBPUSD", "research_mode": True},
+        violations=("policy.max_total_exposure_pct",),
+    )
+
+    snapshot = build_policy_snapshot(decision, policy=None, generated_at=datetime.now(timezone.utc))
+
+    assert snapshot.symbol == "GBPUSD"
+    assert snapshot.research_mode is True
+    assert len(snapshot.checks) == 1
+    check = snapshot.checks[0]
+    assert check.metadata == {"ratio": "0.5"}
+    payload = snapshot.as_dict()
+    assert payload["metadata"]["research_mode"] is True
+
+
+def test_format_policy_markdown_covers_metadata_and_research_mode() -> None:
+    snapshot = RiskPolicyEvaluationSnapshot(
+        symbol="EURUSD",
+        approved=True,
+        reason=None,
+        generated_at=datetime(2024, 1, 1, tzinfo=timezone.utc),
+        checks=(
+            RiskPolicyCheckSnapshot(
+                name="policy.max_risk_per_trade_pct",
+                status=PolicyCheckStatus.ok,
+                value=Decimal("10"),
+                threshold=Decimal("20"),
+            ),
+        ),
+        policy_limits={"max_total_exposure_pct": 0.5},
+        metadata={"equity": "100000", "projected_total_exposure": "20000"},
+        violations=(),
+        research_mode=True,
+    )
+
+    markdown = format_policy_markdown(snapshot)
+
+    assert "**Limits:**" in markdown
+    assert "**Exposure:** equity=100,000.00 projected=20,000.00" in markdown
+    assert "**Research mode:** enabled" in markdown
+
+
+def test_violation_alert_as_dict_omits_runbook_when_missing() -> None:
+    snapshot = RiskPolicyEvaluationSnapshot(
+        symbol="EURUSD",
+        approved=False,
+        reason="policy_violation",
+        generated_at=datetime(2024, 1, 1, tzinfo=timezone.utc),
+        checks=(),
+        policy_limits={},
+        metadata={},
+        violations=("policy.max_total_exposure_pct",),
+        research_mode=False,
+    )
+    alert = build_policy_violation_alert(snapshot, severity="critical", runbook=None)
+
+    payload = alert.as_dict()
+    assert "runbook" not in payload
+    assert payload["severity"] == "critical"
+
+
+def test_first_violation_falls_back_to_violation_checks() -> None:
+    snapshot = RiskPolicyEvaluationSnapshot(
+        symbol="FX",
+        approved=False,
+        reason=None,
+        generated_at=datetime(2024, 1, 1, tzinfo=timezone.utc),
+        checks=(
+            RiskPolicyCheckSnapshot(
+                name="policy.max_total_exposure_pct",
+                status=PolicyCheckStatus.violation,
+            ),
+        ),
+        policy_limits={},
+        metadata={},
+        violations=(),
+        research_mode=False,
+    )
+
+    assert _first_violation(snapshot) == "policy.max_total_exposure_pct"
+
+
+def test_format_policy_violation_markdown_includes_all_sections() -> None:
+    snapshot = RiskPolicyEvaluationSnapshot(
+        symbol="EURUSD",
+        approved=False,
+        reason="policy.max_total_exposure_pct",
+        generated_at=datetime(2024, 1, 1, tzinfo=timezone.utc),
+        checks=(
+            RiskPolicyCheckSnapshot(
+                name="policy.max_total_exposure_pct",
+                status=PolicyCheckStatus.violation,
+            ),
+        ),
+        policy_limits={"max_total_exposure_pct": 0.4},
+        metadata={"equity": "100000", "projected_total_exposure": "120000"},
+        violations=("policy.max_total_exposure_pct",),
+        research_mode=False,
+    )
+    alert = build_policy_violation_alert(snapshot, severity="warning", runbook="runbook.md")
+
+    markdown = format_policy_violation_markdown(alert)
+
+    assert "**Primary violation:** policy.max_total_exposure_pct" in markdown
+    assert "**Limits:** max_total_exposure_pct=0.4" in markdown
+    assert "**Exposure:** equity=100,000.00 projected=120,000.00" in markdown
+    assert "**Runbook:** runbook.md" in markdown

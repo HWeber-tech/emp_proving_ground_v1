@@ -54,6 +54,24 @@ managed connector snapshot and probe health.  The `--env-file` flag injects the
 dotenv entries before extras overrides, so the CLI can run without mutating the
 process environment.
 
+## 3b. Combined readiness check
+
+Generate a single report that includes the managed connector summary and an
+optional failover drill by using the readiness CLI:
+
+```bash
+python -m tools.operations.institutional_ingest_readiness \
+  --env-file .env.institutional \
+  --connectivity \
+  --ingest-results /tmp/ingest_results.json \
+  --format markdown
+```
+
+When `--ingest-results` is supplied the command executes the same
+`InstitutionalIngestProvisioner.run_failover_drill()` path used in runtime,
+capturing the managed manifest, connectivity health, and failover snapshot in a
+single artifact for reviews.
+
 ## 4. Exercise failover drills
 
 Feed recent Timescale ingest results into the failover drill CLI while reusing

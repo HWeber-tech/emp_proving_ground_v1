@@ -8,6 +8,8 @@ import sys
 from pathlib import Path
 from typing import Mapping, Sequence
 
+from src.data_foundation.ingest.configuration import InstitutionalIngestConfig
+
 from sqlalchemy.engine import make_url
 
 from src.data_foundation.cache.redis_cache import InMemoryRedis
@@ -226,8 +228,10 @@ async def _collect_connectivity(
         await services.stop()
 
 
-def _render_markdown(report: Mapping[str, object]) -> str:
-    lines: list[str] = ["# Institutional Ingest Managed Connectors", ""]
+def _render_markdown_sections(report: Mapping[str, object]) -> list[str]:
+    """Return Markdown lines describing the managed connector report."""
+
+    lines: list[str] = []
     should_run = "yes" if report.get("should_run") else "no"
     lines.append(f"- Should run: {should_run}")
     reason = report.get("reason")
@@ -277,6 +281,12 @@ def _render_markdown(report: Mapping[str, object]) -> str:
             if error:
                 line += f" - {error}"
             lines.append(line)
+    return lines
+
+
+def _render_markdown(report: Mapping[str, object]) -> str:
+    lines = ["# Institutional Ingest Managed Connectors", ""]
+    lines.extend(_render_markdown_sections(report))
     return "\n".join(lines)
 
 
@@ -326,14 +336,15 @@ def _provision_kafka_topics(
     return payload
 
 
-def _generate_report(args: argparse.Namespace) -> dict[str, object]:
-    config = _load_system_config(args.config, args.env_file)
-    extras = _parse_extra_arguments(args.extra)
-    config = _apply_extras(config, extras)
-
-    ingest_config = build_institutional_ingest_config(config)
-    kafka_mapping = dict(config.extras)
-
+def build_report_for_ingest_config(
+    ingest_config: InstitutionalIngestConfig,
+    kafka_mapping: Mapping[str, str],
+    *,
+    connectivity: bool,
+    ensure_topics: bool,
+    topics_dry_run: bool,
+    timeout: float,
+) -> dict[str, object]:
     manifest_snapshots = plan_managed_manifest(
         ingest_config,
         redis_settings=ingest_config.redis_settings,
@@ -361,26 +372,62 @@ def _generate_report(args: argparse.Namespace) -> dict[str, object]:
         "failover": failover_summary,
     }
 
-    if args.connectivity:
+    if connectivity:
         _ensure_sqlite_directory(ingest_config.timescale_settings.url)
-        connectivity = asyncio.run(
+        connectivity_snapshots = asyncio.run(
             _collect_connectivity(
                 ingest_config,
                 kafka_mapping,
-                timeout=max(0.1, float(args.timeout)),
+                timeout=max(0.1, float(timeout)),
             )
         )
-        report["connectivity"] = connectivity
+        report["connectivity"] = connectivity_snapshots
 
-    if args.ensure_topics:
+    if ensure_topics:
         topic_summary = _provision_kafka_topics(
             ingest_config,
             kafka_mapping,
-            dry_run=bool(args.topics_dry_run),
+            dry_run=bool(topics_dry_run),
         )
         report["kafka_topic_provisioning"] = topic_summary
 
     return report
+
+
+def build_managed_connector_report(
+    config: SystemConfig,
+    *,
+    connectivity: bool = False,
+    ensure_topics: bool = False,
+    topics_dry_run: bool = False,
+    timeout: float = 5.0,
+) -> dict[str, object]:
+    """Construct the managed connector report for the provided configuration."""
+
+    ingest_config = build_institutional_ingest_config(config)
+    kafka_mapping = dict(config.extras)
+    return build_report_for_ingest_config(
+        ingest_config,
+        kafka_mapping,
+        connectivity=connectivity,
+        ensure_topics=ensure_topics,
+        topics_dry_run=topics_dry_run,
+        timeout=timeout,
+    )
+
+
+def _generate_report(args: argparse.Namespace) -> dict[str, object]:
+    config = _load_system_config(args.config, args.env_file)
+    extras = _parse_extra_arguments(args.extra)
+    config = _apply_extras(config, extras)
+
+    return build_managed_connector_report(
+        config,
+        connectivity=bool(args.connectivity),
+        ensure_topics=bool(args.ensure_topics),
+        topics_dry_run=bool(args.topics_dry_run),
+        timeout=float(args.timeout),
+    )
 
 
 def _format_report(report: dict[str, object], output_format: str) -> str:

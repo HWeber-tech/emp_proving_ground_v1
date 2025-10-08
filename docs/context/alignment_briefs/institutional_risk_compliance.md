@@ -200,6 +200,7 @@
     dispatch orders to the live engine under regression coverage of the stage
     transitions.【F:src/trading/execution/release_router.py†L166-L217】【F:src/trading/trading_manager.py†L141-L287】【F:tests/trading/test_release_execution_router.py†L168-L217】【F:tests/trading/test_trading_manager_execution.py†L1438-L1492】
 - Progress: Trading manager now installs the PaperBrokerExecutionAdapter as the limited-live engine with stage defaults and risk-context snapshots, and the bootstrap runtime can attach a REST `PaperTradingApiAdapter` when extras are supplied, exercising real HTTP round-trips and cleanup callbacks under pytest coverage so paper pilots inherit deterministic routing without bespoke wiring.【src/trading/execution/paper_broker_adapter.py:1】【src/runtime/predator_app.py:2095】【src/trading/integration/paper_trading_api.py:1】【tests/trading/test_paper_trading_api_adapter.py:1】【tests/runtime/test_bootstrap_paper_broker.py:1】
+- Progress: Execution pipeline now enforces configurable trade throttles via the trading manager, producing throttle posture snapshots and regression coverage that proves bursty strategies are deferred according to governance policy.【src/trading/execution/trade_throttle.py†L1-L266】【src/trading/trading_manager.py†L1185-L1415】【tests/trading/test_trading_manager_execution.py†L1499-L1586】
   - Progress: Legacy FIX executor now installs the shared risk-context provider,
     captures metadata/errors each time it reconciles orders, and exposes
     `describe_risk_context()` so FIX pilots surface the same runbook-tagged risk

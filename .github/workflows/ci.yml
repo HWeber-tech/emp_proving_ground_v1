@@ -115,6 +115,7 @@ jobs:
             --report pytest-report.xml \
             --require tests.data_foundation.test_timescale_backbone_orchestrator \
             --require tests.data_foundation.test_production_ingest_slice \
+            --require tests.data_foundation.test_ingest_scheduler \
             --require tests.trading.test_risk_policy \
             --require tests.trading.test_risk_policy_telemetry \
             > pytest-guardrails.txt
@@ -133,7 +134,9 @@ jobs:
             --require-file src/data_foundation/ingest/timescale_pipeline.py \
             --require-file src/data_foundation/ingest/production_slice.py \
             --require-file src/data_foundation/ingest/institutional_vertical.py \
+            --require-file src/data_foundation/ingest/scheduler.py \
             --require-file src/data_foundation/ingest/configuration.py \
+            --require-file src/data_foundation/ingest/observability.py \
             --require-file src/trading/risk/risk_policy.py \
             --require-file src/trading/risk/policy_telemetry.py \
             > coverage-matrix.md

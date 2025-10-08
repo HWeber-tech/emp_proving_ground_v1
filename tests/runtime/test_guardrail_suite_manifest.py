@@ -119,7 +119,9 @@ def test_ci_guardrail_job_validates_ingest_coverage() -> None:
     assert "src/data_foundation/ingest/timescale_pipeline.py" in run_script
     assert "src/data_foundation/ingest/production_slice.py" in run_script
     assert "src/data_foundation/ingest/institutional_vertical.py" in run_script
+    assert "src/data_foundation/ingest/scheduler.py" in run_script
     assert "src/data_foundation/ingest/configuration.py" in run_script
+    assert "src/data_foundation/ingest/observability.py" in run_script
     assert "src/trading/risk/risk_policy.py" in run_script
     assert "src/trading/risk/policy_telemetry.py" in run_script
 
@@ -142,6 +144,7 @@ def test_ci_guardrail_job_runs_pytest_guardrail_contract() -> None:
     for requirement in (
         "tests.data_foundation.test_timescale_backbone_orchestrator",
         "tests.data_foundation.test_production_ingest_slice",
+        "tests.data_foundation.test_ingest_scheduler",
         "tests.trading.test_risk_policy",
         "tests.trading.test_risk_policy_telemetry",
     ):

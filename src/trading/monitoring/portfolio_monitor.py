@@ -155,6 +155,35 @@ class PortfolioMonitor:
         payload: dict[str, object] = dict(snapshot)
         payload["cache_key"] = self.redis_key
         payload["reason"] = reason
+
+        def _normalise_int(name: str, default: int = 0) -> int:
+            value = payload.get(name, default)
+            if isinstance(value, bool):
+                value = int(value)
+            if isinstance(value, int):
+                return value
+            if isinstance(value, float):
+                return int(value)
+            try:
+                return int(float(str(value).strip()))
+            except (TypeError, ValueError, AttributeError):
+                return default
+
+        for metric_name in ("hits", "misses", "evictions", "expirations", "invalidations", "sets"):
+            payload[metric_name] = _normalise_int(metric_name)
+
+        total_requests = payload["hits"] + payload["misses"]
+        if "hit_rate" not in payload:
+            payload["hit_rate"] = (payload["hits"] / total_requests) if total_requests > 0 else None
+
+        if "keys" in snapshot:
+            payload["keys"] = _normalise_int("keys")
+
+        backing = getattr(self.redis_client, "raw_client", self.redis_client)
+        payload.setdefault("backing", type(backing).__name__)
+        payload.setdefault("namespace", self.cache_policy.namespace)
+        payload.setdefault("configured", not isinstance(backing, InMemoryRedis))
+
         payload.setdefault(
             "policy",
             {

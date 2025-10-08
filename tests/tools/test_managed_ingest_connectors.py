@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 
 import pytest
 
@@ -26,7 +27,7 @@ def _build_config(extras: dict[str, str] | None = None) -> SystemConfig:
 
 
 def _patch_config(monkeypatch: pytest.MonkeyPatch, config: SystemConfig) -> None:
-    monkeypatch.setattr(mic, "_load_system_config", lambda _: config)
+    monkeypatch.setattr(mic, "_load_system_config", lambda *_args: config)
 
 
 def test_managed_connectors_cli_reports_success(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:

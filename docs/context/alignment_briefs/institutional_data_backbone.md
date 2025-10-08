@@ -138,6 +138,11 @@
 
 - Stand up managed Timescale, Redis, and Kafka environments in staging, including
   schema migrations, connection pooling, and credential rotation procedures.
+- Progress: A docker compose stack and dotenv template now provision local
+  Timescale/Redis/Kafka services with matching `SystemConfig` extras, and the
+  managed connector CLI accepts an `--env-file` flag so operators can validate
+  connectivity against the stack without exporting secrets globally; operations
+  docs capture the workflow alongside failover drill guidance.【F:docker/institutional-ingest/docker-compose.yml†L1-L67】【F:env_templates/institutional_ingest.env†L1-L24】【F:tools/operations/managed_ingest_connectors.py†L20-L159】【F:docs/operations/managed_ingest_environment.md†L1-L73】
 - Implement cache health, ingest quality, and Kafka lag probes with pytest
   coverage and CI export.
 - Replace deprecated configuration imports in ingest and runtime modules with

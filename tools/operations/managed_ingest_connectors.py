@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import os
 import sys
 from pathlib import Path
 from typing import Mapping, Sequence
@@ -51,6 +52,11 @@ def _build_parser() -> argparse.ArgumentParser:
         "--config",
         type=Path,
         help="Optional path to a YAML configuration file (defaults to environment variables)",
+    )
+    parser.add_argument(
+        "--env-file",
+        type=Path,
+        help="Optional dotenv-style file used to seed SystemConfig extras before applying overrides",
     )
     parser.add_argument(
         "--format",
@@ -113,10 +119,42 @@ def _parse_extra_arguments(entries: Sequence[str] | None) -> dict[str, str]:
     return overrides
 
 
-def _load_system_config(config_path: Path | None) -> SystemConfig:
+def _load_env_file(path: Path) -> dict[str, str]:
+    payload: dict[str, str] = {}
+    text = path.read_text(encoding="utf-8")
+    for idx, raw_line in enumerate(text.splitlines(), start=1):
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+        if "=" not in line:
+            raise ValueError(f"env file line {idx} missing '=': {raw_line!r}")
+        key, value = line.split("=", 1)
+        key = key.strip()
+        value = value.strip()
+        if not key:
+            raise ValueError(f"env file line {idx} has empty key")
+        payload[key] = value
+    return payload
+
+
+def _load_system_config(config_path: Path | None, env_file: Path | None) -> SystemConfig:
+    env_overrides: dict[str, str] = {}
+    if env_file is not None:
+        env_overrides = _load_env_file(env_file)
+
     if config_path is None:
-        return SystemConfig.from_env()
-    return SystemConfig.from_yaml(config_path)
+        env_payload = dict(os.environ)
+        if env_overrides:
+            env_payload.update(env_overrides)
+        return SystemConfig.from_env(env=env_payload)
+
+    base = SystemConfig.from_yaml(config_path)
+    if not env_overrides:
+        return base
+
+    env_payload = dict(os.environ)
+    env_payload.update(env_overrides)
+    return SystemConfig.from_env(env=env_payload, defaults=base)
 
 
 def _apply_extras(config: SystemConfig, overrides: Mapping[str, str]) -> SystemConfig:
@@ -289,7 +327,7 @@ def _provision_kafka_topics(
 
 
 def _generate_report(args: argparse.Namespace) -> dict[str, object]:
-    config = _load_system_config(args.config)
+    config = _load_system_config(args.config, args.env_file)
     extras = _parse_extra_arguments(args.extra)
     config = _apply_extras(config, extras)
 

@@ -23,6 +23,7 @@ consumer bridge.
 ## Configuration options
 
 - `--config path/to/config.yaml` – load settings from a legacy YAML file.
+- `--env-file path/to/.env` – seed `SystemConfig` from a dotenv template without exporting values.
 - `--extra KEY=VALUE` – inject or override `SystemConfig` extras without editing
   environment variables.
 - `--format json|markdown` – switch between machine-readable output (JSON) and a

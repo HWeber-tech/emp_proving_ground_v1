@@ -25,6 +25,8 @@ Typical flow:
 4. When running recovery exercises, call `failover_metadata()` to retrieve the
    active drill configuration or invoke `run_failover_drill()` directly to
    execute the simulated outage with the managed connector metadata attached.
+   See `docs/operations/managed_ingest_environment.md` for a compose-based
+   workflow that mirrors the connectors referenced here.
 
 The services bundle now exposes three additional helpers for operations teams:
 

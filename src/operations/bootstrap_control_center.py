@@ -23,6 +23,9 @@ from src.trading.risk.risk_api import (
 _log = logging.getLogger(__name__)
 
 
+_EXPECTED_OPERATION_ERRORS = (RuntimeError, ValueError, TypeError, LookupError)
+
+
 # Keys from the deterministic risk summary we elevate into risk references.
 _RISK_SUMMARY_KEYS = {
     "max_risk_per_trade_pct",
@@ -65,7 +68,7 @@ def _normalise_champion_payload(candidate: object | None) -> dict[str, Any] | No
     if callable(method):
         try:
             payload = method()
-        except Exception as exc:  # pragma: no cover - defensive logging surface
+        except _EXPECTED_OPERATION_ERRORS as exc:  # pragma: no cover - defensive logging surface
             _log.warning(
                 "Champion payload resolution failed for %s: %s",
                 type(candidate).__name__,
@@ -89,7 +92,7 @@ def _call_trading_manager_method(trading_manager: Any, method_name: str) -> Any:
         return None
     try:
         return target()
-    except Exception as exc:  # pragma: no cover - diagnostics only
+    except _EXPECTED_OPERATION_ERRORS as exc:  # pragma: no cover - diagnostics only
         _log.warning(
             "Trading manager method '%s' failed: %s",
             method_name,
@@ -109,7 +112,7 @@ def _coerce_snapshot_mapping(snapshot: Any) -> Mapping[str, Any] | None:
     if callable(as_dict):
         try:
             payload = as_dict()
-        except Exception as exc:  # pragma: no cover - diagnostics only
+        except _EXPECTED_OPERATION_ERRORS as exc:  # pragma: no cover - diagnostics only
             _log.warning(
                 "Snapshot serialization failed for %s: %s",
                 type(snapshot).__name__,
@@ -134,7 +137,7 @@ def _describe_risk_interface_payload(trading_manager: Any) -> Mapping[str, Any] 
         return None
     try:
         payload = describe()
-    except Exception as exc:  # pragma: no cover - diagnostics only
+    except _EXPECTED_OPERATION_ERRORS as exc:  # pragma: no cover - diagnostics only
         _log.debug(
             "Trading manager describe_risk_interface failed: %s",
             exc,
@@ -155,7 +158,7 @@ def _format_optional_markdown(
 
     try:
         return formatter(snapshot)
-    except Exception as exc:  # pragma: no cover - diagnostics only
+    except _EXPECTED_OPERATION_ERRORS as exc:  # pragma: no cover - diagnostics only
         formatter_name = getattr(formatter, "__name__", repr(formatter))
         _log.warning(
             "Formatter '%s' failed for %s: %s",
@@ -239,7 +242,7 @@ class BootstrapControlCenter:
             metadata = build_runtime_risk_metadata(self.trading_manager)
         except RiskApiError as exc:
             self._last_risk_error = exc.to_metadata()
-        except Exception as exc:  # pragma: no cover - diagnostic fallback
+        except _EXPECTED_OPERATION_ERRORS as exc:  # pragma: no cover - diagnostic fallback
             _log.debug("Risk metadata resolution failed", exc_info=True)
             self._last_risk_error = {
                 "message": "Bootstrap control centre risk metadata resolution failed",
@@ -384,7 +387,7 @@ class BootstrapControlCenter:
         if gateway is not None and hasattr(gateway, "get_risk_limits"):
             try:
                 limits_candidate = gateway.get_risk_limits()
-            except Exception:  # pragma: no cover - defensive diagnostics
+            except _EXPECTED_OPERATION_ERRORS:  # pragma: no cover - defensive diagnostics
                 _log.debug("Risk gateway limits resolution failed for overview", exc_info=True)
             else:
                 if isinstance(limits_candidate, Mapping):
@@ -590,7 +593,7 @@ class BootstrapControlCenter:
 
         try:
             snapshot = builder()
-        except Exception as exc:  # pragma: no cover - diagnostics only
+        except _EXPECTED_OPERATION_ERRORS as exc:  # pragma: no cover - diagnostics only
             _log.debug(
                 "Evolution readiness snapshot resolution failed: %s",
                 exc,
@@ -602,7 +605,7 @@ class BootstrapControlCenter:
         if payload is None and hasattr(snapshot, "as_dict"):
             try:
                 payload_candidate = snapshot.as_dict()  # type: ignore[call-arg]
-            except Exception:
+            except _EXPECTED_OPERATION_ERRORS:
                 payload_candidate = None
             if isinstance(payload_candidate, Mapping):
                 payload = dict(payload_candidate)
@@ -653,7 +656,7 @@ class BootstrapControlCenter:
             if total_generations is not None:
                 try:
                     overview["generations"] = int(total_generations)
-                except Exception:
+                except (TypeError, ValueError):
                     overview["generations"] = total_generations
 
             adaptive_runs = telemetry.get("adaptive_runs")

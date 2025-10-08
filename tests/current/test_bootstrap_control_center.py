@@ -201,6 +201,31 @@ async def test_control_center_compiles_telemetry_report() -> None:
     assert overview["vision_alignment"]["status"] in {"ready", "progressing", "gap"}
 
 
+def test_normalise_champion_payload_handles_expected_errors(caplog: pytest.LogCaptureFixture) -> None:
+    class FailingChampion:
+        genome_id = "test-genome"
+
+        def as_payload(self) -> Mapping[str, object]:
+            raise RuntimeError("champion offline")
+
+    with caplog.at_level(logging.WARNING):
+        payload = bootstrap_module._normalise_champion_payload(FailingChampion())
+
+    assert payload == {"genome_id": "test-genome"}
+    assert "Champion payload resolution failed" in caplog.text
+
+
+def test_normalise_champion_payload_propagates_unexpected_errors() -> None:
+    class BrokenChampion:
+        genome_id = "broken-genome"
+
+        def as_payload(self) -> Mapping[str, object]:
+            raise MemoryError("catastrophic failure")
+
+    with pytest.raises(MemoryError):
+        bootstrap_module._normalise_champion_payload(BrokenChampion())
+
+
 def test_trading_manager_method_failures_are_logged(caplog: pytest.LogCaptureFixture) -> None:
     class ExplodingManager:
         def method(self) -> None:

@@ -26,6 +26,9 @@ from src.data_foundation.persist.timescale import TimescaleIngestResult
 logger = logging.getLogger(__name__)
 
 
+_FALLBACK_ERRORS = (RuntimeError, TimeoutError, ConnectionError, OSError)
+
+
 class FailoverDrillStatus(StrEnum):
     """Severity levels for failover drill components."""
 
@@ -165,7 +168,7 @@ async def execute_failover_drill(
             outcome = fallback()
             if inspect.isawaitable(outcome):
                 await outcome
-        except Exception as exc:  # pragma: no cover - defensive logging
+        except _FALLBACK_ERRORS as exc:  # pragma: no cover - defensive logging
             logger.exception("Failover drill fallback execution failed")
             fallback_error = str(exc)
 

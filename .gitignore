@@ -99,6 +99,10 @@ tests/.telemetry/*
 !tests/.telemetry/flake_runs.json
 !tests/.telemetry/ci_metrics.json
 data/
+!src/operations/data/
+src/operations/data/*
+!src/operations/data/governance_context/
+!src/operations/data/governance_context/*.json
 experiments/
 !src/evolution/experiments/
 logs/

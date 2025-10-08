@@ -1,0 +1,26 @@
+{
+  "generated_at": "2025-01-15T09:00:00+00:00",
+  "status": "ok",
+  "components": [
+    {
+      "name": "kyc_aml",
+      "status": "ok",
+      "summary": "Institutional onboarding portfolio cleared the weekly diligence queue.",
+      "metadata": {
+        "open_cases": 0,
+        "completed_reviews": 18,
+        "pending_reviews": 2,
+        "tier1_accounts": 6
+      }
+    },
+    {
+      "name": "trade_surveillance",
+      "status": "ok",
+      "summary": "Surveillance signals active across FX/CFD venues.",
+      "metadata": {
+        "alerts_last_7d": 1,
+        "cleared_alerts": 12
+      }
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "metadata": {
+    "configured": true,
+    "dialect": "postgresql",
+    "collected_at": "2025-01-15T09:10:00+00:00",
+    "notes": "Packaged fallback ensuring audit posture summaries stay available offline."
+  },
+  "compliance": {
+    "stats": {
+      "total_records": 128,
+      "recent_records": 12,
+      "last_recorded_at": "2025-01-14T18:30:00+00:00"
+    }
+  },
+  "kyc": {
+    "stats": {
+      "total_cases": 64,
+      "recent_cases": 6,
+      "last_recorded_at": "2025-01-14T19:45:00+00:00"
+    }
+  }
+}

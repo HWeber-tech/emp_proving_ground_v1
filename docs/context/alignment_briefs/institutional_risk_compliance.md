@@ -53,7 +53,7 @@
 - Progress: Policy telemetry builders serialise decision snapshots, emit Markdown
   summaries, and publish violation alerts with embedded escalation metadata while
   the trading manager mirrors the feed and the new runbook documents the response,
-  giving governance a deterministic alert surface when violations occur.【F:src/trading/risk/policy_telemetry.py†L1-L285】【F:src/trading/trading_manager.py†L1700-L1744】【F:docs/operations/runbooks/risk_policy_violation.md†L1-L51】【F:tests/trading/test_risk_policy_telemetry.py†L1-L199】
+  giving governance a deterministic alert surface when violations occur.【F:src/trading/risk/policy_telemetry.py†L1-L285】【F:src/trading/trading_manager.py†L1700-L1744】【F:docs/operations/runbooks/risk_policy_violation.md†L1-L51】【F:tests/trading/test_risk_policy_telemetry.py†L1-L422】
 - Progress: Risk gateway decisions now cache risk API summaries, embed
   runbook-backed `risk_reference` payloads on approvals and rejections, and
   publish the same enriched metadata through broker events so responders inherit
@@ -66,11 +66,11 @@
 - Progress: Liquidity prober now routes probe tasks through the shared supervisor
   and records deterministic risk metadata or runbook-tagged errors on every run,
   with regression coverage asserting the supervised probes and risk context so
-  execution telemetry feeds inherit auditable guardrails.【F:src/trading/execution/liquidity_prober.py†L1-L218】【F:tests/trading/test_execution_liquidity_prober.py†L64-L124】
+  execution telemetry feeds inherit auditable guardrails.【F:src/trading/execution/liquidity_prober.py†L1-L340】【F:tests/trading/test_execution_liquidity_prober.py†L90-L138】
 - Progress: Execution adapters now rely on a shared risk-context helper so paper
   fills, release routing, and trading manager snapshots ingest the canonical
   `build_runtime_risk_metadata` output—and surface runbook-tagged errors—under
-  regression coverage that checks provider propagation and describe surfaces.【F:src/trading/execution/_risk_context.py†L1-L75】【F:src/trading/execution/paper_execution.py†L1-L108】【F:src/trading/execution/release_router.py†L1-L154】【F:src/trading/trading_manager.py†L1255-L1409】【F:tests/trading/test_execution_risk_context.py†L38-L165】
+  regression coverage that checks provider propagation and describe surfaces.【F:src/trading/execution/_risk_context.py†L1-L120】【F:src/trading/execution/paper_execution.py†L1-L108】【F:src/trading/execution/release_router.py†L1-L154】【F:src/trading/trading_manager.py†L1255-L1409】【F:tests/trading/test_execution_risk_context.py†L38-L165】
 - Progress: Parity checker telemetry now wraps gauge publication in defensive
   logging, recording order and position mismatches even when the metrics sink
   misbehaves so compliance dashboards surface reconciliation issues instead of
@@ -144,11 +144,11 @@
 - Progress: Governance reporting cadence now uses the shared failover helper to
   publish compiled KYC/AML, regulatory, and audit evidence bundles with typed
   escalation logs so runtime outages still deliver governance telemetry, with
-  pytest scenarios covering fallback behaviour.【F:src/operations/governance_reporting.py†L437-L519】【F:tests/operations/test_governance_reporting.py†L1-L200】
+  pytest scenarios covering fallback behaviour.【F:src/operations/governance_reporting.py†L336-L770】【F:src/operations/data/governance_context/compliance_baseline.json†L1-L24】【F:tests/operations/test_governance_reporting.py†L1-L372】
 - Progress: Timescale compliance and KYC journals now emit recent-activity counts
   with window metadata, and the governance report flags stale journals while
   recording collection timestamps and strategy scope so reviewers see timely
-  evidence under regression coverage.【F:src/data_foundation/persist/timescale.py†L1232-L1322】【F:src/data_foundation/persist/timescale.py†L1617-L1702】【F:src/operations/governance_reporting.py†L336-L444】【F:tests/data_foundation/test_timescale_compliance_journal.py†L103-L117】【F:tests/data_foundation/test_timescale_compliance_journal.py†L199-L210】【F:tests/operations/test_governance_reporting.py†L129-L218】
+  evidence under regression coverage.【F:src/data_foundation/persist/timescale.py†L1232-L1322】【F:src/data_foundation/persist/timescale.py†L1617-L1702】【F:src/operations/governance_reporting.py†L336-L620】【F:tests/data_foundation/test_timescale_compliance_journal.py†L103-L117】【F:tests/data_foundation/test_timescale_compliance_journal.py†L199-L210】【F:tests/operations/test_governance_reporting.py†L129-L330】
 - Progress: Policy ledger store now enforces staged promotions with diary
   evidence, approval metadata, and threshold overrides, and the rebuild CLI
   regenerates enforceable risk configs plus router guardrails while exporting
@@ -179,7 +179,7 @@
 - Progress: Governance cadence runner now persists the last generated timestamp,
   injects strategy and metadata providers, backfills cadence defaults, and wires
   audit/persist/publish hooks so the compliance squad can enforce interval
-  gating or force runs under pytest coverage.【F:src/operations/governance_cadence.py†L1-L200】【F:src/operations/governance_reporting.py†L604-L668】【F:tests/operations/test_governance_cadence.py†L1-L200】
+  gating or force runs under pytest coverage.【F:src/operations/governance_cadence.py†L1-L200】【F:src/operations/governance_reporting.py†L671-L770】【F:tests/operations/test_governance_cadence.py†L1-L200】
 - Progress: Governance cadence CLI resolves SystemConfig extras into context
   packs, layers JSON overrides, supports forced runs, and emits Markdown/JSON
   outputs so operators can execute the cadence outside the runtime while

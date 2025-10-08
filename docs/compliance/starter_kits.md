@@ -34,7 +34,7 @@ runtime output so the context stays anchored to the concept blueprint.
   Timescale audit evidence into a single report via `generate_governance_report`,
   emits `telemetry.compliance.governance` with `publish_governance_report`, and
   trims persisted history with `persist_governance_report` so audit drills inherit
-  deterministic artefacts instead of manual spreadsheets.【F:src/operations/governance_reporting.py†L1-L520】【F:tests/operations/test_governance_reporting.py†L1-L152】
+  deterministic artefacts instead of manual spreadsheets.【F:src/operations/governance_reporting.py†L1-L770】【F:tests/operations/test_governance_reporting.py†L1-L372】
 - `GovernanceCadenceRunner` wraps the cadence helpers behind a single entrypoint,
   loading the previous artefact, enforcing the reporting interval, and wiring
   publication and persistence so runtimes can schedule governance reports without
@@ -57,11 +57,11 @@ runtime output so the context stays anchored to the concept blueprint.
 - Use `should_generate_report` to drive the governance cadence (e.g., daily or
   weekly), `collect_audit_evidence` to hydrate Timescale journals, and persist the
   JSON bundle so reviewers can trace changes over time without ad-hoc exports.
-  【F:src/operations/governance_reporting.py†L1-L520】
+  【F:src/operations/governance_reporting.py†L1-L770】
 - `build_governance_cadence_runner_from_config` wires the cadence runner to the
   JSON context packs referenced by `SystemConfig.extras`, enabling overrides for
   live telemetry while still falling back to the packaged compliance/regulatory
-  artefacts under pytest coverage.【F:src/operations/governance_cadence.py†L200-L336】【F:tests/operations/test_governance_cadence.py†L1-L220】
+  artefacts under pytest coverage.【F:src/operations/governance_cadence.py†L200-L336】【F:src/operations/data/governance_context/compliance_baseline.json†L1-L24】【F:tests/operations/test_governance_cadence.py†L1-L220】
 - The workflow metadata mirrors ingest success and readiness status so operators
   can correlate regulatory blockers with underlying data backbone issues.
 - Extend the default tasks with desk-specific controls by feeding additional

@@ -1,0 +1,37 @@
+{
+  "generated_at": "2025-01-15T09:05:00+00:00",
+  "status": "ok",
+  "coverage_ratio": 0.94,
+  "required_domains": [
+    "kyc_aml",
+    "transaction_reporting",
+    "trade_surveillance"
+  ],
+  "missing_domains": [],
+  "signals": [
+    {
+      "name": "kyc_aml",
+      "status": "ok",
+      "summary": "Identity verification, enhanced due diligence, and watchlist screening up to date.",
+      "observed_at": "2025-01-15T08:45:00+00:00",
+      "metadata": {
+        "checks": 5,
+        "violations": 0
+      }
+    },
+    {
+      "name": "transaction_reporting",
+      "status": "ok",
+      "summary": "MiFID II Article 26 and Dodd-Frank swap submissions cleared validation cues.",
+      "observed_at": "2025-01-15T08:50:00+00:00",
+      "metadata": {
+        "reports_submitted": 42,
+        "late_filings": 0
+      }
+    }
+  ],
+  "metadata": {
+    "notes": "Packaged baseline reflecting green posture across mandatory regulatory feeds.",
+    "source": "packaged_governance_context"
+  }
+}

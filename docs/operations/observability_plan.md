@@ -149,10 +149,14 @@ can layer on without introducing third-party dependencies.
   now honours forced executions, metadata overrides, and SystemConfig-derived
   context packs (via `load_governance_context_from_config`) while enforcing the
   cadence interval so runtimes or operators can schedule the feed without bespoke
-  glue code. The `tools.governance.run_cadence` CLI resolves those context packs,
-  layers JSON overrides, supports forced runs, and emits Markdown/JSON outputs.
-  Tests cover interval gating, event-bus publishing, persisted history, and the
-  CLI skip/force flows so governance reviews inherit deterministic artefacts.【F:src/operations/governance_reporting.py†L1-L668】【F:src/operations/governance_cadence.py†L1-L200】【F:tools/governance/run_cadence.py†L1-L368】【F:tests/operations/test_governance_reporting.py†L1-L200】【F:tests/operations/test_governance_cadence.py†L1-L200】【F:tests/tools/test_run_governance_cadence.py†L47-L138】
+  glue code. The packaged baselines in
+  `src/operations/data/governance_context` keep reports populated when overrides
+  are absent, logging fallback engagements under regression coverage. The
+  `tools.governance.run_cadence` CLI resolves those context packs, layers JSON
+  overrides, supports forced runs, and emits Markdown/JSON outputs. Tests cover
+  interval gating, event-bus publishing, persisted history, fallback defaults,
+  and the CLI skip/force flows so governance reviews inherit deterministic
+  artefacts.【F:src/operations/governance_reporting.py†L1-L770】【F:src/operations/data/governance_context/compliance_baseline.json†L1-L24】【F:src/operations/governance_cadence.py†L1-L200】【F:tools/governance/run_cadence.py†L1-L368】【F:tests/operations/test_governance_reporting.py†L1-L372】【F:tests/operations/test_governance_cadence.py†L1-L200】【F:tests/tools/test_run_governance_cadence.py†L47-L138】
 * **Kafka readiness telemetry** – `evaluate_kafka_readiness` merges connection
   settings, topic provisioning summaries, publisher availability, and lag
   snapshots into `telemetry.kafka.readiness`, with the runtime builder

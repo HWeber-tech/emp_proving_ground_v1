@@ -364,7 +364,12 @@ kit that the roadmap calls back to in each checklist.
     embedded runbook metadata while the trading manager escalates breached
     guardrails and regression tests lock the payload contract, giving operators
     an actionable feed plus an escalation playbook whenever policy violations
-    surface.【F:src/trading/risk/policy_telemetry.py†L1-L285】【F:src/trading/trading_manager.py†L1700-L1744】【F:docs/operations/runbooks/risk_policy_violation.md†L1-L51】【F:tests/trading/test_risk_policy_telemetry.py†L1-L199】
+    surface.【F:src/trading/risk/policy_telemetry.py†L1-L285】【F:src/trading/trading_manager.py†L1700-L1744】【F:docs/operations/runbooks/risk_policy_violation.md†L1-L51】【F:tests/trading/test_risk_policy_telemetry.py†L1-L422】
+  - *Progress*: Liquidity prober and execution adapters now rely on the shared
+    risk-context helpers to capture deterministic metadata, surface provider
+    failures as structured errors, and propagate custom runbook overrides so
+    telemetry consumers inherit the most specific escalation path available
+    under pytest coverage of success and failure probes.【F:src/trading/execution/_risk_context.py†L1-L120】【F:src/trading/execution/liquidity_prober.py†L40-L340】【F:tests/trading/test_execution_liquidity_prober.py†L96-L138】【F:tests/trading/test_execution_risk_context.py†L40-L88】
   - *Progress*: Parity checker telemetry now resolves the metrics sink once,
     logs failures to access or publish gauges, and emits guarded order/position
     mismatch counts so institutional monitors see parity outages instead of
@@ -519,7 +524,7 @@ kit that the roadmap calls back to in each checklist.
     failover helper with typed escalation messages, preserving cadence payloads
     when the runtime bus degrades and documenting fallback behaviour under
     regression coverage so compliance reviewers always receive the compiled
-    KYC/AML, regulatory, and audit telemetry bundle.【F:src/operations/governance_reporting.py†L437-L519】【F:tests/operations/test_governance_reporting.py†L1-L226】
+    KYC/AML, regulatory, and audit telemetry bundle.【F:src/operations/governance_reporting.py†L336-L770】【F:src/operations/data/governance_context/compliance_baseline.json†L1-L24】【F:tests/operations/test_governance_reporting.py†L1-L372】
   - *Progress*: System validation telemetry now attaches failing check names and
     messages to snapshot metadata and Markdown output while continuing to route
     through the shared failover helper, so readiness dashboards surface the
@@ -652,7 +657,7 @@ kit that the roadmap calls back to in each checklist.
     previously untested gap in the trading surface.【F:tests/trading/test_real_portfolio_monitor.py†L1-L77】
   - *Progress*: Added ingest observability and risk policy telemetry regression tests
     so CI surfaces regressions in data backbone snapshots and policy evaluation
-    markdown output.【F:tests/data_foundation/test_ingest_observability.py†L1-L190】【F:tests/trading/test_risk_policy_telemetry.py†L1-L124】
+    markdown output.【F:tests/data_foundation/test_ingest_observability.py†L1-L190】【F:tests/trading/test_risk_policy_telemetry.py†L1-L422】
   - *Progress*: Data backbone readiness coverage now asserts failover trigger
     metadata and Timescale recovery plan serialisation, while risk policy
     regression tests lock mandatory stop-loss and equity budget enforcement so
@@ -716,6 +721,11 @@ kit that the roadmap calls back to in each checklist.
     failure cut-offs, jitter windows, supervisor telemetry, snapshot builders,
     and event publishing so Timescale scheduling instrumentation surfaces issues
     immediately instead of stalling silently.【F:tests/data_foundation/test_ingest_scheduler.py†L1-L200】
+  - *Progress*: Institutional ingest services now ship guardrail coverage for
+    Redis/Kafka connectivity probes, scheduler wiring, failover drills, and
+    managed connector manifests, redacting secrets and surfacing supervisor
+    metadata so readiness dashboards inherit deterministic drill evidence even
+    on configuration fallbacks.【F:src/data_foundation/ingest/institutional_vertical.py†L1-L466】【F:tests/data_foundation/test_institutional_vertical.py†L1-L601】
   - *Progress*: Risk policy warn-threshold coverage asserts that leverage and
     exposure checks flip to warning states before violating limits, capturing
     ratios, thresholds, and metadata so compliance reviewers can trust the
@@ -949,7 +959,7 @@ kit that the roadmap calls back to in each checklist.
     regulatory telemetry, and Timescale audit evidence into a single artefact,
     escalates overall status, publishes via the event-bus failover helper, and
     trims persisted histories so audits inherit deterministic evidence with
-    pytest covering scheduling, publishing, and storage flows.【F:src/operations/governance_reporting.py†L1-L520】【F:tests/operations/test_governance_reporting.py†L1-L226】
+    pytest covering scheduling, publishing, and storage flows.【F:src/operations/governance_reporting.py†L1-L770】【F:tests/operations/test_governance_reporting.py†L1-L372】
   - *Progress*: Timescale compliance and KYC journals now return recent-activity
     counts with window metadata, and the governance report flags stale journals
     while recording collection timestamps and strategy scope so reviewers see
@@ -961,12 +971,16 @@ kit that the roadmap calls back to in each checklist.
   - *Progress*: Governance cadence runner now persists the last generated
     timestamp, injects strategy and metadata providers, backfills cadence
     defaults, and wires audit/persist/publish hooks so operations can enforce
-    interval gating or force runs under pytest coverage.【F:src/operations/governance_cadence.py†L1-L200】【F:src/operations/governance_reporting.py†L604-L668】【F:tests/operations/test_governance_cadence.py†L1-L200】
+    interval gating or force runs under pytest coverage.【F:src/operations/governance_cadence.py†L1-L200】【F:src/operations/governance_reporting.py†L671-L770】【F:tests/operations/test_governance_cadence.py†L1-L200】
   - *Progress*: Governance cadence CLI resolves SystemConfig extras into JSON
     context packs, layers optional snapshot overrides, supports forced runs, and
     emits Markdown/JSON outputs so operators can run the cadence without the
     runtime while preserving persisted history and metadata provenance under
     pytest coverage.【F:tools/governance/run_cadence.py†L1-L368】【F:tests/tools/test_run_governance_cadence.py†L47-L138】
+  - *Progress*: Packaged governance context baselines now ship with the repo and
+    the loader falls back to them when SystemConfig overrides are missing,
+    redacting secrets, logging fallback engagements, and keeping governance
+    reports populated during cold starts under pytest coverage.【F:src/operations/data/governance_context/compliance_baseline.json†L1-L24】【F:src/operations/data/governance_context/regulatory_baseline.json†L1-L36】【F:src/operations/data/governance_context/audit_baseline.json†L1-L20】【F:src/operations/governance_reporting.py†L650-L770】【F:tests/operations/test_governance_reporting.py†L320-L372】
   - *Progress*: Governance report export CLI now loads compliance/regulatory/audit
     snapshots, persists history with metadata, emits Markdown alongside JSON, and
     records regression coverage so operators can script cadence exports without

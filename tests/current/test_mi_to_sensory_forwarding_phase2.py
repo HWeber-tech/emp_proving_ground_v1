@@ -129,20 +129,20 @@ def test_no_import_time_logs_in_mi_modules_phase2(caplog: pytest.LogCaptureFixtu
 
 
 def test_legacy_core_base_aliases() -> None:
-    from market_intelligence.core.base import (  # type: ignore import-not-found
+    from src.market_intelligence.core.base import (
         DimensionalReading as LegacyDimensionalReading,
     )
-    from market_intelligence.core.base import MarketData as LegacyMarketData  # type: ignore import-not-found
+    from src.market_intelligence.core.base import MarketData as LegacyMarketData
 
     assert LegacyMarketData is MarketData
     assert LegacyDimensionalReading.__module__.startswith("src.core.base")
 
 
 def test_legacy_orchestration_aliases() -> None:
-    from market_intelligence.orchestration.enhanced_intelligence_engine import (  # type: ignore import-not-found
+    from src.market_intelligence.orchestration.enhanced_intelligence_engine import (
         ContextualFusionEngine as LegacyFusionEngine,
     )
-    from market_intelligence.orchestration.enhanced_intelligence_engine import (  # type: ignore import-not-found
+    from src.market_intelligence.orchestration.enhanced_intelligence_engine import (
         Synthesis as LegacySynthesis,
     )
 

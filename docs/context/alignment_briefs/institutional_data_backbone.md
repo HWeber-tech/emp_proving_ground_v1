@@ -142,6 +142,7 @@
   PostgreSQL upserts via `pg_insert`, binds SQLite fallbacks, and chunks writes
   so ingest runs avoid manual SQL while retaining deterministic freshness
   metrics under regression coverage.【F:src/data_foundation/persist/timescale.py†L2337-L2489】【F:tests/data_foundation/test_timescale_ingest.py†L165-L220】
+- Progress: Operational backbone integration test now streams Timescale ingest plans through Kafka into the real sensory organ, validating cache metrics and telemetry fan-out for EURUSD slices ahead of live data onboarding.【tests/integration/test_operational_data_backbone.py:124】【src/data_integration/real_data_integration.py:1】【src/sensory/real_sensory_organ.py:44】
 - Wire all runtime entrypoints through `RuntimeApplication` and a task supervisor
   so ingest, cache, and stream jobs are supervised.【F:docs/technical_debt_assessment.md†L33-L56】
 - Document current gaps and expected telemetry in updated runbooks and status

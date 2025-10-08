@@ -70,6 +70,7 @@
   tree is retired, keeping only executable organ shims for backward
   compatibility, while the market-intelligence shim redirects callers to the
   enhanced dimensions so new integrations land on the supported surfaces.【F:src/sensory/__init__.py†L1-L11】【F:src/market_intelligence/dimensions/__init__.py†L1-L24】
+- Progress: Market intelligence namespace now re-exports canonical core and orchestration primitives via lazy shims, with regression coverage confirming legacy imports resolve to the sensory engines without noisy side effects.【src/market_intelligence/core/base.py:1】【src/market_intelligence/orchestration/enhanced_intelligence_engine.py:1】【tests/current/test_mi_to_sensory_forwarding_phase2.py:1】
 - Progress: Sensory summary telemetry now constructs ranked Markdown/JSON
   rollups from integrated sensor payloads, preserves drift metadata, and
   publishes via the event-bus failover helper so dashboards receive resilient

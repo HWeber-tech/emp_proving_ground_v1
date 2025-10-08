@@ -348,3 +348,25 @@ def test_publish_governance_report_raises_on_unexpected_runtime_error() -> None:
         )
 
     assert not topic_bus.published
+
+
+def test_load_governance_context_defaults_when_missing() -> None:
+    config = SystemConfig()
+
+    sources = load_governance_context_from_config(config)
+
+    assert sources.compliance is not None
+    assert sources.regulatory is not None
+    assert sources.audit is not None
+    assert sources.compliance_path is not None
+    assert "governance_context" in str(sources.compliance_path)
+
+
+def test_build_governance_report_from_config_uses_defaults() -> None:
+    config = SystemConfig()
+
+    report = build_governance_report_from_config(config)
+
+    assert report.sections[0].name == "kyc_aml"
+    audit_section = next(section for section in report.sections if section.name == "audit_storage")
+    assert "journal" in audit_section.summary.lower()

@@ -63,6 +63,14 @@ __all__ = [
 logger = logging.getLogger(__name__)
 
 
+_DEFAULT_CONTEXT_DIR = Path(__file__).resolve().parent / "data" / "governance_context"
+_DEFAULT_CONTEXT_FILES: Mapping[str, Path] = {
+    "GOVERNANCE_COMPLIANCE_CONTEXT": _DEFAULT_CONTEXT_DIR / "compliance_baseline.json",
+    "GOVERNANCE_REGULATORY_CONTEXT": _DEFAULT_CONTEXT_DIR / "regulatory_baseline.json",
+    "GOVERNANCE_AUDIT_CONTEXT": _DEFAULT_CONTEXT_DIR / "audit_baseline.json",
+}
+
+
 class GovernanceReportStatus(StrEnum):
     """Normalised status labels used for the governance report."""
 
@@ -639,6 +647,27 @@ def _load_context_payload(path: Path) -> Mapping[str, object] | None:
     return None
 
 
+def _load_default_context(
+    key: str,
+) -> tuple[Mapping[str, object] | None, Path | None]:
+    path = _DEFAULT_CONTEXT_FILES.get(key)
+    if path is None:
+        return None, None
+    if not path.exists():
+        logger.debug(
+            "Packaged governance context missing", extra={"context.key": key, "context.path": str(path)}
+        )
+        return None, None
+    payload = _load_context_payload(path)
+    if payload is None:
+        return None, path
+    logger.debug(
+        "Loaded packaged governance context fallback",
+        extra={"context.key": key, "context.path": str(path)},
+    )
+    return payload, path
+
+
 def load_governance_context_from_config(
     config: SystemConfig,
     *,
@@ -651,13 +680,18 @@ def load_governance_context_from_config(
 
     def _resolve(key: str) -> tuple[Mapping[str, object] | None, Path | None]:
         location = extras.get(key)
-        if not location:
-            return None, None
-        candidate = Path(location)
-        if not candidate.is_absolute():
-            candidate = root / candidate
-        payload = _load_context_payload(candidate)
-        return payload, candidate
+        if location:
+            candidate = Path(location)
+            if not candidate.is_absolute():
+                candidate = root / candidate
+            payload = _load_context_payload(candidate)
+            if payload is not None:
+                return payload, candidate
+            logger.info(
+                "Governance context fallback engaged",
+                extra={"context.key": key, "context.path": str(candidate)},
+            )
+        return _load_default_context(key)
 
     compliance_payload, compliance_path = _resolve("GOVERNANCE_COMPLIANCE_CONTEXT")
     regulatory_payload, regulatory_path = _resolve("GOVERNANCE_REGULATORY_CONTEXT")

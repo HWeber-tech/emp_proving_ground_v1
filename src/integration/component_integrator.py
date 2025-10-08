@@ -23,7 +23,7 @@ from src.trading.risk.risk_api import RISK_API_RUNBOOK, summarise_risk_config
 # Canonical imports (avoid relative package traversals)
 # Note: These may be optional at runtime depending on environment; guarded in methods.
 try:
-    from src.core import PopulationManager, SensoryOrgan
+    from src.core import PopulationManager, SensoryOrgan, create_sensory_organ
 except Exception:  # pragma: no cover
     # Provide tiny runtime stubs to avoid rebinding type names to None
     class PopulationManager:  # type: ignore[no-redef]
@@ -32,8 +32,8 @@ except Exception:  # pragma: no cover
     class SensoryOrgan:  # type: ignore[no-redef]
         def __init__(self, *args: object, **kwargs: object) -> None: ...
 
-    class RiskManager:  # type: ignore[no-redef]
-        def __init__(self, *args: object, **kwargs: object) -> None: ...
+    def create_sensory_organ(*args: object, **kwargs: object) -> SensoryOrgan:  # type: ignore[misc]
+        raise RuntimeError("canonical sensory organ export unavailable")
 
 
 if TYPE_CHECKING:
@@ -121,20 +121,64 @@ class ComponentIntegrator:
         """Initialize sensory components."""
         logger.info("Initializing sensory components...")
 
-        if SensoryOrgan is not None:
-            # 4D+1 Sensory Organs
-            sensory_organs = {
-                "what_organ": SensoryOrgan("what"),
-                "when_organ": SensoryOrgan("when"),
-                "anomaly_organ": SensoryOrgan("anomaly"),
-                "chaos_organ": SensoryOrgan("chaos"),
-            }
+        try:
+            from src.sensory.anomaly import AnomalySensor
+            from src.sensory.how import HowSensor
+            from src.sensory.lineage_publisher import SensoryLineagePublisher
+            from src.sensory.what.what_sensor import WhatSensor
+            from src.sensory.when.when_sensor import WhenSensor
+            from src.sensory.why import WhySensor
+        except Exception as exc:  # pragma: no cover - optional dependency guard
+            logger.warning("Sensory subsystem imports failed: %s", exc)
+            self.component_status["sensory_organ"] = "unavailable"
+            return
 
-            for name, organ in sensory_organs.items():
-                self.components[name] = organ
-                self.component_status[name] = "initialized"
+        try:
+            lineage_publisher = SensoryLineagePublisher()
+            why_sensor = WhySensor()
+            how_sensor = HowSensor()
+            what_sensor = WhatSensor()
+            when_sensor = WhenSensor()
+            anomaly_sensor = AnomalySensor()
+        except Exception as exc:  # pragma: no cover - defensive guard
+            logger.warning("Failed to instantiate sensory components: %s", exc)
+            self.component_status["sensory_organ"] = "error"
+            return
 
-        logger.info("Sensory components initialized")
+        try:
+            sensory_organ = create_sensory_organ(
+                why_sensor=why_sensor,
+                how_sensor=how_sensor,
+                what_sensor=what_sensor,
+                when_sensor=when_sensor,
+                anomaly_sensor=anomaly_sensor,
+                lineage_publisher=lineage_publisher,
+            )
+        except Exception as exc:  # pragma: no cover - defensive guard
+            logger.warning("Failed to create canonical sensory organ: %s", exc)
+            self.component_status["sensory_organ"] = "error"
+            return
+
+        registrations = {
+            "sensory_organ": sensory_organ,
+            "sensory_lineage_publisher": lineage_publisher,
+            "why_sensor": why_sensor,
+            "how_sensor": how_sensor,
+            "what_sensor": what_sensor,
+            "when_sensor": when_sensor,
+            "anomaly_sensor": anomaly_sensor,
+            # Legacy aliases for downstream compatibility
+            "what_organ": what_sensor,
+            "when_organ": when_sensor,
+            "anomaly_organ": anomaly_sensor,
+            "how_organ": how_sensor,
+        }
+
+        for name, component in registrations.items():
+            self.components[name] = component
+            self.component_status[name] = "initialized"
+
+        logger.info("Sensory components initialized with canonical sensors and lineage")
 
     def _ensure_risk_manager(self) -> bool:
         """Instantiate the canonical risk manager and capture metadata."""
@@ -202,10 +246,17 @@ class ComponentIntegrator:
             shutdown_order = [
                 "performance_cache",
                 "risk_management",
-                "chaos_organ",
+                "sensory_organ",
+                "sensory_lineage_publisher",
+                "anomaly_sensor",
+                "when_sensor",
+                "what_sensor",
+                "how_sensor",
+                "why_sensor",
                 "anomaly_organ",
                 "when_organ",
                 "what_organ",
+                "how_organ",
                 "risk_manager",
                 "population_manager",
             ]
@@ -251,9 +302,22 @@ class ComponentIntegrator:
             elif component_name == "risk_manager":
                 if not self._ensure_risk_manager():
                     return False
-            elif SensoryOrgan is not None and component_name.endswith("_organ"):
-                organ_type = component_name.replace("_organ", "")
-                self.components[component_name] = SensoryOrgan(organ_type)
+            elif component_name in {
+                "sensory_organ",
+                "sensory_lineage_publisher",
+                "why_sensor",
+                "how_sensor",
+                "what_sensor",
+                "when_sensor",
+                "anomaly_sensor",
+                "what_organ",
+                "when_organ",
+                "anomaly_organ",
+                "how_organ",
+            }:
+                await self._initialize_sensory_components()
+                if component_name not in self.components:
+                    return False
 
             self.component_status[component_name] = "initialized"
             logger.info(f"Component {component_name} restarted successfully")

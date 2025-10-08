@@ -67,19 +67,48 @@ class ComponentIntegratorImpl(ComponentIntegrator):
     async def _initialize_sensory_system(self) -> bool:
         """Initialize sensory system components."""
         try:
-            # New 4D+1 scaffolding (what/when/anomaly via simple sensors)
-            from src.sensory.anomaly.anomaly_sensor import AnomalySensor
+            # Canonical sensory cortex wiring with lineage publisher
+            from src.core import create_sensory_organ
+            from src.sensory.anomaly import AnomalySensor
+            from src.sensory.how import HowSensor
+            from src.sensory.lineage_publisher import SensoryLineagePublisher
             from src.sensory.what.what_sensor import WhatSensor
             from src.sensory.when.when_sensor import WhenSensor
+            from src.sensory.why import WhySensor
 
-            self.components["what_sensor"] = WhatSensor()
-            self.components["when_sensor"] = WhenSensor()
-            self.components["anomaly_sensor"] = AnomalySensor()
+            lineage_publisher = SensoryLineagePublisher()
+            why_sensor = WhySensor()
+            how_sensor = HowSensor()
+            what_sensor = WhatSensor()
+            when_sensor = WhenSensor()
+            anomaly_sensor = AnomalySensor()
+
+            sensory_organ = create_sensory_organ(
+                why_sensor=why_sensor,
+                how_sensor=how_sensor,
+                what_sensor=what_sensor,
+                when_sensor=when_sensor,
+                anomaly_sensor=anomaly_sensor,
+                lineage_publisher=lineage_publisher,
+            )
+
+            self.components.update(
+                {
+                    "sensory_organ": sensory_organ,
+                    "sensory_lineage_publisher": lineage_publisher,
+                    "why_sensor": why_sensor,
+                    "how_sensor": how_sensor,
+                    "what_sensor": what_sensor,
+                    "when_sensor": when_sensor,
+                    "anomaly_sensor": anomaly_sensor,
+                }
+            )
 
             # Maintain backward-compatible aliases expected by legacy validators
             self._register_component_alias("what_sensor", "what_organ")
             self._register_component_alias("when_sensor", "when_organ")
             self._register_component_alias("anomaly_sensor", "anomaly_organ")
+            self._register_component_alias("how_sensor", "how_organ")
 
             logger.info("Sensory system components initialized")
             return True
@@ -267,7 +296,9 @@ class ComponentIntegratorImpl(ComponentIntegrator):
 
             # Test data flow
             sensory_key = None
-            if "what_sensor" in self.components:
+            if "sensory_organ" in self.components:
+                sensory_key = "sensory_organ"
+            elif "what_sensor" in self.components:
                 sensory_key = "what_sensor"
             elif "what_organ" in self.components:
                 sensory_key = "what_organ"

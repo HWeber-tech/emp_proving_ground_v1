@@ -52,6 +52,7 @@ from src.data_foundation.ingest.scheduler import (
     RunCallback,
     TimescaleIngestScheduler,
 )
+from src.data_foundation.ingest.failover import IngestFailoverPolicy
 from src.data_foundation.streaming.kafka_stream import (
     KafkaConnectionSettings,
     KafkaIngestEventConsumer,
@@ -59,7 +60,12 @@ from src.data_foundation.streaming.kafka_stream import (
     create_ingest_event_consumer,
     ingest_topic_config_from_mapping,
 )
+from src.data_foundation.persist.timescale import TimescaleIngestResult
 from src.runtime.task_supervisor import TaskSupervisor
+from src.operations.failover_drill import (
+    FailoverDrillSnapshot,
+    execute_failover_drill,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -374,6 +380,90 @@ class InstitutionalIngestServices:
             evaluated.append(await _evaluate(name, snapshot))
 
         return tuple(evaluated)
+
+    async def run_failover_drill(
+        self,
+        results: Mapping[str, TimescaleIngestResult],
+        *,
+        fail_dimensions: Sequence[str] | None = None,
+        scenario: str | None = None,
+        failover_policy: IngestFailoverPolicy | None = None,
+        fallback: Callable[[], Awaitable[None] | None] | None = None,
+        metadata: Mapping[str, object] | None = None,
+    ) -> FailoverDrillSnapshot:
+        """Execute a Timescale failover drill using provisioned services."""
+
+        if not results:
+            raise ValueError("Timescale ingest results are required for a failover drill")
+
+        settings = self.config.failover_drill
+        if settings is None or not settings.enabled:
+            raise RuntimeError("Timescale failover drills are not enabled for this ingest slice")
+
+        def _normalise_dimensions(candidates: Sequence[str]) -> tuple[str, ...]:
+            seen: set[str] = set()
+            ordered: list[str] = []
+            for entry in candidates:
+                cleaned = str(entry).strip()
+                if not cleaned or cleaned in seen:
+                    continue
+                seen.add(cleaned)
+                ordered.append(cleaned)
+            return tuple(ordered)
+
+        dimensions = _normalise_dimensions(fail_dimensions or settings.dimensions)
+        if not dimensions:
+            plan_dimensions = _plan_dimensions(self.config)
+            if plan_dimensions:
+                dimensions = _normalise_dimensions(plan_dimensions)
+        if not dimensions:
+            dimensions = _normalise_dimensions(results.keys())
+        if not dimensions:
+            raise ValueError("Unable to determine failover drill dimensions")
+
+        scenario_label = scenario or settings.label or "timescale_failover"
+
+        manifest_snapshots = [snapshot.as_dict() for snapshot in self.managed_manifest()]
+        summary_payload = self.summary()
+
+        drill_metadata: dict[str, object] = {
+            "requested_dimensions": list(dimensions),
+            "managed_manifest": manifest_snapshots,
+            "services_summary": dict(summary_payload),
+            "failover_drill": settings.to_metadata(),
+        }
+        if self.redis_settings is not None and self.redis_settings.configured:
+            drill_metadata.setdefault(
+                "redis_summary",
+                self.redis_settings.summary(redacted=True),
+            )
+        if self.kafka_settings is not None and self.kafka_settings.configured:
+            drill_metadata.setdefault(
+                "kafka_summary",
+                self.kafka_settings.summary(redacted=True),
+            )
+        drill_metadata.setdefault(
+            "timescale_summary",
+            {
+                "application_name": self.config.timescale_settings.application_name,
+                "url": _redacted_url(self.config.timescale_settings.url),
+            },
+        )
+
+        if metadata:
+            drill_metadata.update({str(key): value for key, value in metadata.items()})
+
+        fallback_callable = fallback if settings.run_fallback else None
+
+        return await execute_failover_drill(
+            plan=self.config.plan,
+            results=results,
+            fail_dimensions=dimensions,
+            scenario=scenario_label,
+            failover_policy=failover_policy,
+            fallback=fallback_callable,
+            metadata=drill_metadata,
+        )
 
     def _default_connectivity_probes(self) -> Mapping[str, ProbeCallable]:
         """Build connectivity probes for provisioned managed services."""

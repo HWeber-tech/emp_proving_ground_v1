@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 from collections import deque
 import dataclasses
+from datetime import UTC, datetime
 from typing import Callable
 
 import pytest
@@ -27,8 +28,14 @@ from src.data_foundation.ingest.institutional_vertical import (
     plan_managed_manifest,
 )
 from src.data_foundation.ingest.scheduler import IngestSchedule
-from src.data_foundation.ingest.timescale_pipeline import TimescaleBackbonePlan
-from src.data_foundation.persist.timescale import TimescaleConnectionSettings
+from src.data_foundation.ingest.timescale_pipeline import (
+    DailyBarIngestPlan,
+    TimescaleBackbonePlan,
+)
+from src.data_foundation.persist.timescale import (
+    TimescaleConnectionSettings,
+    TimescaleIngestResult,
+)
 from src.data_foundation.streaming.kafka_stream import KafkaConnectionSettings
 from src.runtime.task_supervisor import TaskSupervisor
 
@@ -422,6 +429,72 @@ def test_manifest_snapshot_structure() -> None:
     redis_snapshot = next(snap for snap in snapshots if snap.name == "redis")
     assert redis_snapshot.metadata["policy"] == _EXPECTED_POLICY_METADATA
     assert "metrics" in redis_snapshot.metadata
+
+
+@pytest.mark.asyncio
+async def test_run_failover_drill_attaches_managed_metadata() -> None:
+    schedule = IngestSchedule(interval_seconds=0.05, jitter_seconds=0.0, max_failures=3)
+    config = _ingest_config(schedule=schedule)
+    plan = TimescaleBackbonePlan(
+        daily=DailyBarIngestPlan(symbols=("EURUSD", "GBPUSD")),
+        intraday=None,
+        macro=None,
+    )
+    config = dataclasses.replace(config, plan=plan)
+
+    redis_settings = RedisConnectionSettings.from_mapping(
+        {"REDIS_URL": "redis://localhost:6379/0"}
+    )
+    provisioner = InstitutionalIngestProvisioner(
+        config,
+        redis_settings=redis_settings,
+        redis_policy=config.redis_policy,
+    )
+
+    services = provisioner.provision(
+        run_ingest=lambda: asyncio.sleep(0),
+        event_bus=_DummyEventBus(),
+        task_supervisor=TaskSupervisor(namespace="failover-drill"),
+        redis_client_factory=lambda *_: InMemoryRedis(),
+    )
+
+    now = datetime.now(tz=UTC)
+    results = {
+        "daily_bars": TimescaleIngestResult(
+            24,
+            ("EURUSD", "GBPUSD"),
+            now,
+            now,
+            1.2,
+            45.0,
+            "daily_bars",
+            "yahoo",
+        )
+    }
+
+    fallback_called = False
+
+    async def _fallback() -> None:
+        nonlocal fallback_called
+        fallback_called = True
+
+    snapshot = await services.run_failover_drill(
+        results,
+        fail_dimensions=("daily_bars",),
+        fallback=_fallback,
+    )
+
+    assert snapshot.scenario == config.failover_drill.label
+    assert snapshot.failover_decision.should_failover is True
+    assert snapshot.metadata["requested_dimensions"] == ["daily_bars"]
+    assert snapshot.metadata["failover_drill"]["label"] == config.failover_drill.label
+    manifest = snapshot.metadata.get("managed_manifest")
+    assert isinstance(manifest, list) and manifest
+    fallback_metadata = snapshot.metadata.get("fallback")
+    assert fallback_metadata is not None
+    assert fallback_metadata["executed"] is fallback_called
+
+    await services.stop()
 
 
 def test_plan_managed_manifest_uses_configuration() -> None:

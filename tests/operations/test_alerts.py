@@ -70,6 +70,8 @@ def _make_manager(overrides: dict[str, object] | None = None, *, clock=None):
             "email": _capture_factory("email"),
             "sms": _capture_factory("sms"),
             "webhook": _capture_factory("webhook"),
+            "slack": _capture_factory("slack"),
+            "github_issue": _capture_factory("github_issue"),
         },
         clock=clock,
     )
@@ -86,9 +88,10 @@ def test_risk_breach_routes_to_email_and_webhook() -> None:
     )
     result = manager.dispatch(event)
 
-    assert result.triggered_channels == ("ops-email", "ops-webhook")
+    assert result.triggered_channels == ("ops-email", "ops-slack", "ops-webhook")
     assert captures == [
         ("ops-email", "email", "risk_breach"),
+        ("ops-slack", "slack", "risk_breach"),
         ("ops-webhook", "webhook", "risk_breach"),
     ]
 
@@ -103,11 +106,19 @@ def test_system_failure_triggers_sms_escalation() -> None:
     )
     result = manager.dispatch(event)
 
-    assert set(result.triggered_channels) == {"ops-email", "ops-sms", "ops-webhook"}
+    assert set(result.triggered_channels) == {
+        "ops-email",
+        "ops-slack",
+        "ops-webhook",
+        "ops-sms",
+        "ops-github",
+    }
     assert set(captures) == {
         ("ops-email", "email", "system_failure"),
-        ("ops-sms", "sms", "system_failure"),
+        ("ops-slack", "slack", "system_failure"),
         ("ops-webhook", "webhook", "system_failure"),
+        ("ops-sms", "sms", "system_failure"),
+        ("ops-github", "github_issue", "system_failure"),
     }
 
 
@@ -122,7 +133,8 @@ def test_alerts_respect_severity_thresholds() -> None:
     result = manager.dispatch(event)
 
     assert "ops-sms" not in result.triggered_channels
-    assert all(name != "ops-sms" for name, _, _ in captures)
+    assert "ops-github" not in result.triggered_channels
+    assert all(name not in {"ops-sms", "ops-github"} for name, _, _ in captures)
 
 
 def test_suppression_window_skips_duplicate_events() -> None:
@@ -154,8 +166,9 @@ def test_suppression_window_skips_duplicate_events() -> None:
     clock.current = now + timedelta(seconds=600)  # type: ignore[attr-defined]
     third = manager.dispatch(event)
     assert third.triggered_channels
-    assert captures[:2] == [
+    assert captures[:3] == [
         ("ops-email", "email", "risk_breach"),
+        ("ops-slack", "slack", "risk_breach"),
         ("ops-webhook", "webhook", "risk_breach"),
     ]
 
@@ -171,8 +184,8 @@ def test_operational_readiness_rule_routes_alerts() -> None:
 
     result = manager.dispatch(event)
 
-    assert set(result.triggered_channels) == {"ops-email", "ops-webhook"}
-    assert {channel for channel, _, _ in captures} == {"ops-email", "ops-webhook"}
+    assert set(result.triggered_channels) == {"ops-email", "ops-slack", "ops-webhook"}
+    assert {channel for channel, _, _ in captures} == {"ops-email", "ops-slack", "ops-webhook"}
 
 
 def test_drift_sentry_rules_route_alerts() -> None:
@@ -193,7 +206,7 @@ def test_drift_sentry_rules_route_alerts() -> None:
     manager.dispatch(overall_event)
 
     triggered = {channel for channel, _, _ in captures}
-    assert triggered == {"ops-email", "ops-webhook"}
+    assert triggered == {"ops-email", "ops-slack", "ops-webhook"}
 
 
 def test_incident_response_critical_routes_sms() -> None:
@@ -207,9 +220,21 @@ def test_incident_response_critical_routes_sms() -> None:
 
     result = manager.dispatch(event)
 
-    assert set(result.triggered_channels) == {"ops-email", "ops-webhook", "ops-sms"}
+    assert set(result.triggered_channels) == {
+        "ops-email",
+        "ops-slack",
+        "ops-webhook",
+        "ops-sms",
+        "ops-github",
+    }
     channel_names = {channel for channel, _, _ in captures}
-    assert channel_names == {"ops-email", "ops-webhook", "ops-sms"}
+    assert channel_names == {
+        "ops-email",
+        "ops-slack",
+        "ops-webhook",
+        "ops-sms",
+        "ops-github",
+    }
 
 
 def test_incident_response_reliability_rule_includes_sms_escalation() -> None:
@@ -223,8 +248,20 @@ def test_incident_response_reliability_rule_includes_sms_escalation() -> None:
 
     result = manager.dispatch(event)
 
-    assert set(result.triggered_channels) == {"ops-email", "ops-webhook", "ops-sms"}
-    assert {channel for channel, _, _ in captures} == {"ops-email", "ops-webhook", "ops-sms"}
+    assert set(result.triggered_channels) == {
+        "ops-email",
+        "ops-slack",
+        "ops-webhook",
+        "ops-sms",
+        "ops-github",
+    }
+    assert {channel for channel, _, _ in captures} == {
+        "ops-email",
+        "ops-slack",
+        "ops-webhook",
+        "ops-sms",
+        "ops-github",
+    }
 
 
 def test_system_validation_reliability_rule_routes_alerts() -> None:
@@ -238,8 +275,8 @@ def test_system_validation_reliability_rule_routes_alerts() -> None:
 
     result = manager.dispatch(event)
 
-    assert set(result.triggered_channels) == {"ops-email", "ops-webhook"}
-    assert {channel for channel, _, _ in captures} == {"ops-email", "ops-webhook"}
+    assert set(result.triggered_channels) == {"ops-email", "ops-slack", "ops-webhook"}
+    assert {channel for channel, _, _ in captures} == {"ops-email", "ops-slack", "ops-webhook"}
 
 
 def test_rule_tag_filters() -> None:
@@ -282,6 +319,8 @@ def test_default_manager_uses_default_policy() -> None:
             "email": lambda cfg: lambda event: None,
             "sms": lambda cfg: lambda event: None,
             "webhook": lambda cfg: lambda event: None,
+            "slack": lambda cfg: lambda event: None,
+            "github_issue": lambda cfg: lambda event: None,
         }
     )
 

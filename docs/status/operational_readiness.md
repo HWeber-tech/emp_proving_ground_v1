@@ -72,6 +72,10 @@ evidence that dashboards render.【F:src/operations/operational_readiness.py†L
 `route_operational_readiness_alerts` pipes those events through any
 `AlertManager`, returning dispatch results for guardrail assertions and ensuring
 context packs capture which transports emitted notifications.【F:src/operations/operational_readiness.py†L294-L317】【F:tests/operations/test_operational_readiness.py†L147-L184】
+`default_alert_policy_config` now adds first-class Slack webhook and GitHub issue
+transports alongside email, SMS, and generic webhooks so readiness failures reach
+chatops mirrors and ticket queues without bespoke wiring, keeping escalation paths
+aligned with the roadmap's 90-day alert routing milestone.【F:src/operations/alerts.py†L672-L823】【F:tests/operations/test_alerts.py†L1-L338】
 The default alert policy now includes dedicated routes for incident response
 MTTA/MTTR breaches and system validation reliability regressions so SMS/webhook
 escalations fire when acknowledgement cadence or validation quality drifts from

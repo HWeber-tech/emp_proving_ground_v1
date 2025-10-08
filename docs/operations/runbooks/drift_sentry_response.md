@@ -28,8 +28,8 @@ to adaptation leads.
 - **Alert policy** – `default_alert_policy_config` includes explicit routing for
   `sensory.drift`, `sensory.drift.<dimension>`, `understanding.drift_sentry`,
   and `operational.drift_sentry` categories so notifications reach the ops
-  email/webhook transports with suppression windows tuned for incident response
-  drills.【F:src/operations/alerts.py†L520-L552】
+  email, Slack, webhook, SMS, and GitHub issue transports with suppression
+  windows tuned for incident response drills.【F:src/operations/alerts.py†L703-L820】
 
 ## Triage checklist
 

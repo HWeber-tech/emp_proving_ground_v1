@@ -41,6 +41,8 @@ import logging
 import smtplib
 from typing import Callable, Iterable, Mapping, MutableMapping, Sequence
 from urllib import request
+from urllib.error import HTTPError, URLError
+from urllib.parse import urljoin
 
 logger = logging.getLogger(__name__)
 
@@ -89,6 +91,18 @@ def _severity_rank(severity: AlertSeverity) -> int:
 
 def _now_utc() -> datetime:
     return datetime.now(tz=timezone.utc)
+
+
+def _context_json(context: Mapping[str, object] | None) -> str:
+    """Render alert context to JSON for transports."""
+
+    if not context:
+        return ""
+    try:
+        return json.dumps(context, sort_keys=True, default=str)
+    except TypeError:
+        safe_context = {str(key): repr(value) for key, value in context.items()}
+        return json.dumps(safe_context, sort_keys=True)
 
 
 @dataclass(slots=True, frozen=True)
@@ -390,11 +404,182 @@ def _logging_webhook_transport(config: Mapping[str, object]) -> Transport:
     return transport
 
 
+def _logging_slack_transport(config: Mapping[str, object]) -> Transport:
+    webhook_url = str(config.get("webhook_url") or config.get("url") or "")
+    channel = config.get("channel")
+    username = config.get("username") or "EMP Alerts"
+    icon_emoji = config.get("icon_emoji")
+    timeout = float(config.get("timeout", 5.0))
+
+    def _payload(event: AlertEvent) -> dict[str, object]:
+        lines = [
+            f"*{event.severity.value.upper()}* {event.category}",
+            event.message,
+        ]
+        if event.tags:
+            lines.append("Tags: " + ", ".join(event.tags))
+        context_json = _context_json(event.context if isinstance(event.context, Mapping) else None)
+        if context_json:
+            lines.append(f"Context: ```{context_json}```")
+        payload: dict[str, object] = {"text": "\n".join(filter(None, lines))}
+        if channel:
+            payload["channel"] = str(channel)
+        if username:
+            payload["username"] = str(username)
+        if icon_emoji:
+            payload["icon_emoji"] = str(icon_emoji)
+        return payload
+
+    if webhook_url:
+
+        def transport(event: AlertEvent) -> None:  # pragma: no cover - network integration
+            payload = _payload(event)
+            data = json.dumps(payload).encode("utf-8")
+            req = request.Request(
+                webhook_url,
+                data=data,
+                headers={"Content-Type": "application/json"},
+            )
+            try:
+                with request.urlopen(req, timeout=timeout):
+                    pass
+            except (HTTPError, URLError):
+                logger.warning(
+                    "slack_alert_failed",
+                    extra={
+                        "webhook_url": webhook_url,
+                        "category": event.category,
+                        "severity": event.severity.value,
+                    },
+                )
+
+    else:
+
+        def transport(event: AlertEvent) -> None:
+            logger.warning(
+                "slack_alert",
+                extra={
+                    "channel": channel,
+                    "username": username,
+                    "icon_emoji": icon_emoji,
+                    "category": event.category,
+                    "severity": event.severity.value,
+                    "message": event.message,
+                    "context": event.context,
+                },
+            )
+
+    return transport
+
+
+def _github_issue_transport(config: Mapping[str, object]) -> Transport:
+    repository = str(config.get("repository") or "").strip()
+    token = config.get("token")
+    issue_number_raw = config.get("issue_number")
+    issue_number = None
+    if isinstance(issue_number_raw, int):
+        issue_number = issue_number_raw
+    elif isinstance(issue_number_raw, str):
+        try:
+            issue_number = int(issue_number_raw.strip())
+        except ValueError:
+            issue_number = None
+    title_template = str(config.get("title_template") or "[{severity}] {category}")
+    body_template = str(
+        config.get("body_template")
+        or "{message}\n\n* Severity: {severity}\n* Category: {category}\n* Occurred: {occurred_at}\n* Tags: {tags}\n```{context_json}```"
+    )
+    labels = tuple(str(label) for label in config.get("labels", ()))
+    assignees = tuple(str(user) for user in config.get("assignees", ()))
+    api_base = str(config.get("api_url") or "https://api.github.com/")
+    timeout = float(config.get("timeout", 5.0))
+    user_agent = str(config.get("user_agent") or "emp-alerts")
+
+    def _render(event: AlertEvent) -> tuple[str, str]:
+        severity_text = event.severity.value.upper()
+        tags_text = ", ".join(event.tags) if event.tags else "(none)"
+        context_json = _context_json(event.context if isinstance(event.context, Mapping) else None)
+        title = title_template.format(
+            severity=severity_text,
+            category=event.category,
+            message=event.message,
+        )
+        body = body_template.format(
+            severity=severity_text,
+            category=event.category,
+            message=event.message,
+            occurred_at=event.occurred_at.isoformat(),
+            tags=tags_text,
+            context_json=context_json or "{}",
+        )
+        return title, body
+
+    if repository and token:
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "Accept": "application/vnd.github+json",
+            "Content-Type": "application/json",
+            "User-Agent": user_agent,
+        }
+
+        def _issue_url(path: str) -> str:
+            return urljoin(api_base, path)
+
+        def transport(event: AlertEvent) -> None:  # pragma: no cover - network integration
+            title, body = _render(event)
+            payload: dict[str, object] = {"body": body}
+            if issue_number is None:
+                payload["title"] = title
+                if labels:
+                    payload["labels"] = list(labels)
+                if assignees:
+                    payload["assignees"] = list(assignees)
+                endpoint = _issue_url(f"/repos/{repository}/issues")
+            else:
+                endpoint = _issue_url(f"/repos/{repository}/issues/{issue_number}/comments")
+
+            data = json.dumps(payload).encode("utf-8")
+            req = request.Request(endpoint, data=data, headers=headers)
+            try:
+                with request.urlopen(req, timeout=timeout):
+                    pass
+            except (HTTPError, URLError):
+                logger.warning(
+                    "github_alert_failed",
+                    extra={
+                        "repository": repository,
+                        "issue_number": issue_number,
+                        "category": event.category,
+                        "severity": event.severity.value,
+                    },
+                )
+
+    else:
+
+        def transport(event: AlertEvent) -> None:
+            title, body = _render(event)
+            logger.warning(
+                "github_alert",
+                extra={
+                    "repository": repository or "(not configured)",
+                    "issue_number": issue_number,
+                    "category": event.category,
+                    "severity": event.severity.value,
+                    "title": title,
+                    "body": body,
+                },
+            )
+
+    return transport
+
+
 def _default_transport_factories() -> Mapping[str, TransportFactory]:
     return {
         "email": _logging_email_transport,
         "sms": _logging_sms_transport,
         "webhook": _logging_webhook_transport,
+        "slack": _logging_slack_transport,
+        "github_issue": _github_issue_transport,
     }
 
 
@@ -501,27 +686,44 @@ def default_alert_policy_config() -> dict[str, object]:
                 "type": "webhook",
                 "min_severity": "warning",
             },
+            {
+                "name": "ops-slack",
+                "type": "slack",
+                "min_severity": "warning",
+                "channel": "#ops-alerts",
+            },
+            {
+                "name": "ops-github",
+                "type": "github_issue",
+                "min_severity": "critical",
+            },
         ],
         "rules": [
             {
                 "name": "risk-breach",
                 "categories": ["risk_breach"],
                 "min_severity": "warning",
-                "channels": ["ops-email", "ops-webhook"],
+                "channels": ["ops-email", "ops-slack", "ops-webhook", "ops-github"],
                 "suppress_seconds": 300,
             },
             {
                 "name": "system-failure",
                 "categories": ["system_failure"],
                 "min_severity": "warning",
-                "channels": ["ops-email", "ops-sms", "ops-webhook"],
+                "channels": [
+                    "ops-email",
+                    "ops-slack",
+                    "ops-webhook",
+                    "ops-sms",
+                    "ops-github",
+                ],
                 "suppress_seconds": 120,
             },
             {
                 "name": "operational-readiness",
                 "categories": ["operational.readiness"],
                 "min_severity": "warning",
-                "channels": ["ops-email", "ops-webhook"],
+                "channels": ["ops-email", "ops-slack", "ops-webhook", "ops-github"],
                 "suppress_seconds": 600,
             },
             {
@@ -534,7 +736,7 @@ def default_alert_policy_config() -> dict[str, object]:
                     "understanding.drift_sentry",
                 ],
                 "min_severity": "warning",
-                "channels": ["ops-email", "ops-webhook"],
+                "channels": ["ops-email", "ops-slack", "ops-webhook", "ops-github"],
                 "suppress_seconds": 300,
             },
             {
@@ -548,7 +750,7 @@ def default_alert_policy_config() -> dict[str, object]:
                     "sensory.drift.anomaly",
                 ],
                 "min_severity": "warning",
-                "channels": ["ops-email", "ops-webhook"],
+                "channels": ["ops-email", "ops-slack", "ops-webhook", "ops-github"],
                 "suppress_seconds": 600,
             },
             {
@@ -558,14 +760,14 @@ def default_alert_policy_config() -> dict[str, object]:
                     "system_validation.check",
                 ],
                 "min_severity": "warning",
-                "channels": ["ops-email", "ops-webhook"],
+                "channels": ["ops-email", "ops-slack", "ops-webhook", "ops-github"],
                 "suppress_seconds": 300,
             },
             {
                 "name": "system-validation-reliability",
                 "categories": ["system_validation.reliability"],
                 "min_severity": "warning",
-                "channels": ["ops-email", "ops-webhook"],
+                "channels": ["ops-email", "ops-slack", "ops-webhook", "ops-github"],
                 "suppress_seconds": 600,
             },
             {
@@ -576,7 +778,13 @@ def default_alert_policy_config() -> dict[str, object]:
                     "incident_response.roster.primary",
                 ],
                 "min_severity": "warning",
-                "channels": ["ops-email", "ops-webhook", "ops-sms"],
+                "channels": [
+                    "ops-email",
+                    "ops-slack",
+                    "ops-webhook",
+                    "ops-sms",
+                    "ops-github",
+                ],
                 "suppress_seconds": 300,
             },
             {
@@ -587,7 +795,13 @@ def default_alert_policy_config() -> dict[str, object]:
                     "incident_response.metrics_staleness",
                 ],
                 "min_severity": "warning",
-                "channels": ["ops-email", "ops-webhook", "ops-sms"],
+                "channels": [
+                    "ops-email",
+                    "ops-slack",
+                    "ops-webhook",
+                    "ops-sms",
+                    "ops-github",
+                ],
                 "suppress_seconds": 600,
             },
             {
@@ -602,7 +816,7 @@ def default_alert_policy_config() -> dict[str, object]:
                     "incident_response.chatops",
                 ],
                 "min_severity": "warning",
-                "channels": ["ops-email", "ops-webhook"],
+                "channels": ["ops-email", "ops-slack", "ops-webhook", "ops-github"],
                 "suppress_seconds": 300,
             },
         ],

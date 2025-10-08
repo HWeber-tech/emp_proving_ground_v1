@@ -96,6 +96,17 @@ class TimescaleIngestScheduler:
         self._last_completed_at: datetime | None = None
         self._last_success_at: datetime | None = None
         self._next_run_at: datetime | None = None
+        self._owns_task_supervisor: bool = False
+        if task_supervisor is None and TaskSupervisor is not None:
+            task_supervisor = TaskSupervisor(
+                namespace=f"{self._task_name}",
+                logger=self._logger,
+            )
+            self._owns_task_supervisor = True
+        elif task_supervisor is None and TaskSupervisor is None:
+            raise RuntimeError(
+                "TaskSupervisor is unavailable; institutional ingest requires runtime.task_supervisor"
+            )
         self._task_supervisor = task_supervisor
         self._task_metadata = dict(task_metadata) if task_metadata is not None else None
 
@@ -115,22 +126,24 @@ class TimescaleIngestScheduler:
         self._failure_count = 0
         self._next_run_at = None
         loop_coro = self._run_loop()
-        if self._task_supervisor is not None:
-            metadata = {
-                "component": "timescale_ingest.scheduler",
-                "interval_seconds": self._schedule.interval_seconds,
-                "jitter_seconds": self._schedule.jitter_seconds,
-                "max_failures": self._schedule.max_failures,
-            }
-            if self._task_metadata:
-                metadata.update(self._task_metadata)
-            self._task = self._task_supervisor.create(
-                loop_coro,
-                name=self._task_name,
-                metadata=metadata,
+        if self._task_supervisor is None:
+            raise RuntimeError(
+                "TimescaleIngestScheduler requires a TaskSupervisor for managed operation"
             )
-        else:
-            self._task = asyncio.create_task(loop_coro, name=self._task_name)
+
+        metadata = {
+            "component": "timescale_ingest.scheduler",
+            "interval_seconds": self._schedule.interval_seconds,
+            "jitter_seconds": self._schedule.jitter_seconds,
+            "max_failures": self._schedule.max_failures,
+        }
+        if self._task_metadata:
+            metadata.update(self._task_metadata)
+        self._task = self._task_supervisor.create(
+            loop_coro,
+            name=self._task_name,
+            metadata=metadata,
+        )
         return self._task
 
     async def stop(self) -> None:
@@ -149,6 +162,8 @@ class TimescaleIngestScheduler:
             await task
         except asyncio.CancelledError:  # pragma: no cover - defensive
             pass
+        if self._owns_task_supervisor and self._task_supervisor is not None:
+            await self._task_supervisor.cancel_all()
 
     async def _run_loop(self) -> None:
         assert self._stop_event is not None

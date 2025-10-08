@@ -52,6 +52,11 @@ class LiquidityProber:
         """
         self.broker = broker_interface
         self.config = config or {}
+        if task_supervisor is None:
+            task_supervisor = TaskSupervisor(namespace="liquidity-prober")
+            self._owns_supervisor = True
+        else:
+            self._owns_supervisor = False
         self._task_supervisor = task_supervisor
         self._risk_context_provider: RiskContextProvider | None = risk_context_provider
 
@@ -78,7 +83,12 @@ class LiquidityProber:
     def set_task_supervisor(self, task_supervisor: TaskSupervisor | None) -> None:
         """Attach a :class:`TaskSupervisor` so probes inherit supervised lifecycles."""
 
-        self._task_supervisor = task_supervisor
+        if task_supervisor is None:
+            self._task_supervisor = TaskSupervisor(namespace="liquidity-prober")
+            self._owns_supervisor = True
+        else:
+            self._task_supervisor = task_supervisor
+            self._owns_supervisor = False
 
     def set_risk_context_provider(self, provider: RiskContextProvider | None) -> None:
         """Configure the callable used for capturing deterministic risk metadata."""
@@ -104,14 +114,13 @@ class LiquidityProber:
         """Create and track a probe task, delegating to the task supervisor when present."""
 
         metadata_payload = dict(metadata) if metadata is not None else None
-        if self._task_supervisor is not None:
-            task = self._task_supervisor.create(
-                coro,
-                name=name,
-                metadata=metadata_payload,
-            )
-        else:
-            task = asyncio.create_task(coro, name=name)
+        if self._task_supervisor is None:  # pragma: no cover - defensive guard
+            self._task_supervisor = TaskSupervisor(namespace="liquidity-prober")
+        task = self._task_supervisor.create(
+            coro,
+            name=name,
+            metadata=metadata_payload,
+        )
 
         self.active_probes[name] = task
         task.add_done_callback(lambda completed, key=name: self.active_probes.pop(key, None))

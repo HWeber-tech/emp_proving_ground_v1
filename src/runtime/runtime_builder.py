@@ -290,6 +290,37 @@ from src.trading.risk.risk_api import (
 logger = logging.getLogger(__name__)
 
 
+def _supervise_background_task(
+    app: "ProfessionalPredatorApp" | Any,
+    coro: Awaitable[Any],
+    *,
+    name: str,
+    metadata: Mapping[str, Any] | None = None,
+) -> asyncio.Task[Any]:
+    """Schedule ``coro`` under a task supervisor associated with ``app``.
+
+    The helper prefers the runtime application's ``create_background_task``
+    API, falling back to the bound :class:`TaskSupervisor`. When neither is
+    present (e.g. in lightweight tests), it lazily initialises a private
+    supervisor so the coroutine still inherits managed lifecycle semantics
+    rather than leaking through ``asyncio.create_task``.
+    """
+
+    create_background_task = getattr(app, "create_background_task", None)
+    if callable(create_background_task):
+        return create_background_task(coro, name=name, metadata=metadata)
+
+    supervisor = getattr(app, "task_supervisor", None)
+    if isinstance(supervisor, TaskSupervisor):
+        return supervisor.create(coro, name=name, metadata=metadata)
+
+    fallback = getattr(app, "_fallback_task_supervisor", None)
+    if not isinstance(fallback, TaskSupervisor):
+        fallback = TaskSupervisor(namespace=f"runtime.{name}")
+        setattr(app, "_fallback_task_supervisor", fallback)
+    return fallback.create(coro, name=name, metadata=metadata)
+
+
 _RETENTION_TABLES: dict[str, tuple[str, str]] = {
     "daily_bars": ("market_data", "daily_bars"),
     "intraday_trades": ("market_data", "intraday_trades"),
@@ -662,18 +693,18 @@ def _publish_runtime_risk_configuration(
             logger.debug("Failed to publish risk configuration asynchronously", exc_info=True)
         else:
             if inspect.isawaitable(maybe_coro):
-                create_background_task = getattr(app, "create_background_task", None)
-                if callable(create_background_task):
-                    try:
-                        create_background_task(maybe_coro, name="publish-risk-configuration")
-                    except Exception:  # pragma: no cover - diagnostics only
-                        logger.debug(
-                            "Failed to supervise risk configuration publish task",
-                            exc_info=True,
-                        )
-                        asyncio.create_task(maybe_coro)
-                else:
-                    asyncio.create_task(maybe_coro)
+                try:
+                    _supervise_background_task(
+                        app,
+                        maybe_coro,
+                        name="publish-risk-configuration",
+                        metadata={"component": "runtime.risk"},
+                    )
+                except Exception:  # pragma: no cover - diagnostics only
+                    logger.debug(
+                        "Failed to supervise risk configuration publish task",
+                        exc_info=True,
+                    )
 
 
 def _record_and_publish_risk_configuration(
@@ -2653,17 +2684,15 @@ def _configure_governance_cadence(
         if cadence_task is not None:
             return
         cadence_stop_event = asyncio.Event()
-        create_background_task = getattr(app, "create_background_task", None)
-        if not callable(create_background_task):  # pragma: no cover - defensive safeguard
-            cadence_task = asyncio.create_task(  # type: ignore[assignment]
-                _governance_cadence_loop(force_on_start),
-                name="governance-cadence-runner",
-            )
-        else:
-            cadence_task = create_background_task(
-                _governance_cadence_loop(force_on_start),
-                name="governance-cadence-runner",
-            )
+        cadence_task = _supervise_background_task(
+            app,
+            _governance_cadence_loop(force_on_start),
+            name="governance-cadence-runner",
+            metadata={
+                "component": "governance.cadence",
+                "interval_seconds": interval_seconds,
+            },
+        )
         logger.info(
             "📑 Governance cadence runner enabled: interval=%ss poll=%.1fs path=%s",
             interval_seconds,

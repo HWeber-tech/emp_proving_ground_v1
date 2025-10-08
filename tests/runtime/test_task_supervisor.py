@@ -57,3 +57,47 @@ async def test_supervisor_tracks_external_tasks_and_metadata() -> None:
     await asyncio.sleep(0)  # let the task exit cleanly
     await supervisor.cancel_all()
     assert supervisor.active_count == 0
+
+
+@pytest.mark.asyncio()
+async def test_supervisor_failure_does_not_cancel_other_tasks(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    supervisor = TaskSupervisor(namespace="test", cancel_timeout=0.05)
+    running_flag = asyncio.Event()
+    release_event = asyncio.Event()
+
+    async def _failing_ingest() -> None:
+        await running_flag.wait()
+        raise RuntimeError("ingest burst")
+
+    async def _drift_monitor() -> None:
+        running_flag.set()
+        await release_event.wait()
+
+    with caplog.at_level(logging.ERROR, logger=supervisor._logger.name):
+        failing_task = supervisor.create(
+            _failing_ingest(),
+            name="timescale-ingest-runner",
+        )
+        drift_task = supervisor.create(
+            _drift_monitor(),
+            name="drift-monitor",
+        )
+
+        # allow the failing task to complete and be logged
+        while not failing_task.done():
+            await asyncio.sleep(0)
+
+        await asyncio.sleep(0)
+        assert caplog.records, "expected supervisor to log the ingest failure"
+        assert any(
+            "timescale-ingest-runner" in record.getMessage()
+            for record in caplog.records
+        )
+
+    assert not drift_task.done(), "supervisor cancelled an unrelated task"
+
+    release_event.set()
+    await asyncio.sleep(0)
+    await supervisor.cancel_all()

@@ -11,6 +11,8 @@ from contextlib import suppress
 from datetime import datetime
 from typing import Any, Callable, Coroutine, Optional
 
+from src.runtime.task_supervisor import TaskSupervisor
+
 logger = logging.getLogger(__name__)
 
 
@@ -43,6 +45,9 @@ class FIXSensoryOrgan:
         self.symbols: list[str] = []
         self._price_task: asyncio.Task[Any] | None = None
         self._task_factory = task_factory
+        self._fallback_supervisor: TaskSupervisor | None = None
+        if task_factory is None:
+            self._fallback_supervisor = TaskSupervisor(namespace="fix-sensory-organ")
 
     async def start(self) -> None:
         """Start the sensory organ."""
@@ -70,6 +75,8 @@ class FIXSensoryOrgan:
             with suppress(asyncio.CancelledError):
                 await task
         self._price_task = None
+        if self._fallback_supervisor is not None:
+            await self._fallback_supervisor.cancel_all()
         logger.info("FIX sensory organ stopped")
 
     async def _process_price_messages(self) -> None:
@@ -105,7 +112,9 @@ class FIXSensoryOrgan:
     def _spawn_task(self, coro: Coroutine[Any, Any, Any], *, name: str | None = None) -> asyncio.Task[Any]:
         if self._task_factory is not None:
             return self._task_factory(coro, name)
-        return asyncio.create_task(coro, name=name)
+        if self._fallback_supervisor is None:  # pragma: no cover - defensive guard
+            self._fallback_supervisor = TaskSupervisor(namespace="fix-sensory-organ")
+        return self._fallback_supervisor.create(coro, name=name)
 
     async def _handle_market_data_snapshot(self, message: Any) -> None:
         """Handle market data snapshot messages."""

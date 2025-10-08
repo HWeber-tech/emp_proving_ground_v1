@@ -25,6 +25,7 @@ from typing import (
 
 import simplefix
 
+from src.runtime.task_supervisor import TaskSupervisor
 from src.operational.structured_logging import get_logger, order_logging_context
 from src.trading.execution._risk_context import (
     RiskContextProvider,
@@ -122,6 +123,9 @@ class FIXBrokerInterface:
         self._last_risk_error: dict[str, object] | None = None
         if risk_context_provider is not None:
             self.set_risk_context_provider(risk_context_provider)
+        self._fallback_supervisor: TaskSupervisor | None = None
+        if task_factory is None:
+            self._fallback_supervisor = TaskSupervisor(namespace="fix-broker-interface")
 
     async def start(self) -> None:
         """Start the broker interface."""
@@ -178,6 +182,8 @@ class FIXBrokerInterface:
             with suppress(asyncio.CancelledError):
                 await task
         self._trade_task = None
+        if self._fallback_supervisor is not None:
+            await self._fallback_supervisor.cancel_all()
         logger.info("fix_broker_stopped")
 
     def _resolve_portfolio_state(self, symbol: str) -> Mapping[str, Any]:
@@ -432,7 +438,9 @@ class FIXBrokerInterface:
     ) -> asyncio.Task[Any]:
         if self._task_factory is not None:
             return self._task_factory(coro, name)
-        return asyncio.create_task(coro, name=name)
+        if self._fallback_supervisor is None:  # pragma: no cover - defensive guard
+            self._fallback_supervisor = TaskSupervisor(namespace="fix-broker-interface")
+        return self._fallback_supervisor.create(coro, name=name)
 
     async def _handle_execution_report(self, message: Any) -> None:
         """Handle execution report messages from FIX.

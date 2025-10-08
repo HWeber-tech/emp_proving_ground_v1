@@ -10,6 +10,8 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any, Callable, Coroutine, Mapping, MutableMapping, Optional
 
+from src.runtime.task_supervisor import TaskSupervisor
+
 from src.core.event_bus import Event, EventBus, TopicBus, get_global_bus
 
 logger = logging.getLogger(__name__)
@@ -103,6 +105,9 @@ class FixDropcopyReconciler:
         self._order_events: MutableMapping[str, DropcopyEvent] = {}
         self._unmatched_reports: deque[Mapping[str, object]] = deque(maxlen=64)
         self._task_factory = task_factory
+        self._fallback_supervisor: TaskSupervisor | None = None
+        if task_factory is None:
+            self._fallback_supervisor = TaskSupervisor(namespace="fix-dropcopy")
 
     async def start(self) -> None:
         if self.running:
@@ -122,6 +127,8 @@ class FixDropcopyReconciler:
             with suppress(asyncio.CancelledError):
                 await task
         self._dropcopy_task = None
+        if self._fallback_supervisor is not None:
+            await self._fallback_supervisor.cancel_all()
 
     async def _process_queue(self) -> None:
         while True:
@@ -176,7 +183,8 @@ class FixDropcopyReconciler:
     ) -> asyncio.Task[Any]:
         if self._task_factory is not None:
             return self._task_factory(coro, name)
-        return asyncio.create_task(coro, name=name)
+        assert self._fallback_supervisor is not None  # invariant when factory absent
+        return self._fallback_supervisor.create(coro, name=name)
 
     # ------------------------------------------------------------------
     def get_backlog(self) -> int:

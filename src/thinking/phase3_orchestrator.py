@@ -110,6 +110,11 @@ class Phase3Orchestrator:
     ):
         self.state_store = state_store
         self.event_bus = event_bus
+        if task_supervisor is None:
+            task_supervisor = TaskSupervisor(namespace="phase3-orchestrator")
+            self._owns_task_supervisor = True
+        else:
+            self._owns_task_supervisor = False
         self._task_supervisor = task_supervisor
         self._background_tasks: set[asyncio.Task[Any]] = set()
 
@@ -193,10 +198,9 @@ class Phase3Orchestrator:
             "task": task_label,
         }
         supervisor = self._task_supervisor
-        if supervisor is not None:
-            task = supervisor.create(coro, name=name, metadata=metadata)
-        else:
-            task = asyncio.create_task(coro, name=name)
+        if supervisor is None:  # pragma: no cover - defensive guard
+            raise RuntimeError("Task supervisor is not configured for Phase3Orchestrator")
+        task = supervisor.create(coro, name=name, metadata=metadata)
         self._background_tasks.add(task)
         task.add_done_callback(lambda completed: self._background_tasks.discard(completed))
         return task
@@ -223,6 +227,7 @@ class Phase3Orchestrator:
 
             if task_supervisor is not None:
                 self._task_supervisor = task_supervisor
+                self._owns_task_supervisor = False
 
             logger.info("Starting Phase 3 orchestrator...")
 
@@ -263,6 +268,9 @@ class Phase3Orchestrator:
             self.is_running = False
 
             await self._cancel_background_tasks()
+
+            if self._owns_task_supervisor and self._task_supervisor is not None:
+                await self._task_supervisor.cancel_all()
 
             # Stop all systems
             await self.sentient_engine.stop()

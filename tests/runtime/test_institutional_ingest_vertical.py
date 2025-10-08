@@ -176,6 +176,8 @@ async def test_provisioned_services_supervise_components() -> None:
     assert redis_metrics["namespace"] == "emp:cache"
     assert redis_metrics["hits"] == 1
     assert redis_metrics["misses"] == 1
+    assert redis_metrics["requests"] == 2
+    assert redis_metrics["hit_rate"] == pytest.approx(0.5)
     manifest = summary["managed_manifest"]
     assert {entry["name"] for entry in manifest} == {"timescale", "redis", "kafka"}
     for entry in manifest:
@@ -225,6 +227,7 @@ def test_provision_respects_custom_redis_policy() -> None:
     metrics_snapshot = summary["redis_metrics"]
     assert metrics_snapshot is not None
     assert metrics_snapshot["namespace"] == "emp:custom"
+    assert metrics_snapshot["hit_rate"] is None
 
 
 def test_provision_configures_redis_when_factory_missing(monkeypatch: pytest.MonkeyPatch) -> None:

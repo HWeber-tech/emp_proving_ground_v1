@@ -344,6 +344,39 @@ def _policy_metadata(policy: RedisCachePolicy | None) -> dict[str, object] | Non
     }
 
 
+def _prepare_redis_metrics(
+    metrics: Mapping[str, object] | None,
+) -> dict[str, object] | None:
+    """Normalise Redis metrics and derive aggregate fields for summaries."""
+
+    if metrics is None:
+        return None
+
+    payload: dict[str, object] = {str(key): value for key, value in metrics.items()}
+
+    def _coerce_int(value: object) -> int | None:
+        if value is None:
+            return None
+        if isinstance(value, bool):
+            return int(value)
+        if isinstance(value, (int, float)):
+            return int(value)
+        try:
+            return int(str(value).strip())
+        except (TypeError, ValueError):
+            return None
+
+    hits = _coerce_int(payload.get("hits"))
+    misses = _coerce_int(payload.get("misses"))
+
+    if hits is not None and misses is not None:
+        total_requests = hits + misses
+        payload.setdefault("requests", total_requests)
+        payload["hit_rate"] = (hits / total_requests) if total_requests > 0 else None
+
+    return payload
+
+
 @dataclass(slots=True)
 class InstitutionalIngestServices:
     """Runtime objects bound to the managed ingest vertical."""
@@ -441,9 +474,11 @@ class InstitutionalIngestServices:
             if raw_client is not None:
                 redis_backing = raw_client.__class__.__name__
             try:
-                redis_metrics = dict(self.redis_cache.metrics())
+                redis_metrics = self.redis_cache.metrics()
             except Exception:  # pragma: no cover - metrics are best-effort
                 logger.debug("Failed to collect Redis cache metrics", exc_info=True)
+
+        prepared_redis_metrics = _prepare_redis_metrics(redis_metrics)
 
         kafka_summary: str | None = None
         if self.kafka_settings is not None and self.kafka_settings.configured:
@@ -480,7 +515,7 @@ class InstitutionalIngestServices:
             "redis": redis_summary,
             "redis_backing": redis_backing,
             "redis_policy": _policy_metadata(self.redis_policy),
-            "redis_metrics": redis_metrics,
+            "redis_metrics": prepared_redis_metrics,
             "kafka": kafka_summary,
             "kafka_topics": kafka_topics,
             "kafka_metadata": dict(self.kafka_metadata) if self.kafka_metadata else {},
@@ -866,11 +901,12 @@ def _build_managed_manifest(
     redis_metrics: Mapping[str, object] | None = None
     if redis_cache is not None:
         try:
-            redis_metrics = dict(redis_cache.metrics())
+            redis_metrics = redis_cache.metrics()
         except Exception:  # pragma: no cover - metrics retrieval is best-effort
             logger.debug(
                 "Failed to collect Redis cache metrics for manifest", exc_info=True
             )
+    prepared_redis_metrics = _prepare_redis_metrics(redis_metrics)
 
     kafka_topics_list: list[str] = []
     if kafka_topics is not None:
@@ -905,7 +941,7 @@ def _build_managed_manifest(
             "summary": redis_summary,
             "backing": redis_backing,
             "policy": redis_policy_metadata,
-            "metrics": redis_metrics,
+            "metrics": prepared_redis_metrics,
         },
     )
 

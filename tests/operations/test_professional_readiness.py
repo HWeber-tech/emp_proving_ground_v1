@@ -18,6 +18,11 @@ from src.operations.data_backbone import (
 )
 
 from src.operations.event_bus_failover import EventPublishError
+from src.operations.operational_readiness import (
+    OperationalReadinessComponent,
+    OperationalReadinessSnapshot,
+    OperationalReadinessStatus,
+)
 from src.operations.professional_readiness import (
     ProfessionalReadinessStatus,
     evaluate_professional_readiness,
@@ -71,6 +76,37 @@ def _slo_snapshot(status: SLOStatus) -> OperationalSLOSnapshot:
     )
 
 
+def _operational_snapshot(
+    status: OperationalReadinessStatus,
+) -> OperationalReadinessSnapshot:
+    counts: dict[str, int] = {}
+    if status is OperationalReadinessStatus.warn:
+        counts["warn"] = 1
+    elif status is OperationalReadinessStatus.fail:
+        counts["fail"] = 1
+    component = OperationalReadinessComponent(
+        name="system_validation",
+        status=status,
+        summary="system validation posture",
+        metadata={"issue_counts": dict(counts)} if counts else {},
+    )
+    metadata: dict[str, object] = {
+        "status_breakdown": {status.value: 1},
+        "component_statuses": {component.name: component.status.value},
+    }
+    if counts:
+        metadata["issue_counts"] = dict(counts)
+        metadata["component_issue_details"] = {
+            component.name: {"issue_counts": dict(counts)}
+        }
+    return OperationalReadinessSnapshot(
+        status=status,
+        generated_at=datetime(2025, 1, 2, tzinfo=UTC),
+        components=(component,),
+        metadata=metadata,
+    )
+
+
 def test_professional_readiness_combines_signals() -> None:
     backbone = _backbone_snapshot(BackboneStatus.ok)
     backup = _backup_snapshot(BackupStatus.warn)
@@ -104,6 +140,44 @@ def test_professional_readiness_combines_signals() -> None:
     assert snapshot.status is ProfessionalReadinessStatus.warn
     names = {component.name for component in snapshot.components}
     assert names == {"data_backbone", "backups", "ingest_slos", "failover", "recovery"}
+
+
+def test_professional_readiness_includes_operational_snapshot() -> None:
+    backbone = _backbone_snapshot(BackboneStatus.ok)
+    operational = _operational_snapshot(OperationalReadinessStatus.warn)
+
+    snapshot = evaluate_professional_readiness(
+        backbone_snapshot=backbone,
+        operational_readiness_snapshot=operational,
+    )
+
+    assert snapshot.status is ProfessionalReadinessStatus.warn
+    assert snapshot.generated_at == operational.generated_at
+
+    names = {component.name for component in snapshot.components}
+    assert "operational_readiness" in names
+
+    metadata = snapshot.metadata
+    assert metadata.get("component_count") == len(snapshot.components)
+
+    component_statuses = metadata.get("component_statuses")
+    assert isinstance(component_statuses, dict)
+    assert component_statuses.get("operational_readiness") == "warn"
+
+    breakdown = metadata.get("status_breakdown")
+    assert isinstance(breakdown, dict)
+    assert breakdown.get("warn", 0) >= 1
+
+    issue_counts = metadata.get("issue_counts")
+    assert isinstance(issue_counts, dict)
+    assert issue_counts.get("warn") == 1
+
+    operational_component = next(
+        component for component in snapshot.components if component.name == "operational_readiness"
+    )
+    snapshot_payload = operational_component.metadata.get("snapshot")
+    assert isinstance(snapshot_payload, dict)
+    assert snapshot_payload.get("status") == "warn"
 
 
 def test_professional_readiness_escalates_on_failover() -> None:

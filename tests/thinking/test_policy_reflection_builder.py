@@ -95,6 +95,8 @@ def test_builder_generates_markdown_with_insights() -> None:
     assert "Objective coverage" in markdown
     assert "Confidence summary" in markdown
     assert "Feature highlights" in markdown
+    assert "Emerging tactics" in markdown
+    assert "Emerging experiments" in markdown
     assert "exp-boost" in markdown
     assert "Conf >=" in markdown
 
@@ -106,6 +108,8 @@ def test_builder_generates_markdown_with_insights() -> None:
     assert any("confidence >= 0.60" in insight for insight in insights)
     assert any("Average confidence" in insight for insight in insights)
     assert any("Feature" in insight for insight in insights)
+    assert any("Emerging tactic" in insight for insight in insights)
+    assert any("Emerging experiment" in insight for insight in insights)
 
     digest = artifacts.payload["digest"]
     experiments = digest["experiments"]

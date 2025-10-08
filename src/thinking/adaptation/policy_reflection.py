@@ -150,6 +150,68 @@ class PolicyReflectionBuilder:
                 )
             )
 
+        emerging_tactics = self._slice_entries(
+            digest.get("emerging_tactics", ()), self._max_tactics
+        )
+        if emerging_tactics:
+            newest = emerging_tactics[0]
+            tactic_id = newest.get("tactic_id", "unknown")
+            first_seen = newest.get("first_seen")
+            first_seen_text = (
+                str(first_seen)
+                if isinstance(first_seen, str) and first_seen.strip()
+                else "recently"
+            )
+            count = int(newest.get("count", 0) or 0)
+            share = self._format_percentage(newest.get("share", 0.0))
+            suffix = "s" if count != 1 else ""
+            insights.append(
+                "Emerging tactic {} first seen {} ({} decision{}; {})".format(
+                    tactic_id,
+                    first_seen_text,
+                    count,
+                    suffix,
+                    share,
+                )
+            )
+
+        emerging_experiments = self._slice_entries(
+            digest.get("emerging_experiments", ()), self._max_experiments
+        )
+        if emerging_experiments:
+            newest_exp = emerging_experiments[0]
+            experiment_id = newest_exp.get("experiment_id", "unknown")
+            first_seen = newest_exp.get("first_seen")
+            first_seen_text = (
+                str(first_seen)
+                if isinstance(first_seen, str) and first_seen.strip()
+                else "recently"
+            )
+            count = int(newest_exp.get("count", 0) or 0)
+            share = self._format_percentage(newest_exp.get("share", 0.0))
+            suffix = "s" if count != 1 else ""
+            gating_bits: list[str] = []
+            regimes = newest_exp.get("regimes")
+            if isinstance(regimes, Sequence) and regimes and not isinstance(regimes, (str, bytes)):
+                gating_bits.append(
+                    "regimes "
+                    + ", ".join(str(regime) for regime in regimes if str(regime).strip())
+                )
+            min_conf = newest_exp.get("min_confidence")
+            if isinstance(min_conf, (int, float)) and float(min_conf) > 0.0:
+                gating_bits.append(f"confidence >= {float(min_conf):.2f}")
+            gating_suffix = f"; {'; '.join(gating_bits)}" if gating_bits else ""
+            insights.append(
+                "Emerging experiment {} first seen {} ({} decision{}; {}{})".format(
+                    experiment_id,
+                    first_seen_text,
+                    count,
+                    suffix,
+                    share,
+                    gating_suffix,
+                )
+            )
+
         confidence = digest.get("confidence", {})
         if isinstance(confidence, Mapping) and int(confidence.get("count", 0) or 0) > 0:
             avg_conf = float(confidence.get("average", 0.0) or 0.0)
@@ -266,6 +328,101 @@ class PolicyReflectionBuilder:
         if int(digest.get("total_decisions", 0) or 0) == 0:
             lines.append("_No decisions available. Run the understanding loop to capture telemetry._")
             return "\n".join(lines)
+
+        emerging_tactics = self._slice_entries(digest.get("emerging_tactics", ()), self._max_tactics)
+        if emerging_tactics:
+            lines.append("## Emerging tactics")
+            for entry in emerging_tactics:
+                tactic_id = str(entry.get("tactic_id", "")) or "unknown"
+                first_seen = entry.get("first_seen")
+                first_seen_text = (
+                    str(first_seen)
+                    if isinstance(first_seen, str) and first_seen.strip()
+                    else "n/a"
+                )
+                count = int(entry.get("count", 0) or 0)
+                share = self._format_percentage(entry.get("share", 0.0))
+                detail_bits: list[str] = []
+                tags = entry.get("tags")
+                if isinstance(tags, Sequence) and tags and not isinstance(tags, (str, bytes)):
+                    detail_bits.append(", ".join(str(tag) for tag in tags if str(tag).strip()))
+                objectives = entry.get("objectives")
+                if isinstance(objectives, Sequence) and objectives and not isinstance(objectives, (str, bytes)):
+                    detail_bits.append(
+                        "objectives: "
+                        + ", ".join(
+                            str(obj) for obj in objectives if str(obj).strip()
+                        )
+                    )
+                descriptor = f" ({'; '.join(detail_bits)})" if detail_bits else ""
+                lines.append(
+                    f"- {tactic_id} — first seen {first_seen_text}, {count} decision"
+                    f"{'s' if count != 1 else ''} ({share}){descriptor}"
+                )
+            lines.append("")
+
+        emerging_experiments = self._slice_entries(
+            digest.get("emerging_experiments", ()), self._max_experiments
+        )
+        if emerging_experiments:
+            lines.append("## Emerging experiments")
+            for entry in emerging_experiments:
+                experiment_id = str(entry.get("experiment_id", "")) or "unknown"
+                first_seen = entry.get("first_seen")
+                first_seen_text = (
+                    str(first_seen)
+                    if isinstance(first_seen, str) and first_seen.strip()
+                    else "n/a"
+                )
+                count = int(entry.get("count", 0) or 0)
+                share = self._format_percentage(entry.get("share", 0.0))
+                gating_bits: list[str] = []
+                regimes = entry.get("regimes")
+                if isinstance(regimes, Sequence) and regimes and not isinstance(regimes, (str, bytes)):
+                    gating_bits.append(
+                        "regimes "
+                        + ", ".join(str(regime) for regime in regimes if str(regime).strip())
+                    )
+                min_conf = entry.get("min_confidence")
+                if isinstance(min_conf, (int, float)) and float(min_conf) > 0.0:
+                    gating_bits.append(f"confidence >= {float(min_conf):.2f}")
+                descriptor = f" ({'; '.join(gating_bits)})" if gating_bits else ""
+                lines.append(
+                    f"- {experiment_id} — first seen {first_seen_text}, {count} application"
+                    f"{'s' if count != 1 else ''} ({share}){descriptor}"
+                )
+            lines.append("")
+
+        weight_stats = digest.get("weight_stats", {})
+        if isinstance(weight_stats, Mapping) and weight_stats:
+            lines.append("## Weight provenance")
+            average_base = weight_stats.get("average_base_score")
+            if isinstance(average_base, (int, float)):
+                lines.append(f"- Average base score: {float(average_base):.3f}")
+            average_multiplier = weight_stats.get("average_total_multiplier")
+            if isinstance(average_multiplier, (int, float)):
+                lines.append(f"- Average total multiplier: {float(average_multiplier):.3f}")
+            average_final = weight_stats.get("average_final_score")
+            if isinstance(average_final, (int, float)):
+                lines.append(f"- Average final score: {float(average_final):.3f}")
+            fast_weight = weight_stats.get("fast_weight", {})
+            if isinstance(fast_weight, Mapping) and fast_weight:
+                applications = int(fast_weight.get("applications", 0) or 0)
+                count = int(fast_weight.get("count", 0) or 0)
+                average_fast = fast_weight.get("average_multiplier")
+                lines.append(
+                    "- Fast-weight engagements: {} application{} over {} record{}".format(
+                        applications,
+                        "s" if applications != 1 else "",
+                        count,
+                        "s" if count != 1 else "",
+                    )
+                )
+                if isinstance(average_fast, (int, float)):
+                    lines.append(
+                        f"- Fast-weight average multiplier: {float(average_fast):.3f}"
+                    )
+            lines.append("")
 
         confidence = digest.get("confidence", {})
         if isinstance(confidence, Mapping) and int(confidence.get("count", 0) or 0) > 0:

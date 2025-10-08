@@ -245,6 +245,8 @@ def test_reflection_digest_surfaces_emerging_strategies() -> None:
     assert top_tactic["count"] == 2
     assert top_tactic["share"] == pytest.approx(2 / 3)
     assert set(top_tactic["tags"]) == {"momentum", "fast-weight"}
+    assert top_tactic["first_seen"].endswith("+00:00")
+    assert top_tactic["last_seen"].endswith("+00:00")
 
     reversion_entry = next(item for item in digest["tactics"] if item["tactic_id"] == "mean_reversion")
     assert reversion_entry["avg_score"] > 0.0
@@ -260,6 +262,18 @@ def test_reflection_digest_surfaces_emerging_strategies() -> None:
     assert experiments[0]["delta"] == pytest.approx(0.75)
     gates = experiments[0]["feature_gates"]
     assert isinstance(gates, list) and gates[0]["maximum"] == pytest.approx(0.3)
+    assert experiments[0]["first_seen"].endswith("+00:00")
+    assert experiments[0]["last_seen"].endswith("+00:00")
+
+    emerging_tactics = digest["emerging_tactics"]
+    assert emerging_tactics[0]["tactic_id"] == "mean_reversion"
+    assert emerging_tactics[0]["count"] == 1
+    assert emerging_tactics[0]["first_seen"].endswith("+00:00")
+    assert emerging_tactics[0]["share"] == pytest.approx(1 / 3)
+
+    emerging_experiments = digest["emerging_experiments"]
+    assert emerging_experiments[0]["experiment_id"] == "exp-reversion"
+    assert emerging_experiments[0]["first_seen"].endswith("+00:00")
 
     tag_entries = digest["tags"]
     assert [entry["tag"] for entry in tag_entries[:2]] == ["fast-weight", "momentum"]

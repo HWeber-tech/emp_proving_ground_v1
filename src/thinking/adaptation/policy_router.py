@@ -470,6 +470,15 @@ class PolicyRouter:
                 raise ValueError("window must be a positive integer when provided")
             history = history[-window:]
 
+        def _iso(timestamp: datetime | None) -> str | None:
+            if timestamp is None:
+                return None
+            if timestamp.tzinfo is None:
+                timestamp = timestamp.replace(tzinfo=timezone.utc)
+            else:
+                timestamp = timestamp.astimezone(timezone.utc)
+            return timestamp.isoformat()
+
         if not history:
             return {
                 "total_decisions": 0,
@@ -503,15 +512,19 @@ class PolicyRouter:
                         "max_multiplier": None,
                     },
                 },
+                "emerging_tactics": [],
+                "emerging_experiments": [],
             }
 
         tactic_counts: Counter[str] = Counter()
         tactic_scores: dict[str, float] = {}
+        tactic_first_seen: dict[str, datetime] = {}
         tactic_last_seen: dict[str, datetime] = {}
         tactic_tags: dict[str, Sequence[str]] = {}
         tactic_objectives: dict[str, Sequence[str]] = {}
 
         experiment_counts: Counter[str] = Counter()
+        experiment_first_seen: dict[str, datetime] = {}
         experiment_last_seen: dict[str, datetime] = {}
         experiment_rationales: dict[str, str] = {}
         experiment_tactics: dict[str, Counter[str]] = {}
@@ -525,11 +538,13 @@ class PolicyRouter:
         regime_counts: Counter[str] = Counter()
 
         tag_counts: Counter[str] = Counter()
+        tag_first_seen: dict[str, datetime] = {}
         tag_last_seen: dict[str, datetime] = {}
         tag_scores: dict[str, float] = {}
         tag_tactics: dict[str, Counter[str]] = {}
 
         objective_counts: Counter[str] = Counter()
+        objective_first_seen: dict[str, datetime] = {}
         objective_last_seen: dict[str, datetime] = {}
         objective_scores: dict[str, float] = {}
         objective_tactics: dict[str, Counter[str]] = {}
@@ -613,6 +628,8 @@ class PolicyRouter:
                     score = 0.0
                 total_score_sum += score
                 tactic_scores[tactic_id] = tactic_scores.get(tactic_id, 0.0) + score
+                if timestamp and tactic_id not in tactic_first_seen:
+                    tactic_first_seen[tactic_id] = timestamp
                 if timestamp and (
                     tactic_id not in tactic_last_seen or timestamp > tactic_last_seen[tactic_id]
                 ):
@@ -624,6 +641,8 @@ class PolicyRouter:
                     for tag in cleaned_tags:
                         tag_counts[tag] += 1
                         tag_scores[tag] = tag_scores.get(tag, 0.0) + score
+                        if timestamp and tag not in tag_first_seen:
+                            tag_first_seen[tag] = timestamp
                         if timestamp and (
                             tag not in tag_last_seen or timestamp > tag_last_seen[tag]
                         ):
@@ -636,6 +655,8 @@ class PolicyRouter:
                     for objective in cleaned_objectives:
                         objective_counts[objective] += 1
                         objective_scores[objective] = objective_scores.get(objective, 0.0) + score
+                        if timestamp and objective not in objective_first_seen:
+                            objective_first_seen[objective] = timestamp
                         if timestamp and (
                             objective not in objective_last_seen
                             or timestamp > objective_last_seen[objective]
@@ -657,6 +678,8 @@ class PolicyRouter:
                 if not experiment_id:
                     continue
                 experiment_counts[experiment_id] += 1
+                if timestamp and experiment_id not in experiment_first_seen:
+                    experiment_first_seen[experiment_id] = timestamp
                 if timestamp and (
                     experiment_id not in experiment_last_seen
                     or timestamp > experiment_last_seen[experiment_id]
@@ -750,9 +773,8 @@ class PolicyRouter:
                     "count": count,
                     "share": count / total_decisions,
                     "avg_score": avg_score,
-                    "last_seen": tactic_last_seen.get(tactic_id).isoformat()
-                    if tactic_id in tactic_last_seen
-                    else None,
+                    "first_seen": _iso(tactic_first_seen.get(tactic_id)),
+                    "last_seen": _iso(tactic_last_seen.get(tactic_id)),
                     "tags": list(tactic_tags.get(tactic_id, ())),
                     "objectives": list(tactic_objectives.get(tactic_id, ())),
                 }
@@ -764,14 +786,13 @@ class PolicyRouter:
             if experiment_id in experiment_tactics and experiment_tactics[experiment_id]:
                 top_tactic = experiment_tactics[experiment_id].most_common(1)[0][0]
             last_seen = (
-                experiment_last_seen.get(experiment_id).isoformat()
-                if experiment_id in experiment_last_seen
-                else None
+                _iso(experiment_last_seen.get(experiment_id))
             )
             entry: dict[str, object] = {
                 "experiment_id": experiment_id,
                 "count": count,
                 "share": count / total_decisions,
+                "first_seen": _iso(experiment_first_seen.get(experiment_id)),
                 "last_seen": last_seen,
                 "rationale": experiment_rationales.get(experiment_id),
                 "most_common_tactic": top_tactic,
@@ -823,9 +844,8 @@ class PolicyRouter:
                     "count": count,
                     "share": count / total_decisions,
                     "avg_score": tag_scores[tag] / count if count else 0.0,
-                    "last_seen": tag_last_seen.get(tag).isoformat()
-                    if tag in tag_last_seen
-                    else None,
+                    "first_seen": _iso(tag_first_seen.get(tag)),
+                    "last_seen": _iso(tag_last_seen.get(tag)),
                     "top_tactics": top_tactics,
                 }
             )
@@ -843,9 +863,8 @@ class PolicyRouter:
                     "count": count,
                     "share": count / total_decisions,
                     "avg_score": objective_scores[objective] / count if count else 0.0,
-                    "last_seen": objective_last_seen.get(objective).isoformat()
-                    if objective in objective_last_seen
-                    else None,
+                    "first_seen": _iso(objective_first_seen.get(objective)),
+                    "last_seen": _iso(objective_last_seen.get(objective)),
                     "top_tactics": top_tactics,
                 }
             )
@@ -955,6 +974,64 @@ class PolicyRouter:
             },
         }
 
+        emerging_tactics: list[Mapping[str, object]] = []
+        if tactic_counts:
+            min_timestamp = datetime.min.replace(tzinfo=timezone.utc)
+
+            def _tactic_sort_key(tactic_id: str) -> tuple[datetime, int, str]:
+                first_seen = tactic_first_seen.get(tactic_id) or min_timestamp
+                if first_seen.tzinfo is None:
+                    first_seen = first_seen.replace(tzinfo=timezone.utc)
+                return (first_seen, tactic_counts[tactic_id], tactic_id)
+
+            for tactic_id in sorted(
+                tactic_counts,
+                key=_tactic_sort_key,
+                reverse=True,
+            )[: self._summary_top_k]:
+                count = tactic_counts[tactic_id]
+                avg_score = tactic_scores.get(tactic_id, 0.0) / count if count else 0.0
+                emerging_tactics.append(
+                    {
+                        "tactic_id": tactic_id,
+                        "count": count,
+                        "share": count / total_decisions,
+                        "avg_score": avg_score,
+                        "first_seen": _iso(tactic_first_seen.get(tactic_id)),
+                        "last_seen": _iso(tactic_last_seen.get(tactic_id)),
+                        "tags": list(tactic_tags.get(tactic_id, ())),
+                        "objectives": list(tactic_objectives.get(tactic_id, ())),
+                    }
+                )
+
+        emerging_experiments: list[Mapping[str, object]] = []
+        if experiment_counts:
+            min_timestamp = datetime.min.replace(tzinfo=timezone.utc)
+
+            def _experiment_sort_key(experiment_id: str) -> tuple[datetime, int, str]:
+                first_seen = experiment_first_seen.get(experiment_id) or min_timestamp
+                if first_seen.tzinfo is None:
+                    first_seen = first_seen.replace(tzinfo=timezone.utc)
+                return (first_seen, experiment_counts[experiment_id], experiment_id)
+
+            experiment_summary_index = {
+                str(entry.get("experiment_id")): dict(entry) for entry in experiment_summaries
+            }
+
+            for experiment_id in sorted(
+                experiment_counts,
+                key=_experiment_sort_key,
+                reverse=True,
+            )[: self._summary_top_k]:
+                summary = experiment_summary_index.get(experiment_id, {})
+                enriched: dict[str, object] = dict(summary)
+                enriched.setdefault("experiment_id", experiment_id)
+                enriched["count"] = experiment_counts[experiment_id]
+                enriched["share"] = experiment_counts[experiment_id] / total_decisions
+                enriched["first_seen"] = _iso(experiment_first_seen.get(experiment_id))
+                enriched["last_seen"] = _iso(experiment_last_seen.get(experiment_id))
+                emerging_experiments.append(enriched)
+
         return {
             "total_decisions": total_decisions,
             "as_of": as_of.isoformat() if as_of else None,
@@ -975,6 +1052,8 @@ class PolicyRouter:
             "confidence": confidence_summary,
             "features": feature_summaries,
             "weight_stats": weight_stats,
+            "emerging_tactics": emerging_tactics,
+            "emerging_experiments": emerging_experiments,
         }
 
     def reflection_report(
@@ -1101,9 +1180,12 @@ class PolicyRouter:
         if not isinstance(value, str):
             return None
         try:
-            return datetime.fromisoformat(value)
+            parsed = datetime.fromisoformat(value)
         except ValueError:
             return None
+        if parsed.tzinfo is None:
+            return parsed.replace(tzinfo=timezone.utc)
+        return parsed.astimezone(timezone.utc)
 
 
 __all__ = [

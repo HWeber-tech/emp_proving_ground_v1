@@ -353,7 +353,7 @@ class TradingManager:
             )
             if gate_decision is not None and not gate_decision.allowed:
                 logger.warning(
-                    "DriftSentry gate blocked trade intent %s: %s",
+                    "DriftSentry gate forcing paper execution for trade intent %s: %s",
                     event_id,
                     gate_decision.reason,
                 )
@@ -366,6 +366,7 @@ class TradingManager:
                     notional_for_event = None
                 metadata_payload: dict[str, Any] = {
                     "drift_severity": gate_decision.severity.value,
+                    "forced_paper": True,
                 }
                 if gate_decision.reason:
                     metadata_payload["reason"] = gate_decision.reason
@@ -382,7 +383,7 @@ class TradingManager:
 
                 self._record_experiment_event(
                     event_id=event_id,
-                    status="gated",
+                    status="forced_paper",
                     strategy_id=strategy_id,
                     symbol=base_symbol,
                     confidence=base_confidence,
@@ -390,20 +391,19 @@ class TradingManager:
                     metadata=metadata_payload,
                     decision=None,
                 )
-                drift_event_status = "gated"
+                drift_event_status = "forced_paper"
                 drift_notional_value = notional_for_event
+                drift_confidence_value = base_confidence
                 await self._publish_drift_gate_event(
                     decision=gate_decision,
                     event_id=event_id,
                     status=drift_event_status,
                     strategy_id=strategy_id,
                     symbol=base_symbol,
-                    confidence=base_confidence,
+                    confidence=drift_confidence_value,
                     notional=drift_notional_value,
                     release_metadata=None,
                 )
-                drift_event_emitted = True
-                return
 
             if gate_decision_payload is not None:
                 self._attach_drift_gate_metadata(event, gate_decision_payload)

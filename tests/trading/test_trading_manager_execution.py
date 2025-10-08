@@ -273,9 +273,6 @@ async def test_trading_manager_gates_on_drift(monkeypatch: pytest.MonkeyPatch) -
     execution_engine = RecordingExecutionEngine()
     manager.execution_engine = execution_engine
 
-    validate_mock: AsyncMock = AsyncMock(return_value=None)
-    manager.risk_gateway.validate_trade_intent = validate_mock  # type: ignore[assignment]
-
     dimension = SensoryDimensionDrift(
         name="WHY",
         current_signal=0.42,
@@ -303,24 +300,34 @@ async def test_trading_manager_gates_on_drift(monkeypatch: pytest.MonkeyPatch) -
         confidence=0.4,
     )
 
+    validate_mock: AsyncMock = AsyncMock(return_value=intent)
+    manager.risk_gateway.validate_trade_intent = validate_mock  # type: ignore[assignment]
+
     await manager.on_trade_intent(intent)
 
-    assert validate_mock.await_count == 0
-    assert execution_engine.calls == 0
+    assert validate_mock.await_count == 1
+    assert execution_engine.calls == 1
 
     events = manager.get_experiment_events()
-    assert events, "expected gating event"
+    assert events, "expected experiment events to be recorded"
     latest = events[0]
-    assert latest["status"] == "gated"
+    assert latest["status"] == "executed"
     metadata = latest.get("metadata")
     assert isinstance(metadata, dict)
-    assert metadata.get("drift_severity") == DriftSeverity.warn.value
-    assert "confidence" in str(metadata.get("reason"))
     gate_payload = metadata.get("drift_gate")
     assert isinstance(gate_payload, dict)
     assert gate_payload.get("allowed") is False
     assert gate_payload.get("severity") == DriftSeverity.warn.value
     assert gate_payload.get("force_paper") is True
+    forced_events = [event for event in events if event["status"] == "forced_paper"]
+    assert forced_events, "expected forced paper gating event"
+    forced_meta = forced_events[0].get("metadata")
+    assert isinstance(forced_meta, dict)
+    assert forced_meta.get("forced_paper") is True
+    gate_metadata = forced_events[0].get("metadata")
+    assert isinstance(gate_metadata, dict)
+    assert gate_metadata.get("forced_paper") is True
+    assert "confidence" in str(gate_metadata.get("reason"))
     decision = manager.get_last_drift_gate_decision()
     assert decision is not None
     assert not decision.allowed
@@ -328,10 +335,14 @@ async def test_trading_manager_gates_on_drift(monkeypatch: pytest.MonkeyPatch) -
     assert decision.force_paper is True
 
     assert bus.events, "expected drift gate telemetry"
-    drift_event = bus.events[-1]
-    assert drift_event.type == "telemetry.trading.drift_gate"
-    payload = drift_event.payload
-    assert payload["status"] == "gated"
+    forced_event = next(
+        event
+        for event in bus.events
+        if event.type == "telemetry.trading.drift_gate"
+        and event.payload.get("status") == "forced_paper"
+    )
+    payload = forced_event.payload
+    assert payload["status"] == "forced_paper"
     assert payload["decision"]["force_paper"] is True
 
 
@@ -535,9 +546,6 @@ async def test_trading_manager_release_thresholds(tmp_path: Path, monkeypatch: p
     execution_engine = RecordingExecutionEngine()
     manager.execution_engine = execution_engine
 
-    validate_mock: AsyncMock = AsyncMock(return_value=None)
-    manager.risk_gateway.validate_trade_intent = validate_mock  # type: ignore[assignment]
-
     dimension = SensoryDimensionDrift(
         name="WHY",
         current_signal=0.42,
@@ -566,6 +574,9 @@ async def test_trading_manager_release_thresholds(tmp_path: Path, monkeypatch: p
         strategy_id="alpha",
     )
 
+    validate_mock: AsyncMock = AsyncMock(return_value=intent)
+    manager.risk_gateway.validate_trade_intent = validate_mock  # type: ignore[assignment]
+
     await manager.on_trade_intent(intent)
 
     decision = manager.get_last_drift_gate_decision()
@@ -577,11 +588,13 @@ async def test_trading_manager_release_thresholds(tmp_path: Path, monkeypatch: p
     assert requirements["release_stage"] == PolicyLedgerStage.PAPER.value
     assert requirements["confidence_floor"] == pytest.approx(0.87, rel=1e-6)
     assert requirements.get("warn_notional_limit") == pytest.approx(35_625.0)
-    assert validate_mock.await_count == 0
-    assert execution_engine.calls == 0
+    assert validate_mock.await_count == 1
+    assert execution_engine.calls == 1
     events = manager.get_experiment_events()
-    assert events and events[0]["status"] == "gated"
-    metadata = events[0].get("metadata")
+    assert events, "expected experiment events"
+    executed = events[0]
+    assert executed["status"] == "executed"
+    metadata = executed.get("metadata")
     assert isinstance(metadata, dict)
     gate_payload = metadata.get("drift_gate")
     assert isinstance(gate_payload, dict)
@@ -590,6 +603,8 @@ async def test_trading_manager_release_thresholds(tmp_path: Path, monkeypatch: p
     assert gate_requirements.get("release_stage") == PolicyLedgerStage.PAPER.value
     assert gate_requirements.get("confidence_floor") == pytest.approx(0.87, rel=1e-6)
     assert gate_requirements.get("warn_notional_limit") == pytest.approx(35_625.0)
+    forced_events = [event for event in events if event["status"] == "forced_paper"]
+    assert forced_events, "expected forced paper gating event"
 
 
 @pytest.mark.asyncio()

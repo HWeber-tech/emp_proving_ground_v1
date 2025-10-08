@@ -86,7 +86,7 @@ async def test_publish_drift_gate_event_emits_event() -> None:
         event_id="evt-abc",
         strategy_id="alpha",
         symbol="EURUSD",
-        status="gated",
+        status="forced_paper",
         decision=decision,
         confidence=0.4,
         notional=5_000.0,
@@ -98,7 +98,7 @@ async def test_publish_drift_gate_event_emits_event() -> None:
     emitted = bus.events[-1]
     assert emitted.type == "telemetry.trading.drift_gate"
     assert emitted.source == "unit-test"
-    assert emitted.payload["status"] == "gated"
+    assert emitted.payload["status"] == "forced_paper"
     assert emitted.payload["decision"]["force_paper"] is True
     assert "markdown" in emitted.payload
 

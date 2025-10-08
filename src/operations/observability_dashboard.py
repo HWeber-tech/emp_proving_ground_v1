@@ -22,12 +22,13 @@ from src.operations.operational_readiness import (
     OperationalReadinessSnapshot,
     OperationalReadinessStatus,
 )
+from src.operational import metrics as operational_metrics
 from src.operations.quality_telemetry import (
     QualityStatus,
     QualityTelemetrySnapshot,
 )
 from src.operations.roi import RoiStatus, RoiTelemetrySnapshot
-from src.operations.slo import OperationalSLOSnapshot, SLOStatus
+from src.operations.slo import OperationalSLOSnapshot, SLOStatus, ServiceSLO
 from src.understanding.diagnostics import (
     UnderstandingGraphStatus,
     UnderstandingLoopSnapshot,
@@ -36,6 +37,10 @@ from src.understanding.metrics import export_understanding_throttle_metrics
 
 if TYPE_CHECKING:
     from src.governance.policy_graduation import PolicyGraduationAssessment
+    from src.orchestration.alpha_trade_loop import (
+        AlphaTradeLoopResult,
+        ComplianceEvent,
+    )
     from src.thinking.adaptation.policy_reflection import PolicyReflectionArtifacts
 
 try:  # Python 3.10 compatibility
@@ -197,6 +202,254 @@ def _map_slo_status(status: SLOStatus) -> DashboardStatus:
     if status is SLOStatus.at_risk:
         return DashboardStatus.warn
     return DashboardStatus.ok
+
+
+def _map_compliance_status(value: str | None) -> DashboardStatus:
+    if value in {"critical", "fail", "alert"}:
+        return DashboardStatus.fail
+    if value in {"warn", "warning"}:
+        return DashboardStatus.warn
+    return DashboardStatus.ok
+
+
+def _event_attr(event: Any, name: str) -> Any:
+    if hasattr(event, name):
+        candidate = getattr(event, name)
+        return getattr(candidate, "value", candidate)
+    if isinstance(event, Mapping):
+        candidate = event.get(name)
+        if isinstance(candidate, Mapping) and "value" in candidate:
+            return candidate["value"]
+        return candidate
+    return None
+
+
+def _event_as_dict(event: Any) -> Mapping[str, Any]:
+    if hasattr(event, "as_dict"):
+        try:
+            payload = dict(event.as_dict())  # type: ignore[call-arg]
+        except TypeError:
+            payload = {}
+    elif isinstance(event, Mapping):
+        payload = dict(event)
+    else:
+        payload = {}
+    if "event_type" not in payload:
+        payload["event_type"] = _event_attr(event, "event_type")
+    if "severity" not in payload:
+        payload["severity"] = _event_attr(event, "severity")
+    if "summary" not in payload:
+        payload["summary"] = _event_attr(event, "summary") or ""
+    if "policy_id" not in payload:
+        payload["policy_id"] = _event_attr(event, "policy_id")
+    occurred_at = payload.get("occurred_at")
+    if occurred_at is None:
+        occurred_at = _event_attr(event, "occurred_at")
+    payload["occurred_at"] = occurred_at
+    metadata = payload.get("metadata")
+    if not isinstance(metadata, Mapping):
+        payload["metadata"] = {}
+    return payload
+
+
+def _coerce_timestamp(value: Any) -> datetime | None:
+    if isinstance(value, datetime):
+        return value if value.tzinfo else value.replace(tzinfo=UTC)
+    if isinstance(value, str):
+        try:
+            parsed = datetime.fromisoformat(value)
+        except ValueError:
+            return None
+        return parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)
+    return None
+
+
+def _derive_compliance_slo(
+    events: Sequence[Any],
+    *,
+    generated_at: datetime | None = None,
+) -> OperationalSLOSnapshot:
+    generated = generated_at or datetime.now(tz=UTC)
+    breach_count = 0
+    warn_count = 0
+    governance_actions = 0
+    promotions = 0
+
+    for event in events:
+        event_type = str(_event_attr(event, "event_type") or "").lower()
+        if event_type == "risk_breach":
+            breach_count += 1
+        elif event_type == "risk_warning":
+            warn_count += 1
+        elif event_type == "governance_promotion":
+            promotions += 1
+        elif event_type == "governance_action":
+            governance_actions += 1
+
+    breach_status = SLOStatus.met
+    breach_message = "No risk breaches observed"
+    if breach_count > 0:
+        breach_status = SLOStatus.breached
+        breach_message = f"{breach_count} risk breach(es) intercepted"
+    elif warn_count > 0:
+        breach_status = SLOStatus.at_risk
+        breach_message = f"{warn_count} risk warning(s) under observation"
+
+    governance_status = SLOStatus.met
+    if governance_actions > 0:
+        governance_status = SLOStatus.at_risk
+        governance_message = (
+            f"{governance_actions} governance intervention(s) require review"
+        )
+    else:
+        governance_message = "No governance interventions recorded"
+
+    slos = (
+        ServiceSLO(
+            name="policy_breach_prevention",
+            status=breach_status,
+            message=breach_message,
+            target={"breaches": 0},
+            observed={
+                "breaches": breach_count,
+                "warnings": warn_count,
+            },
+        ),
+        ServiceSLO(
+            name="governance_interventions",
+            status=governance_status,
+            message=governance_message,
+            target={"interventions": 0},
+            observed={
+                "interventions": governance_actions,
+                "promotions": promotions,
+            },
+        ),
+    )
+
+    if any(record.status is SLOStatus.breached for record in slos):
+        aggregate_status = SLOStatus.breached
+    elif any(record.status is SLOStatus.at_risk for record in slos):
+        aggregate_status = SLOStatus.at_risk
+    else:
+        aggregate_status = SLOStatus.met
+
+    return OperationalSLOSnapshot(
+        service="risk_compliance",
+        generated_at=generated,
+        status=aggregate_status,
+        slos=slos,
+        metadata={
+            "breaches": breach_count,
+            "warnings": warn_count,
+            "governance_interventions": governance_actions,
+            "promotions": promotions,
+        },
+    )
+
+
+def _build_compliance_panel(
+    events: Sequence[Any],
+    *,
+    slo_snapshot: OperationalSLOSnapshot | None = None,
+    generated_at: datetime | None = None,
+) -> DashboardPanel:
+    sorted_events = sorted(
+        events,
+        key=lambda event: _coerce_timestamp(_event_attr(event, "occurred_at"))
+        or datetime.min.replace(tzinfo=UTC),
+        reverse=True,
+    )
+
+    has_events = bool(events)
+    risk_breaches = 0
+    risk_warnings = 0
+    governance_actions = 0
+    governance_promotions = 0
+    details: list[str] = []
+    metadata: MutableMapping[str, Any] = {
+        "events": [],
+        "counts": {},
+    }
+    panel_status = DashboardStatus.ok
+
+    for event in sorted_events:
+        payload = _event_as_dict(event)
+        metadata["events"].append(payload)
+
+        event_type = str(payload.get("event_type") or "").lower()
+        severity = str(payload.get("severity") or "").lower()
+        policy_id = payload.get("policy_id") or "policy"
+        occurred_at = _coerce_timestamp(payload.get("occurred_at"))
+        timestamp = occurred_at.isoformat() if occurred_at else "unknown"
+        summary = payload.get("summary") or "Compliance event recorded"
+
+        panel_status = _escalate(panel_status, _map_compliance_status(severity))
+
+        if event_type == "risk_breach":
+            risk_breaches += 1
+        elif event_type == "risk_warning":
+            risk_warnings += 1
+        elif event_type == "governance_promotion":
+            governance_promotions += 1
+        elif event_type == "governance_action":
+            governance_actions += 1
+
+        details.append(f"{timestamp} — {policy_id}: {summary}")
+
+    metadata["counts"] = {
+        "risk_breach": risk_breaches,
+        "risk_warning": risk_warnings,
+        "governance_action": governance_actions,
+        "governance_promotion": governance_promotions,
+    }
+
+    slo = slo_snapshot or _derive_compliance_slo(sorted_events, generated_at=generated_at)
+    metadata["compliance_slo"] = slo.as_dict()
+    panel_status = _escalate(panel_status, _map_slo_status(slo.status))
+
+    if slo.slos:
+        details.append("")
+        details.append("SLO overview:")
+        for record in slo.slos:
+            details.append(
+                f"- {record.name}: {record.status.value} — {record.message}"
+            )
+
+    if not has_events:
+        panel_status = _escalate(panel_status, DashboardStatus.warn)
+        details.insert(
+            0,
+            "No compliance telemetry supplied; provide loop results or explicit compliance events.",
+        )
+
+    headline_parts: list[str] = []
+    if risk_breaches:
+        headline_parts.append(f"Risk breaches {risk_breaches}")
+    if risk_warnings:
+        headline_parts.append(f"Risk warnings {risk_warnings}")
+    if governance_actions:
+        headline_parts.append(f"Governance actions {governance_actions}")
+    if governance_promotions:
+        headline_parts.append(f"Promotions {governance_promotions}")
+
+    if not headline_parts:
+        headline = "Compliance telemetry baseline"
+    else:
+        headline = " | ".join(headline_parts)
+
+    operational_metrics.set_compliance_policy_breaches(float(risk_breaches))
+    operational_metrics.set_compliance_risk_warnings(float(risk_warnings))
+    operational_metrics.set_governance_actions_total(float(governance_actions))
+    operational_metrics.set_governance_promotions_total(float(governance_promotions))
+
+    return DashboardPanel(
+        name="Compliance & governance",
+        status=panel_status,
+        headline=headline,
+        details=tuple(details),
+        metadata=dict(metadata),
+    )
 
 
 def _map_backbone_status(status: BackboneStatus) -> DashboardStatus:
@@ -568,6 +821,9 @@ def build_observability_dashboard(
     roi_snapshot: RoiTelemetrySnapshot | None = None,
     risk_results: Mapping[str, Any] | None = None,
     risk_limits: Mapping[str, float] | None = None,
+    loop_results: Sequence["AlphaTradeLoopResult"] | None = None,
+    compliance_events: Sequence["ComplianceEvent"] | None = None,
+    compliance_slo_snapshot: OperationalSLOSnapshot | None = None,
     event_bus_snapshot: EventBusHealthSnapshot | None = None,
     slo_snapshot: OperationalSLOSnapshot | None = None,
     backbone_snapshot: DataBackboneReadinessSnapshot | None = None,
@@ -586,6 +842,14 @@ def build_observability_dashboard(
     """Compose the high-impact observability dashboard."""
 
     panels: list[DashboardPanel] = list(additional_panels or [])
+    compliance_inputs: list[Any] = []
+    if loop_results:
+        for result in loop_results:
+            events = getattr(result, "compliance_events", ())
+            if events:
+                compliance_inputs.extend(events)
+    if compliance_events:
+        compliance_inputs.extend(compliance_events)
 
     if roi_snapshot is not None:
         roi_status = _map_roi_status(roi_snapshot.status)
@@ -692,6 +956,14 @@ def build_observability_dashboard(
                 metadata=serialised,
             )
         )
+
+    panels.append(
+        _build_compliance_panel(
+            compliance_inputs,
+            slo_snapshot=compliance_slo_snapshot,
+            generated_at=generated_at,
+        )
+    )
 
     if event_bus_snapshot is not None or slo_snapshot is not None:
         latency_status = DashboardStatus.ok

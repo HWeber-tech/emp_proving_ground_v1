@@ -164,6 +164,49 @@ _replay_determinism_mismatches = LazyGaugeProxy(
 )
 
 
+# Compliance/governance telemetry gauges
+_compliance_policy_breaches = LazyGaugeProxy(
+    "compliance_policy_breaches",
+    "Compliance-panel count of policy breaches intercepted",
+)
+_compliance_risk_warnings = LazyGaugeProxy(
+    "compliance_risk_warnings",
+    "Compliance-panel count of risk warnings observed",
+)
+_governance_actions_total = LazyGaugeProxy(
+    "governance_actions",
+    "Governance interventions recorded by compliance dashboard",
+)
+_governance_promotions_total = LazyGaugeProxy(
+    "governance_promotions",
+    "Governance promotions recorded by compliance dashboard",
+)
+
+
+def set_compliance_policy_breaches(value: float) -> None:
+    """Record the latest count of policy breaches intercepted by compliance."""
+
+    _compliance_policy_breaches.set(float(value))
+
+
+def set_compliance_risk_warnings(value: float) -> None:
+    """Record the latest count of risk warnings observed by compliance."""
+
+    _compliance_risk_warnings.set(float(value))
+
+
+def set_governance_actions_total(value: float) -> None:
+    """Record the latest count of governance interventions captured."""
+
+    _governance_actions_total.set(float(value))
+
+
+def set_governance_promotions_total(value: float) -> None:
+    """Record the latest count of governance promotions captured."""
+
+    _governance_promotions_total.set(float(value))
+
+
 # FIX/MD wrappers (all non-raising)
 def inc_md_reject(reason: str) -> None:
     safe_reason = reason or "?"

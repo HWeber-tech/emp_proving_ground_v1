@@ -33,6 +33,11 @@ from src.operations.observability_dashboard import (
     DashboardStatus,
     build_observability_dashboard,
 )
+from src.orchestration.alpha_trade_loop import (
+    ComplianceEvent,
+    ComplianceEventType,
+    ComplianceSeverity,
+)
 from src.operations.operational_readiness import (
     OperationalReadinessComponent,
     OperationalReadinessSnapshot,
@@ -241,6 +246,7 @@ def test_build_dashboard_composes_panels_and_status() -> None:
     assert {panel.name for panel in dashboard.panels} == {
         "PnL & ROI",
         "Risk & exposure",
+        "Compliance & governance",
         "Latency & throughput",
         "System health",
         "Operational readiness",
@@ -253,6 +259,13 @@ def test_build_dashboard_composes_panels_and_status() -> None:
     )
     assert risk_panel.status is DashboardStatus.fail
     assert "parametric_var" in risk_panel.metadata
+
+    compliance_panel = next(
+        panel for panel in dashboard.panels if panel.name == "Compliance & governance"
+    )
+    assert compliance_panel.status is DashboardStatus.warn
+    assert compliance_panel.metadata["counts"]["risk_breach"] == 0
+    assert "No compliance telemetry supplied" in compliance_panel.details[0]
 
     roi_panel = next(
         panel for panel in dashboard.panels if panel.name == "PnL & ROI"
@@ -298,18 +311,19 @@ def test_build_dashboard_composes_panels_and_status() -> None:
     metadata_counts = dashboard.metadata["panel_status_counts"]
     assert metadata_counts == {
         DashboardStatus.ok.value: 1,
-        DashboardStatus.warn.value: 5,
+        DashboardStatus.warn.value: 6,
         DashboardStatus.fail.value: 1,
     }
     metadata_statuses = dashboard.metadata["panel_statuses"]
     assert metadata_statuses["Risk & exposure"] == DashboardStatus.fail.value
     assert metadata_statuses["Operational readiness"] == DashboardStatus.warn.value
+    assert metadata_statuses["Compliance & governance"] == DashboardStatus.warn.value
     assert metadata_statuses["Understanding loop"] == DashboardStatus.warn.value
 
     remediation = dashboard.remediation_summary()
     assert remediation["overall_status"] == DashboardStatus.fail.value
     assert remediation["panel_counts"][DashboardStatus.fail.value] == 1
-    assert remediation["panel_counts"][DashboardStatus.warn.value] == 5
+    assert remediation["panel_counts"][DashboardStatus.warn.value] == 6
     assert remediation["panel_counts"][DashboardStatus.ok.value] == 1
     assert remediation["failing_panels"] == ("Risk & exposure",)
     assert set(remediation["warning_panels"]) == {
@@ -317,43 +331,89 @@ def test_build_dashboard_composes_panels_and_status() -> None:
         "System health",
         "Operational readiness",
         "Quality & coverage",
+        "Compliance & governance",
         "Understanding loop",
     }
     assert remediation["healthy_panels"] == ("PnL & ROI",)
+
+
+def test_compliance_panel_records_breach_event() -> None:
+    occurred_at = _now()
+    breach_event = ComplianceEvent(
+        event_type=ComplianceEventType.risk_breach,
+        severity=ComplianceSeverity.critical,
+        summary="Trade blocked due to risk breach",
+        occurred_at=occurred_at,
+        policy_id="alpha.paper",
+        metadata={"reason": "limit_exceeded"},
+    )
+
+    class _LoopResultStub:
+        def __init__(self, events: tuple[ComplianceEvent, ...]) -> None:
+            self.compliance_events = events
+
+    dashboard = build_observability_dashboard(
+        loop_results=[_LoopResultStub((breach_event,))],
+    )
+
+    compliance_panel = next(
+        panel for panel in dashboard.panels if panel.name == "Compliance & governance"
+    )
+
+    assert compliance_panel.status is DashboardStatus.fail
+    assert compliance_panel.metadata["counts"]["risk_breach"] == 1
+    event_payload = compliance_panel.metadata["events"][0]
+    assert event_payload["summary"] == "Trade blocked due to risk breach"
+    assert event_payload["policy_id"] == "alpha.paper"
+    assert compliance_panel.metadata["compliance_slo"]["metadata"]["breaches"] == 1
 
 
 def test_dashboard_handles_missing_inputs() -> None:
     dashboard = build_observability_dashboard()
 
     assert dashboard.status is DashboardStatus.warn
-    (panel,) = dashboard.panels
-    assert panel.name == "Understanding loop"
-    assert panel.status is DashboardStatus.warn
-    assert "unavailable" in panel.headline.lower()
-    assert "graph diagnostics" in panel.details[0].lower()
+    assert len(dashboard.panels) == 2
+    panels_by_name = {panel.name: panel for panel in dashboard.panels}
+
+    compliance_panel = panels_by_name["Compliance & governance"]
+    assert compliance_panel.status is DashboardStatus.warn
+    assert "No compliance telemetry supplied" in compliance_panel.details[0]
+
+    understanding_panel = panels_by_name["Understanding loop"]
+    assert understanding_panel.status is DashboardStatus.warn
+    assert "unavailable" in understanding_panel.headline.lower()
+    assert "graph diagnostics" in understanding_panel.details[0].lower()
 
     markdown = dashboard.to_markdown()
     assert "| Panel" in markdown
+    assert "Compliance & governance" in markdown
     assert "Understanding loop" in markdown
 
     payload = dashboard.as_dict()
     assert payload["status"] == DashboardStatus.warn.value
-    assert payload["panels"][0]["name"] == "Understanding loop"
+    assert {item["name"] for item in payload["panels"]} == {
+        "Compliance & governance",
+        "Understanding loop",
+    }
     assert payload["metadata"]["panel_status_counts"] == {
         DashboardStatus.ok.value: 0,
-        DashboardStatus.warn.value: 1,
+        DashboardStatus.warn.value: 2,
         DashboardStatus.fail.value: 0,
     }
     assert payload["metadata"]["panel_statuses"] == {
+        "Compliance & governance": DashboardStatus.warn.value,
         "Understanding loop": DashboardStatus.warn.value,
     }
 
     remediation = payload["remediation_summary"]
     assert remediation["overall_status"] == DashboardStatus.warn.value
-    assert remediation["panel_counts"][DashboardStatus.warn.value] == 1
+    assert remediation["panel_counts"][DashboardStatus.warn.value] == 2
     assert remediation["panel_counts"][DashboardStatus.ok.value] == 0
     assert remediation["panel_counts"][DashboardStatus.fail.value] == 0
-    assert remediation["warning_panels"] == ("Understanding loop",)
+    assert set(remediation["warning_panels"]) == {
+        "Compliance & governance",
+        "Understanding loop",
+    }
     assert remediation["healthy_panels"] == ()
     assert remediation["failing_panels"] == ()
 
@@ -371,18 +431,22 @@ def test_dashboard_merges_additional_panels() -> None:
     dashboard = build_observability_dashboard(additional_panels=[custom_panel])
 
     assert dashboard.status is DashboardStatus.warn
-    assert len(dashboard.panels) == 2
+    assert len(dashboard.panels) == 3
     assert dashboard.panels[0] is custom_panel
-    guard_panel = dashboard.panels[1]
-    assert guard_panel.name == "Understanding loop"
-    assert guard_panel.status is DashboardStatus.warn
+    compliance_panel = dashboard.panels[1]
+    assert compliance_panel.name == "Compliance & governance"
+    assert compliance_panel.status is DashboardStatus.warn
+    understanding_panel = dashboard.panels[2]
+    assert understanding_panel.name == "Understanding loop"
+    assert understanding_panel.status is DashboardStatus.warn
     assert dashboard.metadata["panel_status_counts"] == {
         DashboardStatus.ok.value: 0,
-        DashboardStatus.warn.value: 2,
+        DashboardStatus.warn.value: 3,
         DashboardStatus.fail.value: 0,
     }
     assert dashboard.metadata["panel_statuses"] == {
         "Custom": DashboardStatus.warn.value,
+        "Compliance & governance": DashboardStatus.warn.value,
         "Understanding loop": DashboardStatus.warn.value,
     }
 

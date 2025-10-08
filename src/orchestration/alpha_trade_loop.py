@@ -9,12 +9,13 @@ feeds paper-trade execution with deterministic governance metadata.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from enum import StrEnum
 from typing import Any, Mapping, MutableMapping, Sequence
 
 from src.governance.policy_ledger import LedgerReleaseManager, PolicyLedgerStage
-from src.operations.sensory_drift import SensoryDriftSnapshot
+from src.operations.sensory_drift import DriftSeverity, SensoryDriftSnapshot
 from src.thinking.adaptation.policy_reflection import (
     PolicyReflectionArtifacts,
     PolicyReflectionBuilder,
@@ -27,9 +28,54 @@ from src.understanding.decision_diary import DecisionDiaryEntry, DecisionDiarySt
 from src.understanding.router import BeliefSnapshot, UnderstandingDecision, UnderstandingRouter
 
 __all__ = [
+    "ComplianceEvent",
+    "ComplianceEventType",
+    "ComplianceSeverity",
     "AlphaTradeLoopResult",
     "AlphaTradeLoopOrchestrator",
 ]
+
+
+class ComplianceEventType(StrEnum):
+    """Classification for compliance telemetry emitted by the loop."""
+
+    risk_warning = "risk_warning"
+    risk_breach = "risk_breach"
+    governance_action = "governance_action"
+    governance_promotion = "governance_promotion"
+
+
+class ComplianceSeverity(StrEnum):
+    """Severity grading for compliance events."""
+
+    info = "info"
+    warn = "warn"
+    critical = "critical"
+
+
+@dataclass(slots=True, frozen=True)
+class ComplianceEvent:
+    """Structured record describing a single compliance intervention."""
+
+    event_type: ComplianceEventType
+    severity: ComplianceSeverity
+    summary: str
+    occurred_at: datetime
+    policy_id: str | None = None
+    metadata: Mapping[str, Any] = field(default_factory=dict)
+
+    def as_dict(self) -> Mapping[str, Any]:
+        payload: MutableMapping[str, Any] = {
+            "event_type": self.event_type.value,
+            "severity": self.severity.value,
+            "summary": self.summary,
+            "occurred_at": self.occurred_at.astimezone(timezone.utc).isoformat(),
+        }
+        if self.policy_id:
+            payload["policy_id"] = self.policy_id
+        if self.metadata:
+            payload["metadata"] = dict(self.metadata)
+        return payload
 
 
 @dataclass(slots=True, frozen=True)
@@ -44,6 +90,7 @@ class AlphaTradeLoopResult:
     diary_entry: DecisionDiaryEntry
     reflection: PolicyReflectionArtifacts
     metadata: Mapping[str, Any]
+    compliance_events: tuple[ComplianceEvent, ...] = field(default_factory=tuple)
 
 
 class AlphaTradeLoopOrchestrator:
@@ -145,6 +192,16 @@ class AlphaTradeLoopOrchestrator:
         if extra_metadata:
             metadata.update({str(key): value for key, value in extra_metadata.items()})
 
+        compliance_events = self._build_compliance_events(
+            policy_id=resolved_policy_id,
+            stage=stage,
+            drift_decision=drift_decision,
+        )
+        if compliance_events:
+            metadata["compliance_events"] = [
+                event.as_dict() for event in compliance_events
+            ]
+
         return AlphaTradeLoopResult(
             policy_id=resolved_policy_id,
             release_stage=stage,
@@ -154,6 +211,7 @@ class AlphaTradeLoopOrchestrator:
             diary_entry=diary_entry,
             reflection=reflection,
             metadata=dict(metadata),
+            compliance_events=compliance_events,
         )
 
     def _evaluate_drift(
@@ -203,6 +261,86 @@ class AlphaTradeLoopOrchestrator:
         except (TypeError, ValueError):
             return None
 
+    @staticmethod
+    def _compliance_severity_from_drift(
+        severity: DriftSeverity, *, escalate: bool = False
+    ) -> ComplianceSeverity:
+        if escalate or severity is DriftSeverity.alert:
+            return ComplianceSeverity.critical
+        if severity is DriftSeverity.warn:
+            return ComplianceSeverity.warn
+        return ComplianceSeverity.info
+
+    def _build_compliance_events(
+        self,
+        *,
+        policy_id: str,
+        stage: PolicyLedgerStage,
+        drift_decision: DriftSentryDecision,
+    ) -> tuple[ComplianceEvent, ...]:
+        events: list[ComplianceEvent] = []
+        metadata: MutableMapping[str, Any] = {
+            "release_stage": stage.value,
+            "drift_decision": drift_decision.as_dict(),
+        }
+        blocked = tuple(drift_decision.blocked_dimensions)
+        if blocked:
+            metadata["blocked_dimensions"] = blocked
+
+        reason = drift_decision.reason or "unspecified_reason"
+        timestamp = drift_decision.evaluated_at
+
+        if not drift_decision.allowed:
+            summary = (
+                f"Policy {policy_id} trade blocked at stage {stage.value} "
+                f"(severity {drift_decision.severity.value})"
+            )
+            if blocked:
+                summary += f"; blocked dimensions: {', '.join(blocked)}"
+            events.append(
+                ComplianceEvent(
+                    event_type=ComplianceEventType.risk_breach,
+                    severity=ComplianceSeverity.critical,
+                    summary=summary,
+                    occurred_at=timestamp,
+                    policy_id=policy_id,
+                    metadata={**metadata, "action": "blocked", "reason": reason},
+                )
+            )
+            return tuple(events)
+
+        if drift_decision.force_paper:
+            summary = (
+                f"Policy {policy_id} forced to paper due to {drift_decision.severity.value}"
+            )
+            events.append(
+                ComplianceEvent(
+                    event_type=ComplianceEventType.governance_action,
+                    severity=self._compliance_severity_from_drift(
+                        drift_decision.severity, escalate=drift_decision.severity is DriftSeverity.alert
+                    ),
+                    summary=summary,
+                    occurred_at=timestamp,
+                    policy_id=policy_id,
+                    metadata={**metadata, "action": "force_paper", "reason": reason},
+                )
+            )
+
+        if drift_decision.severity is DriftSeverity.warn:
+            summary = f"Policy {policy_id} operating under drift warning"
+            events.append(
+                ComplianceEvent(
+                    event_type=ComplianceEventType.risk_warning,
+                    severity=ComplianceSeverity.warn,
+                    summary=summary,
+                    occurred_at=timestamp,
+                    policy_id=policy_id,
+                    metadata={**metadata, "action": "warn"},
+                )
+            )
+
+        return tuple(events)
+
     def _record_diary_entry(
         self,
         *,
@@ -242,4 +380,3 @@ class AlphaTradeLoopOrchestrator:
             notes=notes,
             metadata=metadata,
         )
-

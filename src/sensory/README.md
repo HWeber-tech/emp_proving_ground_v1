@@ -118,21 +118,22 @@ matplotlib >= 3.5.0
 ```bash
 # Clone the repository
 git clone <repository-url>
-cd market_intelligence
+cd emp_proving_ground_v1
 
 # Install dependencies
 pip install -r requirements/base.txt
 
-# Install the package
+# Install the package in editable mode so ``src`` is on the path
 pip install -e .
 ```
 
 ### Quick Start
 ```python
 import asyncio
-from market_intelligence.core.base import MarketData
-from market_intelligence.orchestration.enhanced_intelligence_engine import ContextualFusionEngine
 from datetime import datetime
+
+from src.core.base import MarketData
+from src.orchestration.enhanced_intelligence_engine import ContextualFusionEngine
 
 # Initialize the system
 engine = ContextualFusionEngine()
@@ -145,15 +146,17 @@ market_data = MarketData(
     ask=1.0952,
     volume=1000,
     spread=0.0002,
-    volatility=0.005
+    volatility=0.005,
 )
 
+
 # Perform analysis
-async def analyze():
+async def analyze() -> None:
     synthesis = await engine.analyze_market_intelligence(market_data)
     print(f"Intelligence Level: {synthesis.intelligence_level.name}")
     print(f"Unified Score: {synthesis.unified_score:.3f}")
     print(f"Narrative: {synthesis.narrative_text}")
+
 
 asyncio.run(analyze())
 ```

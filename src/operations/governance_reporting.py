@@ -527,11 +527,55 @@ def generate_governance_report(
     )
 
     overall = GovernanceReportStatus.ok
+    section_statuses: dict[str, str] = {}
+    section_summaries: dict[str, str] = {}
+    status_breakdown: dict[str, int] = {}
+
     for section in sections:
         overall = _escalate(overall, section.status)
+        status_label = section.status.value
+        section_statuses[section.name] = status_label
+        section_summaries[section.name] = section.summary
+        status_breakdown[status_label] = status_breakdown.get(status_label, 0) + 1
 
     payload_metadata = dict(metadata or {})
     payload_metadata.setdefault("sections", [section.name for section in sections])
+
+    existing_statuses = payload_metadata.get("section_statuses")
+    if isinstance(existing_statuses, Mapping):
+        merged_statuses = dict(existing_statuses)
+        merged_statuses.update(section_statuses)
+        payload_metadata["section_statuses"] = merged_statuses
+    else:
+        payload_metadata["section_statuses"] = section_statuses
+
+    existing_summaries = payload_metadata.get("section_summaries")
+    if isinstance(existing_summaries, Mapping):
+        merged_summaries = dict(existing_summaries)
+        merged_summaries.update(section_summaries)
+        payload_metadata["section_summaries"] = merged_summaries
+    else:
+        payload_metadata["section_summaries"] = section_summaries
+
+    existing_breakdown = payload_metadata.get("status_breakdown")
+    if isinstance(existing_breakdown, Mapping):
+        merged_breakdown = dict(existing_breakdown)
+        merged_breakdown.update(status_breakdown)
+        payload_metadata["status_breakdown"] = merged_breakdown
+    else:
+        payload_metadata["status_breakdown"] = status_breakdown
+
+    if "compliance_status" not in payload_metadata and "kyc_aml" in section_statuses:
+        payload_metadata["compliance_status"] = section_statuses["kyc_aml"]
+
+    if (
+        "regulatory_status" not in payload_metadata
+        and "regulatory_telemetry" in section_statuses
+    ):
+        payload_metadata["regulatory_status"] = section_statuses["regulatory_telemetry"]
+
+    if "audit_status" not in payload_metadata and "audit_storage" in section_statuses:
+        payload_metadata["audit_status"] = section_statuses["audit_storage"]
 
     return GovernanceReport(
         status=overall,

@@ -123,6 +123,16 @@ def test_generate_governance_report_composes_sections() -> None:
     assert "open_cases" in kyc_section.metadata
     audit_section = report.sections[2]
     assert "compliance" in audit_section.metadata
+    metadata = report.metadata
+    assert metadata["section_statuses"] == {
+        "kyc_aml": "warn",
+        "regulatory_telemetry": "ok",
+        "audit_storage": "ok",
+    }
+    assert metadata["compliance_status"] == "warn"
+    assert metadata["regulatory_status"] == "ok"
+    assert metadata["audit_status"] == "ok"
+    assert metadata["status_breakdown"] == {"warn": 1, "ok": 2}
     markdown = report.to_markdown()
     assert "Section" in markdown and "KYC monitor degraded" in markdown
 

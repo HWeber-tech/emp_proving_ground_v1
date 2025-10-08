@@ -7,8 +7,8 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 import importlib
+import json
 import logging
-from ast import literal_eval
 from datetime import datetime
 from typing import Any, List, cast
 
@@ -251,7 +251,8 @@ class MarketGAN:
             }
 
             key = f"{self._training_history_key}:{epoch}"
-            await self.state_store.set(key, str(result), expire=86400 * 30)  # 30 days
+            payload = json.dumps(result, sort_keys=True, separators=(",", ":"))
+            await self.state_store.set(key, payload, expire=86400 * 30)  # 30 days
 
         except Exception as e:
             logger.error(f"Error storing training results: {e}")
@@ -265,11 +266,18 @@ class MarketGAN:
             for key in keys:
                 data = await self.state_store.get(key)
                 if data:
-                    # Bandit B307: replaced eval with safe parsing
                     try:
-                        parsed = literal_eval(data)
-                    except (ValueError, SyntaxError):
-                        parsed = data
+                        parsed = json.loads(data)
+                    except json.JSONDecodeError as exc:
+                        logger.warning("Discarding invalid GAN training history payload", exc_info=exc)
+                        continue
+
+                    if not isinstance(parsed, dict):
+                        logger.warning(
+                            "GAN training history payload must be JSON object; got %s", type(parsed)
+                        )
+                        continue
+
                     epochs.append(parsed)
 
             if not epochs:

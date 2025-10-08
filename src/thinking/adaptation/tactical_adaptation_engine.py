@@ -1,10 +1,7 @@
-"""
-Tactical Adaptation Engine
-Generates real-time tactical adjustments based on learning signals and pattern memory.
-"""
+"""Tactical Adaptation Engine hardened against unsafe state-store payloads."""
 
+import json
 import logging
-from ast import literal_eval
 from datetime import datetime, timedelta
 from decimal import Decimal
 from typing import Any, Dict, List, cast
@@ -34,6 +31,30 @@ class TacticalAdaptationEngine:
         self.pattern_memory = pattern_memory
         self._adaptation_key = "emp:tactical_adaptations"
         self._strategy_params_key = "emp:strategy_parameters"
+
+    def _decode_strategy_params(self, raw: str | None) -> dict[str, float]:
+        """Parse persisted strategy parameters and guard against unsafe payloads."""
+
+        if not raw:
+            return {}
+
+        try:
+            payload = json.loads(raw)
+        except json.JSONDecodeError as exc:
+            logger.warning("Discarding invalid strategy parameters payload", exc_info=exc)
+            return {}
+
+        if not isinstance(payload, dict):
+            logger.warning("Strategy parameters payload must be a JSON object; got %s", type(payload))
+            return {}
+
+        params: dict[str, float] = {}
+        for key, value in payload.items():
+            try:
+                params[str(key)] = float(value)
+            except (TypeError, ValueError):
+                logger.debug("Skipping non-numeric strategy parameter %s=%r", key, value)
+        return params
 
     async def generate_adaptations(
         self, learning_signal: LearningSignal, current_strategy_state: dict[str, object]
@@ -289,14 +310,7 @@ class TacticalAdaptationEngine:
             key = f"{self._strategy_params_key}:{strategy_id}"
             current_params = await self.state_store.get(key)
 
-            if current_params:
-                # Bandit B307: replaced eval with safe parsing
-                try:
-                    params = literal_eval(current_params)
-                except (ValueError, SyntaxError):
-                    params = {}
-            else:
-                params = {}
+            params = self._decode_strategy_params(current_params)
 
             # Apply adaptations
             for adaptation in adaptations:
@@ -313,7 +327,8 @@ class TacticalAdaptationEngine:
                 params[param_name] = new_value
 
             # Store updated parameters
-            await self.state_store.set(key, str(params), expire=86400 * 7)  # 7 days
+            serialized = json.dumps(params, sort_keys=True, separators=(",", ":"))
+            await self.state_store.set(key, serialized, expire=86400 * 7)  # 7 days
 
             logger.info(f"Applied {len(adaptations)} adaptations to strategy {strategy_id}")
 

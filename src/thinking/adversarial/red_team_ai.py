@@ -8,7 +8,7 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 import logging
 import uuid
-from ast import literal_eval
+import json
 from datetime import datetime
 from typing import Any, Dict, List, Optional, cast
 
@@ -640,7 +640,8 @@ class RedTeamAI:
             }
 
             key = f"{self._attack_history_key}:{strategy_id}:{datetime.utcnow().date()}"
-            await self.state_store.set(key, str(attack_record), expire=86400 * 30)  # 30 days
+            payload = json.dumps(attack_record, sort_keys=True, separators=(",", ":"))
+            await self.state_store.set(key, payload, expire=86400 * 30)  # 30 days
 
             # Store exploit history
             for exploit in exploits:
@@ -653,11 +654,8 @@ class RedTeamAI:
                     or "unknown"
                 )
                 key = f"{self._exploit_history_key}:{strategy_id}:{eid}"
-                await self.state_store.set(
-                    key,
-                    str(_to_mapping(exploit)),
-                    expire=86400 * 30,  # 30 days
-                )
+                payload = json.dumps(_to_mapping(exploit), sort_keys=True, separators=(",", ":"))
+                await self.state_store.set(key, payload, expire=86400 * 30)  # 30 days
 
         except Exception as e:
             logger.error(f"Error storing attack results: {e}")
@@ -701,14 +699,25 @@ class RedTeamAI:
             for key in keys:
                 data = await self.state_store.get(key)
                 if data:
-                    # Bandit B307: replaced eval with safe parsing
                     try:
-                        record = literal_eval(data)
-                    except (ValueError, SyntaxError):
-                        record = {}
-                    total_attacks += record.get("attacks_count", 0)
-                    successful_attacks += record.get("successful_attacks", 0)
-                    total_weaknesses += len(record.get("weaknesses", []))
+                        record = json.loads(data)
+                    except json.JSONDecodeError as exc:
+                        logger.warning("Discarding invalid red-team payload for %s", key, exc_info=exc)
+                        continue
+
+                    if not isinstance(record, dict):
+                        logger.warning(
+                            "Red-team payload must be a JSON object for %s; got %s",
+                            key,
+                            type(record),
+                        )
+                        continue
+
+                    total_attacks += int(record.get("attacks_count", 0))
+                    successful_attacks += int(record.get("successful_attacks", 0))
+                    weaknesses = record.get("weaknesses", [])
+                    if isinstance(weaknesses, list):
+                        total_weaknesses += len(weaknesses)
 
             return {
                 "total_strategies_attacked": len(keys),

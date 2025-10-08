@@ -4,7 +4,7 @@ import types
 from dataclasses import dataclass
 from typing import Dict, List, Optional
 
-from ast import literal_eval
+import json
 
 import pytest
 
@@ -65,7 +65,7 @@ async def test_apply_adaptations_ignores_malicious_serialized_state() -> None:
 
     assert result is True
     stored_value = state_store.storage[f"{engine._strategy_params_key}:{strategy_id}"]
-    parsed = literal_eval(stored_value)
+    parsed = json.loads(stored_value)
     assert pytest.approx(parsed["position_size_multiplier"], rel=1e-6) == 1.5
     # Confirm TTL applied for a week
     _, _, expire = state_store.set_calls[-1]

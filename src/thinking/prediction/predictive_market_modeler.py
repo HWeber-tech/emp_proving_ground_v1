@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import logging
 import uuid
-from ast import literal_eval
+import json
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from decimal import Decimal
@@ -438,24 +438,37 @@ class PredictiveMarketModeler:
             logger.error(f"Error predicting market scenarios: {e}")
             return []
 
+    def _historical_defaults(self) -> dict[str, object]:
+        return {"accuracy": 0.75, "total_predictions": 0, "successful_predictions": 0}
+
+    def _decode_history_payload(self, raw: str | None) -> dict[str, object]:
+        """Decode persisted prediction history with strict JSON handling."""
+
+        if not raw:
+            return self._historical_defaults()
+
+        try:
+            payload = json.loads(raw)
+        except json.JSONDecodeError as exc:
+            logger.warning("Discarding invalid prediction history payload", exc_info=exc)
+            return self._historical_defaults()
+
+        if not isinstance(payload, dict):
+            logger.warning(
+                "Prediction history payload must be a JSON object; got %s", type(payload)
+            )
+            return self._historical_defaults()
+
+        return payload
+
     async def _get_historical_data(self) -> dict[str, object]:
         """Get historical market data for probability calculation."""
         try:
             data = await self.state_store.get(self._prediction_history_key)
-            if data:
-                # Bandit B307: replaced eval with safe parsing
-                try:
-                    parsed = literal_eval(data)
-                    if isinstance(parsed, dict):
-                        return parsed
-                    # Fallback to default shape if parsed type is unexpected
-                    return {"accuracy": 0.75, "total_predictions": 0, "successful_predictions": 0}
-                except (ValueError, SyntaxError):
-                    return {"accuracy": 0.75, "total_predictions": 0, "successful_predictions": 0}
-            return {"accuracy": 0.75, "total_predictions": 0, "successful_predictions": 0}
+            return self._decode_history_payload(data)
         except Exception as e:
             logger.error(f"Error getting historical data: {e}")
-            return {"accuracy": 0.75, "total_predictions": 0, "successful_predictions": 0}
+            return self._historical_defaults()
 
     async def _get_prediction_history(self) -> dict[str, object]:
         """Get prediction history for calibration."""
@@ -472,7 +485,8 @@ class PredictiveMarketModeler:
             payload_list: List[dict[str, object]] = []
             for p in results:
                 payload_list.append(cast(dict[str, object], normalize_prediction(p)))
-            await self.state_store.set(key, str(payload_list), expire=86400 * 30)  # 30 days
+            payload = json.dumps(payload_list, sort_keys=True, separators=(",", ":"))
+            await self.state_store.set(key, payload, expire=86400 * 30)  # 30 days
         except Exception as e:
             logger.error(f"Error storing predictions: {e}")
 

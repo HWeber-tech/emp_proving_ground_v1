@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import uuid
 from datetime import datetime
@@ -217,7 +218,8 @@ class HealthMonitor:
         """Store health check results."""
         try:
             key = f"health_check:{datetime.utcnow().date()}"
-            await self.state_store.set(key, str(health_check), expire=86400)
+            payload = json.dumps(health_check, sort_keys=True, separators=(",", ":"))
+            await self.state_store.set(key, payload, expire=86400)
             self.health_history.append(health_check)
 
             # Keep only last 100 checks

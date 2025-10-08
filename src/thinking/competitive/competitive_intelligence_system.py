@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import logging
 import uuid
-from ast import literal_eval
+import json
 from datetime import datetime
 from decimal import Decimal
 from typing import Any, Dict, List, Mapping, Optional, Sequence, cast
@@ -872,7 +872,8 @@ class CompetitiveIntelligenceSystem:
             }
 
             key = f"{self._intelligence_history_key}:{datetime.utcnow().date()}"
-            await self.state_store.set(key, str(intelligence), expire=86400 * 30)  # 30 days
+            payload = json.dumps(intelligence, sort_keys=True, separators=(",", ":"))
+            await self.state_store.set(key, payload, expire=86400 * 30)  # 30 days
 
         except Exception as e:
             logger.error(f"Error storing intelligence: {e}")
@@ -889,14 +890,30 @@ class CompetitiveIntelligenceSystem:
             for key in keys:
                 data = await self.state_store.get(key)
                 if data:
-                    # Bandit B307: replaced eval with safe parsing
                     try:
-                        record = literal_eval(data)
-                    except (ValueError, SyntaxError):
-                        record = {}
-                    total_signatures += len(record.get("signatures", []))
-                    total_competitors += len(record.get("behaviors", []))
-                    total_counters += len(record.get("counter_strategies", []))
+                        record = json.loads(data)
+                    except json.JSONDecodeError as exc:
+                        logger.warning("Discarding invalid intelligence payload for %s", key, exc_info=exc)
+                        continue
+
+                    if not isinstance(record, dict):
+                        logger.warning(
+                            "Intelligence payload must be JSON object for %s; got %s",
+                            key,
+                            type(record),
+                        )
+                        continue
+
+                    signatures = record.get("signatures", [])
+                    behaviors = record.get("behaviors", [])
+                    counters = record.get("counter_strategies", [])
+
+                    if isinstance(signatures, list):
+                        total_signatures += len(signatures)
+                    if isinstance(behaviors, list):
+                        total_competitors += len(behaviors)
+                    if isinstance(counters, list):
+                        total_counters += len(counters)
 
             return {
                 "total_intelligence_cycles": len(keys),

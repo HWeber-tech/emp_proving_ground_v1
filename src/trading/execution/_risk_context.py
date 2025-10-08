@@ -61,7 +61,10 @@ def describe_risk_context(
 ) -> dict[str, object]:
     """Render a serialisable risk context payload for telemetry surfaces."""
 
-    payload: dict[str, object] = {"runbook": RISK_API_RUNBOOK}
+    payload: dict[str, object] = {
+        "runbook": RISK_API_RUNBOOK,
+        "risk_api_runbook": RISK_API_RUNBOOK,
+    }
 
     if isinstance(metadata, Mapping) and metadata:
         payload["metadata"] = dict(metadata)

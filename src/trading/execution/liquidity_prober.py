@@ -13,15 +13,15 @@ import logging
 import uuid
 from datetime import datetime
 from decimal import Decimal
-from typing import Any, Callable, Coroutine, Iterable, Literal, Mapping, Optional
+from typing import Any, Coroutine, Iterable, Literal, Mapping, Optional
 
 from src.runtime.task_supervisor import TaskSupervisor
-from src.trading.integration.fix_broker_interface import FIXBrokerInterface
-from src.trading.risk.risk_api import (
-    RISK_API_RUNBOOK,
-    RiskApiError,
-    build_runtime_risk_metadata,
+from src.trading.execution._risk_context import (
+    RiskContextProvider,
+    capture_risk_context,
+    describe_risk_context,
 )
+from src.trading.integration.fix_broker_interface import FIXBrokerInterface
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +41,7 @@ class LiquidityProber:
         config: Optional[dict[str, object]] = None,
         *,
         task_supervisor: TaskSupervisor | None = None,
-        risk_context_provider: Callable[[], Any] | None = None,
+        risk_context_provider: RiskContextProvider | None = None,
     ):
         """
         Initialize the LiquidityProber with broker interface and configuration.
@@ -80,7 +80,7 @@ class LiquidityProber:
 
         self._task_supervisor = task_supervisor
 
-    def set_risk_context_provider(self, provider: Callable[[], Any] | None) -> None:
+    def set_risk_context_provider(self, provider: RiskContextProvider | None) -> None:
         """Configure the callable used for capturing deterministic risk metadata."""
 
         if provider is not None and not callable(provider):
@@ -90,40 +90,9 @@ class LiquidityProber:
     def _capture_risk_context(self) -> None:
         """Capture the latest deterministic risk metadata for telemetry surfaces."""
 
-        self._last_risk_metadata = None
-        self._last_risk_error = None
-
-        provider = self._risk_context_provider
-        if provider is None:
-            return
-
-        try:
-            candidate = provider()
-        except Exception as exc:  # pragma: no cover - defensive metadata guard
-            self._last_risk_error = {
-                "message": "Risk context provider failed",
-                "error": str(exc),
-                "runbook": RISK_API_RUNBOOK,
-            }
-            return
-
-        if candidate is None:
-            self._last_risk_error = {
-                "message": "Risk context provider returned no trading manager",
-                "runbook": RISK_API_RUNBOOK,
-            }
-            return
-
-        try:
-            self._last_risk_metadata = build_runtime_risk_metadata(candidate)
-        except RiskApiError as exc:
-            self._last_risk_error = exc.to_metadata()
-        except Exception as exc:  # pragma: no cover - unexpected metadata issue
-            self._last_risk_error = {
-                "message": "Unexpected risk metadata failure",
-                "error": str(exc),
-                "runbook": RISK_API_RUNBOOK,
-            }
+        metadata, error = capture_risk_context(self._risk_context_provider)
+        self._last_risk_metadata = metadata
+        self._last_risk_error = error
 
     def _spawn_probe_task(
         self,
@@ -338,14 +307,8 @@ class LiquidityProber:
     def describe_risk_context(self) -> dict[str, object]:
         """Expose the most recent deterministic risk context for telemetry surfaces."""
 
-        payload: dict[str, object] = {
-            "runbook": RISK_API_RUNBOOK,
-            "risk_api_runbook": RISK_API_RUNBOOK,
-        }
-        if self._last_risk_metadata is not None:
-            payload["metadata"] = dict(self._last_risk_metadata)
-        if self._last_risk_error is not None:
-            payload["error"] = dict(self._last_risk_error)
+        payload = describe_risk_context(self._last_risk_metadata, self._last_risk_error)
+        payload.setdefault("risk_api_runbook", payload.get("runbook"))
         return payload
 
     def calculate_liquidity_confidence_score(

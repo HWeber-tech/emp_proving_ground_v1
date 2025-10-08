@@ -35,6 +35,7 @@ from src.trading.monitoring.portfolio_monitor import PortfolioMonitor, RedisLike
 from src.trading.gating import DriftSentryGate
 from src.trading.trading_manager import TradingManager
 from src.governance.policy_ledger import LedgerReleaseManager
+from src.understanding.decision_diary import DecisionDiaryStore
 
 logger = logging.getLogger(__name__)
 
@@ -121,6 +122,7 @@ class BootstrapRuntime:
         risk_config: RiskConfig | None = None,
         task_supervisor: TaskSupervisor | None = None,
         release_manager: LedgerReleaseManager | None = None,
+        diary_store: DecisionDiaryStore | None = None,
     ) -> None:
         self.event_bus = event_bus
         self.symbols = [s.strip() for s in (symbols or ["EURUSD"]) if s and s.strip()]
@@ -162,6 +164,7 @@ class BootstrapRuntime:
 
         self.redis_client = cache_client
         self._release_manager = release_manager
+        self._diary_store = diary_store
 
         base_risk_per_trade = risk_per_trade if risk_per_trade is not None else 0.02
         base_drawdown = max_daily_drawdown if max_daily_drawdown is not None else 0.1
@@ -239,6 +242,8 @@ class BootstrapRuntime:
             stop_loss_pct=stop_loss_pct,
             liquidity_prober=self.liquidity_prober,
             control_center=self.control_center,
+            diary_store=diary_store,
+            release_router=self._release_router,
         )
 
         drift_config = SensoryDriftConfig(

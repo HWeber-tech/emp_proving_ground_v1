@@ -2224,6 +2224,7 @@ def _build_bootstrap_runtime(
         release_manager=release_manager,
         evolution_orchestrator=orchestrator,
         evolution_cycle_interval=evolution_interval,
+        diary_store=diary_store,
     )
     cleanup_callbacks: list[CleanupCallback] = []
 
@@ -2297,6 +2298,15 @@ def _maybe_attach_paper_trading_adapter(
     runtime._paper_broker_summary = adapter.describe()
     if router is not None:
         runtime._release_router = router
+        try:
+            runtime.trading_stack.set_release_router(router)
+        except Exception:  # pragma: no cover - diagnostics only
+            logger.debug("Failed to propagate release router to trading stack", exc_info=True)
+    else:
+        try:
+            runtime.trading_stack.set_release_router(None)
+        except Exception:  # pragma: no cover - diagnostics only
+            logger.debug("Failed to clear release router on trading stack", exc_info=True)
 
     logger.info(
         "🤝 Paper trading REST adapter attached",

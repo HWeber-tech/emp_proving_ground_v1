@@ -109,7 +109,6 @@ def test_compose_validation_adapters_handles_missing_modules(
     def fake_import(name: str, *args: Any, **kwargs: Any) -> Any:
         if name in {
             "src.data_integration.yfinance_gateway",
-            "src.sensory.organs.yahoo_finance_organ",
             "src.sensory.enhanced.anomaly.manipulation_detection",
             "src.intelligence.sentient_adaptation",
             "src.governance.system_config",

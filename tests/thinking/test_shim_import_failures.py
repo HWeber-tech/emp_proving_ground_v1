@@ -20,6 +20,10 @@ import pytest
             "src.thinking.sentient_adaptation_engine",
             "src.intelligence.sentient_adaptation",
         ),
+        (
+            "src.sensory.organs.yahoo_finance_organ",
+            "src.data_foundation.ingest.yahoo_gateway",
+        ),
     ],
 )
 def test_thinking_shims_raise_module_not_found(
@@ -31,4 +35,3 @@ def test_thinking_shims_raise_module_not_found(
     message = str(excinfo.value)
     assert module_name in message
     assert expected_fragment in message
-

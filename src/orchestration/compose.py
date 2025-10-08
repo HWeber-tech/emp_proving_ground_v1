@@ -8,7 +8,7 @@ degrade gracefully to core no-op implementations.
 
 Provided adapters:
 - YahooMarketDataGateway (preferred MarketDataGateway adapter when available)
-- MarketDataGatewayAdapter (fallback using YahooFinanceOrgan if available)
+- MarketDataGatewayAdapter (wraps YahooMarketDataGateway or injected organ)
 - AnomalyDetectorAdapter (uses ManipulationDetectionSystem when available)
 - RegimeClassifierAdapter (simple heuristic over pandas DataFrame)
 
@@ -44,24 +44,21 @@ class ComposeAdaptersTD(TypedDict, total=False):
 
 class MarketDataGatewayAdapter:
     """
-    Concrete adapter for MarketDataGateway using Yahoo Finance organ when available.
+    Concrete adapter for ``MarketDataGateway`` using the canonical Yahoo gateway
+    when an explicit organ is not provided.
 
-    All methods swallow exceptions and return None on error, consistent with
+    All methods swallow exceptions and return ``None`` on error, consistent with
     the core port safety contract.
     """
 
     def __init__(self, organ: Optional[Any] = None) -> None:
-        self._organ: Optional[Any] = None
-        if organ is not None:
-            self._organ = organ
-            return
-        try:
-            module = importlib.import_module("src.sensory.organs.yahoo_finance_organ")
-            organ_cls = getattr(module, "YahooFinanceOrgan", None)
-            if callable(organ_cls):
-                self._organ = organ_cls()
-        except Exception:
-            self._organ = None
+        self._gateway: Optional[MarketDataGateway] = None
+        self._organ: Optional[Any] = organ
+        if organ is None:
+            try:
+                self._gateway = YahooMarketDataGateway()
+            except Exception:
+                self._gateway = None
 
     def fetch_data(
         self,
@@ -76,14 +73,32 @@ class MarketDataGatewayAdapter:
         Maps to YahooFinanceOrgan.fetch_data; start/end are accepted but ignored.
         """
         try:
+            use_period = period or "1d"
+            use_interval = interval or "1m"
+
+            if self._gateway is not None:
+                fetch_gateway = getattr(self._gateway, "fetch_data", None)
+                if callable(fetch_gateway):
+                    return fetch_gateway(
+                        symbol,
+                        period=use_period,
+                        interval=use_interval,
+                        start=start,
+                        end=end,
+                    )
+
             if self._organ is None:
                 return None
             fetch = getattr(self._organ, "fetch_data", None)
             if not callable(fetch):
                 return None
-            use_period = period or "1d"
-            use_interval = interval or "1m"
-            return fetch(symbol, period=use_period, interval=use_interval)
+            return fetch(
+                symbol,
+                period=use_period,
+                interval=use_interval,
+                start=start,
+                end=end,
+            )
         except Exception:
             return None
 
@@ -100,7 +115,14 @@ class MarketDataGatewayAdapter:
         Implementation runs the synchronous fetch in a worker thread.
         """
         try:
-            return await asyncio.to_thread(self.fetch_data, symbol, period, interval, start, end)
+            return await asyncio.to_thread(
+                self.fetch_data,
+                symbol,
+                period,
+                interval,
+                start,
+                end,
+            )
         except Exception:
             return None
 
@@ -512,17 +534,8 @@ def compose_validation_adapters() -> ComposeAdaptersTD:
     try:
         adapters["market_data_gateway"] = YahooMarketDataGateway()
     except Exception:
-        # Fallback to sensory organ adapter, then to NoOp
-        try:
-            module = importlib.import_module("src.sensory.organs.yahoo_finance_organ")
-            organ_cls = getattr(module, "YahooFinanceOrgan", None)
-            organ = organ_cls() if callable(organ_cls) else None
-            if organ is not None:
-                adapters["market_data_gateway"] = MarketDataGatewayAdapter(organ=organ)
-            else:
-                adapters["market_data_gateway"] = NoOpMarketDataGateway()
-        except Exception:
-            adapters["market_data_gateway"] = NoOpMarketDataGateway()
+        # Canonical gateway unavailable; fall back to a no-op implementation.
+        adapters["market_data_gateway"] = NoOpMarketDataGateway()
 
     # Anomaly detector
     try:

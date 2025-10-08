@@ -66,7 +66,9 @@ from src.operations.roi import (
     format_roi_markdown as format_roi_summary,
     publish_roi_snapshot,
 )
+from src.operations.observability_diary import ThrottleStateSnapshot
 from src.operations.sensory_drift import SensoryDriftSnapshot
+from src.understanding.metrics import export_throttle_metrics
 from src.trading.execution.release_router import ReleaseAwareExecutionRouter
 from src.trading.execution.paper_broker_adapter import PaperBrokerExecutionAdapter
 from src.trading.gating import (
@@ -78,6 +80,7 @@ from src.trading.gating import (
     publish_release_route_event,
 )
 from src.trading.gating.adaptive_release import AdaptiveReleaseThresholds
+from src.trading.throttle.trade_throttle import TradeThrottle
 
 if TYPE_CHECKING:
     from src.runtime.task_supervisor import TaskSupervisor
@@ -94,6 +97,8 @@ logger = logging.getLogger(__name__)
 
 
 _ENGINE_UNSET = object()
+_DEFAULT_THROTTLE_MAX_TRADES = 4
+_DEFAULT_THROTTLE_WINDOW_SECONDS = 60.0
 
 
 def _coerce_risk_config(
@@ -109,6 +114,49 @@ def _coerce_risk_config(
         except ValidationError as exc:
             raise ValueError("Invalid risk_config payload for TradingManager") from exc
     raise TypeError("risk_config must be a TradingRiskConfig or mapping payload")
+
+
+def _coerce_trade_throttle(
+    throttle: TradeThrottle | Mapping[str, object] | None,
+) -> TradeThrottle | None:
+    if throttle is None or isinstance(throttle, TradeThrottle):
+        return throttle
+    if isinstance(throttle, MappingABC):
+        enabled = throttle.get("enabled")
+        if isinstance(enabled, bool) and not enabled:
+            return None
+
+        name = str(throttle.get("name", "trade_throttle"))
+        max_trades_value = throttle.get("max_trades_per_window")
+        if max_trades_value is None:
+            max_trades_value = throttle.get("max_trades")
+        max_trades = coerce_int(
+            max_trades_value,
+            default=_DEFAULT_THROTTLE_MAX_TRADES,
+        )
+        window_value = throttle.get("window_seconds")
+        if window_value is None:
+            window_value = throttle.get("window")
+        window_seconds = coerce_float(
+            window_value,
+            default=_DEFAULT_THROTTLE_WINDOW_SECONDS,
+        )
+        min_interval_value = throttle.get("min_interval_seconds")
+        if min_interval_value is None:
+            min_interval_value = throttle.get("min_interval")
+        min_interval = coerce_float(min_interval_value, default=None)
+
+        return TradeThrottle(
+            name=name,
+            max_trades_per_window=max(1, int(max_trades)),
+            window_seconds=float(window_seconds),
+            min_interval_seconds=(
+                float(min_interval) if min_interval is not None else None
+            ),
+        )
+    raise TypeError(
+        "trade_throttle must be a TradeThrottle instance or mapping payload",
+    )
 
 
 class TradingManager:
@@ -141,6 +189,7 @@ class TradingManager:
         release_manager: LedgerReleaseManager | None = None,
         pilot_execution_engine: Any | None = None,
         live_execution_engine: Any | None = None,
+        trade_throttle: TradeThrottle | Mapping[str, object] | None = None,
     ) -> None:
         """
         Initialize the TradingManager with risk management components.
@@ -235,12 +284,25 @@ class TradingManager:
         self._drift_gate = drift_gate
         self._last_drift_gate_decision: DriftSentryDecision | None = None
 
+        self._trade_throttle = _coerce_trade_throttle(trade_throttle)
+        self._last_trade_throttle_snapshot: ThrottleStateSnapshot | None = (
+            self._trade_throttle.last_snapshot
+            if self._trade_throttle is not None
+            else None
+        )
+        if self._last_trade_throttle_snapshot is not None:
+            self._record_trade_throttle_state(
+                self._last_trade_throttle_snapshot,
+                strategy_id=None,
+            )
+
         self._maybe_auto_install_release_router()
 
         self._execution_stats: dict[str, object] = {
             "orders_submitted": 0,
             "orders_executed": 0,
             "orders_failed": 0,
+            "orders_throttled": 0,
             "latency_samples": 0,
             "total_latency_ms": 0.0,
             "max_latency_ms": 0.0,
@@ -434,6 +496,49 @@ class TradingManager:
             if gate_decision_payload is not None:
                 self._attach_drift_gate_metadata(event, gate_decision_payload)
 
+            if self._trade_throttle is not None:
+                throttle_decision = self._trade_throttle.evaluate()
+                throttle_snapshot = throttle_decision.snapshot
+                self._record_trade_throttle_state(
+                    throttle_snapshot,
+                    strategy_id=strategy_id,
+                )
+                if not throttle_decision.allowed:
+                    throttled_count = coerce_int(
+                        self._execution_stats.get("orders_throttled"),
+                        default=0,
+                    )
+                    self._execution_stats["orders_throttled"] = throttled_count + 1
+                    if throttle_decision.reason == "minimum_interval":
+                        message = "Throttled: minimum interval not elapsed"
+                    else:
+                        message = "Throttled: too many trades in short time"
+                    logger.warning(
+                        "%s for trade intent %s (wait %.2fs)",
+                        message,
+                        event_id,
+                        float(throttle_decision.wait_seconds or 0.0),
+                    )
+                    throttle_metadata: dict[str, Any] = {
+                        "reason": throttle_decision.reason or "trade_throttle",
+                    }
+                    if throttle_decision.wait_seconds is not None:
+                        throttle_metadata["cooldown_seconds"] = (
+                            float(throttle_decision.wait_seconds)
+                        )
+                    throttle_metadata["throttle"] = dict(throttle_snapshot.as_dict())
+                    self._record_experiment_event(
+                        event_id=event_id,
+                        status="throttled",
+                        strategy_id=strategy_id,
+                        symbol=base_symbol,
+                        confidence=base_confidence,
+                        notional=drift_notional_estimate,
+                        metadata=throttle_metadata,
+                        decision=None,
+                    )
+                    return
+
             validated_intent = await self.risk_gateway.validate_trade_intent(
                 intent=event, portfolio_state=portfolio_state
             )
@@ -460,6 +565,7 @@ class TradingManager:
                 )
                 self._execution_stats["orders_submitted"] = current_submitted + 1
                 try:
+                    self._register_trade_throttle(strategy_id)
                     result = await self.execution_engine.process_order(validated_intent)
                 except Exception as exc:
                     logger.exception("Execution engine error for trade intent %s", event_id)
@@ -799,6 +905,27 @@ class TradingManager:
             entry["decision"] = dict(decision)
         self._experiment_events.appendleft(entry)
 
+    def _record_trade_throttle_state(
+        self,
+        snapshot: ThrottleStateSnapshot,
+        *,
+        strategy_id: str | None,
+    ) -> None:
+        self._last_trade_throttle_snapshot = snapshot
+        try:
+            export_throttle_metrics((snapshot,), regime=None, decision_id=strategy_id)
+        except Exception:  # pragma: no cover - metrics guardrail
+            logger.debug(
+                "Failed to export trade throttle metrics",
+                exc_info=True,
+            )
+
+    def _register_trade_throttle(self, strategy_id: str | None) -> None:
+        if self._trade_throttle is None:
+            return
+        snapshot = self._trade_throttle.register_trade()
+        self._record_trade_throttle_state(snapshot, strategy_id=strategy_id)
+
     async def _publish_drift_gate_event(
         self,
         *,
@@ -1090,6 +1217,26 @@ class TradingManager:
         """Expose the most recent DriftSentry decision for observability surfaces."""
 
         return self._last_drift_gate_decision
+
+    def get_trade_throttle_state(self) -> Mapping[str, Any] | None:
+        """Expose the latest trade throttle snapshot, if enabled."""
+
+        if self._last_trade_throttle_snapshot is None:
+            return None
+        return dict(self._last_trade_throttle_snapshot.as_dict())
+
+    def describe_trade_throttle(self) -> Mapping[str, Any]:
+        """Describe the configured trade throttle posture."""
+
+        if self._trade_throttle is None:
+            return {"enabled": False}
+        description = dict(self._trade_throttle.describe())
+        description["enabled"] = True
+        if self._last_trade_throttle_snapshot is not None:
+            description["snapshot"] = dict(
+                self._last_trade_throttle_snapshot.as_dict()
+            )
+        return description
 
     def get_last_release_route(self) -> Mapping[str, Any] | None:
         """Expose the most recent release-aware execution routing decision."""

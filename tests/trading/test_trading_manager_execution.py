@@ -210,6 +210,65 @@ async def test_trading_manager_records_execution_stats(monkeypatch: pytest.Monke
 
 
 @pytest.mark.asyncio()
+async def test_trading_manager_enforces_trade_throttle(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def _noop(*_args, **_kwargs) -> None:
+        return None
+
+    monkeypatch.setattr("src.trading.trading_manager.publish_risk_snapshot", _noop)
+    monkeypatch.setattr("src.trading.trading_manager.publish_roi_snapshot", _noop)
+    monkeypatch.setattr("src.trading.trading_manager.publish_policy_snapshot", _noop)
+    monkeypatch.setattr("src.trading.trading_manager.publish_policy_violation", _noop)
+    monkeypatch.setattr(
+        "src.trading.trading_manager.publish_risk_interface_snapshot", _noop
+    )
+    monkeypatch.setattr("src.trading.trading_manager.publish_risk_interface_error", _noop)
+    monkeypatch.setattr(
+        "src.trading.trading_manager.export_throttle_metrics", lambda *_, **__: None
+    )
+
+    bus = DummyBus()
+    manager = TradingManager(
+        event_bus=bus,
+        strategy_registry=AlwaysActiveRegistry(),
+        execution_engine=None,
+        initial_equity=50_000.0,
+        risk_config=RiskConfig(
+            min_position_size=1,
+            mandatory_stop_loss=False,
+            research_mode=True,
+        ),
+        trade_throttle={
+            "max_trades_per_window": 2,
+            "window_seconds": 120.0,
+            "min_interval_seconds": 60.0,
+        },
+    )
+    engine = ImmediateFillExecutionAdapter(manager.portfolio_monitor)
+    manager.execution_engine = engine
+
+    intent = SimpleIntent(symbol="EURUSD", quantity=1.0, price=1.2042)
+
+    await manager.on_trade_intent(intent)
+    await manager.on_trade_intent(intent)
+
+    stats = manager.get_execution_stats()
+    assert stats["orders_executed"] == 1
+    assert stats["orders_throttled"] == 1
+
+    events = manager.get_experiment_events()
+    assert any(event["status"] == "throttled" for event in events)
+
+    throttle_state = manager.get_trade_throttle_state()
+    assert throttle_state is not None
+    assert throttle_state["active"] is True
+    assert throttle_state["state"] in {"cooldown", "rate_limited"}
+
+    description = manager.describe_trade_throttle()
+    assert description["enabled"] is True
+    assert description["name"] == "trade_throttle"
+
+
+@pytest.mark.asyncio()
 async def test_trading_manager_records_experiment_events_and_rejections(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

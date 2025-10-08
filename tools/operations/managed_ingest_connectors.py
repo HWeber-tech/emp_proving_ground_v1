@@ -15,6 +15,11 @@ from src.data_foundation.ingest.institutional_vertical import (
     InstitutionalIngestProvisioner,
     plan_managed_manifest,
 )
+from src.data_foundation.streaming.kafka_stream import (
+    KafkaTopicProvisioner,
+    KafkaTopicProvisioningSummary,
+    resolve_ingest_topic_specs,
+)
 from src.governance.system_config import SystemConfig
 from src.runtime.task_supervisor import TaskSupervisor
 
@@ -74,6 +79,20 @@ def _build_parser() -> argparse.ArgumentParser:
         type=float,
         default=5.0,
         help="Timeout in seconds for connectivity probes (default: 5.0)",
+    )
+    parser.add_argument(
+        "--ensure-topics",
+        action="store_true",
+        help=(
+            "Ensure Kafka ingest topics exist using KafkaTopicProvisioner. "
+            "When combined with --topics-dry-run the command reports what would "
+            "be created without contacting the broker."
+        ),
+    )
+    parser.add_argument(
+        "--topics-dry-run",
+        action="store_true",
+        help="Run Kafka topic provisioning in dry-run mode.",
     )
     return parser
 
@@ -223,6 +242,52 @@ def _render_markdown(report: Mapping[str, object]) -> str:
     return "\n".join(lines)
 
 
+def _provision_kafka_topics(
+    ingest_config,
+    kafka_mapping: Mapping[str, str],
+    *,
+    dry_run: bool,
+) -> Mapping[str, object]:
+    topic_specs = resolve_ingest_topic_specs(kafka_mapping)
+    if not topic_specs:
+        return {
+            "requested": [],
+            "existing": [],
+            "created": [],
+            "failed": {},
+            "dry_run": dry_run,
+            "notes": ["no_topics_configured"],
+        }
+
+    provisioner = KafkaTopicProvisioner(ingest_config.kafka_settings)
+    try:
+        summary = provisioner.ensure_topics(topic_specs, dry_run=dry_run)
+    except Exception as exc:  # pragma: no cover - defensive guardrail for CLI usage
+        return {
+            "requested": [spec.name for spec in topic_specs],
+            "existing": [],
+            "created": [],
+            "failed": {"__error__": str(exc)},
+            "dry_run": dry_run,
+            "notes": ["provisioner_error"],
+        }
+
+    if not isinstance(summary, KafkaTopicProvisioningSummary):
+        return {
+            "requested": [spec.name for spec in topic_specs],
+            "existing": [],
+            "created": [],
+            "failed": {"__error__": "unexpected_provisioner_response"},
+            "dry_run": dry_run,
+            "notes": ["provisioner_returned_non_summary"],
+        }
+
+    payload = summary.as_dict()
+    payload.setdefault("requested", list(summary.requested))
+    payload.setdefault("dry_run", summary.dry_run)
+    return payload
+
+
 def _generate_report(args: argparse.Namespace) -> dict[str, object]:
     config = _load_system_config(args.config)
     extras = _parse_extra_arguments(args.extra)
@@ -270,6 +335,14 @@ def _generate_report(args: argparse.Namespace) -> dict[str, object]:
             )
         )
         report["connectivity"] = connectivity
+
+    if args.ensure_topics:
+        topic_summary = _provision_kafka_topics(
+            ingest_config,
+            kafka_mapping,
+            dry_run=bool(args.topics_dry_run),
+        )
+        report["kafka_topic_provisioning"] = topic_summary
 
     return report
 

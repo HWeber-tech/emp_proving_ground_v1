@@ -4,6 +4,8 @@ import pytest
 
 from src.governance.system_config import DataBackboneMode, EmpTier, SystemConfig
 
+from src.data_foundation.streaming.kafka_stream import KafkaTopicProvisioningSummary
+
 from tools.operations import managed_ingest_connectors as mic
 
 
@@ -75,3 +77,67 @@ def test_managed_connectors_cli_reports_probe_failure(
     timescale_snapshot = connectivity["timescale"]
     assert timescale_snapshot["healthy"] is False
     assert "timescale unreachable" in timescale_snapshot["error"]
+
+
+def test_managed_connectors_cli_can_provision_kafka_topics(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    config = _build_config({"KAFKA_INGEST_TOPICS": "daily:telemetry.daily"})
+    _patch_config(monkeypatch, config)
+
+    captured: dict[str, object] = {}
+
+    class _FakeProvisioner:
+        def __init__(self, settings) -> None:  # pragma: no cover - trivial wiring
+            captured["settings"] = settings
+
+        def ensure_topics(self, specs, *, dry_run: bool):
+            captured["specs"] = tuple(spec.name for spec in specs)
+            captured["dry_run"] = dry_run
+            return KafkaTopicProvisioningSummary(
+                requested=tuple(spec.name for spec in specs),
+                existing=(),
+                created=tuple(spec.name for spec in specs),
+                dry_run=dry_run,
+            )
+
+    monkeypatch.setattr(mic, "KafkaTopicProvisioner", _FakeProvisioner)
+
+    exit_code = mic.main([
+        "--ensure-topics",
+        "--topics-dry-run",
+        "--format",
+        "json",
+    ])
+    assert exit_code == 0
+
+    payload = json.loads(capsys.readouterr().out.strip())
+    summary = payload["kafka_topic_provisioning"]
+
+    assert summary["dry_run"] is True
+    assert summary["created"] == ["telemetry.daily"]
+    assert captured["specs"] == ("telemetry.daily",)
+    assert captured["dry_run"] is True
+
+
+def test_managed_connectors_cli_topic_provisioning_handles_missing_topics(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    config = _build_config()
+    _patch_config(monkeypatch, config)
+
+    def _should_not_instantiate(*_args, **_kwargs):
+        raise AssertionError("should not instantiate")
+
+    monkeypatch.setattr(mic, "KafkaTopicProvisioner", _should_not_instantiate)
+
+    exit_code = mic.main(["--ensure-topics", "--format", "json"])
+    assert exit_code == 0
+
+    payload = json.loads(capsys.readouterr().out.strip())
+    summary = payload["kafka_topic_provisioning"]
+
+    assert summary["requested"] == []
+    assert "no_topics_configured" in summary["notes"]

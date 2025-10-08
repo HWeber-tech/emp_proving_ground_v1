@@ -19,6 +19,7 @@ from src.thinking.adaptation.policy_reflection import (
     PolicyReflectionArtifacts,
     PolicyReflectionBuilder,
 )
+from src.thinking.adaptation.evolution_manager import EvolutionManager
 from src.thinking.adaptation.policy_router import PolicyDecision
 from src.trading.gating import DriftSentryDecision, DriftSentryGate
 from src.understanding.belief import BeliefState
@@ -56,6 +57,7 @@ class AlphaTradeLoopOrchestrator:
         drift_gate: DriftSentryGate,
         release_manager: LedgerReleaseManager,
         reflection_builder: PolicyReflectionBuilder | None = None,
+        evolution_manager: EvolutionManager | None = None,
     ) -> None:
         self._router = router
         self._diary_store = diary_store
@@ -64,6 +66,7 @@ class AlphaTradeLoopOrchestrator:
         self._reflection_builder = reflection_builder or PolicyReflectionBuilder(
             router.policy_router
         )
+        self._evolution_manager = evolution_manager
         # Ensure stage-aware thresholds flow into every DriftSentry evaluation.
         self._drift_gate.attach_threshold_resolver(self._resolve_thresholds)
 
@@ -116,6 +119,17 @@ class AlphaTradeLoopOrchestrator:
             notes=notes,
             extra_metadata=extra_metadata,
         )
+
+        if self._evolution_manager is not None:
+            self._evolution_manager.observe_iteration(
+                decision=decision,
+                stage=stage,
+                outcomes=diary_entry.outcomes,
+                metadata={
+                    "diary_entry_id": diary_entry.entry_id,
+                    "policy_id": resolved_policy_id,
+                },
+            )
 
         reflection = self._reflection_builder.build(window=reflection_window)
 
@@ -228,5 +242,4 @@ class AlphaTradeLoopOrchestrator:
             notes=notes,
             metadata=metadata,
         )
-
 

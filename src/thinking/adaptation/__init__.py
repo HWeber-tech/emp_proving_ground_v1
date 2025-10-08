@@ -8,6 +8,7 @@ from .policy_router import (
     PolicyTactic,
     RegimeState,
 )
+from .evolution_manager import EvolutionManager, ManagedStrategyConfig, StrategyVariant
 
 __all__ = [
     "PolicyReflectionArtifacts",
@@ -17,4 +18,7 @@ __all__ = [
     "PolicyRouter",
     "PolicyTactic",
     "RegimeState",
+    "EvolutionManager",
+    "ManagedStrategyConfig",
+    "StrategyVariant",
 ]

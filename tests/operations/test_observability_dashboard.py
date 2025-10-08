@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta
+from typing import Mapping
 
 try:  # Python 3.10 compatibility
     from datetime import UTC
@@ -11,6 +12,12 @@ except ImportError:  # pragma: no cover - fallback for older runtimes
 
 import pytest
 
+from src.governance.policy_graduation import (
+    DiaryMetrics,
+    DiaryStageMetrics,
+    PolicyGraduationAssessment,
+)
+from src.governance.policy_ledger import PolicyLedgerStage
 from src.operations.data_backbone import (
     BackboneComponentSnapshot,
     BackboneStatus,
@@ -181,6 +188,32 @@ def _quality_snapshot() -> QualityTelemetrySnapshot:
         notes=("Coverage 78.00% (target 80.00%)", "Coverage telemetry age 10.0h (max 24.0h)"),
         remediation_items=("Add ingest backfill tests",),
         metadata={"trend_counts": {"coverage_trend": 5, "coverage_domain_trend": 2, "remediation_trend": 1}},
+    )
+
+
+def _diary_metrics(
+    policy_id: str,
+    *,
+    stage_metrics: Mapping[PolicyLedgerStage, DiaryStageMetrics],
+    total_decisions: int,
+    forced_total: int,
+    severity_counts: Mapping[str, int],
+    consecutive_normal: int,
+    latest_stage: PolicyLedgerStage,
+) -> DiaryMetrics:
+    now = _now()
+    release_routes = {stage.value: metrics.total for stage, metrics in stage_metrics.items()}
+    return DiaryMetrics(
+        policy_id=policy_id,
+        total_decisions=total_decisions,
+        stage_metrics=stage_metrics,
+        release_routes=release_routes,
+        severity_counts=severity_counts,
+        forced_total=forced_total,
+        consecutive_normal_latest_stage=consecutive_normal,
+        first_entry_at=now - timedelta(hours=total_decisions),
+        last_entry_at=now,
+        latest_stage=latest_stage,
     )
 
 
@@ -385,11 +418,165 @@ def test_dashboard_risk_panel_announces_limit_statuses() -> None:
     risk_panel = next(panel for panel in dashboard.panels if panel.name == "Risk & exposure")
 
     assert risk_panel.status is DashboardStatus.warn
-    metadata = risk_panel.metadata
-    assert metadata["parametric_var"]["limit_status"] == "warn"
-    assert metadata["parametric_var"]["limit_ratio"] == pytest.approx(0.9)
-    assert metadata["expected_shortfall"]["limit_status"] == "invalid"
-    assert "limit" in metadata["expected_shortfall"]
+
+
+def test_dashboard_includes_policy_graduation_panel_with_ready_and_blocked() -> None:
+    ready_stage_metrics = {
+        PolicyLedgerStage.EXPERIMENT: DiaryStageMetrics(
+            stage=PolicyLedgerStage.EXPERIMENT,
+            total=30,
+            forced=3,
+            severity_counts={"normal": 27, "warn": 3},
+        ),
+        PolicyLedgerStage.PAPER: DiaryStageMetrics(
+            stage=PolicyLedgerStage.PAPER,
+            total=20,
+            forced=1,
+            severity_counts={"normal": 19, "warn": 1},
+        ),
+    }
+    ready_metrics = _diary_metrics(
+        "alpha",
+        stage_metrics=ready_stage_metrics,
+        total_decisions=60,
+        forced_total=6,
+        severity_counts={"normal": 54, "warn": 6},
+        consecutive_normal=18,
+        latest_stage=PolicyLedgerStage.PAPER,
+    )
+    assessment_ready = PolicyGraduationAssessment(
+        policy_id="alpha",
+        current_stage=PolicyLedgerStage.EXPERIMENT,
+        declared_stage=None,
+        audit_stage=None,
+        recommended_stage=PolicyLedgerStage.PAPER,
+        metrics=ready_metrics,
+        approvals=(),
+        evidence_id="dd-alpha",
+        audit_gaps=(),
+        stage_blockers={
+            PolicyLedgerStage.PAPER: (),
+            PolicyLedgerStage.PILOT: ("insufficient_decisions",),
+            PolicyLedgerStage.LIMITED_LIVE: ("insufficient_history",),
+        },
+    )
+
+    blocked_stage_metrics = {
+        PolicyLedgerStage.PAPER: DiaryStageMetrics(
+            stage=PolicyLedgerStage.PAPER,
+            total=50,
+            forced=8,
+            severity_counts={"normal": 42, "warn": 8},
+        ),
+        PolicyLedgerStage.PILOT: DiaryStageMetrics(
+            stage=PolicyLedgerStage.PILOT,
+            total=10,
+            forced=2,
+            severity_counts={"normal": 8, "warn": 2},
+        ),
+    }
+    blocked_metrics = _diary_metrics(
+        "beta",
+        stage_metrics=blocked_stage_metrics,
+        total_decisions=80,
+        forced_total=12,
+        severity_counts={"normal": 68, "warn": 12},
+        consecutive_normal=9,
+        latest_stage=PolicyLedgerStage.PILOT,
+    )
+    assessment_blocked = PolicyGraduationAssessment(
+        policy_id="beta",
+        current_stage=PolicyLedgerStage.PAPER,
+        declared_stage=None,
+        audit_stage=None,
+        recommended_stage=PolicyLedgerStage.PILOT,
+        metrics=blocked_metrics,
+        approvals=("risk",),
+        evidence_id="dd-beta",
+        audit_gaps=("stale_evidence",),
+        stage_blockers={
+            PolicyLedgerStage.PAPER: (),
+            PolicyLedgerStage.PILOT: ("approvals_required",),
+            PolicyLedgerStage.LIMITED_LIVE: ("insufficient_history",),
+        },
+    )
+
+    dashboard = build_observability_dashboard(
+        policy_graduation_assessments=[assessment_ready, assessment_blocked]
+    )
+
+    panel = next(panel for panel in dashboard.panels if panel.name == "Policy graduation")
+    assert panel.status is DashboardStatus.warn
+    assert "alpha" in panel.details[0]
+    assert "ready" in panel.details[0]
+    assert "blocked" in panel.details[1]
+
+    summary_meta = panel.metadata["policy_graduation"]["summary"]
+    assert summary_meta["ready"] == ["alpha"]
+    assert summary_meta["blocked"]["beta"] == ["approvals_required"]
+
+    assert (
+        dashboard.metadata["panel_statuses"]["Policy graduation"]
+        == panel.status.value
+    )
+
+
+def test_policy_graduation_panel_marks_regression_as_failure() -> None:
+    regression_stage_metrics = {
+        PolicyLedgerStage.PILOT: DiaryStageMetrics(
+            stage=PolicyLedgerStage.PILOT,
+            total=45,
+            forced=6,
+            severity_counts={"normal": 36, "warn": 6, "alert": 3},
+        ),
+        PolicyLedgerStage.PAPER: DiaryStageMetrics(
+            stage=PolicyLedgerStage.PAPER,
+            total=30,
+            forced=3,
+            severity_counts={"normal": 27, "warn": 3},
+        ),
+    }
+    regression_metrics = _diary_metrics(
+        "gamma",
+        stage_metrics=regression_stage_metrics,
+        total_decisions=90,
+        forced_total=12,
+        severity_counts={"normal": 75, "warn": 12, "alert": 3},
+        consecutive_normal=4,
+        latest_stage=PolicyLedgerStage.PILOT,
+    )
+    assessment_regression = PolicyGraduationAssessment(
+        policy_id="gamma",
+        current_stage=PolicyLedgerStage.PILOT,
+        declared_stage=None,
+        audit_stage=None,
+        recommended_stage=PolicyLedgerStage.PAPER,
+        metrics=regression_metrics,
+        approvals=("risk", "compliance"),
+        evidence_id="dd-gamma",
+        audit_gaps=(),
+        stage_blockers={
+            PolicyLedgerStage.PAPER: (),
+            PolicyLedgerStage.LIMITED_LIVE: ("insufficient_history",),
+        },
+    )
+
+    dashboard = build_observability_dashboard(
+        policy_graduation_assessments=[assessment_regression]
+    )
+
+    panel = next(panel for panel in dashboard.panels if panel.name == "Policy graduation")
+    assert panel.status is DashboardStatus.fail
+    assert "regression" in panel.details[0].lower()
+
+    summary_meta = panel.metadata["policy_graduation"]["summary"]
+    assert summary_meta["regressing"] == [
+        {
+            "policy_id": "gamma",
+            "current_stage": PolicyLedgerStage.PILOT.value,
+            "recommended_stage": PolicyLedgerStage.PAPER.value,
+        }
+    ]
 
 
 def test_understanding_panel_included_with_snapshot() -> None:

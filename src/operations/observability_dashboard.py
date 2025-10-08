@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from enum import StrEnum
 from typing import TYPE_CHECKING, Any, Iterable, Mapping, MutableMapping, Sequence
 
+from src.governance.policy_ledger import PolicyLedgerStage
 from src.operations.data_backbone import (
     BackboneComponentSnapshot,
     BackboneStatus,
@@ -34,6 +35,7 @@ from src.understanding.diagnostics import (
 from src.understanding.metrics import export_understanding_throttle_metrics
 
 if TYPE_CHECKING:
+    from src.governance.policy_graduation import PolicyGraduationAssessment
     from src.thinking.adaptation.policy_reflection import PolicyReflectionArtifacts
 
 try:  # Python 3.10 compatibility
@@ -54,6 +56,14 @@ _STATUS_ORDER: Mapping[DashboardStatus, int] = {
     DashboardStatus.ok: 0,
     DashboardStatus.warn: 1,
     DashboardStatus.fail: 2,
+}
+
+
+_LEDGER_STAGE_ORDER: Mapping[PolicyLedgerStage, int] = {
+    PolicyLedgerStage.EXPERIMENT: 0,
+    PolicyLedgerStage.PAPER: 1,
+    PolicyLedgerStage.PILOT: 2,
+    PolicyLedgerStage.LIMITED_LIVE: 3,
 }
 
 
@@ -380,6 +390,168 @@ def _build_policy_reflection_panel(
     )
 
 
+def _normalise_graduation_assessments(
+    assessments: Sequence["PolicyGraduationAssessment"]
+    | Mapping[str, "PolicyGraduationAssessment"],
+) -> list["PolicyGraduationAssessment"]:
+    if isinstance(assessments, Mapping):
+        candidates = assessments.values()
+    else:
+        candidates = assessments
+    candidate_list = list(candidates)
+    try:
+        from src.governance.policy_graduation import (  # local import to avoid cycles
+            PolicyGraduationAssessment as _PolicyGraduationAssessment,
+        )
+    except Exception:
+        _PolicyGraduationAssessment = None  # type: ignore[assignment]
+
+    normalised: list["PolicyGraduationAssessment"] = []
+    for candidate in candidate_list:
+        if _PolicyGraduationAssessment is not None and isinstance(
+            candidate, _PolicyGraduationAssessment
+        ):
+            normalised.append(candidate)
+            continue
+        if all(
+            hasattr(candidate, attribute)
+            for attribute in ("policy_id", "current_stage", "recommended_stage")
+        ):
+            normalised.append(candidate)
+    normalised.sort(key=lambda assessment: assessment.policy_id)
+    return normalised
+
+
+def _build_policy_graduation_panel(
+    assessments: Sequence["PolicyGraduationAssessment"]
+    | Mapping[str, "PolicyGraduationAssessment"],
+) -> DashboardPanel:
+    resolved = _normalise_graduation_assessments(assessments)
+    if not resolved:
+        return DashboardPanel(
+            name="Policy graduation",
+            status=DashboardStatus.warn,
+            headline="Policy graduation assessments unavailable",
+            details=(
+                "No DecisionDiary evidence analysed; run the graduation evaluator to populate release posture.",
+            ),
+            metadata={
+                "policy_graduation": {
+                    "assessments": [],
+                    "summary": {
+                        "ready": [],
+                        "live_ready": [],
+                        "blocked": {},
+                        "holding": [],
+                        "regressing": [],
+                    },
+                }
+            },
+        )
+
+    details: list[str] = []
+    ready: list[str] = []
+    live_ready: list[str] = []
+    holding: list[str] = []
+    blocked: dict[str, tuple[str, ...]] = {}
+    regressing: list[dict[str, str]] = []
+
+    for assessment in resolved:
+        current_stage = assessment.current_stage
+        recommended_stage = assessment.recommended_stage
+        current_rank = _LEDGER_STAGE_ORDER[current_stage]
+        recommended_rank = _LEDGER_STAGE_ORDER[recommended_stage]
+        blockers = tuple(
+            assessment.stage_blockers.get(recommended_stage, ())
+        )
+        delta = recommended_rank - current_rank
+
+        forced_ratio = assessment.metrics.forced_ratio
+        streak = assessment.metrics.consecutive_normal_latest_stage
+        descriptor = (
+            f"{assessment.policy_id}: {current_stage.value} -> {recommended_stage.value} "
+            f"(forced {forced_ratio:.1%}, streak {streak})"
+        )
+
+        if delta < 0:
+            regressing.append(
+                {
+                    "policy_id": assessment.policy_id,
+                    "current_stage": current_stage.value,
+                    "recommended_stage": recommended_stage.value,
+                }
+            )
+            details.append(f"{descriptor} — regression")
+            continue
+
+        if delta == 0:
+            holding.append(assessment.policy_id)
+            details.append(f"{descriptor} — holding")
+            continue
+
+        if blockers:
+            blocked[assessment.policy_id] = blockers
+            blocker_text = ", ".join(blockers)
+            details.append(f"{descriptor} — blocked: {blocker_text}")
+            continue
+
+        ready.append(assessment.policy_id)
+        if recommended_stage is PolicyLedgerStage.LIMITED_LIVE:
+            live_ready.append(assessment.policy_id)
+            details.append(f"{descriptor} — limited live ready")
+        else:
+            details.append(f"{descriptor} — ready")
+
+    status = DashboardStatus.ok
+    if regressing:
+        status = DashboardStatus.fail
+    elif blocked:
+        status = DashboardStatus.warn
+
+    if regressing:
+        regressing_policies = ", ".join(
+            sorted(entry["policy_id"] for entry in regressing)
+        )
+        headline = (
+            f"Regression detected for: {regressing_policies}"
+            if regressing_policies
+            else "Regression detected"
+        )
+    elif live_ready:
+        headline = "Limited live ready: " + ", ".join(sorted(live_ready))
+        if blocked:
+            headline += f" | Blocked: {len(blocked)}"
+    elif ready:
+        headline = f"Promotions ready: {len(ready)}"
+        if blocked:
+            headline += f" | Blocked: {len(blocked)}"
+    elif blocked:
+        headline = f"Promotions blocked: {len(blocked)}"
+    elif holding:
+        headline = "All policies holding current stage"
+    else:
+        headline = "Policy graduation posture unavailable"
+
+    metadata_payload = {
+        "assessments": [assessment.to_dict() for assessment in resolved],
+        "summary": {
+            "ready": sorted(ready),
+            "live_ready": sorted(live_ready),
+            "blocked": {key: list(value) for key, value in blocked.items()},
+            "holding": sorted(holding),
+            "regressing": regressing,
+        },
+    }
+
+    return DashboardPanel(
+        name="Policy graduation",
+        status=status,
+        headline=headline,
+        details=tuple(details),
+        metadata={"policy_graduation": metadata_payload},
+    )
+
+
 def _summarise_components(
     components: Iterable[BackboneComponentSnapshot],
 ) -> tuple[str, ...]:
@@ -400,6 +572,10 @@ def build_observability_dashboard(
     slo_snapshot: OperationalSLOSnapshot | None = None,
     backbone_snapshot: DataBackboneReadinessSnapshot | None = None,
     operational_readiness_snapshot: OperationalReadinessSnapshot | None = None,
+    policy_graduation_assessments:
+        Sequence["PolicyGraduationAssessment"]
+        | Mapping[str, "PolicyGraduationAssessment"]
+        | None = None,
     quality_snapshot: QualityTelemetrySnapshot | None = None,
     policy_reflection: "PolicyReflectionArtifacts" | None = None,
     understanding_snapshot: UnderstandingLoopSnapshot | None = None,
@@ -636,6 +812,11 @@ def build_observability_dashboard(
                     "operational_readiness": operational_readiness_snapshot.as_dict()
                 },
             )
+        )
+
+    if policy_graduation_assessments is not None:
+        panels.append(
+            _build_policy_graduation_panel(policy_graduation_assessments)
         )
 
     if understanding_snapshot is not None:

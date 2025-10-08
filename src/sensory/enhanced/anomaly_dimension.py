@@ -28,8 +28,13 @@ class AnomalyIntelligenceEngine:
             baseline = fmean(values) if values else 0.0
             dispersion = pstdev(values) if len(values) > 1 else 0.0
             latest = values[-1] if values else 0.0
-            normalized = abs(latest - baseline) / (abs(baseline) + dispersion + 1e-9)
-            signal_strength = clamp(tanh(normalized), 0.0, 1.0)
+            if dispersion <= 0.0:
+                z_score = 0.0
+            else:
+                z_score = (latest - baseline) / dispersion
+            abs_z = abs(z_score)
+            # Scale the z-score into [0, 1] so the threshold evaluator can map warn/alert states.
+            signal_strength = clamp(abs_z / 4.0, 0.0, 1.0)
             confidence = clamp(0.2 + 0.6 * min(1.0, len(values) / 25.0), 0.0, 1.0)
             context = {
                 "source": "sensory.anomaly",
@@ -37,6 +42,7 @@ class AnomalyIntelligenceEngine:
                 "baseline": baseline,
                 "dispersion": dispersion,
                 "latest": latest,
+                "z_score": z_score,
             }
             timestamp = datetime.utcnow()
             reading = DimensionalReading(
@@ -53,6 +59,7 @@ class AnomalyIntelligenceEngine:
                 "baseline": float(baseline),
                 "dispersion": float(dispersion),
                 "latest": float(latest),
+                "z_score": float(z_score),
             }
             return build_legacy_payload(reading, source="sensory.anomaly", extras=extras)
 
@@ -88,6 +95,7 @@ class AnomalyIntelligenceEngine:
             1.0,
         )
 
+        synthetic_z = raw_anomaly * 4.0
         context = {
             "source": "sensory.anomaly",
             "mode": "market_data",
@@ -95,6 +103,7 @@ class AnomalyIntelligenceEngine:
             "volume_pressure": float(volume_pressure),
             "volatility_pressure": float(volatility_pressure),
             "spread_penalty": float(spread_penalty),
+            "z_score": float(synthetic_z),
         }
 
         reading = DimensionalReading(
@@ -112,5 +121,6 @@ class AnomalyIntelligenceEngine:
             "volume_pressure": float(volume_pressure),
             "volatility_pressure": float(volatility_pressure),
             "spread_penalty": float(spread_penalty),
+            "z_score": float(synthetic_z),
         }
         return build_legacy_payload(reading, source="sensory.anomaly", extras=extras)

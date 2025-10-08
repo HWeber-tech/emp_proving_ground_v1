@@ -164,6 +164,8 @@ def test_anomaly_sensor_sequence_mode_detects_spike() -> None:
     assert metadata.get("thresholds") == {"warn": 0.4, "alert": 0.7}
     assert signal.value["strength"] >= 0.0
     assert signal.value["state"] in {"nominal", "warning", "alert"}
+    assert signal.value["is_anomaly"] is True
+    assert abs(float(signal.value["z_score"])) >= 0.0
     lineage = metadata.get("lineage")
     assert isinstance(lineage, dict)
     assert lineage.get("metadata", {}).get("mode") == "sequence"
@@ -212,6 +214,7 @@ def test_anomaly_sensor_threshold_state_escalates() -> None:
     signal = sensor.process({"payload": "ignored"})[0]
 
     assert signal.value["state"] == "warning"
+    assert signal.value["is_anomaly"] is False
     assert isinstance(signal.lineage, SensorLineageRecord)
     assert signal.lineage.dimension == "ANOMALY"
     metadata = signal.metadata or {}

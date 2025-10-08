@@ -27,6 +27,7 @@ class AnomalySensorConfig:
     alert_threshold: float = 0.7
     minimum_confidence: float = 0.2
     sequence_min_length: int = 8
+    z_score_threshold: float = 3.0
 
     def clamp_confidence(self, confidence: float) -> float:
         return max(self.minimum_confidence, min(1.0, float(confidence)))
@@ -150,11 +151,24 @@ class AnomalySensor:
             mode="positive",
         )
 
+        baseline = float(reading_adapter.get("baseline", 0.0))
+        dispersion = float(reading_adapter.get("dispersion", 0.0))
+        latest = float(reading_adapter.get("latest", 0.0))
+        if dispersion <= 0.0:
+            z_score = 0.0
+        else:
+            z_score = (latest - baseline) / dispersion
+        abs_z_score = abs(z_score)
         telemetry: dict[str, float] = {
-            "baseline": float(reading_adapter.get("baseline", 0.0)),
-            "dispersion": float(reading_adapter.get("dispersion", 0.0)),
-            "latest": float(reading_adapter.get("latest", 0.0)),
+            "baseline": baseline,
+            "dispersion": dispersion,
+            "latest": latest,
+            "z_score": float(z_score),
         }
+
+        anomaly_flag = abs_z_score >= self._config.z_score_threshold
+        if assessment.state in {"alert", "critical"}:
+            anomaly_flag = True
 
         lineage = build_lineage_record(
             "ANOMALY",
@@ -182,10 +196,12 @@ class AnomalySensor:
                 "signal": signal_strength,
                 "confidence": confidence,
                 "context": context,
+                "z_score": float(z_score),
             },
             "lineage": lineage.as_dict(),
             "state": assessment.state,
             "threshold_assessment": assessment.as_dict(),
+            "is_anomaly": anomaly_flag,
         }
         metadata["audit"].update(telemetry)
         if extra_metadata:
@@ -196,6 +212,8 @@ class AnomalySensor:
             "confidence": confidence,
             "context": context,
             "state": assessment.state,
+            "is_anomaly": anomaly_flag,
+            "z_score": float(z_score),
         }
         self._record_lineage(lineage)
         return SensorSignal(
@@ -237,10 +255,18 @@ class AnomalySensor:
             "source": "sensory.anomaly",
             "thresholds": thresholds,
             "mode": "unknown",
-            "audit": {"signal": 0.0, "confidence": 0.0},
+            "audit": {
+                "signal": 0.0,
+                "confidence": 0.0,
+                "z_score": 0.0,
+                "baseline": 0.0,
+                "dispersion": 0.0,
+                "latest": 0.0,
+            },
             "lineage": lineage.as_dict(),
             "state": assessment.state,
             "threshold_assessment": assessment.as_dict(),
+            "is_anomaly": False,
         }
         if reason is not None:
             metadata["failure_reason"] = reason
@@ -251,6 +277,8 @@ class AnomalySensor:
                 "strength": 0.0,
                 "confidence": 0.0,
                 "state": assessment.state,
+                "is_anomaly": False,
+                "z_score": 0.0,
             },
             confidence=0.0,
             metadata=metadata,

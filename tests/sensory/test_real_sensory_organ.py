@@ -121,6 +121,10 @@ def test_real_sensory_organ_observe_builds_snapshot() -> None:
     assert "lineage" in how_metadata
     assert how_metadata["lineage"]["dimension"] == "HOW"
 
+    anomaly_value = dimensions["ANOMALY"]["value"]
+    assert isinstance(anomaly_value, Mapping)
+    assert "is_anomaly" in anomaly_value
+
     lineage = snapshot["lineage"].as_dict()
     assert lineage["dimension"] == "SENSORY_FUSION"
     assert lineage["inputs"]["HOW"]["signal"] == dimensions["HOW"]["signal"]

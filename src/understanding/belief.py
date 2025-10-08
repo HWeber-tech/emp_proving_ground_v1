@@ -155,6 +155,61 @@ def _coerce_float(value: object, default: float = 0.0) -> float:
         return default
 
 
+def _extract_anomaly_flag(
+    value_payload: Mapping[str, object] | None,
+    metadata_payload: Mapping[str, object] | None,
+) -> bool | None:
+    def _coerce_bool(candidate: object | None) -> bool | None:
+        if isinstance(candidate, bool):
+            return candidate
+        if isinstance(candidate, (int, float)):
+            return bool(candidate)
+        return None
+
+    if value_payload is not None:
+        flag = _coerce_bool(value_payload.get("is_anomaly"))
+        if flag is not None:
+            return flag
+    if metadata_payload is not None:
+        flag = _coerce_bool(metadata_payload.get("is_anomaly"))
+        if flag is not None:
+            return flag
+        audit = metadata_payload.get("audit")
+        if isinstance(audit, Mapping):
+            flag = _coerce_bool(audit.get("is_anomaly"))
+            if flag is not None:
+                return flag
+    return None
+
+
+def _extract_z_score(
+    value_payload: Mapping[str, object] | None,
+    metadata_payload: Mapping[str, object] | None,
+) -> float | None:
+    def _from_mapping(mapping: Mapping[str, object] | None) -> float | None:
+        if not mapping:
+            return None
+        candidate = mapping.get("z_score")
+        if candidate is None:
+            audit = mapping.get("audit")
+            if isinstance(audit, Mapping):
+                candidate = audit.get("z_score")
+        if candidate is None:
+            return None
+        try:
+            return float(candidate)
+        except (TypeError, ValueError):
+            return None
+
+    value_score = _from_mapping(value_payload)
+    if value_score is not None:
+        return value_score
+    meta_score = _from_mapping(metadata_payload)
+    if meta_score is not None:
+        return meta_score
+    return None
+
+
 def _lineage_to_mapping(lineage: SensorLineageRecord | Mapping[str, object] | None) -> Mapping[str, object]:
     if isinstance(lineage, SensorLineageRecord):
         return lineage.as_dict()
@@ -318,14 +373,37 @@ class BeliefBuffer:
         if isinstance(dimensions, Mapping):
             for name, dimension in dimensions.items():
                 key_base = str(name).upper()
+                value_payload: Mapping[str, object] | None = None
+                metadata_payload: Mapping[str, object] | None = None
                 if isinstance(dimension, Mapping):
                     payload[f"{key_base}_signal"] = _coerce_float(dimension.get("signal"))
                     payload[f"{key_base}_confidence"] = _coerce_float(dimension.get("confidence"))
+                    raw_value = dimension.get("value")
+                    if isinstance(raw_value, Mapping):
+                        value_payload = {str(k): v for k, v in raw_value.items()}
+                    raw_metadata = dimension.get("metadata")
+                    if isinstance(raw_metadata, Mapping):
+                        metadata_payload = {str(k): v for k, v in raw_metadata.items()}
                 else:
                     signal = getattr(dimension, "signal", None)
                     confidence = getattr(dimension, "confidence", None)
                     payload[f"{key_base}_signal"] = _coerce_float(signal)
                     payload[f"{key_base}_confidence"] = _coerce_float(confidence)
+                    raw_value = getattr(dimension, "value", None)
+                    if isinstance(raw_value, Mapping):
+                        value_payload = {str(k): v for k, v in raw_value.items()}
+                    raw_metadata = getattr(dimension, "metadata", None)
+                    if isinstance(raw_metadata, Mapping):
+                        metadata_payload = {str(k): v for k, v in raw_metadata.items()}
+
+                if key_base == "ANOMALY":
+                    anomaly_flag = _extract_anomaly_flag(value_payload, metadata_payload)
+                    if anomaly_flag is not None:
+                        payload["ANOMALY_flag"] = 1.0 if anomaly_flag else 0.0
+
+                    z_score = _extract_z_score(value_payload, metadata_payload)
+                    if z_score is not None:
+                        payload["ANOMALY_z_score"] = float(z_score)
 
         if not payload:
             raise ValueError("sensory snapshot missing dimension features")

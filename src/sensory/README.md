@@ -234,6 +234,11 @@ z_score = (current_return - ewma_mean) / sqrt(ewma_var)
 # Anomaly signal with saturation
 anomaly_signal = sign(z_score) * min(abs(z_score) / 6, 1.0)
 anomaly_confidence = min(abs(z_score) / 4, 1.0)
+
+# Downstream consumers now receive a boolean `is_anomaly` flag once
+# `abs(z_score)` crosses the alert threshold (default 3.0).
+# The raw z-score is also persisted inside the belief snapshot for
+# auditability and regime calibration.
 ```
 
 ## CSV Data Dependencies

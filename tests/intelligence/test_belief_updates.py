@@ -71,13 +71,30 @@ class _StubEventBus:
         return 1
 
 
-def _build_dimensions(strength: float, confidence: float) -> Mapping[str, Mapping[str, float]]:
+def _build_dimensions(strength: float, confidence: float) -> Mapping[str, Mapping[str, object]]:
+    anomaly_strength = abs(strength) * 0.3
+    anomaly_flag = anomaly_strength > 0.15
+    anomaly_z_score = anomaly_strength * 4.0
     return {
         "WHY": {"signal": strength * 0.6, "confidence": confidence * 0.9},
         "WHAT": {"signal": strength * 0.4, "confidence": confidence * 0.85},
         "WHEN": {"signal": strength * 0.2, "confidence": confidence * 0.8},
         "HOW": {"signal": strength * 0.1, "confidence": confidence * 0.75},
-        "ANOMALY": {"signal": -abs(strength) * 0.3, "confidence": confidence * 0.7},
+        "ANOMALY": {
+            "signal": anomaly_strength,
+            "confidence": confidence * 0.7,
+            "value": {
+                "is_anomaly": anomaly_flag,
+                "z_score": anomaly_z_score,
+            },
+            "metadata": {
+                "source": "tests.synthetic.anomaly",
+                "is_anomaly": anomaly_flag,
+                "audit": {
+                    "z_score": anomaly_z_score,
+                },
+            },
+        },
     }
 
 

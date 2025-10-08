@@ -11,33 +11,22 @@ This module provides thorough testing of the complete system including:
 """
 
 import logging
-import os
-import sys
 from datetime import datetime, timedelta
 from typing import List
 
 import numpy as np
 import pytest
-from market_intelligence.dimensions.enhanced_anomaly_dimension import (
-    AnomalyIntelligenceEngine,
-)
-from market_intelligence.dimensions.enhanced_how_dimension import (
-    InstitutionalIntelligenceEngine,
-)
-from market_intelligence.dimensions.enhanced_what_dimension import (
-    TechnicalRealityEngine,
-)
-from market_intelligence.dimensions.enhanced_when_dimension import (
-    ChronalIntelligenceEngine,
-)
-from market_intelligence.dimensions.enhanced_why_dimension import (
+
+from src.core.base import DimensionalReading, MarketData
+from src.orchestration.enhanced_intelligence_engine import ContextualFusionEngine
+from src.sensory.enhanced._shared import ReadingAdapter
+from src.sensory.enhanced.anomaly_dimension import AnomalyIntelligenceEngine
+from src.sensory.enhanced.how_dimension import InstitutionalIntelligenceEngine
+from src.sensory.enhanced.what_dimension import TechnicalRealityEngine
+from src.sensory.enhanced.when_dimension import ChronalIntelligenceEngine
+from src.sensory.enhanced.why_dimension import (
     EnhancedFundamentalIntelligenceEngine,
 )
-from orchestration.enhanced_intelligence_engine import ContextualFusionEngine
-
-# Import system components
-from core.base import DimensionalReading, MarketData
-from sensory.enhanced._shared import ReadingAdapter
 
 
 def _to_dimensional_reading(
@@ -46,9 +35,6 @@ def _to_dimensional_reading(
     if isinstance(candidate, ReadingAdapter):
         return candidate.reading
     return candidate
-
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
 
 # Configure logging for tests
 logging.basicConfig(level=logging.WARNING)
@@ -517,7 +503,7 @@ class TestSystemIntegration:
 
         import os
 
-        import psutil
+        psutil = pytest.importorskip("psutil")
 
         process = psutil.Process(os.getpid())
         initial_memory = process.memory_info().rss

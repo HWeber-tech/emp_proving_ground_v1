@@ -1,5 +1,19 @@
 # Governance & Risk Mini-Audit – 2025-10-08
 
+## Audit Snapshot – 2025-10-08 Phase II Completion
+
+### Quick Fixes
+- `RiskManagerImpl.calculate_position_size` now returns `0.0` when no risk budget is available and refuses to round small allocations up to the configured minimum lot, closing a path that could silently overshoot drawdown throttles when the account is capital-starved (`src/risk/risk_manager_impl.py`).
+- Governance promotions trim and validate DecisionDiary evidence identifiers so whitespace payloads can no longer bypass the "evidence required" gate, and serialized ledger entries preserve the normalized identifiers (`src/governance/policy_ledger.py`).
+
+### Findings & Follow-ups
+- Position sizing previously allowed trades to be placed even when the computed Kelly-weighted notional was zero; callers treating any positive float as a go-signal would have opened positions despite depleted equity. Downstream orchestrators should treat a `0.0` return as "do not trade"—recommend adding an explicit guard in the execution planner to log-and-skip when position sizing declines to fund an order.
+- Governance ledger accepted whitespace-only evidence IDs, letting operators satisfy policy checks without attaching DecisionDiary artefacts. We now normalise during ingest, but legacy records created before this patch may still contain blanks; schedule a one-off ledger scrub that reports any persisted records with missing `evidence_id` while claiming `PAPER` or higher.
+- Coverage for the updated surfaces now sits at 85% for `src/governance/policy_ledger.py` and 66% for `src/risk/risk_manager_impl.py`. The remaining uncovered branches in the risk implementation come from VaR/ES analytics; consider extracting those calculators behind protocols so they can be unit-tested without lengthy Monte Carlo fixtures.
+
+### Validation
+- `pytest --maxfail=1 --disable-warnings --color=no --cov=src/governance --cov=src/risk tests/governance tests/risk`
+
 ## Audit Snapshot – 2025-10-09
 
 ### Quick Fixes

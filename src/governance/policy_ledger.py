@@ -97,6 +97,13 @@ def _normalise_approvals(values: Iterable[str]) -> tuple[str, ...]:
     return tuple(sorted(cleaned))
 
 
+def _normalise_evidence_id(value: str | None) -> str | None:
+    if value is None:
+        return None
+    normalised = str(value).strip()
+    return normalised or None
+
+
 @dataclass(slots=True)
 class PolicyLedgerRecord:
     """Ledger entry tying a tactic to its promotion posture."""
@@ -127,12 +134,13 @@ class PolicyLedgerRecord:
         _validate_stage_progress(self.stage, stage)
         applied_timestamp = timestamp or datetime.now(tz=UTC)
         delta = self.policy_delta if policy_delta is None else _coerce_policy_delta(policy_delta)
+        evidence = _normalise_evidence_id(evidence_id) or self.evidence_id
         history_entry = {
             "prior_stage": self.stage.value,
             "next_stage": stage.value,
             "applied_at": applied_timestamp.isoformat(),
             "approvals": sorted(tuple(approvals or self.approvals)),
-            "evidence_id": evidence_id or self.evidence_id,
+            "evidence_id": evidence,
         }
         if delta is not None and not delta.is_empty():
             history_entry["policy_delta"] = dict(delta.as_dict())
@@ -142,7 +150,7 @@ class PolicyLedgerRecord:
             tactic_id=self.tactic_id,
             stage=stage,
             approvals=tuple(sorted(tuple(approvals or self.approvals))),
-            evidence_id=evidence_id or self.evidence_id,
+            evidence_id=evidence,
             threshold_overrides=dict(threshold_overrides or self.threshold_overrides),
             policy_delta=delta,
             metadata=dict(self.metadata) | (dict(metadata) if metadata else {}),
@@ -207,7 +215,7 @@ class PolicyLedgerRecord:
         tactic_id = str(data.get("tactic_id"))
         stage = PolicyLedgerStage.from_value(data.get("stage"))
         approvals = tuple(str(value) for value in data.get("approvals", ()))
-        evidence_id = data.get("evidence_id")
+        evidence_id = _normalise_evidence_id(data.get("evidence_id"))
         threshold_overrides = dict(data.get("threshold_overrides") or {})
         policy_delta_payload = data.get("policy_delta")
         policy_delta = None
@@ -247,7 +255,7 @@ class PolicyLedgerRecord:
             tactic_id=tactic_id,
             stage=stage,
             approvals=approvals,
-            evidence_id=str(evidence_id) if evidence_id else None,
+            evidence_id=evidence_id,
             threshold_overrides=threshold_overrides,
             policy_delta=policy_delta,
             metadata=metadata,
@@ -392,6 +400,7 @@ class PolicyLedgerStore:
         metadata: Mapping[str, Any] | None = None,
     ) -> PolicyLedgerRecord:
         approvals_tuple = _normalise_approvals(approvals)
+        evidence = _normalise_evidence_id(evidence_id)
         delta = _coerce_policy_delta(policy_delta)
         if delta is not None and delta.is_empty():
             delta = None
@@ -407,7 +416,7 @@ class PolicyLedgerStore:
                 updated = record.with_stage(
                     stage,
                     approvals=approvals_tuple,
-                    evidence_id=evidence_id,
+                    evidence_id=evidence,
                     threshold_overrides=threshold_overrides,
                     policy_delta=delta,
                     metadata=metadata,
@@ -419,7 +428,7 @@ class PolicyLedgerStore:
                     "next_stage": stage.value,
                     "applied_at": timestamp.isoformat(),
                     "approvals": list(approvals_tuple),
-                    "evidence_id": evidence_id,
+                    "evidence_id": evidence,
                 }
                 if delta is not None:
                     history_entry["policy_delta"] = dict(delta.as_dict())
@@ -428,7 +437,7 @@ class PolicyLedgerStore:
                     tactic_id=tactic_id,
                     stage=stage,
                     approvals=approvals_tuple,
-                    evidence_id=evidence_id,
+                    evidence_id=evidence,
                     threshold_overrides=dict(threshold_overrides or {}),
                     policy_delta=delta,
                     metadata=dict(metadata or {}),
@@ -576,13 +585,14 @@ class LedgerReleaseManager:
         metadata: Mapping[str, Any] | None = None,
     ) -> PolicyLedgerRecord:
         stage_value = PolicyLedgerStage.from_value(stage)
-        if self._feature_flags.require_diary_evidence and not evidence_id:
+        evidence = _normalise_evidence_id(evidence_id)
+        if self._feature_flags.require_diary_evidence and not evidence:
             raise ValueError("DecisionDiary evidence_id is required for ledger promotions")
-        if evidence_id and self._evidence_resolver is not None:
+        if evidence and self._evidence_resolver is not None:
             try:
-                if not self._evidence_resolver(evidence_id):
+                if not self._evidence_resolver(evidence):
                     raise ValueError(
-                        f"No DecisionDiary evidence located for {evidence_id}"
+                        f"No DecisionDiary evidence located for {evidence}"
                     )
             except Exception as exc:
                 raise ValueError(f"Failed to validate DecisionDiary evidence: {exc}") from exc
@@ -591,7 +601,7 @@ class LedgerReleaseManager:
             tactic_id=tactic_id,
             stage=stage_value,
             approvals=approvals,
-            evidence_id=evidence_id,
+            evidence_id=evidence,
             threshold_overrides=threshold_overrides,
             policy_delta=policy_delta,
             metadata=metadata,

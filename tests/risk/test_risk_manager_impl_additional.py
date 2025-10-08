@@ -27,6 +27,30 @@ async def test_calculate_position_size_exception_returns_configured_minimum() ->
     assert size == pytest.approx(5_000.0)
 
 
+@pytest.mark.asyncio
+async def test_calculate_position_size_returns_zero_without_budget() -> None:
+    config = RiskConfig(min_position_size=1_000, max_position_size=10_000)
+    manager = RiskManagerImpl(initial_balance=0, risk_config=config)
+
+    size = await manager.calculate_position_size(
+        {"symbol": "EURUSD", "confidence": 0.6, "stop_loss_pct": 0.02}
+    )
+
+    assert size == pytest.approx(0.0)
+
+
+@pytest.mark.asyncio
+async def test_calculate_position_size_returns_zero_when_below_minimum_lot() -> None:
+    config = RiskConfig(min_position_size=10_000, max_position_size=50_000)
+    manager = RiskManagerImpl(initial_balance=1_000, risk_config=config)
+
+    size = await manager.calculate_position_size(
+        {"symbol": "EURUSD", "confidence": 0.55, "stop_loss_pct": 0.05}
+    )
+
+    assert size == pytest.approx(0.0)
+
+
 def test_risk_manager_impl_accepts_mapping_payload() -> None:
     manager = RiskManagerImpl(initial_balance=10_000, risk_config={})
 

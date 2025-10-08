@@ -8,6 +8,7 @@ aligned to canonical imports and types.
 """
 
 import logging
+import math
 from typing import Dict, Iterable, Mapping, NotRequired, Sequence, TypedDict
 from decimal import Decimal, InvalidOperation
 from datetime import datetime
@@ -431,30 +432,46 @@ class RiskManagerImpl(RiskManagerProtocol):
             Position size in base currency
         """
         try:
-            # Extract signal parameters
             symbol = signal.get("symbol", "")
             confidence = float(signal.get("confidence", 0.5))
             stop_loss_pct = max(_to_float(signal.get("stop_loss_pct", 0.05)), 1e-9)
 
-            # Calculate win rate based on confidence
             win_rate = max(0.1, min(0.9, confidence))
 
-            # Use simple historical performance assumptions for Kelly calculation
             avg_win = 0.02  # 2% average win
             avg_loss = 0.01  # 1% average loss
 
-            # Kelly fraction: p - q/b where b = avg_win/avg_loss
             b = avg_win / max(avg_loss, 1e-9)
             kelly_fraction = max(0.0, min(1.0, win_rate - (1.0 - win_rate) / b))
 
             risk_budget = self._compute_risk_budget()
+            if risk_budget <= 0:
+                logger.warning(
+                    "Position sizing aborted: no risk budget available (symbol=%s)",
+                    symbol,
+                )
+                return 0.0
+
             position_size = risk_budget / stop_loss_pct
+            if not math.isfinite(position_size) or position_size <= 0:
+                logger.warning(
+                    "Computed invalid position size %.4f for %s; returning 0",
+                    position_size,
+                    symbol,
+                )
+                return 0.0
 
-            # Apply Kelly fraction
             final_size = position_size * kelly_fraction
+            bounded_size = min(self._max_position_size, final_size)
 
-            # Enforce configured boundaries.
-            bounded_size = max(self._min_position_size, min(self._max_position_size, final_size))
+            if bounded_size < self._min_position_size:
+                logger.info(
+                    "Insufficient budget for minimum lot: required=%.2f available=%.2f (symbol=%s)",
+                    self._min_position_size,
+                    bounded_size,
+                    symbol,
+                )
+                return 0.0
 
             logger.info(
                 "Calculated position size: %s size=%.2f (bounded to %.2f)",
@@ -463,7 +480,7 @@ class RiskManagerImpl(RiskManagerProtocol):
                 bounded_size,
             )
 
-            return max(self._min_position_size, bounded_size)
+            return bounded_size
 
         except Exception as e:
             logger.error(f"Error calculating position size: {e}")

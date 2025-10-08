@@ -51,3 +51,19 @@ def test_policy_ledger_store_merges_sequential_writers(tmp_path) -> None:
         "alpha": PolicyLedgerStage.EXPERIMENT,
         "beta": PolicyLedgerStage.PAPER,
     }
+
+
+def test_policy_ledger_lock_disabled_raises(tmp_path) -> None:
+    store = PolicyLedgerStore(tmp_path / "ledger.json", lock_timeout=0)
+
+    with pytest.raises(TimeoutError):
+        with store._exclusive_lock():
+            pass
+
+
+def test_policy_ledger_load_invalid_json(tmp_path) -> None:
+    ledger_path = tmp_path / "ledger.json"
+    ledger_path.write_text("{ invalid")
+
+    with pytest.raises(ValueError):
+        PolicyLedgerStore(ledger_path)

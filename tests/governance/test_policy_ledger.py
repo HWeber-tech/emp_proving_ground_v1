@@ -15,6 +15,7 @@ from src.governance.policy_ledger import (
     PolicyLedgerFeatureFlags,
     PolicyLedgerStage,
     PolicyLedgerStore,
+    _parse_bool,
     build_policy_governance_workflow,
 )
 
@@ -147,6 +148,20 @@ def test_policy_ledger_requires_diary_evidence(tmp_path: Path) -> None:
         )
 
 
+def test_policy_ledger_rejects_blank_evidence(tmp_path: Path) -> None:
+    store = PolicyLedgerStore(tmp_path / "ledger.json")
+    manager = LedgerReleaseManager(store)
+
+    with pytest.raises(ValueError):
+        manager.promote(
+            policy_id="alpha.policy",
+            tactic_id="tactic.alpha",
+            stage=PolicyLedgerStage.PAPER,
+            evidence_id="   ",
+            approvals=("risk",),
+        )
+
+
 def test_policy_ledger_rejects_unsigned_policy_delta(tmp_path: Path) -> None:
     store = PolicyLedgerStore(tmp_path / "ledger.json")
 
@@ -181,6 +196,29 @@ def test_policy_governance_workflow_builds_tasks(tmp_path: Path) -> None:
     task = checklist.tasks[0]
     assert task.status.value in {"completed", "in_progress"}
     assert task.metadata["policy_id"] == "alpha.policy"
+
+
+def test_policy_ledger_trims_evidence_identifiers(tmp_path: Path) -> None:
+    path = tmp_path / "policy_ledger.json"
+    store = PolicyLedgerStore(path)
+    manager = LedgerReleaseManager(
+        store,
+        feature_flags=PolicyLedgerFeatureFlags(require_diary_evidence=False),
+    )
+
+    record = manager.promote(
+        policy_id="alpha.policy",
+        tactic_id="tactic.alpha",
+        stage=PolicyLedgerStage.PAPER,
+        evidence_id="  diary-123  ",
+        approvals=("risk",),
+    )
+
+    assert record.evidence_id == "diary-123"
+
+    reloaded = PolicyLedgerStore(path).get("alpha.policy")
+    assert reloaded is not None
+    assert reloaded.evidence_id == "diary-123"
 
 
 def test_release_manager_enforces_audit_coverage(tmp_path: Path) -> None:
@@ -234,3 +272,17 @@ def test_release_manager_enforces_audit_coverage(tmp_path: Path) -> None:
     assert summary["stage"] == PolicyLedgerStage.LIMITED_LIVE.value
     assert summary.get("audit_gaps", []) == []
     assert summary["audit_enforced"] is False
+
+
+def test_policy_ledger_feature_flags_env_parsing() -> None:
+    enabled = PolicyLedgerFeatureFlags.from_env({"POLICY_LEDGER_REQUIRE_DIARY": "ON"})
+    disabled = PolicyLedgerFeatureFlags.from_env({"POLICY_LEDGER_REQUIRE_DIARY": "off"})
+    null_coerced = PolicyLedgerFeatureFlags.from_env({"POLICY_LEDGER_REQUIRE_DIARY": None})
+
+    assert enabled.require_diary_evidence is True
+    assert disabled.require_diary_evidence is False
+    assert null_coerced.require_diary_evidence is True
+
+
+def test_parse_bool_handles_none() -> None:
+    assert _parse_bool(None) is False

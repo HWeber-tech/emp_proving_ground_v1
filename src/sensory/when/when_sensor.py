@@ -10,6 +10,7 @@ from typing import Iterable, Sequence
 import pandas as pd
 
 from src.sensory.signals import SensorSignal
+from src.sensory.lineage import build_lineage_record
 from src.sensory.when.session_analytics import SessionAnalytics
 from src.sensory.when.gamma_exposure import (
     GammaExposureAnalyzer,
@@ -146,6 +147,48 @@ class WhenSensor:
         }
         metadata["session"] = session_snapshot.as_dict()
 
+        timestamp_dt = timestamp.to_pydatetime()
+        quality = {
+            "source": "sensory.when",
+            "timestamp": timestamp_dt.isoformat(),
+            "confidence": float(confidence),
+            "strength": float(strength),
+        }
+        data_quality = row.get("data_quality")
+        try:
+            if data_quality is not None:
+                quality["data_quality"] = float(data_quality)
+        except (TypeError, ValueError):
+            pass
+
+        lineage = build_lineage_record(
+            "WHEN",
+            "sensory.when",
+            inputs={
+                "session_intensity": float(session_intensity),
+                "news_proximity": float(news_proximity),
+                "gamma_impact": float(gamma_impact),
+            },
+            outputs={
+                "strength": float(strength),
+                "confidence": float(confidence),
+            },
+            telemetry={
+                "gamma_pin_risk": float(gamma_summary.pin_risk_score),
+                "gamma_pressure": float(gamma_summary.gamma_pressure),
+                "gamma_flip_risk": bool(gamma_summary.flip_risk),
+                "session_active": len(session_snapshot.active_sessions),
+            },
+            metadata={
+                "timestamp": timestamp_dt.isoformat(),
+                "active_sessions": list(session_snapshot.active_sessions),
+                "upcoming_session": session_snapshot.upcoming_session,
+                "minutes_to_close": session_snapshot.minutes_to_session_close,
+            },
+        )
+        metadata["quality"] = quality
+        metadata["lineage"] = lineage.as_dict()
+
         value = {
             "strength": strength,
             "confidence": confidence,
@@ -160,6 +203,7 @@ class WhenSensor:
                 value=value,
                 confidence=confidence,
                 metadata=metadata,
+                lineage=lineage,
             )
         ]
 

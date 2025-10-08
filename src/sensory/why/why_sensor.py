@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from datetime import datetime
+from datetime import datetime, timezone
 
 import pandas as pd
 
 from src.sensory.dimensions.why.yield_signal import YieldSlopeTracker
 from src.sensory.why.narrative_hooks import NarrativeEvent, NarrativeHookEngine, NarrativeSummary
 from src.sensory.signals import SensorSignal
+from src.sensory.lineage import build_lineage_record
 
 _DEFAULT_YIELD_COLUMNS: Mapping[str, str] = {
     "yield_2y": "2Y",
@@ -172,11 +173,78 @@ class WhySensor:
         if narrative_summary is not None:
             value["narrative_sentiment"] = float(narrative_summary.sentiment_score)
 
+        timestamp = self._resolve_timestamp(df, as_of)
+        quality = {
+            "source": "sensory.why",
+            "timestamp": timestamp.isoformat(),
+            "confidence": float(combined_confidence),
+            "strength": float(combined_strength),
+        }
+        data_quality = self._extract_data_quality(df)
+        if data_quality is not None:
+            quality["data_quality"] = data_quality
+
+        lineage = build_lineage_record(
+            "WHY",
+            "sensory.why",
+            inputs={
+                "volatility": float(vol),
+                "price_slope": float(slope),
+                "macro_bias": float(macro_bias),
+                "yield_direction": float(yield_direction),
+                "yield_confidence": float(yield_confidence),
+            },
+            outputs={
+                "strength": float(combined_strength),
+                "confidence": float(combined_confidence),
+            },
+            telemetry={
+                "macro_strength": float(base_strength),
+                "macro_confidence": float(base_confidence),
+                "yield_strength": float(yield_strength),
+            },
+            metadata={
+                "timestamp": timestamp.isoformat(),
+                "mode": "macro_yield_fusion",
+                "narrative_present": narrative_summary is not None,
+            },
+        )
+
+        metadata["quality"] = quality
+        metadata["lineage"] = lineage.as_dict()
+
         return [
             SensorSignal(
                 signal_type="WHY",
                 value=value,
                 confidence=float(combined_confidence),
                 metadata=metadata,
+                lineage=lineage,
             )
         ]
+
+    def _resolve_timestamp(
+        self, df: pd.DataFrame, as_of: datetime | pd.Timestamp | None
+    ) -> datetime:
+        if as_of is not None:
+            ts = pd.Timestamp(as_of)
+            if ts.tzinfo is None:
+                ts = ts.tz_localize(timezone.utc)
+            else:
+                ts = ts.tz_convert(timezone.utc)
+            return ts.to_pydatetime()
+        if not df.empty and "timestamp" in df:
+            ts = pd.to_datetime(df["timestamp"].iloc[-1], utc=True, errors="coerce")
+            if ts is not None and not pd.isna(ts):
+                if ts.tzinfo is None:
+                    ts = ts.tz_localize(timezone.utc)
+                return ts.to_pydatetime()
+        return datetime.now(timezone.utc)
+
+    def _extract_data_quality(self, df: pd.DataFrame) -> float | None:
+        if "data_quality" not in df or df["data_quality"].empty:
+            return None
+        try:
+            return float(df["data_quality"].iloc[-1])
+        except (TypeError, ValueError):
+            return None

@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import asyncio
+from datetime import datetime, timezone
 from collections.abc import Mapping, Sequence
 from typing import Any, List
 
 import pandas as pd
 
+from src.sensory.lineage import build_lineage_record
 from src.sensory.signals import SensorSignal
 from src.sensory.what.patterns.orchestrator import PatternOrchestrator
 
@@ -129,6 +131,42 @@ class WhatSensor:
         confidence = _coerce_float(patterns.get("confidence_score"), default=0.5)
         details = _normalise_pattern_payload(patterns)
 
+        timestamp = self._resolve_timestamp(df)
+        quality = {
+            "source": "sensory.what",
+            "timestamp": timestamp.isoformat(),
+            "confidence": float(confidence),
+            "strength": float(strength),
+        }
+        data_quality = self._extract_data_quality(df)
+        if data_quality is not None:
+            quality["data_quality"] = data_quality
+
+        lineage = build_lineage_record(
+            "WHAT",
+            "sensory.what",
+            inputs={
+                "window": window,
+                "high": float(high),
+                "low": float(low),
+                "last_close": float(last),
+                "base_strength": float(base_strength),
+            },
+            outputs={
+                "pattern_strength": float(strength),
+                "confidence": float(confidence),
+            },
+            telemetry={
+                "pattern_strength": float(strength),
+                "confidence": float(confidence),
+            },
+            metadata={
+                "timestamp": timestamp.isoformat(),
+                "mode": "pattern_analysis",
+                "pattern_details": details,
+            },
+        )
+
         signal_metadata: dict[str, object] = {
             "source": "sensory.what",
             "window": window,
@@ -137,8 +175,9 @@ class WhatSensor:
             "last_close": last,
             "base_strength": base_strength,
             "pattern_payload": details,
+            "quality": quality,
+            "lineage": lineage.as_dict(),
         }
-
         value: dict[str, object] = {
             "pattern_strength": strength,
             "confidence": confidence,
@@ -153,5 +192,23 @@ class WhatSensor:
                 value=value,
                 confidence=confidence,
                 metadata=signal_metadata,
+                lineage=lineage,
             )
         ]
+
+    def _resolve_timestamp(self, df: pd.DataFrame) -> datetime:
+        if not df.empty and "timestamp" in df:
+            ts = pd.to_datetime(df["timestamp"].iloc[-1], utc=True, errors="coerce")
+            if ts is not None and not pd.isna(ts):
+                if ts.tzinfo is None:
+                    ts = ts.tz_localize(timezone.utc)
+                return ts.to_pydatetime()
+        return datetime.now(timezone.utc)
+
+    def _extract_data_quality(self, df: pd.DataFrame) -> float | None:
+        if "data_quality" not in df or df["data_quality"].empty:
+            return None
+        try:
+            return float(df["data_quality"].iloc[-1])
+        except (TypeError, ValueError):
+            return None

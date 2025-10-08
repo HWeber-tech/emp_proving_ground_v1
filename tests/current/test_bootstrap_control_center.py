@@ -155,6 +155,16 @@ async def test_control_center_compiles_telemetry_report() -> None:
     assert report["risk"]["snapshot"]["status"] in {"ok", "warn", "alert"}
     assert report["risk"]["policy"] is not None
     assert report["risk"]["policy"]["snapshot"]["symbol"] == "EURUSD"
+    assert report["risk"]["runbook"].endswith("risk_api_contract.md")
+    metadata = report["risk"].get("metadata")
+    assert metadata is not None
+    assert metadata.get("runbook", "").endswith("risk_api_contract.md")
+    reference = report["risk"].get("risk_reference")
+    assert reference is not None
+    assert reference["risk_api_runbook"].endswith("risk_api_contract.md")
+    summary = reference.get("risk_config_summary")
+    assert summary is not None
+    assert summary["max_risk_per_trade_pct"] == pytest.approx(float(risk_config.max_risk_per_trade_pct))
     interface = report["risk"].get("interface")
     assert interface is not None
     assert interface.get("summary", {}).get("runbook") == RISK_API_RUNBOOK
@@ -177,6 +187,15 @@ async def test_control_center_compiles_telemetry_report() -> None:
     interface_overview = overview.get("risk_interface")
     assert interface_overview is not None
     assert interface_overview.get("summary", {}).get("runbook") == RISK_API_RUNBOOK
+    overview_reference = overview.get("risk_reference")
+    assert overview_reference is not None
+    assert overview_reference["risk_api_runbook"].endswith("risk_api_contract.md")
+    assert overview.get("risk_runbook", "").endswith("risk_api_contract.md")
+    overview_metadata = overview.get("risk_metadata")
+    assert overview_metadata is not None
+    assert overview_metadata.get("max_total_exposure_pct") == pytest.approx(
+        float(risk_config.max_total_exposure_pct)
+    )
     assert overview["roi_posture"]["status"] in {"ahead", "tracking", "at_risk"}
     assert overview["evolution"]["generations"] == orchestrator.telemetry["total_generations"]
     assert overview["vision_alignment"]["status"] in {"ready", "progressing", "gap"}

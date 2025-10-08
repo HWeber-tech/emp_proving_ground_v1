@@ -12,9 +12,39 @@ from src.governance.vision_alignment import VisionAlignmentReport
 from src.operations.roi import format_roi_markdown as format_roi_summary
 from src.orchestration.bootstrap_stack import SensorySnapshot
 from src.trading.risk.policy_telemetry import format_policy_markdown
+from src.trading.risk.risk_api import (
+    RISK_API_RUNBOOK,
+    RiskApiError,
+    build_runtime_risk_metadata,
+    merge_risk_references,
+)
 
 
 _log = logging.getLogger(__name__)
+
+
+# Keys from the deterministic risk summary we elevate into risk references.
+_RISK_SUMMARY_KEYS = {
+    "max_risk_per_trade_pct",
+    "max_total_exposure_pct",
+    "max_leverage",
+    "max_drawdown_pct",
+    "min_position_size",
+    "max_position_size",
+    "mandatory_stop_loss",
+    "research_mode",
+    "target_volatility_pct",
+    "volatility_window",
+    "max_volatility_leverage",
+    "volatility_annualisation_factor",
+    "sector_exposure_limits",
+    "instrument_sector_map",
+    "sector_budget_total_pct",
+    "sector_headroom_pct",
+    "sector_headroom_ratio",
+    "max_sector_utilisation_ratio",
+    "sector_instrument_counts",
+}
 
 
 def _as_float(value: object, default: float = 0.0) -> float:
@@ -161,6 +191,10 @@ class BootstrapControlCenter:
         self._history: Deque[dict[str, Any]] = deque(maxlen=max(16, history_limit))
         self._last_snapshot: SensorySnapshot | None = None
         self._last_liquidity_summary: dict[str, Any] | None = None
+        self._last_risk_metadata: dict[str, object] | None = None
+        self._last_risk_error: dict[str, object] | None = None
+        self._last_risk_reference: dict[str, object] | None = None
+        self._last_risk_runbook: str = RISK_API_RUNBOOK
 
     # ------------------------------------------------------------------
     # Recording helpers
@@ -194,6 +228,80 @@ class BootstrapControlCenter:
 
         self._history.appendleft(record)
         self._last_snapshot = snapshot
+
+    def _update_risk_metadata(self) -> None:
+        """Refresh the cached deterministic risk metadata for the trading manager."""
+
+        self._last_risk_metadata = None
+        self._last_risk_error = None
+
+        try:
+            metadata = build_runtime_risk_metadata(self.trading_manager)
+        except RiskApiError as exc:
+            self._last_risk_error = exc.to_metadata()
+        except Exception as exc:  # pragma: no cover - diagnostic fallback
+            _log.debug("Risk metadata resolution failed", exc_info=True)
+            self._last_risk_error = {
+                "message": "Bootstrap control centre risk metadata resolution failed",
+                "error": str(exc),
+                "runbook": RISK_API_RUNBOOK,
+            }
+        else:
+            self._last_risk_metadata = dict(metadata)
+
+    def _compose_risk_reference(
+        self,
+        limits_payload: Mapping[str, Any] | None,
+        interface_payload: Mapping[str, Any] | None,
+    ) -> tuple[dict[str, object] | None, str]:
+        """Merge available risk references and determine the prevailing runbook."""
+
+        runbook = RISK_API_RUNBOOK
+        reference_candidates: list[Mapping[str, object]] = []
+
+        if isinstance(limits_payload, Mapping):
+            runbook_candidate = limits_payload.get("runbook")
+            if isinstance(runbook_candidate, str) and runbook_candidate:
+                runbook = runbook_candidate
+            reference_candidate = limits_payload.get("risk_reference")
+            if isinstance(reference_candidate, Mapping):
+                reference_candidates.append(reference_candidate)
+
+        if isinstance(interface_payload, Mapping):
+            runbook_candidate = interface_payload.get("runbook")
+            if isinstance(runbook_candidate, str) and runbook_candidate:
+                runbook = runbook_candidate
+            reference_candidate = interface_payload.get("risk_reference")
+            if isinstance(reference_candidate, Mapping):
+                reference_candidates.append(reference_candidate)
+
+        metadata = self._last_risk_metadata
+        if metadata is not None:
+            metadata_runbook = metadata.get("runbook")
+            if isinstance(metadata_runbook, str) and metadata_runbook:
+                runbook = metadata_runbook
+            summary: dict[str, object] = {}
+            for key in _RISK_SUMMARY_KEYS:
+                if key not in metadata:
+                    continue
+                value = metadata[key]
+                summary[key] = dict(value) if isinstance(value, Mapping) else value
+            if summary:
+                reference_candidates.append({"risk_config_summary": summary})
+
+        error = self._last_risk_error
+        if error is not None:
+            error_runbook = error.get("runbook")
+            if isinstance(error_runbook, str) and error_runbook:
+                runbook = error_runbook
+
+        reference: dict[str, object] | None = None
+        if reference_candidates:
+            reference = merge_risk_references(*reference_candidates, runbook=runbook)
+
+        self._last_risk_reference = reference
+        self._last_risk_runbook = runbook
+        return reference, runbook
 
     # ------------------------------------------------------------------
     # Public reporting surfaces
@@ -271,6 +379,28 @@ class BootstrapControlCenter:
         if interface_payload is not None:
             overview["risk_interface"] = interface_payload
 
+        limits_payload: Mapping[str, Any] | None = None
+        gateway = self.risk_gateway
+        if gateway is not None and hasattr(gateway, "get_risk_limits"):
+            try:
+                limits_candidate = gateway.get_risk_limits()
+            except Exception:  # pragma: no cover - defensive diagnostics
+                _log.debug("Risk gateway limits resolution failed for overview", exc_info=True)
+            else:
+                if isinstance(limits_candidate, Mapping):
+                    limits_payload = dict(limits_candidate)
+
+        self._update_risk_metadata()
+        reference, runbook = self._compose_risk_reference(limits_payload, interface_payload)
+
+        if self._last_risk_metadata is not None:
+            overview["risk_metadata"] = dict(self._last_risk_metadata)
+        if self._last_risk_error is not None:
+            overview["risk_metadata_error"] = dict(self._last_risk_error)
+        if reference is not None:
+            overview["risk_reference"] = reference
+        overview.setdefault("risk_runbook", runbook)
+
         roi_obj = _call_trading_manager_method(
             self.trading_manager, "get_last_roi_snapshot"
         )
@@ -306,7 +436,12 @@ class BootstrapControlCenter:
     def _build_risk_section(self) -> Mapping[str, Any]:
         gateway = self.risk_gateway
         if gateway is None:
-            return {"limits": {}, "telemetry": {}, "last_decision": None}
+            return {
+                "limits": {},
+                "telemetry": {},
+                "last_decision": None,
+                "runbook": RISK_API_RUNBOOK,
+            }
 
         limits = gateway.get_risk_limits() if hasattr(gateway, "get_risk_limits") else {}
         last_decision = (
@@ -317,6 +452,14 @@ class BootstrapControlCenter:
             dict(limits) if isinstance(limits, Mapping) else {"limits": {}, "telemetry": {}}
         )
         interface_payload = _describe_risk_interface_payload(self.trading_manager)
+
+        self._update_risk_metadata()
+        metadata = dict(self._last_risk_metadata) if self._last_risk_metadata is not None else None
+        metadata_error = (
+            dict(self._last_risk_error) if self._last_risk_error is not None else None
+        )
+        reference, runbook = self._compose_risk_reference(limits_payload, interface_payload)
+
         snapshot_obj = _call_trading_manager_method(
             self.trading_manager, "get_last_risk_snapshot"
         )
@@ -347,7 +490,7 @@ class BootstrapControlCenter:
         else:
             release_block = None
 
-        return {
+        payload: dict[str, Any] = {
             "limits": dict(limits_payload.get("limits", {})),
             "telemetry": dict(limits_payload.get("telemetry", {})),
             "last_decision": dict(last_decision)
@@ -357,7 +500,17 @@ class BootstrapControlCenter:
             "policy": policy_block,
             "interface": interface_payload,
             "release_execution": release_block,
+            "runbook": runbook,
         }
+
+        if metadata is not None:
+            payload["metadata"] = metadata
+        if metadata_error is not None:
+            payload["metadata_error"] = metadata_error
+        if reference is not None:
+            payload["risk_reference"] = reference
+
+        return payload
 
     def _build_intelligence_section(self) -> Mapping[str, Any]:
         snapshot = self._last_snapshot

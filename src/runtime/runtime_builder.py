@@ -14,7 +14,7 @@ import inspect
 import json
 import logging
 from dataclasses import dataclass, field, replace
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from collections.abc import Mapping as MappingABC
 from typing import Any, Awaitable, Callable, Mapping, MutableMapping, Sequence, cast
@@ -193,6 +193,9 @@ from src.operations.regulatory_telemetry import (
     RegulatoryTelemetryStatus,
     evaluate_regulatory_telemetry,
     publish_regulatory_telemetry,
+)
+from src.operations.governance_cadence import (
+    build_governance_cadence_runner_from_config,
 )
 from src.operations.governance_reporting import (
     GovernanceReport,
@@ -2441,6 +2444,194 @@ def _configure_runtime_logging(config: SystemConfig) -> None:
         )
 
 
+def _configure_governance_cadence(
+    runtime_app: RuntimeApplication,
+    app: ProfessionalPredatorApp,
+    tracer: RuntimeTracer,
+    extras: Mapping[str, str],
+) -> None:
+    """Attach the governance cadence runner when extras request it."""
+
+    enabled = _coerce_bool(extras.get("GOVERNANCE_CADENCE_ENABLED"), False)
+    if not enabled:
+        return
+
+    interval_seconds = _coerce_int(extras.get("GOVERNANCE_CADENCE_INTERVAL_SECONDS"), 86_400)
+    if interval_seconds <= 0:
+        logger.warning("Governance cadence disabled due to non-positive interval", extra={"cadence.interval": interval_seconds})
+        return
+
+    default_poll = max(60.0, min(interval_seconds / 4.0, 900.0))
+    poll_seconds = _coerce_float(extras.get("GOVERNANCE_CADENCE_POLL_SECONDS"), default_poll)
+    if poll_seconds <= 0:
+        poll_seconds = default_poll
+
+    report_path_hint = extras.get("GOVERNANCE_CADENCE_REPORT_PATH")
+    report_path = Path(report_path_hint) if report_path_hint else Path("reports/governance.json")
+    if not report_path.is_absolute():
+        report_path = Path.cwd() / report_path
+
+    base_path: Path | None = None
+    base_path_hint = extras.get("GOVERNANCE_CONTEXT_BASE_DIR")
+    if base_path_hint:
+        candidate = Path(base_path_hint).expanduser()
+        if not candidate.is_absolute():
+            base_path = Path.cwd() / candidate
+        else:
+            base_path = candidate
+
+    history_limit = max(0, _coerce_int(extras.get("GOVERNANCE_CADENCE_HISTORY_LIMIT"), 12))
+
+    strategy_hint = (
+        extras.get("GOVERNANCE_CADENCE_STRATEGY_ID")
+        or extras.get("KYC_STRATEGY_ID")
+        or extras.get("COMPLIANCE_STRATEGY_ID")
+        or extras.get("STRATEGY_ID")
+    )
+    strategy_id = str(strategy_hint).strip() if strategy_hint else None
+
+    metadata_entries: dict[str, object] = {
+        "cadence_runner": "runtime.builder",
+        "runtime_environment": app.config.environment.value,
+        "runtime_tier": app.config.tier.value,
+        "runtime_run_mode": app.config.run_mode.value,
+        "cadence_poll_seconds": round(poll_seconds, 3),
+    }
+    prefix = "GOVERNANCE_CADENCE_META_"
+    for key, value in extras.items():
+        if key.startswith(prefix):
+            meta_key = key[len(prefix) :].strip().lower()
+            if meta_key:
+                metadata_entries[meta_key] = value
+
+    try:
+        runner = build_governance_cadence_runner_from_config(
+            event_bus=app.event_bus,
+            config=app.config,
+            report_path=report_path,
+            interval=timedelta(seconds=interval_seconds),
+            base_path=base_path,
+            history_limit=history_limit,
+            metadata=metadata_entries,
+            strategy_id=strategy_id,
+        )
+    except Exception:
+        logger.exception("Failed to initialise governance cadence runner")
+        return
+
+    original_compliance_provider = runner.compliance_provider
+    original_regulatory_provider = runner.regulatory_provider
+
+    def _compliance_provider() -> ComplianceReadinessSnapshot | Mapping[str, object] | None:
+        snapshot = app.get_last_compliance_readiness_snapshot()
+        if snapshot is not None:
+            return snapshot
+        return original_compliance_provider()
+
+    def _regulatory_provider() -> RegulatoryTelemetrySnapshot | Mapping[str, object] | None:
+        snapshot = app.get_last_regulatory_snapshot()
+        if snapshot is not None:
+            return snapshot
+        return original_regulatory_provider()
+
+    runner.compliance_provider = _compliance_provider
+    runner.regulatory_provider = _regulatory_provider
+
+    force_on_start = _coerce_bool(extras.get("GOVERNANCE_CADENCE_FORCE_ON_START"), False)
+    poll_timeout = float(poll_seconds)
+
+    cadence_task: asyncio.Task[object] | None = None
+    cadence_stop_event: asyncio.Event | None = None
+    runtime_app._governance_cadence_runner = runner  # type: ignore[attr-defined]
+
+    async def _governance_cadence_loop(force_initial: bool) -> None:
+        nonlocal cadence_stop_event
+        assert cadence_stop_event is not None
+        force_next = force_initial
+        try:
+            while True:
+                if cadence_stop_event.is_set():
+                    break
+                reference = datetime.now(tz=UTC)
+                metadata = {
+                    "force": force_next,
+                    "cadence_interval_seconds": interval_seconds,
+                }
+                with tracer.operation_span(
+                    name="governance.cadence.run",
+                    metadata=metadata,
+                ):
+                    try:
+                        report = await asyncio.to_thread(
+                            runner.run,
+                            reference=reference,
+                            force=force_next,
+                        )
+                    except asyncio.CancelledError:
+                        raise
+                    except Exception:
+                        logger.exception("Governance cadence execution failed")
+                    else:
+                        if report is not None:
+                            record_governance = getattr(app, "record_governance_report", None)
+                            if callable(record_governance):
+                                try:
+                                    record_governance(report)
+                                except Exception:
+                                    logger.debug(
+                                        "Failed to record governance report from cadence",
+                                        exc_info=True,
+                                    )
+                force_next = False
+                try:
+                    await asyncio.wait_for(cadence_stop_event.wait(), timeout=poll_timeout)
+                    break
+                except asyncio.TimeoutError:
+                    continue
+        finally:
+            if cadence_stop_event is not None:
+                cadence_stop_event.set()
+
+    async def _start_governance_cadence() -> None:
+        nonlocal cadence_task, cadence_stop_event
+        if cadence_task is not None:
+            return
+        cadence_stop_event = asyncio.Event()
+        cadence_task = asyncio.create_task(
+            _governance_cadence_loop(force_on_start),
+            name="governance-cadence-runner",
+        )
+        logger.info(
+            "📑 Governance cadence runner enabled: interval=%ss poll=%.1fs path=%s",
+            interval_seconds,
+            poll_timeout,
+            report_path,
+        )
+
+    async def _stop_governance_cadence() -> None:
+        nonlocal cadence_task, cadence_stop_event
+        if cadence_task is None:
+            if hasattr(runtime_app, "_governance_cadence_runner"):
+                delattr(runtime_app, "_governance_cadence_runner")
+            return
+        if cadence_stop_event is not None:
+            cadence_stop_event.set()
+        cadence_task.cancel()
+        try:
+            await cadence_task
+        except asyncio.CancelledError:
+            pass
+        finally:
+            cadence_task = None
+            cadence_stop_event = None
+            if hasattr(runtime_app, "_governance_cadence_runner"):
+                delattr(runtime_app, "_governance_cadence_runner")
+        logger.info("📑 Governance cadence runner stopped")
+
+    runtime_app.add_startup_callback(_start_governance_cadence)
+    runtime_app.add_shutdown_callback(_stop_governance_cadence)
+
+
 def _resolve_system_validation_snapshot(
     extras: Mapping[str, str],
     metadata: Mapping[str, object],
@@ -3615,6 +3806,7 @@ def build_professional_runtime_application(
         runtime_app.add_startup_callback(risk_startup_callback)
 
     extras = app.config.extras or {}
+    _configure_governance_cadence(runtime_app, app, runtime_tracer, extras)
     health_enabled = _coerce_bool(extras.get("RUNTIME_HEALTHCHECK_ENABLED", True), True)
     if health_enabled:
         host = str(extras.get("RUNTIME_HEALTHCHECK_HOST", "0.0.0.0"))

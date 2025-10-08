@@ -12,6 +12,8 @@ import logging
 import pytest
 import pandas as pd
 
+import src.runtime.runtime_builder as runtime_builder_module
+
 from src.config.risk.risk_config import RiskConfig
 from src.governance.system_config import ConnectionProtocol, DataBackboneMode, EmpTier, SystemConfig
 from src.operations.backup import BackupReadinessSnapshot, BackupStatus
@@ -261,6 +263,7 @@ async def test_builder_bootstrap_mode(monkeypatch, tmp_path):
         assert trading_metadata["risk"]["mandatory_stop_loss"] is True
         assert trading_metadata["risk"]["runbook"].endswith("risk_api_contract.md")
     finally:
+        await runtime_app.shutdown()
         await app.shutdown()
 
 
@@ -290,6 +293,7 @@ async def test_builder_requires_trading_manager(tmp_path):
         assert "Trading manager not attached" in message
         assert "risk_api_contract.md" in message
     finally:
+        await runtime_app.shutdown()
         await app.shutdown()
 
 
@@ -1348,3 +1352,89 @@ def test_normalise_ingest_plan_metadata_handles_iterables(
     value: object, expected: list[str]
 ) -> None:
     assert _normalise_ingest_plan_metadata(value) == expected
+
+
+@pytest.mark.asyncio()
+async def test_builder_configures_governance_cadence(monkeypatch, tmp_path):
+    cfg = SystemConfig().with_updated(
+        connection_protocol=ConnectionProtocol.bootstrap,
+        data_backbone_mode=DataBackboneMode.bootstrap,
+        extras={
+            "BOOTSTRAP_SYMBOLS": "EURUSD",
+            "RUNTIME_HEALTHCHECK_ENABLED": False,
+            "GOVERNANCE_CADENCE_ENABLED": "true",
+            "GOVERNANCE_CADENCE_INTERVAL_SECONDS": "3600",
+            "GOVERNANCE_CADENCE_POLL_SECONDS": "0.05",
+            "GOVERNANCE_CADENCE_FORCE_ON_START": "1",
+            "GOVERNANCE_CADENCE_REPORT_PATH": str(tmp_path / "reports" / "governance.json"),
+        },
+    )
+
+    app = await build_professional_predator_app(config=cfg)
+
+    class _StubRunner:
+        def __init__(self) -> None:
+            self.compliance_provider = lambda: None
+            self.regulatory_provider = lambda: None
+            self.run_calls: list[tuple[datetime | None, bool]] = []
+
+        def run(self, *, reference: datetime | None = None, force: bool = False):
+            self.run_calls.append((reference, force))
+            return object()
+
+    stub_runner = _StubRunner()
+    captured_kwargs: list[dict[str, object]] = []
+
+    def _fake_builder(*args, **kwargs):
+        captured_kwargs.append(kwargs)
+        return stub_runner
+
+    monkeypatch.setattr(
+        runtime_builder_module,
+        "build_governance_cadence_runner_from_config",
+        _fake_builder,
+    )
+
+    reports: list[object] = []
+
+    def _record_report(report: object) -> None:
+        reports.append(report)
+
+    app.record_governance_report = _record_report  # type: ignore[assignment]
+
+    runtime_app = build_professional_runtime_application(
+        app,
+        skip_ingest=True,
+        symbols_csv="EURUSD",
+        duckdb_path=str(tmp_path / "tier0.duckdb"),
+    )
+
+    try:
+        assert getattr(runtime_app, "_governance_cadence_runner") is stub_runner
+
+        assert captured_kwargs, "Cadence runner builder should be invoked"
+        kwargs = captured_kwargs[0]
+        metadata = kwargs["metadata"]
+        assert metadata["cadence_runner"] == "runtime.builder"
+        assert str(kwargs["report_path"]).startswith(str(tmp_path))
+
+        start_cb = next(
+            cb for cb in runtime_app.startup_callbacks if cb.__name__ == "_start_governance_cadence"
+        )
+        await start_cb()
+
+        await asyncio.sleep(0.1)
+
+        assert stub_runner.run_calls, "Cadence loop should trigger runner"
+        reference, force_flag = stub_runner.run_calls[0]
+        assert isinstance(reference, datetime)
+        assert force_flag is True
+        assert reports, "Governance report should be recorded"
+
+        await runtime_app.shutdown()
+        runs_after_shutdown = len(stub_runner.run_calls)
+        await asyncio.sleep(0.1)
+        assert len(stub_runner.run_calls) == runs_after_shutdown
+        assert not hasattr(runtime_app, "_governance_cadence_runner")
+    finally:
+        await app.shutdown()

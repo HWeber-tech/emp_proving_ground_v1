@@ -43,6 +43,10 @@ runtime output so the context stays anchored to the concept blueprint.
   evidence when required, persists history with metadata, and emits Markdown
   alongside JSON so operators can script cadence exports without bespoke
   tooling.【F:tools/telemetry/export_governance_report.py†L1-L260】【F:tests/tools/test_export_governance_report.py†L1-L139】
+- Professional runtime builder now honours the `GOVERNANCE_CADENCE_*` extras to
+  schedule the cadence loop, persist history, and record the latest governance
+  report on the app so live runs emit the same artefacts as the CLI without
+  manual wiring.【F:src/runtime/runtime_builder.py†L2447-L2630】【F:tests/runtime/test_runtime_builder.py†L1356-L1438】
 - Pytest coverage captures the workflow evaluator, publisher contract, and runtime
   integration so CI guards the new starter kits end-to-end.【F:tests/compliance/test_compliance_workflow.py†L1-L98】【F:tests/runtime/test_runtime_builder.py†L160-L240】【F:tests/runtime/test_professional_app_timescale.py†L200-L320】
 

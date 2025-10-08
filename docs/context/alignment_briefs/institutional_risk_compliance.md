@@ -183,6 +183,10 @@
   outputs so operators can execute the cadence outside the runtime while
   preserving persisted history and metadata provenance under pytest
   coverage.【F:tools/governance/run_cadence.py†L1-L368】【F:tests/tools/test_run_governance_cadence.py†L47-L138】
+- Progress: Professional runtime builder now honours `GOVERNANCE_CADENCE_*`
+  extras, scheduling the cadence loop, persisting history, and recording the
+  latest governance report during live runs so background reporting matches the
+  CLI cadence under regression coverage.【F:src/runtime/runtime_builder.py†L2447-L2630】【F:tests/runtime/test_runtime_builder.py†L1356-L1438】
 - [x] Wire compliance workflows (KYC, trade surveillance) with markdown exports
   and optional Timescale journaling to satisfy audit requirements.
   - Progress: Compliance workflow evaluation now converts trade,

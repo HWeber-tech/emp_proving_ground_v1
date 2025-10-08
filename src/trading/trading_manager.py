@@ -137,8 +137,16 @@ class TradingManager:
         """
         self.event_bus = event_bus
         self.strategy_registry = strategy_registry
+        self._installing_release_router = False
+        self._release_manager = release_manager
+        self._adaptive_thresholds: Optional[AdaptiveReleaseThresholds] = (
+            AdaptiveReleaseThresholds(release_manager)
+            if release_manager is not None
+            else None
+        )
+        self._release_router: ReleaseAwareExecutionRouter | None = None
+        self._execution_engine: Any | None = None
         self.execution_engine = execution_engine
-        self._configure_execution_risk_context(self.execution_engine)
 
         # Initialize risk management components
         resolved_client = self._resolve_redis_client(redis_client)
@@ -203,13 +211,6 @@ class TradingManager:
         self._roi_total_notional = 0.0
 
         self._drift_gate = drift_gate
-        self._release_manager = release_manager
-        self._adaptive_thresholds: Optional[AdaptiveReleaseThresholds] = (
-            AdaptiveReleaseThresholds(release_manager)
-            if release_manager is not None
-            else None
-        )
-        self._release_router: ReleaseAwareExecutionRouter | None = None
         self._last_drift_gate_decision: DriftSentryDecision | None = None
 
         self._execution_stats: dict[str, object] = {
@@ -231,6 +232,37 @@ class TradingManager:
             f"max_daily_drawdown={resolved_drawdown * 100}%"
         )
         logger.info("💹 ROI cost model configured: %s", self._roi_cost_model.as_dict())
+
+    @property
+    def execution_engine(self) -> Any | None:
+        """Return the currently configured execution engine or router."""
+
+        return self._execution_engine
+
+    @execution_engine.setter
+    def execution_engine(self, engine: Any | None) -> None:
+        self._execution_engine = engine
+        if engine is None:
+            self._release_router = None
+            return
+
+        self._configure_execution_risk_context(engine)
+
+        if isinstance(engine, ReleaseAwareExecutionRouter):
+            self._release_router = engine
+            return
+
+        if self._installing_release_router or self._release_manager is None:
+            return
+
+        try:
+            self._installing_release_router = True
+            self.install_release_execution_router(paper_engine=engine)
+        except Exception:  # pragma: no cover - defensive guard
+            logger.debug("Auto-install of release-aware execution router failed", exc_info=True)
+            self._execution_engine = engine
+        finally:
+            self._installing_release_router = False
 
     def apply_risk_config(
         self,

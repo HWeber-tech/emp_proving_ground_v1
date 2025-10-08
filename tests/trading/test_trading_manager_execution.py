@@ -771,6 +771,106 @@ async def test_trading_manager_forces_paper_without_audit_coverage(
     assert gate_payload.get("force_paper") is True
 
 
+@pytest.mark.asyncio()
+async def test_trading_manager_auto_installs_release_router(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    async def _noop(*_args, **_kwargs) -> None:
+        return None
+
+    monkeypatch.setattr("src.trading.trading_manager.publish_risk_snapshot", _noop)
+    monkeypatch.setattr("src.trading.trading_manager.publish_roi_snapshot", _noop)
+    monkeypatch.setattr("src.trading.trading_manager.publish_policy_snapshot", _noop)
+    monkeypatch.setattr("src.trading.trading_manager.publish_policy_violation", _noop)
+    monkeypatch.setattr(
+        "src.trading.trading_manager.publish_risk_interface_snapshot", _noop
+    )
+    monkeypatch.setattr("src.trading.trading_manager.publish_risk_interface_error", _noop)
+
+    gate = DriftSentryGate(warn_confidence_floor=0.6)
+    store = PolicyLedgerStore(tmp_path / "policy_auto.json")
+    release_manager = LedgerReleaseManager(store)
+    release_manager.promote(
+        policy_id="alpha",
+        tactic_id="alpha",
+        stage=PolicyLedgerStage.LIMITED_LIVE,
+        approvals=("ops", "risk"),
+        evidence_id="diary-alpha",
+    )
+
+    bus = RecordingBus()
+    manager = TradingManager(
+        event_bus=bus,
+        strategy_registry=AlwaysActiveRegistry(),
+        execution_engine=None,
+        initial_equity=50_000.0,
+        risk_config=RiskConfig(
+            min_position_size=1,
+            mandatory_stop_loss=False,
+            research_mode=True,
+        ),
+        drift_gate=gate,
+        release_manager=release_manager,
+    )
+
+    paper_engine = RecordingExecutionEngine()
+    manager.execution_engine = paper_engine
+
+    router = manager.execution_engine
+    assert isinstance(router, ReleaseAwareExecutionRouter)
+    assert router.paper_engine is paper_engine
+
+    dimension = SensoryDimensionDrift(
+        name="HOW",
+        current_signal=0.9,
+        baseline_signal=0.6,
+        delta=0.3,
+        current_confidence=0.82,
+        baseline_confidence=0.8,
+        confidence_delta=0.02,
+        severity=DriftSeverity.warn,
+        samples=12,
+    )
+    snapshot = SensoryDriftSnapshot(
+        generated_at=datetime(2024, 4, 5, tzinfo=timezone.utc),
+        status=DriftSeverity.warn,
+        dimensions={"HOW": dimension},
+        sample_window=12,
+        metadata={"source": "auto"},
+    )
+    manager.update_drift_sentry_snapshot(snapshot)
+
+    intent = ConfidenceIntent(
+        symbol="EURUSD",
+        quantity=1.0,
+        price=1.2210,
+        confidence=0.92,
+        strategy_id="alpha",
+    )
+
+    validate_mock: AsyncMock = AsyncMock(return_value=intent)
+    manager.risk_gateway.validate_trade_intent = validate_mock  # type: ignore[assignment]
+
+    await manager.on_trade_intent(intent)
+
+    assert paper_engine.calls == 1
+    assert validate_mock.await_count == 1
+
+    last_route = manager.get_last_release_route()
+    assert last_route is not None
+    assert last_route.get("route") == "paper"
+    assert last_route.get("forced_reason") == "drift_gate_severity_warn"
+
+    events = manager.get_experiment_events()
+    assert events, "expected experiment event recorded"
+    metadata = events[0].get("metadata")
+    assert isinstance(metadata, dict)
+    release_metadata = metadata.get("release_execution")
+    assert isinstance(release_metadata, dict)
+    assert release_metadata.get("forced") is True
+    assert release_metadata.get("forced_reason") == "drift_gate_severity_warn"
+
+
 def test_describe_release_posture(tmp_path: Path) -> None:
     store = PolicyLedgerStore(tmp_path / "policy_ledger.json")
     release_manager = LedgerReleaseManager(store)

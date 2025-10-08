@@ -9,9 +9,25 @@ from datetime import timedelta
 from pathlib import Path
 from typing import Sequence
 
-from src.governance.policy_graduation import PolicyGraduationEvaluator
-from src.governance.policy_ledger import LedgerReleaseManager, PolicyLedgerStage, PolicyLedgerStore
+from src.governance.policy_graduation import (
+    PolicyGraduationAssessment,
+    PolicyGraduationEvaluator,
+)
+from src.governance.policy_ledger import (
+    LedgerReleaseManager,
+    PolicyLedgerRecord,
+    PolicyLedgerStage,
+    PolicyLedgerStore,
+)
 from src.understanding.decision_diary import DecisionDiaryStore
+
+
+_STAGE_RANK = {
+    PolicyLedgerStage.EXPERIMENT: 0,
+    PolicyLedgerStage.PAPER: 1,
+    PolicyLedgerStage.PILOT: 2,
+    PolicyLedgerStage.LIMITED_LIVE: 3,
+}
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -57,6 +73,12 @@ def _build_parser() -> argparse.ArgumentParser:
         default=2,
         help="Indentation to use for JSON output (default: 2).",
     )
+    parser.add_argument(
+        "--apply",
+        dest="apply",
+        action="store_true",
+        help="Promote ledger stages when recommendations clear all blockers.",
+    )
     return parser
 
 
@@ -74,7 +96,11 @@ def _resolve_policy_ids(
     return sorted(ids)
 
 
-def _render_text(assessment) -> str:
+def _render_text(
+    assessment,
+    *,
+    applied_stage: PolicyLedgerStage | None = None,
+) -> str:
     metrics = assessment.metrics
     current_metrics = metrics.stage(assessment.current_stage)
     if current_metrics is None and metrics.latest_stage is not None:
@@ -123,7 +149,49 @@ def _render_text(assessment) -> str:
         if blockers:
             joined = ", ".join(blockers)
             lines.append(f"  blockers[{stage.value}]: {joined}")
+    if applied_stage is not None:
+        lines.append(f"  promotion_applied: {applied_stage.value}")
     return "\n".join(lines)
+
+
+def _apply_promotions(
+    *,
+    release_manager: LedgerReleaseManager,
+    ledger_store: PolicyLedgerStore,
+    assessments: Sequence[PolicyGraduationAssessment],
+) -> dict[str, PolicyLedgerStage]:
+    """Advance ledger stages when recommendations and audit checks allow it."""
+
+    applied: dict[str, PolicyLedgerStage] = {}
+
+    for assessment in assessments:
+        policy_id = assessment.policy_id
+        record: PolicyLedgerRecord | None = ledger_store.get(policy_id)
+        if record is None:
+            continue
+
+        recommended = assessment.recommended_stage
+        current_stage = record.stage
+        if _STAGE_RANK[recommended] <= _STAGE_RANK[current_stage]:
+            continue
+
+        blockers = assessment.stage_blockers.get(recommended, ())
+        if blockers:
+            continue
+
+        release_manager.promote(
+            policy_id=policy_id,
+            tactic_id=record.tactic_id,
+            stage=recommended,
+            approvals=assessment.approvals or record.approvals,
+            evidence_id=assessment.evidence_id or record.evidence_id,
+            threshold_overrides=record.threshold_overrides,
+            policy_delta=record.policy_delta,
+            metadata=record.metadata,
+        )
+        applied[policy_id] = recommended
+
+    return applied
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -150,9 +218,22 @@ def main(argv: Sequence[str] | None = None) -> int:
     evaluator = PolicyGraduationEvaluator(release_manager, diary_store, window=window)
 
     assessments = [evaluator.assess(policy_id) for policy_id in policy_ids]
+    applied_promotions: dict[str, PolicyLedgerStage] = {}
+
+    if args.apply:
+        applied_promotions = _apply_promotions(
+            release_manager=release_manager,
+            ledger_store=ledger_store,
+            assessments=assessments,
+        )
 
     if args.emit_json:
-        payload = [assessment.to_dict() for assessment in assessments]
+        payload = []
+        for assessment in assessments:
+            data = assessment.to_dict()
+            applied_stage = applied_promotions.get(assessment.policy_id)
+            data["applied_stage"] = applied_stage.value if applied_stage else None
+            payload.append(data)
         json.dump(payload, sys.stdout, indent=args.indent)
         sys.stdout.write("\n")
         return 0
@@ -160,7 +241,14 @@ def main(argv: Sequence[str] | None = None) -> int:
     for index, assessment in enumerate(assessments):
         if index:
             print()
-        print(_render_text(assessment))
+        applied_stage = applied_promotions.get(assessment.policy_id)
+        print(_render_text(assessment, applied_stage=applied_stage))
+
+    if applied_promotions:
+        print()
+        print("Applied promotions:")
+        for policy_id, stage in applied_promotions.items():
+            print(f"  - {policy_id}: {stage.value}")
     return 0
 
 

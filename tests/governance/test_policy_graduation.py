@@ -268,3 +268,68 @@ def test_cli_json_output(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> 
     payload = json.loads(captured.out)
     assert payload and payload[0]["policy_id"] == "alpha"
     assert payload[0]["recommended_stage"] == PolicyLedgerStage.PILOT.value
+    assert payload[0]["applied_stage"] is None
+
+
+def test_cli_apply_promotes_stage(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    diary_path = tmp_path / "apply_diary.json"
+    diary = DecisionDiaryStore(diary_path, publish_on_record=False)
+    ledger_path = tmp_path / "apply_ledger.json"
+    store = PolicyLedgerStore(ledger_path)
+
+    store.upsert(
+        policy_id="alpha",
+        tactic_id="alpha",
+        stage=PolicyLedgerStage.EXPERIMENT,
+        evidence_id="dd-alpha-exp",
+    )
+
+    base = datetime(2024, 3, 1, 9, 0, tzinfo=_UTC)
+    for index in range(25):
+        _record_entry(
+            diary,
+            policy_id="alpha",
+            stage=PolicyLedgerStage.EXPERIMENT,
+            recorded_at=base + timedelta(minutes=index),
+        )
+
+    store.upsert(
+        policy_id="alpha",
+        tactic_id="alpha",
+        stage=PolicyLedgerStage.PAPER,
+        approvals=("risk",),
+        evidence_id="dd-alpha-paper",
+    )
+    paper_start = base + timedelta(hours=4)
+    warn_indices = {5, 17, 29}
+    for index in range(45):
+        severity = "warn" if index in warn_indices else "normal"
+        _record_entry(
+            diary,
+            policy_id="alpha",
+            stage=PolicyLedgerStage.PAPER,
+            severity=severity,
+            recorded_at=paper_start + timedelta(minutes=index),
+        )
+
+    exit_code = graduation_cli.main(
+        [
+            "--ledger",
+            str(ledger_path),
+            "--diary",
+            str(diary_path),
+            "--policy-id",
+            "alpha",
+            "--apply",
+        ]
+    )
+    assert exit_code == 0
+    captured = capsys.readouterr()
+    assert "promotion_applied: pilot" in captured.out
+    assert "Applied promotions:" in captured.out
+    assert "alpha: pilot" in captured.out
+
+    refreshed_store = PolicyLedgerStore(ledger_path)
+    record = refreshed_store.get("alpha")
+    assert record is not None
+    assert record.stage is PolicyLedgerStage.PILOT

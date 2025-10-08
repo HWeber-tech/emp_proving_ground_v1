@@ -70,7 +70,9 @@ from src.trading.gating import (
     DriftGateEvent,
     DriftSentryDecision,
     DriftSentryGate,
+    ReleaseRouteEvent,
     publish_drift_gate_event,
+    publish_release_route_event,
 )
 from src.trading.gating.adaptive_release import AdaptiveReleaseThresholds
 
@@ -412,6 +414,13 @@ class TradingManager:
                     release_metadata = self._extract_release_execution_metadata(validated_intent)
                     if release_metadata:
                         failure_metadata["release_execution"] = release_metadata
+                    if release_metadata:
+                        await self._publish_release_route_event(
+                            event_id=event_id,
+                            strategy_id=strategy_id,
+                            status="failed",
+                            release_metadata=release_metadata,
+                        )
                     self._record_experiment_event(
                         event_id=event_id,
                         status="failed",
@@ -461,6 +470,13 @@ class TradingManager:
                         )
                         if release_metadata:
                             success_metadata["release_execution"] = release_metadata
+                        if release_metadata:
+                            await self._publish_release_route_event(
+                                event_id=event_id,
+                                strategy_id=strategy_id,
+                                status="executed",
+                                release_metadata=release_metadata,
+                            )
                         self._record_experiment_event(
                             event_id=event_id,
                             status="executed",
@@ -500,6 +516,13 @@ class TradingManager:
                         )
                         if release_metadata:
                             fallback_metadata["release_execution"] = release_metadata
+                        if release_metadata:
+                            await self._publish_release_route_event(
+                                event_id=event_id,
+                                strategy_id=strategy_id,
+                                status="failed",
+                                release_metadata=release_metadata,
+                            )
                         self._record_experiment_event(
                             event_id=event_id,
                             status="failed",
@@ -802,6 +825,79 @@ class TradingManager:
 
         metadata_dict["drift_gate"] = payload
         setattr(intent, "metadata", metadata_dict)
+
+    async def _publish_release_route_event(
+        self,
+        *,
+        event_id: str,
+        strategy_id: str | None,
+        status: str,
+        release_metadata: Mapping[str, Any] | None,
+    ) -> None:
+        """Publish release routing telemetry without impacting trade processing."""
+
+        if not release_metadata:
+            return
+
+        try:
+            forced_reasons_candidate = release_metadata.get("forced_reasons")
+            forced_reasons: tuple[str, ...]
+            if isinstance(forced_reasons_candidate, (list, tuple)):
+                forced_reasons = tuple(
+                    str(reason) for reason in forced_reasons_candidate if reason
+                )
+            else:
+                forced_reasons = ()
+            overridden_flag = release_metadata.get("overridden")
+            audit_payload = release_metadata.get("audit")
+            audit_mapping = (
+                dict(audit_payload)
+                if isinstance(audit_payload, Mapping)
+                else None
+            )
+            drift_severity_value = release_metadata.get("drift_severity")
+            event = ReleaseRouteEvent(
+                event_id=event_id,
+                strategy_id=strategy_id,
+                status=status,
+                stage=str(release_metadata.get("stage"))
+                if release_metadata.get("stage")
+                else None,
+                route=str(release_metadata.get("route"))
+                if release_metadata.get("route")
+                else None,
+                forced=bool(release_metadata.get("forced")),
+                forced_reason=(
+                    str(release_metadata.get("forced_reason"))
+                    if release_metadata.get("forced_reason")
+                    else None
+                ),
+                forced_reasons=forced_reasons,
+                overridden=overridden_flag if isinstance(overridden_flag, bool) else None,
+                audit=audit_mapping,
+                drift_severity=str(drift_severity_value)
+                if drift_severity_value
+                else None,
+                metadata=dict(release_metadata),
+            )
+        except Exception:  # pragma: no cover - telemetry guardrail
+            logger.debug(
+                "Failed to assemble release route telemetry payload",
+                exc_info=True,
+            )
+            return
+
+        try:
+            await publish_release_route_event(
+                self.event_bus,
+                event,
+                source="trading_manager",
+            )
+        except Exception:  # pragma: no cover - telemetry guardrail
+            logger.debug(
+                "Failed to publish release route telemetry event",
+                exc_info=True,
+            )
 
     def _extract_release_execution_metadata(self, intent: Any) -> Mapping[str, Any] | None:
         """Extract release routing details exposed by the execution router."""

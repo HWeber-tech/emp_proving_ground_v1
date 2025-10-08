@@ -2,13 +2,23 @@
 
 from .adaptive_release import AdaptiveReleaseThresholds
 from .drift_sentry_gate import DriftSentryDecision, DriftSentryGate
-from .telemetry import DriftGateEvent, format_drift_gate_markdown, publish_drift_gate_event
+from .telemetry import (
+    DriftGateEvent,
+    ReleaseRouteEvent,
+    format_drift_gate_markdown,
+    format_release_route_markdown,
+    publish_drift_gate_event,
+    publish_release_route_event,
+)
 
 __all__ = [
     "AdaptiveReleaseThresholds",
     "DriftGateEvent",
     "DriftSentryDecision",
     "DriftSentryGate",
+    "ReleaseRouteEvent",
     "format_drift_gate_markdown",
+    "format_release_route_markdown",
     "publish_drift_gate_event",
+    "publish_release_route_event",
 ]

@@ -9,8 +9,11 @@ from src.operations.sensory_drift import DriftSeverity
 from src.trading.gating.drift_sentry_gate import DriftSentryDecision
 from src.trading.gating.telemetry import (
     DriftGateEvent,
+    ReleaseRouteEvent,
     format_drift_gate_markdown,
+    format_release_route_markdown,
     publish_drift_gate_event,
+    publish_release_route_event,
 )
 
 
@@ -97,4 +100,60 @@ async def test_publish_drift_gate_event_emits_event() -> None:
     assert emitted.source == "unit-test"
     assert emitted.payload["status"] == "gated"
     assert emitted.payload["decision"]["force_paper"] is True
+    assert "markdown" in emitted.payload
+
+
+def test_release_route_event_as_dict_serialises_metadata() -> None:
+    event = ReleaseRouteEvent(
+        event_id="evt-release",
+        status="executed",
+        strategy_id="alpha",
+        stage="limited_live",
+        route="paper",
+        forced=True,
+        forced_reason="drift_gate_severity_warn",
+        forced_reasons=(
+            "drift_gate_severity_warn",
+            "release_audit_gap_missing_evidence",
+        ),
+        overridden=True,
+        audit={"enforced": True, "gaps": ["missing_evidence"]},
+        drift_severity="warn",
+        metadata={"stage": "limited_live", "route": "paper"},
+    )
+
+    payload = event.as_dict()
+    assert payload["status"] == "executed"
+    assert payload["forced"] is True
+    assert payload["forced_reason"] == "drift_gate_severity_warn"
+    assert payload["forced_reasons"] == [
+        "drift_gate_severity_warn",
+        "release_audit_gap_missing_evidence",
+    ]
+    assert payload["route"] == "paper"
+    assert payload["stage"] == "limited_live"
+    markdown = format_release_route_markdown(event)
+    assert "Stage" in markdown
+    assert "Forced reason" in markdown
+
+
+@pytest.mark.asyncio()
+async def test_publish_release_route_event_emits_event() -> None:
+    bus = StubBus()
+    event = ReleaseRouteEvent(
+        event_id="evt-rel",
+        status="failed",
+        stage="paper",
+        route="paper",
+        forced=False,
+        metadata={"stage": "paper"},
+    )
+
+    await publish_release_route_event(bus, event, source="unit-test")
+
+    assert bus.events, "expected release route telemetry event"
+    emitted = bus.events[-1]
+    assert emitted.type == "telemetry.trading.release_route"
+    assert emitted.source == "unit-test"
+    assert emitted.payload["stage"] == "paper"
     assert "markdown" in emitted.payload

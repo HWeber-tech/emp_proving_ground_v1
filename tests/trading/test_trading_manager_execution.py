@@ -1077,12 +1077,25 @@ async def test_trading_manager_forces_paper_execution_under_drift_warn(
     assert manager.get_last_release_route() == last_posture_route
 
     assert bus.events, "expected drift gate telemetry"
-    drift_event = bus.events[-1]
-    assert drift_event.type == "telemetry.trading.drift_gate"
+    drift_event = next(
+        event
+        for event in reversed(bus.events)
+        if event.type == "telemetry.trading.drift_gate"
+    )
     payload = drift_event.payload
     assert payload["status"] == "executed"
     assert payload["decision"]["force_paper"] is True
     assert payload.get("release", {}).get("forced_reason") == "drift_gate_severity_warn"
+
+    release_event = next(
+        event
+        for event in reversed(bus.events)
+        if event.type == "telemetry.trading.release_route"
+    )
+    release_payload = release_event.payload
+    assert release_payload["status"] == "executed"
+    assert release_payload["forced"] is True
+    assert release_payload["forced_reason"] == "drift_gate_severity_warn"
 
 
 @pytest.mark.asyncio()

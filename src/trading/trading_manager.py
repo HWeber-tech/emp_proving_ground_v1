@@ -59,6 +59,7 @@ from src.trading.risk.risk_interface_telemetry import (
     publish_risk_interface_snapshot,
 )
 
+from src.operations.observability_diary import ThrottleStateSnapshot
 from src.operations.roi import (
     RoiCostModel,
     RoiTelemetrySnapshot,
@@ -78,6 +79,7 @@ from src.trading.gating import (
     publish_release_route_event,
 )
 from src.trading.gating.adaptive_release import AdaptiveReleaseThresholds
+from src.trading.monitoring.trade_throttle import TradeThrottle, TradeThrottleDecision
 
 if TYPE_CHECKING:
     from src.runtime.task_supervisor import TaskSupervisor
@@ -141,6 +143,7 @@ class TradingManager:
         release_manager: LedgerReleaseManager | None = None,
         pilot_execution_engine: Any | None = None,
         live_execution_engine: Any | None = None,
+        trade_throttle: TradeThrottle | Mapping[str, object] | None = None,
     ) -> None:
         """
         Initialize the TradingManager with risk management components.
@@ -248,6 +251,12 @@ class TradingManager:
             "last_execution_at": None,
         }
         self._experiment_events: deque[dict[str, Any]] = deque(maxlen=512)
+        if isinstance(trade_throttle, Mapping):
+            resolved_throttle: TradeThrottle | None = TradeThrottle(trade_throttle)
+        else:
+            resolved_throttle = trade_throttle
+        self._trade_throttle: TradeThrottle | None = resolved_throttle
+        self._throttle_states: deque[ThrottleStateSnapshot] = deque(maxlen=128)
 
         logger.info(
             f"TradingManager initialized with equity={initial_equity}, "
@@ -449,7 +458,68 @@ class TradingManager:
                 symbol = self._extract_symbol(validated_intent) or base_symbol
                 quantity = self._extract_quantity(validated_intent)
                 price = self._extract_price(validated_intent, portfolio_state)
-                cast(Any, self.portfolio_monitor).reserve_position(symbol, float(quantity), price)
+
+                throttle_decision: TradeThrottleDecision | None = None
+                if self._trade_throttle is not None:
+                    throttle_decision = self._trade_throttle.evaluate()
+                    self._register_throttle_state(throttle_decision.snapshot)
+                    if not throttle_decision.allowed:
+                        confidence = self._extract_confidence(validated_intent)
+                        if confidence is None:
+                            confidence = base_confidence
+                        reason = throttle_decision.reason or "trade throttle active"
+                        logger.warning(
+                            "Throttled: too many trades in short time for trade intent %s (%s)",
+                            event_id,
+                            reason,
+                        )
+                        release_metadata = self._extract_release_execution_metadata(
+                            validated_intent
+                        )
+                        throttle_metadata: dict[str, object] = {
+                            "throttle_reason": reason,
+                        }
+                        if throttle_decision.retry_after_seconds is not None:
+                            throttle_metadata["retry_after_seconds"] = (
+                                throttle_decision.retry_after_seconds
+                            )
+                        if throttle_decision.snapshot is not None:
+                            throttle_metadata["throttle_snapshot"] = (
+                                throttle_decision.snapshot.as_dict()
+                            )
+                        if release_metadata:
+                            throttle_metadata["release_execution"] = release_metadata
+                        decision = self._get_last_risk_decision()
+                        self._record_experiment_event(
+                            event_id=event_id,
+                            status="throttled",
+                            strategy_id=strategy_id,
+                            symbol=symbol,
+                            confidence=confidence,
+                            notional=drift_notional_value,
+                            metadata=throttle_metadata,
+                            decision=decision,
+                        )
+                        drift_event_status = "throttled"
+                        drift_confidence_value = confidence
+                        drift_release_metadata = release_metadata
+                        if gate_decision is not None and not drift_event_emitted:
+                            await self._publish_drift_gate_event(
+                                decision=gate_decision,
+                                event_id=event_id,
+                                status=drift_event_status,
+                                strategy_id=strategy_id,
+                                symbol=symbol,
+                                confidence=drift_confidence_value,
+                                notional=drift_notional_value,
+                                release_metadata=drift_release_metadata,
+                            )
+                            drift_event_emitted = True
+                        return
+
+                cast(Any, self.portfolio_monitor).reserve_position(
+                    symbol, float(quantity), price
+                )
 
                 notional = abs(float(quantity)) * abs(float(price))
                 drift_notional_value = notional
@@ -799,6 +869,13 @@ class TradingManager:
             entry["decision"] = dict(decision)
         self._experiment_events.appendleft(entry)
 
+    def _register_throttle_state(
+        self, snapshot: ThrottleStateSnapshot | None
+    ) -> None:
+        if snapshot is None:
+            return
+        self._throttle_states.appendleft(snapshot)
+
     async def _publish_drift_gate_event(
         self,
         *,
@@ -1072,6 +1149,17 @@ class TradingManager:
         if count <= 0:
             return []
         return events[: min(len(events), count)]
+
+    def get_throttle_states(self, limit: int | None = None) -> tuple[ThrottleStateSnapshot, ...]:
+        """Return recent throttle snapshots for observability surfaces."""
+
+        snapshots = tuple(self._throttle_states)
+        if limit is None:
+            return snapshots
+        count = int(limit)
+        if count <= 0:
+            return ()
+        return snapshots[: min(len(snapshots), count)]
 
     def attach_drift_gate(self, gate: DriftSentryGate | None) -> None:
         """Attach or replace the configured DriftSentry gate."""
@@ -1470,6 +1558,18 @@ class TradingManager:
             }
         if self._last_risk_snapshot is not None:
             payload["snapshot"] = self._last_risk_snapshot.as_dict()
+        if self._trade_throttle is not None:
+            throttle_payload: dict[str, object] = {
+                "config": self._trade_throttle.config.dict(),
+            }
+            snapshot = self._trade_throttle.last_snapshot()
+            if snapshot is not None:
+                throttle_payload["latest_snapshot"] = snapshot.as_dict()
+            payload["trade_throttle"] = throttle_payload
+        if self._throttle_states:
+            payload["throttle_states"] = [
+                state.as_dict() for state in tuple(self._throttle_states)
+            ]
         return payload
 
     def get_last_risk_snapshot(self) -> RiskTelemetrySnapshot | None:

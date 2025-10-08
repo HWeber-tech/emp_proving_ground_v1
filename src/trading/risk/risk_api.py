@@ -180,6 +180,17 @@ class TradingRiskInterface:
         if isinstance(last_snapshot, Mapping):
             payload["latest_snapshot"] = dict(last_snapshot)
 
+        throttle_states = status.get("throttle_states") if isinstance(status, Mapping) else None
+        if isinstance(throttle_states, (list, tuple)):
+            payload["throttle_states"] = [
+                dict(state) if isinstance(state, Mapping) else state
+                for state in throttle_states
+            ]
+
+        throttle_payload = status.get("trade_throttle") if isinstance(status, Mapping) else None
+        if isinstance(throttle_payload, Mapping):
+            payload["trade_throttle"] = dict(throttle_payload)
+
         return payload
 
 

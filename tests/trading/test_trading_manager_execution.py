@@ -1,4 +1,5 @@
 import asyncio
+from collections import deque
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -54,6 +55,7 @@ from src.trading.execution.liquidity_prober import LiquidityProber
 from src.trading.execution.paper_execution import ImmediateFillExecutionAdapter
 from src.trading.execution.release_router import ReleaseAwareExecutionRouter
 from src.trading.gating import DriftSentryGate
+from src.trading.monitoring.trade_throttle import TradeThrottle, TradeThrottleConfig
 from src.trading.risk.risk_api import RISK_API_RUNBOOK
 from src.trading.trading_manager import TradingManager
 
@@ -252,6 +254,82 @@ async def test_trading_manager_records_experiment_events_and_rejections(
     statuses = {event["status"] for event in events}
     assert "executed" in statuses
     assert "rejected" in statuses
+
+
+@pytest.mark.asyncio()
+async def test_trading_manager_trade_throttle_limits_frequency(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def _noop(*_args, **_kwargs) -> None:
+        return None
+
+    monkeypatch.setattr("src.trading.trading_manager.publish_risk_snapshot", _noop)
+    monkeypatch.setattr("src.trading.trading_manager.publish_roi_snapshot", _noop)
+    monkeypatch.setattr("src.trading.trading_manager.publish_policy_snapshot", _noop)
+    monkeypatch.setattr("src.trading.trading_manager.publish_policy_violation", _noop)
+    monkeypatch.setattr("src.trading.trading_manager.publish_risk_interface_snapshot", _noop)
+    monkeypatch.setattr("src.trading.trading_manager.publish_risk_interface_error", _noop)
+
+    ticks = deque(
+        [
+            datetime(2024, 1, 1, 12, 0, tzinfo=timezone.utc),
+            datetime(2024, 1, 1, 12, 0, 5, tzinfo=timezone.utc),
+        ]
+    )
+    last_tick = ticks[-1]
+
+    def _time_provider() -> datetime:
+        nonlocal last_tick
+        if ticks:
+            last_tick = ticks.popleft()
+        return last_tick
+
+    throttle = TradeThrottle(
+        TradeThrottleConfig(max_trades=1, window_seconds=60.0),
+        time_provider=_time_provider,
+    )
+
+    bus = DummyBus()
+    manager = TradingManager(
+        event_bus=bus,
+        strategy_registry=AlwaysActiveRegistry(),
+        execution_engine=None,
+        initial_equity=50_000.0,
+        risk_config=RiskConfig(
+            min_position_size=1,
+            mandatory_stop_loss=False,
+            research_mode=True,
+        ),
+        trade_throttle=throttle,
+    )
+    engine = RecordingExecutionEngine()
+    manager.execution_engine = engine
+
+    intent = ConfidenceIntent(
+        symbol="EURUSD",
+        quantity=1.0,
+        price=1.2010,
+        confidence=0.9,
+    )
+
+    validate_mock: AsyncMock = AsyncMock(side_effect=[intent, intent])
+    manager.risk_gateway.validate_trade_intent = validate_mock  # type: ignore[assignment]
+
+    await manager.on_trade_intent(intent)
+    await manager.on_trade_intent(intent)
+
+    assert validate_mock.await_count == 2
+    assert engine.calls == 1
+
+    events = manager.get_experiment_events()
+    assert any(event["status"] == "throttled" for event in events)
+
+    throttle_states = manager.get_throttle_states()
+    assert throttle_states
+    assert any(state.active for state in throttle_states)
+
+    risk_status = manager.get_risk_status()
+    assert risk_status["trade_throttle"]["config"]["max_trades"] == 1
 
 
 @pytest.mark.asyncio()

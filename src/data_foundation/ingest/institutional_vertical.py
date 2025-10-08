@@ -132,6 +132,174 @@ def _extract_kafka_topics(mapping: Mapping[str, str]) -> tuple[str, ...]:
     return tuple(sorted(topics))
 
 
+_TRUE_SENTINELS: frozenset[str] = frozenset({
+    "1",
+    "true",
+    "yes",
+    "y",
+    "on",
+})
+_FALSE_SENTINELS: frozenset[str] = frozenset({
+    "0",
+    "false",
+    "no",
+    "n",
+    "off",
+})
+
+
+def _coerce_bool(value: str | None, default: bool) -> bool:
+    """Normalise boolean configuration values."""
+
+    if value is None:
+        return default
+    normalized = str(value).strip().lower().replace("-", "_")
+    if not normalized:
+        return default
+    if normalized in _TRUE_SENTINELS:
+        return True
+    if normalized in _FALSE_SENTINELS:
+        return False
+    return default
+
+
+def _coerce_optional_float(value: str | None, *, default: float | None) -> float | None:
+    """Normalise optional float configuration values with sentinel handling."""
+
+    if value is None:
+        return default
+
+    normalized = str(value).strip().lower()
+    if not normalized:
+        return default
+    if normalized in {"none", "null"}:
+        return None
+    if normalized in {"off", "disable", "disabled"}:
+        return None
+    try:
+        return float(normalized)
+    except (TypeError, ValueError):
+        return default
+
+
+def _build_kafka_metadata(
+    mapping: Mapping[str, str] | None,
+    *,
+    dimensions: Sequence[str],
+    kafka_topics: Sequence[str],
+    provisioned: bool,
+) -> dict[str, object]:
+    """Summarise Kafka ingest configuration for manifests and telemetry."""
+
+    payload = {str(key): str(value) for key, value in (mapping or {}).items()}
+
+    consumer_enabled = _coerce_bool(
+        payload.get("KAFKA_INGEST_CONSUMER_ENABLED"),
+        True,
+    )
+
+    consumer_group = (
+        payload.get("KAFKA_INGEST_CONSUMER_GROUP") or "emp-ingest-bridge"
+    ).strip()
+    if not consumer_group:
+        consumer_group = "emp-ingest-bridge"
+
+    auto_reset = (
+        payload.get("KAFKA_INGEST_CONSUMER_OFFSET_RESET")
+        or payload.get("KAFKA_INGEST_CONSUMER_AUTO_OFFSET_RESET")
+        or "latest"
+    ).strip().lower()
+    if not auto_reset:
+        auto_reset = "latest"
+
+    auto_commit = _coerce_bool(
+        payload.get("KAFKA_INGEST_CONSUMER_AUTO_COMMIT"),
+        True,
+    )
+
+    commit_on_publish = _coerce_bool(
+        payload.get("KAFKA_INGEST_CONSUMER_COMMIT_ON_PUBLISH"),
+        not auto_commit,
+    )
+
+    commit_async = _coerce_bool(
+        payload.get("KAFKA_INGEST_CONSUMER_COMMIT_ASYNC"),
+        False,
+    )
+
+    poll_timeout = _coerce_optional_float(
+        payload.get("KAFKA_INGEST_CONSUMER_POLL_TIMEOUT"),
+        default=1.0,
+    )
+    if poll_timeout is None or poll_timeout <= 0:
+        poll_timeout = 1.0
+
+    idle_sleep = _coerce_optional_float(
+        payload.get("KAFKA_INGEST_CONSUMER_IDLE_SLEEP"),
+        default=0.5,
+    )
+    if idle_sleep is None or idle_sleep < 0:
+        idle_sleep = 0.5
+
+    publish_consumer_lag = _coerce_bool(
+        payload.get("KAFKA_INGEST_CONSUMER_PUBLISH_LAG"),
+        False,
+    )
+
+    consumer_lag_event_type = (
+        payload.get("KAFKA_INGEST_CONSUMER_LAG_EVENT_TYPE")
+        or "telemetry.kafka.lag"
+    ).strip()
+    if not consumer_lag_event_type:
+        consumer_lag_event_type = "telemetry.kafka.lag"
+
+    consumer_lag_source = (
+        payload.get("KAFKA_INGEST_CONSUMER_LAG_EVENT_SOURCE") or ""
+    ).strip() or None
+
+    consumer_lag_interval = _coerce_optional_float(
+        payload.get("KAFKA_INGEST_CONSUMER_LAG_INTERVAL"),
+        default=30.0,
+    )
+
+    event_type = (
+        payload.get("KAFKA_INGEST_CONSUMER_EVENT_TYPE") or "telemetry.ingest"
+    ).strip()
+    if not event_type:
+        event_type = "telemetry.ingest"
+
+    event_source = (
+        payload.get("KAFKA_INGEST_CONSUMER_EVENT_SOURCE")
+        or "timescale_ingest.kafka"
+    ).strip()
+    if not event_source:
+        event_source = "timescale_ingest.kafka"
+
+    configured_topics = [topic for topic in kafka_topics if str(topic).strip()]
+
+    return {
+        "timescale_dimensions": list(dimensions),
+        "consumer_enabled": consumer_enabled,
+        "provisioned": bool(provisioned),
+        "consumer_group": consumer_group,
+        "auto_offset_reset": auto_reset,
+        "auto_commit": auto_commit,
+        "commit_on_publish": commit_on_publish,
+        "commit_async": commit_async,
+        "poll_timeout_seconds": float(poll_timeout),
+        "idle_sleep_seconds": float(idle_sleep),
+        "event_type": event_type,
+        "event_source": event_source,
+        "publish_consumer_lag": publish_consumer_lag,
+        "consumer_lag_event_type": consumer_lag_event_type,
+        "consumer_lag_event_source": consumer_lag_source,
+        "consumer_lag_interval_seconds": consumer_lag_interval,
+        "consumer_topics_configured": bool(configured_topics),
+        "configured_topics": tuple(configured_topics),
+        "topic_count": len(configured_topics),
+    }
+
+
 def default_institutional_schedule() -> IngestSchedule:
     """Return the baseline ingest schedule for institutional runs."""
 
@@ -239,6 +407,10 @@ class InstitutionalIngestServices:
         kafka_topics: Sequence[str] | None = None
         if self.kafka_consumer is not None:
             kafka_topics = self.kafka_consumer.topics
+        else:
+            configured = self.kafka_metadata.get("configured_topics")
+            if isinstance(configured, (list, tuple, set)):
+                kafka_topics = tuple(str(topic) for topic in configured if str(topic).strip())
 
         return _build_managed_manifest(
             self.config,
@@ -277,6 +449,18 @@ class InstitutionalIngestServices:
         if self.kafka_settings is not None and self.kafka_settings.configured:
             kafka_summary = self.kafka_settings.summary(redacted=True)
 
+        kafka_topics: list[str] = []
+        if self.kafka_consumer is not None:
+            kafka_topics = list(self.kafka_consumer.topics)
+        else:
+            configured_topics = self.kafka_metadata.get("configured_topics")
+            if isinstance(configured_topics, (list, tuple, set)):
+                kafka_topics = [
+                    str(topic)
+                    for topic in configured_topics
+                    if str(topic).strip()
+                ]
+
         return {
             "timescale": {
                 "configured": self.config.timescale_settings.configured,
@@ -298,9 +482,7 @@ class InstitutionalIngestServices:
             "redis_policy": _policy_metadata(self.redis_policy),
             "redis_metrics": redis_metrics,
             "kafka": kafka_summary,
-            "kafka_topics": list(self.kafka_consumer.topics)
-            if self.kafka_consumer is not None
-            else [],
+            "kafka_topics": kafka_topics,
             "kafka_metadata": dict(self.kafka_metadata) if self.kafka_metadata else {},
             "failover": self.failover_metadata(),
             "managed_manifest": [snapshot.as_dict() for snapshot in self.managed_manifest()],
@@ -584,8 +766,11 @@ class InstitutionalIngestProvisioner:
 
         kafka_consumer: KafkaIngestEventConsumer | None = None
         kafka_settings = self.ingest_config.kafka_settings
+        kafka_topics: tuple[str, ...] = tuple()
+        kafka_mapping: Mapping[str, str] | None = None
         if kafka_settings and kafka_settings.configured:
             kafka_mapping = self._resolved_kafka_mapping()
+            kafka_topics = _extract_kafka_topics(kafka_mapping)
             kafka_consumer = create_ingest_event_consumer(
                 kafka_settings,
                 kafka_mapping or None,
@@ -594,9 +779,16 @@ class InstitutionalIngestProvisioner:
                 deserializer=kafka_deserializer,
             )
 
-        kafka_metadata: dict[str, object] = {
-            "timescale_dimensions": list(_plan_dimensions(self.ingest_config)),
-        }
+        kafka_metadata = _build_kafka_metadata(
+            kafka_mapping or {},
+            dimensions=_plan_dimensions(self.ingest_config),
+            kafka_topics=kafka_topics,
+            provisioned=kafka_consumer is not None,
+        )
+        if kafka_consumer is None:
+            # Ensure provisioned flag reflects the runtime reality even when
+            # configuration requested a consumer but creation failed upstream.
+            kafka_metadata["provisioned"] = False
 
         return InstitutionalIngestServices(
             config=self.ingest_config,
@@ -747,8 +939,12 @@ def plan_managed_manifest(
     kafka_topics = _extract_kafka_topics(resolved_mapping)
 
     kafka_metadata: dict[str, object] = {
-        "timescale_dimensions": list(_plan_dimensions(config)),
-        "consumer_topics_configured": bool(kafka_topics),
+        **_build_kafka_metadata(
+            resolved_mapping,
+            dimensions=_plan_dimensions(config),
+            kafka_topics=kafka_topics,
+            provisioned=False,
+        ),
     }
 
     return _build_managed_manifest(

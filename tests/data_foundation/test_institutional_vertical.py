@@ -306,6 +306,51 @@ async def test_services_start_stop_and_summary(monkeypatch: pytest.MonkeyPatch) 
     assert scheduler.running is False
 
 
+def test_services_summary_uses_configured_topics_when_consumer_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def _noop() -> bool:
+        return True
+
+    config = InstitutionalIngestConfig(
+        should_run=True,
+        reason=None,
+        plan=TimescaleBackbonePlan(),
+        timescale_settings=TimescaleConnectionSettings(url="postgresql://svc:secret@db/ingest"),
+        kafka_settings=KafkaConnectionSettings(bootstrap_servers="broker:9092"),
+        redis_settings=RedisConnectionSettings(url="redis://cache:6379/0"),
+    )
+
+    provisioner = InstitutionalIngestProvisioner(
+        ingest_config=config,
+        kafka_mapping={
+            "KAFKA_INGEST_CONSUMER_TOPICS": "telemetry.ingest,telemetry.drills",
+        },
+    )
+
+    monkeypatch.setattr(
+        "src.data_foundation.ingest.institutional_vertical.create_ingest_event_consumer",
+        lambda *_, **__: None,
+    )
+
+    services = provisioner.provision(
+        run_ingest=_noop,
+        event_bus=object(),
+        task_supervisor=_RecordingSupervisor(),
+        redis_client_factory=lambda *_: InMemoryRedis(),
+    )
+
+    summary = services.summary()
+    kafka_metadata = summary["kafka_metadata"]
+    assert kafka_metadata["provisioned"] is False
+    assert kafka_metadata["consumer_topics_configured"] is True
+    assert kafka_metadata["configured_topics"] == (
+        "telemetry.drills",
+        "telemetry.ingest",
+    )
+    assert summary["kafka_topics"] == ["telemetry.drills", "telemetry.ingest"]
+
+
 @pytest.mark.asyncio
 async def test_services_connectivity_report_success(monkeypatch: pytest.MonkeyPatch) -> None:
     services = _make_services()
@@ -491,6 +536,13 @@ def test_plan_managed_manifest_resolves_kafka_mapping() -> None:
 
     kafka_snapshot = next(snapshot for snapshot in manifest if snapshot.name == "kafka")
     assert kafka_snapshot.metadata["topics"]
+    assert kafka_snapshot.metadata["consumer_topics_configured"] is True
+    assert kafka_snapshot.metadata["consumer_group"] == "emp-ingest-bridge"
+    assert kafka_snapshot.metadata["configured_topics"] == (
+        "timescale.default",
+        "timescale.intraday",
+    )
+    assert kafka_snapshot.metadata["topic_count"] == 2
 
 
 def test_provisioner_builds_services(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -163,7 +163,14 @@ async def test_provisioned_services_supervise_components() -> None:
     assert summary["redis"] is not None
     assert summary["redis_policy"] == _EXPECTED_POLICY_METADATA
     assert summary["kafka_topics"] == ["telemetry.ingest"]
-    assert summary["kafka_metadata"]["timescale_dimensions"] == []
+    kafka_metadata = summary["kafka_metadata"]
+    assert kafka_metadata["timescale_dimensions"] == []
+    assert kafka_metadata["consumer_group"] == "emp-ingest-bridge"
+    assert kafka_metadata["provisioned"] is True
+    assert kafka_metadata["consumer_topics_configured"] is True
+    assert kafka_metadata["configured_topics"] == ("telemetry.ingest",)
+    assert kafka_metadata["poll_timeout_seconds"] == pytest.approx(1.0)
+    assert kafka_metadata["idle_sleep_seconds"] == pytest.approx(0.01)
     redis_metrics = summary["redis_metrics"]
     assert redis_metrics is not None
     assert redis_metrics["namespace"] == "emp:cache"
@@ -525,6 +532,10 @@ def test_plan_managed_manifest_uses_configuration() -> None:
     assert kafka_metadata["bootstrap_servers"] == "broker:9092"
     assert set(kafka_metadata["topics"]) == {"telemetry.ingest", "telemetry.drills"}
     assert kafka_metadata["consumer_topics_configured"] is True
+    assert kafka_metadata["consumer_group"] == "emp-ingest-bridge"
+    assert kafka_metadata["provisioned"] is False
+    assert kafka_metadata["configured_topics"] == ("telemetry.drills", "telemetry.ingest")
+    assert kafka_metadata["topic_count"] == 2
     assert snapshots["redis"].metadata["policy"] == _EXPECTED_POLICY_METADATA
     assert "metrics" in snapshots["redis"].metadata
 
@@ -536,6 +547,8 @@ def test_plan_managed_manifest_adds_default_topic_when_missing() -> None:
     kafka_metadata = next(snapshot for snapshot in manifest if snapshot.name == "kafka").metadata
     assert "telemetry.ingest" in kafka_metadata["topics"]
     assert kafka_metadata["consumer_topics_configured"] is True
+    assert kafka_metadata["configured_topics"] == ("telemetry.ingest",)
+    assert kafka_metadata["topic_count"] == 1
     redis_metadata = next(snapshot for snapshot in manifest if snapshot.name == "redis").metadata
     assert redis_metadata["policy"] == _EXPECTED_POLICY_METADATA
     assert "metrics" in redis_metadata

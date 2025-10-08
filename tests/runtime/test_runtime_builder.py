@@ -280,6 +280,8 @@ async def test_builder_requires_trading_manager(tmp_path):
     # Remove the trading manager to simulate a misconfigured runtime.
     app.sensory_organ = SimpleNamespace()
 
+    runtime_app: RuntimeApplication | None = None
+
     try:
         with pytest.raises(RuntimeError) as excinfo:
             build_professional_runtime_application(
@@ -293,7 +295,8 @@ async def test_builder_requires_trading_manager(tmp_path):
         assert "Trading manager not attached" in message
         assert "risk_api_contract.md" in message
     finally:
-        await runtime_app.shutdown()
+        if runtime_app is not None:
+            await runtime_app.shutdown()
         await app.shutdown()
 
 

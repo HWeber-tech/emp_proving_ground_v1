@@ -3,6 +3,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
+from src.config.risk.risk_config import RiskConfig
 from src.risk.analytics import (
     calculate_realised_volatility,
     determine_target_allocation,
@@ -32,7 +33,7 @@ def test_determine_target_allocation_caps_leverage() -> None:
 
 
 def test_risk_manager_volatility_allocation_uses_overrides() -> None:
-    manager = RiskManagerImpl(initial_balance=250_000.0)
+    manager = RiskManagerImpl(initial_balance=250_000.0, risk_config=RiskConfig())
     returns = [0.012, -0.006, 0.01, -0.008, 0.009, -0.005]
 
     allocation = manager.target_allocation_from_volatility(

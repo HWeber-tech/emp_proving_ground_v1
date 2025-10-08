@@ -42,7 +42,7 @@ async def test_orchestration_risk_execution_flow(monkeypatch: pytest.MonkeyPatch
         event_bus=event_bus,
         adaptation_service=adapters["adaptation_service"],
     )
-    risk_manager = RiskManagerImpl(initial_balance=75_000)
+    risk_manager = RiskManagerImpl(initial_balance=75_000, risk_config=RiskConfig())
     execution = ExecutionEngine()
 
     recorded_events: list[tuple[str, dict[str, Any]]] = []

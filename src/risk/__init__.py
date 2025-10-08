@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from .manager import RiskManager, create_risk_manager, get_risk_manager
+from importlib import import_module
+
 from .real_risk_manager import RealRiskConfig, RealRiskManager
 from .analytics import (
     VolatilityTargetAllocation,
@@ -13,6 +14,7 @@ from .analytics import (
     classify_volatility_regime,
     determine_target_allocation,
 )
+from .position_sizing import kelly_fraction, position_size
 from .reporting import (
     BudgetUtilisation,
     ExposureBreakdown,
@@ -33,6 +35,12 @@ from .telemetry import (
     format_risk_markdown,
     publish_risk_snapshot,
 )
+
+_RISK_MANAGER_EXPORTS = {
+    "RiskManager": ("src.risk.manager", "RiskManager"),
+    "create_risk_manager": ("src.risk.manager", "create_risk_manager"),
+    "get_risk_manager": ("src.risk.manager", "get_risk_manager"),
+}
 
 __all__ = [
     "RealRiskManager",
@@ -63,4 +71,16 @@ __all__ = [
     "VolatilityRegimeAssessment",
     "VolatilityRegimeThresholds",
     "classify_volatility_regime",
+    "kelly_fraction",
+    "position_size",
 ]
+
+
+def __getattr__(name: str):
+    target = _RISK_MANAGER_EXPORTS.get(name)
+    if target is None:
+        raise AttributeError(name)
+    module = import_module(target[0])
+    value = getattr(module, target[1])
+    globals()[name] = value
+    return value

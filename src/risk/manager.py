@@ -8,14 +8,29 @@ risk implementation directly from :mod:`src.risk`.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from decimal import Decimal
-from typing import Any, Mapping
+from typing import Any
+
+from pydantic import ValidationError
 
 from src.config.risk.risk_config import RiskConfig
 
 from .risk_manager_impl import RiskManagerImpl
 
 __all__ = ["RiskManager", "get_risk_manager", "create_risk_manager"]
+
+def _coerce_risk_config(config: RiskConfig | Mapping[str, object] | None) -> RiskConfig:
+    if config is None:
+        raise ValueError("RiskConfig is required for RiskManager")
+    if isinstance(config, RiskConfig):
+        return config
+    if not isinstance(config, Mapping):
+        raise TypeError("RiskConfig payload must be a mapping or RiskConfig instance")
+    try:
+        return RiskConfig.parse_obj(dict(config))
+    except ValidationError as exc:
+        raise ValueError("Invalid RiskConfig payload for RiskManager") from exc
 
 
 class RiskManager(RiskManagerImpl):
@@ -29,12 +44,12 @@ class RiskManager(RiskManagerImpl):
 
     def __init__(
         self,
-        config: RiskConfig | None = None,
+        config: RiskConfig | Mapping[str, object] | None = None,
         *,
         initial_balance: float | Decimal | None = None,
         **kwargs: Any,
     ) -> None:
-        resolved_config = config or RiskConfig()
+        resolved_config = _coerce_risk_config(config)
         starting_balance = (
             float(initial_balance)
             if initial_balance is not None
@@ -108,7 +123,7 @@ class RiskManager(RiskManagerImpl):
 
 def create_risk_manager(
     *,
-    config: RiskConfig | None = None,
+    config: RiskConfig | Mapping[str, object] | None = None,
     initial_balance: float | Decimal | None = None,
     **kwargs: Any,
 ) -> RiskManager:
@@ -118,7 +133,7 @@ def create_risk_manager(
 
 
 def get_risk_manager(
-    config: RiskConfig | None = None,
+    config: RiskConfig | Mapping[str, object] | None = None,
     *,
     initial_balance: float | Decimal | None = None,
     **kwargs: Any,

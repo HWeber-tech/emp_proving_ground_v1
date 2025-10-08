@@ -159,6 +159,16 @@ class _BlockingProbeBroker:
         self._allow_fill.set()
 
 
+
+def test_trading_manager_requires_risk_config() -> None:
+    with pytest.raises(ValueError):
+        TradingManager(
+            event_bus=DummyBus(),
+            strategy_registry=AlwaysActiveRegistry(),
+            execution_engine=None,
+        )
+
+
 @pytest.mark.asyncio()
 async def test_trading_manager_records_execution_stats(monkeypatch: pytest.MonkeyPatch) -> None:
     async def _noop(*_args, **_kwargs) -> None:
@@ -905,6 +915,7 @@ def test_describe_release_posture(tmp_path: Path) -> None:
         initial_equity=10_000.0,
         drift_gate=None,
         release_manager=release_manager,
+        risk_config=RiskConfig(),
     )
 
     summary = manager.describe_release_posture("alpha")
@@ -945,6 +956,7 @@ def test_build_policy_governance_snapshot(tmp_path: Path) -> None:
         initial_equity=10_000.0,
         drift_gate=None,
         release_manager=release_manager,
+        risk_config=RiskConfig(),
     )
 
     snapshot = manager.build_policy_governance_snapshot()
@@ -1256,6 +1268,7 @@ async def test_trading_manager_liquidity_prober_uses_task_supervisor() -> None:
         initial_equity=25_000.0,
         liquidity_prober=prober,
         task_supervisor=supervisor,
+        risk_config=RiskConfig(),
     )
 
     probe_task = asyncio.create_task(

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from src.config.risk.risk_config import RiskConfig
 from src.risk.analytics import (
     VolatilityRegime,
     classify_volatility_regime,
@@ -37,7 +38,7 @@ def test_classify_volatility_regime_low() -> None:
 
 
 def test_risk_manager_allocation_includes_regime_signal() -> None:
-    manager = RiskManagerImpl(initial_balance=100_000.0)
+    manager = RiskManagerImpl(initial_balance=100_000.0, risk_config=RiskConfig())
     high_vol_returns = _generate_returns(0.06)
     allocation = manager.target_allocation_from_volatility(
         high_vol_returns,

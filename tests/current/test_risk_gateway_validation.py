@@ -15,7 +15,7 @@ from src.data_foundation.config.execution_config import (
 )
 from src.core.base import MarketData
 from src.core.event_bus import EventBus
-from src.core.risk.position_sizing import position_size
+from src.risk.position_sizing import position_size
 from src.risk.real_risk_manager import RealRiskConfig, RealRiskManager
 from src.trading.liquidity.depth_aware_prober import DepthAwareLiquidityProber
 from src.trading.monitoring.portfolio_monitor import InMemoryRedis, PortfolioMonitor

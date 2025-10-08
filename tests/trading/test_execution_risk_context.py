@@ -151,6 +151,7 @@ def test_trading_manager_configures_execution_risk_context(tmp_path: Path) -> No
         strategy_registry=_StubStrategyRegistry(),
         execution_engine=base_engine,
         release_manager=release_manager,
+        risk_config=RiskConfig(),
     )
 
     provider = base_engine.provider

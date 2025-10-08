@@ -28,6 +28,7 @@ from src.core.config_access import ConfigurationProvider, NoOpConfigurationProvi
 from src.core.genome import GenomeProvider, NoOpGenomeProvider
 from src.core.market_data import MarketDataGateway, NoOpMarketDataGateway
 from src.core.regime import NoOpRegimeClassifier, RegimeClassifier, RegimeResult
+from src.config.risk.risk_config import RiskConfig
 from src.risk.manager import RiskManager, get_risk_manager
 from src.data_foundation.ingest.yahoo_gateway import YahooMarketDataGateway
 
@@ -557,9 +558,10 @@ def compose_validation_adapters() -> ComposeAdaptersTD:
 
     # Risk manager (prefer canonical implementation)
     try:
-        adapters["risk_manager"] = get_risk_manager()
+        default_config = RiskConfig()
+        adapters["risk_manager"] = get_risk_manager(config=default_config)
     except Exception:
-        adapters["risk_manager"] = RiskManager()
+        adapters["risk_manager"] = RiskManager(config=RiskConfig())
 
     # Adaptation service
     try:

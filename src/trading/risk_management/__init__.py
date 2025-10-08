@@ -4,6 +4,5 @@ from __future__ import annotations
 
 raise ModuleNotFoundError(
     "src.trading.risk_management was removed. Import RiskManager from src.risk.manager "
-    "and sizing helpers from src.core.risk.position_sizing or src.risk.analytics."
+    "and sizing helpers from src.risk.position_sizing or src.risk.analytics."
 )
-

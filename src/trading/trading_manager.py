@@ -9,6 +9,8 @@ from decimal import Decimal
 from typing import TYPE_CHECKING, Any, Callable, Mapping, Optional, cast
 from uuid import uuid4
 
+from pydantic import ValidationError
+
 try:  # pragma: no cover - redis optional in bootstrap deployments
     import redis
 except Exception:  # pragma: no cover
@@ -83,14 +85,26 @@ try:
     from src.core.events import TradeIntent  # legacy
 except Exception:  # pragma: no cover
     TradeIntent = TradeRejected = object
-try:
-    from src.core.risk.position_sizing import position_size as _PositionSizer  # canonical
-except Exception:  # pragma: no cover
-    _PositionSizer = None  # type: ignore[assignment]
-# Provide precise callable typing for the sizer (Optional at runtime)
-PositionSizer = cast(Optional[Callable[[Decimal, Decimal, Decimal], Decimal]], _PositionSizer)
+from src.risk.position_sizing import position_size as _PositionSizer
+# Provide precise callable typing for the sizer.
+PositionSizer = cast(Callable[[Decimal, Decimal, Decimal], Decimal], _PositionSizer)
 
 logger = logging.getLogger(__name__)
+
+
+def _coerce_risk_config(
+    config: TradingRiskConfig | Mapping[str, object] | None,
+) -> TradingRiskConfig:
+    if config is None:
+        raise ValueError("TradingManager requires a RiskConfig instance")
+    if isinstance(config, TradingRiskConfig):
+        return config
+    if isinstance(config, MappingABC):
+        try:
+            return TradingRiskConfig.parse_obj(dict(config))
+        except ValidationError as exc:
+            raise ValueError("Invalid risk_config payload for TradingManager") from exc
+    raise TypeError("risk_config must be a TradingRiskConfig or mapping payload")
 
 
 class TradingManager:
@@ -117,7 +131,7 @@ class TradingManager:
         min_intent_confidence: float = 0.2,
         min_liquidity_confidence: float = 0.3,
         roi_cost_model: RoiCostModel | None = None,
-        risk_config: TradingRiskConfig | None = None,
+        risk_config: TradingRiskConfig | Mapping[str, object] | None = None,
         risk_policy: RiskPolicy | None = None,
         drift_gate: DriftSentryGate | None = None,
         release_manager: LedgerReleaseManager | None = None,
@@ -153,7 +167,7 @@ class TradingManager:
         self.portfolio_monitor = PortfolioMonitor(event_bus, resolved_client)
         self.position_sizer = PositionSizer
 
-        base_config = risk_config or TradingRiskConfig()
+        base_config = _coerce_risk_config(risk_config)
         resolved_risk_per_trade = (
             float(risk_per_trade)
             if risk_per_trade is not None

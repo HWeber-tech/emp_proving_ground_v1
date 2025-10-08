@@ -21,3 +21,11 @@ def test_trading_risk_management_shim_import_raises_helpful_error() -> None:
     message = str(excinfo.value)
     assert "src.risk.manager" in message
     assert "RiskManager" in message
+
+
+def test_core_risk_position_sizing_shim_import_raises_helpful_error() -> None:
+    with pytest.raises(ModuleNotFoundError) as excinfo:
+        importlib.import_module("src.core.risk.position_sizing")
+
+    message = str(excinfo.value)
+    assert "src.risk.position_sizing" in message

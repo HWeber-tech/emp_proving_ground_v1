@@ -13,6 +13,8 @@ from decimal import Decimal, InvalidOperation
 from datetime import datetime
 import asyncio
 
+from pydantic import ValidationError
+
 from src.core.types import JSONObject
 from src.core.interfaces import RiskManager as RiskManagerProtocol
 from src.config.risk.risk_config import RiskConfig
@@ -81,7 +83,7 @@ class RiskManagerImpl(RiskManagerProtocol):
     def __init__(
         self,
         initial_balance: float | Decimal = 10000.0,
-        risk_config: RiskConfig | None = None,
+        risk_config: RiskConfig | Mapping[str, object] | None = None,
         *,
         market_regime_detector: MarketRegimeDetector | None = None,
         sizing_config: SizingConfig | None = None,
@@ -95,7 +97,17 @@ class RiskManagerImpl(RiskManagerProtocol):
         """
         initial_balance_float = _to_float(initial_balance)
 
-        self._risk_config = risk_config or RiskConfig()
+        if risk_config is None:
+            raise ValueError("risk_config is required for RiskManagerImpl")
+        if not isinstance(risk_config, RiskConfig):
+            if not isinstance(risk_config, Mapping):
+                raise TypeError("risk_config must be a RiskConfig or mapping payload")
+            try:
+                risk_config = RiskConfig.parse_obj(dict(risk_config))
+            except ValidationError as exc:
+                raise ValueError("Invalid risk_config payload for RiskManagerImpl") from exc
+
+        self._risk_config = risk_config
 
         self._min_position_size = float(self._risk_config.min_position_size)
         self._max_position_size = float(self._risk_config.max_position_size)
@@ -880,17 +892,25 @@ class RiskManagerImpl(RiskManagerProtocol):
 
 
 # Factory function for easy instantiation
-def create_risk_manager(initial_balance: float | Decimal = 10000.0) -> RiskManagerImpl:
+def create_risk_manager(
+    initial_balance: float | Decimal = 10000.0,
+    *,
+    risk_config: RiskConfig | Mapping[str, object] | None = None,
+) -> RiskManagerImpl:
     """
     Create a new RiskManagerImpl instance.
 
     Args:
         initial_balance: Starting account balance
+        risk_config: Canonical risk configuration to enforce
 
     Returns:
         Configured RiskManagerImpl instance
     """
-    return RiskManagerImpl(initial_balance)
+    if risk_config is None:
+        raise ValueError("risk_config is required for create_risk_manager")
+
+    return RiskManagerImpl(initial_balance, risk_config=risk_config)
 
 
 if __name__ == "__main__":
@@ -899,7 +919,7 @@ if __name__ == "__main__":
         # Test the implementation
         print("Testing RiskManagerImpl...")
 
-        risk_manager = create_risk_manager(10000.0)
+        risk_manager = create_risk_manager(10000.0, risk_config=RiskConfig())
 
         # Test position validation
         position: PositionInput = {

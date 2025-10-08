@@ -8,12 +8,23 @@ from typing import Any, Dict
 import pytest
 
 from src.config.risk.risk_config import RiskConfig
+from src.risk.manager import RiskManager
 from src.risk.risk_manager_impl import RiskManagerImpl
+
+
+def test_risk_manager_impl_requires_risk_config() -> None:
+    with pytest.raises(ValueError):
+        RiskManagerImpl(initial_balance=10_000, risk_config=None)
+
+
+def test_risk_manager_facade_requires_risk_config() -> None:
+    with pytest.raises(ValueError):
+        RiskManager()
 
 
 @pytest.mark.asyncio
 async def test_validate_position_rejects_invalid_inputs() -> None:
-    manager = RiskManagerImpl(initial_balance=10_000)
+    manager = RiskManagerImpl(initial_balance=10_000, risk_config=RiskConfig())
 
     invalid_size = await manager.validate_position(
         {"symbol": "EURUSD", "size": 0, "entry_price": 1.1}
@@ -28,7 +39,7 @@ async def test_validate_position_rejects_invalid_inputs() -> None:
 
 @pytest.mark.asyncio
 async def test_validate_position_enforces_max_risk() -> None:
-    manager = RiskManagerImpl(initial_balance=5_000)
+    manager = RiskManagerImpl(initial_balance=5_000, risk_config=RiskConfig())
 
     within_limits = await manager.validate_position(
         {"symbol": "EURUSD", "size": 4_000, "entry_price": 1.1, "stop_loss_pct": 0.02}
@@ -43,7 +54,7 @@ async def test_validate_position_enforces_max_risk() -> None:
 
 @pytest.mark.asyncio
 async def test_calculate_position_size_applies_kelly_fraction() -> None:
-    manager = RiskManagerImpl(initial_balance=20_000)
+    manager = RiskManagerImpl(initial_balance=20_000, risk_config=RiskConfig())
     signal = {"symbol": "EURUSD", "confidence": 0.7, "stop_loss_pct": 0.02}
 
     size = await manager.calculate_position_size(signal)
@@ -54,7 +65,7 @@ async def test_calculate_position_size_applies_kelly_fraction() -> None:
 
 @pytest.mark.asyncio
 async def test_calculate_position_size_throttles_during_drawdown_and_recovers() -> None:
-    manager = RiskManagerImpl(initial_balance=10_000)
+    manager = RiskManagerImpl(initial_balance=10_000, risk_config=RiskConfig())
     signal = {"symbol": "EURUSD", "confidence": 0.65, "stop_loss_pct": 0.01}
 
     baseline = await manager.calculate_position_size(signal)
@@ -70,7 +81,7 @@ async def test_calculate_position_size_throttles_during_drawdown_and_recovers() 
 
 @pytest.mark.asyncio
 async def test_calculate_position_size_respects_updated_risk_limits() -> None:
-    manager = RiskManagerImpl(initial_balance=15_000)
+    manager = RiskManagerImpl(initial_balance=15_000, risk_config=RiskConfig())
     signal = {"symbol": "EURUSD", "confidence": 0.7, "stop_loss_pct": 0.02}
 
     baseline = await manager.calculate_position_size(signal)
@@ -83,7 +94,7 @@ async def test_calculate_position_size_respects_updated_risk_limits() -> None:
 
 @pytest.mark.asyncio
 async def test_calculate_position_size_handles_exception() -> None:
-    manager = RiskManagerImpl(initial_balance=10_000)
+    manager = RiskManagerImpl(initial_balance=10_000, risk_config=RiskConfig())
 
     class CrashingSignal(dict):
         def get(self, *args: Any, **kwargs: Any) -> Any:  # noqa: D401 - delegated to trigger crash
@@ -95,7 +106,7 @@ async def test_calculate_position_size_handles_exception() -> None:
 
 
 def test_update_limits_accepts_decimal_inputs() -> None:
-    manager = RiskManagerImpl(initial_balance=10_000)
+    manager = RiskManagerImpl(initial_balance=10_000, risk_config=RiskConfig())
 
     manager.update_limits({"max_position_risk": Decimal("0.05"), "max_drawdown": Decimal("0.4")})
 
@@ -106,7 +117,7 @@ def test_update_limits_accepts_decimal_inputs() -> None:
 
 @pytest.mark.asyncio
 async def test_validate_position_requires_stop_loss() -> None:
-    manager = RiskManagerImpl(initial_balance=10_000)
+    manager = RiskManagerImpl(initial_balance=10_000, risk_config=RiskConfig())
 
     result = await manager.validate_position(
         {"symbol": "EURUSD", "size": 2_000, "entry_price": 1.1}
@@ -130,20 +141,20 @@ async def test_validate_position_allows_research_mode_without_stop_loss() -> Non
 @pytest.mark.asyncio
 async def test_validate_position_rejects_total_exposure_breach() -> None:
     config = RiskConfig(
-        max_total_exposure_pct=Decimal("0.003"),
-        max_drawdown_pct=Decimal("0.003"),
-        max_risk_per_trade_pct=Decimal("0.01"),
+        max_total_exposure_pct=Decimal("0.02"),
+        max_drawdown_pct=Decimal("0.02"),
+        max_risk_per_trade_pct=Decimal("0.015"),
         min_position_size=500,
         max_position_size=200_000,
     )
     manager = RiskManagerImpl(initial_balance=100_000, risk_config=config)
-    manager.add_position("EURUSD", 9_000, 1.1, stop_loss_pct=0.02)
+    manager.add_position("EURUSD", 60_000, 1.1, stop_loss_pct=0.02)
 
     allowed = await manager.validate_position(
         {"symbol": "EURUSD", "size": 500, "entry_price": 1.1, "stop_loss_pct": 0.02}
     )
     rejected = await manager.validate_position(
-        {"symbol": "EURUSD", "size": 6_000, "entry_price": 1.1, "stop_loss_pct": 0.02}
+        {"symbol": "EURUSD", "size": 40_000, "entry_price": 1.1, "stop_loss_pct": 0.02}
     )
 
     assert allowed is True
@@ -162,7 +173,7 @@ async def test_calculate_position_size_respects_maximums() -> None:
 
 
 def test_evaluate_portfolio_risk_converts_values(monkeypatch: pytest.MonkeyPatch) -> None:
-    manager = RiskManagerImpl(initial_balance=10_000)
+    manager = RiskManagerImpl(initial_balance=10_000, risk_config=RiskConfig())
     captured: Dict[str, Dict[str, float]] = {}
 
     def fake_assess(positions: Dict[str, float]) -> float:
@@ -178,7 +189,7 @@ def test_evaluate_portfolio_risk_converts_values(monkeypatch: pytest.MonkeyPatch
 
 
 def test_get_risk_summary_reports_positions(monkeypatch: pytest.MonkeyPatch) -> None:
-    manager = RiskManagerImpl(initial_balance=10_000)
+    manager = RiskManagerImpl(initial_balance=10_000, risk_config=RiskConfig())
     manager.add_position("EURUSD", 1_000, 1.1)
     manager.update_position_value("EURUSD", 1.2)
 
@@ -195,7 +206,7 @@ def test_get_risk_summary_reports_positions(monkeypatch: pytest.MonkeyPatch) -> 
 
 
 def test_calculate_portfolio_risk_aggregates_and_delegates(monkeypatch: pytest.MonkeyPatch) -> None:
-    manager = RiskManagerImpl(initial_balance=10_000)
+    manager = RiskManagerImpl(initial_balance=10_000, risk_config=RiskConfig())
     manager.add_position("EURUSD", 1_500, 1.1)
     manager.add_position("GBPUSD", 500, 1.2)
 
@@ -211,7 +222,7 @@ def test_calculate_portfolio_risk_aggregates_and_delegates(monkeypatch: pytest.M
 
 
 def test_calculate_portfolio_risk_uses_real_risk_manager_defaults() -> None:
-    manager = RiskManagerImpl(initial_balance=10_000)
+    manager = RiskManagerImpl(initial_balance=10_000, risk_config=RiskConfig())
     manager.add_position("EURUSD", 1_000, 1.1)
 
     snapshot = manager.calculate_portfolio_risk()
@@ -221,7 +232,7 @@ def test_calculate_portfolio_risk_uses_real_risk_manager_defaults() -> None:
 
 
 def test_assess_market_risk_exposes_var_and_es_metrics() -> None:
-    manager = RiskManagerImpl(initial_balance=50_000)
+    manager = RiskManagerImpl(initial_balance=50_000, risk_config=RiskConfig())
     returns = [
         0.012,
         -0.018,
@@ -246,7 +257,7 @@ def test_assess_market_risk_exposes_var_and_es_metrics() -> None:
 
 
 def test_get_risk_summary_includes_market_risk_block() -> None:
-    manager = RiskManagerImpl(initial_balance=25_000)
+    manager = RiskManagerImpl(initial_balance=25_000, risk_config=RiskConfig())
     manager.add_position("EURUSD", 2_000, 1.1)
     returns = [0.01, -0.015, 0.002, -0.02, 0.005]
 
@@ -258,7 +269,7 @@ def test_get_risk_summary_includes_market_risk_block() -> None:
 
 
 def test_calculate_portfolio_risk_embeds_market_risk_snapshot() -> None:
-    manager = RiskManagerImpl(initial_balance=30_000)
+    manager = RiskManagerImpl(initial_balance=30_000, risk_config=RiskConfig())
     manager.add_position("EURUSD", 1_000, 1.15)
     manager.add_position("GBPUSD", 750, 1.24)
     returns = [0.006, -0.01, 0.004, -0.012, 0.003, -0.008]
@@ -271,13 +282,13 @@ def test_calculate_portfolio_risk_embeds_market_risk_snapshot() -> None:
 
 
 def test_get_position_risk_handles_unknown_symbol() -> None:
-    manager = RiskManagerImpl(initial_balance=10_000)
+    manager = RiskManagerImpl(initial_balance=10_000, risk_config=RiskConfig())
 
     assert manager.get_position_risk("EURUSD") == {}
 
 
 def test_get_position_risk_reports_tracked_position() -> None:
-    manager = RiskManagerImpl(initial_balance=10_000)
+    manager = RiskManagerImpl(initial_balance=10_000, risk_config=RiskConfig())
     manager.add_position("EURUSD", 1_000, 1.1)
     manager.update_position_value("EURUSD", 1.3)
 
@@ -291,7 +302,7 @@ def test_get_position_risk_reports_tracked_position() -> None:
 
 
 def test_propose_rebalance_returns_copy() -> None:
-    manager = RiskManagerImpl(initial_balance=10_000)
+    manager = RiskManagerImpl(initial_balance=10_000, risk_config=RiskConfig())
     positions = {"EURUSD": 1_000.0, "GBPUSD": 500.0}
 
     rebalance = manager.propose_rebalance(positions)
@@ -302,7 +313,7 @@ def test_propose_rebalance_returns_copy() -> None:
 
 @pytest.mark.asyncio
 async def test_validate_position_handles_exception() -> None:
-    manager = RiskManagerImpl(initial_balance=10_000)
+    manager = RiskManagerImpl(initial_balance=10_000, risk_config=RiskConfig())
 
     class CrashingMapping(dict):
         def get(self, *args: Any, **kwargs: Any) -> Any:  # noqa: D401 - delegated to trigger crash

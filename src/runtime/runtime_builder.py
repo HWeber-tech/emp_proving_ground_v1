@@ -634,7 +634,7 @@ def _process_sensory_status(
 
 
 def _publish_runtime_risk_configuration(
-    event_bus: EventBus, payload: Mapping[str, object]
+    app: "ProfessionalPredatorApp", payload: Mapping[str, object]
 ) -> None:
     """Publish a risk configuration telemetry event via the supplied bus."""
 
@@ -644,6 +644,7 @@ def _publish_runtime_risk_configuration(
         source="runtime.builder",
     )
 
+    event_bus = app.event_bus
     publish_from_sync = getattr(event_bus, "publish_from_sync", None)
     if callable(publish_from_sync) and event_bus.is_running():
         try:
@@ -660,7 +661,18 @@ def _publish_runtime_risk_configuration(
             logger.debug("Failed to publish risk configuration asynchronously", exc_info=True)
         else:
             if inspect.isawaitable(maybe_coro):
-                asyncio.create_task(maybe_coro)
+                create_background_task = getattr(app, "create_background_task", None)
+                if callable(create_background_task):
+                    try:
+                        create_background_task(maybe_coro, name="publish-risk-configuration")
+                    except Exception:  # pragma: no cover - diagnostics only
+                        logger.debug(
+                            "Failed to supervise risk configuration publish task",
+                            exc_info=True,
+                        )
+                        asyncio.create_task(maybe_coro)
+                else:
+                    asyncio.create_task(maybe_coro)
 
 
 def _record_and_publish_risk_configuration(
@@ -678,7 +690,7 @@ def _record_and_publish_risk_configuration(
     }
 
     try:
-        _publish_runtime_risk_configuration(app.event_bus, payload)
+        _publish_runtime_risk_configuration(app, payload)
     except Exception:  # pragma: no cover - diagnostics only
         logger.debug("Failed to publish runtime risk configuration", exc_info=True)
 
@@ -872,19 +884,37 @@ class RuntimeApplication:
                     )
                 )
             if workloads:
-                results = await asyncio.gather(
-                    *(coro for _, coro in workloads), return_exceptions=True
-                )
-                errors: list[BaseException] = []
-                for (task_name, _), result in zip(workloads, results):
-                    if isinstance(result, BaseException):
-                        errors.append(result)
-                        if not isinstance(result, asyncio.CancelledError):
-                            self._logger.error(
-                                "Runtime workload error (%s): %s", task_name, result
-                            )
-                if errors:
-                    raise errors[0]
+                tasks: list[tuple[str, asyncio.Task[Any]]] = []
+                try:
+                    for task_name, coro in workloads:
+                        task = asyncio.create_task(coro, name=task_name)
+                        tasks.append((task_name, task))
+
+                    pending: set[asyncio.Task[Any]] = {task for _, task in tasks}
+                    errors: list[BaseException] = []
+
+                    while pending:
+                        done, pending = await asyncio.wait(
+                            pending, return_when=asyncio.FIRST_EXCEPTION
+                        )
+                        for task in done:
+                            if task.cancelled():
+                                continue
+                            exc = task.exception()
+                            if exc is not None and not isinstance(exc, asyncio.CancelledError):
+                                errors.append(exc)
+                        if errors:
+                            for task in pending:
+                                task.cancel()
+                            await asyncio.gather(*pending, return_exceptions=True)
+                            raise errors[0]
+                finally:
+                    for _, task in tasks:
+                        if not task.done():
+                            task.cancel()
+                    await asyncio.gather(
+                        *(task for _, task in tasks), return_exceptions=True
+                    )
         finally:
             await self.shutdown()
 
@@ -2597,10 +2627,17 @@ def _configure_governance_cadence(
         if cadence_task is not None:
             return
         cadence_stop_event = asyncio.Event()
-        cadence_task = asyncio.create_task(
-            _governance_cadence_loop(force_on_start),
-            name="governance-cadence-runner",
-        )
+        create_background_task = getattr(app, "create_background_task", None)
+        if not callable(create_background_task):  # pragma: no cover - defensive safeguard
+            cadence_task = asyncio.create_task(  # type: ignore[assignment]
+                _governance_cadence_loop(force_on_start),
+                name="governance-cadence-runner",
+            )
+        else:
+            cadence_task = create_background_task(
+                _governance_cadence_loop(force_on_start),
+                name="governance-cadence-runner",
+            )
         logger.info(
             "📑 Governance cadence runner enabled: interval=%ss poll=%.1fs path=%s",
             interval_seconds,

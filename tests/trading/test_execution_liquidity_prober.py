@@ -103,6 +103,7 @@ async def test_liquidity_prober_captures_risk_metadata() -> None:
 
     context = prober.describe_risk_context()
     assert context["runbook"].endswith("risk_api_contract.md")
+    assert context["risk_api_runbook"] == RISK_API_RUNBOOK
     metadata = context.get("metadata")
     assert metadata is not None
     assert metadata["max_risk_per_trade_pct"] > 0

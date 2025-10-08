@@ -1,3 +1,4 @@
+import asyncio
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -48,9 +49,12 @@ from src.governance.policy_ledger import (
     PolicyLedgerStore,
 )
 from src.operations.sensory_drift import DriftSeverity, SensoryDimensionDrift, SensoryDriftSnapshot
+from src.runtime.task_supervisor import TaskSupervisor
+from src.trading.execution.liquidity_prober import LiquidityProber
 from src.trading.execution.paper_execution import ImmediateFillExecutionAdapter
 from src.trading.execution.release_router import ReleaseAwareExecutionRouter
 from src.trading.gating import DriftSentryGate
+from src.trading.risk.risk_api import RISK_API_RUNBOOK
 from src.trading.trading_manager import TradingManager
 
 
@@ -108,6 +112,51 @@ class RecordingExecutionEngine:
     async def process_order(self, intent: Any) -> str:
         self.calls += 1
         return "ok"
+
+
+class _ImmediateProbeBroker:
+    def __init__(self) -> None:
+        self.orders: dict[str, dict[str, float | str]] = {}
+
+    async def place_market_order(self, symbol: str, side: str, quantity: float) -> str:
+        order_id = f"ORD-{len(self.orders) + 1}"
+        self.orders[order_id] = {
+            "status": "FILLED",
+            "filled_qty": float(quantity),
+        }
+        return order_id
+
+    def get_order_status(self, order_id: str) -> dict[str, float | str] | None:
+        return self.orders.get(order_id)
+
+
+class _BlockingProbeBroker:
+    def __init__(self) -> None:
+        self.orders: dict[str, dict[str, float | str]] = {}
+        self._allow_fill = asyncio.Event()
+
+    async def place_market_order(self, symbol: str, side: str, quantity: float) -> str:
+        order_id = f"ORD-{len(self.orders) + 1}"
+        self.orders[order_id] = {
+            "status": "PENDING",
+            "filled_qty": 0.0,
+            "target_qty": float(quantity),
+        }
+
+        async def _complete() -> None:
+            await self._allow_fill.wait()
+            order = self.orders[order_id]
+            order["status"] = "FILLED"
+            order["filled_qty"] = order["target_qty"]
+
+        asyncio.create_task(_complete())
+        return order_id
+
+    def get_order_status(self, order_id: str) -> dict[str, float | str] | None:
+        return self.orders.get(order_id)
+
+    def release(self) -> None:
+        self._allow_fill.set()
 
 
 @pytest.mark.asyncio()
@@ -1034,6 +1083,67 @@ async def test_trading_manager_forces_paper_execution_under_drift_warn(
     assert payload["status"] == "executed"
     assert payload["decision"]["force_paper"] is True
     assert payload.get("release", {}).get("forced_reason") == "drift_gate_severity_warn"
+
+
+@pytest.mark.asyncio()
+async def test_trading_manager_liquidity_prober_captures_risk_metadata() -> None:
+    supervisor = TaskSupervisor(namespace="test-manager-liquidity-meta")
+    broker = _ImmediateProbeBroker()
+    prober = LiquidityProber(broker)
+    manager = TradingManager(
+        event_bus=RecordingBus(),
+        strategy_registry=AlwaysActiveRegistry(),
+        execution_engine=RecordingExecutionEngine(),
+        initial_equity=50_000.0,
+        liquidity_prober=prober,
+        task_supervisor=supervisor,
+        risk_config=RiskConfig(min_position_size=1),
+    )
+
+    decision = {"checks": []}
+    intent = {"symbol": "EURUSD", "side": "buy", "price": 1.1234}
+    await manager.risk_gateway._run_liquidity_probe(intent, Decimal("1"), decision)
+
+    context = manager.risk_gateway.liquidity_prober.describe_risk_context()
+    assert context["runbook"] == RISK_API_RUNBOOK
+    assert context["risk_api_runbook"] == RISK_API_RUNBOOK
+    metadata = context.get("metadata")
+    assert metadata is not None
+    assert metadata["max_risk_per_trade_pct"] > 0
+    await supervisor.cancel_all()
+
+
+@pytest.mark.asyncio()
+async def test_trading_manager_liquidity_prober_uses_task_supervisor() -> None:
+    supervisor = TaskSupervisor(namespace="test-manager-liquidity-supervisor")
+    broker = _BlockingProbeBroker()
+    prober = LiquidityProber(
+        broker,
+        config={"max_concurrent_probes": 2, "timeout_seconds": 0.5},
+    )
+    manager = TradingManager(
+        event_bus=RecordingBus(),
+        strategy_registry=AlwaysActiveRegistry(),
+        execution_engine=RecordingExecutionEngine(),
+        initial_equity=25_000.0,
+        liquidity_prober=prober,
+        task_supervisor=supervisor,
+    )
+
+    probe_task = asyncio.create_task(
+        manager.risk_gateway.liquidity_prober.probe_liquidity(
+            "EURUSD", [1.101, 1.102, 1.103], "buy"
+        )
+    )
+    try:
+        await asyncio.sleep(0.05)
+        assert supervisor.active_count >= 1
+        broker.release()
+        await probe_task
+    finally:
+        broker.release()
+        await supervisor.cancel_all()
+    assert supervisor.active_count == 0
 
 
 @pytest.mark.asyncio()

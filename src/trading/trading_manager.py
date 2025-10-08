@@ -6,7 +6,7 @@ from collections import deque
 from collections.abc import Mapping as MappingABC, MutableMapping as MutableMappingABC
 from datetime import datetime, timezone
 from decimal import Decimal
-from typing import Any, Callable, Mapping, Optional, cast
+from typing import TYPE_CHECKING, Any, Callable, Mapping, Optional, cast
 from uuid import uuid4
 
 try:  # pragma: no cover - redis optional in bootstrap deployments
@@ -74,6 +74,9 @@ from src.trading.gating import (
 )
 from src.trading.gating.adaptive_release import AdaptiveReleaseThresholds
 
+if TYPE_CHECKING:
+    from src.runtime.task_supervisor import TaskSupervisor
+
 try:
     from src.core.events import TradeIntent  # legacy
 except Exception:  # pragma: no cover
@@ -108,6 +111,7 @@ class TradingManager:
         *,
         redis_client: Any | None = None,
         liquidity_prober: Any | None = None,
+        task_supervisor: "TaskSupervisor | None" = None,
         min_intent_confidence: float = 0.2,
         min_liquidity_confidence: float = 0.3,
         roi_cost_model: RoiCostModel | None = None,
@@ -127,6 +131,7 @@ class TradingManager:
             risk_per_trade: Percentage of equity to risk per trade
             max_open_positions: Maximum allowed open positions
             max_daily_drawdown: Maximum daily drawdown percentage
+            task_supervisor: Optional supervisor for execution helpers (e.g. probes)
         """
         self.event_bus = event_bus
         self.strategy_registry = strategy_registry
@@ -165,7 +170,10 @@ class TradingManager:
         self._last_risk_interface_snapshot: RiskInterfaceSnapshot | None = None
         self._last_risk_interface_error: RiskInterfaceErrorAlert | None = None
 
+        self._task_supervisor = task_supervisor
         risk_per_trade_decimal = Decimal(str(resolved_risk_per_trade))
+        configured_prober = self._configure_liquidity_prober(liquidity_prober, task_supervisor)
+        self.liquidity_prober = configured_prober
         self.risk_gateway = RiskGateway(
             strategy_registry=strategy_registry,
             position_sizer=self.position_sizer,
@@ -173,7 +181,7 @@ class TradingManager:
             risk_per_trade=risk_per_trade_decimal,
             max_open_positions=max_open_positions,
             max_daily_drawdown=resolved_drawdown,
-            liquidity_prober=liquidity_prober,
+            liquidity_prober=configured_prober,
             min_intent_confidence=min_intent_confidence,
             min_liquidity_confidence=min_liquidity_confidence,
             risk_policy=self._risk_policy,
@@ -1248,6 +1256,53 @@ class TradingManager:
                     "Redis connection unavailable, reverting to in-memory portfolio store"
                 )
         return InMemoryRedis()
+
+    def _configure_liquidity_prober(
+        self,
+        prober: Any | None,
+        task_supervisor: "TaskSupervisor | None",
+    ) -> Any | None:
+        if prober is None:
+            return None
+
+        if task_supervisor is not None:
+            setter = getattr(prober, "set_task_supervisor", None)
+            if callable(setter):
+                try:
+                    setter(task_supervisor)
+                except Exception:  # pragma: no cover - diagnostic guardrail
+                    logger.debug(
+                        "Failed to attach task supervisor to liquidity prober",
+                        exc_info=True,
+                    )
+            elif hasattr(prober, "_task_supervisor"):
+                try:
+                    setattr(prober, "_task_supervisor", task_supervisor)
+                except Exception:  # pragma: no cover - diagnostic guardrail
+                    logger.debug(
+                        "Failed to set liquidity prober task supervisor attribute",
+                        exc_info=True,
+                    )
+
+        provider: Callable[[], Any] = lambda: self
+        provider_setter = getattr(prober, "set_risk_context_provider", None)
+        if callable(provider_setter):
+            try:
+                provider_setter(provider)
+            except Exception:  # pragma: no cover - diagnostic guardrail
+                logger.debug(
+                    "Failed to attach risk context provider to liquidity prober",
+                    exc_info=True,
+                )
+        elif hasattr(prober, "_risk_context_provider"):
+            try:
+                setattr(prober, "_risk_context_provider", provider)
+            except Exception:  # pragma: no cover - diagnostic guardrail
+                logger.debug(
+                    "Failed to set liquidity prober risk context attribute",
+                    exc_info=True,
+                )
+        return prober
 
     def _resolve_gateway_limits(self) -> Mapping[str, object] | None:
         try:

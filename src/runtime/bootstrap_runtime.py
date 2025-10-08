@@ -184,6 +184,7 @@ class BootstrapRuntime:
             max_daily_drawdown=max_daily_drawdown,
             redis_client=cache_client,
             liquidity_prober=self.liquidity_prober,
+            task_supervisor=self._task_supervisor,
             min_intent_confidence=min_intent_confidence,
             min_liquidity_confidence=min_liquidity_confidence,
             roi_cost_model=roi_cost_model,

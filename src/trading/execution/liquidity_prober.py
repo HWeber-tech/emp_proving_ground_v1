@@ -75,6 +75,18 @@ class LiquidityProber:
             f"timeout={self.timeout_seconds}s, max_concurrent={self.max_concurrent_probes}"
         )
 
+    def set_task_supervisor(self, task_supervisor: TaskSupervisor | None) -> None:
+        """Attach a :class:`TaskSupervisor` so probes inherit supervised lifecycles."""
+
+        self._task_supervisor = task_supervisor
+
+    def set_risk_context_provider(self, provider: Callable[[], Any] | None) -> None:
+        """Configure the callable used for capturing deterministic risk metadata."""
+
+        if provider is not None and not callable(provider):
+            raise TypeError("risk_context_provider must be callable")
+        self._risk_context_provider = provider
+
     def _capture_risk_context(self) -> None:
         """Capture the latest deterministic risk metadata for telemetry surfaces."""
 
@@ -326,7 +338,10 @@ class LiquidityProber:
     def describe_risk_context(self) -> dict[str, object]:
         """Expose the most recent deterministic risk context for telemetry surfaces."""
 
-        payload: dict[str, object] = {"runbook": RISK_API_RUNBOOK}
+        payload: dict[str, object] = {
+            "runbook": RISK_API_RUNBOOK,
+            "risk_api_runbook": RISK_API_RUNBOOK,
+        }
         if self._last_risk_metadata is not None:
             payload["metadata"] = dict(self._last_risk_metadata)
         if self._last_risk_error is not None:

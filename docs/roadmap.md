@@ -104,6 +104,11 @@ kit that the roadmap calls back to in each checklist.
   - *Progress*: Macro ingest now falls back to an internal no-op fetcher when no
     provider is wired, letting backbone drills drop the legacy FRED scaffold while
     keeping optional macro windows explicit in the cleanup report.【F:src/data_foundation/ingest/timescale_pipeline.py†L21】【F:docs/reports/CLEANUP_REPORT.md†L120】
+  - *Progress*: Macro event ingestion now ships a hardened FRED calendar client
+    that normalises release metadata, tolerates missing API keys, sorts results,
+    and exposes the helper through the ingest package so Timescale plans can pull
+    real economic releases under pytest coverage of request handling, JSON
+    parsing, and dotenv overrides.【F:src/data_foundation/ingest/fred_calendar.py†L1-L148】【F:src/data_foundation/ingest/__init__.py†L57-L116】【F:tests/data_foundation/test_fred_calendar.py†L1-L129】
   - *Progress*: Institutional ingest provisioner now spins up supervised
     Timescale schedules alongside Redis caches and Kafka consumers, wiring the
     bridge into the task supervisor with redacted metadata, publishing a managed
@@ -306,10 +311,11 @@ kit that the roadmap calls back to in each checklist.
     runbook, task-supervisor stats, trading-manager risk summary, and graceful
     shutdown semantics under pytest coverage of the runtime harness.【F:src/runtime/fix_pilot.py†L112-L165】【F:src/runtime/fix_pilot.py†L225-L236】【F:src/runtime/fix_pilot.py†L496-L517】【F:src/runtime/__init__.py†L15-L107】【F:tests/runtime/test_fix_pilot.py†L166-L260】
   - *Progress*: Bootstrap control center, bootstrap runtime status, and FIX pilot
-    snapshots now resolve the trading manager’s risk interface payload, cache the
-    shared runbook metadata, and surface it in operator telemetry so control
-    rooms, status CLIs, and pilot dashboards expose the same escalation guidance
-    under regression coverage.【F:src/operations/bootstrap_control_center.py†L99-L350】【F:src/runtime/bootstrap_runtime.py†L210-L334】【F:src/runtime/fix_pilot.py†L22-L318】【F:tests/current/test_bootstrap_control_center.py†L151-L180】【F:tests/runtime/test_fix_pilot.py†L115-L178】
+    snapshots now build deterministic risk metadata, merge gateway/interface
+    references through the canonical helper, cache runbook or error payloads, and
+    surface risk-config summaries alongside the shared escalation link so control
+    rooms, status CLIs, and pilots share the same risk evidence under regression
+    coverage.【F:src/operations/bootstrap_control_center.py†L232-L511】【F:src/trading/risk/risk_api.py†L201-L238】【F:src/runtime/bootstrap_runtime.py†L210-L334】【F:src/runtime/fix_pilot.py†L22-L318】【F:tests/current/test_bootstrap_control_center.py†L151-L198】【F:tests/runtime/test_fix_pilot.py†L115-L178】
   - *Progress*: `RiskConfig` now normalises sector/instrument mappings, rejects
     duplicate or missing sector limits, enforces that individual and combined
     sector budgets never exceed the global exposure cap, and continues to
@@ -1066,3 +1072,11 @@ kit that the roadmap calls back to in each checklist.
 - 6151ae6 test(.github): add 5 files (2025-10-08)
 - 2963588 refactor(data_foundation): tune 3 files (2025-10-08)
 - 1fd74af feat(core): add 18 files (2025-10-08)
+
+## Automation updates — 2025-10-08T03:04:28Z
+
+### Last 4 commits
+- ef039a6 refactor(operations): tune 2 files (2025-10-08)
+- 43008dd feat(data_foundation): add 4 files (2025-10-08)
+- 4fe4905 docs(docs): tune 1 file (2025-10-08)
+- 49a28c0 test(.telemetry): tune 3 files (2025-10-08)

@@ -149,6 +149,25 @@ instrument = dataset.instruments["EURUSD"]
 Custom deployments can override the config paths when integrating with managed
 data stores.
 
+## Macro Event Calendar
+
+* Module: `src/data_foundation/ingest/fred_calendar.py`
+
+`fetch_fred_calendar(start, end, api_key=None, session=None)` wraps the FRED
+calendar endpoint so ingest plans can attach real macro release events to
+Timescale runs.  The helper:
+
+* Pulls credentials from the optional `api_key` argument or `FRED_API_KEY`
+  environment variable.
+* Normalises release metadata (calendar name, event name, currency, importance)
+  and parses timestamps into timezone-aware datetimes.
+* Sorts results and returns a list of `MacroEvent` dataclasses guarded by
+  regression tests for missing credentials, HTTP failures, and payload parsing.
+
+Pass the function to ingest pipelines or schedule it alongside other macro
+fetchers; when credentials are absent the helper emits a warning and returns an
+empty list so CI and local runs remain deterministic.
+
 ## Artefact Expectations
 
 * Parquet/CSV datasets stored under `data_foundation/cache/pricing/`

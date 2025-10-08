@@ -66,8 +66,10 @@ python -m tools.operations.run_failover_drill \
   --format markdown
 ```
 
-The drill snapshot includes the managed manifest and the configured failover
-scenario, matching the metadata recorded by `InstitutionalIngestServices`.
+Add `--extra KEY=VALUE` overrides when you need to temporarily swap connectors
+or credentials without editing the dotenv file. The drill snapshot includes the
+managed manifest and the configured failover scenario, matching the metadata
+recorded by `InstitutionalIngestServices`.
 
 ## 5. Teardown
 

@@ -99,9 +99,10 @@
 - Progress: Trading risk interface telemetry helpers now publish structured
   snapshots and contract-violation alerts with Markdown summaries, update the
   trading manager’s cached posture via `describe_risk_interface()`, and ensure
-  bootstrap control center, runtime status, and FIX pilot snapshots embed the
-  shared runbook so governance receives actionable evidence when the interface
-  degrades under pytest coverage.【F:src/trading/risk/risk_interface_telemetry.py†L1-L156】【F:src/trading/trading_manager.py†L1370-L1409】【F:src/operations/bootstrap_control_center.py†L99-L350】【F:src/runtime/bootstrap_runtime.py†L210-L334】【F:src/runtime/fix_pilot.py†L22-L318】【F:tests/trading/test_trading_manager_execution.py†L1309-L1541】【F:tests/current/test_bootstrap_control_center.py†L151-L180】【F:tests/runtime/test_fix_pilot.py†L115-L178】
+  bootstrap control center, runtime status, and FIX pilot snapshots merge
+  deterministic risk metadata and gateway/interface references via the canonical
+  helper so governance receives the shared runbook, risk_config summary, and any
+  cached error payload under pytest coverage.【F:src/trading/risk/risk_interface_telemetry.py†L1-L156】【F:src/trading/trading_manager.py†L1370-L1409】【F:src/operations/bootstrap_control_center.py†L232-L511】【F:src/trading/risk/risk_api.py†L201-L238】【F:src/runtime/bootstrap_runtime.py†L210-L334】【F:src/runtime/fix_pilot.py†L22-L318】【F:tests/trading/test_trading_manager_execution.py†L1309-L1541】【F:tests/current/test_bootstrap_control_center.py†L151-L198】【F:tests/runtime/test_fix_pilot.py†L115-L178】
 - Progress: Release-aware execution router now auto-installs across bootstrap
   runtime, control centre, and Predator summaries via the trading manager,
   exposing default stages, engine routing, and forced overrides so compliance

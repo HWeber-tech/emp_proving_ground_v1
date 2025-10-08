@@ -106,8 +106,10 @@
   extra wiring.【F:src/runtime/runtime_builder.py†L1124-L1895】【F:src/runtime/runtime_builder.py†L2453-L2568】【F:docs/operations/timescale_failover_drills.md†L7-L33】
 - Progress: Institutional ingest services now expose `run_failover_drill()` so
   Timescale rehearsals reuse managed connector manifests, normalise requested
-  dimensions, honour fallback policies, and attach redacted service summaries
-  under regression coverage and refreshed drill documentation.【F:src/data_foundation/ingest/institutional_vertical.py†L384-L466】【F:tests/runtime/test_institutional_ingest_vertical.py†L434-L496】【F:docs/operations/timescale_failover_drills.md†L25-L45】
+  dimensions, honour fallback policies, and attach redacted service summaries,
+  while the CLI loads dotenv env files and `--extra` overrides so operators can
+  reproduce managed `SystemConfig` payloads without exporting secrets, under
+  regression coverage and refreshed drill documentation.【F:src/data_foundation/ingest/institutional_vertical.py†L384-L466】【F:tests/runtime/test_institutional_ingest_vertical.py†L434-L496】【F:tools/operations/run_failover_drill.py†L18-L200】【F:tests/tools/test_run_failover_drill_cli.py†L66-L117】【F:docs/operations/timescale_failover_drills.md†L52-L82】
 - Progress: Managed connector snapshots now include probe error text, and the
   managed-ingest CLI hydrates `SystemConfig` extras before rendering manifest and
   connectivity payloads so responders see actionable failure reasons and reason
@@ -125,6 +127,10 @@
 - Progress: Timescale ingest helpers now validate schema/table identifiers at
   construction time and assert the contract under regression coverage so policy
   payloads cannot inject unsafe SQL into institutional ingest jobs.【F:src/data_foundation/persist/timescale.py†L1-L120】【F:tests/data_foundation/test_timescale_ingest.py†L1-L83】
+- Progress: Macro calendar ingestion now uses a hardened FRED client that reads
+  API keys from dotenv files, normalises release metadata, and returns sorted
+  `MacroEvent` payloads so Timescale plans can annotate runs with real economic
+  events under pytest coverage of credential fallbacks and HTTP handling.【F:src/data_foundation/ingest/fred_calendar.py†L1-L148】【F:src/data_foundation/ingest/__init__.py†L57-L116】【F:tests/data_foundation/test_fred_calendar.py†L1-L129】
 - Progress: Timescale ingestor now reflects tables through SQLAlchemy, streams
   PostgreSQL upserts via `pg_insert`, binds SQLite fallbacks, and chunks writes
   so ingest runs avoid manual SQL while retaining deterministic freshness

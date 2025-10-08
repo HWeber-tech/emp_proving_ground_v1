@@ -60,13 +60,17 @@ configured scenario and dimensions:
 
 ```bash
 python -m tools.operations.run_failover_drill \
+  --env-file /path/to/institutional.env \
   --results /tmp/ingest_results.json \
   --scenario staged_drill \
   --format markdown
 ```
 
 The command honours any failover drill configuration in `config.yaml` or the
-environment.  If no dimensions are supplied it falls back to the configured
-drill dimensions (or the dimensions present in the results).  JSON output
-carries the aggregated snapshot from `execute_failover_drill()`, while Markdown
-renders a human-friendly table for runbooks and dashboards.
+environment, and the optional `--env-file` flag seeds dotenv entries without
+exporting secrets to the shell.  Use `--extra KEY=VALUE` for one-off overrides of
+`SystemConfig` extras (for example, to swap Kafka brokers or Redis URLs during
+drills).  If no dimensions are supplied it falls back to the configured drill
+dimensions (or the dimensions present in the results).  JSON output carries the
+aggregated snapshot from `execute_failover_drill()`, while Markdown renders a
+human-friendly table for runbooks and dashboards.

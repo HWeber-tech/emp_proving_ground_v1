@@ -17,6 +17,12 @@ services:
       - EMP_ENV=development
       - PYTHONPATH=/app
       - PYTHONUNBUFFERED=1
+      - TIMESCALEDB_URL=postgresql+psycopg2://emp_user:emp_password@postgres:5432/emp_db
+      - TIMESCALEDB_APP=emp-dev-app
+      - REDIS_URL=redis://redis:6379/0
+      - REDIS_CLIENT_NAME=emp-dev-cache
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - KAFKA_CLIENT_ID=emp-dev-app
     volumes:
       - ./data:/app/data
       - ./logs:/app/logs
@@ -25,6 +31,7 @@ services:
     depends_on:
       - redis
       - postgres
+      - kafka
     networks:
       - emp-network
     restart: unless-stopped
@@ -48,19 +55,75 @@ services:
     restart: unless-stopped
     command: redis-server --appendonly yes
 
-  # PostgreSQL for persistent storage
+  # TimescaleDB instance for market data and journals
   postgres:
-    image: postgres:15-alpine
+    image: timescale/timescaledb:2.14.3-pg15
     container_name: emp-postgres
     environment:
       POSTGRES_DB: emp_db
       POSTGRES_USER: emp_user
       POSTGRES_PASSWORD: emp_password
+      TIMESCALEDB_TELEMETRY: 'off'
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./config/database/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - emp-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "emp_user"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    command: [
+      "postgres",
+      "-c",
+      "listen_addresses=*",
+      "-c",
+      "max_connections=200",
+      "-c",
+      "shared_preload_libraries=timescaledb",
+      "-c",
+      "timescaledb.telemetry_level=off"
+    ]
+
+  # Kafka for streaming ingest telemetry
+  kafka:
+    image: bitnami/kafka:3.7
+    container_name: emp-kafka
+    ports:
+      - "9094:9094"
+    environment:
+      KAFKA_CFG_NODE_ID: 0
+      KAFKA_CFG_PROCESS_ROLES: broker,controller
+      KAFKA_CFG_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_CFG_LISTENERS: CONTROLLER://:9093,PLAINTEXT://:9092,EXTERNAL://:9094
+      KAFKA_CFG_ADVERTISED_LISTENERS: CONTROLLER://emp-kafka:9093,PLAINTEXT://emp-kafka:9092,EXTERNAL://localhost:9094
+      KAFKA_CFG_CONTROLLER_QUORUM_VOTERS: 0@emp-kafka:9093
+      KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE: 'true'
+      KAFKA_CFG_NUM_PARTITIONS: 3
+      KAFKA_CFG_DEFAULT_REPLICATION_FACTOR: 1
+      KAFKA_ENABLE_KRAFT: 'yes'
+      KAFKA_KRAFT_CLUSTER_ID: oZ4d5P7nTbm1lYvA6w9xBg
+      KAFKA_BROKER_ID: 0
+      ALLOW_PLAINTEXT_LISTENER: 'yes'
+      BITNAMI_DEBUG: 'false'
+    volumes:
+      - kafka_data:/bitnami/kafka
+    healthcheck:
+      test:
+        - CMD
+        - /opt/bitnami/kafka/bin/kafka-topics.sh
+        - --bootstrap-server
+        - localhost:9092
+        - --list
+      interval: 15s
+      timeout: 10s
+      retries: 6
     networks:
       - emp-network
     restart: unless-stopped
@@ -165,6 +228,7 @@ services:
 volumes:
   redis_data:
   postgres_data:
+  kafka_data:
   prometheus_data:
   grafana_data:
   elasticsearch_data:
@@ -174,4 +238,4 @@ networks:
     driver: bridge
     ipam:
       config:
-        - subnet: 172.20.0.0/16 
+        - subnet: 172.20.0.0/16

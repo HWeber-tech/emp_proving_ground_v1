@@ -1,0 +1,20 @@
+# SystemConfig preset that activates the developer data backbone services started
+# via docker-compose.yml. The values map directly to the Timescale, Redis, and
+# Kafka containers defined in the development compose file.
+system_config:
+  run_mode: paper
+  environment: demo
+  data_backbone_mode: institutional
+  extras:
+    TIMESCALEDB_URL: postgresql+psycopg2://emp_user:emp_password@localhost:5432/emp_db
+    TIMESCALEDB_APP: emp-dev-runtime
+    TIMESCALEDB_STATEMENT_TIMEOUT_MS: "15000"
+    REDIS_URL: redis://localhost:6379/0
+    REDIS_CLIENT_NAME: emp_dev_cache
+    KAFKA_BOOTSTRAP_SERVERS: localhost:9094
+    KAFKA_CLIENT_ID: emp-dev-runtime
+    KAFKA_INGEST_DEFAULT_TOPIC: telemetry.ingest
+    KAFKA_INGEST_CONSUMER_TOPICS: telemetry.ingest
+    KAFKA_INGEST_HEALTH_TOPIC: telemetry.ingest.health
+    KAFKA_INGEST_METRICS_TOPIC: telemetry.ingest.metrics
+    KAFKA_INGEST_QUALITY_TOPIC: telemetry.ingest.quality

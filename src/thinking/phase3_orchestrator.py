@@ -1,4 +1,4 @@
-from collections.abc import Sequence
+from collections.abc import Mapping
 
 """
 Phase 3 Orchestrator - Advanced Intelligence & Predatory Behavior
@@ -432,19 +432,35 @@ class Phase3Orchestrator:
             total_successes = 0
             vuln_count = 0
             for rpt in red_team_results:
-                try:
-                    attacks = rpt.get("attack_results", []) if isinstance(rpt, dict) else []
-                    if isinstance(attacks, list):
-                        total_attacks += len(attacks)
-                        total_successes += sum(
-                            1
-                            for a in attacks
-                            if isinstance(a, dict) and bool(a.get("success", False))
-                        )
-                    wf = rpt.get("weaknesses_found", []) if isinstance(rpt, dict) else []
-                    vuln_count += len(wf) if isinstance(wf, list) else 0
-                except Exception:
+                if not isinstance(rpt, Mapping):
+                    logger.debug(
+                        "Skipping red team report with unexpected type %s",
+                        type(rpt).__name__,
+                    )
                     continue
+
+                attacks = rpt.get("attack_results", [])
+                if isinstance(attacks, list):
+                    total_attacks += len(attacks)
+                    total_successes += sum(
+                        1
+                        for a in attacks
+                        if isinstance(a, Mapping) and bool(a.get("success", False))
+                    )
+                elif attacks:
+                    logger.debug(
+                        "Ignoring attack_results payload of type %s",
+                        type(attacks).__name__,
+                    )
+
+                weaknesses = rpt.get("weaknesses_found", [])
+                if isinstance(weaknesses, list):
+                    vuln_count += len(weaknesses)
+                elif weaknesses:
+                    logger.debug(
+                        "Ignoring weaknesses_found payload of type %s",
+                        type(weaknesses).__name__,
+                    )
             survival_rate = float(total_successes / total_attacks) if total_attacks > 0 else 0.0
             vulnerabilities_found = int(vuln_count)
 
@@ -576,12 +592,26 @@ class Phase3Orchestrator:
                     result = setter("phase3:last_full_analysis", payload)
                     if inspect.isawaitable(result):
                         await result
-                except Exception:
-                    # Fallback for sync or differently-typed setter; swallow errors
+                except TypeError as exc:
+                    logger.debug(
+                        "Retrying state_store.set after TypeError: %s",
+                        exc,
+                        exc_info=exc,
+                    )
                     try:
                         setter("phase3:last_full_analysis", payload)
-                    except Exception:
-                        pass
+                    except Exception as fallback_exc:  # pragma: no cover - defensive logging
+                        logger.warning(
+                            "Failed fallback persistence via state store: %s",
+                            fallback_exc,
+                            exc_info=fallback_exc,
+                        )
+                except Exception as exc:  # pragma: no cover - defensive logging
+                    logger.warning(
+                        "Failed to persist analysis results via state store: %s",
+                        exc,
+                        exc_info=exc,
+                    )
         except Exception as e:
             # Swallow errors by design to keep behavior non-breaking
             logger.debug(f"Non-fatal error storing analysis results: {e}")

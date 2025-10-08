@@ -14,9 +14,12 @@ from typing import Any, Dict, List, Mapping, Optional, Sequence, cast
 
 import numpy as np
 
+logger = logging.getLogger(__name__)
+
 try:
     from src.core.events import AlgorithmSignature, CompetitorBehavior, CounterStrategy  # legacy
-except Exception:  # pragma: no cover
+except ImportError as exc:  # pragma: no cover
+    logger.warning("Falling back to object shims for legacy core events: %s", exc)
     AlgorithmSignature = CompetitorBehavior = CounterStrategy = object
 from src.core.state_store import StateStore
 from src.thinking.models.types import (
@@ -27,6 +30,27 @@ from src.thinking.models.types import (
 )
 
 
+_MISSING = object()
+
+
+def _safe_getattr(obj: object, key: str) -> object:
+    """Return ``obj.key`` or ``_MISSING`` while logging unexpected errors."""
+
+    try:
+        return getattr(obj, key)
+    except AttributeError:
+        return _MISSING
+    except Exception as exc:  # pragma: no cover - defensive logging path
+        logger.debug(
+            "Failed attribute '%s' on %s: %s",
+            key,
+            type(obj).__name__,
+            exc,
+            exc_info=exc,
+        )
+        return _MISSING
+
+
 def _to_mapping(obj: object, keys: Sequence[str] | None = None) -> dict[str, object]:
     """
     Best-effort conversion to a minimal dict without raising.
@@ -34,15 +58,34 @@ def _to_mapping(obj: object, keys: Sequence[str] | None = None) -> dict[str, obj
     - If obj is a mapping, shallow-copy selected keys or full mapping.
     - Otherwise, pull selected attributes by name if present.
     """
-    try:
-        if hasattr(obj, "dict"):
-            d = obj.dict()
-            if isinstance(d, Mapping):
+    if hasattr(obj, "dict"):
+        try:
+            candidate = obj.dict()
+        except (AttributeError, TypeError, ValueError) as exc:
+            logger.warning(
+                "Failed to coerce %s via dict(): %s",
+                type(obj).__name__,
+                exc,
+                exc_info=exc,
+            )
+        except Exception as exc:  # pragma: no cover - unexpected failure
+            logger.warning(
+                "Unexpected error calling dict() on %s: %s",
+                type(obj).__name__,
+                exc,
+                exc_info=exc,
+            )
+        else:
+            if isinstance(candidate, Mapping):
+                mapping = dict(candidate)
                 if keys:
-                    return {k: d.get(k) for k in keys if k in d}
-                return dict(d)
-    except Exception:
-        pass
+                    return {k: mapping.get(k) for k in keys if k in mapping}
+                return mapping
+            logger.warning(
+                "Object %s.dict() returned non-mapping %s",
+                type(obj).__name__,
+                type(candidate).__name__,
+            )
     if isinstance(obj, Mapping):
         if keys:
             return {k: obj.get(k) for k in keys if k in obj}
@@ -50,11 +93,9 @@ def _to_mapping(obj: object, keys: Sequence[str] | None = None) -> dict[str, obj
     out: dict[str, object] = {}
     if keys:
         for k in keys:
-            try:
-                if hasattr(obj, k):
-                    out[k] = getattr(obj, k)
-            except Exception:
-                continue
+            value = _safe_getattr(obj, k)
+            if value is not _MISSING:
+                out[k] = value
     else:
         # Fallback common attributes
         for k in (
@@ -70,15 +111,10 @@ def _to_mapping(obj: object, keys: Sequence[str] | None = None) -> dict[str, obj
             "parameters",
             "expected_effectiveness",
         ):
-            try:
-                if hasattr(obj, k):
-                    out[k] = getattr(obj, k)
-            except Exception:
-                continue
+            value = _safe_getattr(obj, k)
+            if value is not _MISSING:
+                out[k] = value
     return out
-
-
-logger = logging.getLogger(__name__)
 
 
 class AlgorithmFingerprinter:

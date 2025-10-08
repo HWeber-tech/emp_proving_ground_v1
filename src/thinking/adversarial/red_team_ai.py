@@ -19,6 +19,26 @@ from src.thinking.models.types import AttackReportTD
 
 logger = logging.getLogger(__name__)
 
+_MISSING = object()
+
+
+def _safe_getattr(obj: object, key: str) -> object:
+    """Return attribute ``key`` or ``_MISSING`` while logging unexpected errors."""
+
+    try:
+        return getattr(obj, key)
+    except AttributeError:
+        return _MISSING
+    except Exception as exc:  # pragma: no cover - defensive logging path
+        logger.debug(
+            "Failed to read attribute '%s' from %s: %s",
+            key,
+            type(obj).__name__,
+            exc,
+            exc_info=exc,
+        )
+        return _MISSING
+
 
 def _to_mapping(obj: object) -> dict[str, object]:
     """
@@ -28,13 +48,31 @@ def _to_mapping(obj: object) -> dict[str, object]:
     - dict(obj) if mapping-like
     - minimal attribute projection fallback
     """
-    try:
-        if hasattr(obj, "dict"):
-            d = obj.dict()
-            if isinstance(d, dict):
-                return d
-    except Exception:
-        pass
+    if hasattr(obj, "dict"):
+        try:
+            candidate = obj.dict()
+        except (AttributeError, TypeError, ValueError) as exc:
+            logger.warning(
+                "Failed to materialize mapping via dict() on %s: %s",
+                type(obj).__name__,
+                exc,
+                exc_info=exc,
+            )
+        except Exception as exc:  # pragma: no cover - unexpected failure
+            logger.warning(
+                "Unexpected error calling dict() on %s: %s",
+                type(obj).__name__,
+                exc,
+                exc_info=exc,
+            )
+        else:
+            if isinstance(candidate, Mapping):
+                return dict(candidate)
+            logger.warning(
+                "Object %s.dict() returned non-mapping %s",
+                type(obj).__name__,
+                type(candidate).__name__,
+            )
     if isinstance(obj, dict):
         return obj
     # Fallback: gather common attributes if present
@@ -47,11 +85,9 @@ def _to_mapping(obj: object) -> dict[str, object]:
         "performance_patterns",
         "metadata",
     ):
-        try:
-            if hasattr(obj, key):
-                out[key] = getattr(obj, key)
-        except Exception:
-            continue
+        value = _safe_getattr(obj, key)
+        if value is not _MISSING:
+            out[key] = value
     return out
 
 

@@ -87,3 +87,8 @@ def test_portfolio_monitor_emits_cache_metrics_events() -> None:
     latest = captured[-1]
     assert latest["cache_key"] == "emp:portfolio_state"
     assert "hits" in latest and "misses" in latest
+    assert latest.get("sets", 0) >= 1
+    assert latest.get("keys", 0) >= 0
+    policy = latest.get("policy")
+    assert isinstance(policy, dict)
+    assert "ttl_seconds" in policy and "max_keys" in policy

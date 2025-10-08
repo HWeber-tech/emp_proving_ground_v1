@@ -110,6 +110,10 @@ def test_managed_redis_cache_ttl_and_eviction() -> None:
     metrics = cache.metrics()
     assert metrics["expirations"] == 1
     assert metrics["misses"] >= 1
+    assert metrics["sets"] == 2
+    assert metrics["keys"] <= 2
+    assert metrics["ttl_seconds"] == 5
+    assert metrics["max_keys"] == 2
 
     cache.set("gamma", "3")
     cache.set("delta", "4")  # triggers eviction because max_keys=2
@@ -117,6 +121,20 @@ def test_managed_redis_cache_ttl_and_eviction() -> None:
     metrics = cache.metrics()
     assert metrics["evictions"] >= 1
     assert cache.get("beta") is None or cache.get("gamma") is not None
+
+
+def test_managed_redis_cache_metrics_reset() -> None:
+    policy = RedisCachePolicy(ttl_seconds=5, max_keys=2, namespace="emp:test")
+    cache = ManagedRedisCache(InMemoryRedis(), policy)
+
+    cache.set("alpha", "1")
+    snapshot = cache.metrics(reset=True)
+    assert snapshot["sets"] == 1
+    assert snapshot["hits"] == 0
+
+    after_reset = cache.metrics()
+    assert after_reset["sets"] == 0
+    assert after_reset["hits"] == 0
 
 
 def test_wrap_managed_cache_returns_existing_instance() -> None:

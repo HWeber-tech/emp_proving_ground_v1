@@ -144,7 +144,7 @@ class PortfolioMonitor:
             return
 
         try:
-            snapshot = metrics_fn()
+            snapshot = metrics_fn(reset=True)
         except Exception:  # pragma: no cover - defensive logging
             logger.debug("Failed to retrieve cache metrics", exc_info=True)
             return
@@ -155,6 +155,15 @@ class PortfolioMonitor:
         payload: dict[str, object] = dict(snapshot)
         payload["cache_key"] = self.redis_key
         payload["reason"] = reason
+        payload.setdefault(
+            "policy",
+            {
+                "ttl_seconds": self.cache_policy.ttl_seconds,
+                "max_keys": self.cache_policy.max_keys,
+                "namespace": self.cache_policy.namespace,
+                "invalidate_prefixes": list(self.cache_policy.invalidate_prefixes),
+            },
+        )
 
         event = Event(
             type=self._cache_metrics_topic,

@@ -402,6 +402,7 @@ class ManagedRedisCache:
         self._evictions = 0
         self._expirations = 0
         self._invalidations = 0
+        self._sets = 0
 
     @property
     def raw_client(self) -> Any:
@@ -468,6 +469,7 @@ class ManagedRedisCache:
                 except Exception:  # pragma: no cover
                     logger.debug("Redis expire failed for %s", namespaced)
 
+        self._sets += 1
         self._expiry[namespaced] = expiry
         self._key_order[namespaced] = self._time_fn()
         self._key_order.move_to_end(namespaced)
@@ -522,11 +524,16 @@ class ManagedRedisCache:
             evictions=self._evictions,
             expirations=self._expirations,
             invalidations=self._invalidations,
+            sets=self._sets,
+            keys=len(self._key_order),
             namespace=self.policy.namespace,
+            ttl_seconds=self.policy.ttl_seconds,
+            max_keys=self.policy.max_keys,
         )
         if reset:
             self._hits = self._misses = self._evictions = 0
             self._expirations = self._invalidations = 0
+            self._sets = 0
         return snapshot
 
     def _enforce_capacity(self) -> None:

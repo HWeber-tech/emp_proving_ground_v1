@@ -13,6 +13,10 @@ def test_understanding_graph_cli_json_output(capsys) -> None:
     payload = json.loads(captured.out)
     assert payload["graph"]["status"] == "ok"
     assert payload["snapshot"]["metadata"]["decision_id"]
+    health_metrics = payload["graph"]["metadata"].get("health_metrics")
+    assert health_metrics is not None
+    assert health_metrics["fast_weight"]["graph_sparsity"] == 0.5
+    assert "momentum_breakout" in health_metrics["strategy_activation"]["dominant_strategies"]
 
 
 def test_understanding_graph_cli_dot_output(capsys) -> None:

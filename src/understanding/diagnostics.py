@@ -2,6 +2,7 @@ from __future__ import annotations
 
 """Diagnostics helpers for the understanding loop sprint roadmap tasks."""
 
+from collections import Counter
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 import datetime as _datetime
@@ -394,6 +395,41 @@ class UnderstandingGraphDiagnostics:
             lines.append(
                 f"| {node.name} | {node.kind.value} | {node.status.value.upper()} | {headline} |"
             )
+        health = self.metadata.get("health_metrics")
+        if isinstance(health, Mapping):
+            lines.append("")
+            lines.append("| Health Metric | Value |")
+            lines.append("| --- | --- |")
+            fast = health.get("fast_weight")
+            if isinstance(fast, Mapping):
+                active_pct = fast.get("active_percentage")
+                sparsity = fast.get("graph_sparsity")
+                lines.append(
+                    "| Fast-weight utilisation | "
+                    f"{active_pct}% active; sparsity {sparsity} |"
+                )
+                inactive = fast.get("inactive_adapters") or ()
+                inactive_display = ", ".join(inactive) if inactive else "None"
+                lines.append(f"| Inactive adapters | {inactive_display} |")
+            strategy = health.get("strategy_activation")
+            if isinstance(strategy, Mapping):
+                dominant = strategy.get("dominant_strategies") or ()
+                dominant_display = ", ".join(dominant) if dominant else "None"
+                lines.append(f"| Dominant strategies | {dominant_display} |")
+                never = strategy.get("never_selected") or ()
+                never_display = ", ".join(never) if never else "None"
+                lines.append(f"| Never selected | {never_display} |")
+            sequence = health.get("decision_sequence")
+            if isinstance(sequence, Sequence):
+                winners = [
+                    entry.get("tactic_id")
+                    for entry in sequence
+                    if isinstance(entry, Mapping) and entry.get("tactic_id")
+                ]
+                if winners:
+                    lines.append(
+                        "| Decision sequence | " + " -> ".join(str(item) for item in winners) + " |"
+                    )
         return "\n".join(lines)
 
 
@@ -549,7 +585,7 @@ class UnderstandingDiagnosticsBuilder:
             )
         )
 
-        understanding_router.register_adapter(
+        adapters = (
             FastWeightAdapter(
                 adapter_id="low_liquidity_boost",
                 tactic_id="mean_reversion",
@@ -557,9 +593,7 @@ class UnderstandingDiagnosticsBuilder:
                 rationale="Boost mean reversion when liquidity is compressed and experiments are live",
                 feature_gates=(FeatureGate(feature="liquidity_z", maximum=0.0),),
                 required_flags={"experiments_live": True},
-            )
-        )
-        understanding_router.register_adapter(
+            ),
             FastWeightAdapter(
                 adapter_id="momentum_sentiment_gate",
                 tactic_id="momentum_breakout",
@@ -567,8 +601,10 @@ class UnderstandingDiagnosticsBuilder:
                 rationale="Documented gate for sentiment-positive momentum runs",
                 feature_gates=(FeatureGate(feature="sentiment_z", minimum=0.2),),
                 required_flags={"experiments_live": True},
-            )
+            ),
         )
+        for adapter in adapters:
+            understanding_router.register_adapter(adapter)
 
         belief_snapshot = BeliefSnapshot(
             belief_id="understanding-balanced-shadow",
@@ -581,6 +617,213 @@ class UnderstandingDiagnosticsBuilder:
 
         understanding_decision = understanding_router.route(belief_snapshot)
         decision = understanding_decision.decision
+
+        adapter_ids = tuple(adapter.adapter_id for adapter in adapters)
+        window_decisions = [understanding_decision]
+
+        # Synthetic decision window used to derive health metrics for the graph.
+        window_scenarios: Sequence[Mapping[str, object]] = (
+            {
+                "scenario_id": "mean_boost",
+                "confidence": 0.79,
+                "features": {
+                    "volatility_z": 0.38,
+                    "liquidity_z": -0.20,
+                    "sentiment_z": 0.25,
+                },
+                "feature_flags": {"experiments_live": True},
+                "fast_weights": {"mean_reversion": 1.6},
+                "fast_weights_enabled": True,
+            },
+            {
+                "scenario_id": "flags_off",
+                "confidence": 0.80,
+                "features": {
+                    "volatility_z": 0.35,
+                    "liquidity_z": -0.10,
+                    "sentiment_z": 0.30,
+                },
+                "feature_flags": {"experiments_live": False},
+                "fast_weights": None,
+                "fast_weights_enabled": True,
+            },
+            {
+                "scenario_id": "high_liquidity",
+                "confidence": 0.76,
+                "features": {
+                    "volatility_z": 0.41,
+                    "liquidity_z": 0.18,
+                    "sentiment_z": 0.26,
+                },
+                "feature_flags": {"experiments_live": True},
+                "fast_weights": None,
+                "fast_weights_enabled": True,
+            },
+            {
+                "scenario_id": "low_sentiment",
+                "confidence": 0.74,
+                "features": {
+                    "volatility_z": 0.40,
+                    "liquidity_z": -0.15,
+                    "sentiment_z": 0.10,
+                },
+                "feature_flags": {"experiments_live": True},
+                "fast_weights": {"mean_reversion": 1.55},
+                "fast_weights_enabled": True,
+            },
+            {
+                "scenario_id": "disabled_fast_weights",
+                "confidence": 0.77,
+                "features": {
+                    "volatility_z": 0.39,
+                    "liquidity_z": -0.12,
+                    "sentiment_z": 0.24,
+                },
+                "feature_flags": {"experiments_live": True},
+                "fast_weights": None,
+                "fast_weights_enabled": False,
+            },
+        )
+
+        for index, scenario in enumerate(window_scenarios, start=1):
+            scenario_regime = RegimeState(
+                regime=regime_state.regime,
+                confidence=float(scenario["confidence"]),
+                features={str(k): float(v) for k, v in scenario["features"].items()},
+                timestamp=regime_state.timestamp + timedelta(minutes=index),
+            )
+            feature_flags = scenario.get("feature_flags")
+            scenario_snapshot = BeliefSnapshot(
+                belief_id=f"{belief_snapshot.belief_id}-scenario-{scenario['scenario_id']}",
+                regime_state=scenario_regime,
+                features=scenario_regime.features,
+                metadata={
+                    "window": belief_snapshot.metadata.get("window", "15m"),
+                    "source": belief_snapshot.metadata.get("source", "synthetic-shadow"),
+                    "scenario_id": scenario["scenario_id"],
+                },
+                fast_weights_enabled=bool(scenario["fast_weights_enabled"]),
+                feature_flags=
+                {
+                    key: bool(value)
+                    for key, value in feature_flags.items()
+                }
+                if feature_flags
+                else belief_snapshot.feature_flags,
+            )
+            window_decisions.append(
+                understanding_router.route(
+                    scenario_snapshot,
+                    fast_weights=scenario.get("fast_weights"),
+                )
+            )
+
+        window_size = len(window_decisions)
+        total_adapters = len(adapter_ids)
+        adapter_activation_counts: Counter[str] = Counter()
+        decision_sequence: list[Mapping[str, object]] = []
+
+        for decision_bundle in window_decisions:
+            decision_sequence.append(
+                {
+                    "belief_id": decision_bundle.belief_snapshot.belief_id,
+                    "tactic_id": decision_bundle.decision.tactic_id,
+                    "scenario_id": decision_bundle.belief_snapshot.metadata.get("scenario_id"),
+                }
+            )
+            for adapter_id in adapter_ids:
+                summary = decision_bundle.fast_weight_summary.get(adapter_id)
+                if not summary:
+                    continue
+                try:
+                    multiplier = float(summary.get("current_multiplier", 0.0))
+                except (TypeError, ValueError):
+                    continue
+                if multiplier > 0.0:
+                    adapter_activation_counts[adapter_id] += 1
+
+        total_possible = window_size * total_adapters
+        active_ratio = (
+            float(sum(adapter_activation_counts.values())) / float(total_possible)
+            if total_possible
+            else 0.0
+        )
+        graph_sparsity = 1.0 - active_ratio if total_possible else 1.0
+        adapter_utilisation = {
+            adapter_id: (
+                round(
+                    adapter_activation_counts.get(adapter_id, 0) / float(window_size),
+                    4,
+                )
+                if window_size
+                else 0.0
+            )
+            for adapter_id in adapter_ids
+        }
+
+        strategy_counts: Counter[str] = Counter(
+            decision_bundle.decision.tactic_id for decision_bundle in window_decisions
+        )
+        tactic_ids = sorted(policy_router.tactics().keys())
+        strategy_distribution = {
+            tactic_id: {
+                "count": strategy_counts.get(tactic_id, 0),
+                "share": (
+                    round(strategy_counts.get(tactic_id, 0) / float(window_size), 4)
+                    if window_size
+                    else 0.0
+                ),
+            }
+            for tactic_id in tactic_ids
+        }
+        dominant_threshold = 0.6
+        dominant_strategies = [
+            tactic_id
+            for tactic_id, payload in strategy_distribution.items()
+            if payload["share"] >= dominant_threshold
+        ]
+        always_selected = [
+            tactic_id
+            for tactic_id, payload in strategy_distribution.items()
+            if window_size and payload["count"] == window_size
+        ]
+        never_selected = [
+            tactic_id
+            for tactic_id, payload in strategy_distribution.items()
+            if payload["count"] == 0
+        ]
+
+        health_metrics = {
+            "window_size": window_size,
+            "decision_sequence": decision_sequence,
+            "fast_weight": {
+                "total_adapters": total_adapters,
+                "active_counts": dict(adapter_activation_counts),
+                "adapter_utilisation": adapter_utilisation,
+                "active_percentage": round(active_ratio * 100.0, 2),
+                "graph_sparsity": round(graph_sparsity, 4),
+                "inactive_adapters": [
+                    adapter_id
+                    for adapter_id in adapter_ids
+                    if adapter_activation_counts.get(adapter_id, 0) == 0
+                ],
+            },
+            "strategy_activation": {
+                "dominant_threshold": dominant_threshold,
+                "strategies": strategy_distribution,
+                "dominant_strategies": dominant_strategies,
+                "always_selected": always_selected,
+                "never_selected": never_selected,
+            },
+        }
+
+        dominant_display = ", ".join(dominant_strategies) or "balanced"
+        active_pct_value = health_metrics["fast_weight"]["active_percentage"]
+        sparsity_value = health_metrics["fast_weight"]["graph_sparsity"]
+        health_summary = (
+            f"fast-weight active={active_pct_value:.2f}% | "
+            f"sparsity={sparsity_value:.2f} | dominant={dominant_display}"
+        )
 
         drift_parameters = SensorDriftParameters(
             baseline_window=4,
@@ -710,6 +953,8 @@ class UnderstandingDiagnosticsBuilder:
                 "experiments": list(decision.experiments_applied),
                 "adapters": list(understanding_decision.applied_adapters),
                 "fast_weight_summary": understanding_decision.fast_weight_summary,
+                "health_summary": health_summary,
+                "decision_window": health_metrics["decision_sequence"],
             },
             lineage=None,
         )
@@ -756,6 +1001,8 @@ class UnderstandingDiagnosticsBuilder:
             "drift_exceeded": drift_exceeded,
             "experiments": list(decision.experiments_applied),
             "adapters": list(understanding_decision.applied_adapters),
+            "health_summary": health_summary,
+            "health_metrics": health_metrics,
         }
 
         graph = UnderstandingGraphDiagnostics(

@@ -63,6 +63,11 @@
   attach runtime metadata, merge resolved interface details, and surface
   structured `RiskApiError` payloads so operators inherit actionable posture
   even when integrations degrade under pytest coverage.【F:src/runtime/predator_app.py†L995-L1063】【F:tests/current/test_runtime_professional_app.py†L304-L364】
+- Progress: FIX broker interface captures deterministic risk metadata ahead of
+  approvals or rejections, persists the runbook-backed context on order records,
+  and emits the same payload on rejection telemetry under regression coverage so
+  incident responders observe identical evidence whether they inspect FIX state
+  or event bus emissions.【F:src/trading/integration/fix_broker_interface.py†L95-L170】【F:src/trading/integration/fix_broker_interface.py†L278-L366】【F:src/trading/integration/fix_broker_interface.py†L620-L710】【F:tests/trading/test_fix_broker_interface_events.py†L332-L386】
 - Progress: Liquidity prober now routes probe tasks through the shared supervisor
   and records deterministic risk metadata or runbook-tagged errors on every run,
   with regression coverage asserting the supervised probes and risk context so
@@ -183,6 +188,11 @@
     metadata, and runtime summaries into deterministic `risk_reference`
     payloads while surfacing shared runbooks so telemetry, dashboards, and
     audits inherit the same risk configuration under pytest coverage.【F:src/trading/trading_manager.py†L1255-L1744】【F:src/trading/risk/risk_gateway.py†L396-L429】【F:tests/trading/test_trading_manager_execution.py†L1309-L1566】【F:tests/current/test_risk_gateway_validation.py†L391-L460】
+  - Progress: Release-aware execution router now reconfigures pilot and live
+    engines on demand, persists last-route governance metadata, and works with
+    the trading manager’s cached pilot/live engines so limited-live promotions
+    dispatch orders to the live engine under regression coverage of the stage
+    transitions.【F:src/trading/execution/release_router.py†L166-L217】【F:src/trading/trading_manager.py†L141-L287】【F:tests/trading/test_release_execution_router.py†L168-L217】【F:tests/trading/test_trading_manager_execution.py†L1438-L1492】
   - Progress: Legacy FIX executor now installs the shared risk-context provider,
     captures metadata/errors each time it reconciles orders, and exposes
     `describe_risk_context()` so FIX pilots surface the same runbook-tagged risk

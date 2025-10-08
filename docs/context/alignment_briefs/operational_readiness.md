@@ -43,7 +43,8 @@
     performance monitors with the shared supervisor, drains background tasks on
     shutdown, and ships a smoke test validating the supervised lifecycle so
     thinking pipelines inherit the same operational guardrails as runtime
-    entrypoints.【F:src/thinking/phase3_orchestrator.py†L103-L276】【F:tests/current/test_orchestration_runtime_smoke.py†L19-L102】
+    entrypoints, while new persistence fallbacks log and retry state-store writes
+    so analysis snapshots degrade gracefully without silent drops.【F:src/thinking/phase3_orchestrator.py†L103-L276】【F:src/thinking/phase3_orchestrator.py†L596-L626】【F:tests/current/test_orchestration_runtime_smoke.py†L19-L102】
 - Harden operational telemetry publishers so security, system validation, and
   professional readiness feeds warn on runtime bus failures, fall back
   deterministically, and raise on unexpected errors with pytest coverage

@@ -70,6 +70,10 @@
     payloads and attribute errors, with dedicated regression tests proving the
     defensive paths so AlphaTrade narration surfaces keep ingesting predictive and
     adversarial outputs without flake-prone casts.【F:src/thinking/models/normalizers.py†L26-L182】【F:tests/thinking/test_normalizers.py†L1-L85】
+  - Progress: Red-team and competitive intelligence mappers now harden their
+    `_to_mapping` helpers with defensive attribute access, structured warnings on
+    dict failures, and regression tests that exercise Phase-0 security scenarios so
+    adversarial outputs keep flowing to telemetry without silent drops.【F:src/thinking/adversarial/red_team_ai.py†L22-L91】【F:src/thinking/competitive/competitive_intelligence_system.py†L33-L117】【F:tests/thinking/test_security_hardening_phase0.py†L30-L48】
   - Progress: Incident response readiness now evaluates policy/state mappings,
     emits Markdown snapshots, derives roster/backlog alerts, and publishes via
     the failover helper under pytest coverage so operators inherit actionable

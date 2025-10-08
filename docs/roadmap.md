@@ -93,7 +93,7 @@ kit that the roadmap calls back to in each checklist.
   - *Progress*: Institutional ingest guardrails now carry dedicated `guardrail`
     markers, the manifest asserts coverage jobs require the production slice and
     institutional vertical, and the coverage guardrail CLI tracks the
-    institutional vertical target so CI fails when coverage drifts.【F:tests/data_foundation/test_production_ingest_slice.py†L8】【F:tests/data_foundation/test_institutional_vertical.py†L11】【F:tests/runtime/test_guardrail_suite_manifest.py†L21】【F:tests/runtime/test_guardrail_suite_manifest.py†L113】【F:.github/workflows/ci.yml†L112】【F:tools/telemetry/coverage_guardrails.py†L22】【F:tests/tools/test_coverage_guardrails.py†L40】
+    institutional vertical target so CI fails when coverage drifts.【F:tests/data_foundation/test_production_ingest_slice.py†L8】【F:tests/runtime/test_institutional_ingest_vertical.py:110】【F:tests/runtime/test_guardrail_suite_manifest.py†L21】【F:tests/runtime/test_guardrail_suite_manifest.py†L113】【F:.github/workflows/ci.yml†L112】【F:tools/telemetry/coverage_guardrails.py†L22】【F:tests/tools/test_coverage_guardrails.py†L40】
   - *Progress*: Coverage guardrails now require the ingest configuration loader,
     with the CI workflow enforcing the `--require-file` flag, the guardrail
     manifest enumerating the target, the evaluator treating it as a default
@@ -150,13 +150,11 @@ kit that the roadmap calls back to in each checklist.
     dimensions, supervised fallback execution, and redacted service summaries so
     disaster-recovery rehearsals share the runtime wiring under regression
     coverage.【F:src/data_foundation/ingest/institutional_vertical.py†L384-L466】【F:tests/runtime/test_institutional_ingest_vertical.py†L434-L496】【F:docs/operations/timescale_failover_drills.md†L25-L45】
-  - *Progress*: Institutional ingest services now capture Kafka metadata even when
-    the consumer fails to provision, normalise boolean/timeout settings, record
-    consumer group defaults, configured topics, and topic counts in summaries,
-    enrich managed manifests with the redacted metadata, and expose asynchronous
-    connectivity probes with timeout-aware error formatting so dashboards and drills
-    inherit health-annotated snapshots before running recovery workflows under refreshed
-    pytest coverage.【F:src/data_foundation/ingest/institutional_vertical.py†L132-L420】【F:tests/data_foundation/test_institutional_vertical.py†L309-L351】【F:tests/runtime/test_institutional_ingest_vertical.py†L161-L185】
+  - *Progress*: Institutional ingest provisioning now supervises the Kafka bridge via
+    `TaskSupervisor`, builds managed manifests with redacted Timescale/Redis/Kafka
+    metadata, normalises Kafka mapping fallbacks, and exposes connectivity plus
+    failover drill snapshots so readiness dashboards capture health-annotated evidence
+    before drills run under refreshed pytest coverage.【F:src/data_foundation/ingest/institutional_vertical.py:413】【F:src/data_foundation/ingest/institutional_vertical.py:437】【F:src/data_foundation/ingest/institutional_vertical.py:539】【F:src/data_foundation/ingest/institutional_vertical.py:840】【F:src/data_foundation/ingest/institutional_vertical.py:601】【F:tests/runtime/test_institutional_ingest_vertical.py:110】【F:tests/runtime/test_institutional_ingest_vertical.py:336】【F:tests/runtime/test_institutional_ingest_vertical.py:418】【F:tests/runtime/test_institutional_ingest_vertical.py:447】
   - *Progress*: Tier-0 Yahoo ingest now sanitises symbols/intervals, enforces
     mutually exclusive period versus window arguments, normalises timestamps,
     and writes through a DuckDB helper that escapes table identifiers and binds
@@ -177,15 +175,13 @@ kit that the roadmap calls back to in each checklist.
     performs PostgreSQL upserts via `pg_insert`, binds SQLite fallbacks, and
     chunks writes so ingest runs avoid hand-written SQL while retaining
     deterministic freshness metrics under regression coverage.【F:src/data_foundation/persist/timescale.py†L2337-L2489】【F:tests/data_foundation/test_timescale_ingest.py†L165-L220】
-  - *Progress*: JSONL persistence now raises typed errors for unserialisable payloads,
-    logs filesystem failures, and cleans up partial files so ingest tooling surfaces
-    genuine persistence faults instead of emitting empty paths under silent
-    fallbacks.【F:src/data_foundation/persist/jsonl_writer.py†L1-L69】【F:tests/data_foundation/test_jsonl_writer.py†L1-L37】
-  - *Progress*: Parquet persistence helpers now coerce ingest events, create
-    partitioned output directories, and return explicit sentinels while logging
-    conversion/persist failures so institutional slices capture partitioned
-    Parquet datasets under regression coverage without leaking silent noop
-    writes.【F:src/data_foundation/persist/parquet_writer.py†L1-L85】【F:tests/data_foundation/test_parquet_writer.py†L1-L93】
+  - *Progress*: Legacy JSONL persistence shim now raises a guided
+    `ModuleNotFoundError` from the package entry point and stub module so ingest flows
+    migrate to the governed Timescale writers, with regression coverage asserting imports
+    fail fast.【F:src/data_foundation/persist/__init__.py:9】【F:src/data_foundation/persist/jsonl_writer.py:1】【F:tests/data_foundation/test_jsonl_writer.py:1】
+  - *Progress*: Parquet writer shim mirrors the removal guard, raising a descriptive
+    `ModuleNotFoundError` and blocking attribute access so institutional pipelines cannot
+    silently resurrect the legacy path under pytest coverage.【F:src/data_foundation/persist/__init__.py:14】【F:src/data_foundation/persist/parquet_writer.py:1】【F:tests/data_foundation/test_parquet_writer.py:1】
   - *Progress*: Ingest telemetry publisher now logs recoverable local bus
     failures, escalates unexpected exceptions, and falls back to the global bus
     under pytest coverage so ingest snapshots are not silently dropped when the
@@ -199,11 +195,15 @@ kit that the roadmap calls back to in each checklist.
     metadata, and returns structured service summaries so dashboards surface
     the latest run evidence while caches shed stale slices under regression
     coverage.【F:src/data_foundation/ingest/production_slice.py†L168-L383】【F:tests/data_foundation/test_production_ingest_slice.py†L267-L466】
-  - *Progress*: Kafka streaming helpers now normalise ingest topic mapping from
-    environment payloads, build provisioning specs, capture consumer lag
-    snapshots, and wire ingest publishers/consumers with guarded confluent
-    dependencies so managed bridges expose consistent topic metadata under
-    pytest coverage.【F:src/data_foundation/streaming/kafka_stream.py†L25-L740】【F:tests/data_foundation/test_kafka_stream.py†L1-L602】
+  - *Progress*: Kafka streaming toolkit now owns `KafkaConnectionSettings`, topic
+    provisioning specs, managed lag capture, and a supervised ingest bridge that
+    publishes ingest events and consumer lag to the event bus while tolerating
+    Confluent/kafka-python clients under regression coverage for topic resolution,
+    consumer lifecycle, and metrics serialisation.【F:src/data_foundation/streaming/kafka_stream.py:1085】【F:src/data_foundation/streaming/kafka_stream.py:1960】【F:src/data_foundation/streaming/kafka_stream.py:2305】【F:tests/data_foundation/test_kafka_stream.py:236】【F:tests/data_foundation/test_kafka_stream.py:808】【F:tests/data_foundation/test_kafka_stream.py:898】
+  - *Progress*: Professional predator runtime now hydrates Timescale fabric connectors,
+    promotes managed ingest extras, and optionally starts the Kafka ingest consumer so
+    bootstrap runs pull live Timescale snapshots with manifest-backed cleanup hooks,
+    under async regression coverage of the runtime builder and app wiring.【F:src/runtime/predator_app.py:2031】【F:src/runtime/predator_app.py:2345】【F:tests/runtime/test_professional_app_timescale.py:181】【F:tests/runtime/test_professional_app_timescale.py:217】
   - *Progress*: Operational readiness aggregation now fuses system validation,
     incident response, drift, and SLO telemetry into enriched snapshots, rolls
     up issue catalogs, evaluates deployment gates with blocking/warn reasons,
@@ -239,11 +239,9 @@ kit that the roadmap calls back to in each checklist.
     capturing the genome ID and action while continuing execution so adaptive
     runs surface integration regressions instead of swallowing them, with
     dedicated pytest coverage around the defensive helpers.【F:src/core/evolution/engine.py†L1-L342】【F:src/core/evolution/seeding.py†L1-L220】【F:tests/evolution/test_evolution_security.py†L1-L95】
-  - *Progress*: Portfolio evolution falls back gracefully when optional
-    scikit-learn dependencies are missing by logging the degraded path, returning
-    deterministic cluster bucketing, and exercising the guards under
-    regression tests so adaptive runs keep producing actionable recommendations
-    even in minimal environments.【F:src/intelligence/portfolio_evolution.py†L47-L142】【F:tests/intelligence/test_portfolio_evolution_security.py†L1-L169】
+  - *Progress*: Legacy portfolio evolution module now raises a descriptive
+    `ModuleNotFoundError`, and guard tests assert the removal so adaptive callers
+    pivot to the canonical ecosystem surfaces instead of reviving the stub.【F:src/intelligence/portfolio_evolution.py:1】【F:tests/intelligence/test_portfolio_evolution_security.py:1】
   - *Progress*: Evolution orchestrator now honours an `EVOLUTION_ENABLE_ADAPTIVE_RUNS`
     feature flag, exposing helpers for tests and gating champion registration,
     catalogue updates, and telemetry so governance can disable adaptive loops
@@ -316,10 +314,9 @@ kit that the roadmap calls back to in each checklist.
     implementation, normalises drift-config inputs, and drops the legacy stub
     fallback so runtime consumers always receive the real organ with regression
     coverage verifying alias stability and drift configuration coercion.【F:src/core/__init__.py†L14-L33】【F:src/core/sensory_organ.py†L1-L36】【F:tests/core/test_core_sensory_exports.py†L1-L22】
-  - *Progress*: Market data recorder/replayer now serialises lightweight order
-    books to JSONL, logs feature-writer failures, skips malformed payloads, and
-    guards file-handle shutdown so sensory backtests and feature pipelines can
-    rely on deterministic capture/replay under pytest coverage.【F:src/operational/md_capture.py†L1-L87】【F:tests/operational/test_md_capture.py†L1-L53】
+  - *Progress*: Legacy market-data capture shim now raises a descriptive
+    `ModuleNotFoundError`, and guard tests assert the package-level removal so ingest
+    tooling moves to the managed Timescale pipelines instead of the retired recorder.【F:src/operational/md_capture.py:1】【F:tests/operational/test_md_capture.py:1】
 - [ ] **Risk and runtime safety** – Enforce `RiskConfig`, finish the builder rollout,
   adopt supervised async lifecycles, and purge deprecated facades.
   - *Progress*: Safety manager normalises kill-switch paths (including env and relative inputs), logs unreadable sentinels, and keeps system config exports in sync so live-mode guardrails stay enforceable with regression coverage for the configuration shim.【F:src/governance/safety_manager.py†L21-L74】【F:src/governance/system_config.py†L139-L413】【F:tests/governance/test_security_phase0.py†L47-L85】
@@ -520,10 +517,10 @@ kit that the roadmap calls back to in each checklist.
     fails builds when trends go stale or evidence is missing under pytest
     coverage so roadmap reviews inherit fresh observability evidence without
     manual checks.【F:tools/telemetry/ci_metrics_guard.py†L1-L142】【F:tests/tools/test_ci_metrics_guard.py†L1-L99】
-  - *Progress*: Health monitor resource probes now normalise psutil import
-    failures, log probe errors, retain bounded history, and surface event-bus
-    diagnostics so operational responders get actionable state even when optional
-    dependencies are missing, with asyncio-loop regressions covering each guardrail.【F:src/operational/health_monitor.py†L61-L200】【F:tests/operational/test_health_monitor.py†L74-L176】
+  - *Progress*: Legacy operational health monitor shim now raises a guided
+    `ModuleNotFoundError`, and regression tests ensure imports fail so observability
+    tooling adopts the canonical operations telemetry surface instead of the retired
+    implementation.【F:src/operational/health_monitor.py:1】【F:tests/operational/test_health_monitor.py:1】
   - *Progress*: Bootstrap control centre helpers now whitelist expected
     runtime/value/type errors across champion payload, trading-manager, snapshot,
     and formatter hooks, logging those failures while propagating unexpected
@@ -702,9 +699,9 @@ kit that the roadmap calls back to in each checklist.
       and persist JSON payloads, discard malicious blobs, and emit sorted serialisation so
       the Phase 0 "remove eval" remit covers the thinking layer under fresh security
       regressions guarding strategy parameters and prediction history persistence.【F:src/thinking/adaptation/tactical_adaptation_engine.py†L35-L331】【F:src/thinking/prediction/predictive_market_modeler.py†L444-L489】【F:tests/thinking/test_tactical_adaptation_security.py†L1-L72】【F:tests/thinking/test_predictive_market_modeler_security.py†L1-L62】
-    - *Progress*: Operational health monitor now stores daily check snapshots as sorted JSON
-      payloads before retaining history, preventing unsafe repr round-trips and keeping
-      audit artefacts reproducible while preserving the existing retention window.【F:src/operational/health_monitor.py†L218-L232】
+    - *Progress*: Operational health monitor shim has been retired with a descriptive
+      `ModuleNotFoundError`, so context packs now point to the canonical operations telemetry
+      surfaces instead of maintaining a dead-code backlog entry.【F:src/operational/health_monitor.py:1】
 - [x] **Context pack refresh** – Replace legacy briefs with the updated context in
   `docs/context/alignment_briefs` so discovery and reviews inherit the same
   narrative reset (this change set).
@@ -785,7 +782,7 @@ kit that the roadmap calls back to in each checklist.
     manifest planning, and the provisioner’s Redis/Kafka factories, redacting
     secrets while capturing supervisor state and recorded Kafka topics so
     readiness dashboards inherit deterministic drill evidence even on
-    configuration fallbacks.【F:src/data_foundation/ingest/institutional_vertical.py†L1-L466】【F:tests/data_foundation/test_institutional_vertical.py†L69-L535】
+    configuration fallbacks.【F:src/data_foundation/ingest/institutional_vertical.py:413】【F:src/data_foundation/ingest/institutional_vertical.py:437】【F:src/data_foundation/ingest/institutional_vertical.py:601】【F:tests/runtime/test_institutional_ingest_vertical.py:110】【F:tests/runtime/test_institutional_ingest_vertical.py:336】【F:tests/runtime/test_institutional_ingest_vertical.py:447】
   - *Progress*: Risk policy warn-threshold coverage asserts that leverage and
     exposure checks flip to warning states before violating limits, capturing
     ratios, thresholds, and metadata so compliance reviewers can trust the
@@ -840,7 +837,7 @@ kit that the roadmap calls back to in each checklist.
   - *Progress*: Managed connector snapshots now capture probe error text and the
     CLI resolves `SystemConfig` extras before rendering manifest/connectivity
     health so operators inherit actionable failure reasons when institutional
-    pipelines degrade, under pytest coverage for the vertical and CLI surfaces.【F:src/data_foundation/ingest/institutional_vertical.py†L305-L370】【F:src/data_foundation/ingest/institutional_vertical.py†L662-L698】【F:tools/operations/managed_ingest_connectors.py†L200-L284】【F:tests/data_foundation/test_institutional_vertical.py†L94-L104】【F:tests/tools/test_managed_ingest_connectors.py†L33-L121】
+    pipelines degrade, under pytest coverage for the vertical and CLI surfaces.【F:src/data_foundation/ingest/institutional_vertical.py†L305-L370】【F:src/data_foundation/ingest/institutional_vertical.py†L662-L698】【F:tools/operations/managed_ingest_connectors.py†L200-L284】【F:tests/runtime/test_institutional_ingest_vertical.py:513】【F:tests/tools/test_managed_ingest_connectors.py†L33-L121】
   - *Progress*: Managed services now expose Redis cache metrics alongside policy
     metadata, promoting namespace/hit/miss telemetry into runtime summaries and
     manifest snapshots so operators can confirm cache effectiveness under new
@@ -1105,13 +1102,13 @@ kit that the roadmap calls back to in each checklist.
 - Maintain the truth-first status culture: mock implementations must remain
   labelled and roadmapped until replaced by production-grade systems.【F:docs/DEVELOPMENT_STATUS.md†L7-L35】
 
-## Automation updates — 2025-10-08T06:08:15Z
+## Automation updates — 2025-10-08T07:04:55Z
 
 ### Last 4 commits
-- 9e1fc40 refactor(docs): tune 4 files (2025-10-08)
-- 7dd8d8e feat(trading): add 2 files (2025-10-08)
-- a4fbeb9 feat(operational): add 8 files (2025-10-08)
-- 25d6ec0 docs(docs): tune 3 files (2025-10-08)
+- eae9c3e refactor(data_foundation): tune 2 files (2025-10-08)
+- 2a78f7c refactor(docs): tune 17 files (2025-10-08)
+- e6af8a8 refactor(data_foundation): tune 4 files (2025-10-08)
+- 49671f3 refactor(data_foundation): tune 2 files (2025-10-08)
 
 ## Automation updates — 2025-10-08T02:30:00Z
 

@@ -38,10 +38,9 @@
   under regression coverage so callers move to the supported surface.【F:src/intelligence/__init__.py†L35-L175】【F:tests/current/test_public_api_intelligence.py†L52-L87】
 - Define telemetry contracts for population health, lineage snapshots, and
   experiment metadata; add placeholder tests to lock schemas.
-- Progress: Portfolio evolution now logs optional dependency outages, falls back
-  to deterministic clustering, and records the degraded path under pytest so
-  adaptive runs continue producing reproducible recommendations in minimal
-  environments.【F:src/intelligence/portfolio_evolution.py†L47-L142】【F:tests/intelligence/test_portfolio_evolution_security.py†L1-L169】
+- Progress: Legacy portfolio evolution module now raises a descriptive
+  `ModuleNotFoundError`, and guard tests assert the removal so adaptive callers pivot to
+  the canonical ecosystem surfaces instead of reviving the stub.【F:src/intelligence/portfolio_evolution.py:1】【F:tests/intelligence/test_portfolio_evolution_security.py:1】
 - Coordinate with risk and data-backbone tracks so adaptive loops inherit
   trustworthy inputs and enforcement.【F:docs/technical_debt_assessment.md†L58-L72】
 

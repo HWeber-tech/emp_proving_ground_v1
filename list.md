@@ -57,9 +57,9 @@
 57 - Remove “unused type: ignore” and fix generics for asyncio.Queue in [src/operational/fix_connection_manager.py](src/operational/fix_connection_manager.py:1)
 58 - Refactor message assembly payloads in [src/operational/fix_connection_manager.py](src/operational/fix_connection_manager.py:1) to TypedDicts
 59 - Add return annotations and fix None misuse in [src/operational/state_store/adapters.py](src/operational/state_store/adapters.py:1)
-60 - Add type annotation to health history and fully type health check results in [src/operational/health_monitor.py](src/operational/health_monitor.py:1)
-61 - Use pandas and psutil stubs correctly within [src/operational/health_monitor.py](src/operational/health_monitor.py:1) and add concrete return types
-62 - Fix _serialize_order_book and inner functions with concrete typed payloads in [src/operational/md_capture.py](src/operational/md_capture.py:1)
+60 - ~~Add type annotation to health history and fully type health check results in [src/operational/health_monitor.py](src/operational/health_monitor.py:1)~~ (module removed 2025-10 institutional cleanup)
+61 - ~~Use pandas and psutil stubs correctly within [src/operational/health_monitor.py](src/operational/health_monitor.py:1) and add concrete return types~~ (module removed 2025-10 institutional cleanup)
+62 - ~~Fix _serialize_order_book and inner functions with concrete typed payloads in [src/operational/md_capture.py](src/operational/md_capture.py:1)~~ (module removed 2025-10 institutional cleanup)
 63 - Add return type annotations for dataclass post-init and correct Optional usage in [src/config/sensory_config.py](src/config/sensory_config.py:1)
 64 - Fix mutable defaults via default_factory in [src/config/sensory_config.py](src/config/sensory_config.py:1)
 65 - Replace Any in sensory utils with concrete numeric types in [src/sensory/organs/dimensions/utils.py](src/sensory/organs/dimensions/utils.py:1)
@@ -70,14 +70,14 @@
 70 - ~~Ensure core base types for sensory are imported from canonical modules (fix old src.sensory.core.base paths) in [src/sensory/organs/dimensions/why_organ.py](src/sensory/organs/dimensions/why_organ.py:1)~~ (module removed 2025-10 cleanup)
 71 - Add return annotations and fix dict generics in [src/data_foundation/replay/multidim_replayer.py](src/data_foundation/replay/multidim_replayer.py:1)
 72 - Replace dict with Dict[str, T] and TypedDict in replay callbacks within [src/data_foundation/replay/multidim_replayer.py](src/data_foundation/replay/multidim_replayer.py:1)
-73 - Add concrete typing for parquet writer in [src/data_foundation/persist/parquet_writer.py](src/data_foundation/persist/parquet_writer.py:1)
-74 - Add concrete typing for jsonl writer in [src/data_foundation/persist/jsonl_writer.py](src/data_foundation/persist/jsonl_writer.py:1)
+73 - ~~Add concrete typing for parquet writer in [src/data_foundation/persist/parquet_writer.py](src/data_foundation/persist/parquet_writer.py:1)~~ (module removed 2025-10 institutional cleanup)
+74 - ~~Add concrete typing for jsonl writer in [src/data_foundation/persist/jsonl_writer.py](src/data_foundation/persist/jsonl_writer.py:1)~~ (module removed 2025-10 institutional cleanup)
 75 - Provide duckdb stubs and correct imports in [src/data_foundation/ingest/yahoo_ingest.py](src/data_foundation/ingest/yahoo_ingest.py:1)
 76 - Add return annotations for main() and IO types in [src/data_foundation/ingest/yahoo_ingest.py](src/data_foundation/ingest/yahoo_ingest.py:1)
 77 - Type market data gateway interfaces in [src/core/market_data.py](src/core/market_data.py:1) without Any usage
 78 - Replace Any metadata in [src/core/regime.py](src/core/regime.py:1) with precise Optional[Dict[str, str|float|…]] or TypedDicts
 79 - Ensure detect_regime signatures are fully typed and async in [src/core/regime.py](src/core/regime.py:1)
-80 - Add domain model types without Any in [src/domain/models.py](src/domain/models.py:1) (Pydantic models typed fields)
+80 - ~~Add domain model types without Any in [src/domain/models.py](src/domain/models.py:1) (Pydantic models typed fields)~~ (module removed 2025-10 institutional cleanup)
 81 - Fix Pydantic BaseModel usage in [src/data_foundation/schemas.py](src/data_foundation/schemas.py:1) to avoid Any fields and dynamic tricks
 82 - Replace Any in risk config model with precise types in [src/config/risk/risk_config.py](src/config/risk/risk_config.py:1)
 83 - Normalize size config generics in [src/data_foundation/config/sizing_config.py](src/data_foundation/config/sizing_config.py:1) (dict generics and Optional defaults)
@@ -107,9 +107,9 @@
 107 - Replace Any and legacy ignores in [src/intelligence/red_team_ai.py](src/intelligence/red_team_ai.py:1) with precise types and stubs
 108 - Provide typed wrappers or stubs for sklearn in modules under [src/intelligence/](src/intelligence/)
 109 - Replace Any payloads and missing returns in [src/thinking/adversarial/market_gan.py](src/thinking/adversarial/market_gan.py:1) and add typed results
-110 - Normalize mypy treatment of torch imports via local stubs in [src/intelligence/portfolio_evolution.py](src/intelligence/portfolio_evolution.py:1)
-111 - Replace Any and add precise ndarray typing in [src/intelligence/portfolio_evolution.py](src/intelligence/portfolio_evolution.py:1)
-112 - Fix diversification and synergy computations to return float, not numpy scalars in [src/intelligence/portfolio_evolution.py](src/intelligence/portfolio_evolution.py:1)
+110 - ~~Normalize mypy treatment of torch imports via local stubs in [src/intelligence/portfolio_evolution.py](src/intelligence/portfolio_evolution.py:1)~~ (module removed 2025-10 institutional cleanup)
+111 - ~~Replace Any and add precise ndarray typing in [src/intelligence/portfolio_evolution.py](src/intelligence/portfolio_evolution.py:1)~~ (module removed 2025-10 institutional cleanup)
+112 - ~~Fix diversification and synergy computations to return float, not numpy scalars in [src/intelligence/portfolio_evolution.py](src/intelligence/portfolio_evolution.py:1)~~ (module removed 2025-10 institutional cleanup)
 113 - Type and fix coordination engine protocols in [src/ecosystem/coordination/coordination_engine.py](src/ecosystem/coordination/coordination_engine.py:1)
 114 - Replace Any in prioritize_strategies payloads and scores in [src/ecosystem/coordination/coordination_engine.py](src/ecosystem/coordination/coordination_engine.py:1)
 115 - Ensure defaultdict type parameters in [src/ecosystem/coordination/coordination_engine.py](src/ecosystem/coordination/coordination_engine.py:1)

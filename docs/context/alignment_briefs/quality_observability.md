@@ -87,10 +87,10 @@
     captures ROI/net PnL metadata, renders Markdown summaries, and publishes via
     the shared failover helper under pytest coverage so dashboards inherit the
     same hardened transport as other operational feeds.【F:src/operations/strategy_performance.py†L200-L531】【F:tests/operations/test_strategy_performance.py†L68-L193】
-  - Progress: Health monitor probes guard optional psutil imports, log resource
-    sampling failures, persist bounded histories, and surface event-bus
-    snapshots, with asyncio regressions ensuring the loop logs unexpected errors
-    instead of hanging silently.【F:src/operational/health_monitor.py†L61-L200】【F:tests/operational/test_health_monitor.py†L74-L176】
+  - Progress: Legacy operational health monitor shim now raises a guided
+    `ModuleNotFoundError`, and regression tests ensure imports fail so observability
+    tooling adopts the canonical operations telemetry surface instead of the retired
+    implementation.【F:src/operational/health_monitor.py:1】【F:tests/operational/test_health_monitor.py:1】
   - Progress: Risk telemetry panels now attach limit values, ratios, and
     violation states to observability dashboard entries while preserving the
     serialised payloads, with pytest coverage asserting limit-status escalation

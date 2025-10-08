@@ -53,14 +53,12 @@
   stamps WARN/FAIL severities, records evaluated policy metadata, and publishes
   via the failover helper so dashboards inherit actionable retention posture
   even during event-bus degradation.【F:src/operations/retention.py†L1-L334】【F:tests/operations/test_data_retention.py†L1-L220】
-- Progress: JSONL persistence hardening now raises typed errors for
-  unserialisable payloads, logs filesystem failures, and deletes partial files so
-  ingest tooling reports genuine write issues instead of silently returning empty
-  paths.【F:src/data_foundation/persist/jsonl_writer.py†L1-L69】【F:tests/data_foundation/test_jsonl_writer.py†L1-L37】
-- Progress: Parquet ingest writer now guards the pandas DataFrame constructor,
-  logs conversion and filesystem errors, and returns explicit sentinels under
-  regression coverage so institutional ingest slices capture failed telemetry
-  persists rather than silently discarding events.【F:src/data_foundation/persist/parquet_writer.py†L1-L85】【F:tests/data_foundation/test_parquet_writer.py†L1-L93】
+- Progress: Legacy JSONL persistence shim now raises a guided `ModuleNotFoundError`
+  from the package entry point and stub module so ingest flows migrate to the
+  governed Timescale writers, with regression coverage asserting imports fail fast.【F:src/data_foundation/persist/__init__.py:9】【F:src/data_foundation/persist/jsonl_writer.py:1】【F:tests/data_foundation/test_jsonl_writer.py:1】
+- Progress: Parquet writer shim mirrors the removal guard, raising a descriptive
+  `ModuleNotFoundError` and blocking attribute access so institutional pipelines cannot
+  silently resurrect the legacy path under pytest coverage.【F:src/data_foundation/persist/__init__.py:14】【F:src/data_foundation/persist/parquet_writer.py:1】【F:tests/data_foundation/test_parquet_writer.py:1】
 - Progress: Retired the legacy core configuration shim; the legacy import path now fails under regression tests while ingestion tooling relies on `SystemConfig.from_yaml`, eliminating the duplicate YAML parser and keeping runtime modules on the canonical loader.【F:tests/current/test_core_configuration_runtime.py†L1-L14】【F:src/governance/system_config.py†L200-L292】【F:tests/governance/test_system_config_yaml.py†L1-L96】
 - Progress: Timescale ingest scheduler now registers with the runtime task
   supervisor, tagging interval/jitter metadata and exposing live snapshots so
@@ -117,7 +115,7 @@
   consumer group defaults plus configured topics and counts, and expose
   asynchronous `connectivity_report()` probes with timeout-aware error formatting
   so the managed-ingest CLI and readiness dashboards inherit the same health
-  annotations and failure reasons under refreshed pytest coverage.【F:src/data_foundation/ingest/institutional_vertical.py†L132-L420】【F:tools/operations/managed_ingest_connectors.py†L200-L284】【F:tests/data_foundation/test_institutional_vertical.py†L309-L351】【F:tests/tools/test_managed_ingest_connectors.py†L30-L77】
+  annotations and failure reasons under refreshed pytest coverage.【F:src/data_foundation/ingest/institutional_vertical.py†L132-L420】【F:tools/operations/managed_ingest_connectors.py†L200-L284】【F:tests/runtime/test_institutional_ingest_vertical.py:336】【F:tests/tools/test_managed_ingest_connectors.py†L30-L77】
 - Progress: Institutional ingest services now surface Redis cache metrics in
   runtime summaries and managed manifests, recording namespace, hit, and miss
   telemetry while guarding best-effort collection so operators can audit cache

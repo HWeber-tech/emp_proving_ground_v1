@@ -8,6 +8,8 @@ from typing import Any, Dict
 import pytest
 
 from src.core.base import MarketData
+from src.orchestration.enhanced_intelligence_engine import ContextualFusionEngine as CanonicalFusionEngine
+from src.orchestration.enhanced_intelligence_engine import Synthesis as CanonicalSynthesis
 
 # ANOMALY
 from src.market_intelligence.dimensions.enhanced_anomaly_dimension import (
@@ -124,3 +126,25 @@ def test_no_import_time_logs_in_mi_modules_phase2(caplog: pytest.LogCaptureFixtu
     assert all(not any(frag in rec.getMessage() for frag in forbidden) for rec in caplog.records), (
         "Import-time log side effects detected in MI modules (phase 2)"
     )
+
+
+def test_legacy_core_base_aliases() -> None:
+    from market_intelligence.core.base import (  # type: ignore import-not-found
+        DimensionalReading as LegacyDimensionalReading,
+    )
+    from market_intelligence.core.base import MarketData as LegacyMarketData  # type: ignore import-not-found
+
+    assert LegacyMarketData is MarketData
+    assert LegacyDimensionalReading.__module__.startswith("src.core.base")
+
+
+def test_legacy_orchestration_aliases() -> None:
+    from market_intelligence.orchestration.enhanced_intelligence_engine import (  # type: ignore import-not-found
+        ContextualFusionEngine as LegacyFusionEngine,
+    )
+    from market_intelligence.orchestration.enhanced_intelligence_engine import (  # type: ignore import-not-found
+        Synthesis as LegacySynthesis,
+    )
+
+    assert LegacyFusionEngine is CanonicalFusionEngine
+    assert LegacySynthesis is CanonicalSynthesis

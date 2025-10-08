@@ -25,15 +25,11 @@ from enum import Enum
 from typing import Any, Dict, List, Protocol, Tuple, cast
 
 from src.core.base import DimensionalReading, MarketData
-from src.market_intelligence.dimensions.enhanced_anomaly_dimension import AnomalyIntelligenceEngine
-from src.market_intelligence.dimensions.enhanced_how_dimension import (
-    InstitutionalIntelligenceEngine,
-)
-from src.market_intelligence.dimensions.enhanced_what_dimension import TechnicalRealityEngine
-from src.market_intelligence.dimensions.enhanced_when_dimension import ChronalIntelligenceEngine
-from src.market_intelligence.dimensions.enhanced_why_dimension import (
-    EnhancedFundamentalIntelligenceEngine,
-)
+from src.sensory.enhanced.anomaly_dimension import AnomalyIntelligenceEngine
+from src.sensory.enhanced.how_dimension import InstitutionalIntelligenceEngine
+from src.sensory.enhanced.what_dimension import TechnicalRealityEngine
+from src.sensory.enhanced.when_dimension import ChronalIntelligenceEngine
+from src.sensory.enhanced.why_dimension import EnhancedFundamentalIntelligenceEngine
 
 
 class IntelligenceLevel(Enum):

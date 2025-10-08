@@ -60,6 +60,9 @@ except Exception:  # pragma: no cover
 logger = logging.getLogger(__name__)
 
 
+_EPSILON = 1e-9
+
+
 class SupportsLiquidityProbing(Protocol):
     """Protocol for optional liquidity probing capabilities."""
 
@@ -226,6 +229,12 @@ class RiskGateway:
             policy_violation_runbook or RISK_POLICY_VIOLATION_RUNBOOK
         )
 
+        self._confidence_limit_pct: float = 1.0
+        self._max_leverage_limit: float = 0.0
+        self._instrument_sector_map: dict[str, str] = {}
+        self._sector_limits: dict[str, float] = {}
+        self._initialise_policy_limits(self._risk_config)
+
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
@@ -323,6 +332,50 @@ class RiskGateway:
                     )
                     await self._reject_and_maybe_publish(decision)
                     return None
+
+            symbol_value = str(decision.get("symbol") or "")
+            equity = self._resolve_equity_for_risk(portfolio_state)
+            trade_price = self._resolve_trade_price(
+                market_price,
+                portfolio_state,
+                symbol_value,
+            )
+            side_value = str(_extract_attr(intent, "side", "direction", default="BUY"))
+
+            if not self._enforce_confidence_limit(
+                decision,
+                confidence=confidence,
+                quantity=float(adjusted_quantity),
+                trade_price=trade_price,
+                equity=equity,
+            ):
+                decision.update(status="rejected", reason="confidence_notional_limit")
+                await self._reject_and_maybe_publish(decision)
+                return None
+
+            if not self._enforce_sector_limits(
+                decision,
+                portfolio_state,
+                symbol=symbol_value,
+                quantity=float(adjusted_quantity),
+                trade_price=trade_price,
+                equity=equity,
+                side=side_value,
+            ):
+                decision.update(status="rejected", reason="sector_exposure_limit")
+                await self._reject_and_maybe_publish(decision)
+                return None
+
+            if not self._enforce_leverage_limit(
+                decision,
+                portfolio_state,
+                quantity=float(adjusted_quantity),
+                trade_price=trade_price,
+                equity=equity,
+            ):
+                decision.update(status="rejected", reason="leverage_limit")
+                await self._reject_and_maybe_publish(decision)
+                return None
 
             if not self._enforce_portfolio_risk(
                 decision,
@@ -456,6 +509,8 @@ class RiskGateway:
         elif self.risk_policy is not None:
             self.risk_policy = RiskPolicy.from_config(config)
 
+        self._initialise_policy_limits(config)
+
     def _build_limits_snapshot(self) -> dict[str, Any]:
         """Construct the current limits payload exposed by the gateway."""
 
@@ -472,6 +527,47 @@ class RiskGateway:
             if self.risk_policy.research_mode:
                 limits["research_mode"] = True
         return limits
+
+    def _initialise_policy_limits(self, risk_config: RiskConfig | None) -> None:
+        """Initialise deterministic risk limit caches from ``risk_config``."""
+
+        confidence_limit = 1.0
+        leverage_limit = 0.0
+        instrument_map: dict[str, str] = {}
+        sector_limits: dict[str, float] = {}
+
+        if risk_config is not None:
+            try:
+                confidence_limit = max(0.0, float(risk_config.max_total_exposure_pct))
+            except Exception:
+                confidence_limit = 1.0
+            try:
+                leverage_limit = max(0.0, float(risk_config.max_leverage))
+            except Exception:
+                leverage_limit = 0.0
+
+            raw_map = getattr(risk_config, "instrument_sector_map", {}) or {}
+            for symbol, sector in raw_map.items():
+                if not symbol or not sector:
+                    continue
+                instrument_map[str(symbol).upper()] = str(sector).upper()
+
+            raw_limits = getattr(risk_config, "sector_exposure_limits", {}) or {}
+            for sector, limit in raw_limits.items():
+                try:
+                    resolved = float(limit)
+                except Exception:
+                    continue
+                if resolved > 0:
+                    sector_limits[str(sector).upper()] = resolved
+        elif self.risk_policy is not None:
+            confidence_limit = max(0.0, float(self.risk_policy.max_total_exposure_pct))
+            leverage_limit = max(0.0, float(self.risk_policy.max_leverage))
+
+        self._confidence_limit_pct = confidence_limit or 1.0
+        self._max_leverage_limit = leverage_limit
+        self._instrument_sector_map = instrument_map
+        self._sector_limits = sector_limits
 
     def _resolve_risk_reference(self) -> dict[str, Any] | None:
         """Build a deterministic risk reference payload for telemetry surfaces."""
@@ -963,6 +1059,263 @@ class RiskGateway:
             return False
 
         return True
+
+    def _enforce_confidence_limit(
+        self,
+        decision: dict[str, Any],
+        *,
+        confidence: float,
+        quantity: float,
+        trade_price: float,
+        equity: float,
+    ) -> bool:
+        limit_pct = self._confidence_limit_pct
+        if limit_pct <= 0:
+            return True
+
+        checks = decision.setdefault("checks", [])
+        clamped_confidence = max(0.0, min(float(confidence), 1.0))
+
+        if equity <= 0 or trade_price <= 0:
+            checks.append(
+                {
+                    "name": "risk.confidence_notional_limit",
+                    "value": None,
+                    "threshold": None,
+                    "status": "info",
+                    "metadata": {
+                        "confidence": clamped_confidence,
+                        "equity": equity,
+                        "price": trade_price,
+                    },
+                }
+            )
+            return True
+
+        threshold_pct = limit_pct * clamped_confidence
+        notional = abs(quantity) * trade_price
+        allowed_notional = equity * threshold_pct
+
+        status = "ok"
+        if threshold_pct <= 0 and notional > _EPSILON:
+            status = "violation"
+        elif threshold_pct > 0:
+            utilisation = notional / allowed_notional if allowed_notional > 0 else float("inf")
+            if utilisation > 1.0 + _EPSILON:
+                status = "violation"
+            elif utilisation >= 0.8:
+                status = "warn"
+
+        checks.append(
+            {
+                "name": "risk.confidence_notional_limit",
+                "value": notional,
+                "threshold": allowed_notional,
+                "status": status,
+                "metadata": {
+                    "confidence": clamped_confidence,
+                    "limit_pct": threshold_pct,
+                },
+            }
+        )
+
+        return status != "violation"
+
+    def _enforce_leverage_limit(
+        self,
+        decision: dict[str, Any],
+        portfolio_state: Mapping[str, Any],
+        *,
+        quantity: float,
+        trade_price: float,
+        equity: float,
+    ) -> bool:
+        limit = self._max_leverage_limit
+        if limit <= 0:
+            return True
+
+        checks = decision.setdefault("checks", [])
+
+        if equity <= 0 or trade_price <= 0:
+            checks.append(
+                {
+                    "name": "risk.leverage_ratio",
+                    "value": None,
+                    "threshold": limit,
+                    "status": "info",
+                }
+            )
+            return True
+
+        total_exposure = self._compute_total_exposure(portfolio_state)
+        symbol = str(decision.get("symbol") or "")
+        existing_position = self._locate_position(portfolio_state, symbol)
+        existing_notional = self._compute_position_notional(existing_position)
+        proposed_notional = abs(quantity) * trade_price
+        projected_total = total_exposure - existing_notional + proposed_notional
+
+        projected_leverage = projected_total / equity if equity > 0 else float("inf")
+
+        status = "ok"
+        if projected_leverage > limit + _EPSILON:
+            status = "violation"
+        elif projected_leverage >= 0.8 * limit:
+            status = "warn"
+
+        checks.append(
+            {
+                "name": "risk.leverage_ratio",
+                "value": projected_leverage,
+                "threshold": limit,
+                "status": status,
+                "metadata": {
+                    "projected_total_exposure": projected_total,
+                    "equity": equity,
+                },
+            }
+        )
+
+        return status != "violation"
+
+    def _enforce_sector_limits(
+        self,
+        decision: dict[str, Any],
+        portfolio_state: Mapping[str, Any],
+        *,
+        symbol: str,
+        quantity: float,
+        trade_price: float,
+        equity: float,
+        side: str | None,
+    ) -> bool:
+        if not self._sector_limits or not symbol:
+            return True
+
+        sector = self._instrument_sector_map.get(symbol.upper())
+        if sector is None:
+            return True
+
+        limit_pct = self._sector_limits.get(sector)
+        if limit_pct is None or limit_pct <= 0:
+            return True
+
+        checks = decision.setdefault("checks", [])
+
+        if equity <= 0 or trade_price <= 0:
+            checks.append(
+                {
+                    "name": f"risk.sector_limit.{sector}",
+                    "value": None,
+                    "threshold": None,
+                    "status": "info",
+                    "metadata": {"sector": sector, "equity": equity, "price": trade_price},
+                }
+            )
+            return True
+
+        exposures = self._compute_sector_exposures(portfolio_state)
+        existing_position = self._locate_position(portfolio_state, symbol)
+        existing_qty = 0.0
+        existing_price = trade_price
+        if existing_position is not None:
+            existing_qty = _as_float(existing_position.get("quantity"), default=0.0)
+            price_candidate = self._resolve_position_price(existing_position)
+            if price_candidate > 0:
+                existing_price = price_candidate
+
+        # Determine signed order quantity using side hint when provided.
+        side_upper = (side or "").upper()
+        signed_quantity = quantity
+        if side_upper.startswith("SELL"):
+            signed_quantity = -abs(quantity)
+        elif side_upper.startswith("BUY"):
+            signed_quantity = abs(quantity)
+
+        order_quantity = signed_quantity
+        if not side_upper and quantity == 0:
+            order_quantity = 0.0
+
+        projected_qty = existing_qty + order_quantity
+
+        current_sector_exposure = exposures.get(sector, 0.0)
+        existing_notional = abs(existing_qty) * existing_price
+        exposures_other = max(0.0, current_sector_exposure - existing_notional)
+        projected_notional = abs(projected_qty) * trade_price
+        projected_exposure = exposures_other + projected_notional
+
+        allowed_exposure = equity * limit_pct
+
+        status = "ok"
+        if projected_exposure - allowed_exposure > _EPSILON:
+            status = "violation"
+        elif allowed_exposure > 0 and projected_exposure / allowed_exposure >= 0.8:
+            status = "warn"
+
+        checks.append(
+            {
+                "name": f"risk.sector_limit.{sector}",
+                "value": projected_exposure,
+                "threshold": allowed_exposure,
+                "status": status,
+                "metadata": {
+                    "current_exposure": current_sector_exposure,
+                    "existing_notional": existing_notional,
+                    "projected_quantity": projected_qty,
+                    "order_quantity": order_quantity,
+                },
+            }
+        )
+
+        return status != "violation"
+
+    def _resolve_trade_price(
+        self, market_price: float, portfolio_state: Mapping[str, Any], symbol: str
+    ) -> float:
+        if market_price > 0:
+            return market_price
+        position = self._locate_position(portfolio_state, symbol)
+        if position is not None:
+            resolved = self._resolve_position_price(position)
+            if resolved > 0:
+                return resolved
+        fallback = _as_float(portfolio_state.get("current_price"), default=0.0)
+        return fallback
+
+    def _compute_position_notional(self, position: Mapping[str, Any] | None) -> float:
+        if position is None:
+            return 0.0
+        quantity = _as_float(position.get("quantity"), default=0.0)
+        price = self._resolve_position_price(position)
+        return abs(quantity) * price
+
+    def _compute_total_exposure(self, portfolio_state: Mapping[str, Any]) -> float:
+        total = 0.0
+        positions = portfolio_state.get("open_positions")
+        if not isinstance(positions, Mapping):
+            return total
+        for payload in positions.values():
+            if not isinstance(payload, Mapping):
+                continue
+            total += self._compute_position_notional(payload)
+        return total
+
+    def _compute_sector_exposures(
+        self, portfolio_state: Mapping[str, Any]
+    ) -> dict[str, float]:
+        exposures: dict[str, float] = {}
+        positions = portfolio_state.get("open_positions")
+        if not isinstance(positions, Mapping):
+            return exposures
+
+        for symbol, payload in positions.items():
+            if not isinstance(payload, Mapping):
+                continue
+            sector = self._instrument_sector_map.get(str(symbol).upper())
+            if sector is None:
+                continue
+            exposures[sector] = exposures.get(sector, 0.0) + self._compute_position_notional(payload)
+
+        return exposures
 
     def _resolve_equity_for_risk(self, portfolio_state: Mapping[str, Any]) -> float:
         equity = _as_float(portfolio_state.get("equity"), default=0.0)

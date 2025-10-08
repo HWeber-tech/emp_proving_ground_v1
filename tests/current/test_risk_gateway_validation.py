@@ -430,6 +430,152 @@ async def test_risk_gateway_rejects_on_execution_risk(
     assert exec_meta.get("slippage_bps", 0.0) > execution_config.limits.max_slippage_bps
 
 
+@pytest.mark.asyncio()
+async def test_risk_gateway_rejects_when_confidence_notional_exceeded(
+    portfolio_monitor: PortfolioMonitor,
+) -> None:
+    registry = DummyStrategyRegistry(active=True)
+    config = RiskConfig(
+        max_total_exposure_pct=Decimal("0.50"),
+        max_leverage=Decimal("5.0"),
+        min_position_size=1,
+    )
+    policy = RiskPolicy.from_config(config)
+    gateway = RiskGateway(
+        strategy_registry=registry,
+        position_sizer=None,
+        portfolio_monitor=portfolio_monitor,
+        risk_policy=policy,
+        risk_config=config,
+    )
+
+    state = portfolio_monitor.get_state()
+    state["equity"] = 100_000.0
+    state["current_daily_drawdown"] = 0.0
+    state["open_positions"] = {}
+
+    intent = Intent(
+        "EURUSD",
+        Decimal("20000"),
+        price=Decimal("1.0"),
+        confidence=0.2,
+    )
+
+    result = await gateway.validate_trade_intent(intent, state)
+
+    assert result is None
+    decision = gateway.get_last_decision()
+    assert decision is not None
+    assert decision.get("reason") == "confidence_notional_limit"
+    checks = decision.get("checks", [])
+    assert any(
+        entry.get("name") == "risk.confidence_notional_limit"
+        and entry.get("status") == "violation"
+        for entry in checks
+    )
+
+
+@pytest.mark.asyncio()
+async def test_risk_gateway_rejects_when_leverage_limit_exceeded(
+    portfolio_monitor: PortfolioMonitor,
+) -> None:
+    registry = DummyStrategyRegistry(active=True)
+    config = RiskConfig(
+        max_total_exposure_pct=Decimal("1.0"),
+        max_leverage=Decimal("2.0"),
+        min_position_size=1,
+    )
+    gateway = RiskGateway(
+        strategy_registry=registry,
+        position_sizer=None,
+        portfolio_monitor=portfolio_monitor,
+        risk_policy=None,
+        risk_config=config,
+    )
+
+    state = portfolio_monitor.get_state()
+    state["equity"] = 100_000.0
+    state["current_daily_drawdown"] = 0.0
+    state["open_positions"] = {
+        "EURUSD": {
+            "quantity": 150_000,
+            "avg_price": 1.0,
+        }
+    }
+
+    intent = Intent(
+        "GBPUSD",
+        Decimal("100000"),
+        price=Decimal("1.0"),
+        confidence=1.0,
+    )
+
+    result = await gateway.validate_trade_intent(intent, state)
+
+    assert result is None
+    decision = gateway.get_last_decision()
+    assert decision is not None
+    assert decision.get("reason") == "leverage_limit"
+    checks = decision.get("checks", [])
+    assert any(
+        entry.get("name") == "risk.leverage_ratio"
+        and entry.get("status") == "violation"
+        for entry in checks
+    )
+
+
+@pytest.mark.asyncio()
+async def test_risk_gateway_rejects_when_sector_limit_exceeded(
+    portfolio_monitor: PortfolioMonitor,
+) -> None:
+    registry = DummyStrategyRegistry(active=True)
+    config = RiskConfig(
+        max_total_exposure_pct=Decimal("0.60"),
+        max_leverage=Decimal("4.0"),
+        min_position_size=1,
+        instrument_sector_map={"EURUSD": "FX"},
+        sector_exposure_limits={"FX": Decimal("0.10")},
+    )
+    policy = RiskPolicy.from_config(config)
+    gateway = RiskGateway(
+        strategy_registry=registry,
+        position_sizer=None,
+        portfolio_monitor=portfolio_monitor,
+        risk_policy=policy,
+        risk_config=config,
+    )
+
+    state = portfolio_monitor.get_state()
+    state["equity"] = 100_000.0
+    state["current_daily_drawdown"] = 0.0
+    state["open_positions"] = {
+        "EURUSD": {
+            "quantity": 9000,
+            "avg_price": 1.0,
+        }
+    }
+
+    intent = Intent(
+        "EURUSD",
+        Decimal("2000"),
+        price=Decimal("1.0"),
+        confidence=0.9,
+    )
+
+    result = await gateway.validate_trade_intent(intent, state)
+
+    assert result is None
+    decision = gateway.get_last_decision()
+    assert decision is not None
+    assert decision.get("reason") == "sector_exposure_limit"
+    checks = decision.get("checks", [])
+    assert any(
+        entry.get("name") == "risk.sector_limit.FX"
+        and entry.get("status") == "violation"
+        for entry in checks
+    )
+
+
 def test_risk_gateway_limits_include_risk_api_summary(
     portfolio_monitor: PortfolioMonitor,
 ) -> None:

@@ -1,37 +1,13 @@
-"""
-EMP Domain Models v1.1
+"""Legacy domain models removed.
 
-Shared domain models used across all layers.
-Separates domain concerns from infrastructure concerns.
+Execution-report schemas are now expressed through trading telemetry surfaces.
+Import structured payload helpers from ``src.trading.monitoring.portfolio_monitor``
+or related trading packages instead of this legacy module.
 """
 
 from __future__ import annotations
 
-from datetime import datetime
-from decimal import Decimal
-from pydantic import BaseModel
-
-
-class ExecutionReport(BaseModel):
-    """Execution report for trade confirmations"""
-
-    event_id: str
-    timestamp: datetime
-    source: str
-    trade_intent_id: str
-    action: str
-    status: str
-    symbol: str
-    side: str  # "BUY" or "SELL"
-    quantity: float
-    price: float
-    order_id: str
-
-    class Config:
-        json_encoders = {
-            datetime: lambda v: v.isoformat(),
-            Decimal: str,
-        }
-
-
-__all__ = ["ExecutionReport"]
+raise ModuleNotFoundError(
+    "src.domain.models was removed. Use the trading telemetry payloads under "
+    "src.trading.monitoring or the canonical risk interfaces instead."
+)

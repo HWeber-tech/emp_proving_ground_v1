@@ -113,19 +113,19 @@ Dead code candidates (first 100):
 -  ~~src\core\strategy\templates\trend_strategies.py~~ (removed alongside template package retirement).
 -  src\data_foundation\schemas.py
 -  src\data_foundation\config\execution_config.py
--  src\data_foundation\config\risk_portfolio_config.py
+-  ~~src\data_foundation\config\risk_portfolio_config.py~~ (removed; canonical risk configuration lives in ``src.config.risk.risk_config`` and the legacy loader now raises a guard stub.)
 -  src\data_foundation\config\sizing_config.py
 -  src\data_foundation\config\vol_config.py
 -  src\data_foundation\config\why_config.py
 -  ~~src\data_foundation\ingest\fred_calendar.py~~ (removed; macro events default to no-op fetcher)
 -  src\data_foundation\ingest\yahoo_ingest.py
--  src\data_foundation\persist\jsonl_writer.py
--  ~~src\data_foundation\persist\parquet_writer.py~~ (removed; pricing cache owns dataset persistence)
+-  ~~src\data_foundation\persist\jsonl_writer.py~~ (removed; ingest persistence now flows through Timescale helpers under ``src.data_foundation.persist.timescale`` and the legacy writer raises a guard stub.)
+-  ~~src\data_foundation\persist\parquet_writer.py~~ (removed; persistence now uses the governed Timescale exporters under ``src.data_foundation.persist.timescale``.)
 -  src\data_foundation\replay\multidim_replayer.py
 -  src\data_integration\data_fusion.py
 -  src\data_integration\dukascopy_ingestor.py
 -  src\data_sources\yahoo_finance.py
--  src\domain\models.py
+-  ~~src\domain\models.py~~ (removed; trading telemetry owns the execution payloads and the legacy Pydantic model now raises a guard stub.)
 -  src\ecosystem\coordination\coordination_engine.py
 -  src\ecosystem\evaluation\niche_detector.py
 -  src\ecosystem\optimization\ecosystem_optimizer.py
@@ -141,16 +141,16 @@ Dead code candidates (first 100):
 -  src\integration\component_integrator_impl.py
 -  src\intelligence\adversarial_training.py
 -  ~~src\intelligence\competitive_intelligence.py~~ (removed; canonical competitive intelligence lives in `src/thinking/competitive/competitive_intelligence_system.py` and is covered by the lazy intelligence facade.)【F:src/thinking/competitive/competitive_intelligence_system.py†L84-L758】【F:src/intelligence/__init__.py†L40-L117】
--  src\intelligence\portfolio_evolution.py
+-  ~~src\intelligence\portfolio_evolution.py~~ (removed; portfolio evolution now routes through the intelligence facade and ecosystem optimisers.)
 -  ~~src\intelligence\predictive_modeling.py~~ (removed; predictive modeling contracts resolve through `src/thinking/prediction/predictive_market_modeler.py` and remain available via the intelligence facade.)【F:src/thinking/prediction/predictive_market_modeler.py†L368-L740】【F:src/intelligence/__init__.py†L40-L117】
 -  ~~src\intelligence\red_team_ai.py~~ (removed; canonical red-team surface resides in `src/thinking/adversarial/red_team_ai.py` and the facade lazily proxies the public API.)【F:src/thinking/adversarial/red_team_ai.py†L132-L612】【F:src/intelligence/__init__.py†L40-L117】
 -  src\intelligence\sentient_adaptation.py
 -  ~~src\intelligence\specialized_predators.py~~ (removed; ecosystem predator tooling is provided by `src/ecosystem/evolution/specialized_predator_evolution.py` and related coordination modules.)【F:src/ecosystem/evolution/specialized_predator_evolution.py†L1-L220】【F:src/intelligence/__init__.py†L40-L117】
 -  ~~src\\operational\\event_bus.py~~ (removed; canonical imports now resolve through `src/core/event_bus.py` and legacy module paths now raise a descriptive import error.)
 -  src\operational\fix_connection_manager.py
--  src\operational\health_monitor.py
+-  ~~src\operational\health_monitor.py~~ (removed; operational health telemetry lives under the ``src.operations`` package.)
 -  ~~src\operational\icmarkets_robust_application.py~~ (removed; FIX connectivity consolidated under `fix_connection_manager`)
--  src\operational\md_capture.py
+-  ~~src\operational\md_capture.py~~ (removed; managed market-data capture now runs through the data foundation ingest pipelines.)
 -  src\operational\metrics.py
 -  src\operational\mock_fix.py
 -  src\operational\state_store\__init__.py

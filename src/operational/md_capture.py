@@ -1,130 +1,13 @@
-"""
-Market Data capture and replay utilities.
+"""Legacy market-data capture shim removed.
 
-Recorder attaches to GenuineFIXManager market data callbacks and writes JSONL
-snapshots. Replayer reads JSONL and replays to a supplied callback with a
-speed factor.
+Managed ingest and replay now run through the data foundation pipelines and
+Timescale snapshots under ``src.data_foundation.ingest``.  Retire usage of this
+module in favour of the canonical ingestion services.
 """
 
 from __future__ import annotations
 
-import json
-import logging
-import os
-import time
-from datetime import datetime
-from typing import Callable, Optional, Protocol
-
-
-logger = logging.getLogger(__name__)
-
-
-def _serialize_order_book(symbol: str, order_book: object) -> dict[str, object]:
-    def side(entries: list[object]) -> list[tuple[float, float]]:
-        return [(float(getattr(e, "price")), float(getattr(e, "size"))) for e in entries]
-
-    return {
-        "t": datetime.utcnow().isoformat(),
-        "symbol": symbol,
-        "bids": side(getattr(order_book, "bids", [])[:10]),
-        "asks": side(getattr(order_book, "asks", [])[:10]),
-    }
-
-
-class MarketDataRecorder:
-    def __init__(self, out_path: str = "data/md_capture/capture.jsonl") -> None:
-        self.out_path = out_path
-        os.makedirs(os.path.dirname(self.out_path), exist_ok=True)
-        self._fh = open(self.out_path, "a", encoding="utf-8")
-
-    class _ManagerProto(Protocol):
-        def add_market_data_callback(self, cb: Callable[[str, object], None]) -> None: ...
-
-    def attach_to_manager(self, manager: _ManagerProto) -> None:
-        def on_md(symbol: str, order_book: object) -> None:
-            rec = _serialize_order_book(symbol, order_book)
-            self._fh.write(json.dumps(rec) + "\n")
-            self._fh.flush()
-
-        manager.add_market_data_callback(on_md)
-
-    def close(self) -> None:
-        try:
-            self._fh.close()
-        except OSError as exc:
-            logger.warning("Failed to close market data capture file: %s", exc, exc_info=exc)
-        except Exception as exc:  # pragma: no cover - defensive guardrail
-            logger.error(
-                "Unexpected error while closing market data capture file: %s",
-                exc,
-                exc_info=exc,
-            )
-
-
-class MarketDataReplayer:
-    def __init__(self, in_path: str, speed: float = 1.0) -> None:
-        self.in_path = in_path
-        self.speed = max(0.0, speed)
-
-    def replay(
-        self,
-        callback: Callable[[str, dict[str, object]], None],
-        max_events: Optional[int] = None,
-        feature_writer: Optional[Callable[[str, dict[str, object]], None]] = None,
-    ) -> int:
-        """Replay captured MD to callback(symbol, order_book_like_dict).
-
-        Returns number of events emitted.
-        """
-        if not os.path.exists(self.in_path):
-            return 0
-        emitted = 0
-        prev_ts: Optional[float] = None
-        with open(self.in_path, "r", encoding="utf-8") as fh:
-            for line in fh:
-                try:
-                    rec = json.loads(line)
-                    symbol = rec.get("symbol")
-                    # Simple sleep based on recorded time deltas
-                    ts = datetime.fromisoformat(rec.get("t")).timestamp() if rec.get("t") else None
-                    if ts is not None and prev_ts is not None and self.speed > 0:
-                        delay = max(0.0, (ts - prev_ts) / self.speed)
-                        if delay > 0:
-                            time.sleep(delay)
-                    prev_ts = ts
-                    # Convert record into lightweight order_book-like dict
-                    ob = {
-                        "symbol": symbol,
-                        "bids": rec.get("bids", []),
-                        "asks": rec.get("asks", []),
-                        "last_update": rec.get("t"),
-                    }
-                    callback(symbol, ob)
-                    if feature_writer:
-                        try:
-                            feature_writer(symbol, ob)
-                        except Exception as exc:  # pragma: no cover - best-effort writer
-                            logger.warning(
-                                "Feature writer failed for symbol %s: %s",
-                                symbol,
-                                exc,
-                                exc_info=exc,
-                            )
-                    emitted += 1
-                    if max_events and emitted >= max_events:
-                        break
-                except (json.JSONDecodeError, ValueError, TypeError) as exc:
-                    logger.warning(
-                        "Skipping invalid market data record in %s: %s",
-                        self.in_path,
-                        exc,
-                        exc_info=exc,
-                    )
-                except Exception as exc:  # pragma: no cover - defensive guardrail
-                    logger.error(
-                        "Unexpected error during market data replay: %s",
-                        exc,
-                        exc_info=exc,
-                    )
-                    continue
-        return emitted
+raise ModuleNotFoundError(
+    "src.operational.md_capture was removed. Use the managed ingest pipelines under "
+    "src.data_foundation.ingest instead."
+)

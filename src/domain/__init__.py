@@ -11,14 +11,20 @@ from __future__ import annotations
 from src.core.instrument import Instrument as Instrument
 from src.config.risk.risk_config import RiskConfig as RiskConfig
 
-from .models import ExecutionReport as ExecutionReport
-
 __all__ = [
     "RiskConfig",
     "Instrument",
-    "ExecutionReport",
 ]
 
 __version__ = "1.1.0"
 __author__ = "EMP System"
 __description__ = "Domain Models - Shared Business Entities"
+
+
+def __getattr__(name: str):
+    if name == "ExecutionReport":
+        raise ModuleNotFoundError(
+            "src.domain.ExecutionReport was removed. Use trading telemetry payloads "
+            "or define domain DTOs close to their consumers instead."
+        )
+    raise AttributeError(name)

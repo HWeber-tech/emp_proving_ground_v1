@@ -2,16 +2,11 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+import importlib
 
 import pytest
 
-from src.data_foundation.config import (
-    execution_config,
-    risk_portfolio_config,
-    sizing_config,
-    vol_config,
-    why_config,
-)
+from src.data_foundation.config import execution_config, sizing_config, vol_config, why_config
 from src.sensory.what.volatility_engine import VolConfig
 
 
@@ -79,43 +74,9 @@ def test_load_execution_config_missing_file_returns_defaults(
     assert cfg == execution_config.ExecutionConfig()
 
 
-def test_load_portfolio_risk_config_from_yaml(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, json_loader: _JSONLoader
-) -> None:
-    config_path = tmp_path / "portfolio.yaml"
-    _write_yaml(
-        config_path,
-        {
-            "portfolio_risk": {
-                "per_asset_cap": 0.75,
-                "aggregate_cap": 1.8,
-                "usd_beta_cap": 1.1,
-                "var95_cap": 0.015,
-            }
-        },
-    )
-
-    monkeypatch.setenv("RISK_PORTFOLIO_CONFIG_PATH", str(config_path))
-    monkeypatch.setattr(risk_portfolio_config, "_yaml", json_loader, raising=True)
-
-    cfg = risk_portfolio_config.load_portfolio_risk_config()
-
-    assert cfg.per_asset_cap == pytest.approx(0.75)
-    assert cfg.aggregate_cap == pytest.approx(1.8)
-    assert cfg.usd_beta_cap == pytest.approx(1.1)
-    assert cfg.var95_cap == pytest.approx(0.015)
-
-
-def test_load_portfolio_risk_config_missing_file_defaults(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, json_loader: _JSONLoader
-) -> None:
-    missing_path = tmp_path / "missing.yaml"
-    monkeypatch.setenv("RISK_PORTFOLIO_CONFIG_PATH", str(missing_path))
-    monkeypatch.setattr(risk_portfolio_config, "_yaml", json_loader, raising=True)
-
-    cfg = risk_portfolio_config.load_portfolio_risk_config()
-
-    assert cfg == risk_portfolio_config.PortfolioRiskConfig()
+def test_portfolio_risk_config_module_removed() -> None:
+    with pytest.raises(ModuleNotFoundError, match="risk_config"):
+        importlib.import_module("src.data_foundation.config.risk_portfolio_config")
 
 
 def test_load_sizing_config_from_yaml(

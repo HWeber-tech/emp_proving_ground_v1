@@ -92,6 +92,9 @@ PositionSizer = cast(Callable[[Decimal, Decimal, Decimal], Decimal], _PositionSi
 logger = logging.getLogger(__name__)
 
 
+_ENGINE_UNSET = object()
+
+
 def _coerce_risk_config(
     config: TradingRiskConfig | Mapping[str, object] | None,
 ) -> TradingRiskConfig:
@@ -135,6 +138,8 @@ class TradingManager:
         risk_policy: RiskPolicy | None = None,
         drift_gate: DriftSentryGate | None = None,
         release_manager: LedgerReleaseManager | None = None,
+        pilot_execution_engine: Any | None = None,
+        live_execution_engine: Any | None = None,
     ) -> None:
         """
         Initialize the TradingManager with risk management components.
@@ -160,6 +165,8 @@ class TradingManager:
         )
         self._release_router: ReleaseAwareExecutionRouter | None = None
         self._execution_engine: Any | None = None
+        self._pilot_engine: Any | None = pilot_execution_engine
+        self._live_engine: Any | None = live_execution_engine
         self.execution_engine = execution_engine
 
         # Initialize risk management components
@@ -273,7 +280,11 @@ class TradingManager:
 
         try:
             self._installing_release_router = True
-            self.install_release_execution_router(paper_engine=engine)
+            self.install_release_execution_router(
+                paper_engine=engine,
+                pilot_engine=self._pilot_engine,
+                live_engine=self._live_engine,
+            )
         except Exception:  # pragma: no cover - defensive guard
             logger.debug("Auto-install of release-aware execution router failed", exc_info=True)
             self._execution_engine = engine
@@ -1196,16 +1207,57 @@ class TradingManager:
             else PolicyLedgerStage.EXPERIMENT
         )
 
+        if pilot_engine is not None:
+            self._pilot_engine = pilot_engine
+        if live_engine is not None:
+            self._live_engine = live_engine
+
         router = ReleaseAwareExecutionRouter(
             release_manager=self._release_manager,
             paper_engine=base_paper,
-            pilot_engine=pilot_engine,
-            live_engine=live_engine,
+            pilot_engine=self._pilot_engine,
+            live_engine=self._live_engine,
             default_stage=stage_default,
         )
         self.execution_engine = router
         self._release_router = router
         self._configure_execution_risk_context(router)
+        return router
+
+    def configure_release_execution(
+        self,
+        *,
+        pilot_engine: Any | object = _ENGINE_UNSET,
+        live_engine: Any | object = _ENGINE_UNSET,
+    ) -> ReleaseAwareExecutionRouter | None:
+        """Configure the engines used for pilot and limited-live release stages."""
+
+        if pilot_engine is not _ENGINE_UNSET:
+            self._pilot_engine = pilot_engine
+        if live_engine is not _ENGINE_UNSET:
+            self._live_engine = live_engine
+
+        router = self._release_router
+
+        if router is None:
+            if self._release_manager is None:
+                return None
+            base_engine = self.execution_engine
+            if base_engine is None:
+                return None
+            return self.install_release_execution_router(
+                paper_engine=base_engine,
+                pilot_engine=self._pilot_engine,
+                live_engine=self._live_engine,
+            )
+
+        kwargs: dict[str, Any] = {}
+        if pilot_engine is not _ENGINE_UNSET:
+            kwargs["pilot_engine"] = self._pilot_engine
+        if live_engine is not _ENGINE_UNSET:
+            kwargs["live_engine"] = self._live_engine
+        if kwargs:
+            router.configure_engines(**kwargs)
         return router
 
     def _maybe_auto_install_release_router(self) -> None:
@@ -1231,8 +1283,8 @@ class TradingManager:
 
             self.install_release_execution_router(
                 paper_engine=base_engine,
-                pilot_engine=base_engine,
-                live_engine=base_engine,
+                pilot_engine=self._pilot_engine or base_engine,
+                live_engine=self._live_engine or base_engine,
                 default_stage=default_stage,
             )
         except Exception:  # pragma: no cover - defensive guard

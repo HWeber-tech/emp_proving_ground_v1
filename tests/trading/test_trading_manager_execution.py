@@ -1433,6 +1433,92 @@ async def test_trading_manager_emits_risk_interface_error(
     assert stored_alert.runbook.endswith("risk_api_contract.md")
     assert bus.events, "expected alert to publish on event bus"
 
+
+@pytest.mark.asyncio()
+async def test_trading_manager_routes_limited_live_to_live_engine(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    async def _noop(*_args, **_kwargs) -> None:
+        return None
+
+    monkeypatch.setattr("src.trading.trading_manager.publish_risk_snapshot", _noop)
+    monkeypatch.setattr("src.trading.trading_manager.publish_roi_snapshot", _noop)
+    monkeypatch.setattr("src.trading.trading_manager.publish_policy_snapshot", _noop)
+    monkeypatch.setattr("src.trading.trading_manager.publish_policy_violation", _noop)
+    monkeypatch.setattr(
+        "src.trading.trading_manager.publish_risk_interface_snapshot", _noop
+    )
+    monkeypatch.setattr("src.trading.trading_manager.publish_risk_interface_error", _noop)
+
+    bus = RecordingBus()
+    gate = DriftSentryGate(warn_confidence_floor=0.1)
+
+    store = PolicyLedgerStore(tmp_path / "limited_live.json")
+    release_manager = LedgerReleaseManager(store)
+    release_manager.promote(
+        policy_id="alpha",
+        tactic_id="alpha",
+        stage=PolicyLedgerStage.LIMITED_LIVE,
+        approvals=("risk", "ops"),
+        evidence_id="dd-alpha-live",
+    )
+
+    paper_engine = RecordingExecutionEngine()
+    live_engine = RecordingExecutionEngine()
+
+    manager = TradingManager(
+        event_bus=bus,
+        strategy_registry=AlwaysActiveRegistry(),
+        execution_engine=paper_engine,
+        pilot_execution_engine=paper_engine,
+        live_execution_engine=live_engine,
+        initial_equity=75_000.0,
+        risk_config=RiskConfig(
+            min_position_size=1,
+            mandatory_stop_loss=False,
+            research_mode=True,
+        ),
+        drift_gate=gate,
+        release_manager=release_manager,
+    )
+
+    validate_mock: AsyncMock = AsyncMock()
+    validated_intent = ConfidenceIntent(
+        symbol="EURUSD",
+        quantity=1.0,
+        price=1.2345,
+        confidence=0.85,
+    )
+    validate_mock.return_value = validated_intent
+    manager.risk_gateway.validate_trade_intent = validate_mock  # type: ignore[assignment]
+
+    snapshot = SensoryDriftSnapshot(
+        generated_at=datetime(2024, 6, 1, tzinfo=timezone.utc),
+        status=DriftSeverity.normal,
+        dimensions={},
+        sample_window=12,
+        metadata={"source": "test"},
+    )
+    manager.update_drift_sentry_snapshot(snapshot)
+
+    intent = ConfidenceIntent(
+        symbol="EURUSD",
+        quantity=1.0,
+        price=1.2345,
+        confidence=0.85,
+    )
+
+    await manager.on_trade_intent(intent)
+
+    assert live_engine.calls == 1
+    assert paper_engine.calls == 0
+
+    last_route = manager.get_last_release_route()
+    assert last_route is not None
+    assert last_route["stage"] == PolicyLedgerStage.LIMITED_LIVE.value
+    assert last_route["route"] == "live"
+
+
 def test_record_experiment_event_handles_non_mapping_inputs() -> None:
     manager = TradingManager(
         event_bus=DummyBus(),

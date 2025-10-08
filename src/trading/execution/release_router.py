@@ -20,6 +20,9 @@ __all__ = ["ReleaseAwareExecutionRouter"]
 logger = logging.getLogger(__name__)
 
 
+_ENGINE_UNSET = object()
+
+
 @dataclass
 class ReleaseAwareExecutionRouter:
     """Route validated intents to the appropriate execution engine per release stage."""
@@ -159,6 +162,36 @@ class ReleaseAwareExecutionRouter:
         if not self._last_route:
             return None
         return dict(self._last_route)
+
+    def configure_engines(
+        self,
+        *,
+        paper_engine: Any | object = _ENGINE_UNSET,
+        pilot_engine: Any | object = _ENGINE_UNSET,
+        live_engine: Any | object = _ENGINE_UNSET,
+    ) -> None:
+        """Update the execution engines used for each release stage.
+
+        Any argument left unspecified retains the previously configured engine.
+        Passing ``None`` explicitly clears the engine for that stage.
+        """
+
+        updated = False
+
+        if paper_engine is not _ENGINE_UNSET and paper_engine is not self.paper_engine:
+            self.paper_engine = paper_engine
+            updated = True
+
+        if pilot_engine is not _ENGINE_UNSET and pilot_engine is not self.pilot_engine:
+            self.pilot_engine = pilot_engine
+            updated = True
+
+        if live_engine is not _ENGINE_UNSET and live_engine is not self.live_engine:
+            self.live_engine = live_engine
+            updated = True
+
+        if updated:
+            self._propagate_risk_context_provider()
 
     # ------------------------------------------------------------------
     # Internal helpers

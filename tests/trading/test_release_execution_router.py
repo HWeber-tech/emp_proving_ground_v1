@@ -163,3 +163,55 @@ async def test_release_router_enforces_missing_evidence(tmp_path: Path) -> None:
     assert isinstance(audit_payload, dict)
     assert audit_payload.get("enforced") is True
     assert "missing_evidence" in audit_payload.get("gaps", [])
+
+
+@pytest.mark.asyncio()
+async def test_release_router_configure_engines_for_stage_routing(tmp_path: Path) -> None:
+    store = PolicyLedgerStore(tmp_path / "ledger_configure.json")
+    release_manager = LedgerReleaseManager(store)
+
+    paper_engine = StubEngine("paper")
+    pilot_engine = StubEngine("pilot")
+    live_engine = StubEngine("live")
+
+    router = ReleaseAwareExecutionRouter(
+        release_manager=release_manager,
+        paper_engine=paper_engine,
+    )
+
+    router.configure_engines(pilot_engine=pilot_engine, live_engine=live_engine)
+
+    intent: dict[str, Any] = {"strategy_id": "alpha"}
+
+    await router.process_order(intent)
+    assert len(paper_engine.calls) == 1
+    assert not pilot_engine.calls
+    assert not live_engine.calls
+
+    release_manager.promote(
+        policy_id="alpha",
+        tactic_id="alpha",
+        stage=PolicyLedgerStage.PILOT,
+        approvals=("risk",),
+        evidence_id="dd-alpha-pilot",
+    )
+
+    await router.process_order(intent)
+    assert len(pilot_engine.calls) == 1
+    assert len(paper_engine.calls) == 1
+    assert not live_engine.calls
+
+    release_manager.promote(
+        policy_id="alpha",
+        tactic_id="alpha",
+        stage=PolicyLedgerStage.LIMITED_LIVE,
+        approvals=("risk", "ops"),
+        evidence_id="dd-alpha-live",
+    )
+
+    await router.process_order(intent)
+    assert len(live_engine.calls) == 1
+    last_route = router.last_route()
+    assert last_route is not None
+    assert last_route["stage"] == PolicyLedgerStage.LIMITED_LIVE.value
+    assert last_route["route"] == "live"

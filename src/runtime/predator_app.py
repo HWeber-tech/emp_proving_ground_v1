@@ -2095,7 +2095,7 @@ def _build_bootstrap_runtime(
     redis_client: Any | None = None,
     connectors: Mapping[str, MarketDataConnector] | None = None,
     strategy_registry: StrategyRegistry | None = None,
-) -> BootstrapRuntime:
+) -> tuple[BootstrapRuntime, list[CleanupCallback]]:
     extras = config.extras or {}
     symbols = _extra_symbols(extras, "BOOTSTRAP_SYMBOLS") or ["EURUSD"]
     tick_interval = _extra_float(extras, "BOOTSTRAP_TICK_INTERVAL", 2.5)
@@ -2201,7 +2201,7 @@ def _build_bootstrap_runtime(
     if evolution_interval <= 0:
         evolution_interval = 1
 
-    return BootstrapRuntime(
+    runtime = BootstrapRuntime(
         event_bus=bus,
         symbols=symbols,
         connectors=connectors,
@@ -2225,6 +2225,92 @@ def _build_bootstrap_runtime(
         evolution_orchestrator=orchestrator,
         evolution_cycle_interval=evolution_interval,
     )
+    cleanup_callbacks: list[CleanupCallback] = []
+
+    adapter_cleanup = _maybe_attach_paper_trading_adapter(config, runtime)
+    if adapter_cleanup is not None:
+        cleanup_callbacks.append(adapter_cleanup)
+
+    return runtime, cleanup_callbacks
+
+
+def _maybe_attach_paper_trading_adapter(
+    config: SystemConfig,
+    runtime: BootstrapRuntime,
+) -> CleanupCallback | None:
+    """Install a REST paper trading adapter when configuration is provided."""
+
+    extras = config.extras or {}
+    api_url = extras.get("PAPER_TRADING_API_URL")
+    if not api_url or not str(api_url).strip():
+        return None
+
+    try:
+        from src.trading.integration.paper_trading_api import (
+            PaperTradingApiAdapter,
+            PaperTradingApiSettings,
+            PaperTradingApiError,
+        )
+    except Exception as exc:  # pragma: no cover - defensive guard for optional deps
+        logger.warning(
+            "Paper trading API integration unavailable",
+            exc_info=exc,
+        )
+        return None
+
+    try:
+        settings = PaperTradingApiSettings.from_mapping(extras)
+    except ValueError as exc:
+        snapshot: dict[str, Any] = {}
+        for key, value in extras.items():
+            if not key.startswith("PAPER_TRADING_"):
+                continue
+            if any(token in key for token in ("SECRET", "KEY", "TOKEN", "PASSWORD")):
+                snapshot[key] = "***"
+            else:
+                snapshot[key] = value
+        logger.warning(
+            "Invalid paper trading API configuration: %s",
+            exc,
+            extra={"paper_trading_config": snapshot},
+        )
+        return None
+
+    adapter = PaperTradingApiAdapter(settings=settings)
+    order_timeout = settings.request_timeout
+    default_stage = extras.get("PAPER_TRADING_DEFAULT_STAGE")
+
+    try:
+        router = runtime.trading_manager.attach_live_broker_adapter(
+            adapter,
+            default_stage=default_stage,
+            order_timeout=order_timeout,
+        )
+    except PaperTradingApiError as exc:
+        logger.warning("Failed to initialise paper trading adapter: %s", exc)
+        return None
+    except Exception as exc:  # pragma: no cover - defensive guard
+        logger.warning("Unexpected error attaching paper trading adapter", exc_info=exc)
+        return None
+
+    runtime._paper_broker_adapter = adapter
+    runtime._paper_broker_summary = adapter.describe()
+    if router is not None:
+        runtime._release_router = router
+
+    logger.info(
+        "🤝 Paper trading REST adapter attached",
+        extra={
+            "base_url": settings.base_url,
+            "endpoint": settings.order_endpoint,
+            "order_id_field": settings.order_id_field,
+        },
+    )
+
+    async def _cleanup() -> None:
+        await adapter.close()
+
+    return _cleanup
 
 
 async def build_professional_predator_app(
@@ -2347,7 +2433,7 @@ async def build_professional_predator_app(
                 cfg.extras or {},
                 event_bus=bus,
             )
-        runtime = _build_bootstrap_runtime(
+        runtime, runtime_cleanups = _build_bootstrap_runtime(
             cfg,
             bus,
             redis_client=redis_client,
@@ -2369,6 +2455,8 @@ async def build_professional_predator_app(
             task_supervisor=task_supervisor,
             runtime_tracer=runtime_tracer,
         )
+        for cleanup in runtime_cleanups:
+            app.add_cleanup_callback(cleanup)
         for cleanup in connector_cleanups:
             app.add_cleanup_callback(cleanup)
         if compliance_monitor is not None:

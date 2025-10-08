@@ -196,6 +196,8 @@ class BootstrapRuntime:
         self.execution_engine = ImmediateFillExecutionAdapter(self.portfolio_monitor)
         self.trading_manager.execution_engine = self.execution_engine
         self._release_router: ReleaseAwareExecutionRouter | None = None
+        self._paper_broker_adapter: Any | None = None
+        self._paper_broker_summary: Mapping[str, Any] | None = None
         if release_manager is not None:
             try:
                 default_stage = release_manager.resolve_stage(strategy_id)
@@ -321,6 +323,8 @@ class BootstrapRuntime:
             "telemetry": telemetry,
             "evolution_cycle_interval": self._evolution_cycle_interval,
         }
+        if self._paper_broker_summary:
+            status["paper_broker"] = dict(self._paper_broker_summary)
         vision_summary = (
             telemetry.get("vision_alignment") if isinstance(telemetry, Mapping) else None
         )
@@ -431,6 +435,13 @@ class BootstrapRuntime:
                 elif release_execution is not None:
                     status["release_execution"] = release_execution
         return status
+
+    def describe_paper_broker(self) -> Mapping[str, Any] | None:
+        """Expose the configured paper trading adapter summary, if any."""
+
+        if not self._paper_broker_summary:
+            return None
+        return dict(self._paper_broker_summary)
 
     def _publish_sensory_outputs(self, snapshot: Mapping[str, Any] | None) -> None:
         status_payload: Mapping[str, Any] | None

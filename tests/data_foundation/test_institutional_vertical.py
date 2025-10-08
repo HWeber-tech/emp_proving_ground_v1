@@ -452,7 +452,7 @@ async def test_services_stop_handles_timeout(monkeypatch: pytest.MonkeyPatch) ->
     services._kafka_stop_event = stop_event
     services._kafka_task = asyncio.create_task(_never())
 
-    async def fake_wait_for(awaitable: asyncio.Task, timeout: float) -> object:
+    async def fake_wait_for(_awaitable: asyncio.Task, timeout: float) -> object:
         raise asyncio.TimeoutError
 
     monkeypatch.setattr(asyncio, "wait_for", fake_wait_for)

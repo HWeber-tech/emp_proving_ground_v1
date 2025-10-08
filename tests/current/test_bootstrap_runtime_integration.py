@@ -96,7 +96,7 @@ if "src.runtime.runtime_builder" not in sys.modules:
     def _stub_build_runtime_app(*_args, **_kwargs):  # pragma: no cover - lightweight stub
         raise NotImplementedError
 
-    async def _stub_execute_timescale_ingest(*_args, **__kwargs):  # pragma: no cover - stubbed runtime hook
+    async def _stub_execute_timescale_ingest(*_args, **_kwargs):  # pragma: no cover - stubbed runtime hook
         return True, None
 
     runtime_builder_module.RuntimeApplication = _StubRuntimeApplication  # type: ignore[attr-defined]

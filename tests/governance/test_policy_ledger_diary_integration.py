@@ -34,6 +34,7 @@ def _now() -> datetime:
 
 
 def test_policy_ledger_requires_diary_evidence(tmp_path, fixed_uuid) -> None:
+    _ = fixed_uuid
     ledger_store = PolicyLedgerStore(tmp_path / "policy_ledger.json", now=_now)
     diary_store = DecisionDiaryStore(tmp_path / "decision_diary.json", now=_now, probe_registry=ProbeRegistry())
 

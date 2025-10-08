@@ -12,7 +12,7 @@ from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
 from statistics import fmean, pstdev
-from types import MappingProxyType
+from types import MappingProxyType, TracebackType
 from typing import (
     Any,
     Awaitable,
@@ -326,7 +326,12 @@ class ProfessionalPredatorApp:
         await self.start()
         return self
 
-    async def __aexit__(self, exc_type, exc, tb) -> None:
+    async def __aexit__(
+        self,
+        _exc_type: type[BaseException] | None,
+        _exc: BaseException | None,
+        _tb: TracebackType | None,
+    ) -> None:
         await self.shutdown()
 
     @property

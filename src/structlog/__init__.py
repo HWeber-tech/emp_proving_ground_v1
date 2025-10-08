@@ -72,6 +72,8 @@ def configure(
     global _config, _logger_cache
 
     processor_chain = list(processors)
+    if context_class is not None:
+        _ = context_class  # preserve keyword compatibility without altering behaviour
     factory = logger_factory or (lambda name: logging.getLogger(name))
     wrapper = wrapper_class or stdlib.BoundLogger
 

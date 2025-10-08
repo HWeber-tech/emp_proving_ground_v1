@@ -38,7 +38,7 @@ class RiskManagerPort(Protocol):
     """
 
     def validate_position(
-        self, position: dict[str, object], instrument: dict[str, Any] | Any, equity: Decimal | float
+        self, position: dict[str, object], _instrument: dict[str, Any] | Any, equity: Decimal | float
     ) -> bool:
         """
         Validate a position given an instrument and account equity.
@@ -54,7 +54,7 @@ class NoOpRiskManager:
         self.config = config or RiskConfigDecl()
 
     def validate_position(
-        self, position: dict[str, object], instrument: dict[str, Any] | Any, equity: Decimal | float
+        self, position: dict[str, object], _instrument: dict[str, Any] | Any, equity: Decimal | float
     ) -> bool:
         try:
             # Perform trivial sanity checks without rejecting

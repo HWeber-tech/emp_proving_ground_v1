@@ -128,6 +128,7 @@ def _build_diary_with_reflections(tmp_path: Path) -> Path:
 
 
 def test_cli_export_diary_json(tmp_path, capsys, fixed_uuid) -> None:
+    _ = fixed_uuid
     store, registry, diary_path = _build_store(tmp_path)
     registry_path = tmp_path / "registry.json"
     registry.write(registry_path)
@@ -151,6 +152,7 @@ def test_cli_export_diary_json(tmp_path, capsys, fixed_uuid) -> None:
 
 
 def test_cli_export_probes_markdown(tmp_path, capsys, fixed_uuid) -> None:
+    _ = fixed_uuid
     _, registry, _ = _build_store(tmp_path)
     registry_path = tmp_path / "registry.json"
     registry.write(registry_path)

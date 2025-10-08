@@ -27,6 +27,7 @@ def cli_env(monkeypatch) -> None:
 
 @pytest.mark.asyncio()
 async def test_runtime_cli_summary_json(cli_env, capsys, tmp_path: Path) -> None:
+    _ = cli_env
     exit_code = await run_cli(
         [
             "summary",
@@ -49,6 +50,7 @@ async def test_runtime_cli_summary_json(cli_env, capsys, tmp_path: Path) -> None
 
 @pytest.mark.asyncio()
 async def test_runtime_cli_run_without_trading(cli_env, tmp_path: Path) -> None:
+    _ = cli_env
     exit_code = await run_cli(
         [
             "run",
@@ -66,6 +68,7 @@ async def test_runtime_cli_run_without_trading(cli_env, tmp_path: Path) -> None:
 
 @pytest.mark.asyncio()
 async def test_runtime_cli_restart_cycles(cli_env, capsys, tmp_path: Path) -> None:
+    _ = cli_env
     exit_code = await run_cli(
         [
             "restart",

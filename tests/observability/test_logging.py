@@ -44,6 +44,7 @@ def _last_record(stream: io.StringIO) -> dict[str, object]:
 
 
 def test_configure_structured_logging_emits_json(reset_logging: Iterator[None]) -> None:
+    _ = reset_logging
     stream = io.StringIO()
     configure_structured_logging(
         component="runtime",
@@ -67,6 +68,7 @@ def test_configure_structured_logging_emits_json(reset_logging: Iterator[None]) 
 
 
 def test_structured_logging_includes_exception(reset_logging: Iterator[None]) -> None:
+    _ = reset_logging
     stream = io.StringIO()
     configure_structured_logging(component="runtime", stream=stream)
 
@@ -82,6 +84,7 @@ def test_structured_logging_includes_exception(reset_logging: Iterator[None]) ->
 
 
 def test_configure_structured_logging_idempotent(reset_logging: Iterator[None]) -> None:
+    _ = reset_logging
     first_stream = io.StringIO()
     first_handler = configure_structured_logging(component="runtime", stream=first_stream)
     second_stream = io.StringIO()
@@ -101,6 +104,7 @@ def test_configure_structured_logging_idempotent(reset_logging: Iterator[None]) 
 
 
 def test_configure_structured_logging_invokes_otel(reset_logging: Iterator[None], monkeypatch: pytest.MonkeyPatch) -> None:
+    _ = reset_logging
     stream = io.StringIO()
     settings = OpenTelemetryLoggingSettings(enabled=True, endpoint="http://collector")
     calls: dict[str, object] = {}
@@ -126,6 +130,7 @@ def test_configure_structured_logging_invokes_otel(reset_logging: Iterator[None]
 
 
 def test_configure_structured_logging_skips_otel(reset_logging: Iterator[None], monkeypatch: pytest.MonkeyPatch) -> None:
+    _ = reset_logging
     invoked = False
 
     def _unexpected(*args: object, **kwargs: object) -> None:

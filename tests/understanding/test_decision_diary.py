@@ -32,6 +32,7 @@ def fixed_uuid(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_decision_diary_record_and_reload(tmp_path, fixed_uuid) -> None:
+    _ = fixed_uuid
     registry = ProbeRegistry.from_definitions(
         (
             ProbeDefinition(
@@ -100,6 +101,7 @@ def test_decision_diary_record_and_reload(tmp_path, fixed_uuid) -> None:
 
 
 def test_decision_diary_publish_event(tmp_path, fixed_uuid, monkeypatch) -> None:
+    _ = fixed_uuid
     events: list[object] = []
 
     def _fake_publish_event_with_failover(event_bus, event, **_kwargs):
@@ -152,6 +154,7 @@ def test_decision_diary_publish_event(tmp_path, fixed_uuid, monkeypatch) -> None
 
 
 def test_decision_diary_publish_event_failure(tmp_path, fixed_uuid, monkeypatch, caplog) -> None:
+    _ = fixed_uuid
     def _raise_publish(*_args, **_kwargs):
         raise EventPublishError(stage="runtime", event_type="governance.decision_diary.recorded")
 

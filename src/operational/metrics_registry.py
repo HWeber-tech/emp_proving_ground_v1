@@ -66,13 +66,13 @@ MemoKey = Tuple[str, str, Optional[Tuple[str, ...]]]
 # Constructor Protocols for metric types
 class CounterCtor(Protocol):
     def __call__(
-        self, name: str, documentation: str, labelnames: Optional[Sequence[str]] = None
+        self, name: str, _documentation: str, labelnames: Optional[Sequence[str]] = None
     ) -> CounterLike: ...
 
 
 class GaugeCtor(Protocol):
     def __call__(
-        self, name: str, documentation: str, labelnames: Optional[Sequence[str]] = None
+        self, name: str, _documentation: str, labelnames: Optional[Sequence[str]] = None
     ) -> GaugeLike: ...
 
 
@@ -80,7 +80,7 @@ class HistogramCtor(Protocol):
     def __call__(
         self,
         name: str,
-        documentation: str,
+        _documentation: str,
         buckets: Optional[Sequence[float]] = None,
         labelnames: Optional[Sequence[str]] = None,
     ) -> HistogramLike: ...

@@ -14,7 +14,7 @@ class _DummyApp:
     async def __aenter__(self) -> "_DummyApp":  # pragma: no cover - trivial glue
         return self
 
-    async def __aexit__(self, exc_type, exc, tb) -> None:  # pragma: no cover - trivial glue
+    async def __aexit__(self, _exc_type, _exc, _tb) -> None:  # pragma: no cover - trivial glue
         return None
 
     async def shutdown(self) -> None:

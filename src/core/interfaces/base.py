@@ -73,7 +73,7 @@ class RiskManager(Protocol):
     def propose_rebalance(
         self,
         positions: Mapping[str, float],
-        constraints: Mapping[str, object] | None = ...,
+        _constraints: Mapping[str, object] | None = ...,
     ) -> Mapping[str, float]: ...
 
     def update_limits(self, limits: Mapping[str, object]) -> None: ...

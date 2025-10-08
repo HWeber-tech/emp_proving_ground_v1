@@ -424,7 +424,7 @@ class KafkaAdminClientLike(Protocol):
         ...
 
     def create_topics(
-        self, new_topics: Sequence[Any], request_timeout: float | None = None
+        self, new_topics: Sequence[Any], _request_timeout: float | None = None
     ) -> Mapping[str, Any] | Sequence[Any]:  # pragma: no cover - protocol definition
         ...
 

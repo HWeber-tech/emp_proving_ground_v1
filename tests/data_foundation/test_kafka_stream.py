@@ -155,7 +155,7 @@ class _FakeAdminClient:
     def create_topics(
         self,
         new_topics: Sequence[KafkaTopicSpec],
-        request_timeout: float | None = None,
+        _request_timeout: float | None = None,
     ) -> Mapping[str, _ImmediateFuture]:
         self.create_calls += 1
         futures: dict[str, _ImmediateFuture] = {}

@@ -136,7 +136,7 @@ Phase 1 scope — families and decisions
 - Canonical: sentient memory package
   - [src/sentient/memory/faiss_pattern_memory.py](src/sentient/memory/faiss_pattern_memory.py)
 - Legacy shims:
-  - [src/thinking/memory/faiss_memory.py](src/thinking/memory/faiss_memory.py) re-exports
+  - ~~[src/thinking/memory/faiss_memory.py](src/thinking/memory/faiss_memory.py) re-exports~~ (retired; raises `ModuleNotFoundError` with guidance and guardrail tests)
   - [src/thinking/memory/pattern_memory.py](src/thinking/memory/pattern_memory.py) imports MemoryEntry from sentient.*
 - Rationale: memory persistence is part of agent (sentient) domain.
 
@@ -147,6 +147,8 @@ Phase 1 scope — families and decisions
   - [src/intelligence/sentient_adaptation.py](src/intelligence/sentient_adaptation.py)
 - Canonical: [src/sentient/learning/real_time_learning_engine.py](src/sentient/learning/real_time_learning_engine.py)
 - Legacy shims: imports in thinking/intelligence modules re-export class from sentient.*
+  - ~~[src/thinking/learning/real_time_learner.py](src/thinking/learning/real_time_learner.py) re-export~~ (retired; raises guidance error directing callers to canonical module)
+  - [src/intelligence/sentient_adaptation.py](src/intelligence/sentient_adaptation.py) still imports canonical class lazily
 - Rationale: run-time agent learning is sentient.
 
 12) PredictiveMarketModeler (3), MarketScenario (2), MarketScenarioGenerator (2)

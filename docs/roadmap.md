@@ -59,6 +59,11 @@ kit that the roadmap calls back to in each checklist.
     prefixes into the resolved config, runtime summary, and managed manifest so
     operators can tune hot datasets without code patches under guardrail tests
     that exercise supervised caches and CLI manifests.【F:src/data_foundation/ingest/configuration.py†L738-L942】【F:src/data_foundation/ingest/production_slice.py†L34-L120】【F:tests/data_foundation/test_timescale_config.py†L130-L150】【F:tests/runtime/test_institutional_ingest_vertical.py†L120-L205】【F:tools/operations/managed_ingest_connectors.py†L147-L194】
+  - *Progress*: Redis cache helpers now parse typed connection settings, TTL/capacity
+    overrides, and invalidate prefixes while exposing a managed wrapper that tracks
+    hits, misses, expirations, and evictions so ingest and trading services share a
+    single Redis contract; the portfolio monitor wraps its state store with the managed
+    cache and publishes cache telemetry via the event bus under regression coverage.【F:src/data_foundation/cache/redis_cache.py†L93-L268】【F:src/trading/monitoring/portfolio_monitor.py†L70-L198】【F:tests/data_foundation/test_redis_cache.py†L1-L167】【F:tests/current/test_portfolio_monitor_runtime.py†L11-L94】
   - *Progress*: Pricing cache now hashes ingest parameters with `blake2b` for
     deterministic dataset artefacts, writes metadata and issues manifests,
     enforces retention policies, and logs cleanup failures under regression
@@ -559,6 +564,10 @@ kit that the roadmap calls back to in each checklist.
   - *Progress*: Operational package import now aliases `src.operational.event_bus`
     to the canonical core implementation, keeping legacy paths alive while tests
     assert the wiring so cleanup work can retire the shim safely.【F:src/operational/__init__.py†L1-L38】【F:tests/operational/test_event_bus_alias.py†L162-L178】
+  - *Progress*: Retired the remaining thinking-layer shims for FAISS pattern memory,
+    real-time learning, and sentient adaptation by replacing them with descriptive
+    `ModuleNotFoundError`s and guardrail tests so callers migrate to the canonical
+    sentient/intelligence modules without the legacy exports resurfacing.【F:src/thinking/memory/faiss_memory.py†L1-L12】【F:src/thinking/learning/real_time_learner.py†L1-L12】【F:src/thinking/sentient_adaptation_engine.py†L1-L11】【F:tests/thinking/test_shim_import_failures.py†L1-L34】
 
 ## Roadmap cadence
 
@@ -810,6 +819,11 @@ kit that the roadmap calls back to in each checklist.
     embeds reviewer insights, and retains exported Markdown/metadata so
     compliance reviewers see reflection posture alongside readiness snapshots
     under new guardrail coverage.【F:src/operations/observability_dashboard.py†L257-L404】【F:tests/operations/test_observability_dashboard.py†L435-L528】
+  - *Progress*: AlphaTrade loop orchestrator now ties the understanding router,
+    DriftSentry gate, policy ledger thresholds, and decision diary together so
+    tactic experiments emit stage-aware drift metadata, diary evidence, and reflection
+    artefacts in a single call path, with guardrail tests locking forced-paper decisions
+    and recorded payloads.【F:src/orchestration/alpha_trade_loop.py†L1-L200】【F:tests/orchestration/test_alpha_trade_loop.py†L1-L161】
   - *Progress*: Trading manager now installs the release-aware router whenever a
     policy ledger is present, and bootstrap runtime mirrors the configuration so
     paper, pilot, and live engines record forced routes, drift severity, audit
@@ -840,6 +854,11 @@ kit that the roadmap calls back to in each checklist.
     stage and engine routing metadata, and record forced paper routes alongside
     drift reasons so governance reviewers see execution posture under pytest
     coverage.【F:src/runtime/bootstrap_runtime.py†L190-L238】【F:src/operations/bootstrap_control_center.py†L341-L359】【F:src/runtime/predator_app.py†L1001-L1141】【F:src/trading/trading_manager.py†L1028-L1079】【F:tests/current/test_bootstrap_runtime_integration.py†L238-L268】【F:tests/trading/test_trading_manager_execution.py†L496-L567】
+  - *Progress*: Vision alignment report now captures evolution orchestrator readiness
+    snapshots, champion payloads, and adaptive-run telemetry while the bootstrap control
+    centre threads the same readiness metadata into runtime status/overview responses so
+    governance dashboards inherit deterministic evolution posture under expanded runtime
+    coverage.【F:src/governance/vision_alignment.py†L292-L415】【F:src/operations/bootstrap_control_center.py†L431-L528】【F:tests/current/test_vision_alignment_report.py†L19-L73】【F:tests/runtime/test_bootstrap_runtime_sensory.py†L162-L216】【F:tests/current/test_bootstrap_runtime_integration.py†L166-L186】
   - *Progress*: Trading manager release posture now surfaces the most recent
     execution route from the release-aware router, including forced paper
     routes and escalation reasons, so dashboards and audits inherit the same

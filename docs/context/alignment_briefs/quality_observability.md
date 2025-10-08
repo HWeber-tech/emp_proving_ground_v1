@@ -183,6 +183,10 @@
   control-centre callback failures with structured metadata so optional hooks
   surface errors without disrupting bootstrap decisions, under pytest coverage
   that captures the emitted diagnostics.【F:src/orchestration/bootstrap_stack.py†L81-L258】【F:tests/current/test_bootstrap_stack.py†L164-L213】
+- Progress: AlphaTrade loop orchestrator now coordinates the understanding router,
+  DriftSentry gate, policy ledger stages, and decision diary so tactic experiments
+  emit stage-aware drift metadata and governance evidence in one pass, with guardrail
+  coverage locking forced-paper postures and recorded artefacts.【F:src/orchestration/alpha_trade_loop.py†L48-L200】【F:tests/orchestration/test_alpha_trade_loop.py†L1-L161】
 - ✅ Slack/webhook mirrors for CI alerts ship via the CI failure alerts workflow,
   while the alert drill and metrics tooling record MTTA/MTTR timelines under
   regression coverage so dashboards mirror forced-failure rehearsals without

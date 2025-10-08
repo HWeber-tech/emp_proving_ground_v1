@@ -371,12 +371,14 @@ Canonicalization
   - [MemoryEntry](src/sentient/memory/faiss_pattern_memory.py:19)
   - [RealTimeLearningEngine](src/sentient/learning/real_time_learning_engine.py:52)
 
-Shims (thin re-exports; no logic)
+Guided imports (ModuleNotFoundError surfaces)
 - Thinking layer:
-  - [faiss_memory.py](src/thinking/memory/faiss_memory.py:1) → re-exports FAISSPatternMemory, MemoryEntry
-  - [real_time_learner.py](src/thinking/learning/real_time_learner.py:1) → re-exports RealTimeLearningEngine
+  - [faiss_memory.py](src/thinking/memory/faiss_memory.py:1) → now raises a descriptive `ModuleNotFoundError` pointing to the canonical sentient module under guardrail tests.【F:src/thinking/memory/faiss_memory.py†L1-L12】【F:tests/thinking/test_shim_import_failures.py†L1-L34】
+  - [real_time_learner.py](src/thinking/learning/real_time_learner.py:1) → raises a guidance error directing callers to `src.sentient.learning.real_time_learning_engine` with regression coverage.【F:src/thinking/learning/real_time_learner.py†L1-L12】【F:tests/thinking/test_shim_import_failures.py†L1-L34】
 - Intelligence layer:
   - [sentient_adaptation.py](src/intelligence/sentient_adaptation.py:63,152) → local duplicate RealTimeLearningEngine and FAISSPatternMemory replaced with imports from canonical sentient modules
+- Thinking layer adaptation shim:
+  - [sentient_adaptation_engine.py](src/thinking/sentient_adaptation_engine.py:1) → raises a canonical import guidance error so legacy consumers fail fast with actionable instructions.【F:src/thinking/sentient_adaptation_engine.py†L1-L11】【F:tests/thinking/test_shim_import_failures.py†L1-L34】
 
 Parser blockers fixed prior to Batch 7
 - [real_sensory_organ.py](src/sensory/organs/dimensions/real_sensory_organ.py:1) → shim to canonical to resolve indentation error
@@ -395,7 +397,7 @@ Verification (scanner)
 
 Notes
 - PatternMemory in thinking remains as a distinct long-term memory implementation; only the MemoryEntry name is unified under sentient where that specific dataclass was duplicated.
-- Imports remain backward compatible via shims; no behavior changes were introduced.
+- 2025-10-08 update: legacy thinking shims now emit `ModuleNotFoundError` guidance with guardrail coverage so cleanup automation treats the shim backlog as closed instead of silently re-exporting canonical classes.
 
 ## Resolved Duplicates — Batch 8 (Strategy testing, 2025-08-11)
 

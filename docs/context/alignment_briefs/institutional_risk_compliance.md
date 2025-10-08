@@ -183,6 +183,11 @@
   outputs so operators can execute the cadence outside the runtime while
   preserving persisted history and metadata provenance under pytest
   coverage.【F:tools/governance/run_cadence.py†L1-L368】【F:tests/tools/test_run_governance_cadence.py†L47-L138】
+- Progress: Vision alignment report now ingests evolution readiness snapshots,
+  adaptive-run telemetry, and champion metadata while the bootstrap control centre
+  threads the same readiness payload into runtime status so governance reviewers see
+  the gate posture without scraping orchestrator internals under expanded integration
+  coverage.【F:src/governance/vision_alignment.py†L292-L415】【F:src/operations/bootstrap_control_center.py†L431-L528】【F:tests/current/test_vision_alignment_report.py†L19-L73】【F:tests/runtime/test_bootstrap_runtime_sensory.py†L162-L216】
 - Progress: Professional runtime builder now honours `GOVERNANCE_CADENCE_*`
   extras, scheduling the cadence loop, persisting history, and recording the
   latest governance report during live runs so background reporting matches the

@@ -182,14 +182,15 @@
     payloads while surfacing shared runbooks so telemetry, dashboards, and
     audits inherit the same risk configuration under pytest coverage.【F:src/trading/trading_manager.py†L1255-L1744】【F:src/trading/risk/risk_gateway.py†L396-L429】【F:tests/trading/test_trading_manager_execution.py†L1309-L1566】【F:tests/current/test_risk_gateway_validation.py†L391-L460】
 - Progress: Governance cadence runner now persists the last generated timestamp,
-  injects strategy and metadata providers, backfills cadence defaults, and wires
-  audit/persist/publish hooks so the compliance squad can enforce interval
-  gating or force runs under pytest coverage.【F:src/operations/governance_cadence.py†L1-L200】【F:src/operations/governance_reporting.py†L671-L770】【F:tests/operations/test_governance_cadence.py†L1-L200】
+  injects strategy and metadata providers, backfills cadence defaults, loads the
+  previous payload, and attaches a structured delta (status shifts, section
+  additions/removals, summary changes) so the compliance squad can enforce interval
+  gating with clear change logs under pytest coverage.【F:src/operations/governance_cadence.py†L130-L245】【F:src/operations/governance_reporting.py†L618-L758】【F:tests/operations/test_governance_cadence.py†L126-L299】【F:tests/operations/test_governance_reporting.py†L371-L441】
 - Progress: Governance cadence CLI resolves SystemConfig extras into context
-  packs, layers JSON overrides, supports forced runs, and emits Markdown/JSON
-  outputs so operators can execute the cadence outside the runtime while
-  preserving persisted history and metadata provenance under pytest
-  coverage.【F:tools/governance/run_cadence.py†L1-L368】【F:tests/tools/test_run_governance_cadence.py†L47-L138】
+  packs, layers JSON overrides, supports forced runs, renders the delta metadata,
+  and emits Markdown/JSON outputs so operators can execute the cadence outside
+  the runtime while preserving persisted history and change provenance under
+  pytest coverage.【F:tools/governance/run_cadence.py†L1-L368】【F:tests/tools/test_run_governance_cadence.py†L47-L140】
 - Progress: Vision alignment report now ingests evolution readiness snapshots,
   adaptive-run telemetry, and champion metadata while the bootstrap control centre
   threads the same readiness payload into runtime status so governance reviewers see

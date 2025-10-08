@@ -141,6 +141,12 @@ kit that the roadmap calls back to in each checklist.
     dimensions, supervised fallback execution, and redacted service summaries so
     disaster-recovery rehearsals share the runtime wiring under regression
     coverage.【F:src/data_foundation/ingest/institutional_vertical.py†L384-L466】【F:tests/runtime/test_institutional_ingest_vertical.py†L434-L496】【F:docs/operations/timescale_failover_drills.md†L25-L45】
+  - *Progress*: Institutional ingest services now capture Kafka metadata even when
+    the consumer fails to provision, surface configured topics and policy metrics in
+    summaries, enrich the managed manifest, and expose asynchronous connectivity
+    probes with timeout-aware error formatting so dashboards and drills inherit
+    health-annotated snapshots before running recovery workflows under refreshed
+    pytest coverage.【F:src/data_foundation/ingest/institutional_vertical.py†L240-L701】【F:tests/data_foundation/test_institutional_vertical.py†L128-L200】【F:tests/runtime/test_institutional_ingest_vertical.py†L110-L186】
   - *Progress*: Tier-0 Yahoo ingest now sanitises symbols/intervals, enforces
     mutually exclusive period versus window arguments, normalises timestamps,
     and writes through a DuckDB helper that escapes table identifiers and binds
@@ -256,11 +262,12 @@ kit that the roadmap calls back to in each checklist.
     now serialises per-dimension metadata plus harvested numeric telemetry so
     runtime status/metrics surfaces inherit audit-ready values under pytest
     coverage.【F:src/sensory/real_sensory_organ.py†L23-L233】【F:src/sensory/real_sensory_organ.py†L392-L489】【F:tests/sensory/test_real_sensory_organ.py†L96-L183】
-  - *Progress*: Component integrator now instantiates canonical sensory, trading,
-    evolution, risk, and governance subsystems, registers legacy aliases for the
-    HOW/WHAT/WHEN organs, captures the enforced `RiskConfig` summary, and surfaces
-    the shared risk API runbook so integration checks and governance reviews
-    observe the true wiring under pytest coverage.【F:src/integration/component_integrator.py†L1-L170】【F:src/integration/component_integrator_impl.py†L1-L139】【F:tests/integration/test_component_integrator_impl.py†L1-L44】
+  - *Progress*: Component integrator now builds the full canonical sensory stack
+    (`create_sensory_organ` plus lineage publisher and WHY/HOW/WHAT/WHEN/ANOMALY
+    sensors), registers backward-compatible organ aliases, and keeps restart
+    paths wired so integration checks surface real sensor instances alongside
+    the enforced `RiskConfig` summary and shared risk runbook under refreshed
+    pytest coverage.【F:src/integration/component_integrator.py†L35-L317】【F:src/integration/component_integrator_impl.py†L67-L305】【F:tests/integration/test_component_integrator.py†L1-L25】【F:tests/integration/test_component_integrator_impl.py†L1-L43】
   - *Progress*: Sensory metrics telemetry now converts the organ status feed into
     dimension-level metrics, extracts numeric audit/order-book telemetry for each
     dimension, captures drift-alert provenance, and publishes via the event-bus
@@ -301,6 +308,13 @@ kit that the roadmap calls back to in each checklist.
     exports, the component integrator, and trading manager resolving factories
     from the same module while capturing risk-config summaries so orchestration
     and runtime share deterministic enforcement under regression coverage.【F:src/risk/manager.py†L1-L128】【F:src/core/__init__.py†L14-L33】【F:src/integration/component_integrator.py†L17-L169】【F:src/trading/trading_manager.py†L17-L175】【F:tests/current/test_orchestration_compose.py†L12-L159】
+  - *Progress*: `RuntimeApplication` now owns a shared `TaskSupervisor`, rejects
+    rebinding while workloads are active, and routes workload tasks through the
+    supervisor so shutdown sweeps background jobs cleanly; the runtime runner reuses
+    existing supervisors or binds injected ones, and the professional builder passes
+    the app supervisor into institutional ingest provisioners so managed connectors
+    and governance cadence share lifecycle telemetry under pytest coverage of runner
+    and ingest orchestration flows.【F:src/runtime/runtime_builder.py†L768-L3870】【F:src/runtime/runtime_runner.py†L17-L121】【F:tests/runtime/test_runtime_runner.py†L12-L129】【F:tests/runtime/test_institutional_ingest_vertical.py†L110-L186】
   - *Progress*: Deterministic trading risk API still exposes structured metadata
     and the shared `RISK_API_RUNBOOK`, while the trading manager now merges the
     gateway limits, runtime risk summary, and cached decisions into
@@ -1001,6 +1015,11 @@ kit that the roadmap calls back to in each checklist.
     emits Markdown/JSON outputs so operators can run the cadence without the
     runtime while preserving persisted history and metadata provenance under
     pytest coverage.【F:tools/governance/run_cadence.py†L1-L368】【F:tests/tools/test_run_governance_cadence.py†L47-L138】
+  - *Progress*: Governance cadence runner now loads the previous persisted snapshot,
+    attaches a structured delta (overall status shifts, section adds/removals, and
+    summary changes) to each report, and persists the enriched metadata so dashboards,
+    CLI exports, and runtime cadence runs share the same change log under pytest
+    coverage of runner, reporting helpers, and CLI flows.【F:src/operations/governance_cadence.py†L130-L245】【F:src/operations/governance_reporting.py†L618-L758】【F:tests/operations/test_governance_cadence.py†L126-L299】【F:tests/operations/test_governance_reporting.py†L371-L441】【F:tests/tools/test_run_governance_cadence.py†L133-L140】
   - *Progress*: Packaged governance context baselines now ship with the repo and
     the loader falls back to them when SystemConfig overrides are missing,
     redacting secrets, logging fallback engagements, and keeping governance

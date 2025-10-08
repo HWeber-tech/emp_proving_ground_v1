@@ -66,6 +66,9 @@
   tasks, with guardrail coverage spanning steady-state execution, failure
   cut-offs, jitter bounds, supervisor telemetry, snapshot builders, and event
   publishing.【F:src/data_foundation/ingest/scheduler.py†L1-L138】【F:tests/data_foundation/test_ingest_scheduler.py†L1-L200】
+- Progress: Production ingest slice now serialises concurrent runs behind an
+  async lock, preserving result snapshots and invalidation caching while guard
+  tests block orchestrator stampedes when multiple triggers fire.【F:src/data_foundation/ingest/production_slice.py†L84-L126】【F:tests/data_foundation/test_production_ingest_slice.py†L133-L190】
 - Progress: Timescale ingest regression now covers migrator bootstrap,
   idempotent upserts for empty plans, and macro event ingestion so coverage
   catches silent failures before institutional pipelines depend on them.【F:tests/data_foundation/test_timescale_ingest.py†L1-L213】

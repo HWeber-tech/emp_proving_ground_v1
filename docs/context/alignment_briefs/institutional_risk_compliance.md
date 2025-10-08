@@ -116,9 +116,10 @@
   routes were downgraded to paper under new guardrail coverage.【F:src/trading/execution/release_router.py†L39-L214】【F:src/trading/execution/release_router.py†L260-L332】【F:src/trading/trading_manager.py†L700-L880】【F:tests/trading/test_release_execution_router.py†L1-L240】【F:tests/trading/test_trading_manager_execution.py†L886-L1030】
 - Progress: Drift gate telemetry now publishes structured event-bus payloads and
   Markdown summaries covering severity, forced-paper posture, and routing
-  metadata whenever gating decisions fire so compliance dashboards inherit
-  auditable drift enforcement, with pytest guarding the trading manager and
-  dedicated telemetry helpers.【F:src/trading/gating/telemetry.py†L1-L216】【F:src/trading/trading_manager.py†L273-L1009】【F:tests/trading/test_drift_gate_telemetry.py†L1-L118】【F:tests/trading/test_trading_manager_execution.py†L270-L1014】
+  metadata whenever gating decisions fire, and release routing mirrors those
+  events with forced-route and audit context so compliance dashboards inherit a
+  complete enforcement trail under pytest coverage for the trading manager and
+  telemetry helpers.【F:src/trading/gating/telemetry.py†L1-L199】【F:src/trading/trading_manager.py†L360-L552】【F:src/trading/trading_manager.py†L829-L900】【F:tests/trading/test_drift_gate_telemetry.py†L10-L159】【F:tests/trading/test_trading_manager_execution.py†L1079-L1098】
 
 - Progress: Mock FIX manager coercion helpers now reject non-ASCII payloads,
   guard order-book adapters that raise exceptions, and keep deterministic

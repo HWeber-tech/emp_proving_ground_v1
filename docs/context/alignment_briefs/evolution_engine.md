@@ -103,7 +103,9 @@
 - Progress: Reflection digest now tracks confidence curves, feature highlights,
   and weight-multiplier statistics while decision diaries include weight
   breakdowns so reviewers can trace how fast weights and experiments influenced
-  each recommendation under expanded pytest coverage.【F:src/thinking/adaptation/policy_router.py†L320-L377】【F:src/thinking/adaptation/policy_reflection.py†L205-L334】【F:src/understanding/decision_diary.py†L52-L82】【F:tests/thinking/test_policy_router.py†L59-L333】【F:tests/understanding/test_decision_diary.py†L68-L118】
+  each recommendation under expanded pytest coverage. The latest uplift also
+  aggregates `weight_stats`—base-score, multiplier, and fast-weight summaries—so
+  reviewers see scoring dynamics without replaying raw history payloads.【F:src/thinking/adaptation/policy_router.py†L493-L977】【F:src/thinking/adaptation/policy_reflection.py†L205-L334】【F:src/understanding/decision_diary.py†L52-L82】【F:tests/thinking/test_policy_router.py†L59-L333】【F:tests/understanding/test_decision_diary.py†L68-L118】
 - Progress: AdversarialTrainer now logs generator signature mismatches and
   unexpected training failures while preserving heuristic fallbacks so
   experimentation surfaces actionable diagnostics without stalling adaptive

@@ -66,6 +66,10 @@
   scaffolding so new organs can land incrementally.
 - Update documentation to reflect the mock status, preserving the truth-first
   narrative for reviewers.【F:docs/DEVELOPMENT_STATUS.md†L7-L35】
+- Progress: Sensory package docs now spell out that the legacy `src.sensory.core`
+  tree is retired, keeping only executable organ shims for backward
+  compatibility, while the market-intelligence shim redirects callers to the
+  enhanced dimensions so new integrations land on the supported surfaces.【F:src/sensory/__init__.py†L1-L11】【F:src/market_intelligence/dimensions/__init__.py†L1-L24】
 - Progress: Sensory summary telemetry now constructs ranked Markdown/JSON
   rollups from integrated sensor payloads, preserves drift metadata, and
   publishes via the event-bus failover helper so dashboards receive resilient

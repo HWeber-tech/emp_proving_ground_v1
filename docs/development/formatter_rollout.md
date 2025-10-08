@@ -113,8 +113,10 @@ remaining telemetry follow-ups.
   `src/sensory/organs/dimensions/how_organ.py`,
   `src/sensory/organs/dimensions/indicators.py`,
   `src/sensory/organs/dimensions/macro_intelligence.py`, and
-  `src/sensory/organs/dimensions/temporal_system.py` normalized. Ruff reported no
-  manual edits; pytest stayed green ahead of expanding the allowlist and queuing
+  `src/sensory/organs/dimensions/temporal_system.py` normalized. (The temporal
+  organ was retired during the 2025-10 consolidation cleanup, so formatter
+  enforcement now lives in the history only.) Ruff reported no manual edits;
+  pytest stayed green ahead of expanding the allowlist and queuing
   `src/sensory/organs/dimensions/utils.py` as the next target.
 - 2025-09-20 – Stage 3 wrapped with
   `src/sensory/organs/dimensions/__init__.py`,

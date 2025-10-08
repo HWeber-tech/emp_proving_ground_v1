@@ -152,6 +152,10 @@ kit that the roadmap calls back to in each checklist.
     failures, escalates unexpected exceptions, and falls back to the global bus
     under pytest coverage so ingest snapshots are not silently dropped when the
     runtime transport degrades.【F:src/data_foundation/ingest/telemetry.py†L33-L99】【F:tests/data_foundation/test_ingest_publishers.py†L1-L164】
+  - *Progress*: Production ingest slice now serialises concurrent runs behind an
+    async lock, records the latest ingest results atomically, and proves the
+    guard with a blocking-orchestrator regression so Timescale jobs cannot
+    stampede the orchestrator when multiple triggers fire.【F:src/data_foundation/ingest/production_slice.py†L84-L126】【F:tests/data_foundation/test_production_ingest_slice.py†L133-L190】
   - *Progress*: Operational readiness aggregation now fuses system validation,
     incident response, drift, and SLO telemetry into enriched snapshots, rolls
     up issue catalogs, evaluates deployment gates with blocking/warn reasons,
@@ -814,6 +818,10 @@ kit that the roadmap calls back to in each checklist.
     highlights, and weight multipliers while decision diaries and router
     decisions surface weight-breakdown provenance so reviewers see how fast
     weights and experiments shaped each promotion under new regression coverage.【F:src/thinking/adaptation/policy_router.py†L320-L377】【F:src/thinking/adaptation/policy_reflection.py†L205-L334】【F:src/understanding/decision_diary.py†L52-L82】【F:tests/thinking/test_policy_router.py†L59-L333】【F:tests/understanding/test_decision_diary.py†L68-L118】
+  - *Progress*: PolicyRouter now aggregates fast-weight applications, multiplier
+    spans, and final-score averages into dedicated `weight_stats` telemetry so
+    reviewers can correlate experiment outcomes with scoring dynamics without
+    replaying raw history payloads.【F:src/thinking/adaptation/policy_router.py†L493-L977】
   - *Progress*: Observability dashboard now ships a policy reflection panel that
     summarises analysed decisions, highlights top tactics/experiments/tags,
     embeds reviewer insights, and retains exported Markdown/metadata so
@@ -828,6 +836,10 @@ kit that the roadmap calls back to in each checklist.
     policy ledger is present, and bootstrap runtime mirrors the configuration so
     paper, pilot, and live engines record forced routes, drift severity, audit
     details, and risk context snapshots under regression coverage.【F:src/runtime/bootstrap_runtime.py†L190-L238】【F:src/trading/trading_manager.py†L1028-L1079】【F:src/trading/execution/release_router.py†L80-L154】【F:tests/trading/test_execution_risk_context.py†L100-L165】【F:tests/trading/test_trading_manager_execution.py†L496-L567】
+  - *Progress*: Trading manager and telemetry helpers now emit structured
+    release-route events alongside DriftSentry reports, exposing forced reasons,
+    audit metadata, and Markdown summaries so downstream dashboards inherit the
+    full release decision trail under regression coverage.【F:src/trading/gating/telemetry.py†L1-L199】【F:src/trading/trading_manager.py†L829-L900】【F:tests/trading/test_drift_gate_telemetry.py†L10-L159】【F:tests/trading/test_trading_manager_execution.py†L1079-L1098】
   - *Progress*: AdversarialTrainer now logs generator signature mismatches,
     captures unexpected training failures with stack traces, and preserves
     heuristic fallbacks so migration bugs surface during experimentation without
@@ -844,7 +856,7 @@ kit that the roadmap calls back to in each checklist.
     summaries through the event bus whenever gating decisions fire, capturing
     status, severity, forced-paper posture, and routing metadata so dashboards
     and audits inherit auditable drift enforcement under new pytest coverage in
-    the trading manager suite.【F:src/trading/gating/telemetry.py†L1-L216】【F:src/trading/trading_manager.py†L273-L1009】【F:tests/trading/test_drift_gate_telemetry.py†L1-L118】【F:tests/trading/test_trading_manager_execution.py†L270-L1014】
+    the trading manager suite.【F:src/trading/gating/telemetry.py†L1-L170】【F:src/trading/trading_manager.py†L360-L552】【F:src/trading/trading_manager.py†L742-L785】【F:tests/trading/test_drift_gate_telemetry.py†L1-L118】【F:tests/trading/test_trading_manager_execution.py†L1079-L1098】
   - *Progress*: Adaptive release thresholds now derive ledger stages,
     tighten confidence/notional guardrails based on sensory drift severity, and
     feed TradingManager gating plus release posture telemetry so promotions

@@ -7,6 +7,8 @@ from typing import Mapping, Sequence
 import pandas as pd
 import pytest
 
+import src.data_foundation.streaming.kafka_stream as kafka_stream
+
 from src.core.event_bus import EventBus
 from src.data_foundation.ingest.health import (
     IngestHealthCheck,
@@ -731,6 +733,41 @@ def test_create_ingest_event_publisher_warns_without_topics(caplog) -> None:
     assert any("no ingest topics" in message for message in caplog.messages)
 
 
+def test_create_ingest_event_publisher_fallback(monkeypatch, fake_result) -> None:
+    settings = KafkaConnectionSettings.from_mapping({"KAFKA_BROKERS": "localhost:9092"})
+    extras = {"KAFKA_INGEST_TOPICS": "daily_bars:timescale.daily"}
+
+    recorded: dict[str, object] = {}
+
+    class _StubProducer:
+        def __init__(self) -> None:
+            self.produced: list[tuple[str, bytes, str | bytes | None]] = []
+            self.flush_calls: list[float | None] = []
+
+        def produce(self, topic: str, value: bytes, key: str | bytes | None = None) -> None:
+            self.produced.append((topic, value, key))
+
+        def flush(self, timeout: float | None = None) -> None:
+            self.flush_calls.append(timeout)
+
+    stub = _StubProducer()
+
+    def factory(config: Mapping[str, object]) -> _StubProducer:
+        recorded["config"] = dict(config)
+        return stub
+
+    monkeypatch.setattr(kafka_stream, "_load_confluent_producer_factory", lambda: None)
+    monkeypatch.setattr(kafka_stream, "_load_kafka_python_producer_factory", lambda: factory)
+
+    publisher = create_ingest_event_publisher(settings, extras)
+
+    assert publisher is not None
+    publisher.publish(fake_result)
+
+    assert recorded["config"]["bootstrap.servers"] == "localhost:9092"
+    assert stub.produced and stub.produced[0][0] == "timescale.daily"
+
+
 def test_create_ingest_event_consumer_configures() -> None:
     settings = KafkaConnectionSettings.from_mapping({"KAFKA_BROKERS": "localhost:9092"})
     extras = {
@@ -755,6 +792,35 @@ def test_create_ingest_event_consumer_configures() -> None:
     assert isinstance(consumer, KafkaIngestEventConsumer)
     assert created["config"]["group.id"] == "ingest-bridge"
     assert consumer.topics == ("timescale.daily",)
+
+
+def test_create_ingest_event_consumer_fallback(monkeypatch) -> None:
+    settings = KafkaConnectionSettings.from_mapping({"KAFKA_BROKERS": "localhost:9092"})
+    extras = {
+        "KAFKA_INGEST_TOPICS": "daily_bars:timescale.daily",
+        "KAFKA_INGEST_CONSUMER_GROUP": "ingest-bridge",
+    }
+
+    recorded: dict[str, Mapping[str, object]] = {}
+    consumer_stub = _FakeConsumer()
+
+    def factory(config: Mapping[str, object]) -> _FakeConsumer:
+        recorded["config"] = dict(config)
+        return consumer_stub
+
+    monkeypatch.setattr(kafka_stream, "_load_confluent_consumer_factory", lambda: None)
+    monkeypatch.setattr(kafka_stream, "_load_kafka_python_consumer_factory", lambda: factory)
+
+    bridge = create_ingest_event_consumer(
+        settings,
+        extras,
+        event_bus=EventBus(),
+    )
+
+    assert bridge is not None
+    bridge.start()
+    assert recorded["config"]["group.id"] == "ingest-bridge"
+    assert consumer_stub.subscriptions == [["timescale.daily"]]
 
 
 def test_create_ingest_event_consumer_disabled(caplog) -> None:

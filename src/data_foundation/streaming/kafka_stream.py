@@ -757,20 +757,22 @@ def create_ingest_event_publisher(
         return None
 
     if producer_factory is None:
-        try:
-            from confluent_kafka import Producer
-        except Exception:  # pragma: no cover - depends on optional package
+        producer_factory = _load_confluent_producer_factory()
+        fallback_reason: str | None = None
+        if producer_factory is None:
+            producer_factory = _load_kafka_python_producer_factory()
+            fallback_reason = "kafka-python"
+        if producer_factory is None:
             logger.warning(
-                "Kafka ingest requested (%s) but confluent_kafka is not installed;"
+                "Kafka ingest requested (%s) but no supported client library is installed;"
                 " skipping publisher setup",
                 settings.summary(redacted=True),
             )
             return None
-
-        def _default_producer_factory(config: Mapping[str, Any]) -> KafkaProducerLike:
-            return cast(KafkaProducerLike, Producer(config))
-
-        producer_factory = _default_producer_factory
+        if fallback_reason is not None:
+            logger.info(
+                "Kafka ingest publisher using %s fallback", fallback_reason
+            )
 
     producer = settings.create_producer(factory=producer_factory)
     if producer is None:
@@ -834,6 +836,249 @@ class KafkaConsumerLike(Protocol):
 
 
 KafkaConsumerFactory = Callable[[Mapping[str, Any]], KafkaConsumerLike]
+
+
+def _load_confluent_producer_factory() -> KafkaProducerFactory | None:
+    try:
+        from confluent_kafka import Producer
+    except Exception:  # pragma: no cover - optional dependency guard
+        return None
+
+    def _factory(config: Mapping[str, Any]) -> KafkaProducerLike:
+        return cast(KafkaProducerLike, Producer(config))
+
+    return _factory
+
+
+def _translate_kafka_python_common_config(config: Mapping[str, Any]) -> dict[str, Any]:
+    translated: dict[str, Any] = {}
+    bootstrap = config.get("bootstrap.servers")
+    if bootstrap:
+        if isinstance(bootstrap, str):
+            brokers = [segment.strip() for segment in bootstrap.split(",") if segment.strip()]
+        else:
+            brokers = [str(broker) for broker in cast(Sequence[Any], bootstrap)]
+        if brokers:
+            translated["bootstrap_servers"] = brokers
+
+    protocol = config.get("security.protocol")
+    if protocol:
+        translated["security_protocol"] = str(protocol)
+
+    mechanism = config.get("sasl.mechanism")
+    if mechanism:
+        translated["sasl_mechanism"] = str(mechanism)
+
+    username = config.get("sasl.username")
+    if username:
+        translated["sasl_plain_username"] = str(username)
+
+    password = config.get("sasl.password")
+    if password:
+        translated["sasl_plain_password"] = str(password)
+
+    client_id = config.get("client.id")
+    if client_id:
+        translated["client_id"] = str(client_id)
+
+    compression = config.get("compression.type")
+    if compression:
+        translated["compression_type"] = str(compression)
+
+    enable_idempotence = config.get("enable.idempotence")
+    if enable_idempotence is not None:
+        translated["enable_idempotence"] = bool(enable_idempotence)
+
+    return translated
+
+
+def _translate_kafka_python_producer_config(config: Mapping[str, Any]) -> dict[str, Any]:
+    translated = _translate_kafka_python_common_config(config)
+
+    acks = config.get("acks")
+    if acks is not None:
+        translated["acks"] = acks
+
+    linger_ms = config.get("linger.ms")
+    if linger_ms is not None:
+        try:
+            translated["linger_ms"] = int(linger_ms)
+        except (TypeError, ValueError):
+            pass
+
+    batch_size = config.get("batch.size")
+    if batch_size is not None:
+        try:
+            translated["batch_size"] = int(batch_size)
+        except (TypeError, ValueError):
+            pass
+
+    return translated
+
+
+class _KafkaPythonProducerAdapter:
+    def __init__(self, producer: Any) -> None:
+        self._producer = producer
+
+    def produce(
+        self, topic: str, value: bytes, key: str | bytes | None = None
+    ) -> Any:  # pragma: no cover - network interaction mocked in tests
+        return self._producer.send(topic, value=value, key=key)
+
+    def flush(self, timeout: float | None = None) -> Any:
+        if timeout is None:
+            return self._producer.flush()
+        return self._producer.flush(timeout=timeout)
+
+    def close(self) -> None:  # pragma: no cover - graceful shutdown helper
+        close = getattr(self._producer, "close", None)
+        if callable(close):
+            close()
+
+
+def _load_kafka_python_producer_factory() -> KafkaProducerFactory | None:
+    try:
+        from kafka import KafkaProducer  # type: ignore[import]
+    except Exception:  # pragma: no cover - optional dependency guard
+        return None
+
+    def _factory(config: Mapping[str, Any]) -> KafkaProducerLike:
+        producer_config = _translate_kafka_python_producer_config(config)
+        producer = KafkaProducer(**producer_config)
+        return cast(KafkaProducerLike, _KafkaPythonProducerAdapter(producer))
+
+    return _factory
+
+
+class _KafkaPythonMessageAdapter:
+    def __init__(self, record: Any) -> None:
+        self._record = record
+
+    def error(self) -> object | None:
+        return None
+
+    def value(self) -> bytes | bytearray | str | None:
+        return self._record.value
+
+    def topic(self) -> str:
+        return self._record.topic
+
+    def key(self) -> bytes | str | None:
+        return self._record.key
+
+    def partition(self) -> int:
+        return getattr(self._record, "partition", -1)
+
+    def offset(self) -> int:
+        return getattr(self._record, "offset", -1)
+
+
+class _KafkaPythonConsumerAdapter:
+    def __init__(self, consumer: Any) -> None:
+        self._consumer = consumer
+
+    def subscribe(self, topics: Sequence[str]) -> None:
+        self._consumer.subscribe(list(topics))
+
+    def poll(self, timeout: float | None = None) -> KafkaMessageLike | None:
+        timeout_ms = None if timeout is None else max(0, int(timeout * 1000))
+        records = self._consumer.poll(timeout_ms=timeout_ms)
+        if not records:
+            return None
+        for messages in records.values():
+            if messages:
+                return _KafkaPythonMessageAdapter(messages[0])
+        return None
+
+    def commit(
+        self,
+        message: KafkaMessageLike | None = None,
+        asynchronous: bool = False,
+    ) -> Any:  # pragma: no cover - network interaction mocked in tests
+        commit = getattr(self._consumer, "commit", None)
+        if not callable(commit):
+            return None
+        if message is None:
+            return commit(async_=asynchronous)
+        try:
+            from kafka.structs import OffsetAndMetadata, TopicPartition  # type: ignore[import]
+        except Exception:  # pragma: no cover - optional dependency guard
+            return commit(async_=asynchronous)
+        partition = getattr(message, "partition", lambda: -1)()
+        offset = getattr(message, "offset", lambda: -1)()
+        if partition < 0 or offset < 0:
+            return commit(async_=asynchronous)
+        tp = TopicPartition(message.topic(), partition)
+        metadata = OffsetAndMetadata(offset + 1, "")
+        return commit({tp: metadata}, async_=asynchronous)
+
+    def close(self) -> None:  # pragma: no cover - graceful shutdown helper
+        close = getattr(self._consumer, "close", None)
+        if callable(close):
+            close()
+
+    def list_topics(self, timeout: float | None = None) -> Mapping[str, object]:
+        topics = getattr(self._consumer, "topics", None)
+        if callable(topics):
+            try:
+                names = topics()
+            except Exception:  # pragma: no cover - optional dependency guard
+                return {}
+            return {"topics": {name: {} for name in names}}
+        return {}
+
+    def metrics(self) -> Mapping[str, object]:
+        metrics = getattr(self._consumer, "metrics", None)
+        if callable(metrics):
+            try:
+                return metrics()
+            except Exception:  # pragma: no cover - optional dependency guard
+                return {}
+        return {}
+
+
+def _translate_kafka_python_consumer_config(config: Mapping[str, Any]) -> dict[str, Any]:
+    translated = _translate_kafka_python_common_config(config)
+
+    group_id = config.get("group.id")
+    if group_id:
+        translated["group_id"] = str(group_id)
+
+    auto_offset_reset = config.get("auto.offset.reset")
+    if auto_offset_reset:
+        translated["auto_offset_reset"] = str(auto_offset_reset)
+
+    enable_auto_commit = config.get("enable.auto.commit")
+    if enable_auto_commit is not None:
+        translated["enable_auto_commit"] = bool(enable_auto_commit)
+
+    return translated
+
+
+def _load_kafka_python_consumer_factory() -> KafkaConsumerFactory | None:
+    try:
+        from kafka import KafkaConsumer  # type: ignore[import]
+    except Exception:  # pragma: no cover - optional dependency guard
+        return None
+
+    def _factory(config: Mapping[str, Any]) -> KafkaConsumerLike:
+        consumer_config = _translate_kafka_python_consumer_config(config)
+        consumer = KafkaConsumer(**consumer_config)
+        return cast(KafkaConsumerLike, _KafkaPythonConsumerAdapter(consumer))
+
+    return _factory
+
+
+def _load_confluent_consumer_factory() -> KafkaConsumerFactory | None:
+    try:
+        from confluent_kafka import Consumer
+    except Exception:  # pragma: no cover - optional dependency guard
+        return None
+
+    def _factory(config: Mapping[str, Any]) -> KafkaConsumerLike:
+        return cast(KafkaConsumerLike, Consumer(config))
+
+    return _factory
 
 
 @dataclass(frozen=True)
@@ -2102,19 +2347,21 @@ def create_ingest_event_consumer(
     }
 
     if consumer_factory is None:
-        try:
-            from confluent_kafka import Consumer
-        except Exception:  # pragma: no cover - optional dependency guard
+        consumer_factory = _load_confluent_consumer_factory()
+        fallback_reason: str | None = None
+        if consumer_factory is None:
+            consumer_factory = _load_kafka_python_consumer_factory()
+            fallback_reason = "kafka-python"
+        if consumer_factory is None:
             logger.warning(
-                "Kafka ingest consumer requested (%s) but confluent_kafka is not installed; skipping",
+                "Kafka ingest consumer requested (%s) but no supported client library is installed; skipping",
                 settings.summary(redacted=True),
             )
             return None
-
-        def _default_consumer_factory(config: Mapping[str, Any]) -> KafkaConsumerLike:
-            return cast(KafkaConsumerLike, Consumer(config))
-
-        consumer_factory = _default_consumer_factory
+        if fallback_reason is not None:
+            logger.info(
+                "Kafka ingest consumer using %s fallback", fallback_reason
+            )
 
     consumer = settings.create_consumer(
         factory=consumer_factory,

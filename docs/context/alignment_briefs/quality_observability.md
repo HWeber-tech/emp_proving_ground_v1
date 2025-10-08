@@ -110,10 +110,10 @@
     readiness signal without recomputing severities.【F:src/operations/observability_dashboard.py†L60-L109】【F:tests/operations/test_observability_dashboard.py†L60-L116】
   - Progress: Operational readiness telemetry now enriches snapshots with
     per-status breakdowns, component status maps, rolled-up issue counts, and
-    per-component issue catalogs while routing derived alerts through the
-    failover helper so dashboards and responders inherit machine-readable
-    remediation context under pytest coverage documenting alert derivation and
-    publish fallbacks.【F:src/operations/operational_readiness.py†L113-L373】【F:tests/operations/test_operational_readiness.py†L86-L221】【F:docs/status/operational_readiness.md†L1-L73】【F:tests/runtime/test_professional_app_timescale.py†L722-L799】
+    gate metadata, emitting optional gate alerts while routing through the
+    failover helper so dashboards and responders inherit deterministic
+    remediation context under pytest coverage documenting evaluation, alert
+    derivation, and publish fallbacks.【F:src/operations/operational_readiness.py†L113-L744】【F:tests/operations/test_operational_readiness.py†L86-L389】【F:docs/status/operational_readiness.md†L1-L140】【F:tests/runtime/test_professional_app_timescale.py†L722-L799】
   - Progress: Runtime builder now consumes the sensory organ status feed,
     publishes the hardened summary/metrics telemetry, and stores the latest
     snapshots on the professional app so the summary surface emits Markdown and

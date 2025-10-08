@@ -101,6 +101,10 @@
   telemetry, and defers the first scheduled Timescale run after the bootstrap
   ingest so supervised deployments inherit telemetry-backed connectors without
   extra wiring.【F:src/runtime/runtime_builder.py†L1124-L1895】【F:src/runtime/runtime_builder.py†L2453-L2568】【F:docs/operations/timescale_failover_drills.md†L7-L33】
+- Progress: Institutional ingest services now expose `run_failover_drill()` so
+  Timescale rehearsals reuse managed connector manifests, normalise requested
+  dimensions, honour fallback policies, and attach redacted service summaries
+  under regression coverage and refreshed drill documentation.【F:src/data_foundation/ingest/institutional_vertical.py†L384-L466】【F:tests/runtime/test_institutional_ingest_vertical.py†L434-L496】【F:docs/operations/timescale_failover_drills.md†L25-L45】
 - Progress: Managed connector snapshots now include probe error text, and the
   managed-ingest CLI hydrates `SystemConfig` extras before rendering manifest and
   connectivity payloads so responders see actionable failure reasons and reason

@@ -116,6 +116,11 @@ kit that the roadmap calls back to in each checklist.
     managed manifest into data-backbone readiness telemetry so Tier‑1 launches
     inherit supervised ingest connectors with explicit connector listings in
     readiness dashboards.【F:src/runtime/runtime_builder.py†L1124-L1895】【F:src/runtime/runtime_builder.py†L2453-L2568】【F:docs/operations/timescale_failover_drills.md†L7-L33】
+  - *Progress*: Institutional ingest services now expose `run_failover_drill()` to
+    replay Timescale drills with managed connector manifests, normalised
+    dimensions, supervised fallback execution, and redacted service summaries so
+    disaster-recovery rehearsals share the runtime wiring under regression
+    coverage.【F:src/data_foundation/ingest/institutional_vertical.py†L384-L466】【F:tests/runtime/test_institutional_ingest_vertical.py†L434-L496】【F:docs/operations/timescale_failover_drills.md†L25-L45】
   - *Progress*: Tier-0 Yahoo ingest now sanitises symbols/intervals, enforces
     mutually exclusive period versus window arguments, normalises timestamps,
     and writes through a DuckDB helper that escapes table identifiers and binds
@@ -142,12 +147,12 @@ kit that the roadmap calls back to in each checklist.
     failures, escalates unexpected exceptions, and falls back to the global bus
     under pytest coverage so ingest snapshots are not silently dropped when the
     runtime transport degrades.【F:src/data_foundation/ingest/telemetry.py†L33-L99】【F:tests/data_foundation/test_ingest_publishers.py†L1-L164】
-  - *Progress*: Operational readiness aggregation fuses system validation,
-    incident response, alerts, and dashboard telemetry into enriched snapshots
-    that expose per-status counts, component issue catalogs, and structured
-    alert contexts; publishing now rides the shared failover helper with pytest
-    coverage for alert routing and bus failover so responders inherit actionable
-    metadata when WARN/FAIL posture shifts.【F:src/operations/operational_readiness.py†L113-L373】【F:src/operations/incident_response.py†L242-L715】【F:src/operations/system_validation.py†L470-L889】【F:tests/operations/test_operational_readiness.py†L86-L221】【F:docs/status/operational_readiness.md†L1-L73】
+  - *Progress*: Operational readiness aggregation now fuses system validation,
+    incident response, drift, and SLO telemetry into enriched snapshots, rolls
+    up issue catalogs, evaluates deployment gates with blocking/warn reasons,
+    and emits optional gate alerts while publishing through the failover helper
+    so responders inherit deterministic guardrails under regression coverage of
+    evaluation, alert routing, and failover paths.【F:src/operations/operational_readiness.py†L113-L744】【F:tests/operations/test_operational_readiness.py†L86-L389】【F:docs/status/operational_readiness.md†L1-L140】
 - [ ] **Sensory + evolution execution** – Replace HOW/ANOMALY stubs, wire lineage
   telemetry, and prove adaptive strategies against recorded data.
   - *Progress*: HOW and ANOMALY sensors now clamp minimum confidence, sanitise
@@ -848,6 +853,14 @@ kit that the roadmap calls back to in each checklist.
 
 - [ ] **Operational readiness** – Expand incident response, alert routing, and system
   validation so professional deployments can demonstrate reliability.
+- *Progress*: Incident response snapshots now record major incident review
+  cadence, escalate overdue postmortems with structured issue catalogs, and
+  surface policy thresholds in readiness metadata so gate decisions block when
+  review cadence slips under regression coverage.【F:src/operations/incident_response.py†L526-L558】【F:tests/operations/test_incident_response.py†L206-L276】
+- *Progress*: System validation gating now considers reliability history and
+  stale thresholds, emits gate alerts, and captures reliability warnings in the
+  aggregated metadata so deployments inherit deterministic blockers with pytest
+  guarding warn/fail paths.【F:src/operations/system_validation.py†L583-L746】【F:tests/operations/test_system_validation.py†L360-L432】
 - [ ] **Dead-code eradication** – Batch-delete unused modules flagged by the cleanup
   report and tighten import guards to prevent shims from resurfacing.【F:docs/reports/CLEANUP_REPORT.md†L71-L188】
   - *Progress*: Dead-code tracker CLI now parses the cleanup report, highlights
@@ -893,6 +906,11 @@ kit that the roadmap calls back to in each checklist.
     snapshots, persists history with metadata, emits Markdown alongside JSON, and
     records regression coverage so operators can script cadence exports without
     bespoke tooling.【F:tools/telemetry/export_governance_report.py†L1-L260】【F:tests/tools/test_export_governance_report.py†L1-L139】
+  - *Progress*: Professional runtime builder wires `GOVERNANCE_CADENCE_*` extras
+    into a supervised cadence loop, deriving report paths, metadata, interval
+    polling, and start/stop callbacks while recording the latest governance
+    report on the app so live runtimes mirror the CLI cadence under regression
+    coverage.【F:src/runtime/runtime_builder.py†L2447-L2633】【F:tests/runtime/test_runtime_builder.py†L1357-L1438】
   - *Progress*: Policy ledger now records tactic promotions, approvals, and
     threshold overrides, builds governance workflow checklists, and the trading
     manager/runtime builder publish the combined compliance snapshots so KYC and
@@ -929,10 +947,10 @@ kit that the roadmap calls back to in each checklist.
 ## Automation updates — 2025-10-08T02:30:00Z
 
 ### Last 4 commits
-- f570803 feat(trading): add 5 files (2025-10-08)
-- 67eb6fc refactor(runtime): tune 5 files (2025-10-08)
-- b4fc849 test(.telemetry): add 4 files (2025-10-08)
-- 0e00a28 docs(docs): tune 4 files (2025-10-08)
+- b5c2a64 refactor(docs): tune 4 files (2025-10-08)
+- 0df4d8d refactor(docs): tune 7 files (2025-10-08)
+- 2a682bc refactor(docs): tune 3 files (2025-10-08)
+- 6465d75 docs(docs): tune 3 files (2025-10-08)
 
 ## Automation updates — 2025-10-07T22:25:27Z
 

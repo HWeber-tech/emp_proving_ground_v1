@@ -40,6 +40,11 @@
     parameterised statements and typed errors, eliminating blanket exception
     handlers and inline literals in the trading slice’s persistence path.
     【F:src/trading/portfolio/real_portfolio_monitor.py†L1-L572】
+  - Progress: Portfolio monitor cache telemetry now normalises hit/miss metrics,
+    derives hit-rate, tags namespace/backing metadata, and records configuration
+    status so event-bus consumers inherit deterministic cache evidence even when
+    Redis falls back to in-memory, with pytest coverage guarding the payload
+    contract.【F:src/trading/monitoring/portfolio_monitor.py†L155-L220】【F:tests/trading/test_portfolio_monitor_cache_metrics.py†L1-L97】
 - Progress: Data backbone readiness snapshots now capture optional-trigger
   degradation, failover decisions, and Timescale recovery plans with pytest
   coverage, giving operators actionable metadata when optional slices drift

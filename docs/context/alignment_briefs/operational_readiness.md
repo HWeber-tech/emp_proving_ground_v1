@@ -66,6 +66,10 @@
   and exposes status breakdowns plus per-component issue catalogs so dashboards
   and alerts share deterministic remediation context under regression coverage
   and updated status docs.【F:src/operations/operational_readiness.py†L113-L744】【F:tests/operations/test_operational_readiness.py†L86-L389】【F:docs/status/operational_readiness.md†L1-L140】【F:tests/runtime/test_professional_app_timescale.py†L722-L799】
+- Progress: Default alert policy now delivers email, SMS, webhook, Slack, and
+  GitHub issue transports out of the box, with regression coverage asserting
+  channel fan-out for readiness, incident response, and drift sentry alerts and
+  runbooks/status pages documenting the new escalation paths.【F:src/operations/alerts.py†L407-L823】【F:tests/operations/test_alerts.py†L1-L338】【F:docs/operations/runbooks/drift_sentry_response.md†L28-L33】【F:docs/status/operational_readiness.md†L68-L82】
 - Progress: Drift sentry detectors now publish understanding-loop telemetry via the
   failover helper, feed the new `drift_sentry` readiness component, and link the
   shared runbook so incident response inherits Page–Hinkley/variance issue
@@ -87,8 +91,9 @@
 
 ### Next (30–90 days)
 
-- Implement alert routing (GitHub + Slack/webhook) and rehearse forced-failure
-  drills, measuring MTTA/MTTR as called out in the technical debt plan.【F:docs/technical_debt_assessment.md†L156-L174】
+- Rehearse forced-failure drills for the new Slack/GitHub transports, measure
+  MTTA/MTTR, and capture evidence in the context packs as called out in the
+  technical debt plan.【F:docs/technical_debt_assessment.md†L156-L174】
 - Build operator dashboards for ingest health, task supervision status, and risk
   policy compliance.
 - Document cross-region failover, cache outages, and Kafka lag recovery once the

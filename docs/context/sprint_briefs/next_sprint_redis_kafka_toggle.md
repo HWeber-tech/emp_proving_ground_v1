@@ -52,6 +52,10 @@ Deliver a vertical slice that:
     hooks) and document defaults in the alignment brief appendices.
   - Extend portfolio monitor to emit cache hit/miss counters via the event bus.
   - Validation: unit test verifying TTL expiration and eviction metrics.
+  - **Status:** Delivered – portfolio monitor cache telemetry now normalises hit/miss
+    counters, derives hit-rate, stamps namespace/backing metadata, and publishes the
+    configuration flag so downstream consumers inherit deterministic cache evidence,
+    with regression coverage locking the payload contract.【F:src/trading/monitoring/portfolio_monitor.py†L155-L220】【F:tests/trading/test_portfolio_monitor_cache_metrics.py†L1-L97】
 - **Ticket C – Failure drills & runbooks (0.5 day)**
   - Capture Redis outage playbook (failover to Timescale reads, warmup after
     reconnect) in `docs/operations/`.

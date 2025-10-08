@@ -75,6 +75,10 @@ kit that the roadmap calls back to in each checklist.
     hits, misses, expirations, and evictions so ingest and trading services share a
     single Redis contract; the portfolio monitor wraps its state store with the managed
     cache and publishes cache telemetry via the event bus under regression coverage.【F:src/data_foundation/cache/redis_cache.py†L93-L268】【F:src/trading/monitoring/portfolio_monitor.py†L70-L198】【F:tests/data_foundation/test_redis_cache.py†L1-L167】【F:tests/current/test_portfolio_monitor_runtime.py†L11-L94】
+  - *Progress*: Portfolio monitor cache telemetry now normalises hit/miss counters, derives
+    hit-rate ratios when absent, stamps backing client metadata, and records namespace/
+    configuration flags so event-bus consumers receive consistent cache evidence even on
+    in-memory fallbacks, with regression coverage locking the payload contract.【F:src/trading/monitoring/portfolio_monitor.py†L155-L220】【F:tests/trading/test_portfolio_monitor_cache_metrics.py†L1-L97】
   - *Progress*: Pricing cache now hashes ingest parameters with `blake2b` for
     deterministic dataset artefacts, writes metadata and issues manifests,
     enforces retention policies, and logs cleanup failures under regression
@@ -680,6 +684,13 @@ kit that the roadmap calls back to in each checklist.
       experiment publishing, replacing ad-hoc blanket handlers with typed errors
       and structured logging so transport regressions escalate deterministically
       across feeds.【F:src/operations/event_bus_failover.py†L1-L174】【F:src/operations/incident_response.py†L350-L375】【F:src/operations/evolution_experiments.py†L297-L342】【F:tests/operations/test_event_bus_failover.py†L1-L164】【F:tests/operations/test_incident_response.py†L123-L167】【F:tests/operations/test_evolution_experiments.py†L135-L191】
+    - *Progress*: Tactical adaptation and predictive market modeler state stores now decode
+      and persist JSON payloads, discard malicious blobs, and emit sorted serialisation so
+      the Phase 0 "remove eval" remit covers the thinking layer under fresh security
+      regressions guarding strategy parameters and prediction history persistence.【F:src/thinking/adaptation/tactical_adaptation_engine.py†L35-L331】【F:src/thinking/prediction/predictive_market_modeler.py†L444-L489】【F:tests/thinking/test_tactical_adaptation_security.py†L1-L72】【F:tests/thinking/test_predictive_market_modeler_security.py†L1-L62】
+    - *Progress*: Operational health monitor now stores daily check snapshots as sorted JSON
+      payloads before retaining history, preventing unsafe repr round-trips and keeping
+      audit artefacts reproducible while preserving the existing retention window.【F:src/operational/health_monitor.py†L218-L232】
 - [x] **Context pack refresh** – Replace legacy briefs with the updated context in
   `docs/context/alignment_briefs` so discovery and reviews inherit the same
   narrative reset (this change set).
@@ -980,6 +991,10 @@ kit that the roadmap calls back to in each checklist.
   stale thresholds, emits gate alerts, and captures reliability warnings in the
   aggregated metadata so deployments inherit deterministic blockers with pytest
   guarding warn/fail paths.【F:src/operations/system_validation.py†L583-L746】【F:tests/operations/test_system_validation.py†L360-L432】
+- *Progress*: Default alert policy now ships Slack chatops and GitHub issue transports
+  alongside email/SMS/webhook routes, with regression coverage asserting fan-out for
+  readiness, incident response, and drift sentry categories and updated runbooks/status
+  docs recording the new escalation paths, advancing the 90-day alert routing milestone.【F:src/operations/alerts.py†L407-L823】【F:tests/operations/test_alerts.py†L1-L338】【F:docs/operations/runbooks/drift_sentry_response.md†L28-L33】【F:docs/status/operational_readiness.md†L68-L82】
 - [ ] **Dead-code eradication** – Batch-delete unused modules flagged by the cleanup
   report and tighten import guards to prevent shims from resurfacing.【F:docs/reports/CLEANUP_REPORT.md†L71-L188】
   - *Progress*: Dead-code tracker CLI now classifies every candidate, surfaces
@@ -1075,6 +1090,14 @@ kit that the roadmap calls back to in each checklist.
   work; stale documentation is considered a regression.【F:docs/technical_debt_assessment.md†L90-L112】
 - Maintain the truth-first status culture: mock implementations must remain
   labelled and roadmapped until replaced by production-grade systems.【F:docs/DEVELOPMENT_STATUS.md†L7-L35】
+
+## Automation updates — 2025-10-08T06:08:15Z
+
+### Last 4 commits
+- 9e1fc40 refactor(docs): tune 4 files (2025-10-08)
+- 7dd8d8e feat(trading): add 2 files (2025-10-08)
+- a4fbeb9 feat(operational): add 8 files (2025-10-08)
+- 25d6ec0 docs(docs): tune 3 files (2025-10-08)
 
 ## Automation updates — 2025-10-08T02:30:00Z
 

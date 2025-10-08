@@ -254,6 +254,15 @@ from .strategy_performance import (
     format_strategy_performance_markdown,
     publish_strategy_performance_snapshot,
 )
+from .strategy_performance_tracker import (
+    LoopKpiMetrics,
+    StrategyFastWeightBreakdown,
+    StrategyKpi,
+    StrategyModeSummary,
+    StrategyPerformanceAggregates,
+    StrategyPerformanceReport,
+    StrategyPerformanceTracker,
+)
 
 __all__ = [
     "AlertChannel",
@@ -407,6 +416,13 @@ __all__ = [
     "evaluate_data_retention",
     "format_data_retention_markdown",
     "publish_data_retention",
+    "StrategyModeSummary",
+    "StrategyFastWeightBreakdown",
+    "StrategyKpi",
+    "LoopKpiMetrics",
+    "StrategyPerformanceAggregates",
+    "StrategyPerformanceReport",
+    "StrategyPerformanceTracker",
     "StrategyPerformanceStatus",
     "StrategyPerformanceTotals",
     "StrategyPerformanceMetrics",

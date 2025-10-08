@@ -467,7 +467,7 @@ class RiskManagerImpl(RiskManagerProtocol):
 
         except Exception as e:
             logger.error(f"Error calculating position size: {e}")
-            return 1000.0  # Default minimum position
+            return float(self._min_position_size)  # Fallback to configured minimum
 
     def target_allocation_from_volatility(
         self,

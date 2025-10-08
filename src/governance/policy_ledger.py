@@ -16,12 +16,15 @@ shadow mode, paper trading, or eligible for limited live deployment.
 
 from __future__ import annotations
 
+import contextlib
 import os
+import tempfile
+import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, Iterable, Mapping, MutableMapping, Sequence
+from typing import TYPE_CHECKING, Any, Callable, Iterable, Iterator, Mapping, MutableMapping, Sequence
 
 import json
 import logging
@@ -253,14 +256,19 @@ class PolicyLedgerStore:
         path: str | Path,
         *,
         now: Callable[[], datetime] | None = None,
+        lock_timeout: float = 5.0,
+        stale_lock_timeout: float = 30.0,
     ) -> None:
         self._path = Path(path)
         self._path.parent.mkdir(parents=True, exist_ok=True)
         self._now = now or (lambda: datetime.now(tz=UTC))
         self._records: MutableMapping[str, PolicyLedgerRecord] = {}
+        self._lock_timeout = max(0.0, float(lock_timeout))
+        self._stale_lock_timeout = max(0.0, float(stale_lock_timeout))
         self._load()
 
     def _load(self) -> None:
+        self._records.clear()
         if not self._path.exists():
             return
         try:
@@ -282,12 +290,79 @@ class PolicyLedgerStore:
                 continue
             self._records[policy_id] = record
 
-    def _dump(self) -> None:
+    def _lock_path(self) -> Path:
+        suffix = f"{self._path.suffix}.lock" if self._path.suffix else ".lock"
+        return self._path.with_suffix(suffix)
+
+    @contextlib.contextmanager
+    def _exclusive_lock(self) -> Iterator[None]:
+        if self._lock_timeout == 0:
+            # Fail fast if locking disabled by configuration.
+            raise TimeoutError("Policy ledger locking disabled via lock_timeout=0")
+
+        lock_path = self._lock_path()
+        start = time.monotonic()
+        fd: int | None = None
+
+        while True:
+            try:
+                fd = os.open(lock_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+                os.write(fd, f"pid={os.getpid()}".encode("ascii", errors="ignore"))
+                break
+            except FileExistsError:
+                now = time.monotonic()
+                if now - start >= self._lock_timeout:
+                    if self._stale_lock_timeout > 0:
+                        try:
+                            stat = lock_path.stat()
+                        except FileNotFoundError:
+                            continue
+                        if time.time() - stat.st_mtime >= self._stale_lock_timeout:
+                            try:
+                                lock_path.unlink()
+                            except FileNotFoundError:
+                                continue
+                            continue
+                    raise TimeoutError(
+                        f"Failed to acquire policy ledger lock within {self._lock_timeout:.2f}s"
+                    )
+                time.sleep(0.05)
+
+        try:
+            yield
+        finally:
+            if fd is not None:
+                os.close(fd)
+            try:
+                lock_path.unlink()
+            except FileNotFoundError:
+                pass
+
+    def _dump_locked(self) -> None:
         payload = {
             "records": {policy_id: record.as_dict() for policy_id, record in self._records.items()},
             "updated_at": self._now().isoformat(),
         }
-        self._path.write_text(json.dumps(payload, indent=2, sort_keys=True))
+        data = json.dumps(payload, indent=2, sort_keys=True)
+        with tempfile.NamedTemporaryFile(
+            "w",
+            encoding="utf-8",
+            dir=self._path.parent,
+            delete=False,
+            prefix=f".{self._path.name}.",
+            suffix=".tmp",
+        ) as handle:
+            handle.write(data)
+            handle.flush()
+            os.fsync(handle.fileno())
+            tmp_name = handle.name
+        os.replace(tmp_name, self._path)
+
+    def _dump(self) -> None:
+        with self._exclusive_lock():
+            # Reload to merge concurrent updates before writing.
+            self._load()
+            self._dump_locked()
 
     def get(self, policy_id: str) -> PolicyLedgerRecord | None:
         return self._records.get(policy_id)
@@ -314,42 +389,48 @@ class PolicyLedgerStore:
         if delta is not None and not approvals_tuple:
             raise ValueError("Policy delta updates require reviewer approvals metadata")
         timestamp = self._now()
-        if policy_id in self._records:
-            record = self._records[policy_id]
-            updated = record.with_stage(
-                stage,
-                approvals=approvals_tuple,
-                evidence_id=evidence_id,
-                threshold_overrides=threshold_overrides,
-                policy_delta=delta,
-                metadata=metadata,
-                timestamp=timestamp,
-            )
-        else:
-            history_entry: MutableMapping[str, Any] = {
-                "prior_stage": None,
-                "next_stage": stage.value,
-                "applied_at": timestamp.isoformat(),
-                "approvals": list(approvals_tuple),
-                "evidence_id": evidence_id,
-            }
-            if delta is not None:
-                history_entry["policy_delta"] = dict(delta.as_dict())
-            updated = PolicyLedgerRecord(
-                policy_id=policy_id,
-                tactic_id=tactic_id,
-                stage=stage,
-                approvals=approvals_tuple,
-                evidence_id=evidence_id,
-                threshold_overrides=dict(threshold_overrides or {}),
-                policy_delta=delta,
-                metadata=dict(metadata or {}),
-                created_at=timestamp,
-                updated_at=timestamp,
-                history=(history_entry,),
-            )
-        self._records[policy_id] = updated
-        self._dump()
+        with self._exclusive_lock():
+            # Refresh in-memory records to avoid clobbering concurrent writers.
+            self._load()
+
+            if policy_id in self._records:
+                record = self._records[policy_id]
+                updated = record.with_stage(
+                    stage,
+                    approvals=approvals_tuple,
+                    evidence_id=evidence_id,
+                    threshold_overrides=threshold_overrides,
+                    policy_delta=delta,
+                    metadata=metadata,
+                    timestamp=timestamp,
+                )
+            else:
+                history_entry: MutableMapping[str, Any] = {
+                    "prior_stage": None,
+                    "next_stage": stage.value,
+                    "applied_at": timestamp.isoformat(),
+                    "approvals": list(approvals_tuple),
+                    "evidence_id": evidence_id,
+                }
+                if delta is not None:
+                    history_entry["policy_delta"] = dict(delta.as_dict())
+                updated = PolicyLedgerRecord(
+                    policy_id=policy_id,
+                    tactic_id=tactic_id,
+                    stage=stage,
+                    approvals=approvals_tuple,
+                    evidence_id=evidence_id,
+                    threshold_overrides=dict(threshold_overrides or {}),
+                    policy_delta=delta,
+                    metadata=dict(metadata or {}),
+                    created_at=timestamp,
+                    updated_at=timestamp,
+                    history=(history_entry,),
+                )
+
+            self._records[policy_id] = updated
+            self._dump_locked()
+
         return updated
 
 

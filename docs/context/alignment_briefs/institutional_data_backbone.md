@@ -49,6 +49,11 @@
   degradation, failover decisions, and Timescale recovery plans with pytest
   coverage, giving operators actionable metadata when optional slices drift
   instead of generic warnings.【F:src/operations/data_backbone.py†L488-L515】【F:tests/operations/test_data_backbone.py†L289-L347】
+- Progress: Developer data backbone presets and env templates now provision the
+  local Timescale/Redis/Kafka stack via `docker-compose`, document the setup
+  flow, and ship connectivity regressions covering Timescale, Redis, and Kafka
+  round-trips so contributors can run institutional pipelines without bespoke
+  wiring.【F:docker-compose.yml†L17-L160】【F:config/system/dev_data_backbone.yaml†L1-L20】【F:env_templates/dev_data_services.env†L1-L32】【F:docs/development/setup.md†L40-L128】【F:tests/operations/test_dev_data_services.py†L1-L142】
 - Progress: Timescale retention telemetry now aggregates component coverage,
   stamps WARN/FAIL severities, records evaluated policy metadata, and publishes
   via the failover helper so dashboards inherit actionable retention posture

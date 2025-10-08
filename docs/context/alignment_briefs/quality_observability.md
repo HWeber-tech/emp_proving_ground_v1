@@ -159,6 +159,11 @@
     reviewer insights, and preserves exported Markdown/metadata so compliance and
     readiness dashboards inherit adaptive strategy evidence under guardrail
     coverage.【F:src/operations/observability_dashboard.py†L285-L390】【F:tests/operations/test_observability_dashboard.py†L627-L706】
+  - Progress: Observability dashboard introduces a compliance & governance panel
+    that aggregates loop compliance events, maps severity to panel status, and
+    exports Markdown/JSON payloads with breach counts plus remediation details so
+    responders see enforcement posture alongside ROI and readiness metrics under
+    refreshed regression coverage.【F:src/operations/observability_dashboard.py†L200-L540】【F:tests/operations/test_observability_dashboard.py†L297-L420】
   - Progress: Observability dashboard guard CLI grades snapshot freshness,
     required panels, failing slices, and normalised overall status strings while
     emitting JSON or human-readable summaries with status-driven exit codes so
@@ -184,10 +189,11 @@
     instead of quietly failing to publish.【F:src/operations/cache_health.py†L143-L245】【F:tests/operations/test_cache_health.py†L15-L138】
 - Progress: Operational metrics instrumentation now wraps Prometheus access in
   lazy proxies, records first-failure warnings, hardens exporter startup with
-  typed port parsing plus telemetry-sink import logging, and exports
-  understanding throttle gauges so CI surfaces degraded instrumentation instead
-  of silently dropping metrics; guardrail suites cover gauge fallbacks, throttle
-  snapshots, and dashboard wiring.【F:src/operational/metrics.py†L43-L608】【F:src/understanding/metrics.py†L1-L65】【F:tests/operational/test_metrics.py†L310-L360】【F:tests/understanding/test_understanding_metrics.py†L62-L125】【F:tests/operations/test_observability_dashboard.py†L609-L624】
+  typed port parsing plus telemetry-sink import logging, exports understanding
+  throttle gauges, and exposes compliance/governance counters for breaches,
+  warnings, and promotions so dashboards and SLOs can track enforcement posture;
+  guardrail suites cover gauge fallbacks, throttle snapshots, and dashboard
+  wiring.【F:src/operational/metrics.py†L160-L360】【F:src/understanding/metrics.py†L1-L65】【F:tests/operational/test_metrics.py†L310-L360】【F:tests/understanding/test_understanding_metrics.py†L62-L125】【F:tests/operations/test_observability_dashboard.py†L297-L420】
 - Progress: Bootstrap stack now logs sensory listener, liquidity prober, and
   control-centre callback failures with structured metadata so optional hooks
   surface errors without disrupting bootstrap decisions, under pytest coverage

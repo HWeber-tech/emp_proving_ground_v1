@@ -105,6 +105,11 @@
   managed-ingest CLI hydrates `SystemConfig` extras before rendering manifest and
   connectivity payloads so responders see actionable failure reasons and reason
   codes when institutional pipelines degrade under regression coverage.【F:src/data_foundation/ingest/institutional_vertical.py†L305-L370】【F:src/data_foundation/ingest/institutional_vertical.py†L662-L698】【F:tools/operations/managed_ingest_connectors.py†L200-L259】【F:tests/data_foundation/test_institutional_vertical.py†L94-L104】【F:tests/tools/test_managed_ingest_connectors.py†L30-L77】
+- Progress: Institutional ingest services now surface Redis cache metrics in
+  runtime summaries and managed manifests, recording namespace, hit, and miss
+  telemetry while guarding best-effort collection so operators can audit cache
+  effectiveness without shell access under new supervised and production-slice
+  coverage.【F:src/data_foundation/ingest/institutional_vertical.py†L256-L337】【F:src/data_foundation/ingest/institutional_vertical.py†L584-L637】【F:tests/runtime/test_institutional_ingest_vertical.py†L138-L210】【F:tests/data_foundation/test_production_ingest_slice.py†L317-L330】
 - Progress: Tier-0 Yahoo ingest script now sanitises symbols and intervals,
   enforces mutually exclusive period/start-end windows, normalises timestamps,
   and persists via a DuckDB helper that escapes table identifiers and binds

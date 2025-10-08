@@ -173,10 +173,12 @@ Phase 1 scope — families and decisions
 - Observed in:
   - [src/ecosystem/coordination/coordination_engine.py](src/ecosystem/coordination/coordination_engine.py)
   - [src/ecosystem/optimization/ecosystem_optimizer.py](src/ecosystem/optimization/ecosystem_optimizer.py)
+  - [src/ecosystem/evolution/specialized_predator_evolution.py](src/ecosystem/evolution/specialized_predator_evolution.py)
   - Duplicates mirrored under [src/thinking/ecosystem/](src/thinking/ecosystem/) and [src/intelligence/specialized_predators.py](src/intelligence/specialized_predators.py)
 - Canonical:
   - [src/ecosystem/coordination/coordination_engine.py](src/ecosystem/coordination/coordination_engine.py)
   - [src/ecosystem/optimization/ecosystem_optimizer.py](src/ecosystem/optimization/ecosystem_optimizer.py)
+  - [src/ecosystem/evolution/specialized_predator_evolution.py](src/ecosystem/evolution/specialized_predator_evolution.py)
 - Legacy shims: thinking/intelligence re-export from ecosystem.*
 - Rationale: ecosystem orchestration belongs to ecosystem domain.
 

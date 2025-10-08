@@ -726,6 +726,10 @@ kit that the roadmap calls back to in each checklist.
     CLI resolves `SystemConfig` extras before rendering manifest/connectivity
     health so operators inherit actionable failure reasons when institutional
     pipelines degrade, under pytest coverage for the vertical and CLI surfaces.【F:src/data_foundation/ingest/institutional_vertical.py†L305-L370】【F:src/data_foundation/ingest/institutional_vertical.py†L662-L698】【F:tools/operations/managed_ingest_connectors.py†L200-L259】【F:tests/data_foundation/test_institutional_vertical.py†L94-L104】【F:tests/tools/test_managed_ingest_connectors.py†L10-L77】
+  - *Progress*: Managed services now expose Redis cache metrics alongside policy
+    metadata, promoting namespace/hit/miss telemetry into runtime summaries and
+    manifest snapshots so operators can confirm cache effectiveness under new
+    integration coverage for supervised runs and production slices.【F:src/data_foundation/ingest/institutional_vertical.py†L256-L337】【F:src/data_foundation/ingest/institutional_vertical.py†L584-L637】【F:tests/runtime/test_institutional_ingest_vertical.py†L138-L210】【F:tests/data_foundation/test_production_ingest_slice.py†L317-L330】
 - [x] **Sensory cortex uplift** – Deliver executable HOW/ANOMALY organs, instrument
   drift telemetry, and expose metrics through runtime summaries and the event
   bus.
@@ -909,13 +913,13 @@ kit that the roadmap calls back to in each checklist.
 - Maintain the truth-first status culture: mock implementations must remain
   labelled and roadmapped until replaced by production-grade systems.【F:docs/DEVELOPMENT_STATUS.md†L7-L35】
 
-## Automation updates — 2025-10-08T01:54:02Z
+## Automation updates — 2025-10-08T02:10:00Z
 
 ### Last 4 commits
-- 54d52ad refactor(trading): tune 4 files (2025-10-08)
-- fd5fb05 refactor(thinking): tune 6 files (2025-10-08)
-- eb0d791 refactor(thinking): tune 4 files (2025-10-08)
-- 523302b refactor(data_foundation): tune 4 files (2025-10-08)
+- c30b5cd test(.telemetry): tune 1 file (2025-10-08)
+- 29b60fe refactor(intelligence): tune 1 file (2025-10-08)
+- 66f3e50 refactor(data_foundation): tune 3 files (2025-10-08)
+- 8e674ba docs(docs): tune 4 files (2025-10-08)
 
 ## Automation updates — 2025-10-07T22:25:27Z
 

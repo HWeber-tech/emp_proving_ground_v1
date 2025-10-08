@@ -10,7 +10,12 @@ unit tests (that import submodules directly) lightweight.
 
 from __future__ import annotations
 
-__all__ = ["ExecutionEngine", "ReleaseAwareExecutionRouter"]
+__all__ = [
+    "ExecutionEngine",
+    "ReleaseAwareExecutionRouter",
+    "PaperBrokerExecutionAdapter",
+    "PaperBrokerError",
+]
 
 
 def __getattr__(name: str) -> object:
@@ -22,4 +27,12 @@ def __getattr__(name: str) -> object:
         from .release_router import ReleaseAwareExecutionRouter
 
         return ReleaseAwareExecutionRouter
+    if name == "PaperBrokerExecutionAdapter":
+        from .paper_broker_adapter import PaperBrokerExecutionAdapter
+
+        return PaperBrokerExecutionAdapter
+    if name == "PaperBrokerError":
+        from .paper_broker_adapter import PaperBrokerError
+
+        return PaperBrokerError
     raise AttributeError(name)

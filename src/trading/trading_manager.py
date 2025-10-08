@@ -68,6 +68,7 @@ from src.operations.roi import (
 )
 from src.operations.sensory_drift import SensoryDriftSnapshot
 from src.trading.execution.release_router import ReleaseAwareExecutionRouter
+from src.trading.execution.paper_broker_adapter import PaperBrokerExecutionAdapter
 from src.trading.gating import (
     DriftGateEvent,
     DriftSentryDecision,
@@ -1258,6 +1259,69 @@ class TradingManager:
             kwargs["live_engine"] = self._live_engine
         if kwargs:
             router.configure_engines(**kwargs)
+        return router
+
+    def attach_live_broker_adapter(
+        self,
+        broker_interface: Any,
+        *,
+        default_stage: PolicyLedgerStage | str | None = None,
+        order_timeout: float | None = 5.0,
+    ) -> ReleaseAwareExecutionRouter | None:
+        """Install a paper broker adapter as the live execution engine.
+
+        This bridges validated intents into the FIX paper trading stack when the
+        governance ledger promotes a tactic into the ``limited_live`` stage.
+        """
+
+        if broker_interface is None:
+            raise ValueError("broker_interface must be provided")
+
+        adapter = PaperBrokerExecutionAdapter(
+            broker_interface=broker_interface,
+            portfolio_monitor=self.portfolio_monitor,
+            order_timeout=order_timeout,
+        )
+
+        if self._release_manager is None:
+            logger.warning(
+                "Release manager is not configured; skipping paper broker adapter installation",
+            )
+            self._live_engine = adapter
+            return None
+
+        stage_default: PolicyLedgerStage | None = None
+        if default_stage is not None:
+            try:
+                stage_default = PolicyLedgerStage.from_value(default_stage)
+            except ValueError as exc:
+                raise ValueError(f"Unknown policy ledger stage: {default_stage}") from exc
+
+        self._live_engine = adapter
+
+        router = self.configure_release_execution(live_engine=adapter)
+        if router is None:
+            base_engine = self.execution_engine
+            if base_engine is None:
+                raise RuntimeError(
+                    "TradingManager must have a base execution engine before attaching the paper broker adapter",
+                )
+            resolved_default = stage_default
+            if resolved_default is None:
+                try:
+                    resolved_default = self._release_manager.resolve_stage(None)
+                except Exception:
+                    resolved_default = PolicyLedgerStage.EXPERIMENT
+
+            router = self.install_release_execution_router(
+                paper_engine=base_engine,
+                pilot_engine=self._pilot_engine or base_engine,
+                live_engine=adapter,
+                default_stage=resolved_default,
+            )
+        elif stage_default is not None and router.default_stage is not stage_default:
+            router.default_stage = stage_default
+
         return router
 
     def _maybe_auto_install_release_router(self) -> None:

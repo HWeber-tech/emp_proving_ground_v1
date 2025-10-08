@@ -108,6 +108,7 @@ class FixIntegrationPilot:
         self.lifecycle_processor = lifecycle_processor
         self.position_tracker = tracker
         self._sync_risk_interface_provider()
+        self._configure_release_execution()
 
     @property
     def running(self) -> bool:
@@ -120,6 +121,7 @@ class FixIntegrationPilot:
 
         self.trading_manager = trading_manager
         self._sync_risk_interface_provider()
+        self._configure_release_execution()
 
     def _sync_risk_interface_provider(self) -> None:
         setter = getattr(self.broker_interface, "set_risk_interface_provider", None)
@@ -185,6 +187,21 @@ class FixIntegrationPilot:
                 return {"error": str(exc), "runbook": RISK_API_RUNBOOK}
 
         return _provider
+
+    def _configure_release_execution(self) -> None:
+        manager = self.trading_manager
+        if manager is None or self.broker_interface is None:
+            return
+        attach_adapter = getattr(manager, "attach_live_broker_adapter", None)
+        if not callable(attach_adapter):
+            return
+        try:
+            attach_adapter(self.broker_interface)
+        except Exception:  # pragma: no cover - diagnostic guard for optional dependency
+            self._logger.debug(
+                "Failed to attach paper broker adapter to trading manager",
+                exc_info=True,
+            )
 
     async def start(self) -> None:
         if self._running:

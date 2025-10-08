@@ -81,3 +81,37 @@ def test_cli_outputs_markdown(monkeypatch: pytest.MonkeyPatch, tmp_path, capsys:
     assert "# Timescale Failover Drill (drill-demo)" in output
     assert "| Component | Status | Summary |" in output
     assert "Requested dimensions: daily_bars" in output
+
+
+def test_cli_loads_env_file(tmp_path, capsys: pytest.CaptureFixture[str]) -> None:
+    env_path = tmp_path / "institutional.env"
+    db_path = tmp_path / "timescale.db"
+    env_path.write_text(
+        "\n".join(
+            [
+                "DATA_BACKBONE_MODE=institutional",
+                "EMP_TIER=tier_1",
+                "TIMESCALE_SYMBOLS=AAPL,MSFT",
+                f"TIMESCALEDB_URL=sqlite:///{db_path}",
+                "TIMESCALE_FAILOVER_DRILL=true",
+                "TIMESCALE_FAILOVER_DRILL_DIMENSIONS=daily_bars",
+                "KAFKA_BROKERS=broker:9092",
+                "REDIS_URL=redis://localhost:6379/0",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    results_path = _write_results(tmp_path)
+
+    exit_code = main([
+        "--env-file",
+        str(env_path),
+        "--results",
+        results_path,
+    ])
+    assert exit_code == 0
+
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["scenario"] == "timescale_failover"
+    assert payload["metadata"]["requested_dimensions"] == ["daily_bars"]

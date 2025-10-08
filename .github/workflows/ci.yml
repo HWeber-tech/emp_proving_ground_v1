@@ -100,10 +100,28 @@ jobs:
             tests/runtime \
             tests/observability \
             tests/risk \
+            tests/tools \
             --cov=src \
+            --junitxml=pytest-report.xml \
             --cov-report=term \
             --cov-report=xml:coverage.xml \
             -q | tee pytest.log
+      - name: Pytest guardrails (ingest + risk modules)
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: |
+          set -euo pipefail
+          python -m tools.telemetry.pytest_guardrails \
+            --report pytest-report.xml \
+            --require tests.data_foundation.test_timescale_backbone_orchestrator \
+            --require tests.data_foundation.test_production_ingest_slice \
+            --require tests.trading.test_risk_policy \
+            --require tests.trading.test_risk_policy_telemetry \
+            > pytest-guardrails.txt
+          {
+            echo "## Pytest guardrails (ingest + risk)";
+            cat pytest-guardrails.txt;
+          } >> "$GITHUB_STEP_SUMMARY"
       - name: Coverage matrix (ingest + risk guardrail)
         env:
           PYTHONPATH: ${{ github.workspace }}

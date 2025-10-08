@@ -94,8 +94,10 @@ def test_ci_guardrail_job_targets_ingest_risk_observability_domains() -> None:
         "tests/risk",
         "tests/operations",
         "tests/observability",
+        "tests/tools",
     ):
         assert domain in run_script, f"Coverage pytest step does not target {domain}"
+    assert "--junitxml=pytest-report.xml" in run_script
 
 
 def test_ci_guardrail_job_validates_ingest_coverage() -> None:
@@ -120,6 +122,31 @@ def test_ci_guardrail_job_validates_ingest_coverage() -> None:
     assert "src/data_foundation/ingest/configuration.py" in run_script
     assert "src/trading/risk/risk_policy.py" in run_script
     assert "src/trading/risk/policy_telemetry.py" in run_script
+
+
+def test_ci_guardrail_job_runs_pytest_guardrail_contract() -> None:
+    """CI must validate that critical guardrail modules execute in pytest."""
+
+    workflow = _load_ci_workflow()
+    guardrail_step = next(
+        (
+            step
+            for step in workflow["jobs"]["tests"]["steps"]
+            if step.get("name") == "Pytest guardrails (ingest + risk modules)"
+        ),
+        None,
+    )
+    assert guardrail_step is not None, "Pytest guardrail validation step missing from CI workflow"
+    run_script = guardrail_step.get("run", "")
+    assert "tools.telemetry.pytest_guardrails" in run_script
+    for requirement in (
+        "tests.data_foundation.test_timescale_backbone_orchestrator",
+        "tests.data_foundation.test_production_ingest_slice",
+        "tests.trading.test_risk_policy",
+        "tests.trading.test_risk_policy_telemetry",
+    ):
+        assert requirement in run_script, f"Pytest guardrail step missing requirement for {requirement}"
+    assert "pytest-report.xml" in run_script
 
 
 def test_ci_guardrail_job_runs_coverage_guardrails() -> None:

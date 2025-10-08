@@ -278,6 +278,7 @@ from src.operations.sensory_drift import (
 )
 from src.runtime.healthcheck import RuntimeHealthServer
 from src.runtime.predator_app import ProfessionalPredatorApp
+from src.runtime.task_supervisor import TaskSupervisor
 from src.trading.risk.risk_api import (
     RISK_API_RUNBOOK,
     RiskApiError,
@@ -773,11 +774,36 @@ class RuntimeApplication:
     shutdown_callbacks: list[ShutdownCallback] = field(default_factory=list)
     startup_callbacks: list[StartupCallback] = field(default_factory=list)
     tracer: RuntimeTracer | None = None
+    task_supervisor: TaskSupervisor | None = field(default=None, repr=False)
 
     def __post_init__(self) -> None:
         self._logger = logging.getLogger(f"{__name__}.RuntimeApplication")
         self._shutdown_invoked = False
         self._tracer: RuntimeTracer = self.tracer or NullRuntimeTracer()
+        supervisor = self.task_supervisor
+        if supervisor is None:
+            supervisor = TaskSupervisor(
+                namespace="runtime.application",
+                logger=self._logger,
+            )
+            self._owns_task_supervisor = True
+        else:
+            self._owns_task_supervisor = False
+        self._task_supervisor: TaskSupervisor = supervisor
+        self.task_supervisor = supervisor
+
+    def bind_task_supervisor(self, supervisor: TaskSupervisor) -> None:
+        """Bind the application to an external task supervisor."""
+
+        if not isinstance(supervisor, TaskSupervisor):
+            raise TypeError("RuntimeApplication.bind_task_supervisor expects TaskSupervisor")
+        if supervisor is self._task_supervisor:
+            return
+        if getattr(self._task_supervisor, "active_count", 0):
+            raise RuntimeError("Cannot rebind task supervisor while tasks are active")
+        self._task_supervisor = supervisor
+        self.task_supervisor = supervisor
+        self._owns_task_supervisor = False
 
     def add_startup_callback(self, callback: StartupCallback) -> None:
         """Register a startup hook executed before workloads begin."""
@@ -887,7 +913,7 @@ class RuntimeApplication:
                 tasks: list[tuple[str, asyncio.Task[Any]]] = []
                 try:
                     for task_name, coro in workloads:
-                        task = asyncio.create_task(coro, name=task_name)
+                        task = self._task_supervisor.create(coro, name=task_name)
                         tasks.append((task_name, task))
 
                     pending: set[asyncio.Task[Any]] = {task for _, task in tasks}
@@ -3837,6 +3863,7 @@ def build_professional_runtime_application(
         ingestion=ingestion,
         trading=trading,
         tracer=runtime_tracer,
+        task_supervisor=app.task_supervisor,
     )
 
     if risk_startup_callback is not None:

@@ -46,8 +46,20 @@ async def run_runtime_application(
 
     loop = asyncio.get_running_loop()
     managed_logger = logger or logging.getLogger(f"{__name__}.{namespace}")
-    managed_supervisor = supervisor or TaskSupervisor(namespace=namespace, logger=managed_logger)
-    owns_supervisor = supervisor is None
+    app_supervisor = getattr(runtime_app, "task_supervisor", None)
+    if supervisor is not None:
+        managed_supervisor = supervisor
+        owns_supervisor = False
+    elif isinstance(app_supervisor, TaskSupervisor):
+        managed_supervisor = app_supervisor
+        owns_supervisor = False
+    else:
+        managed_supervisor = TaskSupervisor(namespace=namespace, logger=managed_logger)
+        owns_supervisor = True
+
+    bind_supervisor = getattr(runtime_app, "bind_task_supervisor", None)
+    if callable(bind_supervisor):
+        bind_supervisor(managed_supervisor)
 
     stop_event = asyncio.Event()
 

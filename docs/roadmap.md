@@ -112,7 +112,7 @@ kit that the roadmap calls back to in each checklist.
     provisioner, Kafka bridge, and Redis cache through the shared
     `TaskSupervisor` while exposing deterministic summaries for dashboards and
     start/stop lifecycles under pytest coverage so operators inherit a managed
-    ingest surface instead of bespoke wiring.【F:src/data_foundation/ingest/production_slice.py†L1-L170】【F:tests/data_foundation/test_production_ingest_slice.py†L1-L176】
+    ingest surface instead of bespoke wiring.【F:src/data_foundation/ingest/production_slice.py†L1-L188】【F:tests/data_foundation/test_production_ingest_slice.py†L57-L132】
   - *Progress*: Timescale backbone orchestrator now enriches every daily,
     intraday, and macro slice with requested symbol/event counts, fetched row
     totals, ingest result metadata, and macro window provenance so ingest
@@ -193,7 +193,17 @@ kit that the roadmap calls back to in each checklist.
   - *Progress*: Production ingest slice now serialises concurrent runs behind an
     async lock, records the latest ingest results atomically, and proves the
     guard with a blocking-orchestrator regression so Timescale jobs cannot
-    stampede the orchestrator when multiple triggers fire.【F:src/data_foundation/ingest/production_slice.py†L84-L126】【F:tests/data_foundation/test_production_ingest_slice.py†L133-L190】
+    stampede the orchestrator when multiple triggers fire.【F:src/data_foundation/ingest/production_slice.py†L106-L138】【F:tests/data_foundation/test_production_ingest_slice.py†L133-L190】
+  - *Progress*: Production ingest slice now invalidates Redis caches for
+    refreshed dimensions, persists ingest journal records with plan/schedule
+    metadata, and returns structured service summaries so dashboards surface
+    the latest run evidence while caches shed stale slices under regression
+    coverage.【F:src/data_foundation/ingest/production_slice.py†L168-L383】【F:tests/data_foundation/test_production_ingest_slice.py†L267-L466】
+  - *Progress*: Kafka streaming helpers now normalise ingest topic mapping from
+    environment payloads, build provisioning specs, capture consumer lag
+    snapshots, and wire ingest publishers/consumers with guarded confluent
+    dependencies so managed bridges expose consistent topic metadata under
+    pytest coverage.【F:src/data_foundation/streaming/kafka_stream.py†L25-L740】【F:tests/data_foundation/test_kafka_stream.py†L1-L602】
   - *Progress*: Operational readiness aggregation now fuses system validation,
     incident response, drift, and SLO telemetry into enriched snapshots, rolls
     up issue catalogs, evaluates deployment gates with blocking/warn reasons,
@@ -206,6 +216,10 @@ kit that the roadmap calls back to in each checklist.
     sequence payloads, surface dropped-sample counts, attach order-book
     analytics, and persist lineage metadata with shared threshold assessments so
     downstream telemetry inherits auditable context under pytest coverage.【F:src/sensory/anomaly/anomaly_sensor.py†L21-L277】【F:src/sensory/how/how_sensor.py†L21-L210】【F:tests/sensory/test_how_anomaly_sensors.py†L187-L302】
+  - *Progress*: Legacy sensory dimension shim now exports only the canonical
+    `WhatDimension` and raises guided `ModuleNotFoundError`s for retired
+    dimensions so callers migrate to the enhanced organs instead of silently
+    reviving stale stubs.【F:src/sensory/dimensions/__init__.py†L1-L44】
   - *Progress*: Ecosystem optimizer now defends against unsafe genomes and
     malformed regime metadata by normalising canonical models, skipping
     non-numeric parameters, and logging adapter failures with pytest coverage on
@@ -489,7 +503,7 @@ kit that the roadmap calls back to in each checklist.
     snapshots as a first-class panel, summarising component severities and
     surfacing degraded services alongside risk, latency, and backbone telemetry
     under regression coverage so responders inherit a consolidated operational
-    view.【F:src/operations/observability_dashboard.py†L443-L493】【F:tests/operations/test_observability_dashboard.py†L135-L236】
+    view.【F:src/operations/observability_dashboard.py†L754-L815】【F:tests/operations/test_observability_dashboard.py†L220-L293】
   - *Progress*: Observability dashboard guard CLI now grades snapshot freshness,
     required panels, failing slices, and normalised overall status strings with
     machine-readable output plus severity-driven exit codes so CI pipelines and
@@ -526,20 +540,20 @@ kit that the roadmap calls back to in each checklist.
   - *Progress*: Observability dashboard risk telemetry now annotates each metric
     with limit values, ratios, and violation statuses while preserving serialised
     payloads, backed by regression coverage so operators inherit actionable risk
-    summaries instead of opaque aggregates.【F:src/operations/observability_dashboard.py†L254-L309】【F:tests/operations/test_observability_dashboard.py†L201-L241】
+    summaries instead of opaque aggregates.【F:src/operations/observability_dashboard.py†L627-L694】【F:tests/operations/test_observability_dashboard.py†L220-L320】
   - *Progress*: Observability dashboard composer now fuses ROI, risk, latency,
     backbone, operational readiness, and quality panels into a single snapshot,
     escalating severities from ROI status, risk-limit breaches, event-bus/SLO
     lag, and coverage posture while retaining structured metadata for each panel
-    so dashboards and exporters inherit a complete readiness view.【F:src/operations/observability_dashboard.py†L250-L420】【F:tests/operations/test_observability_dashboard.py†L198-L266】
+    so dashboards and exporters inherit a complete readiness view.【F:src/operations/observability_dashboard.py†L566-L905】【F:tests/operations/test_observability_dashboard.py†L220-L320】
   - *Progress*: Observability dashboard metadata now auto-populates panel status
-    counts and per-panel severity maps alongside the remediation capsule so CI
-    exporters and runbooks can ingest a machine-readable readiness snapshot
-    without recomputing counts, under pytest coverage that locks the contract.【F:src/operations/observability_dashboard.py†L486-L508】【F:tests/operations/test_observability_dashboard.py†L189-L237】
+    counts, exports Markdown summaries, and retains the remediation capsule so
+    CI exporters and runbooks ingest machine-readable readiness snapshots without
+    recomputing counts, under pytest coverage that locks the contract.【F:src/operations/observability_dashboard.py†L147-L177】【F:src/operations/observability_dashboard.py†L907-L924】【F:tests/operations/test_observability_dashboard.py†L294-L316】
   - *Progress*: Observability dashboard now emits a remediation summary capsule
     that aggregates panel severities, highlights failing/warning slices, and is
     regression-tested so CI status exporters can consume a canonical
-    institutional readiness snapshot without re-deriving counts.【F:src/operations/observability_dashboard.py†L60-L109】【F:tests/operations/test_observability_dashboard.py†L60-L116】
+    institutional readiness snapshot without re-deriving counts.【F:src/operations/observability_dashboard.py†L110-L145】【F:tests/operations/test_observability_dashboard.py†L309-L316】
   - *Progress*: Operational readiness aggregation now fuses system validation,
     incident response, and ingest SLO snapshots into a single severity grade,
     emits Markdown/JSON for dashboards, derives routed alert events, hardens
@@ -758,7 +772,7 @@ kit that the roadmap calls back to in each checklist.
     guardrails stay under deterministic pytest coverage.【F:tests/runtime/test_runtime_builder.py†L1-L196】【F:tests/trading/test_risk_policy.py†L1-L511】
   - *Progress*: Risk policy regression enforces minimum position sizing while the
     observability dashboard tests assert limit-status escalation so CI catches
-    governance and telemetry drift before it hits production surfaces.【F:tests/trading/test_risk_policy.py†L311-L333】【F:tests/operations/test_observability_dashboard.py†L222-L241】
+    governance and telemetry drift before it hits production surfaces.【F:tests/trading/test_risk_policy.py†L311-L333】【F:tests/operations/test_observability_dashboard.py†L220-L320】
   - *Progress*: Observability logging and dashboard suites now carry the
     `guardrail` marker so CI can gatekeep their execution ahead of the broader
     coverage sweep.【F:tests/observability/test_logging.py†L18-L24】【F:tests/operations/test_observability_dashboard.py†L24-L31】
@@ -811,8 +825,8 @@ kit that the roadmap calls back to in each checklist.
   - [x] Provide graph diagnostics CLI, guardrailed acceptance workflow, and
     operational dashboard tile so AlphaTrade deltas remain observable.【F:docs/context/sprint_briefs/understanding_loop_v1.md†L108-L128】
   - *Progress*: Understanding diagnostics builder now emits sensory→belief→router→policy graphs with snapshot exports, wrapped by a CLI that renders JSON/DOT/Markdown and guarded by the `understanding_acceptance` marker plus dedicated pytest suite.【F:src/understanding/diagnostics.py†L395-L542】【F:src/understanding/__init__.py†L3-L22】【F:tools/understanding/graph_diagnostics.py†L1-L82】【F:tests/understanding/test_understanding_diagnostics.py†L15-L29】【F:pytest.ini†L2-L27】
-  - *Progress*: Observability dashboard now renders an understanding-loop panel summarising regime confidence, drift exceedances, experiments, and ledger approvals when diagnostics land, and escalates to WARN with CLI guidance whenever snapshots are missing so operators rebuild artifacts deterministically under guardrail tests.【F:src/operations/observability_dashboard.py†L536-L565】【F:tests/operations/test_observability_dashboard.py†L389-L413】
-  - *Progress*: Understanding metrics exporter now normalises throttle states into Prometheus gauges and hooks the observability dashboard so every loop snapshot publishes throttle posture, with replay fixtures and guardrail tests locking the gauge contract.【F:src/operational/metrics.py†L43-L428】【F:src/understanding/metrics.py†L1-L65】【F:tests/operational/test_metrics.py†L310-L360】【F:tests/understanding/test_understanding_metrics.py†L62-L125】【F:tests/operations/test_observability_dashboard.py†L394-L436】
+  - *Progress*: Observability dashboard now renders an understanding-loop panel summarising regime confidence, drift exceedances, experiments, and ledger approvals when diagnostics land, and escalates to WARN with CLI guidance whenever snapshots are missing so operators rebuild artifacts deterministically under guardrail tests.【F:src/operations/observability_dashboard.py†L822-L875】【F:tests/operations/test_observability_dashboard.py†L582-L624】
+  - *Progress*: Understanding metrics exporter now normalises throttle states into Prometheus gauges and hooks the observability dashboard so every loop snapshot publishes throttle posture, with replay fixtures and guardrail tests locking the gauge contract.【F:src/operational/metrics.py†L43-L428】【F:src/understanding/metrics.py†L1-L65】【F:tests/operational/test_metrics.py†L310-L360】【F:tests/understanding/test_understanding_metrics.py†L62-L125】【F:tests/operations/test_observability_dashboard.py†L609-L624】
   - *Progress*: Bootstrap runtime now instantiates the real sensory organ with a
     drift-tuned history buffer, streams observations into cortex metrics,
     publishes summary/metrics/drift telemetry via the event-bus failover helper,
@@ -920,7 +934,7 @@ kit that the roadmap calls back to in each checklist.
     summarises analysed decisions, highlights top tactics/experiments/tags,
     embeds reviewer insights, and retains exported Markdown/metadata so
     compliance reviewers see reflection posture alongside readiness snapshots
-    under new guardrail coverage.【F:src/operations/observability_dashboard.py†L257-L404】【F:tests/operations/test_observability_dashboard.py†L435-L528】
+    under new guardrail coverage.【F:src/operations/observability_dashboard.py†L285-L390】【F:tests/operations/test_observability_dashboard.py†L627-L706】
   - *Progress*: AlphaTrade loop orchestrator now ties the understanding router,
     DriftSentry gate, policy ledger thresholds, and decision diary together so
     tactic experiments emit stage-aware drift metadata, diary evidence, and reflection
@@ -1003,7 +1017,7 @@ kit that the roadmap calls back to in each checklist.
     without scraping Markdown.【F:tools/cleanup/dead_code_tracker.py†L59-L223】【F:tests/tools/test_dead_code_tracker.py†L1-L147】【F:docs/status/dead_code_triage_status.md†L1-L35】
   - *Progress*: The ≥80% vulture sweep now reports zero unused symbols after
     annotating unused protocol/context-manager parameters and dropping redundant
-    ingest arguments, with refreshed audit artefacts recorded for evidence.【F:docs/reports/dead_code_audit.md†L1-L20】【F:docs/reports/deadcode.txt†L1-L4】【F:src/core/risk.py†L40-L63】【F:src/runtime/predator_app.py†L325-L335】【F:src/operational/metrics_registry.py†L66-L86】【F:src/data_foundation/streaming/kafka_stream.py†L421-L429】【F:src/data_foundation/persist/timescale.py†L2375-L2407】
+    ingest arguments, with refreshed audit artefacts recorded for evidence.【F:docs/reports/dead_code_audit.md†L1-L20】【F:docs/reports/deadcode.txt†L1-L4】【F:src/core/risk.py†L40-L63】【F:src/runtime/predator_app.py†L325-L335】【F:src/operational/metrics_registry.py†L66-L86】【F:src/data_foundation/streaming/kafka_stream.py†L25-L150】【F:src/data_foundation/persist/timescale.py†L2375-L2407】
   - *Progress*: Removed the legacy `src.intelligence.adversarial_training` shim
     and retargeted the intelligence facade to load the canonical
     `thinking.adversarial` implementations directly, shrinking the cleanup

@@ -125,7 +125,9 @@ Phase 1 scope — families and decisions
   - [src/sensory/organs/dimensions/chaos_dimension.py](src/sensory/organs/dimensions/chaos_dimension.py)
   - [src/sensory/organs/dimensions/pattern_engine.py](src/sensory/organs/dimensions/pattern_engine.py)
 - Canonical: concrete dimension modules (not __init__.py).
-- Legacy shim: __init__.py re-exports only.
+- Legacy shim: __init__.py now exposes only `WhatDimension` and raises guided
+  `ModuleNotFoundError`s for retired dimensions so callers migrate to the
+  enhanced organs.
 - Rationale: keep __init__ as namespace, not implementation.
 
 10) FAISSPatternMemory (3) and MemoryEntry (3)

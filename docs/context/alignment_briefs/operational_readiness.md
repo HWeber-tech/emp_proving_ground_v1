@@ -82,8 +82,8 @@
 - Wire the observability dashboard to consume the readiness snapshot directly,
   rendering a dedicated panel with component summaries and remediation roll-ups
   under pytest coverage so operators see readiness posture alongside risk,
-  latency, and backbone panels without bespoke integrations.【F:src/operations/observability_dashboard.py†L443-L493】【F:tests/operations/test_observability_dashboard.py†L135-L236】
-- Progress: Understanding-loop diagnostics now populate an observability panel summarising regime confidence, drift exceedances, gating decisions, and ledger approvals so AlphaTrade reviewers see loop posture alongside readiness metrics with regression coverage guarding the snapshot contract.【F:src/operations/observability_dashboard.py†L513-L548】【F:tests/operations/test_observability_dashboard.py†L371-L384】
+  latency, and backbone panels without bespoke integrations.【F:src/operations/observability_dashboard.py†L754-L815】【F:tests/operations/test_observability_dashboard.py†L220-L293】
+- Progress: Understanding-loop diagnostics now populate an observability panel summarising regime confidence, drift exceedances, gating decisions, and ledger approvals so AlphaTrade reviewers see loop posture alongside readiness metrics with regression coverage guarding the snapshot contract.【F:src/operations/observability_dashboard.py†L822-L875】【F:tests/operations/test_observability_dashboard.py†L582-L624】
 - Update incident response docs with current limitations and TODOs; remove or
   archive obsolete OpenAPI references where possible.【F:docs/legacy/README.md†L1-L12】
 - Extend CI step summaries to include risk, ingest, and sensory telemetry status so

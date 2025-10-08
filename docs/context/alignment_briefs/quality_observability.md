@@ -94,20 +94,21 @@
   - Progress: Risk telemetry panels now attach limit values, ratios, and
     violation states to observability dashboard entries while preserving the
     serialised payloads, with pytest coverage asserting limit-status escalation
-    so operators inherit actionable risk summaries instead of opaque aggregates.【F:src/operations/observability_dashboard.py†L254-L309】【F:tests/operations/test_observability_dashboard.py†L201-L241】
+    so operators inherit actionable risk summaries instead of opaque aggregates.【F:src/operations/observability_dashboard.py†L627-L694】【F:tests/operations/test_observability_dashboard.py†L220-L320】
   - Progress: Observability dashboard composer now fuses ROI, risk, latency,
     backbone, operational readiness, and quality panels into a single snapshot,
     escalating severities from ROI status, risk-limit breaches, event-bus/SLO
     lag, and coverage posture while retaining structured metadata for each panel
-    so dashboards and exporters inherit a complete readiness view.【F:src/operations/observability_dashboard.py†L250-L420】【F:tests/operations/test_observability_dashboard.py†L198-L266】
+    so dashboards and exporters inherit a complete readiness view.【F:src/operations/observability_dashboard.py†L566-L905】【F:tests/operations/test_observability_dashboard.py†L220-L320】
   - Progress: Observability dashboard metadata now auto-fills panel status counts
-    and severity maps next to the remediation capsule so exporters and runbooks
-    can ingest a machine-readable readiness snapshot without recomputing
-    severities, with pytest locking the contract.【F:src/operations/observability_dashboard.py†L486-L508】【F:tests/operations/test_observability_dashboard.py†L189-L237】
+    and severity maps next to the remediation capsule, and exports Markdown
+    summaries so exporters and runbooks can ingest a machine-readable readiness
+    snapshot without recomputing severities, with pytest locking the
+    contract.【F:src/operations/observability_dashboard.py†L147-L177】【F:src/operations/observability_dashboard.py†L907-L924】【F:tests/operations/test_observability_dashboard.py†L294-L316】
   - Progress: Observability dashboard now exposes a remediation summary capsule
     that counts failing/warning/healthy panels and lists affected slices under
     regression coverage so CI exporters can consume a canonical operational
-    readiness signal without recomputing severities.【F:src/operations/observability_dashboard.py†L60-L109】【F:tests/operations/test_observability_dashboard.py†L60-L116】
+    readiness signal without recomputing severities.【F:src/operations/observability_dashboard.py†L110-L145】【F:tests/operations/test_observability_dashboard.py†L309-L316】
   - Progress: Operational readiness telemetry now enriches snapshots with
     per-status breakdowns, component status maps, rolled-up issue counts, and
     gate metadata, emitting optional gate alerts while routing through the
@@ -148,12 +149,12 @@
   - Progress: Observability dashboard surfaces operational readiness as a
     first-class panel, counting component severities, embedding metadata, and
     feeding remediation summaries under pytest coverage so responders inherit a
-    consolidated operational view without bespoke wiring.【F:src/operations/observability_dashboard.py†L443-L493】【F:tests/operations/test_observability_dashboard.py†L135-L236】
+    consolidated operational view without bespoke wiring.【F:src/operations/observability_dashboard.py†L754-L815】【F:tests/operations/test_observability_dashboard.py†L220-L293】
   - Progress: Observability dashboard now renders a policy reflection panel that
     summarises analysed decisions, highlights top tactics/experiments/tags, embeds
     reviewer insights, and preserves exported Markdown/metadata so compliance and
     readiness dashboards inherit adaptive strategy evidence under guardrail
-    coverage.【F:src/operations/observability_dashboard.py†L257-L404】【F:tests/operations/test_observability_dashboard.py†L435-L528】
+    coverage.【F:src/operations/observability_dashboard.py†L285-L390】【F:tests/operations/test_observability_dashboard.py†L627-L706】
   - Progress: Observability dashboard guard CLI grades snapshot freshness,
     required panels, failing slices, and normalised overall status strings while
     emitting JSON or human-readable summaries with status-driven exit codes so
@@ -182,7 +183,7 @@
   typed port parsing plus telemetry-sink import logging, and exports
   understanding throttle gauges so CI surfaces degraded instrumentation instead
   of silently dropping metrics; guardrail suites cover gauge fallbacks, throttle
-  snapshots, and dashboard wiring.【F:src/operational/metrics.py†L43-L608】【F:src/understanding/metrics.py†L1-L65】【F:tests/operational/test_metrics.py†L310-L360】【F:tests/understanding/test_understanding_metrics.py†L62-L125】【F:tests/operations/test_observability_dashboard.py†L394-L436】
+  snapshots, and dashboard wiring.【F:src/operational/metrics.py†L43-L608】【F:src/understanding/metrics.py†L1-L65】【F:tests/operational/test_metrics.py†L310-L360】【F:tests/understanding/test_understanding_metrics.py†L62-L125】【F:tests/operations/test_observability_dashboard.py†L609-L624】
 - Progress: Bootstrap stack now logs sensory listener, liquidity prober, and
   control-centre callback failures with structured metadata so optional hooks
   surface errors without disrupting bootstrap decisions, under pytest coverage

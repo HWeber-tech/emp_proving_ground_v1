@@ -539,11 +539,7 @@ Canonicalization
   - Domain shims: [src/domain/models.py](src/domain/models.py) now re-exports canonical [InstrumentProvider](src/core/instrument.py) and finance helpers.
 - Sensory
   - Signals: [src/sensory/__init__.py](src/sensory/__init__.py) re-exports SensorSignal and IntegratedSignal from [src/sensory/signals.py](src/sensory/signals.py).
-  - Dimensions: [src/sensory/dimensions/__init__.py](src/sensory/dimensions/__init__.py) re-exports concrete implementations instead of defining local placeholder classes:
-    - AnomalyDimension from [src/sensory/organs/dimensions/anomaly_dimension.py](src/sensory/organs/dimensions/anomaly_dimension.py)
-    - ChaosDimension from [src/sensory/organs/dimensions/chaos_dimension.py](src/sensory/organs/dimensions/chaos_dimension.py)
-    - WhatDimension from [src/sensory/organs/dimensions/pattern_engine.py](src/sensory/organs/dimensions/pattern_engine.py) (fallback shim if unavailable)
-    - WhenDimension (optional re-export, with fallback shim if missing)
+  - Dimensions: [src/sensory/dimensions/__init__.py](src/sensory/dimensions/__init__.py) now exports only the canonical `WhatDimension` and raises guided `ModuleNotFoundError`s for retired organs so legacy imports point engineers at the enhanced sensory modules instead of silently reviving scaffolded stubs.
 - Competitive Intelligence
   - MarketShareTracker: canonicalized via the package facade; the legacy
     `src.intelligence.competitive_intelligence` module was deleted and callers

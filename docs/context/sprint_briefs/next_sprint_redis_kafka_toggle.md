@@ -74,7 +74,7 @@ Deliver a vertical slice that:
     `market-data.daily-bars` topic with schema version metadata.
   - Validation: integration test using `pytest` + `aiokafka`/`kafka-python`
     harness to assert message shape.
-  - **Status:** Topic parsing now feeds `KafkaTopicProvisioner`, which auto-creates ingest topics when `KAFKA_INGEST_AUTO_CREATE_TOPICS` (or `KAFKA_AUTO_CREATE_TOPICS`) is set; `build_institutional_ingest_config` exposes the resolved topic list in metadata, and pytest covers the provisioning flow with a fake admin client.【F:src/data_foundation/streaming/kafka_stream.py†L226-L470】【F:src/data_foundation/ingest/configuration.py†L1-L210】【F:tests/data_foundation/test_kafka_stream.py†L60-L360】【F:tests/data_foundation/test_timescale_config.py†L1-L160】
+  - **Status:** Topic parsing now feeds `KafkaTopicProvisioner`, which auto-creates ingest topics when `KAFKA_INGEST_AUTO_CREATE_TOPICS` (or `KAFKA_AUTO_CREATE_TOPICS`) is set; `build_institutional_ingest_config` exposes the resolved topic list in metadata, and pytest covers the provisioning flow with a fake admin client.【F:src/data_foundation/streaming/kafka_stream.py†L502-L620】【F:src/data_foundation/ingest/configuration.py†L1-L210】【F:tests/data_foundation/test_kafka_stream.py†L60-L360】【F:tests/data_foundation/test_timescale_config.py†L1-L160】
 - **Ticket E – Runtime event bus bridge (1 day)**
   - Subscribe the runtime event bus to the Kafka topic and replay into existing
     sensor/risk queues without breaking Tier‑0 behaviour.
@@ -85,7 +85,7 @@ Deliver a vertical slice that:
     documenting retention, idempotency, and offset management.
   - Validation: smoke test ensuring replay honours sequence ordering and skips
     duplicates.
-  - Status: `backfill_ingest_dimension_to_kafka` now replays Timescale snapshots into configured ingest topics with `backfill` metadata and pytest coverage documenting the replay payload; the new [Kafka ingest offset recovery runbook](../../operations/runbooks/kafka_ingest_offset_recovery.md) closes the operational follow-up for offset management.【F:src/data_foundation/streaming/kafka_stream.py†L460-L620】【F:tests/data_foundation/test_kafka_stream.py†L340-L420】【F:docs/operations/runbooks/kafka_ingest_offset_recovery.md†L1-L66】
+  - Status: `backfill_ingest_dimension_to_kafka` now replays Timescale snapshots into configured ingest topics with `backfill` metadata and pytest coverage documenting the replay payload; the new [Kafka ingest offset recovery runbook](../../operations/runbooks/kafka_ingest_offset_recovery.md) closes the operational follow-up for offset management.【F:src/data_foundation/streaming/kafka_stream.py†L1191-L1374】【F:tests/data_foundation/test_kafka_stream.py†L340-L420】【F:docs/operations/runbooks/kafka_ingest_offset_recovery.md†L1-L66】
 
 ### 3. Tier toggle & observability (estimated 2 tickets)
 
@@ -106,7 +106,7 @@ Deliver a vertical slice that:
     capture them in assertions.
   - Validation: docs update + pytest ensuring metrics produced during ingest
     pipeline run.
-  - **Status:** Timescale ingest health reports now publish on `telemetry.ingest.health` and stream to Kafka via `KafkaIngestHealthPublisher`, with pytest coverage documenting the payload shape for downstream consumers.【F:src/runtime/runtime_builder.py†L445-L650】【F:src/data_foundation/streaming/kafka_stream.py†L338-L470】【F:tests/data_foundation/test_kafka_stream.py†L74-L190】
+  - **Status:** Timescale ingest health reports now publish on `telemetry.ingest.health` and stream to Kafka via `KafkaIngestHealthPublisher`, with pytest coverage documenting the payload shape for downstream consumers.【F:src/runtime/runtime_builder.py†L445-L650】【F:src/data_foundation/streaming/kafka_stream.py†L1064-L1520】【F:tests/data_foundation/test_kafka_stream.py†L300-L420】
 
 ## Definition of Done checkpoints
 

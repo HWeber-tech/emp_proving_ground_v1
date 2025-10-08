@@ -169,7 +169,7 @@ can layer on without introducing third-party dependencies.
 * **Data backbone runbooks** – The [Redis cache outage](runbooks/redis_cache_outage.md)
   and [Kafka ingest offset recovery](runbooks/kafka_ingest_offset_recovery.md)
   playbooks translate the cache health and Kafka lag telemetry into on-call
-  procedures so responders can stabilise institutional ingest before escalating.【F:docs/operations/runbooks/redis_cache_outage.md†L1-L60】【F:docs/operations/runbooks/kafka_ingest_offset_recovery.md†L1-L66】【F:src/operations/cache_health.py†L60-L199】【F:src/data_foundation/streaming/kafka_stream.py†L1682-L1919】
+  procedures so responders can stabilise institutional ingest before escalating.【F:docs/operations/runbooks/redis_cache_outage.md†L1-L60】【F:docs/operations/runbooks/kafka_ingest_offset_recovery.md†L1-L66】【F:src/operations/cache_health.py†L60-L199】【F:src/data_foundation/streaming/kafka_stream.py†L1715-L2006】
 
 ## On-call expectations
 

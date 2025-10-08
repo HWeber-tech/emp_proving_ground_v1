@@ -95,7 +95,7 @@ Batch 5 — Sensory package cleanup
   - WhatDimension, AnomalyDimension, ChaosDimension, SensorSignal, IntegratedSignal
 - Actions:
   - Ensure implementations live in concrete modules (e.g., [src/sensory/organs/dimensions/anomaly_dimension.py](src/sensory/organs/dimensions/anomaly_dimension.py)).
-  - Reduce [src/sensory/dimensions/__init__.py](src/sensory/dimensions/__init__.py) and [src/sensory/__init__.py](src/sensory/__init__.py) to re-exports only.
+  - Keep [src/sensory/dimensions/__init__.py](src/sensory/dimensions/__init__.py) as a compatibility shim that exports the canonical `WhatDimension` and raises guided `ModuleNotFoundError`s for retired dimensions while [src/sensory/__init__.py](src/sensory/__init__.py) remains a thin re-export facade.
 - Tests:
   - Run sensory tests; run scanner; verify no implementations remain in __init__.py.
 

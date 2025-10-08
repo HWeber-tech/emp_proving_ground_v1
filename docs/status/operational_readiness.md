@@ -136,4 +136,4 @@ panel, summarising component severities, highlighting degraded services, and
 embedding the full snapshot metadata in panel payloads. Regression coverage
 asserts that the panel headlines, remediation summaries, and Markdown export all
 surface the readiness status so responders inherit the enriched snapshot without
-custom wiring.【F:src/operations/observability_dashboard.py†L443-L493】【F:tests/operations/test_observability_dashboard.py†L135-L236】
+ custom wiring.【F:src/operations/observability_dashboard.py†L754-L905】【F:tests/operations/test_observability_dashboard.py†L220-L316】

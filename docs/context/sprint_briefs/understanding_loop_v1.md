@@ -81,7 +81,7 @@
     guardrailed examples so bootstrap vs. institutional deployments stay in sync with
     governance policy; context-pack examples document canonical YAML snippets for ticket
     templating.【F:src/understanding/router_config.py†L1-L320】【F:tests/understanding/test_understanding_router_config.py†L1-L88】【F:docs/context/examples/understanding_router.md†L1-L64】
-  - Understanding metrics exporter now publishes throttle posture to Prometheus and wires the observability dashboard to emit those gauges whenever loop snapshots land, with replay fixtures and guardrail tests documenting the contract so fast-weight throttles stay observable.【F:src/operational/metrics.py†L43-L428】【F:src/understanding/metrics.py†L1-L65】【F:tests/understanding/test_understanding_metrics.py†L62-L125】【F:tests/operations/test_observability_dashboard.py†L394-L436】
+  - Understanding metrics exporter now publishes throttle posture to Prometheus and wires the observability dashboard to emit those gauges whenever loop snapshots land, with replay fixtures and guardrail tests documenting the contract so fast-weight throttles stay observable.【F:src/operational/metrics.py†L43-L428】【F:src/understanding/metrics.py†L1-L65】【F:tests/understanding/test_understanding_metrics.py†L62-L125】【F:tests/operations/test_observability_dashboard.py†L609-L624】
 
 ### Days 6–7 – Decision diary & probes (≈3 tickets)
 
@@ -100,7 +100,7 @@
 - **Progress**
   - Decision narration capsule builder/publisher now normalises ledger diffs, sigma stability, and throttle states, then publishes Markdown/JSON payloads via the shared failover helper so diary deliverables can plug directly into governance and observability dashboards.【F:src/operations/observability_diary.py†L3-L392】【F:tests/operations/test_observability_diary.py†L1-L190】
   - Policy router can ingest recorded reflection summaries and the decision diary CLI renders reflection digests with window, tactic, and experiment limits so reviewers rebuild adaptive insights from stored diaries without rerunning the loop, under regression coverage for ingestion and CLI flows.【F:src/thinking/adaptation/policy_router.py†L269】【F:tests/thinking/test_policy_router.py†L311】【F:tools/understanding/decision_diary_cli.py†L172】【F:tests/tools/test_decision_diary_cli.py†L173】
-  - Observability dashboard now exposes a policy reflection panel summarising analysed decisions, leading tactics/experiments/tags/objectives, reviewer insights, and exported Markdown/JSON payloads so compliance reviewers see diary posture alongside readiness snapshots under guardrail coverage.【F:src/operations/observability_dashboard.py†L257-L404】【F:tests/operations/test_observability_dashboard.py†L435-L528】
+  - Observability dashboard now exposes a policy reflection panel summarising analysed decisions, leading tactics/experiments/tags/objectives, reviewer insights, and exported Markdown/JSON payloads so compliance reviewers see diary posture alongside readiness snapshots under guardrail coverage.【F:src/operations/observability_dashboard.py†L285-L390】【F:tests/operations/test_observability_dashboard.py†L627-L706】
 
 ### Days 8–9 – Drift sentry (≈3 tickets)
 
@@ -158,7 +158,7 @@
   - Observability dashboard guard ensuring missing diagnostic payloads escalate to WARN.【F:docs/context/alignment_briefs/quality_observability.md†L10-L188】
 - **Progress**
   - Understanding diagnostics builder exports sensory→belief→router→policy graphs as structured snapshots, surfaced via the `tools/understanding/graph_diagnostics.py` CLI with JSON/DOT/Markdown renderers under dedicated pytest coverage and the `understanding_acceptance` marker.【F:src/understanding/diagnostics.py†L395-L542】【F:tools/understanding/graph_diagnostics.py†L1-L82】【F:tests/understanding/test_understanding_diagnostics.py†L15-L29】【F:pytest.ini†L2-L27】
-  - Observability dashboard now renders an understanding-loop panel summarising regime confidence, drift exceedances, ledger approvals, and experiment mix whenever diagnostics snapshots are supplied, and escalates to WARN with CLI guidance when artifacts are missing so operators can rebuild acceptance payloads deterministically under guardrail coverage.【F:src/operations/observability_dashboard.py†L536-L565】【F:tests/operations/test_observability_dashboard.py†L389-L413】
+  - Observability dashboard now renders an understanding-loop panel summarising regime confidence, drift exceedances, ledger approvals, and experiment mix whenever diagnostics snapshots are supplied, and escalates to WARN with CLI guidance when artifacts are missing so operators can rebuild acceptance payloads deterministically under guardrail coverage.【F:src/operations/observability_dashboard.py†L822-L875】【F:tests/operations/test_observability_dashboard.py†L582-L624】
 
 ## Definition of Done checkpoints
 

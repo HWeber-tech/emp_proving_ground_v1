@@ -45,6 +45,7 @@
     thinking pipelines inherit the same operational guardrails as runtime
     entrypoints, while new persistence fallbacks log and retry state-store writes
     so analysis snapshots degrade gracefully without silent drops.【F:src/thinking/phase3_orchestrator.py†L103-L276】【F:src/thinking/phase3_orchestrator.py†L596-L626】【F:tests/current/test_orchestration_runtime_smoke.py†L19-L102】
+  - Progress: Timescale ingest scheduler, liquidity probes, and the FIX broker interface now launch background loops via TaskSupervisor fallbacks and tear them down cleanly, with regression proving ingest failures no longer cancel sibling monitors.【F:src/data_foundation/ingest/scheduler.py†L99-L167】【F:src/trading/execution/liquidity_prober.py†L83-L128】【F:src/trading/integration/fix_broker_interface.py†L126-L186】【F:tests/runtime/test_task_supervisor.py†L63-L103】
 - Harden operational telemetry publishers so security, system validation, and
   professional readiness feeds warn on runtime bus failures, fall back
   deterministically, and raise on unexpected errors with pytest coverage

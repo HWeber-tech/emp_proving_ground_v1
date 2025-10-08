@@ -59,6 +59,7 @@
   publish the same enriched metadata through broker events so responders inherit
   a single audited context across telemetry surfaces under regression
   coverage.【F:src/trading/risk/risk_gateway.py†L232-L430】【F:tests/current/test_risk_gateway_validation.py†L1-L213】【F:tests/trading/test_fix_broker_interface_events.py†L15-L152】
+- Completion: Risk gateway now enforces confidence-notional, leverage, and sector exposure caps derived from `RiskConfig`, rejecting violations with reason-coded telemetry and guardrail coverage for each path.【F:src/trading/risk/risk_gateway.py†L336-L513】【F:tests/current/test_risk_gateway_validation.py†L452-L576】
 - Progress: Professional runtime summaries now pin the shared risk API runbook,
   attach runtime metadata, merge resolved interface details, and surface
   structured `RiskApiError` payloads so operators inherit actionable posture
@@ -162,6 +163,7 @@
   governance workflow snapshots under pytest coverage so compliance reviews can
   trace AlphaTrade tactics from ledger to runtime enforcement without manual
   reconciliation.【F:src/governance/policy_ledger.py†L1-L200】【F:src/governance/policy_rebuilder.py†L1-L141】【F:tools/governance/rebuild_policy.py†L1-L112】【F:tests/governance/test_policy_ledger.py†L33-L181】【F:tests/tools/test_rebuild_policy_cli.py†L11-L41】
+- Progress: Ledger persistence now acquires filesystem locks, swaps atomic temp files, and surfaces JSONL/Markdown promotion artifacts through the CLI helpers with concurrency regression coverage so concurrent operators cannot clobber governance state.【F:src/governance/policy_ledger.py†L260-L374】【F:tools/governance/_promotion_helpers.py†L13-L108】【F:tools/governance/promote_policy.py†L122-L335】【F:tests/governance/test_policy_ledger_locking.py†L11-L53】【F:tests/tools/test_promote_policy_cli.py†L1-L180】
 - Progress: AlphaTrade graduation CLI now offers an `--apply` mode that promotes
   ledger stages when recommendations clear blockers, annotates JSON/text
   summaries with applied stages, and persists the release via the ledger manager

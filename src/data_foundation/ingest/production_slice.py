@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from uuid import uuid4
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Awaitable, Callable, Mapping
@@ -11,7 +12,9 @@ from typing import Awaitable, Callable, Mapping
 from src.data_foundation.cache.redis_cache import RedisConnectionSettings
 from src.data_foundation.persist.timescale import (
     TimescaleConnectionSettings,
+    TimescaleIngestJournal,
     TimescaleIngestResult,
+    TimescaleIngestRunRecord,
 )
 from src.data_foundation.streaming.kafka_stream import KafkaConsumerFactory
 from src.runtime.task_supervisor import TaskSupervisor
@@ -125,6 +128,12 @@ class ProductionIngestSlice:
             self._last_results = results
             self._last_run_at = datetime.now(tz=UTC)
             self._last_error = None
+            if results:
+                await asyncio.to_thread(
+                    self._record_journal_entries,
+                    results,
+                    self._last_run_at,
+                )
             self._invalidate_result_caches(services, results)
             return bool(results)
 
@@ -243,6 +252,135 @@ class ProductionIngestSlice:
             prefixes,
             removed,
         )
+
+    def _record_journal_entries(
+        self,
+        results: Mapping[str, TimescaleIngestResult],
+        executed_at: datetime | None,
+    ) -> None:
+        """Persist ingest run metadata to the Timescale ingest journal."""
+
+        if not results:
+            return
+
+        engine = None
+        try:
+            engine = self.ingest_config.timescale_settings.create_engine()
+        except Exception:  # pragma: no cover - defensive logging
+            logger.exception("Failed to create Timescale engine for ingest journal")
+            return
+
+        try:
+            journal = TimescaleIngestJournal(engine)
+            records: list[TimescaleIngestRunRecord] = []
+            executed = executed_at or datetime.now(tz=UTC)
+            for dimension, result in results.items():
+                if not isinstance(result, TimescaleIngestResult):
+                    continue
+                metadata = self._build_journal_metadata(dimension)
+                record = TimescaleIngestRunRecord(
+                    run_id=str(uuid4()),
+                    dimension=dimension,
+                    status="ok" if result.rows_written else "skipped",
+                    rows_written=result.rows_written,
+                    freshness_seconds=result.freshness_seconds,
+                    ingest_duration_seconds=result.ingest_duration_seconds,
+                    executed_at=executed,
+                    source=result.source,
+                    symbols=result.symbols,
+                    metadata=metadata,
+                )
+                records.append(record)
+
+            if records:
+                journal.record(records)
+        except Exception:  # pragma: no cover - defensive logging
+            logger.exception("Failed to record Timescale ingest journal from production slice")
+        finally:
+            if engine is not None:
+                try:
+                    engine.dispose()
+                except Exception:  # pragma: no cover - defensive cleanup
+                    logger.debug(
+                        "Failed to dispose Timescale ingest journal engine",
+                        exc_info=True,
+                    )
+
+    def _build_journal_metadata(self, dimension: str) -> Mapping[str, object]:
+        metadata: dict[str, object] = {"trigger": "production_slice"}
+
+        config_meta = self._normalise_metadata_mapping(self.ingest_config.metadata)
+        if config_meta:
+            metadata["config"] = config_meta
+
+        plan_meta = self._plan_metadata_for_dimension(dimension)
+        if plan_meta:
+            metadata["plan"] = plan_meta
+
+        schedule = self.ingest_config.schedule
+        if schedule is not None:
+            metadata["schedule"] = {
+                "interval_seconds": schedule.interval_seconds,
+                "jitter_seconds": schedule.jitter_seconds,
+                "max_failures": schedule.max_failures,
+            }
+
+        if self.kafka_mapping:
+            metadata["kafka_topics"] = sorted({str(topic) for topic in self.kafka_mapping.values()})
+
+        return metadata
+
+    def _plan_metadata_for_dimension(self, dimension: str) -> Mapping[str, object]:
+        plan = self.ingest_config.plan
+        if plan is None:
+            return {}
+
+        if dimension == "daily_bars" and plan.daily is not None:
+            return {
+                "source": plan.daily.source,
+                "lookback_days": int(plan.daily.lookback_days),
+                "symbols": plan.daily.normalised_symbols(),
+            }
+
+        if dimension == "intraday_trades" and plan.intraday is not None:
+            return {
+                "source": plan.intraday.source,
+                "lookback_days": int(plan.intraday.lookback_days),
+                "interval": plan.intraday.interval,
+                "symbols": plan.intraday.normalised_symbols(),
+            }
+
+        if dimension == "macro_events" and plan.macro is not None:
+            payload: dict[str, object] = {"source": plan.macro.source}
+            if plan.macro.has_window():
+                payload["window"] = {
+                    "start": plan.macro.start,
+                    "end": plan.macro.end,
+                }
+            events = plan.macro.events
+            if events:
+                payload["provided_events"] = len(events)
+            return payload
+
+        return {}
+
+    @staticmethod
+    def _normalise_metadata_mapping(
+        mapping: Mapping[str, object] | None,
+    ) -> Mapping[str, object]:
+        if not mapping:
+            return {}
+
+        def _coerce(value: object) -> object:
+            if value is None or isinstance(value, (str, int, float, bool)):
+                return value
+            if isinstance(value, Mapping):
+                return {str(k): _coerce(v) for k, v in value.items()}
+            if isinstance(value, (list, tuple, set)):
+                return [_coerce(v) for v in value]
+            return str(value)
+
+        return {str(key): _coerce(val) for key, val in mapping.items()}
 
 
 __all__ = ["ProductionIngestSlice"]

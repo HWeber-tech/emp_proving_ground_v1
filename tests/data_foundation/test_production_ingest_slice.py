@@ -2,7 +2,6 @@ import asyncio
 import dataclasses
 import threading
 from collections import deque
-
 import pytest
 
 
@@ -391,3 +390,77 @@ async def test_production_slice_summary_reflects_custom_redis_policy() -> None:
     assert metrics_snapshot["namespace"] == "emp:test"
 
     await slice_runtime.stop()
+
+
+@pytest.mark.asyncio
+async def test_production_slice_records_ingest_journal(monkeypatch: pytest.MonkeyPatch) -> None:
+    config = _ingest_config()
+    bus = _DummyEventBus()
+    supervisor = TaskSupervisor(namespace="ingest-journal")
+
+    class _StubEngine:
+        def __init__(self) -> None:
+            self.disposed = False
+
+        def dispose(self) -> None:
+            self.disposed = True
+
+    engine = _StubEngine()
+
+    def _fake_create_engine(self: TimescaleConnectionSettings):
+        return engine
+
+    monkeypatch.setattr(
+        TimescaleConnectionSettings,
+        "create_engine",
+        _fake_create_engine,
+    )
+
+    journal_calls: list[list[object]] = []
+
+    class _StubJournal:
+        def __init__(self, received_engine: _StubEngine) -> None:
+            self.received_engine = received_engine
+
+        def record(self, entries) -> None:
+            journal_calls.append(list(entries))
+
+    monkeypatch.setattr(
+        "src.data_foundation.ingest.production_slice.TimescaleIngestJournal",
+        _StubJournal,
+    )
+
+    class _StubOrchestrator:
+        def run(self, *, plan: TimescaleBackbonePlan) -> dict[str, TimescaleIngestResult]:
+            return {
+                "daily_bars": TimescaleIngestResult(
+                    rows_written=3,
+                    symbols=("EURUSD",),
+                    start_ts=None,
+                    end_ts=None,
+                    ingest_duration_seconds=0.2,
+                    freshness_seconds=5.0,
+                    dimension="daily_bars",
+                    source="test",
+                )
+            }
+
+    orchestrator = _StubOrchestrator()
+
+    slice_runtime = ProductionIngestSlice(
+        config,
+        bus,
+        supervisor,
+        orchestrator_factory=lambda settings, publisher: orchestrator,
+    )
+
+    success = await slice_runtime.run_once()
+
+    assert success is True
+    assert journal_calls
+    recorded = journal_calls[-1][0]
+    assert recorded.dimension == "daily_bars"
+    assert recorded.status == "ok"
+    assert recorded.rows_written == 3
+    assert isinstance(recorded.metadata, dict)
+    assert recorded.metadata.get("trigger") == "production_slice"

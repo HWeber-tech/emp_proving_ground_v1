@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import pytest
 
+from src.config.risk.risk_config import RiskConfig
 from src.trading.execution.execution_engine import ExecutionEngine
 from src.trading.models.order import OrderStatus
+from src.trading.risk.risk_api import RISK_API_RUNBOOK
 
 
 @pytest.mark.asyncio
@@ -83,3 +85,47 @@ async def test_reconcile_captures_cancellations_and_realized_pnl() -> None:
 
     # Remaining open quantity for the buy leg should be reflected in the position snapshot.
     assert positions["EURUSD"]["average_price"] == pytest.approx(1.19)
+
+
+class _CompliantManager:
+    def __init__(self) -> None:
+        self._risk_config = RiskConfig()
+
+
+class _BrokenManager:
+    def get_risk_status(self) -> dict[str, object]:
+        return {"risk_config": {"max_risk_per_trade_pct": -1}}
+
+
+@pytest.mark.asyncio
+async def test_execution_engine_captures_risk_context_metadata() -> None:
+    engine = ExecutionEngine()
+    manager = _CompliantManager()
+    engine.set_risk_context_provider(lambda: manager)
+
+    await engine.send_order("EURUSD", "BUY", 10_000, price=1.105)
+
+    context = engine.describe_risk_context()
+    assert context["runbook"].endswith("risk_api_contract.md")
+    assert context["risk_api_runbook"] == RISK_API_RUNBOOK
+    metadata = context.get("metadata")
+    assert metadata is not None
+    assert metadata["max_risk_per_trade_pct"] > 0
+
+    reconciliation = engine.reconcile()
+    risk_summary = reconciliation.get("risk_context")
+    assert isinstance(risk_summary, dict)
+    assert risk_summary.get("runbook", "").endswith("risk_api_contract.md")
+
+
+@pytest.mark.asyncio
+async def test_execution_engine_records_risk_error_on_metadata_failure() -> None:
+    engine = ExecutionEngine()
+    engine.set_risk_context_provider(_BrokenManager)
+
+    await engine.send_order("EURUSD", "BUY", 5_000, price=1.101)
+
+    context = engine.describe_risk_context()
+    error = context.get("error")
+    assert error is not None
+    assert error.get("runbook", "").endswith("risk_api_contract.md")

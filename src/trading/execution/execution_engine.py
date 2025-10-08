@@ -9,6 +9,12 @@ from src.core.interfaces import IExecutionEngine
 from src.trading.models.order import Order, OrderStatus, OrderType
 from src.trading.models.position import Position
 
+from ._risk_context import (
+    RiskContextProvider,
+    capture_risk_context,
+    describe_risk_context,
+)
+
 
 @dataclass
 class _TrackedOrder:
@@ -40,12 +46,18 @@ class ExecutionEngine(IExecutionEngine):
         *,
         id_factory: Callable[[], str] | None = None,
         clock: Callable[[], datetime] | None = None,
+        risk_context_provider: RiskContextProvider | None = None,
     ) -> None:
         self._id_sequence = count(1)
         self._id_factory = id_factory or self._default_id_factory
         self._clock = clock or datetime.utcnow
         self._orders: Dict[str, _TrackedOrder] = {}
         self._positions: Dict[str, Position] = {}
+        self._risk_context_provider: RiskContextProvider | None = None
+        self._last_risk_metadata: dict[str, object] | None = None
+        self._last_risk_error: dict[str, object] | None = None
+        if risk_context_provider is not None:
+            self.set_risk_context_provider(risk_context_provider)
 
     def _default_id_factory(self) -> str:
         return f"ORD-{next(self._id_sequence)}"
@@ -70,6 +82,23 @@ class ExecutionEngine(IExecutionEngine):
             self._positions[symbol] = Position(symbol=symbol, quantity=0.0, average_price=0.0)
         return self._positions[symbol]
 
+    def set_risk_context_provider(self, provider: RiskContextProvider | None) -> None:
+        """Install or replace the callable that resolves deterministic risk metadata."""
+
+        if provider is not None and not callable(provider):
+            raise TypeError("risk_context_provider must be callable or None")
+        self._risk_context_provider = provider
+
+    def _capture_risk_context(self) -> None:
+        metadata, error = capture_risk_context(self._risk_context_provider)
+        self._last_risk_metadata = metadata
+        self._last_risk_error = error
+
+    def describe_risk_context(self) -> dict[str, object]:
+        """Expose the most recent deterministic risk context snapshot."""
+
+        return describe_risk_context(self._last_risk_metadata, self._last_risk_error)
+
     async def send_order(
         self,
         symbol: str,
@@ -85,6 +114,8 @@ class ExecutionEngine(IExecutionEngine):
             raise ValueError(f"Unsupported side '{side}'")
         if quantity <= 0:
             raise ValueError("Order quantity must be positive")
+
+        self._capture_risk_context()
 
         order_id = self._id_factory()
         order = Order(
@@ -196,6 +227,7 @@ class ExecutionEngine(IExecutionEngine):
             "filled_orders": filled_orders,
             "cancelled_orders": cancelled_orders,
             "positions": positions_snapshot,
+            "risk_context": self.describe_risk_context(),
         }
 
 

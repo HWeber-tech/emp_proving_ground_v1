@@ -83,3 +83,19 @@ def test_system_config_normalizes_kill_switch_from_env() -> None:
 
     disabled_cfg = SystemConfig.from_env({"EMP_KILL_SWITCH": "disabled"})
     assert disabled_cfg.kill_switch_path is None
+
+
+def test_safety_manager_from_config_uses_mapping_values(tmp_path: Path) -> None:
+    kill_switch = tmp_path / "killswitch.flag"
+    kill_switch.write_text("halt", encoding="utf-8")
+    config = {
+        "run_mode": "live",
+        "confirm_live": True,
+        "kill_switch_path": kill_switch,
+    }
+
+    manager = SafetyManager.from_config(config)
+
+    assert manager.kill_switch_path == kill_switch
+    with pytest.raises(RuntimeError):
+        manager.enforce()

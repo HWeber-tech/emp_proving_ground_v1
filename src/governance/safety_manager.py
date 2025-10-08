@@ -44,11 +44,20 @@ class SafetyManager:
         return candidate
 
     @classmethod
-    def from_config(cls, config: Mapping[str, object]) -> "SafetyManager":
-        run_mode = getattr(config, "run_mode", "paper")
-        confirm_live = getattr(config, "confirm_live", False)
-        kill_switch_path = getattr(config, "kill_switch_path", None)
-        return cls(run_mode, confirm_live, kill_switch_path)
+    def from_config(cls, config: Mapping[str, object] | object) -> "SafetyManager":
+        def _lookup(name: str, default: object) -> object:
+            if isinstance(config, Mapping):
+                return config.get(name, default)
+            return getattr(config, name, default)
+
+        run_mode_raw = _lookup("run_mode", "paper")
+        confirm_live_raw = _lookup("confirm_live", False)
+        kill_switch_raw = _lookup("kill_switch_path", None)
+
+        run_mode = str(run_mode_raw) if run_mode_raw is not None else "paper"
+        confirm_live = bool(confirm_live_raw)
+
+        return cls(run_mode, confirm_live, kill_switch_raw)
 
     @property
     def kill_switch_path(self) -> Optional[Path]:

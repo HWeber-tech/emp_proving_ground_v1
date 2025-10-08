@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import StrEnum
 from typing import Any, Iterable, Mapping, MutableMapping, Sequence, cast
 
@@ -360,7 +360,7 @@ def evaluate_risk_posture(
 
     snapshot = RiskTelemetrySnapshot(
         status=aggregate_status,
-        generated_at=datetime.utcnow(),
+        generated_at=datetime.now(timezone.utc),
         checks=tuple(checks),
         exposures=exposures,
         limits=limits,

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import timezone
 from typing import Any
 
 import pytest
@@ -64,6 +65,7 @@ def test_evaluate_risk_posture_grades_limits() -> None:
     exposures = snapshot.exposures
     assert exposures["long"] == pytest.approx(18_500.0)
     assert exposures["short"] == pytest.approx(15_000.0)
+    assert snapshot.generated_at.tzinfo is timezone.utc
 
     check_map = {check.name: check for check in snapshot.checks}
     assert check_map["open_positions"].status is RiskLimitStatus.warn

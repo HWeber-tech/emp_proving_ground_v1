@@ -68,6 +68,14 @@ def _build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--check-connectivity",
+        action="store_true",
+        help=(
+            "Run managed connector connectivity probes before executing ingest. "
+            "Exit with a non-zero status when configured connectors fail."
+        ),
+    )
+    parser.add_argument(
         "--namespace",
         type=str,
         default="production-ingest",
@@ -198,6 +206,29 @@ def _ingest_results_to_serialisable(summary: Mapping[str, object]) -> dict[str, 
     return serialised
 
 
+def _serialise_connectivity(
+    snapshots: Sequence[object] | None,
+) -> list[Mapping[str, object]]:
+    if not snapshots:
+        return []
+    serialised: list[Mapping[str, object]] = []
+    for snapshot in snapshots:
+        if hasattr(snapshot, "as_dict"):
+            serialised.append(snapshot.as_dict())  # type: ignore[arg-type]
+        elif isinstance(snapshot, Mapping):
+            serialised.append({str(k): v for k, v in snapshot.items()})
+    return serialised
+
+
+def _connectivity_ok(snapshots: Sequence[Mapping[str, object]]) -> bool:
+    for snapshot in snapshots:
+        configured = bool(snapshot.get("configured"))
+        healthy = snapshot.get("healthy")
+        if configured and healthy is False:
+            return False
+    return True
+
+
 async def _run_once(slice_runtime: ProductionIngestSlice) -> bool:
     return await slice_runtime.run_once()
 
@@ -264,6 +295,13 @@ async def _main_async(args: argparse.Namespace) -> int:
         kafka_mapping=kafka_mapping if kafka_mapping else None,
     )
 
+    connectivity_snapshots: list[Mapping[str, object]] = []
+    connectivity_healthy = True
+    if args.check_connectivity:
+        report = await slice_runtime.connectivity_report()
+        connectivity_snapshots = _serialise_connectivity(report)
+        connectivity_healthy = _connectivity_ok(connectivity_snapshots)
+
     if args.mode == "schedule":
         success = await _run_schedule(
             slice_runtime,
@@ -274,9 +312,14 @@ async def _main_async(args: argparse.Namespace) -> int:
         success = await _run_once(slice_runtime)
 
     summary = _ingest_results_to_serialisable(slice_runtime.summary())
+    if connectivity_snapshots:
+        summary["connectivity"] = connectivity_snapshots
     payload = _serialise_summary(summary, fmt=args.format)
     if payload:
         print(payload)
+
+    if args.check_connectivity:
+        success = success and connectivity_healthy
 
     return 0 if success else 1
 

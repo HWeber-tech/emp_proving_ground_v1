@@ -5,9 +5,9 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from tools.operations.run_production_ingest import main
-
 from src.data_foundation.persist.timescale import TimescaleIngestResult
+from src.data_foundation.ingest.institutional_vertical import ManagedConnectorSnapshot
+from tools.operations.run_production_ingest import main
 
 
 @pytest.fixture(autouse=True)
@@ -140,3 +140,86 @@ def test_cli_schedule_runs_bootstrap_and_stops(
     # Bootstrap run should still execute once before the scheduler takes over.
     assert len(calls) >= 1
 
+
+def _patch_connectivity(
+    monkeypatch: pytest.MonkeyPatch,
+    snapshot: ManagedConnectorSnapshot,
+) -> None:
+    async def _fake_report(self, probes=None, timeout=5.0):  # noqa: D401 - test stub
+        return (snapshot,)
+
+    monkeypatch.setattr(
+        "src.data_foundation.ingest.production_slice.ProductionIngestSlice.connectivity_report",
+        _fake_report,
+    )
+
+
+def test_cli_connectivity_success(
+    monkeypatch: pytest.MonkeyPatch, tmp_path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    calls = _patch_orchestrator(monkeypatch)
+
+    snapshot = ManagedConnectorSnapshot(
+        name="timescale",
+        configured=True,
+        supervised=True,
+        metadata={"url": "sqlite"},
+        healthy=True,
+    )
+    _patch_connectivity(monkeypatch, snapshot)
+
+    timescale_db = tmp_path / "cli-connectivity.db"
+    monkeypatch.setenv("DATA_BACKBONE_MODE", "institutional")
+    monkeypatch.setenv("EMP_TIER", "tier_1")
+    monkeypatch.setenv("TIMESCALE_SYMBOLS", "EURUSD")
+    monkeypatch.setenv("TIMESCALEDB_URL", f"sqlite:///{timescale_db}")
+
+    exit_code = main([
+        "--mode",
+        "once",
+        "--check-connectivity",
+        "--format",
+        "json",
+    ])
+
+    assert exit_code == 0
+    assert len(calls) == 1
+
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["connectivity"][0]["healthy"] is True
+
+
+def test_cli_connectivity_failure_exits_nonzero(
+    monkeypatch: pytest.MonkeyPatch, tmp_path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    calls = _patch_orchestrator(monkeypatch)
+
+    snapshot = ManagedConnectorSnapshot(
+        name="timescale",
+        configured=True,
+        supervised=True,
+        metadata={"url": "sqlite"},
+        healthy=False,
+        error="probe failed",
+    )
+    _patch_connectivity(monkeypatch, snapshot)
+
+    timescale_db = tmp_path / "cli-connectivity-fail.db"
+    monkeypatch.setenv("DATA_BACKBONE_MODE", "institutional")
+    monkeypatch.setenv("EMP_TIER", "tier_1")
+    monkeypatch.setenv("TIMESCALE_SYMBOLS", "EURUSD")
+    monkeypatch.setenv("TIMESCALEDB_URL", f"sqlite:///{timescale_db}")
+
+    exit_code = main([
+        "--mode",
+        "once",
+        "--check-connectivity",
+        "--format",
+        "json",
+    ])
+
+    assert exit_code == 1
+    assert len(calls) == 1
+
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["connectivity"][0]["healthy"] is False

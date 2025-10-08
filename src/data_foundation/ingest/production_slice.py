@@ -6,7 +6,7 @@ import asyncio
 import logging
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from typing import Callable, Mapping
+from typing import Awaitable, Callable, Mapping
 
 from src.data_foundation.cache.redis_cache import RedisConnectionSettings
 from src.data_foundation.persist.timescale import (
@@ -20,6 +20,7 @@ from .configuration import InstitutionalIngestConfig
 from .institutional_vertical import (
     InstitutionalIngestProvisioner,
     InstitutionalIngestServices,
+    ManagedConnectorSnapshot,
 )
 from .timescale_pipeline import (
     IngestResultPublisher,
@@ -139,6 +140,19 @@ class ProductionIngestSlice:
         if self._services is None:
             return
         await self._services.stop()
+
+    async def connectivity_report(
+        self,
+        *,
+        probes: Mapping[str, Callable[[], Awaitable[bool] | bool]] | None = None,
+        timeout: float = 5.0,
+    ) -> tuple[ManagedConnectorSnapshot, ...]:
+        """Evaluate managed connector health via the provisioned services."""
+
+        services = self._ensure_services()
+        if services is None:
+            return tuple()
+        return await services.connectivity_report(probes=probes, timeout=timeout)
 
     def summary(self) -> Mapping[str, object]:
         """Expose ingest execution and supervision metadata for dashboards."""

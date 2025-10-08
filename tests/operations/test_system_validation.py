@@ -357,6 +357,81 @@ def test_system_validation_alerts_include_gate_event() -> None:
     assert context_gate.get("should_block") is True
 
 
+def test_system_validation_gate_considers_reliability() -> None:
+    snapshot = SystemValidationSnapshot(
+        status=SystemValidationStatus.passed,
+        generated_at=datetime(2025, 1, 8, tzinfo=timezone.utc),
+        total_checks=2,
+        passed_checks=2,
+        failed_checks=0,
+        success_rate=1.0,
+        checks=(
+            SystemValidationCheck(name="core", passed=True),
+            SystemValidationCheck(name="ops", passed=True),
+        ),
+        metadata={
+            "reliability": {
+                "status": "fail",
+                "stale_hours": 12.0,
+                "issues": ["validation runs failing"],
+            }
+        },
+    )
+
+    result = evaluate_system_validation_gate(
+        snapshot,
+        consider_reliability=True,
+        reliability_max_stale_hours=10.0,
+    )
+
+    assert result.should_block is True
+    assert any("reliability status is FAIL" in reason for reason in result.reasons)
+    assert any("stale" in reason for reason in result.reasons)
+    assert result.status is SystemValidationStatus.fail
+    assert result.metadata["consider_reliability"] is True
+    assert result.metadata["reliability_snapshot"]["status"] == "fail"
+
+
+def test_system_validation_gate_reliability_warns_without_blocking() -> None:
+    snapshot = SystemValidationSnapshot(
+        status=SystemValidationStatus.passed,
+        generated_at=datetime(2025, 1, 9, tzinfo=timezone.utc),
+        total_checks=1,
+        passed_checks=1,
+        failed_checks=0,
+        success_rate=1.0,
+        checks=(SystemValidationCheck(name="core", passed=True),),
+        metadata={
+            "reliability": {
+                "status": "warn",
+                "stale_hours": 2.0,
+                "issues": ["recent run warning"],
+            }
+        },
+    )
+
+    result = evaluate_system_validation_gate(
+        snapshot,
+        consider_reliability=True,
+        reliability_block_on_warn=False,
+    )
+
+    assert result.should_block is False
+    assert result.status is SystemValidationStatus.warn
+    warnings = result.metadata.get("reliability_warnings")
+    assert warnings and any("WARN" in warning for warning in warnings)
+
+    blocking_result = evaluate_system_validation_gate(
+        snapshot,
+        consider_reliability=True,
+        reliability_block_on_warn=True,
+    )
+
+    assert blocking_result.should_block is True
+    assert any("WARN" in reason for reason in blocking_result.reasons)
+    assert blocking_result.status is SystemValidationStatus.warn
+
+
 def test_route_system_validation_alerts_dispatches() -> None:
     snapshot = SystemValidationSnapshot(
         status=SystemValidationStatus.fail,

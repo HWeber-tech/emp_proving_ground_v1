@@ -865,21 +865,28 @@ def evaluate_system_validation_gate(
     min_success_rate: float = 0.95,
     block_on_warn: bool = False,
     required_checks: Sequence[str] = (),
+    consider_reliability: bool = False,
+    reliability_block_on_warn: bool = False,
+    reliability_max_stale_hours: float | None = None,
 ) -> SystemValidationGateResult:
     """Determine whether a snapshot meets deployment expectations."""
 
     reasons: list[str] = []
+    gate_status = snapshot.status
 
     if snapshot.status is SystemValidationStatus.fail:
         reasons.append("System validation status is FAIL")
+        gate_status = _escalate(gate_status, SystemValidationStatus.fail)
     elif block_on_warn and snapshot.status is SystemValidationStatus.warn:
         reasons.append("System validation status is WARN and block_on_warn is enabled")
+        gate_status = _escalate(gate_status, SystemValidationStatus.warn)
 
     if snapshot.success_rate < min_success_rate:
         reasons.append(
             "Success rate "
             f"{snapshot.success_rate:.1%} below minimum {min_success_rate:.1%}"
         )
+        gate_status = _escalate(gate_status, SystemValidationStatus.fail)
 
     if required_checks:
         checks_by_name = {check.name.lower(): check for check in snapshot.checks}
@@ -888,9 +895,48 @@ def evaluate_system_validation_gate(
             check = checks_by_name.get(key)
             if check is None:
                 reasons.append(f"Required check missing from snapshot: {required}")
+                gate_status = _escalate(gate_status, SystemValidationStatus.fail)
                 continue
             if not check.passed:
                 reasons.append(f"Required check failed: {check.name}")
+                gate_status = _escalate(gate_status, SystemValidationStatus.fail)
+
+    metadata = snapshot.metadata if isinstance(snapshot.metadata, Mapping) else {}
+    reliability_metadata: dict[str, object] | None = None
+    reliability_warnings: list[str] = []
+
+    if consider_reliability:
+        raw_reliability = metadata.get("reliability") if isinstance(metadata, Mapping) else None
+        if isinstance(raw_reliability, Mapping):
+            reliability_metadata = dict(raw_reliability)
+            raw_status = raw_reliability.get("status")
+            reliability_status: SystemValidationStatus | None
+            try:
+                reliability_status = SystemValidationStatus(str(raw_status))
+            except ValueError:
+                reliability_status = None
+
+            if reliability_status is SystemValidationStatus.fail:
+                reasons.append("System validation reliability status is FAIL")
+                gate_status = _escalate(gate_status, SystemValidationStatus.fail)
+            elif reliability_status is SystemValidationStatus.warn:
+                message = "System validation reliability status is WARN"
+                gate_status = _escalate(gate_status, SystemValidationStatus.warn)
+                if reliability_block_on_warn:
+                    reasons.append(message)
+                else:
+                    reliability_warnings.append(message)
+
+            stale_hours = raw_reliability.get("stale_hours")
+            if isinstance(stale_hours, (int, float)) and reliability_max_stale_hours is not None:
+                if stale_hours > reliability_max_stale_hours:
+                    reasons.append(
+                        "Reliability snapshot stale "
+                        f"{stale_hours:.1f} hours exceeds limit {reliability_max_stale_hours:.1f} hours"
+                    )
+                    gate_status = _escalate(gate_status, SystemValidationStatus.fail)
+        else:
+            reliability_warnings.append("System validation reliability metadata unavailable")
 
     gate_metadata: dict[str, object] = {
         "min_success_rate": min_success_rate,
@@ -899,9 +945,18 @@ def evaluate_system_validation_gate(
         "success_rate": snapshot.success_rate,
         "snapshot_metadata": dict(snapshot.metadata),
     }
+    if consider_reliability:
+        gate_metadata["consider_reliability"] = True
+        gate_metadata["reliability_block_on_warn"] = reliability_block_on_warn
+        if reliability_max_stale_hours is not None:
+            gate_metadata["reliability_max_stale_hours"] = reliability_max_stale_hours
+        if reliability_metadata is not None:
+            gate_metadata["reliability_snapshot"] = reliability_metadata
+        if reliability_warnings:
+            gate_metadata["reliability_warnings"] = tuple(reliability_warnings)
 
     return SystemValidationGateResult(
-        status=snapshot.status,
+        status=gate_status,
         should_block=bool(reasons),
         reasons=tuple(reasons),
         metadata=gate_metadata,

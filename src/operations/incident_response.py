@@ -123,6 +123,9 @@ class IncidentResponsePolicy:
     mttr_fail_minutes: float | None = 360.0
     metrics_stale_warn_hours: float | None = 24.0
     metrics_stale_fail_hours: float | None = 48.0
+    require_major_incident_history: bool = False
+    major_incident_review_interval_days: int = 180
+    major_incident_fail_multiplier: float = 2.0
 
     @classmethod
     def from_mapping(cls, mapping: Mapping[str, object] | None) -> "IncidentResponsePolicy":
@@ -141,6 +144,15 @@ class IncidentResponsePolicy:
         mttr_fail = _coerce_float(mapping.get("INCIDENT_MTTR_FAIL_MINUTES"), 360.0)
         stale_warn = _coerce_float(mapping.get("INCIDENT_METRICS_STALE_WARN_HOURS"), 24.0)
         stale_fail = _coerce_float(mapping.get("INCIDENT_METRICS_STALE_FAIL_HOURS"), 48.0)
+        require_major_history = _coerce_bool(
+            mapping.get("INCIDENT_REQUIRE_MAJOR_HISTORY"), False
+        )
+        review_interval = _coerce_int(
+            mapping.get("INCIDENT_MAJOR_REVIEW_INTERVAL_DAYS"), 180
+        )
+        fail_multiplier = _coerce_float(
+            mapping.get("INCIDENT_MAJOR_REVIEW_FAIL_MULTIPLIER"), 2.0
+        )
 
         return cls(
             required_runbooks=required_runbooks,
@@ -161,6 +173,9 @@ class IncidentResponsePolicy:
             metrics_stale_fail_hours=(
                 stale_fail if stale_fail and stale_fail > 0 else None
             ),
+            require_major_incident_history=require_major_history,
+            major_incident_review_interval_days=max(review_interval, 0),
+            major_incident_fail_multiplier=max(float(fail_multiplier or 0.0), 1.0),
         )
 
 
@@ -508,6 +523,46 @@ def evaluate_incident_response(
             "ChatOps automations disabled or unavailable",
         )
 
+    if policy.require_major_incident_history:
+        interval_days = max(policy.major_incident_review_interval_days, 0)
+        fail_multiplier = max(policy.major_incident_fail_multiplier, 1.0)
+        fail_threshold_days = interval_days * fail_multiplier if interval_days > 0 else None
+        last_major_age = state.last_major_incident_age_days
+        detail_payload: dict[str, object] = {
+            "age_days": last_major_age,
+            "interval_days": interval_days,
+            "fail_multiplier": fail_multiplier,
+        }
+        if fail_threshold_days is not None:
+            detail_payload["fail_threshold_days"] = fail_threshold_days
+        if last_major_age is None:
+            _record_issue(
+                "major_incident_review",
+                IncidentResponseStatus.warn,
+                "No major incident review recorded",
+                detail=detail_payload,
+            )
+        elif interval_days > 0 and fail_threshold_days is not None and last_major_age >= fail_threshold_days:
+            _record_issue(
+                "major_incident_review",
+                IncidentResponseStatus.fail,
+                (
+                    "Major incident review overdue – "
+                    f"{last_major_age:.1f} days exceeds fail threshold {fail_threshold_days:.1f}"
+                ),
+                detail=detail_payload,
+            )
+        elif interval_days > 0 and last_major_age > interval_days:
+            _record_issue(
+                "major_incident_review",
+                IncidentResponseStatus.warn,
+                (
+                    "Major incident review aging – "
+                    f"{last_major_age:.1f} days exceeds interval {interval_days:.1f}"
+                ),
+                detail=detail_payload,
+            )
+
     metrics = state.metrics
 
     if metrics is not None:
@@ -598,15 +653,18 @@ def evaluate_incident_response(
             "minimum_primary_responders": policy.minimum_primary_responders,
             "minimum_secondary_responders": policy.minimum_secondary_responders,
             "postmortem_sla_hours": policy.postmortem_sla_hours,
-            "maximum_open_incidents": policy.maximum_open_incidents,
-            "require_chatops": policy.require_chatops,
-            "mtta_warn_minutes": policy.mtta_warn_minutes,
-            "mtta_fail_minutes": policy.mtta_fail_minutes,
-            "mttr_warn_minutes": policy.mttr_warn_minutes,
-            "mttr_fail_minutes": policy.mttr_fail_minutes,
-            "metrics_stale_warn_hours": policy.metrics_stale_warn_hours,
-            "metrics_stale_fail_hours": policy.metrics_stale_fail_hours,
-        },
+        "maximum_open_incidents": policy.maximum_open_incidents,
+        "require_chatops": policy.require_chatops,
+        "mtta_warn_minutes": policy.mtta_warn_minutes,
+        "mtta_fail_minutes": policy.mtta_fail_minutes,
+        "mttr_warn_minutes": policy.mttr_warn_minutes,
+        "mttr_fail_minutes": policy.mttr_fail_minutes,
+        "metrics_stale_warn_hours": policy.metrics_stale_warn_hours,
+        "metrics_stale_fail_hours": policy.metrics_stale_fail_hours,
+        "require_major_incident_history": policy.require_major_incident_history,
+        "major_incident_review_interval_days": policy.major_incident_review_interval_days,
+        "major_incident_fail_multiplier": policy.major_incident_fail_multiplier,
+    },
         "postmortem_backlog_hours": backlog if backlog is not None else 0.0,
         "primary_responders": list(state.primary_oncall),
         "secondary_responders": list(state.secondary_oncall),

@@ -27,6 +27,13 @@ fields:
   surfaces degraded dimensions/metrics with detector reasons, attaches the
   shared runbook path, and feeds WARN/FAIL counts plus rich issue details into
   the readiness metadata and alert contexts.【F:src/operations/operational_readiness.py†L83-L347】【F:src/operations/drift_sentry.py†L1-L279】
+- `evaluate_operational_readiness_gate` – derives blocking and warning
+  decisions from the aggregated snapshot, consolidating component failures,
+  warn thresholds, and issue counts while exposing blocking reasons,
+  per-component issue detail, and gating metadata for dashboards and alerting
+  policies. The alert helpers can emit a dedicated gate event by passing
+  `include_gate_event=True`, surfacing the same guardrail payload operators use
+  to approve deployments.【F:src/operations/operational_readiness.py†L349-L520】【F:tests/operations/test_operational_readiness.py†L320-L389】
 - `incident_response.reliability_metrics` – captures MTTA/MTTR samples,
   acknowledgement/resolution counts, and metric staleness so dashboards and
   alert policies can grade acknowledgement/resolution cadence without recomputing
@@ -91,6 +98,11 @@ without re-parsing Markdown.【F:src/operations/incident_response.py†L242-L354
 contexts and tags category names onto issue events, enabling routing policies to
 escalate missing runbooks or postmortem backlogs via dedicated channels under
 pytest coverage.【F:tests/operations/test_incident_response.py†L132-L167】
+- Major incident review metadata adds `major_incident_review` issues when policy
+  requires recorded postmortems; snapshots record last-review age, configured
+  intervals, and fail thresholds so responders see why reliability is
+  degrading. Gate evaluations and alert contexts inherit the detail through the
+  issue catalog, ensuring stale postmortems block releases when configured.【F:src/operations/incident_response.py†L420-L550】【F:tests/operations/test_incident_response.py†L208-L270】
 
 ## Feeder snapshots
 

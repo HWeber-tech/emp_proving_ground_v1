@@ -61,6 +61,7 @@ from src.operations.operational_readiness import (
     OperationalReadinessStatus,
     derive_operational_alerts,
     evaluate_operational_readiness,
+    evaluate_operational_readiness_gate,
     publish_operational_readiness_snapshot,
     route_operational_readiness_alerts,
 )
@@ -370,13 +371,18 @@ def test_route_operational_readiness_alerts_dispatches_events() -> None:
         manager,
         readiness,
         base_tags=("ops",),
+        include_gate_event=True,
     )
 
-    assert len(results) == 2
+    assert len(results) == 3
     assert all(isinstance(result, AlertDispatchResult) for result in results)
-    assert len(recording.events) == 2
+    assert len(recording.events) == 3
     categories = {event.category for event in recording.events}
-    assert categories == {"operational.readiness", "operational.system_validation"}
+    assert categories == {
+        "operational.readiness",
+        "operational.system_validation",
+        "operational.readiness.gate",
+    }
     for event in recording.events:
         assert event.tags[0] == "ops"
 
@@ -417,3 +423,61 @@ def test_publish_operational_readiness_snapshot_raises_unexpected(
     assert exc_info.value.stage == "runtime"
     assert not runtime_bus.events
     assert not global_bus.events
+
+
+def test_operational_readiness_gate_blocks_fail_components() -> None:
+    readiness = evaluate_operational_readiness(
+        incident_response=_incident_response_snapshot(IncidentResponseStatus.fail)
+    )
+
+    gate = evaluate_operational_readiness_gate(readiness)
+
+    assert gate.should_block is True
+    assert any("incident_response" in reason for reason in gate.blocking_reasons)
+    assert gate.status is OperationalReadinessStatus.fail
+
+
+def test_operational_readiness_gate_warn_components() -> None:
+    readiness = evaluate_operational_readiness(
+        system_validation=_system_validation_snapshot(SystemValidationStatus.warn)
+    )
+
+    gate = evaluate_operational_readiness_gate(
+        readiness,
+        block_on_warn=False,
+        warn_components=(),
+        max_warn_components=1,
+    )
+
+    assert gate.should_block is False
+    assert gate.status is OperationalReadinessStatus.warn
+    assert gate.warnings
+
+    blocking_gate = evaluate_operational_readiness_gate(
+        readiness,
+        block_on_warn=True,
+        warn_components=("system_validation",),
+        max_warn_components=0,
+    )
+
+    assert blocking_gate.should_block is True
+    assert any("system_validation" in reason for reason in blocking_gate.blocking_reasons)
+
+
+def test_operational_readiness_alerts_include_gate_event() -> None:
+    readiness = evaluate_operational_readiness(
+        system_validation=_system_validation_snapshot(SystemValidationStatus.warn)
+    )
+    gate = evaluate_operational_readiness_gate(readiness, block_on_warn=True)
+
+    events = derive_operational_alerts(
+        readiness,
+        include_gate_event=True,
+        gate_result=gate,
+    )
+
+    categories = {event.category for event in events}
+    assert "operational.readiness.gate" in categories
+    gate_event = next(event for event in events if event.category == "operational.readiness.gate")
+    assert gate_event.context["gate"]["should_block"] is True
+    assert gate_event.severity is AlertSeverity.warning

@@ -53,6 +53,8 @@ def test_evaluate_incident_response_ok() -> None:
         postmortem_sla_hours=24.0,
         maximum_open_incidents=2,
         require_chatops=True,
+        require_major_incident_history=True,
+        major_incident_review_interval_days=180,
     )
     state = IncidentResponseState(
         available_runbooks=("redis_outage", "kafka_lag", "fix_restart"),
@@ -63,6 +65,7 @@ def test_evaluate_incident_response_ok() -> None:
         open_incidents=tuple(),
         postmortem_backlog_hours=8.0,
         chatops_ready=True,
+        last_major_incident_age_days=45.0,
     )
 
     now = datetime(2025, 2, 1, tzinfo=UTC)
@@ -135,6 +138,9 @@ def test_incident_response_mapping_parsing() -> None:
         "INCIDENT_POSTMORTEM_SLA_HOURS": "18",
         "INCIDENT_POSTMORTEM_BACKLOG_HOURS": "8",
         "INCIDENT_REQUIRE_CHATOPS": "false",
+        "INCIDENT_REQUIRE_MAJOR_HISTORY": "true",
+        "INCIDENT_MAJOR_REVIEW_INTERVAL_DAYS": "200",
+        "INCIDENT_MAJOR_REVIEW_FAIL_MULTIPLIER": "1.5",
     }
 
     policy = IncidentResponsePolicy.from_mapping(mapping)
@@ -145,6 +151,9 @@ def test_incident_response_mapping_parsing() -> None:
     assert state.available_runbooks == ("redis_outage",)
     assert state.training_age_days == 25.0
     assert state.chatops_ready is False
+    assert policy.require_major_incident_history is True
+    assert policy.major_incident_review_interval_days == 200
+    assert policy.major_incident_fail_multiplier == 1.5
 
 
 def test_publish_incident_response_snapshot() -> None:
@@ -192,6 +201,78 @@ def test_publish_incident_response_snapshot_raises_on_failover_error() -> None:
     ):
         with pytest.raises(EventPublishError):
             publish_incident_response_snapshot(_StubEventBus(), snapshot)
+
+
+def test_incident_response_major_incident_review_escalation() -> None:
+    policy = IncidentResponsePolicy(
+        required_runbooks=("redis_outage",),
+        training_interval_days=30,
+        drill_interval_days=30,
+        minimum_primary_responders=1,
+        minimum_secondary_responders=0,
+        postmortem_sla_hours=48.0,
+        maximum_open_incidents=2,
+        require_chatops=False,
+        require_major_incident_history=True,
+        major_incident_review_interval_days=120,
+        major_incident_fail_multiplier=1.5,
+    )
+    state = IncidentResponseState(
+        available_runbooks=("redis_outage",),
+        training_age_days=10.0,
+        drill_age_days=12.0,
+        primary_oncall=("alice",),
+        secondary_oncall=tuple(),
+        open_incidents=tuple(),
+        postmortem_backlog_hours=2.0,
+        chatops_ready=False,
+        last_major_incident_age_days=500.0,
+    )
+
+    snapshot = evaluate_incident_response(policy, state, service="emp")
+
+    assert snapshot.status is IncidentResponseStatus.fail
+    assert any("Major incident review overdue" in issue for issue in snapshot.issues)
+    details = snapshot.metadata.get("issue_details")
+    assert details is not None
+    review_entries = [entry for entry in details if entry["category"] == "major_incident_review"]  # type: ignore[index]
+    assert review_entries
+    review_detail = review_entries[0]
+    assert review_detail["severity"] == "fail"
+    assert review_detail["detail"]["fail_threshold_days"] == pytest.approx(180.0)
+
+
+def test_incident_response_major_incident_review_missing_history_warn() -> None:
+    policy = IncidentResponsePolicy(
+        required_runbooks=tuple(),
+        training_interval_days=10,
+        drill_interval_days=10,
+        minimum_primary_responders=0,
+        minimum_secondary_responders=0,
+        postmortem_sla_hours=12.0,
+        maximum_open_incidents=0,
+        require_chatops=False,
+        require_major_incident_history=True,
+        major_incident_review_interval_days=90,
+    )
+    state = IncidentResponseState(
+        available_runbooks=tuple(),
+        training_age_days=5.0,
+        drill_age_days=6.0,
+        primary_oncall=tuple(),
+        secondary_oncall=tuple(),
+        open_incidents=tuple(),
+        postmortem_backlog_hours=None,
+        chatops_ready=False,
+        last_major_incident_age_days=None,
+    )
+
+    snapshot = evaluate_incident_response(policy, state, service="emp")
+
+    assert snapshot.status is IncidentResponseStatus.warn
+    assert any("No major incident review" in issue for issue in snapshot.issues)
+    category_severity = snapshot.metadata.get("issue_category_severity")
+    assert category_severity and category_severity["major_incident_review"] == "warn"
 
 
 def test_incident_response_alert_generation_from_snapshot() -> None:

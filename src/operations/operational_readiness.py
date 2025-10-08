@@ -151,6 +151,27 @@ class OperationalReadinessSnapshot:
         return "\n".join(lines)
 
 
+@dataclass(frozen=True)
+class OperationalReadinessGateResult:
+    """Gate decision for aggregated operational readiness telemetry."""
+
+    status: OperationalReadinessStatus
+    should_block: bool
+    blocking_reasons: tuple[str, ...]
+    warnings: tuple[str, ...] = field(default_factory=tuple)
+    metadata: Mapping[str, object] = field(default_factory=dict)
+
+    def as_dict(self) -> dict[str, object]:
+        payload: dict[str, object] = {
+            "status": self.status.value,
+            "should_block": self.should_block,
+            "blocking_reasons": list(self.blocking_reasons),
+            "warnings": list(self.warnings),
+        }
+        if self.metadata:
+            payload["metadata"] = dict(self.metadata)
+        return payload
+
 def _system_validation_component(
     snapshot: SystemValidationSnapshot,
 ) -> OperationalReadinessComponent:
@@ -446,6 +467,169 @@ def evaluate_operational_readiness(
     )
 
 
+def evaluate_operational_readiness_gate(
+    snapshot: OperationalReadinessSnapshot,
+    *,
+    block_on_warn: bool = False,
+    fail_components: Sequence[str] = ("system_validation", "incident_response"),
+    warn_components: Sequence[str] = (),
+    max_fail_components: int | None = 0,
+    max_warn_components: int | None = None,
+    extra_metadata: Mapping[str, object] | None = None,
+) -> OperationalReadinessGateResult:
+    """Assess whether the aggregated readiness posture should block deployments."""
+
+    component_lookup: dict[str, OperationalReadinessComponent] = {
+        component.name: component for component in snapshot.components
+    }
+    component_statuses: dict[str, OperationalReadinessStatus] = {
+        name: component.status for name, component in component_lookup.items()
+    }
+    component_summaries: dict[str, str] = {
+        name: component.summary for name, component in component_lookup.items()
+    }
+
+    metadata = snapshot.metadata if isinstance(snapshot.metadata, Mapping) else {}
+    status_metadata = metadata.get("component_statuses") if isinstance(metadata, Mapping) else None
+    if isinstance(status_metadata, Mapping):
+        for name, status_value in status_metadata.items():
+            if name in component_statuses:
+                continue
+            try:
+                component_statuses[name] = OperationalReadinessStatus(str(status_value))
+            except ValueError:
+                continue
+            summary_catalog = metadata.get("component_issue_details")
+            summary_text = ""
+            if isinstance(summary_catalog, Mapping):
+                detail = summary_catalog.get(name)
+                if isinstance(detail, Mapping):
+                    summary_text = str(detail.get("summary") or detail.get("headline") or "")
+            component_summaries[name] = summary_text
+
+    fail_component_keys = {name.lower() for name in fail_components}
+    warn_component_keys = {name.lower() for name in warn_components}
+
+    issue_details = metadata.get("component_issue_details")
+    issue_details_map: dict[str, Mapping[str, object]] = {}
+    if isinstance(issue_details, Mapping):
+        for name, detail in issue_details.items():
+            if isinstance(detail, Mapping):
+                issue_details_map[name] = detail
+
+    def _component_reason(name: str) -> str:
+        status = component_statuses.get(name, snapshot.status)
+        summary = component_summaries.get(name)
+        detail = issue_details_map.get(name)
+        headline = None
+        if isinstance(detail, Mapping):
+            headline = detail.get("summary") or detail.get("headline")
+            if headline:
+                headline = str(headline)
+        base = f"{name} status {status.value}"
+        chosen_summary = headline or summary
+        if chosen_summary:
+            base += f": {chosen_summary}"
+        return base
+
+    gate_status = snapshot.status
+    blocking_reasons: list[str] = []
+    warnings: list[str] = []
+
+    if snapshot.status is OperationalReadinessStatus.fail:
+        blocking_reasons.append("Operational readiness status is FAIL")
+        gate_status = OperationalReadinessStatus.fail
+    elif snapshot.status is OperationalReadinessStatus.warn:
+        reason = "Operational readiness status is WARN"
+        if block_on_warn:
+            blocking_reasons.append(reason + " and block_on_warn is enabled")
+        else:
+            warnings.append(reason)
+        gate_status = _escalate(gate_status, OperationalReadinessStatus.warn)
+
+    failing_components = [
+        name
+        for name, status in component_statuses.items()
+        if status is OperationalReadinessStatus.fail
+    ]
+    warning_components = [
+        name
+        for name, status in component_statuses.items()
+        if status is OperationalReadinessStatus.warn
+    ]
+
+    for name in failing_components:
+        if not fail_component_keys or name.lower() in fail_component_keys:
+            blocking_reasons.append(_component_reason(name))
+            gate_status = OperationalReadinessStatus.fail
+
+    for name in warning_components:
+        reason_text = _component_reason(name)
+        if name.lower() in warn_component_keys or block_on_warn:
+            blocking_reasons.append(reason_text)
+        else:
+            warnings.append(reason_text)
+        gate_status = _escalate(gate_status, OperationalReadinessStatus.warn)
+
+    if max_fail_components is not None and len(failing_components) > max_fail_components:
+        blocking_reasons.append(
+            f"{len(failing_components)} components failing exceeds limit {max_fail_components}"
+        )
+        gate_status = OperationalReadinessStatus.fail
+
+    if max_warn_components is not None and len(warning_components) > max_warn_components:
+        message = (
+            f"{len(warning_components)} components warning exceeds limit {max_warn_components}"
+        )
+        if block_on_warn:
+            blocking_reasons.append(message)
+        else:
+            warnings.append(message)
+        gate_status = _escalate(gate_status, OperationalReadinessStatus.warn)
+
+    issue_counts = metadata.get("issue_counts") if isinstance(metadata, Mapping) else None
+    if isinstance(issue_counts, Mapping) and not blocking_reasons:
+        fail_count = int(issue_counts.get("fail", 0))
+        if fail_count > 0:
+            blocking_reasons.append(
+                f"Aggregated issue count reports {fail_count} failing entries"
+            )
+            gate_status = OperationalReadinessStatus.fail
+
+    gate_metadata: dict[str, object] = {
+        "block_on_warn": block_on_warn,
+        "fail_components": tuple(fail_components),
+        "warn_components": tuple(warn_components),
+        "max_fail_components": max_fail_components,
+        "max_warn_components": max_warn_components,
+        "component_statuses": {
+            name: status.value for name, status in component_statuses.items()
+        },
+    }
+    if warning_components:
+        gate_metadata["warning_components"] = tuple(warning_components)
+    if failing_components:
+        gate_metadata["failing_components"] = tuple(failing_components)
+    if issue_counts is not None:
+        gate_metadata["issue_counts"] = dict(issue_counts)
+    if issue_details_map:
+        gate_metadata["component_issue_details"] = {
+            name: dict(detail) for name, detail in issue_details_map.items()
+        }
+    if extra_metadata:
+        gate_metadata.update(dict(extra_metadata))
+
+    should_block = bool(blocking_reasons)
+
+    return OperationalReadinessGateResult(
+        status=gate_status,
+        should_block=should_block,
+        blocking_reasons=tuple(dict.fromkeys(blocking_reasons)),
+        warnings=tuple(dict.fromkeys(warnings)),
+        metadata=gate_metadata,
+    )
+
+
 def format_operational_readiness_markdown(
     snapshot: OperationalReadinessSnapshot,
 ) -> str:
@@ -467,6 +651,8 @@ def derive_operational_alerts(
     threshold: OperationalReadinessStatus = OperationalReadinessStatus.warn,
     include_overall: bool = True,
     base_tags: Sequence[str] = ("operational-readiness",),
+    include_gate_event: bool = False,
+    gate_result: OperationalReadinessGateResult | None = None,
 ) -> list[AlertEvent]:
     """Translate the readiness snapshot into alert events for routing policies."""
 
@@ -504,6 +690,30 @@ def derive_operational_alerts(
             )
         )
 
+    if include_gate_event:
+        evaluated_gate = gate_result
+        if evaluated_gate is None:
+            evaluated_gate = evaluate_operational_readiness_gate(snapshot)
+        if evaluated_gate is not None and _should_alert(evaluated_gate.status, threshold):
+            if evaluated_gate.blocking_reasons:
+                headline = "; ".join(evaluated_gate.blocking_reasons[:2])
+            elif evaluated_gate.warnings:
+                headline = "; ".join(evaluated_gate.warnings[:2])
+            else:
+                headline = "no additional context"
+            events.append(
+                AlertEvent(
+                    category="operational.readiness.gate",
+                    severity=severity_map[evaluated_gate.status],
+                    message=f"Operational readiness gate {evaluated_gate.status.value}: {headline}",
+                    tags=base_tag_tuple + ("gate",),
+                    context={
+                        "snapshot": snapshot.as_dict(),
+                        "gate": evaluated_gate.as_dict(),
+                    },
+                )
+            )
+
     return events
 
 
@@ -514,6 +724,8 @@ def route_operational_readiness_alerts(
     threshold: OperationalReadinessStatus = OperationalReadinessStatus.warn,
     include_overall: bool = True,
     base_tags: Sequence[str] = ("operational-readiness",),
+    include_gate_event: bool = False,
+    gate_result: OperationalReadinessGateResult | None = None,
 ) -> list[AlertDispatchResult]:
     """Dispatch operational readiness alerts through an :class:`AlertManager`."""
 
@@ -522,6 +734,8 @@ def route_operational_readiness_alerts(
         threshold=threshold,
         include_overall=include_overall,
         base_tags=base_tags,
+        include_gate_event=include_gate_event,
+        gate_result=gate_result,
     )
     results: list[AlertDispatchResult] = []
     for event in events:
@@ -569,8 +783,10 @@ __all__ = [
     "OperationalReadinessComponent",
     "OperationalReadinessSnapshot",
     "OperationalReadinessStatus",
+    "OperationalReadinessGateResult",
     "derive_operational_alerts",
     "evaluate_operational_readiness",
+    "evaluate_operational_readiness_gate",
     "format_operational_readiness_markdown",
     "publish_operational_readiness_snapshot",
     "route_operational_readiness_alerts",

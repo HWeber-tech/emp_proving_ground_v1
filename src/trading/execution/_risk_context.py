@@ -67,10 +67,20 @@ def describe_risk_context(
     }
 
     if isinstance(metadata, Mapping) and metadata:
-        payload["metadata"] = dict(metadata)
+        metadata_payload = dict(metadata)
+        payload["metadata"] = metadata_payload
+        runbook = metadata_payload.get("runbook")
+        if isinstance(runbook, str) and runbook:
+            payload["runbook"] = runbook
+            payload["risk_api_runbook"] = runbook
 
     if isinstance(error, Mapping) and error:
-        payload["error"] = dict(error)
+        error_payload = dict(error)
+        payload["error"] = error_payload
+        runbook = error_payload.get("runbook")
+        if isinstance(runbook, str) and runbook:
+            payload["runbook"] = runbook
+            payload["risk_api_runbook"] = runbook
 
     return payload
 

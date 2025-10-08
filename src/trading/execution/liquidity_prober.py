@@ -53,7 +53,7 @@ class LiquidityProber:
         self.broker = broker_interface
         self.config = config or {}
         self._task_supervisor = task_supervisor
-        self._risk_context_provider = risk_context_provider
+        self._risk_context_provider: RiskContextProvider | None = risk_context_provider
 
         self._last_risk_metadata: dict[str, object] | None = None
         self._last_risk_error: dict[str, object] | None = None

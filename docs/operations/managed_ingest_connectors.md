@@ -32,6 +32,9 @@ consumer bridge.
   incident reviews or context packs.
 - `--connectivity --timeout 2.0` – evaluate connector health with jitter-aware
   probes, mirroring the supervised scheduler contract used in production.
+- `--ensure-topics`/`--topics-dry-run` – ensure Kafka ingest topics exist (or
+  dry-run the provisioning step) using the same provisioner that runtime
+  deployments rely on, returning the broker responses alongside the manifest.【F:tools/operations/managed_ingest_connectors.py†L92-L104】【F:tools/operations/managed_ingest_connectors.py†L293-L393】
 
 The CLI leans on `plan_managed_manifest()` so the manifest and the runtime
 provisioner share the same metadata contract.  When connectivity checks are
@@ -39,3 +42,8 @@ requested the tool instantiates the provisioner with a `TaskSupervisor`, using
 an in-memory Redis client and the Kafka bridge stubs already covered by the
 runtime guardrails.  As a result the evidence produced by the CLI matches what
 operators see once the ingest slice is promoted.
+
+Pair the connector report with the `tools.operations.institutional_ingest_readiness`
+CLI when you need a single artefact that combines the manifest, optional
+connectivity probes, and a failover drill snapshot for audits or promotion
+reviews.【F:tools/operations/institutional_ingest_readiness.py†L1-L246】【F:tests/tools/test_institutional_ingest_readiness_cli.py†L30-L95】

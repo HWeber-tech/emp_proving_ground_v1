@@ -112,7 +112,7 @@
   consumer group defaults plus configured topics and counts, and expose
   asynchronous `connectivity_report()` probes with timeout-aware error formatting
   so the managed-ingest CLI and readiness dashboards inherit the same health
-  annotations and failure reasons under refreshed pytest coverage.【F:src/data_foundation/ingest/institutional_vertical.py†L132-L420】【F:tools/operations/managed_ingest_connectors.py†L200-L259】【F:tests/data_foundation/test_institutional_vertical.py†L309-L351】【F:tests/tools/test_managed_ingest_connectors.py†L30-L77】
+  annotations and failure reasons under refreshed pytest coverage.【F:src/data_foundation/ingest/institutional_vertical.py†L132-L420】【F:tools/operations/managed_ingest_connectors.py†L200-L284】【F:tests/data_foundation/test_institutional_vertical.py†L309-L351】【F:tests/tools/test_managed_ingest_connectors.py†L30-L77】
 - Progress: Institutional ingest services now surface Redis cache metrics in
   runtime summaries and managed manifests, recording namespace, hit, and miss
   telemetry while guarding best-effort collection so operators can audit cache
@@ -149,10 +149,12 @@
 - Stand up managed Timescale, Redis, and Kafka environments in staging, including
   schema migrations, connection pooling, and credential rotation procedures.
 - Progress: A docker compose stack and dotenv template now provision local
-  Timescale/Redis/Kafka services with matching `SystemConfig` extras, and the
-  managed connector CLI accepts an `--env-file` flag so operators can validate
-  connectivity against the stack without exporting secrets globally; operations
-  docs capture the workflow alongside failover drill guidance.【F:docker/institutional-ingest/docker-compose.yml†L1-L67】【F:env_templates/institutional_ingest.env†L1-L24】【F:tools/operations/managed_ingest_connectors.py†L20-L159】【F:docs/operations/managed_ingest_environment.md†L1-L73】
+  Timescale/Redis/Kafka services with matching `SystemConfig` extras, the
+  managed connector CLI loads dotenv overrides, injects extras, provisions Kafka
+  topics, and emits Markdown/JSON manifests, and the paired readiness CLI wraps
+  connectivity probes with optional failover drills so operators capture a
+  single artefact for promotion reviews; the operations quickstart documents the
+  workflow end-to-end.【F:docker/institutional-ingest/docker-compose.yml†L1-L67】【F:env_templates/institutional_ingest.env†L1-L24】【F:tools/operations/managed_ingest_connectors.py†L47-L416】【F:tools/operations/institutional_ingest_readiness.py†L1-L246】【F:tests/tools/test_institutional_ingest_readiness_cli.py†L30-L95】【F:docs/operations/managed_ingest_environment.md†L40-L100】
 - Implement cache health, ingest quality, and Kafka lag probes with pytest
   coverage and CI export.
 - Replace deprecated configuration imports in ingest and runtime modules with

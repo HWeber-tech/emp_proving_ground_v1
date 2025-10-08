@@ -58,13 +58,18 @@ kit that the roadmap calls back to in each checklist.
     policy overrides, parsing TTL, capacity, namespace, and invalidation
     prefixes into the resolved config, runtime summary, and managed manifest so
     operators can tune hot datasets without code patches under guardrail tests
-    that exercise supervised caches and CLI manifests.【F:src/data_foundation/ingest/configuration.py†L738-L942】【F:src/data_foundation/ingest/production_slice.py†L34-L120】【F:tests/data_foundation/test_timescale_config.py†L130-L150】【F:tests/runtime/test_institutional_ingest_vertical.py†L120-L205】【F:tools/operations/managed_ingest_connectors.py†L147-L194】
+    that exercise supervised caches and CLI manifests.【F:src/data_foundation/ingest/configuration.py†L738-L942】【F:src/data_foundation/ingest/production_slice.py†L34-L120】【F:tests/data_foundation/test_timescale_config.py†L130-L150】【F:tests/runtime/test_institutional_ingest_vertical.py†L120-L205】【F:tools/operations/managed_ingest_connectors.py†L347-L384】
   - *Progress*: Institutional ingest config now persists Redis connection
     settings, publishes whether the cache is configured, and threads the
     resolved client through provisioners and managed CLI tooling so manifests,
     connectivity drills, and production runs inherit dotenv overrides without
     bespoke wiring, with pytest guarding metadata and scheduler reuse of the
-    shared settings.【F:src/data_foundation/ingest/configuration.py†L728-L909】【F:src/data_foundation/ingest/institutional_vertical.py†L522-L611】【F:tests/data_foundation/test_timescale_config.py†L150-L171】【F:tests/runtime/test_institutional_ingest_vertical.py†L80-L140】【F:tools/operations/managed_ingest_connectors.py†L198-L226】【F:tools/operations/run_production_ingest.py†L255-L318】
+    shared settings.【F:src/data_foundation/ingest/configuration.py†L728-L909】【F:src/data_foundation/ingest/institutional_vertical.py†L522-L611】【F:tests/data_foundation/test_timescale_config.py†L150-L171】【F:tests/runtime/test_institutional_ingest_vertical.py†L80-L140】【F:tools/operations/managed_ingest_connectors.py†L142-L166】【F:tools/operations/managed_ingest_connectors.py†L340-L393】【F:tools/operations/run_production_ingest.py†L255-L318】
+  - *Progress*: Managed ingest tooling now loads dotenv templates, injects
+    overrides, provisions Kafka topics, and emits Markdown/JSON manifests, while
+    the readiness CLI combines the managed connector report, optional
+    connectivity probes, and failover drills so reviews receive a single
+    artefact under pytest coverage and the new operations quickstart.【F:tools/operations/managed_ingest_connectors.py†L47-L416】【F:tools/operations/institutional_ingest_readiness.py†L1-L246】【F:tests/tools/test_institutional_ingest_readiness_cli.py†L30-L95】【F:docs/operations/managed_ingest_environment.md†L40-L100】
   - *Progress*: Redis cache helpers now parse typed connection settings, TTL/capacity
     overrides, and invalidate prefixes while exposing a managed wrapper that tracks
     hits, misses, expirations, and evictions so ingest and trading services share a
@@ -810,7 +815,7 @@ kit that the roadmap calls back to in each checklist.
   - *Progress*: Managed connector snapshots now capture probe error text and the
     CLI resolves `SystemConfig` extras before rendering manifest/connectivity
     health so operators inherit actionable failure reasons when institutional
-    pipelines degrade, under pytest coverage for the vertical and CLI surfaces.【F:src/data_foundation/ingest/institutional_vertical.py†L305-L370】【F:src/data_foundation/ingest/institutional_vertical.py†L662-L698】【F:tools/operations/managed_ingest_connectors.py†L200-L259】【F:tests/data_foundation/test_institutional_vertical.py†L94-L104】【F:tests/tools/test_managed_ingest_connectors.py†L10-L77】
+    pipelines degrade, under pytest coverage for the vertical and CLI surfaces.【F:src/data_foundation/ingest/institutional_vertical.py†L305-L370】【F:src/data_foundation/ingest/institutional_vertical.py†L662-L698】【F:tools/operations/managed_ingest_connectors.py†L200-L284】【F:tests/data_foundation/test_institutional_vertical.py†L94-L104】【F:tests/tools/test_managed_ingest_connectors.py†L33-L121】
   - *Progress*: Managed services now expose Redis cache metrics alongside policy
     metadata, promoting namespace/hit/miss telemetry into runtime summaries and
     manifest snapshots so operators can confirm cache effectiveness under new
@@ -820,7 +825,7 @@ kit that the roadmap calls back to in each checklist.
     managed connector CLI accepts `--env-file` and Kafka topic provisioning
     flags, and operations docs walk through validation and failover drills so
     teams can rehearse institutional ingest locally under regression coverage of
-    the CLI helpers.【F:docker/institutional-ingest/docker-compose.yml†L1-L83】【F:env_templates/institutional_ingest.env†L4-L31】【F:tools/operations/managed_ingest_connectors.py†L45-L326】【F:tests/tools/test_managed_ingest_connectors.py†L83-L142】【F:docs/operations/managed_ingest_environment.md†L1-L76】
+    the CLI helpers.【F:docker/institutional-ingest/docker-compose.yml†L1-L83】【F:env_templates/institutional_ingest.env†L4-L31】【F:tools/operations/managed_ingest_connectors.py†L47-L416】【F:tests/tools/test_managed_ingest_connectors.py†L83-L144】【F:docs/operations/managed_ingest_environment.md†L1-L100】
 - [x] **Sensory cortex uplift** – Deliver executable HOW/ANOMALY organs, instrument
   drift telemetry, and expose metrics through runtime summaries and the event
   bus.
@@ -977,10 +982,13 @@ kit that the roadmap calls back to in each checklist.
   guarding warn/fail paths.【F:src/operations/system_validation.py†L583-L746】【F:tests/operations/test_system_validation.py†L360-L432】
 - [ ] **Dead-code eradication** – Batch-delete unused modules flagged by the cleanup
   report and tighten import guards to prevent shims from resurfacing.【F:docs/reports/CLEANUP_REPORT.md†L71-L188】
-  - *Progress*: Dead-code tracker CLI now parses the cleanup report, highlights
-    live shim exports, flags missing candidates, and emits text/JSON summaries
-    so platform hygiene reviews can prioritise deletions and wire guardrails
-    without manually scraping Markdown lists.【F:tools/cleanup/dead_code_tracker.py†L1-L145】【F:tests/tools/test_dead_code_tracker.py†L1-L42】
+  - *Progress*: Dead-code tracker CLI now classifies every candidate, surfaces
+    shim redirects, emits per-status breakdowns, and underpins the new triage
+    snapshot so hygiene reviews target active modules, shims, or removed files
+    without scraping Markdown.【F:tools/cleanup/dead_code_tracker.py†L59-L223】【F:tests/tools/test_dead_code_tracker.py†L1-L147】【F:docs/status/dead_code_triage_status.md†L1-L35】
+  - *Progress*: The ≥80% vulture sweep now reports zero unused symbols after
+    annotating unused protocol/context-manager parameters and dropping redundant
+    ingest arguments, with refreshed audit artefacts recorded for evidence.【F:docs/reports/dead_code_audit.md†L1-L20】【F:docs/reports/deadcode.txt†L1-L4】【F:src/core/risk.py†L40-L63】【F:src/runtime/predator_app.py†L325-L335】【F:src/operational/metrics_registry.py†L66-L86】【F:src/data_foundation/streaming/kafka_stream.py†L421-L429】【F:src/data_foundation/persist/timescale.py†L2375-L2407】
   - *Progress*: Removed the legacy `src.intelligence.adversarial_training` shim
     and retargeted the intelligence facade to load the canonical
     `thinking.adversarial` implementations directly, shrinking the cleanup

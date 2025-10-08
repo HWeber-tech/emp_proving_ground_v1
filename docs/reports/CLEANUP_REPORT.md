@@ -321,7 +321,8 @@ Canonicalization
 - SpecializedPredatorEvolution → [src/ecosystem/evolution/specialized_predator_evolution.py](src/ecosystem/evolution/specialized_predator_evolution.py)
 
 Shims (intelligence + thinking layers)
-- Intelligence re-exports canonical: [src/intelligence/specialized_predators.py](src/intelligence/specialized_predators.py)
+- Intelligence shim removed; the package facade now resolves the ecosystem
+  implementation directly and legacy module imports fail under tests.【F:src/intelligence/__init__.py†L35-L175】【F:tests/current/test_public_api_intelligence.py†L69-L87】
 - Thinking re-exports canonical: [src/thinking/ecosystem/specialized_predator_evolution.py](src/thinking/ecosystem/specialized_predator_evolution.py)
 
 Notes
@@ -345,7 +346,8 @@ Canonical
 
 Shims
 - [src/thinking/prediction/predictive_modeler.py](src/thinking/prediction/predictive_modeler.py) — re-exports canonical classes, no local bodies
-- [src/intelligence/predictive_modeling.py](src/intelligence/predictive_modeling.py) — re-exports the three classes; unrelated logic retained
+- Legacy intelligence shim removed; package facade resolves canonical exports
+  and direct module imports fail in regression tests.【F:src/intelligence/__init__.py†L35-L175】【F:tests/current/test_public_api_intelligence.py†L52-L87】
 
 Verification (scanner)
 - Command: python scripts/cleanup/duplicate_map.py --root src --out docs/reports --min-count 2
@@ -453,10 +455,9 @@ Canonicalization
   - AlgorithmFingerprinter, BehaviorAnalyzer, CounterStrategyDeveloper, CompetitiveIntelligenceSystem from [competitive_intelligence_system.py](src/thinking/competitive/competitive_intelligence_system.py:1)
 
 Shims and rewires
-- Intelligence module updated to consume canonical classes:
-  - Imports added in [src/intelligence/competitive_intelligence.py](src/intelligence/competitive_intelligence.py:29)
-  - Legacy class bodies retained only as Legacy variants (no behavior changes), e.g., AlgorithmFingerprinterLegacy starting at [class AlgorithmFingerprinterLegacy()](src/intelligence/competitive_intelligence.py:80) and BehaviorAnalyzerLegacy at [class BehaviorAnalyzerLegacy()](src/intelligence/competitive_intelligence.py:263)
-  - CounterStrategyDeveloperLegacy and CompetitiveIntelligenceSystemLegacy preserved for transitional compatibility while new imports are used
+- Legacy intelligence module removed; callers resolve the canonical thinking
+  competitive intelligence system via the package facade and direct module
+  imports now fail in regression tests.【F:src/intelligence/__init__.py†L35-L175】【F:tests/current/test_public_api_intelligence.py†L52-L87】
 
 Verification (scanner)
 - Command: python [duplicate_map.py](scripts/cleanup/duplicate_map.py:1) --root src --out docs/reports --min-count 2
@@ -479,11 +480,11 @@ Canonicalization
   - [class ConfidenceCalibrator()](src/thinking/prediction/predictive_market_modeler.py:311)
 
 Shims and rewires
-- Intelligence now imports canonical implementations:
-  - [src/intelligence/predictive_modeling.py](src/intelligence/predictive_modeling.py:55)
-  - [src/intelligence/predictive_modeling.py](src/intelligence/predictive_modeling.py:232)
+- Intelligence shim removed; the package facade now resolves the canonical
+  predictive modeling implementation directly and legacy module imports fail in
+  regression tests.【F:src/intelligence/__init__.py†L35-L175】【F:tests/current/test_public_api_intelligence.py†L52-L87】
 - Notes:
-  - Removed local class bodies from intelligence; re-exports now point to canonical engines
+  - Legacy module deleted; no residual re-export remains.
 
 Verification (scanner)
 - Command: python [duplicate_map.py](scripts/cleanup/duplicate_map.py:1) --root src --out docs/reports --min-count 2
@@ -542,7 +543,10 @@ Canonicalization
     - WhatDimension from [src/sensory/organs/dimensions/pattern_engine.py](src/sensory/organs/dimensions/pattern_engine.py) (fallback shim if unavailable)
     - WhenDimension (optional re-export, with fallback shim if missing)
 - Competitive Intelligence
-  - MarketShareTracker: canonicalized by import from thinking; [src/intelligence/competitive_intelligence.py](src/intelligence/competitive_intelligence.py) now imports [MarketShareTracker](src/thinking/competitive/competitive_intelligence_system.py) and the local legacy body is retired to MarketShareTrackerLegacy.
+  - MarketShareTracker: canonicalized via the package facade; the legacy
+    `src.intelligence.competitive_intelligence` module was deleted and callers
+    resolve the thinking implementation directly through the intelligence lazy
+    loader under regression coverage.【F:src/intelligence/__init__.py†L35-L175】【F:tests/current/test_public_api_intelligence.py†L52-L87】
 
 Verification (scanner)
 - Command: python [duplicate_map.py](scripts/cleanup/duplicate_map.py:1) --root src --out docs/reports --min-count 2
@@ -570,9 +574,8 @@ Notes
 
 Highlights in the final stretch
 - Red Team AI family unified:
-  - Intelligence layer re-exports canonical classes from thinking:
-    [red_team_ai.py](src/intelligence/red_team_ai.py)
-    → [red_team_ai.py](src/thinking/adversarial/red_team_ai.py)
+  - Legacy intelligence module removed; the package facade resolves the thinking
+    adversarial implementation and direct module imports now raise under tests.【F:src/intelligence/__init__.py†L35-L175】【F:tests/current/test_public_api_intelligence.py†L52-L87】
 - MarketRegime single source of truth:
   - [regime_classifier.py](src/thinking/patterns/regime_classifier.py) now imports from
     [base_organ.py](src/sensory/organs/dimensions/base_organ.py)

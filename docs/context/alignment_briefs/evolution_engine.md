@@ -32,9 +32,10 @@
 
 - Document existing stubs, remove unused imports, and align module exports to
   prepare for incremental implementation.【F:docs/reports/CLEANUP_REPORT.md†L71-L175】
-- Progress: Intelligence package now routes the `SpecializedPredatorEvolution`
-  export to the canonical ecosystem module so legacy imports resolve the single
-  source of truth while cleanup shims remain thin under lazy-loader coverage.【F:src/intelligence/__init__.py†L35-L110】【F:src/intelligence/specialized_predators.py†L1-L82】
+- Progress: Intelligence package now drops the deprecated `specialized_predators`
+  shim entirely while the lazy loader in the package root continues to expose the
+  canonical ecosystem exports; direct module imports now raise deterministically
+  under regression coverage so callers move to the supported surface.【F:src/intelligence/__init__.py†L35-L175】【F:tests/current/test_public_api_intelligence.py†L52-L87】
 - Define telemetry contracts for population health, lineage snapshots, and
   experiment metadata; add placeholder tests to lock schemas.
 - Progress: Portfolio evolution now logs optional dependency outages, falls back

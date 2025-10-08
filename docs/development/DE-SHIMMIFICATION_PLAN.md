@@ -258,11 +258,10 @@ Guardrails in the tool:
        - trading.models, src.trading.models
        - sensory.models, src.sensory.models
        - core.sensory_organ, src.core.sensory_organ
-       - intelligence.red_team_ai, src.intelligence.red_team_ai
        - phase2d_integration_validator, src.phase2d_integration_validator
        - thinking.sentient_adaptation_engine, src.thinking.sentient_adaptation_engine
      - Example command (Linux CI):
-       - git grep -nE "from (operational|src\.operational)\.event_bus|from (trading|src\.trading)\.models(?!\.position)|from (sensory|src\.sensory)\.models|from (core|src\.core)\.sensory_organ|from (intelligence|src\.intelligence)\.red_team_ai|from (phase2d_integration_validator|src\.phase2d_integration_validator)|from (thinking|src\.thinking)\.sentient_adaptation_engine" -- 'src/**/*.py' ':!src/core/sensory_organ.py' ':!src/phase2d_integration_validator.py' ':!src/intelligence/red_team_ai.py' ':!src/performance/__init__.py' ':!src/trading/models.py' ':!src/sensory/models/__init__.py'
+       - git grep -nE "from (operational|src\.operational)\.event_bus|from (trading|src\.trading)\.models(?!\.position)|from (sensory|src\.sensory)\.models|from (core|src\.core)\.sensory_organ|from (phase2d_integration_validator|src\.phase2d_integration_validator)|from (thinking|src\.thinking)\.sentient_adaptation_engine" -- 'src/**/*.py' ':!src/core/sensory_organ.py' ':!src/phase2d_integration_validator.py' ':!src/performance/__init__.py' ':!src/trading/models.py' ':!src/sensory/models/__init__.py'
        - Fail CI if any matches are found.
   2) Lightweight static check (recommended for Windows/Linux parity):
      - Implement a small Python checker (proposed path): scripts/cleanup/check_legacy_imports.py

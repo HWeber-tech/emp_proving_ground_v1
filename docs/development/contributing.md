@@ -70,7 +70,7 @@ Typing standards
   - TypedDict/dataclasses for payloads
   - numpy.typing.NDArray for arrays (under TYPE_CHECKING)
 - Keep heavy third-party imports localized at call sites and/or behind TYPE_CHECKING
-  - Example patterns in [src/intelligence/competitive_intelligence.py](../../../src/intelligence/competitive_intelligence.py:1)
+  - Example patterns in [src/thinking/competitive/competitive_intelligence_system.py](../../../src/thinking/competitive/competitive_intelligence_system.py:1)
 
 Local stubs policy
 - Stubs live under stubs/ and are sourced by mypy via mypy_path:

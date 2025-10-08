@@ -153,7 +153,7 @@ Phase 1 scope — families and decisions
 - Observed in:
   - [src/thinking/prediction/predictive_market_modeler.py](src/thinking/prediction/predictive_market_modeler.py)
   - [src/thinking/prediction/predictive_modeler.py](src/thinking/prediction/predictive_modeler.py)
-  - [src/intelligence/predictive_modeling.py](src/intelligence/predictive_modeling.py)
+  - ~~[src/intelligence/predictive_modeling.py](src/intelligence/predictive_modeling.py)~~ (deleted; package facade forwards directly to the thinking module)
 - Canonical: thinking prediction package
   - [src/thinking/prediction/predictive_market_modeler.py](src/thinking/prediction/predictive_market_modeler.py)
   - Optional: move MarketScenario(+Generator) to [src/simulation/market/](src/simulation/market/) in Phase 2 to separate data generation from modeling.
@@ -174,7 +174,7 @@ Phase 1 scope — families and decisions
   - [src/ecosystem/coordination/coordination_engine.py](src/ecosystem/coordination/coordination_engine.py)
   - [src/ecosystem/optimization/ecosystem_optimizer.py](src/ecosystem/optimization/ecosystem_optimizer.py)
   - [src/ecosystem/evolution/specialized_predator_evolution.py](src/ecosystem/evolution/specialized_predator_evolution.py)
-  - Duplicates mirrored under [src/thinking/ecosystem/](src/thinking/ecosystem/) and [src/intelligence/specialized_predators.py](src/intelligence/specialized_predators.py)
+  - Duplicates mirrored under [src/thinking/ecosystem/](src/thinking/ecosystem/) (intelligence shim removed; package facade now proxies the canonical exports)
 - Canonical:
   - [src/ecosystem/coordination/coordination_engine.py](src/ecosystem/coordination/coordination_engine.py)
   - [src/ecosystem/optimization/ecosystem_optimizer.py](src/ecosystem/optimization/ecosystem_optimizer.py)

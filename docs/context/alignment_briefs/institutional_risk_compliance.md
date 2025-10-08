@@ -53,7 +53,7 @@
 - Progress: Policy telemetry builders serialise decision snapshots, emit Markdown
   summaries, and publish violation alerts with embedded escalation metadata while
   the trading manager mirrors the feed and the new runbook documents the response,
-  giving governance a deterministic alert surface when violations occur.【F:src/trading/risk/policy_telemetry.py†L1-L285】【F:src/trading/trading_manager.py†L920-L991】【F:docs/operations/runbooks/risk_policy_violation.md†L1-L51】【F:tests/trading/test_risk_policy_telemetry.py†L1-L199】
+  giving governance a deterministic alert surface when violations occur.【F:src/trading/risk/policy_telemetry.py†L1-L285】【F:src/trading/trading_manager.py†L1700-L1744】【F:docs/operations/runbooks/risk_policy_violation.md†L1-L51】【F:tests/trading/test_risk_policy_telemetry.py†L1-L199】
 - Progress: Risk gateway decisions now cache risk API summaries, embed
   runbook-backed `risk_reference` payloads on approvals and rejections, and
   publish the same enriched metadata through broker events so responders inherit
@@ -70,7 +70,7 @@
 - Progress: Execution adapters now rely on a shared risk-context helper so paper
   fills, release routing, and trading manager snapshots ingest the canonical
   `build_runtime_risk_metadata` output—and surface runbook-tagged errors—under
-  regression coverage that checks provider propagation and describe surfaces.【F:src/trading/execution/_risk_context.py†L1-L75】【F:src/trading/execution/paper_execution.py†L1-L108】【F:src/trading/execution/release_router.py†L1-L154】【F:src/trading/trading_manager.py†L1028-L1332】【F:tests/trading/test_execution_risk_context.py†L38-L165】
+  regression coverage that checks provider propagation and describe surfaces.【F:src/trading/execution/_risk_context.py†L1-L75】【F:src/trading/execution/paper_execution.py†L1-L108】【F:src/trading/execution/release_router.py†L1-L154】【F:src/trading/trading_manager.py†L1255-L1409】【F:tests/trading/test_execution_risk_context.py†L38-L165】
 - Progress: Parity checker telemetry now wraps gauge publication in defensive
   logging, recording order and position mismatches even when the metrics sink
   misbehaves so compliance dashboards surface reconciliation issues instead of
@@ -95,31 +95,31 @@
   resolution and surface the shared `RISK_API_RUNBOOK`, while the trading manager
   now merges gateway limits, runtime summaries, and cached decisions into
   `risk_reference` payloads exposed by `get_risk_status()` so supervisors and docs
-  consume a single hardened contract under pytest coverage.【F:src/trading/risk/risk_api.py†L1-L158】【F:src/runtime/runtime_builder.py†L323-L353】【F:src/trading/trading_manager.py†L815-L903】【F:tests/trading/test_risk_api.py†L90-L152】【F:tests/trading/test_trading_manager_execution.py†L1228-L1239】【F:tests/runtime/test_runtime_builder.py†L200-L234】
+  consume a single hardened contract under pytest coverage.【F:src/trading/risk/risk_api.py†L1-L158】【F:src/runtime/runtime_builder.py†L323-L353】【F:src/trading/trading_manager.py†L1255-L1343】【F:tests/trading/test_risk_api.py†L90-L152】【F:tests/trading/test_trading_manager_execution.py†L1501-L1566】【F:tests/runtime/test_runtime_builder.py†L200-L234】
 - Progress: Trading risk interface telemetry helpers now publish structured
   snapshots and contract-violation alerts with Markdown summaries, update the
   trading manager’s cached posture via `describe_risk_interface()`, and ensure
   bootstrap control center, runtime status, and FIX pilot snapshots embed the
   shared runbook so governance receives actionable evidence when the interface
-  degrades under pytest coverage.【F:src/trading/risk/risk_interface_telemetry.py†L1-L156】【F:src/trading/trading_manager.py†L905-L968】【F:src/operations/bootstrap_control_center.py†L99-L350】【F:src/runtime/bootstrap_runtime.py†L210-L334】【F:src/runtime/fix_pilot.py†L22-L318】【F:tests/trading/test_trading_manager_execution.py†L1157-L1240】【F:tests/current/test_bootstrap_control_center.py†L151-L180】【F:tests/runtime/test_fix_pilot.py†L115-L178】
-- Progress: Release-aware execution router now installs across bootstrap runtime,
-  control centre, and Predator summaries whenever a policy ledger is present,
+  degrades under pytest coverage.【F:src/trading/risk/risk_interface_telemetry.py†L1-L156】【F:src/trading/trading_manager.py†L1370-L1409】【F:src/operations/bootstrap_control_center.py†L99-L350】【F:src/runtime/bootstrap_runtime.py†L210-L334】【F:src/runtime/fix_pilot.py†L22-L318】【F:tests/trading/test_trading_manager_execution.py†L1309-L1541】【F:tests/current/test_bootstrap_control_center.py†L151-L180】【F:tests/runtime/test_fix_pilot.py†L115-L178】
+- Progress: Release-aware execution router now auto-installs across bootstrap
+  runtime, control centre, and Predator summaries via the trading manager,
   exposing default stages, engine routing, and forced overrides so compliance
-  reviewers inherit audited execution posture under pytest coverage.【F:src/runtime/bootstrap_runtime.py†L190-L238】【F:src/operations/bootstrap_control_center.py†L341-L359】【F:src/runtime/predator_app.py†L1001-L1141】【F:src/trading/trading_manager.py†L1028-L1079】【F:tests/current/test_bootstrap_runtime_integration.py†L238-L268】【F:tests/trading/test_trading_manager_execution.py†L496-L567】
+  reviewers inherit audited execution posture under pytest coverage.【F:src/runtime/bootstrap_runtime.py†L214-L492】【F:src/operations/bootstrap_control_center.py†L341-L359】【F:src/runtime/predator_app.py†L1001-L1141】【F:src/trading/trading_manager.py†L140-L267】【F:src/trading/trading_manager.py†L1158-L1230】【F:tests/current/test_bootstrap_runtime_integration.py†L238-L268】【F:tests/trading/test_trading_manager_execution.py†L775-L914】
 - Progress: Trading manager release posture now includes the last routed
   execution decision from the release-aware router, capturing forced paper
   routes, drift severity, and audit metadata so dashboards and audits inherit
-  the exact enforcement evidence under regression coverage.【F:src/trading/trading_manager.py†L1067-L1107】【F:src/trading/execution/release_router.py†L98-L154】【F:tests/trading/test_execution_risk_context.py†L119-L165】
+  the exact enforcement evidence under regression coverage.【F:src/trading/trading_manager.py†L1068-L1134】【F:src/trading/execution/release_router.py†L98-L154】【F:tests/trading/test_execution_risk_context.py†L119-L165】【F:tests/trading/test_trading_manager_execution.py†L874-L999】
 - Progress: Release-aware execution router now inspects policy-ledger audit
   posture, merges DriftSentry overrides with audit enforcement, and records the
   forced-reason history plus audit metadata so compliance snapshots explain why
-  routes were downgraded to paper under new guardrail coverage.【F:src/trading/execution/release_router.py†L39-L214】【F:src/trading/execution/release_router.py†L260-L332】【F:src/trading/trading_manager.py†L700-L880】【F:tests/trading/test_release_execution_router.py†L1-L240】【F:tests/trading/test_trading_manager_execution.py†L886-L1030】
+  routes were downgraded to paper under new guardrail coverage.【F:src/trading/execution/release_router.py†L39-L214】【F:src/trading/execution/release_router.py†L260-L332】【F:src/trading/trading_manager.py†L420-L620】【F:tests/trading/test_release_execution_router.py†L1-L240】【F:tests/trading/test_trading_manager_execution.py†L951-L1038】
 - Progress: Drift gate telemetry now publishes structured event-bus payloads and
   Markdown summaries covering severity, forced-paper posture, and routing
   metadata whenever gating decisions fire, and release routing mirrors those
   events with forced-route and audit context so compliance dashboards inherit a
   complete enforcement trail under pytest coverage for the trading manager and
-  telemetry helpers.【F:src/trading/gating/telemetry.py†L1-L199】【F:src/trading/trading_manager.py†L360-L552】【F:src/trading/trading_manager.py†L829-L900】【F:tests/trading/test_drift_gate_telemetry.py†L10-L159】【F:tests/trading/test_trading_manager_execution.py†L1079-L1098】
+  telemetry helpers.【F:src/trading/gating/telemetry.py†L1-L199】【F:src/trading/trading_manager.py†L360-L612】【F:src/trading/trading_manager.py†L863-L935】【F:tests/trading/test_drift_gate_telemetry.py†L10-L159】【F:tests/trading/test_trading_manager_execution.py†L775-L914】
 
 - Progress: Mock FIX manager coercion helpers now reject non-ASCII payloads,
   guard order-book adapters that raise exceptions, and keep deterministic
@@ -174,7 +174,7 @@
   - Progress: Trading manager now merges gateway limit snapshots, resolved risk
     metadata, and runtime summaries into deterministic `risk_reference`
     payloads while surfacing shared runbooks so telemetry, dashboards, and
-    audits inherit the same risk configuration under pytest coverage.【F:src/trading/trading_manager.py†L786-L939】【F:src/trading/risk/risk_gateway.py†L396-L429】【F:tests/trading/test_trading_manager_execution.py†L1125-L1171】【F:tests/current/test_risk_gateway_validation.py†L391-L460】
+    audits inherit the same risk configuration under pytest coverage.【F:src/trading/trading_manager.py†L1255-L1744】【F:src/trading/risk/risk_gateway.py†L396-L429】【F:tests/trading/test_trading_manager_execution.py†L1309-L1566】【F:tests/current/test_risk_gateway_validation.py†L391-L460】
 - Progress: Governance cadence runner now persists the last generated timestamp,
   injects strategy and metadata providers, backfills cadence defaults, and wires
   audit/persist/publish hooks so the compliance squad can enforce interval
@@ -202,7 +202,7 @@
   - Progress: Policy ledger release manager records promotions, approvals, and
     adaptive thresholds while the trading manager/runtime builder publish the
     staged governance workflow so release gating and compliance readiness share
-    the same evidence trail under pytest coverage.【F:src/governance/policy_ledger.py†L1-L405】【F:src/trading/trading_manager.py†L640-L764】【F:src/runtime/runtime_builder.py†L2920-L2987】【F:tests/trading/test_trading_manager_execution.py†L430-L512】
+    the same evidence trail under pytest coverage.【F:src/governance/policy_ledger.py†L1-L405】【F:src/trading/trading_manager.py†L1094-L1157】【F:src/runtime/runtime_builder.py†L2920-L2987】【F:tests/trading/test_trading_manager_execution.py†L874-L949】
 - Complete runtime builder adoption so FIX pilots, simulators, and eventual live
   bridges share the same supervised entrypoint.【F:docs/technical_debt_assessment.md†L33-L56】
 

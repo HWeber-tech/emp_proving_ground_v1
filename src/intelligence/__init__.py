@@ -43,7 +43,7 @@ _LAZY_EXPORTS: dict[str, str] = {
     "MarketGAN": "src.thinking.adversarial.market_gan:MarketGAN",
     "AdversarialTrainer": "src.thinking.adversarial.adversarial_trainer:AdversarialTrainer",
     "RedTeamAI": "src.thinking.adversarial.red_team_ai:RedTeamAI",
-    "SpecializedPredatorEvolution": "src.intelligence.specialized_predators:SpecializedPredatorEvolution",
+    "SpecializedPredatorEvolution": "src.ecosystem.evolution.specialized_predator_evolution:SpecializedPredatorEvolution",
     "CompetitiveIntelligenceSystem": (
         "src.thinking.competitive.competitive_intelligence_system:CompetitiveIntelligenceSystem"
     ),

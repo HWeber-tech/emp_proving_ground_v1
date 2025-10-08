@@ -99,6 +99,15 @@ class DummyFixInitiator:
         self.messages.append(message)
 
 
+class _StubRiskManager:
+    def __init__(self) -> None:
+        self._risk_config = RiskConfig(
+            max_risk_per_trade_pct=Decimal("0.02"),
+            max_total_exposure_pct=Decimal("0.40"),
+            mandatory_stop_loss=True,
+        )
+
+
 @pytest.mark.asyncio
 async def test_fix_interface_emits_structured_order_events() -> None:
     trade_queue: asyncio.Queue[Any] = asyncio.Queue()
@@ -318,3 +327,60 @@ async def test_fix_interface_uses_risk_gateway_adjustments() -> None:
     policy_snapshot = order_record.get("policy_snapshot")
     assert policy_snapshot is not None
     assert policy_snapshot.get("approved") is True
+
+
+@pytest.mark.asyncio
+async def test_fix_interface_captures_risk_context_metadata() -> None:
+    bus = DummyEventBus()
+    trade_queue: asyncio.Queue[Any] = asyncio.Queue()
+    fix = DummyFixInitiator()
+    manager = _StubRiskManager()
+
+    broker = FIXBrokerInterface(
+        bus,
+        trade_queue,
+        fix,
+        risk_context_provider=lambda: manager,
+    )
+
+    order_id = await broker.place_market_order("EURUSD", "buy", 5_000.0)
+
+    assert order_id is not None
+    context = broker.describe_risk_context()
+    assert context["runbook"].endswith("risk_api_contract.md")
+    metadata = context.get("metadata")
+    assert metadata is not None
+    assert metadata["max_risk_per_trade_pct"] == pytest.approx(0.02)
+
+    order_record = broker.get_order_status(order_id)
+    assert order_record is not None
+    risk_context = order_record.get("risk_context")
+    assert risk_context is not None
+    assert risk_context["metadata"]["max_total_exposure_pct"] == pytest.approx(0.40)
+
+
+@pytest.mark.asyncio
+async def test_fix_interface_includes_risk_context_on_rejection() -> None:
+    bus = DummyEventBus()
+    trade_queue: asyncio.Queue[Any] = asyncio.Queue()
+    risk_gateway = DummyRiskGateway(approve=False)
+    manager = _StubRiskManager()
+
+    broker = FIXBrokerInterface(
+        bus,
+        trade_queue,
+        DummyFixInitiator(),
+        risk_gateway=risk_gateway,
+        portfolio_state_provider=lambda symbol: {"symbol": symbol},
+        risk_context_provider=lambda: manager,
+    )
+
+    order_id = await broker.place_market_order("EURUSD", "buy", 10_000.0)
+
+    assert order_id is None
+    assert bus.emitted
+    _, payload = bus.emitted[-1]
+    risk_context = payload.get("risk_context")
+    assert risk_context is not None
+    assert risk_context["runbook"].endswith("risk_api_contract.md")
+    assert risk_context.get("metadata", {}).get("max_total_exposure_pct") == pytest.approx(0.40)

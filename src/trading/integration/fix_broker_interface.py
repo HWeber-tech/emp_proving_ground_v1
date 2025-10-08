@@ -26,6 +26,11 @@ from typing import (
 import simplefix
 
 from src.operational.structured_logging import get_logger, order_logging_context
+from src.trading.execution._risk_context import (
+    RiskContextProvider,
+    capture_risk_context,
+    describe_risk_context,
+)
 from src.trading.risk.risk_api import (
     RISK_API_RUNBOOK,
     TradingRiskInterface,
@@ -87,6 +92,7 @@ class FIXBrokerInterface:
         portfolio_state_provider: Callable[[str], Mapping[str, Any]] | None = None,
         risk_event_topic: str = "telemetry.risk.intent_rejected",
         risk_interface_provider: Callable[[], Any] | None = None,
+        risk_context_provider: RiskContextProvider | None = None,
     ) -> None:
         """
         Initialize FIX broker interface.
@@ -111,6 +117,11 @@ class FIXBrokerInterface:
         self._risk_interface_provider: Callable[[], Any] | None = None
         if risk_interface_provider is not None:
             self.set_risk_interface_provider(risk_interface_provider)
+        self._risk_context_provider: RiskContextProvider | None = None
+        self._last_risk_metadata: dict[str, object] | None = None
+        self._last_risk_error: dict[str, object] | None = None
+        if risk_context_provider is not None:
+            self.set_risk_context_provider(risk_context_provider)
 
     async def start(self) -> None:
         """Start the broker interface."""
@@ -134,6 +145,26 @@ class FIXBrokerInterface:
         if provider is not None and not callable(provider):
             raise TypeError("risk interface provider must be callable or None")
         self._risk_interface_provider = provider
+
+    def set_risk_context_provider(self, provider: RiskContextProvider | None) -> None:
+        """Install or clear the callable used to capture deterministic risk metadata."""
+
+        if provider is not None and not callable(provider):
+            raise TypeError("risk context provider must be callable or None")
+        self._risk_context_provider = provider
+
+    def _capture_risk_context(self) -> None:
+        metadata, error = capture_risk_context(self._risk_context_provider)
+        self._last_risk_metadata = metadata
+        self._last_risk_error = error
+
+    def _risk_context_available(self) -> bool:
+        return bool(self._last_risk_metadata) or bool(self._last_risk_error)
+
+    def describe_risk_context(self) -> dict[str, object]:
+        """Expose the most recently captured deterministic risk context snapshot."""
+
+        return describe_risk_context(self._last_risk_metadata, self._last_risk_error)
 
     async def stop(self) -> None:
         """Stop the broker interface."""
@@ -244,6 +275,8 @@ class FIXBrokerInterface:
         if not self.event_bus or not hasattr(self.event_bus, "emit"):
             return
 
+        self._capture_risk_context()
+
         reason = "risk_rejected"
         if isinstance(decision, Mapping):
             reason = str(decision.get("reason") or reason)
@@ -328,6 +361,9 @@ class FIXBrokerInterface:
                 *reference_candidates,
                 runbook=RISK_API_RUNBOOK,
             )
+
+        if self._risk_context_available():
+            payload["risk_context"] = self.describe_risk_context()
 
         try:
             await self.event_bus.emit(self._risk_event_topic, payload)
@@ -581,6 +617,7 @@ class FIXBrokerInterface:
             Order ID if successful, None otherwise
         """
         try:
+            self._capture_risk_context()
             risk_gateway = self._risk_gateway
             portfolio_state: Mapping[str, Any] = {}
             if risk_gateway is not None:
@@ -669,6 +706,8 @@ class FIXBrokerInterface:
                                 logger.debug(
                                     "policy_snapshot_serialisation_failed", exc_info=True
                                 )
+                if self._risk_context_available():
+                    self.orders[order_id]["risk_context"] = self.describe_risk_context()
 
                 return order_id
         except Exception as e:

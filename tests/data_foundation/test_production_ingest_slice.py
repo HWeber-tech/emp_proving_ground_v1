@@ -324,5 +324,8 @@ async def test_production_slice_summary_reflects_custom_redis_policy() -> None:
         "namespace": "emp:test",
         "invalidate_prefixes": ["timescale:daily"],
     }
+    metrics_snapshot = services["redis_metrics"]
+    assert metrics_snapshot is not None
+    assert metrics_snapshot["namespace"] == "emp:test"
 
     await slice_runtime.stop()

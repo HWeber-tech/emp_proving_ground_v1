@@ -255,12 +255,17 @@ class InstitutionalIngestServices:
 
         redis_summary: str | None = None
         redis_backing: str | None = None
+        redis_metrics: Mapping[str, object] | None = None
         if self.redis_settings is not None and self.redis_settings.configured:
             redis_summary = self.redis_settings.summary(redacted=True)
         if self.redis_cache is not None:
             raw_client = getattr(self.redis_cache, "raw_client", None)
             if raw_client is not None:
                 redis_backing = raw_client.__class__.__name__
+            try:
+                redis_metrics = dict(self.redis_cache.metrics())
+            except Exception:  # pragma: no cover - metrics are best-effort
+                logger.debug("Failed to collect Redis cache metrics", exc_info=True)
 
         kafka_summary: str | None = None
         if self.kafka_settings is not None and self.kafka_settings.configured:
@@ -285,6 +290,7 @@ class InstitutionalIngestServices:
             "redis": redis_summary,
             "redis_backing": redis_backing,
             "redis_policy": _policy_metadata(self.redis_policy),
+            "redis_metrics": redis_metrics,
             "kafka": kafka_summary,
             "kafka_topics": list(self.kafka_consumer.topics)
             if self.kafka_consumer is not None
@@ -575,6 +581,14 @@ def _build_managed_manifest(
             redis_backing = raw_client.__class__.__name__
 
     redis_policy_metadata = _policy_metadata(redis_policy)
+    redis_metrics: Mapping[str, object] | None = None
+    if redis_cache is not None:
+        try:
+            redis_metrics = dict(redis_cache.metrics())
+        except Exception:  # pragma: no cover - metrics retrieval is best-effort
+            logger.debug(
+                "Failed to collect Redis cache metrics for manifest", exc_info=True
+            )
 
     kafka_topics_list: list[str] = []
     if kafka_topics is not None:
@@ -609,6 +623,7 @@ def _build_managed_manifest(
             "summary": redis_summary,
             "backing": redis_backing,
             "policy": redis_policy_metadata,
+            "metrics": redis_metrics,
         },
     )
 

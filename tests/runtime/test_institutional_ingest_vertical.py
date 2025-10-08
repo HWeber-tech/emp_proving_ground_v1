@@ -139,6 +139,11 @@ async def test_provisioned_services_supervise_components() -> None:
     await asyncio.sleep(0.1)
     assert run_calls
 
+    assert services.redis_cache is not None
+    services.redis_cache.set("timescale:daily:EURUSD", {"price": 1.1})
+    services.redis_cache.get("timescale:daily:EURUSD")
+    services.redis_cache.get("timescale:daily:GBPUSD")
+
     await services.stop()
     assert supervisor.active_count == 0
     assert not services.scheduler.running
@@ -149,12 +154,18 @@ async def test_provisioned_services_supervise_components() -> None:
     assert summary["redis_policy"] == _EXPECTED_POLICY_METADATA
     assert summary["kafka_topics"] == ["telemetry.ingest"]
     assert summary["kafka_metadata"]["timescale_dimensions"] == []
+    redis_metrics = summary["redis_metrics"]
+    assert redis_metrics is not None
+    assert redis_metrics["namespace"] == "emp:cache"
+    assert redis_metrics["hits"] == 1
+    assert redis_metrics["misses"] == 1
     manifest = summary["managed_manifest"]
     assert {entry["name"] for entry in manifest} == {"timescale", "redis", "kafka"}
     for entry in manifest:
         if entry["name"] == "redis" and entry["metadata"]["summary"]:
             assert "***" in entry["metadata"]["summary"]
             assert entry["metadata"]["policy"] == _EXPECTED_POLICY_METADATA
+            assert entry["metadata"]["metrics"] == redis_metrics
 
 
 def test_provision_respects_custom_redis_policy() -> None:
@@ -194,6 +205,9 @@ def test_provision_respects_custom_redis_policy() -> None:
         "namespace": "emp:custom",
         "invalidate_prefixes": ["timescale:daily"],
     }
+    metrics_snapshot = summary["redis_metrics"]
+    assert metrics_snapshot is not None
+    assert metrics_snapshot["namespace"] == "emp:custom"
 
 
 def test_provision_configures_redis_when_factory_missing(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -263,6 +277,7 @@ def test_summary_includes_failover_metadata() -> None:
         "run_fallback": True,
     }
     assert services.summary()["redis_policy"] is not None
+    assert services.summary()["redis_metrics"] is None
 
 
 @pytest.mark.asyncio
@@ -295,6 +310,7 @@ async def test_provision_skips_optional_connectors_when_unconfigured() -> None:
     assert summary["redis"] is None
     assert summary["kafka"] is None
     assert summary["redis_policy"] == _EXPECTED_POLICY_METADATA
+    assert summary["redis_metrics"] is None
 
 
 @pytest.mark.asyncio
@@ -337,6 +353,7 @@ async def test_connectivity_report_uses_optional_probes() -> None:
     assert manifest["redis"].healthy is False
     assert manifest["kafka"].healthy is None
     assert manifest["redis"].metadata["policy"] == _EXPECTED_POLICY_METADATA
+    assert "metrics" in manifest["redis"].metadata
     assert probes_called == {"timescale": True, "redis": True}
 
     await services.stop()
@@ -373,6 +390,7 @@ async def test_connectivity_report_defaults_use_managed_probes(tmp_path) -> None
     assert manifest["redis"].healthy is True
     assert manifest["kafka"].healthy is True
     assert manifest["redis"].metadata["policy"] == _EXPECTED_POLICY_METADATA
+    assert "metrics" in manifest["redis"].metadata
 
     await services.stop()
 
@@ -403,6 +421,7 @@ def test_manifest_snapshot_structure() -> None:
     assert "dimensions" in timescale_snapshot.metadata
     redis_snapshot = next(snap for snap in snapshots if snap.name == "redis")
     assert redis_snapshot.metadata["policy"] == _EXPECTED_POLICY_METADATA
+    assert "metrics" in redis_snapshot.metadata
 
 
 def test_plan_managed_manifest_uses_configuration() -> None:
@@ -431,6 +450,7 @@ def test_plan_managed_manifest_uses_configuration() -> None:
     assert set(kafka_metadata["topics"]) == {"telemetry.ingest", "telemetry.drills"}
     assert kafka_metadata["consumer_topics_configured"] is True
     assert snapshots["redis"].metadata["policy"] == _EXPECTED_POLICY_METADATA
+    assert "metrics" in snapshots["redis"].metadata
 
 
 def test_plan_managed_manifest_adds_default_topic_when_missing() -> None:
@@ -442,3 +462,4 @@ def test_plan_managed_manifest_adds_default_topic_when_missing() -> None:
     assert kafka_metadata["consumer_topics_configured"] is True
     redis_metadata = next(snapshot for snapshot in manifest if snapshot.name == "redis").metadata
     assert redis_metadata["policy"] == _EXPECTED_POLICY_METADATA
+    assert "metrics" in redis_metadata

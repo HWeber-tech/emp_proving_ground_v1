@@ -68,6 +68,11 @@ from src.operations.roi import (
 )
 from src.operations.sensory_drift import SensoryDriftSnapshot
 from src.trading.execution.release_router import ReleaseAwareExecutionRouter
+from src.trading.execution.trade_throttle import (
+    TradeThrottle,
+    TradeThrottleConfig,
+    TradeThrottleDecision,
+)
 from src.trading.execution.paper_broker_adapter import PaperBrokerExecutionAdapter
 from src.trading.gating import (
     DriftGateEvent,
@@ -141,6 +146,7 @@ class TradingManager:
         release_manager: LedgerReleaseManager | None = None,
         pilot_execution_engine: Any | None = None,
         live_execution_engine: Any | None = None,
+        trade_throttle: TradeThrottleConfig | Mapping[str, object] | None = None,
     ) -> None:
         """
         Initialize the TradingManager with risk management components.
@@ -154,6 +160,7 @@ class TradingManager:
             max_open_positions: Maximum allowed open positions
             max_daily_drawdown: Maximum daily drawdown percentage
             task_supervisor: Optional supervisor for execution helpers (e.g. probes)
+            trade_throttle: Optional configuration limiting trade frequency
         """
         self.event_bus = event_bus
         self.strategy_registry = strategy_registry
@@ -246,8 +253,15 @@ class TradingManager:
             "max_latency_ms": 0.0,
             "last_error": None,
             "last_execution_at": None,
+            "throttle_blocks": 0,
+            "throttle_retry_at": None,
         }
         self._experiment_events: deque[dict[str, Any]] = deque(maxlen=512)
+
+        self._trade_throttle: TradeThrottle | None = None
+        self._trade_throttle_snapshot: Mapping[str, Any] | None = None
+        if trade_throttle is not None:
+            self.configure_trade_throttle(trade_throttle)
 
         logger.info(
             f"TradingManager initialized with equity={initial_equity}, "
@@ -320,6 +334,92 @@ class TradingManager:
                 logger.debug("RiskManager.update_limits failed", exc_info=True)
 
         return self._risk_config
+
+    def configure_trade_throttle(
+        self,
+        config: TradeThrottleConfig | Mapping[str, object] | None,
+    ) -> None:
+        """Configure or disable the trade frequency throttle."""
+
+        if config is None:
+            self._trade_throttle = None
+            self._trade_throttle_snapshot = None
+            self._execution_stats.pop("trade_throttle", None)
+            self._execution_stats["throttle_retry_at"] = None
+            return
+
+        throttle_config = (
+            config
+            if isinstance(config, TradeThrottleConfig)
+            else TradeThrottleConfig.parse_obj(dict(config))
+        )
+        self._trade_throttle = TradeThrottle(throttle_config)
+        snapshot = self._trade_throttle.snapshot()
+        snapshot_dict = dict(snapshot)
+        metadata = snapshot_dict.get("metadata")
+        if isinstance(metadata, Mapping):
+            snapshot_dict["metadata"] = dict(metadata)
+        self._trade_throttle_snapshot = snapshot_dict
+        self._execution_stats["trade_throttle"] = snapshot_dict
+        self._execution_stats["throttle_blocks"] = coerce_int(
+            self._execution_stats.get("throttle_blocks"), default=0
+        )
+        retry_at = snapshot_dict.get("metadata")
+        if isinstance(retry_at, Mapping):
+            self._execution_stats["throttle_retry_at"] = retry_at.get("retry_at")
+        else:
+            self._execution_stats["throttle_retry_at"] = None
+
+    def _evaluate_trade_throttle(
+        self,
+        *,
+        strategy_id: str | None,
+        symbol: str | None,
+        confidence: float | None,
+        notional: float | None,
+    ) -> TradeThrottleDecision | None:
+        if self._trade_throttle is None:
+            return None
+
+        context: dict[str, Any] = {}
+        if strategy_id:
+            context["strategy_id"] = strategy_id
+        if symbol:
+            context["symbol"] = symbol
+        if confidence is not None:
+            context["confidence"] = float(confidence)
+        if notional is not None:
+            context["notional"] = float(notional)
+
+        decision = self._trade_throttle.evaluate(
+            now=datetime.now(tz=timezone.utc),
+            metadata=context or None,
+        )
+        snapshot = decision.as_dict()
+        metadata_payload = snapshot.get("metadata")
+        if isinstance(metadata_payload, Mapping):
+            snapshot["metadata"] = dict(metadata_payload)
+        self._trade_throttle_snapshot = snapshot
+        self._execution_stats["trade_throttle"] = snapshot
+        if decision.retry_at is not None:
+            retry_iso = decision.retry_at.astimezone(timezone.utc).isoformat()
+            self._execution_stats["throttle_retry_at"] = retry_iso
+            snapshot.setdefault("metadata", {}).setdefault("retry_at", retry_iso)
+        elif isinstance(snapshot.get("metadata"), Mapping):
+            self._execution_stats["throttle_retry_at"] = snapshot["metadata"].get(
+                "retry_at"
+            )
+        else:
+            self._execution_stats["throttle_retry_at"] = None
+
+        if not decision.allowed:
+            blocks = coerce_int(self._execution_stats.get("throttle_blocks"), default=0)
+            self._execution_stats["throttle_blocks"] = blocks + 1
+            self._execution_stats["last_throttle_at"] = datetime.now(
+                tz=timezone.utc
+            ).isoformat()
+
+        return decision
 
     async def on_trade_intent(self, event: TradeIntent) -> None:
         """
@@ -449,10 +549,62 @@ class TradingManager:
                 symbol = self._extract_symbol(validated_intent) or base_symbol
                 quantity = self._extract_quantity(validated_intent)
                 price = self._extract_price(validated_intent, portfolio_state)
-                cast(Any, self.portfolio_monitor).reserve_position(symbol, float(quantity), price)
+                confidence = self._extract_confidence(validated_intent)
+                if confidence is None:
+                    confidence = base_confidence
 
                 notional = abs(float(quantity)) * abs(float(price))
                 drift_notional_value = notional
+
+                throttle_decision = self._evaluate_trade_throttle(
+                    strategy_id=strategy_id,
+                    symbol=symbol,
+                    confidence=confidence,
+                    notional=notional,
+                )
+                if throttle_decision is not None and not throttle_decision.allowed:
+                    reason = throttle_decision.reason or "trade_throttle_active"
+                    throttle_snapshot = throttle_decision.as_dict()
+                    metadata_payload: dict[str, Any] = {
+                        "reason": reason,
+                        "throttle": throttle_snapshot,
+                    }
+                    if throttle_decision.retry_at is not None:
+                        metadata_payload["retry_at"] = throttle_decision.retry_at.astimezone(
+                            timezone.utc
+                        ).isoformat()
+                    if gate_decision_payload is not None:
+                        metadata_payload["drift_gate"] = dict(gate_decision_payload)
+                    self._record_experiment_event(
+                        event_id=event_id,
+                        status="throttled",
+                        strategy_id=strategy_id,
+                        symbol=symbol,
+                        confidence=confidence,
+                        notional=notional,
+                        metadata=metadata_payload,
+                        decision=self._get_last_risk_decision(),
+                    )
+                    logger.warning("Throttled trade intent %s: %s", event_id, reason)
+                    drift_event_status = "throttled"
+                    drift_confidence_value = confidence
+                    if gate_decision is not None and not drift_event_emitted:
+                        await self._publish_drift_gate_event(
+                            decision=gate_decision,
+                            event_id=event_id,
+                            status=drift_event_status,
+                            strategy_id=strategy_id,
+                            symbol=symbol,
+                            confidence=drift_confidence_value,
+                            notional=drift_notional_value,
+                            release_metadata=None,
+                        )
+                        drift_event_emitted = True
+                    return
+
+                cast(Any, self.portfolio_monitor).reserve_position(
+                    symbol, float(quantity), price
+                )
 
                 start = time.perf_counter()
                 current_submitted = coerce_int(
@@ -468,9 +620,6 @@ class TradingManager:
                     failure_metadata: dict[str, object] = {"error": str(exc)}
                     if notional:
                         failure_metadata["notional"] = float(notional)
-                    confidence = self._extract_confidence(validated_intent)
-                    if confidence is None:
-                        confidence = base_confidence
                     release_metadata = self._extract_release_execution_metadata(validated_intent)
                     if release_metadata:
                         failure_metadata["release_execution"] = release_metadata
@@ -510,9 +659,6 @@ class TradingManager:
                     latency_ms = (time.perf_counter() - start) * 1000.0
                     self._record_execution_success(latency_ms, result)
                     decision = self._get_last_risk_decision()
-                    confidence = self._extract_confidence(validated_intent)
-                    if confidence is None:
-                        confidence = base_confidence
                     if self._execution_stats.get("last_successful_order"):
                         if notional > 0:
                             self._roi_executed_trades += 1
@@ -1061,6 +1207,17 @@ class TradingManager:
         if fills is not None:
             stats["fills"] = fills
         return stats
+
+    def get_trade_throttle_snapshot(self) -> Mapping[str, Any] | None:
+        """Expose the most recent trade throttle posture."""
+
+        if self._trade_throttle_snapshot is None:
+            return None
+        snapshot = dict(self._trade_throttle_snapshot)
+        metadata = snapshot.get("metadata")
+        if isinstance(metadata, Mapping):
+            snapshot["metadata"] = dict(metadata)
+        return snapshot
 
     def get_experiment_events(self, limit: int | None = None) -> list[Mapping[str, Any]]:
         """Expose the recent paper-trading experiment events."""

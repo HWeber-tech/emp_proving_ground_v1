@@ -139,6 +139,32 @@ def ingest_topic_config_from_mapping(
     return topic_map, default_topic
 
 
+def _parse_topic_event_types(payload: Mapping[str, str]) -> dict[str, str]:
+    """Parse Kafka topic → event type overrides from configuration mappings."""
+
+    combined = payload.get("KAFKA_INGEST_CONSUMER_TOPIC_EVENT_TYPES")
+    if not combined:
+        return {}
+
+    resolved: dict[str, str] = {}
+    for entry in str(combined).split(","):
+        item = entry.strip()
+        if not item:
+            continue
+        if ":" in item:
+            topic, event_type = item.split(":", 1)
+        elif "=" in item:
+            topic, event_type = item.split("=", 1)
+        else:
+            continue
+        topic_name = topic.strip()
+        event_type_name = event_type.strip()
+        if not topic_name or not event_type_name:
+            continue
+        resolved[topic_name] = event_type_name
+    return resolved
+
+
 @dataclass(frozen=True)
 class KafkaTopicSpec:
     """Specification for Kafka topics that should exist for ingest streams."""
@@ -1696,6 +1722,7 @@ class KafkaIngestEventConsumer:
         topics: Sequence[str],
         event_bus: EventBus,
         event_type: str = "telemetry.ingest",
+        topic_event_types: Mapping[str, str] | None = None,
         source: str = "timescale_ingest.kafka",
         poll_timeout: float = 1.0,
         deserializer: Callable[[bytes | bytearray | str], Mapping[str, object]] | None = None,
@@ -1710,7 +1737,13 @@ class KafkaIngestEventConsumer:
         self._consumer = consumer
         self._topics = tuple(dict.fromkeys(topic for topic in topics if topic))
         self._event_bus = event_bus
-        self._event_type = event_type
+        default_event_type = event_type.strip() or "telemetry.ingest"
+        self._default_event_type = default_event_type
+        self._topic_event_types = {
+            str(topic): str(mapped_event)
+            for topic, mapped_event in (topic_event_types or {}).items()
+            if str(topic).strip() and str(mapped_event).strip()
+        }
         self._source = source
         self._poll_timeout = max(0.0, float(poll_timeout))
         self._deserializer = deserializer or _default_deserializer
@@ -1766,7 +1799,9 @@ class KafkaIngestEventConsumer:
 
     def summary(self) -> str:
         return (
-            f"KafkaIngestEventConsumer(topics={list(self._topics)}, event_type={self._event_type})"
+            "KafkaIngestEventConsumer("  # pragma: no cover - repr helper
+            f"topics={list(self._topics)}, "
+            f"event_type={self._default_event_type})"
         )
 
     def start(self) -> None:
@@ -1815,12 +1850,19 @@ class KafkaIngestEventConsumer:
                 "Kafka ingest consumer publish for %s skipped", event_type, exc_info=True
             )
 
-    def _publish(self, payload: Mapping[str, object]) -> None:
+    def _publish(self, event_type: str, payload: Mapping[str, object]) -> None:
         self._publish_event(
-            event_type=self._event_type,
+            event_type=event_type,
             payload=payload,
             source=self._source,
         )
+
+    def _resolve_event_type(self, topic: str | None) -> str:
+        if topic:
+            mapped = self._topic_event_types.get(topic)
+            if mapped:
+                return mapped
+        return self._default_event_type
 
     def _prepare_payload(
         self, payload: Mapping[str, object], message: KafkaMessageLike
@@ -1868,8 +1910,11 @@ class KafkaIngestEventConsumer:
             )
             return False
 
+        topic_fn = getattr(message, "topic", None)
+        topic = topic_fn() if callable(topic_fn) else None
+        event_type = self._resolve_event_type(topic)
         prepared = self._prepare_payload(payload, message)
-        self._publish(prepared)
+        self._publish(event_type, prepared)
         self._commit(message)
         self._maybe_publish_consumer_lag()
         return True
@@ -2050,6 +2095,11 @@ def create_ingest_event_consumer(
     event_type = event_type.strip()
     event_source = payload.get("KAFKA_INGEST_CONSUMER_EVENT_SOURCE") or "timescale_ingest.kafka"
     event_source = event_source.strip()
+    topic_event_types = {
+        topic: event
+        for topic, event in _parse_topic_event_types(payload).items()
+        if topic in topics
+    }
 
     if consumer_factory is None:
         try:
@@ -2084,6 +2134,7 @@ def create_ingest_event_consumer(
         topics=sorted(topics),
         event_bus=event_bus,
         event_type=event_type,
+        topic_event_types=topic_event_types or None,
         source=event_source,
         poll_timeout=poll_timeout,
         deserializer=deserializer,

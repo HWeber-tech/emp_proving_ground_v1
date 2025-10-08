@@ -155,7 +155,7 @@ class _FakeAdminClient:
     def create_topics(
         self,
         new_topics: Sequence[KafkaTopicSpec],
-        _request_timeout: float | None = None,
+        request_timeout: float | None = None,
     ) -> Mapping[str, _ImmediateFuture]:
         self.create_calls += 1
         futures: dict[str, _ImmediateFuture] = {}
@@ -627,6 +627,48 @@ def test_kafka_ingest_event_consumer_handles_errors(caplog) -> None:
     assert any("error" in message for message in caplog.messages)
 
 
+def test_kafka_ingest_event_consumer_topic_event_types_override() -> None:
+    class _RecordingBus:
+        def __init__(self) -> None:
+            self.events: list = []
+
+        def publish_from_sync(self, event) -> int:
+            self.events.append(event)
+            return 1
+
+        def is_running(self) -> bool:
+            return True
+
+    bus = _RecordingBus()
+    consumer = _FakeConsumer()
+    consumer.messages.append(
+        _FakeKafkaMessage(json.dumps({"result": {"dimension": "daily_bars"}}), topic="telemetry.ingest")
+    )
+    consumer.messages.append(
+        _FakeKafkaMessage(
+            json.dumps({"result": {"dimension": "daily_bars"}}),
+            topic="telemetry.ingest.metrics",
+        )
+    )
+
+    bridge = KafkaIngestEventConsumer(
+        consumer,
+        topics=["telemetry.ingest", "telemetry.ingest.metrics"],
+        event_bus=bus,
+        topic_event_types={"telemetry.ingest.metrics": "telemetry.ingest.metrics"},
+        poll_timeout=0.0,
+        idle_sleep=0.0,
+    )
+
+    bridge.poll_once()
+    bridge.poll_once()
+
+    assert [event.type for event in bus.events] == [
+        "telemetry.ingest",
+        "telemetry.ingest.metrics",
+    ]
+
+
 @pytest.mark.asyncio()
 async def test_kafka_ingest_event_consumer_run_forever_stops() -> None:
     bus = EventBus()
@@ -785,6 +827,52 @@ def test_create_ingest_event_consumer_commits_when_auto_commit_disabled() -> Non
     assert processed is True
     assert len(consumer.commits) == 1
     assert created["config"].get("enable.auto.commit") is False
+
+
+def test_create_ingest_event_consumer_topic_event_types() -> None:
+    settings = KafkaConnectionSettings.from_mapping({"KAFKA_BROKERS": "localhost:9092"})
+    extras = {
+        "KAFKA_INGEST_TOPICS": "daily_bars:telemetry.ingest,metrics:telemetry.ingest.metrics",
+        "KAFKA_INGEST_CONSUMER_TOPIC_EVENT_TYPES": "telemetry.ingest.metrics:telemetry.ingest.metrics",
+    }
+
+    fake_consumer = _FakeConsumer()
+
+    def factory(config: Mapping[str, object]) -> _FakeConsumer:
+        return fake_consumer
+
+    class _RecordingBus:
+        def __init__(self) -> None:
+            self.events: list = []
+
+        def publish_from_sync(self, event) -> int:
+            self.events.append(event)
+            return 1
+
+        def is_running(self) -> bool:
+            return True
+
+    bus = _RecordingBus()
+
+    bridge = create_ingest_event_consumer(
+        settings,
+        extras,
+        event_bus=bus,
+        consumer_factory=factory,
+    )
+
+    assert bridge is not None
+
+    fake_consumer.messages.append(
+        _FakeKafkaMessage(
+            json.dumps({"result": {"dimension": "daily_bars"}}),
+            topic="telemetry.ingest.metrics",
+        )
+    )
+    processed = bridge.poll_once()
+
+    assert processed is True
+    assert [event.type for event in bus.events] == ["telemetry.ingest.metrics"]
 
 
 def test_create_ingest_event_consumer_respects_commit_toggle() -> None:

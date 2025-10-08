@@ -6,7 +6,7 @@ import inspect
 import logging
 from collections import deque
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 from itertools import islice
 from typing import (
@@ -18,13 +18,17 @@ from typing import (
     Mapping,
     MutableMapping,
     Optional,
+    Sequence,
     TYPE_CHECKING,
 )
 
 from src.core.base import MarketData
 from src.data_foundation.fabric.market_data_fabric import MarketDataFabric
 from src.orchestration.enhanced_intelligence_engine import ContextualFusionEngine, Synthesis
+from src.trading.execution.release_router import ReleaseAwareExecutionRouter
 from src.trading.trading_manager import TradingManager
+from src.thinking.adaptation.policy_router import PolicyDecision
+from src.understanding.decision_diary import DecisionDiaryStore
 
 if TYPE_CHECKING:
     from src.operations.bootstrap_control_center import BootstrapControlCenter
@@ -151,6 +155,8 @@ class BootstrapTradingStack:
         stop_loss_pct: float = 0.01,
         liquidity_prober: Any | None = None,
         control_center: "BootstrapControlCenter" | None = None,
+        diary_store: DecisionDiaryStore | None = None,
+        release_router: ReleaseAwareExecutionRouter | None = None,
     ) -> None:
         self.pipeline = pipeline
         self.trading_manager = trading_manager
@@ -166,6 +172,8 @@ class BootstrapTradingStack:
         self.decisions: list[dict[str, Any]] = []
         self.liquidity_prober = liquidity_prober
         self.control_center = control_center
+        self._diary_store = diary_store
+        self._release_router = release_router
 
         if liquidity_prober is not None:
 
@@ -242,7 +250,194 @@ class BootstrapTradingStack:
         }
         self.decisions.append(result_payload)
         self._notify_control_center(snapshot, result_payload)
+        self._record_decision_diary(
+            snapshot,
+            intent,
+            decision,
+            liquidity_summary,
+        )
         return result_payload
+
+    def set_release_router(
+        self, router: ReleaseAwareExecutionRouter | None
+    ) -> None:
+        """Attach or replace the release-aware execution router reference."""
+
+        self._release_router = router
+
+    # ------------------------------------------------------------------
+    # Decision diary integration
+    # ------------------------------------------------------------------
+    def _record_decision_diary(
+        self,
+        snapshot: SensorySnapshot,
+        intent: PaperTradeIntent,
+        decision: Mapping[str, Any] | None,
+        liquidity_summary: Mapping[str, Any] | None,
+    ) -> None:
+        if self._diary_store is None:
+            return
+
+        try:
+            policy_id = intent.strategy_id
+            release_metadata = self._build_release_metadata(intent)
+            execution_outcome = self._build_execution_outcome()
+            risk_outcome = (
+                {str(key): value for key, value in decision.items()}
+                if isinstance(decision, Mapping)
+                else {}
+            )
+
+            guardrails: dict[str, Any] = {
+                "stop_loss_pct": float(intent.metadata.get("stop_loss_pct", self.stop_loss_pct))
+                if isinstance(intent.metadata, Mapping)
+                else self.stop_loss_pct
+            }
+            if isinstance(liquidity_summary, Mapping) and liquidity_summary:
+                guardrails["liquidity_summary"] = self._serialise(liquidity_summary)
+
+            reflection_summary: dict[str, Any] = {
+                "narrative": snapshot.synthesis.dominant_narrative.value,
+            }
+            if isinstance(liquidity_summary, Mapping):
+                reflection_summary["liquidity"] = self._serialise(liquidity_summary)
+
+            policy_decision = PolicyDecision(
+                tactic_id=policy_id,
+                parameters={
+                    "symbol": intent.symbol,
+                    "side": intent.side,
+                    "quantity": float(intent.quantity),
+                    "price": float(intent.price),
+                    "confidence": float(intent.confidence),
+                },
+                selected_weight=float(snapshot.synthesis.unified_score),
+                guardrails=guardrails,
+                rationale="Bootstrap runtime threshold trigger",
+                experiments_applied=(),
+                reflection_summary=reflection_summary,
+            )
+
+            regime_state = {
+                "regime": release_metadata.get("stage") or "bootstrap",
+                "confidence": float(snapshot.synthesis.confidence),
+                "features": {
+                    "unified_score": float(snapshot.synthesis.unified_score),
+                    "dominant_narrative": snapshot.synthesis.dominant_narrative.value,
+                },
+                "timestamp": snapshot.generated_at.isoformat(),
+            }
+
+            outcomes = {
+                "risk": self._serialise(risk_outcome) if risk_outcome else None,
+                "release": self._serialise(release_metadata)
+                if release_metadata
+                else None,
+                "execution": self._serialise(execution_outcome)
+                if execution_outcome
+                else None,
+            }
+            outcomes = {key: value for key, value in outcomes.items() if value}
+
+            metadata = {
+                "snapshot": {
+                    "symbol": snapshot.symbol,
+                    "generated_at": snapshot.generated_at.isoformat(),
+                },
+                "intent_metadata": self._serialise(intent.metadata)
+                if isinstance(intent.metadata, Mapping)
+                else None,
+            }
+            metadata = {key: value for key, value in metadata.items() if value}
+
+            self._diary_store.record(
+                policy_id=policy_id,
+                decision=policy_decision,
+                regime_state=regime_state,
+                outcomes=outcomes,
+                metadata=metadata,
+                notes=(
+                    f"Bootstrap runtime decision for {snapshot.symbol}",
+                ),
+            )
+        except Exception:  # pragma: no cover - diary logging must never break runtime
+            logger.debug(
+                "Bootstrap decision diary recording failed",
+                exc_info=True,
+            )
+
+    def _build_release_metadata(
+        self, intent: PaperTradeIntent
+    ) -> Mapping[str, Any]:
+        metadata: dict[str, Any] = {}
+        intent_meta = intent.metadata if isinstance(intent.metadata, Mapping) else None
+        if intent_meta:
+            metadata.update({str(key): value for key, value in intent_meta.items()})
+
+        router = self._resolve_release_router()
+        if router is not None:
+            try:
+                last_route = router.last_route()
+            except Exception:  # pragma: no cover - diagnostics only
+                last_route = None
+            if isinstance(last_route, Mapping):
+                metadata.setdefault("stage", last_route.get("stage"))
+                metadata.setdefault("route", last_route.get("route"))
+                metadata.setdefault("last_route", dict(last_route))
+        if "stage" not in metadata:
+            try:
+                posture = self.trading_manager.describe_release_posture(
+                    intent.strategy_id
+                )
+            except Exception:  # pragma: no cover - diagnostics only
+                posture = None
+            if isinstance(posture, Mapping):
+                metadata.setdefault("stage", posture.get("stage"))
+                metadata.setdefault("thresholds", posture.get("thresholds"))
+        return metadata
+
+    def _build_execution_outcome(self) -> Mapping[str, Any]:
+        stats = self.trading_manager.get_execution_stats()
+        outcome: dict[str, Any] = {}
+        if stats:
+            outcome["stats"] = self._serialise(stats)
+
+        router = self._resolve_release_router()
+        engine: Any | None = None
+        if router is not None:
+            engine = router.live_engine or router.paper_engine
+        else:
+            engine = self.trading_manager.execution_engine
+
+        describe_last_order = getattr(engine, "describe_last_order", None)
+        if callable(describe_last_order):
+            try:
+                snapshot = describe_last_order()
+            except Exception:  # pragma: no cover - diagnostics only
+                snapshot = None
+            if isinstance(snapshot, Mapping):
+                outcome["last_order"] = self._serialise(snapshot)
+
+        return outcome
+
+    def _resolve_release_router(self) -> ReleaseAwareExecutionRouter | None:
+        if self._release_router is not None:
+            return self._release_router
+        engine = self.trading_manager.execution_engine
+        if isinstance(engine, ReleaseAwareExecutionRouter):
+            return engine
+        return None
+
+    def _serialise(self, value: Any) -> Any:
+        if isinstance(value, Decimal):
+            return float(value)
+        if isinstance(value, datetime):
+            return value.astimezone(timezone.utc).isoformat()
+        if isinstance(value, Mapping):
+            return {str(key): self._serialise(item) for key, item in value.items()}
+        if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
+            return [self._serialise(item) for item in value]
+        return value
 
     def _notify_control_center(self, snapshot: SensorySnapshot, result: Mapping[str, Any]) -> None:
         if self.control_center is not None:

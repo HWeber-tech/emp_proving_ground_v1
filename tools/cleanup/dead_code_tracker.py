@@ -103,6 +103,10 @@ def summarise_candidates(
     for candidate in sorted(dict.fromkeys(candidates)):
         path = repo_root / candidate
         if path.exists():
+            if path.is_file() and path.suffix == ".py" and _is_removed_stub(path):
+                missing.append(candidate)
+                continue
+
             present.append(candidate)
             if path.is_file() and path.suffix == ".py" and _looks_like_shim(path):
                 shim_exports.append(candidate)
@@ -185,6 +189,48 @@ def _is_reexport_module(tree: ast.AST) -> bool:
         return False
 
     return has_import
+
+
+def _is_removed_stub(path: Path) -> bool:
+    """Return ``True`` when a module only raises ``ModuleNotFoundError``."""
+
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError:
+        return False
+
+    try:
+        tree = ast.parse(text)
+    except SyntaxError:
+        return False
+
+    relevant: list[ast.stmt] = []
+    for node in tree.body:
+        if isinstance(node, ast.Expr) and isinstance(node.value, ast.Constant) and isinstance(
+            node.value.value, str
+        ):
+            # Module docstring – ignore.
+            continue
+        if isinstance(node, ast.ImportFrom) and node.module == "__future__":
+            # ``from __future__ import annotations`` is common in stubs.
+            continue
+        if isinstance(node, ast.Import) and all(alias.name == "__future__" for alias in node.names):
+            continue
+        relevant.append(node)
+
+    if len(relevant) != 1:
+        return False
+
+    raise_stmt = relevant[0]
+    if not isinstance(raise_stmt, ast.Raise) or raise_stmt.exc is None:
+        return False
+
+    exc = raise_stmt.exc
+    if isinstance(exc, ast.Call) and isinstance(exc.func, ast.Name):
+        return exc.func.id == "ModuleNotFoundError"
+    if isinstance(exc, ast.Name):
+        return exc.id == "ModuleNotFoundError"
+    return False
 
 
 def _format_summary(summary: DeadCodeSummary) -> str:

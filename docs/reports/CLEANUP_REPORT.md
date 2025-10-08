@@ -102,7 +102,7 @@ Dead code candidates (first 100):
 -  src\core\evolution\population.py
 -  src\core\performance\market_data_cache.py
 -  ~~src\core\risk\manager.py~~ (removed; canonical facade now lives in `src/risk/manager.py`).
--  src\core\risk\position_sizing.py
+-  ~~src\core\risk\position_sizing.py~~ (removed; canonical sizing helpers live in `src/risk/position_sizing.py`, and regression coverage asserts the legacy shim remains unavailable.)【F:src/risk/position_sizing.py†L1-L320】【F:tests/current/test_risk_shims_retired.py†L1-L23】
 -  ~~src\core\risk\stress_testing.py~~ (removed; stress testing helpers will
    be rebuilt on top of canonical risk analytics in `src/risk/analytics`).【F:src/risk/analytics/__init__.py†L1-L32】
 -  ~~src\core\risk\var_calculator.py~~ (removed; historical VaR calculations now

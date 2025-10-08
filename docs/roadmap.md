@@ -494,11 +494,10 @@ kit that the roadmap calls back to in each checklist.
     through the shared failover helper, so readiness dashboards surface the
     precise failing checks even when the runtime bus degrades, with pytest
     verifying metadata capture and failover escalation.【F:src/operations/system_validation.py†L724-L889】【F:tests/operations/test_system_validation.py†L77-L160】
-  - *Progress*: Professional readiness publisher now reuses the hardened
-    failover helper, logging runtime fallbacks, refusing unexpected errors, and
-    supporting injected global bus factories under pytest coverage so
-    operational readiness telemetry is preserved when the primary transport
-    fails instead of silently dropping snapshots.【F:src/operations/professional_readiness.py†L268-L305】【F:tests/operations/test_professional_readiness.py†L164-L239】
+  - *Progress*: Professional readiness snapshot builder now normalises component
+    timestamps, ingests operational readiness telemetry as a first-class
+    component, and aggregates issue counts plus status metadata so dashboards
+    inherit a single severity view under expanded regression coverage.【F:src/operations/professional_readiness.py†L193-L405】【F:tests/operations/test_professional_readiness.py†L79-L180】
   - *Progress*: Sensory drift telemetry publisher now routes through the shared
     failover helper, logging runtime and global-bus degradation while retaining
     deterministic payload metadata so dashboards receive alerts even when the
@@ -711,6 +710,7 @@ kit that the roadmap calls back to in each checklist.
   - [x] Deliver the policy ledger store, rebuild CLI, and governance checklist so
     promotions trace back to DecisionDiary evidence.【F:docs/context/sprint_briefs/understanding_loop_v1.md†L93-L107】【F:docs/High-Impact Development Roadmap.md†L53-L54】
   - *Progress*: Policy ledger store now persists promotion history, approvals, threshold overrides, and diary evidence, with a rebuild CLI that regenerates enforceable risk configs and router guardrails while exporting governance workflows under pytest coverage so AlphaTrade promotions stay auditable.【F:src/governance/policy_ledger.py†L1-L200】【F:src/governance/policy_rebuilder.py†L1-L141】【F:tools/governance/rebuild_policy.py†L1-L112】【F:tests/governance/test_policy_ledger.py†L33-L181】【F:tests/tools/test_rebuild_policy_cli.py†L11-L41】
+  - *Progress*: Policy promotion CLI now stages ledger updates end-to-end, parsing approvals, evidence IDs, threshold overrides, and optional policy deltas while enforcing decision-diary requirements so governance teams can automate promotions without editing JSON by hand under pytest coverage of success and failure paths.【F:tools/governance/promote_policy.py†L1-L240】【F:tests/tools/test_promote_policy_cli.py†L13-L124】
   - *Progress*: Policy router now ingests recorded reflection summaries and the decision diary CLI renders reflection digests with tactic, experiment, and window limits so reviewers rebuild understanding insights from stored diaries without replaying the loop.【F:src/thinking/adaptation/policy_router.py†L269】【F:tools/understanding/decision_diary_cli.py†L172】【F:tests/thinking/test_policy_router.py†L311】【F:tests/tools/test_decision_diary_cli.py†L173】
   - [x] Provide graph diagnostics CLI, guardrailed acceptance workflow, and
     operational dashboard tile so AlphaTrade deltas remain observable.【F:docs/context/sprint_briefs/understanding_loop_v1.md†L108-L128】
@@ -878,6 +878,7 @@ kit that the roadmap calls back to in each checklist.
   - *Progress*: Retired the legacy `src.core.risk.manager` and `src.trading.risk_management`
     facades by raising guided module errors under regression coverage so callers
     migrate to `src.risk` implementations and the cleanup backlog shrinks.【F:src/core/risk/manager.py†L1-L14】【F:src/trading/risk_management/__init__.py†L1-L8】【F:tests/current/test_risk_shims_retired.py†L1-L23】
+  - *Progress*: Cleanup report now strikes the deprecated intelligence facades (`competitive_intelligence`, `predictive_modeling`, `red_team_ai`, `specialized_predators`) and links to their canonical replacements so hygiene reviews reflect the current module surface without chasing removed files.【F:docs/reports/CLEANUP_REPORT.md†L143-L148】
 - [ ] **Governance and compliance** – Build the reporting cadence for KYC/AML,
   regulatory telemetry, and audit storage prior to live-broker pilots.【F:docs/technical_debt_assessment.md†L58-L112】
   - *Progress*: Governance reporting cadence now assembles compliance readiness,

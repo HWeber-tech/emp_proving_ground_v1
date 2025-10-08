@@ -71,3 +71,29 @@ def test_summarise_candidates_uses_import_map(_repo_root: Path) -> None:
     # Sensory organ shim should map to the canonical organ module.
     assert redirect.target_module == "src.sensory.organs.dimensions.base_organ"
     assert redirect.target_exists is True
+
+
+def test_removed_shims_are_reported_missing(_repo_root: Path) -> None:
+    report_path = _repo_root / "docs" / "reports" / "CLEANUP_REPORT.md"
+    candidates = parse_cleanup_report(report_path)
+
+    summary = summarise_candidates(candidates, repo_root=_repo_root)
+
+    removed = {
+        "src/core/configuration.py",
+        "src/core/risk/manager.py",
+        "src/core/risk/position_sizing.py",
+        "src/trading/risk_management/__init__.py",
+        "src/thinking/memory/faiss_memory.py",
+        "src/thinking/learning/real_time_learner.py",
+        "src/thinking/sentient_adaptation_engine.py",
+        "src/sensory/organs/yahoo_finance_organ.py",
+    }
+
+    present = set(summary.present)
+    missing = set(summary.missing)
+    candidates_set = set(candidates)
+
+    for path in removed & candidates_set:
+        assert path not in present
+        assert path in missing

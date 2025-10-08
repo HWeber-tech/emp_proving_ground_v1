@@ -86,7 +86,7 @@ Dead code candidates (first 100):
 -  src\config\portfolio_config.py
 -  ~~src\config\risk_config.py~~ (removed; canonical risk config lives at `src/config/risk/risk_config.py`).【F:src/config/risk/risk_config.py†L1-L72】
 -  ~~src\config\sensory_config.py~~ (removed; sensory presets live in the canonical organ registry)
--  ~~src\core\configuration.py~~ (retired shim now raises `ModuleNotFoundError` directing callers to `src.governance.system_config.SystemConfig`, with regression coverage locking the guidance).【F:src/core/configuration.py†L1-L13】【F:tests/current/test_core_configuration_runtime.py†L1-L14】
+-  ~~src\core\configuration.py~~ (removed; regression coverage ensures the legacy import path fails and teams adopt `src.governance.system_config.SystemConfig`).【F:tests/current/test_core_configuration_runtime.py†L1-L14】【F:src/governance/system_config.py†L200-L292】
 -  ~~src\core\context_packet.py~~ (removed; canonical context events now live
    under the thinking domain.)【F:src/thinking/models/context_packet.py†L1-L51】
 -  src\core\event_bus.py
@@ -373,12 +373,12 @@ Canonicalization
 
 Guided imports (ModuleNotFoundError surfaces)
 - Thinking layer:
-  - [faiss_memory.py](src/thinking/memory/faiss_memory.py:1) → now raises a descriptive `ModuleNotFoundError` pointing to the canonical sentient module under guardrail tests.【F:src/thinking/memory/faiss_memory.py†L1-L12】【F:tests/thinking/test_shim_import_failures.py†L1-L34】
-  - [real_time_learner.py](src/thinking/learning/real_time_learner.py:1) → raises a guidance error directing callers to `src.sentient.learning.real_time_learning_engine` with regression coverage.【F:src/thinking/learning/real_time_learner.py†L1-L12】【F:tests/thinking/test_shim_import_failures.py†L1-L34】
+  - Legacy `src.thinking.memory.faiss_memory` module removed; regression tests assert the import path now fails with `ModuleNotFoundError`.【F:tests/thinking/test_shim_import_failures.py†L1-L23】
+  - Legacy `src.thinking.learning.real_time_learner` module removed; tests ensure callers cannot import the retired shim and must use the sentient engine.【F:tests/thinking/test_shim_import_failures.py†L1-L23】
 - Intelligence layer:
   - [sentient_adaptation.py](src/intelligence/sentient_adaptation.py:63,152) → local duplicate RealTimeLearningEngine and FAISSPatternMemory replaced with imports from canonical sentient modules
 - Thinking layer adaptation shim:
-  - [sentient_adaptation_engine.py](src/thinking/sentient_adaptation_engine.py:1) → raises a canonical import guidance error so legacy consumers fail fast with actionable instructions.【F:src/thinking/sentient_adaptation_engine.py†L1-L11】【F:tests/thinking/test_shim_import_failures.py†L1-L34】
+  - Legacy `src.thinking.sentient_adaptation_engine` module removed; regression tests cover the missing import path.【F:tests/thinking/test_shim_import_failures.py†L1-L23】
 
 Parser blockers fixed prior to Batch 7
 - [real_sensory_organ.py](src/sensory/organs/dimensions/real_sensory_organ.py:1) → shim to canonical to resolve indentation error
@@ -397,7 +397,7 @@ Verification (scanner)
 
 Notes
 - PatternMemory in thinking remains as a distinct long-term memory implementation; only the MemoryEntry name is unified under sentient where that specific dataclass was duplicated.
-- 2025-10-08 update: legacy thinking shims now emit `ModuleNotFoundError` guidance with guardrail coverage so cleanup automation treats the shim backlog as closed instead of silently re-exporting canonical classes.
+- 2025-10-08 update: legacy thinking shims have been deleted entirely and guardrail tests ensure the retired import paths remain unavailable, keeping the cleanup backlog closed.
 
 ## Resolved Duplicates — Batch 8 (Strategy testing, 2025-08-11)
 
@@ -590,8 +590,7 @@ Highlights in the final stretch
   - [sentient_adaptation.py](src/intelligence/sentient_adaptation.py) deduplicated types
     and re-exported AdaptationController from
     [adaptation_controller.py](src/sentient/adaptation/adaptation_controller.py)
-  - Shim added: [sentient_adaptation_engine.py](src/thinking/sentient_adaptation_engine.py)
-    to re-export canonical engine
+  - Legacy `src.thinking.sentient_adaptation_engine` shim has since been removed; canonical imports are exercised directly and legacy paths fail under tests.【F:tests/thinking/test_shim_import_failures.py†L1-L23】
 - MemoryEntry name deduplication:
   - [pattern_memory.py](src/thinking/memory/pattern_memory.py) uses PatternMemoryEntry with a back-compat alias
 

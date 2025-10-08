@@ -105,9 +105,9 @@ backlog grooming, release readiness reviews, and post-mortems.
   fields, and trading modules bypass policy enforcement.【F:docs/technical_debt_assessment.md†L58-L72】
 - Runtime entrypoints partially adopt the new builder while legacy modules keep
   spawning unsupervised async tasks, creating shutdown hazards.【F:docs/technical_debt_assessment.md†L33-L56】
-- Legacy `src.core`/`src.trading` risk facades now raise guided module errors and
-  regression tests enforce the canonical imports, though integration docs still
-  mention the old helpers.【F:src/core/risk/manager.py†L1-L14】【F:src/trading/risk_management/__init__.py†L1-L8】【F:tests/current/test_risk_shims_retired.py†L1-L23】
+- Legacy `src.core`/`src.trading` risk facades have been fully removed and
+  regression tests ensure the retired import paths stay unavailable, though
+  integration docs still mention the old helpers.【F:tests/current/test_risk_shims_retired.py†L1-L22】
 - Risk gateway and trading manager now attach runbook-backed `risk_reference`
   payloads to decisions, limit snapshots, and interface summaries so operators
   inherit consistent escalation metadata even while broader risk enforcement

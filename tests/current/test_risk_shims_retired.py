@@ -5,27 +5,18 @@ import importlib
 import pytest
 
 
-def test_core_risk_manager_shim_import_raises_helpful_error() -> None:
+@pytest.mark.parametrize(
+    "module_name",
+    [
+        "src.core.risk.manager",
+        "src.core.risk.position_sizing",
+        "src.trading.risk_management",
+    ],
+)
+def test_legacy_risk_modules_are_absent(module_name: str) -> None:
+    """Ensure retired risk-layer shims remain unavailable."""
+
     with pytest.raises(ModuleNotFoundError) as excinfo:
-        importlib.import_module("src.core.risk.manager")
+        importlib.import_module(module_name)
 
-    message = str(excinfo.value)
-    assert "src.risk.manager" in message
-    assert "RiskManager" in message
-
-
-def test_trading_risk_management_shim_import_raises_helpful_error() -> None:
-    with pytest.raises(ModuleNotFoundError) as excinfo:
-        importlib.import_module("src.trading.risk_management")
-
-    message = str(excinfo.value)
-    assert "src.risk.manager" in message
-    assert "RiskManager" in message
-
-
-def test_core_risk_position_sizing_shim_import_raises_helpful_error() -> None:
-    with pytest.raises(ModuleNotFoundError) as excinfo:
-        importlib.import_module("src.core.risk.position_sizing")
-
-    message = str(excinfo.value)
-    assert "src.risk.position_sizing" in message
+    assert module_name in str(excinfo.value)

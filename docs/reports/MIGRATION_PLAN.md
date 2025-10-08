@@ -104,7 +104,7 @@ Batch 6 — Learning/memory
   - RealTimeLearningEngine, FAISSPatternMemory, MemoryEntry
 - Actions:
   - Canonicalize under sentient: [src/sentient/learning/real_time_learning_engine.py](src/sentient/learning/real_time_learning_engine.py), [src/sentient/memory/faiss_pattern_memory.py](src/sentient/memory/faiss_pattern_memory.py)
-  - Convert [src/thinking/memory/faiss_memory.py](src/thinking/memory/faiss_memory.py) and [src/thinking/memory/pattern_memory.py](src/thinking/memory/pattern_memory.py) to re-exports.
+  - Remove the legacy [src/thinking/memory/faiss_memory.py](src/thinking/memory/faiss_memory.py) shim once callers migrate; retain only the canonical sentient implementation and keep [src/thinking/memory/pattern_memory.py](src/thinking/memory/pattern_memory.py) as an adapter.
   - Convert [src/intelligence/sentient_adaptation.py](src/intelligence/sentient_adaptation.py) to import from sentient.*
 - Tests:
   - Run sentient/thinking/intelligence tests; run scanner; confirm families resolved.

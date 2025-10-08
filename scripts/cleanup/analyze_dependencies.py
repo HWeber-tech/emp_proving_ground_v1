@@ -15,7 +15,6 @@ ROOT = "src"
 # Exclude legacy/compat shims from orphan detection counts to reduce noise
 EXCLUDE_PREFIXES = {
     "src.trading.strategy_engine",
-    "src.trading.risk_management",
     "src.trading.risk",
     "src.evolution.engine",
 }

@@ -6,32 +6,18 @@ import pytest
 
 
 @pytest.mark.parametrize(
-    ("module_name", "expected_fragment"),
+    "module_name",
     [
-        (
-            "src.thinking.memory.faiss_memory",
-            "src.sentient.memory.faiss_pattern_memory",
-        ),
-        (
-            "src.thinking.learning.real_time_learner",
-            "src.sentient.learning.real_time_learning_engine",
-        ),
-        (
-            "src.thinking.sentient_adaptation_engine",
-            "src.intelligence.sentient_adaptation",
-        ),
-        (
-            "src.sensory.organs.yahoo_finance_organ",
-            "src.data_foundation.ingest.yahoo_gateway",
-        ),
+        "src.thinking.memory.faiss_memory",
+        "src.thinking.learning.real_time_learner",
+        "src.thinking.sentient_adaptation_engine",
+        "src.sensory.organs.yahoo_finance_organ",
     ],
 )
-def test_thinking_shims_raise_module_not_found(
-    module_name: str, expected_fragment: str
-) -> None:
+def test_removed_thinking_and_sensory_shims_are_absent(module_name: str) -> None:
+    """Removed thinking-layer shims should no longer be importable."""
+
     with pytest.raises(ModuleNotFoundError) as excinfo:
         importlib.import_module(module_name)
 
-    message = str(excinfo.value)
-    assert module_name in message
-    assert expected_fragment in message
+    assert module_name in str(excinfo.value)

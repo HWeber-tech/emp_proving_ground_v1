@@ -140,12 +140,12 @@ Dead code candidates (first 100):
 -  src\integration\component_integrator.py
 -  src\integration\component_integrator_impl.py
 -  src\intelligence\adversarial_training.py
--  src\intelligence\competitive_intelligence.py
+-  ~~src\intelligence\competitive_intelligence.py~~ (removed; canonical competitive intelligence lives in `src/thinking/competitive/competitive_intelligence_system.py` and is covered by the lazy intelligence facade.)【F:src/thinking/competitive/competitive_intelligence_system.py†L84-L758】【F:src/intelligence/__init__.py†L40-L117】
 -  src\intelligence\portfolio_evolution.py
--  src\intelligence\predictive_modeling.py
--  src\intelligence\red_team_ai.py
+-  ~~src\intelligence\predictive_modeling.py~~ (removed; predictive modeling contracts resolve through `src/thinking/prediction/predictive_market_modeler.py` and remain available via the intelligence facade.)【F:src/thinking/prediction/predictive_market_modeler.py†L368-L740】【F:src/intelligence/__init__.py†L40-L117】
+-  ~~src\intelligence\red_team_ai.py~~ (removed; canonical red-team surface resides in `src/thinking/adversarial/red_team_ai.py` and the facade lazily proxies the public API.)【F:src/thinking/adversarial/red_team_ai.py†L132-L612】【F:src/intelligence/__init__.py†L40-L117】
 -  src\intelligence\sentient_adaptation.py
--  src\intelligence\specialized_predators.py
+-  ~~src\intelligence\specialized_predators.py~~ (removed; ecosystem predator tooling is provided by `src/ecosystem/evolution/specialized_predator_evolution.py` and related coordination modules.)【F:src/ecosystem/evolution/specialized_predator_evolution.py†L1-L220】【F:src/intelligence/__init__.py†L40-L117】
 -  ~~src\\operational\\event_bus.py~~ (removed; canonical imports now resolve through `src/core/event_bus.py` and legacy module paths now raise a descriptive import error.)
 -  src\operational\fix_connection_manager.py
 -  src\operational\health_monitor.py

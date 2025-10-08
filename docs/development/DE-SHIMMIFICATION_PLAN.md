@@ -27,7 +27,7 @@ Outcome: Internal code imports only from canonical modules under src, with optio
   - Keep a small allow-list of facades, but disallow their use by internal code via CI guard:
     - [src/core/sensory_organ.py](src/core/sensory_organ.py) — retains CoreSensoryOrgan shim for legacy factories; do not import SensoryOrgan from here internally.
     - [src/phase2d_integration_validator.py](src/phase2d_integration_validator.py) — top-level façade that re-exports the canonical validator; internal code must target [src/validation/phase2d_integration_validator.py](src/validation/phase2d_integration_validator.py).
-    - [src/intelligence/red_team_ai.py](src/intelligence/red_team_ai.py) — façade re-export for Red Team AI family.
+- ~~[src/intelligence/red_team_ai.py](src/intelligence/red_team_ai.py)~~ — legacy façade removed; callers now import directly from the canonical thinking.adversarial module.
     - [src/performance/__init__.py](src/performance/__init__.py) — façade re-export for get_global_cache; replace internally with [src/core/performance/market_data_cache.py](src/core/performance/market_data_cache.py).
     - [src/trading/models.py](src/trading/models.py) — façade re-export for Position; replace internally with [src/trading/models/position.py](src/trading/models/position.py).
     - [src/sensory/models/__init__.py](src/sensory/models/__init__.py) — façade re-export for SensoryReading; internal code must import from [src/sensory/organs/dimensions/base_organ.py](src/sensory/organs/dimensions/base_organ.py).
@@ -53,7 +53,7 @@ Legend:
 | [src/trading/models.py](src/trading/models.py) → [src/trading/models/position.py](src/trading/models/position.py) | from trading.models import Position; from src.trading.models import Position | from src.trading.models.position import Position | Position | No rename |
 | [src/sensory/models/__init__.py](src/sensory/models/__init__.py) → [src/sensory/organs/dimensions/base_organ.py](src/sensory/organs/dimensions/base_organ.py) | from sensory.models import SensoryReading; from src.sensory.models import SensoryReading | from src.sensory.organs.dimensions.base_organ import SensoryReading | SensoryReading | No rename |
 | [src/core/sensory_organ.py](src/core/sensory_organ.py) → [src/sensory/organs/dimensions/base_organ.py](src/sensory/organs/dimensions/base_organ.py) | from core.sensory_organ import SensoryOrgan; from src.core.sensory_organ import SensoryOrgan | from src.sensory.organs.dimensions.base_organ import SensoryOrgan | SensoryOrgan | No rename; keep CoreSensoryOrgan only for legacy factory usage |
-| [src/intelligence/red_team_ai.py](src/intelligence/red_team_ai.py) → [src/thinking/adversarial/red_team_ai.py](src/thinking/adversarial/red_team_ai.py) | from intelligence.red_team_ai import RedTeamAI; from src.intelligence.red_team_ai import StrategyAnalyzer, WeaknessDetector, AttackGenerator, ExploitDeveloper, RedTeamAI | from src.thinking.adversarial.red_team_ai import StrategyAnalyzer, WeaknessDetector, AttackGenerator, ExploitDeveloper, RedTeamAI | listed symbols | No rename |
+| ~~[src/intelligence/red_team_ai.py](src/intelligence/red_team_ai.py)~~ → [src/thinking/adversarial/red_team_ai.py](src/thinking/adversarial/red_team_ai.py) | from intelligence.red_team_ai import RedTeamAI; from src.intelligence.red_team_ai import StrategyAnalyzer, WeaknessDetector, AttackGenerator, ExploitDeveloper, RedTeamAI | from src.thinking.adversarial.red_team_ai import StrategyAnalyzer, WeaknessDetector, AttackGenerator, ExploitDeveloper, RedTeamAI | listed symbols | No rename; legacy module removed |
 | [src/phase2d_integration_validator.py](src/phase2d_integration_validator.py) → [src/validation/phase2d_integration_validator.py](src/validation/phase2d_integration_validator.py) | from phase2d_integration_validator import Phase2DIntegrationValidator; from src.phase2d_integration_validator import Phase2DIntegrationValidator | from src.validation.phase2d_integration_validator import Phase2DIntegrationValidator | Phase2DIntegrationValidator | No rename |
 | [src/thinking/sentient_adaptation_engine.py](src/thinking/sentient_adaptation_engine.py) → [src/intelligence/sentient_adaptation.py](src/intelligence/sentient_adaptation.py) | from thinking.sentient_adaptation_engine import SentientAdaptationEngine; from src.thinking.sentient_adaptation_engine import SentientAdaptationEngine | from src.intelligence.sentient_adaptation import SentientAdaptationEngine | SentientAdaptationEngine | No rename |
 | Order book models: Canonical already at [src/trading/order_management/order_book/snapshot.py](src/trading/order_management/order_book/snapshot.py) | Any import of OrderBookSnapshot/OrderBookLevel from non-canonical paths | from src.trading.order_management.order_book.snapshot import OrderBookSnapshot, OrderBookLevel | OrderBookSnapshot, OrderBookLevel | No rename |
@@ -305,7 +305,7 @@ repos:
     - [src/performance/__init__.py](src/performance/__init__.py) (keep if needed for external API only)
     - [src/trading/models.py](src/trading/models.py)
     - [src/sensory/models/__init__.py](src/sensory/models/__init__.py)
-    - [src/intelligence/red_team_ai.py](src/intelligence/red_team_ai.py)
+    - ~~[src/intelligence/red_team_ai.py](src/intelligence/red_team_ai.py)~~
     - [src/phase2d_integration_validator.py](src/phase2d_integration_validator.py)
     - Optionally remove the SensoryOrgan re-export from [src/core/sensory_organ.py](src/core/sensory_organ.py) while retaining CoreSensoryOrgan for factory semantics.
   - Flip CI legacy import guard to failing on any internal use.
@@ -349,7 +349,7 @@ A) Top-level canonical map (succinct):
 - Position: [src/trading/models/position.py](src/trading/models/position.py); façade [src/trading/models.py](src/trading/models.py)
 - Order book models: [src/trading/order_management/order_book/snapshot.py](src/trading/order_management/order_book/snapshot.py)
 - Sensory primitives: [src/sensory/organs/dimensions/base_organ.py](src/sensory/organs/dimensions/base_organ.py); façade [src/sensory/models/__init__.py](src/sensory/models/__init__.py); SensoryOrgan re-export in [src/core/sensory_organ.py](src/core/sensory_organ.py)
-- Red Team AI family: [src/thinking/adversarial/red_team_ai.py](src/thinking/adversarial/red_team_ai.py); façade [src/intelligence/red_team_ai.py](src/intelligence/red_team_ai.py)
+- Red Team AI family: [src/thinking/adversarial/red_team_ai.py](src/thinking/adversarial/red_team_ai.py); legacy façade removed
 - Phase2D validator: [src/validation/phase2d_integration_validator.py](src/validation/phase2d_integration_validator.py); façade [src/phase2d_integration_validator.py](src/phase2d_integration_validator.py)
 - Sentient adaptation: [src/intelligence/sentient_adaptation.py](src/intelligence/sentient_adaptation.py); façade [src/thinking/sentient_adaptation_engine.py](src/thinking/sentient_adaptation_engine.py)
 - Pattern memory naming: [src/thinking/memory/pattern_memory.py](src/thinking/memory/pattern_memory.py) has PatternMemoryEntry with MemoryEntry alias

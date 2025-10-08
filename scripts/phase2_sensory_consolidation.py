@@ -55,7 +55,6 @@ class SensoryStructureConsolidator:
             "src/sensory/enhanced/how/institutional_footprint_hunter.py": "src/sensory/organs/dimensions/institutional_tracker.py",
             "src/sensory/enhanced/integration/sensory_integration_orchestrator.py": "src/sensory/organs/dimensions/integration_orchestrator.py",
             "src/sensory/enhanced/what/pattern_synthesis_engine.py": "src/sensory/organs/dimensions/pattern_engine.py",
-            "src/sensory/enhanced/when/temporal_advantage_system.py": "src/sensory/organs/dimensions/temporal_system.py",
         }
 
         # Execute consolidation
@@ -177,7 +176,11 @@ The following files were moved to the primary structure:
 - `src/sensory/enhanced/how/institutional_footprint_hunter.py` → `src/sensory/organs/dimensions/institutional_tracker.py`
 - `src/sensory/enhanced/integration/sensory_integration_orchestrator.py` → `src/sensory/organs/dimensions/integration_orchestrator.py`
 - `src/sensory/enhanced/what/pattern_synthesis_engine.py` → `src/sensory/organs/dimensions/pattern_engine.py`
-- `src/sensory/enhanced/when/temporal_advantage_system.py` → `src/sensory/organs/dimensions/temporal_system.py`
+
+> **Update 2025-10:** The legacy temporal organ at
+> `src/sensory/organs/dimensions/temporal_system.py` has been retired in favour
+> of the enhanced temporal advantage system; the consolidator leaves that
+> module untouched.
 
 ### 3. Duplicate File Handling
 - **Duplicate**: `src/sensory/real_sensory_organ.py` → **Removed** (consolidated into dimensions)

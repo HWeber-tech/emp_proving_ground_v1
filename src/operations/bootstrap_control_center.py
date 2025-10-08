@@ -428,6 +428,34 @@ class BootstrapControlCenter:
             payload["roi"]["markdown"] = roi_markdown
         return payload
 
+    def _resolve_evolution_readiness(self, orchestrator: Any) -> Mapping[str, Any] | None:
+        """Best-effort resolution of the evolution readiness snapshot."""
+
+        builder = getattr(orchestrator, "build_readiness_snapshot", None)
+        if not callable(builder):
+            return None
+
+        try:
+            snapshot = builder()
+        except Exception as exc:  # pragma: no cover - diagnostics only
+            _log.debug(
+                "Evolution readiness snapshot resolution failed: %s",
+                exc,
+                exc_info=exc,
+            )
+            return None
+
+        payload = _coerce_snapshot_mapping(snapshot)
+        if payload is None and hasattr(snapshot, "as_dict"):
+            try:
+                payload_candidate = snapshot.as_dict()  # type: ignore[call-arg]
+            except Exception:
+                payload_candidate = None
+            if isinstance(payload_candidate, Mapping):
+                payload = dict(payload_candidate)
+
+        return payload if isinstance(payload, Mapping) else None
+
     def _build_evolution_section(self) -> Mapping[str, Any]:
         orchestrator = self.evolution_orchestrator
         if orchestrator is None:
@@ -436,6 +464,7 @@ class BootstrapControlCenter:
         telemetry = getattr(orchestrator, "telemetry", {})
         champion: object | None = getattr(orchestrator, "champion", None)
         stats = getattr(orchestrator, "population_statistics", {})
+        readiness = self._resolve_evolution_readiness(orchestrator)
 
         if isinstance(telemetry, Mapping):
             telemetry_payload = dict(telemetry)
@@ -446,11 +475,14 @@ class BootstrapControlCenter:
 
         population = dict(stats) if isinstance(stats, Mapping) else {}
 
-        return {
+        payload: dict[str, Any] = {
             "telemetry": telemetry_payload,
             "champion": champion_payload,
             "population": population,
         }
+        if readiness:
+            payload["readiness"] = readiness
+        return payload
 
     def _build_evolution_overview(self) -> Mapping[str, Any]:
         orchestrator = self.evolution_orchestrator
@@ -461,13 +493,39 @@ class BootstrapControlCenter:
         payload = _normalise_champion_payload(champion) or {}
 
         telemetry = getattr(orchestrator, "telemetry", {})
-        total_generations = None
+        overview: dict[str, Any] = {"champion": payload}
+
         if isinstance(telemetry, Mapping):
             total_generations = telemetry.get("total_generations")
+            if total_generations is not None:
+                try:
+                    overview["generations"] = int(total_generations)
+                except Exception:
+                    overview["generations"] = total_generations
 
-        overview: dict[str, Any] = {"champion": payload}
-        if total_generations is not None:
-            overview["generations"] = total_generations
+            adaptive_runs = telemetry.get("adaptive_runs")
+            if isinstance(adaptive_runs, Mapping):
+                overview["adaptive_runs"] = dict(adaptive_runs)
+            elif adaptive_runs is not None:
+                overview["adaptive_runs"] = {"raw": adaptive_runs}
+
+            lineage = telemetry.get("lineage")
+            if isinstance(lineage, Mapping):
+                overview["lineage"] = dict(lineage)
+
+            catalogue = telemetry.get("catalogue")
+            if isinstance(catalogue, Mapping):
+                overview["catalogue"] = dict(catalogue)
+
+        lineage_snapshot = getattr(orchestrator, "lineage_snapshot", None)
+        lineage_payload = _coerce_snapshot_mapping(lineage_snapshot)
+        if lineage_payload and "lineage" not in overview:
+            overview["lineage"] = lineage_payload
+
+        readiness = self._resolve_evolution_readiness(orchestrator)
+        if readiness:
+            overview["readiness"] = readiness
+
         return overview
 
     def _build_vision_section(self) -> Mapping[str, Any]:

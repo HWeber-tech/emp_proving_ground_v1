@@ -162,13 +162,24 @@ async def test_bootstrap_runtime_exposes_sensory_status() -> None:
 class _StubEvolutionOrchestrator:
     def __init__(self) -> None:
         self.calls = 0
-        self.telemetry: dict[str, Any] = {}
+        self.telemetry: dict[str, Any] = {
+            "adaptive_runs": {"enabled": False, "reason": "flag_missing"},
+        }
         self.champion = None
         self.population_statistics: Mapping[str, Any] = {}
 
     async def run_cycle(self) -> None:
         self.calls += 1
         self.telemetry["calls"] = self.calls
+
+    def build_readiness_snapshot(self) -> Mapping[str, Any]:
+        return {
+            "status": "review",
+            "adaptive_runs_enabled": False,
+            "seed_templates": (),
+            "issues": ["Seed source missing from population statistics"],
+            "generated_at": "2024-01-01T00:00:00+00:00",
+        }
 
 
 @pytest.mark.asyncio()
@@ -191,6 +202,18 @@ async def test_bootstrap_runtime_invokes_evolution_orchestrator() -> None:
 
     assert orchestrator.calls >= 1
     assert orchestrator.telemetry.get("calls") == orchestrator.calls
+
+    status = runtime.status()
+    telemetry = status.get("telemetry", {})
+    evolution_overview = telemetry.get("evolution", {}) if isinstance(telemetry, Mapping) else {}
+    adaptive_runs = evolution_overview.get("adaptive_runs") if isinstance(evolution_overview, Mapping) else None
+    readiness = evolution_overview.get("readiness") if isinstance(evolution_overview, Mapping) else None
+
+    assert isinstance(evolution_overview, Mapping)
+    assert isinstance(adaptive_runs, Mapping)
+    assert adaptive_runs.get("enabled") is False
+    assert isinstance(readiness, Mapping)
+    assert readiness.get("status") in {"review", "blocked", "ready"}
 
 
 @pytest.mark.asyncio()

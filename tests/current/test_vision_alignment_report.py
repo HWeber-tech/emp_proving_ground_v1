@@ -18,9 +18,24 @@ class _StubChampion:
 
 class _StubOrchestrator:
     def __init__(self) -> None:
-        self.telemetry = {"total_generations": 5, "champion": {"genome_id": "bootstrap-champion"}}
+        self.telemetry = {
+            "total_generations": 5,
+            "champion": {"genome_id": "bootstrap-champion"},
+            "adaptive_runs": {"enabled": True, "reason": "override_enabled"},
+        }
         self.population_statistics = {"population_size": 12, "best_fitness": 1.08}
         self.champion = _StubChampion()
+
+    def build_readiness_snapshot(self) -> dict[str, object]:
+        return {
+            "status": "ready",
+            "adaptive_runs_enabled": True,
+            "seed_source": "catalogue",
+            "seed_templates": ("baseline",),
+            "champion_id": "bootstrap-champion",
+            "lineage_generation": 3,
+            "issues": [],
+        }
 
 
 @pytest.mark.asyncio()
@@ -48,3 +63,11 @@ async def test_vision_alignment_report_tracks_layer_progress() -> None:
     assert any(layer["status"] == "ready" for layer in payload["layers"])
     assert payload["strengths"]
     assert payload["gaps"]
+
+    evolution_layer = next(
+        layer for layer in payload["layers"] if layer["layer"].startswith("Layer 4")
+    )
+    evidence = evolution_layer.get("evidence", {})
+    readiness = evidence.get("readiness") if isinstance(evidence, dict) else None
+    if isinstance(readiness, dict):
+        assert readiness.get("status") == "ready"

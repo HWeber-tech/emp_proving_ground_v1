@@ -166,6 +166,12 @@ async def test_bootstrap_runtime_build_and_run() -> None:
         assert status["evolution_cycle_interval"] >= 1
         evolution_overview = status["telemetry"].get("evolution")
         assert isinstance(evolution_overview, Mapping)
+        adaptive_runs = evolution_overview.get("adaptive_runs") if isinstance(evolution_overview, Mapping) else None
+        if isinstance(adaptive_runs, Mapping):
+            assert "enabled" in adaptive_runs
+        readiness = evolution_overview.get("readiness") if isinstance(evolution_overview, Mapping) else None
+        if isinstance(readiness, Mapping):
+            assert readiness.get("status")
         assert status["vision_alignment"]["status"] in {"ready", "progressing", "gap"}
 
         summary = app.summary()

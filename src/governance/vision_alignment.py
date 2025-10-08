@@ -292,6 +292,8 @@ class VisionAlignmentReport:
         orchestrator = self.evolution_orchestrator
         telemetry: Mapping[str, Any] | None = None
         champion_payload: Mapping[str, Any] | None = None
+        readiness_payload: Mapping[str, Any] | None = None
+        readiness_status: str | None = None
 
         if orchestrator is not None:
             telemetry_candidate = getattr(orchestrator, "telemetry", None)
@@ -308,9 +310,38 @@ class VisionAlignmentReport:
                 elif isinstance(champion, Mapping):
                     champion_payload = champion
 
+            readiness_builder = getattr(orchestrator, "build_readiness_snapshot", None)
+            if callable(readiness_builder):
+                try:
+                    snapshot = readiness_builder()
+                except Exception:
+                    snapshot = None
+                if snapshot is not None:
+                    if hasattr(snapshot, "as_dict"):
+                        try:
+                            readiness_payload = snapshot.as_dict()  # type: ignore[call-arg]
+                        except Exception:
+                            readiness_payload = None
+                    elif isinstance(snapshot, Mapping):
+                        readiness_payload = dict(snapshot)
+
+                    status_value = getattr(snapshot, "status", None)
+                    if status_value is not None:
+                        readiness_status = getattr(status_value, "value", None) or str(status_value)
+                    elif readiness_payload is not None:
+                        candidate_status = readiness_payload.get("status")
+                        if isinstance(candidate_status, str):
+                            readiness_status = candidate_status
+
         total_generations = 0
         if telemetry is not None:
             total_generations = int(telemetry.get("total_generations", 0))
+
+        adaptive_runs_payload: Mapping[str, Any] | None = None
+        if isinstance(telemetry, Mapping):
+            adaptive_runs = telemetry.get("adaptive_runs")
+            if isinstance(adaptive_runs, Mapping):
+                adaptive_runs_payload = dict(adaptive_runs)
 
         coverage = 0.35
         strengths: list[str] = []
@@ -319,19 +350,61 @@ class VisionAlignmentReport:
         if orchestrator is None:
             coverage = 0.3
             gaps.append("Integrate EvolutionCycleOrchestrator to activate Layer 4")
-        elif total_generations > 0:
-            coverage = 0.86
-            strengths.append(f"{total_generations} generations evolved")
-            gaps = [gap for gap in gaps if "Wire" not in gap]
         else:
-            coverage = 0.55
-            strengths.append("evolution orchestrator ready for evaluation")
-            gaps.append("Run evolution cycles to produce live champions")
+            status_key = readiness_status.lower() if readiness_status else None
+            if status_key == "blocked":
+                coverage = 0.32
+                gaps.append("Resolve evolution readiness blockers")
+            elif status_key == "review":
+                coverage = 0.55
+                strengths.append("evolution orchestrator ready for evaluation")
+                gaps.append("Approve adaptive runs after governance review")
+            elif status_key == "ready" and total_generations > 0:
+                coverage = 0.9
+                strengths.append(f"{total_generations} generations evolved under governance gate")
+                gaps = [gap for gap in gaps if "Wire" not in gap]
+            elif status_key == "ready":
+                coverage = 0.72
+                strengths.append("evolution orchestrator governance-ready")
+                gaps.append("Run evolution cycles to produce live champions")
+            elif total_generations > 0:
+                coverage = 0.86
+                strengths.append(f"{total_generations} generations evolved")
+                gaps = [gap for gap in gaps if "Wire" not in gap]
+            else:
+                coverage = 0.55
+                strengths.append("evolution orchestrator ready for evaluation")
+                gaps.append("Run evolution cycles to produce live champions")
 
-        evidence = {
+            if adaptive_runs_payload is not None and adaptive_runs_payload.get("enabled"):
+                strengths.append("adaptive runs enabled via feature flag")
+            elif adaptive_runs_payload is not None:
+                gaps.append("Adaptive runs remain disabled pending flag approval")
+
+        seen_gaps: set[str] = set()
+        unique_gaps: list[str] = []
+        for gap in gaps:
+            if gap not in seen_gaps:
+                unique_gaps.append(gap)
+                seen_gaps.add(gap)
+        gaps = unique_gaps
+
+        evidence: dict[str, Any] = {
             "telemetry": telemetry or {},
             "champion": champion_payload,
         }
+        if adaptive_runs_payload is not None:
+            evidence["adaptive_runs"] = adaptive_runs_payload
+        if readiness_payload is not None:
+            evidence["readiness"] = readiness_payload
+        if readiness_status is not None:
+            metadata_payload = evidence.get("metadata")
+            if isinstance(metadata_payload, Mapping):
+                metadata_dict = dict(metadata_payload)
+            else:
+                metadata_dict = {}
+            metadata_dict["readiness_status"] = readiness_status
+            evidence["metadata"] = metadata_dict
 
         return LayerAssessment(
             layer="Layer 4 – Evolutionary Strategy Engine",

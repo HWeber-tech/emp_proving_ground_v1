@@ -213,6 +213,8 @@ class TradingManager:
         self._drift_gate = drift_gate
         self._last_drift_gate_decision: DriftSentryDecision | None = None
 
+        self._maybe_auto_install_release_router()
+
         self._execution_stats: dict[str, object] = {
             "orders_submitted": 0,
             "orders_executed": 0,
@@ -1191,6 +1193,39 @@ class TradingManager:
         self._release_router = router
         self._configure_execution_risk_context(router)
         return router
+
+    def _maybe_auto_install_release_router(self) -> None:
+        """Automatically enable release-aware routing when possible."""
+
+        if self._release_manager is None:
+            return
+
+        base_engine = self.execution_engine
+        if base_engine is None:
+            return
+
+        if isinstance(base_engine, ReleaseAwareExecutionRouter):
+            self._release_router = base_engine
+            return
+
+        try:
+            default_stage: PolicyLedgerStage | None
+            try:
+                default_stage = self._release_manager.resolve_stage(None)
+            except Exception:
+                default_stage = None
+
+            self.install_release_execution_router(
+                paper_engine=base_engine,
+                pilot_engine=base_engine,
+                live_engine=base_engine,
+                default_stage=default_stage,
+            )
+        except Exception:  # pragma: no cover - defensive guard
+            logger.debug(
+                "Failed to auto-install release-aware execution router",
+                exc_info=True,
+            )
 
     def describe_release_execution(self) -> Mapping[str, Any] | None:
         """Expose the configured release-aware execution routing summary."""

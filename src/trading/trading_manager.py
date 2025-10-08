@@ -136,6 +136,7 @@ class TradingManager:
         self.event_bus = event_bus
         self.strategy_registry = strategy_registry
         self.execution_engine = execution_engine
+        self._configure_execution_risk_context(self.execution_engine)
 
         # Initialize risk management components
         resolved_client = self._resolve_redis_client(redis_client)
@@ -1060,6 +1061,7 @@ class TradingManager:
         )
         self.execution_engine = router
         self._release_router = router
+        self._configure_execution_risk_context(router)
         return router
 
     def describe_release_execution(self) -> Mapping[str, Any] | None:
@@ -1313,6 +1315,20 @@ class TradingManager:
         if isinstance(payload, Mapping):
             return payload
         return None
+
+    def _configure_execution_risk_context(self, engine: Any | None) -> None:
+        if engine is None:
+            return
+
+        setter = getattr(engine, "set_risk_context_provider", None)
+        if callable(setter):
+            try:
+                setter(lambda: self)
+            except Exception:  # pragma: no cover - defensive guard
+                logger.debug(
+                    "Failed to configure execution risk context provider",
+                    exc_info=True,
+                )
 
     def _extract_gateway_reference(self) -> Mapping[str, object] | None:
         limits_payload = self._resolve_gateway_limits()

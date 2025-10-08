@@ -9,6 +9,11 @@ from typing import Any, Mapping, MutableMapping, Sequence
 
 from src.governance.policy_ledger import LedgerReleaseManager, PolicyLedgerStage
 from src.operations.sensory_drift import DriftSeverity
+from ._risk_context import (
+    RiskContextProvider,
+    capture_risk_context,
+    describe_risk_context,
+)
 
 __all__ = ["ReleaseAwareExecutionRouter"]
 
@@ -24,7 +29,10 @@ class ReleaseAwareExecutionRouter:
     pilot_engine: Any | None = None
     live_engine: Any | None = None
     default_stage: PolicyLedgerStage = PolicyLedgerStage.EXPERIMENT
+    risk_context_provider: RiskContextProvider | None = field(default=None, repr=False)
     _last_route: MutableMapping[str, Any] = field(default_factory=dict, init=False, repr=False)
+    _last_risk_metadata: dict[str, object] | None = field(default=None, init=False, repr=False)
+    _last_risk_error: dict[str, object] | None = field(default=None, init=False, repr=False)
 
     def __post_init__(self) -> None:
         if self.release_manager is None:
@@ -33,9 +41,43 @@ class ReleaseAwareExecutionRouter:
             raise ValueError("paper_engine is required")
         if not isinstance(self.default_stage, PolicyLedgerStage):
             self.default_stage = PolicyLedgerStage.from_value(self.default_stage)
+        self._last_risk_metadata = None
+        self._last_risk_error = None
+        self._propagate_risk_context_provider()
+
+    def set_risk_context_provider(
+        self, provider: RiskContextProvider | None
+    ) -> None:
+        """Install or replace the callable that resolves trading risk metadata."""
+
+        self.risk_context_provider = provider
+        self._propagate_risk_context_provider()
+
+    def _propagate_risk_context_provider(self) -> None:
+        for engine in (self.paper_engine, self.pilot_engine, self.live_engine):
+            if engine is None:
+                continue
+            setter = getattr(engine, "set_risk_context_provider", None)
+            if callable(setter):
+                try:
+                    setter(self.risk_context_provider)
+                except Exception:  # pragma: no cover - defensive guard
+                    logger.debug("Failed to propagate risk context provider", exc_info=True)
+
+    def _capture_risk_context(self) -> None:
+        metadata, error = capture_risk_context(self.risk_context_provider)
+        self._last_risk_metadata = metadata
+        self._last_risk_error = error
+
+    def describe_risk_context(self) -> dict[str, object]:
+        """Expose the most recent deterministic risk metadata snapshot."""
+
+        return describe_risk_context(self._last_risk_metadata, self._last_risk_error)
 
     async def process_order(self, intent: Any) -> Any:
         """Process an order using the engine that matches the ledger stage."""
+
+        self._capture_risk_context()
 
         metadata = self._extract_metadata(intent)
         strategy_id = self._extract_policy_id(intent)
@@ -74,6 +116,10 @@ class ReleaseAwareExecutionRouter:
                 "timestamp": datetime.now(tz=timezone.utc).isoformat(),
             }
         )
+        if self._last_risk_metadata is not None:
+            self._last_route["risk"] = dict(self._last_risk_metadata)
+        if self._last_risk_error is not None:
+            self._last_route["risk_error"] = dict(self._last_risk_error)
         if combined_force_paper:
             self._last_route["forced_route"] = "paper"
             if primary_forced_reason:
@@ -104,6 +150,7 @@ class ReleaseAwareExecutionRouter:
         }
         if self._last_route:
             payload["last_route"] = dict(self._last_route)
+        payload["risk_context"] = self.describe_risk_context()
         return payload
 
     def last_route(self) -> Mapping[str, Any] | None:

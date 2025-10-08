@@ -1,22 +1,13 @@
-#!/usr/bin/env python3
-"""
-Shim for FAISSPatternMemory and MemoryEntry (thinking layer)
+"""Legacy shim for FAISSPatternMemory removed in favour of canonical module.
 
-Canonical implementations reside at:
-- src/sentient/memory/faiss_pattern_memory.FAISSPatternMemory
-- src/sentient/memory/faiss_pattern_memory.MemoryEntry
-
-This module re-exports the canonical classes to maintain backward compatibility
-for imports that reference src.thinking.memory.faiss_memory.
+Importers must migrate to ``src.sentient.memory.faiss_pattern_memory`` and use
+the canonical ``FAISSPatternMemory`` and ``MemoryEntry`` definitions.
 """
 
 from __future__ import annotations
 
-from src.sentient.memory.faiss_pattern_memory import (
-    FAISSPatternMemory as FAISSPatternMemory,
-)
-from src.sentient.memory.faiss_pattern_memory import (
-    MemoryEntry as MemoryEntry,
+raise ModuleNotFoundError(
+    "src.thinking.memory.faiss_memory was removed. Import FAISSPatternMemory "
+    "and MemoryEntry from src.sentient.memory.faiss_pattern_memory instead."
 )
 
-__all__ = ["FAISSPatternMemory", "MemoryEntry"]

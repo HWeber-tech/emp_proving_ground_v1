@@ -10,7 +10,7 @@ from decimal import Decimal
 from typing import Any, Dict, List, cast
 
 from src.core.state_store import StateStore
-from src.thinking.memory.faiss_memory import FAISSPatternMemory
+from src.sentient.memory.faiss_pattern_memory import FAISSPatternMemory
 
 LearningSignal = Any
 TacticalAdaptation = Any

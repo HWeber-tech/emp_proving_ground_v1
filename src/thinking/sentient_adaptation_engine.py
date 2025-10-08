@@ -1,31 +1,13 @@
-"""
-Shim module for SentientAdaptationEngine (sensory/intelligence independent)
+"""Legacy SentientAdaptationEngine shim removed.
 
-This module intentionally avoids importing from src.intelligence to satisfy
-the domain-independence contract. Use orchestration to wire a concrete
-AdaptationService implementation. This shim provides a minimal, non-raising
-no-op engine to preserve import compatibility for legacy references.
+Callers must import ``SentientAdaptationEngine`` from the canonical
+``src.intelligence.sentient_adaptation`` module.
 """
 
 from __future__ import annotations
 
+raise ModuleNotFoundError(
+    "src.thinking.sentient_adaptation_engine was removed. Import "
+    "SentientAdaptationEngine from src.intelligence.sentient_adaptation instead."
+)
 
-class SentientAdaptationEngine:
-    """No-op shim. Wire a real AdaptationService via orchestration composition."""
-
-    async def initialize(self) -> bool:
-        return True
-
-    async def stop(self) -> bool:
-        return True
-
-    async def adapt_in_real_time(self, *args: object, **kwargs: object) -> dict[str, object]:
-        # Return a minimal dict to avoid downstream None handling
-        return {
-            "success": False,
-            "engine": "noop",
-            "details": "Use core AdaptationService via orchestration.",
-        }
-
-
-__all__ = ["SentientAdaptationEngine"]

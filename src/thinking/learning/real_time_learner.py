@@ -1,18 +1,14 @@
-#!/usr/bin/env python3
-"""
-Shim for RealTimeLearningEngine (thinking layer)
+"""Legacy shim for RealTimeLearningEngine removed.
 
-Canonical implementation resides at:
-- src/sentient/learning/real_time_learning_engine.RealTimeLearningEngine
-
-This module re-exports the canonical class to maintain backward compatibility
-for imports that reference src.thinking.learning.real_time_learner.
+Real-time learning now resolves exclusively through
+``src.sentient.learning.real_time_learning_engine``.
 """
 
 from __future__ import annotations
 
-from src.sentient.learning.real_time_learning_engine import (
-    RealTimeLearningEngine as RealTimeLearningEngine,
+raise ModuleNotFoundError(
+    "src.thinking.learning.real_time_learner was removed. Import "
+    "RealTimeLearningEngine from src.sentient.learning.real_time_learning_engine "
+    "instead."
 )
 
-__all__ = ["RealTimeLearningEngine"]

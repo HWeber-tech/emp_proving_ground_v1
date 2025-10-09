@@ -1,6 +1,6 @@
 import asyncio
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Any, Mapping
 from unittest.mock import AsyncMock
@@ -1789,6 +1789,91 @@ async def test_trade_throttle_handles_high_frequency_burst(
     for event in throttle_events:
         metadata = event.get("metadata", {})
         assert metadata.get("message", "").startswith("Throttled: too many trades")
+
+    throttled_logs = [
+        record.getMessage()
+        for record in caplog.records
+        if "Throttled trade intent" in record.getMessage()
+    ]
+    assert len(throttled_logs) == len(intents) - 1
+    assert all("too many trades" in message for message in throttled_logs)
+
+
+@pytest.mark.asyncio()
+async def test_high_frequency_replay_throughput_remains_healthy(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    async def _noop(*_args, **_kwargs) -> None:
+        return None
+
+    monkeypatch.setattr("src.trading.trading_manager.publish_risk_snapshot", _noop)
+    monkeypatch.setattr("src.trading.trading_manager.publish_roi_snapshot", _noop)
+    monkeypatch.setattr("src.trading.trading_manager.publish_policy_snapshot", _noop)
+    monkeypatch.setattr("src.trading.trading_manager.publish_policy_violation", _noop)
+    monkeypatch.setattr(
+        "src.trading.trading_manager.publish_risk_interface_snapshot", _noop
+    )
+    monkeypatch.setattr("src.trading.trading_manager.publish_risk_interface_error", _noop)
+
+    bus = DummyBus()
+    manager = TradingManager(
+        event_bus=bus,
+        strategy_registry=AlwaysActiveRegistry(),
+        execution_engine=None,
+        initial_equity=25_000.0,
+        risk_config=RiskConfig(
+            min_position_size=1,
+            mandatory_stop_loss=False,
+            research_mode=True,
+        ),
+        trade_throttle={"max_trades": 1, "window_seconds": 45.0},
+    )
+    engine = RecordingExecutionEngine()
+    manager.execution_engine = engine
+
+    base_time = datetime.now(tz=timezone.utc)
+    intents: list[ConfidenceIntent] = []
+    for idx in range(6):
+        intent = ConfidenceIntent(
+            symbol="EURUSD",
+            quantity=1.0,
+            price=1.23 + idx * 0.0001,
+            confidence=0.95,
+            strategy_id="alpha",
+        )
+        setattr(intent, "event_id", f"hft-{idx}")
+        setattr(intent, "ingested_at", base_time - timedelta(milliseconds=idx * 2))
+        intents.append(intent)
+
+    validate_mock: AsyncMock = AsyncMock(side_effect=intents)
+    manager.risk_gateway.validate_trade_intent = validate_mock  # type: ignore[assignment]
+
+    caplog.set_level(logging.WARNING, logger="src.trading.trading_manager")
+
+    await asyncio.gather(*(manager.on_trade_intent(intent) for intent in intents))
+
+    assert engine.calls == 1
+
+    stats = manager.get_execution_stats()
+    assert stats["orders_submitted"] == 1
+    assert stats["throttle_blocks"] == len(intents) - 1
+
+    throughput = stats.get("throughput")
+    assert isinstance(throughput, Mapping)
+    assert throughput.get("samples") == len(intents)
+    assert throughput.get("throughput_per_min") is not None
+    assert throughput.get("max_processing_ms") is not None
+    assert throughput.get("max_lag_ms") is not None
+    assert float(throughput["max_lag_ms"]) <= 500.0
+
+    health = manager.assess_throughput_health(
+        max_processing_ms=100.0, max_lag_ms=500.0
+    )
+    assert health["healthy"] is True
+    assert health["samples"] == len(intents)
+    assert health["processing_within_limit"] is True
+    assert health["lag_within_limit"] is True
 
     throttled_logs = [
         record.getMessage()

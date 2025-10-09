@@ -211,7 +211,9 @@ def test_belief_emitter_publishes_belief_state(tmp_path: Any) -> None:
     golden_path = tmp_path / "belief_payload.json"
     golden_path.write_text(json.dumps({"belief": payload}, indent=2, sort_keys=True))
 
-    with open("tests/intelligence/golden/belief_snapshot.json", "r", encoding="utf-8") as handle:
+    with open(
+        "tests/understanding/golden/belief_snapshot.json", "r", encoding="utf-8"
+    ) as handle:
         expected = json.load(handle)
 
     assert payload == expected["belief"]

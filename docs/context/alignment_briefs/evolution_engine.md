@@ -40,7 +40,7 @@
   experiment metadata; add placeholder tests to lock schemas.
 - Progress: Legacy portfolio evolution module now raises a descriptive
   `ModuleNotFoundError`, and guard tests assert the removal so adaptive callers pivot to
-  the canonical ecosystem surfaces instead of reviving the stub.【F:src/intelligence/portfolio_evolution.py:1】【F:tests/intelligence/test_portfolio_evolution_security.py:1】
+  the canonical ecosystem surfaces instead of reviving the stub.【F:src/intelligence/portfolio_evolution.py:1】【F:tests/thinking/test_portfolio_evolution_security.py:1】
 - Coordinate with risk and data-backbone tracks so adaptive loops inherit
   trustworthy inputs and enforcement.【F:docs/technical_debt_assessment.md†L58-L72】
 

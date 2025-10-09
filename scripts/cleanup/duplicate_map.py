@@ -61,7 +61,7 @@ DOMAIN_KEYWORDS_ORDERED = [
     "ecosystem",
     "genome",
     "integration",
-    "intelligence",
+    "understanding",
     "performance",
     "portfolio",
     "data_foundation",
@@ -72,6 +72,11 @@ DOMAIN_KEYWORDS_ORDERED = [
     "sentient",
     "ui",
 ]
+
+DOMAIN_KEYWORD_ALIASES: Dict[str, str] = {
+    "intelligence": "understanding",
+    "market_intelligence": "sensory",
+}
 
 
 def to_posix(path: Path) -> str:
@@ -89,12 +94,16 @@ def classify_domain(file_path: Path) -> str:
     for kw in DOMAIN_KEYWORDS_ORDERED:
         if kw in parts_set:
             return kw
+    for legacy, target in DOMAIN_KEYWORD_ALIASES.items():
+        if legacy in parts_set:
+            return target
     # Fallback: use first segment under "src"
     if "src" in parts:
         try:
             idx = parts.index("src")
             if idx + 1 < len(parts):
-                return parts[idx + 1]
+                candidate = parts[idx + 1]
+                return DOMAIN_KEYWORD_ALIASES.get(candidate, candidate)
         except ValueError:
             pass
     return "other"

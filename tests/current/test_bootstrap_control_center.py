@@ -172,7 +172,7 @@ async def test_control_center_compiles_telemetry_report() -> None:
     assert "roi" in report["performance"]
     assert report["performance"]["roi"]["snapshot"]["status"] in {"ahead", "tracking", "at_risk"}
     assert report["decisions"]["recent"]
-    assert report["intelligence"]["narrative"] in {"BULLISH", "BEARISH", "NEUTRAL", "VOLATILE"}
+    assert report["understanding"]["narrative"] in {"BULLISH", "BEARISH", "NEUTRAL", "VOLATILE"}
     assert report["liquidity"]["summary"].get("evaluated_levels") is not None
     assert report["evolution"]["champion"]["genome_id"] == orchestrator.champion.genome_id
     assert report["evolution"]["population"]["population_size"] == 12

@@ -129,6 +129,25 @@ def test_route_respects_external_fast_weights() -> None:
     assert breakdown["fast_weight_multiplier"] == pytest.approx(2.0)
     assert breakdown["total_multiplier"] == pytest.approx(2.0)
     assert breakdown["experiment_multipliers"] == {}
+    assert breakdown["fast_weight_active_percentage"] == pytest.approx(50.0)
+    metrics = decision.reflection_summary["fast_weight_metrics"]
+    assert metrics["active_percentage"] == pytest.approx(50.0)
+    assert metrics["total"] == 2
+
+
+def test_fast_weight_metrics_zero_when_no_adjustments() -> None:
+    router = PolicyRouter()
+    router.register_tactic(PolicyTactic(tactic_id="solo", base_weight=1.0))
+
+    decision = router.route(_regime())
+
+    breakdown = decision.weight_breakdown
+    assert breakdown["fast_weight_multiplier"] == pytest.approx(1.0)
+    assert breakdown["fast_weight_active_percentage"] == pytest.approx(0.0)
+    metrics = decision.reflection_summary["fast_weight_metrics"]
+    assert metrics["active_percentage"] == pytest.approx(0.0)
+    assert metrics["active"] == 0
+    assert metrics["total"] == 1
 
 
 def test_registering_duplicate_tactic_raises() -> None:

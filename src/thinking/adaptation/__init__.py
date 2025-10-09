@@ -8,6 +8,12 @@ from .policy_router import (
     PolicyTactic,
     RegimeState,
 )
+from .fast_weights import (
+    FastWeightConstraints,
+    FastWeightController,
+    FastWeightMetrics,
+    FastWeightResult,
+)
 from .evolution_manager import EvolutionManager, ManagedStrategyConfig, StrategyVariant
 
 __all__ = [
@@ -18,6 +24,10 @@ __all__ = [
     "PolicyRouter",
     "PolicyTactic",
     "RegimeState",
+    "FastWeightConstraints",
+    "FastWeightController",
+    "FastWeightMetrics",
+    "FastWeightResult",
     "EvolutionManager",
     "ManagedStrategyConfig",
     "StrategyVariant",

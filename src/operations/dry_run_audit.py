@@ -544,6 +544,8 @@ def analyse_structured_logs(
     *,
     warn_gap: timedelta = DEFAULT_WARN_GAP,
     fail_gap: timedelta = DEFAULT_FAIL_GAP,
+    minimum_duration: timedelta | None = None,
+    minimum_uptime_ratio: float | None = None,
 ) -> DryRunLogSummary:
     """Derive roll-up statistics from parsed structured logs."""
 
@@ -551,15 +553,76 @@ def analyse_structured_logs(
     fail_gap = max(fail_gap, warn_gap)
     level_counts = Counter(record.level for record in result.records)
     event_counts = Counter(record.event for record in result.records if record.event)
+
+    if minimum_duration is not None:
+        minimum_duration = max(minimum_duration, timedelta(0))
+    if minimum_uptime_ratio is not None and not 0.0 <= minimum_uptime_ratio <= 1.0:
+        raise ValueError("minimum_uptime_ratio must be between 0.0 and 1.0")
+
     gap_incidents, uptime_ratio = _analyse_log_gaps(
         result.records, warn_gap=warn_gap, fail_gap=fail_gap
     )
+    incidents = list(gap_incidents)
+
+    if minimum_duration is not None:
+        duration = None
+        if result.records:
+            duration = result.records[-1].timestamp - result.records[0].timestamp
+        if duration is None:
+            incidents.append(
+                DryRunIncident(
+                    severity=DryRunStatus.fail,
+                    occurred_at=datetime.now(tz=UTC),
+                    summary="No logs captured during dry run",
+                    metadata={
+                        "required_min_duration_seconds": minimum_duration.total_seconds(),
+                        "actual_duration_seconds": None,
+                    },
+                )
+            )
+        elif duration < minimum_duration:
+            incidents.append(
+                DryRunIncident(
+                    severity=DryRunStatus.fail,
+                    occurred_at=result.records[-1].timestamp,
+                    summary=(
+                        "Dry run duration "
+                        f"{humanise_timedelta(duration)} below minimum "
+                        f"{humanise_timedelta(minimum_duration)}"
+                    ),
+                    metadata={
+                        "required_min_duration_seconds": minimum_duration.total_seconds(),
+                        "actual_duration_seconds": duration.total_seconds(),
+                    },
+                )
+            )
+
+    if minimum_uptime_ratio is not None:
+        if uptime_ratio is None or uptime_ratio < minimum_uptime_ratio:
+            incidents.append(
+                DryRunIncident(
+                    severity=DryRunStatus.fail,
+                    occurred_at=(
+                        result.records[-1].timestamp if result.records else datetime.now(tz=UTC)
+                    ),
+                    summary=(
+                        "Dry run uptime ratio "
+                        f"{uptime_ratio if uptime_ratio is not None else 'unknown'} "
+                        f"below minimum {minimum_uptime_ratio:.2f}"
+                    ),
+                    metadata={
+                        "required_minimum_uptime_ratio": minimum_uptime_ratio,
+                        "actual_uptime_ratio": uptime_ratio,
+                    },
+                )
+            )
+
     return DryRunLogSummary(
         records=result.records,
         ignored_lines=result.ignored_lines,
         level_counts=dict(level_counts),
         event_counts=dict(event_counts),
-        gap_incidents=gap_incidents,
+        gap_incidents=tuple(incidents),
         uptime_ratio=uptime_ratio,
     )
 
@@ -619,6 +682,8 @@ def evaluate_dry_run(
     metadata: Mapping[str, Any] | None = None,
     log_gap_warn: timedelta | None = None,
     log_gap_fail: timedelta | None = None,
+    minimum_run_duration: timedelta | None = None,
+    minimum_uptime_ratio: float | None = None,
 ) -> DryRunSummary:
     """Evaluate dry run evidence from logs, diaries, and performance telemetry."""
 
@@ -627,6 +692,8 @@ def evaluate_dry_run(
         parse_result,
         warn_gap=log_gap_warn or DEFAULT_WARN_GAP,
         fail_gap=log_gap_fail or DEFAULT_FAIL_GAP,
+        minimum_duration=minimum_run_duration,
+        minimum_uptime_ratio=minimum_uptime_ratio,
     )
 
     diary_summary: DryRunDiarySummary | None = None

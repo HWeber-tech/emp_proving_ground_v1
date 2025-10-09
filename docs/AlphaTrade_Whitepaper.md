@@ -38,6 +38,52 @@ AlphaTrade is organized as a layered cortex:
      └───────────────────┴────────────────────┴────────────────────┴─────────────────────┘
 ```
 
+```mermaid
+flowchart LR
+    subgraph Perception
+        S1[Market Telemetry]
+        S2[Lineage + Quality Signals]
+        S3[Anomaly Sentries]
+    end
+    subgraph Adaptation
+        R1[Understanding Router]
+        R2[Policy Router]
+        FW[Fast-Weight Controller]
+    end
+    subgraph Reflection
+        D1[Decision Diary]
+        D2[Policy Reflection Builder]
+        G1[Understanding Diagnostics]
+    end
+    subgraph Execution
+        TM[Trading Manager]
+        TT[Trade Throttle]
+        PA[Paper Trading Adapter]
+    end
+    subgraph Governance
+        GL[Policy Ledger]
+        SG[Supervisor Guardrails]
+        AU[Dry-Run Audit Bundle]
+    end
+    S1 -->|Belief Frames| R1
+    S2 --> R1
+    S3 --> R1
+    R1 -->|Strategy Intents| TM
+    R2 --> R1
+    FW --> R1
+    TM -->|Orders + Telemetry| PA
+    TM --> TT
+    PA -->|Executions| D1
+    TT --> D1
+    D1 --> D2
+    G1 --> D2
+    D2 --> GL
+    GL --> SG
+    SG --> TM
+    SG --> FW
+    AU --> GL
+```
+
 Each layer emits telemetry and state that the downstream layers consume while feeding aggregated diagnostics back upstream. The orchestrator coordinates the loop on a cadence aligned with incoming sensory frames. BDH-inspired design tenets—fast adaptation, sparse positive activations, and self-healing governance—shape how interfaces and guardrails are composed here and are elaborated further in Section 6.
 
 The layer boundaries double as documentation boundaries: each subsystem exposes typed contracts (Pydantic models or dataclasses) that are consumed by adjacent layers. This ensures perception artifacts remain interpretable when they reach the routers and that governance retains visibility into every decision and trade. The following sections summarize the components that make up the paper-trading release candidate.
@@ -51,6 +97,7 @@ The layer boundaries double as documentation boundaries: each subsystem exposes 
 - The **UnderstandingRouter** scores candidate strategies using belief snapshots and applies Hebbian fast weights to emphasize recently successful tactics, exposing adapter summaries for observability (`src/understanding/router.py`).
 - The **PolicyRouter** manages lifecycle metadata and fast-weight experiments, enabling governance to promote or demote strategies based on evidence (`src/thinking/adaptation/policy_router.py`).
 - Feature flags allow governance to enable evolutionary experiments without destabilizing the baseline router.
+- Fast-weight sparsity and multiplier bounds are enforced through the `FastWeightController`, satisfying the positive-sparse activation guardrails described in the router context examples (`src/thinking/adaptation/fast_weights.py`, `docs/context/examples/understanding_router.md`).
 
 ### 2.3 Reflection
 - The **DecisionDiary** captures context, rationale, and outcomes for every routing cycle (`src/understanding/decision_diary.py`).
@@ -71,11 +118,13 @@ The layer boundaries double as documentation boundaries: each subsystem exposes 
 - Bootstrap wiring in `AlphaTradeLoopOrchestrator` attaches perception, adaptation, and execution subsystems with configurable extras for paper trading (`src/runtime/predator_app.py`).
 - Regression suites exercise the Timescale → Kafka → cortex integration (`tests/integration/test_operational_data_backbone.py`) and bootstrap paper broker lifecycle (`tests/runtime/test_bootstrap_paper_broker.py`).
 - Observability hooks stream throttle posture, drift sentry decisions, and governance workflow snapshots through the trading manager interface for dashboards and runbooks (`src/trading/trading_manager.py`).
+- Operational playbooks in the context packs describe how to triage ingest failures and throttle fatigue; the loop orchestrator mirrors those runbooks by surfacing remediation actions into the dry-run audit package (`docs/context/alignment_briefs/operational_readiness.md`, `src/operations/dry_run_audit.py`).
 
 ### 2.7 Context Pack Alignment
 - **Sensory Cortex Brief:** The sensory cortex alignment pack prescribes multi-signal fusion with lineage metadata and anomaly sentries; the RealSensoryOrgan mirrors that contract so routers receive PSD-validated frames tagged for provenance (`docs/context/alignment_briefs/sensory_cortex.md`).
 - **Institutional Data Backbone:** Operational readiness guidance calls for a Timescale → Kafka ingest spine with failover capture; the integration harness and bootstrap wiring enforce that topology under guardrail coverage until live credentials land (`docs/context/alignment_briefs/institutional_data_backbone.md`).
 - **Governance & Risk:** Policy ledger procedures, throttle requirements, and incident reporting defined in the governance briefs materialize as graduation workflows, throttle snapshots, and audit bundles that satisfy roadmap evidence reviews (`docs/context/alignment_briefs/institutional_risk_compliance.md`, `docs/context/alignment_briefs/operational_readiness.md`).
+- **BDH Decision Theory:** The evolution engine brief outlines positive-sparse activations and Hebbian reinforcement; AlphaTrade’s fast-weight controller applies percentile pruning and non-negative clamps to satisfy those expectations while the diagnostics pack visualizes activation density for reviewers (`docs/context/alignment_briefs/evolution_engine.md`, `src/thinking/adaptation/fast_weights.py`).
 
 ## 3. Implementation Highlights
 
@@ -173,9 +222,9 @@ Diagnostics bundle the activation histogram with raw telemetry so reviewers can 
 AlphaTrade implements several BDH concepts:
 
 1. **Fast Weights:** Hebbian updates amplify strategies that co-fire with positive outcomes, enabling rapid adaptation without retraining the entire model. Adapter multipliers are persisted per run so governance can review the learning trajectory (`src/understanding/router.py`).
-2. **Activation Stewardship:** Router fast-weight adapters only amplify tactics when feature gates pass, constraining the number of simultaneously favored strategies and keeping activations interpretable for reviewers (`src/understanding/router.py`).
-3. **Interpretable Concept Graphs:** Understanding diagnostics expose node-level activation and causal paths, enabling human auditors to trace strategy selection back to sensory evidence (`src/understanding/diagnostics.py`).
-4. **Self-Healing Loops:** Governance throttles, anomaly sentries, and supervisor fallbacks maintain operational stability akin to cognitive resilience (`src/trading/execution/trade_throttle.py`, `src/runtime/predator_app.py`).
+2. **Activation Stewardship:** Router fast-weight adapters only amplify tactics when feature gates pass, constraining the number of simultaneously favored strategies and keeping activations interpretable for reviewers (`src/understanding/router.py`). Sparsity thresholds and non-negative clamps directly implement the “positive sparse activation” clause from the BDH brief (`src/thinking/adaptation/fast_weights.py`).
+3. **Interpretable Concept Graphs:** Understanding diagnostics expose node-level activation and causal paths, enabling human auditors to trace strategy selection back to sensory evidence (`src/understanding/diagnostics.py`). Diagnostic exports now embed fast-weight sparsity telemetry so reviewers can reconcile BDH expectations with observed behavior (`docs/context/alignment_briefs/quality_observability.md`).
+4. **Self-Healing Loops:** Governance throttles, anomaly sentries, and supervisor fallbacks maintain operational stability akin to cognitive resilience (`src/trading/execution/trade_throttle.py`, `src/runtime/predator_app.py`). Dry-run audit tooling cross-references these guardrails with governance policies to ensure the resilience claims remain evidence-backed (`src/operations/dry_run_audit.py`).
 
 ## 7. Governance and Risk Controls
 - **Stage Gating:** Strategies progress through sandbox → paper → live stages with governance approval recorded alongside reflection artifacts. Promotion criteria: ≥200 trades, Sharpe proxy ≥0.8, max drawdown within -2%, zero unresolved policy breaches.
@@ -213,3 +262,14 @@ AlphaTrade now operates as a cohesive, explainable trading intelligence capable 
 - **Integration run:** `poetry run pytest tests/integration/test_paper_trading_simulation.py -k paper_trading_simulation` reproduces the end-to-end diary + paper-API validation, and `-k recovers_after_api_failure` exercises retry logic plus diary error snapshots.
 - **Adapter contract:** `poetry run pytest tests/trading/test_paper_trading_api_adapter.py` verifies REST semantics, retries, and error handling for the paper adapter.
 - **Bootstrap lifecycle:** `poetry run pytest tests/runtime/test_bootstrap_paper_broker.py` exercises configuration parsing, adapter wiring, and cleanup routines required for paper deployments.
+- **Governance packet assembly:** `poetry run pytest tests/operations/test_dry_run_audit.py` regenerates the dry-run evidence bundle, ensuring documentation snapshots and throttle logs remain in sync with the governance briefs.
+
+## Appendix D. Context Pack Reference Map
+- **Perception Alignment Brief:** `docs/context/alignment_briefs/sensory_cortex.md`
+- **Institutional Data Backbone Brief:** `docs/context/alignment_briefs/institutional_data_backbone.md`
+- **Evolution Engine Brief:** `docs/context/alignment_briefs/evolution_engine.md`
+- **Governance & Compliance Playbook:** `docs/context/alignment_briefs/institutional_risk_compliance.md`
+- **Operational Readiness Guide:** `docs/context/alignment_briefs/operational_readiness.md`
+- **Quality & Observability Brief:** `docs/context/alignment_briefs/quality_observability.md`
+- **Understanding Router Examples:** `docs/context/examples/understanding_router.md`
+- **Understanding Loop Sprint Brief:** `docs/context/sprint_briefs/understanding_loop_v1.md`

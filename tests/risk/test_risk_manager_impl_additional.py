@@ -200,6 +200,57 @@ def test_risk_manager_sector_budget_zero_rejects_positive_exposure() -> None:
     assert result is False
 
 
+def test_risk_manager_normalizes_symbol_keys() -> None:
+    manager = RiskManager(config=RiskConfig())
+
+    manager.add_position("eurusd", 50_000, 1.1, stop_loss_pct=0.02)
+
+    assert "EURUSD" in manager.positions
+    assert "eurusd" not in manager.positions
+
+    manager.update_position_value("EuRuSd", 1.2)
+
+    entry = manager.positions["EURUSD"]
+    assert entry["current_price"] == pytest.approx(1.2)
+
+    metrics = manager.get_position_risk("eurusd")
+    assert metrics["symbol"] == "EURUSD"
+
+
+def test_risk_manager_validate_trade_merges_legacy_keys(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config = RiskConfig(max_position_size=500_000)
+    manager = RiskManager(config=config, initial_balance=Decimal("100_000"))
+
+    manager.positions["eurusd"] = {
+        "size": 20_000.0,
+        "entry_price": 1.0,
+        "entry_time": datetime.now(),
+        "stop_loss_pct": 0.02,
+    }
+
+    captured: dict[str, float] = {}
+
+    def _capture(positions: Mapping[str, float]) -> float:
+        captured.clear()
+        captured.update(positions)
+        return 0.0
+
+    monkeypatch.setattr(manager.risk_manager, "assess_risk", _capture)
+
+    approved = manager.validate_trade(
+        size=Decimal("10_000"),
+        entry_price=Decimal("1.0"),
+        stop_loss_pct=Decimal("0.02"),
+        symbol="EURusd",
+    )
+
+    assert approved is True
+    assert set(captured.keys()) == {"EURUSD"}
+    assert "EURUSD" in manager.positions
+
+
 def test_risk_manager_rejects_when_trade_risk_exceeds_budget() -> None:
     manager = RiskManager(config=RiskConfig())
 

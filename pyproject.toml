@@ -32,8 +32,6 @@ known-first-party = ["src"]
 "src/core/base.py" = ["I001"]  # complex TYPE_CHECKING import blocks
 "src/sensory/organs/dimensions/pattern_engine.py" = ["I001"]  # large grouped imports; refactor tracked in M2
 "src/sensory/tests/test_integration.py" = ["I001"]  # legacy test import ordering
-"src/market_intelligence/dimensions/enhanced_how_dimension.py" = ["F401"]
-"src/market_intelligence/dimensions/enhanced_what_dimension.py" = ["F401"]
 [tool.ruff.lint]
 # Keep CI green with a minimal, safety-focused rule set.
 # Adopt full style rules incrementally in future PRs.

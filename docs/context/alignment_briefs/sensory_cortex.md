@@ -77,6 +77,7 @@
   enhanced dimensions so new integrations land on the supported surfaces.【F:src/sensory/__init__.py†L1-L11】【F:src/market_intelligence/dimensions/__init__.py†L1-L24】
 - Progress: Integration regression now imports the enhanced sensory organs through their canonical namespaces, eliminating ad-hoc path hacks and exercising the fusion engine against the official adapters under pytest coverage.【F:src/sensory/tests/test_integration.py†L1-L550】
 - Progress: Market intelligence namespace now re-exports canonical core and orchestration primitives via lazy shims, with regression coverage confirming legacy imports resolve to the sensory engines without noisy side effects.【src/market_intelligence/core/base.py:1】【src/market_intelligence/orchestration/enhanced_intelligence_engine.py:1】【tests/current/test_mi_to_sensory_forwarding_phase2.py:1】
+- Progress: Namespace integrity guardrail now scans `src/`, `tools/`, and `scripts/` for banned legacy prefixes so regressions cannot reintroduce deprecated sensory or intelligence modules, and the demo/replay scripts import the canonical sensory namespaces under regression coverage.【F:tests/current/test_namespace_integrity.py†L1-L84】【F:scripts/sensory_demo.py†L1-L160】【F:scripts/replay_into_sensory.py†L1-L93】【F:scripts/minimal_sensory_demo.py†L1-L160】
 - Progress: Sensory summary telemetry now constructs ranked Markdown/JSON
   rollups from integrated sensor payloads, preserves drift metadata, and
   publishes via the event-bus failover helper so dashboards receive resilient

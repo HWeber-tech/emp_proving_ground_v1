@@ -117,7 +117,7 @@ class MinimalFusionEngine:
         }
         self.current_readings = {}
 
-    async def analyze_market_intelligence(self, market_data: MarketData) -> Dict[str, Any]:
+    async def analyze_market_understanding(self, market_data: MarketData) -> Dict[str, Any]:
         """Analyze market data and return dimensional readings"""
 
         readings = {}
@@ -185,7 +185,7 @@ class MinimalSensoryDemo:
             try:
                 market_data = self.tick_generator.generate_tick()
 
-                result = await self.fusion_engine.analyze_market_intelligence(market_data)
+                result = await self.fusion_engine.analyze_market_understanding(market_data)
 
                 self.successful_updates += 1
 

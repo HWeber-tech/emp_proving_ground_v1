@@ -152,7 +152,7 @@ market_data = MarketData(
 
 # Perform analysis
 async def analyze() -> None:
-    synthesis = await engine.analyze_market_intelligence(market_data)
+    synthesis = await engine.analyze_market_understanding(market_data)
     print(f"Intelligence Level: {synthesis.intelligence_level.name}")
     print(f"Unified Score: {synthesis.unified_score:.3f}")
     print(f"Narrative: {synthesis.narrative_text}")
@@ -472,7 +472,7 @@ engine.anomaly_engine.statistical_detector.price_threshold = 2.5
 Main orchestration engine that coordinates all dimensional analysis.
 
 **Methods:**
-- `analyze_market_intelligence(market_data)`: Perform comprehensive analysis
+- `analyze_market_understanding(market_data)`: Perform comprehensive analysis
 - `get_diagnostic_information()`: Retrieve system diagnostics
 
 #### DimensionalEngines

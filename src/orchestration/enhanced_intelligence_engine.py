@@ -20,6 +20,7 @@ The engine produces a synthesis object with attributes checked by tests:
 from __future__ import annotations
 
 import asyncio
+import warnings
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Dict, List, Protocol, Tuple, cast
@@ -209,7 +210,7 @@ class ContextualFusionEngine:
         self.weight_manager = WeightManager()
         self.correlation_analyzer = CorrelationAnalyzer()
 
-    async def analyze_market_intelligence(self, market_data: MarketData) -> Synthesis:
+    async def analyze_market_understanding(self, market_data: MarketData) -> Synthesis:
         # Run all engines concurrently
         why_t = self._why.analyze_fundamental_intelligence(market_data)
         how_t = self._how.analyze_institutional_intelligence(market_data)
@@ -297,6 +298,15 @@ class ContextualFusionEngine:
             risk_factors=risk_factors,
             opportunity_factors=opportunity_factors,
         )
+
+    async def analyze_market_intelligence(self, market_data: MarketData) -> Synthesis:
+        warnings.warn(
+            "ContextualFusionEngine.analyze_market_intelligence is deprecated; "
+            "use analyze_market_understanding instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return await self.analyze_market_understanding(market_data)
 
     def get_diagnostic_information(self) -> Dict[str, Any]:
         return {

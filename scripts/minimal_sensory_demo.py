@@ -11,9 +11,12 @@ import time
 from datetime import datetime, timedelta
 from typing import Any, Dict
 
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "src"))
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
 
-from sensory.core.base import DimensionalReading, MarketData, MarketRegime
+from src.core.base import DimensionalReading, MarketRegime
+from src.sensory.organs.dimensions.base_organ import MarketData
 
 
 class MinimalTickGenerator:

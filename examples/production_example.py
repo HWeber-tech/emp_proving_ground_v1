@@ -17,10 +17,16 @@ import os
 import sys
 
 # Ensure project root on path for local run
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if PROJECT_ROOT not in sys.path:
+    sys.path.append(PROJECT_ROOT)
 
-from src.sensory.core.base import InstrumentMeta, MarketData, OrderBookSnapshot
+from src.sensory.organs.dimensions.base_organ import InstrumentMeta, MarketData
 from src.sensory.orchestration.master_orchestrator import MasterOrchestrator
+from src.trading.order_management.order_book.snapshot import (
+    OrderBookLevel,
+    OrderBookSnapshot,
+)
 
 # Configure logging
 logging.basicConfig(
@@ -105,8 +111,6 @@ class ProductionDataSimulator:
 
     def generate_order_book(self, mid_price: float) -> OrderBookSnapshot:
         """Generate realistic order book."""
-        from core.base import OrderBookLevel
-
         depth = 10
         bids = []
         asks = []
@@ -124,12 +128,12 @@ class ProductionDataSimulator:
 
             bids.append(
                 OrderBookLevel(
-                    price=bid_price, volume=bid_volume, order_count=max(1, int(volume_decay * 10))
+                    price=bid_price, volume=bid_volume, orders=max(1, int(volume_decay * 10))
                 )
             )
             asks.append(
                 OrderBookLevel(
-                    price=ask_price, volume=ask_volume, order_count=max(1, int(volume_decay * 10))
+                    price=ask_price, volume=ask_volume, orders=max(1, int(volume_decay * 10))
                 )
             )
 

@@ -62,6 +62,8 @@ def test_analyse_structured_logs_flags_errors() -> None:
     assert summary.status is DryRunStatus.fail
     assert len(summary.errors) == 1
     assert len(summary.warnings) == 1
+    assert summary.gap_incidents == tuple()
+    assert summary.uptime_ratio == 1.0
     assert summary.as_dict()["ignored_lines"] == 1
     assert "Errors" in summary.to_markdown()
 
@@ -111,6 +113,8 @@ def test_dry_run_summary_combines_components() -> None:
         ignored_lines=0,
         level_counts={"info": 1},
         event_counts={"start": 1},
+        gap_incidents=tuple(),
+        uptime_ratio=1.0,
     )
     diary_summary = DryRunDiarySummary(
         entries=tuple(),
@@ -200,3 +204,41 @@ def test_load_structured_logs_counts_invalid_lines(tmp_path: Path) -> None:
     result = load_structured_logs([log_path])
     assert result.ignored_lines == 2
     assert not result.records
+
+
+def test_analyse_structured_logs_detects_log_gaps() -> None:
+    records = (
+        _record("2024-01-01T00:00:00", "info", "start", "start"),
+        _record("2024-01-01T03:30:00", "info", "heartbeat", "still alive"),
+        _record("2024-01-01T04:00:00", "info", "heartbeat", "still alive"),
+    )
+    summary = analyse_structured_logs(
+        LogParseResult(records=records, ignored_lines=0),
+        warn_gap=timedelta(hours=1),
+        fail_gap=timedelta(hours=4),
+    )
+    assert summary.gap_incidents
+    gap = summary.gap_incidents[0]
+    assert gap.severity is DryRunStatus.warn
+    assert "3h" in gap.summary
+    assert summary.uptime_ratio is not None
+    assert summary.uptime_ratio < 1.0
+
+
+def test_analyse_structured_logs_gap_failures_when_threshold_exceeded() -> None:
+    records = (
+        _record("2024-01-01T00:00:00", "info", "start", "start"),
+        _record("2024-01-02T10:00:00", "info", "heartbeat", "ok"),
+    )
+    summary = analyse_structured_logs(
+        LogParseResult(records=records, ignored_lines=0),
+        warn_gap=timedelta(hours=1),
+        fail_gap=timedelta(hours=12),
+    )
+    assert summary.status is DryRunStatus.fail
+    assert summary.gap_incidents and summary.gap_incidents[0].severity is DryRunStatus.fail
+    assert summary.uptime_ratio is not None
+    assert "Log gaps" in DryRunSummary(
+        generated_at=datetime(2024, 1, 3, tzinfo=UTC),
+        log_summary=summary,
+    ).to_markdown()

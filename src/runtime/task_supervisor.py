@@ -6,7 +6,7 @@ import asyncio
 import logging
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Any, Coroutine, Mapping, MutableMapping, Sequence, TypeVar
+from typing import Any, Callable, Coroutine, Mapping, MutableMapping, Sequence, TypeVar
 
 __all__ = ["TaskSupervisor", "TaskSnapshot"]
 
@@ -38,6 +38,9 @@ class _TrackedTask:
     name: str | None
     created_at: datetime
     metadata: Mapping[str, Any] | None
+    restart_limit: int | None
+    restart_backoff: float
+    restarts: int
 
 
 _T = TypeVar("_T")
@@ -83,14 +86,83 @@ class TaskSupervisor:
         *,
         name: str | None = None,
         metadata: Mapping[str, Any] | None = None,
+        restart_callback: Callable[[], Coroutine[Any, Any, _T]] | None = None,
+        max_restarts: int | None = 0,
+        restart_backoff: float = 0.0,
     ) -> asyncio.Task[_T]:
         """Create and track a background task."""
 
         if self._closing:
             raise RuntimeError("TaskSupervisor is shutting down; cannot create new tasks")
 
-        task: asyncio.Task[_T] = asyncio.create_task(coro, name=name)
-        self._register(task, metadata)
+        if restart_callback is not None and not callable(restart_callback):
+            raise TypeError("restart_callback must be callable when provided")
+        if max_restarts is not None and max_restarts < 0:
+            raise ValueError("max_restarts must be non-negative or None")
+
+        restart_limit = max_restarts if max_restarts is not None else None
+        effective_backoff = max(0.0, float(restart_backoff))
+
+        record_holder: list[_TrackedTask] = []
+
+        async def _managed(initial_coro: Coroutine[Any, Any, _T]) -> _T:
+            attempt = 0
+            current = initial_coro
+            while True:
+                try:
+                    return await current
+                except asyncio.CancelledError:
+                    raise
+                except Exception as exc:  # pragma: no cover - restart logging path
+                    if restart_callback is None or (
+                        restart_limit is not None and attempt >= restart_limit
+                    ):
+                        raise
+                    attempt += 1
+                    if record_holder:
+                        record_holder[0].restarts = attempt
+                    limit_display = "∞" if restart_limit is None else str(restart_limit)
+                    self._logger.error(
+                        "Background task %s failed (attempt %s/%s); restarting",
+                        name or "<unnamed>",
+                        attempt,
+                        limit_display,
+                        exc_info=exc,
+                    )
+                    if effective_backoff:
+                        try:
+                            await asyncio.sleep(effective_backoff)
+                        except asyncio.CancelledError:
+                            raise
+                    try:
+                        current = restart_callback()
+                    except Exception:  # pragma: no cover - restart factory failures
+                        self._logger.exception(
+                            "Failed to obtain restart coroutine for task %s", name
+                        )
+                        raise
+
+        if restart_callback is not None and (
+            restart_limit is None or restart_limit > 0
+        ):
+            managed_coro: Coroutine[Any, Any, _T] = _managed(coro)
+            restart_meta_limit: int | None = restart_limit
+            restart_meta_backoff = effective_backoff
+        else:
+            managed_coro = coro
+            restart_callback = None
+            restart_meta_limit = None
+            restart_meta_backoff = 0.0
+
+        task: asyncio.Task[_T] = asyncio.create_task(managed_coro, name=name)
+        record = self._register(
+            task,
+            metadata,
+            restart_limit=restart_meta_limit,
+            restart_backoff=restart_meta_backoff,
+        )
+        if restart_callback is not None:
+            record_holder.append(record)
         return task
 
     def track(
@@ -120,7 +192,14 @@ class TaskSupervisor:
                 created_at=record.created_at,
                 metadata=record.metadata,
             )
-            snapshots.append(snapshot.as_dict())
+            payload = snapshot.as_dict()
+            if record.restart_limit not in (None, 0):
+                payload["restart_limit"] = record.restart_limit
+            if record.restart_backoff:
+                payload["restart_backoff_seconds"] = record.restart_backoff
+            if record.restarts:
+                payload["restarts"] = record.restarts
+            snapshots.append(payload)
         return snapshots
 
     async def cancel_all(self) -> None:
@@ -158,14 +237,21 @@ class TaskSupervisor:
         self,
         task: asyncio.Task[Any],
         metadata: Mapping[str, Any] | None,
-    ) -> None:
+        *,
+        restart_limit: int | None = None,
+        restart_backoff: float = 0.0,
+    ) -> _TrackedTask:
         record = _TrackedTask(
             name=self._task_name(task),
             created_at=datetime.now(UTC),
             metadata=dict(metadata) if metadata is not None else None,
+            restart_limit=restart_limit,
+            restart_backoff=restart_backoff,
+            restarts=0,
         )
         self._tasks[task] = record
         task.add_done_callback(self._on_task_done)
+        return record
 
     def _on_task_done(self, task: asyncio.Task[Any]) -> None:
         record = self._tasks.pop(task, None)

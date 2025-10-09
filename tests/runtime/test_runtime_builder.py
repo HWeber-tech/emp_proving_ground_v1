@@ -53,9 +53,11 @@ from src.data_foundation.ingest.timescale_pipeline import (
 from src.runtime import (
     RuntimeApplication,
     RuntimeWorkload,
+    WorkloadRestartPolicy,
     build_professional_predator_app,
     build_professional_runtime_application,
 )
+from src.runtime.task_supervisor import TaskSupervisor
 from src.runtime.runtime_builder import (
     _normalise_ingest_plan_metadata,
     _plan_dimensions,
@@ -1441,3 +1443,58 @@ async def test_builder_configures_governance_cadence(monkeypatch, tmp_path):
         assert not hasattr(runtime_app, "_governance_cadence_runner")
     finally:
         await app.shutdown()
+@pytest.mark.asyncio()
+async def test_runtime_application_ingest_failure_restarts_and_trading_continues(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    supervisor = TaskSupervisor(namespace="test-runtime", cancel_timeout=0.1)
+    stop_event = asyncio.Event()
+    ingest_restart = asyncio.Event()
+    trade_started = asyncio.Event()
+    attempts = 0
+
+    async def _ingest() -> None:
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            raise RuntimeError("ingest burst")
+        ingest_restart.set()
+        await stop_event.wait()
+
+    async def _trade() -> None:
+        trade_started.set()
+        await stop_event.wait()
+
+    ingestion = RuntimeWorkload(
+        name="ingest",
+        factory=_ingest,
+        description="test ingest",
+        restart_policy=WorkloadRestartPolicy(max_restarts=3, backoff_seconds=0.0),
+    )
+    trading = RuntimeWorkload(
+        name="trade",
+        factory=_trade,
+        description="test trade",
+    )
+    app = RuntimeApplication(
+        ingestion=ingestion,
+        trading=trading,
+        task_supervisor=supervisor,
+    )
+
+    with caplog.at_level(logging.ERROR, logger=supervisor._logger.name):
+        run_task = asyncio.create_task(app.run())
+        await asyncio.wait_for(trade_started.wait(), timeout=1.0)
+        await asyncio.sleep(0)  # allow ingest failure to propagate and restart
+        await asyncio.wait_for(ingest_restart.wait(), timeout=1.0)
+        assert not run_task.done()
+        assert any(
+            record.exc_text and "ingest burst" in record.exc_text
+            for record in caplog.records
+        )
+
+    stop_event.set()
+    await asyncio.wait_for(run_task, timeout=1.0)
+    assert attempts == 2
+    await supervisor.cancel_all()
+

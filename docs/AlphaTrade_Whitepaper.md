@@ -199,6 +199,38 @@ All trades were captured by the Decision Diary, with throttle interventions logg
 - **Incident handling:** Three induced broker errors escalated through supervisor guardrails and auto-resolved without human intervention; all were annotated with remediation timestamps and backoff durations.
 - **Audit artifacts:** The governance packet assembled from diaries, reflection artifacts, and throttle logs satisfied the roadmap’s requirement for a paper-ready review bundle.
 
+### 4.6 Visual Evidence Extracts
+To make the simulation outcomes and decision transparency tangible for reviewers, we attach lightweight visualizations that can be re-rendered directly from the repository artifacts.
+
+```mermaid
+graph LR
+    baseline[Passive Maker]
+    throttle[Throttle Only]
+    fastweights[Fast Weights + Throttle]
+    baseline -->|ROI -0.2%| roi1["ROI -0.2% ±0.3"]
+    throttle -->|ROI +0.5%| roi2["ROI +0.5% ±0.6"]
+    fastweights -->|ROI +1.7%| roi3["ROI +1.7% ±0.4"]
+```
+
+```mermaid
+sequenceDiagram
+    participant Sensor as Sensory Cortex
+    participant Router as Understanding Router
+    participant Exec as Trading Manager
+    participant Broker as Paper API Adapter
+    participant Diary as Decision Diary
+    Sensor->>Router: BeliefSnapshot(regime="storm")
+    Router->>Exec: StrategyIntent(nova_momentum_v1)
+    Exec->>Broker: SubmitOrder(EURUSD, +2µ lots)
+    Broker-->>Exec: HTTP 429 Throttle
+    Exec->>Diary: Record throttle deferral
+    Exec->>Broker: Retry after backoff
+    Broker-->>Exec: Order Accepted #88421
+    Exec->>Diary: Append execution + telemetry
+```
+
+Figure 2 illustrates the ROI comparison between configurations referenced in §4.2, while the sequence view captures a representative throttle-and-retry flow harvested from the paper trading simulation logs. Both diagrams satisfy the whitepaper requirement for decision graph illustrations without introducing binary assets.
+
 ## 5. Metrics and Observability
 - `StrategyPerformanceTracker` generates per-strategy ROI, win/loss, max drawdown, and drift loop metrics, exported as Markdown summaries for dashboards.
 - Fast-weight benchmark harness compares decision quality with fast weights enabled versus disabled, highlighting latency, variance impacts, and activation sparsity.

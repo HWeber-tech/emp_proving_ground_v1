@@ -204,12 +204,12 @@ AlphaTrade now operates as a cohesive, explainable trading intelligence capable 
 ## Appendix B. Simulation Configuration
 
 - **Throttle policy:** Default `TradeThrottleConfig` limits execution to one trade per 60-second window (`src/trading/execution/trade_throttle.py`).
-- **Paper API extras:** `tests/integration/test_paper_trading_simulation.py` configures the bootstrap runtime with REST endpoints, order identifiers, and timeout settings to exercise the adapter end-to-end.
+- **Paper API extras:** `tests/integration/test_paper_trading_simulation.py` configures the bootstrap runtime with REST endpoints, order identifiers, and timeout settings to exercise the adapter end-to-end while persisting broker diagnostics into the decision diary when HTTP calls fail.
 - **Decision diary storage:** `DecisionDiaryStore` writes JSON summaries (including probe registry snapshots) to the `DECISION_DIARY_PATH` configured in paper-trading extras (`src/understanding/decision_diary.py`).
 - **Policy ledger staging:** The integration harness seeds `PolicyLedgerStore` with stage thresholds so DriftSentry gating and release routing respect paper/pilot/live boundaries during simulation (`tests/integration/test_paper_trading_simulation.py`).
 
 ## Appendix C. Reproducibility Checklist
 - **Repository State:** Capture `git rev-parse HEAD` before executing simulations to pin the code snapshot.
-- **Integration run:** `poetry run pytest tests/integration/test_paper_trading_simulation.py -k paper_trading_simulation` reproduces the end-to-end diary + paper-API validation.
+- **Integration run:** `poetry run pytest tests/integration/test_paper_trading_simulation.py -k paper_trading_simulation` reproduces the end-to-end diary + paper-API validation, and `-k recovers_after_api_failure` exercises retry logic plus diary error snapshots.
 - **Adapter contract:** `poetry run pytest tests/trading/test_paper_trading_api_adapter.py` verifies REST semantics, retries, and error handling for the paper adapter.
 - **Bootstrap lifecycle:** `poetry run pytest tests/runtime/test_bootstrap_paper_broker.py` exercises configuration parsing, adapter wiring, and cleanup routines required for paper deployments.

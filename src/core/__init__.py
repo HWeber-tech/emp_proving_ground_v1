@@ -13,7 +13,7 @@ from typing import Any
 
 from .instrument import Instrument, get_all_instruments, get_instrument
 from .population_manager import PopulationManager
-from src.risk.manager import RiskManager, get_risk_manager  # canonical risk facade
+from src.risk.manager import RiskManager  # canonical risk facade
 
 __all__ = [
     # Population Manager
@@ -25,7 +25,6 @@ __all__ = [
     "create_sensory_organ",
     # Risk Manager
     "RiskManager",
-    "get_risk_manager",
     # Instrument
     "Instrument",
     "get_instrument",

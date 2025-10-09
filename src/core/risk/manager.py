@@ -9,7 +9,7 @@ masking that migration.
 from __future__ import annotations
 
 raise ModuleNotFoundError(
-    "src.core.risk.manager was removed. Import RiskManager from src.risk.manager "
+    "src.core.risk.manager was removed. Import RiskManager from src.risk "
     "and use src.config.risk.risk_config.RiskConfig for configuration overrides."
 )
 

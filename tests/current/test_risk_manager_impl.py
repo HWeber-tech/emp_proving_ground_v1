@@ -8,7 +8,7 @@ from typing import Any, Dict
 import pytest
 
 from src.config.risk.risk_config import RiskConfig
-from src.risk.manager import RiskManager
+from src.risk import RiskManager
 from src.risk.risk_manager_impl import RiskManagerImpl
 
 

@@ -12,7 +12,7 @@ import pytest
 from src.core.market_data import NoOpMarketDataGateway
 from src.core.anomaly import NoOpAnomalyDetector
 from src.core.genome import NoOpGenomeProvider
-from src.risk.manager import RiskManager
+from src.risk import RiskManager
 from src.orchestration.compose import (
     AdaptationServiceAdapter,
     ConfigurationProviderAdapter,

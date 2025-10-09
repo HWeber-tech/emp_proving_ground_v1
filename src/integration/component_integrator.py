@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING, Dict, List, Optional, Protocol, runtime_checka
 from src.core.performance.market_data_cache import get_global_cache
 from src.core.types import JSONObject
 from src.config.risk.risk_config import RiskConfig
-from src.risk.manager import RiskManager, get_risk_manager
+from src.risk import RiskManager, get_risk_manager
 from src.trading.risk.risk_api import RISK_API_RUNBOOK, summarise_risk_config
 
 # Canonical imports (avoid relative package traversals)
@@ -40,7 +40,7 @@ if TYPE_CHECKING:
     # Type-only imports to satisfy checkers without runtime coupling
     from src.core import PopulationManager as _TPopulationManager  # noqa: F401
     from src.core import SensoryOrgan as _TSensoryOrgan  # noqa: F401
-    from src.risk.manager import RiskManager as _TRiskManager  # noqa: F401
+    from src.risk import RiskManager as _TRiskManager  # noqa: F401
 
 logger = logging.getLogger(__name__)
 

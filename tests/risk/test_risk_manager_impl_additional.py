@@ -7,7 +7,7 @@ from typing import Any, Mapping
 import pytest
 
 from src.config.risk.risk_config import RiskConfig
-from src.risk.manager import RiskManager, create_risk_manager, get_risk_manager
+from src.risk import RiskManager, create_risk_manager, get_risk_manager
 from src.risk.risk_manager_impl import RiskManagerImpl
 from src.trading.risk.market_regime_detector import MarketRegimeResult, RegimeLabel
 

@@ -95,6 +95,7 @@ async def test_paper_broker_adapter_submits_order_and_records_metadata() -> None
     assert last_order is not None
     assert last_order.get("symbol") == "EURUSD"
     assert last_order.get("order_id") == "FIX-42"
+    assert adapter.describe_last_error() is None
 
 
 @pytest.mark.asyncio
@@ -118,6 +119,11 @@ async def test_paper_broker_adapter_rejects_unsupported_order_type() -> None:
             }
         )
 
+    error_snapshot = adapter.describe_last_error()
+    assert error_snapshot is not None
+    assert error_snapshot["stage"] == "validation"
+    assert error_snapshot["message"].startswith("Order type")
+
 
 @pytest.mark.asyncio
 async def test_paper_broker_adapter_raises_when_broker_returns_none() -> None:
@@ -134,6 +140,11 @@ async def test_paper_broker_adapter_raises_when_broker_returns_none() -> None:
         await adapter.process_order(
             {"symbol": "EURUSD", "side": "SELL", "quantity": 2.0}
         )
+
+    error_snapshot = adapter.describe_last_error()
+    assert error_snapshot is not None
+    assert error_snapshot["stage"] == "broker_submission"
+    assert "empty order identifier" in error_snapshot["message"]
 
 
 @pytest.mark.asyncio

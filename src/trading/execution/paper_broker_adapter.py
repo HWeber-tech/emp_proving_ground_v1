@@ -58,6 +58,7 @@ class PaperBrokerExecutionAdapter:
     _last_order: dict[str, object] | None = field(default=None, init=False, repr=False)
     _last_risk_metadata: dict[str, object] | None = field(default=None, init=False, repr=False)
     _last_risk_error: dict[str, object] | None = field(default=None, init=False, repr=False)
+    _last_error: dict[str, object] | None = field(default=None, init=False, repr=False)
 
     def set_risk_context_provider(
         self, provider: RiskContextProvider | None
@@ -83,6 +84,7 @@ class PaperBrokerExecutionAdapter:
     async def process_order(self, intent: Any) -> str:
         """Submit a validated intent to the paper broker via FIX."""
 
+        self._last_error = None
         symbol = str(_extract(intent, "symbol", "instrument", "asset", default="UNKNOWN"))
         side = str(_extract(intent, "side", "direction", default="BUY")).upper()
         quantity = _to_float(_extract(intent, "quantity", "size", "volume"), 0.0)
@@ -91,23 +93,74 @@ class PaperBrokerExecutionAdapter:
         ).lower()
 
         if side not in {"BUY", "SELL"}:
+            self._record_failure(
+                stage="validation",
+                message=f"Unsupported order side '{side}'",
+                intent=intent,
+                symbol=symbol,
+                side=side,
+                quantity=quantity,
+                order_type=order_type,
+            )
             raise PaperBrokerError(f"Unsupported order side '{side}'")
         if quantity <= 0:
-            raise PaperBrokerError("Order quantity must be positive for paper broker execution")
+            self._record_failure(
+                stage="validation",
+                message="Order quantity must be positive for paper broker execution",
+                intent=intent,
+                symbol=symbol,
+                side=side,
+                quantity=quantity,
+                order_type=order_type,
+            )
+            raise PaperBrokerError(
+                "Order quantity must be positive for paper broker execution"
+            )
         if order_type not in {"market", "market_order"}:
-            raise PaperBrokerError(f"Order type '{order_type}' is not supported by the paper broker")
+            self._record_failure(
+                stage="validation",
+                message=f"Order type '{order_type}' is not supported by the paper broker",
+                intent=intent,
+                symbol=symbol,
+                side=side,
+                quantity=quantity,
+                order_type=order_type,
+            )
+            raise PaperBrokerError(
+                f"Order type '{order_type}' is not supported by the paper broker"
+            )
 
         self._capture_risk_context()
 
         try:
             broker_call = self.broker_interface.place_market_order(symbol, side, quantity)
         except Exception as exc:  # pragma: no cover - defensive guard for broker wrappers
+            self._record_failure(
+                stage="broker_invocation",
+                message="Broker rejected order upfront",
+                intent=intent,
+                symbol=symbol,
+                side=side,
+                quantity=quantity,
+                order_type=order_type,
+                exception=exc,
+            )
             raise PaperBrokerError(f"Broker rejected order upfront: {exc}") from exc
 
         if not asyncio.iscoroutine(broker_call):
-            raise PaperBrokerError(
+            message = (
                 "Broker interface returned a non-awaitable response for place_market_order"
             )
+            self._record_failure(
+                stage="broker_invocation",
+                message=message,
+                intent=intent,
+                symbol=symbol,
+                side=side,
+                quantity=quantity,
+                order_type=order_type,
+            )
+            raise PaperBrokerError(message)
 
         try:
             if self.order_timeout is not None:
@@ -115,9 +168,28 @@ class PaperBrokerExecutionAdapter:
             else:
                 order_id = await broker_call
         except Exception as exc:
+            self._record_failure(
+                stage="broker_submission",
+                message="Paper broker failed to submit order",
+                intent=intent,
+                symbol=symbol,
+                side=side,
+                quantity=quantity,
+                order_type=order_type,
+                exception=exc,
+            )
             raise PaperBrokerError(f"Paper broker failed to submit order: {exc}") from exc
 
         if not order_id:
+            self._record_failure(
+                stage="broker_submission",
+                message="Paper broker returned an empty order identifier",
+                intent=intent,
+                symbol=symbol,
+                side=side,
+                quantity=quantity,
+                order_type=order_type,
+            )
             raise PaperBrokerError("Paper broker returned an empty order identifier")
 
         # Release the optimistic reservation now that the broker has accepted the order.
@@ -135,6 +207,7 @@ class PaperBrokerExecutionAdapter:
             order_type="market",
             intent=intent,
         )
+        self._last_error = None
         return str(order_id)
 
     def _capture_risk_context(self) -> None:
@@ -170,3 +243,49 @@ class PaperBrokerExecutionAdapter:
             self._last_order["risk_context"] = dict(self._last_risk_metadata)
         if self._last_risk_error is not None:
             self._last_order["risk_error"] = dict(self._last_risk_error)
+
+    def describe_last_error(self) -> Mapping[str, object] | None:
+        """Expose the most recent execution failure metadata, if any."""
+
+        if self._last_error is None:
+            return None
+        return dict(self._last_error)
+
+    def _record_failure(
+        self,
+        *,
+        stage: str,
+        message: str,
+        intent: Any,
+        symbol: str | None,
+        side: str | None,
+        quantity: float | None,
+        order_type: str | None,
+        exception: Exception | None = None,
+    ) -> None:
+        payload: MutableMapping[str, Any] = {
+            "stage": stage,
+            "message": message,
+        }
+        if symbol:
+            payload["symbol"] = symbol
+        if side:
+            payload["side"] = side
+        if quantity is not None:
+            payload["quantity"] = float(quantity)
+        if order_type:
+            payload["order_type"] = order_type
+        if exception is not None:
+            payload["exception_type"] = exception.__class__.__name__
+            payload["exception"] = str(exception)
+
+        metadata = _extract(intent, "metadata", default=None)
+        if isinstance(metadata, Mapping):
+            payload["metadata"] = {str(key): value for key, value in metadata.items()}
+
+        if self._last_risk_metadata is not None:
+            payload["risk_context"] = dict(self._last_risk_metadata)
+        if self._last_risk_error is not None:
+            payload["risk_error"] = dict(self._last_risk_error)
+
+        self._last_error = dict(payload)

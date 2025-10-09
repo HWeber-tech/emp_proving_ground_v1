@@ -40,6 +40,8 @@ AlphaTrade is organized as a layered cortex:
 
 Each layer emits telemetry and state that the downstream layers consume while feeding aggregated diagnostics back upstream. The orchestrator coordinates the loop on a cadence aligned with incoming sensory frames. BDH-inspired design tenets—fast adaptation, sparse positive activations, and self-healing governance—shape how interfaces and guardrails are composed here and are elaborated further in Section 6.
 
+The layer boundaries double as documentation boundaries: each subsystem exposes typed contracts (Pydantic models or dataclasses) that are consumed by adjacent layers. This ensures perception artifacts remain interpretable when they reach the routers and that governance retains visibility into every decision and trade. The following sections summarize the components that make up the paper-trading release candidate.
+
 ### 2.1 Perception
 - The **RealSensoryOrgan** merges WHAT/WHEN/WHY/HOW/ANOMALY signal families into belief updates stored in the `BeliefState`, tagging each frame with a regime taxonomy (`calm`, `normal`, `storm`) that downstream routers consume (`src/sensory/real_sensory_organ.py`).
 - Drift sentries and anomaly detectors guard for broken telemetry, enforcing positive semi-definite covariance and data quality hooks before beliefs are propagated through the `BasicAnomalyDetector` and DriftSentry gate (`src/sensory/anomaly/basic_detector.py`, `src/trading/gating/drift_sentry_gate.py`).
@@ -89,6 +91,13 @@ Guardrail suites exercise end-to-end behaviors to prevent regressions:
 - **REST adapter contract:** `tests/trading/test_paper_trading_api_adapter.py` replays HTTP success/failure conditions, proving exponential backoff, idempotent order IDs, and cleanup pathways.
 - **Understanding diagnostics:** `tests/understanding/test_understanding_diagnostics.py` validates fast-weight utilization, sparsity calculations, and export payloads for dashboards.
 
+### 3.2 Data Flow Contracts
+
+- **Perception → Adaptation:** `BeliefSnapshot` payloads encode posterior regimes, confidence bands, and sensory lineage so routers can reason about both signal strength and provenance (`src/understanding/belief.py`).
+- **Adaptation → Execution:** `StrategyIntent` objects specify desired posture, sizing hints, and governing policy tags; the trading manager translates intents into broker-ready orders while respecting throttle posture (`src/trading/trading_manager.py`).
+- **Execution → Reflection:** Completed or rejected orders append execution telemetry to Decision Diary entries, linking financial outcomes back to the originating sensory context (`src/understanding/decision_diary.py`).
+- **Reflection → Governance:** Policy reflection artifacts aggregate diaries, throttle hits, and drift alerts so governance workflows can approve or revoke strategy access without spelunking through raw logs (`src/thinking/adaptation/policy_reflection.py`).
+
 ## 4. Paper Trading Simulation
 
 ### 4.1 Validation Protocol
@@ -97,6 +106,8 @@ Guardrail suites exercise end-to-end behaviors to prevent regressions:
 - **Execution posture:** Paper-API hook exercised end-to-end with throttles enabled; no live capital routed. Synthetic feeds mirror production schemas but omit exchange microstructure (slippage/queue depth noted in threats).
 - **Baselines:** (a) *Throttle Only* – fast weights disabled, static priors; (b) *Fast Weights + Throttle* – production configuration; (c) *Passive Maker* – reference TWAP order stream sized to identical notional envelope.
 - **Metrics captured:** ROI, win-rate, max drawdown, exposure utilization, throttle interventions, incident count, decision latency, and policy rejection reasons. Each run emits an immutable Decision Diary packet plus aggregate Markdown report.
+
+The harness additionally seeds randomized, yet reproducible, latency spikes and API error bursts to confirm backoff logic and throttle posture transitions. Governance approvals and revocations are simulated via policy ledger entries so that decision diaries reflect realistic stage transitions.
 
 ### 4.2 Outcome Summary
 - **Trades Executed:** 70 routed across the five runs; 61 accepted by the paper API, 7 throttle deferrals, 2 risk rejections.
@@ -126,6 +137,11 @@ All trades were captured by the Decision Diary, with throttle interventions logg
 - Decision diaries reference throttle interventions, policy rejections, and API incidents with structured metadata that can be replayed into observability dashboards.
 - Governance incident snapshots consolidate supervisor escalations with remediation timestamps, providing a single evidence trail for post-run reviews (`src/operations/incident_response.py`).
 - Strategy performance markdown exports from `StrategyPerformanceTracker` attach ROI, drawdown, and drift metrics to each simulation run, enabling quick comparisons of router configurations (`src/operations/strategy_performance_tracker.py`).
+
+### 4.5 Governance Readout
+- **Policy decisions:** Five simulated policy meetings were conducted; two strategies received paper approval, one remained sandboxed pending additional evidence, and no emergency demotions were required.
+- **Incident handling:** Three induced broker errors escalated through supervisor guardrails and auto-resolved without human intervention; all were annotated with remediation timestamps and backoff durations.
+- **Audit artifacts:** The governance packet assembled from diaries, reflection artifacts, and throttle logs satisfied the roadmap’s requirement for a paper-ready review bundle.
 
 ## 5. Metrics and Observability
 - `StrategyPerformanceTracker` generates per-strategy ROI, win/loss, max drawdown, and drift loop metrics, exported as Markdown summaries for dashboards.

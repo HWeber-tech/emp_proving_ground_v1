@@ -86,7 +86,7 @@
   failover helper, feed the new `drift_sentry` readiness component, and link the
   shared runbook so incident response inherits Page–Hinkley/variance issue
   catalogs alongside sensory drift, with regression coverage across the snapshot,
-  alert derivation, and documentation updates.【F:src/operations/drift_sentry.py†L1-L399】【F:tests/intelligence/test_drift_sentry.py†L43-L135】【F:tests/operations/test_operational_readiness.py†L200-L283】【F:docs/operations/runbooks/drift_sentry_response.md†L1-L69】
+  alert derivation, and documentation updates.【F:src/operations/drift_sentry.py†L1-L399】【F:tests/operations/test_drift_sentry.py†L43-L135】【F:tests/operations/test_operational_readiness.py†L200-L283】【F:docs/operations/runbooks/drift_sentry_response.md†L1-L69】
 - Progress: Sensory drift regression now ships a deterministic Page–Hinkley replay
   fixture and metadata assertions so alert payloads reproduce the detector catalog,
   runbook link, and severity stats that readiness dashboards expect, under pytest

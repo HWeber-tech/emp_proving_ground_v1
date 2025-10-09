@@ -14,13 +14,15 @@ import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Callable, Iterable, Mapping, MutableMapping, Sequence
+from typing import TYPE_CHECKING, Any, Callable, Iterable, Mapping, MutableMapping, Sequence
 
 from src.thinking.adaptation.policy_router import PolicyDecision, RegimeState
-from src.understanding.belief import BeliefState
 from src.understanding.probe_registry import ProbeDefinition, ProbeRegistry
 from src.core.event_bus import Event, EventBus
 from src.operations.event_bus_failover import EventPublishError, publish_event_with_failover
+
+if TYPE_CHECKING:
+    from src.understanding.belief import BeliefState
 
 logger = logging.getLogger(__name__)
 

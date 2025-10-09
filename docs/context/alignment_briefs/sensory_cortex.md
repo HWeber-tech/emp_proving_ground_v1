@@ -86,10 +86,11 @@
   strength/confidence snapshots, dimension posture, and drift metadata so the
   new metrics publisher can build dashboard payloads without rehydrating raw
   snapshots.【F:src/sensory/real_sensory_organ.py†L201-L233】【F:tests/sensory/test_real_sensory_organ.py†L130-L162】
-- Progress: Executable dimension organs now publish HOW/ANOMALY readings backed
-  by canonical sensors, windowed history, and threshold posture metadata so
-  runtime summaries and downstream telemetry inherit deterministic dimension
-  payloads under guardrail coverage.【F:src/sensory/organs/dimensions/executable_organs.py†L1-L226】【F:tests/sensory/test_dimension_organs.py†L1-L93】
+- Progress: Executable dimension organs now publish HOW/ANOMALY readings and
+  wrap WHAT/WHEN/WHY sensors, normalising frames, merging macro/narrative
+  context, and forwarding calibrated lineage/quality metadata so runtime
+  summaries and downstream telemetry inherit deterministic dimension payloads
+  under guardrail coverage.【F:src/sensory/organs/dimensions/executable_organs.py†L1-L279】【F:tests/sensory/test_dimension_organs.py†L20-L279】
 - Progress: Bootstrap runtime now instantiates the real sensory organ with a
   drift-configured history buffer, streams observations into cortex metrics,
   publishes summary/metrics/drift telemetry via the event-bus failover helper,

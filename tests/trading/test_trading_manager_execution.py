@@ -2,7 +2,7 @@ import asyncio
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
 from unittest.mock import AsyncMock
 
 from decimal import Decimal
@@ -36,6 +36,8 @@ if not hasattr(_typing, "Unpack"):
 
 if not hasattr(_typing, "NotRequired"):
     _typing.NotRequired = _shim_class_getitem("NotRequired")  # type: ignore[attr-defined]
+
+import logging
 
 import pytest
 
@@ -1638,6 +1640,7 @@ def test_get_risk_status_includes_risk_api_summary() -> None:
 @pytest.mark.asyncio()
 async def test_trade_throttle_blocks_and_can_be_disabled(
     monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     async def _noop(*_args, **_kwargs) -> None:
         return None
@@ -1677,6 +1680,8 @@ async def test_trade_throttle_blocks_and_can_be_disabled(
     validate_mock: AsyncMock = AsyncMock(side_effect=[intent, intent, intent])
     manager.risk_gateway.validate_trade_intent = validate_mock  # type: ignore[assignment]
 
+    caplog.set_level(logging.WARNING, logger="src.trading.trading_manager")
+
     await manager.on_trade_intent(intent)
     await manager.on_trade_intent(intent)
 
@@ -1690,6 +1695,17 @@ async def test_trade_throttle_blocks_and_can_be_disabled(
     events = manager.get_experiment_events()
     statuses = [event["status"] for event in events]
     assert "throttled" in statuses
+    throttle_events = [event for event in events if event["status"] == "throttled"]
+    assert throttle_events
+    throttle_metadata = throttle_events[0].get("metadata")
+    assert isinstance(throttle_metadata, Mapping)
+    assert throttle_metadata.get("reason")
+    throttle_snapshot = throttle_metadata.get("throttle")
+    assert isinstance(throttle_snapshot, Mapping)
+    assert throttle_snapshot.get("state") in {"rate_limited", "cooldown"}
+    throttle_context = throttle_snapshot.get("metadata", {}).get("context", {})
+    assert throttle_context.get("symbol") == "EURUSD"
+    assert throttle_context.get("strategy_id") == "alpha"
 
     snapshot = manager.get_trade_throttle_snapshot()
     assert snapshot is not None
@@ -1700,6 +1716,9 @@ async def test_trade_throttle_blocks_and_can_be_disabled(
 
     await manager.on_trade_intent(intent)
     assert engine.calls == 2
+
+    throttled_logs = [record for record in caplog.records if "Throttled trade intent" in record.getMessage()]
+    assert throttled_logs, "expected throttle warning log to be emitted"
 
 
 def test_describe_risk_interface_returns_runbook_on_error() -> None:

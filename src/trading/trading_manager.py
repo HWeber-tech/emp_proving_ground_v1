@@ -20,7 +20,7 @@ from src.config.risk.risk_config import RiskConfig as TradingRiskConfig
 from src.compliance.workflow import ComplianceWorkflowSnapshot
 from src.governance.policy_ledger import LedgerReleaseManager, PolicyLedgerStage
 from src.core.coercion import coerce_float, coerce_int
-from src.risk.manager import RiskManager, get_risk_manager
+from src.risk.manager import RiskManager, create_risk_manager
 from src.risk.telemetry import (
     RiskTelemetrySnapshot,
     evaluate_risk_posture,
@@ -202,7 +202,7 @@ class TradingManager:
             }
         )
         self._risk_config = effective_config
-        self._portfolio_risk_manager: RiskManager = get_risk_manager(
+        self._portfolio_risk_manager: RiskManager = create_risk_manager(
             config=effective_config,
             initial_balance=initial_equity,
         )

@@ -19,7 +19,7 @@ import pandas as pd
 from src.core.anomaly import AnomalyDetector, NoOpAnomalyDetector
 from src.core.market_data import MarketDataGateway, NoOpMarketDataGateway
 from src.core.regime import NoOpRegimeClassifier, RegimeClassifier
-from src.risk.manager import RiskManager, get_risk_manager
+from src.risk.manager import RiskManager, create_risk_manager
 from src.config.risk.risk_config import RiskConfig
 
 logger = logging.getLogger(__name__)
@@ -64,7 +64,7 @@ class Phase2DIntegrationValidator:
             self._risk_config = risk_config or getattr(risk_manager, "_risk_config", RiskConfig())
         else:
             self._risk_config = risk_config or RiskConfig()
-            self.risk_manager = get_risk_manager(config=self._risk_config)
+            self.risk_manager = create_risk_manager(config=self._risk_config)
         self.strategy_manager = None
 
     async def test_real_data_flow(self) -> Dict[str, Any]:
@@ -135,7 +135,7 @@ class Phase2DIntegrationValidator:
 
                 risk_manager = self.risk_manager
                 if risk_manager is None:
-                    risk_manager = get_risk_manager(
+                    risk_manager = create_risk_manager(
                         config=risk_config, initial_balance=float(equity)
                     )
                     self.risk_manager = risk_manager

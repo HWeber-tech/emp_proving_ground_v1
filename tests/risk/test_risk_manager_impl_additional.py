@@ -5,9 +5,10 @@ from decimal import Decimal
 from typing import Any, Mapping
 
 import pytest
+import src.risk as risk_package
 
 from src.config.risk.risk_config import RiskConfig
-from src.risk.manager import RiskManager, create_risk_manager, get_risk_manager
+from src.risk.manager import RiskManager, create_risk_manager
 from src.risk.risk_manager_impl import RiskManagerImpl
 from src.trading.risk.market_regime_detector import MarketRegimeResult, RegimeLabel
 
@@ -265,7 +266,9 @@ def test_risk_manager_rejects_when_trade_risk_exceeds_budget() -> None:
 
 def test_risk_manager_factories_return_facade() -> None:
     manager = create_risk_manager(config=RiskConfig())
-    legacy = get_risk_manager(config=RiskConfig())
+    with pytest.deprecated_call():
+        legacy_factory = getattr(risk_package, "get_risk_manager")
+        legacy = legacy_factory(config=RiskConfig())
 
     assert isinstance(manager, RiskManager)
     assert isinstance(legacy, RiskManager)

@@ -8,6 +8,7 @@ risk implementation directly from :mod:`src.risk`.
 
 from __future__ import annotations
 
+import warnings
 from collections.abc import Mapping
 from decimal import Decimal
 from typing import Any
@@ -137,6 +138,16 @@ def get_risk_manager(
     initial_balance: float | Decimal | None = None,
     **kwargs: Any,
 ) -> RiskManager:
-    """Factory kept for backwards compatibility with legacy callers."""
+    """Factory kept for backwards compatibility with legacy callers.
 
+    The roadmap prefers :func:`create_risk_manager`; this wrapper remains only for
+    legacy code paths and therefore emits a :class:`DeprecationWarning` when
+    invoked.
+    """
+
+    warnings.warn(
+        "get_risk_manager is deprecated; use create_risk_manager instead",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     return RiskManager(config=config, initial_balance=initial_balance, **kwargs)

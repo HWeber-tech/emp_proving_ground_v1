@@ -68,6 +68,40 @@ def test_analyse_structured_logs_flags_errors() -> None:
     assert "Errors" in summary.to_markdown()
 
 
+def test_analyse_structured_logs_enforces_minimum_duration() -> None:
+    records = (
+        _record("2024-01-01T00:00:00", "info", "start", "start"),
+        _record("2024-01-01T00:30:00", "info", "heartbeat", "tick"),
+    )
+    summary = analyse_structured_logs(
+        LogParseResult(records=records, ignored_lines=0),
+        minimum_duration=timedelta(hours=2),
+    )
+    assert summary.status is DryRunStatus.fail
+    assert any(
+        incident.metadata.get("required_min_duration_seconds")
+        for incident in summary.gap_incidents
+    )
+
+
+def test_analyse_structured_logs_enforces_uptime_ratio() -> None:
+    records = (
+        _record("2024-01-01T00:00:00", "info", "start", "start"),
+        _record("2024-01-01T06:00:00", "info", "heartbeat", "tick"),
+    )
+    summary = analyse_structured_logs(
+        LogParseResult(records=records, ignored_lines=0),
+        warn_gap=timedelta(minutes=30),
+        fail_gap=timedelta(hours=12),
+        minimum_uptime_ratio=0.5,
+    )
+    assert summary.status is DryRunStatus.fail
+    assert any(
+        "required_minimum_uptime_ratio" in incident.metadata
+        for incident in summary.gap_incidents
+    )
+
+
 def test_summarise_diary_entries_detects_incidents() -> None:
     base = {
         "decision": {"status": "ok"},
@@ -197,6 +231,26 @@ def test_evaluate_dry_run_end_to_end(tmp_path: Path) -> None:
     assert summary.performance_summary is not None
     assert summary.performance_summary.total_trades == 5
 
+
+def test_evaluate_dry_run_applies_minimum_duration(tmp_path: Path) -> None:
+    log_path = tmp_path / "logs.jsonl"
+    log_payloads = [
+        {"timestamp": "2024-01-01T00:00:00Z", "level": "INFO", "event": "start"},
+        {"timestamp": "2024-01-01T00:10:00Z", "level": "INFO", "event": "heartbeat"},
+    ]
+    log_path.write_text("\n".join(json.dumps(entry) for entry in log_payloads), encoding="utf-8")
+
+    summary = evaluate_dry_run(
+        log_paths=[log_path],
+        minimum_run_duration=timedelta(hours=1),
+        minimum_uptime_ratio=0.9,
+    )
+    assert summary.status is DryRunStatus.fail
+    assert summary.log_summary is not None
+    assert any(
+        incident.metadata.get("required_min_duration_seconds")
+        for incident in summary.log_summary.gap_incidents
+    )
 
 def test_load_structured_logs_counts_invalid_lines(tmp_path: Path) -> None:
     log_path = tmp_path / "logs.jsonl"

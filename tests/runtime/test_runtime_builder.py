@@ -62,6 +62,7 @@ from src.runtime.runtime_builder import (
     _normalise_ingest_plan_metadata,
     _plan_dimensions,
     _process_sensory_status,
+    _supervise_background_task,
 )
 
 
@@ -91,6 +92,41 @@ async def test_runtime_application_runs_workloads_and_shutdown_callbacks():
 
     assert list(execution_order) == ["ingest", "trade"]
     assert called == ["cleanup"]
+
+
+@pytest.mark.asyncio()
+async def test_supervise_background_task_provisions_fallback_supervisor() -> None:
+    class DummyApp:
+        pass
+
+    app = DummyApp()
+    ran = asyncio.Event()
+    release = asyncio.Event()
+    started = asyncio.Event()
+
+    async def _job() -> None:
+        started.set()
+        await release.wait()
+        ran.set()
+
+    task = _supervise_background_task(
+        app,
+        _job(),
+        name="dummy-job",
+        metadata={"component": "test"},
+    )
+    await asyncio.wait_for(started.wait(), timeout=1.0)
+
+    supervisor = getattr(app, "_fallback_task_supervisor", None)
+    assert isinstance(supervisor, TaskSupervisor)
+    snapshots = supervisor.describe()
+    assert snapshots
+    assert snapshots[0]["metadata"]["component"] == "test"
+
+    release.set()
+    await asyncio.wait_for(task, timeout=1.0)
+    assert ran.is_set()
+    assert supervisor.active_count == 0
 
 
 @pytest.mark.asyncio()
@@ -1492,6 +1528,7 @@ async def test_runtime_application_ingest_failure_restarts_and_trading_continues
             record.exc_text and "ingest burst" in record.exc_text
             for record in caplog.records
         )
+        assert any("restarting" in record.getMessage() for record in caplog.records)
 
     stop_event.set()
     await asyncio.wait_for(run_task, timeout=1.0)

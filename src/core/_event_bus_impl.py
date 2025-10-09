@@ -21,6 +21,7 @@ import warnings
 from concurrent.futures import TimeoutError as FuturesTimeoutError
 from dataclasses import dataclass, field
 from typing import (
+    TYPE_CHECKING,
     Any,
     Awaitable,
     Callable,
@@ -38,6 +39,23 @@ from typing import (
 from src.observability.tracing import EventBusTracer, NullEventBusTracer
 
 logger = logging.getLogger(__name__)
+
+
+if TYPE_CHECKING:  # pragma: no cover - import for typing only
+    from src.runtime.task_supervisor import TaskSupervisor as _TaskSupervisor
+else:  # pragma: no cover - executed at runtime, tested via behaviour
+    try:
+        from src.runtime.task_supervisor import TaskSupervisor as _TaskSupervisor  # type: ignore
+    except ModuleNotFoundError:  # pragma: no cover - runtime without supervisor module
+        _TaskSupervisor = None  # type: ignore[assignment]
+
+
+def _new_task_supervisor(namespace: str) -> "_TaskSupervisor | None":
+    """Instantiate a :class:`TaskSupervisor` if the runtime module is available."""
+
+    if _TaskSupervisor is None:  # pragma: no cover - exercised when runtime unavailable
+        return None
+    return _TaskSupervisor(namespace=namespace)
 
 
 # Immutable canonical event
@@ -139,7 +157,18 @@ class AsyncEventBus:
         self._queue: asyncio.Queue[Event] = asyncio.Queue()
         self._worker_task: Optional[asyncio.Task[None]] = None
         self._loop: Optional[asyncio.AbstractEventLoop] = None
-        self._task_factory: TaskFactory = task_factory or _default_task_factory
+        self._task_supervisor: "_TaskSupervisor | None" = None
+        self._owns_task_supervisor: bool = False
+        if task_factory is None:
+            supervisor = _new_task_supervisor("event-bus")
+            if supervisor is not None:
+                self._task_supervisor = supervisor
+                self._owns_task_supervisor = True
+                self._task_factory = supervisor.create
+            else:
+                self._task_factory = _default_task_factory
+        else:
+            self._task_factory = task_factory
         self._tracer: EventBusTracer = tracer or NullEventBusTracer()
 
         # Warn-once flags
@@ -289,6 +318,13 @@ class AsyncEventBus:
             except asyncio.CancelledError:
                 pass
         self._worker_task = None
+        if self._owns_task_supervisor and self._task_supervisor is not None:
+            try:
+                await self._task_supervisor.cancel_all()
+            except Exception:  # pragma: no cover - defensive clean-up logging
+                logger.debug(
+                    "Failed to cancel event bus supervised tasks", exc_info=True
+                )
         logger.info("AsyncEventBus stopped")
         with self._metrics_lock:
             self._started_wall_time = None
@@ -403,7 +439,24 @@ class AsyncEventBus:
     def set_task_factory(self, task_factory: TaskFactory | None) -> None:
         """Override the task factory used for worker and handler tasks."""
 
-        self._task_factory = task_factory or _default_task_factory
+        if task_factory is None:
+            if self._task_supervisor is not None and self._owns_task_supervisor:
+                self._task_factory = self._task_supervisor.create
+                return
+            supervisor = _new_task_supervisor("event-bus")
+            if supervisor is not None:
+                self._task_supervisor = supervisor
+                self._owns_task_supervisor = True
+                self._task_factory = supervisor.create
+            else:
+                self._task_supervisor = None
+                self._owns_task_supervisor = False
+                self._task_factory = _default_task_factory
+            return
+
+        self._task_supervisor = None
+        self._owns_task_supervisor = False
+        self._task_factory = task_factory
 
     def set_tracer(self, tracer: EventBusTracer | None) -> None:
         """Override the tracer used for publish and handler spans."""

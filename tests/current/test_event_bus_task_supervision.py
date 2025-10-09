@@ -68,3 +68,33 @@ async def test_event_bus_set_task_factory_before_start() -> None:
         await bus.stop()
 
     assert any(call.get("metadata", {}).get("task") == "worker" for call in factory.calls)
+
+
+@pytest.mark.asyncio()
+async def test_event_bus_default_supervisor_tracks_worker_tasks() -> None:
+    bus = AsyncEventBus()
+    await bus.start()
+    supervisor: Any | None = None
+    try:
+        supervisor = getattr(bus, "_task_supervisor", None)
+        assert supervisor is not None, "Default event bus should attach a task supervisor"
+        assert supervisor.active_count >= 1
+
+        handler_fired = asyncio.Event()
+
+        async def _handler(event: Event) -> None:
+            handler_fired.set()
+
+        bus.subscribe("runtime.default", _handler)
+        await bus.publish(Event(type="runtime.default", payload={}))
+        await asyncio.wait_for(handler_fired.wait(), timeout=1.0)
+
+        descriptions = supervisor.describe()
+        assert any(
+            entry.get("metadata", {}).get("task") == "worker" for entry in descriptions
+        )
+    finally:
+        await bus.stop()
+
+    assert supervisor is not None
+    assert supervisor.active_count == 0

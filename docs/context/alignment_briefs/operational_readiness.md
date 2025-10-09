@@ -72,6 +72,10 @@
     loop metrics, ROI posture, and Markdown summaries so readiness dashboards
     can surface trading-loop health from one aggregation surface under pytest
     coverage.【F:src/operations/strategy_performance_tracker.py†L1-L596】【F:tests/operations/test_strategy_performance_tracker.py†L1-L122】
+  - Progress: Final dry-run audit bundle now consolidates logs, diary flags,
+    readiness posture, and KPI telemetry into a single Markdown report with
+    severity roll-ups, CLI helper, and pytest coverage so UAT rehearsals and
+    sign-off reviews share one curated evidence packet.【F:src/operations/dry_run_audit.py†L1-L640】【F:tests/operations/test_dry_run_audit.py†L15-L220】【F:tools/operations/final_dry_run_audit.py†L1-L120】
 - Progress: Default alert policy now delivers email, SMS, webhook, Slack, and
   GitHub issue transports out of the box, with regression coverage asserting
   channel fan-out for readiness, incident response, and drift sentry alerts and

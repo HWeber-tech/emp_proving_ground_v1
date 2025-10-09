@@ -194,6 +194,11 @@
   warnings, and promotions so dashboards and SLOs can track enforcement posture;
   guardrail suites cover gauge fallbacks, throttle snapshots, and dashboard
   wiring.【F:src/operational/metrics.py†L160-L360】【F:src/understanding/metrics.py†L1-L65】【F:tests/operational/test_metrics.py†L310-L360】【F:tests/understanding/test_understanding_metrics.py†L62-L125】【F:tests/operations/test_observability_dashboard.py†L297-L420】
+- Progress: Trade throttle instrumentation now streams rolling throughput,
+  latency, and backlog metrics via the shared `ThroughputMonitor`, exposes the
+  snapshot through `TradingManager.get_execution_stats()`, and documents how to
+  capture baselines so performance drills can evidence event-loop health under
+  guardrail coverage.【F:src/trading/execution/performance_monitor.py†L1-L127】【F:src/trading/trading_manager.py†L248-L351】【F:docs/performance/trading_throughput_monitoring.md†L1-L34】【F:tests/trading/execution/test_performance_monitor.py†L17-L156】【F:tests/trading/test_trading_manager_execution.py†L310-L420】
 - Progress: Bootstrap stack now logs sensory listener, liquidity prober, and
   control-centre callback failures with structured metadata so optional hooks
   surface errors without disrupting bootstrap decisions, under pytest coverage

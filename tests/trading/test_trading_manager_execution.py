@@ -1799,6 +1799,58 @@ async def test_trade_throttle_handles_high_frequency_burst(
     assert all("too many trades" in message for message in throttled_logs)
 
 
+@pytest.mark.asyncio()
+async def test_trading_manager_records_throughput_metrics(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def _noop(*_args, **_kwargs) -> None:
+        return None
+
+    monkeypatch.setattr("src.trading.trading_manager.publish_risk_snapshot", _noop)
+    monkeypatch.setattr("src.trading.trading_manager.publish_roi_snapshot", _noop)
+    monkeypatch.setattr("src.trading.trading_manager.publish_policy_snapshot", _noop)
+    monkeypatch.setattr("src.trading.trading_manager.publish_policy_violation", _noop)
+    monkeypatch.setattr(
+        "src.trading.trading_manager.publish_risk_interface_snapshot", _noop
+    )
+    monkeypatch.setattr("src.trading.trading_manager.publish_risk_interface_error", _noop)
+
+    bus = DummyBus()
+    manager = TradingManager(
+        event_bus=bus,
+        strategy_registry=AlwaysActiveRegistry(),
+        execution_engine=RecordingExecutionEngine(),
+        initial_equity=25_000.0,
+        risk_config=RiskConfig(
+            min_position_size=1,
+            mandatory_stop_loss=False,
+            research_mode=True,
+        ),
+        trade_throttle={"max_trades": 10, "window_seconds": 60.0},
+    )
+
+    intents = []
+    for idx in range(3):
+        intent = ConfidenceIntent(
+            symbol="EURUSD",
+            quantity=1.0,
+            price=1.2 + idx * 0.001,
+            confidence=0.8,
+            strategy_id="alpha",
+        )
+        setattr(intent, "ingested_at", datetime.now(tz=timezone.utc))
+        intents.append(intent)
+
+    for intent in intents:
+        await manager.on_trade_intent(intent)
+
+    stats = manager.get_execution_stats()
+    throughput = stats.get("throughput")
+    assert isinstance(throughput, Mapping)
+    assert throughput.get("samples") == len(intents)
+    assert throughput.get("avg_processing_ms") is not None
+    assert throughput.get("throughput_per_min") is not None
+
 def test_describe_risk_interface_returns_runbook_on_error() -> None:
     class BrokenTradingManager(TradingManager):
         def __init__(self) -> None:

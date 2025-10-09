@@ -68,6 +68,7 @@ from src.operations.roi import (
 )
 from src.operations.sensory_drift import SensoryDriftSnapshot
 from src.trading.execution.release_router import ReleaseAwareExecutionRouter
+from src.trading.execution.performance_monitor import ThroughputMonitor
 from src.trading.execution.trade_throttle import (
     TradeThrottle,
     TradeThrottleConfig,
@@ -244,6 +245,8 @@ class TradingManager:
 
         self._maybe_auto_install_release_router()
 
+        self._throughput_monitor = ThroughputMonitor()
+
         self._execution_stats: dict[str, object] = {
             "orders_submitted": 0,
             "orders_executed": 0,
@@ -256,6 +259,7 @@ class TradingManager:
             "throttle_blocks": 0,
             "throttle_retry_at": None,
         }
+        self._execution_stats["throughput"] = self._throughput_monitor.snapshot()
         self._experiment_events: deque[dict[str, Any]] = deque(maxlen=512)
 
         self._trade_throttle: TradeThrottle | None = None
@@ -433,6 +437,7 @@ class TradingManager:
             event: The trade intent event to process
         """
         event_id = getattr(event, "event_id", getattr(event, "id", "unknown"))
+        started_wall = datetime.now(tz=timezone.utc)
         gate_decision: DriftSentryDecision | None = None
         drift_event_emitted = False
         drift_event_status: str | None = None
@@ -710,8 +715,8 @@ class TradingManager:
                                 confidence=drift_confidence_value,
                                 notional=drift_notional_value,
                                 release_metadata=drift_release_metadata,
-                            )
-                            drift_event_emitted = True
+                        )
+                        drift_event_emitted = True
                     else:
                         error_reason = str(
                             self._execution_stats.get("last_error") or "execution_failed"
@@ -815,6 +820,18 @@ class TradingManager:
                 )
                 drift_event_emitted = True
         finally:
+            finished_wall = datetime.now(tz=timezone.utc)
+            ingestion_timestamp = self._resolve_intent_timestamp(event)
+            try:
+                self._throughput_monitor.record(
+                    started_at=started_wall,
+                    finished_at=finished_wall,
+                    ingested_at=ingestion_timestamp,
+                )
+            except Exception:  # pragma: no cover - diagnostics only
+                logger.debug("Failed to record throughput metrics", exc_info=True)
+            else:
+                self._execution_stats["throughput"] = self._throughput_monitor.snapshot()
             await self._emit_policy_snapshot()
             await self._emit_risk_interface_snapshot()
             await self._emit_risk_snapshot()
@@ -1171,6 +1188,45 @@ class TradingManager:
             return cast(Optional[Mapping[str, Any]], self.risk_gateway.get_last_decision())
         except Exception:
             return None
+
+    @staticmethod
+    def _coerce_event_timestamp(candidate: Any) -> datetime | None:
+        """Convert common timestamp representations to ``datetime``."""
+
+        if candidate is None:
+            return None
+        if isinstance(candidate, datetime):
+            return candidate
+        if isinstance(candidate, (int, float)):
+            try:
+                return datetime.fromtimestamp(float(candidate), tz=timezone.utc)
+            except (OverflowError, OSError, ValueError):
+                return None
+        if isinstance(candidate, str):
+            text = candidate.strip()
+            if not text:
+                return None
+            if text.endswith("Z"):
+                text = text[:-1] + "+00:00"
+            try:
+                parsed = datetime.fromisoformat(text)
+            except ValueError:
+                return None
+            if parsed.tzinfo is None:
+                return parsed.replace(tzinfo=timezone.utc)
+            return parsed
+        return None
+
+    @classmethod
+    def _resolve_intent_timestamp(cls, event: TradeIntent) -> datetime | None:
+        """Resolve the best available timestamp for when an intent entered the loop."""
+
+        for attr in ("ingested_at", "created_at", "timestamp", "ts"):
+            candidate = getattr(event, attr, None)
+            resolved = cls._coerce_event_timestamp(candidate)
+            if resolved is not None:
+                return resolved
+        return None
 
     def get_execution_stats(self) -> Mapping[str, object]:
         """Return execution telemetry derived from the configured engine."""

@@ -7,6 +7,7 @@ import pandas as pd
 import pandas.testing as pdt
 import pytest
 
+from src.data_foundation.ingest import timescale_pipeline as ingest_pipeline
 from src.data_foundation.ingest.scheduler import IngestSchedule
 from src.data_foundation.ingest.timescale_pipeline import (
     DailyBarIngestPlan,
@@ -14,8 +15,10 @@ from src.data_foundation.ingest.timescale_pipeline import (
     TimescaleBackbonePlan,
 )
 from src.data_foundation.persist.timescale import TimescaleConnectionSettings
+from src.data_foundation.schemas import MacroEvent
 from src.runtime.task_supervisor import TaskSupervisor
 
+import src.data_integration.real_data_integration as real_data_module
 from src.data_integration.real_data_integration import RealDataManager
 
 
@@ -113,6 +116,80 @@ def test_real_data_manager_ingest_fetch_and_cache(tmp_path):
     metrics_after = manager.cache_metrics()
     assert metrics_after["hits"] >= 1
     pdt.assert_frame_equal(intraday_cached, intraday)
+
+    daily = manager.fetch_data("EURUSD", interval="1d", period="2d")
+    assert len(daily) == 2
+    assert daily.iloc[-1]["close"] == pytest.approx(1.125)
+
+    manager.close()
+
+
+def test_real_data_manager_ingest_market_slice_defaults(monkeypatch, tmp_path):
+    url = f"sqlite:///{tmp_path / 'market_slice.db'}"
+    settings = TimescaleConnectionSettings(url=url)
+    publisher = DummyPublisher()
+
+    manager = RealDataManager(
+        timescale_settings=settings,
+        ingest_publisher=publisher,
+    )
+
+    base = datetime(2024, 3, 4, tzinfo=timezone.utc)
+
+    def fake_fetch_daily(symbols: list[str], lookback: int) -> pd.DataFrame:
+        assert symbols == ["EURUSD"]
+        assert lookback == 2
+        return _daily_frame(base)
+
+    def fake_fetch_intraday(symbols: list[str], lookback: int, interval: str) -> pd.DataFrame:
+        assert symbols == ["EURUSD"]
+        assert lookback == 1
+        assert interval == "1m"
+        return _intraday_frame(base)
+
+    macro_event = MacroEvent(
+        timestamp=base,
+        calendar="ECB",
+        event="Rate Decision",
+        currency="EUR",
+        actual=4.0,
+        forecast=4.0,
+        previous=3.5,
+        importance="high",
+        source="fred",
+    )
+
+    def fake_fetch_macro(start: str, end: str):
+        assert start == "2024-03-01"
+        assert end == "2024-03-05"
+        return [macro_event]
+
+    monkeypatch.setattr(ingest_pipeline, "fetch_daily_bars", fake_fetch_daily)
+    monkeypatch.setattr(ingest_pipeline, "fetch_intraday_trades", fake_fetch_intraday)
+    monkeypatch.setattr(real_data_module, "fetch_fred_calendar", fake_fetch_macro)
+
+    results = manager.ingest_market_slice(
+        symbols=["eurusd"],
+        daily_lookback_days=2,
+        intraday_lookback_days=1,
+        intraday_interval="1m",
+        macro_start="2024-03-01",
+        macro_end="2024-03-05",
+    )
+
+    assert set(results) == {"daily_bars", "intraday_trades", "macro_events"}
+    assert all(result.rows_written >= 0 for result in results.values())
+    assert len(publisher.published) == 3
+
+    manager.cache_metrics(reset=True)
+
+    intraday_first = manager.fetch_data("EURUSD", interval="1m")
+    assert not intraday_first.empty
+    intraday_second = manager.fetch_data("EURUSD", interval="1m")
+    metrics = manager.cache_metrics(reset=True)
+    assert metrics["misses"] >= 1
+    assert metrics["hits"] >= 1
+    pdt.assert_frame_equal(intraday_first, intraday_second)
 
     daily = manager.fetch_data("EURUSD", interval="1d", period="2d")
     assert len(daily) == 2

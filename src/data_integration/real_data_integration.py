@@ -20,8 +20,13 @@ from src.data_foundation.cache.redis_cache import (
     wrap_managed_cache,
 )
 from src.data_foundation.cache.timescale_query_cache import TimescaleQueryCache
+from src.data_foundation.ingest import timescale_pipeline as ingest_pipeline
+from src.data_foundation.ingest.fred_calendar import fetch_fred_calendar
 from src.data_foundation.ingest.scheduler import IngestSchedule, TimescaleIngestScheduler
 from src.data_foundation.ingest.timescale_pipeline import (
+    DailyBarIngestPlan,
+    IntradayTradeIngestPlan,
+    MacroEventIngestPlan,
     TimescaleBackboneOrchestrator,
     TimescaleBackbonePlan,
 )
@@ -232,12 +237,13 @@ class RealDataManager(MarketDataGateway):
             self._timescale_settings,
             event_publisher=self._kafka_publisher,
         )
-        resolved_daily = fetch_daily or (lambda symbols, lookback: pd.DataFrame())
+        resolved_daily = fetch_daily or ingest_pipeline.fetch_daily_bars
         resolved_intraday = (
             fetch_intraday
-            or (lambda symbols, lookback, interval: pd.DataFrame())
+            if fetch_intraday is not None
+            else ingest_pipeline.fetch_intraday_trades
         )
-        resolved_macro = fetch_macro or (lambda start, end: [])
+        resolved_macro = fetch_macro or fetch_fred_calendar
 
         results = orchestrator.run(
             plan=plan,
@@ -245,8 +251,94 @@ class RealDataManager(MarketDataGateway):
             fetch_intraday=resolved_intraday,
             fetch_macro=resolved_macro,
         )
-        self._invalidate_cache()
+        if results:
+            self._invalidate_cache()
         return results
+
+    def ingest_market_slice(
+        self,
+        *,
+        symbols: Sequence[str],
+        daily_lookback_days: int | None = 60,
+        intraday_lookback_days: int | None = 2,
+        intraday_interval: str = "1m",
+        macro_start: str | None = None,
+        macro_end: str | None = None,
+        macro_events: Sequence[Mapping[str, object]] | None = None,
+        source: str = "yahoo",
+        macro_source: str = "fred",
+        fetch_daily: Callable[[list[str], int], pd.DataFrame] | None = None,
+        fetch_intraday: Callable[[list[str], int, str], pd.DataFrame] | None = None,
+        fetch_macro: Callable[[str, str], Sequence[Mapping[str, object]]] | None = None,
+    ) -> dict[str, TimescaleIngestResult]:
+        """Run a production-style ingest slice using configured connectors.
+
+        Parameters mirror the roadmap deliverable: historical bars are hydrated
+        from Timescale, live-style trades are captured for recent windows, and
+        macro releases can be attached either via explicit events or by pulling
+        from FRED when a window is provided.  At least one dimension must be
+        requested otherwise the ingest is skipped.
+        """
+
+        normalised_symbols: list[str] = []
+        seen: set[str] = set()
+        for candidate in symbols:
+            token = str(candidate).strip().upper()
+            if not token or token in seen:
+                continue
+            seen.add(token)
+            normalised_symbols.append(token)
+
+        if not normalised_symbols:
+            raise ValueError("symbols must contain at least one non-empty entry")
+
+        daily_plan: DailyBarIngestPlan | None = None
+        if daily_lookback_days and daily_lookback_days > 0:
+            daily_plan = DailyBarIngestPlan(
+                symbols=tuple(normalised_symbols),
+                lookback_days=int(daily_lookback_days),
+                source=source,
+            )
+
+        intraday_plan: IntradayTradeIngestPlan | None = None
+        if intraday_lookback_days and intraday_lookback_days > 0:
+            intraday_plan = IntradayTradeIngestPlan(
+                symbols=tuple(normalised_symbols),
+                lookback_days=int(intraday_lookback_days),
+                interval=str(intraday_interval),
+                source=source,
+            )
+
+        macro_plan: MacroEventIngestPlan | None = None
+        if macro_events is not None:
+            macro_plan = MacroEventIngestPlan(
+                events=tuple(macro_events),
+                source=macro_source,
+            )
+        elif macro_start or macro_end:
+            if not (macro_start and macro_end):
+                raise ValueError("macro_start and macro_end must both be provided")
+            macro_plan = MacroEventIngestPlan(
+                start=str(macro_start),
+                end=str(macro_end),
+                source=macro_source,
+            )
+
+        if not any((daily_plan, intraday_plan, macro_plan)):
+            raise ValueError("At least one ingest dimension must be requested")
+
+        plan = TimescaleBackbonePlan(
+            daily=daily_plan,
+            intraday=intraday_plan,
+            macro=macro_plan,
+        )
+
+        return self.run_ingest_plan(
+            plan,
+            fetch_daily=fetch_daily,
+            fetch_intraday=fetch_intraday,
+            fetch_macro=fetch_macro,
+        )
 
     def cache_metrics(self, *, reset: bool = False) -> Mapping[str, int | str]:
         return self._cache.metrics(reset=reset)

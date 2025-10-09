@@ -1,0 +1,202 @@
+from __future__ import annotations
+
+import json
+from datetime import UTC, datetime, timedelta
+from pathlib import Path
+
+from src.operations.dry_run_audit import (
+    DryRunDiaryIssue,
+    DryRunDiarySummary,
+    DryRunLogSummary,
+    DryRunPerformanceSummary,
+    DryRunStatus,
+    DryRunSummary,
+    LogParseResult,
+    StructuredLogRecord,
+    analyse_structured_logs,
+    evaluate_dry_run,
+    humanise_timedelta,
+    load_structured_logs,
+    parse_structured_log_line,
+    summarise_diary_entries,
+)
+from src.understanding.decision_diary import DecisionDiaryEntry
+
+
+def _record(ts: str, level: str, event: str | None, message: str | None, **payload: object) -> StructuredLogRecord:
+    return StructuredLogRecord(
+        timestamp=datetime.fromisoformat(ts).replace(tzinfo=UTC),
+        level=level,
+        event=event,
+        message=message,
+        payload=payload,
+    )
+
+
+def test_parse_structured_log_line_handles_iso_timestamp() -> None:
+    line = json.dumps({
+        "timestamp": "2024-01-01T00:00:00Z",
+        "level": "INFO",
+        "event": "bootstrap.start",
+        "message": "starting",
+        "component": "alpha",
+    })
+    record = parse_structured_log_line(line)
+    assert record is not None
+    assert record.timestamp == datetime(2024, 1, 1, tzinfo=UTC)
+    assert record.level == "info"
+    assert record.event == "bootstrap.start"
+    assert record.payload == {"component": "alpha"}
+
+
+def test_analyse_structured_logs_flags_errors() -> None:
+    records = (
+        _record("2024-01-01T00:00:00", "info", "start", "start"),
+        _record("2024-01-01T01:00:00", "warning", "latency", "latency high"),
+        _record("2024-01-01T02:00:00", "error", "crash", "failure"),
+    )
+    summary = analyse_structured_logs(LogParseResult(records=records, ignored_lines=1))
+    assert summary.started_at == datetime(2024, 1, 1, tzinfo=UTC)
+    assert summary.ended_at == datetime(2024, 1, 1, 2, tzinfo=UTC)
+    assert summary.duration == timedelta(hours=2)
+    assert summary.status is DryRunStatus.fail
+    assert len(summary.errors) == 1
+    assert len(summary.warnings) == 1
+    assert summary.as_dict()["ignored_lines"] == 1
+    assert "Errors" in summary.to_markdown()
+
+
+def test_summarise_diary_entries_detects_incidents() -> None:
+    base = {
+        "decision": {"status": "ok"},
+        "regime_state": {"regime": "bull"},
+        "outcomes": {"status": "ok"},
+    }
+    entry_ok = DecisionDiaryEntry(
+        entry_id="ok",
+        recorded_at=datetime(2024, 1, 1, tzinfo=UTC),
+        policy_id="alpha",
+        **base,
+    )
+    entry_warn = DecisionDiaryEntry(
+        entry_id="warn",
+        recorded_at=datetime(2024, 1, 2, tzinfo=UTC),
+        policy_id="alpha",
+        notes=("warning: degraded throughput",),
+        **base,
+    )
+    entry_fail = DecisionDiaryEntry(
+        entry_id="fail",
+        recorded_at=datetime(2024, 1, 3, tzinfo=UTC),
+        policy_id="beta",
+        outcomes={"status": "failed"},
+        decision=base["decision"],
+        regime_state=base["regime_state"],
+    )
+    summary = summarise_diary_entries((entry_ok, entry_warn, entry_fail))
+    assert summary.total_entries == 3
+    assert summary.status is DryRunStatus.fail
+    assert len(summary.issues) == 2
+    assert any(issue.severity is DryRunStatus.fail for issue in summary.issues)
+    assert summary.first_recorded_at == entry_ok.recorded_at
+    assert summary.last_recorded_at == entry_fail.recorded_at
+    assert isinstance(summary.issues[0], DryRunDiaryIssue)
+
+
+def test_dry_run_summary_combines_components() -> None:
+    log_summary = DryRunLogSummary(
+        records=(
+            _record("2024-01-01T00:00:00", "info", "start", "start"),
+        ),
+        ignored_lines=0,
+        level_counts={"info": 1},
+        event_counts={"start": 1},
+    )
+    diary_summary = DryRunDiarySummary(
+        entries=tuple(),
+        issues=tuple(),
+        policy_counts={},
+    )
+    perf_summary = DryRunPerformanceSummary(
+        generated_at=datetime(2024, 1, 2, tzinfo=UTC),
+        period_start=datetime(2024, 1, 1, tzinfo=UTC),
+        total_trades=10,
+        roi=0.05,
+        win_rate=0.6,
+    )
+    summary = DryRunSummary(
+        generated_at=datetime(2024, 1, 2, tzinfo=UTC),
+        log_summary=log_summary,
+        diary_summary=diary_summary,
+        performance_summary=perf_summary,
+        metadata={"run_id": "demo"},
+    )
+    assert summary.status is DryRunStatus.pass_
+    payload = summary.as_dict()
+    assert payload["status"] == "pass"
+    markdown = summary.to_markdown()
+    assert "Final dry run summary" in markdown
+    assert "run_id" in markdown
+
+
+def test_humanise_timedelta_formatting() -> None:
+    assert humanise_timedelta(timedelta(seconds=5)) == "0m 5s"
+    assert humanise_timedelta(timedelta(hours=26, minutes=5, seconds=7)) == "1d 2h 5m 7s"
+
+
+def test_evaluate_dry_run_end_to_end(tmp_path: Path) -> None:
+    log_path = tmp_path / "logs.jsonl"
+    log_payloads = [
+        {"timestamp": "2024-01-01T00:00:00Z", "level": "INFO", "event": "start"},
+        {"timestamp": "2024-01-01T00:10:00Z", "level": "INFO", "event": "heartbeat"},
+    ]
+    log_path.write_text("\n".join(json.dumps(entry) for entry in log_payloads), encoding="utf-8")
+
+    diary_path = tmp_path / "diary.json"
+    diary_payload = {
+        "generated_at": "2024-01-01T00:00:00Z",
+        "entries": [
+            {
+                "entry_id": "dd-1",
+                "recorded_at": "2024-01-01T00:05:00Z",
+                "policy_id": "alpha",
+                "decision": {"status": "ok"},
+                "regime_state": {"regime": "bull"},
+                "outcomes": {"status": "ok"},
+                "notes": [],
+                "metadata": {},
+                "probes": [],
+            }
+        ],
+    }
+    diary_path.write_text(json.dumps(diary_payload), encoding="utf-8")
+
+    performance_path = tmp_path / "performance.json"
+    performance_payload = {
+        "generated_at": "2024-01-01T23:00:00Z",
+        "period_start": "2024-01-01T00:00:00Z",
+        "aggregates": {"trades": 5, "roi": 0.1, "win_rate": 0.6},
+        "metadata": {"window": "demo"},
+    }
+    performance_path.write_text(json.dumps(performance_payload), encoding="utf-8")
+
+    summary = evaluate_dry_run(
+        log_paths=[log_path],
+        diary_path=diary_path,
+        performance_path=performance_path,
+    )
+    assert summary.status is DryRunStatus.pass_
+    assert summary.log_summary is not None
+    assert summary.log_summary.event_counts["start"] == 1
+    assert summary.diary_summary is not None
+    assert summary.diary_summary.total_entries == 1
+    assert summary.performance_summary is not None
+    assert summary.performance_summary.total_trades == 5
+
+
+def test_load_structured_logs_counts_invalid_lines(tmp_path: Path) -> None:
+    log_path = tmp_path / "logs.jsonl"
+    log_path.write_text("{}\ninvalid", encoding="utf-8")
+    result = load_structured_logs([log_path])
+    assert result.ignored_lines == 2
+    assert not result.records

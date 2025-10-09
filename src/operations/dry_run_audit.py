@@ -1,0 +1,735 @@
+"""Utilities for auditing final AlphaTrade dry runs.
+
+This module assembles structured log evidence, decision diary
+summaries, and performance telemetry into an auditable snapshot that can
+be attached to the final roadmap sign-off packet.  The helpers are pure
+and deterministic so they can be exercised via unit tests and reused by
+CLI tooling or notebooks.
+"""
+
+from __future__ import annotations
+
+from collections import Counter
+from dataclasses import dataclass, field
+from datetime import UTC, datetime, timedelta
+from enum import StrEnum
+import json
+from pathlib import Path
+from typing import Any, Iterable, Mapping, MutableMapping, Sequence
+
+from src.understanding.decision_diary import DecisionDiaryEntry, DecisionDiaryStore
+
+
+class DryRunStatus(StrEnum):
+    """Severity level for a dry run component."""
+
+    pass_ = "pass"
+    warn = "warn"
+    fail = "fail"
+
+    def __str__(self) -> str:  # pragma: no cover - convenience for formatting
+        return self.value
+
+
+@dataclass(frozen=True)
+class StructuredLogRecord:
+    """Normalised representation of a structured log line."""
+
+    timestamp: datetime
+    level: str
+    event: str | None
+    message: str | None
+    payload: Mapping[str, Any] = field(default_factory=dict)
+
+    def as_dict(self) -> Mapping[str, Any]:
+        return {
+            "timestamp": self.timestamp.astimezone(UTC).isoformat(),
+            "level": self.level,
+            "event": self.event,
+            "message": self.message,
+            "payload": _normalise_mapping(self.payload),
+        }
+
+
+@dataclass(frozen=True)
+class LogParseResult:
+    """Outcome of parsing log lines from JSONL files."""
+
+    records: tuple[StructuredLogRecord, ...]
+    ignored_lines: int = 0
+
+
+@dataclass(frozen=True)
+class DryRunIncident:
+    """Incident derived from either logs or diary entries."""
+
+    severity: DryRunStatus
+    occurred_at: datetime
+    summary: str
+    metadata: Mapping[str, Any] = field(default_factory=dict)
+
+    def as_dict(self) -> Mapping[str, Any]:
+        return {
+            "severity": self.severity.value,
+            "occurred_at": self.occurred_at.astimezone(UTC).isoformat(),
+            "summary": self.summary,
+            "metadata": _normalise_mapping(self.metadata),
+        }
+
+
+@dataclass(frozen=True)
+class DryRunLogSummary:
+    """Aggregated view of log evidence captured during a dry run."""
+
+    records: tuple[StructuredLogRecord, ...]
+    ignored_lines: int
+    level_counts: Mapping[str, int]
+    event_counts: Mapping[str, int]
+
+    @property
+    def started_at(self) -> datetime | None:
+        if not self.records:
+            return None
+        return min(record.timestamp for record in self.records)
+
+    @property
+    def ended_at(self) -> datetime | None:
+        if not self.records:
+            return None
+        return max(record.timestamp for record in self.records)
+
+    @property
+    def duration(self) -> timedelta | None:
+        if not self.records:
+            return None
+        return self.ended_at - self.started_at  # type: ignore[return-value]
+
+    @property
+    def warnings(self) -> tuple[DryRunIncident, ...]:
+        incidents: list[DryRunIncident] = []
+        for record in self.records:
+            if record.level not in {"warning", "warn"}:
+                continue
+            incidents.append(
+                DryRunIncident(
+                    severity=DryRunStatus.warn,
+                    occurred_at=record.timestamp,
+                    summary=record.message or record.event or "warning",
+                    metadata={"event": record.event, **_normalise_mapping(record.payload)},
+                )
+            )
+        incidents.sort(key=lambda incident: incident.occurred_at)
+        return tuple(incidents)
+
+    @property
+    def errors(self) -> tuple[DryRunIncident, ...]:
+        incidents: list[DryRunIncident] = []
+        for record in self.records:
+            if record.level not in {"error", "exception", "critical", "fatal"}:
+                continue
+            incidents.append(
+                DryRunIncident(
+                    severity=DryRunStatus.fail,
+                    occurred_at=record.timestamp,
+                    summary=record.message or record.event or "error",
+                    metadata={"event": record.event, **_normalise_mapping(record.payload)},
+                )
+            )
+        incidents.sort(key=lambda incident: incident.occurred_at)
+        return tuple(incidents)
+
+    @property
+    def status(self) -> DryRunStatus:
+        if self.errors:
+            return DryRunStatus.fail
+        if self.warnings:
+            return DryRunStatus.warn
+        return DryRunStatus.pass_
+
+    def as_dict(self) -> Mapping[str, Any]:
+        payload: MutableMapping[str, Any] = {
+            "ignored_lines": self.ignored_lines,
+            "level_counts": dict(self.level_counts),
+            "event_counts": dict(self.event_counts),
+            "warnings": [incident.as_dict() for incident in self.warnings],
+            "errors": [incident.as_dict() for incident in self.errors],
+            "status": self.status.value,
+        }
+        if self.started_at is not None:
+            payload["started_at"] = self.started_at.astimezone(UTC).isoformat()
+        if self.ended_at is not None:
+            payload["ended_at"] = self.ended_at.astimezone(UTC).isoformat()
+        if self.duration is not None:
+            payload["duration_seconds"] = self.duration.total_seconds()
+        return payload
+
+    def to_markdown(self) -> str:
+        rows = [
+            "| Metric | Value |",
+            "| --- | --- |",
+            f"| Records | {len(self.records)} |",
+            f"| Ignored lines | {self.ignored_lines} |",
+        ]
+        if self.started_at is not None:
+            rows.append(
+                f"| Started at | {self.started_at.astimezone(UTC).isoformat()} |"
+            )
+        if self.ended_at is not None:
+            rows.append(
+                f"| Ended at | {self.ended_at.astimezone(UTC).isoformat()} |"
+            )
+        if self.duration is not None:
+            rows.append(
+                f"| Duration | {humanise_timedelta(self.duration)} |"
+            )
+        if self.level_counts:
+            level_summary = ", ".join(
+                f"{level}={count}" for level, count in sorted(self.level_counts.items())
+            )
+            rows.append(f"| Levels | {level_summary} |")
+        if self.event_counts:
+            most_common = ", ".join(
+                f"{event}={count}" for event, count in self._top_event_counts(5)
+            )
+            rows.append(f"| Top events | {most_common} |")
+        if self.errors:
+            rows.append(f"| Errors | {len(self.errors)} |")
+        if self.warnings:
+            rows.append(f"| Warnings | {len(self.warnings)} |")
+        return "\n".join(rows)
+
+    def _top_event_counts(self, limit: int) -> tuple[tuple[str, int], ...]:
+        sorted_events = sorted(
+            ((event or "", count) for event, count in self.event_counts.items()),
+            key=lambda item: (-item[1], item[0]),
+        )
+        return tuple(sorted_events[:limit])
+
+
+@dataclass(frozen=True)
+class DryRunDiaryIssue:
+    """Diary entry flagged as noteworthy for dry run sign-off."""
+
+    entry_id: str
+    policy_id: str
+    recorded_at: datetime
+    severity: DryRunStatus
+    reason: str
+    metadata: Mapping[str, Any] = field(default_factory=dict)
+
+    def as_dict(self) -> Mapping[str, Any]:
+        return {
+            "entry_id": self.entry_id,
+            "policy_id": self.policy_id,
+            "recorded_at": self.recorded_at.astimezone(UTC).isoformat(),
+            "severity": self.severity.value,
+            "reason": self.reason,
+            "metadata": _normalise_mapping(self.metadata),
+        }
+
+
+@dataclass(frozen=True)
+class DryRunDiarySummary:
+    """Aggregated statistics for decision diary evidence."""
+
+    entries: tuple[DecisionDiaryEntry, ...]
+    issues: tuple[DryRunDiaryIssue, ...]
+    policy_counts: Mapping[str, int]
+
+    @property
+    def total_entries(self) -> int:
+        return len(self.entries)
+
+    @property
+    def first_recorded_at(self) -> datetime | None:
+        if not self.entries:
+            return None
+        return min(entry.recorded_at for entry in self.entries)
+
+    @property
+    def last_recorded_at(self) -> datetime | None:
+        if not self.entries:
+            return None
+        return max(entry.recorded_at for entry in self.entries)
+
+    @property
+    def status(self) -> DryRunStatus:
+        if any(issue.severity is DryRunStatus.fail for issue in self.issues):
+            return DryRunStatus.fail
+        if any(issue.severity is DryRunStatus.warn for issue in self.issues):
+            return DryRunStatus.warn
+        return DryRunStatus.pass_
+
+    def as_dict(self) -> Mapping[str, Any]:
+        payload: MutableMapping[str, Any] = {
+            "total_entries": self.total_entries,
+            "policy_counts": dict(self.policy_counts),
+            "issues": [issue.as_dict() for issue in self.issues],
+            "status": self.status.value,
+        }
+        if self.first_recorded_at is not None:
+            payload["first_recorded_at"] = self.first_recorded_at.astimezone(UTC).isoformat()
+        if self.last_recorded_at is not None:
+            payload["last_recorded_at"] = self.last_recorded_at.astimezone(UTC).isoformat()
+        return payload
+
+    def to_markdown(self) -> str:
+        rows = [
+            "| Metric | Value |",
+            "| --- | --- |",
+            f"| Entries | {self.total_entries} |",
+            f"| Policies | {len(self.policy_counts)} |",
+        ]
+        if self.first_recorded_at is not None:
+            rows.append(
+                f"| First entry | {self.first_recorded_at.astimezone(UTC).isoformat()} |"
+            )
+        if self.last_recorded_at is not None:
+            rows.append(
+                f"| Last entry | {self.last_recorded_at.astimezone(UTC).isoformat()} |"
+            )
+        if self.issues:
+            rows.append(f"| Flagged entries | {len(self.issues)} |")
+        return "\n".join(rows)
+
+
+@dataclass(frozen=True)
+class DryRunPerformanceSummary:
+    """Lightweight summary of the performance tracker output."""
+
+    generated_at: datetime
+    period_start: datetime
+    total_trades: int
+    roi: float | None
+    win_rate: float | None
+    metadata: Mapping[str, Any] = field(default_factory=dict)
+
+    @property
+    def status(self) -> DryRunStatus:
+        if self.roi is not None and self.roi < 0:
+            return DryRunStatus.warn
+        return DryRunStatus.pass_
+
+    def as_dict(self) -> Mapping[str, Any]:
+        payload: MutableMapping[str, Any] = {
+            "generated_at": self.generated_at.astimezone(UTC).isoformat(),
+            "period_start": self.period_start.astimezone(UTC).isoformat(),
+            "total_trades": self.total_trades,
+            "metadata": _normalise_mapping(self.metadata),
+            "status": self.status.value,
+        }
+        if self.roi is not None:
+            payload["roi"] = self.roi
+        if self.win_rate is not None:
+            payload["win_rate"] = self.win_rate
+        return payload
+
+    def to_markdown(self) -> str:
+        rows = [
+            "| Metric | Value |",
+            "| --- | --- |",
+            f"| Generated at | {self.generated_at.astimezone(UTC).isoformat()} |",
+            f"| Period start | {self.period_start.astimezone(UTC).isoformat()} |",
+            f"| Trades | {self.total_trades} |",
+        ]
+        if self.roi is not None:
+            rows.append(f"| ROI | {self.roi:.4f} |")
+        if self.win_rate is not None:
+            rows.append(f"| Win rate | {self.win_rate:.4f} |")
+        return "\n".join(rows)
+
+    @classmethod
+    def from_mapping(cls, payload: Mapping[str, Any]) -> "DryRunPerformanceSummary":
+        generated_at = _parse_timestamp(payload.get("generated_at"))
+        period_start = _parse_timestamp(payload.get("period_start"))
+        if generated_at is None or period_start is None:
+            raise ValueError("Performance report must include generated_at and period_start timestamps")
+        aggregates = payload.get("aggregates", {})
+        if isinstance(aggregates, Mapping):
+            total_trades = int(aggregates.get("trades", payload.get("trades", 0)))
+            roi_raw = aggregates.get("roi")
+            win_rate_raw = aggregates.get("win_rate")
+        else:
+            total_trades = int(payload.get("trades", 0))
+            roi_raw = payload.get("roi")
+            win_rate_raw = payload.get("win_rate")
+        roi = float(roi_raw) if isinstance(roi_raw, (int, float)) else None
+        win_rate = float(win_rate_raw) if isinstance(win_rate_raw, (int, float)) else None
+        metadata_payload = payload.get("metadata", {})
+        metadata = dict(metadata_payload) if isinstance(metadata_payload, Mapping) else {}
+        return cls(
+            generated_at=generated_at,
+            period_start=period_start,
+            total_trades=total_trades,
+            roi=roi,
+            win_rate=win_rate,
+            metadata=metadata,
+        )
+
+
+@dataclass(frozen=True)
+class DryRunSummary:
+    """Top-level aggregation for the final dry run evidence bundle."""
+
+    generated_at: datetime
+    log_summary: DryRunLogSummary | None = None
+    diary_summary: DryRunDiarySummary | None = None
+    performance_summary: DryRunPerformanceSummary | None = None
+    metadata: Mapping[str, Any] = field(default_factory=dict)
+
+    @property
+    def status(self) -> DryRunStatus:
+        statuses: list[DryRunStatus] = []
+        if self.log_summary is not None:
+            statuses.append(self.log_summary.status)
+        if self.diary_summary is not None:
+            statuses.append(self.diary_summary.status)
+        if self.performance_summary is not None:
+            statuses.append(self.performance_summary.status)
+        if not statuses:
+            return DryRunStatus.pass_
+        if any(status is DryRunStatus.fail for status in statuses):
+            return DryRunStatus.fail
+        if any(status is DryRunStatus.warn for status in statuses):
+            return DryRunStatus.warn
+        return DryRunStatus.pass_
+
+    def as_dict(self) -> Mapping[str, Any]:
+        payload: MutableMapping[str, Any] = {
+            "generated_at": self.generated_at.astimezone(UTC).isoformat(),
+            "status": self.status.value,
+            "metadata": _normalise_mapping(self.metadata),
+        }
+        if self.log_summary is not None:
+            payload["logs"] = self.log_summary.as_dict()
+        if self.diary_summary is not None:
+            payload["diary"] = self.diary_summary.as_dict()
+        if self.performance_summary is not None:
+            payload["performance"] = self.performance_summary.as_dict()
+        return payload
+
+    def to_markdown(self) -> str:
+        parts = [
+            f"# Final dry run summary — {self.status.value.upper()}",
+            "",
+            f"Generated at: {self.generated_at.astimezone(UTC).isoformat()}",
+            "",
+        ]
+        if self.log_summary is not None:
+            parts.extend(["## Logs", self.log_summary.to_markdown(), ""])
+            if self.log_summary.errors:
+                parts.append("### Log incidents")
+                for incident in self.log_summary.errors:
+                    parts.append(
+                        f"- {incident.occurred_at.astimezone(UTC).isoformat()}: {incident.summary}"
+                    )
+                parts.append("")
+            if self.log_summary.warnings:
+                parts.append("### Log warnings")
+                for incident in self.log_summary.warnings:
+                    parts.append(
+                        f"- {incident.occurred_at.astimezone(UTC).isoformat()}: {incident.summary}"
+                    )
+                parts.append("")
+        if self.diary_summary is not None:
+            parts.extend(["## Decision diary", self.diary_summary.to_markdown(), ""])
+            if self.diary_summary.issues:
+                parts.append("### Diary issues")
+                for issue in self.diary_summary.issues:
+                    parts.append(
+                        f"- {issue.recorded_at.astimezone(UTC).isoformat()} — {issue.policy_id}: {issue.reason}"
+                    )
+                parts.append("")
+        if self.performance_summary is not None:
+            parts.extend(["## Performance", self.performance_summary.to_markdown(), ""])
+        if self.metadata:
+            parts.append("## Metadata")
+            for key, value in sorted(self.metadata.items()):
+                parts.append(f"- {key}: {value}")
+            parts.append("")
+        return "\n".join(parts).rstrip() + "\n"
+
+
+def parse_structured_log_line(line: str) -> StructuredLogRecord | None:
+    """Parse a JSON-formatted log line into a :class:`StructuredLogRecord`."""
+
+    line = line.strip()
+    if not line:
+        return None
+    try:
+        payload = json.loads(line)
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(payload, Mapping):
+        return None
+    timestamp = _parse_timestamp(
+        payload.get("timestamp")
+        or payload.get("ts")
+        or payload.get("@timestamp")
+        or payload.get("time")
+    )
+    if timestamp is None:
+        return None
+    level_raw = payload.get("level") or payload.get("lvl") or payload.get("severity")
+    if isinstance(level_raw, str):
+        level = level_raw.strip().lower()
+    elif isinstance(level_raw, (int, float)):
+        level = str(level_raw)
+    else:
+        level = "info"
+    event = payload.get("event")
+    if event is not None:
+        event = str(event)
+    message_raw = payload.get("message") or payload.get("msg") or payload.get("event")
+    message = str(message_raw) if message_raw is not None else None
+    preserved = {"timestamp", "ts", "@timestamp", "time", "level", "lvl", "severity", "event", "message", "msg"}
+    metadata = {
+        str(key): value
+        for key, value in payload.items()
+        if key not in preserved
+    }
+    return StructuredLogRecord(
+        timestamp=timestamp,
+        level=level,
+        event=event,
+        message=message,
+        payload=metadata,
+    )
+
+
+def load_structured_logs(paths: Iterable[Path]) -> LogParseResult:
+    """Load structured logs from the provided JSONL files."""
+
+    records: list[StructuredLogRecord] = []
+    ignored = 0
+    for path in paths:
+        text = path.read_text(encoding="utf-8") if path.exists() else ""
+        for line in text.splitlines():
+            record = parse_structured_log_line(line)
+            if record is None:
+                ignored += 1
+                continue
+            records.append(record)
+    records.sort(key=lambda record: record.timestamp)
+    return LogParseResult(records=tuple(records), ignored_lines=ignored)
+
+
+def analyse_structured_logs(result: LogParseResult) -> DryRunLogSummary:
+    """Derive roll-up statistics from parsed structured logs."""
+
+    level_counts = Counter(record.level for record in result.records)
+    event_counts = Counter(record.event for record in result.records if record.event)
+    return DryRunLogSummary(
+        records=result.records,
+        ignored_lines=result.ignored_lines,
+        level_counts=dict(level_counts),
+        event_counts=dict(event_counts),
+    )
+
+
+def summarise_diary_entries(entries: Sequence[DecisionDiaryEntry]) -> DryRunDiarySummary:
+    """Summarise the supplied diary entries for dry run review."""
+
+    ordered = tuple(sorted(entries, key=lambda entry: entry.recorded_at))
+    policy_counts = Counter(entry.policy_id for entry in ordered)
+    issues: list[DryRunDiaryIssue] = []
+    for entry in ordered:
+        severity, reason = _classify_diary_entry(entry)
+        if severity is None:
+            continue
+        issues.append(
+            DryRunDiaryIssue(
+                entry_id=entry.entry_id,
+                policy_id=entry.policy_id,
+                recorded_at=entry.recorded_at,
+                severity=severity,
+                reason=reason,
+                metadata=dict(entry.metadata),
+            )
+        )
+    return DryRunDiarySummary(
+        entries=ordered,
+        issues=tuple(issues),
+        policy_counts=dict(policy_counts),
+    )
+
+
+def load_decision_diary_entries(path: Path) -> tuple[DecisionDiaryEntry, ...]:
+    """Load diary entries from the JSON file backing :class:`DecisionDiaryStore`."""
+
+    if not path.exists():
+        return tuple()
+    store = DecisionDiaryStore(path, publish_on_record=False)
+    return store.entries()
+
+
+def load_performance_summary(path: Path) -> DryRunPerformanceSummary | None:
+    """Load a :class:`DryRunPerformanceSummary` from a JSON payload."""
+
+    if not path.exists():
+        return None
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if isinstance(payload, Mapping):
+        return DryRunPerformanceSummary.from_mapping(payload)
+    raise ValueError("Performance report payload must be a mapping")
+
+
+def evaluate_dry_run(
+    *,
+    log_paths: Sequence[Path],
+    diary_path: Path | None = None,
+    performance_path: Path | None = None,
+    metadata: Mapping[str, Any] | None = None,
+) -> DryRunSummary:
+    """Evaluate dry run evidence from logs, diaries, and performance telemetry."""
+
+    parse_result = load_structured_logs(log_paths)
+    log_summary = analyse_structured_logs(parse_result)
+
+    diary_summary: DryRunDiarySummary | None = None
+    if diary_path is not None:
+        diary_entries = load_decision_diary_entries(diary_path)
+        if diary_entries:
+            diary_summary = summarise_diary_entries(diary_entries)
+        else:
+            diary_summary = DryRunDiarySummary(entries=tuple(), issues=tuple(), policy_counts={})
+
+    performance_summary: DryRunPerformanceSummary | None = None
+    if performance_path is not None:
+        performance_summary = load_performance_summary(performance_path)
+
+    aggregate_metadata = {"log_paths": [str(path) for path in log_paths]}
+    if diary_path is not None:
+        aggregate_metadata["diary_path"] = str(diary_path)
+    if performance_path is not None:
+        aggregate_metadata["performance_path"] = str(performance_path)
+    if metadata:
+        aggregate_metadata.update({str(key): value for key, value in metadata.items()})
+
+    return DryRunSummary(
+        generated_at=datetime.now(tz=UTC),
+        log_summary=log_summary,
+        diary_summary=diary_summary,
+        performance_summary=performance_summary,
+        metadata=aggregate_metadata,
+    )
+
+
+# Helper utilities ---------------------------------------------------------
+
+_FAIL_STATUSES = {"error", "failed", "halted", "fatal", "critical"}
+_WARN_STATUSES = {"warn", "warning", "degraded", "throttled", "skipped"}
+
+
+def _classify_diary_entry(entry: DecisionDiaryEntry) -> tuple[DryRunStatus | None, str]:
+    """Determine whether a diary entry should be flagged as an issue."""
+
+    candidates: list[tuple[str, str]] = []
+    for source, payload in (
+        ("metadata", entry.metadata),
+        ("decision", entry.decision),
+        ("outcomes", entry.outcomes),
+    ):
+        if not isinstance(payload, Mapping):
+            continue
+        status = payload.get("status")
+        if isinstance(status, str) and status.strip():
+            candidates.append((source, status.strip().lower()))
+    for note in entry.notes:
+        if not note:
+            continue
+        lowered = note.lower()
+        if any(token in lowered for token in ("incident", "halt", "error")):
+            return DryRunStatus.fail, f"note: {note}"
+        if "warn" in lowered or "degraded" in lowered:
+            return DryRunStatus.warn, f"note: {note}"
+    for source, status in candidates:
+        if status in _FAIL_STATUSES:
+            return DryRunStatus.fail, f"{source}.status={status}"
+    for source, status in candidates:
+        if status in _WARN_STATUSES:
+            return DryRunStatus.warn, f"{source}.status={status}"
+    return None, ""
+
+
+def _parse_timestamp(value: Any) -> datetime | None:
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return value.astimezone(UTC)
+    if isinstance(value, (int, float)):
+        return datetime.fromtimestamp(float(value), tz=UTC)
+    if isinstance(value, str):
+        raw = value.strip()
+        if not raw:
+            return None
+        if raw.endswith("Z"):
+            raw = raw[:-1] + "+00:00"
+        try:
+            parsed = datetime.fromisoformat(raw)
+        except ValueError:
+            return None
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=UTC)
+        return parsed.astimezone(UTC)
+    return None
+
+
+def _normalise_mapping(payload: Mapping[str, Any]) -> Mapping[str, Any]:
+    normalised: dict[str, Any] = {}
+    for key, value in payload.items():
+        normalised[str(key)] = _normalise_value(value)
+    return normalised
+
+
+def _normalise_value(value: Any) -> Any:
+    if isinstance(value, datetime):
+        return value.astimezone(UTC).isoformat()
+    if isinstance(value, Mapping):
+        return _normalise_mapping(value)
+    if isinstance(value, (list, tuple, set)):
+        return [_normalise_value(item) for item in value]
+    if isinstance(value, (int, float, str)) or value is None or isinstance(value, bool):
+        return value
+    return str(value)
+
+
+def humanise_timedelta(delta: timedelta) -> str:
+    """Return a compact human-readable representation of a timedelta."""
+
+    total_seconds = int(delta.total_seconds())
+    days, remainder = divmod(total_seconds, 24 * 3600)
+    hours, remainder = divmod(remainder, 3600)
+    minutes, seconds = divmod(remainder, 60)
+    parts: list[str] = []
+    if days:
+        parts.append(f"{days}d")
+    if hours or (days and (minutes or seconds)):
+        parts.append(f"{hours}h")
+    if minutes or (hours and seconds):
+        parts.append(f"{minutes}m")
+    elif not parts:
+        parts.append("0m")
+    parts.append(f"{seconds}s")
+    return " ".join(parts)
+
+
+__all__ = [
+    "DryRunStatus",
+    "StructuredLogRecord",
+    "LogParseResult",
+    "DryRunIncident",
+    "DryRunLogSummary",
+    "DryRunDiaryIssue",
+    "DryRunDiarySummary",
+    "DryRunPerformanceSummary",
+    "DryRunSummary",
+    "parse_structured_log_line",
+    "load_structured_logs",
+    "analyse_structured_logs",
+    "summarise_diary_entries",
+    "load_decision_diary_entries",
+    "load_performance_summary",
+    "evaluate_dry_run",
+    "humanise_timedelta",
+]

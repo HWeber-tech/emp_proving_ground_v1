@@ -14,10 +14,15 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from enum import StrEnum
 import json
+from itertools import pairwise
 from pathlib import Path
 from typing import Any, Iterable, Mapping, MutableMapping, Sequence
 
 from src.understanding.decision_diary import DecisionDiaryEntry, DecisionDiaryStore
+
+
+DEFAULT_WARN_GAP = timedelta(hours=1)
+DEFAULT_FAIL_GAP = timedelta(hours=6)
 
 
 class DryRunStatus(StrEnum):
@@ -85,6 +90,8 @@ class DryRunLogSummary:
     ignored_lines: int
     level_counts: Mapping[str, int]
     event_counts: Mapping[str, int]
+    gap_incidents: tuple[DryRunIncident, ...] = field(default_factory=tuple)
+    uptime_ratio: float | None = None
 
     @property
     def started_at(self) -> datetime | None:
@@ -140,9 +147,13 @@ class DryRunLogSummary:
 
     @property
     def status(self) -> DryRunStatus:
-        if self.errors:
+        if self.errors or any(
+            incident.severity is DryRunStatus.fail for incident in self.gap_incidents
+        ):
             return DryRunStatus.fail
-        if self.warnings:
+        if self.warnings or any(
+            incident.severity is DryRunStatus.warn for incident in self.gap_incidents
+        ):
             return DryRunStatus.warn
         return DryRunStatus.pass_
 
@@ -151,6 +162,7 @@ class DryRunLogSummary:
             "ignored_lines": self.ignored_lines,
             "level_counts": dict(self.level_counts),
             "event_counts": dict(self.event_counts),
+            "gap_incidents": [incident.as_dict() for incident in self.gap_incidents],
             "warnings": [incident.as_dict() for incident in self.warnings],
             "errors": [incident.as_dict() for incident in self.errors],
             "status": self.status.value,
@@ -161,6 +173,8 @@ class DryRunLogSummary:
             payload["ended_at"] = self.ended_at.astimezone(UTC).isoformat()
         if self.duration is not None:
             payload["duration_seconds"] = self.duration.total_seconds()
+        if self.uptime_ratio is not None:
+            payload["uptime_ratio"] = self.uptime_ratio
         return payload
 
     def to_markdown(self) -> str:
@@ -192,6 +206,10 @@ class DryRunLogSummary:
                 f"{event}={count}" for event, count in self._top_event_counts(5)
             )
             rows.append(f"| Top events | {most_common} |")
+        if self.uptime_ratio is not None:
+            rows.append(f"| Uptime | {self.uptime_ratio * 100:.2f}% |")
+        if self.gap_incidents:
+            rows.append(f"| Gap incidents | {len(self.gap_incidents)} |")
         if self.errors:
             rows.append(f"| Errors | {len(self.errors)} |")
         if self.warnings:
@@ -431,6 +449,13 @@ class DryRunSummary:
                         f"- {incident.occurred_at.astimezone(UTC).isoformat()}: {incident.summary}"
                     )
                 parts.append("")
+            if self.log_summary.gap_incidents:
+                parts.append("### Log gaps")
+                for incident in self.log_summary.gap_incidents:
+                    parts.append(
+                        f"- {incident.occurred_at.astimezone(UTC).isoformat()}: {incident.summary}"
+                    )
+                parts.append("")
         if self.diary_summary is not None:
             parts.extend(["## Decision diary", self.diary_summary.to_markdown(), ""])
             if self.diary_summary.issues:
@@ -514,16 +539,28 @@ def load_structured_logs(paths: Iterable[Path]) -> LogParseResult:
     return LogParseResult(records=tuple(records), ignored_lines=ignored)
 
 
-def analyse_structured_logs(result: LogParseResult) -> DryRunLogSummary:
+def analyse_structured_logs(
+    result: LogParseResult,
+    *,
+    warn_gap: timedelta = DEFAULT_WARN_GAP,
+    fail_gap: timedelta = DEFAULT_FAIL_GAP,
+) -> DryRunLogSummary:
     """Derive roll-up statistics from parsed structured logs."""
 
+    warn_gap = max(warn_gap, timedelta(0))
+    fail_gap = max(fail_gap, warn_gap)
     level_counts = Counter(record.level for record in result.records)
     event_counts = Counter(record.event for record in result.records if record.event)
+    gap_incidents, uptime_ratio = _analyse_log_gaps(
+        result.records, warn_gap=warn_gap, fail_gap=fail_gap
+    )
     return DryRunLogSummary(
         records=result.records,
         ignored_lines=result.ignored_lines,
         level_counts=dict(level_counts),
         event_counts=dict(event_counts),
+        gap_incidents=gap_incidents,
+        uptime_ratio=uptime_ratio,
     )
 
 
@@ -580,11 +617,17 @@ def evaluate_dry_run(
     diary_path: Path | None = None,
     performance_path: Path | None = None,
     metadata: Mapping[str, Any] | None = None,
+    log_gap_warn: timedelta | None = None,
+    log_gap_fail: timedelta | None = None,
 ) -> DryRunSummary:
     """Evaluate dry run evidence from logs, diaries, and performance telemetry."""
 
     parse_result = load_structured_logs(log_paths)
-    log_summary = analyse_structured_logs(parse_result)
+    log_summary = analyse_structured_logs(
+        parse_result,
+        warn_gap=log_gap_warn or DEFAULT_WARN_GAP,
+        fail_gap=log_gap_fail or DEFAULT_FAIL_GAP,
+    )
 
     diary_summary: DryRunDiarySummary | None = None
     if diary_path is not None:
@@ -715,6 +758,8 @@ def humanise_timedelta(delta: timedelta) -> str:
 
 
 __all__ = [
+    "DEFAULT_WARN_GAP",
+    "DEFAULT_FAIL_GAP",
     "DryRunStatus",
     "StructuredLogRecord",
     "LogParseResult",
@@ -733,3 +778,53 @@ __all__ = [
     "evaluate_dry_run",
     "humanise_timedelta",
 ]
+
+
+def _analyse_log_gaps(
+    records: Sequence[StructuredLogRecord],
+    *,
+    warn_gap: timedelta,
+    fail_gap: timedelta,
+) -> tuple[tuple[DryRunIncident, ...], float | None]:
+    if len(records) < 2:
+        return tuple(), 1.0 if records else None
+
+    warn_seconds = warn_gap.total_seconds()
+    total_span = (records[-1].timestamp - records[0].timestamp).total_seconds()
+    total_span = max(total_span, 0.0)
+    total_excess_gap = 0.0
+    incidents: list[DryRunIncident] = []
+
+    for previous, current in pairwise(records):
+        gap = current.timestamp - previous.timestamp
+        if gap <= warn_gap:
+            continue
+        severity = DryRunStatus.fail if gap >= fail_gap else DryRunStatus.warn
+        summary = (
+            f"{humanise_timedelta(gap)} gap between "
+            f"{previous.event or previous.message or 'previous log'}"
+            f" and {current.event or current.message or 'next log'}"
+        )
+        incidents.append(
+            DryRunIncident(
+                severity=severity,
+                occurred_at=current.timestamp,
+                summary=summary,
+                metadata={
+                    "gap_seconds": gap.total_seconds(),
+                    "previous_event": previous.event,
+                    "next_event": current.event,
+                },
+            )
+        )
+        total_excess_gap += max(0.0, gap.total_seconds() - warn_seconds)
+
+    if not incidents:
+        return tuple(), 1.0 if total_span > 0 else None
+
+    if total_span == 0:
+        uptime_ratio = 0.0 if incidents else 1.0
+    else:
+        uptime_ratio = max(0.0, 1.0 - (total_excess_gap / total_span))
+
+    return tuple(incidents), uptime_ratio

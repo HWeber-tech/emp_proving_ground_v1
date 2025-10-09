@@ -140,7 +140,7 @@ Below is a refreshed 90-day roadmap to guide the next phase of AlphaTrade develo
 
 - [ ] Final Dry Run & Sign-off – Run a final dry-run of the entire system under realistic conditions for several days and fix any last bugs. This is effectively a user acceptance test (UAT) for the platform. DoD: The system runs continuously (in paper mode) for, say, 3 days straight with no crashes or major errors. All logs remain at info/debug (no uncaught exceptions). Any minor issues found are documented and either fixed or added to a backlog for post-90-day work. At the end of this run, gather all evidence (logs, performance metrics, diary samples) and have a wrap-up review meeting.
   **Acceptance criteria:** The review board (or project owner) signs off that the 90-day objectives have been met: data backbone is live, understanding loop is autonomous and interpretable, governance and risk are enforced, and the system is ready for either live pilot or publication. If any objective is not met, we clearly itemize why and possibly schedule that as priority in the next roadmap.
-  - Progress: Final dry-run audit tooling now aggregates logs, diary highlights, readiness posture, and KPI telemetry into a Markdown report with severity roll-ups, enabling sign-off reviewers to inspect a single evidence bundle; command-line helpers and pytest fixtures validate the evidence synthesis contract for UAT rehearsals.【F:src/operations/dry_run_audit.py†L1-L640】【F:tests/operations/test_dry_run_audit.py†L15-L220】【F:tools/operations/final_dry_run_audit.py†L1-L120】
+  - Progress: Final dry-run audit tooling now aggregates logs, diary highlights, readiness posture, and KPI telemetry into a Markdown report with severity roll-ups, while flagging log continuity gaps with configurable warn/fail thresholds, uptime ratios, and CLI controls so reviewers can detect evidence drop-outs during sign-off. Command-line helpers and pytest fixtures validate the evidence synthesis contract for UAT rehearsals.【F:src/operations/dry_run_audit.py†L18-L820】【F:tests/operations/test_dry_run_audit.py†L1-L220】【F:tools/operations/final_dry_run_audit.py†L1-L120】
 
 ## Directory Layout & Code Practices
 
@@ -152,10 +152,10 @@ Maintain and improve the CI coverage: aim to raise coverage from ~76% into the 8
 Keep documentation up-to-date with code. The roadmap’s context briefs and sprint briefs should be revised when assumptions change. For example, once real data ingest is done, the alignment brief for the data backbone can be marked as achieved or updated with remaining gaps. This ensures the “concept promises” in the docs match reality, maintaining alignment between narrative and implementation[59].
 By following this roadmap, in 90 days we will have transformed the AlphaTrade prototype from a scaffold into a paper-trading-ready, well-governed AI trading loop. We will have demonstrated the system’s ability to perceive real market data, adapt using fast weights and evolutionary tweaks, reflect on its decisions with interpretable metrics, execute trades under strict risk controls, and govern itself through policy stages. Quick wins are captured early to build momentum, and risky, research-heavy tasks are deferred or made optional behind feature flags. Each phase concludes with concrete acceptance tests and definitions of done, giving a clear target for completion. With this structured approach, the team and stakeholders can track progress and gain confidence as AlphaTrade moves toward both practical deployment and the potential to contribute novel insights (via the BDH-inspired design) to the algorithmic trading community.
 
-## Automation updates — 2025-10-08T18:33:56Z
+## Automation updates — 2025-10-09T07:56:55Z
 
 ### Last 4 commits
+- 16d5683 feat(operations): flag dry run log continuity gaps (#552) (2025-10-09)
+- 65164f4 docs: extend whitepaper methodology and context (#551) (2025-10-09)
+- 592d5da docs: sync roadmap and briefs with latest telemetry updates (#550) (2025-10-09)
 - 21e2a6d feat: add sparsity telemetry to fast-weight constraints (#549) (2025-10-09)
-- cd39cf9 refactor: align understanding namespace references (#548) (2025-10-09)
-- 8b23bed fix(risk): canonicalize position symbols during audit (#547) (2025-10-09)
-- d32e984 docs: capture latest readiness instrumentation (#546) (2025-10-09)

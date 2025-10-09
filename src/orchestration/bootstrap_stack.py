@@ -76,7 +76,7 @@ class BootstrapSensoryPipeline:
         market_data = await self.fabric.fetch_latest(
             symbol, as_of=as_of, allow_stale=allow_stale, use_cache=False
         )
-        synthesis = await self.fusion_engine.analyze_market_intelligence(market_data)
+        synthesis = await self.fusion_engine.analyze_market_understanding(market_data)
         snapshot = SensorySnapshot(symbol=symbol, market_data=market_data, synthesis=synthesis)
         self.history.setdefault(symbol, []).append(snapshot)
 

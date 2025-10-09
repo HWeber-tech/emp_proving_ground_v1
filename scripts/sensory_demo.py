@@ -156,7 +156,7 @@ class SensoryDemo:
                 tick_time = base_time + timedelta(milliseconds=i * 100)  # 10 ticks per second
                 market_data = self.tick_generator.generate_tick(tick_time)
 
-                market_understanding = await self.fusion_engine.analyze_market_intelligence(
+                market_understanding = await self.fusion_engine.analyze_market_understanding(
                     market_data
                 )
 

@@ -279,7 +279,7 @@ class TestContextualFusion:
         market_data = data_generator.generate_market_data("normal")
 
         # Test basic analysis
-        synthesis = await fusion_engine.analyze_market_intelligence(market_data)
+        synthesis = await fusion_engine.analyze_market_understanding(market_data)
 
         assert synthesis is not None
         assert hasattr(synthesis, "intelligence_level")
@@ -293,6 +293,18 @@ class TestContextualFusion:
         assert 0.0 <= synthesis.confidence <= 1.0
 
     @pytest.mark.asyncio
+    async def test_intelligence_alias_warns(
+        self, fusion_engine, data_generator
+    ) -> None:
+        market_data = data_generator.generate_market_data("normal")
+
+        with pytest.warns(DeprecationWarning):
+            alias_result = await fusion_engine.analyze_market_intelligence(market_data)
+
+        assert alias_result is not None
+        assert hasattr(alias_result, "unified_score")
+
+    @pytest.mark.asyncio
     async def test_fusion_with_multiple_data_points(self, fusion_engine, data_generator):
         """Test fusion engine with multiple data points"""
 
@@ -302,7 +314,7 @@ class TestContextualFusion:
         syntheses = []
 
         for market_data in data_sequence:
-            synthesis = await fusion_engine.analyze_market_intelligence(market_data)
+            synthesis = await fusion_engine.analyze_market_understanding(market_data)
             syntheses.append(synthesis)
 
         # Verify all syntheses are valid
@@ -329,7 +341,7 @@ class TestContextualFusion:
         final_weights = None
 
         for i, market_data in enumerate(data_sequence):
-            await fusion_engine.analyze_market_intelligence(market_data)
+            await fusion_engine.analyze_market_understanding(market_data)
 
             if i == 0:
                 initial_weights = fusion_engine.weight_manager.calculate_current_weights()
@@ -354,7 +366,7 @@ class TestContextualFusion:
         data_sequence = data_generator.generate_sequence("trending_bull", 25)
 
         for market_data in data_sequence:
-            await fusion_engine.analyze_market_intelligence(market_data)
+            await fusion_engine.analyze_market_understanding(market_data)
 
         # Check for detected correlations
         correlations = fusion_engine.correlation_analyzer.get_dimensional_correlations()
@@ -377,7 +389,7 @@ class TestContextualFusion:
         data_sequence = data_generator.generate_sequence("trending_bull", 30)
 
         for market_data in data_sequence:
-            await fusion_engine.analyze_market_intelligence(market_data)
+            await fusion_engine.analyze_market_understanding(market_data)
 
         # Check for detected patterns
         patterns = fusion_engine.correlation_analyzer.get_cross_dimensional_patterns()
@@ -401,7 +413,7 @@ class TestContextualFusion:
         narratives = []
 
         for market_data in data_sequence:
-            synthesis = await fusion_engine.analyze_market_intelligence(market_data)
+            synthesis = await fusion_engine.analyze_market_understanding(market_data)
             narratives.append(synthesis.narrative_text)
 
         # Verify narratives are generated
@@ -442,7 +454,7 @@ class TestSystemIntegration:
             data_sequence = data_generator.generate_sequence(scenario, 5)
 
             for market_data in data_sequence:
-                synthesis = await fusion_engine.analyze_market_intelligence(market_data)
+                synthesis = await fusion_engine.analyze_market_understanding(market_data)
 
                 # Verify synthesis is complete
                 assert synthesis is not None
@@ -467,7 +479,7 @@ class TestSystemIntegration:
 
         # Should handle gracefully without crashing
         try:
-            synthesis = await fusion_engine.analyze_market_intelligence(invalid_data)
+            synthesis = await fusion_engine.analyze_market_understanding(invalid_data)
             # If it doesn't crash, verify basic structure
             assert synthesis is not None
         except Exception as e:
@@ -486,7 +498,7 @@ class TestSystemIntegration:
         start_time = time.time()
 
         for market_data in data_sequence:
-            await fusion_engine.analyze_market_intelligence(market_data)
+            await fusion_engine.analyze_market_understanding(market_data)
 
         end_time = time.time()
         total_time = end_time - start_time
@@ -512,7 +524,7 @@ class TestSystemIntegration:
         data_sequence = data_generator.generate_sequence("normal", 50)
 
         for market_data in data_sequence:
-            await fusion_engine.analyze_market_intelligence(market_data)
+            await fusion_engine.analyze_market_understanding(market_data)
 
         final_memory = process.memory_info().rss
         memory_growth = final_memory - initial_memory
@@ -554,7 +566,7 @@ class TestScenarioValidation:
 
         syntheses = []
         for market_data in data_sequence:
-            synthesis = await fusion_engine.analyze_market_intelligence(market_data)
+            synthesis = await fusion_engine.analyze_market_understanding(market_data)
             syntheses.append(synthesis)
 
         # Later syntheses should show bullish bias
@@ -573,7 +585,7 @@ class TestScenarioValidation:
 
         syntheses = []
         for market_data in data_sequence:
-            synthesis = await fusion_engine.analyze_market_intelligence(market_data)
+            synthesis = await fusion_engine.analyze_market_understanding(market_data)
             syntheses.append(synthesis)
 
         # Later syntheses should show bearish bias
@@ -592,7 +604,7 @@ class TestScenarioValidation:
 
         syntheses = []
         for market_data in data_sequence:
-            synthesis = await fusion_engine.analyze_market_intelligence(market_data)
+            synthesis = await fusion_engine.analyze_market_understanding(market_data)
             syntheses.append(synthesis)
 
         # Should show low directional bias in ranging market
@@ -614,7 +626,7 @@ class TestScenarioValidation:
 
         syntheses = []
         for market_data in data_sequence:
-            synthesis = await fusion_engine.analyze_market_intelligence(market_data)
+            synthesis = await fusion_engine.analyze_market_understanding(market_data)
             syntheses.append(synthesis)
 
         # Should detect volatility in risk factors or anomaly levels
@@ -640,7 +652,7 @@ class TestScenarioValidation:
 
         anomaly_levels = []
         for market_data in data_sequence:
-            synthesis = await fusion_engine.analyze_market_intelligence(market_data)
+            synthesis = await fusion_engine.analyze_market_understanding(market_data)
 
             # Check anomaly level in current readings
             if "ANOMALY" in fusion_engine.current_readings:
@@ -673,7 +685,7 @@ class TestPerformanceBenchmarks:
         start_time = time.time()
 
         for market_data in data_sequence:
-            await fusion_engine.analyze_market_intelligence(market_data)
+            await fusion_engine.analyze_market_understanding(market_data)
 
         end_time = time.time()
         total_time = end_time - start_time

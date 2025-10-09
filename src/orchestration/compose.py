@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import asyncio
 import importlib
-from typing import Any, Dict, List, Optional, TypedDict, cast
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, TypedDict, cast
 from typing import Dict as _Dict
 
 from src.core.adaptation import AdaptationService, NoOpAdaptationService
@@ -31,6 +31,22 @@ from src.core.regime import NoOpRegimeClassifier, RegimeClassifier, RegimeResult
 from src.config.risk.risk_config import RiskConfig
 from src.risk.manager import RiskManager, get_risk_manager
 from src.data_foundation.ingest.yahoo_gateway import YahooMarketDataGateway
+
+try:
+    from src.intelligence import (
+        SentientAdaptationEngine as _SentientAdaptationEngine,
+    )
+except Exception:  # pragma: no cover - optional dependency surface
+    _SentientAdaptationEngine = None
+
+if TYPE_CHECKING:  # pragma: no cover
+    from typing import Type as _Type
+
+    from src.intelligence import SentientAdaptationEngine as _SentientAdaptationEngineType
+
+    _SentientAdaptationEngine = cast(
+        Optional[_Type[_SentientAdaptationEngineType]], _SentientAdaptationEngine
+    )
 
 
 class ComposeAdaptersTD(TypedDict, total=False):
@@ -234,8 +250,7 @@ class AdaptationServiceAdapter:
             self._engine = engine
             return
         try:
-            module = importlib.import_module("src.intelligence.sentient_adaptation")
-            engine_cls = getattr(module, "SentientAdaptationEngine", None)
+            engine_cls = _SentientAdaptationEngine
             if callable(engine_cls):
                 # The engine constructor takes no required args
                 self._engine = engine_cls()

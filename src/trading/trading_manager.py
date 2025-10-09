@@ -565,10 +565,13 @@ class TradingManager:
                 if throttle_decision is not None and not throttle_decision.allowed:
                     reason = throttle_decision.reason or "trade_throttle_active"
                     throttle_snapshot = throttle_decision.as_dict()
+                    human_reason = throttle_snapshot.get("message")
                     metadata_payload: dict[str, Any] = {
                         "reason": reason,
                         "throttle": throttle_snapshot,
                     }
+                    if human_reason:
+                        metadata_payload["message"] = human_reason
                     if throttle_decision.retry_at is not None:
                         metadata_payload["retry_at"] = throttle_decision.retry_at.astimezone(
                             timezone.utc
@@ -585,7 +588,8 @@ class TradingManager:
                         metadata=metadata_payload,
                         decision=self._get_last_risk_decision(),
                     )
-                    logger.warning("Throttled trade intent %s: %s", event_id, reason)
+                    log_reason = human_reason or reason
+                    logger.warning("Throttled trade intent %s: %s", event_id, log_reason)
                     drift_event_status = "throttled"
                     drift_confidence_value = confidence
                     if gate_decision is not None and not drift_event_emitted:

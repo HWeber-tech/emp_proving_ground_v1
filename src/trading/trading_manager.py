@@ -69,6 +69,7 @@ from src.operations.roi import (
 from src.operations.sensory_drift import SensoryDriftSnapshot
 from src.trading.execution.release_router import ReleaseAwareExecutionRouter
 from src.trading.execution.performance_monitor import ThroughputMonitor
+from src.trading.execution.performance_report import build_execution_performance_report
 from src.trading.execution.trade_throttle import (
     TradeThrottle,
     TradeThrottleConfig,
@@ -1270,6 +1271,11 @@ class TradingManager:
         stats.setdefault("throughput", self._throughput_monitor.snapshot())
 
         return stats
+
+    def generate_execution_report(self) -> str:
+        """Render a Markdown summary of execution throughput and throttle posture."""
+
+        return build_execution_performance_report(self.get_execution_stats())
 
     def assess_throughput_health(
         self,

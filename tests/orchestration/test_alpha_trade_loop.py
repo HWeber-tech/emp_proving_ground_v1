@@ -159,3 +159,76 @@ def test_alpha_trade_loop_records_diary_and_forces_paper(tmp_path: Path) -> None
     assert result.reflection.digest["total_decisions"] == 1
     assert result.metadata["force_paper"] is True
     assert result.metadata["release_stage"] == "paper"
+
+
+def test_alpha_trade_loop_paper_stage_forces_paper_without_warn(tmp_path: Path) -> None:
+    router = UnderstandingRouter()
+    router.register_tactic(
+        PolicyTactic(
+            tactic_id="alpha_shadow",
+            base_weight=1.0,
+            parameters={"mode": "alpha"},
+            guardrails={},
+            regime_bias={"balanced": 1.0},
+            confidence_sensitivity=0.0,
+        )
+    )
+
+    diary_store = DecisionDiaryStore(tmp_path / "diary.json", publish_on_record=False)
+
+    ledger_store = PolicyLedgerStore(tmp_path / "policy_ledger.json")
+    ledger_store.upsert(
+        policy_id="alpha_shadow",
+        tactic_id="alpha_shadow",
+        stage=PolicyLedgerStage.PAPER,
+        approvals=(),
+        evidence_id="dd-shadow",
+    )
+    release_manager = LedgerReleaseManager(ledger_store)
+
+    drift_gate = DriftSentryGate()
+    orchestrator = AlphaTradeLoopOrchestrator(
+        router=router,
+        diary_store=diary_store,
+        drift_gate=drift_gate,
+        release_manager=release_manager,
+    )
+
+    regime_state = RegimeState(
+        regime="balanced",
+        confidence=0.9,
+        features={"momentum": 0.1},
+        timestamp=datetime(2024, 1, 2, 9, 0, tzinfo=UTC),
+    )
+    belief_snapshot = BeliefSnapshot(
+        belief_id="belief-shadow",
+        regime_state=regime_state,
+        features={"momentum": 0.1},
+        metadata={"symbol": "EURUSD"},
+        fast_weights_enabled=False,
+        feature_flags={},
+    )
+
+    trade_metadata = {"symbol": "EURUSD", "quantity": 10_000, "notional": 10_000.0}
+
+    result = orchestrator.run_iteration(
+        belief_snapshot,
+        policy_id="alpha_shadow",
+        trade=trade_metadata,
+        outcomes={"paper_pnl": 0.0},
+    )
+
+    assert result.release_stage is PolicyLedgerStage.PAPER
+    assert result.drift_decision.severity is DriftSeverity.normal
+    assert result.drift_decision.force_paper is True
+    assert (
+        result.drift_decision.reason
+        == "release_stage_paper_requires_paper_execution"
+    )
+    assert result.metadata["force_paper"] is True
+    assert result.metadata["release_stage"] == "paper"
+    assert result.diary_entry.metadata["drift_decision"]["force_paper"] is True
+    assert (
+        result.diary_entry.metadata["drift_decision"]["reason"]
+        == "release_stage_paper_requires_paper_execution"
+    )

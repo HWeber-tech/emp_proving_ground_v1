@@ -85,17 +85,20 @@ class ReleaseAwareExecutionRouter:
         metadata = self._extract_metadata(intent)
         strategy_id = self._extract_policy_id(intent)
         stage, posture = self._resolve_stage(strategy_id)
+        stage_force_reason = self._stage_force_reason(stage)
 
         audit_force_paper, audit_reason, audit_details = self._audit_enforcement(stage, posture)
 
         gate_force_paper, gate_reason, forced_severity = self._should_force_paper(metadata)
 
-        combined_force_paper = audit_force_paper or gate_force_paper
+        combined_force_paper = audit_force_paper or gate_force_paper or bool(stage_force_reason)
         forced_reasons: list[str] = []
         if gate_force_paper:
             forced_reasons.append(gate_reason or "drift_gate_force_paper")
         if audit_force_paper:
             forced_reasons.append(audit_reason or "release_audit_enforced")
+        if stage_force_reason and stage_force_reason not in forced_reasons:
+            forced_reasons.append(stage_force_reason)
         primary_forced_reason = forced_reasons[0] if forced_reasons else None
 
         engine, route_label = self._select_engine(stage, force_paper=combined_force_paper)
@@ -403,6 +406,14 @@ class ReleaseAwareExecutionRouter:
         return True, reason, severity
 
     @staticmethod
+    def _stage_force_reason(stage: PolicyLedgerStage) -> str | None:
+        if stage is PolicyLedgerStage.EXPERIMENT:
+            return "release_stage_experiment_requires_paper_or_better"
+        if stage is PolicyLedgerStage.PAPER:
+            return "release_stage_paper_requires_paper_execution"
+        return None
+
+    @staticmethod
     def _attach_metadata(
         intent: Any,
         stage: PolicyLedgerStage,
@@ -450,12 +461,20 @@ class ReleaseAwareExecutionRouter:
         elif reasons_list:
             metadata["release_execution_forced"] = reasons_list[0]
             override_flag = True
+        else:
+            metadata.pop("release_execution_forced", None)
 
         if reasons_list:
-            metadata["release_execution_forced_reasons"] = list(dict.fromkeys(reasons_list))
+            metadata["release_execution_forced_reasons"] = list(
+                dict.fromkeys(reasons_list)
+            )
+        else:
+            metadata.pop("release_execution_forced_reasons", None)
 
         if override_flag:
             metadata.setdefault("release_execution_route_overridden", True)
+        else:
+            metadata.pop("release_execution_route_overridden", None)
 
         if audit_details:
             metadata["release_execution_audit"] = dict(audit_details)

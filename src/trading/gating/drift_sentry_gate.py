@@ -354,4 +354,6 @@ class DriftSentryGate:
             return None
         if resolved_stage is PolicyLedgerStage.EXPERIMENT:
             return "release_stage_experiment_requires_paper_or_better"
+        if resolved_stage is PolicyLedgerStage.PAPER:
+            return "release_stage_paper_requires_paper_execution"
         return None

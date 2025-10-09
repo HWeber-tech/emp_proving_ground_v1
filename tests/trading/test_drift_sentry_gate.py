@@ -185,3 +185,28 @@ def test_adaptive_threshold_overrides() -> None:
         },
     )
     assert allowed.allowed
+
+
+def test_stage_gate_forces_paper_for_paper_stage() -> None:
+    gate = DriftSentryGate()
+    gate.update_snapshot(_make_snapshot(DriftSeverity.normal))
+
+    decision = gate.evaluate_trade(
+        symbol="EURUSD",
+        strategy_id="shadow-alpha",
+        confidence=0.92,
+        quantity=1.0,
+        notional=5_000.0,
+        metadata={},
+        threshold_overrides={"stage": "paper"},
+    )
+
+    assert decision.allowed is True
+    assert decision.force_paper is True
+    assert decision.reason == "release_stage_paper_requires_paper_execution"
+    requirements = dict(decision.requirements)
+    assert requirements["release_stage"] == "paper"
+    assert (
+        requirements["release_stage_gate"]
+        == "release_stage_paper_requires_paper_execution"
+    )

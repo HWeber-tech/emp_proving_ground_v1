@@ -43,8 +43,22 @@ async def test_release_router_routes_live_stage(tmp_path: Path) -> None:
     assert first == "paper-ok"
     assert len(paper_engine.calls) == 1
     assert not live_engine.calls
-    assert intent["metadata"]["release_stage"] == PolicyLedgerStage.EXPERIMENT.value
-    assert intent["metadata"]["release_execution_route"] == "paper"
+    metadata = intent["metadata"]
+    assert metadata["release_stage"] == PolicyLedgerStage.EXPERIMENT.value
+    assert metadata["release_execution_route"] == "paper"
+    assert (
+        metadata["release_execution_forced"]
+        == "release_stage_experiment_requires_paper_or_better"
+    )
+    assert metadata["release_execution_forced_reasons"] == [
+        "release_stage_experiment_requires_paper_or_better"
+    ]
+    assert metadata["release_execution_route_overridden"] is True
+
+    initial_route = router.last_route()
+    assert initial_route is not None
+    assert initial_route["forced_reason"] == "release_stage_experiment_requires_paper_or_better"
+    assert initial_route["forced_route"] == "paper"
 
     release_manager.promote(
         policy_id="alpha",
@@ -65,6 +79,10 @@ async def test_release_router_routes_live_stage(tmp_path: Path) -> None:
     audit_payload = last_route["audit"]
     assert audit_payload.get("declared_stage") == PolicyLedgerStage.LIMITED_LIVE.value
     assert audit_payload.get("audit_stage") == PolicyLedgerStage.LIMITED_LIVE.value
+    metadata = intent["metadata"]
+    assert "release_execution_forced" not in metadata
+    assert "release_execution_forced_reasons" not in metadata
+    assert "release_execution_route_overridden" not in metadata
 
 
 @pytest.mark.asyncio()
@@ -147,7 +165,10 @@ async def test_release_router_enforces_missing_evidence(tmp_path: Path) -> None:
     assert metadata.get("release_execution_route_overridden") is True
     assert metadata.get("release_execution_forced") == "release_audit_gap_missing_evidence"
     forced_reasons = metadata.get("release_execution_forced_reasons")
-    assert forced_reasons == ["release_audit_gap_missing_evidence"]
+    assert forced_reasons == [
+        "release_audit_gap_missing_evidence",
+        "release_stage_experiment_requires_paper_or_better",
+    ]
     audit_meta = metadata.get("release_execution_audit")
     assert isinstance(audit_meta, dict)
     assert audit_meta.get("enforced") is True
@@ -157,12 +178,59 @@ async def test_release_router_enforces_missing_evidence(tmp_path: Path) -> None:
     assert last_route is not None
     assert last_route.get("route") == "paper"
     assert last_route.get("forced_reason") == "release_audit_gap_missing_evidence"
-    assert last_route.get("forced_reasons") == ["release_audit_gap_missing_evidence"]
+    assert last_route.get("forced_reasons") == [
+        "release_audit_gap_missing_evidence",
+        "release_stage_experiment_requires_paper_or_better",
+    ]
     assert last_route.get("audit_forced") is True
     audit_payload = last_route.get("audit")
     assert isinstance(audit_payload, dict)
     assert audit_payload.get("enforced") is True
     assert "missing_evidence" in audit_payload.get("gaps", [])
+
+
+@pytest.mark.asyncio()
+async def test_release_router_stage_gate_paper_forces_paper(tmp_path: Path) -> None:
+    store = PolicyLedgerStore(tmp_path / "ledger_paper.json")
+    release_manager = LedgerReleaseManager(store)
+    release_manager.promote(
+        policy_id="shadow", 
+        tactic_id="shadow", 
+        stage=PolicyLedgerStage.PAPER, 
+        approvals=(), 
+        evidence_id="dd-shadow",
+    )
+
+    paper_engine = StubEngine("paper")
+    live_engine = StubEngine("live")
+
+    router = ReleaseAwareExecutionRouter(
+        release_manager=release_manager,
+        paper_engine=paper_engine,
+        live_engine=live_engine,
+    )
+
+    intent: dict[str, Any] = {"strategy_id": "shadow"}
+    result = await router.process_order(intent)
+
+    assert result == "paper-ok"
+    assert paper_engine.calls == [intent]
+    metadata = intent.get("metadata")
+    assert isinstance(metadata, dict)
+    assert metadata.get("release_stage") == PolicyLedgerStage.PAPER.value
+    assert metadata.get("release_execution_route") == "paper"
+    assert (
+        metadata.get("release_execution_forced")
+        == "release_stage_paper_requires_paper_execution"
+    )
+    assert metadata.get("release_execution_forced_reasons") == [
+        "release_stage_paper_requires_paper_execution"
+    ]
+    assert metadata.get("release_execution_route_overridden") is True
+    last_route = router.last_route()
+    assert last_route is not None
+    assert last_route.get("forced_reason") == "release_stage_paper_requires_paper_execution"
+    assert last_route.get("forced_route") == "paper"
 
 
 @pytest.mark.asyncio()

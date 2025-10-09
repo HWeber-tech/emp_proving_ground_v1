@@ -36,6 +36,11 @@ def test_controller_clamps_negative_and_prunes_to_sparse_subset() -> None:
     assert metrics.active == 2
     assert metrics.dormant == 3
     assert metrics.active_percentage == pytest.approx(40.0)
+    assert metrics.sparsity == pytest.approx(0.6)
+    assert metrics.active_ids == ("alpha", "bravo")
+    assert metrics.dormant_ids == ("charlie", "delta", "echo")
+    assert metrics.max_multiplier == pytest.approx(1.8)
+    assert metrics.min_multiplier == pytest.approx(0.0)
 
 
 def test_controller_returns_zero_active_when_no_fast_weights() -> None:
@@ -47,3 +52,8 @@ def test_controller_returns_zero_active_when_no_fast_weights() -> None:
     assert result.metrics.total == 2
     assert result.metrics.active == 0
     assert result.metrics.active_percentage == pytest.approx(0.0)
+    assert result.metrics.sparsity == pytest.approx(1.0)
+    assert result.metrics.active_ids == ()
+    assert result.metrics.dormant_ids == ("alpha", "bravo")
+    assert result.metrics.max_multiplier == pytest.approx(1.0)
+    assert result.metrics.min_multiplier == pytest.approx(1.0)

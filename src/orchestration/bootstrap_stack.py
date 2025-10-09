@@ -418,6 +418,16 @@ class BootstrapTradingStack:
             if isinstance(snapshot, Mapping):
                 outcome["last_order"] = self._serialise(snapshot)
 
+        if engine is not None:
+            describe_last_error = getattr(engine, "describe_last_error", None)
+            if callable(describe_last_error):
+                try:
+                    error_snapshot = describe_last_error()
+                except Exception:  # pragma: no cover - diagnostics only
+                    error_snapshot = None
+                if isinstance(error_snapshot, Mapping) and error_snapshot:
+                    outcome["last_error"] = self._serialise(error_snapshot)
+
         return outcome
 
     def _resolve_release_router(self) -> ReleaseAwareExecutionRouter | None:

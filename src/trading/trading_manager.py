@@ -1266,7 +1266,51 @@ class TradingManager:
             stats["pending_orders"] = pending_orders
         if fills is not None:
             stats["fills"] = fills
+
+        stats.setdefault("throughput", self._throughput_monitor.snapshot())
+
         return stats
+
+    def assess_throughput_health(
+        self,
+        *,
+        max_processing_ms: float = 250.0,
+        max_lag_ms: float = 250.0,
+    ) -> Mapping[str, object]:
+        """Evaluate whether recent throughput metrics stay within limits."""
+
+        stats = self.get_execution_stats()
+        throughput_stats = stats.get("throughput")
+
+        if not isinstance(throughput_stats, MappingABC):
+            return {
+                "healthy": False,
+                "processing_within_limit": False,
+                "lag_within_limit": False,
+                "max_processing_ms": None,
+                "max_lag_ms": None,
+                "samples": 0,
+            }
+
+        samples = coerce_int(throughput_stats.get("samples"), default=0) or 0
+        max_processing = coerce_float(
+            throughput_stats.get("max_processing_ms"), default=None
+        )
+        max_lag = coerce_float(throughput_stats.get("max_lag_ms"), default=None)
+
+        processing_within_limit = (
+            max_processing is None or max_processing <= float(max_processing_ms)
+        )
+        lag_within_limit = max_lag is None or max_lag <= float(max_lag_ms)
+
+        return {
+            "healthy": processing_within_limit and lag_within_limit,
+            "processing_within_limit": processing_within_limit,
+            "lag_within_limit": lag_within_limit,
+            "max_processing_ms": max_processing,
+            "max_lag_ms": max_lag,
+            "samples": samples,
+        }
 
     def get_trade_throttle_snapshot(self) -> Mapping[str, Any] | None:
         """Expose the most recent trade throttle posture."""

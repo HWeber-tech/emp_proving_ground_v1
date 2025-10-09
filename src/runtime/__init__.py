@@ -19,6 +19,7 @@ __all__ = [
     "ProfessionalPredatorApp",
     "RuntimeApplication",
     "RuntimeWorkload",
+    "WorkloadRestartPolicy",
     "build_professional_predator_app",
     "build_professional_runtime_application",
     "FixIntegrationPilot",
@@ -35,6 +36,7 @@ if TYPE_CHECKING:  # pragma: no cover - used for static analysis only
     from .runtime_builder import (
         RuntimeApplication,
         RuntimeWorkload,
+        WorkloadRestartPolicy,
         build_professional_runtime_application,
     )
     from .runtime_runner import run_runtime_application
@@ -82,17 +84,20 @@ def __getattr__(name: str) -> Any:
     if name in {
         "RuntimeApplication",
         "RuntimeWorkload",
+        "WorkloadRestartPolicy",
         "build_professional_runtime_application",
     }:
         from .runtime_builder import (
             RuntimeApplication as _RuntimeApplication,
             RuntimeWorkload as _RuntimeWorkload,
+            WorkloadRestartPolicy as _WorkloadRestartPolicy,
             build_professional_runtime_application as _build_professional_runtime_application,
         )
 
         mapping = {
             "RuntimeApplication": _RuntimeApplication,
             "RuntimeWorkload": _RuntimeWorkload,
+            "WorkloadRestartPolicy": _WorkloadRestartPolicy,
             "build_professional_runtime_application": _build_professional_runtime_application,
         }
         return mapping[name]

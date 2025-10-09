@@ -787,6 +787,14 @@ def _prepare_trading_risk_enforcement(
 
 
 @dataclass(frozen=True)
+class WorkloadRestartPolicy:
+    """Restart behaviour for runtime workloads."""
+
+    max_restarts: int | None = None
+    backoff_seconds: float = 5.0
+
+
+@dataclass(frozen=True)
 class RuntimeWorkload:
     """Description of an async workload managed by the runtime application."""
 
@@ -794,6 +802,7 @@ class RuntimeWorkload:
     factory: WorkloadFactory
     description: str
     metadata: Mapping[str, object] | None = None
+    restart_policy: WorkloadRestartPolicy | None = None
 
 
 @dataclass
@@ -925,26 +934,36 @@ class RuntimeApplication:
                     else:
                         if span is not None and hasattr(span, "set_attribute"):
                             span.set_attribute("runtime.operation.status", "completed")
-            workloads: list[tuple[str, Any]] = []
+            workloads: list[RuntimeWorkload] = []
             if self.ingestion is not None:
-                workloads.append(
-                    (
-                        f"{self.ingestion.name}-workload",
-                        self._run_workload(self.ingestion),
-                    )
-                )
+                workloads.append(self.ingestion)
             if self.trading is not None:
-                workloads.append(
-                    (
-                        f"{self.trading.name}-workload",
-                        self._run_workload(self.trading),
-                    )
-                )
+                workloads.append(self.trading)
             if workloads:
                 tasks: list[tuple[str, asyncio.Task[Any]]] = []
                 try:
-                    for task_name, coro in workloads:
-                        task = self._task_supervisor.create(coro, name=task_name)
+                    for workload in workloads:
+                        task_name = f"{workload.name}-workload"
+                        metadata_payload: dict[str, object] = {"workload": workload.name}
+                        if workload.description:
+                            metadata_payload["description"] = workload.description
+                        if workload.metadata:
+                            metadata_payload["workload_metadata"] = dict(workload.metadata)
+                        restart_policy = workload.restart_policy
+                        task = self._task_supervisor.create(
+                            self._run_workload(workload),
+                            name=task_name,
+                            metadata=metadata_payload,
+                            restart_callback=workload.factory
+                            if restart_policy is not None
+                            else None,
+                            max_restarts=None
+                            if restart_policy is None
+                            else restart_policy.max_restarts,
+                            restart_backoff=0.0
+                            if restart_policy is None
+                            else restart_policy.backoff_seconds,
+                        )
                         tasks.append((task_name, task))
 
                     pending: set[asyncio.Task[Any]] = {task for _, task in tasks}
@@ -2390,6 +2409,7 @@ def _build_bootstrap_workload(
         factory=_run_bootstrap,
         description="Tier-0 DuckDB ingest",
         metadata=metadata,
+        restart_policy=WorkloadRestartPolicy(max_restarts=None, backoff_seconds=2.0),
     )
 
 
@@ -3863,6 +3883,7 @@ def build_professional_runtime_application(
                 factory=_run_institutional,
                 description="Institutional Timescale ingest orchestrator",
                 metadata=metadata,
+                restart_policy=WorkloadRestartPolicy(max_restarts=None, backoff_seconds=5.0),
             )
         else:
             reason: str | None = None
@@ -3886,6 +3907,7 @@ def build_professional_runtime_application(
         factory=lambda: app.run_forever(),
         description="Professional Predator trading loop",
         metadata=trading_metadata,
+        restart_policy=WorkloadRestartPolicy(max_restarts=None, backoff_seconds=2.0),
     )
 
     runtime_app = RuntimeApplication(
@@ -3939,6 +3961,7 @@ def build_professional_runtime_application(
 __all__ = [
     "RuntimeApplication",
     "RuntimeWorkload",
+    "WorkloadRestartPolicy",
     "build_professional_runtime_application",
     "_normalise_ingest_plan_metadata",
     "_execute_timescale_ingest",

@@ -101,3 +101,38 @@ async def test_supervisor_failure_does_not_cancel_other_tasks(
     release_event.set()
     await asyncio.sleep(0)
     await supervisor.cancel_all()
+
+
+@pytest.mark.asyncio()
+async def test_supervisor_restarts_task_until_success(caplog: pytest.LogCaptureFixture) -> None:
+    supervisor = TaskSupervisor(namespace="test-restart", cancel_timeout=0.1)
+    attempts = 0
+    completion_flag = asyncio.Event()
+    release_event = asyncio.Event()
+
+    async def _worker() -> None:
+        nonlocal attempts
+        attempts += 1
+        if attempts < 3:
+            raise RuntimeError(f"attempt-{attempts}")
+        completion_flag.set()
+        await release_event.wait()
+
+    with caplog.at_level(logging.ERROR, logger=supervisor._logger.name):
+        task = supervisor.create(
+            _worker(),
+            name="restartable-task",
+            restart_callback=_worker,
+            max_restarts=5,
+            restart_backoff=0.0,
+        )
+        await asyncio.wait_for(completion_flag.wait(), timeout=1.0)
+        snapshot = supervisor.describe()[0]
+        assert snapshot.get("restarts") == 2
+        release_event.set()
+        await asyncio.wait_for(task, timeout=1.0)
+
+    assert attempts == 3
+    messages = [record.getMessage() for record in caplog.records]
+    assert any("restartable-task" in message for message in messages)
+    await supervisor.cancel_all()

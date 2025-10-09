@@ -10,21 +10,6 @@ import pytest
 from src.core.base import MarketData
 from src.orchestration.enhanced_intelligence_engine import ContextualFusionEngine as CanonicalFusionEngine
 from src.orchestration.enhanced_intelligence_engine import Synthesis as CanonicalSynthesis
-
-# ANOMALY
-from src.market_intelligence.dimensions.enhanced_anomaly_dimension import (
-    AnomalyIntelligenceEngine as ANOM_MI,
-)
-
-# HOW
-from src.market_intelligence.dimensions.enhanced_how_dimension import (
-    InstitutionalIntelligenceEngine as HOW_MI,
-)
-
-# WHEN
-from src.market_intelligence.dimensions.enhanced_when_dimension import (
-    ChronalIntelligenceEngine as WHEN_MI,
-)
 from src.sensory.enhanced.anomaly_dimension import (
     AnomalyIntelligenceEngine as ANOM_SENS,
 )
@@ -35,6 +20,26 @@ from src.sensory.enhanced.when_dimension import (
     ChronalIntelligenceEngine as WHEN_SENS,
 )
 from src.sensory.organs.dimensions.base_organ import MarketRegime
+
+
+def _resolve_legacy(module: str, symbol: str) -> Any:
+    legacy_module = importlib.import_module(module)
+    return getattr(legacy_module, symbol)
+
+
+# Legacy forwarders resolved via compatibility shims
+WHEN_MI = _resolve_legacy(
+    "src.market_intelligence.dimensions.enhanced_when_dimension",
+    "ChronalIntelligenceEngine",
+)
+HOW_MI = _resolve_legacy(
+    "src.market_intelligence.dimensions.enhanced_how_dimension",
+    "InstitutionalIntelligenceEngine",
+)
+ANOM_MI = _resolve_legacy(
+    "src.market_intelligence.dimensions.enhanced_anomaly_dimension",
+    "AnomalyIntelligenceEngine",
+)
 
 
 def test_forwarded_class_identities_phase2():

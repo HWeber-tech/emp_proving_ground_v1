@@ -8,14 +8,6 @@ from typing import Any, Dict
 import pytest
 
 from src.core.base import MarketData
-
-# Forwarder vs canonical identity
-from src.market_intelligence.dimensions.enhanced_what_dimension import (
-    TechnicalRealityEngine as TE_MI,
-)
-from src.market_intelligence.dimensions.enhanced_why_dimension import (
-    EnhancedFundamentalIntelligenceEngine as WHY_MI,
-)
 from src.sensory.enhanced.what_dimension import (
     TechnicalRealityEngine as TE_SENS,
 )
@@ -23,6 +15,22 @@ from src.sensory.enhanced.why_dimension import (
     EnhancedFundamentalIntelligenceEngine as WHY_SENS,
 )
 from src.sensory.organs.dimensions.base_organ import MarketRegime
+
+
+def _resolve_legacy(module: str, symbol: str) -> Any:
+    legacy_module = importlib.import_module(module)
+    return getattr(legacy_module, symbol)
+
+
+# Forwarder vs canonical identity
+TE_MI = _resolve_legacy(
+    "src.market_intelligence.dimensions.enhanced_what_dimension",
+    "TechnicalRealityEngine",
+)
+WHY_MI = _resolve_legacy(
+    "src.market_intelligence.dimensions.enhanced_why_dimension",
+    "EnhancedFundamentalIntelligenceEngine",
+)
 
 
 def test_forwarded_class_identities():

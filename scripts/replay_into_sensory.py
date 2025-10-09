@@ -7,8 +7,12 @@ import logging
 from datetime import datetime
 
 from src.operational.md_capture import MarketDataReplayer
-from src.sensory.core.base import InstrumentMeta, MarketData, OrderBookLevel, OrderBookSnapshot
 from src.sensory.integration.sensory_cortex import MasterOrchestrator
+from src.sensory.organs.dimensions.base_organ import InstrumentMeta, MarketData
+from src.trading.order_management.order_book.snapshot import (
+    OrderBookLevel,
+    OrderBookSnapshot,
+)
 
 
 def parse_args() -> argparse.Namespace:
@@ -29,7 +33,7 @@ def main() -> int:
     )
     log = logging.getLogger("replay")
 
-    im = InstrumentMeta(symbol=args.symbol, tick_size=0.00001, lot_size=1000)
+    im = InstrumentMeta(symbol=args.symbol, pip_size=0.00001, lot_size=1000)
     mo = MasterOrchestrator(im)
 
     async def process(symbol: str, ob_dict):

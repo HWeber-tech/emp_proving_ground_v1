@@ -24,10 +24,13 @@ from typing import Any
 
 import numpy as np
 
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src"))
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
 
-from sensory.core.base import DimensionalReading, InstrumentMeta, MarketData
-from sensory.orchestration.enhanced_intelligence_engine import ContextualFusionEngine
+from src.core.base import DimensionalReading
+from src.orchestration.enhanced_intelligence_engine import ContextualFusionEngine
+from src.sensory.organs.dimensions.base_organ import InstrumentMeta, MarketData
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"

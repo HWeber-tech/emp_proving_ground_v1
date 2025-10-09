@@ -1,10 +1,86 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
+from typing import Any, Mapping, Sequence
 
 import pytest
 
-from src.sensory.organs.dimensions import AnomalySensoryOrgan, HowSensoryOrgan
+from src.sensory.organs.dimensions import (
+    AnomalySensoryOrgan,
+    HowSensoryOrgan,
+    WhatSensoryOrgan,
+    WhenSensoryOrgan,
+    WhySensoryOrgan,
+)
+from src.sensory.signals import SensorSignal
+from src.sensory.why.narrative_hooks import NarrativeEvent
+
+
+@dataclass
+class _StubSignalFactory:
+    dimension: str
+    strength: float
+    confidence: float
+
+    def build(self) -> SensorSignal:
+        timestamp = datetime(2024, 1, 1, tzinfo=timezone.utc)
+        metadata = {
+            "quality": {
+                "source": f"stub.{self.dimension.lower()}",
+                "timestamp": timestamp.isoformat(),
+                "confidence": self.confidence,
+                "strength": self.strength,
+            },
+            "lineage": {"dimension": self.dimension, "source": f"sensory.{self.dimension.lower()}"},
+        }
+        return SensorSignal(
+            signal_type=self.dimension,
+            value={"strength": self.strength, "confidence": self.confidence},
+            confidence=self.confidence,
+            timestamp=timestamp,
+            metadata=metadata,
+        )
+
+
+class _RecordingWhatSensor:
+    def __init__(self, *, strength: float = 0.35, confidence: float = 0.6) -> None:
+        self._factory = _StubSignalFactory("WHAT", strength, confidence)
+        self.seen_frame: Any = None
+
+    def process(self, frame):  # type: ignore[override]
+        self.seen_frame = frame
+        return [self._factory.build()]
+
+
+class _RecordingWhenSensor:
+    def __init__(self, *, strength: float = 0.2, confidence: float = 0.55) -> None:
+        self._factory = _StubSignalFactory("WHEN", strength, confidence)
+        self.seen_frame: Any = None
+        self.seen_macro_events: Sequence[datetime] | None = None
+        self.seen_option_positions: Any = None
+
+    def process(self, frame, *, option_positions=None, macro_events=None):  # type: ignore[override]
+        self.seen_frame = frame
+        self.seen_macro_events = list(macro_events or [])
+        self.seen_option_positions = option_positions
+        return [self._factory.build()]
+
+
+class _RecordingWhySensor:
+    def __init__(self, *, strength: float = 0.4, confidence: float = 0.65) -> None:
+        self._factory = _StubSignalFactory("WHY", strength, confidence)
+        self.seen_frame: Any = None
+        self.seen_events: Sequence[NarrativeEvent] | None = None
+        self.seen_flags: Mapping[str, float] | None = None
+        self.seen_as_of: datetime | None = None
+
+    def process(self, frame, *, narrative_events=None, macro_regime_flags=None, as_of=None):  # type: ignore[override]
+        self.seen_frame = frame
+        self.seen_events = list(narrative_events or [])
+        self.seen_flags = dict(macro_regime_flags or {})
+        self.seen_as_of = as_of
+        return [self._factory.build()]
 
 
 @pytest.mark.asyncio
@@ -90,4 +166,114 @@ async def test_anomaly_sensory_organ_accepts_sequence_payload() -> None:
     lineage = metadata.get("lineage")
     assert isinstance(lineage, dict)
     assert lineage.get("metadata", {}).get("mode") == "sequence"
+
+
+@pytest.mark.asyncio
+async def test_what_sensory_organ_wraps_sensor_payload() -> None:
+    sensor = _RecordingWhatSensor()
+    organ = WhatSensoryOrgan(sensor=sensor)
+    payload = {
+        "timestamp": datetime(2024, 1, 2, 9, 30, tzinfo=timezone.utc),
+        "symbol": "EURUSD",
+        "open": 1.101,
+        "high": 1.105,
+        "low": 1.099,
+        "close": 1.104,
+        "volume": 2100.0,
+    }
+
+    reading = await organ.process(payload)
+
+    assert sensor.seen_frame is not None
+    assert list(sensor.seen_frame.columns) == [
+        "timestamp",
+        "symbol",
+        "open",
+        "high",
+        "low",
+        "close",
+        "volume",
+    ]
+    assert reading.data["dimension"] == "WHAT"
+    assert reading.data["signal_strength"] == pytest.approx(0.35, rel=1e-6)
+    assert reading.metadata.get("lineage", {}).get("dimension") == "WHAT"
+    assert reading.metadata.get("quality", {}).get("source") == "stub.what"
+
+
+@pytest.mark.asyncio
+async def test_when_sensory_organ_merges_macro_context() -> None:
+    config = {"macro_events": ["2024-01-02T10:00:00Z"]}
+    sensor = _RecordingWhenSensor()
+    organ = WhenSensoryOrgan(config=config, sensor=sensor)
+    now = datetime(2024, 1, 2, 9, 45, tzinfo=timezone.utc)
+    payload = {
+        "timestamp": now,
+        "symbol": "EURUSD",
+        "open": 1.1,
+        "high": 1.11,
+        "low": 1.098,
+        "close": 1.105,
+        "volume": 2500.0,
+        "macro_events": [now + timedelta(minutes=30)],
+        "option_positions": [
+            {"strike": 1.1, "gamma": 1200.0},
+            {"strike": 1.12, "gamma": -800.0},
+        ],
+    }
+
+    reading = await organ.process(payload)
+
+    assert sensor.seen_frame is not None
+    assert "macro_events" not in sensor.seen_frame.columns
+    assert sensor.seen_macro_events is not None
+    assert len(sensor.seen_macro_events) == 2
+    assert all(event.tzinfo is not None for event in sensor.seen_macro_events)
+    assert sensor.seen_macro_events[0] <= sensor.seen_macro_events[1]
+    assert sensor.seen_option_positions is not None
+    assert getattr(sensor.seen_option_positions, "empty", False) is False
+    assert reading.data["dimension"] == "WHEN"
+    assert reading.metadata.get("quality", {}).get("source") == "stub.when"
+
+
+@pytest.mark.asyncio
+async def test_why_sensory_organ_injects_narrative_context() -> None:
+    baseline_events = [
+        {
+            "timestamp": "2024-01-02T08:00:00Z",
+            "sentiment": 0.3,
+            "importance": 0.9,
+            "description": "PMI",
+        }
+    ]
+    config = {"narrative_events": baseline_events, "macro_regime_flags": {"growth": 0.2}}
+    sensor = _RecordingWhySensor()
+    organ = WhySensoryOrgan(config=config, sensor=sensor)
+
+    now = datetime(2024, 1, 2, 9, 0, tzinfo=timezone.utc)
+    payload = {
+        "timestamp": now,
+        "symbol": "EURUSD",
+        "open": 1.09,
+        "high": 1.11,
+        "low": 1.08,
+        "close": 1.105,
+        "volume": 1800.0,
+        "narrative_events": [
+            NarrativeEvent(timestamp=now + timedelta(hours=2), sentiment=-0.4, importance=0.7)
+        ],
+        "macro_regime_flags": {"inflation": -0.3},
+        "as_of": "2024-01-02T09:15:00Z",
+    }
+
+    reading = await organ.process(payload)
+
+    assert sensor.seen_frame is not None
+    assert "narrative_events" not in sensor.seen_frame.columns
+    assert sensor.seen_events is not None
+    assert len(sensor.seen_events) == 2
+    assert all(isinstance(event, NarrativeEvent) for event in sensor.seen_events)
+    assert sensor.seen_flags == {"growth": 0.2, "inflation": -0.3}
+    assert sensor.seen_as_of is not None and sensor.seen_as_of.tzinfo is not None
+    assert reading.data["dimension"] == "WHY"
+    assert reading.metadata.get("quality", {}).get("source") == "stub.why"
 

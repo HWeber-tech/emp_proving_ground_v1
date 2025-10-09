@@ -62,7 +62,7 @@ TARGETS = [
     "src/core/evolution",
     "src/core/strategy/templates",
     "src/integration",
-    "src/market_intelligence/dimensions",
+    "src/sensory/enhanced",
     "src/system",
     "src/ui/models",
     "src/governance",

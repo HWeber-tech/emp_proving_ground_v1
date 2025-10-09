@@ -48,13 +48,23 @@ class FastWeightMetrics:
     active: int
     dormant: int
     active_percentage: float
+    sparsity: float
+    active_ids: tuple[str, ...]
+    dormant_ids: tuple[str, ...]
+    max_multiplier: float | None
+    min_multiplier: float | None
 
-    def as_dict(self) -> Mapping[str, float | int]:
+    def as_dict(self) -> Mapping[str, object]:
         return {
             "total": self.total,
             "active": self.active,
             "dormant": self.dormant,
             "active_percentage": self.active_percentage,
+            "sparsity": self.sparsity,
+            "active_ids": self.active_ids,
+            "dormant_ids": self.dormant_ids,
+            "max_multiplier": self.max_multiplier,
+            "min_multiplier": self.min_multiplier,
         }
 
 
@@ -136,14 +146,31 @@ class FastWeightController:
                 final_values[tactic_id] = baseline
 
         active_count = 0
-        for tactic_id, value in final_values.items():
+        active_ids: list[str] = []
+        dormant_ids: list[str] = []
+        max_multiplier: float | None = None
+        min_multiplier: float | None = None
+
+        for tactic_id in tactic_order:
+            value = final_values[tactic_id]
             if value < 0.0:
-                final_values[tactic_id] = 0.0
+                value = 0.0
+            if not math.isfinite(value):
+                value = baseline
+            final_values[tactic_id] = value
+
             if value > activation_threshold + tolerance:
                 active_count += 1
+                active_ids.append(tactic_id)
+            else:
+                dormant_ids.append(tactic_id)
+
+            max_multiplier = value if max_multiplier is None else max(max_multiplier, value)
+            min_multiplier = value if min_multiplier is None else min(min_multiplier, value)
 
         dormant = max(0, total - active_count)
         active_percentage = (active_count / total * 100.0) if total else 0.0
+        sparsity = 1.0 - (active_count / total) if total else 1.0
 
         constrained = {
             tactic_id: value
@@ -156,6 +183,11 @@ class FastWeightController:
             active=active_count,
             dormant=dormant,
             active_percentage=active_percentage,
+            sparsity=sparsity,
+            active_ids=tuple(active_ids),
+            dormant_ids=tuple(dormant_ids),
+            max_multiplier=float(max_multiplier) if max_multiplier is not None else None,
+            min_multiplier=float(min_multiplier) if min_multiplier is not None else None,
         )
         return FastWeightResult(weights=constrained, metrics=metrics)
 

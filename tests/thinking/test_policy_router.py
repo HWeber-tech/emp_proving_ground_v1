@@ -133,6 +133,9 @@ def test_route_respects_external_fast_weights() -> None:
     metrics = decision.reflection_summary["fast_weight_metrics"]
     assert metrics["active_percentage"] == pytest.approx(50.0)
     assert metrics["total"] == 2
+    assert metrics["sparsity"] == pytest.approx(0.5)
+    assert metrics["active_ids"] == ("alt",)
+    assert metrics["dormant_ids"] == ("base",)
 
 
 def test_fast_weight_metrics_zero_when_no_adjustments() -> None:

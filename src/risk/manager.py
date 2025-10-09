@@ -97,10 +97,9 @@ class RiskManager(RiskManagerImpl):
         if risk_amount > max_allowed_risk:
             return False
 
-        projected_risk = {
-            sym: self._compute_position_risk(pos) for sym, pos in self.positions.items()
-        }
-        symbol_key = symbol or "__pending__"
+        self._canonicalise_positions()
+        projected_risk = self._aggregate_position_risk()
+        symbol_key = self._position_key(symbol)
         projected_risk[symbol_key] = projected_risk.get(symbol_key, 0.0) + risk_amount
 
         aggregate_risk = self.risk_manager.assess_risk(projected_risk)

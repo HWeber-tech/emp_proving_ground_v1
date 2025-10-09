@@ -243,11 +243,44 @@ class RiskManagerImpl(RiskManagerProtocol):
         return max(0.0, budget)
 
     def _compute_sector_risk(self, sector: str) -> float:
+        self._canonicalise_positions()
         risk = 0.0
         for symbol, entry in self.positions.items():
             if self._resolve_sector(symbol) == sector:
                 risk += self._compute_position_risk(entry)
         return risk
+
+    # -- symbol normalisation helpers --------------------------------------
+    def _normalise_symbol(self, symbol: object | None) -> str:
+        if symbol is None:
+            return ""
+        value = str(symbol).strip()
+        return value.upper()
+
+    def _position_key(self, symbol: object | None) -> str:
+        canonical = self._normalise_symbol(symbol)
+        if canonical:
+            return canonical
+        raw = "" if symbol is None else str(symbol).strip()
+        return raw or "__pending__"
+
+    def _canonicalise_positions(self) -> None:
+        if not self.positions:
+            return
+        existing = list(self.positions.items())
+        self.positions.clear()
+        for key, entry in existing:
+            canonical = self._position_key(key)
+            entry["symbol"] = canonical
+            self.positions[canonical] = entry
+
+    def _aggregate_position_risk(self) -> Dict[str, float]:
+        self._canonicalise_positions()
+        aggregated: Dict[str, float] = {}
+        for symbol, entry in self.positions.items():
+            risk_amount = self._compute_position_risk(entry)
+            aggregated[symbol] = aggregated.get(symbol, 0.0) + risk_amount
+        return aggregated
 
     def _sector_exposure_snapshot(self) -> Dict[str, Dict[str, float]]:
         snapshot: Dict[str, Dict[str, float]] = {}
@@ -324,6 +357,7 @@ class RiskManagerImpl(RiskManagerProtocol):
         """
         try:
             symbol = position.get("symbol", "")
+            symbol_key = self._position_key(symbol)
             size = _to_float(position.get("size", 0.0))
             entry_price = _to_float(position.get("entry_price", 0.0))
             raw_stop_loss = position.get("stop_loss_pct")
@@ -372,22 +406,22 @@ class RiskManagerImpl(RiskManagerProtocol):
 
             # Evaluate aggregate exposure impact when within local budget.
             if is_valid:
-                projected_risk: Dict[str, float] = {
-                    sym: self._compute_position_risk(pos) for sym, pos in self.positions.items()
-                }
-                projected_risk[symbol] = projected_risk.get(symbol, 0.0) + risk_amount
+                projected_risk = self._aggregate_position_risk()
+                projected_risk[symbol_key] = (
+                    projected_risk.get(symbol_key, 0.0) + risk_amount
+                )
                 aggregate_risk = self.risk_manager.assess_risk(projected_risk)
                 if aggregate_risk > 1.0:
                     snapshot = self.risk_manager.last_snapshot
                     logger.warning(
                         "Position rejected due to aggregate risk breach: %s (snapshot=%s)",
-                        symbol,
+                        symbol_key,
                         snapshot,
                     )
                     return False
 
             if is_valid:
-                sector = self._resolve_sector(symbol)
+                sector = self._resolve_sector(symbol_key)
                 if sector is not None:
                     sector_budget = self._sector_budget(sector)
                     if sector_budget is not None:
@@ -411,9 +445,9 @@ class RiskManagerImpl(RiskManagerProtocol):
                             return False
 
             if is_valid:
-                logger.info(f"Position validated: {symbol} size={size}")
+                logger.info(f"Position validated: {symbol_key} size={size}")
             else:
-                logger.warning(f"Position rejected: {symbol} size={size}")
+                logger.warning(f"Position rejected: {symbol_key} size={size}")
 
             return is_valid
 
@@ -639,6 +673,10 @@ class RiskManagerImpl(RiskManagerProtocol):
             entry_price: Entry price
             stop_loss_pct: Optional configured stop loss for aggregate risk checks
         """
+        self._canonicalise_positions()
+
+        symbol_key = self._position_key(symbol)
+
         entry: PositionEntry = {
             "size": _to_float(size),
             "entry_price": _to_float(entry_price),
@@ -650,9 +688,10 @@ class RiskManagerImpl(RiskManagerProtocol):
         else:
             entry["stop_loss_pct"] = self._risk_per_trade
 
-        self.positions[symbol] = entry
+        entry["symbol"] = symbol_key
+        self.positions[symbol_key] = entry
 
-        logger.info(f"Position added: {symbol} size={size} price={entry_price}")
+        logger.info(f"Position added: {symbol_key} size={size} price={entry_price}")
 
     def update_position_value(self, symbol: str, current_price: float | Decimal) -> None:
         """
@@ -662,8 +701,10 @@ class RiskManagerImpl(RiskManagerProtocol):
             symbol: Trading symbol
             current_price: Current market price
         """
-        if symbol in self.positions:
-            self.positions[symbol]["current_price"] = _to_float(current_price)
+        self._canonicalise_positions()
+        symbol_key = self._position_key(symbol)
+        if symbol_key in self.positions:
+            self.positions[symbol_key]["current_price"] = _to_float(current_price)
 
     def get_risk_summary(
         self,
@@ -678,13 +719,13 @@ class RiskManagerImpl(RiskManagerProtocol):
             JSON object with current risk metrics
         """
         # Delegate to RealRiskManager for a portfolio-level assessment (if any)
-        risk_map = {s: self._compute_position_risk(p) for s, p in self.positions.items()}
+        risk_map = self._aggregate_position_risk()
         assessed_risk = self.risk_manager.assess_risk(risk_map)
 
         summary: JSONObject = {
             "account_balance": self.account_balance,
             "positions": float(len(self.positions)),
-            "tracked_positions": list(self.positions.keys()),
+            "tracked_positions": list(risk_map.keys()),
             "assessed_risk": assessed_risk,
         }
 
@@ -705,7 +746,7 @@ class RiskManagerImpl(RiskManagerProtocol):
     def check_risk_thresholds(self) -> bool:
         """Return ``True`` when portfolio and sector risk remain within limits."""
 
-        risk_map = {sym: self._compute_position_risk(pos) for sym, pos in self.positions.items()}
+        risk_map = self._aggregate_position_risk()
         score = self.risk_manager.assess_risk(risk_map)
         if score > 1.0 + _SECTOR_EPSILON:
             logger.warning("Aggregate risk score %.3f breaches configured limits", score)
@@ -748,10 +789,9 @@ class RiskManagerImpl(RiskManagerProtocol):
         Returns:
             JSON object with portfolio risk metrics
         """
+        self._canonicalise_positions()
         total_size = sum(p["size"] for p in self.positions.values())
-        projected_risk = {
-            sym: self._compute_position_risk(pos) for sym, pos in self.positions.items()
-        }
+        projected_risk = self._aggregate_position_risk()
         total_risk_amount = sum(projected_risk.values())
         assessed_risk = self.risk_manager.assess_risk(projected_risk)
 
@@ -785,14 +825,16 @@ class RiskManagerImpl(RiskManagerProtocol):
         Returns:
             Position risk metrics as JSON
         """
-        if symbol not in self.positions:
+        self._canonicalise_positions()
+        symbol_key = self._position_key(symbol)
+        if symbol_key not in self.positions:
             return {}
 
-        position = self.positions[symbol]
+        position = self.positions[symbol_key]
         current_price = position.get("current_price", position["entry_price"])
 
         return {
-            "symbol": symbol,
+            "symbol": symbol_key,
             "size": position["size"],
             "entry_price": position["entry_price"],
             "current_price": current_price,

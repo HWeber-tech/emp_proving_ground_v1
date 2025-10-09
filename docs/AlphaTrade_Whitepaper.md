@@ -72,6 +72,11 @@ The layer boundaries double as documentation boundaries: each subsystem exposes 
 - Regression suites exercise the Timescale → Kafka → cortex integration (`tests/integration/test_operational_data_backbone.py`) and bootstrap paper broker lifecycle (`tests/runtime/test_bootstrap_paper_broker.py`).
 - Observability hooks stream throttle posture, drift sentry decisions, and governance workflow snapshots through the trading manager interface for dashboards and runbooks (`src/trading/trading_manager.py`).
 
+### 2.7 Context Pack Alignment
+- **Sensory Cortex Brief:** The sensory cortex alignment pack prescribes multi-signal fusion with lineage metadata and anomaly sentries; the RealSensoryOrgan mirrors that contract so routers receive PSD-validated frames tagged for provenance (`docs/context/alignment_briefs/sensory_cortex.md`).
+- **Institutional Data Backbone:** Operational readiness guidance calls for a Timescale → Kafka ingest spine with failover capture; the integration harness and bootstrap wiring enforce that topology under guardrail coverage until live credentials land (`docs/context/alignment_briefs/institutional_data_backbone.md`).
+- **Governance & Risk:** Policy ledger procedures, throttle requirements, and incident reporting defined in the governance briefs materialize as graduation workflows, throttle snapshots, and audit bundles that satisfy roadmap evidence reviews (`docs/context/alignment_briefs/institutional_risk_compliance.md`, `docs/context/alignment_briefs/operational_readiness.md`).
+
 ## 3. Implementation Highlights
 
 | Domain | Key Components | Milestones |
@@ -100,12 +105,14 @@ Guardrail suites exercise end-to-end behaviors to prevent regressions:
 
 ## 4. Paper Trading Simulation
 
-### 4.1 Validation Protocol
+### 4.1 Experiment Methodology
 - **Replay corpus:** Five independent one-hour EURUSD synthetic slices sampled from February 2024 volatility clusters; slices excluded from router calibration windows to avoid leakage.
 - **Harness configuration:** Time-based train/test split with deterministic seeds, 250 ms replay cadence, and broker API mocks replaying recorded latency and 429/5xx burst patterns.
 - **Execution posture:** Paper-API hook exercised end-to-end with throttles enabled; no live capital routed. Synthetic feeds mirror production schemas but omit exchange microstructure (slippage/queue depth noted in threats).
-- **Baselines:** (a) *Throttle Only* – fast weights disabled, static priors; (b) *Fast Weights + Throttle* – production configuration; (c) *Passive Maker* – reference TWAP order stream sized to identical notional envelope.
-- **Metrics captured:** ROI, win-rate, max drawdown, exposure utilization, throttle interventions, incident count, decision latency, and policy rejection reasons. Each run emits an immutable Decision Diary packet plus aggregate Markdown report.
+- **Baseline matrix:** (a) *Throttle Only* – fast weights disabled, static priors; (b) *Fast Weights + Throttle* – production configuration; (c) *Passive Maker* – reference TWAP order stream sized to identical notional envelope.
+- **Instrumentation & evidence:** Decision diaries, throttle snapshots, StrategyPerformanceTracker exports, governance incident ledgers, and throughput monitors are captured for every run. Experiment manifests checkpoint policy approvals and fast-weight toggles so reviewers can replay conditions defined in the operational readiness context packs.
+
+Instrumentation bundles and manifests are archived with the context pack references, giving the governance board a reproducible chain from replay inputs through decision evidence. This satisfies roadmap expectations for experiment transparency while surfacing the telemetry needed to approve paper-stage promotions.
 
 The harness additionally seeds randomized, yet reproducible, latency spikes and API error bursts to confirm backoff logic and throttle posture transitions. Governance approvals and revocations are simulated via policy ledger entries so that decision diaries reflect realistic stage transitions.
 
@@ -147,6 +154,8 @@ All trades were captured by the Decision Diary, with throttle interventions logg
 - `StrategyPerformanceTracker` generates per-strategy ROI, win/loss, max drawdown, and drift loop metrics, exported as Markdown summaries for dashboards.
 - Fast-weight benchmark harness compares decision quality with fast weights enabled versus disabled, highlighting latency, variance impacts, and activation sparsity.
 - Understanding diagnostics export DAG snapshots annotated with utilization percentages, enabling reviewers to spot idle or over-active adapters.
+- Throughput monitors and throttle snapshots expose backlog, per-minute execution cadence, and throttle posture so operators can verify compliance with governance limits before, during, and after experiments.
+- Paper API telemetry, PSD drift sentry health, and governance incident escalations roll into the final dry-run audit bundle, providing a single artifact for roadmap evidence review and sign-off.
 
 Representative observability extract:
 

@@ -18,6 +18,10 @@ policy router when tactics underperform.
 ## Configuration Points
 
 - `ManagedStrategyConfig` wires a base tactic to one or more `StrategyVariant` entries.
+- `catalogue_variants` accepts `CatalogueVariantRequest` definitions to pull trial tactics
+  straight from `config/trading/strategy_catalog.yaml` (or an injected catalogue). The
+  manager converts catalogue metadata into `PolicyTactic` objects, preserving tags,
+  parameter payloads, and forcing paper-trade guardrails.
 - Window size, win-rate threshold, and minimum observations are configurable per manager
   instance.
 - Variant weights can be adjusted with `trial_weight_multiplier` to run more conservative
@@ -32,6 +36,8 @@ manager is invoked after each iteration with the diary outcomes and can mutate t
 - Variants register after sustained losses and the base tactic weight is degraded.
 - Feature flags gate all behaviour, ensuring a no-op when the override is disabled.
 - Non-paper ledger stages are ignored to prevent unintended mutations in promoted phases.
+- Catalogue-backed variants inherit lineage metadata so reviewers can trace which
+  configuration was trialled and with what weight adjustments.
 
 This sets the groundwork for richer evolutionary logic (parameter perturbation, strategy
 catalogue integration, and ledger-backed governance) in later roadmap phases.

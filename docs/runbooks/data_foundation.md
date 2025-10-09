@@ -168,6 +168,47 @@ Pass the function to ingest pipelines or schedule it alongside other macro
 fetchers; when credentials are absent the helper emits a warning and returns an
 empty list so CI and local runs remain deterministic.
 
+## Operational Timescale Backbone
+
+* Module: `src/data_integration/real_data_integration.py`
+
+`RealDataManager.ingest_market_slice()` wires TimescaleDB, Redis caching, and
+Kafka telemetry into a single call so operators can hydrate the production
+backbone without bespoke scripts.  Supply the target symbols alongside optional
+intraday and macro parameters; the helper normalises symbols, executes the
+Timescale ingest plan, and invalidates cached query results when new rows land
+in the warehouse.【F:src/data_integration/real_data_integration.py†L213-L314】
+
+```python
+from datetime import datetime, timezone
+
+from src.data_foundation.persist.timescale import TimescaleConnectionSettings
+from src.data_integration.real_data_integration import RealDataManager
+
+settings = TimescaleConnectionSettings.from_mapping({
+    "TIMESCALEDB_URL": "postgresql+psycopg://trader:secret@localhost:5432/timescale",
+})
+manager = RealDataManager(timescale_settings=settings)
+
+results = manager.ingest_market_slice(
+    symbols=["EURUSD", "GBPUSD"],
+    daily_lookback_days=90,
+    intraday_lookback_days=3,
+    intraday_interval="5m",
+    macro_start="2024-03-01",
+    macro_end="2024-03-08",
+)
+print({dimension: result.rows_written for dimension, result in results.items()})
+
+bars = manager.fetch_data("EURUSD", interval="1m", end=datetime.now(timezone.utc))
+print(manager.cache_metrics())
+```
+
+`cache_metrics(reset=True)` exposes Redis hit/miss counters so the ingest team
+can confirm the roadmap’s “store → cache → retrieve” flow.  Call `shutdown()`
+or `close()` when the run completes to dispose of Timescale engines and Redis
+clients cleanly.【F:src/data_integration/real_data_integration.py†L292-L357】
+
 ## Artefact Expectations
 
 * Parquet/CSV datasets stored under `data_foundation/cache/pricing/`

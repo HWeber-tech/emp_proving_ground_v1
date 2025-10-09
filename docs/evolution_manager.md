@@ -6,7 +6,7 @@ policy router when tactics underperform.
 
 ## Behaviour
 
-- Keeps a rolling window of recent decisions (default 5) for each managed tactic.
+- Keeps a rolling window of recent decisions (default 5) for each managed tactic and clears the window once an adaptation cycle fires so new evidence is required before triggering again.【F:src/thinking/adaptation/evolution_manager.py†L114-L166】
 - Derives a win/loss signal from the decision diary outcomes (`paper_pnl`, `paper_return`,
   or `win_rate`).
 - When the observed win-rate drops below the configured threshold, the manager either:
@@ -21,7 +21,7 @@ policy router when tactics underperform.
 - `catalogue_variants` accepts `CatalogueVariantRequest` definitions to pull trial tactics
   straight from `config/trading/strategy_catalog.yaml` (or an injected catalogue). The
   manager converts catalogue metadata into `PolicyTactic` objects, preserving tags,
-  parameter payloads, and forcing paper-trade guardrails.
+  parameter payloads, lineage metadata, and forcing paper-trade guardrails.【F:src/thinking/adaptation/evolution_manager.py†L70-L205】
 - Window size, win-rate threshold, and minimum observations are configurable per manager
   instance.
 - Variant weights can be adjusted with `trial_weight_multiplier` to run more conservative

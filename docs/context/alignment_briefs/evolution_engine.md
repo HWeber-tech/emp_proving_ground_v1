@@ -48,6 +48,11 @@
 
 - Implement catalogue-backed genome seeding with configuration toggles and pytest
   coverage.
+- Progress: Evolution manager now seeds managed tactics with catalogue-backed
+  variants, injects lineage metadata into registered tactics, and resets loss
+  windows once adaptations fire so adaptive trials rotate through live catalogue
+  definitions under regression coverage of variant promotion, feature-flag
+  gating, and paper-stage enforcement.【F:src/thinking/adaptation/evolution_manager.py†L70-L205】【F:tests/thinking/test_evolution_manager.py†L24-L150】
 - Progress: Realistic genome seeding now rotates through catalogue templates,
   harvests recorded experiment manifests into additional templates, derives
   jitter/metrics/tags from those artifacts, and applies lineage/performance

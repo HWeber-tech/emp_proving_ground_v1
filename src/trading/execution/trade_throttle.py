@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections import deque
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
+import re
 from types import MappingProxyType
 from typing import Any, Deque, Mapping, MutableMapping
 
@@ -71,6 +72,8 @@ class TradeThrottleDecision:
 class TradeThrottle:
     """Maintains rolling trade counters to limit execution frequency."""
 
+    _RATE_LIMIT_REASON = re.compile(r"^max_(?P<count>\d+)_trades_per_(?P<window>\d+)s$")
+
     def __init__(self, config: TradeThrottleConfig) -> None:
         self._config = config
         self._timestamps: Deque[datetime] = deque()
@@ -130,12 +133,15 @@ class TradeThrottle:
             allowed = True
             self._timestamps.append(moment)
 
+        message = self._format_reason(reason, retry_at)
+
         snapshot = self._build_snapshot(
             state=state,
             active=active,
             reason=reason,
             retry_at=retry_at,
             metadata=metadata,
+            message=message,
         )
         self._last_snapshot = snapshot
 
@@ -152,7 +158,14 @@ class TradeThrottle:
         return dict(self._last_snapshot)
 
     def _initial_snapshot(self) -> Mapping[str, Any]:
-        return self._build_snapshot(state="open", active=False, reason=None, retry_at=None, metadata=None)
+        return self._build_snapshot(
+            state="open",
+            active=False,
+            reason=None,
+            retry_at=None,
+            metadata=None,
+            message=None,
+        )
 
     def _build_snapshot(
         self,
@@ -162,6 +175,7 @@ class TradeThrottle:
         reason: str | None,
         retry_at: datetime | None,
         metadata: Mapping[str, Any] | None,
+        message: str | None,
     ) -> Mapping[str, Any]:
         meta_payload: MutableMapping[str, Any] = {
             "max_trades": self._config.max_trades,
@@ -185,6 +199,8 @@ class TradeThrottle:
             snapshot["multiplier"] = float(self._config.multiplier)
         if reason:
             snapshot["reason"] = reason
+        if message:
+            snapshot["message"] = message
         if retry_at is not None:
             snapshot.setdefault("metadata", meta_payload)
             snapshot["metadata"]["retry_at"] = retry_at.astimezone(UTC).isoformat()
@@ -203,3 +219,36 @@ class TradeThrottle:
         if candidate.tzinfo is None:
             return candidate.replace(tzinfo=UTC)
         return candidate.astimezone(UTC)
+
+    def _format_reason(self, reason: str | None, retry_at: datetime | None) -> str | None:
+        if not reason:
+            return None
+
+        if reason == "cooldown_active":
+            if retry_at is not None:
+                iso_retry = retry_at.astimezone(UTC).isoformat()
+                return f"Throttle cooldown active until {iso_retry}"
+            return "Throttle cooldown active"
+
+        match = self._RATE_LIMIT_REASON.match(reason)
+        if match:
+            count = int(match.group("count"))
+            window_seconds = int(match.group("window"))
+            trades_label = "trade" if count == 1 else "trades"
+            window_label = self._format_window_description(window_seconds)
+            return (
+                "Throttled: too many trades in short time "
+                f"(limit {count} {trades_label} per {window_label})"
+            )
+
+        return f"Throttle reason: {reason}"
+
+    @staticmethod
+    def _format_window_description(window_seconds: int) -> str:
+        if window_seconds % 3600 == 0:
+            hours = window_seconds // 3600
+            return f"{hours} hour{'s' if hours != 1 else ''}"
+        if window_seconds % 60 == 0:
+            minutes = window_seconds // 60
+            return f"{minutes} minute{'s' if minutes != 1 else ''}"
+        return f"{window_seconds} second{'s' if window_seconds != 1 else ''}"

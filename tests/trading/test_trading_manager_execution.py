@@ -1700,9 +1700,11 @@ async def test_trade_throttle_blocks_and_can_be_disabled(
     throttle_metadata = throttle_events[0].get("metadata")
     assert isinstance(throttle_metadata, Mapping)
     assert throttle_metadata.get("reason")
+    assert "message" in throttle_metadata
     throttle_snapshot = throttle_metadata.get("throttle")
     assert isinstance(throttle_snapshot, Mapping)
     assert throttle_snapshot.get("state") in {"rate_limited", "cooldown"}
+    assert "message" in throttle_snapshot
     throttle_context = throttle_snapshot.get("metadata", {}).get("context", {})
     assert throttle_context.get("symbol") == "EURUSD"
     assert throttle_context.get("strategy_id") == "alpha"
@@ -1719,6 +1721,82 @@ async def test_trade_throttle_blocks_and_can_be_disabled(
 
     throttled_logs = [record for record in caplog.records if "Throttled trade intent" in record.getMessage()]
     assert throttled_logs, "expected throttle warning log to be emitted"
+    assert any("too many trades" in record.getMessage() for record in throttled_logs)
+
+
+@pytest.mark.asyncio()
+async def test_trade_throttle_handles_high_frequency_burst(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    async def _noop(*_args, **_kwargs) -> None:
+        return None
+
+    monkeypatch.setattr("src.trading.trading_manager.publish_risk_snapshot", _noop)
+    monkeypatch.setattr("src.trading.trading_manager.publish_roi_snapshot", _noop)
+    monkeypatch.setattr("src.trading.trading_manager.publish_policy_snapshot", _noop)
+    monkeypatch.setattr("src.trading.trading_manager.publish_policy_violation", _noop)
+    monkeypatch.setattr(
+        "src.trading.trading_manager.publish_risk_interface_snapshot", _noop
+    )
+    monkeypatch.setattr("src.trading.trading_manager.publish_risk_interface_error", _noop)
+
+    bus = DummyBus()
+    manager = TradingManager(
+        event_bus=bus,
+        strategy_registry=AlwaysActiveRegistry(),
+        execution_engine=None,
+        initial_equity=25_000.0,
+        risk_config=RiskConfig(
+            min_position_size=1,
+            mandatory_stop_loss=False,
+            research_mode=True,
+        ),
+        trade_throttle={"max_trades": 1, "window_seconds": 60.0},
+    )
+    engine = RecordingExecutionEngine()
+    manager.execution_engine = engine
+
+    class _BurstIntent:
+        def __init__(self, idx: int) -> None:
+            self.symbol = "EURUSD"
+            self.quantity = 1.0
+            self.price = 1.2345
+            self.confidence = 0.9
+            self.strategy_id = "alpha"
+            self.event_id = f"burst-{idx}"
+
+    intents = [_BurstIntent(idx) for idx in range(5)]
+
+    validate_mock: AsyncMock = AsyncMock(side_effect=intents)
+    manager.risk_gateway.validate_trade_intent = validate_mock  # type: ignore[assignment]
+
+    caplog.set_level(logging.WARNING, logger="src.trading.trading_manager")
+
+    await asyncio.gather(*(manager.on_trade_intent(intent) for intent in intents))
+
+    assert engine.calls == 1
+    stats = manager.get_execution_stats()
+    assert stats["orders_submitted"] == 1
+    assert stats["throttle_blocks"] == len(intents) - 1
+
+    throttle_events = [
+        event
+        for event in manager.get_experiment_events()
+        if event["status"] == "throttled"
+    ]
+    assert len(throttle_events) == len(intents) - 1
+    for event in throttle_events:
+        metadata = event.get("metadata", {})
+        assert metadata.get("message", "").startswith("Throttled: too many trades")
+
+    throttled_logs = [
+        record.getMessage()
+        for record in caplog.records
+        if "Throttled trade intent" in record.getMessage()
+    ]
+    assert len(throttled_logs) == len(intents) - 1
+    assert all("too many trades" in message for message in throttled_logs)
 
 
 def test_describe_risk_interface_returns_runbook_on_error() -> None:

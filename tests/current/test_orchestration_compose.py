@@ -110,7 +110,6 @@ def test_compose_validation_adapters_handles_missing_modules(
         if name in {
             "src.data_integration.yfinance_gateway",
             "src.sensory.enhanced.anomaly.manipulation_detection",
-            "src.intelligence.sentient_adaptation",
             "src.governance.system_config",
             "src.genome.models.genome_adapter",
         }:
@@ -118,6 +117,12 @@ def test_compose_validation_adapters_handles_missing_modules(
         return original_import(name, *args, **kwargs)
 
     monkeypatch.setattr(importlib, "import_module", fake_import)
+
+    monkeypatch.setattr(
+        "src.orchestration.compose._SentientAdaptationEngine",
+        None,
+        raising=False,
+    )
 
     class FailingGateway:
         def __init__(self, *_: Any, **__: Any) -> None:

@@ -128,6 +128,11 @@
   enforces required regression suites through `--require-file`, failing the
   build and logging missing paths under pytest coverage when critical files
   fall out of reports.【F:tools/telemetry/coverage_matrix.py†L83-L357】【F:tests/tools/test_coverage_matrix.py†L136-L225】
+- Progress: Coverage matrix domain classifier now aliases legacy
+  `src/intelligence` modules into the canonical understanding namespace so
+  reports no longer split decision-loop coverage across divergent labels, with
+  CLI regressions asserting the normalised file list includes the re-mapped
+  paths.【F:tools/telemetry/coverage_matrix.py†L12-L60】【F:tests/tools/test_coverage_matrix.py†L120-L168】
 - Progress: CI workflow now runs the coverage matrix and minimum coverage
   guardrail steps after the guarded pytest job, enforcing ingest/risk targets,
   writing Markdown/summary outputs, and failing builds when thresholds slip,

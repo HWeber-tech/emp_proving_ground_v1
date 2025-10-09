@@ -1,172 +1,85 @@
-# AlphaTrade: A Cognitive Trading Loop for Adaptive Paper Execution
+# AlphaTrade Whitepaper (Draft)
 
-## Abstract
-AlphaTrade is a research platform that operationalizes a closed-loop trading intelligence inspired by BDH cognitive principles. This whitepaper summarizes the architecture, implementation milestones, and evaluation results that demonstrate paper-trading readiness. We describe how live sensory ingest feeds a Hebbian-enhanced decision core, how reflection artifacts close the learning feedback loop, and how governance keeps the system explainable and safe for beta deployment. In a five-run one-hour EURUSD replay, the governed fast-weight configuration delivered **+1.7% ±0.4 ROI** versus **+0.5% ±0.6 ROI** for the throttle-only baseline while maintaining comparable variance.
+## Executive Summary
+AlphaTrade is an intelligent trading loop that fuses sensory perception, adaptive decision making, reflective learning, risk-aware execution, and governance controls into a cohesive platform. The system ingests heterogeneous market telemetry, synthesises beliefs about prevailing regimes, routes strategies with fast-weight adaptation, records transparent decision diaries, and enforces safety constraints before placing trades through broker adapters. This draft captures the current implementation, the operational readiness of the paper-trading stack, and the remaining gaps required for a controlled launch.
 
-## 1. Introduction
-AlphaTrade was designed to move beyond static rule engines by wiring perception, adaptation, reflection, execution, and governance into a self-checking loop. The project leverages the Emporium Proving Ground codebase to host experimentation around:
+## System Goals & Design Principles
+- **Closed-loop intelligence.** Each iteration of the AlphaTrade loop should observe markets, understand context, act, and learn, using perception → adaptation → reflection → execution → governance as the organising backbone.
+- **Explainable autonomy.** Decisions are logged via decision diaries, policy reflection artefacts, and understanding graphs to surface rationale and fast-weight effects.
+- **Safety and resilience first.** Trade throttles, governance promotion gates, and event-bus failover routines ensure the system degrades gracefully under stress.
+- **Composable infrastructure.** Components are separated by domain boundaries (sensory, understanding, trading, governance) with dataclass or Pydantic contracts to promote reuse and rigorous testing.
 
-- **Real-time sensory fusion** that unifies market telemetry with anomaly and lineage metadata.
-- **Fast-weight decision routing** that can reweigh strategies within a run.
-- **Reflection diaries and diagnostics** that reveal why a strategy was selected and how it performed.
-- **Paper execution adapters** that translate decisions into safe, observable trades.
-- **Governance throttles and policy gates** that keep experimentation compliant.
+## Architecture Overview
+AlphaTrade follows the layered architecture encoded in the repository:
 
-This document captures the current state of AlphaTrade as of the Phase III roadmap milestones and records lessons learned for future iterations.
+1. **Perception Layer** – Canonical sensors live in `src/sensory`, and the `RealSensoryOrgan` fuses WHAT/WHEN/WHY/HOW/ANOMALY signals into integrated sensory snapshots. Drift detection, lineage publication, and audit trails are embedded so downstream components can trust signal provenance.
+2. **Belief & Understanding Layer** – Belief states incorporate regime inferences and fast-weight toggles. The `UnderstandingRouter` coordinates policy routing, applying feature-gated fast-weight adapters before delegating to tactic selection.
+3. **Adaptation Layer** – Policy routers, tactical adaptation engines, and evolution scaffolding (under `src/thinking/adaptation`) manage strategy lifecycles, metadata, and experiment gating. Fast-weight adapters apply Hebbian updates to emphasise recent evidence.
+4. **Reflection Layer** – Decision diaries (`src/understanding/decision_diary.py`) persist each decision’s context, outcomes, probes, and belief snapshots. Reflection builders aggregate diaries into governance-ready summaries, while diagnostics export DAG views of the understanding loop.
+5. **Execution & Risk Layer** – Execution is orchestrated under `src/trading`, where the `TradeThrottle` enforces per-window trade limits, and the `trading_manager` binds throttle posture into live routing. Integrations provide adapters for paper trading APIs.
+6. **Governance & Safety Layer** – Governance packages oversee policy promotion, audit trails, and safety managers. They regulate which strategies can graduate to production and ensure configuration drift is tracked.
 
-### Contributions
+### Data Flow Summary
+1. **Ingest & Fusion:** Market frames, order books, macro narratives, and anomaly payloads enter the `RealSensoryOrgan`, generating integrated sensory snapshots with lineage metadata.
+2. **Belief Updates:** Belief states consume sensory output, maintain PSD covariance checks, and toggle fast-weight eligibility.
+3. **Routing & Action:** The `UnderstandingRouter` adjusts tactic weights using Hebbian adapters and returns a decision enriched with fast-weight summaries.
+4. **Risk & Execution:** Decisions traverse governance filters and throttles before reaching the execution adapters. When in paper mode, the paper trading API adapter submits REST orders to the configured sandbox endpoint.
+5. **Reflection & Learning:** Outcomes loop back via decision diaries, strategy performance tracking, and diagnostics to inform future policy tuning and governance reviews.
 
-1. **Governed cognitive loop:** A Perception → Adaptation → Reflection → Execution → Governance cadence with paper-execution safety guarantees and auditable telemetry.
-2. **Fast-weight router:** A practical Hebbian fast-weight layer that improves decision quality without requiring offline retraining.
-3. **Transparent reflection artifacts:** Decision diaries, diagnostics, and DAG exports that keep strategy selection explainable and tunable.
-4. **Throttle-centric execution governor:** Policy-driven throttles and recovery paths that withstand API rate limits and latency spikes.
+## Perception & Belief Formation
+- **Sensory organs** (`what`, `when`, `why`, `how`, `anomaly`) expose `process` methods returning canonical signal structures. Each emits lineage and telemetry metadata, ensuring observability by design.
+- **Fusion & Drift Monitoring:** `RealSensoryOrgan.observe` captures sensor outputs, builds integrated signals, publishes lineage through the event bus, and keeps rolling audit trails for drift evaluation. The optional `SensoryDriftConfig` enforces minimum sample windows and z-score thresholds.
+- **Eventing & Failover:** Sensory payloads can publish to the global topic bus; failure paths are mitigated via `publish_event_with_failover`, allowing the perception layer to continue operating even when downstream queues are degraded.
+- **Belief snapshots:** The belief module captures symbol context, feature vectors, and fast-weight eligibility flags, enabling routers to calculate multipliers conditioned on real-time regime factors.
 
-### Related Work
+## Adaptation & Fast-Weight Routing
+- **Policy Router:** Strategies register with the policy router alongside metadata such as guardrails and experiment tags. Routing computes tactic selection based on belief-regime compatibility and optional fast-weight overrides.
+- **Fast-weight adapters:** Each `FastWeightAdapter` declares an adapter ID, target tactic, multipliers, and optional Hebbian configuration. When a belief snapshot marks fast weights enabled, adapters update multipliers based on feature activations, providing sparse, positive adjustments aligned with BDH heuristics.
+- **Experiment governance:** Adaptation hooks integrate with governance toggles so that high-risk adapters or evolution pipelines only activate when authorised. This ensures experimental tactics cannot bypass safety checks.
+- **Evolution scaffolding:** While a full evolutionary engine remains future work, the current scaffolding hosts placeholders for mutation pipelines and catalogue integration, providing extension points for future research.
 
-AlphaTrade draws on recent work combining transformer-inspired routing for trading, linear attention and state-space models for low-latency inference, agentic RL frameworks for execution governance, and the literature on backtesting pitfalls. The implementation focuses on bridging these ideas into a reproducible paper-trading harness with explicit guardrails.
+## Reflection & Knowledge Capture
+- **Decision diaries:** Every loop iteration creates a `DecisionDiaryEntry` capturing decision details, guardrail states, outcomes, and optional belief metadata. Markdown exports support human audits.
+- **Policy reflection artefacts:** Aggregations summarise tactic utilisation, promotions, demotions, and gating reasons, feeding governance review sessions.
+- **Understanding diagnostics:** Graph exports illustrate the end-to-end reasoning chain, highlighting active adapters, sparsity metrics, and dominant strategies. These diagnostics are used in guardrail tests to ensure interpretability.
+- **KPIs & loop metrics:** The `StrategyPerformanceTracker` compiles ROI, win rates, drawdowns, and fast-weight uplifts per strategy. Loop metrics report regime accuracy and drift alert statistics, providing quantitative insight into cognition quality.
 
-AlphaTrade is presently positioned for paper-simulation readiness on synthetic slices; paper-API connectivity has been validated with realistic latency and throttling, and work to sustain continuous live-feed ingest is underway.
+## Execution, Risk, and Paper Trading
+- **Trade throttle:** `TradeThrottle` enforces configurable rate limits with optional cooldowns and size multipliers. Snapshots expose state, reasons for throttling, and retry suggestions for journaling and monitoring.
+- **Trading manager integration:** The trading manager consumes throttle decisions, risk checks, and governance verdicts before emitting execution intents. It exposes throttle posture via runtime APIs so operators can inspect rate limiting in effect.
+- **Paper trading adapter:** `PaperTradingApiAdapter` converts AlphaTrade orders into REST payloads, handling authentication headers, timeout management, idempotent client order IDs, and session lifecycle. Integration tests validate order submission, error propagation, and cleanup.
+- **Fail-safe execution:** Supervisor routines catch adapter exceptions and favour “no-trade” failover rather than crashing the loop, ensuring paper sessions continue despite transient broker issues.
 
-## 2. System Overview
-AlphaTrade is organized as a layered cortex:
+## Data Backbone & Infrastructure Readiness
+- **Synthetic-to-live migration:** Current integration tests stream synthetic EURUSD slices through the Timescale → Kafka → RealSensoryOrgan pipeline, demonstrating end-to-end wiring. Production readiness requires swapping synthetic publishers for live market feeds and securing credentials for broker sandboxes.
+- **Configuration management:** Environment templates capture required secrets (`PAPER_TRADING_API_URL`, keys, etc.). Pydantic models validate configuration at boot, preventing silent misconfiguration.
+- **Observability hooks:** Event bus failover metrics, throttle snapshots, and diary exports provide structured data for dashboards. Logging defaults to JSON-friendly formats to support ingestion into central observability stacks.
 
-```
-┌────────────┐      ┌─────────────┐      ┌─────────────┐      ┌────────────┐      ┌──────────────┐
-│ Perception │─►───►│ Adaptation  │─►───►│ Reflection  │─►───►│ Execution  │─►───►│ Governance   │
-└────────────┘      └─────────────┘      └─────────────┘      └────────────┘      └──────────────┘
-     ▲                   │                    │                    │                     │
-     └───────────────────┴────────────────────┴────────────────────┴─────────────────────┘
-```
+## Paper Trading Simulation Plan
+1. **Environment setup:** Provision sandbox credentials, configure `PaperTradingApiSettings`, and enable the paper broker execution path during bootstrap.
+2. **Dry-run rehearsal:** Execute short test sessions using replayed historical data to validate order placement, throttle responses, and diary logging.
+3. **Live paper session:** Run a full trading day using live market feeds. Monitor throughput, ensure at least one trade attempt, and verify diary entries capture both attempted and throttled trades.
+4. **Post-run analysis:** Generate KPI reports, extract diary excerpts, and review throttle snapshots alongside governance logs to certify behaviour.
 
-Each layer emits telemetry and state that the downstream layers consume while feeding aggregated diagnostics back upstream. The orchestrator coordinates the loop on a cadence aligned with incoming sensory frames. BDH-inspired design tenets—fast adaptation, sparse positive activations, and self-healing governance—shape how interfaces and guardrails are composed here and are elaborated further in Section 6.
+## Performance & Reliability Considerations
+- **Throughput safeguards:** Profiling should target sensory fusion, belief updates, and routing loops—ensuring real-time data does not backlog. Vectorised operations and asyncio boundaries are in place, but sustained load testing will confirm headroom.
+- **Resource monitoring:** Capture CPU, memory, and event-loop lag metrics during simulations. Compare runs with fast weights enabled vs disabled to quantify overhead.
+- **Resilience drills:** Simulate broker outages, event bus failures, and sensor anomalies to validate graceful degradation pathways.
 
-### 2.1 Perception
-- The **RealSensoryOrgan** merges WHAT/WHEN/WHY/HOW/ANOMALY signal families into belief updates stored in the `BeliefState`, tagging each frame with a regime taxonomy (`calm`, `normal`, `storm`) that downstream routers consume.
-- Drift sentries and anomaly detectors guard for broken telemetry, enforcing positive semi-definite covariance and data quality hooks before beliefs are propagated.
-- Synthetic data is used in regression, while the operational spine is prepared for TimescaleDB, Redis, and Kafka connectors.
+## Observability & Reporting
+- **Daily KPI reports:** `StrategyPerformanceReport.to_markdown` produces operator-friendly summaries enumerating per-strategy ROI, win rates, and drawdowns. These should accompany diary digests after each simulation.
+- **Loop diagnostics:** Understanding graph dumps should be archived for each session, highlighting adapter utilisation and sparsity trends.
+- **Governance ledger:** Policy change logs and promotion decisions must remain synchronised with diary evidence to satisfy audit requirements.
 
-### 2.2 Adaptation
-- The **UnderstandingRouter** scores candidate strategies using belief snapshots and applies Hebbian fast weights to emphasize recently successful tactics.
-- The **PolicyRouter** manages lifecycle metadata, enabling governance to promote or demote strategies based on evidence.
-- Feature flags allow governance to enable evolutionary experiments without destabilizing the baseline router.
+## Roadmap & Future Work
+- **Live data integration:** Replace synthetic streams with production-grade connectors for TimescaleDB, Redis, or direct broker feeds.
+- **Evolution engine:** Implement strategy mutation pipelines leveraging performance telemetry to generate and test new tactics automatically.
+- **Automated reflection feedback:** Close the loop by feeding KPI deltas and diary insights back into router weight adjustments or governance triggers.
+- **Extended acceptance testing:** Conduct multi-day paper runs (target: ≥3 consecutive days) with automated anomaly detection for diaries, throttle, and performance metrics.
+- **Publication packaging:** Convert this draft into a polished whitepaper with diagrams, benchmarking charts, and appendices detailing experiment methodologies.
 
-### 2.3 Reflection
-- The **DecisionDiary** captures context, rationale, and outcomes for every routing cycle.
-- `PolicyReflectionBuilder` aggregates diaries into artifacts summarizing emerging tactics, risk posture, and gating justifications.
-- Understanding graph diagnostics visualize fast-weight utilization, sparsity, and dominant strategy clusters for interpretability.
+## Appendices
+- **Glossary:** Maintain a shared vocabulary for sensory organs, belief metrics, fast weights, and governance states to ensure cross-team clarity.
+- **Testing Artefacts:** Link guardrail tests, integration suites, and regression fixtures relevant to the paper trading stack for reproducibility.
+- **Operational Runbooks:** Provide scripts and command sequences for bootstrapping paper sessions, rotating credentials, and performing incident response during simulations.
 
-### 2.4 Execution
-- `PaperBrokerExecutionAdapter` bridges AlphaTrade orders to the REST-based `PaperTradingApiAdapter`, supporting sandbox integrations.
-- The shared `TradeThrottle` enforces governance-defined order frequency limits while exposing throttle posture to the trading manager.
-- Execution telemetry is appended to decision diaries, enabling post-trade audit trails, and 429/5xx responses trigger exponential backoff plus safe “no-trade” posture until the governor issues an all-clear.
-
-### 2.5 Governance
-- Governance CLI workflows approve experimental tactics, toggle fast weights, and configure throttle policies.
-- Supervisor guardrails treat API failures as recoverable incidents, defaulting to safe “no-trade” posture when anomalies fire.
-- Reflection artifacts serve as evidence packets for governance sign-off before promoting strategies to live or paper stages.
-
-## 3. Implementation Highlights
-
-| Domain | Key Components | Milestones |
-| --- | --- | --- |
-| Perception | RealSensoryOrgan, BeliefState, Drift Sentry | Synthetic integration test validates Timescale → Kafka → cortex path; PSD and lineage guardrails active. |
-| Adaptation | UnderstandingRouter, PolicyRouter, Fast-Weight toggles | Hebbian fast weights with decay/boost semantics configurable per strategy cohort. |
-| Reflection | DecisionDiary, PolicyReflectionBuilder, Understanding diagnostics | Daily reflection digest summarizes tactic ROI, throttle hits, and drift alerts. |
-| Execution | PaperBrokerExecutionAdapter, PaperTradingApiAdapter, TradeThrottle | REST adapter lifecycle covered by integration tests; throttle prevents bursts beyond configured cadence. |
-| Governance | Governance CLI, Supervisor guardrails | Paper-trading extras enforce staged deployment with audit-ready evidence. |
-
-## 4. Paper Trading Simulation
-
-### 4.1 Validation Protocol
-- **Replay corpus:** Five independent one-hour EURUSD synthetic slices sampled from February 2024 volatility clusters; slices excluded from router calibration windows to avoid leakage.
-- **Harness configuration:** Time-based train/test split with deterministic seeds, 250 ms replay cadence, and broker API mocks replaying recorded latency and 429/5xx burst patterns.
-- **Execution posture:** Paper-API hook exercised end-to-end with throttles enabled; no live capital routed. Synthetic feeds mirror production schemas but omit exchange microstructure (slippage/queue depth noted in threats).
-- **Baselines:** (a) *Throttle Only* – fast weights disabled, static priors; (b) *Fast Weights + Throttle* – production configuration; (c) *Passive Maker* – reference TWAP order stream sized to identical notional envelope.
-- **Metrics captured:** ROI, win-rate, max drawdown, exposure utilization, throttle interventions, incident count, decision latency, and policy rejection reasons. Each run emits an immutable Decision Diary packet plus aggregate Markdown report.
-
-### 4.2 Outcome Summary
-- **Trades Executed:** 70 routed across the five runs; 61 accepted by the paper API, 7 throttle deferrals, 2 risk rejections.
-- **Win Rate:** 58% ±4 percentage points for the governed fast-weight configuration.
-- **Net ROI:** +1.7% ±0.4 relative to allocated notional with max drawdown -0.6%; throttle-only baseline returned +0.5% ±0.6 with max drawdown -1.3%; passive maker reference delivered -0.2% ±0.3.
-- **Sharpe proxy:** Fast-weight configuration achieved 1.1 (paper-scaled), versus 0.3 for throttle-only and -0.1 for passive maker.
-- **Exposure utilization:** Capped at 42% of paper capital envelope with no VAR limit breaches; policy rejections blocked two oversized momentum orders.
-- **Reliability:** 100% orchestrator uptime with three transient API incidents resolved via automatic backoff. All incidents surfaced in the governance incident log.
-
-Abridged baseline comparison:
-
-| Configuration | ROI (mean ± std) | Max Drawdown | Win Rate | Throttle Hits | Avg Decision Latency |
-| --- | --- | --- | --- | --- | --- |
-| Passive Maker Reference | -0.2% ±0.3 | -1.5% | 43% | 0 | 12 ms |
-| Throttle Only | +0.5% ±0.6 | -1.3% | 51% | 5 | 18 ms |
-| Fast Weights + Throttle | **+1.7% ±0.4** | **-0.6%** | **58% ±4pp** | **7** | 24 ms |
-
-All trades were captured by the Decision Diary, with throttle interventions logged as governance annotations and policy rejections linking to the risk-evaluator verdict. The simulation confirmed the adapter’s ability to recover from HTTP 429 responses by backing off and retrying within throttle constraints.
-
-### 4.3 Threats to Validity
-- **Synthetic feed bias:** Replay omits live-market slippage, queue positioning, and adversarial order flow; real-world performance may diverge.
-- **Instrument scope:** Evaluation currently EURUSD-only; multi-asset correlations and cross-venue latency are untested.
-- **Regime coverage:** Volatility regimes sampled from recent clusters; extreme dislocations (flash crashes) remain hypothetical.
-- **API model fidelity:** Broker latency distributions replay empirical samples but cannot model unannounced maintenance windows or auth drifts.
-
-## 5. Metrics and Observability
-- `StrategyPerformanceTracker` generates per-strategy ROI, win/loss, max drawdown, and drift loop metrics, exported as Markdown summaries for dashboards.
-- Fast-weight benchmark harness compares decision quality with fast weights enabled versus disabled, highlighting latency, variance impacts, and activation sparsity.
-- Understanding diagnostics export DAG snapshots annotated with utilization percentages, enabling reviewers to spot idle or over-active adapters.
-
-Representative observability extract:
-
-| Metric | Fast Weights + Throttle | Throttle Only |
-| --- | --- | --- |
-| p50 / p99 decision latency | 18 ms / 41 ms | 14 ms / 29 ms |
-| Active strategies per cycle (median) | 2 | 4 |
-| Drift sentry interventions per hour | 0.2 | 0.2 |
-| Diary coverage (entries/run) | 100% (70/70) | 100% (63/63) |
-| Fast-weight synapse utilization (top-5 share) | 62% | – |
-
-Diagnostics bundle the activation histogram with raw telemetry so reviewers can correlate router behavior with guardrail decisions.
-
-## 6. BDH-Inspired Design Principles
-AlphaTrade implements several BDH concepts:
-
-1. **Fast Weights:** Hebbian updates amplify strategies that co-fire with positive outcomes, enabling rapid adaptation without retraining the entire model.
-2. **Positive Sparse Activations:** Router scoring favors non-negative weights and enforces sparsity via thresholding, ensuring only a subset of strategies activates per cycle.
-3. **Interpretable Concept Graphs:** Understanding diagnostics expose node-level activation and causal paths, enabling human auditors to trace strategy selection back to sensory evidence.
-4. **Self-Healing Loops:** Governance throttles, anomaly sentries, and supervisor fallbacks maintain operational stability akin to cognitive resilience.
-
-## 7. Governance and Risk Controls
-- **Stage Gating:** Strategies progress through sandbox → paper → live stages with governance approval recorded alongside reflection artifacts. Promotion criteria: ≥200 trades, Sharpe proxy ≥0.8, max drawdown within -2%, zero unresolved policy breaches.
-- **Risk Limits:** Evaluators enforce 0.5% capital-at-risk per trade, 2% per-instrument exposure cap, 5% aggregate exposure ceiling, and VAR alerts at the 95th percentile. Orders breaching these limits are tagged with rejection reasons and fed into diaries.
-- **Position Sizing:** Quantity selection converts the capital-at-risk limit into instrument units using current ATR-adjusted volatility and clamps to broker minimums, yielding 1–3 micro lots per EURUSD trade in the paper harness.
-- **Rejection Paths:** A recent diary excerpt shows `nova_momentum_v1` blocked for exceeding exposure cap (`decision_id=eurusd-20240215-034500Z`), followed by automated throttle cooling and governance notification.
-- **Incident Response:** Failures in external dependencies (broker API, data feeds) trigger incident workflows that alert operators and downgrade execution posture.
-
-## 8. Roadmap Alignment and Next Steps
-With paper trading simulation complete, remaining roadmap efforts focus on:
-
-1. Performance profiling under high-frequency data replay to document CPU and memory envelopes (acceptance: sustain 4× replay speed for 3 hours with <70% CPU, no missed cadences).
-2. Expanding live data ingest connectors beyond synthetic slices to continuous market feeds (acceptance: 24-hour uninterrupted capture with ≤0.1% packet loss and validated PSD covariance checks).
-3. Authoring acceptance criteria for multi-day dry runs and preparing governance review packets for final sign-off (acceptance: 72-hour paper run with Sharpe proxy ≥0.9, zero unmitigated incidents, governance sign-off archived).
-
-## 9. Conclusion
-AlphaTrade now operates as a cohesive, explainable trading intelligence capable of sustained paper execution. The platform integrates perception, adaptation, reflection, execution, and governance in a single loop, backed by guardrail tests and supervisory controls. Future work will extend live connectivity, deepen evolutionary strategy generation, and formalize publication artifacts.
-
-## Appendix A. Glossary
-- **BeliefState:** Data structure capturing posterior beliefs, regimes, and covariance for downstream routing.
-- **DecisionDiary:** Persistent log of each decision’s context, action, and outcome.
-- **Fast Weights:** Short-term Hebbian adjustments applied to strategy preference vectors.
-- **TradeThrottle:** Governance component that limits order cadence to protect broker and capital.
-- **Understanding Diagnostics:** Visualization utilities that export DAG representations of the decision pipeline.
-
-## Appendix B. Simulation Configuration
-- **Data Source:** Synthetic EURUSD tick slices replayed through Timescale → Kafka harness.
-- **Strategies Enabled:** `atlas_meanrev_v2`, `nova_momentum_v1`, `sentinel_volbreak`.
-- **Risk Settings:** 1 contract max position, 0.5% capital-at-risk per trade, throttle = 1 trade/minute.
-- **Environment:** Dockerized runtime with Redis and Kafka harness, paper API mock responding with real latency distribution sampled from broker telemetry.
-
-## Appendix C. Reproducibility Checklist
-- **Repository State:** Tag or commit at publication time; record via `git rev-parse HEAD` when executing harness.
-- **Harness Invocation:** `poetry run python tools/run_paper_harness.py --symbol EURUSD --start 2024-02-12T00:00Z --duration 3600 --runs 5 --fast-weights {on|off}`.
-- **Container Image:** `alphatrade/replay:2024.02` (Dockerfile hash `sha256:8f32...`).
-- **Random Seeds:** `alpha_seed=4242`, `market_seed=1138`, `latency_seed=77`.
-- **Resource Limits:** BLAS threads pinned to 2; Python 3.11.7; Redis 7.2; Kafka 3.6; environment hash recorded in Decision Diary headers.
-- **Artifacts:** Decision Diaries, metrics Markdown (`artifacts/eurusd_paper/metrics_run_*.md`), and throttle incident logs stored under `artifacts/eurusd_paper/` for each replay.

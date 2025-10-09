@@ -171,7 +171,7 @@ def _format_optional_markdown(
 
 
 class BootstrapControlCenter:
-    """Aggregate portfolio, risk, intelligence, liquidity, and execution telemetry."""
+    """Aggregate portfolio, risk, understanding, liquidity, and execution telemetry."""
 
     def __init__(
         self,
@@ -317,7 +317,7 @@ class BootstrapControlCenter:
 
         portfolio = self._build_portfolio_section()
         risk = self._build_risk_section()
-        intelligence = self._build_intelligence_section()
+        understanding = self._build_understanding_section()
         liquidity = self._build_liquidity_section()
         performance = self._build_performance_section(portfolio)
         evolution = self._build_evolution_section()
@@ -327,7 +327,7 @@ class BootstrapControlCenter:
             "generated_at": datetime.utcnow().isoformat(),
             "portfolio": portfolio,
             "risk": risk,
-            "intelligence": intelligence,
+            "understanding": understanding,
             "liquidity": liquidity,
             "performance": performance,
             "evolution": evolution,
@@ -515,7 +515,7 @@ class BootstrapControlCenter:
 
         return payload
 
-    def _build_intelligence_section(self) -> Mapping[str, Any]:
+    def _build_understanding_section(self) -> Mapping[str, Any]:
         snapshot = self._last_snapshot
         diagnostics = (
             self.pipeline.fusion_engine.get_diagnostic_information()

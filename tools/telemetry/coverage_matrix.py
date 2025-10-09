@@ -29,12 +29,11 @@ _TRACKED_DOMAINS: tuple[str, ...] = (
     "evolution",
     "compliance",
     "strategies",
-    "intelligence",
+    "understanding",
     "governance",
     "data_integration",
     "data_sources",
     "ecosystem",
-    "market_intelligence",
     "performance",
     "portfolio",
     "simulation",
@@ -53,6 +52,15 @@ _TRACKED_DOMAINS: tuple[str, ...] = (
 _DOMAIN_PREFIXES: dict[tuple[str, ...], str] = {
     ("src", domain): domain for domain in _TRACKED_DOMAINS
 }
+
+# Legacy namespace aliases that should be categorised under the canonical
+# understanding/sensory domains for reporting purposes.
+_DOMAIN_PREFIXES.update(
+    {
+        ("src", "intelligence"): "understanding",
+        ("src", "market_intelligence"): "sensory",
+    }
+)
 
 
 @dataclass(frozen=True)

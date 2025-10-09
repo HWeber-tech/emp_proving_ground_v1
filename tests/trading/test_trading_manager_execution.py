@@ -1936,6 +1936,51 @@ async def test_trading_manager_records_throughput_metrics(
     assert throughput.get("avg_processing_ms") is not None
     assert throughput.get("throughput_per_min") is not None
 
+
+@pytest.mark.asyncio()
+async def test_generate_execution_report_renders_markdown(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def _noop(*_args, **_kwargs) -> None:
+        return None
+
+    monkeypatch.setattr("src.trading.trading_manager.publish_risk_snapshot", _noop)
+    monkeypatch.setattr("src.trading.trading_manager.publish_roi_snapshot", _noop)
+    monkeypatch.setattr("src.trading.trading_manager.publish_policy_snapshot", _noop)
+    monkeypatch.setattr("src.trading.trading_manager.publish_policy_violation", _noop)
+    monkeypatch.setattr(
+        "src.trading.trading_manager.publish_risk_interface_snapshot", _noop
+    )
+    monkeypatch.setattr("src.trading.trading_manager.publish_risk_interface_error", _noop)
+
+    bus = DummyBus()
+    manager = TradingManager(
+        event_bus=bus,
+        strategy_registry=AlwaysActiveRegistry(),
+        execution_engine=RecordingExecutionEngine(),
+        initial_equity=25_000.0,
+        risk_config=RiskConfig(
+            min_position_size=1,
+            mandatory_stop_loss=False,
+            research_mode=True,
+        ),
+        trade_throttle={"max_trades": 2, "window_seconds": 60.0},
+    )
+
+    intent = ConfidenceIntent(
+        symbol="EURUSD",
+        quantity=1.0,
+        price=1.2,
+        confidence=0.9,
+    )
+    setattr(intent, "event_id", "report-test")
+    setattr(intent, "ingested_at", datetime.now(tz=timezone.utc))
+
+    await manager.on_trade_intent(intent)
+
+    report = manager.generate_execution_report()
+
+    assert report.startswith("# Execution performance summary")
+    assert "Throughput window" in report
+
 def test_describe_risk_interface_returns_runbook_on_error() -> None:
     class BrokenTradingManager(TradingManager):
         def __init__(self) -> None:

@@ -49,6 +49,10 @@
     checks escalate to warnings before breaching limits, capturing ratios,
     thresholds, and projected exposure metadata so compliance teams can monitor
     approaching guardrails without waiting for outright violations.【F:tests/trading/test_risk_policy.py†L125-L170】
+  - Progress: Risk manager now canonicalises position symbols to uppercase keys,
+    migrates legacy entries, and aggregates exposure using the normalised
+    identifiers so audits and telemetry surfaces share a single exposure view,
+    with regression coverage proving mixed-case updates and migrations.【F:src/risk/risk_manager_impl.py†L246-L308】【F:tests/risk/test_risk_manager_impl_additional.py†L200-L250】
 - Progress: Guardrail-marked risk policy suite now covers approvals,
   research-mode overrides, minimum size enforcement, closing trades, derived
   equity, and market price fallbacks so institutional limit enforcement remains

@@ -39,7 +39,7 @@ SAMPLE_COVERAGE = """<?xml version='1.0'?>
             <line number='3' hits='1'/>
           </lines>
         </class>
-        <class filename='src/intelligence/legacy.py'>
+        <class filename='src/understanding/legacy.py'>
           <lines>
             <line number='1' hits='1'/>
             <line number='2' hits='0'/>
@@ -150,7 +150,7 @@ def test_cli_writes_json_payload(tmp_path: Path, coverage_report: Path) -> None:
     assert totals["coverage_percent"] == pytest.approx(64.29)
     assert "source_files" in payload
     assert "src/sensory/foo.py" in payload["source_files"]
-    assert "src/intelligence/legacy.py" in payload["source_files"]
+    assert "src/understanding/legacy.py" in payload["source_files"]
 
 
 def test_cli_fails_when_laggards_present_and_flag_enabled(

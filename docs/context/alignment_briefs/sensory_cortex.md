@@ -11,8 +11,9 @@
 ## Reality snapshot
 
 - Evolution, intelligence, execution, and strategy subsystems remain mock
-  frameworks; sensory organs still ship as placeholders with limited heuristics
-  and no production data feeds.【F:docs/DEVELOPMENT_STATUS.md†L19-L35】
+  frameworks; sensory organs only recently gained the ability to ingest recorded
+  market slices via the managed data backbone and still lack continuous
+  production feeds.【F:docs/DEVELOPMENT_STATUS.md†L19-L35】【F:src/data_integration/real_data_slice.py†L95-L198】
 - Dead-code and dependency audits list sensory modules among unused paths,
   underscoring the lack of executable coverage.【F:docs/reports/CLEANUP_REPORT.md†L71-L175】
 - Technical debt priorities call out async hazards and namespace drift that block
@@ -99,6 +100,7 @@
   and surfaces samples/audits via `status()` so supervisors inherit sensory
   posture and live telemetry during live-shadow runs under regression
   coverage.【F:src/runtime/bootstrap_runtime.py†L214-L492】【F:tests/runtime/test_bootstrap_runtime_sensory.py†L120-L196】
+- Progress: Real data slice pipeline persists CSV fixtures into Timescale through the managed backbone, hydrates the real sensory organ, and emits belief states so cortex drills can rehearse on live-formatted evidence with CLI and integration coverage documenting the workflow.【F:src/data_integration/real_data_slice.py†L95-L198】【F:tests/integration/test_real_data_slice_ingest.py†L11-L39】【F:tools/data_ingest/run_real_data_slice.py†L1-L125】
 
 ### Next (30–90 days)
 

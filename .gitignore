@@ -103,6 +103,8 @@ data/
 src/operations/data/*
 !src/operations/data/governance_context/
 !src/operations/data/governance_context/*.json
+!tests/data/
+!tests/data/*
 experiments/
 !src/evolution/experiments/
 logs/

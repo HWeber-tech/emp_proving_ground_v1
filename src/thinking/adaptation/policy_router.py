@@ -13,6 +13,8 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Deque, Iterable, Mapping, MutableMapping, Sequence, TYPE_CHECKING
 
+from .fast_weights import FastWeightController
+
 
 def _serialise_feature_gates(
     gates: Mapping[str, tuple[float | None, float | None]] | None,
@@ -191,12 +193,14 @@ class PolicyRouter:
         default_guardrails: Mapping[str, object] | None = None,
         reflection_history: int = 50,
         summary_top_k: int = 3,
+        fast_weight_controller: "FastWeightController" | None = None,
     ) -> None:
         self._tactics: dict[str, PolicyTactic] = {}
         self._experiments: dict[str, FastWeightExperiment] = {}
         self._default_guardrails = dict(default_guardrails or {})
         self._history: Deque[Mapping[str, object]] = deque(maxlen=reflection_history)
         self._summary_top_k = summary_top_k
+        self._fast_weight_controller = fast_weight_controller or FastWeightController()
 
     def register_tactic(self, tactic: PolicyTactic) -> None:
         if tactic.tactic_id in self._tactics:
@@ -311,14 +315,30 @@ class PolicyRouter:
         if not self._tactics:
             raise RuntimeError("no tactics registered")
 
+        effective_fast_weights: Mapping[str, float] | None = None
+        fast_weight_metrics_payload: Mapping[str, object] | None = None
+        if self._fast_weight_controller:
+            result = self._fast_weight_controller.constrain(
+                fast_weights=fast_weights,
+                tactic_ids=self._tactics.keys(),
+            )
+            effective_fast_weights = result.weights
+            fast_weight_metrics_payload = dict(result.metrics.as_dict())
+        else:
+            effective_fast_weights = dict(fast_weights or {})
+
+        fast_weight_lookup = (
+            dict(effective_fast_weights) if effective_fast_weights else {}
+        )
+
         scoreboard: list[dict[str, object]] = []
         for tactic in self._tactics.values():
             base_score, breakdown = tactic.score(regime_state)
             multiplier = 1.0
             applied_experiments: list[FastWeightExperiment] = []
 
-            if fast_weights and tactic.tactic_id in fast_weights:
-                fast_multiplier = max(0.0, float(fast_weights[tactic.tactic_id]))
+            if fast_weight_lookup and tactic.tactic_id in fast_weight_lookup:
+                fast_multiplier = max(0.0, float(fast_weight_lookup[tactic.tactic_id]))
                 multiplier *= fast_multiplier
                 breakdown["fast_weight_multiplier"] = fast_multiplier
 
@@ -339,6 +359,11 @@ class PolicyRouter:
                     "experiments": tuple(applied_experiments),
                     "multiplier": multiplier,
                     "base_score": base_score,
+                    "fast_weight_metrics": (
+                        dict(fast_weight_metrics_payload)
+                        if fast_weight_metrics_payload
+                        else None
+                    ),
                 }
             )
 
@@ -510,6 +535,12 @@ class PolicyRouter:
                         "average_multiplier": None,
                         "min_multiplier": None,
                         "max_multiplier": None,
+                        "active_percentage": {
+                            "latest": None,
+                            "average": None,
+                            "min": None,
+                            "max": None,
+                        },
                     },
                 },
                 "emerging_tactics": [],
@@ -579,6 +610,11 @@ class PolicyRouter:
         fast_weight_applications = 0
         fast_weight_max: float | None = None
         fast_weight_min: float | None = None
+        fast_weight_active_sum = 0.0
+        fast_weight_active_count = 0
+        fast_weight_active_min: float | None = None
+        fast_weight_active_max: float | None = None
+        fast_weight_active_latest: float | None = None
 
         for entry in history:
             tactic_id = str(entry.get("tactic_id", "")) or None
@@ -759,6 +795,24 @@ class PolicyRouter:
                     # fall back when fast weight multiplier missing but total recorded
                     total_multiplier_sum += float(entry["total_multiplier"])
                     total_multiplier_count += 1
+            metrics_entry = entry.get("fast_weight_metrics")
+            if isinstance(metrics_entry, Mapping):
+                active_value = metrics_entry.get("active_percentage")
+                if isinstance(active_value, (int, float)):
+                    numeric_active = float(active_value)
+                    fast_weight_active_sum += numeric_active
+                    fast_weight_active_count += 1
+                    fast_weight_active_latest = numeric_active
+                    fast_weight_active_min = (
+                        numeric_active
+                        if fast_weight_active_min is None
+                        else min(fast_weight_active_min, numeric_active)
+                    )
+                    fast_weight_active_max = (
+                        numeric_active
+                        if fast_weight_active_max is None
+                        else max(fast_weight_active_max, numeric_active)
+                    )
         if total_score_sum == 0.0 and tactic_counts:
             total_score_sum = sum(tactic_scores.values())
 
@@ -948,6 +1002,11 @@ class PolicyRouter:
         fast_weight_average = (
             fast_weight_sum / fast_weight_count if fast_weight_count else None
         )
+        fast_weight_active_average = (
+            fast_weight_active_sum / fast_weight_active_count
+            if fast_weight_active_count
+            else None
+        )
 
         weight_stats = {
             "average_base_score": float(average_base_score)
@@ -973,6 +1032,21 @@ class PolicyRouter:
                 else None,
             },
         }
+        active_percentage_summary = {
+            "latest": float(fast_weight_active_latest)
+            if fast_weight_active_latest is not None
+            else None,
+            "average": float(fast_weight_active_average)
+            if fast_weight_active_average is not None
+            else None,
+            "min": float(fast_weight_active_min)
+            if fast_weight_active_min is not None
+            else None,
+            "max": float(fast_weight_active_max)
+            if fast_weight_active_max is not None
+            else None,
+        }
+        weight_stats["fast_weight"]["active_percentage"] = active_percentage_summary
 
         emerging_tactics: list[Mapping[str, object]] = []
         if tactic_counts:
@@ -1144,6 +1218,11 @@ class PolicyRouter:
             "experiments": [exp.reflection_payload() for exp in winning_experiments],
             "timestamp": regime_state.timestamp.isoformat(),
             "weight_breakdown": dict(weight_breakdown),
+            "fast_weight_metrics": (
+                dict(winner.get("fast_weight_metrics", {}))
+                if isinstance(winner.get("fast_weight_metrics"), Mapping)
+                else {}
+            ),
         }
         return summary
 
@@ -1173,6 +1252,16 @@ class PolicyRouter:
             "base_score": base_score,
             "final_score": float(summary.get("score", base_score * total_multiplier)),
         }
+        metrics = summary.get("fast_weight_metrics")
+        if isinstance(metrics, Mapping):
+            active_percentage = metrics.get("active_percentage")
+            payload["fast_weight_active_percentage"] = (
+                float(active_percentage)
+                if isinstance(active_percentage, (int, float))
+                else None
+            )
+        else:
+            payload["fast_weight_active_percentage"] = None
         return payload
 
     @staticmethod

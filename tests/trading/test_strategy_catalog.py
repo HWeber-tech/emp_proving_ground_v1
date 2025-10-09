@@ -27,6 +27,11 @@ def test_load_strategy_catalog_defaults(tmp_path: Path) -> None:
     assert momentum.class_name == "MomentumStrategy"
     assert momentum.symbols
 
+    by_identifier = catalog.get_definition(momentum.identifier)
+    assert by_identifier is momentum
+    by_key = catalog.get_definition_by_key(momentum.key)
+    assert by_key is momentum
+
 
 def test_instantiate_strategy_returns_correct_class() -> None:
     catalog = load_strategy_catalog()

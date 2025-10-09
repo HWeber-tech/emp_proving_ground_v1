@@ -18,10 +18,11 @@ from __future__ import annotations
 import logging
 from collections import deque
 from dataclasses import dataclass, replace
-from typing import Deque, Iterable, Mapping, MutableMapping, Sequence
+from typing import Callable, Deque, Iterable, Mapping, MutableMapping, Sequence
 
 from src.evolution.feature_flags import EvolutionFeatureFlags
 from src.governance.policy_ledger import PolicyLedgerStage
+from src.trading.strategies.catalog_loader import StrategyCatalog, load_strategy_catalog
 from src.thinking.adaptation.policy_router import PolicyDecision, PolicyRouter, PolicyTactic
 
 logger = logging.getLogger(__name__)
@@ -39,12 +40,29 @@ class StrategyVariant:
 
 
 @dataclass(frozen=True)
+class CatalogueVariantRequest:
+    """Definition for sourcing a variant from the strategy catalogue."""
+
+    strategy_id: str
+    rationale: str | None = None
+    weight_multiplier: float = 1.0
+    guardrails: Mapping[str, object] | None = None
+    parameter_overrides: Mapping[str, object] | None = None
+    tactic_id: str | None = None
+    description: str | None = None
+    objectives: Sequence[str] | None = None
+    confidence_sensitivity: float | None = None
+    base_weight: float | None = None
+
+
+@dataclass(frozen=True)
 class ManagedStrategyConfig:
     """Configuration describing how the manager should evolve a tactic."""
 
     base_tactic_id: str
     fallback_variants: Sequence[StrategyVariant] = ()
     degrade_multiplier: float = 0.6
+    catalogue_variants: Sequence[CatalogueVariantRequest] = ()
 
 
 @dataclass(slots=True)
@@ -80,6 +98,8 @@ class EvolutionManager:
         feature_flags: EvolutionFeatureFlags | None = None,
         adaptive_override: bool | None = None,
         paper_only: bool = True,
+        catalogue: StrategyCatalog | None = None,
+        catalogue_loader: Callable[[], StrategyCatalog] | None = None,
     ) -> None:
         if window_size <= 0:
             raise ValueError("window_size must be positive")
@@ -94,13 +114,21 @@ class EvolutionManager:
         self._adaptive_override = adaptive_override
         self._paper_only = paper_only
         self._states: dict[str, _ManagedStrategyState] = {}
+        self._catalogue = catalogue
+        self._catalogue_loader = catalogue_loader or load_strategy_catalog
 
         for config in strategies:
             base_id = config.base_tactic_id
+            trial_variants: list[StrategyVariant] = list(config.fallback_variants)
+            if config.catalogue_variants:
+                for request in config.catalogue_variants:
+                    variant = self._build_catalogue_variant(base_id, request)
+                    if variant is not None:
+                        trial_variants.append(variant)
             self._states[base_id] = _ManagedStrategyState(
                 config=config,
                 outcomes=deque(maxlen=window_size),
-                trial_queue=deque(config.fallback_variants),
+                trial_queue=deque(trial_variants),
                 introduced_variants={},
             )
 
@@ -203,6 +231,97 @@ class EvolutionManager:
             new_weight,
         )
 
+    def _build_catalogue_variant(
+        self,
+        base_tactic_id: str,
+        request: CatalogueVariantRequest,
+    ) -> StrategyVariant | None:
+        catalogue = self._ensure_catalogue()
+        if catalogue is None:
+            logger.debug("Catalogue variant requested but no catalogue available")
+            return None
+
+        definition = catalogue.get_definition(request.strategy_id)
+        if definition is None:
+            definition = catalogue.get_definition_by_key(request.strategy_id)
+        if definition is None:
+            logger.warning(
+                "EvolutionManager could not resolve catalogue strategy '%s'", request.strategy_id
+            )
+            return None
+
+        tactic_id = request.tactic_id or f"{definition.identifier}__trial"
+        parameters = dict(definition.parameters)
+        if request.parameter_overrides:
+            parameters.update({str(k): v for k, v in request.parameter_overrides.items()})
+        parameters.setdefault("symbols", tuple(definition.symbols))
+        parameters.setdefault("catalogue_identifier", definition.identifier)
+        parameters.setdefault("catalogue_key", definition.key)
+        parameters.setdefault("catalogue_version", catalogue.version)
+
+        guardrails: dict[str, object] = {
+            "force_paper": True,
+            "requires_diary": True,
+            "catalogue_version": catalogue.version,
+        }
+        if request.guardrails:
+            guardrails.update({str(k): v for k, v in request.guardrails.items()})
+
+        confidence = (
+            request.confidence_sensitivity
+            if request.confidence_sensitivity is not None
+            else 0.5
+        )
+        base_weight = (
+            request.base_weight
+            if request.base_weight is not None
+            else self._normalise_catalogue_weight(definition.capital)
+        )
+        objectives = tuple(request.objectives) if request.objectives else definition.tags
+
+        tactic = PolicyTactic(
+            tactic_id=tactic_id,
+            base_weight=float(max(0.0, base_weight)),
+            parameters=parameters,
+            guardrails=guardrails,
+            description=request.description or definition.description,
+            objectives=objectives,
+            tags=definition.tags,
+            confidence_sensitivity=float(confidence),
+        )
+
+        rationale = request.rationale or f"Catalogue variant {definition.name}"
+        return StrategyVariant(
+            variant_id=tactic_id,
+            tactic=tactic,
+            base_tactic_id=base_tactic_id,
+            rationale=rationale,
+            trial_weight_multiplier=request.weight_multiplier,
+        )
+
+    def _ensure_catalogue(self) -> StrategyCatalog | None:
+        if self._catalogue is not None:
+            return self._catalogue
+        loader = self._catalogue_loader
+        if loader is None:
+            return None
+        try:
+            self._catalogue = loader()
+        except Exception as exc:  # pragma: no cover - defensive logging
+            logger.warning("EvolutionManager failed to load strategy catalogue: %s", exc, exc_info=exc)
+            self._catalogue_loader = None
+            return None
+        return self._catalogue
+
+    def _normalise_catalogue_weight(self, capital: float) -> float:
+        catalogue = self._catalogue
+        if catalogue is None:
+            return max(0.0, float(capital)) or 1.0
+        default_capital = float(getattr(catalogue, "default_capital", 0.0))
+        if default_capital <= 0:
+            return max(0.0, float(capital)) or 1.0
+        return max(0.0, float(capital) / default_capital)
+
     @staticmethod
     def _derive_outcome(outcomes: Mapping[str, object] | None) -> bool | None:
         if outcomes is None:
@@ -241,5 +360,6 @@ class EvolutionManager:
 __all__ = [
     "EvolutionManager",
     "ManagedStrategyConfig",
+    "CatalogueVariantRequest",
     "StrategyVariant",
 ]

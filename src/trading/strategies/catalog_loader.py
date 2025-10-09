@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Iterable, Mapping, MutableMapping
 
@@ -23,6 +23,7 @@ from . import (
 )
 
 __all__ = [
+    "BaselineDefinition",
     "StrategyCatalog",
     "StrategyDefinition",
     "load_strategy_catalog",
@@ -87,9 +88,38 @@ class StrategyCatalog:
     definitions: tuple[StrategyDefinition, ...]
     baseline: BaselineDefinition
     description: str | None = None
+    _definition_index: dict[str, StrategyDefinition] = field(
+        init=False, repr=False, default_factory=dict
+    )
+    _key_index: dict[str, StrategyDefinition] = field(
+        init=False, repr=False, default_factory=dict
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "definitions", tuple(self.definitions))
+        identifier_index = {
+            definition.identifier: definition for definition in self.definitions
+        }
+        key_index = {definition.key: definition for definition in self.definitions}
+        object.__setattr__(self, "_definition_index", identifier_index)
+        object.__setattr__(self, "_key_index", key_index)
 
     def enabled_strategies(self) -> tuple[StrategyDefinition, ...]:
         return tuple(defn for defn in self.definitions if defn.enabled)
+
+    def get_definition(self, identifier: str) -> StrategyDefinition | None:
+        """Return a strategy definition by identifier."""
+
+        if not identifier:
+            return None
+        return self._definition_index.get(str(identifier))
+
+    def get_definition_by_key(self, key: str) -> StrategyDefinition | None:
+        """Return a strategy definition by catalogue key."""
+
+        if not key:
+            return None
+        return self._key_index.get(str(key))
 
     def as_dict(self) -> dict[str, Any]:
         return {

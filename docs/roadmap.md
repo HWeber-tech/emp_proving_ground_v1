@@ -4,6 +4,17 @@
 
 This section compares the current emp_proving_ground_v1 codebase against the envisioned AlphaTrade architecture. The AlphaTrade blueprint organizes the system into five major components – Perception, Adaptation, Reflection, Risk/Execution, and Governance – each corresponding to a stage in the intelligent trading loop. Below, we identify for each component what is already implemented, what is partially in place, what is missing, and any misalignments between the blueprint and the current implementation.
 
+### Milestone: Reflection Intelligence (TRM) – Phase 1
+
+| Task | Description | Definition of Done |
+| --- | --- | --- |
+| RIM Design Sign-off | Finalize TRM-based architecture, interfaces, and safety plan. | ADR approved; design doc with diagrams and checklists merged. |
+| Tooling & Schemas | Ship CLI stubs, JSON Schemas, config template, and validation tests. | `tools/rim_shadow_run.py`, `tools/rim_validate.py`, `interfaces/rim_types.json`, and tests green in CI. |
+| Shadow Observability | Capture telemetry and publish sample artifacts for governance rehearsal. | Shadow run emits JSONL suggestions + telemetry logs; `make rim-validate` passes. |
+| Governance Integration Prep | Document governance queue handoff and runbook. | API doc + troubleshooting guide available; governance reviewers acknowledge ingestion flow. |
+
+**Phase Exit Criteria:** Shadow-mode RIM produces audited suggestions, telemetry, and governance-ready documentation without impacting live trading.
+
 ### Perception (Sensory Ingest & Belief Formation)
 
 **Implemented:** The code establishes a layered perception pipeline that ingests sensory data (market signals) into an internal belief state. A BeliefState model is in place to represent posterior beliefs and regime context, including Hebbian-style updates to capture recent patterns[1]. A sensory cortex framework exists with a “real_sensory_organ” module that fuses multiple signal types (WHAT/WHEN/WHY/HOW/ANOMALY) into unified sensory payloads[2]. The belief/regime scaffolding is functional: it buffers sensor inputs, emits finite-state regime indicators, and enforces positive semi-definite (PSD) covariance updates as a stability check[3]. Core architecture for perception reflects the encyclopedia’s layered design (core → sensory → thinking…)[4].

@@ -1,0 +1,47 @@
+name: RIM Docs & Validation
+
+on:
+  push:
+    paths:
+      - 'docs/**'
+      - 'config/reflection/**'
+      - 'interfaces/**'
+      - 'tools/rim_*'
+      - '.github/workflows/rim-docs.yml'
+      - 'Makefile'
+      - 'tests/test_rim_artifacts.py'
+  pull_request:
+    paths:
+      - 'docs/**'
+      - 'config/reflection/**'
+      - 'interfaces/**'
+      - 'tools/rim_*'
+      - '.github/workflows/rim-docs.yml'
+      - 'Makefile'
+      - 'tests/test_rim_artifacts.py'
+
+jobs:
+  rim-docs:
+    name: Rim Shadow Validation (informational)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements/base.txt
+      - name: Docs check
+        run: make docs-check
+      - name: Validate RIM artifacts
+        run: make rim-validate
+      - name: Upload rim suggestions
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rim-suggestions
+          path: artifacts/rim_suggestions
+          if-no-files-found: ignore

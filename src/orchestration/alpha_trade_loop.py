@@ -121,6 +121,60 @@ class AlphaTradeLoopOrchestrator:
         thresholds = self._release_manager.resolve_thresholds(policy_id)
         return dict(thresholds) if thresholds is not None else None
 
+    @staticmethod
+    def _stage_order(stage: PolicyLedgerStage) -> int:
+        if stage is PolicyLedgerStage.EXPERIMENT:
+            return 0
+        if stage is PolicyLedgerStage.PAPER:
+            return 1
+        if stage is PolicyLedgerStage.PILOT:
+            return 2
+        return 3
+
+    @classmethod
+    def _more_conservative_stage(
+        cls, first: PolicyLedgerStage, second: PolicyLedgerStage
+    ) -> PolicyLedgerStage:
+        return first if cls._stage_order(first) <= cls._stage_order(second) else second
+
+    def _resolve_stage_sources(
+        self, *, resolved_policy_id: str, tactic_id: str
+    ) -> Mapping[str, PolicyLedgerStage]:
+        policy_stage = self._release_manager.resolve_stage(resolved_policy_id)
+        tactic_stage = self._release_manager.resolve_stage(tactic_id)
+        effective = self._more_conservative_stage(policy_stage, tactic_stage)
+        return {
+            "policy": policy_stage,
+            "tactic": tactic_stage,
+            "effective": effective,
+        }
+
+    def _resolve_effective_thresholds(
+        self,
+        *,
+        policy_id: str,
+        tactic_id: str,
+        effective_stage: PolicyLedgerStage,
+    ) -> Mapping[str, Any]:
+        policy_thresholds = dict(self._release_manager.resolve_thresholds(policy_id))
+        if tactic_id == policy_id:
+            policy_thresholds["stage"] = effective_stage.value
+            return policy_thresholds
+
+        tactic_thresholds = dict(self._release_manager.resolve_thresholds(tactic_id))
+
+        policy_stage = PolicyLedgerStage.from_value(policy_thresholds.get("stage"))
+        tactic_stage = PolicyLedgerStage.from_value(tactic_thresholds.get("stage"))
+
+        if self._stage_order(tactic_stage) < self._stage_order(policy_stage):
+            thresholds = tactic_thresholds
+        else:
+            thresholds = policy_thresholds
+
+        thresholds = dict(thresholds)
+        thresholds["stage"] = effective_stage.value
+        return thresholds
+
     def run_iteration(
         self,
         belief_snapshot: BeliefSnapshot,
@@ -143,8 +197,16 @@ class AlphaTradeLoopOrchestrator:
         decision = decision_bundle.decision
 
         resolved_policy_id = policy_id or decision.tactic_id
-        stage = self._release_manager.resolve_stage(resolved_policy_id)
-        thresholds = self._release_manager.resolve_thresholds(resolved_policy_id)
+        stage_sources = self._resolve_stage_sources(
+            resolved_policy_id=resolved_policy_id,
+            tactic_id=decision.tactic_id,
+        )
+        stage = stage_sources["effective"]
+        thresholds = self._resolve_effective_thresholds(
+            policy_id=resolved_policy_id,
+            tactic_id=decision.tactic_id,
+            effective_stage=stage,
+        )
 
         drift_decision = self._evaluate_drift(
             policy_id=resolved_policy_id,
@@ -188,6 +250,10 @@ class AlphaTradeLoopOrchestrator:
             "applied_adapters": decision_bundle.applied_adapters,
             "force_paper": drift_decision.force_paper,
             "trade_metadata": dict(trade or {}),
+            "release_stage_sources": {
+                "policy": stage_sources["policy"].value,
+                "tactic": stage_sources["tactic"].value,
+            },
         }
         if extra_metadata:
             metadata.update({str(key): value for key, value in extra_metadata.items()})

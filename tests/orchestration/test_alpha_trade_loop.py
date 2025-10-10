@@ -159,6 +159,10 @@ def test_alpha_trade_loop_records_diary_and_forces_paper(tmp_path: Path) -> None
     assert result.reflection.digest["total_decisions"] == 1
     assert result.metadata["force_paper"] is True
     assert result.metadata["release_stage"] == "paper"
+    assert result.metadata["release_stage_sources"] == {
+        "policy": "paper",
+        "tactic": "paper",
+    }
 
 
 def test_alpha_trade_loop_paper_stage_forces_paper_without_warn(tmp_path: Path) -> None:
@@ -227,8 +231,87 @@ def test_alpha_trade_loop_paper_stage_forces_paper_without_warn(tmp_path: Path) 
     )
     assert result.metadata["force_paper"] is True
     assert result.metadata["release_stage"] == "paper"
+    assert result.metadata["release_stage_sources"] == {
+        "policy": "paper",
+        "tactic": "paper",
+    }
     assert result.diary_entry.metadata["drift_decision"]["force_paper"] is True
     assert (
         result.diary_entry.metadata["drift_decision"]["reason"]
         == "release_stage_paper_requires_paper_execution"
+    )
+
+
+def test_alpha_trade_loop_enforces_more_conservative_stage(tmp_path: Path) -> None:
+    router = UnderstandingRouter()
+    router.register_tactic(
+        PolicyTactic(
+            tactic_id="alpha_concept",
+            base_weight=1.0,
+            parameters={"mode": "concept"},
+            guardrails={},
+            regime_bias={"balanced": 1.0},
+            confidence_sensitivity=0.0,
+        )
+    )
+
+    diary_store = DecisionDiaryStore(tmp_path / "diary.json", publish_on_record=False)
+
+    ledger_store = PolicyLedgerStore(tmp_path / "policy_ledger.json")
+    ledger_store.upsert(
+        policy_id="aggregated_policy",
+        tactic_id="alpha_concept",
+        stage=PolicyLedgerStage.PILOT,
+        approvals=("risk", "product"),
+        evidence_id="pilot-approved",
+    )
+
+    release_manager = LedgerReleaseManager(ledger_store)
+    drift_gate = DriftSentryGate()
+    orchestrator = AlphaTradeLoopOrchestrator(
+        router=router,
+        diary_store=diary_store,
+        drift_gate=drift_gate,
+        release_manager=release_manager,
+    )
+
+    regime_state = RegimeState(
+        regime="balanced",
+        confidence=0.88,
+        features={"momentum": 0.15},
+        timestamp=datetime(2024, 2, 1, 10, 30, tzinfo=UTC),
+    )
+    belief_snapshot = BeliefSnapshot(
+        belief_id="belief-concept",
+        regime_state=regime_state,
+        features={"momentum": 0.15},
+        metadata={"symbol": "EURUSD"},
+        fast_weights_enabled=False,
+        feature_flags={},
+    )
+
+    trade_metadata = {"symbol": "EURUSD", "quantity": 5_000, "notional": 5_000.0}
+
+    result = orchestrator.run_iteration(
+        belief_snapshot,
+        policy_id="aggregated_policy",
+        trade=trade_metadata,
+        outcomes={"paper_pnl": 0.0},
+    )
+
+    assert result.release_stage is PolicyLedgerStage.EXPERIMENT
+    assert result.drift_decision.force_paper is True
+    assert (
+        result.drift_decision.reason
+        == "release_stage_experiment_requires_paper_or_better"
+    )
+    assert result.metadata["release_stage_sources"] == {
+        "policy": "pilot",
+        "tactic": "experiment",
+    }
+    assert result.metadata["release_stage"] == "experiment"
+    assert result.metadata["force_paper"] is True
+    assert (
+        result.diary_entry.metadata["drift_decision"]["reason"]
+        == "release_stage_experiment_requires_paper_or_better"
     )

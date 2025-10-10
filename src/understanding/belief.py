@@ -14,16 +14,18 @@ import logging
 from collections import deque
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from typing import Callable, Iterable, Mapping, MutableMapping, Sequence
+from typing import TYPE_CHECKING, Callable, Iterable, Mapping, MutableMapping, Sequence
 
 import numpy as np
 
 from src.core.event_bus import Event, EventBus, TopicBus
-from src.operations.event_bus_failover import publish_event_with_failover
 from src.sensory.lineage import SensorLineageRecord, build_lineage_record
 from src.thinking.adaptation.policy_router import RegimeState
 
 logger = logging.getLogger(__name__)
+
+if TYPE_CHECKING:  # pragma: no cover - import used for type hints only
+    from src.operations.event_bus_failover import publish_event_with_failover as _publish_event_with_failover
 
 __all__ = [
     "BeliefDistribution",
@@ -117,6 +119,7 @@ def hebbian_step(
     learning_rate: float,
     decay: float,
     jitter: float = 1e-9,
+    max_variance: float | None = None,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Apply a low-rank Hebbian update ensuring the covariance stays PSD."""
 
@@ -124,6 +127,10 @@ def hebbian_step(
         raise ValueError("learning_rate must be positive")
     if not 0.0 < decay <= 1.0:
         raise ValueError("decay must be in (0, 1]")
+    if jitter <= 0.0:
+        raise ValueError("jitter must be positive")
+    if max_variance is not None and max_variance <= 0.0:
+        raise ValueError("max_variance must be positive when provided")
 
     if observation.ndim != 1:
         raise ValueError("observation must be a 1D vector")
@@ -143,6 +150,8 @@ def hebbian_step(
     # Clamp eigenvalues to keep the matrix positive semi-definite.
     eigenvalues, eigenvectors = np.linalg.eigh(updated)
     clipped = np.maximum(eigenvalues, jitter)
+    if max_variance is not None:
+        clipped = np.minimum(clipped, max_variance)
     covariance = (eigenvectors * clipped) @ eigenvectors.T
 
     return mean, covariance
@@ -229,9 +238,19 @@ class BeliefBuffer:
         learning_rate: float = 0.2,
         decay: float = 0.05,
         version: str = "1.0",
+        max_variance: float | None = 5.0,
+        min_variance: float = 1e-9,
+        volatility_features: Sequence[str] | None = None,
+        volatility_window: int = 64,
     ) -> None:
         if window <= 0:
             raise ValueError("window must be positive")
+        if min_variance <= 0.0:
+            raise ValueError("min_variance must be positive")
+        if max_variance is not None and max_variance <= 0.0:
+            raise ValueError("max_variance must be positive when provided")
+        if volatility_window <= 1:
+            raise ValueError("volatility_window must be greater than 1")
         self._belief_id = belief_id
         self._window = window
         self._learning_rate = learning_rate
@@ -240,6 +259,11 @@ class BeliefBuffer:
         self._states: deque[BeliefState] = deque(maxlen=window)
         self._feature_order: tuple[str, ...] | None = None
         self._support: int = 0
+        self._max_variance = max_variance
+        self._min_variance = min_variance
+        features = tuple(str(name) for name in (volatility_features or ("HOW_signal", "WHAT_signal")))
+        self._volatility_features: tuple[str, ...] = features or ("HOW_signal",)
+        self._volatility_history: deque[float] = deque(maxlen=volatility_window)
 
     def __len__(self) -> int:
         return len(self._states)
@@ -288,10 +312,21 @@ class BeliefBuffer:
             observation,
             learning_rate=self._learning_rate,
             decay=self._decay,
+            jitter=self._min_variance,
+            max_variance=self._max_variance,
         )
 
         integrated_strength = features.get("integrated_strength", prior_strength)
         integrated_confidence = features.get("integrated_confidence", prior_confidence)
+
+        volatility_sample = self._compute_volatility_sample(features)
+        volatility: float | None = None
+        if volatility_sample is not None:
+            self._volatility_history.append(float(volatility_sample))
+            if len(self._volatility_history) >= 2:
+                volatility = float(np.std(self._volatility_history, ddof=0))
+            else:
+                volatility = float(volatility_sample)
 
         self._support += 1
 
@@ -312,14 +347,20 @@ class BeliefBuffer:
             decay=self._decay,
         )
 
+        lineage_outputs: MutableMapping[str, object] = {
+            "posterior_strength": integrated_strength,
+            "posterior_confidence": integrated_confidence,
+        }
+        if volatility_sample is not None:
+            lineage_outputs["volatility_sample"] = float(volatility_sample)
+        if volatility is not None:
+            lineage_outputs["volatility"] = float(volatility)
+
         belief_lineage = build_lineage_record(
             "UNDERSTANDING_BELIEF",
             "understanding.belief_buffer",
             inputs={"sensory_lineage": _lineage_to_mapping(lineage)},
-            outputs={
-                "posterior_strength": integrated_strength,
-                "posterior_confidence": integrated_confidence,
-            },
+            outputs=lineage_outputs,
             metadata={
                 "symbol": symbol,
                 "feature_order": ordered_features,
@@ -331,7 +372,12 @@ class BeliefBuffer:
             "learning_rate": self._learning_rate,
             "decay": self._decay,
             "regime_hint": regime_hint,
+            "observation": {name: float(value) for name, value in features.items()},
         }
+        if volatility_sample is not None:
+            metadata["volatility_sample"] = float(volatility_sample)
+        if volatility is not None:
+            metadata["volatility"] = float(volatility)
 
         state = BeliefState(
             belief_id=self._belief_id,
@@ -409,6 +455,20 @@ class BeliefBuffer:
             raise ValueError("sensory snapshot missing dimension features")
         return dict(payload)
 
+    def _compute_volatility_sample(self, features: Mapping[str, float]) -> float | None:
+        samples: list[float] = []
+        for feature in self._volatility_features:
+            value = features.get(feature)
+            if value is None:
+                continue
+            try:
+                samples.append(abs(float(value)))
+            except (TypeError, ValueError):
+                continue
+        if not samples:
+            return None
+        return float(np.mean(samples))
+
 
 @dataclass(slots=True, frozen=True)
 class RegimeSignal:
@@ -460,7 +520,7 @@ class BeliefEmitter:
             payload=state.as_dict(),
             source="understanding.belief_emitter",
         )
-        publish_event_with_failover(
+        _publish_event(
             self._event_bus,
             event,
             logger=logger,
@@ -469,7 +529,7 @@ class BeliefEmitter:
             runtime_none_message="Runtime bus returned no result while publishing belief state",
             global_not_running_message="Global event bus not running while publishing belief state",
             global_unexpected_message="Unexpected error publishing belief state via global bus",
-            global_bus_factory=self._global_bus_factory,  # type: ignore[arg-type]
+            global_bus_factory=self._global_bus_factory,
         )
         return state
 
@@ -479,6 +539,9 @@ class BeliefEmitter:
             "belief_id": latest.belief_id if latest else self._buffer._belief_id,
             "feature_order": list(self._buffer.feature_order or []),
             "window": len(self._buffer),
+            "volatility_features": list(self._buffer._volatility_features),
+            "volatility_window": self._buffer._volatility_history.maxlen,
+            "volatility_samples": len(self._buffer._volatility_history),
         }
 
 
@@ -495,6 +558,10 @@ class RegimeFSM:
         confidence_floor: float = 0.35,
         event_type: str = "telemetry.understanding.regime",
         global_bus_factory: Callable[[], TopicBus] | None = None,
+        volatility_feature: str = "HOW_signal",
+        volatility_window: int = 48,
+        calm_threshold: float = 0.05,
+        storm_threshold: float = 0.25,
     ) -> None:
         self._event_bus = event_bus
         self._signal_id = signal_id
@@ -503,6 +570,16 @@ class RegimeFSM:
         self._confidence_floor = confidence_floor
         self._event_type = event_type
         self._global_bus_factory = global_bus_factory
+        if volatility_window <= 1:
+            raise ValueError("volatility_window must be greater than 1")
+        if calm_threshold < 0.0:
+            raise ValueError("calm_threshold must be non-negative")
+        if storm_threshold <= calm_threshold:
+            raise ValueError("storm_threshold must be greater than calm_threshold")
+        self._volatility_feature = str(volatility_feature)
+        self._volatility_history: deque[float] = deque(maxlen=volatility_window)
+        self._calm_threshold = calm_threshold
+        self._storm_threshold = storm_threshold
 
     def classify(self, belief_state: BeliefState) -> RegimeSignal:
         posterior = belief_state.posterior
@@ -526,11 +603,18 @@ class RegimeFSM:
         for name, value in zip(belief_state.features, belief_state.posterior.mean):
             feature_map[name] = float(value)
 
+        volatility, volatility_state, volatility_sample = self._resolve_volatility(
+            belief_state,
+            feature_map,
+        )
+
         regime_state = RegimeState(
             regime=regime,
             confidence=float(np.clip(regime_confidence, 0.0, 1.0)),
             features=feature_map,
             timestamp=belief_state.generated_at,
+            volatility=volatility,
+            volatility_state=volatility_state,
         )
 
         lineage = build_lineage_record(
@@ -543,7 +627,12 @@ class RegimeFSM:
         metadata = {
             "bullish_threshold": self._bullish_threshold,
             "bearish_threshold": self._bearish_threshold,
+            "volatility_feature": self._volatility_feature,
+            "volatility": volatility,
+            "volatility_state": volatility_state,
         }
+        if volatility_sample is not None:
+            metadata["volatility_sample"] = volatility_sample
 
         return RegimeSignal(
             signal_id=self._signal_id,
@@ -560,7 +649,7 @@ class RegimeFSM:
             payload=signal.as_dict(),
             source="understanding.regime_fsm",
         )
-        publish_event_with_failover(
+        _publish_event(
             self._event_bus,
             event,
             logger=logger,
@@ -569,7 +658,7 @@ class RegimeFSM:
             runtime_none_message="Runtime bus returned no result while publishing regime signal",
             global_not_running_message="Global event bus not running while publishing regime signal",
             global_unexpected_message="Unexpected error publishing regime signal via global bus",
-            global_bus_factory=self._global_bus_factory,  # type: ignore[arg-type]
+            global_bus_factory=self._global_bus_factory,
         )
         return signal
 
@@ -579,4 +668,95 @@ class RegimeFSM:
             "confidence_floor": self._confidence_floor,
             "bullish_threshold": self._bullish_threshold,
             "bearish_threshold": self._bearish_threshold,
+            "volatility_feature": self._volatility_feature,
+            "volatility_window": self._volatility_history.maxlen,
+            "volatility_samples": len(self._volatility_history),
+            "calm_threshold": self._calm_threshold,
+            "storm_threshold": self._storm_threshold,
         }
+
+    def _resolve_volatility(
+        self,
+        belief_state: BeliefState,
+        feature_map: Mapping[str, float],
+    ) -> tuple[float, str, float | None]:
+        metadata = belief_state.metadata
+        volatility_sample: float | None = None
+        volatility_metric: float | None = None
+
+        if isinstance(metadata, Mapping):
+            sample_value = metadata.get("volatility_sample")
+            if sample_value is not None:
+                try:
+                    volatility_sample = abs(float(sample_value))
+                except (TypeError, ValueError):
+                    volatility_sample = None
+            metric_value = metadata.get("volatility")
+            if metric_value is not None:
+                try:
+                    volatility_metric = abs(float(metric_value))
+                except (TypeError, ValueError):
+                    volatility_metric = None
+            if volatility_sample is None:
+                observation = metadata.get("observation")
+                if isinstance(observation, Mapping):
+                    candidate = observation.get(self._volatility_feature)
+                    if candidate is not None:
+                        try:
+                            volatility_sample = abs(float(candidate))
+                        except (TypeError, ValueError):
+                            volatility_sample = None
+
+        if volatility_sample is None:
+            candidate = feature_map.get(self._volatility_feature)
+            if candidate is not None:
+                try:
+                    volatility_sample = abs(float(candidate))
+                except (TypeError, ValueError):
+                    volatility_sample = None
+
+        recorded_sample = volatility_sample
+        history_value = volatility_metric if volatility_metric is not None else volatility_sample
+        if history_value is not None:
+            self._volatility_history.append(float(history_value))
+            if len(self._volatility_history) >= 2:
+                volatility_metric = float(np.std(self._volatility_history, ddof=0))
+            else:
+                volatility_metric = float(history_value)
+        elif volatility_metric is None:
+            volatility_metric = 0.0
+
+        if volatility_metric <= self._calm_threshold:
+            volatility_state = "calm"
+        elif volatility_metric >= self._storm_threshold:
+            volatility_state = "storm"
+        else:
+            volatility_state = "normal"
+
+        return float(volatility_metric), volatility_state, recorded_sample
+def _publish_event(
+    event_bus: EventBus,
+    event: Event,
+    *,
+    logger: logging.Logger,
+    runtime_fallback_message: str,
+    runtime_unexpected_message: str,
+    runtime_none_message: str,
+    global_not_running_message: str,
+    global_unexpected_message: str,
+    global_bus_factory: Callable[[], TopicBus] | None,
+) -> None:
+    from src.operations.event_bus_failover import publish_event_with_failover
+
+    publish_event_with_failover(
+        event_bus,
+        event,
+        logger=logger,
+        runtime_fallback_message=runtime_fallback_message,
+        runtime_unexpected_message=runtime_unexpected_message,
+        runtime_none_message=runtime_none_message,
+        global_not_running_message=global_not_running_message,
+        global_unexpected_message=global_unexpected_message,
+        global_bus_factory=global_bus_factory,  # type: ignore[arg-type]
+    )
+

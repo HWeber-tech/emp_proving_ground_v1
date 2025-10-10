@@ -73,12 +73,11 @@
 - Update documentation to reflect the mock status, preserving the truth-first
   narrative for reviewers.【F:docs/DEVELOPMENT_STATUS.md†L7-L35】
 - Progress: Sensory package docs now spell out that the legacy `src.sensory.core`
-  tree is retired, keeping only executable organ shims for backward
-  compatibility, while the market-intelligence shim redirects callers to the
-  enhanced dimensions so new integrations land on the supported surfaces.【F:src/sensory/__init__.py†L1-L11】【F:src/market_intelligence/dimensions/__init__.py†L1-L24】
+  tree is retired, and the `market_intelligence` shim has been removed so new
+  integrations land directly on the supported sensory surfaces.【F:src/sensory/__init__.py†L1-L11】【F:scripts/cleanup/duplicate_map.py†L60-L91】
 - Progress: Integration regression now imports the enhanced sensory organs through their canonical namespaces, eliminating ad-hoc path hacks and exercising the fusion engine against the official adapters under pytest coverage.【F:src/sensory/tests/test_integration.py†L1-L550】
 - Progress: Fusion engine and demos now expose an `analyze_market_understanding` coroutine (with a deprecated alias for legacy callers) so orchestration helpers, scripts, and docs share the understanding-first API while maintaining compatibility under regression coverage.【F:src/orchestration/enhanced_intelligence_engine.py†L209-L307】【F:scripts/minimal_sensory_demo.py†L117-L188】【F:src/sensory/README.md†L152-L480】
-- Progress: Market intelligence namespace now re-exports canonical core and orchestration primitives via lazy shims, with regression coverage confirming legacy imports resolve to the sensory engines without noisy side effects.【src/market_intelligence/core/base.py:1】【src/market_intelligence/orchestration/enhanced_intelligence_engine.py:1】【tests/current/test_mi_to_sensory_forwarding_phase2.py:1】
+- Progress: The legacy `market_intelligence` namespace has been fully retired; regression tests now exercise the canonical sensory modules directly to prevent drift back to removed shims.【F:tests/current/test_mi_to_sensory_forwarding.py†L1-L46】【F:tests/current/test_mi_to_sensory_forwarding_phase2.py†L1-L63】
 - Progress: Namespace integrity guardrail now scans `src/`, `tools/`, and `scripts/` for banned legacy prefixes so regressions cannot reintroduce deprecated sensory or intelligence modules, and the demo/replay scripts import the canonical sensory namespaces under regression coverage.【F:tests/current/test_namespace_integrity.py†L1-L84】【F:scripts/sensory_demo.py†L1-L160】【F:scripts/replay_into_sensory.py†L1-L93】【F:scripts/minimal_sensory_demo.py†L1-L160】
 - Progress: Coverage sweep tooling now targets `src/sensory/enhanced` and asserts coverage payloads list the canonical `src.understanding` files, keeping analysis triage and coverage reports aligned with the supported sensory/intelligence namespaces.【F:scripts/analysis/triage_batch6.py†L60-L76】【F:tests/tools/test_coverage_matrix.py†L1-L210】
 - Progress: Sensory summary telemetry now constructs ranked Markdown/JSON

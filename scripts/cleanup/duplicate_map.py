@@ -75,7 +75,6 @@ DOMAIN_KEYWORDS_ORDERED = [
 
 DOMAIN_KEYWORD_ALIASES: Dict[str, str] = {
     "intelligence": "understanding",
-    "market_intelligence": "sensory",
 }
 
 

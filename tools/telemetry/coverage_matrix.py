@@ -54,13 +54,8 @@ _DOMAIN_PREFIXES: dict[tuple[str, ...], str] = {
 }
 
 # Legacy namespace aliases that should be categorised under the canonical
-# understanding/sensory domains for reporting purposes.
-_DOMAIN_PREFIXES.update(
-    {
-        ("src", "intelligence"): "understanding",
-        ("src", "market_intelligence"): "sensory",
-    }
-)
+# understanding domain for reporting purposes.
+_DOMAIN_PREFIXES.update({("src", "intelligence"): "understanding"})
 
 
 @dataclass(frozen=True)

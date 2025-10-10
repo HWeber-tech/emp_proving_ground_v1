@@ -119,6 +119,10 @@
     failover helper so dashboards and responders inherit deterministic
     remediation context under pytest coverage documenting evaluation, alert
     derivation, and publish fallbacks.【F:src/operations/operational_readiness.py†L113-L744】【F:tests/operations/test_operational_readiness.py†L86-L389】【F:docs/status/operational_readiness.md†L1-L140】【F:tests/runtime/test_professional_app_timescale.py†L722-L799】
+  - Progress: Dry-run audit evaluator now applies minimum runtime and uptime
+    thresholds, emitting structured incidents when evidence windows are too
+    short or availability slips, with regression coverage confirming the new
+    guardrails surface through summaries and full evaluations.【F:src/operations/dry_run_audit.py†L542-L726】【F:tests/operations/test_dry_run_audit.py†L71-L253】
   - Progress: Runtime builder now consumes the sensory organ status feed,
     publishes the hardened summary/metrics telemetry, and stores the latest
     snapshots on the professional app so the summary surface emits Markdown and

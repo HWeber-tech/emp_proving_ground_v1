@@ -23,8 +23,8 @@
 23 - Add typed re-export shim [src/core/event_bus.py](src/core/event_bus.py:1) if event bus has moved, mapping old import sites to actual implementation
 24 - Legacy operational event bus path now aliases to [src/core/event_bus.py](src/core/event_bus.py:1) during `src.operational` import; keep the alias regression in [tests/operational/test_event_bus_alias.py](tests/operational/test_event_bus_alias.py:162) green
 25 - Fix risk package public API: reconcile [src/risk/__init__.py](src/risk/__init__.py:1) to import the real module or add [src/risk/real_risk_manager.py](src/risk/real_risk_manager.py:1) if needed
-26 - Audit orchestration imports in [src/orchestration/enhanced_intelligence_engine.py](src/orchestration/enhanced_intelligence_engine.py:1) and update to canonical src.market_intelligence.* paths
-27 - Standardize imports in market intelligence dimension modules under [src/market_intelligence/dimensions/](src/market_intelligence/dimensions/)
+26 - Audit orchestration imports in [src/orchestration/enhanced_intelligence_engine.py](src/orchestration/enhanced_intelligence_engine.py:1) and update to canonical src.sensory.enhanced.* paths
+27 - Standardize imports in sensory dimension modules under [src/sensory/enhanced/](src/sensory/enhanced/)
 28 - Add authoritative interface hub [src/core/interfaces/__init__.py](src/core/interfaces/__init__.py:1) describing Protocols for shared interfaces
 29 - Define risk manager protocol and related config protocols in [src/core/interfaces/__init__.py](src/core/interfaces/__init__.py:1)
 30 - Define configuration provider protocol in [src/core/interfaces/__init__.py](src/core/interfaces/__init__.py:1)
@@ -40,7 +40,7 @@
 40 - Clean up [src/genome/models/genome_adapter.py](src/genome/models/genome_adapter.py:1) by removing unused type: ignore comments and replacing Any with typed adapters
 41 - Replace dynamic lazy indirections in [src/intelligence/__init__.py](src/intelligence/__init__.py:1) with either explicit imports under TYPE_CHECKING or module-level .pyi stub
 42 - Provide module-level stubs [src/intelligence/__init__.pyi](src/intelligence/__init__.pyi:1) listing exported names with precise types
-43 - Provide stubs for market intelligence dimension aggregators in [src/market_intelligence/dimensions/](src/market_intelligence/dimensions/) where __getattr__ was used
+43 - Provide stubs for sensory dimension aggregators in [src/sensory/enhanced/](src/sensory/enhanced/) where __getattr__ was used
 44 - Add stubs or explicit exports for orchestration adapters in [src/orchestration/compose.py](src/orchestration/compose.py:1) to eliminate Any
 45 - Replace Any returns with TypedDict or dataclass payloads in [src/orchestration/compose.py](src/orchestration/compose.py:1)
 46 - Fix pandas import typing in [src/orchestration/compose.py](src/orchestration/compose.py:1) by local import under TYPE_CHECKING and concrete signatures

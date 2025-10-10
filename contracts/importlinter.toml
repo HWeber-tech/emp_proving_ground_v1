@@ -18,7 +18,7 @@ layers = [
   "src.domain",
   "src.trading",
   "src.sensory",
-  "src.market_intelligence",
+  "src.understanding",
   "src.ecosystem",
   "src.validation",
   "src.genome",
@@ -38,7 +38,7 @@ type = "independence"
 modules = [
   "src.trading",
   "src.sensory",
-  "src.market_intelligence",
+  "src.understanding",
   "src.ecosystem",
   "src.thinking",
   "src.validation",

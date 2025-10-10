@@ -9,6 +9,7 @@ The Reflection Intelligence Module (RIM) exposes an asynchronous API for produci
 - `model_hash` is opaque and may represent a Git commit, model artifact hash, or placeholder for shadow runs.
 - Published suggestions are immutable JSONL files written to `artifacts/rim_suggestions/` with filename pattern `rim-suggestions-UTC-<timestamp>.jsonl`.
 - For each emission we log metadata to `artifacts/rim_logs/` capturing runtime percentiles and suggestion counts.
+- Diary inputs are sourced from `diaries_dir` (default `artifacts/diaries/`) and must match the configured `diary_glob` (`diaries-*.jsonl`).
 
 ## Public Interfaces
 

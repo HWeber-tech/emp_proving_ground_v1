@@ -36,6 +36,8 @@ jobs:
           pip install -r requirements/base.txt
       - name: Docs check
         run: make docs-check
+      - name: Prune aged suggestion artifacts
+        run: make rim-prune
       - name: Validate RIM artifacts
         run: make rim-validate
       - name: Upload rim suggestions

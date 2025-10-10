@@ -1,3 +1,5 @@
+diaries_dir: artifacts/diaries
+diary_glob: diaries-*.jsonl
 window_minutes: 1440
 min_entries: 500
 suggestion_cap: 10

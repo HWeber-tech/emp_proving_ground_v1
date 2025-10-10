@@ -21,7 +21,8 @@ from typing import Any, Dict, Iterable, List, Tuple
 
 CONFIG_PATH = Path("config/reflection/rim.config.yml")
 DEFAULT_CONFIG = Path("config/reflection/rim.config.example.yml")
-DIARIES_DIR = Path("artifacts/diaries")
+DEFAULT_DIARIES_DIR = Path("artifacts/diaries")
+DEFAULT_DIARY_GLOB = "diaries-*.jsonl"
 SUGGESTIONS_DIR = Path("artifacts/rim_suggestions")
 LOG_DIR_DEFAULT = Path("artifacts/rim_logs")
 MODEL_HASH = "stub-trm-v0"
@@ -88,11 +89,15 @@ def _parse_simple_yaml(text: str) -> Dict[str, Any]:
     return root
 
 
-def latest_diary_file(diaries_dir: Path) -> Path | None:
+def latest_diary_file(diaries_dir: Path, diary_glob: str) -> Path | None:
     if not diaries_dir.exists():
         return None
     candidates = sorted(
-        (p for p in diaries_dir.iterdir() if p.is_file() and p.suffix == ".jsonl"),
+        (
+            p
+            for p in diaries_dir.glob(diary_glob)
+            if p.is_file()
+        ),
         reverse=True,
     )
     return candidates[0] if candidates else None
@@ -228,15 +233,22 @@ def main() -> int:
 
     publish_channel = str(config.get("publish_channel", "file://artifacts/rim_suggestions"))
     log_dir = Path(config.get("telemetry", {}).get("log_dir", LOG_DIR_DEFAULT))
+    diaries_dir = Path(str(config.get("diaries_dir", DEFAULT_DIARIES_DIR)))
+    diary_glob = str(config.get("diary_glob", DEFAULT_DIARY_GLOB))
 
     start = time.perf_counter()
     run_timestamp = dt.datetime.utcnow()
+    config_text = resolved_config_path.read_text()
+    config_hash = compute_hash(config_text)
+    suggestions: List[Dict[str, Any]] = []
 
-    diary_path = latest_diary_file(DIARIES_DIR)
+    diary_path = latest_diary_file(diaries_dir, diary_glob)
     if not diary_path:
         if args.debug or os.getenv("RIM_DEBUG"):
-            print(f"[RIM] No diary files found in {DIARIES_DIR}; emitting empty suggestion set.")
-        suggestions: List[Dict[str, Any]] = []
+            print(
+                f"[RIM] No diary files matching '{diary_glob}' found in {diaries_dir};"
+                " emitting empty suggestion set."
+            )
         input_hash = compute_hash("no-diaries")
     else:
         entries = load_diary_entries(diary_path)
@@ -244,7 +256,6 @@ def main() -> int:
             print(f"[RIM] Loaded {len(entries)} entries from {diary_path}")
         aggregates = aggregate_by_strategy(entries)
         input_hash = compute_hash(json.dumps(aggregates, sort_keys=True))
-        config_hash = compute_hash(resolved_config_path.read_text())
         suggestions = build_suggestions(aggregates, config, input_hash, config_hash, run_timestamp)
         if args.debug or os.getenv("RIM_DEBUG"):
             print(f"[RIM] Generated {len(suggestions)} suggestions")
@@ -253,11 +264,7 @@ def main() -> int:
             print(f"[RIM] Wrote suggestions to {output_path}")
 
     runtime_s = time.perf_counter() - start
-    config_hash = compute_hash(resolved_config_path.read_text())
     log_metrics(log_dir, runtime_s, len(suggestions), run_timestamp)
-
-    if not suggestions:
-        return 0
 
     return 0
 

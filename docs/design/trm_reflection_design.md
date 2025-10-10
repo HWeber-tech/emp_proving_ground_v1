@@ -142,6 +142,7 @@ RIM operates asynchronously. Runs occur at end-of-session or scheduled intervals
 
 Referenced in [`config/reflection/rim.config.example.yml`](../../config/reflection/rim.config.example.yml):
 
+- `diaries_dir`, `diary_glob`
 - `window_minutes`, `min_entries`, `suggestion_cap`, `confidence_floor`
 - `enable_governance_gate`, `publish_channel`, `kill_switch`
 - `telemetry.log_dir`
@@ -191,5 +192,5 @@ Monitor:
 ## Dependencies & Open Questions
 
 - Confirm governance ingestion API for policy ledger queue.
-- Define retention enforcement job (cron or governance service).
+- Retention enforcement job satisfied by `make rim-prune` (30-day window) and optional scheduled runs.
 - Align with data platform on diary enrichment cadence.

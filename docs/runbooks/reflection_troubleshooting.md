@@ -2,8 +2,8 @@
 
 ## Shadow Mode Bring-up
 
-1. Ensure `artifacts/diaries/` exists; if absent, generate sample diaries via `make sim-diaries` (or copy fixtures into place).
-2. Copy `config/reflection/rim.config.example.yml` to `config/reflection/rim.config.yml` and adjust parameters (window, caps).
+1. Ensure the Decision Diary source directory exists (default `artifacts/diaries/`) and contains files matching `diary_glob` (`diaries-*.jsonl`). If absent, generate sample diaries via `make sim-diaries` (or copy fixtures into place).
+2. Copy `config/reflection/rim.config.example.yml` to `config/reflection/rim.config.yml` (the tooling will fall back to the example if the real config is missing) and adjust parameters including `diaries_dir`, `diary_glob`, window, and caps.
 3. Run `make rim-shadow` to execute `tools/rim_shadow_run.py`.
 4. Inspect emitted artifact under `artifacts/rim_suggestions/` and confirm governance gate remains enabled.
 
@@ -13,6 +13,11 @@
 - **Suggestion Count:** Verify suggestions do not exceed `suggestion_cap` and confidence remains above `confidence_floor`.
 - **Telemetry:** Review `artifacts/rim_logs/rim-<date>.log` for runtime (`p50/p95`) and acceptance placeholders.
 - **Schema Validation:** Run `make rim-validate` to validate JSONL artifacts (docs/examples + latest emissions).
+
+## Retention & Housekeeping
+
+- Run `make rim-prune` (or `python tools/rim_prune.py --dry-run`) to enforce the 30-day retention window on `artifacts/rim_suggestions/`.
+- CI executes the prune step on every docs-related change; schedule an ops cron if additional pruning is required.
 
 ## Reading Artifacts
 

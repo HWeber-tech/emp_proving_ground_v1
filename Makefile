@@ -78,6 +78,10 @@ rim-shadow:
 rim-validate:
 	python tools/rim_validate.py
 
+.PHONY: rim-prune
+rim-prune:
+	python tools/rim_prune.py
+
 .PHONY: docs-check
 docs-check:
 	python tools/docs_check.py

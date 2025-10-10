@@ -133,7 +133,7 @@ import asyncio
 from datetime import datetime
 
 from src.core.base import MarketData
-from src.orchestration.enhanced_intelligence_engine import ContextualFusionEngine
+from src.orchestration.enhanced_understanding_engine import ContextualFusionEngine
 
 # Initialize the system
 engine = ContextualFusionEngine()
@@ -341,22 +341,88 @@ Tick     | Time     | WHY    | HOW    | WHAT   | WHEN   | ANOMALY | Unified | Co
 
 ## Usage Examples
 
-### 1. Real-Time Analysis
+### 1. Programmatic fusion
 ```python
-from sensory.examples.complete_demo import IntelligenceDemo
+import asyncio
+from datetime import datetime
 
-# Run comprehensive demonstration
-demo = IntelligenceDemo()
-await demo.run_comprehensive_demo()
+from src.core.base import MarketData
+from src.orchestration.enhanced_understanding_engine import ContextualFusionEngine
+
+
+async def run() -> None:
+    engine = ContextualFusionEngine()
+    synthesis = await engine.analyze_market_understanding(
+        MarketData(
+            symbol="EURUSD",
+            timestamp=datetime.utcnow(),
+            open=1.0950,
+            high=1.0962,
+            low=1.0948,
+            close=1.0957,
+            bid=1.0956,
+            ask=1.0958,
+            volume=1_000_000,
+            source="example",
+        )
+    )
+    print(f"Narrative: {synthesis.narrative_text}")
+    print(f"Unified score: {synthesis.unified_score:.3f}")
+
+
+asyncio.run(run())
 ```
 
-### 2. Interactive Mode
+### 2. Integrate with the bootstrap pipeline
 ```python
-from sensory.examples.complete_demo import InteractiveDemo
+import asyncio
+from datetime import datetime
 
-# Run interactive demonstration
-demo = InteractiveDemo()
-await demo.run_interactive_demo()
+from src.core.base import MarketData
+from src.data_foundation.fabric.market_data_fabric import MarketDataFabric
+from src.orchestration.bootstrap_stack import BootstrapSensoryPipeline
+from src.orchestration.enhanced_understanding_engine import ContextualFusionEngine
+
+
+class StaticConnector:
+    """Minimal connector that feeds a static market snapshot to the fabric."""
+
+    name = "static"
+    priority = 50
+
+    async def fetch(self, symbol: str, *, as_of: datetime | None = None):
+        return MarketData(
+            symbol=symbol,
+            timestamp=as_of or datetime.utcnow(),
+            open=1.0950,
+            high=1.0960,
+            low=1.0940,
+            close=1.0955,
+            bid=1.0954,
+            ask=1.0956,
+            volume=1_000_000,
+            source="static-demo",
+        )
+
+
+fabric = MarketDataFabric({"static": StaticConnector()})
+pipeline = BootstrapSensoryPipeline(
+    fabric=fabric, fusion_engine=ContextualFusionEngine()
+)
+
+
+async def main() -> None:
+    snapshot = await pipeline.process_tick("EURUSD")
+    print(f"Confidence: {snapshot.synthesis.confidence:.2f}")
+
+
+asyncio.run(main())
+```
+
+### 3. Command-line demos
+```bash
+python scripts/minimal_sensory_demo.py
+python scripts/sensory_demo.py
 ```
 
 ### 3. Custom Integration

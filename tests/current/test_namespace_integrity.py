@@ -13,6 +13,7 @@ SOURCE_DIRS = ("src", "tools", "scripts")
 BANNED_PREFIXES = (
     "src.intelligence",
     "src.market_intelligence",
+    "src.orchestration.enhanced_intelligence_engine",
     "src.thinking.sentient_adaptation_engine",
     "src.thinking.memory.faiss_memory",
     "src.thinking.learning.real_time_learner",

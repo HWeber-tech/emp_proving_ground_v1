@@ -8,10 +8,10 @@ from typing import Any, Dict
 import pytest
 
 from src.core.base import MarketData
-from src.orchestration.enhanced_intelligence_engine import (
+from src.orchestration.enhanced_understanding_engine import (
     ContextualFusionEngine as CanonicalFusionEngine,
 )
-from src.orchestration.enhanced_intelligence_engine import (
+from src.orchestration.enhanced_understanding_engine import (
     Synthesis as CanonicalSynthesis,
 )
 from src.sensory.enhanced.anomaly_dimension import AnomalyIntelligenceEngine

@@ -24,7 +24,10 @@ from typing import (
 
 from src.core.base import MarketData
 from src.data_foundation.fabric.market_data_fabric import MarketDataFabric
-from src.orchestration.enhanced_intelligence_engine import ContextualFusionEngine, Synthesis
+from src.orchestration.enhanced_understanding_engine import (
+    ContextualFusionEngine,
+    Synthesis,
+)
 from src.trading.execution.release_router import ReleaseAwareExecutionRouter
 from src.trading.trading_manager import TradingManager
 from src.thinking.adaptation.policy_router import PolicyDecision

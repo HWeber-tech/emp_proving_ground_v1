@@ -8,57 +8,35 @@ from typing import Any, Dict
 import pytest
 
 from src.core.base import MarketData
-from src.orchestration.enhanced_intelligence_engine import ContextualFusionEngine as CanonicalFusionEngine
-from src.orchestration.enhanced_intelligence_engine import Synthesis as CanonicalSynthesis
-from src.sensory.enhanced.anomaly_dimension import (
-    AnomalyIntelligenceEngine as ANOM_SENS,
+from src.orchestration.enhanced_intelligence_engine import (
+    ContextualFusionEngine as CanonicalFusionEngine,
 )
-from src.sensory.enhanced.how_dimension import (
-    InstitutionalIntelligenceEngine as HOW_SENS,
+from src.orchestration.enhanced_intelligence_engine import (
+    Synthesis as CanonicalSynthesis,
 )
-from src.sensory.enhanced.when_dimension import (
-    ChronalIntelligenceEngine as WHEN_SENS,
-)
+from src.sensory.enhanced.anomaly_dimension import AnomalyIntelligenceEngine
+from src.sensory.enhanced.how_dimension import InstitutionalIntelligenceEngine
+from src.sensory.enhanced.when_dimension import ChronalIntelligenceEngine
 from src.sensory.organs.dimensions.base_organ import MarketRegime
 
 
-def _resolve_legacy(module: str, symbol: str) -> Any:
-    legacy_module = importlib.import_module(module)
-    return getattr(legacy_module, symbol)
+def test_phase2_sensory_dimension_exports_are_canonical() -> None:
+    assert ChronalIntelligenceEngine.__module__ == "src.sensory.enhanced.when_dimension"
+    assert (
+        InstitutionalIntelligenceEngine.__module__
+        == "src.sensory.enhanced.how_dimension"
+    )
+    assert AnomalyIntelligenceEngine.__module__ == "src.sensory.enhanced.anomaly_dimension"
 
 
-# Legacy forwarders resolved via compatibility shims
-WHEN_MI = _resolve_legacy(
-    "src.market_intelligence.dimensions.enhanced_when_dimension",
-    "ChronalIntelligenceEngine",
-)
-HOW_MI = _resolve_legacy(
-    "src.market_intelligence.dimensions.enhanced_how_dimension",
-    "InstitutionalIntelligenceEngine",
-)
-ANOM_MI = _resolve_legacy(
-    "src.market_intelligence.dimensions.enhanced_anomaly_dimension",
-    "AnomalyIntelligenceEngine",
-)
-
-
-def test_forwarded_class_identities_phase2():
-    # Ensure MI shims lazily forward to sensory canonical classes
-    assert WHEN_MI is WHEN_SENS
-    assert HOW_MI is HOW_SENS
-    assert ANOM_MI is ANOM_SENS
-
-
-def test_when_engine_behavior_and_meta_tag():
-    # Minimal MarketData; wrapper infers OHLC from bid/ask
+def test_when_engine_behavior_and_meta_tag() -> None:
     md = MarketData(timestamp=None, bid=1.0, ask=1.0002, volume=100.0)
 
-    engine = WHEN_MI()
+    engine = ChronalIntelligenceEngine()
     reading = engine.analyze_temporal_intelligence(md)
 
     assert isinstance(reading.regime, MarketRegime)
     assert isinstance(getattr(reading, "context", {}), dict)
-    # Robust check: support either nested meta or direct source in context
     meta = reading.context.get("meta", {})
     if isinstance(meta, dict) and "source" in meta:
         assert meta.get("source") == "sensory.when"
@@ -66,90 +44,47 @@ def test_when_engine_behavior_and_meta_tag():
         assert reading.context.get("source") == "sensory.when"
 
 
-def test_how_engine_behavior_and_meta_tag():
-    engine = HOW_MI()
+def test_how_engine_behavior_and_meta_tag() -> None:
+    engine = InstitutionalIntelligenceEngine()
     out: Dict[str, Any] = engine.analyze_institutional_intelligence({})
     assert isinstance(out, dict)
     assert "meta" in out and isinstance(out["meta"], dict)
     assert out["meta"].get("source") == "sensory.how"
 
 
-def test_anomaly_engine_behavior_and_meta_tag():
-    engine = ANOM_MI()
+def test_anomaly_engine_behavior_and_meta_tag() -> None:
+    engine = AnomalyIntelligenceEngine()
     out: Dict[str, Any] = engine.analyze_anomaly_intelligence([0.0, 0.1, -0.2])
     assert isinstance(out, dict)
     assert "meta" in out and isinstance(out["meta"], dict)
     assert out["meta"].get("source") == "sensory.anomaly"
 
 
-def test_lazy_cache_and_dir_exposure_for_when():
-    import src.market_intelligence.dimensions.enhanced_when_dimension as miw
-
-    first = getattr(miw, "ChronalIntelligenceEngine")
-    second = getattr(miw, "ChronalIntelligenceEngine")
-    assert id(first) == id(second)
-
-    names = dir(miw)
-    assert "ChronalIntelligenceEngine" in names
-
-
-def test_lazy_cache_and_dir_exposure_for_how():
-    import src.market_intelligence.dimensions.enhanced_how_dimension as mih
-
-    first = getattr(mih, "InstitutionalIntelligenceEngine")
-    second = getattr(mih, "InstitutionalIntelligenceEngine")
-    assert id(first) == id(second)
-
-    names = dir(mih)
-    assert "InstitutionalIntelligenceEngine" in names
-
-
-def test_lazy_cache_and_dir_exposure_for_anomaly():
-    import src.market_intelligence.dimensions.enhanced_anomaly_dimension as mia
-
-    first = getattr(mia, "AnomalyIntelligenceEngine")
-    second = getattr(mia, "AnomalyIntelligenceEngine")
-    assert id(first) == id(second)
-
-    names = dir(mia)
-    assert "AnomalyIntelligenceEngine" in names
-
-
-def test_no_import_time_logs_in_mi_modules_phase2(caplog: pytest.LogCaptureFixture):
-    # Ensure MI modules have no side effects like logging on import
+def test_sensory_phase2_modules_do_not_log_on_import(caplog: pytest.LogCaptureFixture) -> None:
     caplog.set_level(logging.INFO)
 
     for mod in [
-        "src.market_intelligence.dimensions.enhanced_when_dimension",
-        "src.market_intelligence.dimensions.enhanced_how_dimension",
-        "src.market_intelligence.dimensions.enhanced_anomaly_dimension",
+        "src.sensory.enhanced.when_dimension",
+        "src.sensory.enhanced.how_dimension",
+        "src.sensory.enhanced.anomaly_dimension",
     ]:
         sys.modules.pop(mod, None)
         importlib.import_module(mod)
 
     forbidden = ("Starting", "Configured logging")
     assert all(not any(frag in rec.getMessage() for frag in forbidden) for rec in caplog.records), (
-        "Import-time log side effects detected in MI modules (phase 2)"
+        "Import-time log side effects detected in sensory modules (phase 2)"
     )
 
 
-def test_legacy_core_base_aliases() -> None:
-    from src.market_intelligence.core.base import (
-        DimensionalReading as LegacyDimensionalReading,
-    )
-    from src.market_intelligence.core.base import MarketData as LegacyMarketData
+@pytest.mark.asyncio
+async def test_contextual_fusion_engine_uses_canonical_dimensions() -> None:
+    engine = CanonicalFusionEngine()
+    market_data = MarketData(timestamp=None, bid=1.0, ask=1.0001, volume=250.0)
 
-    assert LegacyMarketData is MarketData
-    assert LegacyDimensionalReading.__module__.startswith("src.core.base")
+    synthesis = await engine.analyze_market_understanding(market_data)
 
-
-def test_legacy_orchestration_aliases() -> None:
-    from src.market_intelligence.orchestration.enhanced_intelligence_engine import (
-        ContextualFusionEngine as LegacyFusionEngine,
-    )
-    from src.market_intelligence.orchestration.enhanced_intelligence_engine import (
-        Synthesis as LegacySynthesis,
-    )
-
-    assert LegacyFusionEngine is CanonicalFusionEngine
-    assert LegacySynthesis is CanonicalSynthesis
+    assert isinstance(synthesis, CanonicalSynthesis)
+    assert engine.current_readings["WHEN"].context.get("source") == "sensory.when"
+    assert engine.current_readings["HOW"].context.get("source") == "sensory.how"
+    assert engine.current_readings["ANOMALY"].context.get("source") == "sensory.anomaly"

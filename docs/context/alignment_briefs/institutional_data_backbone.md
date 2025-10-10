@@ -149,7 +149,7 @@
   PostgreSQL upserts via `pg_insert`, binds SQLite fallbacks, and chunks writes
   so ingest runs avoid manual SQL while retaining deterministic freshness
   metrics under regression coverage.【F:src/data_foundation/persist/timescale.py†L2337-L2489】【F:tests/data_foundation/test_timescale_ingest.py†L165-L220】
-- Progress: Operational backbone integration test now streams Timescale ingest plans through Kafka into the real sensory organ, validating cache metrics and telemetry fan-out for EURUSD slices ahead of live data onboarding.【tests/integration/test_operational_data_backbone.py:124】【src/data_integration/real_data_integration.py:1】【src/sensory/real_sensory_organ.py:44】
+- Progress: Operational backbone pipeline now streams Timescale ingest plans through Kafka into the real sensory organ, validates cache metrics, and records sensory snapshots for EURUSD slices ahead of live data onboarding with asynchronous regression coverage.【F:src/data_foundation/pipelines/operational_backbone.py†L1-L208】【F:tests/integration/test_operational_backbone_pipeline.py†L120-L190】【F:src/sensory/real_sensory_organ.py†L201-L233】
 - Wire all runtime entrypoints through `RuntimeApplication` and a task supervisor
   so ingest, cache, and stream jobs are supervised.【F:docs/technical_debt_assessment.md†L33-L56】
 - Document current gaps and expected telemetry in updated runbooks and status
@@ -182,7 +182,7 @@
 
 ## Definition of Done template
 
-**Operational Data Backbone Online.** The deliverable is complete when the managed connector CLI provisions Timescale, Redis, and Kafka via the repository docker-compose stack with all connector health probes returning `status == ok`, the guardrails in `tests/integration/test_operational_data_backbone.py::test_full_ingest_cycle` and `tests/operations/test_data_backbone.py::test_evaluate_data_backbone_readiness_combines_signals` exercise a real store→cache→stream cycle without mocks, supervised ingest jobs appear in the TaskSupervisor snapshot and `system_validation_report.json` with zero orphaned tasks, and the operations dashboard together with `docs/operations/managed_ingest_environment.md` capture the updated connection endpoints and retention metrics emitted by `src/operations/data_backbone.py`.
+**Operational Data Backbone Online.** The deliverable is complete when the managed connector CLI provisions Timescale, Redis, and Kafka via the repository docker-compose stack with all connector health probes returning `status == ok`, the guardrails in `tests/integration/test_operational_backbone_pipeline.py::test_operational_backbone_pipeline_full_cycle` and `tests/operations/test_data_backbone.py::test_evaluate_data_backbone_readiness_combines_signals` exercise a real store→cache→stream cycle without mocks, supervised ingest jobs appear in the TaskSupervisor snapshot and `system_validation_report.json` with zero orphaned tasks, and the operations dashboard together with `docs/operations/managed_ingest_environment.md` capture the updated connection endpoints and retention metrics emitted by `src/operations/data_backbone.py`.
 
 ## Dependencies & coordination
 

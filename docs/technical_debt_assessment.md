@@ -71,12 +71,16 @@ Phase 6–9 roadmap streams.
      gateway and runtime surfaces.
 
 4. **Namespace drift and failing validation.** Public exports such as
-   `src/core/__init__.py` advertise helpers like `get_risk_manager` that do not
-   exist, and `system_validation_report.json` shows 0/10 checks passing.
-   - *Impact*: downstream consumers cannot trust the API, and the validation
-     suite signals that “Phase 3” capabilities exist in name only.
-   - *Immediate actions*: clean the exports, deprecate or restore missing
-     symbols, and triage each validation failure into an owned ticket with
+   `src/core/__init__.py` previously advertised helpers like `get_risk_manager`
+   that did not exist while `system_validation_report.json` showed 0/10 checks
+   passing.【F:src/core/__init__.py†L17-L56】 The canonical facade now lazily
+   exposes only `RiskManager`, regression tests assert the deprecated symbol
+   remains absent, and a follow-up audit documents the new evidence; the
+   validation backlog still requires dedicated tickets.【F:tests/risk/test_risk_manager_impl_additional.py†L267-L277】【F:docs/reports/governance_risk_phase2_followup_audit.md†L1-L24】
+   - *Impact*: historical drift eroded trust in the API surface and left the
+     validation suite stalled at 0/10.
+   - *Immediate actions*: finish aligning integration docs with the canonical
+     facade, then triage each validation failure into an owned ticket with
      acceptance tests.
 
 ## Medium-risk & emerging debt (3–6 month horizon)

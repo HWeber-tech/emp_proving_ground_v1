@@ -58,6 +58,7 @@
   equity, and market price fallbacks so institutional limit enforcement remains
   pinned to the `guardrail` CI job.【F:tests/trading/test_risk_policy.py†L1-L511】
 - Progress: Core, integration, and trading orchestrators now import `RiskManager` through the consolidated `src.risk` facade, retiring legacy `.manager` entry points so runtime assemblies consume the guarded API under regression coverage.【F:src/core/__init__.py†L1-L52】【F:src/integration/component_integrator.py†L1-L120】【F:src/orchestration/compose.py†L1-L276】【F:tests/current/test_risk_manager_impl.py†L1-L60】
+- Progress: Facade guardrails now exercise misconfiguration coercion, sector budget enforcement, and legacy symbol removal via dedicated regression tests and a documented Phase II follow-up audit capturing full trace evidence for roadmap coverage commitments.【F:tests/risk/test_risk_manager_facade.py†L1-L87】【F:tests/risk/test_risk_manager_impl_additional.py†L267-L277】【F:docs/reports/governance_risk_phase2_followup_audit.md†L1-L24】
 - Progress: Policy telemetry builders serialise decision snapshots, emit Markdown
   summaries, and publish violation alerts with embedded escalation metadata while
   the trading manager mirrors the feed and the new runbook documents the response,

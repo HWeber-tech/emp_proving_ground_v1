@@ -116,7 +116,7 @@ The layer boundaries double as documentation boundaries: each subsystem exposes 
 
 ### 2.6 Operational Spine
 - Bootstrap wiring in `AlphaTradeLoopOrchestrator` attaches perception, adaptation, and execution subsystems with configurable extras for paper trading (`src/runtime/predator_app.py`).
-- Regression suites exercise the Timescale → Kafka → cortex integration (`tests/integration/test_operational_data_backbone.py`) and bootstrap paper broker lifecycle (`tests/runtime/test_bootstrap_paper_broker.py`).
+- Regression suites exercise the Timescale → Kafka → cortex integration (`tests/integration/test_operational_backbone_pipeline.py`) and bootstrap paper broker lifecycle (`tests/runtime/test_bootstrap_paper_broker.py`).
 - Observability hooks stream throttle posture, drift sentry decisions, and governance workflow snapshots through the trading manager interface for dashboards and runbooks (`src/trading/trading_manager.py`).
 - Operational playbooks in the context packs describe how to triage ingest failures and throttle fatigue; the loop orchestrator mirrors those runbooks by surfacing remediation actions into the dry-run audit package (`docs/context/alignment_briefs/operational_readiness.md`, `src/operations/dry_run_audit.py`).
 
@@ -130,7 +130,7 @@ The layer boundaries double as documentation boundaries: each subsystem exposes 
 
 | Domain | Key Components | Milestones |
 | --- | --- | --- |
-| Perception | RealSensoryOrgan, BeliefState, Drift Sentry | Synthetic integration test validates Timescale → Kafka → cortex path; PSD and lineage guardrails active (`tests/integration/test_operational_data_backbone.py`). |
+| Perception | RealSensoryOrgan, BeliefState, Drift Sentry | Synthetic integration test validates Timescale → Kafka → cortex path; PSD and lineage guardrails active (`tests/integration/test_operational_backbone_pipeline.py`). |
 | Adaptation | UnderstandingRouter, PolicyRouter, Fast-Weight toggles | Hebbian fast weights with decay/boost semantics configurable per strategy cohort and observable through fast-weight summaries (`tests/understanding/test_understanding_router.py`). |
 | Reflection | DecisionDiary, PolicyReflectionBuilder, Understanding diagnostics | Daily reflection digest summarizes tactic ROI, throttle hits, and drift alerts; CLI exports verified via diagnostics guardrails (`tests/tools/test_understanding_graph_cli.py`). |
 | Execution | PaperBrokerExecutionAdapter, PaperTradingApiAdapter, TradeThrottle | REST adapter lifecycle covered by integration tests; throttle prevents bursts beyond configured cadence (`tests/trading/test_trading_manager_execution.py`, `tests/trading/test_paper_trading_api_adapter.py`). |

@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING, Dict, List, Optional, Protocol, runtime_checka
 from src.core.performance.market_data_cache import get_global_cache
 from src.core.types import JSONObject
 from src.config.risk.risk_config import RiskConfig
-from src.risk import RiskManager, get_risk_manager
+from src.risk import RiskManager, create_risk_manager
 from src.trading.risk.risk_api import RISK_API_RUNBOOK, summarise_risk_config
 
 # Canonical imports (avoid relative package traversals)
@@ -183,18 +183,9 @@ class ComponentIntegrator:
     def _ensure_risk_manager(self) -> bool:
         """Instantiate the canonical risk manager and capture metadata."""
 
-        if get_risk_manager is None:
-            logger.warning(
-                "Canonical risk manager factory unavailable; risk enforcement not initialised."
-            )
-            self.component_status["risk_manager"] = "unavailable"
-            self._risk_config = None
-            self._risk_summary = None
-            return False
-
         try:
             config = RiskConfig()
-            risk_manager = get_risk_manager(config=config)
+            risk_manager = create_risk_manager(config=config)
         except Exception as exc:  # pragma: no cover - defensive guardrail
             logger.warning(
                 "Failed to construct canonical risk manager: %s",

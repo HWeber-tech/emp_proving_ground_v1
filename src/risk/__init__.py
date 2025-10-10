@@ -39,7 +39,6 @@ from .telemetry import (
 _RISK_MANAGER_EXPORTS = {
     "RiskManager": ("src.risk.manager", "RiskManager"),
     "create_risk_manager": ("src.risk.manager", "create_risk_manager"),
-    "get_risk_manager": ("src.risk.manager", "get_risk_manager"),
 }
 
 __all__ = [
@@ -47,7 +46,6 @@ __all__ = [
     "RealRiskConfig",
     "RiskManager",
     "create_risk_manager",
-    "get_risk_manager",
     "BudgetUtilisation",
     "ExposureBreakdown",
     "PortfolioRiskLimits",

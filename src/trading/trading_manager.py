@@ -20,7 +20,7 @@ from src.config.risk.risk_config import RiskConfig as TradingRiskConfig
 from src.compliance.workflow import ComplianceWorkflowSnapshot
 from src.governance.policy_ledger import LedgerReleaseManager, PolicyLedgerStage
 from src.core.coercion import coerce_float, coerce_int
-from src.risk import RiskManager, get_risk_manager
+from src.risk import RiskManager, create_risk_manager
 from src.risk.telemetry import (
     RiskTelemetrySnapshot,
     evaluate_risk_posture,
@@ -89,10 +89,11 @@ from src.trading.gating.adaptive_release import AdaptiveReleaseThresholds
 if TYPE_CHECKING:
     from src.runtime.task_supervisor import TaskSupervisor
 
-try:
-    from src.core.events import TradeIntent  # legacy
-except Exception:  # pragma: no cover
-    TradeIntent = TradeRejected = object
+# Legacy TradeIntent events were previously provided by ``src.core.events``.
+# The trading manager accepts heterogeneous payloads so we keep the annotation
+# flexible by relying on ``Any`` instead of a removed compatibility shim.
+TradeIntent = Any
+TradeRejected = Any
 from src.risk.position_sizing import position_size as _PositionSizer
 # Provide precise callable typing for the sizer.
 PositionSizer = cast(Callable[[Decimal, Decimal, Decimal], Decimal], _PositionSizer)
@@ -203,7 +204,7 @@ class TradingManager:
             }
         )
         self._risk_config = effective_config
-        self._portfolio_risk_manager: RiskManager = get_risk_manager(
+        self._portfolio_risk_manager: RiskManager = create_risk_manager(
             config=effective_config,
             initial_balance=initial_equity,
         )

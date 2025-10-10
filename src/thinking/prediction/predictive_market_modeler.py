@@ -19,11 +19,6 @@ from src.thinking.models.normalizers import normalize_prediction
 from src.thinking.models.types import PredictionLike
 from src.thinking.models import ContextPacket
 
-try:
-    from src.core.events import PredictionResult  # legacy placeholder
-except Exception:  # pragma: no cover
-    PredictionResult = object
-
 logger = logging.getLogger(__name__)
 
 
@@ -39,6 +34,18 @@ class MarketScenario:
     volatility: float
     direction_bias: float
     confidence: Decimal
+
+
+@dataclass
+class PredictionResult:
+    """Structured prediction output used by the calibration pipeline."""
+
+    scenario_id: str
+    probability: Decimal
+    predicted_outcome: dict[str, object]
+    confidence: Decimal
+    calibration_factor: Decimal
+    timestamp: datetime
 
 
 class MarketScenarioGenerator:
@@ -329,7 +336,7 @@ class ConfidenceCalibrator:
                 calibrated_confidence = max(0.1, min(1.0, calibrated_confidence))
 
                 # Create prediction result
-                result = cast(Any, PredictionResult)(
+                result = PredictionResult(
                     scenario_id=scenario.scenario_id,
                     probability=probability,
                     predicted_outcome=outcome,

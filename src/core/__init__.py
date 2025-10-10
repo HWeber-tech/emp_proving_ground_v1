@@ -13,7 +13,6 @@ from typing import Any
 
 from .instrument import Instrument, get_all_instruments, get_instrument
 from .population_manager import PopulationManager
-from src.risk import RiskManager  # canonical risk facade
 
 __all__ = [
     # Population Manager
@@ -49,4 +48,9 @@ def _resolve_sensory_export(name: str) -> Any:
 def __getattr__(name: str) -> Any:
     if name in _SENSORY_EXPORTS:
         return _resolve_sensory_export(name)
+    if name == "RiskManager":
+        from src.risk import RiskManager as _RiskManager
+
+        globals()[name] = _RiskManager
+        return _RiskManager
     raise AttributeError(name)

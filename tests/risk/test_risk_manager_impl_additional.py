@@ -2,12 +2,13 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from decimal import Decimal
+import importlib
 from typing import Any, Mapping
 
 import pytest
 
 from src.config.risk.risk_config import RiskConfig
-from src.risk import RiskManager, create_risk_manager, get_risk_manager
+from src.risk import RiskManager, create_risk_manager
 from src.risk.risk_manager_impl import RiskManagerImpl
 from src.trading.risk.market_regime_detector import MarketRegimeResult, RegimeLabel
 
@@ -263,12 +264,17 @@ def test_risk_manager_rejects_when_trade_risk_exceeds_budget() -> None:
     assert rejected is False
 
 
-def test_risk_manager_factories_return_facade() -> None:
+def test_risk_manager_factory_returns_facade() -> None:
     manager = create_risk_manager(config=RiskConfig())
-    legacy = get_risk_manager(config=RiskConfig())
 
     assert isinstance(manager, RiskManager)
-    assert isinstance(legacy, RiskManager)
+
+
+def test_risk_manager_legacy_factory_removed() -> None:
+    risk_module = importlib.import_module("src.risk")
+
+    with pytest.raises(AttributeError):
+        getattr(risk_module, "get_risk_manager")
 
 
 def test_risk_manager_impl_assess_risk_handles_non_numeric_inputs() -> None:

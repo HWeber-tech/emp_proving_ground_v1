@@ -1,8 +1,10 @@
-"""Core components for the market intelligence system (legacy).
+"""Legacy sensory re-exports for the market understanding system.
 
-Prefer importing canonical dataclasses from
-`src.sensory.signals` or pydantic models in
-`src.sensory.organs.dimensions.base_organ` where needed.
+Prefer importing canonical dataclasses from ``src.core.base`` (re-exported
+here) or the pydantic helpers in
+``src.sensory.organs.dimensions.base_organ``. The historical "market
+intelligence" terminology is maintained only for backwards compatibility with
+older scripts.
 """
 
 from __future__ import annotations

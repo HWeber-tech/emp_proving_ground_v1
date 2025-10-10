@@ -91,4 +91,8 @@ async def test_run_paper_trading_simulation_executes_orders(tmp_path) -> None:
     assert report.diary_entries >= 1
     assert report.decisions >= 1
     assert report.errors == []
+    assert report.portfolio_state is not None
+    assert report.performance is not None
+    assert report.performance.get("equity") is not None
+    assert "roi" in report.performance
 

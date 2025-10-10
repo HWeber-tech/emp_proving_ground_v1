@@ -106,8 +106,10 @@ backlog grooming, release readiness reviews, and post-mortems.
 - Runtime entrypoints partially adopt the new builder while legacy modules keep
   spawning unsupervised async tasks, creating shutdown hazards.【F:docs/technical_debt_assessment.md†L33-L56】
 - Legacy `src.core`/`src.trading` risk facades have been fully removed and
-  regression tests ensure the retired import paths stay unavailable, though
-  integration docs still mention the old helpers.【F:tests/current/test_risk_shims_retired.py†L1-L22】
+  regression tests now assert the deprecated `get_risk_manager` symbol stays
+  absent from public exports while a governance follow-up audit documents the
+  new coverage targets, though integration docs still mention the old helper
+  names.【F:tests/risk/test_risk_manager_impl_additional.py†L267-L277】【F:docs/reports/governance_risk_phase2_followup_audit.md†L1-L24】
 - Risk gateway and trading manager now attach runbook-backed `risk_reference`
   payloads to decisions, limit snapshots, and interface summaries so operators
   inherit consistent escalation metadata even while broader risk enforcement

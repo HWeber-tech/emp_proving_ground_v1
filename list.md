@@ -23,7 +23,7 @@
 23 - Add typed re-export shim [src/core/event_bus.py](src/core/event_bus.py:1) if event bus has moved, mapping old import sites to actual implementation
 24 - Legacy operational event bus path now aliases to [src/core/event_bus.py](src/core/event_bus.py:1) during `src.operational` import; keep the alias regression in [tests/operational/test_event_bus_alias.py](tests/operational/test_event_bus_alias.py:162) green
 25 - Fix risk package public API: reconcile [src/risk/__init__.py](src/risk/__init__.py:1) to import the real module or add [src/risk/real_risk_manager.py](src/risk/real_risk_manager.py:1) if needed
-26 - Audit orchestration imports in [src/orchestration/enhanced_intelligence_engine.py](src/orchestration/enhanced_intelligence_engine.py:1) and update to canonical src.sensory.enhanced.* paths
+26 - Audit orchestration imports in [src/orchestration/enhanced_understanding_engine.py](src/orchestration/enhanced_understanding_engine.py:1) and update to canonical src.sensory.enhanced.* paths
 27 - Standardize imports in sensory dimension modules under [src/sensory/enhanced/](src/sensory/enhanced/)
 28 - Add authoritative interface hub [src/core/interfaces/__init__.py](src/core/interfaces/__init__.py:1) describing Protocols for shared interfaces
 29 - Define risk manager protocol and related config protocols in [src/core/interfaces/__init__.py](src/core/interfaces/__init__.py:1)

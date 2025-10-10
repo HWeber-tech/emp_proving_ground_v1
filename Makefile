@@ -64,3 +64,24 @@ type-explicit-any-dry:
 .PHONY: type-explicit-any-apply
 type-explicit-any-apply:
 	bash scripts/cleanup/bulk_type_fix.sh --apply --dirs "$(DIRS)" --include-regex "$(INCLUDE)" --exclude-regex "$(EXCLUDE)" --jobs "$(JOBS)" --dmypy-check
+
+# ------------------------------------------------------------------------
+# Reflection Intelligence Module tooling
+# ------------------------------------------------------------------------
+RIM_CONFIG ?= config/reflection/rim.config.yml
+
+.PHONY: rim-shadow
+rim-shadow:
+	python tools/rim_shadow_run.py --config $(RIM_CONFIG)
+
+.PHONY: rim-validate
+rim-validate:
+	python tools/rim_validate.py
+
+.PHONY: rim-prune
+rim-prune:
+	python tools/rim_prune.py
+
+.PHONY: docs-check
+docs-check:
+	python tools/docs_check.py

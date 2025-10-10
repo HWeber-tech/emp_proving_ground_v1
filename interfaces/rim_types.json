@@ -1,0 +1,118 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://emp.local/schemas/rim_types.json",
+  "title": "Reflection Intelligence Module Schemas",
+  "type": "object",
+  "definitions": {
+    "DecisionDiaryEntry": {
+      "type": "object",
+      "required": [
+        "schema_version",
+        "input_hash",
+        "model_hash",
+        "config_hash",
+        "timestamp",
+        "instrument",
+        "strategy_id",
+        "features_digest",
+        "belief_state_summary",
+        "action",
+        "risk_flags",
+        "pnl",
+        "outcome_labels"
+      ],
+      "properties": {
+        "schema_version": {"const": "rim.v1"},
+        "input_hash": {"type": "string", "minLength": 1},
+        "model_hash": {"type": "string", "minLength": 1},
+        "config_hash": {"type": "string", "minLength": 1},
+        "timestamp": {"type": "string", "format": "date-time"},
+        "instrument": {"type": "string", "minLength": 1},
+        "strategy_id": {"type": "string", "minLength": 1},
+        "features_digest": {"type": "object"},
+        "belief_state_summary": {"type": "object"},
+        "action": {"type": "string"},
+        "risk_flags": {
+          "type": "array",
+          "items": {"type": "string"}
+        },
+        "pnl": {"type": "number"},
+        "outcome_labels": {
+          "type": "array",
+          "items": {"type": "string"}
+        }
+      },
+      "additionalProperties": true
+    },
+    "RIMInputBatch": {
+      "type": "object",
+      "required": [
+        "schema_version",
+        "input_hash",
+        "model_hash",
+        "config_hash",
+        "window",
+        "entries",
+        "aggregates"
+      ],
+      "properties": {
+        "schema_version": {"const": "rim.v1"},
+        "input_hash": {"type": "string", "minLength": 1},
+        "model_hash": {"type": "string", "minLength": 1},
+        "config_hash": {"type": "string", "minLength": 1},
+        "window": {
+          "type": "object",
+          "required": ["start", "end", "minutes"],
+          "properties": {
+            "start": {"type": "string", "format": "date-time"},
+            "end": {"type": "string", "format": "date-time"},
+            "minutes": {"type": "integer", "minimum": 1}
+          },
+          "additionalProperties": true
+        },
+        "entries": {
+          "type": "array",
+          "items": {"$ref": "#/definitions/DecisionDiaryEntry"}
+        },
+        "aggregates": {"type": "object"}
+      },
+      "additionalProperties": true
+    },
+    "RIMSuggestion": {
+      "type": "object",
+      "required": [
+        "schema_version",
+        "input_hash",
+        "model_hash",
+        "config_hash",
+        "suggestion_id",
+        "type",
+        "payload",
+        "confidence",
+        "rationale",
+        "audit_ids",
+        "created_at"
+      ],
+      "properties": {
+        "schema_version": {"const": "rim.v1"},
+        "input_hash": {"type": "string", "minLength": 1},
+        "model_hash": {"type": "string", "minLength": 1},
+        "config_hash": {"type": "string", "minLength": 1},
+        "suggestion_id": {"type": "string", "minLength": 1},
+        "type": {
+          "type": "string",
+          "enum": ["WEIGHT_ADJUST", "STRATEGY_FLAG", "EXPERIMENT_PROPOSAL"]
+        },
+        "payload": {"type": "object"},
+        "confidence": {"type": "number", "minimum": 0.0, "maximum": 1.0},
+        "rationale": {"type": "string", "minLength": 1},
+        "audit_ids": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1}
+        },
+        "created_at": {"type": "string", "format": "date-time"}
+      },
+      "additionalProperties": true
+    }
+  }
+}

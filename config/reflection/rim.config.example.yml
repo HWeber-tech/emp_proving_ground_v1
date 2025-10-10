@@ -1,0 +1,15 @@
+diaries_dir: artifacts/diaries
+diary_glob: diaries-*.jsonl
+window_minutes: 1440
+min_entries: 500
+suggestion_cap: 10
+confidence_floor: 0.65
+enable_governance_gate: true
+publish_channel: file://artifacts/rim_suggestions
+kill_switch: false
+telemetry:
+  log_dir: artifacts/rim_logs
+trm_params:
+  K_outer: 4
+  n_inner: 3
+  halt_enabled: true

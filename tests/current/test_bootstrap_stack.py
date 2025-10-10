@@ -14,7 +14,7 @@ from src.orchestration.bootstrap_stack import (
     BootstrapSensoryPipeline,
     BootstrapTradingStack,
 )
-from src.orchestration.enhanced_intelligence_engine import ContextualFusionEngine
+from src.orchestration.enhanced_understanding_engine import ContextualFusionEngine
 from src.trading.execution.paper_execution import ImmediateFillExecutionAdapter
 from src.trading.liquidity.depth_aware_prober import DepthAwareLiquidityProber
 from src.trading.monitoring.portfolio_monitor import InMemoryRedis, PortfolioMonitor

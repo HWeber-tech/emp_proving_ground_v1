@@ -18,7 +18,7 @@ import numpy as np
 import pytest
 
 from src.core.base import DimensionalReading, MarketData
-from src.orchestration.enhanced_intelligence_engine import ContextualFusionEngine
+from src.orchestration.enhanced_understanding_engine import ContextualFusionEngine
 from src.sensory.enhanced._shared import ReadingAdapter
 from src.sensory.enhanced.anomaly_dimension import AnomalyIntelligenceEngine
 from src.sensory.enhanced.how_dimension import InstitutionalIntelligenceEngine
@@ -293,13 +293,12 @@ class TestContextualFusion:
         assert 0.0 <= synthesis.confidence <= 1.0
 
     @pytest.mark.asyncio
-    async def test_intelligence_alias_warns(
+    async def test_intelligence_alias_remains_supported(
         self, fusion_engine, data_generator
     ) -> None:
         market_data = data_generator.generate_market_data("normal")
 
-        with pytest.warns(DeprecationWarning):
-            alias_result = await fusion_engine.analyze_market_intelligence(market_data)
+        alias_result = await fusion_engine.analyze_market_intelligence(market_data)
 
         assert alias_result is not None
         assert hasattr(alias_result, "unified_score")

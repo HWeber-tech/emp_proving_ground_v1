@@ -15,7 +15,7 @@ from src.orchestration.bootstrap_stack import (
     BootstrapTradingStack,
 )
 from src.orchestration.compose import compose_validation_adapters
-from src.orchestration.enhanced_intelligence_engine import ContextualFusionEngine
+from src.orchestration.enhanced_understanding_engine import ContextualFusionEngine
 from src.risk.risk_manager_impl import RiskManagerImpl
 from src.trading.execution.execution_engine import ExecutionEngine
 from src.trading.execution.paper_execution import ImmediateFillExecutionAdapter

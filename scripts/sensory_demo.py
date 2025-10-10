@@ -29,7 +29,7 @@ if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
 from src.core.base import DimensionalReading
-from src.orchestration.enhanced_intelligence_engine import ContextualFusionEngine
+from src.orchestration.enhanced_understanding_engine import ContextualFusionEngine
 from src.sensory.organs.dimensions.base_organ import InstrumentMeta, MarketData
 
 logging.basicConfig(

@@ -6,7 +6,7 @@ import logging
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Mapping, Optional
+from typing import Any, Mapping, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +43,35 @@ class SafetyManager:
             candidate = Path(tempfile.gettempdir()) / candidate
         return candidate
 
+    @staticmethod
+    def _coerce_confirmation(value: Any) -> bool:
+        """Normalise truthy flags from configuration payloads.
+
+        The configuration surface historically accepted environment derived
+        strings (e.g. ``"true"``/``"false"``) in addition to native booleans.
+        ``bool("false")`` would evaluate to ``True`` which defeats the
+        explicit confirmation gate for live trading.  This helper interprets
+        common string representations and raises for unrecognised payloads so
+        misconfigurations fail fast during bootstrap.
+        """
+
+        if isinstance(value, bool):
+            return value
+        if value is None:
+            return False
+        if isinstance(value, (int, float)):
+            return value != 0
+        if isinstance(value, str):
+            normalised = value.strip().lower()
+            if not normalised:
+                return False
+            if normalised in {"true", "1", "yes", "y", "on"}:
+                return True
+            if normalised in {"false", "0", "no", "n", "off"}:
+                return False
+            raise ValueError(f"Unrecognised confirmation flag: {value!r}")
+        raise TypeError(f"Unsupported confirmation flag type: {type(value)!r}")
+
     @classmethod
     def from_config(cls, config: Mapping[str, object] | object) -> "SafetyManager":
         def _lookup(name: str, default: object) -> object:
@@ -55,7 +84,10 @@ class SafetyManager:
         kill_switch_raw = _lookup("kill_switch_path", None)
 
         run_mode = str(run_mode_raw) if run_mode_raw is not None else "paper"
-        confirm_live = bool(confirm_live_raw)
+        try:
+            confirm_live = cls._coerce_confirmation(confirm_live_raw)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("Invalid confirm_live flag in safety configuration") from exc
 
         return cls(run_mode, confirm_live, kill_switch_raw)
 

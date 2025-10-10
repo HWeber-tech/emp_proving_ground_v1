@@ -53,10 +53,14 @@ class RegimeState:
     confidence: float
     features: Mapping[str, float]
     timestamp: datetime
+    volatility: float = 0.0
+    volatility_state: str = "normal"
 
     def __post_init__(self) -> None:
         if not 0.0 <= self.confidence <= 1.0:
             raise ValueError("confidence must be between 0 and 1")
+        if self.volatility < 0.0:
+            raise ValueError("volatility must be non-negative")
 
 
 @dataclass(frozen=True)

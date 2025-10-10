@@ -243,6 +243,9 @@ def test_regime_fsm_publishes_signal() -> None:
     assert payload["lineage"]["dimension"] == "UNDERSTANDING_REGIME"
     assert payload["features"]
     assert signal.regime_state.regime in {"bullish", "balanced", "bearish", "uncertain"}
+    assert signal.regime_state.volatility_state in {"calm", "normal", "storm"}
+    assert signal.regime_state.volatility >= 0.0
+    assert payload["metadata"]["volatility_state"] == signal.regime_state.volatility_state
 
 
 def test_belief_buffer_requires_lineage_metadata() -> None:

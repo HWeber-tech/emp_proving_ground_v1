@@ -20,6 +20,25 @@ def _coerce_throttle_state(
     if isinstance(snapshot, ThrottleStateSnapshot):
         return snapshot
 
+    if hasattr(snapshot, "name") and hasattr(snapshot, "state"):
+        multiplier_value = getattr(snapshot, "multiplier", None)
+        reason_value = getattr(snapshot, "reason", None)
+        metadata_value = getattr(snapshot, "metadata", {})
+        try:
+            multiplier = float(multiplier_value) if multiplier_value is not None else None
+        except (TypeError, ValueError):
+            multiplier = None
+        reason = str(reason_value) if isinstance(reason_value, str) else None
+        metadata = dict(metadata_value) if isinstance(metadata_value, Mapping) else {}
+        return ThrottleStateSnapshot(
+            name=str(getattr(snapshot, "name")),
+            state=str(getattr(snapshot, "state")),
+            active=bool(getattr(snapshot, "active", False)),
+            multiplier=multiplier,
+            reason=reason,
+            metadata=metadata,
+        )
+
     data = dict(snapshot)
     multiplier = data.get("multiplier")
     reason = data.get("reason")

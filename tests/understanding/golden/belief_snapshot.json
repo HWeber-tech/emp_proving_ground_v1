@@ -60,7 +60,9 @@
       },
       "outputs": {
         "posterior_confidence": 0.78,
-        "posterior_strength": 0.42
+        "posterior_strength": 0.42,
+        "volatility": 0.10500000000000001,
+        "volatility_sample": 0.10500000000000001
       },
       "source": "understanding.belief_buffer",
       "telemetry": {}
@@ -68,7 +70,25 @@
     "metadata": {
       "decay": 0.05,
       "learning_rate": 0.2,
-      "regime_hint": "balanced"
+      "observation": {
+        "ANOMALY_confidence": 0.5459999999999999,
+        "ANOMALY_flag": 0.0,
+        "ANOMALY_signal": 0.126,
+        "ANOMALY_z_score": 0.504,
+        "HOW_confidence": 0.585,
+        "HOW_signal": 0.042,
+        "WHAT_confidence": 0.663,
+        "WHAT_signal": 0.168,
+        "WHEN_confidence": 0.6240000000000001,
+        "WHEN_signal": 0.084,
+        "WHY_confidence": 0.7020000000000001,
+        "WHY_signal": 0.252,
+        "integrated_confidence": 0.78,
+        "integrated_strength": 0.42
+      },
+      "regime_hint": "balanced",
+      "volatility": 0.10500000000000001,
+      "volatility_sample": 0.10500000000000001
     },
     "posterior": {
       "confidence": 0.78,

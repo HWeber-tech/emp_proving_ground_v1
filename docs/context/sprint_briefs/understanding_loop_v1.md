@@ -39,6 +39,10 @@
   - *Progress*: Belief buffer and emitter publish schema-versioned `BeliefState`
     snapshots with Hebbian PSD guardrails and regime FSM events, backed by
     guardrail pytest coverage and golden fixtures to prevent contract drift.【F:src/understanding/belief.py†L39-L347】【F:tests/understanding/test_belief_updates.py†L111-L239】【F:tests/understanding/golden/belief_snapshot.json†L1-L939】
+  - *Progress*: Calibration utilities now extract Hebbian learning rates, decay
+    floors, and calm/storm thresholds from historical EURUSD slices, then rebuild
+    belief/regime components that survive calm-versus-erratic replay suites under
+    guardrail coverage so tickets land with production-ready defaults.【F:src/understanding/belief_regime_calibrator.py†L1-L175】【F:tests/operations/test_belief_regime_calibrator.py†L34-L136】
 - **Validation artifacts**
   - Pytest suite around `hebbian_step` updater verifying low-rank covariance (`sigma`) remains PSD after updates across calm/normal/storm fixtures.
   - Golden JSON beliefs/regime snapshots used by doctest-like regression to guard schema drift.

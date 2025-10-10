@@ -41,6 +41,8 @@ class PaperTradingSimulationReport:
     diary_entries: int = 0
     runtime_seconds: float = 0.0
     paper_broker: Mapping[str, Any] | None = None
+    portfolio_state: Mapping[str, Any] | None = None
+    performance: Mapping[str, Any] | None = None
 
     def to_dict(self) -> Mapping[str, Any]:
         """Return a JSON-serialisable representation of the report."""
@@ -54,6 +56,10 @@ class PaperTradingSimulationReport:
         }
         if self.paper_broker is not None:
             payload["paper_broker"] = dict(self.paper_broker)
+        if self.portfolio_state is not None:
+            payload["portfolio_state"] = dict(self.portfolio_state)
+        if self.performance is not None:
+            payload["performance"] = dict(self.performance)
         return payload
 
 
@@ -146,6 +152,8 @@ async def run_paper_trading_simulation(
                 logger.debug("Paper trading simulation cleanup failed", exc_info=True)
 
     runtime_seconds = monotonic() - start_time
+    portfolio_snapshot = _resolve_portfolio_snapshot(paper_engine)
+
     report = PaperTradingSimulationReport(
         orders=list(orders),
         errors=list(errors),
@@ -153,6 +161,8 @@ async def run_paper_trading_simulation(
         diary_entries=_resolve_diary_count(config, runtime),
         runtime_seconds=runtime_seconds,
         paper_broker=_resolve_paper_broker_snapshot(runtime),
+        portfolio_state=portfolio_snapshot,
+        performance=_build_performance_summary(portfolio_snapshot),
     )
     return report
 
@@ -201,6 +211,64 @@ def _resolve_paper_broker_snapshot(runtime: Any) -> Mapping[str, Any] | None:
     if not summary:
         return None
     return dict(summary)
+
+
+def _resolve_portfolio_snapshot(
+    paper_engine: PaperBrokerExecutionAdapter,
+) -> Mapping[str, Any] | None:
+    monitor = getattr(paper_engine, "portfolio_monitor", None)
+    if monitor is None:
+        return None
+    try:
+        snapshot = monitor.get_state()
+    except Exception:  # pragma: no cover - defensive guard
+        logger.debug("Failed to capture portfolio snapshot from paper engine", exc_info=True)
+        return None
+    if isinstance(snapshot, Mapping):
+        return dict(snapshot)
+    return None
+
+
+def _build_performance_summary(
+    snapshot: Mapping[str, Any] | None,
+) -> Mapping[str, Any] | None:
+    if not snapshot:
+        return None
+
+    summary: MutableMapping[str, Any] = {}
+
+    try:
+        equity = float(snapshot.get("equity", 0.0))
+    except (TypeError, ValueError):
+        equity = 0.0
+    try:
+        total_pnl = float(snapshot.get("total_pnl", 0.0))
+    except (TypeError, ValueError):
+        total_pnl = 0.0
+
+    initial_equity = equity - total_pnl
+    roi: float | None = None
+    if initial_equity:
+        roi = total_pnl / initial_equity
+
+    summary["equity"] = equity
+    summary["total_pnl"] = total_pnl
+    summary["initial_equity_estimate"] = initial_equity
+    if roi is not None:
+        summary["roi"] = roi
+
+    realized = snapshot.get("realized_pnl")
+    unrealized = snapshot.get("unrealized_pnl")
+    if isinstance(realized, (int, float)):
+        summary["realized_pnl"] = float(realized)
+    if isinstance(unrealized, (int, float)):
+        summary["unrealized_pnl"] = float(unrealized)
+
+    drawdown = snapshot.get("current_daily_drawdown")
+    if isinstance(drawdown, (int, float)):
+        summary["current_daily_drawdown"] = float(drawdown)
+
+    return summary
 
 
 def _resolve_diary_count(config: SystemConfig, runtime: Any) -> int:

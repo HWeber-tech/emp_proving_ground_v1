@@ -106,6 +106,11 @@ async def test_bootstrap_runtime_paper_trading_simulation_records_diary(tmp_path
         assert "last_order" in execution_outcome
         assert execution_outcome["last_order"]["symbol"] == "EURUSD"
         assert execution_outcome.get("last_error") in (None, {})
+        state = runtime.trading_manager.portfolio_monitor.get_state()
+        assert isinstance(state, dict)
+        assert "equity" in state and "total_pnl" in state
+        initial_equity = state["equity"] - state["total_pnl"]
+        assert initial_equity >= 0.0
     finally:
         await runtime.stop()
         for cleanup in cleanups:
@@ -193,6 +198,8 @@ async def test_paper_trading_simulation_recovers_after_api_failure(tmp_path) -> 
         assert error_payload.get("stage") == "broker_submission"
         assert error_payload.get("exception_type") == "PaperTradingApiError"
         assert "gateway failure" in error_payload.get("exception", "")
+        state = runtime.trading_manager.portfolio_monitor.get_state()
+        assert isinstance(state, dict)
     finally:
         await runtime.stop()
         for cleanup in cleanups:

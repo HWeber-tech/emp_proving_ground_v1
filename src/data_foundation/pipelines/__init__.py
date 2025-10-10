@@ -1,5 +1,10 @@
 """Data foundation pipelines for curated datasets."""
 
+from .operational_backbone import (
+    OperationalBackbonePipeline,
+    OperationalBackboneResult,
+    OperationalIngestRequest,
+)
 from .pricing_pipeline import (
     CallablePricingVendor,
     PricingPipeline,
@@ -9,6 +14,9 @@ from .pricing_pipeline import (
 )
 
 __all__ = [
+    "OperationalBackbonePipeline",
+    "OperationalBackboneResult",
+    "OperationalIngestRequest",
     "CallablePricingVendor",
     "PricingPipeline",
     "PricingPipelineConfig",

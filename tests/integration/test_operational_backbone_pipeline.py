@@ -1,0 +1,190 @@
+from __future__ import annotations
+from collections import deque
+from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
+from typing import Any, Iterable
+
+import pandas as pd
+import pytest
+
+from src.core.event_bus import EventBus
+from src.data_foundation.persist.timescale import TimescaleConnectionSettings
+from src.data_foundation.pipelines.operational_backbone import (
+    OperationalBackbonePipeline,
+    OperationalIngestRequest,
+)
+from src.data_foundation.streaming.kafka_stream import (
+    KafkaIngestEventConsumer,
+    KafkaIngestEventPublisher,
+)
+from src.data_integration.real_data_integration import RealDataManager
+from src.sensory.real_sensory_organ import RealSensoryOrgan
+
+
+class _FakeKafkaProducer:
+    def __init__(self) -> None:
+        self.messages: list[dict[str, Any]] = []
+
+    def produce(self, topic: str, value: bytes, key: str | bytes | None = None) -> None:
+        self.messages.append({"topic": topic, "value": value, "key": key})
+
+    def flush(self, timeout: float | None = None) -> None:  # pragma: no cover - noop
+        return None
+
+
+@dataclass
+class _FakeKafkaMessage:
+    payload: dict[str, Any]
+
+    def error(self) -> None:
+        return None
+
+    def value(self) -> bytes:
+        return self.payload["value"]
+
+    def topic(self) -> str:
+        return self.payload["topic"]
+
+    def key(self) -> str | bytes | None:
+        return self.payload.get("key")
+
+
+class _FakeKafkaConsumer:
+    def __init__(self, messages: Iterable[dict[str, Any]]) -> None:
+        self._queue = deque(messages)
+        self._subscribed: tuple[str, ...] = ()
+        self.closed = False
+
+    def subscribe(self, topics: Iterable[str]) -> None:
+        self._subscribed = tuple(str(topic) for topic in topics)
+
+    def poll(self, timeout: float | None = None) -> _FakeKafkaMessage | None:
+        if not self._queue:
+            return None
+        return _FakeKafkaMessage(self._queue.popleft())
+
+    def close(self) -> None:
+        self.closed = True
+
+
+def _daily_frame(base: datetime) -> pd.DataFrame:
+    return pd.DataFrame(
+        [
+            {
+                "date": base - timedelta(days=1),
+                "symbol": "EURUSD",
+                "open": 1.10,
+                "high": 1.12,
+                "low": 1.08,
+                "close": 1.11,
+                "adj_close": 1.105,
+                "volume": 1200,
+            },
+            {
+                "date": base,
+                "symbol": "EURUSD",
+                "open": 1.11,
+                "high": 1.13,
+                "low": 1.09,
+                "close": 1.125,
+                "adj_close": 1.12,
+                "volume": 1500,
+            },
+        ]
+    )
+
+
+def _intraday_frame(base: datetime) -> pd.DataFrame:
+    return pd.DataFrame(
+        [
+            {
+                "timestamp": base - timedelta(minutes=2),
+                "symbol": "EURUSD",
+                "price": 1.121,
+                "size": 640,
+                "exchange": "TEST",
+                "conditions": "SYNTH",
+            },
+            {
+                "timestamp": base - timedelta(minutes=1),
+                "symbol": "EURUSD",
+                "price": 1.124,
+                "size": 720,
+                "exchange": "TEST",
+                "conditions": "SYNTH",
+            },
+        ]
+    )
+
+
+@pytest.mark.asyncio()
+async def test_operational_backbone_pipeline_full_cycle(tmp_path) -> None:
+    url = f"sqlite:///{tmp_path / 'pipeline_timescale.db'}"
+    settings = TimescaleConnectionSettings(url=url)
+
+    producer = _FakeKafkaProducer()
+    publisher = KafkaIngestEventPublisher(
+        producer,
+        topic_map={
+            "daily_bars": "telemetry.ingest",
+            "intraday_trades": "telemetry.ingest",
+        },
+    )
+
+    manager = RealDataManager(timescale_settings=settings, ingest_publisher=publisher)
+    event_bus = EventBus()
+    sensory = RealSensoryOrgan()
+
+    base = datetime(2024, 5, 6, tzinfo=timezone.utc)
+    request = OperationalIngestRequest(
+        symbols=("eurusd",),
+        daily_lookback_days=2,
+        intraday_lookback_days=1,
+        intraday_interval="1m",
+    )
+
+    def consumer_factory() -> KafkaIngestEventConsumer:
+        consumer = _FakeKafkaConsumer(dict(message) for message in producer.messages)
+        return KafkaIngestEventConsumer(
+            consumer,
+            topics=("telemetry.ingest",),
+            event_bus=event_bus,
+            poll_timeout=0.1,
+            idle_sleep=0.0,
+        )
+
+    pipeline = OperationalBackbonePipeline(
+        manager=manager,
+        event_bus=event_bus,
+        kafka_consumer_factory=consumer_factory,
+        sensory_organ=sensory,
+        event_topics=("telemetry.ingest",),
+    )
+
+    try:
+        result = await pipeline.execute(
+            request,
+            fetch_daily=lambda symbols, lookback: _daily_frame(base),
+            fetch_intraday=lambda symbols, lookback, interval: _intraday_frame(base),
+        )
+    finally:
+        await pipeline.shutdown()
+
+    assert "daily_bars" in result.ingest_results
+    assert result.ingest_results["daily_bars"].rows_written == 2
+    assert "intraday_trades" in result.ingest_results
+    assert result.frames["daily_bars"].iloc[-1]["close"] == pytest.approx(1.125)
+    assert result.frames["intraday_trades"].iloc[-1]["price"] == pytest.approx(1.124)
+
+    assert len(producer.messages) == len(result.kafka_events) > 0
+    assert all(event.type == "telemetry.ingest" for event in result.kafka_events)
+
+    hits = int(result.cache_metrics_after_fetch.get("hits", 0))
+    assert hits >= 1
+
+    assert result.sensory_snapshot is not None
+    assert result.sensory_snapshot["symbol"] == "EURUSD"
+    integrated = result.sensory_snapshot["integrated_signal"]
+    assert float(getattr(integrated, "confidence")) >= 0.0
+
+    assert not event_bus.is_running()

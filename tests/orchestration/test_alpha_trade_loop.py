@@ -7,7 +7,11 @@ import pytest
 
 from src.governance.policy_ledger import LedgerReleaseManager, PolicyLedgerStage, PolicyLedgerStore
 from src.operations.sensory_drift import DriftSeverity, SensoryDimensionDrift, SensoryDriftSnapshot
-from src.orchestration.alpha_trade_loop import AlphaTradeLoopOrchestrator
+from src.orchestration.alpha_trade_loop import (
+    AlphaTradeLoopOrchestrator,
+    ComplianceEventType,
+    ComplianceSeverity,
+)
 from src.trading.gating import DriftSentryGate
 from src.understanding.belief import BeliefDistribution, BeliefState
 from src.understanding.decision_diary import DecisionDiaryStore
@@ -314,4 +318,75 @@ def test_alpha_trade_loop_enforces_more_conservative_stage(tmp_path: Path) -> No
     assert (
         result.diary_entry.metadata["drift_decision"]["reason"]
         == "release_stage_experiment_requires_paper_or_better"
+    )
+
+
+def test_alpha_trade_loop_emits_stage_gate_compliance_event(tmp_path: Path) -> None:
+    router = UnderstandingRouter()
+    router.register_tactic(
+        PolicyTactic(
+            tactic_id="alpha_shadow",
+            base_weight=1.0,
+            parameters={"mode": "alpha"},
+            guardrails={},
+            regime_bias={"balanced": 1.0},
+            confidence_sensitivity=0.0,
+        )
+    )
+
+    diary_store = DecisionDiaryStore(tmp_path / "diary.json", publish_on_record=False)
+
+    ledger_store = PolicyLedgerStore(tmp_path / "policy_ledger.json")
+    ledger_store.upsert(
+        policy_id="alpha_shadow",
+        tactic_id="alpha_shadow",
+        stage=PolicyLedgerStage.PAPER,
+        approvals=("risk",),
+        evidence_id="stage-gate",
+    )
+
+    orchestrator = AlphaTradeLoopOrchestrator(
+        router=router,
+        diary_store=diary_store,
+        drift_gate=DriftSentryGate(),
+        release_manager=LedgerReleaseManager(ledger_store),
+    )
+
+    regime_state = RegimeState(
+        regime="balanced",
+        confidence=0.7,
+        features={"momentum": 0.05},
+        timestamp=datetime(2024, 3, 1, 9, 0, tzinfo=UTC),
+    )
+    belief_snapshot = BeliefSnapshot(
+        belief_id="belief-shadow",
+        regime_state=regime_state,
+        features={"momentum": 0.05},
+        metadata={"symbol": "EURUSD"},
+        fast_weights_enabled=False,
+        feature_flags={},
+    )
+
+    result = orchestrator.run_iteration(
+        belief_snapshot,
+        policy_id="alpha_shadow",
+        outcomes={"paper_pnl": 0.0},
+        trade={"symbol": "EURUSD", "quantity": 10_000, "notional": 10_000.0},
+    )
+
+    events = result.compliance_events
+    assert len(events) == 1
+    event = events[0]
+    assert event.event_type is ComplianceEventType.governance_action
+    assert event.severity is ComplianceSeverity.info
+    assert (
+        event.summary
+        == "Policy alpha_shadow forced to paper by governance stage paper (drift severity normal)"
+    )
+    event_metadata = dict(event.metadata)
+    assert event_metadata["release_stage"] == "paper"
+    assert event_metadata["action"] == "force_paper"
+    assert (
+        event_metadata["release_stage_gate"]
+        == "release_stage_paper_requires_paper_execution"
     )

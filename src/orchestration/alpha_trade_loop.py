@@ -349,6 +349,16 @@ class AlphaTradeLoopOrchestrator:
             "release_stage": stage.value,
             "drift_decision": drift_decision.as_dict(),
         }
+        requirements = drift_decision.requirements
+        stage_gate_reason: str | None = None
+        stage_gate_value: str | None = None
+        if isinstance(requirements, Mapping):
+            candidate_reason = requirements.get("release_stage_gate")
+            if isinstance(candidate_reason, str) and candidate_reason.strip():
+                stage_gate_reason = candidate_reason.strip()
+            candidate_stage = requirements.get("release_stage")
+            if isinstance(candidate_stage, str) and candidate_stage.strip():
+                stage_gate_value = candidate_stage.strip()
         blocked = tuple(drift_decision.blocked_dimensions)
         if blocked:
             metadata["blocked_dimensions"] = blocked
@@ -376,9 +386,16 @@ class AlphaTradeLoopOrchestrator:
             return tuple(events)
 
         if drift_decision.force_paper:
-            summary = (
-                f"Policy {policy_id} forced to paper due to {drift_decision.severity.value}"
-            )
+            if stage_gate_reason:
+                stage_label = stage_gate_value or stage.value
+                summary = (
+                    f"Policy {policy_id} forced to paper by governance stage {stage_label} "
+                    f"(drift severity {drift_decision.severity.value})"
+                )
+            else:
+                summary = (
+                    f"Policy {policy_id} forced to paper due to {drift_decision.severity.value}"
+                )
             events.append(
                 ComplianceEvent(
                     event_type=ComplianceEventType.governance_action,
@@ -388,7 +405,16 @@ class AlphaTradeLoopOrchestrator:
                     summary=summary,
                     occurred_at=timestamp,
                     policy_id=policy_id,
-                    metadata={**metadata, "action": "force_paper", "reason": reason},
+                    metadata={
+                        **metadata,
+                        "action": "force_paper",
+                        "reason": reason,
+                        **(
+                            {"release_stage_gate": stage_gate_reason}
+                            if stage_gate_reason
+                            else {}
+                        ),
+                    },
                 )
             )
 

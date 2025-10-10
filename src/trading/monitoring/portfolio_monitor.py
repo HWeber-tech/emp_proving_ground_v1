@@ -10,11 +10,7 @@ import json
 import logging
 from datetime import date, datetime
 from typing import Any, Mapping, MutableMapping, Optional, Protocol, TypedDict, cast
-
-try:
-    from src.core.events import ExecutionReport  # legacy
-except Exception:  # pragma: no cover
-    ExecutionReport = object
+from typing import runtime_checkable
 from src.core.event_bus import Event, EventBus, get_global_bus
 from src.core.coercion import coerce_float
 from src.data_foundation.cache import (
@@ -54,6 +50,14 @@ class PortfolioState(TypedDict, total=False):
     peak_equity: float
     daily_equity_start: float
     daily_reset_date: str
+
+
+@runtime_checkable
+class ExecutionReport(Protocol):
+    symbol: object
+    side: object
+    quantity: object
+    price: object
 
 
 class RedisLike(Protocol):

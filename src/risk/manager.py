@@ -18,7 +18,7 @@ from src.config.risk.risk_config import RiskConfig
 
 from .risk_manager_impl import RiskManagerImpl
 
-__all__ = ["RiskManager", "get_risk_manager", "create_risk_manager"]
+__all__ = ["RiskManager", "create_risk_manager"]
 
 def _coerce_risk_config(config: RiskConfig | Mapping[str, object] | None) -> RiskConfig:
     if config is None:
@@ -127,16 +127,5 @@ def create_risk_manager(
     **kwargs: Any,
 ) -> RiskManager:
     """Explicit factory returning a :class:`RiskManager`."""
-
-    return RiskManager(config=config, initial_balance=initial_balance, **kwargs)
-
-
-def get_risk_manager(
-    config: RiskConfig | Mapping[str, object] | None = None,
-    *,
-    initial_balance: float | Decimal | None = None,
-    **kwargs: Any,
-) -> RiskManager:
-    """Factory kept for backwards compatibility with legacy callers."""
 
     return RiskManager(config=config, initial_balance=initial_balance, **kwargs)

@@ -8,6 +8,7 @@ from __future__ import annotations
 import logging
 import uuid
 import json
+from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
 from typing import Any, Dict, List, Mapping, Optional, Sequence, cast
@@ -16,11 +17,6 @@ import numpy as np
 
 logger = logging.getLogger(__name__)
 
-try:
-    from src.core.events import AlgorithmSignature, CompetitorBehavior, CounterStrategy  # legacy
-except ImportError as exc:  # pragma: no cover
-    logger.warning("Falling back to object shims for legacy core events: %s", exc)
-    AlgorithmSignature = CompetitorBehavior = CounterStrategy = object
 from src.core.state_store import StateStore
 from src.thinking.models.types import (
     AlgorithmSignatureLike,
@@ -28,6 +24,43 @@ from src.thinking.models.types import (
     CounterStrategyLike,
     IntelligenceReportTD,
 )
+
+
+@dataclass(slots=True)
+class AlgorithmSignature:
+    signature_id: str
+    algorithm_type: str
+    confidence: Decimal
+    characteristics: Mapping[str, object]
+    first_seen: datetime
+    last_seen: datetime
+    frequency: str
+
+
+@dataclass(slots=True)
+class CompetitorBehavior:
+    competitor_id: str
+    algorithm_signature: AlgorithmSignatureLike
+    behavior_metrics: dict[str, float]
+    patterns: Sequence[str]
+    threat_level: str
+    market_share: Decimal
+    performance: Decimal
+    first_observed: datetime
+    last_observed: datetime
+
+
+@dataclass(slots=True)
+class CounterStrategy:
+    strategy_id: str
+    target_competitor: str
+    counter_type: str
+    parameters: dict[str, object]
+    expected_effectiveness: Decimal
+    implementation_complexity: str
+    risk_level: str
+    deployment_timeline: str
+    timestamp: datetime
 
 
 _MISSING = object()
@@ -162,14 +195,17 @@ class AlgorithmFingerprinter:
             # Match against known patterns
             for pattern_type, pattern_data in patterns.items():
                 if self._matches_known_pattern(pattern_data, known_patterns):
-                    signature = cast(Any, AlgorithmSignature)(
-                        signature_id=str(uuid.uuid4()),
-                        algorithm_type=pattern_type,
-                        confidence=self._calculate_confidence(pattern_data),
-                        characteristics=pattern_data,
-                        first_seen=datetime.utcnow(),
-                        last_seen=datetime.utcnow(),
-                        frequency=pattern_data.get("frequency", "medium"),
+                    signature = cast(
+                        AlgorithmSignatureLike,
+                        AlgorithmSignature(
+                            signature_id=str(uuid.uuid4()),
+                            algorithm_type=pattern_type,
+                            confidence=self._calculate_confidence(pattern_data),
+                            characteristics=pattern_data,
+                            first_seen=datetime.utcnow(),
+                            last_seen=datetime.utcnow(),
+                            frequency=pattern_data.get("frequency", "medium"),
+                        ),
                     )
                     signatures.append(signature)
 
@@ -298,16 +334,19 @@ class BehaviorAnalyzer:
             # Assess threat level
             threat_level = self._assess_threat_level(metrics, patterns)
 
-            behavior = cast(Any, CompetitorBehavior)(
-                competitor_id=str(uuid.uuid4()),
-                algorithm_signature=signature,
-                behavior_metrics=metrics,
-                patterns=patterns,
-                threat_level=threat_level,
-                market_share=self._estimate_market_share(behavior_data),
-                performance=self._estimate_performance(behavior_data),
-                first_observed=datetime.utcnow(),
-                last_observed=datetime.utcnow(),
+            behavior = cast(
+                CompetitorBehaviorLike,
+                CompetitorBehavior(
+                    competitor_id=str(uuid.uuid4()),
+                    algorithm_signature=signature,
+                    behavior_metrics=metrics,
+                    patterns=patterns,
+                    threat_level=threat_level,
+                    market_share=self._estimate_market_share(behavior_data),
+                    performance=self._estimate_performance(behavior_data),
+                    first_observed=datetime.utcnow(),
+                    last_observed=datetime.utcnow(),
+                ),
             )
 
             logger.info(
@@ -315,7 +354,7 @@ class BehaviorAnalyzer:
                 f"{signature.algorithm_type} with threat level {threat_level}"
             )
 
-            return cast(CompetitorBehaviorLike, behavior)
+            return behavior
 
         except Exception as e:
             logger.error(f"Error analyzing behavior: {e}")
@@ -511,16 +550,19 @@ class CounterStrategyDeveloper:
             # Calculate expected impact
             expected_impact = self._calculate_expected_impact(customized_counter, behavior)
 
-            counter_strategy = cast(Any, CounterStrategy)(
-                strategy_id=str(uuid.uuid4()),
-                target_competitor=behavior.competitor_id,
-                counter_type=customized_counter["counter_type"],
-                parameters=customized_counter["parameters"],
-                expected_effectiveness=Decimal(str(expected_impact)),
-                implementation_complexity=customized_counter["complexity"],
-                risk_level=customized_counter["risk_level"],
-                deployment_timeline=customized_counter["timeline"],
-                timestamp=datetime.utcnow(),
+            counter_strategy = cast(
+                CounterStrategyLike,
+                CounterStrategy(
+                    strategy_id=str(uuid.uuid4()),
+                    target_competitor=behavior.competitor_id,
+                    counter_type=customized_counter["counter_type"],
+                    parameters=customized_counter["parameters"],
+                    expected_effectiveness=Decimal(str(expected_impact)),
+                    implementation_complexity=customized_counter["complexity"],
+                    risk_level=customized_counter["risk_level"],
+                    deployment_timeline=customized_counter["timeline"],
+                    timestamp=datetime.utcnow(),
+                ),
             )
 
             logger.info(
@@ -529,7 +571,7 @@ class CounterStrategyDeveloper:
                 f"with {expected_impact:.2f} expected effectiveness"
             )
 
-            return cast(CounterStrategyLike, counter_strategy)
+            return counter_strategy
 
         except Exception as e:
             logger.error(f"Error developing counter-strategy: {e}")

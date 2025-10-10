@@ -194,3 +194,120 @@ Monitor:
 - Confirm governance ingestion API for policy ledger queue.
 - Retention enforcement job satisfied by `make rim-prune` (30-day window) and optional scheduled runs.
 - Align with data platform on diary enrichment cadence.
+
+---
+
+Implementation PR spec (TRM Runner v1)
+
+Scope (v1): Implement a tiny recursive runner that ingests a window of Decision Diaries, produces advisory suggestions, and writes JSONL artifacts. No live loop changes.
+
+1) Data encoding (RIMEncoder v1)
+
+Window: time-based (window_minutes from config) → clamp to T_max=256 most recent entries; left-pad if fewer.
+
+Per-entry feature vector φ_t (D dims):
+Use features_digest from diary if present (numeric array). If missing, derive minimal set:
+
+returns: [r_1, r_5, r_15]
+
+volatility proxy: stdev_30
+
+drawdown proxy: dd_60
+
+regime flags (0/1): [trend, chop, spike]
+
+risk flags (0/1) packed as bits then expanded
+
+Strategy embedding: one-hot of strategy_id → learned embedding E_s ∈ ℝ^(S→32).
+
+Belief summary: if belief_state_summary.vector exists, take first 32; else zeros(32).
+
+x tensor: concatenate [φ_t || E_s || belief32] → ℝ^(D_eff) per step; stack to shape x ∈ ℝ^(T×D_eff).
+Normalize each numeric channel by window mean/std (ε=1e-6).
+
+2) Output representation (the “answer” y)
+
+Maintain logits, post-processed to suggestions:
+
+y_weights ∈ ℝ^S (proposed delta weights per strategy, clipped to [-0.3, +0.3])
+
+y_flags ∈ ℝ^S (logits for STRATEGY_FLAG)
+
+y_exper ∈ ℝ^Kexp (experiment proposals; start with Kexp=4 templated experiments)
+
+Initial y0 = zeros; confidence computed by temperature-scaled max-logit.
+
+3) TRM micro-architecture (kept tiny)
+
+Embed x with 1 linear + GELU to d=256
+
+Inner block f(x,y,z): 2 Transformer layers (4 heads, ff=512), residual to latent z ∈ ℝ^256
+
+Outer update g(x,z,y): MLP(256→(S+S+Kexp)) to produce [Δw, flag_logits, exper_logits]
+
+Loops: K_outer=4, n_inner=3 (configurable)
+
+Halting: early stop if ||y_k − y_{k−1}||₂ / (||y_{k−1}||₂+ε) < 0.02 or confidence > 0.85.
+
+4) Losses (for training job)
+
+Weights: L2 to target Δw + L1 sparsity (λ₁=0.01) + clip penalty beyond ±0.3
+
+Flags: BCEWithLogits over y_flags
+
+Experiments: Cross-entropy over y_exper
+
+Regularizers: weight decay 0.01; gradient clip 1.0
+
+Total: L = L_w + L_flag + 0.5·L_exp + 0.001·||θ||²
+
+5) Label generation (supervision from diaries/backtests)
+
+For each window:
+
+Compute teacher Δw*: grid search in {-0.3,−0.2,…,+0.3} per strategy under L1 budget ∑|Δw| ≤ 0.6, maximizing next-window Sharpe (out-of-sample horizon H=64 steps).
+
+Flag label = 1 for strategies whose exclusion improves objective by ≥ threshold (e.g., +5% Sharpe).
+
+Experiment class = argmax over fixed templates (e.g., “vol-aware weighting”, “lag-aware decay”, “try alt-entry”). Store chosen class id; else class 0 = “none”.
+
+6) Training regimen (separate train_trm/ job)
+
+Optimizer: AdamW, lr=2e-4, batch=16 windows, epochs=20, cosine decay, warmup 500 steps.
+
+Splits: rolling time split 70/15/15; no leakage across time.
+
+Hardware: CPU or 1× mid-range GPU; mixed precision ok.
+
+Artifacts: save model.pt, model_hash, metrics.json, TensorBoard optional.
+
+7) Inference path (hooks into RIM)
+
+New module: rim_trm/ with:
+
+model.py (TRM), encoder.py (RIMEncoder v1), infer.py (batch inference)
+
+CLI: tools/rim_run_trm.py --config config/reflection/rim.config.yml --diaries artifacts/diaries/ --out artifacts/rim_suggestions/
+Respects kill_switch; writes JSONL with schema_version, {input,model,config}_hash, and per-item confidence.
+
+Budgets: max runtime per job 30s; per-window cap 50ms on GPU / 250ms CPU; fail soft to zero-suggestions.
+
+8) Governance & safety guards
+
+Hard caps: suggestion_cap, confidence_floor; never emit Δw that violates risk policy.
+
+Log decision trace: top-k contributing features (simple integrated-gradients or permutation delta on last layer) for audit string.
+
+9) Tests (Definition of Done)
+
+Unit: encoder shapes, mask/pad logic, post-processor clipping.
+
+Golden: run on docs/examples/diaries_mini.jsonl → deterministic JSONL that matches interfaces/rim_types.json.
+
+Perf: smoke test ensures rim_run_trm.py completes under budget on CPU-only.
+
+10) Dependencies (implementation PR only)
+
+Add to requirements/ml.txt: torch>=2.3, numpy, jsonschema, scikit-learn, tqdm.
+
+CI job rim-ml.yml (optional) runs encoder + inference on tiny sample; informational only.

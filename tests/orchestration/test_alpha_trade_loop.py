@@ -167,6 +167,16 @@ def test_alpha_trade_loop_records_diary_and_forces_paper(tmp_path: Path) -> None
         "policy": "paper",
         "tactic": "paper",
     }
+    guardrails = result.decision.guardrails
+    assert guardrails["force_paper"] is True
+    assert guardrails["release_stage"] == "paper"
+    assert guardrails["governance_release_stage"] == "paper"
+    assert guardrails["governance_policy_stage"] == "paper"
+    assert guardrails["governance_tactic_stage"] == "paper"
+    assert (
+        guardrails["governance_release_stage_gate"]
+        == "release_stage_paper_requires_paper_execution"
+    )
 
 
 def test_alpha_trade_loop_paper_stage_forces_paper_without_warn(tmp_path: Path) -> None:
@@ -319,6 +329,80 @@ def test_alpha_trade_loop_enforces_more_conservative_stage(tmp_path: Path) -> No
         result.diary_entry.metadata["drift_decision"]["reason"]
         == "release_stage_experiment_requires_paper_or_better"
     )
+    guardrails = result.decision.guardrails
+    assert guardrails["force_paper"] is True
+    assert guardrails["release_stage"] == "experiment"
+    assert guardrails["governance_release_stage"] == "experiment"
+    assert guardrails["governance_policy_stage"] == "pilot"
+    assert guardrails["governance_tactic_stage"] == "experiment"
+    assert (
+        guardrails["governance_release_stage_gate"]
+        == "release_stage_experiment_requires_paper_or_better"
+    )
+
+
+def test_alpha_trade_loop_live_stage_allows_live_execution(tmp_path: Path) -> None:
+    router = UnderstandingRouter()
+    router.register_tactic(
+        PolicyTactic(
+            tactic_id="alpha_live",
+            base_weight=1.0,
+            parameters={"mode": "alpha"},
+            guardrails={},
+            regime_bias={"balanced": 1.0},
+            confidence_sensitivity=0.0,
+        )
+    )
+
+    diary_store = DecisionDiaryStore(tmp_path / "diary.json", publish_on_record=False)
+
+    ledger_store = PolicyLedgerStore(tmp_path / "policy_ledger.json")
+    ledger_store.upsert(
+        policy_id="alpha_live",
+        tactic_id="alpha_live",
+        stage=PolicyLedgerStage.LIMITED_LIVE,
+        approvals=("risk", "compliance"),
+        evidence_id="live-ready",
+    )
+
+    orchestrator = AlphaTradeLoopOrchestrator(
+        router=router,
+        diary_store=diary_store,
+        drift_gate=DriftSentryGate(),
+        release_manager=LedgerReleaseManager(ledger_store),
+    )
+
+    regime_state = RegimeState(
+        regime="balanced",
+        confidence=0.95,
+        features={"momentum": 0.2},
+        timestamp=datetime(2024, 4, 1, 9, 0, tzinfo=UTC),
+    )
+    belief_snapshot = BeliefSnapshot(
+        belief_id="belief-live",
+        regime_state=regime_state,
+        features={"momentum": 0.2},
+        metadata={"symbol": "EURUSD"},
+        fast_weights_enabled=True,
+        feature_flags={},
+    )
+
+    result = orchestrator.run_iteration(
+        belief_snapshot,
+        trade={"symbol": "EURUSD", "quantity": 15_000, "notional": 15_000.0},
+        outcomes={"paper_pnl": 100.0},
+    )
+
+    assert result.release_stage is PolicyLedgerStage.LIMITED_LIVE
+    assert result.drift_decision.force_paper is False
+    assert result.metadata["force_paper"] is False
+    guardrails = result.decision.guardrails
+    assert guardrails["force_paper"] is False
+    assert guardrails["release_stage"] == "limited_live"
+    assert guardrails["governance_release_stage"] == "limited_live"
+    assert guardrails["governance_policy_stage"] == "limited_live"
+    assert guardrails["governance_tactic_stage"] == "limited_live"
+    assert "governance_release_stage_gate" not in guardrails
 
 
 def test_alpha_trade_loop_emits_stage_gate_compliance_event(tmp_path: Path) -> None:

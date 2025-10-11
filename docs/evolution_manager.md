@@ -6,12 +6,16 @@ policy router when tactics underperform.
 
 ## Behaviour
 
-- Keeps a rolling window of recent decisions (default 5) for each managed tactic and clears the window once an adaptation cycle fires so new evidence is required before triggering again.【F:src/thinking/adaptation/evolution_manager.py†L114-L166】
+- Keeps a rolling window of recent decisions (default 5) for each managed tactic and clears the window once an adaptation cycle fires so new evidence is required before triggering again.【F:src/thinking/adaptation/evolution_manager.py†L133-L185】
 - Derives a win/loss signal from the decision diary outcomes (`paper_pnl`, `paper_return`,
   or `win_rate`).
 - When the observed win-rate drops below the configured threshold, the manager either:
   - registers a catalogue variant (e.g., an exploratory configuration), or
   - dampens the base tactic weight if no variants remain.
+- If no pre-defined variants remain, the manager can now auto-synthesise lightweight
+  parameter mutations (e.g., scale a lookback window or adjust a threshold) defined via
+  `ParameterMutation`. These on-the-fly variants inherit the base tactic metadata while
+  clearly labelling the mutated parameter in their tactic identifier.【F:src/thinking/adaptation/evolution_manager.py†L207-L269】
 - Actions are feature-gated by `EVOLUTION_ENABLE_ADAPTIVE_RUNS` and only execute while the
   tactic remains in the `paper` ledger stage.
 
@@ -22,6 +26,10 @@ policy router when tactics underperform.
   straight from `config/trading/strategy_catalog.yaml` (or an injected catalogue). The
   manager converts catalogue metadata into `PolicyTactic` objects, preserving tags,
   parameter payloads, lineage metadata, and forcing paper-trade guardrails.【F:src/thinking/adaptation/evolution_manager.py†L70-L205】
+- `parameter_mutations` specifies a list of `ParameterMutation` rules that perturb the base
+  tactic’s numeric parameters when other variants are exhausted. Each mutation can tweak the
+  weight multiplier, clamp bounds, and provide a suffix so governance reviewers can see what
+  changed directly from the tactic identifier.【F:src/thinking/adaptation/evolution_manager.py†L70-L205】【F:src/thinking/adaptation/evolution_manager.py†L207-L269】
 - Window size, win-rate threshold, and minimum observations are configurable per manager
   instance.
 - Variant weights can be adjusted with `trial_weight_multiplier` to run more conservative

@@ -18,6 +18,7 @@ from __future__ import annotations
 import logging
 from collections import deque
 from dataclasses import dataclass, replace
+from numbers import Real
 from typing import Callable, Deque, Iterable, Mapping, MutableMapping, Sequence
 
 from src.evolution.feature_flags import EvolutionFeatureFlags
@@ -56,6 +57,20 @@ class CatalogueVariantRequest:
 
 
 @dataclass(frozen=True)
+class ParameterMutation:
+    """Definition of a lightweight parameter mutation applied to the base tactic."""
+
+    parameter: str
+    scale: float | None = None
+    offset: float | None = None
+    min_value: float | None = None
+    max_value: float | None = None
+    suffix: str | None = None
+    rationale: str | None = None
+    weight_multiplier: float = 1.0
+
+
+@dataclass(frozen=True)
 class ManagedStrategyConfig:
     """Configuration describing how the manager should evolve a tactic."""
 
@@ -63,6 +78,7 @@ class ManagedStrategyConfig:
     fallback_variants: Sequence[StrategyVariant] = ()
     degrade_multiplier: float = 0.6
     catalogue_variants: Sequence[CatalogueVariantRequest] = ()
+    parameter_mutations: Sequence[ParameterMutation] = ()
 
 
 @dataclass(slots=True)
@@ -71,6 +87,7 @@ class _ManagedStrategyState:
     outcomes: Deque[int]
     trial_queue: Deque[StrategyVariant]
     introduced_variants: MutableMapping[str, StrategyVariant]
+    mutation_index: int = 0
 
     def record(self, win: bool) -> None:
         self.outcomes.append(1 if win else 0)
@@ -182,6 +199,11 @@ class EvolutionManager:
         variant = state.next_variant()
         if variant is not None:
             self._register_variant(variant, metadata=metadata)
+            self._degrade_base(tactic_id, state.config.degrade_multiplier)
+            return
+        mutation_variant = self._build_mutation_variant(tactic_id, state)
+        if mutation_variant is not None:
+            self._register_variant(mutation_variant, metadata=metadata)
             self._degrade_base(tactic_id, state.config.degrade_multiplier)
             return
         self._degrade_base(tactic_id, state.config.degrade_multiplier)
@@ -299,6 +321,73 @@ class EvolutionManager:
             trial_weight_multiplier=request.weight_multiplier,
         )
 
+    def _build_mutation_variant(
+        self,
+        tactic_id: str,
+        state: _ManagedStrategyState,
+    ) -> StrategyVariant | None:
+        config = state.config
+        if not config.parameter_mutations:
+            return None
+        tactics = self._router.tactics()
+        base = tactics.get(tactic_id)
+        if base is None:
+            logger.debug("Cannot mutate missing tactic %s", tactic_id)
+            return None
+        base_parameters = dict(base.parameters)
+        for mutation in config.parameter_mutations:
+            parameter = mutation.parameter
+            original = base_parameters.get(parameter)
+            if not isinstance(original, Real):
+                logger.debug(
+                    "Skipping mutation for %s parameter %s (non-numeric or missing)",
+                    tactic_id,
+                    parameter,
+                )
+                continue
+
+            mutated_value = float(original)
+            if mutation.scale is not None:
+                mutated_value *= float(mutation.scale)
+            if mutation.offset is not None:
+                mutated_value += float(mutation.offset)
+            if mutation.min_value is not None:
+                mutated_value = max(float(mutation.min_value), mutated_value)
+            if mutation.max_value is not None:
+                mutated_value = min(float(mutation.max_value), mutated_value)
+
+            mutated_params = dict(base_parameters)
+            mutated_params[parameter] = mutated_value
+
+            state.mutation_index += 1
+            suffix = mutation.suffix or parameter
+            variant_id = f"{tactic_id}__mut_{suffix}_{state.mutation_index}"
+            if variant_id in state.introduced_variants:
+                # Extremely defensive, but keeps identifiers unique.
+                continue
+
+            adjusted_weight = max(0.0, base.base_weight * mutation.weight_multiplier)
+            mutated_tactic = replace(
+                base,
+                tactic_id=variant_id,
+                parameters=mutated_params,
+                base_weight=adjusted_weight,
+            )
+
+            rationale = mutation.rationale or (
+                f"Auto-mutated {parameter} from {original} to {mutated_value:.4f}"
+            )
+            variant = StrategyVariant(
+                variant_id=variant_id,
+                tactic=mutated_tactic,
+                base_tactic_id=tactic_id,
+                rationale=rationale,
+                trial_weight_multiplier=1.0,
+            )
+            state.introduced_variants[variant_id] = variant
+            return variant
+        return None
+
     def _ensure_catalogue(self) -> StrategyCatalog | None:
         if self._catalogue is not None:
             return self._catalogue
@@ -362,4 +451,5 @@ __all__ = [
     "ManagedStrategyConfig",
     "CatalogueVariantRequest",
     "StrategyVariant",
+    "ParameterMutation",
 ]

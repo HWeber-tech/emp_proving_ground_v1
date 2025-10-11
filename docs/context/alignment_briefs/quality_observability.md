@@ -119,6 +119,11 @@
     failover helper so dashboards and responders inherit deterministic
     remediation context under pytest coverage documenting evaluation, alert
     derivation, and publish fallbacks.【F:src/operations/operational_readiness.py†L113-L744】【F:tests/operations/test_operational_readiness.py†L86-L389】【F:docs/status/operational_readiness.md†L1-L140】【F:tests/runtime/test_professional_app_timescale.py†L722-L799】
+  - Progress: The whitepaper now records the roadmap Definition-of-Done coverage
+    and a replay/evidence checklist covering data backbone hydration, governed
+    simulation runs, diary validation, and KPI regeneration so observability
+    reviewers can reproduce the paper-trading packet directly from versioned
+    documentation instead of ad-hoc notes.【F:docs/AlphaTrade_Whitepaper.md†L30-L36】【F:docs/AlphaTrade_Whitepaper.md†L341-L362】
   - Progress: Dry-run audit evaluator now applies minimum runtime and uptime
     thresholds, emitting structured incidents when evidence windows are too
     short or availability slips, with regression coverage confirming the new

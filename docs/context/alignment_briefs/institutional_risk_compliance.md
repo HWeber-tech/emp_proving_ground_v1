@@ -21,7 +21,7 @@
 - Risk manager now returns `0.0` when the risk budget is exhausted or lot sizes
   fall below configured minimums, preventing orphaned orders in depleted paper
   accounts while regression coverage exercises zero-budget flows.【F:src/risk/risk_manager_impl.py†L220-L268】【F:tests/risk/test_risk_manager_impl_additional.py†L27-L70】
-- Safety manager now coerces environment-provided confirmation strings via a strict normaliser, raising on unrecognised payloads so live boots cannot bypass the confirmation gate, with regression coverage and the refreshed Phase II audit documenting the guardrail.【F:src/governance/safety_manager.py†L1-L114】【F:tests/governance/test_safety_manager.py†L1-L67】【F:docs/reports/governance_risk_phase2_code_audit_v2.md†L1-L28】
+- Safety manager now coerces environment-provided confirmation strings via a strict normaliser, raising on unrecognised payloads so live boots cannot bypass the confirmation gate, with regression coverage and the refreshed Phase II completion audit documenting the guardrail and follow-up recommendations.【F:src/governance/safety_manager.py†L1-L120】【F:tests/governance/test_safety_manager.py†L1-L76】【F:docs/reports/risk_governance_phase2_completion_audit.md†L1-L31】
 
 ## Gap themes
 

@@ -53,6 +53,10 @@
   windows once adaptations fire so adaptive trials rotate through live catalogue
   definitions under regression coverage of variant promotion, feature-flag
   gating, and paper-stage enforcement.【F:src/thinking/adaptation/evolution_manager.py†L70-L205】【F:tests/thinking/test_evolution_manager.py†L24-L150】
+- Progress: When catalogue queues empty the manager now synthesises
+  parameter-mutation variants, scaling or offsetting numeric fields and tagging
+  the identifiers for governance reviewers while regression checks confirm the
+  mutated tactics retain paper-only guardrails.【F:src/thinking/adaptation/evolution_manager.py†L207-L269】【F:tests/thinking/test_evolution_manager.py†L204-L252】
 - Progress: Realistic genome seeding now rotates through catalogue templates,
   harvests recorded experiment manifests into additional templates, derives
   jitter/metrics/tags from those artifacts, and applies lineage/performance

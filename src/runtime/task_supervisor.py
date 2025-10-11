@@ -209,6 +209,7 @@ class TaskSupervisor:
             return
 
         tasks: Sequence[asyncio.Task[Any]] = tuple(self._tasks.keys())
+        task_records = {task: self._tasks.get(task) for task in tasks}
         if not tasks:
             return
 
@@ -226,6 +227,23 @@ class TaskSupervisor:
         try:
             await asyncio.wait_for(_await_tasks(), timeout=self._cancel_timeout)
         except asyncio.TimeoutError:
+            stalled: list[tuple[str | None, Mapping[str, Any] | None, str]] = []
+            for task in tasks:
+                record = task_records.get(task)
+                name = record.name if record is not None else self._task_name(task)
+                metadata = record.metadata if record is not None else None
+                stalled.append((name, metadata, self._task_state(task)))
+
+            for name, metadata, state in stalled:
+                safe_metadata = dict(metadata) if metadata is not None else {}
+                self._logger.error(
+                    "Background task %s failed to stop within %.2fs (state=%s metadata=%s)",
+                    name or "<unnamed>",
+                    self._cancel_timeout,
+                    state,
+                    safe_metadata,
+                )
+
             self._logger.error(
                 "Timeout while awaiting %s background tasks during shutdown", len(tasks)
             )

@@ -35,6 +35,15 @@ def test_from_config_rejects_unrecognised_confirmation_payload() -> None:
         SafetyManager.from_config({"confirm_live": "maybe"})
 
 
+def test_run_mode_normalisation_blocks_uppercase_live() -> None:
+    """Uppercase live mode should still require explicit confirmation."""
+
+    manager = SafetyManager.from_config({"run_mode": "LIVE", "confirm_live": "no"})
+
+    with pytest.raises(RuntimeError):
+        manager.enforce()
+
+
 def test_enforce_requires_live_confirmation(tmp_path: Path) -> None:
     """Live runs without confirmation are blocked."""
 

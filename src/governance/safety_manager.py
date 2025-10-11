@@ -26,10 +26,16 @@ class SafetyManager:
         kill_switch_path: str | Path | None,
     ) -> None:
         self._ctx = SafetyContext(
-            run_mode=run_mode,
+            run_mode=self._normalize_run_mode(run_mode),
             confirm_live=confirm_live,
             kill_switch_path=self._normalize_kill_switch_path(kill_switch_path),
         )
+
+    @staticmethod
+    def _normalize_run_mode(value: str) -> str:
+        """Normalise run mode strings for consistent policy enforcement."""
+
+        return value.strip().lower()
 
     @staticmethod
     def _normalize_kill_switch_path(path: str | Path | None) -> Optional[Path]:
@@ -83,7 +89,11 @@ class SafetyManager:
         confirm_live_raw = _lookup("confirm_live", False)
         kill_switch_raw = _lookup("kill_switch_path", None)
 
-        run_mode = str(run_mode_raw) if run_mode_raw is not None else "paper"
+        run_mode = (
+            cls._normalize_run_mode(str(run_mode_raw))
+            if run_mode_raw is not None
+            else "paper"
+        )
         try:
             confirm_live = cls._coerce_confirmation(confirm_live_raw)
         except (TypeError, ValueError) as exc:

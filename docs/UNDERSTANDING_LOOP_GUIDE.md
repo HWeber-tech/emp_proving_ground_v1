@@ -38,7 +38,7 @@ Every loop iteration emits a `DecisionDiaryEntry`. Key fields:
 - `regime_state` – The qualitative regime plus raw feature vector for audit.
 - `decision.selected_weight` – Final fast-weight-adjusted score the router used when ranking tactics.
 - `fast_weight_summary` – Per-adapter rationale and multipliers (on the mailbox event and inside the stored JSON).
-- `fast_weight_metrics` – Aggregated sparsity telemetry (active counts, active percentage, non-zero multipliers) surfaced from the fast-weight controller for quick governance review.
+- `fast_weight_metrics` – Aggregated sparsity telemetry (active counts, active percentage, non-zero multipliers) surfaced from the fast-weight controller for quick governance review.【F:src/thinking/adaptation/policy_router.py†L323-L411】【F:src/understanding/router.py†L260-L263】
 - `belief_state` – Serialized posterior (means, covariance, confidence) so drift analysis can reproduce the inputs.
 - `notes` / `metadata` – Free-form fields. The notebook stores `demo_run: true` here for traceability.
 

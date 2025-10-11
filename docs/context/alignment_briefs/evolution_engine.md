@@ -105,6 +105,7 @@
   artifacts so experimentation stays current while governance receives
   consumable summaries under regression coverage.【F:src/thinking/adaptation/policy_router.py†L175-L525】【F:tests/thinking/test_policy_router.py†L248-L308】
 - Progress: Fast-weight constraints now clamp multipliers to non-negative values, prune excess activations to keep the router sparse, and emit `%_active` metrics inside reflection summaries so reviewers see enforced BDH-style sparsity, with a dedicated fast-weight test suite covering the invariants.【F:src/thinking/adaptation/fast_weights.py†L1-L160】【F:src/thinking/adaptation/policy_router.py†L320-L402】【F:tests/thinking/test_fast_weights.py†L1-L49】【F:tests/thinking/test_policy_router.py†L121-L152】
+- Progress: Policy decisions now embed fast-weight sparsity metrics and propagate them through the understanding router so diaries and governance reports inherit activation counts, percentages, and participant lists under regression coverage.【F:src/thinking/adaptation/policy_router.py†L323-L411】【F:src/understanding/router.py†L260-L263】【F:tests/thinking/test_policy_router.py†L123-L145】【F:tests/understanding/test_understanding_router.py†L99-L128】
 - Progress: Reflection builder now highlights emerging tactics and experiments
   with first/last-seen timestamps, decision counts, share, and gating metadata,
   emitting reviewer insights that call out regime filters and confidence

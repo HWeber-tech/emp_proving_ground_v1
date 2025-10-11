@@ -67,3 +67,5 @@ Each adapter definition declares feature-gate bounds, required flags, optional e
 Hebbian parameters. Tier defaults keep bootstrap dry-runs conservative while institutional
 runs enable both adapters by default. Update these examples alongside the sprint brief when
 new adapters or tier policies are introduced.
+
+Decision bundles now expose a `fast_weight_metrics` payload containing active counts, activation percentages, and sparsity ratios derived from the controller so governance briefs and diaries inherit the same health summary reviewed in loop telemetry.【F:src/thinking/adaptation/policy_router.py†L323-L411】【F:src/understanding/router.py†L260-L263】

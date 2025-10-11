@@ -1255,7 +1255,13 @@ async def test_trading_manager_liquidity_prober_captures_risk_metadata() -> None
 
     decision = {"checks": []}
     intent = {"symbol": "EURUSD", "side": "buy", "price": 1.1234}
-    await manager.risk_gateway._run_liquidity_probe(intent, Decimal("1"), decision)
+    await manager.risk_gateway._run_liquidity_probe(
+        intent,
+        Decimal("1"),
+        decision,
+        market_price=1.1234,
+        portfolio_state={},
+    )
 
     context = manager.risk_gateway.liquidity_prober.describe_risk_context()
     assert context["runbook"] == RISK_API_RUNBOOK

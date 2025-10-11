@@ -411,7 +411,11 @@ class RiskGateway:
             liquidity_score: float | None = None
             if self.liquidity_prober and adjusted_quantity >= self.liquidity_probe_threshold:
                 liquidity_score, liquidity_summary = await self._run_liquidity_probe(
-                    intent, adjusted_quantity, decision
+                    intent,
+                    adjusted_quantity,
+                    decision,
+                    market_price=market_price,
+                    portfolio_state=portfolio_state,
                 )
                 if liquidity_score is not None and liquidity_score < self.min_liquidity_confidence:
                     decision.update(status="rejected", reason="insufficient_liquidity")
@@ -792,14 +796,23 @@ class RiskGateway:
         return recommended
 
     async def _run_liquidity_probe(
-        self, intent: Any, quantity: Decimal, decision: dict[str, Any]
+        self,
+        intent: Any,
+        quantity: Decimal,
+        decision: dict[str, Any],
+        *,
+        market_price: float,
+        portfolio_state: Mapping[str, Any],
     ) -> tuple[float | None, Mapping[str, Any] | None]:
         if not self.liquidity_prober:
             return None, None
 
         symbol = _extract_attr(intent, "symbol", default="UNKNOWN")
         side = str(_extract_attr(intent, "side", "direction", default="buy")).lower()
-        market_price = self._extract_price(intent, {}) or 0.0
+        resolved_price = self._resolve_trade_price(
+            market_price, portfolio_state, str(symbol)
+        )
+        market_price = resolved_price if resolved_price > 0 else 0.0
         spread = max(market_price * 0.001, 0.0005)
         price_levels = (
             [

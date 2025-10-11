@@ -155,6 +155,45 @@ async def test_risk_gateway_clips_position_and_adds_liquidity_metadata(
 
 
 @pytest.mark.asyncio()
+async def test_risk_gateway_liquidity_probe_uses_portfolio_price(
+    portfolio_monitor: PortfolioMonitor,
+) -> None:
+    registry = DummyStrategyRegistry(active=True)
+    liquidity_prober = DummyLiquidityProber(score=0.75)
+    policy = RiskPolicy.from_config(RiskConfig(min_position_size=1))
+    gateway = RiskGateway(
+        strategy_registry=registry,
+        position_sizer=None,
+        portfolio_monitor=portfolio_monitor,
+        liquidity_prober=liquidity_prober,
+        liquidity_probe_threshold=1.0,
+        min_liquidity_confidence=0.2,
+        risk_policy=policy,
+    )
+
+    intent = {
+        "symbol": "EURUSD",
+        "quantity": Decimal("2"),
+        "metadata": {},
+    }
+
+    state = portfolio_monitor.get_state()
+    state["current_daily_drawdown"] = 0.0
+    state["current_price"] = 1.2345
+
+    validated = await gateway.validate_trade_intent(intent, state)
+
+    assert validated is intent
+    assert liquidity_prober.last_probe is not None
+    symbol, price_levels, side = liquidity_prober.last_probe
+    assert symbol == "EURUSD"
+    assert side == "buy"
+    assert len(price_levels) == 5
+    assert any(level != 0.0 for level in price_levels)
+    assert price_levels[2] == pytest.approx(1.2345, rel=1e-6)
+
+
+@pytest.mark.asyncio()
 async def test_risk_gateway_apply_risk_config_refreshes_limits(
     portfolio_monitor: PortfolioMonitor,
 ) -> None:

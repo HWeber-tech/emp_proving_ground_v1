@@ -93,40 +93,53 @@ The layer boundaries double as documentation boundaries: each subsystem exposes 
 - Drift sentries and anomaly detectors guard for broken telemetry, enforcing positive semi-definite covariance and data quality hooks before beliefs are propagated through the `BasicAnomalyDetector` and DriftSentry gate (`src/sensory/anomaly/basic_detector.py`, `src/trading/gating/drift_sentry_gate.py`).
 - Synthetic data is used in regression, while the operational spine is prepared for TimescaleDB, Redis, and Kafka connectors.
 
-### 2.2 Adaptation
+### 2.2 Architecture Traceability
+The roadmap requires that the architecture be intelligible without spelunking through source files. Table 1 crosswalks the major loop stages to their primary modules, configuration entry points, and guardrail tests so reviewers can trace each diagram node back to executable artefacts. This narrative complements the layered diagram above and anchors the rest of the whitepaper in concrete code contracts.
+
+| Loop Stage | Primary Modules | Configuration Entry Points | Guardrail Evidence |
+| --- | --- | --- | --- |
+| Perception | `RealSensoryOrgan`, `BeliefState`, anomaly sentries | `config/reflection/rim.config.example.yml`, data ingest CLI manifests | `tests/integration/test_real_data_slice_ingest.py`, `tests/sensory/test_primary_dimension_sensors.py` |
+| Adaptation | `UnderstandingRouter`, `PolicyRouter`, `FastWeightController` | `docs/context/examples/understanding_router.md`, strategy catalogue extras | `tests/understanding/test_understanding_router.py`, `tests/thinking/test_fast_weights.py` |
+| Reflection | `DecisionDiary`, `PolicyReflectionBuilder`, diagnostics exports | `tools/understanding/decision_diary_cli.py`, diary storage settings | `tests/understanding/test_decision_diary.py`, `tests/thinking/test_policy_reflection.py` |
+| Execution | `TradingManager`, `PaperTradingApiAdapter`, throttles | Paper broker bootstrap templates, throughput monitor config | `tests/trading/test_trading_manager_execution.py`, `tests/trading/test_paper_trading_api_adapter.py` |
+| Governance | `PolicyLedgerStore`, supervisor guardrails, dry-run audit bundle | `config/governance/strategy_registry.yaml`, final dry-run CLI | `tests/operations/test_dry_run_audit.py`, `tests/runtime/test_bootstrap_paper_broker.py` |
+
+Table 1 – Architecture traceability map linking the layered system diagram to concrete modules, configuration knobs, and regression suites.
+
+### 2.3 Adaptation
 - The **UnderstandingRouter** scores candidate strategies using belief snapshots and applies Hebbian fast weights to emphasize recently successful tactics, exposing adapter summaries for observability (`src/understanding/router.py`).
 - The **PolicyRouter** manages lifecycle metadata and fast-weight experiments, enabling governance to promote or demote strategies based on evidence (`src/thinking/adaptation/policy_router.py`).
 - Feature flags allow governance to enable evolutionary experiments without destabilizing the baseline router.
 - Fast-weight sparsity and multiplier bounds are enforced through the `FastWeightController`, satisfying the positive-sparse activation guardrails described in the router context examples (`src/thinking/adaptation/fast_weights.py`, `docs/context/examples/understanding_router.md`).
 
-### 2.3 Reflection
+### 2.4 Reflection
 - The **DecisionDiary** captures context, rationale, and outcomes for every routing cycle (`src/understanding/decision_diary.py`).
 - `PolicyReflectionBuilder` aggregates diaries into artifacts summarizing emerging tactics, risk posture, and gating justifications (`src/thinking/adaptation/policy_reflection.py`).
 - Understanding graph diagnostics visualize fast-weight utilization, sparsity, and dominant strategy clusters for interpretability (`src/understanding/diagnostics.py`).
 
-### 2.4 Execution
+### 2.5 Execution
 - `PaperBrokerExecutionAdapter` bridges AlphaTrade orders to the REST-based `PaperTradingApiAdapter`, supporting sandbox integrations (`src/runtime/predator_app.py`, `src/trading/integration/paper_trading_api.py`).
 - The shared `TradeThrottle` enforces governance-defined order frequency limits while exposing throttle posture to the trading manager (`src/trading/execution/trade_throttle.py`, `src/trading/trading_manager.py`).
 - Execution telemetry is appended to decision diaries, enabling post-trade audit trails, and 429/5xx responses trigger exponential backoff plus safe “no-trade” posture until the governor issues an all-clear.
 
-### 2.5 Governance
+### 2.6 Governance
 - Governance workflows approve experimental tactics, toggle fast weights, and configure throttle policies via the policy ledger and graduation modules (`src/governance/policy_ledger.py`, `src/governance/policy_graduation.py`).
 - Supervisor guardrails treat API failures as recoverable incidents, defaulting to safe “no-trade” posture when anomalies fire (`src/runtime/predator_app.py`).
 - Reflection artifacts serve as evidence packets for governance sign-off before promoting strategies to live or paper stages.
 
-### 2.6 Operational Spine
+### 2.7 Operational Spine
 - Bootstrap wiring in `AlphaTradeLoopOrchestrator` attaches perception, adaptation, and execution subsystems with configurable extras for paper trading (`src/runtime/predator_app.py`).
 - Regression suites exercise the Timescale → Kafka → cortex integration (`tests/integration/test_operational_backbone_pipeline.py`) and bootstrap paper broker lifecycle (`tests/runtime/test_bootstrap_paper_broker.py`).
 - Observability hooks stream throttle posture, drift sentry decisions, and governance workflow snapshots through the trading manager interface for dashboards and runbooks (`src/trading/trading_manager.py`).
 - Operational playbooks in the context packs describe how to triage ingest failures and throttle fatigue; the loop orchestrator mirrors those runbooks by surfacing remediation actions into the dry-run audit package (`docs/context/alignment_briefs/operational_readiness.md`, `src/operations/dry_run_audit.py`).
 
-### 2.7 Context Pack Alignment
+### 2.8 Context Pack Alignment
 - **Sensory Cortex Brief:** The sensory cortex alignment pack prescribes multi-signal fusion with lineage metadata and anomaly sentries; the RealSensoryOrgan mirrors that contract so routers receive PSD-validated frames tagged for provenance (`docs/context/alignment_briefs/sensory_cortex.md`).
 - **Institutional Data Backbone:** Operational readiness guidance calls for a Timescale → Kafka ingest spine with failover capture; the integration harness and bootstrap wiring enforce that topology under guardrail coverage until live credentials land (`docs/context/alignment_briefs/institutional_data_backbone.md`).
 - **Governance & Risk:** Policy ledger procedures, throttle requirements, and incident reporting defined in the governance briefs materialize as graduation workflows, throttle snapshots, and audit bundles that satisfy roadmap evidence reviews (`docs/context/alignment_briefs/institutional_risk_compliance.md`, `docs/context/alignment_briefs/operational_readiness.md`).
 - **BDH Decision Theory:** The evolution engine brief outlines positive-sparse activations and Hebbian reinforcement; AlphaTrade’s fast-weight controller applies percentile pruning and non-negative clamps to satisfy those expectations while the diagnostics pack visualizes activation density for reviewers (`docs/context/alignment_briefs/evolution_engine.md`, `src/thinking/adaptation/fast_weights.py`).
 
-### 2.8 Governance-Coupled Control Surfaces
+### 2.9 Governance-Coupled Control Surfaces
 Operational guardrails keep the cognition loop auditable end to end. The trading manager persists throttle posture, retry windows, and block counters alongside each intent so reviewers can reconcile router enthusiasm with rate-limit discipline without hunting through raw logs.【F:src/trading/trading_manager.py†L344-L428】 The final dry-run audit bundle composes those throttle snapshots with diary evidence, log continuity checks, and uptime ratios into Markdown packets that the roadmap earmarks for sign-off rehearsals.【F:src/operations/dry_run_audit.py†L18-L180】 These mechanisms map directly to the institutional risk and operational readiness briefs: the context packs demand compliance telemetry, supervised task posture, and governance traceability, and the implemented surfaces satisfy those criteria while remaining reproducible in guardrail tests.【F:docs/context/alignment_briefs/institutional_risk_compliance.md†L1-L183】【F:docs/context/alignment_briefs/operational_readiness.md†L1-L115】
 
 ## 3. Implementation Highlights
@@ -351,6 +364,18 @@ AlphaTrade now operates as a cohesive, explainable trading intelligence capable 
 
 ## 10. Publication & Stakeholder Review Plan
 The roadmap’s documentation milestone culminates in presenting the whitepaper to governance, research, and operations stakeholders. We follow a three-step plan: (1) regenerate evidence via the whitepaper build workflow and attach the resulting artefacts to the institutional readiness brief; (2) host a walkthrough anchored on the understanding-loop sprint brief to contextualise how the documented experiments close the remaining roadmap gaps; and (3) capture review feedback in the governance policy ledger so any follow-up actions are traceable.【F:scripts/docs/build_whitepaper.sh†L1-L126】【F:docs/context/sprint_briefs/understanding_loop_v1.md†L1-L120】【F:docs/context/alignment_briefs/institutional_risk_compliance.md†L115-L200】 The publication package therefore includes reproducible metrics, context pack crosswalks, and an approval log aligned with the compliance charter, satisfying the definition of done for the whitepaper milestone without editing the roadmap itself.
+
+## 11. Editorial Completeness Checklist
+The documentation milestone’s definition of done calls for a cohesive narrative, architecture explanation, BDH feature discussion, and reproducible results. Table 2 summarises how this whitepaper satisfies each requirement so reviewers can perform an editorial spot-check without re-reading the entire document.
+
+| Roadmap Expectation | Coverage Summary | Primary Sections |
+| --- | --- | --- |
+| High-level architecture with diagrammatic support | Layered ASCII and Mermaid diagrams paired with the architecture traceability crosswalk detail component responsibilities and interfaces. | §2, §2.2 |
+| Explanation of BDH-inspired features and their impact | Fast-weight, sparsity, and decision graph narratives quantify how BDH tenets translate into ROI, risk posture, and interpretability. | §4.7, §6 |
+| Preliminary paper-trading results and evidence | EURUSD replay methodology, baseline comparisons, ROI timelines, and appendices document reproducible performance outcomes. | §4.1–§4.12, Appendix B–E |
+| Governance, compliance, and operations linkage | Context pack alignment, compliance scorecard, and publication workflow map governance expectations to implemented controls. | §2.8–§2.9, §4.9–§4.11, §5, §10 |
+
+Table 2 – Editorial completeness checklist confirming the roadmap documentation criteria are met.
 
 ## Appendix A. Glossary
 - **BeliefState:** Data structure capturing posterior beliefs, regimes, and covariance for downstream routing.

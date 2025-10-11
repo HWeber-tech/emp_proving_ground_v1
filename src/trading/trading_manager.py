@@ -68,8 +68,10 @@ from src.operations.roi import (
 )
 from src.operations.sensory_drift import SensoryDriftSnapshot
 from src.trading.execution.release_router import ReleaseAwareExecutionRouter
+from src.trading.execution.backlog_tracker import EventBacklogTracker
 from src.trading.execution.performance_monitor import ThroughputMonitor
 from src.trading.execution.performance_report import build_execution_performance_report
+from src.trading.execution.resource_monitor import ResourceUsageMonitor
 from src.trading.execution.trade_throttle import (
     TradeThrottle,
     TradeThrottleConfig,
@@ -248,6 +250,8 @@ class TradingManager:
         self._maybe_auto_install_release_router()
 
         self._throughput_monitor = ThroughputMonitor()
+        self._resource_monitor = ResourceUsageMonitor()
+        self._backlog_tracker = EventBacklogTracker()
 
         self._execution_stats: dict[str, object] = {
             "orders_submitted": 0,
@@ -258,10 +262,13 @@ class TradingManager:
             "max_latency_ms": 0.0,
             "last_error": None,
             "last_execution_at": None,
+            "last_successful_order": None,
+            "throughput": self._throughput_monitor.snapshot(),
+            "resource_usage": self._resource_monitor.snapshot(),
+            "backlog": self._backlog_tracker.snapshot(),
             "throttle_blocks": 0,
             "throttle_retry_at": None,
         }
-        self._execution_stats["throughput"] = self._throughput_monitor.snapshot()
         self._experiment_events: deque[dict[str, Any]] = deque(maxlen=512)
 
         self._trade_throttle: TradeThrottle | None = None
@@ -824,6 +831,10 @@ class TradingManager:
         finally:
             finished_wall = datetime.now(tz=timezone.utc)
             ingestion_timestamp = self._resolve_intent_timestamp(event)
+            lag_ms: float | None = None
+            if ingestion_timestamp is not None:
+                lag_delta = (started_wall - ingestion_timestamp).total_seconds() * 1000.0
+                lag_ms = max(lag_delta, 0.0)
             try:
                 self._throughput_monitor.record(
                     started_at=started_wall,
@@ -834,6 +845,10 @@ class TradingManager:
                 logger.debug("Failed to record throughput metrics", exc_info=True)
             else:
                 self._execution_stats["throughput"] = self._throughput_monitor.snapshot()
+            self._backlog_tracker.record(lag_ms=lag_ms, timestamp=started_wall)
+            self._execution_stats["backlog"] = self._backlog_tracker.snapshot()
+            resource_snapshot = self._resource_monitor.sample()
+            self._execution_stats["resource_usage"] = resource_snapshot
             await self._emit_policy_snapshot()
             await self._emit_risk_interface_snapshot()
             await self._emit_risk_snapshot()

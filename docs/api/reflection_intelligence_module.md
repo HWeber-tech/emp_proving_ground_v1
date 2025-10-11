@@ -5,11 +5,27 @@ The Reflection Intelligence Module (RIM) exposes an asynchronous API for produci
 ## Versioning & Audit
 
 - Every object includes `schema_version`, `input_hash`, `model_hash`, and `config_hash`.
-- `input_hash` and `config_hash` use SHA-256.
+- `input_hash` and `config_hash` use SHA-256 with canonical JSON hashing (see below).
 - `model_hash` is opaque and may represent a Git commit, model artifact hash, or placeholder for shadow runs.
-- Published suggestions are immutable JSONL files written to `artifacts/rim_suggestions/` with filename pattern `rim-suggestions-UTC-<timestamp>.jsonl`.
-- For each emission we log metadata to `artifacts/rim_logs/` capturing runtime percentiles and suggestion counts.
+- All timestamp fields are UTC ISO-8601. Runners must normalize any local wall-clock inputs to UTC prior to ingest, and diary windows are computed strictly in UTC.
+- Published suggestions are immutable JSONL files written to `artifacts/rim_suggestions/` with filename pattern `rim-suggestions-UTC-<ISO>-<RUN_ID>.jsonl`.
+- `RUN_ID` values follow `<yyyyMMddHHmmssZ>-<hostname>-<pid>`. Replays over the same window reuse the original `RUN_ID` for idempotency or annotate a `rerun_of` header field referencing the prior run.
+- For each emission we log metadata to `artifacts/rim_logs/` capturing runtime percentiles and suggestion counts (`p50_ms`, `p95_ms`, `windows_processed`, `windows_halted_early_%`, `suggestions_emitted`, `suggestions_dropped_low_confidence`).
+- Schema evolution policy: current `schema_version` is `"rim.v1"`; readers must ignore unknown fields; any breaking change promotes to `rim.v2` with a minimum 90-day dual-write period emitting both versions.
 - Diary inputs are sourced from `diaries_dir` (default `artifacts/diaries/`) and must match the configured `diary_glob` (`diaries-*.jsonl`).
+
+#### Canonical hashing
+`input_hash` = SHA-256 over newline-joined **canonical JSON** of the input lines.
+
+```python
+import hashlib, json
+def canon(obj):  # canonical, deterministic JSON
+    return json.dumps(obj, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+def hash_lines(json_objs):
+    payload = "\n".join(canon(o) for o in json_objs).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()
+```
+All timestamps MUST be UTC ISO-8601 before hashing.
 
 ## Public Interfaces
 
@@ -93,6 +109,8 @@ Response is a JSON array of `RIMSuggestion` objects as documented below.
 3. Reviewers annotate acceptance/override decisions, creating downstream records keyed by `suggestion_id`.
 4. Acceptance metrics flow back into telemetry (suggestion acceptance percentage) and optional retraining labels.
 
+> RIM cannot mutate live weights. Only the Governance process may apply suggestions after approval.
+
 ## Example JSONL Artifact
 
 ```
@@ -102,8 +120,15 @@ Response is a JSON array of `RIMSuggestion` objects as documented below.
 ## Error Handling
 
 - Invalid schema: 422 response with validation errors; CLI tooling (`tools/rim_validate.py`) assists local debugging.
+- Corrupt diary JSONL lines are skipped (counted as `skipped_lines`) while continuing processing; total processed lines are logged alongside the skip count.
+- Missing optional fields fall back to documented defaults (e.g., `belief_state_summary.vector` defaults to a length-32 zero vector).
+- Diary entries are sorted by timestamp prior to hashing/emission; ties preserve original file order to maintain determinism.
 - Governance gate disabled: 503 response; callers must confirm `enable_governance_gate` prior to publishing.
 - Kill switch enabled: 204 response with no content; RIM logs message and returns immediately.
+
+## Telemetry
+
+Logged fields include `p50_ms`, `p95_ms`, `windows_processed`, `windows_halted_early_%`, `suggestions_emitted`, and `suggestions_dropped_low_confidence` to highlight runtime drift and suggestion budget consumption.
 
 ## CHANGELOG
 

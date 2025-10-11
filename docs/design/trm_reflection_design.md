@@ -68,7 +68,7 @@ sequenceDiagram
 | `input_hash` | string | SHA-256 hash of source diary slice. |
 | `model_hash` | string | Placeholder (`"n/a"` in shadow mode). |
 | `config_hash` | string | Hash of config used during write. |
-| `timestamp` | string (ISO-8601) | Event time. |
+| `timestamp` | string (ISO-8601, UTC) | Event time; loaders must normalize local timestamps to UTC prior to ingestion. |
 | `instrument` | string | Symbol or asset identifier. |
 | `strategy_id` | string | Strategy identifier. |
 | `features_digest` | object | Key aggregates powering reflection. |
@@ -86,7 +86,7 @@ sequenceDiagram
 | `input_hash` | string | Aggregate hash of included entries. |
 | `model_hash` | string | Hash of TRM weights (shadow mode uses stub). |
 | `config_hash` | string | Hash of active configuration. |
-| `window` | object | `{ "start": ISO, "end": ISO, "minutes": int }`. |
+| `window` | object | `{ "start": ISO (UTC), "end": ISO (UTC), "minutes": int }`. |
 | `entries` | array[DecisionDiaryEntry] | Raw diary slice. |
 | `aggregates` | object | Summary stats (counts, pnl aggregates, flags). |
 
@@ -104,9 +104,11 @@ sequenceDiagram
 | `confidence` | number [0,1] | Model confidence. |
 | `rationale` | string | Human-readable explanation. |
 | `audit_ids` | array[string] | Cross-links to diary entries. |
-| `created_at` | string (ISO-8601) | Suggestion emission time. |
+| `created_at` | string (ISO-8601, UTC) | Suggestion emission time. |
 
-Canonical schemas live in [`interfaces/rim_types.json`](../../interfaces/rim_types.json).
+Canonical schemas live in [`interfaces/rim_types.json`](../../interfaces/rim_types.json). Diary entries within a batch are sorted by timestamp (stable on ties) before hashing to guarantee deterministic `input_hash` values.
+
+Schema versioning follows `rim.v1` today. Readers must ignore unknown fields for backward compatibility. Any breaking contract change triggers a bump to `rim.v2` and a minimum 90-day dual-write period emitting both schema versions.
 
 ## Interfaces
 
@@ -147,6 +149,20 @@ Referenced in [`config/reflection/rim.config.example.yml`](../../config/reflecti
 - `enable_governance_gate`, `publish_channel`, `kill_switch`
 - `telemetry.log_dir`
 - `trm_params.K_outer`, `trm_params.n_inner`, `trm_params.halt_enabled`
+- `redact.fields`, `redact.mode`
+
+## Operational Policies
+
+- **File locking & idempotency:** Only one RIM job may publish into `artifacts/rim_suggestions/` at a time. Writers acquire `artifacts/locks/rim.lock` and exit cleanly if the lock exists and is younger than two hours. Output filenames follow `rim-suggestions-UTC-<ISO>-<RUN_ID>.jsonl` with `RUN_ID = <yyyyMMddHHmmssZ>-<hostname>-<pid>`. Replays reuse the same `RUN_ID` for idempotency or set `rerun_of` to the original run identifier.
+- **Failure handling:** Corrupt JSONL lines are skipped (counted vs `total_lines`), missing fields fall back to documented defaults (e.g., `belief_state_summary.vector = zeros(32)`), and diary entries are sorted chronologically before hashing/emission (stable on ties).
+- **Privacy & redaction:** Configuration exposes a `redact` block with allowlisted fields and a `hash` or `drop` mode. Sensitive identifiers (e.g., `account_id`, `order_id`) appearing in diaries must be hashed or removed before artifact publication, and secrets/API keys are never persisted in artifacts or telemetry.
+- **Retention:** Suggestion artifacts retain for 30 days via `rim_prune`. Decision Diary sources retain for 90 days (or per data platform retention policy if stricter) so ops teams understand the archival footprint.
+
+## Determinism & Governance
+
+- Training runs set deterministic seeds across Python, NumPy, and PyTorch, enable deterministic kernels, and record `torch.version`, CUDA build, and device info in experiment metadata.
+- Inference paths avoid RNG usage; any future stochastic augmentation must be guarded by a configuration flag defaulting to disabled.
+- Governance approval remains a hard gate. RIM cannot mutate live weights—only the Governance process may apply approved suggestions.
 
 ## Training Plan (Documentation Only)
 
@@ -163,11 +179,11 @@ Referenced in [`config/reflection/rim.config.example.yml`](../../config/reflecti
 
 ## Telemetry
 
-Monitor:
+Monitor and log:
 
-- `p50`/`p95` runtime per batch.
-- Suggestion emission rate (per window and per strategy).
-- Governance acceptance percentage and impact deltas (Sharpe, drawdown).
+- Latency distributions: `p50_ms`, `p95_ms`.
+- Throughput: `windows_processed`, `windows_halted_early_%`.
+- Suggestion quality mix: `suggestions_emitted`, `suggestions_dropped_low_confidence`, governance acceptance percentage, and downstream impact deltas (Sharpe, drawdown).
 
 ## Risks & Mitigations
 
@@ -194,6 +210,10 @@ Monitor:
 - Confirm governance ingestion API for policy ledger queue.
 - Retention enforcement job satisfied by `make rim-prune` (30-day window) and optional scheduled runs.
 - Align with data platform on diary enrichment cadence.
+
+## Attribution
+
+This design draws on the upstream Tiny Recursive Model (TRM) paper and reference code; final licensing will be reviewed and approved prior to importing any external implementation artifacts.
 
 ---
 

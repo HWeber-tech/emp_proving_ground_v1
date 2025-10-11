@@ -1,5 +1,8 @@
 diaries_dir: artifacts/diaries
-diary_glob: diaries-*.jsonl
+diary_glob: "diaries-*.jsonl"
+redact:
+  fields: ["account_id", "order_id"]
+  mode: "hash"  # or "drop"
 window_minutes: 1440
 min_entries: 500
 suggestion_cap: 10

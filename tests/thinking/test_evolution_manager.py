@@ -8,6 +8,7 @@ from src.thinking.adaptation.evolution_manager import (
     CatalogueVariantRequest,
     EvolutionManager,
     ManagedStrategyConfig,
+    ParameterMutation,
     StrategyVariant,
 )
 from src.thinking.adaptation.policy_router import PolicyDecision, PolicyRouter, PolicyTactic
@@ -203,3 +204,54 @@ def test_evolution_manager_registers_catalogue_variant() -> None:
     assert trial.guardrails["force_paper"] is True
     assert trial.tags == ("momentum", "trial")
     assert router.tactics()["momentum_core"].base_weight == pytest.approx(0.5)
+
+
+def test_evolution_manager_applies_parameter_mutation() -> None:
+    router = PolicyRouter()
+    router.register_tactic(
+        PolicyTactic(
+            tactic_id="mean_rev_core",
+            base_weight=1.0,
+            parameters={"lookback": 20.0, "zscore_entry": 1.2},
+            description="Baseline mean reversion",
+        )
+    )
+
+    manager = EvolutionManager(
+        policy_router=router,
+        strategies=(
+            ManagedStrategyConfig(
+                base_tactic_id="mean_rev_core",
+                degrade_multiplier=0.5,
+                parameter_mutations=(
+                    ParameterMutation(
+                        parameter="lookback",
+                        scale=1.2,
+                        suffix="lookback_up",
+                        rationale="Increase lookback after losses",
+                        weight_multiplier=0.75,
+                    ),
+                ),
+            ),
+        ),
+        window_size=2,
+        win_rate_threshold=0.5,
+        feature_flags=EvolutionFeatureFlags(env={"EVOLUTION_ENABLE_ADAPTIVE_RUNS": "1"}),
+    )
+
+    decision = _decision("mean_rev_core")
+    for _ in range(2):
+        manager.observe_iteration(
+            decision=decision,
+            stage=PolicyLedgerStage.PAPER,
+            outcomes={"paper_return": -0.02},
+        )
+
+    tactics = router.tactics()
+    assert tactics["mean_rev_core"].base_weight == pytest.approx(0.5)
+
+    mutated_id = "mean_rev_core__mut_lookback_up_1"
+    assert mutated_id in tactics
+    mutated = tactics[mutated_id]
+    assert mutated.parameters["lookback"] == pytest.approx(24.0)
+    assert mutated.base_weight == pytest.approx(0.75)

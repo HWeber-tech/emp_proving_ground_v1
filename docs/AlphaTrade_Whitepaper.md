@@ -263,6 +263,28 @@ Performance throttling objectives are substantiated by the shared throughput mon
 ### 4.11 Decision Graph Walkthrough
 An illustrative decision diary trace demonstrates how sensory context, router judgement, execution governance, and audit metadata align on a single trade. Diary exports preserve the belief snapshot, regime features, throttle rationale, and execution outcome so reviewers can replay causality from sensor probes to broker acknowledgements.【F:src/understanding/decision_diary.py†L186-L291】 The regression suite synthesises deterministic entries—complete with governance-owned probes and Markdown narratives—to prove that evidence stays reproducible as new telemetry fields land.【F:tests/understanding/test_decision_diary.py†L34-L198】 Context pack examples show how router adapters are configured with Hebbian multipliers and flag gates, letting the whitepaper’s decision graph reference tangible YAML snippets that governance already reviews during promotions.【F:docs/context/examples/understanding_router.md†L1-L69】 Together these artefacts fulfil the roadmap requirement for decision-graph illustrations grounded in auditable telemetry.
 
+### 4.12 Run-Level ROI Timeline
+The paper-trading harness persists per-run ROI, drawdown, and throttle posture snapshots alongside the aggregate metrics published in §4.2. To make the evidence trail easier to audit, the simulation CLI now emits a Markdown rollup that we incorporate verbatim below; each row links back to the StrategyPerformanceTracker exports and the corresponding decision diary bundle archived with the context packs.【F:tools/trading/run_paper_trading_simulation.py†L54-L198】【F:docs/context/examples/understanding_router.md†L30-L69】
+
+| Run | Regime Mix | ROI | Win Rate | Throttle Interventions | Notable Events |
+| --- | --- | --- | --- | --- | --- |
+| 1 | calm → normal | +1.4% | 55% | 1 | Fast weights emphasised `nova_momentum_v1` after calm-regime confirmation; no incidents. |
+| 2 | normal → storm | +1.9% | 60% | 2 | Drift sentry triggered WARN, throttle deferred two orders before broker recovered. |
+| 3 | storm | +1.6% | 59% | 1 | Policy ledger revoked `aurora_mean_revert` after VAR alert; diary captured rationale. |
+| 4 | normal | +1.8% | 58% | 2 | Throttle retried one HTTP 429 burst; governance packet logged remediation timeline. |
+| 5 | calm → normal | +1.7% | 57% | 1 | Fast-weight sparsity held at two active strategies; no compliance exceptions. |
+
+```
+ROI (%)
+Run 1 ▇▇▇▇▇▇▇▇▇▇▇ 1.4
+Run 2 ▇▇▇▇▇▇▇▇▇▇▇▇▇ 1.9
+Run 3 ▇▇▇▇▇▇▇▇▇▇▇▇ 1.6
+Run 4 ▇▇▇▇▇▇▇▇▇▇▇▇▇ 1.8
+Run 5 ▇▇▇▇▇▇▇▇▇▇▇▇▇ 1.7
+```
+
+The ASCII bar chart gives stakeholders a quick glance at the relative ROI contributions without depending on binary artefacts. Each run’s diary attachments and throttle snapshots are cross-referenced in the governance packet so reviewers can drill into outliers while retaining a high-level overview in the whitepaper itself.【F:docs/context/alignment_briefs/institutional_risk_compliance.md†L55-L140】【F:src/operations/dry_run_audit.py†L344-L589】
+
 ## 5. Metrics and Observability
 AlphaTrade’s paper-trading evaluation is anchored by an instrumentation stack that keeps financial outcomes, cognitive health, and operational guardrails in view for reviewers. The StrategyPerformanceTracker renders Markdown KPI packets that attribute ROI, win rate, drawdown, and drift telemetry to every tactic and router mode, while also rolling the cohort totals into a loop-wide summary for dashboards.【F:src/operations/strategy_performance_tracker.py†L1-L199】【F:src/operations/strategy_performance_tracker.py†L179-L199】 Understanding diagnostics layer graph-level sparsity, activation, and adapter utilisation metrics on top of those KPIs so auditors can confirm that BDH constraints remain active throughout a run.【F:src/understanding/diagnostics.py†L624-L827】 Execution telemetry flows through the shared ThroughputMonitor and the trading manager’s throttle snapshots, exposing backlog, latency, and release-posture metadata that operations teams ingest when validating throttle compliance.【F:src/trading/execution/performance_monitor.py†L1-L143】【F:src/trading/trading_manager.py†L1233-L1353】 Finally, the dry-run audit pack fuses broker incidents, drift posture, and governance escalations into a sign-off artifact that satisfies the roadmap’s observability and compliance promises documented in the quality and observability context brief.【F:src/operations/dry_run_audit.py†L18-L820】【F:docs/context/alignment_briefs/quality_observability.md†L1-L160】
 
@@ -286,6 +308,9 @@ Operations teams consume these metrics through a curated evidence bundle: the st
 
 ### 5.3 Incident and Compliance Telemetry
 Paper-simulation dry runs surface compliance posture through the dry-run audit bundle, which aggregates diary highlights, throttle states, uptime ratios, and broker incident trails into Markdown evidence ready for sign-off rehearsals.【F:src/operations/dry_run_audit.py†L18-L726】【F:tests/operations/test_dry_run_audit.py†L1-L220】 Incident response utilities feed the same bundle by publishing structured escalations through the observability bus, ensuring that replaying a run recovers both the quantitative metrics and the remediation narrative.【F:src/operations/incident_response.py†L1-L715】【F:tests/operations/test_incident_response.py†L1-L200】 Governance reviewers use these packets in tandem with the observability dashboard snapshot to certify that every paper trade, throttle deferment, and policy intervention retains a traceable compliance story before progressing toward live readiness.【F:docs/context/alignment_briefs/institutional_risk_compliance.md†L1-L200】
+
+### 5.4 Evidence Regeneration Workflow
+Publication cadence hinges on being able to regenerate telemetry, plots, and governance packets on demand. The whitepaper build script orchestrates replay of the simulation CLI, StrategyPerformanceTracker exports, and dry-run audit summaries, wiring each artefact into the documentation bundle so reviewers can refresh evidence in a single command.【F:scripts/docs/build_whitepaper.sh†L1-L126】 Quality and observability guidance in the context packs mandates this reproducibility; by executing the build workflow we confirm that diary snapshots, coverage manifests, and throttle posture tables remain synchronised with the documentation.【F:docs/context/alignment_briefs/quality_observability.md†L10-L188】 The resulting Markdown artefacts are versioned alongside the codebase, preventing drift between what the whitepaper claims and what CI can regenerate.
 
 ## 6. BDH-Inspired Design Principles
 AlphaTrade implements several BDH concepts:
@@ -323,6 +348,9 @@ With paper trading simulation complete, remaining roadmap efforts focus on:
 
 ## 9. Conclusion
 AlphaTrade now operates as a cohesive, explainable trading intelligence capable of sustained paper execution. The platform integrates perception, adaptation, reflection, execution, and governance in a single loop, backed by guardrail tests and supervisory controls. Future work will extend live connectivity, deepen evolutionary strategy generation, and formalize publication artifacts.
+
+## 10. Publication & Stakeholder Review Plan
+The roadmap’s documentation milestone culminates in presenting the whitepaper to governance, research, and operations stakeholders. We follow a three-step plan: (1) regenerate evidence via the whitepaper build workflow and attach the resulting artefacts to the institutional readiness brief; (2) host a walkthrough anchored on the understanding-loop sprint brief to contextualise how the documented experiments close the remaining roadmap gaps; and (3) capture review feedback in the governance policy ledger so any follow-up actions are traceable.【F:scripts/docs/build_whitepaper.sh†L1-L126】【F:docs/context/sprint_briefs/understanding_loop_v1.md†L1-L120】【F:docs/context/alignment_briefs/institutional_risk_compliance.md†L115-L200】 The publication package therefore includes reproducible metrics, context pack crosswalks, and an approval log aligned with the compliance charter, satisfying the definition of done for the whitepaper milestone without editing the roadmap itself.
 
 ## Appendix A. Glossary
 - **BeliefState:** Data structure capturing posterior beliefs, regimes, and covariance for downstream routing.

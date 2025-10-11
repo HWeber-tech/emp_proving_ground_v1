@@ -1537,6 +1537,62 @@ async def test_runtime_application_ingest_failure_restarts_and_trading_continues
 
 
 @pytest.mark.asyncio()
+async def test_runtime_application_ingest_failure_does_not_stop_trading(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    supervisor = TaskSupervisor(namespace="test-runtime-failure", cancel_timeout=0.1)
+    stop_event = asyncio.Event()
+    trade_started = asyncio.Event()
+
+    async def _ingest_fail() -> None:
+        raise RuntimeError("ingest catastrophic failure")
+
+    async def _trade() -> None:
+        trade_started.set()
+        await stop_event.wait()
+
+    ingestion = RuntimeWorkload(
+        name="ingest",
+        factory=_ingest_fail,
+        description="failing ingest",
+    )
+    trading = RuntimeWorkload(
+        name="trade",
+        factory=_trade,
+        description="resilient trade",
+    )
+
+    app = RuntimeApplication(
+        ingestion=ingestion,
+        trading=trading,
+        task_supervisor=supervisor,
+    )
+
+    with caplog.at_level(logging.ERROR, logger=supervisor._logger.name):
+        run_task = asyncio.create_task(app.run())
+        await asyncio.wait_for(trade_started.wait(), timeout=1.0)
+        await asyncio.sleep(0)
+        assert any(
+            "ingest-workload" in record.getMessage() and "failed" in record.getMessage()
+            for record in caplog.records
+        ), "expected ingest failure to be logged"
+        assert not run_task.done(), "trading workload should continue running"
+
+    interim_states = app.summary().get("workload_states") or {}
+    assert interim_states.get("ingest") == "failed"
+    assert interim_states.get("trade") == "running"
+
+    stop_event.set()
+    await asyncio.wait_for(run_task, timeout=1.0)
+
+    final_states = app.summary().get("workload_states") or {}
+    assert final_states.get("ingest") == "failed"
+    assert final_states.get("trade") == "finished"
+
+    await supervisor.cancel_all()
+
+
+@pytest.mark.asyncio()
 async def test_bootstrap_runtime_uses_app_task_supervisor() -> None:
     cfg = SystemConfig().with_updated(
         connection_protocol=ConnectionProtocol.bootstrap,

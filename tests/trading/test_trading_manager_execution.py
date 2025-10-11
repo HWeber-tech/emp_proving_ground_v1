@@ -116,6 +116,16 @@ class RecordingExecutionEngine:
         return "ok"
 
 
+class FailingExecutionEngine:
+    def __init__(self, *, error: Exception | None = None) -> None:
+        self.calls = 0
+        self._error = error or RuntimeError("paper broker rejected order")
+
+    async def process_order(self, _intent: Any) -> str:
+        self.calls += 1
+        raise self._error
+
+
 class _ImmediateProbeBroker:
     def __init__(self) -> None:
         self.orders: dict[str, dict[str, float | str]] = {}
@@ -1997,6 +2007,71 @@ async def test_generate_execution_report_renders_markdown(monkeypatch: pytest.Mo
 
     assert report.startswith("# Execution performance summary")
     assert "Throughput window" in report
+
+
+@pytest.mark.asyncio()
+async def test_trading_manager_releases_reservation_on_execution_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def _noop(*_args, **_kwargs) -> None:
+        return None
+
+    monkeypatch.setattr("src.trading.trading_manager.publish_risk_snapshot", _noop)
+    monkeypatch.setattr("src.trading.trading_manager.publish_roi_snapshot", _noop)
+    monkeypatch.setattr("src.trading.trading_manager.publish_policy_snapshot", _noop)
+    monkeypatch.setattr("src.trading.trading_manager.publish_policy_violation", _noop)
+    monkeypatch.setattr("src.trading.trading_manager.publish_risk_interface_snapshot", _noop)
+    monkeypatch.setattr("src.trading.trading_manager.publish_risk_interface_error", _noop)
+
+    bus = DummyBus()
+    manager = TradingManager(
+        event_bus=bus,
+        strategy_registry=AlwaysActiveRegistry(),
+        execution_engine=None,
+        initial_equity=50_000.0,
+        risk_config=RiskConfig(
+            min_position_size=1,
+            mandatory_stop_loss=False,
+            research_mode=True,
+        ),
+    )
+
+    engine = FailingExecutionEngine(error=RuntimeError("paper broker offline"))
+    manager.execution_engine = engine
+
+    intent = ConfidenceIntent(
+        symbol="EURUSD",
+        quantity=1.0,
+        price=1.2345,
+        confidence=0.9,
+        strategy_id="alpha",
+    )
+    setattr(intent, "event_id", "fail-001")
+
+    validate_mock: AsyncMock = AsyncMock(return_value=intent)
+    manager.risk_gateway.validate_trade_intent = validate_mock  # type: ignore[assignment]
+
+    release_calls: list[tuple[str, float]] = []
+    original_release = manager.portfolio_monitor.release_position
+
+    def _tracking_release(symbol: str, quantity: float) -> None:
+        release_calls.append((symbol, quantity))
+        original_release(symbol, quantity)
+
+    manager.portfolio_monitor.release_position = _tracking_release  # type: ignore[assignment]
+
+    await manager.on_trade_intent(intent)
+
+    assert engine.calls == 1
+    assert release_calls, "expected reserved position to be released after failure"
+    released_symbol, released_qty = release_calls[-1]
+    assert released_symbol == "EURUSD"
+    assert released_qty == pytest.approx(intent.quantity)
+    assert manager.portfolio_monitor.get_position("EURUSD") is None
+
+    stats = manager.get_execution_stats()
+    assert stats.get("orders_failed") == 1
+
 
 def test_describe_risk_interface_returns_runbook_on_error() -> None:
     class BrokenTradingManager(TradingManager):

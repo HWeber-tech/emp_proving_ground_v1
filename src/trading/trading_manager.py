@@ -632,6 +632,20 @@ class TradingManager:
                 try:
                     result = await self.execution_engine.process_order(validated_intent)
                 except Exception as exc:
+                    try:
+                        release_quantity = float(quantity)
+                    except Exception:
+                        release_quantity = coerce_float(quantity, default=0.0)
+                    if release_quantity:
+                        try:
+                            cast(Any, self.portfolio_monitor).release_position(
+                                symbol, release_quantity
+                            )
+                        except Exception:  # pragma: no cover - diagnostic guardrail
+                            logger.debug(
+                                "Failed to release reserved position after execution error",
+                                exc_info=True,
+                            )
                     logger.exception("Execution engine error for trade intent %s", event_id)
                     self._record_execution_failure(exc)
                     decision = self._get_last_risk_decision()

@@ -345,6 +345,18 @@ The BDH features are not merely architectural niceties; they materially shape Al
 
 Together, these observations justify why the BDH features remain central to the whitepaper narrative: they connect cognition-inspired design to measurable improvements in ROI stability, governance transparency, and operational resilience.
 
+### 6.3 BDH Feature Traceability Matrix
+
+To make the roadmap’s documentation milestone auditable, Table 3 crosswalks each BDH tenet to the concrete modules, guardrail evidence, and context-pack mandates that shaped the implementation. Reviewers can therefore verify that the architectural narrative maps directly to executable code and reproducible telemetry.
+
+| BDH Principle | Implementation Anchors | Evidence Outputs | Context Pack Alignment |
+| --- | --- | --- | --- |
+| Hebbian fast-weight reinforcement | Fast-weight controller clamps and prunes multipliers while the policy router threads multiplier telemetry into decision bundles.【F:src/thinking/adaptation/fast_weights.py†L1-L160】【F:src/thinking/adaptation/policy_router.py†L320-L412】 | Fast-weight guardrails assert multiplier bounds and sparsity metrics propagate through router decisions under regression coverage.【F:tests/thinking/test_fast_weights.py†L1-L52】【F:tests/thinking/test_policy_router.py†L121-L176】 | Evolution engine brief mandates non-negative fast-weight adjustments with reviewer-facing telemetry.【F:docs/context/alignment_briefs/evolution_engine.md†L1-L147】 |
+| Positive sparse activations | Understanding router records activation payloads so decision bundles expose active/dormant tactics without reviving the entire telemetry stream.【F:src/understanding/router.py†L260-L263】 | Router regression suites confirm sparsity payloads persist even when fast weights are toggled, matching diary exports cited in Section 4.【F:tests/understanding/test_understanding_router.py†L99-L128】 | Evolution brief calls for positive sparse activations as a governance control, ensuring reviewers can observe activation density before promoting tactics.【F:docs/context/alignment_briefs/evolution_engine.md†L99-L147】 |
+| Graph diagnostic transparency | Diagnostics synthesise decision windows to compute utilisation, dominance, and sparsity summaries that back the decision-graph walkthrough and ASCII charts.【F:src/understanding/diagnostics.py†L624-L720】 | Guardrail tests lock the exported health metrics so dashboards and whitepaper figures remain reproducible across releases.【F:tests/understanding/test_understanding_diagnostics.py†L15-L39】 | Quality & observability brief requires narrated decision trails with deterministic telemetry hooks for reviewers and incident commanders.【F:docs/context/alignment_briefs/quality_observability.md†L29-L106】 |
+
+Table 3 – Traceability matrix linking BDH design principles to source control evidence and context-pack requirements.
+
 ## 7. Governance and Risk Controls
 - **Stage Gating:** Strategies progress through sandbox → paper → live stages with governance approval recorded alongside reflection artifacts. Promotion criteria: ≥200 trades, Sharpe proxy ≥0.8, max drawdown within -2%, zero unresolved policy breaches.
 - **Risk Limits:** Evaluators enforce 0.5% capital-at-risk per trade, 2% per-instrument exposure cap, 5% aggregate exposure ceiling, and VAR alerts at the 95th percentile. Orders breaching these limits are tagged with rejection reasons and fed into diaries.

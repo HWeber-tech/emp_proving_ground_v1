@@ -1,25 +1,34 @@
 from __future__ import annotations
 
+import importlib.util
 import json
+import sys
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
-from src.operations.dry_run_audit import (
-    DryRunDiaryIssue,
-    DryRunDiarySummary,
-    DryRunLogSummary,
-    DryRunPerformanceSummary,
-    DryRunStatus,
-    DryRunSummary,
-    LogParseResult,
-    StructuredLogRecord,
-    analyse_structured_logs,
-    evaluate_dry_run,
-    humanise_timedelta,
-    load_structured_logs,
-    parse_structured_log_line,
-    summarise_diary_entries,
-)
+_MODULE_PATH = Path(__file__).resolve().parents[2] / "src" / "operations" / "dry_run_audit.py"
+_SPEC = importlib.util.spec_from_file_location("dry_run_audit_for_tests", _MODULE_PATH)
+assert _SPEC and _SPEC.loader is not None
+_MODULE = importlib.util.module_from_spec(_SPEC)
+sys.modules["dry_run_audit_for_tests"] = _MODULE
+_SPEC.loader.exec_module(_MODULE)
+
+DryRunDiaryIssue = _MODULE.DryRunDiaryIssue
+DryRunDiarySummary = _MODULE.DryRunDiarySummary
+DryRunLogSummary = _MODULE.DryRunLogSummary
+DryRunPerformanceSummary = _MODULE.DryRunPerformanceSummary
+DryRunSignOffReport = _MODULE.DryRunSignOffReport
+DryRunStatus = _MODULE.DryRunStatus
+DryRunSummary = _MODULE.DryRunSummary
+LogParseResult = _MODULE.LogParseResult
+StructuredLogRecord = _MODULE.StructuredLogRecord
+analyse_structured_logs = _MODULE.analyse_structured_logs
+assess_sign_off_readiness = _MODULE.assess_sign_off_readiness
+evaluate_dry_run = _MODULE.evaluate_dry_run
+humanise_timedelta = _MODULE.humanise_timedelta
+load_structured_logs = _MODULE.load_structured_logs
+parse_structured_log_line = _MODULE.parse_structured_log_line
+summarise_diary_entries = _MODULE.summarise_diary_entries
 from src.understanding.decision_diary import DecisionDiaryEntry
 
 
@@ -175,6 +184,108 @@ def test_dry_run_summary_combines_components() -> None:
     markdown = summary.to_markdown()
     assert "Final dry run summary" in markdown
     assert "run_id" in markdown
+
+
+def test_sign_off_report_passes_with_all_criteria() -> None:
+    records = (
+        _record("2024-01-01T00:00:00", "info", "start", "start"),
+        _record("2024-01-04T00:00:00", "info", "end", "done"),
+    )
+    log_summary = DryRunLogSummary(
+        records=records,
+        ignored_lines=0,
+        level_counts={"info": 2},
+        event_counts={"start": 1, "end": 1},
+        gap_incidents=tuple(),
+        uptime_ratio=0.995,
+    )
+    diary_summary = DryRunDiarySummary(entries=tuple(), issues=tuple(), policy_counts={})
+    perf_summary = DryRunPerformanceSummary(
+        generated_at=datetime(2024, 1, 4, tzinfo=UTC),
+        period_start=datetime(2024, 1, 1, tzinfo=UTC),
+        total_trades=12,
+        roi=0.02,
+        win_rate=0.55,
+    )
+    summary = DryRunSummary(
+        generated_at=datetime(2024, 1, 4, tzinfo=UTC),
+        log_summary=log_summary,
+        diary_summary=diary_summary,
+        performance_summary=perf_summary,
+    )
+    report = assess_sign_off_readiness(
+        summary,
+        minimum_duration=timedelta(hours=72),
+        minimum_uptime_ratio=0.98,
+        require_diary=True,
+        require_performance=True,
+    )
+    assert isinstance(report, DryRunSignOffReport)
+    assert report.status is DryRunStatus.pass_
+    assert report.findings == tuple()
+    payload = report.as_dict()
+    assert payload["status"] == "pass"
+    assert payload["criteria"]["minimum_duration_seconds"] == 72 * 3600
+
+
+def test_sign_off_report_flags_missing_evidence() -> None:
+    records = (
+        _record("2024-01-01T00:00:00", "info", "start", "start"),
+        _record("2024-01-01T12:00:00", "info", "heartbeat", "tick"),
+    )
+    log_summary = DryRunLogSummary(
+        records=records,
+        ignored_lines=0,
+        level_counts={"info": 2},
+        event_counts={"start": 1, "heartbeat": 1},
+        gap_incidents=tuple(),
+        uptime_ratio=0.5,
+    )
+    summary = DryRunSummary(
+        generated_at=datetime(2024, 1, 1, 12, tzinfo=UTC),
+        log_summary=log_summary,
+    )
+    report = assess_sign_off_readiness(
+        summary,
+        minimum_duration=timedelta(hours=72),
+        minimum_uptime_ratio=0.9,
+        require_diary=True,
+        require_performance=True,
+    )
+    assert report.status is DryRunStatus.fail
+    assert any("duration" in finding.message for finding in report.findings)
+    assert any("Performance telemetry" in finding.message for finding in report.findings)
+    markdown = report.to_markdown()
+    assert "FINDINGS" in markdown.upper()
+
+
+def test_sign_off_report_warns_when_allowed() -> None:
+    records = (
+        _record("2024-01-01T00:00:00", "warning", "latency", "slow"),
+        _record("2024-01-04T00:00:00", "info", "end", "done"),
+    )
+    log_summary = DryRunLogSummary(
+        records=records,
+        ignored_lines=0,
+        level_counts={"warning": 1, "info": 1},
+        event_counts={"latency": 1, "end": 1},
+        gap_incidents=tuple(),
+        uptime_ratio=1.0,
+    )
+    summary = DryRunSummary(
+        generated_at=datetime(2024, 1, 4, tzinfo=UTC),
+        log_summary=log_summary,
+    )
+    report = assess_sign_off_readiness(
+        summary,
+        minimum_duration=timedelta(hours=1),
+        allow_warnings=True,
+    )
+    assert report.status is DryRunStatus.warn
+    assert any(
+        finding.severity is DryRunStatus.warn and "warnings" in finding.message
+        for finding in report.findings
+    )
 
 
 def test_humanise_timedelta_formatting() -> None:

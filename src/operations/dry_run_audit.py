@@ -475,6 +475,70 @@ class DryRunSummary:
         return "\n".join(parts).rstrip() + "\n"
 
 
+@dataclass(frozen=True)
+class DryRunSignOffFinding:
+    """Individual finding surfaced during sign-off evaluation."""
+
+    severity: DryRunStatus
+    message: str
+    metadata: Mapping[str, Any] = field(default_factory=dict)
+
+    def as_dict(self) -> Mapping[str, Any]:
+        return {
+            "severity": self.severity.value,
+            "message": self.message,
+            "metadata": _normalise_mapping(self.metadata),
+        }
+
+
+@dataclass(frozen=True)
+class DryRunSignOffReport:
+    """Result of assessing whether a dry run is ready for final sign-off."""
+
+    evaluated_at: datetime
+    findings: tuple[DryRunSignOffFinding, ...] = field(default_factory=tuple)
+    criteria: Mapping[str, Any] = field(default_factory=dict)
+
+    @property
+    def status(self) -> DryRunStatus:
+        if any(finding.severity is DryRunStatus.fail for finding in self.findings):
+            return DryRunStatus.fail
+        if any(finding.severity is DryRunStatus.warn for finding in self.findings):
+            return DryRunStatus.warn
+        return DryRunStatus.pass_
+
+    def as_dict(self) -> Mapping[str, Any]:
+        return {
+            "evaluated_at": self.evaluated_at.astimezone(UTC).isoformat(),
+            "status": self.status.value,
+            "criteria": _normalise_mapping(self.criteria),
+            "findings": [finding.as_dict() for finding in self.findings],
+        }
+
+    def to_markdown(self) -> str:
+        lines = [
+            f"# Dry run sign-off — {self.status.value.upper()}",
+            "",
+        ]
+        if self.criteria:
+            lines.append("## Criteria")
+            for key, value in sorted(self.criteria.items()):
+                lines.append(f"- **{key}**: {value}")
+            lines.append("")
+        if self.findings:
+            lines.append("## Findings")
+            for finding in self.findings:
+                lines.append(f"- **{finding.severity.value.upper()}** — {finding.message}")
+                if finding.metadata:
+                    for meta_key, meta_value in sorted(finding.metadata.items()):
+                        lines.append(f"  - {meta_key}: {meta_value}")
+            lines.append("")
+        else:
+            lines.append("All sign-off criteria satisfied.")
+            lines.append("")
+        return "\n".join(lines)
+
+
 def parse_structured_log_line(line: str) -> StructuredLogRecord | None:
     """Parse a JSON-formatted log line into a :class:`StructuredLogRecord`."""
 
@@ -722,6 +786,150 @@ def evaluate_dry_run(
         diary_summary=diary_summary,
         performance_summary=performance_summary,
         metadata=aggregate_metadata,
+    )
+
+
+def assess_sign_off_readiness(
+    summary: DryRunSummary,
+    *,
+    minimum_duration: timedelta | None = None,
+    minimum_uptime_ratio: float | None = None,
+    require_diary: bool = False,
+    require_performance: bool = False,
+    allow_warnings: bool = False,
+) -> DryRunSignOffReport:
+    """Evaluate whether a dry run summary satisfies sign-off criteria."""
+
+    criteria: dict[str, Any] = {
+        "minimum_duration_seconds": minimum_duration.total_seconds()
+        if isinstance(minimum_duration, timedelta)
+        else None,
+        "minimum_uptime_ratio": minimum_uptime_ratio,
+        "require_diary": require_diary,
+        "require_performance": require_performance,
+        "allow_warnings": allow_warnings,
+    }
+
+    findings: list[DryRunSignOffFinding] = []
+
+    log_summary = summary.log_summary
+    if log_summary is None:
+        findings.append(
+            DryRunSignOffFinding(
+                severity=DryRunStatus.fail,
+                message="Dry run summary is missing structured log evidence.",
+            )
+        )
+    else:
+        if log_summary.status is DryRunStatus.fail:
+            findings.append(
+                DryRunSignOffFinding(
+                    severity=DryRunStatus.fail,
+                    message="Structured log summary contains failures.",
+                )
+            )
+        elif log_summary.status is DryRunStatus.warn:
+            findings.append(
+                DryRunSignOffFinding(
+                    severity=(DryRunStatus.warn if allow_warnings else DryRunStatus.fail),
+                    message="Structured log summary contains warnings.",
+                )
+            )
+        if minimum_duration is not None:
+            duration = log_summary.duration
+            if duration is None:
+                findings.append(
+                    DryRunSignOffFinding(
+                        severity=DryRunStatus.fail,
+                        message="Dry run duration is unknown.",
+                        metadata={"required_seconds": minimum_duration.total_seconds()},
+                    )
+                )
+            elif duration < minimum_duration:
+                findings.append(
+                    DryRunSignOffFinding(
+                        severity=DryRunStatus.fail,
+                        message="Dry run duration below required minimum.",
+                        metadata={
+                            "required_seconds": minimum_duration.total_seconds(),
+                            "actual_seconds": duration.total_seconds(),
+                        },
+                    )
+                )
+        if minimum_uptime_ratio is not None:
+            uptime = log_summary.uptime_ratio
+            if uptime is None:
+                findings.append(
+                    DryRunSignOffFinding(
+                        severity=DryRunStatus.fail,
+                        message="Dry run uptime ratio is unknown.",
+                        metadata={"required_ratio": minimum_uptime_ratio},
+                    )
+                )
+            elif uptime < minimum_uptime_ratio:
+                findings.append(
+                    DryRunSignOffFinding(
+                        severity=DryRunStatus.fail,
+                        message="Dry run uptime ratio below required minimum.",
+                        metadata={
+                            "required_ratio": minimum_uptime_ratio,
+                            "actual_ratio": uptime,
+                        },
+                    )
+                )
+
+    diary_summary = summary.diary_summary
+    if require_diary:
+        if diary_summary is None:
+            findings.append(
+                DryRunSignOffFinding(
+                    severity=DryRunStatus.fail,
+                    message="Decision diary evidence is required for sign-off.",
+                )
+            )
+        elif diary_summary.status is DryRunStatus.fail:
+            findings.append(
+                DryRunSignOffFinding(
+                    severity=DryRunStatus.fail,
+                    message="Decision diary contains failing issues.",
+                )
+            )
+        elif diary_summary.status is DryRunStatus.warn:
+            findings.append(
+                DryRunSignOffFinding(
+                    severity=(DryRunStatus.warn if allow_warnings else DryRunStatus.fail),
+                    message="Decision diary contains warnings.",
+                )
+            )
+
+    performance_summary = summary.performance_summary
+    if require_performance:
+        if performance_summary is None:
+            findings.append(
+                DryRunSignOffFinding(
+                    severity=DryRunStatus.fail,
+                    message="Performance telemetry is required for sign-off.",
+                )
+            )
+        elif performance_summary.status is DryRunStatus.fail:
+            findings.append(
+                DryRunSignOffFinding(
+                    severity=DryRunStatus.fail,
+                    message="Performance telemetry indicates failure.",
+                )
+            )
+        elif performance_summary.status is DryRunStatus.warn:
+            findings.append(
+                DryRunSignOffFinding(
+                    severity=(DryRunStatus.warn if allow_warnings else DryRunStatus.fail),
+                    message="Performance telemetry indicates warnings.",
+                )
+            )
+
+    return DryRunSignOffReport(
+        evaluated_at=datetime.now(tz=UTC),
+        findings=tuple(findings),
+        criteria=criteria,
     )
 
 

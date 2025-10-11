@@ -148,6 +148,41 @@ def test_summarise_diary_entries_detects_incidents() -> None:
     assert isinstance(summary.issues[0], DryRunDiaryIssue)
 
 
+def test_summarise_diary_entries_flags_missing_when_expected() -> None:
+    start = datetime(2024, 1, 1, tzinfo=UTC)
+    end = datetime(2024, 1, 2, tzinfo=UTC)
+    summary = summarise_diary_entries(
+        tuple(),
+        expected_window=(start, end),
+    )
+    assert summary.status is DryRunStatus.fail
+    assert summary.total_entries == 0
+    assert summary.issues
+    assert summary.issues[0].entry_id == "coverage/missing"
+
+
+def test_summarise_diary_entries_warns_for_partial_coverage() -> None:
+    start = datetime(2024, 1, 1, 0, 0, tzinfo=UTC)
+    end = datetime(2024, 1, 1, 5, 0, tzinfo=UTC)
+    entry = DecisionDiaryEntry(
+        entry_id="mid", 
+        recorded_at=datetime(2024, 1, 1, 2, 0, tzinfo=UTC),
+        policy_id="alpha",
+        decision={"status": "ok"},
+        regime_state={"regime": "calm"},
+        outcomes={"status": "ok"},
+    )
+    summary = summarise_diary_entries(
+        (entry,),
+        expected_window=(start, end),
+        coverage_tolerance=timedelta(minutes=30),
+    )
+    assert summary.status is DryRunStatus.warn
+    reasons = {issue.entry_id for issue in summary.issues}
+    assert "coverage/start_gap" in reasons
+    assert "coverage/end_gap" in reasons
+
+
 def test_dry_run_summary_combines_components() -> None:
     log_summary = DryRunLogSummary(
         records=(

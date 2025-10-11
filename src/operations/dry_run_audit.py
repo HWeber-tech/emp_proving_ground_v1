@@ -23,6 +23,7 @@ from src.understanding.decision_diary import DecisionDiaryEntry, DecisionDiarySt
 
 DEFAULT_WARN_GAP = timedelta(hours=1)
 DEFAULT_FAIL_GAP = timedelta(hours=6)
+DEFAULT_DIARY_COVERAGE_TOLERANCE = timedelta(minutes=15)
 
 
 class DryRunStatus(StrEnum):
@@ -691,7 +692,12 @@ def analyse_structured_logs(
     )
 
 
-def summarise_diary_entries(entries: Sequence[DecisionDiaryEntry]) -> DryRunDiarySummary:
+def summarise_diary_entries(
+    entries: Sequence[DecisionDiaryEntry],
+    *,
+    expected_window: tuple[datetime, datetime] | None = None,
+    coverage_tolerance: timedelta = DEFAULT_DIARY_COVERAGE_TOLERANCE,
+) -> DryRunDiarySummary:
     """Summarise the supplied diary entries for dry run review."""
 
     ordered = tuple(sorted(entries, key=lambda entry: entry.recorded_at))
@@ -711,9 +717,65 @@ def summarise_diary_entries(entries: Sequence[DecisionDiaryEntry]) -> DryRunDiar
                 metadata=dict(entry.metadata),
             )
         )
+    if expected_window is not None:
+        start_expected, end_expected = expected_window
+        tolerance = max(coverage_tolerance, timedelta(0))
+        if not ordered:
+            issues.append(
+                DryRunDiaryIssue(
+                    entry_id="coverage/missing",
+                    policy_id="*",
+                    recorded_at=start_expected,
+                    severity=DryRunStatus.fail,
+                    reason="No decision diary entries recorded during expected dry run window.",
+                    metadata={
+                        "expected_window_start": start_expected.astimezone(UTC).isoformat(),
+                        "expected_window_end": end_expected.astimezone(UTC).isoformat(),
+                        "coverage_tolerance_seconds": tolerance.total_seconds(),
+                    },
+                )
+            )
+        else:
+            first_entry = ordered[0].recorded_at
+            last_entry = ordered[-1].recorded_at
+            start_gap = first_entry - start_expected
+            if start_gap > tolerance:
+                issues.append(
+                    DryRunDiaryIssue(
+                        entry_id="coverage/start_gap",
+                        policy_id="*",
+                        recorded_at=first_entry,
+                        severity=DryRunStatus.warn,
+                        reason="Decision diary missing coverage near dry run start.",
+                        metadata={
+                            "expected_window_start": start_expected.astimezone(UTC).isoformat(),
+                            "first_entry": first_entry.astimezone(UTC).isoformat(),
+                            "gap_seconds": start_gap.total_seconds(),
+                            "coverage_tolerance_seconds": tolerance.total_seconds(),
+                        },
+                    )
+                )
+            end_gap = end_expected - last_entry
+            if end_gap > tolerance:
+                issues.append(
+                    DryRunDiaryIssue(
+                        entry_id="coverage/end_gap",
+                        policy_id="*",
+                        recorded_at=last_entry,
+                        severity=DryRunStatus.warn,
+                        reason="Decision diary missing coverage near dry run end.",
+                        metadata={
+                            "expected_window_end": end_expected.astimezone(UTC).isoformat(),
+                            "last_entry": last_entry.astimezone(UTC).isoformat(),
+                            "gap_seconds": end_gap.total_seconds(),
+                            "coverage_tolerance_seconds": tolerance.total_seconds(),
+                        },
+                    )
+                )
+
     return DryRunDiarySummary(
         entries=ordered,
-        issues=tuple(issues),
+        issues=tuple(sorted(issues, key=lambda issue: issue.recorded_at)),
         policy_counts=dict(policy_counts),
     )
 
@@ -763,10 +825,16 @@ def evaluate_dry_run(
     diary_summary: DryRunDiarySummary | None = None
     if diary_path is not None:
         diary_entries = load_decision_diary_entries(diary_path)
-        if diary_entries:
-            diary_summary = summarise_diary_entries(diary_entries)
-        else:
-            diary_summary = DryRunDiarySummary(entries=tuple(), issues=tuple(), policy_counts={})
+        expected_window: tuple[datetime, datetime] | None = None
+        if (
+            log_summary.started_at is not None
+            and log_summary.ended_at is not None
+        ):
+            expected_window = (log_summary.started_at, log_summary.ended_at)
+        diary_summary = summarise_diary_entries(
+            diary_entries,
+            expected_window=expected_window,
+        )
 
     performance_summary: DryRunPerformanceSummary | None = None
     if performance_path is not None:

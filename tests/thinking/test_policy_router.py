@@ -64,6 +64,9 @@ def test_route_selects_highest_weight_with_regime_bias() -> None:
     assert breakdown["fast_weight_multiplier"] == pytest.approx(1.0)
     assert breakdown["experiment_multipliers"] == {}
     assert breakdown["final_score"] == pytest.approx(decision.selected_weight)
+    metrics = decision.fast_weight_metrics
+    assert metrics["active_percentage"] == pytest.approx(0.0)
+    assert metrics["total"] == 2
 
 
 def test_fast_weight_experiment_overrides_base_score() -> None:
@@ -113,6 +116,8 @@ def test_fast_weight_experiment_overrides_base_score() -> None:
     assert breakdown["total_multiplier"] == pytest.approx(1.8)
     assert breakdown["final_score"] == pytest.approx(decision.selected_weight)
     assert decision.reflection_summary["weight_breakdown"]["total_multiplier"] == pytest.approx(1.8)
+    metrics = decision.fast_weight_metrics
+    assert metrics["active_percentage"] == pytest.approx(0.0)
 
 
 def test_route_respects_external_fast_weights() -> None:
@@ -130,6 +135,10 @@ def test_route_respects_external_fast_weights() -> None:
     assert breakdown["total_multiplier"] == pytest.approx(2.0)
     assert breakdown["experiment_multipliers"] == {}
     assert breakdown["fast_weight_active_percentage"] == pytest.approx(50.0)
+    metrics = decision.fast_weight_metrics
+    assert metrics["active_percentage"] == pytest.approx(50.0)
+    assert metrics["total"] == 2
+    assert metrics["active"] == 1
     metrics = decision.reflection_summary["fast_weight_metrics"]
     assert metrics["active_percentage"] == pytest.approx(50.0)
     assert metrics["total"] == 2
@@ -147,6 +156,8 @@ def test_fast_weight_metrics_zero_when_no_adjustments() -> None:
     breakdown = decision.weight_breakdown
     assert breakdown["fast_weight_multiplier"] == pytest.approx(1.0)
     assert breakdown["fast_weight_active_percentage"] == pytest.approx(0.0)
+    metrics = decision.fast_weight_metrics
+    assert metrics["active_percentage"] == pytest.approx(0.0)
     metrics = decision.reflection_summary["fast_weight_metrics"]
     assert metrics["active_percentage"] == pytest.approx(0.0)
     assert metrics["active"] == 0

@@ -1535,3 +1535,38 @@ async def test_runtime_application_ingest_failure_restarts_and_trading_continues
     assert attempts == 2
     await supervisor.cancel_all()
 
+
+@pytest.mark.asyncio()
+async def test_bootstrap_runtime_uses_app_task_supervisor() -> None:
+    cfg = SystemConfig().with_updated(
+        connection_protocol=ConnectionProtocol.bootstrap,
+        data_backbone_mode=DataBackboneMode.bootstrap,
+        extras={
+            "BOOTSTRAP_TICK_INTERVAL": "0.01",
+            "RUNTIME_HEALTHCHECK_ENABLED": "false",
+        },
+    )
+
+    app = await build_professional_predator_app(config=cfg)
+    try:
+        await app.start()
+        await asyncio.sleep(0)
+
+        task_details = app.task_supervisor.describe()
+        runtime_task = next(
+            item for item in task_details if item.get("name") == "bootstrap-runtime-loop"
+        )
+        metadata = runtime_task.get("metadata")
+        assert metadata is not None
+        assert metadata.get("component") == "understanding.loop"
+        assert tuple(metadata.get("symbols") or ()) == ("EURUSD",)
+        assert metadata.get("drift_window")
+        assert metadata.get("drift_sensors")
+
+        summary = app.summary()
+        assert summary.get("background_tasks", 0) >= 1
+        background_details = summary.get("background_task_details") or []
+        assert any(item.get("name") == "bootstrap-runtime-loop" for item in background_details)
+    finally:
+        await app.shutdown()
+

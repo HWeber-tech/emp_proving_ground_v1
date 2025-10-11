@@ -353,12 +353,17 @@ class ProfessionalPredatorApp:
     ) -> asyncio.Task[Any]:
         return self._task_supervisor.create(coro, name=name, metadata=metadata)
 
-    def register_background_task(self, task: asyncio.Task[Any]) -> None:
+    def register_background_task(
+        self,
+        task: asyncio.Task[Any],
+        *,
+        metadata: Mapping[str, Any] | None = None,
+    ) -> None:
         """Track an externally-created background task for managed shutdown."""
 
         if not isinstance(task, asyncio.Task):
             raise TypeError("register_background_task expects an asyncio.Task")
-        self._task_supervisor.track(task)
+        self._task_supervisor.track(task, metadata=metadata)
 
     @property
     def runtime_tracer(self) -> RuntimeTracer:
@@ -827,7 +832,17 @@ class ProfessionalPredatorApp:
         for attr in ("_price_task", "_trade_task"):
             task = getattr(component, attr, None)
             if isinstance(task, asyncio.Task):
-                self.register_background_task(task)
+                metadata_provider = getattr(component, "get_background_task_metadata", None)
+                metadata: Mapping[str, Any] | None = None
+                if callable(metadata_provider):
+                    try:
+                        metadata_candidate = metadata_provider(task)
+                    except Exception:  # pragma: no cover - defensive logging
+                        metadata_candidate = None
+                    else:
+                        if isinstance(metadata_candidate, Mapping):
+                            metadata = dict(metadata_candidate)
+                self.register_background_task(task, metadata=metadata)
 
     async def _start_component(self, component: Any) -> None:
         if component is None:
@@ -2095,6 +2110,7 @@ def _build_bootstrap_runtime(
     redis_client: Any | None = None,
     connectors: Mapping[str, MarketDataConnector] | None = None,
     strategy_registry: StrategyRegistry | None = None,
+    task_supervisor: TaskSupervisor | None = None,
 ) -> tuple[BootstrapRuntime, list[CleanupCallback]]:
     extras = config.extras or {}
     symbols = _extra_symbols(extras, "BOOTSTRAP_SYMBOLS") or ["EURUSD"]
@@ -2225,6 +2241,7 @@ def _build_bootstrap_runtime(
         evolution_orchestrator=orchestrator,
         evolution_cycle_interval=evolution_interval,
         diary_store=diary_store,
+        task_supervisor=task_supervisor,
     )
     cleanup_callbacks: list[CleanupCallback] = []
 
@@ -2449,6 +2466,7 @@ async def build_professional_predator_app(
             redis_client=redis_client,
             connectors=connector_map or None,
             strategy_registry=registry,
+            task_supervisor=task_supervisor,
         )
         app = ProfessionalPredatorApp(
             config=cfg,

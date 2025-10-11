@@ -138,6 +138,7 @@ class BootstrapRuntime:
         self._last_error: Exception | None = None
         self._task_supervisor: TaskSupervisor | None = task_supervisor
         self._owns_supervisor = task_supervisor is None
+        self._task_metadata: dict[asyncio.Task[Any], Mapping[str, Any]] = {}
 
         resolved_connectors: dict[str, MarketDataConnector] = {}
         if connectors:
@@ -584,7 +585,26 @@ class BootstrapRuntime:
             self._task_supervisor = supervisor
             self._owns_supervisor = True
 
-        self._run_task = supervisor.create(self._run_loop(), name="bootstrap-runtime-loop")
+        drift_config = self._sensory_drift_config
+        metadata = {
+            "component": "understanding.loop",
+            "symbols": tuple(self.symbols),
+            "tick_interval": float(self.tick_interval),
+            "max_ticks": self.max_ticks,
+            "drift_window": drift_config.required_samples(),
+            "drift_sensors": tuple(drift_config.sensors),
+            "evolution_interval": self._evolution_cycle_interval,
+        }
+
+        self._run_task = supervisor.create(
+            self._run_loop(),
+            name="bootstrap-runtime-loop",
+            metadata=metadata,
+            restart_callback=self._run_loop,
+            max_restarts=None,
+            restart_backoff=self.tick_interval if self.tick_interval > 0 else 0.0,
+        )
+        self._task_metadata[self._run_task] = metadata
         self._price_task = self._run_task
         logger.info(
             "BootstrapRuntime started for %s (tick interval %.2fs)",
@@ -600,11 +620,20 @@ class BootstrapRuntime:
         if task and not task.done():
             await task
         self.running = False
+        if task is not None:
+            self._task_metadata.pop(task, None)
         self._run_task = None
         self._price_task = None
         if self._owns_supervisor and self._task_supervisor is not None:
             await self._task_supervisor.cancel_all()
         logger.info("BootstrapRuntime stopped after %s ticks", self._tick_counter)
+
+    def get_background_task_metadata(
+        self, task: asyncio.Task[Any]
+    ) -> Mapping[str, Any] | None:
+        """Expose metadata for registered background tasks."""
+
+        return self._task_metadata.get(task)
 
     async def _run_loop(self) -> None:
         try:

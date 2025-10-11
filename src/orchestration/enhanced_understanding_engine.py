@@ -23,10 +23,18 @@ from src.sensory.enhanced.when_dimension import ChronalIntelligenceEngine
 from src.sensory.enhanced.why_dimension import EnhancedFundamentalIntelligenceEngine
 
 
-class IntelligenceLevel(Enum):
+class UnderstandingLevel(Enum):
+    """Discrete confidence categories for the fused market understanding."""
+
     LOW = "LOW"
     MEDIUM = "MEDIUM"
     HIGH = "HIGH"
+
+
+# Backwards compatible alias – legacy callers historically imported
+# ``IntelligenceLevel`` from this module.  Keeping the alias avoids a breaking
+# change while encouraging new code to use the understanding nomenclature.
+IntelligenceLevel = UnderstandingLevel
 
 
 class Narrative(Enum):
@@ -56,11 +64,22 @@ class Synthesis:
     confidence: float
     narrative_text: str
     narrative_coherence: float
-    intelligence_level: IntelligenceLevel
+    understanding_level: UnderstandingLevel
     dominant_narrative: Narrative
     supporting_evidence: List[str]
     risk_factors: List[str]
     opportunity_factors: List[str]
+
+    # Legacy attribute maintained as a property to avoid breaking
+    # ``synthesis.intelligence_level`` access in downstream callers.  The
+    # understanding loop terminology is the canonical surface moving forward.
+    @property
+    def intelligence_level(self) -> UnderstandingLevel:
+        return self.understanding_level
+
+    @intelligence_level.setter
+    def intelligence_level(self, value: UnderstandingLevel) -> None:
+        self.understanding_level = value
 
 
 class WeightManager:
@@ -245,12 +264,12 @@ class ContextualFusionEngine:
         if _safe(getattr(anomaly, "signal_strength", 0.0)) > 0.7:
             dominant = Narrative.VOLATILE
 
-        intel_level = (
-            IntelligenceLevel.HIGH
+        understanding_level = (
+            UnderstandingLevel.HIGH
             if conf > 0.7
-            else IntelligenceLevel.MEDIUM
+            else UnderstandingLevel.MEDIUM
             if conf > 0.4
-            else IntelligenceLevel.LOW
+            else UnderstandingLevel.LOW
         )
 
         # Compose simple narrative text
@@ -282,7 +301,7 @@ class ContextualFusionEngine:
             confidence=float(conf),
             narrative_text=narrative_text,
             narrative_coherence=float(narrative_coherence),
-            intelligence_level=intel_level,
+            understanding_level=understanding_level,
             dominant_narrative=dominant,
             supporting_evidence=supporting,
             risk_factors=risk_factors,

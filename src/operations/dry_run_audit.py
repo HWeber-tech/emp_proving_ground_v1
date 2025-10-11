@@ -91,6 +91,7 @@ class DryRunLogSummary:
     level_counts: Mapping[str, int]
     event_counts: Mapping[str, int]
     gap_incidents: tuple[DryRunIncident, ...] = field(default_factory=tuple)
+    content_incidents: tuple[DryRunIncident, ...] = field(default_factory=tuple)
     uptime_ratio: float | None = None
 
     @property
@@ -148,11 +149,13 @@ class DryRunLogSummary:
     @property
     def status(self) -> DryRunStatus:
         if self.errors or any(
-            incident.severity is DryRunStatus.fail for incident in self.gap_incidents
+            incident.severity is DryRunStatus.fail
+            for incident in (*self.gap_incidents, *self.content_incidents)
         ):
             return DryRunStatus.fail
         if self.warnings or any(
-            incident.severity is DryRunStatus.warn for incident in self.gap_incidents
+            incident.severity is DryRunStatus.warn
+            for incident in (*self.gap_incidents, *self.content_incidents)
         ):
             return DryRunStatus.warn
         return DryRunStatus.pass_
@@ -163,6 +166,9 @@ class DryRunLogSummary:
             "level_counts": dict(self.level_counts),
             "event_counts": dict(self.event_counts),
             "gap_incidents": [incident.as_dict() for incident in self.gap_incidents],
+            "content_incidents": [
+                incident.as_dict() for incident in self.content_incidents
+            ],
             "warnings": [incident.as_dict() for incident in self.warnings],
             "errors": [incident.as_dict() for incident in self.errors],
             "status": self.status.value,
@@ -210,6 +216,8 @@ class DryRunLogSummary:
             rows.append(f"| Uptime | {self.uptime_ratio * 100:.2f}% |")
         if self.gap_incidents:
             rows.append(f"| Gap incidents | {len(self.gap_incidents)} |")
+        if self.content_incidents:
+            rows.append(f"| Content incidents | {len(self.content_incidents)} |")
         if self.errors:
             rows.append(f"| Errors | {len(self.errors)} |")
         if self.warnings:
@@ -456,6 +464,13 @@ class DryRunSummary:
                         f"- {incident.occurred_at.astimezone(UTC).isoformat()}: {incident.summary}"
                     )
                 parts.append("")
+            if self.log_summary.content_incidents:
+                parts.append("### Log anomalies")
+                for incident in self.log_summary.content_incidents:
+                    parts.append(
+                        f"- {incident.occurred_at.astimezone(UTC).isoformat()}: {incident.summary}"
+                    )
+                parts.append("")
         if self.diary_summary is not None:
             parts.extend(["## Decision diary", self.diary_summary.to_markdown(), ""])
             if self.diary_summary.issues:
@@ -627,6 +642,7 @@ def analyse_structured_logs(
         result.records, warn_gap=warn_gap, fail_gap=fail_gap
     )
     incidents = list(gap_incidents)
+    content_incidents = list(_detect_log_content_incidents(result.records))
 
     if minimum_duration is not None:
         duration = None
@@ -687,6 +703,7 @@ def analyse_structured_logs(
         level_counts=dict(level_counts),
         event_counts=dict(event_counts),
         gap_incidents=tuple(incidents),
+        content_incidents=tuple(content_incidents),
         uptime_ratio=uptime_ratio,
     )
 
@@ -938,6 +955,65 @@ def assess_sign_off_readiness(
 _FAIL_STATUSES = {"error", "failed", "halted", "fatal", "critical"}
 _WARN_STATUSES = {"warn", "warning", "degraded", "throttled", "skipped"}
 
+_TRACEBACK_TOKENS = (
+    "traceback (most recent call last)",
+    "uncaught exception",
+    "unhandled exception",
+    "fatal error",
+    "panic:",
+    "panic ",
+)
+_STACK_PAYLOAD_KEYS = {"exception", "traceback", "stacktrace", "stack_trace"}
+
+
+def _detect_log_content_incidents(
+    records: Sequence[StructuredLogRecord],
+) -> tuple[DryRunIncident, ...]:
+    """Flag suspicious log lines that indicate uncaught exceptions or traces."""
+
+    incidents: list[DryRunIncident] = []
+    for record in records:
+        message = (record.message or "").lower()
+        payload_strings: list[str] = []
+        for key, value in record.payload.items():
+            if key in _STACK_PAYLOAD_KEYS and isinstance(value, str):
+                payload_strings.append(value.lower())
+        combined_payload = "\n".join(payload_strings)
+
+        has_traceback = any(token in message for token in _TRACEBACK_TOKENS)
+        has_traceback = has_traceback or any(
+            token in combined_payload for token in _TRACEBACK_TOKENS
+        )
+        has_traceback = has_traceback or "traceback" in message or "traceback" in combined_payload
+        mentions_exception = (
+            "exception" in message
+            or "exception" in combined_payload
+            or any(key.endswith("exception") for key in record.payload)
+        )
+
+        if not (has_traceback or mentions_exception and "handled" not in message):
+            continue
+
+        incidents.append(
+            DryRunIncident(
+                severity=DryRunStatus.fail,
+                occurred_at=record.timestamp,
+                summary=(
+                    record.message
+                    or record.event
+                    or "Exception detected in structured logs"
+                ),
+                metadata={
+                    "event": record.event,
+                    "level": record.level,
+                    "payload_keys": sorted(str(key) for key in record.payload.keys()),
+                },
+            )
+        )
+
+    incidents.sort(key=lambda incident: incident.occurred_at)
+    return tuple(incidents)
+
 
 def _classify_diary_entry(entry: DecisionDiaryEntry) -> tuple[DryRunStatus | None, str]:
     """Determine whether a diary entry should be flagged as an issue."""
@@ -1052,6 +1128,7 @@ __all__ = [
     "load_performance_summary",
     "evaluate_dry_run",
     "humanise_timedelta",
+    "_detect_log_content_incidents",
 ]
 
 

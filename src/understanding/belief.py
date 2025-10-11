@@ -562,6 +562,10 @@ class RegimeFSM:
         volatility_window: int = 48,
         calm_threshold: float = 0.05,
         storm_threshold: float = 0.25,
+        adaptive_thresholds: bool = True,
+        calibration_min_samples: int = 6,
+        calm_percentile: float = 0.35,
+        storm_percentile: float = 0.85,
     ) -> None:
         self._event_bus = event_bus
         self._signal_id = signal_id
@@ -576,10 +580,20 @@ class RegimeFSM:
             raise ValueError("calm_threshold must be non-negative")
         if storm_threshold <= calm_threshold:
             raise ValueError("storm_threshold must be greater than calm_threshold")
+        if not 0.0 <= calm_percentile < storm_percentile <= 1.0:
+            raise ValueError("percentiles must satisfy 0 <= calm < storm <= 1")
+        if calibration_min_samples <= 1:
+            raise ValueError("calibration_min_samples must be greater than 1")
         self._volatility_feature = str(volatility_feature)
         self._volatility_history: deque[float] = deque(maxlen=volatility_window)
         self._calm_threshold = calm_threshold
         self._storm_threshold = storm_threshold
+        self._adaptive_thresholds = adaptive_thresholds
+        self._calibration_min_samples = calibration_min_samples
+        self._calm_percentile = calm_percentile
+        self._storm_percentile = storm_percentile
+        self._dynamic_calm_threshold: float | None = None
+        self._dynamic_storm_threshold: float | None = None
 
     def classify(self, belief_state: BeliefState) -> RegimeSignal:
         posterior = belief_state.posterior
@@ -630,6 +644,8 @@ class RegimeFSM:
             "volatility_feature": self._volatility_feature,
             "volatility": volatility,
             "volatility_state": volatility_state,
+            "calm_threshold": self._current_thresholds()[0],
+            "storm_threshold": self._current_thresholds()[1],
         }
         if volatility_sample is not None:
             metadata["volatility_sample"] = volatility_sample
@@ -673,7 +689,27 @@ class RegimeFSM:
             "volatility_samples": len(self._volatility_history),
             "calm_threshold": self._calm_threshold,
             "storm_threshold": self._storm_threshold,
+            "dynamic_calm_threshold": self._dynamic_calm_threshold,
+            "dynamic_storm_threshold": self._dynamic_storm_threshold,
         }
+
+    def apply_threshold_scale(self, scale: float) -> None:
+        if not np.isfinite(scale) or scale <= 0.0:
+            return
+        self._calm_threshold = float(self._calm_threshold * scale)
+        self._storm_threshold = float(self._storm_threshold * scale)
+        if self._dynamic_calm_threshold is not None:
+            self._dynamic_calm_threshold = float(self._dynamic_calm_threshold * scale)
+        if self._dynamic_storm_threshold is not None:
+            self._dynamic_storm_threshold = float(self._dynamic_storm_threshold * scale)
+        if self._storm_threshold <= self._calm_threshold:
+            self._storm_threshold = self._calm_threshold + 1e-6
+        if (
+            self._dynamic_calm_threshold is not None
+            and self._dynamic_storm_threshold is not None
+            and self._dynamic_storm_threshold <= self._dynamic_calm_threshold
+        ):
+            self._dynamic_storm_threshold = self._dynamic_calm_threshold + 1e-6
 
     def _resolve_volatility(
         self,
@@ -719,21 +755,54 @@ class RegimeFSM:
         history_value = volatility_metric if volatility_metric is not None else volatility_sample
         if history_value is not None:
             self._volatility_history.append(float(history_value))
+            self._update_dynamic_thresholds()
             if len(self._volatility_history) >= 2:
-                volatility_metric = float(np.std(self._volatility_history, ddof=0))
+                std_metric = float(np.std(self._volatility_history, ddof=0))
+                volatility_metric = max(std_metric, float(history_value))
             else:
                 volatility_metric = float(history_value)
         elif volatility_metric is None:
             volatility_metric = 0.0
 
-        if volatility_metric <= self._calm_threshold:
+        calm_threshold, storm_threshold = self._current_thresholds()
+
+        if volatility_metric <= calm_threshold:
             volatility_state = "calm"
-        elif volatility_metric >= self._storm_threshold:
+        elif volatility_metric >= storm_threshold:
             volatility_state = "storm"
         else:
             volatility_state = "normal"
 
         return float(volatility_metric), volatility_state, recorded_sample
+
+    def _current_thresholds(self) -> tuple[float, float]:
+        calm = self._dynamic_calm_threshold if self._dynamic_calm_threshold is not None else self._calm_threshold
+        storm = self._dynamic_storm_threshold if self._dynamic_storm_threshold is not None else self._storm_threshold
+        if storm <= calm:
+            storm = calm + 1e-6
+        return float(calm), float(storm)
+
+    def _update_dynamic_thresholds(self) -> None:
+        if not self._adaptive_thresholds:
+            return
+        if len(self._volatility_history) < self._calibration_min_samples:
+            return
+        history = np.array(self._volatility_history, dtype=float)
+        if history.size == 0 or not np.any(np.isfinite(history)):
+            return
+        calm_candidate = float(np.quantile(history, self._calm_percentile))
+        storm_candidate = float(np.quantile(history, self._storm_percentile))
+        base_calm = max(self._calm_threshold, calm_candidate)
+        base_storm = max(self._storm_threshold, storm_candidate)
+        # Prevent the calm threshold from drifting above the storm baseline so storms remain detectable.
+        base_calm = min(base_calm, self._storm_threshold * 0.75)
+        # Cap the storm threshold growth to avoid suppressing legitimate spikes.
+        base_storm = min(max(base_storm, self._storm_threshold), self._storm_threshold * 1.5)
+        if base_storm <= base_calm:
+            spread = float(np.std(history, ddof=0)) or 1e-6
+            base_storm = base_calm + spread
+        self._dynamic_calm_threshold = float(base_calm)
+        self._dynamic_storm_threshold = float(base_storm)
 def _publish_event(
     event_bus: EventBus,
     event: Event,

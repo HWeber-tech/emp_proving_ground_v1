@@ -1,10 +1,11 @@
-"""Utilities for ingesting a real-market slice and emitting belief states."""
+"""Utilities for ingesting a real-market slice and emitting belief/regime state."""
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Mapping
+from typing import Mapping, Sequence
 
 import pandas as pd
 
@@ -20,7 +21,12 @@ from src.data_foundation.persist.timescale import (
 )
 from src.data_integration.real_data_integration import RealDataManager
 from src.sensory.real_sensory_organ import RealSensoryOrgan
-from src.understanding.belief import BeliefBuffer, BeliefEmitter, BeliefState
+from src.understanding.belief import BeliefBuffer, BeliefEmitter, BeliefState, RegimeFSM, RegimeSignal
+from src.understanding.belief_regime_calibrator import (
+    BeliefRegimeCalibration,
+    build_calibrated_belief_components,
+    calibrate_belief_and_regime,
+)
 
 __all__ = [
     "RealDataSliceConfig",
@@ -51,6 +57,8 @@ class RealDataSliceOutcome:
     market_data: pd.DataFrame
     sensory_snapshot: Mapping[str, object]
     belief_state: BeliefState
+    regime_signal: RegimeSignal
+    calibration: BeliefRegimeCalibration | None
 
 
 class _InMemoryEventBus:
@@ -65,6 +73,9 @@ class _InMemoryEventBus:
     def publish_from_sync(self, event: Event) -> int:
         self.events.append(event)
         return 1
+
+
+logger = logging.getLogger(__name__)
 
 
 def _load_csv(csv_path: Path) -> pd.DataFrame:
@@ -90,6 +101,74 @@ def _load_csv(csv_path: Path) -> pd.DataFrame:
     if frame["date"].isna().all():
         raise ValueError("CSV must contain at least one valid date/timestamp value")
     return frame
+
+
+def _extract_price_series(frame: pd.DataFrame) -> Sequence[float]:
+    """Return a numeric price/close series suitable for calibration."""
+
+    if frame.empty:
+        raise ValueError("market data frame is empty")
+
+    for column in ("close", "price", "adj_close"):
+        if column in frame.columns:
+            series = pd.to_numeric(frame[column], errors="coerce").dropna()
+            values = series.to_list()
+            if len(values) >= 3:
+                return values
+    raise ValueError("market data must contain at least three valid close/price values")
+
+
+def _calibrate_from_market_data(frame: pd.DataFrame) -> BeliefRegimeCalibration | None:
+    try:
+        prices = _extract_price_series(frame)
+    except ValueError as exc:  # pragma: no cover - defensive guard
+        logger.warning("Skipping belief/regime calibration: %s", exc)
+        return None
+
+    try:
+        return calibrate_belief_and_regime(prices)
+    except ValueError as exc:  # pragma: no cover - calibration fallback path
+        logger.warning("Belief/regime calibration failed: %s", exc)
+        return None
+
+
+def _extract_snapshot_volatility(
+    snapshot: Mapping[str, object],
+    feature_name: str,
+) -> float | None:
+    dimensions = snapshot.get("dimensions") if isinstance(snapshot, Mapping) else None
+    if isinstance(dimensions, Mapping):
+        dimension_key = feature_name.split("_", 1)[0].upper()
+        payload = dimensions.get(dimension_key)
+        if isinstance(payload, Mapping):
+            candidate = payload.get("signal")
+        else:
+            candidate = getattr(payload, "signal", None)
+        if candidate is not None:
+            try:
+                return abs(float(candidate))
+            except (TypeError, ValueError):  # pragma: no cover - defensive guard
+                return None
+    return None
+
+
+def _resolve_threshold_scale(
+    calibration: BeliefRegimeCalibration | None,
+    sample: float | None,
+    *,
+    trigger: float = 10.0,
+    max_scale: float = 1e4,
+) -> float | None:
+    if calibration is None or sample is None:
+        return None
+    baseline = max(calibration.calm_threshold, 1e-8)
+    sample_abs = abs(float(sample))
+    if sample_abs == 0.0:
+        return None
+    ratio = sample_abs / baseline
+    if ratio <= trigger:
+        return None
+    return float(min(ratio, max_scale))
 
 
 def ingest_daily_slice_from_csv(
@@ -204,8 +283,8 @@ def build_belief_from_market_data(
     symbol: str,
     belief_id: str,
     event_bus: _InMemoryEventBus | None = None,
-) -> tuple[Mapping[str, object], BeliefState]:
-    """Execute the sensory organ and belief buffer for the provided frame."""
+) -> tuple[Mapping[str, object], BeliefState, RegimeSignal, BeliefRegimeCalibration | None]:
+    """Execute the sensory organ and belief/regime buffers for the provided frame."""
 
     if market_data.empty:
         raise ValueError("Market data frame is empty; cannot build belief state")
@@ -213,11 +292,32 @@ def build_belief_from_market_data(
     organ = RealSensoryOrgan(event_bus=None)
     snapshot = organ.observe(market_data, symbol=symbol)
 
-    buffer = BeliefBuffer(belief_id=belief_id)
     bus = event_bus or _InMemoryEventBus()
-    emitter = BeliefEmitter(buffer=buffer, event_bus=bus)
+    calibration = _calibrate_from_market_data(market_data)
+
+    if calibration is not None:
+        buffer, emitter, regime_fsm = build_calibrated_belief_components(
+            calibration,
+            belief_id=belief_id,
+            regime_signal_id=f"{belief_id}-regime",
+            event_bus=bus,
+        )
+    else:
+        buffer = BeliefBuffer(belief_id=belief_id)
+        emitter = BeliefEmitter(buffer=buffer, event_bus=bus)
+        regime_fsm = RegimeFSM(event_bus=bus, signal_id=f"{belief_id}-regime")
+
+    volatility_hint = _extract_snapshot_volatility(
+        snapshot,
+        calibration.volatility_feature if calibration is not None else "HOW_signal",
+    )
+    scale = _resolve_threshold_scale(calibration, volatility_hint)
+    if scale is not None:
+        regime_fsm.apply_threshold_scale(scale)
+
     state = emitter.emit(snapshot)
-    return snapshot, state
+    regime_signal = regime_fsm.publish(state)
+    return snapshot, state, regime_signal, calibration
 
 
 def run_real_data_slice(
@@ -250,7 +350,7 @@ def run_real_data_slice(
     if market_data.empty:
         raise RuntimeError("Timescale returned no rows after ingesting the CSV slice")
 
-    snapshot, belief_state = build_belief_from_market_data(
+    snapshot, belief_state, regime_signal, calibration = build_belief_from_market_data(
         market_data=market_data,
         symbol=config.symbol,
         belief_id=config.belief_id,
@@ -261,4 +361,6 @@ def run_real_data_slice(
         market_data=market_data,
         sensory_snapshot=snapshot,
         belief_state=belief_state,
+        regime_signal=regime_signal,
+        calibration=calibration,
     )

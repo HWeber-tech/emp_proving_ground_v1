@@ -62,3 +62,50 @@ def test_trade_throttle_enforces_window_and_retry(cooldown_seconds: float) -> No
     assert fourth.allowed is True
     assert fourth.snapshot["state"] == "open"
     assert fourth.retry_at is None
+
+
+def test_trade_throttle_scopes_by_metadata_field() -> None:
+    config = TradeThrottleConfig(
+        name="scoped",
+        max_trades=1,
+        window_seconds=60.0,
+        scope_fields=("strategy_id",),
+    )
+    throttle = TradeThrottle(config)
+
+    base = datetime(2024, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+
+    alpha_first = throttle.evaluate(
+        now=base, metadata={"strategy_id": "alpha", "symbol": "EURUSD"}
+    )
+    assert alpha_first.allowed is True
+
+    beta_first = throttle.evaluate(
+        now=base + timedelta(seconds=1),
+        metadata={"strategy_id": "beta", "symbol": "EURUSD"},
+    )
+    assert beta_first.allowed is True, "independent scope should allow different strategy"
+
+    alpha_second = throttle.evaluate(
+        now=base + timedelta(seconds=2),
+        metadata={"strategy_id": "alpha", "symbol": "EURUSD"},
+    )
+    assert alpha_second.allowed is False
+    assert alpha_second.reason == "max_1_trades_per_60s"
+    alpha_scope = alpha_second.snapshot.get("metadata", {}).get("scope", {})
+    assert alpha_scope == {"strategy_id": "alpha"}
+    alpha_key = alpha_second.snapshot.get("scope_key")
+    assert alpha_key is not None
+    assert isinstance(alpha_key, list) and alpha_key[0].endswith("'alpha'")
+
+    missing_scope_first = throttle.evaluate(
+        now=base + timedelta(seconds=3), metadata={"symbol": "EURUSD"}
+    )
+    assert missing_scope_first.allowed is True
+
+    missing_scope_second = throttle.evaluate(
+        now=base + timedelta(seconds=4), metadata={"symbol": "EURUSD"}
+    )
+    assert missing_scope_second.allowed is False
+    missing_scope = missing_scope_second.snapshot.get("metadata", {}).get("scope", {})
+    assert missing_scope == {"strategy_id": None}

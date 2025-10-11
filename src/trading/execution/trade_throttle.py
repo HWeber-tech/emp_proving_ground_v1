@@ -41,6 +41,14 @@ class TradeThrottleConfig(BaseModel):
         ge=0.0,
         description="Optional position-size multiplier applied when active",
     )
+    scope_fields: tuple[str, ...] = Field(
+        default_factory=tuple,
+        description=(
+            "Optional metadata fields used to scope throttle counters. When provided, "
+            "the throttle maintains independent rolling windows per unique "
+            "combination of these fields."
+        ),
+    )
 
     @validator("name")
     def _normalise_name(cls, value: str) -> str:
@@ -48,6 +56,33 @@ class TradeThrottleConfig(BaseModel):
         if not name:
             raise ValueError("Throttle name must be a non-empty string")
         return name
+
+    @validator("scope_fields", pre=True)
+    def _coerce_scope_fields(
+        cls, value: Any  # type: ignore[override]
+    ) -> tuple[str, ...]:
+        if value is None or value == ():
+            return ()
+        if isinstance(value, str):
+            candidates = [value]
+        else:
+            try:
+                candidates = list(value)
+            except TypeError as exc:  # pragma: no cover - defensive guard
+                raise ValueError("scope_fields must be an iterable of strings") from exc
+
+        normalised: list[str] = []
+        seen: set[str] = set()
+        for entry in candidates:
+            field = str(entry).strip()
+            if not field:
+                raise ValueError("scope_fields entries must be non-empty strings")
+            field_lower = field.lower()
+            if field_lower in seen:
+                continue
+            seen.add(field_lower)
+            normalised.append(field)
+        return tuple(normalised)
 
 
 @dataclass(frozen=True)
@@ -73,11 +108,16 @@ class TradeThrottle:
     """Maintains rolling trade counters to limit execution frequency."""
 
     _RATE_LIMIT_REASON = re.compile(r"^max_(?P<count>\d+)_trades_per_(?P<window>\d+)s$")
+    _GLOBAL_SCOPE: tuple[str, ...] = ("__global__",)
+
+    @dataclass
+    class _ThrottleState:
+        timestamps: Deque[datetime]
+        cooldown_until: datetime | None = None
 
     def __init__(self, config: TradeThrottleConfig) -> None:
         self._config = config
-        self._timestamps: Deque[datetime] = deque()
-        self._cooldown_until: datetime | None = None
+        self._states: dict[tuple[str, ...], TradeThrottle._ThrottleState] = {}
         self._last_snapshot: Mapping[str, Any] = self._initial_snapshot()
 
     @property
@@ -103,45 +143,53 @@ class TradeThrottle:
         window_duration = timedelta(seconds=float(self._config.window_seconds))
         cooldown_duration = timedelta(seconds=float(self._config.cooldown_seconds))
 
-        self._prune(moment, window_duration)
+        scope_key, scope_descriptor = self._resolve_scope(metadata)
+        state = self._get_state(scope_key)
 
-        state = "open"
+        self._prune(scope_key, moment, window_duration, state)
+
+        throttle_state = "open"
         reason: str | None = None
         active = False
         retry_at: datetime | None = None
 
-        if self._cooldown_until is not None and moment < self._cooldown_until:
+        if state.cooldown_until is not None and moment < state.cooldown_until:
             allowed = False
             active = True
-            state = "cooldown"
-            retry_at = self._cooldown_until
+            throttle_state = "cooldown"
+            retry_at = state.cooldown_until
             reason = "cooldown_active"
-        elif len(self._timestamps) >= self._config.max_trades:
+        elif len(state.timestamps) >= self._config.max_trades:
             allowed = False
             active = True
-            state = "rate_limited"
+            throttle_state = "rate_limited"
             reason = (
                 f"max_{self._config.max_trades}_trades_per_{int(window_duration.total_seconds())}s"
             )
             if cooldown_duration.total_seconds() > 0:
-                self._cooldown_until = moment + cooldown_duration
-                retry_at = self._cooldown_until
+                state.cooldown_until = moment + cooldown_duration
+                retry_at = state.cooldown_until
             else:
-                oldest = self._timestamps[0] if self._timestamps else moment
+                oldest = state.timestamps[0] if state.timestamps else moment
                 retry_at = oldest + window_duration
         else:
             allowed = True
-            self._timestamps.append(moment)
+            state.timestamps.append(moment)
+            state.cooldown_until = None
 
         message = self._format_reason(reason, retry_at)
 
         snapshot = self._build_snapshot(
-            state=state,
+            state=throttle_state,
             active=active,
             reason=reason,
             retry_at=retry_at,
             metadata=metadata,
             message=message,
+            scope_key=scope_key,
+            scope_descriptor=scope_descriptor,
+            recent_trades=len(state.timestamps),
+            cooldown_until=state.cooldown_until,
         )
         self._last_snapshot = snapshot
 
@@ -165,6 +213,10 @@ class TradeThrottle:
             retry_at=None,
             metadata=None,
             message=None,
+            scope_key=self._GLOBAL_SCOPE,
+            scope_descriptor=None,
+            recent_trades=0,
+            cooldown_until=None,
         )
 
     def _build_snapshot(
@@ -176,17 +228,30 @@ class TradeThrottle:
         retry_at: datetime | None,
         metadata: Mapping[str, Any] | None,
         message: str | None,
+        scope_key: tuple[str, ...],
+        scope_descriptor: Mapping[str, Any] | None,
+        recent_trades: int,
+        cooldown_until: datetime | None,
     ) -> Mapping[str, Any]:
         meta_payload: MutableMapping[str, Any] = {
             "max_trades": self._config.max_trades,
             "window_seconds": float(self._config.window_seconds),
-            "recent_trades": len(self._timestamps),
+            "recent_trades": recent_trades,
         }
         cooldown_seconds = float(self._config.cooldown_seconds)
         if cooldown_seconds:
             meta_payload["cooldown_seconds"] = cooldown_seconds
-        if self._cooldown_until is not None:
-            meta_payload["cooldown_until"] = self._cooldown_until.astimezone(UTC).isoformat()
+        if scope_descriptor is not None and self._config.scope_fields:
+            meta_payload["scope"] = {
+                field: scope_descriptor.get(field)
+                for field in self._config.scope_fields
+            }
+        elif self._config.scope_fields:
+            meta_payload["scope"] = {
+                field: None for field in self._config.scope_fields
+            }
+        if cooldown_until is not None:
+            meta_payload["cooldown_until"] = cooldown_until.astimezone(UTC).isoformat()
         if metadata:
             meta_payload["context"] = dict(metadata)
         snapshot: dict[str, Any] = {
@@ -195,6 +260,8 @@ class TradeThrottle:
             "active": active,
             "metadata": meta_payload,
         }
+        if self._config.scope_fields:
+            snapshot["scope_key"] = list(scope_key)
         if self._config.multiplier is not None:
             snapshot["multiplier"] = float(self._config.multiplier)
         if reason:
@@ -206,11 +273,54 @@ class TradeThrottle:
             snapshot["metadata"]["retry_at"] = retry_at.astimezone(UTC).isoformat()
         return MappingProxyType(snapshot)
 
-    def _prune(self, moment: datetime, window: timedelta) -> None:
-        while self._timestamps and moment - self._timestamps[0] >= window:
-            self._timestamps.popleft()
-        if self._cooldown_until is not None and moment >= self._cooldown_until:
-            self._cooldown_until = None
+    def _get_state(self, scope_key: tuple[str, ...]) -> "TradeThrottle._ThrottleState":
+        state = self._states.get(scope_key)
+        if state is None:
+            state = TradeThrottle._ThrottleState(timestamps=deque())
+            self._states[scope_key] = state
+        return state
+
+    def _resolve_scope(
+        self, metadata: Mapping[str, Any] | None
+    ) -> tuple[tuple[str, ...], Mapping[str, Any] | None]:
+        if not self._config.scope_fields:
+            return self._GLOBAL_SCOPE, None
+
+        scope_context: dict[str, Any] = {}
+        context_source: Mapping[str, Any]
+        if isinstance(metadata, Mapping):
+            context_source = metadata
+            if not isinstance(metadata, dict):
+                context_source = dict(metadata)
+        else:
+            context_source = {}
+        key_parts: list[str] = []
+        for field in self._config.scope_fields:
+            value = context_source.get(field) if context_source else None
+            scope_context[field] = value
+            key_parts.append(self._normalise_scope_value(value))
+        return tuple(key_parts), scope_context
+
+    @staticmethod
+    def _normalise_scope_value(value: Any) -> str:
+        if isinstance(value, datetime):
+            return f"datetime:{value.astimezone(UTC).isoformat()}"
+        if isinstance(value, (str, int, float, bool)) or value is None:
+            return f"{type(value).__name__}:{value!r}"
+        return f"{type(value).__name__}:{repr(value)}"
+
+    def _prune(
+        self,
+        scope_key: tuple[str, ...],
+        moment: datetime,
+        window: timedelta,
+        state: "TradeThrottle._ThrottleState",
+    ) -> None:
+        timestamps = state.timestamps
+        while timestamps and moment - timestamps[0] >= window:
+            timestamps.popleft()
+        if state.cooldown_until is not None and moment >= state.cooldown_until:
+            state.cooldown_until = None
 
     @staticmethod
     def _coerce_timestamp(candidate: datetime | None) -> datetime:

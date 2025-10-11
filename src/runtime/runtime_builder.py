@@ -820,6 +820,7 @@ class RuntimeApplication:
         self._logger = logging.getLogger(f"{__name__}.RuntimeApplication")
         self._shutdown_invoked = False
         self._tracer: RuntimeTracer = self.tracer or NullRuntimeTracer()
+        self._workload_states: dict[str, str] = {}
         supervisor = self.task_supervisor
         if supervisor is None:
             supervisor = TaskSupervisor(
@@ -881,7 +882,9 @@ class RuntimeApplication:
                         span.set_attribute("runtime.operation.status", "completed")
 
     async def _run_workload(self, workload: RuntimeWorkload) -> None:
-        self._logger.info("▶️ starting %s", workload.name)
+        name = workload.name
+        self._workload_states[name] = "running"
+        self._logger.info("▶️ starting %s", name)
         metadata: dict[str, object] = {}
         if workload.description:
             metadata["workload.description"] = workload.description
@@ -898,19 +901,22 @@ class RuntimeApplication:
             try:
                 await workload.factory()
             except asyncio.CancelledError:
+                self._workload_states[name] = "cancelled"
                 if span is not None and hasattr(span, "set_attribute"):
                     span.set_attribute("runtime.workload.status", "cancelled")
-                self._logger.info("⏹️ %s cancelled", workload.name)
+                self._logger.info("⏹️ %s cancelled", name)
                 raise
             except Exception:
+                self._workload_states[name] = "failed"
                 if span is not None and hasattr(span, "set_attribute"):
                     span.set_attribute("runtime.workload.status", "error")
-                self._logger.exception("❌ runtime workload %s failed", workload.name)
+                self._logger.exception("❌ runtime workload %s failed", name)
                 raise
             else:
+                self._workload_states[name] = "finished"
                 if span is not None and hasattr(span, "set_attribute"):
                     span.set_attribute("runtime.workload.status", "completed")
-                self._logger.info("✅ %s completed", workload.name)
+                self._logger.info("✅ %s completed", name)
 
     async def run(self) -> None:
         """Run the configured workloads and execute shutdown hooks on exit."""
@@ -940,7 +946,8 @@ class RuntimeApplication:
             if self.trading is not None:
                 workloads.append(self.trading)
             if workloads:
-                tasks: list[tuple[str, asyncio.Task[Any]]] = []
+                task_mapping: dict[asyncio.Task[Any], RuntimeWorkload] = {}
+                all_tasks: set[asyncio.Task[Any]] = set()
                 try:
                     for workload in workloads:
                         task_name = f"{workload.name}-workload"
@@ -950,13 +957,18 @@ class RuntimeApplication:
                         if workload.metadata:
                             metadata_payload["workload_metadata"] = dict(workload.metadata)
                         restart_policy = workload.restart_policy
+                        self._workload_states[workload.name] = "scheduled"
+                        run_coro = self._run_workload(workload)
+                        restart_factory: Callable[[], Awaitable[Any]] | None = None
+                        if restart_policy is not None:
+                            restart_factory = lambda workload=workload: self._run_workload(
+                                workload
+                            )
                         task = self._task_supervisor.create(
-                            self._run_workload(workload),
+                            run_coro,
                             name=task_name,
                             metadata=metadata_payload,
-                            restart_callback=workload.factory
-                            if restart_policy is not None
-                            else None,
+                            restart_callback=restart_factory,
                             max_restarts=None
                             if restart_policy is None
                             else restart_policy.max_restarts,
@@ -964,33 +976,43 @@ class RuntimeApplication:
                             if restart_policy is None
                             else restart_policy.backoff_seconds,
                         )
-                        tasks.append((task_name, task))
+                        task_mapping[task] = workload
+                        all_tasks.add(task)
 
-                    pending: set[asyncio.Task[Any]] = {task for _, task in tasks}
-                    errors: list[BaseException] = []
+                    pending: set[asyncio.Task[Any]] = set(task_mapping.keys())
 
                     while pending:
                         done, pending = await asyncio.wait(
-                            pending, return_when=asyncio.FIRST_EXCEPTION
+                            pending, return_when=asyncio.FIRST_COMPLETED
                         )
                         for task in done:
-                            if task.cancelled():
+                            workload = task_mapping.get(task)
+                            name = workload.name if workload is not None else "<unknown>"
+                            try:
+                                exc = task.exception()
+                            except Exception:
+                                exc = None
+                                self._logger.exception(
+                                    "Unable to determine completion state for %s", name
+                                )
                                 continue
-                            exc = task.exception()
-                            if exc is not None and not isinstance(exc, asyncio.CancelledError):
-                                errors.append(exc)
-                        if errors:
-                            for task in pending:
-                                task.cancel()
-                            await asyncio.gather(*pending, return_exceptions=True)
-                            raise errors[0]
+                            if exc is None:
+                                self._logger.info("🏁 runtime workload %s exited", name)
+                            else:
+                                self._logger.error(
+                                    "runtime workload %s terminated with error: %s",
+                                    name,
+                                    exc,
+                                    exc_info=exc,
+                                )
+                        # remove finished tasks from mapping to avoid repeated logging
+                        for task in done:
+                            task_mapping.pop(task, None)
                 finally:
-                    for _, task in tasks:
+                    for task in list(task_mapping.keys()):
                         if not task.done():
                             task.cancel()
-                    await asyncio.gather(
-                        *(task for _, task in tasks), return_exceptions=True
-                    )
+                    await asyncio.gather(*all_tasks, return_exceptions=True)
         finally:
             await self.shutdown()
 
@@ -1013,6 +1035,7 @@ class RuntimeApplication:
             "trading": _pack(self.trading),
             "shutdown_callbacks": len(self.shutdown_callbacks),
             "startup_callbacks": len(self.startup_callbacks),
+            "workload_states": dict(self._workload_states),
         }
 
 

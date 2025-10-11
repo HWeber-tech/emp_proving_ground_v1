@@ -87,6 +87,18 @@ consistent schema so baseline scripts can still emit records.
 The health helper doubles as an ops checklist: automate it in smoke tests so
 regressions surface before operators notice backlog on dashboards.
 
+### Scoped throttles for hot strategies
+
+`TradeThrottle` now supports *scoped* rate limits via the `scope_fields`
+configuration option. When present, the throttle keeps independent rolling
+windows per unique combination of the supplied metadata fields (for example a
+`("strategy_id",)` scope). This prevents a single hot strategy from consuming
+the entire global quota during bursts while still enforcing per-strategy caps.
+Throttle snapshots include both the resolved `scope_key` and a human readable
+`scope` map so diaries and dashboards surface which strategy tripped the guard.
+Missing metadata gracefully collapses to a shared "None" scope, ensuring events
+without identifying context remain governed.
+
 This instrumentation provides the quantitative evidence required by the roadmap
 to demonstrate that throttling keeps the system responsive under bursty trading
 conditions.

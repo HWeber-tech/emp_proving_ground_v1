@@ -72,9 +72,32 @@ def test_analyse_structured_logs_flags_errors() -> None:
     assert len(summary.errors) == 1
     assert len(summary.warnings) == 1
     assert summary.gap_incidents == tuple()
+    assert summary.content_incidents == tuple()
     assert summary.uptime_ratio == 1.0
     assert summary.as_dict()["ignored_lines"] == 1
     assert "Errors" in summary.to_markdown()
+
+
+def test_analyse_structured_logs_flags_traceback_even_without_error_level() -> None:
+    records = (
+        _record(
+            "2024-01-01T00:00:00",
+            "info",
+            "engine.tick",
+            "Traceback (most recent call last): division by zero",
+        ),
+    )
+    summary = analyse_structured_logs(LogParseResult(records=records, ignored_lines=0))
+    assert summary.status is DryRunStatus.fail
+    assert not summary.gap_incidents
+    assert summary.content_incidents
+    incident = summary.content_incidents[0]
+    assert "traceback" in incident.summary.lower()
+    rollup = DryRunSummary(
+        generated_at=datetime(2024, 1, 2, tzinfo=UTC),
+        log_summary=summary,
+    ).to_markdown()
+    assert "Log anomalies" in rollup
 
 
 def test_analyse_structured_logs_enforces_minimum_duration() -> None:
@@ -157,6 +180,7 @@ def test_dry_run_summary_combines_components() -> None:
         level_counts={"info": 1},
         event_counts={"start": 1},
         gap_incidents=tuple(),
+        content_incidents=tuple(),
         uptime_ratio=1.0,
     )
     diary_summary = DryRunDiarySummary(
@@ -197,6 +221,7 @@ def test_sign_off_report_passes_with_all_criteria() -> None:
         level_counts={"info": 2},
         event_counts={"start": 1, "end": 1},
         gap_incidents=tuple(),
+        content_incidents=tuple(),
         uptime_ratio=0.995,
     )
     diary_summary = DryRunDiarySummary(entries=tuple(), issues=tuple(), policy_counts={})

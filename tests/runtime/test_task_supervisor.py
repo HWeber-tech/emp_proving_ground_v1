@@ -136,3 +136,38 @@ async def test_supervisor_restarts_task_until_success(caplog: pytest.LogCaptureF
     messages = [record.getMessage() for record in caplog.records]
     assert any("restartable-task" in message for message in messages)
     await supervisor.cancel_all()
+
+
+@pytest.mark.asyncio()
+async def test_supervisor_cancel_all_reports_hung_tasks(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    supervisor = TaskSupervisor(namespace="test-hung", cancel_timeout=0.05)
+    release_event = asyncio.Event()
+
+    async def _hung() -> None:
+        try:
+            while True:
+                await asyncio.sleep(0.01)
+        except asyncio.CancelledError:
+            await release_event.wait()
+            raise
+
+    hung_task = supervisor.create(
+        _hung(), name="hung-task", metadata={"component": "drift-monitor"}
+    )
+
+    await asyncio.sleep(0)
+
+    with caplog.at_level(logging.ERROR, logger=supervisor._logger.name):
+        await supervisor.cancel_all()
+
+    messages = [record.getMessage() for record in caplog.records]
+    assert any("hung-task" in message for message in messages)
+    assert any("component" in message for message in messages)
+
+    release_event.set()
+    try:
+        await hung_task
+    except asyncio.CancelledError:
+        pass

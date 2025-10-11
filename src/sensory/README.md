@@ -446,7 +446,7 @@ The system produces comprehensive market synthesis including:
 
 ```python
 MarketSynthesis(
-    intelligence_level=IntelligenceLevel.INSIGHTFUL,
+    understanding_level=UnderstandingLevel.HIGH,
     narrative_coherence=NarrativeCoherence.COMPELLING,
     dominant_narrative=MarketNarrative.CONFLUENCE_SETUP,
     unified_score=0.742,  # -1 to 1 (bearish to bullish)

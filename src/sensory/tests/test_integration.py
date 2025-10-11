@@ -282,7 +282,9 @@ class TestContextualFusion:
         synthesis = await fusion_engine.analyze_market_understanding(market_data)
 
         assert synthesis is not None
-        assert hasattr(synthesis, "intelligence_level")
+        assert hasattr(synthesis, "understanding_level")
+        assert hasattr(synthesis, "intelligence_level")  # backwards compatibility alias
+        assert synthesis.intelligence_level is synthesis.understanding_level
         assert hasattr(synthesis, "narrative_coherence")
         assert hasattr(synthesis, "unified_score")
         assert hasattr(synthesis, "confidence")

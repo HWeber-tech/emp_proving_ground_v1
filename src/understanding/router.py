@@ -172,6 +172,7 @@ class UnderstandingDecision:
     belief_snapshot: BeliefSnapshot
     applied_adapters: tuple[str, ...]
     fast_weight_summary: Mapping[str, Mapping[str, object]]
+    fast_weight_metrics: Mapping[str, object]
 
 
 class UnderstandingRouter:
@@ -258,6 +259,7 @@ class UnderstandingRouter:
             belief_snapshot=snapshot,
             applied_adapters=tuple(applied),
             fast_weight_summary=summaries,
+            fast_weight_metrics=dict(decision.fast_weight_metrics),
         )
 
 

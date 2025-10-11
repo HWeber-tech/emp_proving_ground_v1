@@ -96,6 +96,10 @@ def test_understanding_router_applies_feature_gated_adapters() -> None:
     assert summary["required_flags"] == {"fast_weights_live": True}
     assert summary["current_multiplier"] == pytest.approx(1.35)
     assert "expires_at" not in summary
+    metrics = decision_bundle.fast_weight_metrics
+    assert metrics["active"] == 1
+    assert metrics["total"] == 2
+    assert metrics["active_percentage"] == pytest.approx(50.0)
 
 
 def test_understanding_router_respects_fast_weight_disable_flag() -> None:
@@ -107,6 +111,9 @@ def test_understanding_router_respects_fast_weight_disable_flag() -> None:
     assert decision_bundle.decision.tactic_id == "beta_hold"
     assert decision_bundle.applied_adapters == ()
     assert decision_bundle.fast_weight_summary == {}
+    metrics = decision_bundle.fast_weight_metrics
+    assert metrics["active"] == 0
+    assert metrics["total"] == 2
 
 
 def test_understanding_router_feature_gate_blocks_without_threshold() -> None:
@@ -117,6 +124,8 @@ def test_understanding_router_feature_gate_blocks_without_threshold() -> None:
 
     assert decision_bundle.decision.tactic_id == "beta_hold"
     assert decision_bundle.applied_adapters == ()
+    metrics = decision_bundle.fast_weight_metrics
+    assert metrics["active"] == 0
 
 
 def test_understanding_router_requires_feature_flag_enablement() -> None:

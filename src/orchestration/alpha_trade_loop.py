@@ -457,6 +457,7 @@ class AlphaTradeLoopOrchestrator:
                 adapter_id: dict(summary)
                 for adapter_id, summary in decision_bundle.fast_weight_summary.items()
             },
+            "fast_weight_metrics": dict(decision_bundle.fast_weight_metrics),
         }
         if trade:
             metadata["trade"] = dict(trade)

@@ -182,6 +182,7 @@ class PolicyDecision:
     experiments_applied: tuple[str, ...]
     reflection_summary: Mapping[str, object]
     weight_breakdown: Mapping[str, object] = field(default_factory=dict)
+    fast_weight_metrics: Mapping[str, object] = field(default_factory=dict)
 
 
 if TYPE_CHECKING:  # pragma: no cover - import cycle guard for type checking
@@ -403,6 +404,11 @@ class PolicyRouter:
             experiments_applied=tuple(exp.experiment_id for exp in experiments),
             reflection_summary=reflection_summary,
             weight_breakdown=weight_breakdown,
+            fast_weight_metrics=(
+                dict(winner.get("fast_weight_metrics", {}))
+                if isinstance(winner.get("fast_weight_metrics"), Mapping)
+                else {}
+            ),
         )
 
     def history(self) -> Sequence[Mapping[str, object]]:

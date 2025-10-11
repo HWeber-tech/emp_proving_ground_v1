@@ -9,7 +9,7 @@ feeds paper-trade execution with deterministic governance metadata.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from enum import StrEnum
 from typing import Any, Mapping, MutableMapping, Sequence
@@ -175,6 +175,59 @@ class AlphaTradeLoopOrchestrator:
         thresholds["stage"] = effective_stage.value
         return thresholds
 
+    @staticmethod
+    def _stage_gate_reason(stage: PolicyLedgerStage) -> str | None:
+        if stage is PolicyLedgerStage.EXPERIMENT:
+            return "release_stage_experiment_requires_paper_or_better"
+        if stage is PolicyLedgerStage.PAPER:
+            return "release_stage_paper_requires_paper_execution"
+        return None
+
+    def _apply_governance_guardrails(
+        self,
+        decision_bundle: UnderstandingDecision,
+        *,
+        effective_stage: PolicyLedgerStage,
+        stage_sources: Mapping[str, PolicyLedgerStage],
+    ) -> UnderstandingDecision:
+        decision = decision_bundle.decision
+        guardrails = dict(decision.guardrails)
+
+        guardrail_stage_value = guardrails.get("release_stage")
+        guardrail_stage = effective_stage
+        if guardrail_stage_value is not None:
+            try:
+                existing_stage = PolicyLedgerStage.from_value(guardrail_stage_value)
+            except Exception:
+                existing_stage = None
+            if existing_stage is not None:
+                guardrail_stage = self._more_conservative_stage(
+                    effective_stage,
+                    existing_stage,
+                )
+
+        guardrails["release_stage"] = guardrail_stage.value
+        guardrails["governance_policy_stage"] = stage_sources["policy"].value
+        guardrails["governance_tactic_stage"] = stage_sources["tactic"].value
+        guardrails["governance_release_stage"] = guardrail_stage.value
+
+        stage_reason = self._stage_gate_reason(guardrail_stage)
+        if stage_reason:
+            guardrails["governance_release_stage_gate"] = stage_reason
+        else:
+            guardrails.pop("governance_release_stage_gate", None)
+
+        force_required = bool(guardrails.get("force_paper"))
+        if stage_reason:
+            force_required = True
+        guardrails["force_paper"] = force_required
+
+        if guardrails == decision.guardrails:
+            return decision_bundle
+
+        updated_decision = replace(decision, guardrails=guardrails)
+        return replace(decision_bundle, decision=updated_decision)
+
     def run_iteration(
         self,
         belief_snapshot: BeliefSnapshot,
@@ -202,6 +255,13 @@ class AlphaTradeLoopOrchestrator:
             tactic_id=decision.tactic_id,
         )
         stage = stage_sources["effective"]
+        decision_bundle = self._apply_governance_guardrails(
+            decision_bundle,
+            effective_stage=stage,
+            stage_sources=stage_sources,
+        )
+        decision = decision_bundle.decision
+
         thresholds = self._resolve_effective_thresholds(
             policy_id=resolved_policy_id,
             tactic_id=decision.tactic_id,

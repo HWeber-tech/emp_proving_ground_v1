@@ -209,6 +209,17 @@ async def test_trading_manager_records_execution_stats(monkeypatch: pytest.Monke
     assert stats.get("avg_latency_ms") is not None
     assert stats.get("pending_orders", 0) == 0
     assert stats.get("fills") == 1
+    resource_usage = stats.get("resource_usage")
+    assert isinstance(resource_usage, dict)
+    assert set(resource_usage.keys()) == {
+        "timestamp",
+        "cpu_percent",
+        "memory_mb",
+        "memory_percent",
+    }
+    backlog = stats.get("backlog")
+    assert isinstance(backlog, dict)
+    assert "healthy" in backlog
 
 
 @pytest.mark.asyncio()

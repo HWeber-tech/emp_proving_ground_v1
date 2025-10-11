@@ -40,6 +40,39 @@ latency budgets:
 Use tighter bounds for high-frequency drills (e.g. 100 ms processing, 500 ms lag)
 and widen them for slower venues.
 
+### Backlog posture
+
+Event ingest lag also drives a dedicated `backlog` snapshot populated by the new
+`EventBacklogTracker`. The payload exposes:
+
+| Field | Description |
+| --- | --- |
+| `samples` | Count of lag measurements retained in the sliding window. |
+| `threshold_ms` | Configured maximum tolerated lag before flagging a breach. |
+| `max_lag_ms` / `avg_lag_ms` | Observed extremes and average lag. |
+| `breaches` | Number of lag breaches recorded in the current window. |
+| `healthy` | `False` when `max_lag_ms` exceeds `threshold_ms`. |
+| `last_breach_at` | ISO timestamp of the most recent breach (if any). |
+| `worst_breach_ms` | Worst lag breach encountered in the retained window. |
+
+Operators can tighten or relax `threshold_ms` when instantiating the trading
+manager. Monitoring the breach counter alongside throughput makes backlog
+surges explicit during replay drills.
+
+### Resource usage snapshot
+
+The `resource_usage` entry captures CPU and memory data for the trading process:
+
+| Field | Description |
+| --- | --- |
+| `timestamp` | Sampling time in ISO-8601 format (UTC). |
+| `cpu_percent` | Instantaneous CPU utilisation reported by `psutil`. |
+| `memory_mb` | Resident set size in megabytes. |
+| `memory_percent` | Fraction of system memory used by the process. |
+
+If `psutil` is unavailable the monitor falls back to `None` values, preserving a
+consistent schema so baseline scripts can still emit records.
+
 ## Baseline Usage
 
 1. Run a high-frequency replay (or paper trading session) and periodically call
@@ -47,9 +80,9 @@ and widen them for slower venues.
 2. Confirm `throughput.avg_processing_ms` remains within your latency budget and
    that `avg_lag_ms` stays near zero (indicating no backlog).
 3. Call `TradingManager.assess_throughput_health()` with the desired budgets and
-   record both the raw metrics and the derived health verdict alongside CPU/
-   memory telemetry when establishing resource baselines for the paper trading
-   environment.
+   record both the raw metrics and the derived health verdict alongside `backlog`
+   and `resource_usage` snapshots when establishing CPU/memory baselines for the
+   paper trading environment.
 
 The health helper doubles as an ops checklist: automate it in smoke tests so
 regressions surface before operators notice backlog on dashboards.

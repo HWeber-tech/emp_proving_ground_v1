@@ -146,6 +146,12 @@ def test_how_sensor_emits_liquidity_audit() -> None:
     assert "liquidity" in lineage.get("telemetry", {})
     assert lineage.get("metadata", {}).get("mode") == "market_data"
     assert "state" in lineage.get("metadata", {})
+    quality = metadata.get("quality")
+    assert isinstance(quality, dict)
+    assert quality.get("source") == "sensory.how"
+    assert quality.get("confidence") == signal.confidence
+    assert isinstance(quality.get("timestamp"), str)
+    assert quality.get("state") == metadata.get("state")
 
 
 def test_anomaly_sensor_sequence_mode_detects_spike() -> None:
@@ -178,6 +184,12 @@ def test_anomaly_sensor_sequence_mode_detects_spike() -> None:
     assert lineage.get("metadata", {}).get("mode") == "sequence"
     assert lineage.get("inputs", {}).get("sequence_length") == 12
     assert "baseline" in lineage.get("telemetry", {})
+    quality = metadata.get("quality")
+    assert isinstance(quality, dict)
+    assert quality.get("source") == "sensory.anomaly"
+    assert quality.get("confidence") == signal.confidence
+    assert isinstance(quality.get("timestamp"), str)
+    assert quality.get("state") == metadata.get("state")
 
 
 def test_anomaly_sensor_falls_back_to_market_payload() -> None:
@@ -196,6 +208,12 @@ def test_anomaly_sensor_falls_back_to_market_payload() -> None:
     assert isinstance(lineage, dict)
     assert lineage.get("metadata", {}).get("mode") == "market_data"
     assert lineage.get("inputs", {}).get("symbol") == "EURUSD"
+    quality = metadata.get("quality")
+    assert isinstance(quality, dict)
+    assert quality.get("source") == "sensory.anomaly"
+    assert quality.get("confidence") == signal.confidence
+    assert isinstance(quality.get("timestamp"), str)
+    assert quality.get("state") == metadata.get("state")
 
 
 def test_how_sensor_threshold_state_escalates() -> None:

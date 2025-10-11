@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from math import isfinite
 from typing import Any, Mapping, Sequence
 
@@ -151,6 +152,7 @@ class AnomalySensor:
             "volume": float(row.get("volume", 0.0) or 0.0),
             "volatility": float(row.get("volatility", 0.0) or 0.0),
             "spread": float(row.get("spread", 0.0) or 0.0),
+            "data_quality": float(row.get("data_quality", 0.8) or 0.8),
         }
         return payload
 
@@ -253,6 +255,18 @@ class AnomalySensor:
         if extra_metadata:
             metadata.update(extra_metadata)
 
+        timestamp = self._resolve_timestamp(inputs)
+        quality: dict[str, object] = {
+            "source": "sensory.anomaly",
+            "timestamp": timestamp.isoformat(),
+            "confidence": confidence,
+            "state": assessment.state,
+        }
+        data_quality = self._extract_data_quality(inputs)
+        if data_quality is not None:
+            quality["data_quality"] = data_quality
+        metadata["quality"] = quality
+
         value: dict[str, object] = {
             "strength": signal_strength,
             "confidence": confidence,
@@ -318,6 +332,12 @@ class AnomalySensor:
         }
         if reason is not None:
             metadata["failure_reason"] = reason
+        metadata["quality"] = {
+            "source": "sensory.anomaly",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "confidence": 0.0,
+            "state": assessment.state,
+        }
         self._record_lineage(lineage)
         return SensorSignal(
             signal_type="ANOMALY",
@@ -353,3 +373,33 @@ class AnomalySensor:
                 continue
             cleaned.append(value)
         return cleaned, dropped
+
+    def _resolve_timestamp(self, inputs: Mapping[str, Any] | None) -> datetime:
+        if not inputs:
+            return datetime.now(timezone.utc)
+
+        candidate = inputs.get("timestamp")
+        if isinstance(candidate, datetime):
+            if candidate.tzinfo is None:
+                return candidate.replace(tzinfo=timezone.utc)
+            return candidate.astimezone(timezone.utc)
+
+        try:
+            timestamp = pd.to_datetime(candidate, utc=True, errors="coerce")
+        except Exception:
+            timestamp = None
+
+        if timestamp is None or timestamp is pd.NaT:
+            return datetime.now(timezone.utc)
+        return timestamp.to_pydatetime()
+
+    def _extract_data_quality(self, inputs: Mapping[str, Any] | None) -> float | None:
+        if not isinstance(inputs, Mapping):
+            return None
+        candidate = inputs.get("data_quality")
+        try:
+            if candidate is not None:
+                return float(candidate)
+        except (TypeError, ValueError):
+            return None
+        return None

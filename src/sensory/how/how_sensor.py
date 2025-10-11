@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from typing import Any, Mapping
 
 import pandas as pd
@@ -62,6 +63,7 @@ class HowSensor:
         signal_strength = float(getattr(reading, "signal_strength", 0.0))
         confidence = self._config.clamp_confidence(getattr(reading, "confidence", 0.0))
         context = dict(getattr(reading, "context", {}) or {})
+        timestamp = self._resolve_timestamp(payload)
 
         telemetry: dict[str, float] = {
             "liquidity": float(reading_adapter.get("liquidity", 0.0)),
@@ -127,6 +129,20 @@ class HowSensor:
         if order_snapshot is not None:
             metadata["order_book"] = order_snapshot.as_dict()
 
+        quality: dict[str, object] = {
+            "source": "sensory.how",
+            "timestamp": timestamp.isoformat(),
+            "confidence": confidence,
+            "state": assessment.state,
+        }
+        data_quality = payload.get("data_quality")
+        try:
+            if data_quality is not None:
+                quality["data_quality"] = float(data_quality)
+        except (TypeError, ValueError):
+            pass
+        metadata["quality"] = quality
+
         value: dict[str, object] = {
             "strength": signal_strength,
             "confidence": confidence,
@@ -143,6 +159,25 @@ class HowSensor:
                 lineage=lineage,
             )
         ]
+
+    def _resolve_timestamp(self, payload: Mapping[str, Any] | None) -> datetime:
+        if not payload:
+            return datetime.now(timezone.utc)
+
+        candidate = payload.get("timestamp")
+        if isinstance(candidate, datetime):
+            if candidate.tzinfo is None:
+                return candidate.replace(tzinfo=timezone.utc)
+            return candidate.astimezone(timezone.utc)
+
+        try:
+            timestamp = pd.to_datetime(candidate, utc=True, errors="coerce")
+        except Exception:
+            timestamp = None
+
+        if timestamp is None or timestamp is pd.NaT:
+            return datetime.now(timezone.utc)
+        return timestamp.to_pydatetime()
 
     def _build_market_payload(self, df: pd.DataFrame) -> Mapping[str, Any]:
         row = df.iloc[-1]
@@ -197,6 +232,12 @@ class HowSensor:
             "lineage": lineage.as_dict(),
             "state": assessment.state,
             "threshold_assessment": assessment.as_dict(),
+        }
+        metadata["quality"] = {
+            "source": "sensory.how",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "confidence": confidence,
+            "state": assessment.state,
         }
         return SensorSignal(
             signal_type="HOW",

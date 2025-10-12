@@ -12,6 +12,7 @@ import pytest
         "src.thinking.learning.real_time_learner",
         "src.thinking.sentient_adaptation_engine",
         "src.sensory.organs.yahoo_finance_organ",
+        "src.sensory.organs.dimensions.macro_intelligence",
         "src.orchestration.enhanced_intelligence_engine",
     ],
 )

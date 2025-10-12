@@ -92,6 +92,74 @@ async def test_runtime_application_runs_workloads_and_shutdown_callbacks():
 
     assert list(execution_order) == ["ingest", "trade"]
     assert called == ["cleanup"]
+    assert app.task_snapshots() == ()
+
+
+@pytest.mark.asyncio()
+async def test_runtime_application_restart_policy_recovers_failed_workload(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    attempts = 0
+    ingest_ready = asyncio.Event()
+    trade_ready = asyncio.Event()
+    release_ingest = asyncio.Event()
+    release_trade = asyncio.Event()
+
+    async def _ingest() -> None:
+        nonlocal attempts
+        attempts += 1
+        if attempts < 2:
+            raise RuntimeError("ingest failure")
+        ingest_ready.set()
+        await release_ingest.wait()
+
+    async def _trade() -> None:
+        trade_ready.set()
+        await release_trade.wait()
+
+    app = RuntimeApplication(
+        ingestion=RuntimeWorkload(
+            name="ingest",
+            factory=_ingest,
+            description="Timescale ingest loop",
+            restart_policy=WorkloadRestartPolicy(max_restarts=3, backoff_seconds=0.0),
+        ),
+        trading=RuntimeWorkload(
+            name="trade",
+            factory=_trade,
+            description="Trading loop",
+        ),
+    )
+
+    with caplog.at_level(logging.ERROR, logger=app._logger.name):
+        run_task = asyncio.create_task(app.run())
+
+        await asyncio.wait_for(trade_ready.wait(), timeout=1.0)
+
+        while attempts < 1:
+            await asyncio.sleep(0)
+
+        # Allow the supervisor to log the failure and restart
+        await asyncio.sleep(0)
+        messages = [record.getMessage() for record in caplog.records]
+        assert any("ingest" in message and "failed" in message for message in messages)
+
+        await asyncio.wait_for(ingest_ready.wait(), timeout=1.0)
+
+        snapshots = app.task_snapshots()
+        assert any(
+            snapshot.get("name") == "ingest-workload" and snapshot.get("state") == "running"
+            for snapshot in snapshots
+        )
+
+        release_ingest.set()
+        release_trade.set()
+        await asyncio.wait_for(run_task, timeout=1.0)
+
+    assert attempts == 2
+    summary = app.summary()
+    assert summary["workload_states"].get("ingest") == "finished"
+    assert app.task_snapshots() == ()
 
 
 @pytest.mark.asyncio()

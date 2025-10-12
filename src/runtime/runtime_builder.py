@@ -1016,6 +1016,19 @@ class RuntimeApplication:
         finally:
             await self.shutdown()
 
+    def task_snapshots(self) -> tuple[dict[str, object], ...]:
+        """Expose metadata for the supervised runtime tasks.
+
+        Operators and regression tests can call this helper to verify that
+        ingestion/trading loops are running under the shared
+        :class:`TaskSupervisor` and to introspect restart counters or
+        metadata emitted for each task.  Returning an immutable tuple keeps
+        callers from mutating the supervisor's internal tracking state while
+        still providing a serialisable payload for diagnostics.
+        """
+
+        return tuple(self._task_supervisor.describe())
+
     def summary(self) -> dict[str, object]:
         """Summarise the configured workloads for logging/tests."""
 

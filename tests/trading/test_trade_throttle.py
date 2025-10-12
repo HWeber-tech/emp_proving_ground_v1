@@ -209,3 +209,34 @@ def test_trade_throttle_enforces_minimum_spacing() -> None:
     )
     assert third.allowed is True
     assert third.snapshot["state"] == "open"
+
+
+def test_trade_throttle_prunes_stale_scoped_states() -> None:
+    config = TradeThrottleConfig(
+        name="scoped-prune",
+        max_trades=1,
+        window_seconds=60.0,
+        scope_fields=("strategy_id",),
+        min_spacing_seconds=45.0,
+    )
+    throttle = TradeThrottle(config)
+
+    base = datetime(2024, 1, 1, 10, 0, 0, tzinfo=timezone.utc)
+
+    for idx in range(5):
+        throttle.evaluate(
+            now=base + timedelta(seconds=idx),
+            metadata={"strategy_id": f"alpha-{idx}"},
+        )
+
+    assert len(throttle._states) == 5  # type: ignore[attr-defined]  # intentional: verify scoped state count
+
+    later = base + timedelta(seconds=180)
+    throttle.evaluate(
+        now=later,
+        metadata={"strategy_id": "omega"},
+    )
+
+    state_keys = list(throttle._states.keys())  # type: ignore[attr-defined]  # intentional: ensure stale scopes pruned
+    assert len(state_keys) == 1
+    assert any("omega" in part for part in state_keys[0])

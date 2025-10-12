@@ -154,9 +154,12 @@ class TradeThrottle:
         cooldown_duration = timedelta(seconds=float(self._config.cooldown_seconds))
 
         scope_key, scope_descriptor = self._resolve_scope(metadata)
+        self._purge_stale_scopes(moment, window_duration)
         state = self._get_state(scope_key)
 
-        self._prune(scope_key, moment, window_duration, state)
+        state_removed = self._prune(scope_key, moment, window_duration, state)
+        if state_removed:
+            state = self._get_state(scope_key)
 
         throttle_state = "open"
         reason: str | None = None
@@ -418,12 +421,61 @@ class TradeThrottle:
         moment: datetime,
         window: timedelta,
         state: "TradeThrottle._ThrottleState",
-    ) -> None:
+    ) -> bool:
         timestamps = state.timestamps
         while timestamps and moment - timestamps[0] >= window:
             timestamps.popleft()
         if state.cooldown_until is not None and moment >= state.cooldown_until:
             state.cooldown_until = None
+        return self._cleanup_scope_if_idle(scope_key, state, moment, window)
+
+    def _cleanup_scope_if_idle(
+        self,
+        scope_key: tuple[str, ...],
+        state: "TradeThrottle._ThrottleState",
+        moment: datetime,
+        window: timedelta,
+    ) -> bool:
+        if scope_key == self._GLOBAL_SCOPE:
+            return False
+        if not self._should_remove_scope(state, moment, window):
+            return False
+        state.last_trade = None
+        self._states.pop(scope_key, None)
+        return True
+
+    def _purge_stale_scopes(self, moment: datetime, window: timedelta) -> None:
+        for key, state in list(self._states.items()):
+            if key == self._GLOBAL_SCOPE:
+                continue
+            self._prune(key, moment, window, state)
+
+    def _should_remove_scope(
+        self,
+        state: "TradeThrottle._ThrottleState",
+        moment: datetime,
+        window: timedelta,
+    ) -> bool:
+        if state.timestamps:
+            return False
+        cooldown_until = state.cooldown_until
+        if cooldown_until is not None and moment < cooldown_until:
+            return False
+
+        expiry_threshold = self._resolve_expiry_threshold(window)
+        last_trade = state.last_trade
+        if last_trade is None:
+            return True
+        if expiry_threshold <= timedelta(0):
+            return True
+        return moment - last_trade >= expiry_threshold
+
+    def _resolve_expiry_threshold(self, window: timedelta) -> timedelta:
+        min_spacing_seconds = float(self._config.min_spacing_seconds)
+        if min_spacing_seconds <= 0.0:
+            return window
+        min_spacing = timedelta(seconds=min_spacing_seconds)
+        return window if window >= min_spacing else min_spacing
 
     @staticmethod
     def _coerce_timestamp(candidate: datetime | None) -> datetime:

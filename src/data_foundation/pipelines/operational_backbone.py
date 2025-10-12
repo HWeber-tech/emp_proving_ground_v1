@@ -75,6 +75,23 @@ class OperationalIngestRequest:
             return None
         return f"{max(int(self.intraday_lookback_days), 1)}d"
 
+    def macro_calendars(self) -> tuple[str, ...]:
+        if not self.macro_events:
+            return tuple()
+        calendars: list[str] = []
+        for entry in self.macro_events:
+            candidate: object | None = None
+            if isinstance(entry, Mapping):
+                candidate = entry.get("calendar") or entry.get("CALENDAR")
+            else:
+                candidate = getattr(entry, "calendar", None)
+            if candidate is None:
+                continue
+            text = str(candidate).strip()
+            if text and text not in calendars:
+                calendars.append(text)
+        return tuple(calendars)
+
 
 @dataclass(slots=True, frozen=True)
 class OperationalBackboneResult:
@@ -253,24 +270,34 @@ class OperationalBackbonePipeline:
                     period=request.intraday_period(),
                 )
 
+            macro_result = ingest_results.get("macro_events")
+            macro_requested = (
+                "macro_events" in ingest_results
+                or request.macro_events is not None
+                or (request.macro_start is not None and request.macro_end is not None)
+            )
+            macro_start = request.macro_start or (
+                macro_result.start_ts if isinstance(macro_result, TimescaleIngestResult) else None
+            )
+            macro_end = request.macro_end or (
+                macro_result.end_ts if isinstance(macro_result, TimescaleIngestResult) else None
+            )
+            macro_calendars = request.macro_calendars()
+
+            async def _fetch_macro_events() -> pd.DataFrame:
+                frame = await asyncio.to_thread(
+                    self._manager.fetch_macro_events,
+                    calendars=macro_calendars or None,
+                    start=macro_start,
+                    end=macro_end,
+                )
+                frames["macro_events"] = frame
+                return frame
+
             if "macro_events" in ingest_results:
-                await _fetch_and_warm(
-                    dimension="macro_events",
-                    interval=None,
-                    period=None,
-                )
-            elif (
-                ingest_error is not None
-                and (
-                    request.macro_events is not None
-                    or (request.macro_start is not None and request.macro_end is not None)
-                )
-            ):
-                await _fetch_and_warm(
-                    dimension="macro_events",
-                    interval=None,
-                    period=None,
-                )
+                await _fetch_macro_events()
+            elif ingest_error is not None and macro_requested:
+                await _fetch_macro_events()
 
             cache_after_fetch = self._manager.cache_metrics(reset=False)
 

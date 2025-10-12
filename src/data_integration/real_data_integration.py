@@ -104,6 +104,17 @@ def _normalise_dimension(interval: str | None, source: str | None) -> str:
     return "intraday"
 
 
+def _normalise_calendars(values: Sequence[str] | None) -> tuple[str, ...]:
+    if not values:
+        return tuple()
+    seen: list[str] = []
+    for value in values:
+        token = str(value).strip()
+        if token and token not in seen:
+            seen.append(token)
+    return tuple(seen)
+
+
 class RealDataManager(MarketDataGateway):
     """Coordinate Timescale storage, Redis caching, and Kafka streaming."""
 
@@ -220,6 +231,41 @@ class RealDataManager(MarketDataGateway):
             start,
             end,
         )
+
+    def fetch_macro_events(
+        self,
+        *,
+        calendars: Sequence[str] | None = None,
+        start: str | datetime | None = None,
+        end: str | datetime | None = None,
+        limit: int | None = None,
+    ) -> pd.DataFrame:
+        resolved_calendars = _normalise_calendars(calendars)
+        if not resolved_calendars:
+            resolved_calendars = self._configured_macro_calendars()
+
+        start_dt = _coerce_datetime(start)
+        end_dt = _coerce_datetime(end)
+
+        if start_dt is None and end_dt is None:
+            default_window = self._macro_default_window()
+            end_dt = _now()
+            start_dt = end_dt - default_window
+        elif start_dt is None and end_dt is not None:
+            start_dt = end_dt - self._macro_default_window()
+        elif end_dt is None and start_dt is not None:
+            end_dt = start_dt + self._macro_default_window()
+
+        fetch_limit = limit if isinstance(limit, int) and limit > 0 else self._macro_fetch_limit()
+
+        result = self._query_cache.fetch_macro_events(
+            calendars=list(resolved_calendars) if resolved_calendars else None,
+            start=start_dt,
+            end=end_dt,
+            limit=fetch_limit,
+        )
+        frame = self._normalise_frame(result, "macro_events")
+        return frame.reset_index(drop=True)
 
     # ------------------------------------------------------------------
     # Ingest and caching helpers
@@ -493,6 +539,10 @@ class RealDataManager(MarketDataGateway):
             frame["volume"] = pd.to_numeric(frame["volume"], errors="coerce").astype(float)
         if "price" in frame.columns:
             frame["price"] = pd.to_numeric(frame["price"], errors="coerce").astype(float)
+        if dimension == "macro_events":
+            for column in ("actual", "forecast", "previous"):
+                if column in frame.columns:
+                    frame[column] = pd.to_numeric(frame[column], errors="coerce")
         return frame
 
     def _invalidate_cache(self) -> None:
@@ -500,3 +550,30 @@ class RealDataManager(MarketDataGateway):
             self._cache.invalidate(("timescale:",))
         except Exception:  # pragma: no cover - cache failures should not break ingest
             logger.debug("Timescale cache invalidation failed", exc_info=True)
+
+    def _configured_macro_calendars(self) -> tuple[str, ...]:
+        payload = self._extras.get("TIMESCALE_MACRO_CALENDARS")
+        if not payload:
+            return tuple()
+        parts = [segment.strip() for segment in str(payload).split(",")]
+        return _normalise_calendars(parts)
+
+    def _macro_fetch_limit(self) -> int | None:
+        raw = self._extras.get("TIMESCALE_MACRO_FETCH_LIMIT")
+        if raw is None:
+            return None
+        try:
+            candidate = int(str(raw).strip())
+        except (TypeError, ValueError):
+            return None
+        return candidate if candidate > 0 else None
+
+    def _macro_default_window(self) -> timedelta:
+        raw = self._extras.get("TIMESCALE_MACRO_LOOKBACK_DAYS")
+        try:
+            days = int(str(raw).strip()) if raw is not None else 7
+        except (TypeError, ValueError):
+            days = 7
+        if days <= 0:
+            days = 7
+        return timedelta(days=days)

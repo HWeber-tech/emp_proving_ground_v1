@@ -142,6 +142,31 @@ def _intraday_frame(base: datetime) -> pd.DataFrame:
     )
 
 
+def _macro_events(base: datetime) -> list[dict[str, object]]:
+    return [
+        {
+            "timestamp": base - timedelta(days=1, hours=2),
+            "calendar": "ECB",
+            "event": "Rate Decision",
+            "currency": "EUR",
+            "actual": 4.0,
+            "forecast": 4.0,
+            "previous": 3.5,
+            "importance": "high",
+        },
+        {
+            "timestamp": base,
+            "calendar": "FED",
+            "event": "FOMC Minutes",
+            "currency": "USD",
+            "actual": None,
+            "forecast": None,
+            "previous": None,
+            "importance": "medium",
+        },
+    ]
+
+
 @pytest.mark.asyncio()
 async def test_operational_backbone_pipeline_full_cycle(tmp_path) -> None:
     url = f"sqlite:///{tmp_path / 'pipeline_timescale.db'}"
@@ -166,6 +191,7 @@ async def test_operational_backbone_pipeline_full_cycle(tmp_path) -> None:
         daily_lookback_days=2,
         intraday_lookback_days=1,
         intraday_interval="1m",
+        macro_events=_macro_events(base),
     )
 
     def consumer_factory() -> KafkaIngestEventConsumer:
@@ -198,8 +224,12 @@ async def test_operational_backbone_pipeline_full_cycle(tmp_path) -> None:
     assert "daily_bars" in result.ingest_results
     assert result.ingest_results["daily_bars"].rows_written == 2
     assert "intraday_trades" in result.ingest_results
+    assert "macro_events" in result.ingest_results
     assert result.frames["daily_bars"].iloc[-1]["close"] == pytest.approx(1.125)
     assert result.frames["intraday_trades"].iloc[-1]["price"] == pytest.approx(1.124)
+    assert not result.frames["macro_events"].empty
+    macro_frame = result.frames["macro_events"]
+    assert set(macro_frame["calendar"].unique()) == {"ECB", "FED"}
 
     assert len(producer.messages) == len(result.kafka_events) > 0
     assert all(event.type == "telemetry.ingest" for event in result.kafka_events)

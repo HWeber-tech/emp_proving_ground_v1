@@ -183,6 +183,15 @@ def test_real_data_manager_ingest_market_slice_defaults(monkeypatch, tmp_path):
 
     manager.cache_metrics(reset=True)
 
+    macro_frame = manager.fetch_macro_events(
+        calendars=("ECB",),
+        start="2024-03-01",
+        end="2024-03-05",
+    )
+    assert not macro_frame.empty
+    assert set(macro_frame["calendar"].unique()) == {"ECB"}
+    assert "event_name" in macro_frame.columns
+
     intraday_first = manager.fetch_data("EURUSD", interval="1m")
     assert not intraday_first.empty
     intraday_second = manager.fetch_data("EURUSD", interval="1m")

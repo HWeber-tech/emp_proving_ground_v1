@@ -1949,6 +1949,65 @@ async def test_runtime_application_summary_surfaces_supervisor_state() -> None:
 
 
 @pytest.mark.asyncio()
+async def test_runtime_application_create_background_task_tracks_task() -> None:
+    supervisor = TaskSupervisor(namespace="test-runtime-background", cancel_timeout=0.1)
+    app = RuntimeApplication(task_supervisor=supervisor)
+
+    started = asyncio.Event()
+    stop_event = asyncio.Event()
+
+    async def _background() -> None:
+        started.set()
+        await stop_event.wait()
+
+    task = app.create_background_task(
+        _background(),
+        name="custom-background-task",
+        metadata={"component": "unit-test"},
+    )
+
+    await asyncio.wait_for(started.wait(), timeout=1.0)
+    snapshots = app.task_snapshots()
+    names = {entry.get("name") for entry in snapshots}
+    assert "custom-background-task" in names
+    summary = app.summary()
+    assert summary.get("task_supervisor", {}).get("active_tasks") == 1
+
+    stop_event.set()
+    await asyncio.wait_for(task, timeout=1.0)
+    await supervisor.cancel_all()
+
+
+@pytest.mark.asyncio()
+async def test_runtime_application_register_background_task_merges_metadata() -> None:
+    supervisor = TaskSupervisor(namespace="test-runtime-register", cancel_timeout=0.1)
+    app = RuntimeApplication(task_supervisor=supervisor)
+
+    started = asyncio.Event()
+    stop_event = asyncio.Event()
+
+    async def _external() -> None:
+        started.set()
+        await stop_event.wait()
+
+    task = asyncio.create_task(_external(), name="external-runtime-task")
+    try:
+        app.register_background_task(
+            task,
+            metadata={"component": "external", "kind": "probe"},
+        )
+
+        await asyncio.wait_for(started.wait(), timeout=1.0)
+        snapshots = app.task_snapshots()
+        entry = next(item for item in snapshots if item.get("name") == "external-runtime-task")
+        metadata = entry.get("metadata") or {}
+        assert metadata.get("component") == "external"
+        assert metadata.get("kind") == "probe"
+    finally:
+        stop_event.set()
+        await asyncio.wait_for(task, timeout=1.0)
+        await supervisor.cancel_all()
+
 async def test_runtime_application_recovers_from_ingest_failure(caplog: pytest.LogCaptureFixture) -> None:
     supervisor = TaskSupervisor(namespace="test-runtime-recovery", cancel_timeout=0.1)
     stop_event = asyncio.Event()

@@ -296,7 +296,7 @@ logger = logging.getLogger(__name__)
 
 
 def _supervise_background_task(
-    app: "ProfessionalPredatorApp" | Any,
+    owner: "ProfessionalPredatorApp | RuntimeApplication" | Any,
     coro: Awaitable[Any],
     *,
     name: str,
@@ -311,18 +311,18 @@ def _supervise_background_task(
     rather than leaking through ``asyncio.create_task``.
     """
 
-    create_background_task = getattr(app, "create_background_task", None)
+    create_background_task = getattr(owner, "create_background_task", None)
     if callable(create_background_task):
         return create_background_task(coro, name=name, metadata=metadata)
 
-    supervisor = getattr(app, "task_supervisor", None)
+    supervisor = getattr(owner, "task_supervisor", None)
     if isinstance(supervisor, TaskSupervisor):
         return supervisor.create(coro, name=name, metadata=metadata)
 
-    fallback = getattr(app, "_fallback_task_supervisor", None)
+    fallback = getattr(owner, "_fallback_task_supervisor", None)
     if not isinstance(fallback, TaskSupervisor):
         fallback = TaskSupervisor(namespace=f"runtime.{name}")
-        setattr(app, "_fallback_task_supervisor", fallback)
+        setattr(owner, "_fallback_task_supervisor", fallback)
     return fallback.create(coro, name=name, metadata=metadata)
 
 
@@ -892,6 +892,29 @@ class RuntimeApplication:
             self._owns_task_supervisor = False
         self._task_supervisor: TaskSupervisor = supervisor
         self.task_supervisor = supervisor
+
+    def create_background_task(
+        self,
+        coro: Awaitable[Any],
+        *,
+        name: str | None = None,
+        metadata: Mapping[str, Any] | None = None,
+    ) -> asyncio.Task[Any]:
+        """Create and track a background task under the runtime supervisor."""
+
+        if not asyncio.iscoroutine(coro):
+            raise TypeError("RuntimeApplication.create_background_task expects a coroutine")
+        return self._task_supervisor.create(coro, name=name, metadata=metadata)
+
+    def register_background_task(
+        self,
+        task: asyncio.Task[Any],
+        *,
+        metadata: Mapping[str, Any] | None = None,
+    ) -> None:
+        """Register an externally-created task with the runtime supervisor."""
+
+        self._task_supervisor.track(task, metadata=metadata)
 
     def bind_task_supervisor(self, supervisor: TaskSupervisor) -> None:
         """Bind the application to an external task supervisor."""
@@ -2899,7 +2922,7 @@ def _configure_governance_cadence(
             return
         cadence_stop_event = asyncio.Event()
         cadence_task = _supervise_background_task(
-            app,
+            runtime_app,
             _governance_cadence_loop(force_on_start),
             name="governance-cadence-runner",
             metadata={

@@ -76,7 +76,27 @@ Table 1 summarises the traceability between BDH tenets and implementation artef
 | Interpretable concept graphs | `understanding/diagnostics.py`, diary reflection exports | Visualization unit tests, diary schema enforcement |
 | Governance coupling | `policy_ledger.py`, `dry_run_audit.py`, `trading_manager.py` | Dry-run audit guardrails, policy ledger stage enforcement tests |
 
-## 5. Preliminary Evidence & Reproducibility
+## 5. DeepScientist-lite Experimentation Loop
+AlphaTrade now embeds the lightweight “DeepScientist-lite” loop to accelerate ideation while safeguarding governance. The loop
+extends the Emporium experimentation tooling with a findings memory, quick evaluation gate, and upper-confidence-bound selector
+so researchers can run tightly-scoped optimisation sprints without polluting the live policy backlog. Key attributes include:
+
+- **Persistent memory.** `data/experiments.sqlite` caches idea parameters, novelty vectors, and screen/test outcomes, letting
+  reviewers trace how each candidate progressed through the loop. Novelty is computed via cached parameter hashes so repeated
+  runs stay fast and deterministic. (See `docs/emp_cycle.md`.)
+- **Cheap screening.** `emp/core/quick_eval.py` executes a CPU-light backtest slice and derives a composite quick score. Ideas
+  that fall below the configured threshold are tagged with failure notes and retained for retrospective analysis instead of
+  reaching the costly full simulation step.
+- **Progress governance.** `emp/cli/emp_cycle.py` exposes KPI, secondary guardrails, and timeout controls so AlphaTrade’s
+  evolution sprints respect risk appetite. Reproducibility metadata (seed, Git SHA) lands in the findings memory, enabling the
+  governance squad to recreate any promising candidate before promotion.
+- **Maintenance tooling.** `emp/cli/emp_db_tools.py` offers prune and vacuum subcommands that keep the experimentation ledger
+  lean, making it feasible to run the loop continuously alongside primary AlphaTrade rehearsals.
+
+By co-locating the experimentation state with the broader governance evidence pack, the DeepScientist-lite loop ensures AlphaTrade
+can incubate new tactics quickly while maintaining the auditable trail required for policy promotion.
+
+## 6. Preliminary Evidence & Reproducibility
 While live data ingest is still being hardened, the current toolchain produces auditable evidence for paper-mode trials:
 
 | Evidence surface | How to reproduce | Highlights |
@@ -89,7 +109,7 @@ While live data ingest is still being hardened, the current toolchain produces a
 
 These artefacts cover the roadmap requirement for preliminary paper-trading evidence: we can run the harness end-to-end, observe governance-safe behaviour in regression scenarios, and hand reviewers reproducible logs, even before live feeds are attached.
 
-## 6. Roadmap Alignment & Open Work
+## 7. Roadmap Alignment & Open Work
 - **Real data integration.** TimescaleDB/Kafka wiring is staged but disabled by default; completing “Operational Data Backbone Online” will swap the remaining synthetic fixtures for live feeds.
 - **Performance profiling.** Throughput monitors surface processing latency, yet sustained live trials are pending. The “Performance Tuning & Throttle” task will benchmark CPU/memory usage and extend throttle coverage.
 - **Paper-to-live transition.** Governance integration ensures experiments stay in paper mode until a policy ledger grants `limited_live`. Completing runtime builder supervision and the final dry-run will enable multi-day rehearsals.

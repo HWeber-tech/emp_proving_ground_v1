@@ -1041,15 +1041,35 @@ class RuntimeApplication:
             }
             if workload.metadata:
                 payload["metadata"] = dict(workload.metadata)
+            state = self._workload_states.get(workload.name)
+            if state is not None:
+                payload["state"] = state
+            if workload.restart_policy is not None:
+                payload["restart_policy"] = {
+                    "max_restarts": workload.restart_policy.max_restarts,
+                    "backoff_seconds": workload.restart_policy.backoff_seconds,
+                }
             return payload
 
-        return {
+        summary: MutableMapping[str, object] = {
             "ingestion": _pack(self.ingestion),
             "trading": _pack(self.trading),
             "shutdown_callbacks": len(self.shutdown_callbacks),
             "startup_callbacks": len(self.startup_callbacks),
             "workload_states": dict(self._workload_states),
         }
+
+        supervisor_namespace = getattr(self._task_supervisor, "namespace", None)
+        supervisor_details: MutableMapping[str, object] = {
+            "namespace": supervisor_namespace,
+            "active_tasks": self._task_supervisor.active_count,
+        }
+        snapshots = list(self.task_snapshots())
+        if snapshots:
+            supervisor_details["tasks"] = snapshots
+        summary["task_supervisor"] = supervisor_details
+
+        return summary
 
 
 async def _run_tier0_ingest(

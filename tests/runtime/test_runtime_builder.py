@@ -1690,9 +1690,14 @@ async def test_runtime_application_ingest_failure_does_not_stop_trading(
         ), "expected ingest failure to be logged"
         assert not run_task.done(), "trading workload should continue running"
 
-    interim_states = app.summary().get("workload_states") or {}
+    interim_summary = app.summary()
+    interim_states = interim_summary.get("workload_states") or {}
     assert interim_states.get("ingest") == "failed"
     assert interim_states.get("trade") == "running"
+    supervisor_info = interim_summary.get("task_supervisor") or {}
+    assert supervisor_info.get("active_tasks") == 1
+    active_names = {task.get("name") for task in supervisor_info.get("tasks", [])}
+    assert active_names == {"trade-workload"}
 
     stop_event.set()
     await asyncio.wait_for(run_task, timeout=1.0)
@@ -1701,6 +1706,68 @@ async def test_runtime_application_ingest_failure_does_not_stop_trading(
     assert final_states.get("ingest") == "failed"
     assert final_states.get("trade") == "finished"
 
+    await supervisor.cancel_all()
+
+
+@pytest.mark.asyncio()
+async def test_runtime_application_summary_surfaces_supervisor_state() -> None:
+    supervisor = TaskSupervisor(namespace="test-runtime-summary", cancel_timeout=0.1)
+    stop_event = asyncio.Event()
+    ingest_started = asyncio.Event()
+    trade_started = asyncio.Event()
+
+    async def _ingest() -> None:
+        ingest_started.set()
+        await stop_event.wait()
+
+    async def _trade() -> None:
+        trade_started.set()
+        await stop_event.wait()
+
+    ingestion = RuntimeWorkload(
+        name="ingest",
+        factory=_ingest,
+        description="torture ingest",
+        restart_policy=WorkloadRestartPolicy(max_restarts=None, backoff_seconds=0.0),
+    )
+    trading = RuntimeWorkload(
+        name="trade",
+        factory=_trade,
+        description="steady trade",
+        restart_policy=WorkloadRestartPolicy(max_restarts=1, backoff_seconds=0.0),
+    )
+
+    app = RuntimeApplication(
+        ingestion=ingestion,
+        trading=trading,
+        task_supervisor=supervisor,
+    )
+
+    run_task = asyncio.create_task(app.run())
+    await asyncio.wait_for(ingest_started.wait(), timeout=1.0)
+    await asyncio.wait_for(trade_started.wait(), timeout=1.0)
+
+    summary = app.summary()
+    supervisor_info = summary.get("task_supervisor") or {}
+    assert supervisor_info.get("namespace") == "test-runtime-summary"
+    assert supervisor_info.get("active_tasks") == 2
+    task_names = {task.get("name") for task in supervisor_info.get("tasks", [])}
+    assert task_names == {"ingest-workload", "trade-workload"}
+    ingest_summary = summary.get("ingestion") or {}
+    trade_summary = summary.get("trading") or {}
+    assert ingest_summary.get("state") == "running"
+    assert trade_summary.get("state") == "running"
+    assert ingest_summary.get("restart_policy") == {
+        "max_restarts": None,
+        "backoff_seconds": 0.0,
+    }
+    assert trade_summary.get("restart_policy") == {
+        "max_restarts": 1,
+        "backoff_seconds": 0.0,
+    }
+
+    stop_event.set()
+    await asyncio.wait_for(run_task, timeout=1.0)
     await supervisor.cancel_all()
 
 

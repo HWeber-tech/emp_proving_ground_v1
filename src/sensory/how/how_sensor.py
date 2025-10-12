@@ -6,7 +6,7 @@ from typing import Any, Mapping
 
 import pandas as pd
 
-from src.sensory.enhanced.how_dimension import InstitutionalIntelligenceEngine
+from src.sensory.enhanced.how_dimension import InstitutionalUnderstandingEngine
 from src.sensory.how.order_book_analytics import OrderBookAnalytics, OrderBookSnapshot
 from src.sensory.lineage import (
     SensorLineageRecord,
@@ -39,10 +39,10 @@ class HowSensor:
         config: HowSensorConfig | None = None,
         *,
         order_book_analytics: OrderBookAnalytics | None = None,
-        engine: InstitutionalIntelligenceEngine | None = None,
+        engine: InstitutionalUnderstandingEngine | None = None,
         lineage_recorder: SensorLineageRecorder | None = None,
     ) -> None:
-        self._engine = engine or InstitutionalIntelligenceEngine()
+        self._engine = engine or InstitutionalUnderstandingEngine()
         self._config = config or HowSensorConfig()
         self._order_book_analytics = order_book_analytics or OrderBookAnalytics()
         self._lineage_recorder = lineage_recorder
@@ -57,7 +57,7 @@ class HowSensor:
             return [self._default_signal(confidence=0.05)]
 
         payload = self._build_market_payload(df)
-        reading_adapter = self._engine.analyze_institutional_intelligence(payload)
+        reading_adapter = self._engine.analyze_institutional_understanding(payload)
         reading = reading_adapter.reading
 
         signal_strength = float(getattr(reading, "signal_strength", 0.0))

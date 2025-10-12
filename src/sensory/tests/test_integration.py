@@ -1,5 +1,5 @@
 """
-Comprehensive Integration Test Suite for Multidimensional Market Intelligence System
+Comprehensive Integration Test Suite for Multidimensional Market Understanding System
 
 This module provides thorough testing of the complete system including:
 - Individual dimensional engines
@@ -20,12 +20,12 @@ import pytest
 from src.core.base import DimensionalReading, MarketData
 from src.orchestration.enhanced_understanding_engine import ContextualFusionEngine
 from src.sensory.enhanced._shared import ReadingAdapter
-from src.sensory.enhanced.anomaly_dimension import AnomalyIntelligenceEngine
-from src.sensory.enhanced.how_dimension import InstitutionalIntelligenceEngine
+from src.sensory.enhanced.anomaly_dimension import AnomalyUnderstandingEngine
+from src.sensory.enhanced.how_dimension import InstitutionalUnderstandingEngine
 from src.sensory.enhanced.what_dimension import TechnicalRealityEngine
-from src.sensory.enhanced.when_dimension import ChronalIntelligenceEngine
+from src.sensory.enhanced.when_dimension import ChronalUnderstandingEngine
 from src.sensory.enhanced.why_dimension import (
-    EnhancedFundamentalIntelligenceEngine,
+    EnhancedFundamentalUnderstandingEngine,
 )
 
 
@@ -123,10 +123,10 @@ class TestDimensionalEngines:
     async def test_why_engine_basic_functionality(self, sample_market_data):
         """Test WHY dimension engine basic functionality"""
 
-        engine = EnhancedFundamentalIntelligenceEngine()
+        engine = EnhancedFundamentalUnderstandingEngine()
 
         # Test basic analysis
-        reading = await engine.analyze_fundamental_intelligence(sample_market_data)
+        reading = await engine.analyze_fundamental_understanding(sample_market_data)
 
         assert isinstance(reading, DimensionalReading)
         assert reading.dimension == "WHY"
@@ -139,10 +139,10 @@ class TestDimensionalEngines:
     async def test_how_engine_basic_functionality(self, sample_market_data):
         """Test HOW dimension engine basic functionality"""
 
-        engine = InstitutionalIntelligenceEngine()
+        engine = InstitutionalUnderstandingEngine()
 
         # Test basic analysis
-        reading = await engine.analyze_institutional_intelligence(sample_market_data)
+        reading = await engine.analyze_institutional_understanding(sample_market_data)
 
         assert isinstance(reading, DimensionalReading)
         assert reading.dimension == "HOW"
@@ -169,10 +169,10 @@ class TestDimensionalEngines:
     async def test_when_engine_basic_functionality(self, sample_market_data):
         """Test WHEN dimension engine basic functionality"""
 
-        engine = ChronalIntelligenceEngine()
+        engine = ChronalUnderstandingEngine()
 
         # Test basic analysis
-        reading = await engine.analyze_temporal_intelligence(sample_market_data)
+        reading = await engine.analyze_temporal_understanding(sample_market_data)
 
         assert isinstance(reading, DimensionalReading)
         assert reading.dimension == "WHEN"
@@ -184,11 +184,11 @@ class TestDimensionalEngines:
     async def test_anomaly_engine_basic_functionality(self, sample_market_data):
         """Test ANOMALY dimension engine basic functionality"""
 
-        engine = AnomalyIntelligenceEngine()
+        engine = AnomalyUnderstandingEngine()
 
         # Test basic analysis
         reading = _to_dimensional_reading(
-            engine.analyze_anomaly_intelligence(sample_market_data)
+            engine.analyze_anomaly_understanding(sample_market_data)
         )
 
         assert isinstance(reading, DimensionalReading)
@@ -205,11 +205,11 @@ class TestDimensionalEngines:
         trending_data = data_generator.generate_sequence("trending_bull", 20)
 
         engines = {
-            "WHY": EnhancedFundamentalIntelligenceEngine(),
-            "HOW": InstitutionalIntelligenceEngine(),
+            "WHY": EnhancedFundamentalUnderstandingEngine(),
+            "HOW": InstitutionalUnderstandingEngine(),
             "WHAT": TechnicalRealityEngine(),
-            "WHEN": ChronalIntelligenceEngine(),
-            "ANOMALY": AnomalyIntelligenceEngine(),
+            "WHEN": ChronalUnderstandingEngine(),
+            "ANOMALY": AnomalyUnderstandingEngine(),
         }
 
         readings = {}
@@ -218,16 +218,16 @@ class TestDimensionalEngines:
         for market_data in trending_data:
             for name, engine in engines.items():
                 if name == "WHY":
-                    reading = await engine.analyze_fundamental_intelligence(market_data)
+                    reading = await engine.analyze_fundamental_understanding(market_data)
                 elif name == "HOW":
-                    reading = await engine.analyze_institutional_intelligence(market_data)
+                    reading = await engine.analyze_institutional_understanding(market_data)
                 elif name == "WHAT":
                     reading = await engine.analyze_technical_reality(market_data)
                 elif name == "WHEN":
-                    reading = await engine.analyze_temporal_intelligence(market_data)
+                    reading = await engine.analyze_temporal_understanding(market_data)
                 elif name == "ANOMALY":
                     reading = _to_dimensional_reading(
-                        engine.analyze_anomaly_intelligence(market_data)
+                        engine.analyze_anomaly_understanding(market_data)
                     )
 
                 readings[name] = reading
@@ -246,13 +246,13 @@ class TestDimensionalEngines:
         # Generate anomalous data
         anomalous_data = data_generator.generate_sequence("anomaly", 15)
 
-        anomaly_engine = AnomalyIntelligenceEngine()
+        anomaly_engine = AnomalyUnderstandingEngine()
         anomaly_readings = []
 
         # Feed data to anomaly engine
         for market_data in anomalous_data:
             reading = _to_dimensional_reading(
-                anomaly_engine.analyze_anomaly_intelligence(market_data)
+                anomaly_engine.analyze_anomaly_understanding(market_data)
             )
             anomaly_readings.append(reading.value)
 

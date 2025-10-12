@@ -16,25 +16,33 @@ def test_sensory_what_canonical_surface_all():
 def test_sensory_why_canonical_surface_all():
     mod = importlib.import_module("src.sensory.enhanced.why_dimension")
     assert hasattr(mod, "__all__")
-    assert "EnhancedFundamentalIntelligenceEngine" in getattr(mod, "__all__")
+    exports = getattr(mod, "__all__")
+    assert "EnhancedFundamentalUnderstandingEngine" in exports
+    assert "EnhancedFundamentalIntelligenceEngine" in exports
 
 
 def test_sensory_when_canonical_surface_all():
     mod = importlib.import_module("src.sensory.enhanced.when_dimension")
     assert hasattr(mod, "__all__")
-    assert "ChronalIntelligenceEngine" in getattr(mod, "__all__")
+    exports = getattr(mod, "__all__")
+    assert "ChronalUnderstandingEngine" in exports
+    assert "ChronalIntelligenceEngine" in exports
 
 
 def test_sensory_how_canonical_surface_all():
     mod = importlib.import_module("src.sensory.enhanced.how_dimension")
     assert hasattr(mod, "__all__")
-    assert "InstitutionalIntelligenceEngine" in getattr(mod, "__all__")
+    exports = getattr(mod, "__all__")
+    assert "InstitutionalUnderstandingEngine" in exports
+    assert "InstitutionalIntelligenceEngine" in exports
 
 
 def test_sensory_anomaly_canonical_surface_all():
     mod = importlib.import_module("src.sensory.enhanced.anomaly_dimension")
     assert hasattr(mod, "__all__")
-    assert "AnomalyIntelligenceEngine" in getattr(mod, "__all__")
+    exports = getattr(mod, "__all__")
+    assert "AnomalyUnderstandingEngine" in exports
+    assert "AnomalyIntelligenceEngine" in exports
 
 
 def test_no_heavy_imports_on_sensory_import(monkeypatch: pytest.MonkeyPatch):

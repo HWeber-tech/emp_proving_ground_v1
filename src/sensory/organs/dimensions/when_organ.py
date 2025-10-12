@@ -106,7 +106,7 @@ class WhenEngine:
             logger.error(f"Error in temporal analysis for {symbol}: {e}")
             return {}
 
-    def analyze_temporal_intelligence(
+    def analyze_temporal_understanding(
         self, market_data: list[MarketData], symbol: str = "UNKNOWN"
     ) -> dict[str, Any]:
         """
@@ -137,8 +137,15 @@ class WhenEngine:
             return analysis
 
         except Exception as e:
-            logger.error(f"Error in temporal intelligence analysis: {e}")
+            logger.error(f"Error in temporal understanding analysis: {e}")
             return {}
+
+    def analyze_temporal_intelligence(
+        self, market_data: list[MarketData], symbol: str = "UNKNOWN"
+    ) -> dict[str, Any]:
+        """Legacy alias maintained for compatibility with intelligence naming."""
+
+        return self.analyze_temporal_understanding(market_data, symbol)
 
     def get_dimensional_reading(
         self, market_data: list[MarketData], symbol: str = "UNKNOWN"

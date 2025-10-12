@@ -117,6 +117,26 @@ def _build_parser() -> argparse.ArgumentParser:
         type=Path,
         help="Write the summary to a file instead of stdout.",
     )
+    parser.add_argument(
+        "--require-connectors",
+        action="store_true",
+        help="Require Timescale, Redis, and Kafka connectors; disable in-memory fallbacks.",
+    )
+    parser.add_argument(
+        "--require-timescale",
+        action="store_true",
+        help="Require a configured Timescale connection (implies --require-connectors when set).",
+    )
+    parser.add_argument(
+        "--require-redis",
+        action="store_true",
+        help="Require a configured Redis cache (implies --require-connectors when set).",
+    )
+    parser.add_argument(
+        "--require-kafka",
+        action="store_true",
+        help="Require a configured Kafka publisher (implies --require-connectors when set).",
+    )
     return parser
 
 
@@ -233,8 +253,19 @@ def _connection_metadata(config: SystemConfig) -> Mapping[str, str | None]:
     }
 
 
-def _build_manager(config: SystemConfig) -> RealDataManager:
-    return RealDataManager(system_config=config)
+def _build_manager(
+    config: SystemConfig,
+    *,
+    require_timescale: bool | None = None,
+    require_redis: bool | None = None,
+    require_kafka: bool | None = None,
+) -> RealDataManager:
+    return RealDataManager(
+        system_config=config,
+        require_timescale=require_timescale,
+        require_redis=require_redis,
+        require_kafka=require_kafka,
+    )
 
 
 def _build_event_bus() -> EventBus:
@@ -427,7 +458,16 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     request = _build_request(config, args)
 
-    manager = _build_manager(config)
+    require_timescale = args.require_timescale or args.require_connectors
+    require_redis = args.require_redis or args.require_connectors
+    require_kafka = args.require_kafka or args.require_connectors
+
+    manager = _build_manager(
+        config,
+        require_timescale=require_timescale,
+        require_redis=require_redis,
+        require_kafka=require_kafka,
+    )
     event_bus = _build_event_bus()
     pipeline = _build_pipeline(manager=manager, event_bus=event_bus, config=config)
 

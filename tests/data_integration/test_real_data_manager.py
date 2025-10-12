@@ -247,6 +247,35 @@ async def test_real_data_manager_scheduler_uses_supervisor(tmp_path):
     await manager.shutdown()
 
 
+def test_real_data_manager_requires_redis_when_flag_set(tmp_path):
+    url = f"sqlite:///{tmp_path / 'require_redis.db'}"
+    settings = TimescaleConnectionSettings(url=url)
+
+    with pytest.raises(RuntimeError, match="Redis connection required"):
+        RealDataManager(
+            timescale_settings=settings,
+            extras={"DATA_BACKBONE_REQUIRE_REDIS": "true"},
+        )
+
+
+def test_real_data_manager_requires_kafka_when_flag_set(tmp_path):
+    url = f"sqlite:///{tmp_path / 'require_kafka.db'}"
+    settings = TimescaleConnectionSettings(url=url)
+
+    with pytest.raises(RuntimeError, match="Kafka connection required"):
+        RealDataManager(
+            timescale_settings=settings,
+            extras={"DATA_BACKBONE_REQUIRE_KAFKA": "1"},
+        )
+
+
+def test_real_data_manager_requires_timescale_when_flag_set():
+    with pytest.raises(RuntimeError, match="Timescale connection required"):
+        RealDataManager(
+            extras={"DATA_BACKBONE_REQUIRE_TIMESCALE": "true"},
+        )
+
+
 class _HealthyRedis:
     def ping(self) -> bool:
         return True

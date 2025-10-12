@@ -27,7 +27,7 @@ def _patched_dependencies(monkeypatch: pytest.MonkeyPatch) -> None:
     )
 
     monkeypatch.setattr(cli, "_load_system_config", lambda args: config)
-    monkeypatch.setattr(cli, "_build_manager", lambda _config: object())
+    monkeypatch.setattr(cli, "_build_manager", lambda _config, **_: object())
     monkeypatch.setattr(cli, "_build_event_bus", lambda: object())
     monkeypatch.setattr(cli, "_build_pipeline", lambda **kwargs: object())
 
@@ -103,3 +103,42 @@ def test_operational_backbone_cli_markdown(
     text = output_path.read_text(encoding="utf-8")
     assert "Operational Backbone Summary" in text
     assert "daily_bars" in text
+
+
+def test_operational_backbone_cli_require_connectors(monkeypatch: pytest.MonkeyPatch) -> None:
+    config = SystemConfig(
+        data_backbone_mode=DataBackboneMode.institutional,
+        extras={"TIMESCALE_URL": "sqlite:///:memory:"},
+    )
+
+    monkeypatch.setattr(cli, "_load_system_config", lambda args: config)
+
+    captured: dict[str, object] = {}
+
+    def _capture_manager(_config: SystemConfig, **kwargs: object) -> object:
+        captured.update(kwargs)
+        return object()
+
+    monkeypatch.setattr(cli, "_build_manager", _capture_manager)
+    monkeypatch.setattr(cli, "_build_event_bus", lambda: object())
+    monkeypatch.setattr(cli, "_build_pipeline", lambda **_: object())
+
+    async def _fake_execute_pipeline(**_: object) -> cli.OperationalBackboneResult:
+        frame = pd.DataFrame({"timestamp": [], "symbol": []})
+        return cli.OperationalBackboneResult(
+            ingest_results={},
+            frames={},
+            kafka_events=tuple(),
+            cache_metrics_before={},
+            cache_metrics_after_ingest={},
+            cache_metrics_after_fetch={},
+            sensory_snapshot=None,
+        )
+
+    monkeypatch.setattr(cli, "_execute_pipeline", _fake_execute_pipeline)
+
+    exit_code = cli.main(["--require-connectors", "--format", "json"])
+    assert exit_code == 0
+    assert captured.get("require_timescale") is True
+    assert captured.get("require_redis") is True
+    assert captured.get("require_kafka") is True

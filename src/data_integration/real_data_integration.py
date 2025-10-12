@@ -212,15 +212,55 @@ class RealDataManager(MarketDataGateway):
         engine: Engine | None = None,
         task_supervisor: TaskSupervisor | None = None,
         auto_close_engine: bool | None = None,
+        require_timescale: bool | None = None,
+        require_redis: bool | None = None,
+        require_kafka: bool | None = None,
     ) -> None:
         if system_config is not None and not extras and isinstance(system_config.extras, dict):
             extras = system_config.extras
 
         payload = {str(k): str(v) for k, v in (extras or {}).items()}
 
+        def _coerce_bool_flag(value: object | None, default: bool) -> bool:
+            if isinstance(value, bool):
+                return value
+            if value is None:
+                return default
+            text = str(value).strip().lower().replace("-", "_")
+            if text in {"1", "true", "yes", "y", "on"}:
+                return True
+            if text in {"0", "false", "no", "n", "off"}:
+                return False
+            return default
+
+        default_require = False
+
+        timescale_required = _coerce_bool_flag(
+            require_timescale
+            if require_timescale is not None
+            else payload.get("DATA_BACKBONE_REQUIRE_TIMESCALE"),
+            default_require,
+        )
+        redis_required = _coerce_bool_flag(
+            require_redis
+            if require_redis is not None
+            else payload.get("DATA_BACKBONE_REQUIRE_REDIS"),
+            default_require,
+        )
+        kafka_required = _coerce_bool_flag(
+            require_kafka
+            if require_kafka is not None
+            else payload.get("DATA_BACKBONE_REQUIRE_KAFKA"),
+            default_require,
+        )
+
         self._timescale_settings = timescale_settings or TimescaleConnectionSettings.from_mapping(
             payload
         )
+        if timescale_required and not self._timescale_settings.configured:
+            raise RuntimeError(
+                "Timescale connection required but DATA_BACKBONE_REQUIRE_TIMESCALE is enabled"
+            )
         self._redis_settings = redis_settings or RedisConnectionSettings.from_mapping(payload)
         self._cache_policy = cache_policy or RedisCachePolicy.from_mapping(payload)
         self._kafka_settings = kafka_settings or KafkaConnectionSettings.from_mapping(payload)
@@ -241,6 +281,10 @@ class RealDataManager(MarketDataGateway):
             self._owns_redis = False
         else:
             redis_client = configure_redis_client(self._redis_settings, ping=False)
+            if redis_client is None and redis_required:
+                raise RuntimeError(
+                    "Redis connection required but redis client could not be created"
+                )
             self._redis_client = redis_client
             self._owns_redis = redis_client is not None
             self._cache = wrap_managed_cache(
@@ -257,6 +301,14 @@ class RealDataManager(MarketDataGateway):
             self._kafka_publisher = create_ingest_event_publisher(
                 self._kafka_settings,
                 payload,
+            )
+        if kafka_required and self._kafka_settings and not self._kafka_settings.configured:
+            raise RuntimeError(
+                "Kafka connection required but configuration is incomplete"
+            )
+        if kafka_required and self._kafka_publisher is None:
+            raise RuntimeError(
+                "Kafka connection required but ingest publisher could not be created"
             )
 
         self._extras = payload

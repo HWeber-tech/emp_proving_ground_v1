@@ -3244,6 +3244,9 @@ def build_professional_runtime_application(
                         ingest_publisher=publisher,
                         managed_cache=managed_cache,
                         task_supervisor=app.task_supervisor,
+                        require_timescale=True,
+                        require_redis=True,
+                        require_kafka=True,
                     )
                 except Exception:
                     logger.exception(

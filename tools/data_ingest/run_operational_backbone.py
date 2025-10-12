@@ -50,6 +50,7 @@ from src.governance.system_config import (  # noqa: E402
 )
 from src.sensory.real_sensory_organ import RealSensoryOrgan  # noqa: E402
 from src.core.event_bus import EventBus  # noqa: E402  (import after sys.path mutation)
+from src.runtime.task_supervisor import TaskSupervisor  # noqa: E402
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -136,6 +137,14 @@ def _build_parser() -> argparse.ArgumentParser:
         "--require-kafka",
         action="store_true",
         help="Require a configured Kafka publisher (implies --require-connectors when set).",
+    )
+    parser.add_argument(
+        "--namespace",
+        type=str,
+        default="operational-backbone.cli",
+        help=(
+            "Task supervisor namespace for background jobs (default: operational-backbone.cli)"
+        ),
     )
     return parser
 
@@ -256,12 +265,14 @@ def _connection_metadata(config: SystemConfig) -> Mapping[str, str | None]:
 def _build_manager(
     config: SystemConfig,
     *,
+    task_supervisor: TaskSupervisor | None = None,
     require_timescale: bool | None = None,
     require_redis: bool | None = None,
     require_kafka: bool | None = None,
 ) -> RealDataManager:
     return RealDataManager(
         system_config=config,
+        task_supervisor=task_supervisor,
         require_timescale=require_timescale,
         require_redis=require_redis,
         require_kafka=require_kafka,
@@ -277,6 +288,7 @@ def _build_pipeline(
     manager: RealDataManager,
     event_bus: EventBus,
     config: SystemConfig,
+    task_supervisor: TaskSupervisor | None = None,
 ) -> OperationalBackbonePipeline:
     kafka_settings = KafkaConnectionSettings.from_mapping(config.extras)
 
@@ -292,6 +304,7 @@ def _build_pipeline(
         event_bus=event_bus,
         kafka_consumer_factory=_consumer_factory,
         sensory_organ=RealSensoryOrgan(),
+        task_supervisor=task_supervisor,
     )
 
 
@@ -299,11 +312,17 @@ async def _execute_pipeline(
     *,
     pipeline: OperationalBackbonePipeline,
     request: OperationalIngestRequest,
+    task_supervisor: TaskSupervisor | None = None,
 ) -> OperationalBackboneResult:
     try:
         return await pipeline.execute(request)
     finally:
         await pipeline.shutdown()
+        if task_supervisor is not None:
+            try:
+                await task_supervisor.cancel_all()
+            except Exception:  # pragma: no cover - defensive cleanup
+                pass
 
 
 def _iso(value: Any) -> str | None:
@@ -382,6 +401,13 @@ def _result_payload(
         "sensory_snapshot": result.sensory_snapshot,
         "connections": dict(_connection_metadata(config)),
     }
+    if result.task_snapshots:
+        payload["task_supervision"] = [dict(snapshot) for snapshot in result.task_snapshots]
+    if result.streaming_snapshots:
+        payload["streaming_snapshots"] = {
+            symbol: dict(snapshot)
+            for symbol, snapshot in result.streaming_snapshots.items()
+        }
     if result.ingest_error:
         payload["ingest_error"] = result.ingest_error
     if result.belief_state is not None:
@@ -431,6 +457,21 @@ def _format_markdown(payload: Mapping[str, Any]) -> str:
         f"* Symbols: {symbols or 'n/a'}",
         f"* Kafka events processed: {event_count}",
     ]
+    task_supervision = payload.get("task_supervision")
+    if isinstance(task_supervision, Sequence):
+        header.append(f"* Supervised tasks: {len(task_supervision)}")
+        for snapshot in task_supervision:
+            if isinstance(snapshot, Mapping):
+                name = snapshot.get("name", "<unnamed>")
+                state = snapshot.get("state", "unknown")
+                header.append(f"  * {name}: {state}")
+    else:
+        header.append("* Supervised tasks: 0")
+    streaming_snapshots = payload.get("streaming_snapshots")
+    if isinstance(streaming_snapshots, Mapping) and streaming_snapshots:
+        header.append(
+            f"* Streaming snapshots captured: {len(streaming_snapshots)} symbol(s)"
+        )
     connections = payload.get("connections")
     if isinstance(connections, Mapping):
         header.append("* Connections:")
@@ -462,17 +503,31 @@ def main(argv: Sequence[str] | None = None) -> int:
     require_redis = args.require_redis or args.require_connectors
     require_kafka = args.require_kafka or args.require_connectors
 
+    supervisor = TaskSupervisor(namespace=args.namespace)
+
     manager = _build_manager(
         config,
+        task_supervisor=supervisor,
         require_timescale=require_timescale,
         require_redis=require_redis,
         require_kafka=require_kafka,
     )
     event_bus = _build_event_bus()
-    pipeline = _build_pipeline(manager=manager, event_bus=event_bus, config=config)
+    pipeline = _build_pipeline(
+        manager=manager,
+        event_bus=event_bus,
+        config=config,
+        task_supervisor=supervisor,
+    )
 
     try:
-        result = asyncio.run(_execute_pipeline(pipeline=pipeline, request=request))
+        result = asyncio.run(
+            _execute_pipeline(
+                pipeline=pipeline,
+                request=request,
+                task_supervisor=supervisor,
+            )
+        )
     except Exception as exc:  # pragma: no cover - surfaced as CLI failure
         parser.error(f"Pipeline execution failed: {exc}")
         return 1
@@ -493,6 +548,19 @@ def main(argv: Sequence[str] | None = None) -> int:
             f"Kafka bootstrap: {connections.get('kafka_bootstrap') or 'n/a'}",
             f"Kafka events processed: {len(payload.get('events', []))}",
         ]
+        task_supervision = payload.get("task_supervision")
+        if isinstance(task_supervision, list):
+            text_lines.append(f"Supervised tasks: {len(task_supervision)}")
+            for snapshot in task_supervision:
+                if isinstance(snapshot, Mapping):
+                    name = snapshot.get("name", "<unnamed>")
+                    state = snapshot.get("state", "unknown")
+                    text_lines.append(f"  - {name}: {state}")
+        streaming_snapshots = payload.get("streaming_snapshots")
+        if isinstance(streaming_snapshots, Mapping) and streaming_snapshots:
+            text_lines.append(
+                f"Streaming snapshots captured: {len(streaming_snapshots)} symbol(s)"
+            )
         frames = payload.get("frames", {})
         if isinstance(frames, Mapping):
             for dimension, info in frames.items():

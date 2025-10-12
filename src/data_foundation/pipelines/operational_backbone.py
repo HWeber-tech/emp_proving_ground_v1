@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Callable, Mapping, MutableMapping, Sequence
 
 import pandas as pd
@@ -129,6 +129,8 @@ class OperationalBackboneResult:
     belief_snapshot: BeliefSnapshot | None = None
     understanding_decision: UnderstandingDecision | None = None
     ingest_error: str | None = None
+    task_snapshots: tuple[Mapping[str, object], ...] = field(default_factory=tuple)
+    streaming_snapshots: Mapping[str, Mapping[str, Any]] = field(default_factory=dict)
 
 
 class OperationalBackbonePipeline:
@@ -530,6 +532,22 @@ class OperationalBackbonePipeline:
 
             events = final_events
 
+            supervisor_snapshots: tuple[Mapping[str, object], ...] = ()
+            if self._task_supervisor is not None:
+                try:
+                    snapshot_list = self._task_supervisor.describe()
+                except Exception:  # pragma: no cover - diagnostics only
+                    logger.debug(
+                        "Failed to describe operational backbone task supervisor",
+                        exc_info=True,
+                    )
+                else:
+                    supervisor_snapshots = tuple(
+                        dict(snapshot) for snapshot in snapshot_list
+                    )
+
+            streaming_snapshot_payload = dict(self.streaming_snapshots)
+
             return OperationalBackboneResult(
                 ingest_results=dict(ingest_results),
                 frames=dict(frames),
@@ -543,6 +561,8 @@ class OperationalBackbonePipeline:
                 belief_snapshot=belief_snapshot,
                 understanding_decision=understanding_decision,
                 ingest_error=ingest_error,
+                task_snapshots=supervisor_snapshots,
+                streaming_snapshots=streaming_snapshot_payload,
             )
         finally:
             if self._event_bus is not None:

@@ -71,9 +71,26 @@ def _patched_dependencies(monkeypatch: pytest.MonkeyPatch) -> None:
             "generated_at": "2024-01-02T00:00:00+00:00",
             "integrated_signal": {"confidence": 0.9, "strength": 0.5},
         },
+        task_snapshots=(
+            {
+                "name": "ingest-loop",
+                "state": "completed",
+                "metadata": {"component": "timescale_ingest.scheduler"},
+            },
+        ),
+        streaming_snapshots={
+            "EURUSD": {
+                "timestamp": "2024-01-02T00:00:00+00:00",
+                "confidence": 0.9,
+            }
+        },
     )
 
-    async def _fake_execute_pipeline(**_: object) -> cli.OperationalBackboneResult:
+    async def _fake_execute_pipeline(
+        *, task_supervisor=None, **_: object
+    ) -> cli.OperationalBackboneResult:
+        if task_supervisor is not None:
+            await task_supervisor.cancel_all()
         return result
 
     monkeypatch.setattr(cli, "_execute_pipeline", _fake_execute_pipeline)
@@ -91,6 +108,8 @@ def test_operational_backbone_cli_json(
     assert payload["connections"]["timescale_url"] == "sqlite:///:memory:"
     assert payload["frames"]["daily_bars"]["rows"] == 2
     assert payload["events"][0]["type"] == "telemetry.ingest"
+    assert payload["task_supervision"][0]["name"] == "ingest-loop"
+    assert "EURUSD" in payload["streaming_snapshots"]
 
 
 def test_operational_backbone_cli_markdown(
@@ -103,6 +122,7 @@ def test_operational_backbone_cli_markdown(
     text = output_path.read_text(encoding="utf-8")
     assert "Operational Backbone Summary" in text
     assert "daily_bars" in text
+    assert "Supervised tasks: 1" in text
 
 
 def test_operational_backbone_cli_require_connectors(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -123,8 +143,12 @@ def test_operational_backbone_cli_require_connectors(monkeypatch: pytest.MonkeyP
     monkeypatch.setattr(cli, "_build_event_bus", lambda: object())
     monkeypatch.setattr(cli, "_build_pipeline", lambda **_: object())
 
-    async def _fake_execute_pipeline(**_: object) -> cli.OperationalBackboneResult:
+    async def _fake_execute_pipeline(
+        *, task_supervisor=None, **_: object
+    ) -> cli.OperationalBackboneResult:
         frame = pd.DataFrame({"timestamp": [], "symbol": []})
+        if task_supervisor is not None:
+            await task_supervisor.cancel_all()
         return cli.OperationalBackboneResult(
             ingest_results={},
             frames={},
@@ -133,6 +157,7 @@ def test_operational_backbone_cli_require_connectors(monkeypatch: pytest.MonkeyP
             cache_metrics_after_ingest={},
             cache_metrics_after_fetch={},
             sensory_snapshot=None,
+            task_snapshots=tuple(),
         )
 
     monkeypatch.setattr(cli, "_execute_pipeline", _fake_execute_pipeline)

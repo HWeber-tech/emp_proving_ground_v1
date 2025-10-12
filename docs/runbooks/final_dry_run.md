@@ -28,6 +28,11 @@ This runbook describes how to execute the AlphaTrade final dry run in support of
    handled during the evidence review. The same log pump feeds cumulative
    per-stream and per-level counters that surface in the progress snapshot
    JSON for at-a-glance health monitoring.
+   Add `--live-gap-alert-minutes N` to surface a WARN (or FAIL with
+   `--live-gap-alert-severity fail`) incident whenever the runtime becomes
+   silent for `N` minutes. Tighten post-run expectations by supplying
+   `--warn-gap-minutes` / `--fail-gap-minutes` when the 72 hour window requires
+   explicit log coverage guarantees.
 3. Monitor stdout for harness incidents; failures will surface immediately and exit with a non-zero code.
 
 ## Evidence bundle

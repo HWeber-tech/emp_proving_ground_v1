@@ -18,6 +18,7 @@ from src.operations.dry_run_audit import (
     DryRunSummary,
     assess_sign_off_readiness,
     evaluate_dry_run,
+    humanise_timedelta,
 )
 from src.runtime.task_supervisor import TaskSupervisor
 
@@ -56,6 +57,10 @@ class FinalDryRunConfig:
     metadata: Mapping[str, Any] = field(default_factory=dict)
     environment: Mapping[str, str] | None = None
     monitor_log_levels: bool = True
+    log_gap_warn: timedelta | None = None
+    log_gap_fail: timedelta | None = None
+    live_gap_alert: timedelta | None = None
+    live_gap_severity: DryRunStatus = DryRunStatus.warn
 
     def __post_init__(self) -> None:
         if not self.command:
@@ -110,6 +115,32 @@ class FinalDryRunConfig:
             object.__setattr__(self, "environment", normalised_env)
 
         object.__setattr__(self, "monitor_log_levels", bool(self.monitor_log_levels))
+
+        log_gap_warn = self.log_gap_warn
+        if log_gap_warn is not None and log_gap_warn <= timedelta(0):
+            raise ValueError("log_gap_warn must be positive when provided")
+        log_gap_fail = self.log_gap_fail
+        if log_gap_fail is not None and log_gap_fail <= timedelta(0):
+            raise ValueError("log_gap_fail must be positive when provided")
+        if (
+            log_gap_warn is not None
+            and log_gap_fail is not None
+            and log_gap_fail < log_gap_warn
+        ):
+            raise ValueError("log_gap_fail must be greater than or equal to log_gap_warn")
+        object.__setattr__(self, "log_gap_warn", log_gap_warn)
+        object.__setattr__(self, "log_gap_fail", log_gap_fail)
+
+        live_gap_alert = self.live_gap_alert
+        if live_gap_alert is not None and live_gap_alert <= timedelta(0):
+            raise ValueError("live_gap_alert must be positive when provided")
+        object.__setattr__(self, "live_gap_alert", live_gap_alert)
+
+        try:
+            live_gap_severity = DryRunStatus(self.live_gap_severity)
+        except ValueError as exc:  # pragma: no cover - defensive guard
+            raise ValueError("live_gap_severity must map to a DryRunStatus value") from exc
+        object.__setattr__(self, "live_gap_severity", live_gap_severity)
 
 
 @dataclass(slots=True, frozen=True)
@@ -204,6 +235,33 @@ class _LogStats:
                     else None
                 ),
             }
+
+
+async def _append_incident(
+    *,
+    incident: HarnessIncident,
+    key: tuple[str, ...],
+    incidents: list[HarnessIncident],
+    incident_keys: set[tuple[str, ...]],
+    lock: asyncio.Lock,
+    progress_reporter: "_ProgressReporter | None",
+) -> bool:
+    """Record a harness incident if it has not been observed before."""
+
+    async with lock:
+        if key in incident_keys:
+            return False
+        incident_keys.add(key)
+        incidents.append(incident)
+        snapshot = tuple(incidents)
+
+    if progress_reporter is not None:
+        await progress_reporter.record_incident(
+            incident=incident,
+            incidents=snapshot,
+        )
+
+    return True
 
 
 _PROGRESS_SEVERITY_ORDER: Mapping[DryRunStatus, int] = {
@@ -347,6 +405,87 @@ class _ProgressReporter:
             await asyncio.to_thread(self._path.write_text, data, encoding="utf-8")
 
 
+class _LogGapMonitor:
+    """Emit incidents when runtime logs fall silent beyond a threshold."""
+
+    def __init__(
+        self,
+        *,
+        threshold: timedelta,
+        severity: DryRunStatus,
+        incidents: list[HarnessIncident],
+        incident_keys: set[tuple[str, ...]],
+        incident_lock: asyncio.Lock,
+        progress_reporter: _ProgressReporter | None,
+    ) -> None:
+        self._threshold = threshold
+        self._severity = severity
+        self._incidents = incidents
+        self._incident_keys = incident_keys
+        self._incident_lock = incident_lock
+        self._progress_reporter = progress_reporter
+        self._last_log_at: datetime | None = None
+        self._alert_active = False
+        self._lock = asyncio.Lock()
+
+    async def note(self, observed_at: datetime) -> None:
+        async with self._lock:
+            self._last_log_at = observed_at
+            self._alert_active = False
+
+    async def run(self) -> None:
+        interval_seconds = max(
+            min(self._threshold.total_seconds() / 2.0, 60.0),
+            0.5,
+        )
+        try:
+            while True:
+                await asyncio.sleep(interval_seconds)
+                async with self._lock:
+                    last_log_at = self._last_log_at
+                    alert_active = self._alert_active
+                if last_log_at is None or alert_active:
+                    continue
+                gap = datetime.now(tz=UTC) - last_log_at
+                if gap < self._threshold:
+                    continue
+
+                message = (
+                    "No runtime logs observed for "
+                    f"{humanise_timedelta(gap)} (threshold "
+                    f"{humanise_timedelta(self._threshold)})."
+                )
+                metadata = {
+                    "threshold_seconds": self._threshold.total_seconds(),
+                    "gap_seconds": gap.total_seconds(),
+                    "last_log_at": last_log_at.astimezone(UTC).isoformat(),
+                }
+                incident = HarnessIncident(
+                    severity=self._severity,
+                    occurred_at=datetime.now(tz=UTC),
+                    message=message,
+                    metadata=metadata,
+                )
+
+                recorded = await _append_incident(
+                    incident=incident,
+                    key=(
+                        "log_gap_monitor",
+                        self._severity.value,
+                        last_log_at.astimezone(UTC).isoformat(),
+                    ),
+                    incidents=self._incidents,
+                    incident_keys=self._incident_keys,
+                    lock=self._incident_lock,
+                    progress_reporter=self._progress_reporter,
+                )
+                if recorded:
+                    async with self._lock:
+                        self._alert_active = True
+        except asyncio.CancelledError:  # pragma: no cover - cooperative cancellation
+            raise
+
+
 async def perform_final_dry_run(
     config: FinalDryRunConfig,
     *,
@@ -413,10 +552,22 @@ async def perform_final_dry_run(
     else:
         progress_path_value = config.progress_path
 
+    gap_monitor: _LogGapMonitor | None = None
+    if config.live_gap_alert is not None:
+        gap_monitor = _LogGapMonitor(
+            threshold=config.live_gap_alert,
+            severity=config.live_gap_severity,
+            incidents=incidents,
+            incident_keys=incident_keys,
+            incident_lock=incident_lock,
+            progress_reporter=progress_reporter,
+        )
+
     async def _pump_stream(
         stream: asyncio.StreamReader | None,
         stream_name: str,
         progress: _ProgressReporter | None,
+        monitor: _LogGapMonitor | None,
     ) -> None:
         if stream is None:
             return
@@ -444,6 +595,8 @@ async def perform_final_dry_run(
                 log_file.flush()
                 raw_file.flush()
             await stats.record(stream_name, record["level"], observed_at)
+            if monitor is not None:
+                await monitor.note(observed_at)
 
     owns_supervisor = False
     supervisor = task_supervisor
@@ -453,7 +606,7 @@ async def perform_final_dry_run(
 
     pump_tasks = [
         supervisor.create(
-            _pump_stream(process.stdout, "stdout", progress_reporter),
+            _pump_stream(process.stdout, "stdout", progress_reporter, gap_monitor),
             name="dry-run-stdout",
             metadata={
                 "component": "operations.final_dry_run.pump",
@@ -461,7 +614,7 @@ async def perform_final_dry_run(
             },
         ),
         supervisor.create(
-            _pump_stream(process.stderr, "stderr", progress_reporter),
+            _pump_stream(process.stderr, "stderr", progress_reporter, gap_monitor),
             name="dry-run-stderr",
             metadata={
                 "component": "operations.final_dry_run.pump",
@@ -469,6 +622,18 @@ async def perform_final_dry_run(
             },
         ),
     ]
+
+    gap_monitor_task: asyncio.Task[None] | None = None
+    if gap_monitor is not None:
+        gap_monitor_task = supervisor.create(
+            gap_monitor.run(),
+            name="dry-run-gap-monitor",
+            metadata={
+                "component": "operations.final_dry_run.gap_monitor",
+                "threshold_seconds": config.live_gap_alert.total_seconds(),
+                "severity": config.live_gap_severity.value,
+            },
+        )
 
     if progress_reporter is not None and config.progress_interval is not None:
         progress_task = supervisor.create(
@@ -526,6 +691,11 @@ async def perform_final_dry_run(
         progress_task.cancel()
         with contextlib.suppress(asyncio.CancelledError):
             await progress_task
+
+    if gap_monitor_task is not None:
+        gap_monitor_task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await gap_monitor_task
 
     if owns_supervisor:
         await supervisor.cancel_all()
@@ -588,6 +758,8 @@ async def perform_final_dry_run(
         diary_path=config.diary_path,
         performance_path=config.performance_path,
         metadata=metadata,
+        log_gap_warn=config.log_gap_warn,
+        log_gap_fail=config.log_gap_fail,
         minimum_run_duration=required_duration,
         minimum_uptime_ratio=config.minimum_uptime_ratio,
     )
@@ -758,30 +930,25 @@ async def _maybe_record_log_incident(
 
     message = _derive_incident_message(record)
     event = record.get("event")
-    key = (severity.value, stream, level, message)
+    incident = HarnessIncident(
+        severity=severity,
+        occurred_at=observed_at,
+        message=_format_incident_message(level, stream, message, event),
+        metadata={
+            "level": level or None,
+            "stream": stream,
+            "event": event,
+        },
+    )
 
-    async with lock:
-        if key in incident_keys:
-            return
-        incident_keys.add(key)
-        incident = HarnessIncident(
-            severity=severity,
-            occurred_at=observed_at,
-            message=_format_incident_message(level, stream, message, event),
-            metadata={
-                "level": level or None,
-                "stream": stream,
-                "event": event,
-            },
-        )
-        incidents.append(incident)
-        snapshot = tuple(incidents)
-
-    if progress_reporter is not None:
-        await progress_reporter.record_incident(
-            incident=incident,
-            incidents=snapshot,
-        )
+    await _append_incident(
+        incident=incident,
+        key=("log_level", severity.value, stream, level, message),
+        incidents=incidents,
+        incident_keys=incident_keys,
+        lock=lock,
+        progress_reporter=progress_reporter,
+    )
 
 
 def _derive_incident_message(record: Mapping[str, Any]) -> str:

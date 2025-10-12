@@ -127,6 +127,24 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Minimum Sharpe ratio required for sign-off (optional).",
     )
     parser.add_argument(
+        "--warn-gap-minutes",
+        type=float,
+        default=None,
+        help=(
+            "Warn when structured logs contain gaps longer than this many minutes "
+            "during the post-run audit (default: 60 when omitted)."
+        ),
+    )
+    parser.add_argument(
+        "--fail-gap-minutes",
+        type=float,
+        default=None,
+        help=(
+            "Fail when structured logs contain gaps longer than this many minutes "
+            "during the post-run audit (default: 360 when omitted)."
+        ),
+    )
+    parser.add_argument(
         "--metadata",
         action="append",
         default=[],
@@ -172,6 +190,20 @@ def _build_parser() -> argparse.ArgumentParser:
             "Disable real-time log level monitoring during the run (post-run audit still "
             "captures issues)."
         ),
+    )
+    parser.add_argument(
+        "--live-gap-alert-minutes",
+        type=float,
+        default=None,
+        help=(
+            "Emit a harness incident when no runtime logs are observed for this many minutes."
+        ),
+    )
+    parser.add_argument(
+        "--live-gap-alert-severity",
+        choices=(DryRunStatus.warn.value, DryRunStatus.fail.value),
+        default=DryRunStatus.warn.value,
+        help="Severity assigned to live log gap incidents (default: warn).",
     )
     parser.add_argument(
         "--review-output",
@@ -292,6 +324,22 @@ def main(argv: Sequence[str] | None = None) -> int:
         if args.progress_interval_minutes > 0
         else None
     )
+    warn_gap = (
+        timedelta(minutes=args.warn_gap_minutes)
+        if args.warn_gap_minutes is not None
+        else None
+    )
+    fail_gap = (
+        timedelta(minutes=args.fail_gap_minutes)
+        if args.fail_gap_minutes is not None
+        else None
+    )
+    live_gap_alert = (
+        timedelta(minutes=args.live_gap_alert_minutes)
+        if args.live_gap_alert_minutes is not None
+        else None
+    )
+    live_gap_severity = DryRunStatus(args.live_gap_alert_severity)
 
     config = FinalDryRunConfig(
         command=command,
@@ -311,6 +359,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         metadata=metadata_pairs,
         environment=env_pairs or None,
         monitor_log_levels=not args.no_log_monitor,
+        log_gap_warn=warn_gap,
+        log_gap_fail=fail_gap,
+        live_gap_alert=live_gap_alert,
+        live_gap_severity=live_gap_severity,
     )
 
     workflow = run_final_dry_run_workflow(

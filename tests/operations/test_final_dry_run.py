@@ -48,6 +48,47 @@ while _running and time.time() - start < 2.0:
 
 sys.exit(0)
 """
+_HEARTBEAT_WITH_GAP_SCRIPT = r"""
+import datetime
+import json
+import signal
+import sys
+import time
+
+_running = True
+
+
+def _stop(_signum, _frame):  # pragma: no cover - signal path
+    global _running
+    _running = False
+
+
+signal.signal(signal.SIGINT, _stop)
+signal.signal(signal.SIGTERM, _stop)
+
+
+def _emit(counter):
+    payload = {
+        "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        "level": "info",
+        "event": f"heartbeat-{counter}",
+        "counter": counter,
+    }
+    print(json.dumps(payload), flush=True)
+
+
+_emit(0)
+time.sleep(1.05)
+_emit(1)
+
+deadline = time.time() + 0.2
+while _running and time.time() < deadline:
+    time.sleep(0.05)
+
+sys.exit(0)
+"""
+
+
 
 
 _ERROR_ONCE_SCRIPT = r"""
@@ -88,6 +129,7 @@ while _running and time.time() - start < 4.0:
 
 sys.exit(0)
 """
+
 
 
 async def _wait_for_file(path, timeout: float = 2.0) -> None:
@@ -153,6 +195,29 @@ def test_final_dry_run_detects_early_exit(tmp_path):
     progress = json.loads(result.progress_path.read_text(encoding="utf-8"))
     assert progress["status"] == DryRunStatus.fail.value
     assert progress["phase"] == "complete"
+
+
+def test_final_dry_run_live_gap_monitor_warn(tmp_path):
+    config = FinalDryRunConfig(
+        command=[sys.executable, "-c", _HEARTBEAT_WITH_GAP_SCRIPT],
+        duration=timedelta(seconds=1.3),
+        required_duration=timedelta(seconds=1.0),
+        log_directory=tmp_path,
+        minimum_uptime_ratio=0.0,
+        require_diary_evidence=False,
+        require_performance_evidence=False,
+        live_gap_alert=timedelta(seconds=0.4),
+        live_gap_severity=DryRunStatus.warn,
+    )
+
+    result = run_final_dry_run(config)
+
+    assert any(
+        incident.severity is DryRunStatus.warn
+        and "No runtime logs" in incident.message
+        for incident in result.incidents
+    )
+    assert result.status is DryRunStatus.warn
 
 
 def test_final_dry_run_workflow_builds_packet_and_review(tmp_path):

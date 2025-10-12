@@ -168,6 +168,48 @@ def test_trade_throttle_scopes_by_metadata_field() -> None:
     assert missing_scope == {"strategy_id": None}
 
 
+def test_trade_throttle_scope_snapshots_expose_per_scope_state() -> None:
+    config = TradeThrottleConfig(
+        name="scoped-snapshot",
+        max_trades=1,
+        window_seconds=120.0,
+        scope_fields=("strategy_id", "symbol"),
+    )
+    throttle = TradeThrottle(config)
+
+    base = datetime(2024, 1, 1, 13, 0, 0, tzinfo=timezone.utc)
+
+    throttle.evaluate(
+        now=base,
+        metadata={"strategy_id": "alpha", "symbol": "EURUSD"},
+    )
+    throttle.evaluate(
+        now=base + timedelta(seconds=5),
+        metadata={"strategy_id": "beta", "symbol": "GBPUSD"},
+    )
+
+    snapshots = throttle.scope_snapshots()
+    assert isinstance(snapshots, tuple)
+    assert len(snapshots) == 2
+
+    scopes = {
+        tuple(sorted(snapshot.get("metadata", {}).get("scope", {}).items()))
+        for snapshot in snapshots
+    }
+    assert ("strategy_id", "alpha") in {item for scope in scopes for item in scope}
+    assert ("symbol", "EURUSD") in {item for scope in scopes for item in scope}
+    assert ("strategy_id", "beta") in {item for scope in scopes for item in scope}
+    assert ("symbol", "GBPUSD") in {item for scope in scopes for item in scope}
+
+    key_tokens = {
+        token
+        for snapshot in snapshots
+        for token in snapshot.get("scope_key", [])
+    }
+    assert any(token.endswith("'alpha'") for token in key_tokens)
+    assert any(token.endswith("'beta'") for token in key_tokens)
+
+
 def test_trade_throttle_enforces_minimum_spacing() -> None:
     config = TradeThrottleConfig(
         name="spacing",

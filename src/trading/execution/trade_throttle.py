@@ -126,11 +126,16 @@ class TradeThrottle:
         timestamps: Deque[datetime]
         cooldown_until: datetime | None = None
         last_trade: datetime | None = None
+        scope_descriptor: Mapping[str, Any] | None = None
 
     def __init__(self, config: TradeThrottleConfig) -> None:
         self._config = config
         self._states: dict[tuple[str, ...], TradeThrottle._ThrottleState] = {}
-        self._last_snapshot: Mapping[str, Any] = self._initial_snapshot()
+        self._scope_snapshots: dict[tuple[str, ...], Mapping[str, Any]] = {}
+        initial_snapshot = self._initial_snapshot()
+        self._last_snapshot: Mapping[str, Any] = initial_snapshot
+        if not self._config.scope_fields:
+            self._scope_snapshots[self._GLOBAL_SCOPE] = initial_snapshot
 
     @property
     def config(self) -> TradeThrottleConfig:
@@ -162,6 +167,15 @@ class TradeThrottle:
         state_removed = self._prune(scope_key, moment, window_duration, state)
         if state_removed:
             state = self._get_state(scope_key)
+
+        if scope_descriptor:
+            state.scope_descriptor = MappingProxyType(dict(scope_descriptor))
+        elif self._config.scope_fields:
+            state.scope_descriptor = MappingProxyType(
+                {field: None for field in self._config.scope_fields}
+            )
+        else:
+            state.scope_descriptor = None
 
         throttle_state = "open"
         reason: str | None = None
@@ -229,7 +243,7 @@ class TradeThrottle:
             metadata=metadata,
             message=message,
             scope_key=scope_key,
-            scope_descriptor=scope_descriptor,
+            scope_descriptor=state.scope_descriptor,
             recent_trades=recent_trades,
             cooldown_until=state.cooldown_until,
             moment=moment,
@@ -238,6 +252,7 @@ class TradeThrottle:
             retry_in_seconds=retry_in_seconds,
         )
         self._last_snapshot = snapshot
+        self._scope_snapshots[scope_key] = snapshot
 
         multiplier: float | None
         if self._config.multiplier is None:
@@ -260,6 +275,12 @@ class TradeThrottle:
         """Return the most recent throttle snapshot."""
 
         return dict(self._last_snapshot)
+
+    def scope_snapshots(self) -> tuple[Mapping[str, Any], ...]:
+        """Return snapshots for each tracked scope."""
+
+        entries = sorted(self._scope_snapshots.items(), key=lambda item: item[0])
+        return tuple(self._clone_snapshot(snapshot) for _key, snapshot in entries)
 
     def _initial_snapshot(self) -> Mapping[str, Any]:
         now = datetime.now(tz=UTC)
@@ -460,6 +481,7 @@ class TradeThrottle:
             return False
         state.last_trade = None
         self._states.pop(scope_key, None)
+        self._scope_snapshots.pop(scope_key, None)
         return True
 
     def _purge_stale_scopes(self, moment: datetime, window: timedelta) -> None:
@@ -503,6 +525,20 @@ class TradeThrottle:
             return candidate.replace(tzinfo=UTC)
         return candidate.astimezone(UTC)
 
+    @staticmethod
+    def _clone_snapshot(snapshot: Mapping[str, Any]) -> Mapping[str, Any]:
+        payload = dict(snapshot)
+        metadata = payload.get("metadata")
+        if isinstance(metadata, Mapping):
+            metadata_copy: dict[str, Any] = dict(metadata)
+            scope_meta = metadata_copy.get("scope")
+            if isinstance(scope_meta, Mapping):
+                metadata_copy["scope"] = dict(scope_meta)
+            payload["metadata"] = metadata_copy
+        scope_key = payload.get("scope_key")
+        if isinstance(scope_key, list):
+            payload["scope_key"] = list(scope_key)
+        return payload
     def _format_reason(self, reason: str | None, retry_at: datetime | None) -> str | None:
         if not reason:
             return None

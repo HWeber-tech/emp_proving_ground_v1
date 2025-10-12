@@ -2097,6 +2097,16 @@ async def test_trade_throttle_blocks_and_can_be_disabled(
     throttle_stats = stats.get("trade_throttle")
     assert isinstance(throttle_stats, dict)
     assert throttle_stats.get("active") is True
+    scope_snapshots = stats.get("trade_throttle_scopes")
+    assert isinstance(scope_snapshots, list)
+    assert scope_snapshots, "expected per-scope snapshots to be recorded"
+    assert any(
+        snapshot.get("state") in {"rate_limited", "cooldown", "min_interval"}
+        for snapshot in scope_snapshots
+    )
+    method_snapshots = manager.get_trade_throttle_scope_snapshots()
+    assert method_snapshots
+    assert len(method_snapshots) == len(scope_snapshots)
     events = manager.get_experiment_events()
     statuses = [event["status"] for event in events]
     assert "throttled" in statuses
@@ -2123,6 +2133,9 @@ async def test_trade_throttle_blocks_and_can_be_disabled(
 
     manager.configure_trade_throttle(None)
     assert manager.get_trade_throttle_snapshot() is None
+    assert manager.get_trade_throttle_scope_snapshots() == tuple()
+    stats_after_disable = manager.get_execution_stats()
+    assert "trade_throttle_scopes" not in stats_after_disable
 
     await manager.on_trade_intent(intent)
     assert engine.calls == 2
@@ -2648,6 +2661,9 @@ async def test_collect_performance_baseline_reports_metrics(
 
     reports = baseline.get("reports")
     assert isinstance(reports, Mapping)
+    throttle_scopes = baseline.get("throttle_scopes")
+    assert isinstance(throttle_scopes, list)
+    assert throttle_scopes, "expected baseline to include per-scope snapshots"
     assert "execution" in reports and "performance" in reports
 
 

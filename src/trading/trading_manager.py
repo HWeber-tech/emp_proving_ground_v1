@@ -632,6 +632,7 @@ class TradingManager:
             self._execution_stats["throttle_retry_in_seconds"] = None
             self._execution_stats["throttle_scalings"] = 0
             self._execution_stats["last_throttle_multiplier"] = None
+            self._execution_stats.pop("trade_throttle_scopes", None)
             return
 
         throttle_config = (
@@ -669,6 +670,9 @@ class TradingManager:
             )
         else:
             self._execution_stats["last_throttle_multiplier"] = None
+        self._execution_stats["trade_throttle_scopes"] = list(
+            self._trade_throttle.scope_snapshots()
+        )
 
     def _evaluate_trade_throttle(
         self,
@@ -716,6 +720,9 @@ class TradingManager:
             snapshot.setdefault("metadata", {}).setdefault(
                 "retry_in_seconds", decision.retry_in_seconds
             )
+        self._execution_stats["trade_throttle_scopes"] = list(
+            self._trade_throttle.scope_snapshots()
+        )
 
         if not decision.allowed:
             blocks = coerce_int(self._execution_stats.get("throttle_blocks"), default=0)
@@ -2062,6 +2069,13 @@ class TradingManager:
         if isinstance(metadata, Mapping):
             snapshot["metadata"] = dict(metadata)
         return snapshot
+
+    def get_trade_throttle_scope_snapshots(self) -> tuple[Mapping[str, Any], ...]:
+        """Return snapshots for each tracked throttle scope."""
+
+        if self._trade_throttle is None:
+            return tuple()
+        return self._trade_throttle.scope_snapshots()
 
     def get_experiment_events(self, limit: int | None = None) -> list[Mapping[str, Any]]:
         """Expose the recent paper-trading experiment events."""

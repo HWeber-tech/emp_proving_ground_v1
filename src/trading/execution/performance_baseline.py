@@ -52,6 +52,7 @@ def collect_performance_baseline(
     throttle_summary = performance_health.get("throttle")
     resource_snapshot = performance_health.get("resource")
     backlog_snapshot = performance_health.get("backlog")
+    throttle_scopes = manager.get_trade_throttle_scope_snapshots()
 
     reports: MutableMapping[str, str] = {}
     reports["execution"] = build_execution_performance_report(execution_stats)
@@ -68,6 +69,7 @@ def collect_performance_baseline(
     baseline["backlog"] = backlog_snapshot
     baseline["resource"] = resource_snapshot
     baseline["throttle"] = throttle_summary
+    baseline["throttle_scopes"] = list(throttle_scopes)
 
     return baseline
 

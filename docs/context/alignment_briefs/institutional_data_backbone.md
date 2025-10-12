@@ -45,10 +45,7 @@
     status so event-bus consumers inherit deterministic cache evidence even when
     Redis falls back to in-memory, with pytest coverage guarding the payload
     contract.【F:src/trading/monitoring/portfolio_monitor.py†L155-L220】【F:tests/trading/test_portfolio_monitor_cache_metrics.py†L1-L97】
-- Progress: Data backbone readiness snapshots now capture optional-trigger
-  degradation, failover decisions, and Timescale recovery plans with pytest
-  coverage, giving operators actionable metadata when optional slices drift
-  instead of generic warnings.【F:src/operations/data_backbone.py†L488-L515】【F:tests/operations/test_data_backbone.py†L289-L347】
+- Progress: Data backbone readiness snapshots now surface failover outcomes, optional-slice degradation, supervised task telemetry, and Redis/Kafka posture so operators inherit actionable readiness evidence when ingest degrades, with pytest coverage exercising the aggregated snapshot.【src/operations/data_backbone.py:515】【src/operations/data_backbone.py:574】【src/operations/data_backbone.py:616】【tests/operations/test_data_backbone.py:62】
 - Progress: Developer data backbone presets and env templates now provision the
   local Timescale/Redis/Kafka stack via `docker-compose`, document the setup
   flow, and ship connectivity regressions covering Timescale, Redis, and Kafka

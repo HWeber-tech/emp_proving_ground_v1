@@ -22,7 +22,7 @@
   fall below configured minimums, preventing orphaned orders in depleted paper
   accounts while regression coverage exercises zero-budget flows.【F:src/risk/risk_manager_impl.py†L220-L268】【F:tests/risk/test_risk_manager_impl_additional.py†L27-L70】
 - Safety manager now coerces environment-provided confirmation strings via a strict normaliser, raising on unrecognised payloads so live boots cannot bypass the confirmation gate, with regression coverage and the refreshed Phase II completion audit documenting the guardrail and follow-up recommendations.【F:src/governance/safety_manager.py†L1-L120】【F:tests/governance/test_safety_manager.py†L1-L76】【F:docs/reports/risk_governance_phase2_completion_audit.md†L1-L31】
-- Policy & code audit Phase II completion report documents the fail-closed sizing fix, telemetry coverage additions, and real risk engine normalisation with supporting regression tests, giving governance reviewers a single evidence packet for the latest remediations.【F:docs/reports/policy_code_audit_phase_ii.md†L1-L37】【F:src/risk/risk_manager_impl.py†L519-L521】【F:tests/risk/test_risk_manager_impl_additional.py†L22-L41】【F:tests/risk/test_risk_telemetry.py†L132-L210】【F:tests/risk/test_real_risk_manager.py†L11-L56】
+- Policy & code audit Phase II fail-closed refresh now captures the hardened portfolio risk path, updated regression coverage, and governance follow-ups so reviewers inherit the latest remediation evidence in one packet.【docs/reports/policy_code_audit_phase_ii_fail_closed_refresh.md:1】【src/risk/risk_manager_impl.py:845】【tests/risk/test_risk_manager_impl_additional.py:531】【tests/current/test_risk_manager_impl.py:95】
 
 ## Gap themes
 

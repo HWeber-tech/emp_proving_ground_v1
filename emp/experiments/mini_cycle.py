@@ -137,11 +137,18 @@ def _flatten_metrics(comparison: Mapping[str, Any]) -> Dict[str, MetricCompariso
                 for key in (
                     "reference",
                     "baseline",
+                    "control",
+                    "ref",
                     "candidate",
                     "value",
+                    "treatment",
                     "variant",
                     "experiment",
                     "ratio",
+                    "delta",
+                    "pct_change",
+                    "percent_change",
+                    "percentage_change",
                 )
             ):
                 key_name = prefix.rstrip(".")

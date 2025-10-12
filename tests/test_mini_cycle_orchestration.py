@@ -4,6 +4,9 @@ import json
 from pathlib import Path
 from typing import Any, Dict, List
 
+import pytest
+
+import emp.experiments.mini_cycle as mini_cycle
 import emp.experiments.mini_cycle_orchestration as orchestration
 
 
@@ -192,3 +195,15 @@ def test_run_day1_day2_with_kernel_and_quant_fallbacks(monkeypatch, tmp_path):
     assert day1_summary["decision"]["ok"] is True
 
     assert fake_emp.logged_messages[-1][1].startswith("Mini-Cycle Days 1–2 complete")
+
+
+def test_evaluate_lion_success_handles_control_treatment_payload():
+    comparison = {
+        "val_loss": {"control": 0.2, "treatment": 0.19},
+        "gpu_mem_gb": {"control": 10.0, "treatment": 9.0},
+    }
+    criteria = {"val_loss_ratio_vs_adam": 1.0, "gpu_mem_ratio_vs_adam": 1.0}
+    decision = mini_cycle.evaluate_lion_success(comparison, criteria, abort_rules={})
+    assert decision["ok"] is True
+    assert decision["passed"]["val_loss_ratio_vs_adam"]["ratio"] == pytest.approx(0.19 / 0.2)
+    assert decision["passed"]["gpu_mem_ratio_vs_adam"]["ratio"] == pytest.approx(0.9)

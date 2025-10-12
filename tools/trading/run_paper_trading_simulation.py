@@ -72,6 +72,18 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Optional request timeout (seconds) for the paper trading adapter",
     )
     parser.add_argument(
+        "--paper-retry-attempts",
+        dest="paper_retry_attempts",
+        type=int,
+        help="Total retry attempts per order for the paper trading adapter",
+    )
+    parser.add_argument(
+        "--paper-retry-backoff",
+        dest="paper_retry_backoff",
+        type=float,
+        help="Base backoff (seconds) between retries for the paper trading adapter",
+    )
+    parser.add_argument(
         "--ledger",
         type=Path,
         help="Policy ledger path granting limited_live approval to the strategy",
@@ -164,6 +176,8 @@ def _apply_overrides(config: SystemConfig, args: argparse.Namespace) -> SystemCo
     _set("PAPER_TRADING_ORDER_ENDPOINT", args.paper_order_endpoint)
     _set("PAPER_TRADING_ORDER_ID_FIELD", args.paper_order_id_field)
     _set("PAPER_TRADING_ORDER_TIMEOUT", args.paper_timeout)
+    _set("PAPER_TRADING_RETRY_ATTEMPTS", args.paper_retry_attempts)
+    _set("PAPER_TRADING_RETRY_BACKOFF", args.paper_retry_backoff)
     _set("PAPER_TRADING_DEFAULT_STAGE", args.paper_default_stage)
     _set("POLICY_LEDGER_PATH", args.ledger)
     _set("DECISION_DIARY_PATH", args.diary)

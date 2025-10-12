@@ -42,6 +42,8 @@ class PaperTradingApiSettings:
     client_order_prefix: str = "alpha"
     account_id: str | None = None
     extra_headers: Mapping[str, str] = field(default_factory=dict)
+    retry_attempts: int = 3
+    retry_backoff_seconds: float = 0.5
 
     def build_headers(self) -> dict[str, str]:
         headers: dict[str, str] = {
@@ -99,6 +101,16 @@ class PaperTradingApiSettings:
         )
         account_id = cls._coerce_optional_str(payload.get("PAPER_TRADING_ACCOUNT_ID"))
         extra_headers = cls._parse_headers(payload.get("PAPER_TRADING_EXTRA_HEADERS"))
+        retry_attempts = cls._coerce_optional_int(
+            payload.get("PAPER_TRADING_RETRY_ATTEMPTS"),
+            default=3,
+            minimum=1,
+        )
+        retry_backoff_seconds = cls._coerce_optional_float(
+            payload.get("PAPER_TRADING_RETRY_BACKOFF"),
+            default=0.5,
+            minimum=0.0,
+        )
 
         return cls(
             base_url=base_url,
@@ -114,6 +126,8 @@ class PaperTradingApiSettings:
             client_order_prefix=client_order_prefix,
             account_id=account_id,
             extra_headers=extra_headers,
+            retry_attempts=retry_attempts,
+            retry_backoff_seconds=retry_backoff_seconds,
         )
 
     @staticmethod
@@ -137,6 +151,46 @@ class PaperTradingApiSettings:
         if normalized in {"false", "0", "no", "n", "off", "disable", "disabled"}:
             return False
         return default
+
+    @staticmethod
+    def _coerce_optional_int(
+        value: Any,
+        *,
+        default: int,
+        minimum: int,
+    ) -> int:
+        if isinstance(value, (int,)):
+            candidate = value
+        elif value is None:
+            candidate = default
+        else:
+            try:
+                candidate = int(str(value).strip())
+            except (TypeError, ValueError):
+                candidate = default
+        if candidate < minimum:
+            return minimum
+        return candidate
+
+    @staticmethod
+    def _coerce_optional_float(
+        value: Any,
+        *,
+        default: float,
+        minimum: float,
+    ) -> float:
+        if isinstance(value, (int, float)):
+            candidate = float(value)
+        elif value is None:
+            candidate = default
+        else:
+            try:
+                candidate = float(str(value).strip())
+            except (TypeError, ValueError):
+                candidate = default
+        if candidate < minimum:
+            return minimum
+        return candidate
 
     @staticmethod
     def _parse_headers(raw: Any) -> Mapping[str, str]:
@@ -203,6 +257,35 @@ class PaperTradingApiAdapter:
         self._session = None
 
     async def place_market_order(self, symbol: str, side: str, quantity: float) -> str:
+        attempts = max(1, int(self._settings.retry_attempts))
+        backoff = max(0.0, float(self._settings.retry_backoff_seconds))
+        last_error: PaperTradingApiError | None = None
+        for attempt in range(1, attempts + 1):
+            try:
+                return await self._submit_market_order(symbol, side, quantity)
+            except PaperTradingApiError as exc:
+                last_error = exc
+                if attempt >= attempts:
+                    break
+                logger.warning(
+                    "paper_trading_api_retry",
+                    extra={
+                        "attempt": attempt,
+                        "max_attempts": attempts,
+                        "symbol": symbol,
+                        "side": side,
+                    },
+                )
+                if backoff > 0.0:
+                    await asyncio.sleep(backoff * attempt)
+                continue
+
+        assert last_error is not None  # for type-checkers; loop guarantees assignment
+        raise PaperTradingApiError(
+            f"Paper trading API failed after {attempts} attempts: {last_error}"
+        ) from last_error
+
+    async def _submit_market_order(self, symbol: str, side: str, quantity: float) -> str:
         session = await self._ensure_session()
         url = self._build_orders_url()
         payload = self._build_market_payload(symbol, side, quantity)
@@ -330,10 +413,11 @@ class PaperTradingApiAdapter:
             "time_in_force": self._settings.time_in_force,
             "verify_ssl": self._settings.verify_ssl,
             "timeout": self._settings.request_timeout,
+            "retry_attempts": self._settings.retry_attempts,
+            "retry_backoff_seconds": self._settings.retry_backoff_seconds,
         }
         if self._settings.account_id:
             payload["account_id"] = self._settings.account_id
         if self._settings.extra_headers:
             payload["extra_headers"] = dict(self._settings.extra_headers)
         return payload
-

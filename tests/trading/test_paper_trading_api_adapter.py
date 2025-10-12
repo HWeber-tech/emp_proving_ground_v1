@@ -93,3 +93,71 @@ async def test_paper_trading_api_adapter_raises_on_http_error() -> None:
     finally:
         await adapter.close()
         await shutdown()
+
+
+@pytest.mark.asyncio
+async def test_paper_trading_api_adapter_retries_and_succeeds() -> None:
+    call_counter = {"count": 0}
+
+    async def handler(request: web.Request) -> web.Response:
+        call_counter["count"] += 1
+        if call_counter["count"] == 1:
+            return web.Response(status=502, text="temporary failure")
+        payload = await request.json()
+        assert payload["side"] == "buy"
+        return web.json_response({"order_id": "ORD-RETRY"})
+
+    base_url, shutdown = await _start_test_server(handler)
+
+    settings = PaperTradingApiSettings(
+        base_url=base_url,
+        order_endpoint="/orders",
+        order_id_field="order_id",
+        verify_ssl=False,
+        request_timeout=1.0,
+        retry_attempts=3,
+        retry_backoff_seconds=0.0,
+    )
+    adapter = PaperTradingApiAdapter(settings=settings)
+    order_id: str | None = None
+
+    try:
+        order_id = await adapter.place_market_order("EURUSD", "buy", 1.0)
+    finally:
+        await adapter.close()
+        await shutdown()
+
+    assert order_id == "ORD-RETRY"
+    assert call_counter["count"] == 2
+
+
+@pytest.mark.asyncio
+async def test_paper_trading_api_adapter_retries_and_raises_after_limit() -> None:
+    call_counter = {"count": 0}
+
+    async def handler(_request: web.Request) -> web.Response:
+        call_counter["count"] += 1
+        return web.Response(status=500, text="boom")
+
+    base_url, shutdown = await _start_test_server(handler)
+
+    settings = PaperTradingApiSettings(
+        base_url=base_url,
+        order_endpoint="/orders",
+        order_id_field="order_id",
+        verify_ssl=False,
+        request_timeout=1.0,
+        retry_attempts=2,
+        retry_backoff_seconds=0.0,
+    )
+    adapter = PaperTradingApiAdapter(settings=settings)
+
+    try:
+        with pytest.raises(PaperTradingApiError) as excinfo:
+            await adapter.place_market_order("EURUSD", "sell", 1.0)
+    finally:
+        await adapter.close()
+        await shutdown()
+
+    assert call_counter["count"] == 2
+    assert "2 attempts" in str(excinfo.value)

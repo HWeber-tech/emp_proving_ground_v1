@@ -74,6 +74,7 @@
     `_to_mapping` helpers with defensive attribute access, structured warnings on
     dict failures, and regression tests that exercise Phase-0 security scenarios so
     adversarial outputs keep flowing to telemetry without silent drops.【F:src/thinking/adversarial/red_team_ai.py†L22-L91】【F:src/thinking/competitive/competitive_intelligence_system.py†L33-L117】【F:tests/thinking/test_security_hardening_phase0.py†L30-L48】
+  - Progress: Competitive understanding storage now writes to `emp:competitive_understanding:*`, keeps legacy aliases, and emits `UnderstandingReportTD` payloads so telemetry dashboards and downstream consumers inherit the understanding vocabulary without breaking historical evidence packs.【F:src/thinking/competitive/competitive_intelligence_system.py†L804-L1059】【F:src/thinking/models/types.py†L61-L89】
   - Progress: Incident response readiness now evaluates policy/state mappings,
     emits Markdown snapshots, derives roster/backlog alerts, and publishes via
     the failover helper under pytest coverage so operators inherit actionable
@@ -223,12 +224,13 @@
   `TradingManager.assess_throughput_health()` plus refreshed docs so operations
   teams can assert latency budgets from a single verdict under guardrail
   coverage.【F:src/trading/execution/performance_monitor.py†L1-L127】【F:src/trading/trading_manager.py†L1201-L1353】【F:docs/performance/trading_throughput_monitoring.md†L1-L84】【F:tests/trading/execution/test_performance_monitor.py†L17-L156】【F:tests/trading/test_trading_manager_execution.py†L1756-L1905】
-- Progress: Performance health reporting now renders the same assessment as a
+  - Progress: Performance health reporting now renders the same assessment as a
   Markdown evidence pack via `build_performance_health_report`, with
   `TradingManager.generate_performance_health_report()` exposing the helper for
   runbooks; docs and regression suites capture the healthy/degraded render paths
   so operators can export supervisory snapshots without bespoke scripts.【F:src/trading/execution/performance_report.py†L129-L225】【F:src/trading/trading_manager.py†L1696-L1757】【F:docs/performance/trading_throughput_monitoring.md†L69-L73】【F:tests/trading/execution/test_performance_report.py†L78-L128】【F:tests/trading/test_trading_manager_execution.py†L359-L458】
-- Progress: Bootstrap stack now logs sensory listener, liquidity prober, and
+  - Progress: `collect_performance_baseline()` now aggregates execution stats, throughput verdicts, backlog/resource posture, and Markdown evidence while the companion CLI scripts sample throttled bursts, letting observability packs archive reproducible performance baselines under regression coverage.【F:src/trading/execution/performance_baseline.py†L21-L72】【F:tools/performance_baseline.py†L1-L108】【F:docs/performance/performance_baseline.md†L1-L76】【F:tests/trading/test_trading_manager_execution.py†L2504-L2549】
+  - Progress: Bootstrap stack now logs sensory listener, liquidity prober, and
   control-centre callback failures with structured metadata so optional hooks
   surface errors without disrupting bootstrap decisions, under pytest coverage
   that captures the emitted diagnostics.【F:src/orchestration/bootstrap_stack.py†L81-L258】【F:tests/current/test_bootstrap_stack.py†L164-L213】

@@ -174,3 +174,53 @@ def test_regime_fsm_detects_calm_and_storm_volatility() -> None:
     published = [event for event in bus.events if event.type == "telemetry.understanding.regime"]
     assert published, "regime FSM should publish signals"
     assert published[-1].payload["metadata"]["volatility_state"] == "storm"
+
+
+@pytest.mark.guardrail
+def test_belief_buffer_sanitises_non_finite_features() -> None:
+    prices = _load_market_series(24)
+    snapshots = _build_snapshots(prices, start=datetime(2025, 3, 1, tzinfo=UTC), volatility_boost=1.0)
+
+    for idx, snapshot in enumerate(snapshots):
+        integrated = snapshot["integrated_signal"]
+        integrated["strength"] = float("nan")
+        integrated["confidence"] = float("inf") if idx % 2 == 0 else None
+
+        dimensions = snapshot["dimensions"]
+        how_payload = dimensions["HOW"]
+        how_payload["signal"] = float("nan")
+        how_payload["confidence"] = float("inf")
+        how_value = how_payload.setdefault("value", {})
+        how_value["volatility"] = float("inf")
+
+        anomaly_payload = dimensions["ANOMALY"]
+        anomaly_payload["signal"] = float("nan")
+        anomaly_value = anomaly_payload.setdefault("value", {})
+        anomaly_value["z_score"] = float("inf")
+        anomaly_meta = anomaly_payload.setdefault("metadata", {})
+        anomaly_meta["is_anomaly"] = True
+        audit_payload = anomaly_meta.setdefault("audit", {})
+        audit_payload["z_score"] = float("nan")
+
+    buffer = BeliefBuffer(
+        belief_id="nan-belief",
+        max_variance=0.3,
+        min_variance=1e-6,
+    )
+    bus = _RecordingBus()
+    emitter = BeliefEmitter(buffer=buffer, event_bus=bus)
+
+    for snapshot in snapshots:
+        state = emitter.emit(snapshot)
+        observation = state.metadata["observation"]
+        assert all(np.isfinite(value) for value in observation.values())
+        covariance = np.array(state.posterior.covariance)
+        assert np.all(np.isfinite(covariance))
+        eigenvalues = np.linalg.eigvalsh(covariance)
+        assert np.all(eigenvalues >= -1e-9)
+        assert np.all(np.isfinite(eigenvalues))
+        assert np.isfinite(state.metadata["covariance_trace"])
+        assert np.isfinite(state.metadata["covariance_max_eigenvalue"])
+        assert np.isfinite(state.metadata["covariance_min_eigenvalue"])
+
+    assert bus.events, "sanitised belief emission should still publish telemetry"

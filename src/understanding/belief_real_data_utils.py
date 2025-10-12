@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import math
 from typing import Mapping, Sequence
 
 import pandas as pd
@@ -80,8 +81,11 @@ def resolve_threshold_scale(
     if calibration is None or sample is None:
         return None
     baseline = max(calibration.calm_threshold, 1e-8)
-    sample_abs = abs(float(sample))
-    if sample_abs == 0.0:
+    try:
+        sample_abs = abs(float(sample))
+    except (TypeError, ValueError):  # pragma: no cover - defensive guard
+        return None
+    if not math.isfinite(sample_abs) or sample_abs == 0.0:
         return None
     ratio = sample_abs / baseline
     if ratio <= trigger:

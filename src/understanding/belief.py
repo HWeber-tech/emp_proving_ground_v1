@@ -158,10 +158,15 @@ def hebbian_step(
 
 
 def _coerce_float(value: object, default: float = 0.0) -> float:
+    if value is None:
+        return default
     try:
-        return float(value)
+        coerced = float(value)
     except (TypeError, ValueError):
         return default
+    if not np.isfinite(coerced):
+        return default
+    return coerced
 
 
 def _extract_anomaly_flag(
@@ -206,9 +211,12 @@ def _extract_z_score(
         if candidate is None:
             return None
         try:
-            return float(candidate)
+            result = float(candidate)
         except (TypeError, ValueError):
             return None
+        if not np.isfinite(result):
+            return None
+        return result
 
     value_score = _from_mapping(value_payload)
     if value_score is not None:
@@ -508,9 +516,12 @@ class BeliefBuffer:
             if value is None:
                 continue
             try:
-                samples.append(abs(float(value)))
+                numeric = float(value)
             except (TypeError, ValueError):
                 continue
+            if not np.isfinite(numeric):
+                continue
+            samples.append(abs(numeric))
         if not samples:
             return None
         return float(np.mean(samples))
@@ -799,12 +810,18 @@ class RegimeFSM:
                     volatility_sample = abs(float(sample_value))
                 except (TypeError, ValueError):
                     volatility_sample = None
+                else:
+                    if not np.isfinite(volatility_sample):
+                        volatility_sample = None
             metric_value = metadata.get("volatility")
             if metric_value is not None:
                 try:
                     volatility_metric = abs(float(metric_value))
                 except (TypeError, ValueError):
                     volatility_metric = None
+                else:
+                    if not np.isfinite(volatility_metric):
+                        volatility_metric = None
             if volatility_sample is None:
                 observation = metadata.get("observation")
                 if isinstance(observation, Mapping):
@@ -814,6 +831,9 @@ class RegimeFSM:
                             volatility_sample = abs(float(candidate))
                         except (TypeError, ValueError):
                             volatility_sample = None
+                        else:
+                            if not np.isfinite(volatility_sample):
+                                volatility_sample = None
 
         if volatility_sample is None:
             candidate = feature_map.get(self._volatility_feature)
@@ -822,14 +842,23 @@ class RegimeFSM:
                     volatility_sample = abs(float(candidate))
                 except (TypeError, ValueError):
                     volatility_sample = None
+                else:
+                    if not np.isfinite(volatility_sample):
+                        volatility_sample = None
 
         recorded_sample = volatility_sample
         history_value = volatility_metric if volatility_metric is not None else volatility_sample
-        if history_value is not None:
-            self._volatility_history.append(float(history_value))
+        if history_value is not None and np.isfinite(history_value):
+            numeric_history = float(history_value)
+            if np.isfinite(numeric_history):
+                self._volatility_history.append(numeric_history)
+            history_value = numeric_history
+        if history_value is not None and np.isfinite(history_value):
             self._update_dynamic_thresholds()
             if len(self._volatility_history) >= 2:
                 std_metric = float(np.std(self._volatility_history, ddof=0))
+                if not np.isfinite(std_metric):
+                    std_metric = abs(history_value)
                 volatility_metric = max(std_metric, float(history_value))
             else:
                 volatility_metric = float(history_value)

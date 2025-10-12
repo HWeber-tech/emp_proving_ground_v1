@@ -116,6 +116,11 @@ class TimescaleConnectionSettings:
     application_name: str = "emp-timescale-ingest"
     statement_timeout_ms: int = 10_000
     connect_timeout: int = 5
+    pool_size: int | None = None
+    max_overflow: int | None = None
+    pool_timeout: float | None = None
+    pool_recycle: int | None = None
+    pool_pre_ping: bool = True
 
     @classmethod
     def from_mapping(
@@ -145,14 +150,59 @@ class TimescaleConnectionSettings:
             except (TypeError, ValueError):
                 return default
 
+        def _coerce_optional_int(key: str, default: int | None) -> int | None:
+            raw = data.get(key)
+            if raw is None:
+                return default
+            text_value = str(raw).strip()
+            if not text_value:
+                return default
+            try:
+                return int(text_value)
+            except (TypeError, ValueError):
+                return default
+
+        def _coerce_optional_float(key: str, default: float | None) -> float | None:
+            raw = data.get(key)
+            if raw is None:
+                return default
+            text_value = str(raw).strip()
+            if not text_value:
+                return default
+            try:
+                return float(text_value)
+            except (TypeError, ValueError):
+                return default
+
+        def _coerce_bool(key: str, default: bool) -> bool:
+            raw = data.get(key)
+            if raw is None:
+                return default
+            text_value = str(raw).strip().lower().replace("-", "_")
+            if text_value in {"1", "true", "yes", "y", "on"}:
+                return True
+            if text_value in {"0", "false", "no", "n", "off"}:
+                return False
+            return default
+
         statement_timeout = _coerce_int("TIMESCALEDB_STATEMENT_TIMEOUT_MS", 10_000)
         connect_timeout = _coerce_int("TIMESCALEDB_CONNECT_TIMEOUT", 5)
+        pool_size = _coerce_optional_int("TIMESCALEDB_POOL_SIZE", None)
+        max_overflow = _coerce_optional_int("TIMESCALEDB_MAX_OVERFLOW", None)
+        pool_timeout = _coerce_optional_float("TIMESCALEDB_POOL_TIMEOUT", None)
+        pool_recycle = _coerce_optional_int("TIMESCALEDB_POOL_RECYCLE", None)
+        pool_pre_ping = _coerce_bool("TIMESCALEDB_POOL_PRE_PING", True)
 
         return cls(
             url=url,
             application_name=app_name,
             statement_timeout_ms=statement_timeout,
             connect_timeout=connect_timeout,
+            pool_size=pool_size,
+            max_overflow=max_overflow,
+            pool_timeout=pool_timeout,
+            pool_recycle=pool_recycle,
+            pool_pre_ping=pool_pre_ping,
         )
 
     @classmethod
@@ -178,14 +228,25 @@ class TimescaleConnectionSettings:
         """Instantiate a SQLAlchemy engine with sensible defaults."""
 
         connect_args: dict[str, object] = {}
-        if self.is_postgres():
+        is_postgres = self.is_postgres()
+        if is_postgres:
             connect_args["application_name"] = self.application_name
             connect_args["connect_timeout"] = self.connect_timeout
             # Encode statement timeout using the libpq options flag
             opts = f"-c statement_timeout={self.statement_timeout_ms}"
             connect_args["options"] = opts
 
-        kwargs: dict[str, object] = {"pool_pre_ping": True}
+        kwargs: dict[str, object] = {"pool_pre_ping": self.pool_pre_ping}
+        if is_postgres:
+            if self.pool_size is not None and self.pool_size >= 0:
+                kwargs["pool_size"] = int(self.pool_size)
+            if self.max_overflow is not None:
+                kwargs["max_overflow"] = int(self.max_overflow)
+            if self.pool_timeout is not None and self.pool_timeout >= 0:
+                kwargs["pool_timeout"] = float(self.pool_timeout)
+            if self.pool_recycle is not None and self.pool_recycle >= 0:
+                kwargs["pool_recycle"] = int(self.pool_recycle)
+
         if connect_args:
             kwargs["connect_args"] = connect_args
 

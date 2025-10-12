@@ -189,6 +189,14 @@ and any ingest failures encountered during fallback. Tests patch the pipeline
 to assert symbols, connection metadata, and Markdown rendering so the
 runbook’s workflow stays reproducible.【F:tools/data_ingest/run_operational_backbone.py†L1-L378】【F:tests/tools/test_run_operational_backbone.py†L17-L105】
 
+Need a smaller rehearsal? `python tools/data_ingest/run_real_data_slice.py`
+now accepts either a CSV fixture or a `--provider` flag (for example,
+`--provider yahoo --symbol EURUSD`) so operators with market-data API access
+can hydrate Timescale without bundling local files. The helper enforces
+mutually exclusive CSV/provider configuration, derives sensible defaults for
+symbols and source labels, and surfaces ingest/belief snapshots identical to
+the automation path under regression coverage.【F:tools/data_ingest/run_real_data_slice.py†L45-L125】【F:tests/integration/test_real_data_slice_ingest.py†L12-L89】
+
 ```python
 from datetime import datetime, timezone
 

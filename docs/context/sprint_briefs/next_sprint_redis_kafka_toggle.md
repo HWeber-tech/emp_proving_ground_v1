@@ -18,12 +18,16 @@ place.
 ## Reality signals
 
 - The runtime now wires Timescale ingest and provisions Redis clients when
-  institutional credentials are supplied, but cache policies, telemetry, and
-  Kafka mirroring remain open gaps for the professional tier toggle.【F:src/runtime/runtime_builder.py†L700-L898】【F:src/runtime/predator_app.py†L1-L420】
+  institutional credentials are supplied, and `RealDataManager` publishes
+  connectivity reports across Timescale/Redis/Kafka, but cache policies,
+  telemetry, and Kafka mirroring still need to mature before the professional
+  tier toggle is frictionless.【F:src/runtime/runtime_builder.py†L1671-L1770】【F:src/data_integration/real_data_integration.py†L121-L418】【F:src/runtime/predator_app.py†L1-L420】
 - Portfolio monitoring persists to an in-memory Redis stub by default, proving a
   managed Redis path is still missing.【F:src/trading/monitoring/portfolio_monitor.py†L64-L135】
 - CI telemetry does not report ingest freshness, cache hit rates, or Kafka lag,
-  reinforcing the roadmap call for upgraded observability.【F:docs/status/ci_health.md†L8-L52】
+  even though the operational backbone now captures cache metrics and Kafka
+  event counts inside validation snapshots, reinforcing the roadmap call for
+  surfaced observability.【F:src/runtime/runtime_builder.py†L1671-L1770】【F:docs/status/ci_health.md†L8-L52】
 
 ## Sprint intent
 

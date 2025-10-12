@@ -39,6 +39,11 @@
   - *Progress*: Belief buffer and emitter publish schema-versioned `BeliefState`
     snapshots with Hebbian PSD guardrails and regime FSM events, backed by
     guardrail pytest coverage and golden fixtures to prevent contract drift.【F:src/understanding/belief.py†L39-L347】【F:tests/understanding/test_belief_updates.py†L111-L239】【F:tests/understanding/golden/belief_snapshot.json†L1-L939】
+  - *Progress*: Dynamic sensory payloads now backfill missing dimensions,
+    extend the canonical feature order, and align prior covariance shapes so
+    live ingest that adds or drops features continues emitting stable
+    posteriors; the new regression covers expansion and contraction scenarios
+    to lock in the behaviour.【F:src/understanding/belief.py†L310-L449】【F:tests/understanding/test_belief_updates.py†L264-L309】
   - *Progress*: Calibration utilities now extract Hebbian learning rates, decay
     floors, and calm/storm thresholds from historical EURUSD slices, then rebuild
     belief/regime components that survive calm-versus-erratic replay suites under

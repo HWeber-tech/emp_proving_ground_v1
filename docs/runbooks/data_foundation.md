@@ -188,6 +188,11 @@ events, sensory snapshots, belief/regime telemetry, understanding decisions,
 and any ingest failures encountered during fallback. Tests patch the pipeline
 to assert symbols, connection metadata, and Markdown rendering so the
 runbook’s workflow stays reproducible.【F:tools/data_ingest/run_operational_backbone.py†L1-L378】【F:tests/tools/test_run_operational_backbone.py†L17-L105】
+The pipeline inspects composite Kafka publishers to derive expected
+dimensions, synthesises telemetry events for ingest results that lack a broker
+echo, reorders the final event list, and threads cache metrics plus ingest
+errors into the validation snapshot so evidence stays complete even if
+streaming pauses.【F:src/data_foundation/pipelines/operational_backbone.py†L305-L499】【F:src/runtime/runtime_builder.py†L1671-L1770】
 
 Need a smaller rehearsal? `python tools/data_ingest/run_real_data_slice.py`
 now accepts either a CSV fixture or a `--provider` flag (for example,
@@ -226,6 +231,12 @@ print(manager.cache_metrics())
 can confirm the roadmap’s “store → cache → retrieve” flow.  Call `shutdown()`
 or `close()` when the run completes to dispose of Timescale engines and Redis
 clients cleanly.【F:src/data_integration/real_data_integration.py†L292-L357】
+
+`RealDataManager.connectivity_report()` surfaces Timescale, Redis, and Kafka
+status in a single payload by running inexpensive probes (including the
+producer `checkup()` helper) so operators can gate institutional toggles on
+verified connectivity; regression coverage exercises both default and
+fully-provisioned stacks.【F:src/data_integration/real_data_integration.py†L121-L605】【F:src/data_foundation/streaming/kafka_stream.py†L1374-L1384】【F:tests/data_integration/test_real_data_manager.py†L263-L299】
 
 ## Artefact Expectations
 

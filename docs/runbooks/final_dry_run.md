@@ -25,13 +25,15 @@ This runbook describes how to execute the AlphaTrade final dry run in support of
    with `level=error`/`critical`/`fatal` are captured immediately as harness
    incidents so operators can react before the post-run audit finishes. Pass
    `--no-log-monitor` if the runtime emits noisy warnings that should only be
-   handled during the evidence review.
+   handled during the evidence review. The same log pump feeds cumulative
+   per-stream and per-level counters that surface in the progress snapshot
+   JSON for at-a-glance health monitoring.
 3. Monitor stdout for harness incidents; failures will surface immediately and exit with a non-zero code.
 
 ## Evidence bundle
 - Structured logs: `<log-dir>/final_dry_run_<timestamp>.jsonl`
 - Raw runtime logs: `<log-dir>/final_dry_run_<timestamp>.log`
-- Progress telemetry: `<log-dir>/final_dry_run_<timestamp>_progress.json`
+- Progress telemetry: `<log-dir>/final_dry_run_<timestamp>_progress.json` (status, phase, log stream/level counts, incidents, exit code, sign-off verdict)
 - JSON summary (optional): provide `--json-report summary.json`
 - Markdown summary (optional): provide `--markdown-report summary.md`
 - Evidence packet (optional): pass `--packet-dir artifacts/final_dry_run/2025-10-12/packet --packet-archive artifacts/final_dry_run/2025-10-12/packet.tar.gz` to bundle summaries plus raw artefacts in a review-ready archive.
@@ -39,7 +41,7 @@ This runbook describes how to execute the AlphaTrade final dry run in support of
 
 The JSON summary contains the dry run audit (`summary`) plus the sign-off report. Harness incidents (unexpected exits, duration shortfalls) are embedded into `summary.metadata.harness_incidents`.
 
-Progress snapshots default to every 5 minutes; adjust with `--progress-interval-minutes` or disable by setting it to `0` when invoking the CLI.
+Progress snapshots default to every 5 minutes; adjust with `--progress-interval-minutes` or disable by setting it to `0` when invoking the CLI. Each snapshot includes cumulative log stats (per-stream and per-level counts, first/last timestamps), the harness status/phase, elapsed runtime, optional incidents, plus any computed summary or sign-off verdict once available. On shutdown the harness writes a final snapshot that locks in the exit code and sign-off decision so reviewers can audit the full run without tailing live logs.
 
 ## Sign-off criteria mapping
 - **Duration**: enforced via `--duration-hours` / `--required-duration-hours` (default 72h)

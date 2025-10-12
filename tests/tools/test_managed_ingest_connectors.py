@@ -3,6 +3,7 @@ from pathlib import Path
 
 import pytest
 
+from src.data_foundation.cache.redis_cache import InMemoryRedis
 from src.governance.system_config import DataBackboneMode, EmpTier, SystemConfig
 
 from src.data_foundation.streaming.kafka_stream import KafkaTopicProvisioningSummary
@@ -30,9 +31,18 @@ def _patch_config(monkeypatch: pytest.MonkeyPatch, config: SystemConfig) -> None
     monkeypatch.setattr(mic, "_load_system_config", lambda *_args: config)
 
 
+def _patch_redis_success(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        mic,
+        "_prepare_redis_client",
+        lambda _settings: (InMemoryRedis(), None),
+    )
+
+
 def test_managed_connectors_cli_reports_success(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
     config = _build_config()
     _patch_config(monkeypatch, config)
+    _patch_redis_success(monkeypatch)
 
     exit_code = mic.main(["--connectivity", "--format", "json"])
     assert exit_code == 0
@@ -61,6 +71,7 @@ def test_managed_connectors_cli_reports_probe_failure(
 ) -> None:
     config = _build_config()
     _patch_config(monkeypatch, config)
+    _patch_redis_success(monkeypatch)
 
     def failing_engine(self, *_args, **_kwargs):
         raise OSError("timescale unreachable")
@@ -78,6 +89,30 @@ def test_managed_connectors_cli_reports_probe_failure(
     timescale_snapshot = connectivity["timescale"]
     assert timescale_snapshot["healthy"] is False
     assert "timescale unreachable" in timescale_snapshot["error"]
+
+
+def test_managed_connectors_cli_reports_redis_failure(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    config = _build_config()
+    _patch_config(monkeypatch, config)
+
+    monkeypatch.setattr(
+        mic,
+        "_prepare_redis_client",
+        lambda _settings: (None, "redis offline"),
+    )
+
+    exit_code = mic.main(["--connectivity", "--format", "json"])
+    assert exit_code == 0
+
+    payload = json.loads(capsys.readouterr().out.strip())
+    connectivity = {entry["name"]: entry for entry in payload["connectivity"]}
+
+    redis_snapshot = connectivity["redis"]
+    assert redis_snapshot["healthy"] is False
+    assert "redis offline" in redis_snapshot["error"]
 
 
 def test_managed_connectors_cli_can_provision_kafka_topics(

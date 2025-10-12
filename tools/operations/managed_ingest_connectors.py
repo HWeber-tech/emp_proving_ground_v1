@@ -6,16 +6,19 @@ import json
 import os
 import sys
 from pathlib import Path
-from typing import Mapping, Sequence
+from typing import Callable, Mapping, Sequence
+import logging
 
 from src.data_foundation.ingest.configuration import InstitutionalIngestConfig
 
 from sqlalchemy.engine import make_url
 
-from src.data_foundation.cache.redis_cache import InMemoryRedis
+from src.data_foundation.cache.redis_cache import RedisConnectionSettings
 from src.data_foundation.ingest.configuration import build_institutional_ingest_config
 from src.data_foundation.ingest.institutional_vertical import (
+    ConnectivityProbeError,
     InstitutionalIngestProvisioner,
+    ProbeCallable,
     plan_managed_manifest,
 )
 from src.data_foundation.streaming.kafka_stream import (
@@ -25,6 +28,8 @@ from src.data_foundation.streaming.kafka_stream import (
 )
 from src.governance.system_config import SystemConfig
 from src.runtime.task_supervisor import TaskSupervisor
+
+logger = logging.getLogger(__name__)
 
 
 class _CliEventBus:
@@ -42,6 +47,46 @@ class _CliEventBus:
 
 async def _noop_ingest() -> bool:
     return True
+
+
+def _close_redis_client(client: object) -> None:
+    """Best-effort shutdown for Redis clients created by the CLI."""
+
+    for method_name in ("close", "disconnect"):
+        method = getattr(client, method_name, None)
+        if callable(method):
+            try:
+                method()
+            except Exception:  # pragma: no cover - defensive cleanup
+                logger.debug("Redis client %s() call failed", method_name, exc_info=True)
+
+
+def _prepare_redis_client(
+    settings: RedisConnectionSettings,
+) -> tuple[object | None, str | None]:
+    """Instantiate a Redis client and validate connectivity."""
+
+    try:
+        client = settings.create_client()
+    except Exception as exc:  # pragma: no cover - emits connectivity failure
+        return None, f"redis client creation failed: {exc}"
+
+    ping = getattr(client, "ping", None)
+    if not callable(ping):
+        _close_redis_client(client)
+        return None, "redis client does not expose ping()"
+
+    try:
+        response = ping()
+    except Exception as exc:
+        _close_redis_client(client)
+        return None, f"redis ping failed: {exc}"
+
+    if not response:
+        _close_redis_client(client)
+        return None, "redis ping returned falsy response"
+
+    return client, None
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -209,10 +254,20 @@ async def _collect_connectivity(
         kafka_mapping=kafka_mapping,
     )
     supervisor = TaskSupervisor(namespace="managed-connectors-cli")
-    redis_factory = None
     redis_settings = ingest_config.redis_settings
-    if redis_settings.configured:
-        redis_factory = lambda _settings: InMemoryRedis()
+    redis_client: object | None = None
+    redis_error: str | None = None
+    redis_factory = None
+    probe_overrides: dict[str, ProbeCallable] = {}
+    if redis_settings and redis_settings.configured:
+        redis_client, redis_error = _prepare_redis_client(redis_settings)
+        if redis_client is not None:
+            redis_factory = lambda _settings: redis_client
+        elif redis_error:
+            def _redis_probe_failure() -> bool:
+                raise ConnectivityProbeError(redis_error)
+
+            probe_overrides["redis"] = _redis_probe_failure
 
     services = provisioner.provision(
         run_ingest=_noop_ingest,
@@ -222,10 +277,19 @@ async def _collect_connectivity(
     )
 
     try:
-        snapshots = await services.connectivity_report(timeout=timeout)
+        snapshots = await services.connectivity_report(
+            probes=probe_overrides or None,
+            timeout=timeout,
+        )
         return [snapshot.as_dict() for snapshot in snapshots]
     finally:
         await services.stop()
+        cache = getattr(services, "redis_cache", None)
+        raw_client = getattr(cache, "raw_client", None) if cache is not None else None
+        if redis_client is not None:
+            _close_redis_client(redis_client)
+        if raw_client is not None and raw_client is not redis_client:
+            _close_redis_client(raw_client)
 
 
 def _render_markdown_sections(report: Mapping[str, object]) -> list[str]:

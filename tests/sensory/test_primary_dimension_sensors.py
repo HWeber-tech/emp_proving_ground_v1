@@ -114,3 +114,28 @@ async def test_what_sensor_async_context_executes_pattern_engine() -> None:
     payload = (signal.metadata or {}).get("pattern_payload")
     assert isinstance(payload, dict)
     assert payload, "expected pattern payload metadata to be populated"
+
+
+def test_default_signals_include_quality_and_lineage() -> None:
+    what_sensor = WhatSensor()
+    when_sensor = WhenSensor()
+    why_sensor = WhySensor()
+
+    what_signal = what_sensor.process(None)[0]
+    when_signal = when_sensor.process(None)[0]
+    why_signal = why_sensor.process(pd.DataFrame())[0]
+
+    for signal, source in [
+        (what_signal, "sensory.what"),
+        (when_signal, "sensory.when"),
+        (why_signal, "sensory.why"),
+    ]:
+        metadata = signal.metadata or {}
+        quality = metadata.get("quality")
+        assert isinstance(quality, dict)
+        assert quality.get("source") == source
+        assert quality.get("confidence") == signal.confidence
+        lineage = metadata.get("lineage")
+        assert isinstance(lineage, dict)
+        assert lineage.get("dimension") == signal.signal_type
+        assert lineage.get("metadata", {}).get("mode") == "default"

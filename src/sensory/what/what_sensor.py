@@ -85,18 +85,7 @@ class WhatSensor:
 
     def process(self, df: pd.DataFrame | None) -> List[SensorSignal]:
         if df is None or df.empty or "close" not in df:
-            metadata: dict[str, object] = {
-                "source": "sensory.what",
-                "reason": "insufficient_market_data",
-            }
-            return [
-                SensorSignal(
-                    signal_type="WHAT",
-                    value={"pattern_strength": 0.0},
-                    confidence=0.1,
-                    metadata=metadata,
-                )
-            ]
+            return [self._default_signal(reason="insufficient_market_data")]
 
         window = 20
         recent = df.tail(window)
@@ -186,6 +175,42 @@ class WhatSensor:
                 lineage=lineage,
             )
         ]
+
+    def _default_signal(self, *, reason: str) -> SensorSignal:
+        timestamp = datetime.now(timezone.utc)
+        confidence = 0.1
+        lineage = build_lineage_record(
+            "WHAT",
+            "sensory.what",
+            inputs={},
+            outputs={"pattern_strength": 0.0, "confidence": confidence},
+            telemetry={},
+            metadata={
+                "timestamp": timestamp.isoformat(),
+                "mode": "default",
+                "reason": reason,
+            },
+        )
+        quality = {
+            "source": "sensory.what",
+            "timestamp": timestamp.isoformat(),
+            "confidence": confidence,
+            "strength": 0.0,
+            "reason": reason,
+        }
+        metadata: dict[str, object] = {
+            "source": "sensory.what",
+            "reason": reason,
+            "quality": quality,
+            "lineage": lineage.as_dict(),
+        }
+        return SensorSignal(
+            signal_type="WHAT",
+            value={"pattern_strength": 0.0, "confidence": confidence},
+            confidence=confidence,
+            metadata=metadata,
+            lineage=lineage,
+        )
 
     def _run_pattern_orchestrator(self, df: pd.DataFrame) -> dict[str, object]:
         if df.empty:

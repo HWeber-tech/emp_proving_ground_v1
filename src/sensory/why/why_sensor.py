@@ -85,7 +85,7 @@ class WhySensor:
         as_of: datetime | pd.Timestamp | None = None,
     ) -> list[SensorSignal]:
         if df is None or df.empty or "close" not in df:
-            return [SensorSignal(signal_type="WHY", value={"strength": 0.0}, confidence=0.1)]
+            return [self._default_signal(reason="no_market_data")]
 
         last_row = df.iloc[-1]
         returns = df["close"].pct_change().dropna()
@@ -222,6 +222,46 @@ class WhySensor:
                 lineage=lineage,
             )
         ]
+
+    def _default_signal(
+        self,
+        *,
+        reason: str,
+        confidence: float = 0.1,
+    ) -> SensorSignal:
+        timestamp = datetime.now(timezone.utc)
+        lineage = build_lineage_record(
+            "WHY",
+            "sensory.why",
+            inputs={},
+            outputs={"strength": 0.0, "confidence": confidence},
+            telemetry={},
+            metadata={
+                "timestamp": timestamp.isoformat(),
+                "mode": "default",
+                "reason": reason,
+            },
+        )
+        quality = {
+            "source": "sensory.why",
+            "timestamp": timestamp.isoformat(),
+            "confidence": confidence,
+            "strength": 0.0,
+            "reason": reason,
+        }
+        metadata: dict[str, object] = {
+            "source": "sensory.why",
+            "reason": reason,
+            "quality": quality,
+            "lineage": lineage.as_dict(),
+        }
+        return SensorSignal(
+            signal_type="WHY",
+            value={"strength": 0.0, "confidence": confidence},
+            confidence=confidence,
+            metadata=metadata,
+            lineage=lineage,
+        )
 
     def _resolve_timestamp(
         self, df: pd.DataFrame, as_of: datetime | pd.Timestamp | None

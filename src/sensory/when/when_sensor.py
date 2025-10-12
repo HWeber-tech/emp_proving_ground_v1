@@ -253,19 +253,43 @@ class WhenSensor:
             )
         return GammaExposureSummary.empty(as_of=as_of, symbol=symbol, spot_price=spot_price)
 
-    def _default_signal(self, *, confidence: float) -> SensorSignal:
+    def _default_signal(self, *, confidence: float, reason: str = "no_market_data") -> SensorSignal:
         components: dict[str, object] = {
             "session_intensity": 0.0,
             "news_proximity": 0.0,
             "gamma_impact": 0.0,
         }
+        timestamp = datetime.now(timezone.utc)
+        quality: dict[str, object] = {
+            "source": "sensory.when",
+            "timestamp": timestamp.isoformat(),
+            "confidence": confidence,
+            "strength": 0.0,
+            "reason": reason,
+        }
+        lineage = build_lineage_record(
+            "WHEN",
+            "sensory.when",
+            inputs={},
+            outputs={"strength": 0.0, "confidence": confidence},
+            telemetry=components,
+            metadata={
+                "timestamp": timestamp.isoformat(),
+                "mode": "default",
+                "reason": reason,
+            },
+        )
         metadata: dict[str, object] = {
             "source": "sensory.when",
             "components": components,
+            "reason": reason,
+            "quality": quality,
+            "lineage": lineage.as_dict(),
         }
         return SensorSignal(
             signal_type="WHEN",
             value={"strength": 0.0, "confidence": confidence},
             confidence=confidence,
             metadata=metadata,
+            lineage=lineage,
         )

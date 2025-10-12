@@ -208,7 +208,17 @@ class UnderstandingRouter:
         fast_weights: Mapping[str, float] | None = None,
         as_of: datetime | None = None,
     ) -> UnderstandingDecision:
-        weights: MutableMapping[str, float] = dict(fast_weights or {})
+        weights: MutableMapping[str, float] = {}
+        if snapshot.fast_weights_enabled and fast_weights:
+            for tactic_id, value in fast_weights.items():
+                try:
+                    weights[str(tactic_id)] = float(value)
+                except (TypeError, ValueError):
+                    continue
+        elif fast_weights:
+            # Feature flag explicitly disables all fast-weight multipliers, so any
+            # externally supplied overrides are ignored to restore baseline routing.
+            weights.clear()
 
         applied: list[str] = []
         summaries: dict[str, Mapping[str, object]] = {}

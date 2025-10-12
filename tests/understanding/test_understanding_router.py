@@ -116,6 +116,20 @@ def test_understanding_router_respects_fast_weight_disable_flag() -> None:
     assert metrics["total"] == 2
 
 
+def test_understanding_router_ignores_external_fast_weights_when_disabled() -> None:
+    router = _build_router()
+    snapshot = _build_snapshot(fast_weights_enabled=False)
+
+    decision_bundle = router.route(snapshot, fast_weights={"alpha_strike": 3.2})
+
+    assert decision_bundle.decision.tactic_id == "beta_hold"
+    assert decision_bundle.fast_weight_summary == {}
+    assert decision_bundle.fast_weight_metrics["active_percentage"] == pytest.approx(0.0)
+    breakdown = decision_bundle.decision.weight_breakdown
+    assert breakdown["fast_weight_multiplier"] == pytest.approx(1.0)
+    assert breakdown["fast_weight_active_percentage"] == pytest.approx(0.0)
+
+
 def test_understanding_router_feature_gate_blocks_without_threshold() -> None:
     router = _build_router()
     snapshot = _build_snapshot(liquidity_z=0.1)

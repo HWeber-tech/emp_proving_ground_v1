@@ -147,6 +147,24 @@ def test_route_respects_external_fast_weights() -> None:
     assert metrics["dormant_ids"] == ("base",)
 
 
+def test_route_clamps_negative_fast_weight_overrides() -> None:
+    router = PolicyRouter()
+    router.register_tactic(PolicyTactic(tactic_id="base", base_weight=1.0))
+    router.register_tactic(PolicyTactic(tactic_id="alt", base_weight=0.8))
+
+    decision = router.route(_regime(), fast_weights={"alt": -3.5})
+
+    assert decision.tactic_id == "base"
+    breakdown = decision.weight_breakdown
+    assert breakdown["fast_weight_multiplier"] == pytest.approx(1.0)
+    assert breakdown["fast_weight_active_percentage"] == pytest.approx(0.0)
+    metrics = decision.fast_weight_metrics
+    assert metrics["active"] == 0
+    assert metrics["min_multiplier"] == pytest.approx(0.0)
+    assert metrics["max_multiplier"] == pytest.approx(1.0)
+    assert all(value >= 0.0 for value in metrics.values() if isinstance(value, (int, float)))
+
+
 def test_fast_weight_metrics_zero_when_no_adjustments() -> None:
     router = PolicyRouter()
     router.register_tactic(PolicyTactic(tactic_id="solo", base_weight=1.0))

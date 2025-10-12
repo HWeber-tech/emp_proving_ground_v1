@@ -1515,6 +1515,158 @@ class TradingManager:
             "samples": samples,
         }
 
+    def assess_performance_health(
+        self,
+        *,
+        max_processing_ms: float = 250.0,
+        max_lag_ms: float = 250.0,
+        backlog_threshold_ms: float | None = None,
+        max_cpu_percent: float | None = None,
+        max_memory_mb: float | None = None,
+        max_memory_percent: float | None = None,
+    ) -> Mapping[str, object]:
+        """Evaluate latency, backlog, and resource posture against budgets."""
+
+        throughput_health = dict(
+            self.assess_throughput_health(
+                max_processing_ms=max_processing_ms, max_lag_ms=max_lag_ms
+            )
+        )
+
+        backlog_snapshot_raw = self._backlog_tracker.snapshot()
+        backlog_snapshot = (
+            dict(backlog_snapshot_raw) if isinstance(backlog_snapshot_raw, MappingABC) else {}
+        )
+        backlog_samples = coerce_int(backlog_snapshot.get("samples"), default=0)
+        if backlog_threshold_ms is not None:
+            resolved_backlog_threshold = float(backlog_threshold_ms)
+        else:
+            snapshot_threshold = backlog_snapshot.get("threshold_ms")
+            if snapshot_threshold is not None:
+                resolved_backlog_threshold = float(snapshot_threshold)
+            else:
+                resolved_backlog_threshold = float(getattr(self._backlog_tracker, "threshold_ms", 0.0))
+
+        backlog_max_lag = backlog_snapshot.get("max_lag_ms")
+        backlog_max_lag_value = float(backlog_max_lag) if backlog_max_lag is not None else None
+        backlog_evaluated = backlog_samples > 0 and backlog_max_lag_value is not None
+        if backlog_evaluated:
+            backlog_healthy = backlog_max_lag_value <= resolved_backlog_threshold
+        else:
+            backlog_healthy = bool(backlog_snapshot.get("healthy", True))
+
+        backlog_result: dict[str, object] = {
+            "healthy": backlog_healthy,
+            "evaluated": backlog_evaluated,
+            "threshold_ms": resolved_backlog_threshold,
+            "samples": backlog_samples,
+            "max_lag_ms": backlog_max_lag_value,
+            "snapshot": backlog_snapshot,
+        }
+
+        resource_snapshot_raw = self._resource_monitor.snapshot()
+        resource_snapshot = (
+            dict(resource_snapshot_raw)
+            if isinstance(resource_snapshot_raw, MappingABC)
+            else {}
+        )
+        resource_limits = {
+            "max_cpu_percent": float(max_cpu_percent) if max_cpu_percent is not None else None,
+            "max_memory_mb": float(max_memory_mb) if max_memory_mb is not None else None,
+            "max_memory_percent": float(max_memory_percent)
+            if max_memory_percent is not None
+            else None,
+        }
+        limit_to_field = {
+            "max_cpu_percent": "cpu_percent",
+            "max_memory_mb": "memory_mb",
+            "max_memory_percent": "memory_percent",
+        }
+        limits_configured = any(value is not None for value in resource_limits.values())
+        resource_status = "not_configured"
+        resource_healthy = True
+        violations: dict[str, dict[str, float]] = {}
+        evaluated_metrics: list[str] = []
+        if limits_configured:
+            resource_status = "no_data"
+            resource_healthy = False
+            for limit_key, limit_value in resource_limits.items():
+                if limit_value is None:
+                    continue
+                field = limit_to_field[limit_key]
+                sample_value = resource_snapshot.get(field)
+                if sample_value is None:
+                    continue
+                evaluated_metrics.append(limit_key)
+                try:
+                    numeric_value = float(sample_value)
+                except (TypeError, ValueError):
+                    continue
+                if numeric_value <= float(limit_value):
+                    continue
+                resource_status = "violated"
+                resource_healthy = False
+                violations[limit_key] = {
+                    "value": numeric_value,
+                    "limit": float(limit_value),
+                }
+            if evaluated_metrics and not violations:
+                resource_status = "ok"
+                resource_healthy = True
+            elif not evaluated_metrics:
+                resource_status = "no_data"
+                resource_healthy = False
+
+        resource_result: dict[str, object] = {
+            "healthy": resource_healthy,
+            "status": resource_status,
+            "limits": resource_limits,
+            "evaluated_metrics": evaluated_metrics,
+            "violations": violations,
+            "sample": resource_snapshot,
+        }
+
+        throttle_summary: Mapping[str, Any] | None = None
+        throttle_snapshot = self.get_trade_throttle_snapshot()
+        if isinstance(throttle_snapshot, MappingABC):
+            summary: dict[str, Any] = {
+                "state": throttle_snapshot.get("state"),
+                "active": bool(throttle_snapshot.get("active", False)),
+                "reason": throttle_snapshot.get("reason"),
+                "message": throttle_snapshot.get("message"),
+            }
+            metadata = throttle_snapshot.get("metadata")
+            if isinstance(metadata, MappingABC):
+                retry_at = metadata.get("retry_at")
+                if retry_at is not None:
+                    summary["retry_at"] = retry_at
+                context = metadata.get("context")
+                if isinstance(context, MappingABC) and context:
+                    summary["context"] = dict(context)
+            throttle_summary = summary
+
+        overall_checks: list[bool] = [bool(throughput_health.get("healthy"))]
+        if backlog_result["evaluated"]:
+            overall_checks.append(bool(backlog_result["healthy"]))
+        if resource_status == "violated":
+            overall_checks.append(False)
+        elif resource_status == "ok":
+            overall_checks.append(True)
+        elif resource_status == "no_data":
+            overall_checks.append(False)
+
+        overall_healthy = all(overall_checks) if overall_checks else False
+
+        result: dict[str, object] = {
+            "healthy": overall_healthy,
+            "throughput": throughput_health,
+            "backlog": backlog_result,
+            "resource": resource_result,
+        }
+        if throttle_summary is not None:
+            result["throttle"] = throttle_summary
+        return result
+
     def get_trade_throttle_snapshot(self) -> Mapping[str, Any] | None:
         """Expose the most recent trade throttle posture."""
 

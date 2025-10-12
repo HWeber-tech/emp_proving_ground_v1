@@ -188,6 +188,27 @@ class _BlockingProbeBroker:
         self._allow_fill.set()
 
 
+class StaticResourceMonitor:
+    def __init__(self, snapshot: Mapping[str, object] | None = None) -> None:
+        base_snapshot = {
+            "timestamp": None,
+            "cpu_percent": None,
+            "memory_mb": None,
+            "memory_percent": None,
+        }
+        if snapshot:
+            base_snapshot.update(snapshot)
+        self._snapshot = base_snapshot
+
+    def update(self, **fields: object) -> None:
+        self._snapshot.update(fields)
+
+    def snapshot(self) -> Mapping[str, object]:
+        return dict(self._snapshot)
+
+    def sample(self) -> Mapping[str, object]:
+        return self.snapshot()
+
 
 def test_trading_manager_requires_risk_config() -> None:
     with pytest.raises(ValueError):
@@ -268,6 +289,136 @@ def test_trading_manager_rejects_conflicting_monitor_configuration(
             backlog_tracker=EventBacklogTracker(threshold_ms=80.0),
             backlog_threshold_ms=100.0,
         )
+
+
+def test_assess_performance_health_reports_success(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _silence_trading_manager_publishers(monkeypatch)
+
+    now = datetime.now(tz=timezone.utc)
+    throughput = ThroughputMonitor(window=16)
+    throughput.record(
+        started_at=now,
+        finished_at=now + timedelta(milliseconds=120),
+        ingested_at=now - timedelta(milliseconds=35),
+    )
+    throughput.record(
+        started_at=now + timedelta(seconds=1),
+        finished_at=now + timedelta(seconds=1, milliseconds=110),
+        ingested_at=now + timedelta(seconds=1, milliseconds=-20),
+    )
+
+    backlog = EventBacklogTracker(threshold_ms=200.0)
+    backlog.record(lag_ms=120.0, timestamp=now)
+
+    resource_monitor = StaticResourceMonitor(
+        {
+            "timestamp": now.isoformat(),
+            "cpu_percent": 42.0,
+            "memory_mb": 512.0,
+            "memory_percent": 36.0,
+        }
+    )
+
+    manager = TradingManager(
+        event_bus=DummyBus(),
+        strategy_registry=AlwaysActiveRegistry(),
+        execution_engine=None,
+        risk_config=RiskConfig(
+            min_position_size=1,
+            mandatory_stop_loss=False,
+            research_mode=True,
+        ),
+        throughput_monitor=throughput,
+        backlog_tracker=backlog,
+        resource_monitor=resource_monitor,
+    )
+
+    assessment = manager.assess_performance_health(
+        max_processing_ms=200.0,
+        max_lag_ms=200.0,
+        backlog_threshold_ms=180.0,
+        max_cpu_percent=75.0,
+        max_memory_mb=1024.0,
+        max_memory_percent=70.0,
+    )
+
+    assert assessment["healthy"] is True
+    assert assessment["throughput"]["healthy"] is True
+    assert assessment["backlog"]["healthy"] is True
+    resource_result = assessment["resource"]
+    assert resource_result["healthy"] is True
+    assert resource_result["status"] == "ok"
+    assert set(resource_result["evaluated_metrics"]) == {
+        "max_cpu_percent",
+        "max_memory_mb",
+        "max_memory_percent",
+    }
+    assert resource_result["violations"] == {}
+    assert "throttle" not in assessment
+
+
+def test_assess_performance_health_flags_violations(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _silence_trading_manager_publishers(monkeypatch)
+
+    now = datetime.now(tz=timezone.utc)
+    throughput = ThroughputMonitor(window=8)
+    throughput.record(
+        started_at=now,
+        finished_at=now + timedelta(milliseconds=220),
+        ingested_at=now - timedelta(milliseconds=10),
+    )
+
+    backlog = EventBacklogTracker(threshold_ms=90.0)
+    backlog.record(lag_ms=240.0, timestamp=now)
+
+    resource_monitor = StaticResourceMonitor(
+        {
+            "timestamp": now.isoformat(),
+            "cpu_percent": 92.0,
+            "memory_mb": 4096.0,
+            "memory_percent": 88.0,
+        }
+    )
+
+    manager = TradingManager(
+        event_bus=DummyBus(),
+        strategy_registry=AlwaysActiveRegistry(),
+        execution_engine=None,
+        risk_config=RiskConfig(
+            min_position_size=1,
+            mandatory_stop_loss=False,
+            research_mode=True,
+        ),
+        throughput_monitor=throughput,
+        backlog_tracker=backlog,
+        resource_monitor=resource_monitor,
+    )
+
+    assessment = manager.assess_performance_health(
+        max_processing_ms=120.0,
+        max_lag_ms=100.0,
+        backlog_threshold_ms=150.0,
+        max_cpu_percent=75.0,
+        max_memory_mb=1024.0,
+        max_memory_percent=65.0,
+    )
+
+    assert assessment["healthy"] is False
+    assert assessment["throughput"]["healthy"] is False
+    assert assessment["backlog"]["healthy"] is False
+    resource_result = assessment["resource"]
+    assert resource_result["status"] == "violated"
+    assert resource_result["healthy"] is False
+    assert {
+        "max_cpu_percent",
+        "max_memory_mb",
+        "max_memory_percent",
+    } <= set(resource_result["violations"].keys())
+    assert "throttle" not in assessment
 
 @pytest.mark.asyncio()
 async def test_trading_manager_records_execution_stats(monkeypatch: pytest.MonkeyPatch) -> None:

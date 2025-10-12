@@ -31,6 +31,22 @@ def test_build_execution_performance_report_includes_throttle_and_throughput() -
             "max_lag_ms": 4.0,
             "throughput_per_min": 96.0,
         },
+        "backlog": {
+            "samples": 5,
+            "threshold_ms": 150.0,
+            "max_lag_ms": 80.0,
+            "avg_lag_ms": 25.0,
+            "breaches": 1,
+            "worst_breach_ms": 120.0,
+            "last_breach_at": datetime(2024, 1, 1, 12, 0, tzinfo=timezone.utc).isoformat(),
+            "healthy": True,
+        },
+        "resource_usage": {
+            "timestamp": datetime(2024, 1, 1, 12, 0, tzinfo=timezone.utc).isoformat(),
+            "cpu_percent": 35.0,
+            "memory_mb": 512.0,
+            "memory_percent": 42.0,
+        },
     }
 
     report = build_execution_performance_report(stats)
@@ -44,6 +60,12 @@ def test_build_execution_performance_report_includes_throttle_and_throughput() -
     assert "Context: strategy_id=alpha, symbol=EURUSD" in report
     assert "Throughput (per min)" in report
     assert "96.00" in report
+    assert "Event backlog" in report
+    assert "Threshold (ms): 150.00" in report
+    assert "Worst breach (ms): 120.00" in report
+    assert "Resource usage snapshot" in report
+    assert "CPU (%): 35.00" in report
+    assert "Memory (MB): 512.00" in report
 
 
 def test_build_execution_performance_report_handles_missing_sections() -> None:
@@ -51,3 +73,5 @@ def test_build_execution_performance_report_handles_missing_sections() -> None:
 
     assert "Submitted: —" in report
     assert "Throughput window" not in report
+    assert "Event backlog" not in report
+    assert "Resource usage snapshot" not in report

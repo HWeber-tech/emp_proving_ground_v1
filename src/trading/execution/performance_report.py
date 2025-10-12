@@ -74,6 +74,39 @@ def build_execution_performance_report(stats: Mapping[str, object]) -> str:
         lines.append(
             f"| Throughput (per min) | {_format_float(throughput.get('throughput_per_min'))} |")
 
+    backlog = stats.get("backlog")
+    if isinstance(backlog, Mapping):
+        lines.append("")
+        lines.append("## Event backlog")
+        lines.append(f"- Samples: {_format_optional(backlog.get('samples'))}")
+        lines.append(
+            f"- Threshold (ms): {_format_float(backlog.get('threshold_ms'))}"
+        )
+        lines.append(f"- Max lag (ms): {_format_float(backlog.get('max_lag_ms'))}")
+        lines.append(f"- Avg lag (ms): {_format_float(backlog.get('avg_lag_ms'))}")
+        breaches = backlog.get("breaches")
+        lines.append(f"- Breaches: {_format_optional(breaches)}")
+        worst_breach = backlog.get("worst_breach_ms")
+        if worst_breach not in (None, ""):
+            lines.append(f"- Worst breach (ms): {_format_float(worst_breach)}")
+        last_breach = backlog.get("last_breach_at")
+        if last_breach:
+            lines.append(f"- Last breach: {last_breach}")
+        healthy = backlog.get("healthy")
+        if isinstance(healthy, bool):
+            lines.append(f"- Healthy: {'Yes' if healthy else 'No'}")
+
+    resource = stats.get("resource_usage")
+    if isinstance(resource, Mapping):
+        lines.append("")
+        lines.append("## Resource usage snapshot")
+        lines.append(f"- Sampled at: {_format_optional(resource.get('timestamp'))}")
+        lines.append(f"- CPU (%): {_format_float(resource.get('cpu_percent'))}")
+        lines.append(f"- Memory (MB): {_format_float(resource.get('memory_mb'))}")
+        lines.append(
+            f"- Memory (%): {_format_float(resource.get('memory_percent'))}"
+        )
+
     return "\n".join(lines) + "\n"
 
 

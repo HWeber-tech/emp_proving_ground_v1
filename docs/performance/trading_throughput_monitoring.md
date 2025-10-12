@@ -48,6 +48,24 @@ latency budgets:
 Use tighter bounds for high-frequency drills (e.g. 100 ms processing, 500 ms lag)
 and widen them for slower venues.
 
+### Performance health helper
+
+`TradingManager.assess_performance_health()` bundles throughput, backlog, and
+resource thresholds into a single verdict. In addition to the throughput
+assessment above it:
+
+- Compares the latest `EventBacklogTracker` snapshot against either the tracker’s
+  configured threshold or an override supplied via `backlog_threshold_ms`.
+- Validates CPU and memory samples from `ResourceUsageMonitor` using optional
+  limits (`max_cpu_percent`, `max_memory_mb`, `max_memory_percent`).
+- Surfaces the throttle state (active/reason/message) alongside the health
+  summary so operators can see whether rate limits contributed to a slowdown.
+
+The helper returns a dictionary containing the component verdicts (throughput,
+backlog, resource) plus an overall `healthy` flag. When resource thresholds are
+defined but no process metrics are available, the helper marks the resource
+status as `"no_data"` so missing baselines surface in smoke tests.
+
 ### Backlog posture
 
 Event ingest lag also drives a dedicated `backlog` snapshot populated by the new
@@ -151,3 +169,9 @@ expected scope-aware throttle snapshot.【F:src/runtime/predator_app.py†L1723-
 This instrumentation provides the quantitative evidence required by the roadmap
 to demonstrate that throttling keeps the system responsive under bursty trading
 conditions.
+
+`build_execution_performance_report()` now renders backlog posture and resource
+usage snapshots next to the throttle and throughput sections. The Markdown
+report includes threshold values, breach counters, and recent CPU/memory samples
+so baseline captures can be dropped straight into runbooks without additional
+formatting.

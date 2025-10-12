@@ -5,7 +5,10 @@ excitatory (non-negative) adjustments and keeps the number of boosted
 strategies sparse.  This module provides a small controller that takes
 an incoming mapping of tactic multipliers, clamps them to non-negative
 values, and prunes low-activation multipliers so that only the strongest
-signals remain active at any decision step.
+signals remain active at any decision step.  When inhibitory (below
+baseline) multipliers are supplied, the controller can either surface
+them explicitly or suppress them entirely depending on the configured
+constraints so governance can reason about the adaptation posture.
 """
 
 from __future__ import annotations
@@ -50,10 +53,14 @@ class FastWeightMetrics:
     total: int
     active: int
     dormant: int
+    inhibitory: int
+    suppressed_inhibitory: int
     active_percentage: float
     sparsity: float
     active_ids: tuple[str, ...]
     dormant_ids: tuple[str, ...]
+    inhibitory_ids: tuple[str, ...]
+    suppressed_inhibitory_ids: tuple[str, ...]
     max_multiplier: float | None
     min_multiplier: float | None
 
@@ -62,10 +69,14 @@ class FastWeightMetrics:
             "total": self.total,
             "active": self.active,
             "dormant": self.dormant,
+            "inhibitory": self.inhibitory,
+            "suppressed_inhibitory": self.suppressed_inhibitory,
             "active_percentage": self.active_percentage,
             "sparsity": self.sparsity,
             "active_ids": self.active_ids,
             "dormant_ids": self.dormant_ids,
+            "inhibitory_ids": self.inhibitory_ids,
+            "suppressed_inhibitory_ids": self.suppressed_inhibitory_ids,
             "max_multiplier": self.max_multiplier,
             "min_multiplier": self.min_multiplier,
         }
@@ -116,6 +127,7 @@ class FastWeightController:
         excitatory_only = constraints.excitatory_only
 
         final_values: MutableMapping[str, float] = {tactic_id: baseline for tactic_id in tactic_order}
+        raw_values: MutableMapping[str, float] = {tactic_id: baseline for tactic_id in tactic_order}
         activations: list[tuple[str, float]] = []
 
         if fast_weights:
@@ -135,6 +147,7 @@ class FastWeightController:
                 if excitatory_only and value < baseline:
                     value = baseline
                 final_values[tactic_id] = value
+                raw_values[tactic_id] = value
                 if value > activation_threshold:
                     activations.append((tactic_id, value))
 
@@ -154,11 +167,18 @@ class FastWeightController:
         active_count = 0
         active_ids: list[str] = []
         dormant_ids: list[str] = []
+        inhibitory_ids: list[str] = []
+        suppressed_inhibitory_ids: list[str] = []
         max_multiplier: float | None = None
         min_multiplier: float | None = None
 
         for tactic_id in tactic_order:
             value = final_values[tactic_id]
+            raw_value = raw_values[tactic_id]
+            if not constraints.allow_inhibitory and raw_value < baseline - tolerance:
+                suppressed_inhibitory_ids.append(tactic_id)
+            if not constraints.allow_inhibitory and value < baseline:
+                value = baseline
             if value < 0.0:
                 value = 0.0
             if not math.isfinite(value):
@@ -173,12 +193,17 @@ class FastWeightController:
             else:
                 dormant_ids.append(tactic_id)
 
+            if value < baseline - tolerance:
+                inhibitory_ids.append(tactic_id)
+
             max_multiplier = value if max_multiplier is None else max(max_multiplier, value)
             min_multiplier = value if min_multiplier is None else min(min_multiplier, value)
 
         dormant = max(0, total - active_count)
         active_percentage = (active_count / total * 100.0) if total else 0.0
         sparsity = 1.0 - (active_count / total) if total else 1.0
+        inhibitory_count = len(inhibitory_ids)
+        suppressed_inhibitory_count = len(suppressed_inhibitory_ids)
 
         constrained = {
             tactic_id: value
@@ -190,10 +215,14 @@ class FastWeightController:
             total=total,
             active=active_count,
             dormant=dormant,
+            inhibitory=inhibitory_count,
+            suppressed_inhibitory=suppressed_inhibitory_count,
             active_percentage=active_percentage,
             sparsity=sparsity,
             active_ids=tuple(active_ids),
             dormant_ids=tuple(dormant_ids),
+            inhibitory_ids=tuple(inhibitory_ids),
+            suppressed_inhibitory_ids=tuple(suppressed_inhibitory_ids),
             max_multiplier=float(max_multiplier) if max_multiplier is not None else None,
             min_multiplier=float(min_multiplier) if min_multiplier is not None else None,
         )

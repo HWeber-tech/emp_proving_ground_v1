@@ -4,6 +4,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
+from src.thinking.adaptation.fast_weights import FastWeightConstraints, FastWeightController
 from src.thinking.adaptation.policy_router import (
     FastWeightExperiment,
     PolicyRouter,
@@ -163,6 +164,24 @@ def test_route_clamps_negative_fast_weight_overrides() -> None:
     assert metrics["min_multiplier"] == pytest.approx(0.0)
     assert metrics["max_multiplier"] == pytest.approx(1.0)
     assert all(value >= 0.0 for value in metrics.values() if isinstance(value, (int, float)))
+
+
+def test_route_suppresses_inhibitory_when_constraints_disallow() -> None:
+    controller = FastWeightController(FastWeightConstraints(allow_inhibitory=False))
+    router = PolicyRouter(fast_weight_controller=controller)
+    router.register_tactic(PolicyTactic(tactic_id="base", base_weight=1.0))
+    router.register_tactic(PolicyTactic(tactic_id="alt", base_weight=0.8))
+
+    decision = router.route(_regime(), fast_weights={"alt": 0.6})
+
+    assert decision.tactic_id == "base"
+    breakdown = decision.weight_breakdown
+    assert breakdown["fast_weight_multiplier"] == pytest.approx(1.0)
+    assert breakdown["fast_weight_active_percentage"] == pytest.approx(0.0)
+    metrics = decision.fast_weight_metrics
+    assert metrics["inhibitory"] == 0
+    assert metrics["suppressed_inhibitory"] == 1
+    assert metrics["suppressed_inhibitory_ids"] == ("alt",)
 
 
 def test_fast_weight_metrics_zero_when_no_adjustments() -> None:

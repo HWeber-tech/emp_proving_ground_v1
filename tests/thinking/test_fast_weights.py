@@ -10,45 +10,40 @@ from src.thinking.adaptation.fast_weights import (
 )
 
 
-def test_controller_clamps_negative_and_prunes_to_sparse_subset() -> None:
+def test_controller_clamps_inhibitory_when_disabled() -> None:
     controller = FastWeightController(
-        FastWeightConstraints(activation_threshold=1.05, max_active_fraction=0.4)
+        FastWeightConstraints(
+            allow_inhibitory=False,
+            activation_threshold=1.05,
+        )
     )
-    tactics = ("alpha", "bravo", "charlie", "delta", "echo")
+
     result = controller.constrain(
-        fast_weights={
-            "alpha": 1.8,
-            "bravo": 1.2,
-            "charlie": 1.1,
-            "delta": 0.5,
-            "echo": -0.4,
-        },
-        tactic_ids=tactics,
+        fast_weights={"alpha": 0.4, "beta": 1.3},
+        tactic_ids=("alpha", "beta"),
     )
 
-    assert set(result.weights) == {"alpha", "bravo", "delta", "echo"}
-    assert result.weights["alpha"] == pytest.approx(1.8)
-    assert result.weights["bravo"] == pytest.approx(1.2)
-    assert result.weights["delta"] == pytest.approx(0.5)
-    assert result.weights["echo"] == pytest.approx(0.0)
-    assert all(value >= 0.0 for value in result.weights.values())
+    weights = result.weights
+    # `alpha` multiplier is suppressed back to baseline so it is omitted from the
+    # constrained payload, while the excitatory `beta` multiplier survives.
+    assert "alpha" not in weights
+    assert weights["beta"] == pytest.approx(1.3)
 
-    metrics = result.metrics
-    assert metrics.total == 5
-    assert metrics.active == 2
-    assert metrics.dormant == 3
-    assert metrics.active_percentage == pytest.approx(40.0)
-    assert metrics.sparsity == pytest.approx(0.6)
-    assert metrics.active_ids == ("alpha", "bravo")
-    assert metrics.dormant_ids == ("charlie", "delta", "echo")
-    assert metrics.max_multiplier == pytest.approx(1.8)
-    assert metrics.min_multiplier == pytest.approx(0.0)
+    metrics = result.metrics.as_dict()
+    assert metrics["inhibitory"] == 0
+    assert metrics["suppressed_inhibitory"] == 1
+    assert metrics["suppressed_inhibitory_ids"] == ("alpha",)
+    assert metrics["min_multiplier"] == pytest.approx(1.0)
 
 
-def test_controller_returns_zero_active_when_no_fast_weights() -> None:
-    controller = FastWeightController()
-    tactics = ("alpha", "bravo")
-    result = controller.constrain(fast_weights=None, tactic_ids=tactics)
+def test_controller_tracks_inhibitory_when_allowed() -> None:
+    controller = FastWeightController(
+        FastWeightConstraints(
+            allow_inhibitory=True,
+            activation_threshold=1.1,
+            prune_tolerance=1e-6,
+        )
+    )
 
     assert result.weights == {}
     assert result.metrics.total == 2

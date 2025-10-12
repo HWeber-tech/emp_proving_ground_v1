@@ -136,6 +136,7 @@
     into its summary payload so observability exports include ingestion and
     trading workload metadata by default, with runtime builder and test coverage
     guaranteeing the workloads surface verbatim for operators.【F:src/runtime/predator_app.py†L328-L391】【F:src/runtime/predator_app.py†L1498-L1509】【F:src/runtime/runtime_builder.py†L3940-L3949】【F:tests/runtime/test_runtime_builder.py†L309-L348】
+  - Progress: RuntimeApplication now offers `create_background_task` and `register_background_task` helpers so supervised runs can spawn or adopt ad-hoc coroutines without leaking outside the TaskSupervisor, with regression proving tracked snapshots report the custom tasks and metadata counts.【F:src/runtime/runtime_builder.py†L298-L326】【F:src/runtime/runtime_builder.py†L896-L918】【F:tests/runtime/test_runtime_builder.py†L1952-L2009】
 - Progress: Coverage matrix CLI now exposes lagging domains via the
   `identify_laggards` helper, exports the list of covered source files, and
   enforces required regression suites through `--require-file`, failing the

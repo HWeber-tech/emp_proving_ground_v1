@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections import deque
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
+import math
 import re
 from types import MappingProxyType
 from typing import Any, Deque, Mapping, MutableMapping
@@ -35,6 +36,14 @@ class TradeThrottleConfig(BaseModel):
         default=0.0,
         ge=0.0,
         description="Optional cooldown period after hitting the limit",
+    )
+    min_spacing_seconds: float = Field(
+        default=0.0,
+        ge=0.0,
+        description=(
+            "Minimum elapsed time required between consecutive trades before "
+            "the throttle permits a new order"
+        ),
     )
     multiplier: float | None = Field(
         default=None,
@@ -114,6 +123,7 @@ class TradeThrottle:
     class _ThrottleState:
         timestamps: Deque[datetime]
         cooldown_until: datetime | None = None
+        last_trade: datetime | None = None
 
     def __init__(self, config: TradeThrottleConfig) -> None:
         self._config = config
@@ -152,6 +162,7 @@ class TradeThrottle:
         reason: str | None = None
         active = False
         retry_at: datetime | None = None
+        message: str | None = None
 
         if state.cooldown_until is not None and moment < state.cooldown_until:
             allowed = False
@@ -159,6 +170,13 @@ class TradeThrottle:
             throttle_state = "cooldown"
             retry_at = state.cooldown_until
             reason = "cooldown_active"
+        elif self._min_spacing_violation(state, moment):
+            allowed = False
+            active = True
+            throttle_state = "min_interval"
+            reason, retry_at = self._build_min_spacing_reason(state, moment)
+            if retry_at is not None:
+                message = self._format_min_spacing_message(retry_at, moment)
         elif len(state.timestamps) >= self._config.max_trades:
             allowed = False
             active = True
@@ -176,8 +194,10 @@ class TradeThrottle:
             allowed = True
             state.timestamps.append(moment)
             state.cooldown_until = None
+            state.last_trade = moment
 
-        message = self._format_reason(reason, retry_at)
+        if message is None:
+            message = self._format_reason(reason, retry_at)
 
         snapshot = self._build_snapshot(
             state=throttle_state,
@@ -238,6 +258,8 @@ class TradeThrottle:
             "window_seconds": float(self._config.window_seconds),
             "recent_trades": recent_trades,
         }
+        if self._config.min_spacing_seconds:
+            meta_payload["min_spacing_seconds"] = float(self._config.min_spacing_seconds)
         cooldown_seconds = float(self._config.cooldown_seconds)
         if cooldown_seconds:
             meta_payload["cooldown_seconds"] = cooldown_seconds
@@ -279,6 +301,47 @@ class TradeThrottle:
             state = TradeThrottle._ThrottleState(timestamps=deque())
             self._states[scope_key] = state
         return state
+
+    def _min_spacing_violation(
+        self, state: "TradeThrottle._ThrottleState", moment: datetime
+    ) -> bool:
+        min_spacing_seconds = float(self._config.min_spacing_seconds)
+        if min_spacing_seconds <= 0:
+            return False
+        last_trade = state.last_trade
+        if last_trade is None:
+            return False
+        min_spacing = timedelta(seconds=min_spacing_seconds)
+        if moment - last_trade < min_spacing:
+            return True
+        return False
+
+    def _build_min_spacing_reason(
+        self, state: "TradeThrottle._ThrottleState", moment: datetime
+    ) -> tuple[str, datetime | None]:
+        last_trade = state.last_trade
+        min_spacing_seconds = float(self._config.min_spacing_seconds)
+        min_spacing = timedelta(seconds=min_spacing_seconds)
+        retry_at = None
+        if last_trade is not None:
+            retry_at = last_trade + min_spacing
+        reason = f"min_interval_{min_spacing_seconds:g}s"
+        return reason, retry_at
+
+    def _format_min_spacing_message(
+        self, retry_at: datetime | None, moment: datetime
+    ) -> str | None:
+        if retry_at is None:
+            return None
+        remaining = retry_at - moment
+        remaining_seconds = max(remaining.total_seconds(), 0.0)
+        label = self._format_seconds_brief(float(self._config.min_spacing_seconds))
+        remaining_label = self._format_seconds_brief(remaining_seconds)
+        retry_iso = retry_at.astimezone(UTC).isoformat()
+        return (
+            "Throttled: minimum interval of "
+            f"{label} between trades (retry in {remaining_label} at {retry_iso})"
+        )
 
     def _resolve_scope(
         self, metadata: Mapping[str, Any] | None
@@ -362,3 +425,19 @@ class TradeThrottle:
             minutes = window_seconds // 60
             return f"{minutes} minute{'s' if minutes != 1 else ''}"
         return f"{window_seconds} second{'s' if window_seconds != 1 else ''}"
+
+    @staticmethod
+    def _format_seconds_brief(seconds: float) -> str:
+        if seconds < 0:
+            seconds = 0.0
+        if seconds >= 3600 and math.isclose(seconds % 3600, 0.0, abs_tol=1e-9):
+            hours = seconds / 3600
+            return f"{hours:g} hour{'s' if hours != 1 else ''}"
+        if seconds >= 60 and math.isclose(seconds % 60, 0.0, abs_tol=1e-9):
+            minutes = seconds / 60
+            return f"{minutes:g} minute{'s' if minutes != 1 else ''}"
+        if math.isclose(seconds, 1.0, abs_tol=1e-9):
+            return "1 second"
+        if seconds.is_integer():
+            return f"{int(seconds)} seconds"
+        return f"{seconds:.2f} seconds"

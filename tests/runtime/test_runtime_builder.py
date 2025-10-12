@@ -165,6 +165,65 @@ async def test_runtime_application_restart_policy_recovers_failed_workload(
 
 
 @pytest.mark.asyncio()
+async def test_runtime_application_shutdown_cancels_active_workloads() -> None:
+    ingest_started = asyncio.Event()
+    trade_started = asyncio.Event()
+    ingest_finished = asyncio.Event()
+    trade_finished = asyncio.Event()
+    cancellation_flags = {"ingest": False, "trade": False}
+
+    async def _ingest() -> None:
+        ingest_started.set()
+        try:
+            await asyncio.Event().wait()
+        except asyncio.CancelledError:
+            cancellation_flags["ingest"] = True
+            raise
+        finally:
+            ingest_finished.set()
+
+    async def _trade() -> None:
+        trade_started.set()
+        try:
+            await asyncio.Event().wait()
+        except asyncio.CancelledError:
+            cancellation_flags["trade"] = True
+            raise
+        finally:
+            trade_finished.set()
+
+    app = RuntimeApplication(
+        ingestion=RuntimeWorkload(
+            name="ingest",
+            factory=_ingest,
+            description="long-running ingest",
+        ),
+        trading=RuntimeWorkload(
+            name="trade",
+            factory=_trade,
+            description="long-running trade",
+        ),
+    )
+
+    run_task = asyncio.create_task(app.run())
+
+    await asyncio.wait_for(ingest_started.wait(), timeout=1.0)
+    await asyncio.wait_for(trade_started.wait(), timeout=1.0)
+
+    await app.shutdown()
+    await asyncio.wait_for(run_task, timeout=1.0)
+
+    assert ingest_finished.is_set()
+    assert trade_finished.is_set()
+    assert cancellation_flags["ingest"] is True
+    assert cancellation_flags["trade"] is True
+    assert app.task_snapshots() == ()
+    summary = app.summary()
+    assert summary["workload_states"].get("ingest") == "cancelled"
+    assert summary["workload_states"].get("trade") == "cancelled"
+
+
+@pytest.mark.asyncio()
 async def test_runtime_application_ingest_failure_does_not_stop_trading(
     caplog: pytest.LogCaptureFixture,
 ) -> None:

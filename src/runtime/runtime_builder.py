@@ -946,6 +946,11 @@ class RuntimeApplication:
             return
         self._shutdown_invoked = True
 
+        try:
+            await self._task_supervisor.cancel_all()
+        except Exception:  # pragma: no cover - defensive logging
+            self._logger.exception("Failed to cancel runtime background tasks during shutdown")
+
         for callback in reversed(self.shutdown_callbacks):
             callback_name = getattr(callback, "__name__", repr(callback))
             with self._tracer.operation_span(
@@ -1071,6 +1076,11 @@ class RuntimeApplication:
                         for task in done:
                             workload = task_mapping.get(task)
                             name = workload.name if workload is not None else "<unknown>"
+                            if task.cancelled():
+                                self._logger.debug(
+                                    "Runtime workload %s cancelled under supervisor", name
+                                )
+                                continue
                             try:
                                 exc = task.exception()
                             except Exception:

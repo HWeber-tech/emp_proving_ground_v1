@@ -163,6 +163,53 @@ async def test_runtime_application_restart_policy_recovers_failed_workload(
 
 
 @pytest.mark.asyncio()
+async def test_runtime_application_ingest_failure_does_not_stop_trading(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    trade_ready = asyncio.Event()
+    release_trade = asyncio.Event()
+
+    async def _ingest() -> None:
+        await asyncio.sleep(0)
+        raise RuntimeError("ingest panic")
+
+    async def _trade() -> None:
+        trade_ready.set()
+        await release_trade.wait()
+
+    app = RuntimeApplication(
+        ingestion=RuntimeWorkload(
+            name="ingest",
+            factory=_ingest,
+            description="Fail-fast ingest loop",
+        ),
+        trading=RuntimeWorkload(
+            name="trade",
+            factory=_trade,
+            description="Trading loop",
+        ),
+    )
+
+    with caplog.at_level(logging.ERROR, logger=app._logger.name):
+        run_task = asyncio.create_task(app.run())
+        await asyncio.wait_for(trade_ready.wait(), timeout=1.0)
+
+        # Allow the supervisor to process the ingest failure and log it.
+        await asyncio.sleep(0)
+        messages = [record.getMessage() for record in caplog.records]
+        assert any("ingest" in message and "failed" in message for message in messages)
+
+        snapshots = app.task_snapshots()
+        assert any(
+            snapshot.get("name") == "trade-workload" and snapshot.get("state") == "running"
+            for snapshot in snapshots
+        )
+
+        release_trade.set()
+        await asyncio.wait_for(run_task, timeout=1.0)
+
+
+@pytest.mark.asyncio()
 async def test_supervise_background_task_provisions_fallback_supervisor() -> None:
     class DummyApp:
         pass
@@ -1874,4 +1921,3 @@ async def test_bootstrap_runtime_uses_app_task_supervisor() -> None:
         assert any(item.get("name") == "bootstrap-runtime-loop" for item in background_details)
     finally:
         await app.shutdown()
-

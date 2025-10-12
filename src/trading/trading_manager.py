@@ -2215,6 +2215,16 @@ class TradingManager:
                 )
         return prober
 
+    def attach_task_supervisor(self, task_supervisor: "TaskSupervisor | None") -> None:
+        """Bind a task supervisor after initialisation for probe supervision."""
+
+        self._task_supervisor = task_supervisor
+        if self.liquidity_prober is not None:
+            self.liquidity_prober = self._configure_liquidity_prober(
+                self.liquidity_prober,
+                task_supervisor,
+            )
+
     def _resolve_gateway_limits(self) -> Mapping[str, object] | None:
         try:
             payload = cast(Any, self.risk_gateway).get_risk_limits()

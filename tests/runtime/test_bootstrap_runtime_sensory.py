@@ -115,6 +115,7 @@ from src.operations.sensory_drift import SensoryDriftSnapshot
 from src.operations.sensory_metrics import SensoryMetrics
 from src.operations.sensory_summary import SensorySummary
 from src.runtime.bootstrap_runtime import BootstrapRuntime
+from src.runtime.task_supervisor import TaskSupervisor
 
 
 @pytest.mark.asyncio()
@@ -214,6 +215,31 @@ async def test_bootstrap_runtime_invokes_evolution_orchestrator() -> None:
     assert adaptive_runs.get("enabled") is False
     assert isinstance(readiness, Mapping)
     assert readiness.get("status") in {"review", "blocked", "ready"}
+
+
+@pytest.mark.asyncio()
+async def test_bootstrap_runtime_rebinds_task_supervisor() -> None:
+    event_bus = EventBus()
+    runtime = BootstrapRuntime(event_bus=event_bus, tick_interval=0.0, max_ticks=1)
+
+    initial_supervisor = runtime.task_supervisor
+    assert isinstance(initial_supervisor, TaskSupervisor)
+
+    external_supervisor = TaskSupervisor(namespace="bootstrap-runtime-test")
+
+    await runtime.start(task_supervisor=external_supervisor)
+    try:
+        assert runtime.task_supervisor is external_supervisor
+        trading_supervisor = getattr(runtime.trading_manager, "_task_supervisor", None)
+        assert trading_supervisor is external_supervisor
+
+        snapshots = runtime.describe_background_tasks()
+        assert any(
+            snapshot.get("name") == "bootstrap-runtime-loop" for snapshot in snapshots
+        )
+    finally:
+        await runtime.stop()
+        await external_supervisor.cancel_all()
 
 
 @pytest.mark.asyncio()

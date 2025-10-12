@@ -138,8 +138,13 @@ class BootstrapRuntime:
         self._price_task: asyncio.Task[None] | None = None
         self.running = False
         self._last_error: Exception | None = None
-        self._task_supervisor: TaskSupervisor | None = task_supervisor
-        self._owns_supervisor = task_supervisor is None
+        supervisor = task_supervisor
+        owns_supervisor = False
+        if supervisor is None:
+            supervisor = TaskSupervisor(namespace="bootstrap-runtime")
+            owns_supervisor = True
+        self._task_supervisor = supervisor
+        self._owns_supervisor = owns_supervisor
         self._task_metadata: dict[asyncio.Task[Any], Mapping[str, Any]] = {}
 
         resolved_connectors: dict[str, MarketDataConnector] = {}
@@ -443,6 +448,13 @@ class BootstrapRuntime:
                     status["release_execution"] = dict(release_execution)
                 elif release_execution is not None:
                     status["release_execution"] = release_execution
+
+        supervisor = self._task_supervisor
+        if supervisor is not None:
+            status["background_tasks"] = {
+                "count": supervisor.active_count,
+                "tasks": self.describe_background_tasks(),
+            }
         return status
 
     def describe_paper_broker(self) -> Mapping[str, Any] | None:
@@ -583,10 +595,20 @@ class BootstrapRuntime:
             self._owns_supervisor = False
 
         supervisor = self._task_supervisor
-        if supervisor is None:
+        if supervisor is None:  # pragma: no cover - defensive guard
             supervisor = TaskSupervisor(namespace="bootstrap-runtime")
             self._task_supervisor = supervisor
             self._owns_supervisor = True
+
+        attach_supervisor = getattr(self.trading_manager, "attach_task_supervisor", None)
+        if callable(attach_supervisor):
+            try:
+                attach_supervisor(supervisor)
+            except Exception:  # pragma: no cover - diagnostic guardrail
+                logger.debug(
+                    "Failed to bind task supervisor to trading manager",
+                    exc_info=True,
+                )
 
         drift_config = self._sensory_drift_config
         metadata = {
@@ -631,12 +653,26 @@ class BootstrapRuntime:
             await self._task_supervisor.cancel_all()
         logger.info("BootstrapRuntime stopped after %s ticks", self._tick_counter)
 
+    @property
+    def task_supervisor(self) -> TaskSupervisor | None:
+        """Expose the task supervisor coordinating bootstrap background work."""
+
+        return self._task_supervisor
+
     def get_background_task_metadata(
         self, task: asyncio.Task[Any]
     ) -> Mapping[str, Any] | None:
         """Expose metadata for registered background tasks."""
 
         return self._task_metadata.get(task)
+
+    def describe_background_tasks(self) -> tuple[dict[str, Any], ...]:
+        """Return a serialisable snapshot of active supervised tasks."""
+
+        supervisor = self._task_supervisor
+        if supervisor is None:
+            return ()
+        return tuple(supervisor.describe())
 
     async def _run_loop(self) -> None:
         try:

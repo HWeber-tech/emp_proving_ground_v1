@@ -7,12 +7,13 @@ Provides risk management capabilities with position sizing and validation,
 aligned to canonical imports and types.
 """
 
+import asyncio
 import logging
 import math
-from typing import Dict, Iterable, Mapping, NotRequired, Sequence, TypedDict
-from decimal import Decimal, InvalidOperation
 from datetime import datetime, timezone
-import asyncio
+from decimal import Decimal, InvalidOperation
+from threading import RLock
+from typing import Dict, Iterable, Mapping, NotRequired, Sequence, TypedDict
 
 from pydantic import ValidationError
 
@@ -149,6 +150,7 @@ class RiskManagerImpl(RiskManagerProtocol):
 
         # Track current positions
         self.positions: Dict[str, PositionEntry] = {}
+        self._positions_lock = RLock()
         self.account_balance: float = initial_balance_float
         self.peak_balance: float = self.account_balance
         # Risk per trade constant used across validation and sizing routines.
@@ -269,13 +271,17 @@ class RiskManagerImpl(RiskManagerProtocol):
         budget = self.account_balance * limit
         return max(0.0, budget)
 
-    def _compute_sector_risk(self, sector: str) -> float:
-        self._canonicalise_positions()
+    def _compute_sector_risk_locked(self, sector: str) -> float:
         risk = 0.0
         for symbol, entry in self.positions.items():
             if self._resolve_sector(symbol) == sector:
                 risk += self._compute_position_risk(entry)
         return risk
+
+    def _compute_sector_risk(self, sector: str) -> float:
+        with self._positions_lock:
+            self._canonicalise_positions_locked()
+            return self._compute_sector_risk_locked(sector)
 
     # -- symbol normalisation helpers --------------------------------------
     def _normalise_symbol(self, symbol: object | None) -> str:
@@ -291,7 +297,7 @@ class RiskManagerImpl(RiskManagerProtocol):
         raw = "" if symbol is None else str(symbol).strip()
         return raw or "__pending__"
 
-    def _canonicalise_positions(self) -> None:
+    def _canonicalise_positions_locked(self) -> None:
         if not self.positions:
             return
         existing = list(self.positions.items())
@@ -301,28 +307,38 @@ class RiskManagerImpl(RiskManagerProtocol):
             entry["symbol"] = canonical
             self.positions[canonical] = entry
 
-    def _aggregate_position_risk(self) -> Dict[str, float]:
-        self._canonicalise_positions()
+    def _canonicalise_positions(self) -> None:
+        with self._positions_lock:
+            self._canonicalise_positions_locked()
+
+    def _aggregate_position_risk_locked(self) -> Dict[str, float]:
+        self._canonicalise_positions_locked()
         aggregated: Dict[str, float] = {}
         for symbol, entry in self.positions.items():
             risk_amount = self._compute_position_risk(entry)
             aggregated[symbol] = aggregated.get(symbol, 0.0) + risk_amount
         return aggregated
 
+    def _aggregate_position_risk(self) -> Dict[str, float]:
+        with self._positions_lock:
+            return self._aggregate_position_risk_locked()
+
     def _sector_exposure_snapshot(self) -> Dict[str, Dict[str, float]]:
-        snapshot: Dict[str, Dict[str, float]] = {}
-        for sector, limit in self._sector_limits.items():
-            budget = self.account_balance * limit
-            exposure = self._compute_sector_risk(sector)
-            utilisation = 0.0
-            if budget > 0:
-                utilisation = exposure / budget
-            snapshot[sector] = {
-                "budget": budget,
-                "exposure": exposure,
-                "utilisation": utilisation,
-            }
-        return snapshot
+        with self._positions_lock:
+            self._canonicalise_positions_locked()
+            snapshot: Dict[str, Dict[str, float]] = {}
+            for sector, limit in self._sector_limits.items():
+                budget = self.account_balance * limit
+                exposure = self._compute_sector_risk_locked(sector)
+                utilisation = 0.0
+                if budget > 0:
+                    utilisation = exposure / budget
+                snapshot[sector] = {
+                    "budget": budget,
+                    "exposure": exposure,
+                    "utilisation": utilisation,
+                }
+            return snapshot
 
     def assess_market_risk(
         self,
@@ -735,23 +751,24 @@ class RiskManagerImpl(RiskManagerProtocol):
             entry_price: Entry price
             stop_loss_pct: Optional configured stop loss for aggregate risk checks
         """
-        self._canonicalise_positions()
+        with self._positions_lock:
+            self._canonicalise_positions_locked()
 
-        symbol_key = self._position_key(symbol)
+            symbol_key = self._position_key(symbol)
 
-        entry: PositionEntry = {
-            "size": _to_float(size),
-            "entry_price": _to_float(entry_price),
-            "entry_time": datetime.now(),
-        }
+            entry: PositionEntry = {
+                "size": _to_float(size),
+                "entry_price": _to_float(entry_price),
+                "entry_time": datetime.now(),
+            }
 
-        if stop_loss_pct is not None:
-            entry["stop_loss_pct"] = max(0.0, _to_float(stop_loss_pct))
-        else:
-            entry["stop_loss_pct"] = self._risk_per_trade
+            if stop_loss_pct is not None:
+                entry["stop_loss_pct"] = max(0.0, _to_float(stop_loss_pct))
+            else:
+                entry["stop_loss_pct"] = self._risk_per_trade
 
-        entry["symbol"] = symbol_key
-        self.positions[symbol_key] = entry
+            entry["symbol"] = symbol_key
+            self.positions[symbol_key] = entry
 
         logger.info(f"Position added: {symbol_key} size={size} price={entry_price}")
 
@@ -763,10 +780,11 @@ class RiskManagerImpl(RiskManagerProtocol):
             symbol: Trading symbol
             current_price: Current market price
         """
-        self._canonicalise_positions()
-        symbol_key = self._position_key(symbol)
-        if symbol_key in self.positions:
-            self.positions[symbol_key]["current_price"] = _to_float(current_price)
+        with self._positions_lock:
+            self._canonicalise_positions_locked()
+            symbol_key = self._position_key(symbol)
+            if symbol_key in self.positions:
+                self.positions[symbol_key]["current_price"] = _to_float(current_price)
 
     def get_risk_summary(
         self,
@@ -780,14 +798,18 @@ class RiskManagerImpl(RiskManagerProtocol):
         Returns:
             JSON object with current risk metrics
         """
+        with self._positions_lock:
+            risk_map = self._aggregate_position_risk_locked()
+            tracked_symbols = list(risk_map.keys())
+            position_count = float(len(self.positions))
+
         # Delegate to RealRiskManager for a portfolio-level assessment (if any)
-        risk_map = self._aggregate_position_risk()
         assessed_risk = self.risk_manager.assess_risk(risk_map)
 
         summary: JSONObject = {
             "account_balance": self.account_balance,
-            "positions": float(len(self.positions)),
-            "tracked_positions": list(risk_map.keys()),
+            "positions": position_count,
+            "tracked_positions": tracked_symbols,
             "assessed_risk": assessed_risk,
         }
 
@@ -851,9 +873,10 @@ class RiskManagerImpl(RiskManagerProtocol):
         Returns:
             JSON object with portfolio risk metrics
         """
-        self._canonicalise_positions()
-        total_size = sum(p["size"] for p in self.positions.values())
-        projected_risk = self._aggregate_position_risk()
+        with self._positions_lock:
+            self._canonicalise_positions_locked()
+            total_size = sum(p["size"] for p in self.positions.values())
+            projected_risk = self._aggregate_position_risk_locked()
         total_risk_amount = sum(projected_risk.values())
         assessed_risk = self.risk_manager.assess_risk(projected_risk)
 
@@ -887,21 +910,23 @@ class RiskManagerImpl(RiskManagerProtocol):
         Returns:
             Position risk metrics as JSON
         """
-        self._canonicalise_positions()
-        symbol_key = self._position_key(symbol)
-        if symbol_key not in self.positions:
-            return {}
+        with self._positions_lock:
+            self._canonicalise_positions_locked()
+            symbol_key = self._position_key(symbol)
+            position = self.positions.get(symbol_key)
+            if position is None:
+                return {}
 
-        position = self.positions[symbol_key]
-        current_price = position.get("current_price", position["entry_price"])
+            current_price = position.get("current_price", position["entry_price"])
+            risk_amount = self._compute_position_risk(position)
 
-        return {
-            "symbol": symbol_key,
-            "size": position["size"],
-            "entry_price": position["entry_price"],
-            "current_price": current_price,
-            "risk_amount": self._compute_position_risk(position),
-        }
+            return {
+                "symbol": symbol_key,
+                "size": position["size"],
+                "entry_price": position["entry_price"],
+                "current_price": current_price,
+                "risk_amount": risk_amount,
+            }
 
     # Protocol-compliant methods (src.core.interfaces.RiskManager)
     def evaluate_portfolio_risk(

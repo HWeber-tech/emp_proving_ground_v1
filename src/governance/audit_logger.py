@@ -16,6 +16,21 @@ from typing import Any, Optional
 logger = logging.getLogger(__name__)
 
 
+def _safe_parse_timestamp(value: object, *, context: str = "audit entry") -> datetime | None:
+    """Best-effort parsing that preserves log access despite corrupt payloads."""
+
+    if value in (None, ""):
+        return None
+
+    try:
+        if isinstance(value, str):
+            return datetime.fromisoformat(value)
+        return datetime.fromisoformat(str(value))
+    except (TypeError, ValueError) as exc:
+        logger.warning("%s has invalid timestamp %r: %s", context, value, exc)
+        return None
+
+
 class AuditLogger:
     """Audit logger for governance layer actions."""
 
@@ -198,33 +213,45 @@ class AuditLogger:
             if not self.log_path.exists():
                 return []
 
-            entries = []
+            entries: list[tuple[dict[str, Any], datetime]] = []
             with open(self.log_path, "r") as f:
                 for line in f:
-                    try:
-                        entry = json.loads(line.strip())
-
-                        # Apply filters
-                        if strategy_id and entry.get("strategy_id") != strategy_id:
-                            continue
-                        if event_type and entry.get("event_type") != event_type:
-                            continue
-                        if start_time:
-                            entry_time = datetime.fromisoformat(entry["timestamp"])
-                            if entry_time < start_time:
-                                continue
-                        if end_time:
-                            entry_time = datetime.fromisoformat(entry["timestamp"])
-                            if entry_time > end_time:
-                                continue
-
-                        entries.append(entry)
-
-                    except json.JSONDecodeError:
-                        logger.warning(f"Invalid JSON in audit log: {line.strip()}")
+                    payload = line.strip()
+                    if not payload:
                         continue
 
-            # Apply limit
+                    try:
+                        entry = json.loads(payload)
+                    except json.JSONDecodeError:
+                        logger.warning("Invalid JSON in audit log: %s", payload)
+                        continue
+
+                    if not isinstance(entry, dict):
+                        logger.warning("Ignoring non-object audit entry: %s", payload)
+                        continue
+
+                    if strategy_id and entry.get("strategy_id") != strategy_id:
+                        continue
+                    if event_type and entry.get("event_type") != event_type:
+                        continue
+
+                    timestamp_raw = entry.get("timestamp")
+                    entry_time: datetime | None
+                    if start_time or end_time:
+                        entry_time = _safe_parse_timestamp(timestamp_raw)
+                        if entry_time is None:
+                            # Unable to prove ordering; skip to keep filters reliable.
+                            continue
+                    else:
+                        entry_time = None
+
+                    if start_time and entry_time and entry_time < start_time:
+                        continue
+                    if end_time and entry_time and entry_time > end_time:
+                        continue
+
+                    entries.append(entry)
+
             if limit:
                 entries = entries[-limit:]
 
@@ -243,11 +270,25 @@ class AuditLogger:
             entries = []
             with open(self.log_path, "r") as f:
                 for line in f:
-                    try:
-                        entry = json.loads(line.strip())
-                        entries.append(entry)
-                    except json.JSONDecodeError:
+                    payload = line.strip()
+                    if not payload:
                         continue
+
+                    try:
+                        entry = json.loads(payload)
+                    except json.JSONDecodeError:
+                        logger.warning("Invalid JSON in audit log: %s", payload)
+                        continue
+
+                    if not isinstance(entry, dict):
+                        logger.warning("Ignoring non-object audit entry: %s", payload)
+                        continue
+
+                    parsed_ts = _safe_parse_timestamp(entry.get("timestamp"))
+                    if parsed_ts is None:
+                        continue
+
+                    entries.append((entry, parsed_ts))
 
             if not entries:
                 return {"total_entries": 0, "event_types": {}, "strategies": {}, "date_range": None}
@@ -257,7 +298,7 @@ class AuditLogger:
             strategies: dict[str, int] = {}
             timestamps = []
 
-            for entry in entries:
+            for entry, parsed_ts in entries:
                 event_type = entry.get("event_type", "unknown")
                 event_types[event_type] = event_types.get(event_type, 0) + 1
 
@@ -265,7 +306,7 @@ class AuditLogger:
                 if strategy_id:
                     strategies[strategy_id] = strategies.get(strategy_id, 0) + 1
 
-                timestamps.append(datetime.fromisoformat(entry["timestamp"]))
+                timestamps.append(parsed_ts)
 
             # Calculate date range
             if timestamps:

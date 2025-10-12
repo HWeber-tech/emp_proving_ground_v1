@@ -60,11 +60,13 @@ from src.runtime import (
 )
 from src.runtime.predator_app import ProfessionalPredatorApp
 from src.runtime.task_supervisor import TaskSupervisor
+from src.observability.tracing import NullRuntimeTracer
 from src.runtime.runtime_builder import (
     _normalise_ingest_plan_metadata,
     _plan_dimensions,
     _process_sensory_status,
     _supervise_background_task,
+    _configure_drift_monitor,
 )
 
 
@@ -408,12 +410,28 @@ class _StubSensoryApp:
         self.event_bus = _StubEventBus()
         self.summaries: list[Any] = []
         self.metrics: list[Any] = []
+        self.drift_snapshots: list[Any] = []
 
     def record_sensory_summary(self, summary: Any) -> None:
         self.summaries.append(summary)
 
     def record_sensory_metrics(self, metrics: Any) -> None:
         self.metrics.append(metrics)
+
+    def record_sensory_drift_snapshot(self, snapshot: Any) -> None:
+        self.drift_snapshots.append(snapshot)
+
+
+class _StubDriftSensoryOrgan:
+    def __init__(self, status_payload: Mapping[str, Any], trigger: asyncio.Event) -> None:
+        self._payload = status_payload
+        self._trigger = trigger
+        self.calls = 0
+
+    def status(self) -> Mapping[str, Any]:
+        self.calls += 1
+        self._trigger.set()
+        return self._payload
 
 
 def _sample_sensory_status_payload() -> dict[str, Any]:
@@ -2136,6 +2154,44 @@ async def test_runtime_application_register_background_task_merges_metadata() ->
         await asyncio.wait_for(task, timeout=1.0)
         await supervisor.cancel_all()
 
+
+@pytest.mark.asyncio()
+async def test_runtime_application_auxiliary_workload_tracked() -> None:
+    supervisor = TaskSupervisor(namespace="test-runtime-aux", cancel_timeout=0.1)
+    app = RuntimeApplication(task_supervisor=supervisor)
+
+    started = asyncio.Event()
+    stop_event = asyncio.Event()
+
+    async def _auxiliary() -> None:
+        started.set()
+        await stop_event.wait()
+
+    app.add_auxiliary_workload(
+        RuntimeWorkload(
+            name="aux-workload",
+            factory=_auxiliary,
+            description="auxiliary drift monitor",
+            metadata={"component": "drift_monitor"},
+            restart_policy=WorkloadRestartPolicy(max_restarts=1, backoff_seconds=0.0),
+        )
+    )
+
+    run_task = asyncio.create_task(app.run())
+    await asyncio.wait_for(started.wait(), timeout=1.0)
+
+    summary = app.summary()
+    auxiliary_summary = summary.get("auxiliary") or ()
+    assert any(entry.get("name") == "aux-workload" for entry in auxiliary_summary)
+    assert summary["workload_states"].get("aux-workload") == "running"
+
+    stop_event.set()
+    await asyncio.wait_for(run_task, timeout=1.0)
+
+    final_summary = app.summary()
+    assert final_summary["workload_states"].get("aux-workload") == "finished"
+    await supervisor.cancel_all()
+
 async def test_runtime_application_recovers_from_ingest_failure(caplog: pytest.LogCaptureFixture) -> None:
     supervisor = TaskSupervisor(namespace="test-runtime-recovery", cancel_timeout=0.1)
     stop_event = asyncio.Event()
@@ -2204,6 +2260,41 @@ async def test_runtime_application_recovers_from_ingest_failure(caplog: pytest.L
 
     await supervisor.cancel_all()
 
+
+@pytest.mark.asyncio()
+async def test_configure_drift_monitor_registers_workload_and_publishes_snapshots() -> None:
+    app = _StubSensoryApp()
+    trigger = asyncio.Event()
+    app.sensory_organ = _StubDriftSensoryOrgan(_sample_sensory_status_payload(), trigger)
+
+    supervisor = TaskSupervisor(namespace="test-runtime-drift", cancel_timeout=0.1)
+    runtime_app = RuntimeApplication(task_supervisor=supervisor)
+    tracer = NullRuntimeTracer()
+
+    _configure_drift_monitor(
+        runtime_app,
+        app,
+        tracer,
+        {"RUNTIME_DRIFT_MONITOR_INTERVAL_SECONDS": "0.01"},
+    )
+
+    auxiliary = runtime_app.auxiliary
+    assert len(auxiliary) == 1
+    workload = auxiliary[0]
+    assert workload.name == "sensory-drift-monitor"
+
+    task = asyncio.create_task(workload.factory())
+    try:
+        await asyncio.wait_for(trigger.wait(), timeout=1.0)
+        await asyncio.sleep(0.05)
+        assert app.summaries, "expected sensory summary to be recorded"
+        assert app.metrics, "expected sensory metrics to be recorded"
+        assert app.drift_snapshots, "expected drift snapshot to be recorded"
+    finally:
+        task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await task
+        await supervisor.cancel_all()
 
 @pytest.mark.asyncio()
 async def test_bootstrap_runtime_uses_app_task_supervisor() -> None:

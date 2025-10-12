@@ -725,6 +725,59 @@ def _process_sensory_status(
     return [dict(entry) for entry in summary.audit_entries]
 
 
+def _evaluate_and_publish_drift(
+    app: ProfessionalPredatorApp,
+    sensory_audit_entries: Sequence[Mapping[str, Any]],
+    *,
+    metadata: Mapping[str, object] | None = None,
+) -> None:
+    """Build and emit a sensory drift snapshot from audit entries."""
+
+    if not sensory_audit_entries:
+        logger.debug("Sensory drift evaluation skipped (no audit entries)")
+        return
+
+    drift_metadata: dict[str, object] = {
+        "samples": len(sensory_audit_entries),
+    }
+    if metadata:
+        for key, value in metadata.items():
+            if value is not None:
+                drift_metadata[str(key)] = value
+
+    latest_entry = sensory_audit_entries[0]
+    symbol = latest_entry.get("symbol")
+    if symbol is not None:
+        drift_metadata.setdefault("latest_symbol", str(symbol))
+
+    unified_score_value = latest_entry.get("unified_score")
+    unified_score = coerce_float(unified_score_value, default=None)
+    if unified_score is not None:
+        drift_metadata["latest_unified_score"] = unified_score
+
+    confidence_value = latest_entry.get("confidence")
+    confidence = coerce_float(confidence_value, default=None)
+    if confidence is not None:
+        drift_metadata["latest_confidence"] = confidence
+
+    drift_snapshot = evaluate_sensory_drift(
+        sensory_audit_entries,
+        metadata=drift_metadata,
+    )
+    logger.info("🧠 Sensory drift snapshot:\n%s", drift_snapshot.to_markdown())
+    publish_sensory_drift(app.event_bus, drift_snapshot)
+
+    record_drift = getattr(app, "record_sensory_drift_snapshot", None)
+    if callable(record_drift):
+        try:
+            record_drift(drift_snapshot)
+        except Exception:  # pragma: no cover - diagnostics only
+            logger.debug(
+                "Failed to record sensory drift snapshot on runtime app",
+                exc_info=True,
+            )
+
+
 def _publish_runtime_risk_configuration(
     app: "ProfessionalPredatorApp", payload: Mapping[str, object]
 ) -> None:
@@ -875,12 +928,14 @@ class RuntimeApplication:
     startup_callbacks: list[StartupCallback] = field(default_factory=list)
     tracer: RuntimeTracer | None = None
     task_supervisor: TaskSupervisor | None = field(default=None, repr=False)
+    auxiliary: tuple[RuntimeWorkload, ...] = field(default_factory=tuple)
 
     def __post_init__(self) -> None:
         self._logger = logging.getLogger(f"{__name__}.RuntimeApplication")
         self._shutdown_invoked = False
         self._tracer: RuntimeTracer = self.tracer or NullRuntimeTracer()
         self._workload_states: dict[str, str] = {}
+        self._auxiliary_workloads: list[RuntimeWorkload] = list(self.auxiliary or ())
         supervisor = self.task_supervisor
         if supervisor is None:
             supervisor = TaskSupervisor(
@@ -892,6 +947,7 @@ class RuntimeApplication:
             self._owns_task_supervisor = False
         self._task_supervisor: TaskSupervisor = supervisor
         self.task_supervisor = supervisor
+        self.auxiliary = tuple(self._auxiliary_workloads)
 
     def create_background_task(
         self,
@@ -915,6 +971,14 @@ class RuntimeApplication:
         """Register an externally-created task with the runtime supervisor."""
 
         self._task_supervisor.track(task, metadata=metadata)
+
+    def add_auxiliary_workload(self, workload: RuntimeWorkload) -> None:
+        """Register an additional managed workload beyond ingest/trading."""
+
+        if not isinstance(workload, RuntimeWorkload):
+            raise TypeError("RuntimeApplication.add_auxiliary_workload expects RuntimeWorkload")
+        self._auxiliary_workloads.append(workload)
+        self.auxiliary = tuple(self._auxiliary_workloads)
 
     def bind_task_supervisor(self, supervisor: TaskSupervisor) -> None:
         """Bind the application to an external task supervisor."""
@@ -1033,6 +1097,8 @@ class RuntimeApplication:
                 workloads.append(self.ingestion)
             if self.trading is not None:
                 workloads.append(self.trading)
+            if self._auxiliary_workloads:
+                workloads.extend(self._auxiliary_workloads)
             if workloads:
                 task_mapping: dict[asyncio.Task[Any], RuntimeWorkload] = {}
                 all_tasks: set[asyncio.Task[Any]] = set()
@@ -1147,6 +1213,7 @@ class RuntimeApplication:
         summary: MutableMapping[str, object] = {
             "ingestion": _pack(self.ingestion),
             "trading": _pack(self.trading),
+            "auxiliary": tuple(filter(None, (_pack(workload) for workload in self._auxiliary_workloads))),
             "shutdown_callbacks": len(self.shutdown_callbacks),
             "startup_callbacks": len(self.startup_callbacks),
             "workload_states": dict(self._workload_states),
@@ -2789,6 +2856,100 @@ def _configure_runtime_logging(config: SystemConfig) -> None:
         )
 
 
+def _configure_drift_monitor(
+    runtime_app: RuntimeApplication,
+    app: ProfessionalPredatorApp,
+    tracer: RuntimeTracer,
+    extras: Mapping[str, object],
+) -> None:
+    """Register a continuous sensory drift monitor workload when enabled."""
+
+    sensory_component = getattr(app, "sensory_organ", None)
+    if sensory_component is None:
+        logger.debug("Drift monitor disabled: sensory organ not attached")
+        return
+
+    enabled = _coerce_bool(extras.get("RUNTIME_DRIFT_MONITOR_ENABLED"), True)
+    if not enabled:
+        logger.debug("Drift monitor disabled via configuration flag")
+        return
+
+    interval_seconds = max(1.0, _coerce_float(extras.get("RUNTIME_DRIFT_MONITOR_INTERVAL_SECONDS"), 120.0))
+
+    workload_metadata = {
+        "interval_seconds": interval_seconds,
+        "workload_kind": "drift_monitor",
+        "supervised_components": ("drift_monitor",),
+    }
+
+    async def _run_drift_monitor() -> None:
+        logger.info("🛰️ Sensory drift monitor active (interval=%ss)", interval_seconds)
+        try:
+            while True:
+                try:
+                    component = getattr(app, "sensory_organ", None)
+                    if component is None:
+                        logger.debug("Drift monitor waiting for sensory organ attachment")
+                        await asyncio.sleep(interval_seconds)
+                        continue
+
+                    status_method = getattr(component, "status", None)
+                    if not callable(status_method):
+                        logger.debug(
+                            "Sensory component %s does not expose status(); skipping drift sample",
+                            component.__class__.__name__,
+                        )
+                        await asyncio.sleep(interval_seconds)
+                        continue
+
+                    with tracer.operation_span(
+                        name="runtime.drift_monitor",
+                        metadata={"interval_seconds": interval_seconds},
+                    ):
+                        try:
+                            sensory_status = status_method()
+                        except Exception:
+                            logger.debug(
+                                "Failed to capture sensory status during drift monitor iteration",
+                                exc_info=True,
+                            )
+                            await asyncio.sleep(interval_seconds)
+                            continue
+
+                        audit_entries = _process_sensory_status(app, sensory_status)
+                        _evaluate_and_publish_drift(
+                            app,
+                            audit_entries,
+                            metadata={
+                                "source": "runtime.drift_monitor",
+                                "interval_seconds": interval_seconds,
+                            },
+                        )
+                except asyncio.CancelledError:
+                    raise
+                except Exception:
+                    logger.exception(
+                        "Unexpected error during sensory drift monitor iteration",
+                        exc_info=True,
+                    )
+                await asyncio.sleep(interval_seconds)
+        finally:
+            logger.info("🛰️ Sensory drift monitor stopped")
+
+    runtime_app.add_auxiliary_workload(
+        RuntimeWorkload(
+            name="sensory-drift-monitor",
+            factory=_run_drift_monitor,
+            description="Continuous sensory drift evaluation loop",
+            metadata=workload_metadata,
+            restart_policy=WorkloadRestartPolicy(
+                max_restarts=None,
+                backoff_seconds=max(5.0, min(interval_seconds, 60.0)),
+            ),
+        )
+    )
+
+
 def _configure_governance_cadence(
     runtime_app: RuntimeApplication,
     app: ProfessionalPredatorApp,
@@ -4083,48 +4244,14 @@ def build_professional_runtime_application(
                     sensory_audit_entries = _process_sensory_status(app, sensory_status)
 
                     if sensory_audit_entries:
-                        latest_entry = sensory_audit_entries[0]
-                        drift_metadata: dict[str, object] = {
-                            "ingest_success": success,
-                            "scheduler": scheduler_metadata,
-                            "samples": len(sensory_audit_entries),
-                        }
-                        symbol = latest_entry.get("symbol")
-                        if symbol is not None:
-                            drift_metadata["latest_symbol"] = str(symbol)
-
-                        unified_score_value = latest_entry.get("unified_score")
-                        unified_score = coerce_float(unified_score_value, default=None)
-                        if unified_score is not None:
-                            drift_metadata["latest_unified_score"] = unified_score
-                        else:
-                            drift_metadata.pop("latest_unified_score", None)
-
-                        confidence_value = latest_entry.get("confidence")
-                        confidence = coerce_float(confidence_value, default=None)
-                        if confidence is not None:
-                            drift_metadata["latest_confidence"] = confidence
-                        else:
-                            drift_metadata.pop("latest_confidence", None)
-
-                        drift_snapshot = evaluate_sensory_drift(
+                        _evaluate_and_publish_drift(
+                            app,
                             sensory_audit_entries,
-                            metadata=drift_metadata,
+                            metadata={
+                                "ingest_success": success,
+                                "scheduler": scheduler_metadata,
+                            },
                         )
-                        logger.info(
-                            "🧠 Sensory drift snapshot:\n%s",
-                            drift_snapshot.to_markdown(),
-                        )
-                        publish_sensory_drift(app.event_bus, drift_snapshot)
-                        record_drift = getattr(app, "record_sensory_drift_snapshot", None)
-                        if callable(record_drift):
-                            try:
-                                record_drift(drift_snapshot)
-                            except Exception:  # pragma: no cover - diagnostics only
-                                logger.debug(
-                                    "Failed to record sensory drift snapshot on runtime app",
-                                    exc_info=True,
-                                )
                     else:
                         logger.debug("Sensory drift evaluation skipped (no audit entries)")
 
@@ -4232,6 +4359,7 @@ def build_professional_runtime_application(
         runtime_app.add_startup_callback(risk_startup_callback)
 
     extras = app.config.extras or {}
+    _configure_drift_monitor(runtime_app, app, runtime_tracer, extras)
     _configure_governance_cadence(runtime_app, app, runtime_tracer, extras)
     health_enabled = _coerce_bool(extras.get("RUNTIME_HEALTHCHECK_ENABLED", True), True)
     if health_enabled:

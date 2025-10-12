@@ -17,6 +17,10 @@ from src.data_foundation.ingest.timescale_pipeline import (
     ingest_yahoo_daily_bars,
     ingest_yahoo_intraday_trades,
 )
+from src.data_foundation.ingest.yahoo_ingest import (
+    fetch_daily_bars as yahoo_fetch_daily_bars,
+    fetch_intraday_trades as yahoo_fetch_intraday_trades,
+)
 from src.data_foundation.persist.timescale import (
     TimescaleConnectionSettings,
     TimescaleIngestResult,
@@ -105,6 +109,52 @@ def _sample_macro_events() -> list[MacroEvent]:
     ]
 
 
+def _multiindex_daily(symbol: str) -> pd.DataFrame:
+    index = pd.date_range("2024-01-01", periods=3, freq="D", name="Date")
+    columns = pd.MultiIndex.from_product(
+        (
+            ["Adj Close", "Close", "High", "Low", "Open", "Volume"],
+            [symbol],
+        ),
+        names=["Price", "Ticker"],
+    )
+    data = {
+        ("Adj Close", symbol): [1.0, 1.1, 1.2],
+        ("Close", symbol): [1.0, 1.1, 1.2],
+        ("High", symbol): [1.01, 1.11, 1.21],
+        ("Low", symbol): [0.99, 1.05, 1.15],
+        ("Open", symbol): [0.995, 1.08, 1.18],
+        ("Volume", symbol): [1000, 1100, 1200],
+    }
+    return pd.DataFrame(data, index=index, columns=columns)
+
+
+def _multiindex_intraday(symbol: str) -> pd.DataFrame:
+    index = pd.date_range(
+        "2024-01-01 12:00",
+        periods=3,
+        freq="T",
+        tz=timezone.utc,
+        name="Datetime",
+    )
+    columns = pd.MultiIndex.from_product(
+        (
+            ["Adj Close", "Close", "High", "Low", "Open", "Volume"],
+            [symbol],
+        ),
+        names=["Price", "Ticker"],
+    )
+    data = {
+        ("Adj Close", symbol): [1.0, 1.01, 1.02],
+        ("Close", symbol): [1.0, 1.01, 1.02],
+        ("High", symbol): [1.01, 1.02, 1.03],
+        ("Low", symbol): [0.99, 1.0, 1.01],
+        ("Open", symbol): [0.995, 1.005, 1.015],
+        ("Volume", symbol): [500, 600, 700],
+    }
+    return pd.DataFrame(data, index=index, columns=columns)
+
+
 def test_timescale_table_name_rejects_invalid_identifiers() -> None:
     with pytest.raises(ValueError, match="schema identifier"):
         _table_name("market-data", "daily_bars", "postgresql")
@@ -130,7 +180,6 @@ def test_timescale_ingestor_rejects_invalid_table(tmp_path) -> None:
             table="daily-bars",
             key_columns=("symbol", "ts"),
             update_columns=("source", "ingested_at"),
-            all_columns=("ts", "symbol", "source", "ingested_at"),
             dimension="daily_bars",
             entity_key="symbol",
             timestamp_key="ts",
@@ -367,6 +416,54 @@ def test_timescale_orchestrator_requires_intraday_fetcher() -> None:
 
     with pytest.raises(ValueError, match="Intraday ingest requested"):
         orchestrator.run(plan=plan, fetch_intraday=None)
+
+
+def test_fetch_daily_bars_handles_multiindex(monkeypatch) -> None:
+    def _fake_download(symbol: str, *args: object, **kwargs: object) -> pd.DataFrame:
+        return _multiindex_daily(symbol)
+
+    monkeypatch.setattr(
+        "src.data_foundation.ingest.yahoo_ingest.yf.download",
+        _fake_download,
+    )
+
+    frame = yahoo_fetch_daily_bars(["EURUSD"], days=3)
+
+    assert list(frame.columns) == [
+        "date",
+        "open",
+        "high",
+        "low",
+        "close",
+        "adj_close",
+        "volume",
+        "symbol",
+    ]
+    assert frame["symbol"].unique().tolist() == ["EURUSD"]
+    assert len(frame) == 3
+
+
+def test_fetch_intraday_trades_handles_multiindex(monkeypatch) -> None:
+    def _fake_download(symbol: str, *args: object, **kwargs: object) -> pd.DataFrame:
+        return _multiindex_intraday(symbol)
+
+    monkeypatch.setattr(
+        "src.data_foundation.ingest.yahoo_ingest.yf.download",
+        _fake_download,
+    )
+
+    frame = yahoo_fetch_intraday_trades(["EURUSD"], days=1, interval="1m")
+
+    assert list(frame.columns) == [
+        "timestamp",
+        "symbol",
+        "price",
+        "size",
+        "exchange",
+        "conditions",
+    ]
+    assert frame["symbol"].unique().tolist() == ["EURUSD"]
+    assert len(frame) == 3
 
 
 def test_timescale_orchestrator_handles_macro_without_events(tmp_path) -> None:

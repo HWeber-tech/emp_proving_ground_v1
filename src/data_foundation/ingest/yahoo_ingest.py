@@ -20,6 +20,16 @@ from src.core.types import JSONObject
 logger = logging.getLogger(__name__)
 
 
+def _flatten_yfinance_frame(frame: pd.DataFrame) -> pd.DataFrame:
+    """Normalise yfinance download output into a single-level column frame."""
+
+    if isinstance(frame.columns, pd.MultiIndex):
+        frame = frame.droplevel(-1, axis=1)
+    frame = frame.copy()
+    frame.columns = [str(column) for column in frame.columns]
+    return frame
+
+
 def fetch_daily_bars(symbols: list[str], days: int = 60) -> pd.DataFrame:
     end = datetime.utcnow()
     start = end - timedelta(days=days)
@@ -33,22 +43,36 @@ def fetch_daily_bars(symbols: list[str], days: int = 60) -> pd.DataFrame:
                 end=end.strftime("%Y-%m-%d"),
                 interval="1d",
                 progress=False,
+                auto_adjust=False,
             ),
         )
-        if not df.empty:
-            df = df.rename(
-                columns={
-                    "Open": "open",
-                    "High": "high",
-                    "Low": "low",
-                    "Close": "close",
-                    "Adj Close": "adj_close",
-                    "Volume": "volume",
-                }
-            )
-            df["symbol"] = sym
-            df = df.reset_index().rename(columns={"Date": "date"})
-            frames.append(df)
+        if df.empty:
+            continue
+        df = _flatten_yfinance_frame(df)
+        df = df.reset_index()
+        df = df.rename(columns=lambda col: str(col).strip().lower().replace(" ", "_"))
+        if "datetime" in df.columns and "date" not in df.columns:
+            df = df.rename(columns={"datetime": "date"})
+        if "date" not in df.columns:
+            logger.warning("yfinance frame missing date index for %s", sym)
+            continue
+        for column in ("open", "high", "low", "close", "volume"):
+            if column not in df.columns:
+                df[column] = pd.NA
+        if "adj_close" not in df.columns and "close" in df.columns:
+            df["adj_close"] = df["close"]
+        df["symbol"] = sym
+        ordered = [
+            "date",
+            "open",
+            "high",
+            "low",
+            "close",
+            "adj_close",
+            "volume",
+            "symbol",
+        ]
+        frames.append(df[ordered].copy())
     if not frames:
         return pd.DataFrame()
     return pd.concat(frames, ignore_index=True)
@@ -69,16 +93,30 @@ def fetch_intraday_trades(symbols: list[str], days: int = 2, interval: str = "1m
                 end=end.strftime("%Y-%m-%d"),
                 interval=interval,
                 progress=False,
+                auto_adjust=False,
             ),
         )
         if df.empty:
             continue
-        df = df.reset_index().rename(columns={"Datetime": "timestamp"})
-        df = df.rename(columns={"Close": "price", "Volume": "size"})
+        df = _flatten_yfinance_frame(df)
+        df = df.reset_index()
+        df = df.rename(columns=lambda col: str(col).strip().lower().replace(" ", "_"))
+        if "datetime" in df.columns and "timestamp" not in df.columns:
+            df = df.rename(columns={"datetime": "timestamp"})
+        if "timestamp" not in df.columns:
+            logger.warning("yfinance intraday frame missing timestamp for %s", sym)
+            continue
+        price_source = "close" if "close" in df.columns else "adj_close"
+        df["price"] = df.get(price_source, pd.NA)
+        if "volume" in df.columns:
+            df["size"] = df["volume"]
+        elif "size" not in df.columns:
+            df["size"] = pd.NA
         df["symbol"] = sym
         df["exchange"] = "YAHOO"
         df["conditions"] = "HISTORICAL"
-        frames.append(df[["timestamp", "symbol", "price", "size", "exchange", "conditions"]].copy())
+        ordered = ["timestamp", "symbol", "price", "size", "exchange", "conditions"]
+        frames.append(df[ordered].copy())
     if not frames:
         return pd.DataFrame()
     return pd.concat(frames, ignore_index=True)

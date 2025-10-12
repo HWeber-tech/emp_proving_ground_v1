@@ -29,6 +29,7 @@ from src.sensory.lineage_publisher import SensoryLineagePublisher
 from src.sensory.real_sensory_organ import RealSensoryOrgan, SensoryDriftConfig
 from src.runtime.task_supervisor import TaskSupervisor
 from src.trading.execution.paper_execution import ImmediateFillExecutionAdapter
+from src.trading.execution.paper_broker_adapter import PaperBrokerExecutionAdapter
 from src.trading.execution.release_router import ReleaseAwareExecutionRouter
 from src.trading.execution.trade_throttle import TradeThrottleConfig
 from src.trading.liquidity.depth_aware_prober import DepthAwareLiquidityProber
@@ -462,7 +463,11 @@ class BootstrapRuntime:
 
         if not self._paper_broker_summary:
             return None
-        return dict(self._paper_broker_summary)
+        summary = dict(self._paper_broker_summary)
+        paper_engine = getattr(self.trading_manager, "_live_engine", None)
+        if isinstance(paper_engine, PaperBrokerExecutionAdapter):
+            summary.setdefault("metrics", paper_engine.describe_metrics())
+        return summary
 
     def _publish_sensory_outputs(self, snapshot: Mapping[str, Any] | None) -> None:
         status_payload: Mapping[str, Any] | None

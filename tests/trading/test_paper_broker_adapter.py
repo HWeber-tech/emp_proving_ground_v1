@@ -95,7 +95,15 @@ async def test_paper_broker_adapter_submits_order_and_records_metadata() -> None
     assert last_order is not None
     assert last_order.get("symbol") == "EURUSD"
     assert last_order.get("order_id") == "FIX-42"
+    assert last_order.get("latency_s") is not None
     assert adapter.describe_last_error() is None
+    metrics = adapter.describe_metrics()
+    assert metrics["total_orders"] == 1
+    assert metrics["successful_orders"] == 1
+    assert metrics["failed_orders"] == 0
+    assert metrics["latency_samples"] == 1
+    assert metrics["avg_latency_s"] is not None
+    assert metrics["avg_latency_s"] >= 0.0
 
 
 @pytest.mark.asyncio
@@ -123,6 +131,12 @@ async def test_paper_broker_adapter_rejects_unsupported_order_type() -> None:
     assert error_snapshot is not None
     assert error_snapshot["stage"] == "validation"
     assert error_snapshot["message"].startswith("Order type")
+    metrics = adapter.describe_metrics()
+    assert metrics["total_orders"] == 1
+    assert metrics["successful_orders"] == 0
+    assert metrics["failed_orders"] == 1
+    assert metrics["latency_samples"] == 0
+    assert metrics["avg_latency_s"] is None
 
 
 @pytest.mark.asyncio
@@ -145,6 +159,12 @@ async def test_paper_broker_adapter_raises_when_broker_returns_none() -> None:
     assert error_snapshot is not None
     assert error_snapshot["stage"] == "broker_submission"
     assert "empty order identifier" in error_snapshot["message"]
+    metrics = adapter.describe_metrics()
+    assert metrics["total_orders"] == 1
+    assert metrics["successful_orders"] == 0
+    assert metrics["failed_orders"] == 1
+    assert metrics["latency_samples"] == 0
+    assert metrics["avg_latency_s"] is None
 
 
 @pytest.mark.asyncio

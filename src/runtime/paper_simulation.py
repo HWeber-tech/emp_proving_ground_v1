@@ -43,6 +43,7 @@ class PaperTradingSimulationReport:
     diary_entries: int = 0
     runtime_seconds: float = 0.0
     paper_broker: Mapping[str, Any] | None = None
+    paper_metrics: Mapping[str, Any] | None = None
     portfolio_state: Mapping[str, Any] | None = None
     performance: Mapping[str, Any] | None = None
     strategy_summary: Mapping[str, Any] | None = None
@@ -59,6 +60,8 @@ class PaperTradingSimulationReport:
         }
         if self.paper_broker is not None:
             payload["paper_broker"] = dict(self.paper_broker)
+        if self.paper_metrics is not None:
+            payload["paper_metrics"] = dict(self.paper_metrics)
         if self.portfolio_state is not None:
             payload["portfolio_state"] = dict(self.portfolio_state)
         if self.performance is not None:
@@ -170,6 +173,7 @@ async def run_paper_trading_simulation(
         diary_entries=_resolve_diary_count(config, runtime),
         runtime_seconds=runtime_seconds,
         paper_broker=_resolve_paper_broker_snapshot(runtime),
+        paper_metrics=paper_engine.describe_metrics(),
         portfolio_state=portfolio_snapshot,
         performance=_build_performance_summary(portfolio_snapshot),
         strategy_summary=_resolve_strategy_summary(runtime),

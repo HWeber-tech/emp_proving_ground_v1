@@ -11,6 +11,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from dataclasses import dataclass, field
+from time import perf_counter
 from typing import Any, Mapping, MutableMapping
 
 from src.trading.execution._risk_context import (
@@ -59,6 +60,12 @@ class PaperBrokerExecutionAdapter:
     _last_risk_metadata: dict[str, object] | None = field(default=None, init=False, repr=False)
     _last_risk_error: dict[str, object] | None = field(default=None, init=False, repr=False)
     _last_error: dict[str, object] | None = field(default=None, init=False, repr=False)
+    _total_orders: int = field(default=0, init=False, repr=False)
+    _successful_orders: int = field(default=0, init=False, repr=False)
+    _failed_orders: int = field(default=0, init=False, repr=False)
+    _latency_samples: int = field(default=0, init=False, repr=False)
+    _total_latency: float = field(default=0.0, init=False, repr=False)
+    _last_latency: float | None = field(default=None, init=False, repr=False)
 
     def set_risk_context_provider(
         self, provider: RiskContextProvider | None
@@ -85,6 +92,7 @@ class PaperBrokerExecutionAdapter:
         """Submit a validated intent to the paper broker via FIX."""
 
         self._last_error = None
+        latency: float | None = None
         symbol = str(_extract(intent, "symbol", "instrument", "asset", default="UNKNOWN"))
         side = str(_extract(intent, "side", "direction", default="BUY")).upper()
         quantity = _to_float(_extract(intent, "quantity", "size", "volume"), 0.0)
@@ -131,6 +139,7 @@ class PaperBrokerExecutionAdapter:
             )
 
         self._capture_risk_context()
+        start_time = perf_counter()
 
         try:
             broker_call = self.broker_interface.place_market_order(symbol, side, quantity)
@@ -192,6 +201,9 @@ class PaperBrokerExecutionAdapter:
             )
             raise PaperBrokerError("Paper broker returned an empty order identifier")
 
+        latency = perf_counter() - start_time
+        self._register_success(latency)
+
         # Release the optimistic reservation now that the broker has accepted the order.
         try:
             if quantity:
@@ -206,6 +218,7 @@ class PaperBrokerExecutionAdapter:
             quantity=float(quantity),
             order_type="market",
             intent=intent,
+            latency=latency,
         )
         self._last_error = None
         return str(order_id)
@@ -224,6 +237,7 @@ class PaperBrokerExecutionAdapter:
         quantity: float,
         order_type: str,
         intent: Any,
+        latency: float | None = None,
     ) -> None:
         metadata: MutableMapping[str, Any] = {}
         raw_metadata = _extract(intent, "metadata", default={})
@@ -238,6 +252,8 @@ class PaperBrokerExecutionAdapter:
             "order_type": order_type,
             "metadata": dict(metadata),
         }
+        if latency is not None:
+            self._last_order["latency_s"] = latency
 
         if self._last_risk_metadata is not None:
             self._last_order["risk_context"] = dict(self._last_risk_metadata)
@@ -250,6 +266,21 @@ class PaperBrokerExecutionAdapter:
         if self._last_error is None:
             return None
         return dict(self._last_error)
+
+    def describe_metrics(self) -> Mapping[str, object]:
+        """Return aggregated execution metrics for paper broker submissions."""
+
+        avg_latency: float | None = None
+        if self._latency_samples > 0:
+            avg_latency = self._total_latency / self._latency_samples
+        return {
+            "total_orders": self._total_orders,
+            "successful_orders": self._successful_orders,
+            "failed_orders": self._failed_orders,
+            "latency_samples": self._latency_samples,
+            "avg_latency_s": avg_latency,
+            "last_latency_s": self._last_latency,
+        }
 
     def _record_failure(
         self,
@@ -288,4 +319,18 @@ class PaperBrokerExecutionAdapter:
         if self._last_risk_error is not None:
             payload["risk_error"] = dict(self._last_risk_error)
 
+        self._register_failure()
         self._last_error = dict(payload)
+
+    def _register_success(self, latency: float | None) -> None:
+        self._total_orders += 1
+        self._successful_orders += 1
+        if latency is not None:
+            self._latency_samples += 1
+            self._total_latency += latency
+        self._last_latency = latency
+
+    def _register_failure(self) -> None:
+        self._total_orders += 1
+        self._failed_orders += 1
+        self._last_latency = None

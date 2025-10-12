@@ -615,6 +615,103 @@ async def test_risk_gateway_rejects_when_sector_limit_exceeded(
     )
 
 
+@pytest.mark.asyncio()
+async def test_risk_gateway_sector_limits_use_intent_metadata(
+    portfolio_monitor: PortfolioMonitor,
+) -> None:
+    registry = DummyStrategyRegistry(active=True)
+    config = RiskConfig(
+        max_total_exposure_pct=Decimal("0.60"),
+        max_leverage=Decimal("4.0"),
+        min_position_size=1,
+        sector_exposure_limits={"FX": Decimal("0.10")},
+    )
+    policy = RiskPolicy.from_config(config)
+    gateway = RiskGateway(
+        strategy_registry=registry,
+        position_sizer=None,
+        portfolio_monitor=portfolio_monitor,
+        risk_policy=policy,
+        risk_config=config,
+    )
+
+    state = portfolio_monitor.get_state()
+    state["equity"] = 100_000.0
+    state["current_daily_drawdown"] = 0.0
+    state["open_positions"] = {
+        "EURUSD": {
+            "quantity": 9000,
+            "avg_price": 1.0,
+            "metadata": {"sector": "fx"},
+        }
+    }
+
+    intent = Intent(
+        "EURUSD",
+        Decimal("2000"),
+        price=Decimal("1.0"),
+        confidence=0.9,
+        metadata={"sector": "FX"},
+    )
+
+    result = await gateway.validate_trade_intent(intent, state)
+
+    assert result is None
+    decision = gateway.get_last_decision()
+    assert decision is not None
+    assert decision.get("reason") == "sector_exposure_limit"
+    checks = decision.get("checks", [])
+    assert any(
+        entry.get("name") == "risk.sector_limit.FX"
+        and entry.get("status") == "violation"
+        for entry in checks
+    )
+
+
+@pytest.mark.asyncio()
+async def test_risk_gateway_marks_unmapped_sector(
+    portfolio_monitor: PortfolioMonitor,
+) -> None:
+    registry = DummyStrategyRegistry(active=True)
+    config = RiskConfig(
+        max_total_exposure_pct=Decimal("0.60"),
+        max_leverage=Decimal("4.0"),
+        min_position_size=1,
+        sector_exposure_limits={"FX": Decimal("0.50")},
+    )
+    gateway = RiskGateway(
+        strategy_registry=registry,
+        position_sizer=None,
+        portfolio_monitor=portfolio_monitor,
+        risk_policy=None,
+        risk_config=config,
+    )
+
+    state = portfolio_monitor.get_state()
+    state["equity"] = 100_000.0
+    state["current_daily_drawdown"] = 0.0
+    state["open_positions"] = {}
+
+    intent = Intent(
+        "EURUSD",
+        Decimal("1000"),
+        price=Decimal("1.0"),
+        confidence=0.9,
+    )
+
+    result = await gateway.validate_trade_intent(intent, state)
+
+    assert result is not None
+    decision = gateway.get_last_decision()
+    assert decision is not None
+    checks = decision.get("checks", [])
+    assert any(
+        entry.get("name") == "risk.sector_limit.unmapped"
+        and entry.get("status") == "info"
+        for entry in checks
+    )
+
+
 def test_risk_gateway_limits_include_risk_api_summary(
     portfolio_monitor: PortfolioMonitor,
 ) -> None:

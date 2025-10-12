@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Callable, Mapping
 
+import numpy as np
 import pandas as pd
 
 from src.core.event_bus import EventBus
@@ -28,6 +29,8 @@ class LiveBeliefManager:
         regime_fsm: RegimeFSM,
         calibration: BeliefRegimeCalibration | None = None,
         scaling_hysteresis: float = 0.15,
+        scaling_trigger: float = 10.0,
+        relaxation_rate: float = 0.08,
     ) -> None:
         self._belief_id = belief_id
         self._symbol = symbol
@@ -37,6 +40,15 @@ class LiveBeliefManager:
         self._calibration = calibration
         self._threshold_scale = 1.0
         self._scaling_hysteresis = scaling_hysteresis if scaling_hysteresis >= 0.0 else 0.0
+        if scaling_trigger <= 1.0:
+            raise ValueError("scaling_trigger must be greater than 1.0")
+        if relaxation_rate <= 0.0 or relaxation_rate >= 1.0:
+            raise ValueError("relaxation_rate must be in (0, 1)")
+        self._scaling_trigger = float(scaling_trigger)
+        self._relaxation_rate = float(relaxation_rate)
+        health = regime_fsm.healthcheck()
+        self._base_calm_threshold = float(health.get("calm_threshold", calibration.calm_threshold if calibration else 0.0))
+        self._base_storm_threshold = float(health.get("storm_threshold", calibration.storm_threshold if calibration else 0.0))
         self._last_snapshot: Mapping[str, object] | None = None
         self._last_belief_state: BeliefState | None = None
         self._last_regime_signal: RegimeSignal | None = None
@@ -157,15 +169,24 @@ class LiveBeliefManager:
 
         if should_scale and self._calibration is not None:
             sample = extract_snapshot_volatility(snapshot, self._calibration.volatility_feature)
-            scale = resolve_threshold_scale(self._calibration, sample)
+            scale = resolve_threshold_scale(
+                self._calibration,
+                sample,
+                trigger=self._scaling_trigger,
+            )
+            scaled = False
             if scale is not None:
                 target_scale = float(max(scale, 1.0))
                 hysteresis = 1.0 + self._scaling_hysteresis
                 if target_scale > self._threshold_scale * hysteresis:
-                    baseline = self._threshold_scale if self._threshold_scale > 0.0 else 1.0
-                    factor = target_scale / baseline
-                    self._regime_fsm.apply_threshold_scale(factor)
-                    self._threshold_scale = target_scale
+                    current = self._threshold_scale if self._threshold_scale > 0.0 else 1.0
+                    factor = target_scale / current
+                    if factor > 0.0:
+                        self._regime_fsm.apply_threshold_scale(factor)
+                        self._threshold_scale = target_scale
+                        scaled = True
+            if not scaled:
+                self._maybe_relax_thresholds(sample)
 
         belief_state = self._emitter.emit(snapshot)
         regime_signal = self._regime_fsm.publish(belief_state)
@@ -173,3 +194,51 @@ class LiveBeliefManager:
         self._last_belief_state = belief_state
         self._last_regime_signal = regime_signal
         return snapshot, belief_state, regime_signal
+
+    def _maybe_relax_thresholds(self, sample: float | None) -> None:
+        if self._calibration is None:
+            return
+        if self._threshold_scale <= 1.0:
+            return
+
+        baseline = max(self._calibration.calm_threshold, 1e-8)
+        sample_ratio: float | None = None
+        if sample is not None:
+            try:
+                sample_value = abs(float(sample))
+            except (TypeError, ValueError):
+                sample_ratio = None
+            else:
+                if np.isfinite(sample_value) and baseline > 0.0:
+                    sample_ratio = sample_value / baseline
+
+        if sample_ratio is not None:
+            relax_threshold = self._scaling_trigger * (1.0 - self._scaling_hysteresis)
+            if sample_ratio > relax_threshold:
+                return
+
+        target_scale = max(1.0, self._threshold_scale * (1.0 - self._relaxation_rate))
+        factor = target_scale / self._threshold_scale
+        health = self._regime_fsm.healthcheck()
+        current_calm = float(health.get("calm_threshold", 0.0))
+        current_storm = float(health.get("storm_threshold", 0.0))
+        calm_floor = max(self._base_calm_threshold, self._calibration.calm_threshold)
+        storm_floor = max(self._base_storm_threshold, self._calibration.storm_threshold)
+
+        floor_ratio = 0.0
+        if current_calm > 0.0:
+            floor_ratio = max(floor_ratio, calm_floor / current_calm)
+        if current_storm > 0.0:
+            floor_ratio = max(floor_ratio, storm_floor / current_storm)
+        floor_ratio = float(min(max(floor_ratio, 0.0), 1.0))
+        if floor_ratio > factor:
+            factor = floor_ratio
+            target_scale = self._threshold_scale * factor
+
+        if target_scale >= self._threshold_scale:
+            return
+
+        if factor <= 0.0 or not np.isfinite(factor):
+            return
+        self._regime_fsm.apply_threshold_scale(factor)
+        self._threshold_scale = target_scale

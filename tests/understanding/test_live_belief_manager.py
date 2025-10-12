@@ -294,3 +294,85 @@ def test_live_belief_manager_rescales_thresholds_for_large_spike() -> None:
     assert mega_health["storm_threshold"] >= first_spike_health["storm_threshold"]
     assert mega_health["calm_threshold"] < mega_health["storm_threshold"]
     assert mega_signal.regime_state.volatility_state in {"calm", "normal", "storm"}
+
+
+@pytest.mark.guardrail
+def test_live_belief_manager_relaxes_thresholds_after_spike() -> None:
+    base_prices = [1.1002 + idx * 0.00004 for idx in range(80)]
+    frame = _frame_from_prices(base_prices)
+    bus = _RecordingBus()
+
+    manager, snapshot, _belief_state, _signal = LiveBeliefManager.from_market_data(
+        market_data=frame,
+        symbol="EURUSD",
+        belief_id="relax-belief",
+        event_bus=bus,
+    )
+
+    base_health = manager.regime_fsm.healthcheck()
+    base_calm = float(base_health["calm_threshold"])
+    base_storm = float(base_health["storm_threshold"])
+
+    calibration = manager.calibration
+    assert calibration is not None
+
+    spike_snapshot = deepcopy(snapshot)
+    spike_snapshot["generated_at"] = snapshot["generated_at"] + timedelta(minutes=1)
+
+    spike_magnitude = float(max(calibration.calm_threshold * 12.0, base_calm * 2.0, 1e-4))
+    how_payload = spike_snapshot["dimensions"]["HOW"]
+    how_payload["signal"] = spike_magnitude
+    how_payload.setdefault("confidence", 0.7)
+    how_value = how_payload.setdefault("value", {})
+    how_value["volatility"] = spike_magnitude
+    how_value["strength"] = spike_magnitude
+
+    anomaly_payload = spike_snapshot["dimensions"]["ANOMALY"]
+    anomaly_payload["signal"] = spike_magnitude * 0.9
+    anomaly_payload.setdefault("confidence", 0.6)
+    anomaly_value = anomaly_payload.setdefault("value", {})
+    anomaly_value["is_anomaly"] = True
+    anomaly_value["z_score"] = spike_magnitude * 4.5
+    anomaly_meta = anomaly_payload.setdefault("metadata", {})
+    anomaly_meta["is_anomaly"] = True
+    audit_payload = anomaly_meta.setdefault("audit", {})
+    audit_payload["z_score"] = spike_magnitude * 4.5
+
+    integrated = spike_snapshot["integrated_signal"]
+    integrated.strength = float(min(max(integrated.strength + 0.1, -1.0), 1.0))
+    integrated.confidence = float(min(max(integrated.confidence, 0.35), 0.95))
+
+    _, _belief_state, spike_signal = manager.process_snapshot(
+        spike_snapshot,
+        apply_threshold_scaling=True,
+    )
+
+    spike_health = manager.regime_fsm.healthcheck()
+    assert spike_health["calm_threshold"] > base_calm
+    assert spike_health["storm_threshold"] > base_storm
+    assert spike_signal.regime_state.volatility_state in {"calm", "normal", "storm"}
+
+    calm_snapshot = deepcopy(spike_snapshot)
+    calm_snapshot["dimensions"]["HOW"]["signal"] = float(calibration.calm_threshold * 0.75)
+    calm_snapshot["dimensions"]["HOW"]["value"]["volatility"] = float(calibration.calm_threshold * 0.75)
+    calm_snapshot["dimensions"]["ANOMALY"]["signal"] = float(calibration.calm_threshold * 0.6)
+    calm_snapshot["dimensions"]["ANOMALY"]["value"]["z_score"] = float(calibration.calm_threshold * 3.0)
+    calm_snapshot["dimensions"]["ANOMALY"]["metadata"]["audit"]["z_score"] = float(calibration.calm_threshold * 3.0)
+    integrated_after = calm_snapshot["integrated_signal"]
+    integrated_after.strength = float(max(min(integrated_after.strength - 0.2, 1.0), -1.0))
+    integrated_after.confidence = float(min(max(integrated_after.confidence, 0.35), 0.95))
+
+    calm_start = spike_snapshot["generated_at"]
+    for idx in range(1, 36):
+        calm_snapshot["generated_at"] = calm_start + timedelta(minutes=idx + 1)
+        _, _belief_state, calm_signal = manager.process_snapshot(
+            calm_snapshot,
+            apply_threshold_scaling=True,
+        )
+        assert calm_signal.regime_state.volatility_state in {"calm", "normal", "storm"}
+
+    relaxed_health = manager.regime_fsm.healthcheck()
+    assert relaxed_health["calm_threshold"] < spike_health["calm_threshold"]
+    assert relaxed_health["storm_threshold"] < spike_health["storm_threshold"]
+    assert relaxed_health["calm_threshold"] >= calibration.calm_threshold
+    assert relaxed_health["storm_threshold"] >= calibration.storm_threshold

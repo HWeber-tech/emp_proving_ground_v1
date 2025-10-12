@@ -72,17 +72,6 @@ class Synthesis:
     risk_factors: List[str]
     opportunity_factors: List[str]
 
-    # Legacy attribute maintained as a property to avoid breaking
-    # ``synthesis.intelligence_level`` access in downstream callers.  The
-    # understanding loop terminology is the canonical surface moving forward.
-    @property
-    def intelligence_level(self) -> UnderstandingLevel:
-        return self.understanding_level
-
-    @intelligence_level.setter
-    def intelligence_level(self, value: UnderstandingLevel) -> None:
-        self.understanding_level = value
-
 
 class WeightManager:
     def __init__(self) -> None:

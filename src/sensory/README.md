@@ -153,7 +153,7 @@ market_data = MarketData(
 # Perform analysis
 async def analyze() -> None:
     synthesis = await engine.analyze_market_understanding(market_data)
-    print(f"Intelligence Level: {synthesis.intelligence_level.name}")
+    print(f"Understanding Level: {synthesis.understanding_level.name}")
     print(f"Unified Score: {synthesis.unified_score:.3f}")
     print(f"Narrative: {synthesis.narrative_text}")
 

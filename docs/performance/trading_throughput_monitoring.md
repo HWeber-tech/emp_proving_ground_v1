@@ -20,6 +20,7 @@ the following keys:
 | `avg_lag_ms` | Average delay between ingest timestamp and processing start. |
 | `max_lag_ms` | Maximum ingest delay detected. |
 | `throughput_per_min` | Approximate processed intents per minute across the window. |
+| `throttle_retry_in_seconds` | Countdown until the trade throttle allows another order (``None`` when no throttle is active). |
 
 The monitor accepts ingestion timestamps from `ingested_at`, `created_at`,
 `timestamp`, or `ts` attributes on trade intents. Timestamps may be aware
@@ -161,6 +162,13 @@ strategy may resume. Snapshots surface the configured spacing in
 `metadata.min_spacing_seconds`, enabling dashboards to contrast per-strategy
 cooldowns with observed behaviour. This guardrail satisfies the roadmap’s need
 to damp oscillatory bursts while keeping throttle explanations transparent.
+
+Every evaluation also returns a `TradeThrottleDecision.retry_in_seconds`
+payload which mirrors the countdown in snapshot metadata and flows into
+`TradingManager.get_execution_stats()["throttle_retry_in_seconds"]`. Dashboards
+and evidence packs can therefore display a single authoritative timer for when
+each strategy regains capacity, whether they inspect the decision diary entry,
+live throttle snapshot, or execution stats feed.
 
 ### Throttle sizing multipliers
 

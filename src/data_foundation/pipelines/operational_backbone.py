@@ -134,6 +134,7 @@ class OperationalBackbonePipeline:
         stream_sensory_from_kafka: bool = True,
         sensory_snapshot_callback: Callable[[Mapping[str, Any]], None] | None = None,
         shutdown_manager_on_close: bool = True,
+        sensory_topic: str | None = None,
     ) -> None:
         if kafka_consumer is not None and kafka_consumer_factory is not None:
             raise ValueError("Provide either kafka_consumer or kafka_consumer_factory, not both")
@@ -166,6 +167,11 @@ class OperationalBackbonePipeline:
         self._streaming_subscriptions: list[SubscriptionHandle] | None = None
         self._streaming_snapshots: dict[str, Mapping[str, Any]] = {}
         self._shutdown_manager_on_close = bool(shutdown_manager_on_close)
+        if sensory_topic is None:
+            topic_name: str | None = "telemetry.sensory.snapshot" if self._sensory_organ is not None else None
+        else:
+            topic_name = sensory_topic
+        self._sensory_topic = topic_name.strip() if topic_name and topic_name.strip() else None
 
     async def execute(
         self,
@@ -757,6 +763,23 @@ class OperationalBackbonePipeline:
                     logger.exception(
                         "Sensory snapshot callback failed for symbol %s", symbol
                     )
+            if (
+                self._event_bus is not None
+                and self._sensory_topic
+                and self._event_bus.is_running()
+            ):
+                try:
+                    await self._event_bus.publish(
+                        Event(
+                            type=self._sensory_topic,
+                            payload=dict(snapshot),
+                            source="operational_backbone.streaming",
+                        )
+                    )
+                except Exception:  # pragma: no cover - defensive logging
+                    logger.exception(
+                        "Failed to publish sensory snapshot for symbol %s", symbol
+                    )
 
     async def _produce_streaming_snapshot(
         self,
@@ -854,11 +877,15 @@ def create_operational_backbone_pipeline(
             str(default_topic).strip() if default_topic else "telemetry.ingest"
         ]
         candidate_topics.extend(topic_map.values())
-        if sensory_organ is not None:
-            candidate_topics.append("telemetry.sensory.snapshot")
         resolved_topics = tuple(
             dict.fromkeys(topic for topic in candidate_topics if topic)
         )
+
+    if sensory_organ is not None:
+        raw_topic = extras.get("KAFKA_SENSORY_SNAPSHOT_TOPIC")
+        sensory_topic_name = str(raw_topic).strip() if raw_topic else "telemetry.sensory.snapshot"
+    else:
+        sensory_topic_name = None
 
     if auto_close_consumer is None:
         auto_close_consumer = created_consumer
@@ -872,6 +899,7 @@ def create_operational_backbone_pipeline(
             event_topics=resolved_topics,
             auto_close_consumer=bool(auto_close_consumer),
             task_supervisor=task_supervisor,
+            sensory_topic=sensory_topic_name,
         )
     except Exception:
         manager.close()

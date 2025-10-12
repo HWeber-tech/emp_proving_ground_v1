@@ -405,6 +405,16 @@ async def test_operational_backbone_streaming_feeds_sensory(tmp_path) -> None:
     def _collect_snapshot(snapshot: Mapping[str, Any]) -> None:
         snapshots.append(snapshot)
 
+    await event_bus.start()
+    sensory_events: list[Event] = []
+    sensory_event_received = asyncio.Event()
+
+    def _collect_event(event: Event) -> None:
+        sensory_events.append(event)
+        sensory_event_received.set()
+
+    sensory_subscription = event_bus.subscribe("telemetry.sensory.snapshot", _collect_event)
+
     pipeline = OperationalBackbonePipeline(
         manager=manager,
         event_bus=event_bus,
@@ -419,37 +429,43 @@ async def test_operational_backbone_streaming_feeds_sensory(tmp_path) -> None:
         sensory_snapshot_callback=_collect_snapshot,
     )
 
-    streaming_task = await pipeline.start_streaming()
-    assert streaming_task is not None
+    try:
+        streaming_task = await pipeline.start_streaming()
+        assert streaming_task is not None
 
-    base = datetime(2024, 7, 1, tzinfo=timezone.utc)
-    request = OperationalIngestRequest(
-        symbols=("eurusd",),
-        daily_lookback_days=2,
-        intraday_lookback_days=1,
-        intraday_interval="1m",
-    )
+        base = datetime(2024, 7, 1, tzinfo=timezone.utc)
+        request = OperationalIngestRequest(
+            symbols=("eurusd",),
+            daily_lookback_days=2,
+            intraday_lookback_days=1,
+            intraday_interval="1m",
+        )
 
-    await pipeline.execute(
-        request,
-        fetch_daily=lambda symbols, lookback: _daily_frame(base),
-        fetch_intraday=lambda symbols, lookback, interval: _intraday_frame(base),
-        poll_consumer=False,
-    )
+        await pipeline.execute(
+            request,
+            fetch_daily=lambda symbols, lookback: _daily_frame(base),
+            fetch_intraday=lambda symbols, lookback, interval: _intraday_frame(base),
+            poll_consumer=False,
+        )
 
-    async def _wait_for_snapshot() -> None:
-        for _ in range(40):
-            if snapshots:
-                return
-            await asyncio.sleep(0.05)
-        raise AssertionError("expected streaming sensory snapshot")
+        async def _wait_for_snapshot() -> None:
+            for _ in range(40):
+                if snapshots:
+                    return
+                await asyncio.sleep(0.05)
+            raise AssertionError("expected streaming sensory snapshot")
 
-    await _wait_for_snapshot()
+        await _wait_for_snapshot()
+        await asyncio.wait_for(sensory_event_received.wait(), timeout=1.0)
 
-    latest_snapshot = pipeline.streaming_snapshots.get("EURUSD")
-    assert latest_snapshot is not None
-    assert latest_snapshot["symbol"] == "EURUSD"
-
-    await pipeline.shutdown()
-    cache.metrics(reset=True)
-    _flush_cache(cache)
+        latest_snapshot = pipeline.streaming_snapshots.get("EURUSD")
+        assert latest_snapshot is not None
+        assert latest_snapshot["symbol"] == "EURUSD"
+        assert sensory_events[-1].type == "telemetry.sensory.snapshot"
+        assert sensory_events[-1].payload["symbol"] == "EURUSD"
+    finally:
+        await pipeline.shutdown()
+        event_bus.unsubscribe(sensory_subscription)
+        await event_bus.stop()
+        cache.metrics(reset=True)
+        _flush_cache(cache)

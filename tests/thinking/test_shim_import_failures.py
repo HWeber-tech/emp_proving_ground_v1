@@ -12,6 +12,7 @@ import pytest
         "src.thinking.learning.real_time_learner",
         "src.thinking.sentient_adaptation_engine",
         "src.sensory.organs.yahoo_finance_organ",
+        "src.orchestration.enhanced_intelligence_engine",
     ],
 )
 def test_removed_thinking_and_sensory_shims_are_absent(module_name: str) -> None:

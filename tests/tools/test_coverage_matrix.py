@@ -45,6 +45,12 @@ SAMPLE_COVERAGE = """<?xml version='1.0'?>
             <line number='2' hits='0'/>
           </lines>
         </class>
+        <class filename='src/market_intelligence/legacy_dimension.py'>
+          <lines>
+            <line number='1' hits='1'/>
+            <line number='2' hits='0'/>
+          </lines>
+        </class>
         <class filename='src/unknown/baz.py'>
           <lines>
             <line number='1' hits='0'/>
@@ -73,20 +79,20 @@ def coverage_report(tmp_path: Path) -> Path:
 def test_build_coverage_matrix_groups_by_domain(coverage_report: Path) -> None:
     matrix = build_coverage_matrix(coverage_report)
 
-    assert matrix.totals.files == 6
-    assert matrix.totals.covered == 9
-    assert matrix.totals.missed == 5
-    assert pytest.approx(matrix.totals.percent, rel=1e-6) == 64.29
+    assert matrix.totals.files == 7
+    assert matrix.totals.covered == 10
+    assert matrix.totals.missed == 6
+    assert pytest.approx(matrix.totals.percent, rel=1e-6) == 62.5
 
     domain_names = [domain.name for domain in matrix.domains]
     assert domain_names[:3] == ["other", "risk", "sensory"]
     assert domain_names[3:] == ["understanding", "runtime"]
 
     sensory = next(domain for domain in matrix.domains if domain.name == "sensory")
-    assert sensory.files == 1
-    assert sensory.covered == 2
-    assert sensory.missed == 1
-    assert pytest.approx(sensory.percent, rel=1e-6) == 66.67
+    assert sensory.files == 2
+    assert sensory.covered == 3
+    assert sensory.missed == 2
+    assert pytest.approx(sensory.percent, rel=1e-6) == 60.0
 
     understanding = next(
         domain for domain in matrix.domains if domain.name == "understanding"
@@ -146,10 +152,11 @@ def test_cli_writes_json_payload(tmp_path: Path, coverage_report: Path) -> None:
     assert payload["lagging_count"] == 3
     assert payload["worst_domain"]["name"] == "other"
     totals = payload["totals"]
-    assert totals["files"] == 6
-    assert totals["coverage_percent"] == pytest.approx(64.29)
+    assert totals["files"] == 7
+    assert totals["coverage_percent"] == pytest.approx(62.5)
     assert "source_files" in payload
     assert "src/sensory/foo.py" in payload["source_files"]
+    assert "src/market_intelligence/legacy_dimension.py" in payload["source_files"]
     assert "src/understanding/legacy.py" in payload["source_files"]
 
 

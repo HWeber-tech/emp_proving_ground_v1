@@ -54,8 +54,20 @@ _DOMAIN_PREFIXES: dict[tuple[str, ...], str] = {
 }
 
 # Legacy namespace aliases that should be categorised under the canonical
-# understanding domain for reporting purposes.
-_DOMAIN_PREFIXES.update({("src", "intelligence"): "understanding"})
+# domains for reporting purposes.
+_DOMAIN_PREFIXES.update(
+    {
+        ("src", "intelligence"): "understanding",
+        ("src", "market_intelligence"): "sensory",
+    }
+)
+
+
+@dataclass
+class _DomainAccumulator:
+    files: set[str]
+    covered: int
+    missed: int
 
 
 @dataclass(frozen=True)
@@ -103,7 +115,7 @@ class CoverageMatrix:
 
 
 def _normalise_parts(filename: str) -> tuple[str, ...]:
-    parts = []
+    parts: list[str] = []
     for part in Path(filename).parts:
         if part in {"", "."}:
             continue
@@ -143,7 +155,7 @@ def build_coverage_matrix(coverage_report: Path) -> CoverageMatrix:
     tree = ET.parse(coverage_report)
     root = tree.getroot()
 
-    domain_totals: dict[str, dict[str, object]] = {}
+    domain_totals: dict[str, _DomainAccumulator] = {}
     all_files: set[str] = set()
     total_covered = 0
     total_missed = 0
@@ -161,11 +173,11 @@ def build_coverage_matrix(coverage_report: Path) -> CoverageMatrix:
         domain = _classify_domain(filename)
         totals = domain_totals.setdefault(
             domain,
-            {"files": set(), "covered": 0, "missed": 0},
+            _DomainAccumulator(files=set(), covered=0, missed=0),
         )
-        totals["files"].add(normalised_filename)
-        totals["covered"] = int(totals["covered"]) + covered
-        totals["missed"] = int(totals["missed"]) + missed
+        totals.files.add(normalised_filename)
+        totals.covered += covered
+        totals.missed += missed
         total_covered += covered
         total_missed += missed
         all_files.add(normalised_filename)
@@ -173,9 +185,9 @@ def build_coverage_matrix(coverage_report: Path) -> CoverageMatrix:
     domains = [
         CoverageDomain(
             name=domain,
-            files=len(info["files"]),
-            covered=int(info["covered"]),
-            missed=int(info["missed"]),
+            files=len(info.files),
+            covered=info.covered,
+            missed=info.missed,
         )
         for domain, info in domain_totals.items()
     ]
@@ -337,12 +349,12 @@ def main(argv: Sequence[str] | None = None) -> int:
                     + "\n"
                 )
             else:
-                normalised = [
+                normalised_required: list[str] = [
                     "/".join(_normalise_parts(path)) for path in required_files
                 ]
                 output_text += (
                     "All required files present in coverage: "
-                    + ", ".join(sorted(normalised))
+                    + ", ".join(sorted(normalised_required))
                     + "\n"
                 )
 

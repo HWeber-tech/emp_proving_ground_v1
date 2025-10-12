@@ -1705,19 +1705,30 @@ async def _execute_timescale_ingest(
         try:
             if request is not None:
                 topics_for_pipeline = tuple(dict.fromkeys(kafka_topics)) or ("telemetry.ingest",)
-                pipeline = OperationalBackbonePipeline(
-                    manager=manager,
-                    event_bus=event_bus,
-                    event_topics=topics_for_pipeline,
-                    auto_close_consumer=False,
-                )
-                pipeline_result = await pipeline.execute(request, poll_consumer=False)
-                initial_results = dict(pipeline_result.ingest_results)
-                cache_metrics_before = dict(pipeline_result.cache_metrics_before)
-                cache_metrics_after_ingest = dict(pipeline_result.cache_metrics_after_ingest)
-                cache_metrics_after_fetch = dict(pipeline_result.cache_metrics_after_fetch)
-                kafka_events = pipeline_result.kafka_events
-                ingest_error = pipeline_result.ingest_error
+                pipeline: OperationalBackbonePipeline | None = None
+                try:
+                    pipeline = OperationalBackbonePipeline(
+                        manager=manager,
+                        event_bus=event_bus,
+                        event_topics=topics_for_pipeline,
+                        auto_close_consumer=False,
+                        shutdown_manager_on_close=False,
+                    )
+                    pipeline_result = await pipeline.execute(request, poll_consumer=False)
+                    initial_results = dict(pipeline_result.ingest_results)
+                    cache_metrics_before = dict(pipeline_result.cache_metrics_before)
+                    cache_metrics_after_ingest = dict(pipeline_result.cache_metrics_after_ingest)
+                    cache_metrics_after_fetch = dict(pipeline_result.cache_metrics_after_fetch)
+                    kafka_events = pipeline_result.kafka_events
+                    ingest_error = pipeline_result.ingest_error
+                finally:
+                    if pipeline is not None:
+                        try:
+                            await pipeline.shutdown()
+                        except Exception:  # pragma: no cover - defensive cleanup
+                            logger.exception(
+                                "Operational backbone pipeline shutdown failed"
+                            )
             else:
                 cache_metrics_before = manager.cache_metrics(reset=True)
                 initial_results = await asyncio.to_thread(

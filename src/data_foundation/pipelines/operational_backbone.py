@@ -133,6 +133,7 @@ class OperationalBackbonePipeline:
         streaming_metadata: Mapping[str, object] | None = None,
         stream_sensory_from_kafka: bool = True,
         sensory_snapshot_callback: Callable[[Mapping[str, Any]], None] | None = None,
+        shutdown_manager_on_close: bool = True,
     ) -> None:
         if kafka_consumer is not None and kafka_consumer_factory is not None:
             raise ValueError("Provide either kafka_consumer or kafka_consumer_factory, not both")
@@ -164,6 +165,7 @@ class OperationalBackbonePipeline:
         self._sensory_snapshot_callback = sensory_snapshot_callback
         self._streaming_subscriptions: list[SubscriptionHandle] | None = None
         self._streaming_snapshots: dict[str, Mapping[str, Any]] = {}
+        self._shutdown_manager_on_close = bool(shutdown_manager_on_close)
 
     async def execute(
         self,
@@ -642,9 +644,12 @@ class OperationalBackbonePipeline:
             self._streaming_started_bus = False
 
     async def shutdown(self) -> None:
+        await self.stop_streaming()
         if self._manager_shutdown:
             return
-        await self.stop_streaming()
+        if not self._shutdown_manager_on_close:
+            self._manager_shutdown = True
+            return
         await self._manager.shutdown()
         self._manager_shutdown = True
 

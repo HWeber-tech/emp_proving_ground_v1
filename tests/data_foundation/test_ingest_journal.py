@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime, timezone
-from typing import Mapping
+from datetime import UTC, datetime, timedelta, timezone
+from typing import Mapping, Sequence
 from uuid import uuid4
 
 import pandas as pd
@@ -574,3 +574,127 @@ async def test_execute_timescale_ingest_runs_spark_export(tmp_path) -> None:
     assert spark_snapshots and spark_snapshots[0] is SparkExportStatus.ok
     export_path = tmp_path / "spark" / "daily_bars" / "daily.csv"
     assert export_path.exists()
+
+
+@pytest.mark.asyncio()
+async def test_execute_timescale_ingest_preserves_external_manager(tmp_path) -> None:
+    class _StubManager:
+        def __init__(self) -> None:
+            self.shutdown_called = False
+            self.ingest_invocations = 0
+            self._base = datetime(2024, 1, 3, tzinfo=UTC)
+
+        def cache_metrics(self, *, reset: bool = False) -> Mapping[str, int | str]:
+            return {
+                "hits": 0,
+                "misses": 0,
+                "sets": 0,
+                "namespace": "stub",
+            }
+
+        def ingest_market_slice(self, *, symbols, **_: object) -> Mapping[str, TimescaleIngestResult]:
+            self.ingest_invocations += 1
+            upper_symbols = tuple(str(symbol).upper() for symbol in symbols)
+            start_ts = self._base - timedelta(days=1)
+            return {
+                "daily_bars": TimescaleIngestResult(
+                    rows_written=2,
+                    symbols=upper_symbols,
+                    start_ts=start_ts,
+                    end_ts=self._base,
+                    ingest_duration_seconds=0.1,
+                    freshness_seconds=15.0,
+                    dimension="daily_bars",
+                    source="stub",
+                )
+            }
+
+        def fetch_data(
+            self,
+            symbol: str,
+            *,
+            period: str | None = None,
+            interval: str | None = None,
+            start: str | datetime | None = None,
+            end: str | datetime | None = None,
+        ) -> pd.DataFrame:
+            _ = (period, start, end)
+            frame = pd.DataFrame(
+                [
+                    {
+                        "timestamp": self._base - timedelta(days=1),
+                        "symbol": symbol.upper(),
+                        "close": 1.1,
+                        "price": 1.1,
+                        "volume": 100,
+                    },
+                    {
+                        "timestamp": self._base,
+                        "symbol": symbol.upper(),
+                        "close": 1.2,
+                        "price": 1.2,
+                        "volume": 150,
+                    },
+                ]
+            )
+            if interval and interval.lower() not in {"1d", "daily"}:
+                frame["price"] = frame["price"] + 0.01
+            return frame
+
+        def fetch_macro_events(
+            self,
+            *,
+            calendars: Sequence[str] | None = None,
+            start: str | datetime | None = None,
+            end: str | datetime | None = None,
+            limit: int | None = None,
+        ) -> pd.DataFrame:
+            _ = (calendars, start, end, limit)
+            return pd.DataFrame(
+                [
+                    {
+                        "timestamp": self._base,
+                        "calendar": "ECB",
+                        "event_name": "Rate Decision",
+                    }
+                ]
+            )
+
+        async def shutdown(self) -> None:
+            self.shutdown_called = True
+
+    manager = _StubManager()
+
+    ingest_config = InstitutionalIngestConfig(
+        should_run=True,
+        reason=None,
+        plan=TimescaleBackbonePlan(
+            daily=DailyBarIngestPlan(symbols=["EURUSD"], lookback_days=2),
+        ),
+        timescale_settings=TimescaleConnectionSettings(url=f"sqlite:///{tmp_path / 'stub.db'}"),
+        kafka_settings=KafkaConnectionSettings.from_mapping({}),
+        redis_settings=RedisConnectionSettings(),
+        metadata={},
+        schedule=None,
+    )
+
+    bus = EventBus()
+
+    succeeded, backup_snapshot = await _execute_timescale_ingest(
+        ingest_config=ingest_config,
+        event_bus=bus,
+        publisher=None,
+        kafka_health_publisher=None,
+        kafka_metrics_publisher=None,
+        kafka_quality_publisher=None,
+        fallback=None,
+        data_manager=manager,
+    )
+
+    assert succeeded is True
+    assert backup_snapshot is not None
+    assert manager.ingest_invocations == 1
+    assert manager.shutdown_called is False
+
+    post_frame = manager.fetch_data("EURUSD", interval="1d")
+    assert not post_frame.empty

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from datetime import datetime, timedelta, timezone
+from typing import Any, Mapping
 
 import pandas as pd
 import pytest
@@ -363,4 +364,67 @@ async def test_operational_backbone_pipeline_streaming_supervision(tmp_path) -> 
     await pipeline.shutdown()
     await event_bus.stop()
     event_bus.unsubscribe(subscription)
+    cache.metrics(reset=True)
+
+
+@pytest.mark.asyncio()
+async def test_operational_backbone_streaming_feeds_sensory(tmp_path) -> None:
+    settings = TimescaleConnectionSettings(url=f"sqlite:///{tmp_path / 'pipeline_streaming_sensory.db'}")
+    broker = InMemoryKafkaBroker()
+    manager, cache = _build_manager(settings, broker, KAFKA_TOPICS)
+    event_bus = EventBus()
+    sensory = RealSensoryOrgan(event_bus=event_bus)
+    supervisor = TaskSupervisor(namespace="operational-stream-sensory-test")
+
+    snapshots: list[Mapping[str, Any]] = []
+
+    def _collect_snapshot(snapshot: Mapping[str, Any]) -> None:
+        snapshots.append(snapshot)
+
+    pipeline = OperationalBackbonePipeline(
+        manager=manager,
+        event_bus=event_bus,
+        kafka_consumer_factory=lambda: _consumer_factory(
+            broker,
+            event_bus,
+            poll_timeout=0.01,
+            idle_sleep=0.01,
+        ),
+        sensory_organ=sensory,
+        task_supervisor=supervisor,
+        sensory_snapshot_callback=_collect_snapshot,
+    )
+
+    streaming_task = await pipeline.start_streaming()
+    assert streaming_task is not None
+
+    base = datetime(2024, 7, 1, tzinfo=timezone.utc)
+    request = OperationalIngestRequest(
+        symbols=("eurusd",),
+        daily_lookback_days=2,
+        intraday_lookback_days=1,
+        intraday_interval="1m",
+    )
+
+    await pipeline.execute(
+        request,
+        fetch_daily=lambda symbols, lookback: _daily_frame(base),
+        fetch_intraday=lambda symbols, lookback, interval: _intraday_frame(base),
+        poll_consumer=False,
+    )
+
+    async def _wait_for_snapshot() -> None:
+        for _ in range(40):
+            if snapshots:
+                return
+            await asyncio.sleep(0.05)
+        raise AssertionError("expected streaming sensory snapshot")
+
+    await _wait_for_snapshot()
+
+    latest_snapshot = pipeline.streaming_snapshots.get("EURUSD")
+    assert latest_snapshot is not None
+    assert latest_snapshot["symbol"] == "EURUSD"
+
+    await pipeline.shutdown()
     cache.metrics(reset=True)

@@ -131,6 +131,8 @@ class OperationalBackbonePipeline:
         task_supervisor: TaskSupervisor | None = None,
         streaming_task_name: str | None = None,
         streaming_metadata: Mapping[str, object] | None = None,
+        stream_sensory_from_kafka: bool = True,
+        sensory_snapshot_callback: Callable[[Mapping[str, Any]], None] | None = None,
     ) -> None:
         if kafka_consumer is not None and kafka_consumer_factory is not None:
             raise ValueError("Provide either kafka_consumer or kafka_consumer_factory, not both")
@@ -158,6 +160,10 @@ class OperationalBackbonePipeline:
         self._streaming_task_name = streaming_task_name or "operational.kafka.stream"
         self._streaming_metadata = dict(streaming_metadata) if streaming_metadata else None
         self._streaming_started_bus = False
+        self._stream_sensory_from_kafka = bool(stream_sensory_from_kafka)
+        self._sensory_snapshot_callback = sensory_snapshot_callback
+        self._streaming_subscriptions: list[SubscriptionHandle] | None = None
+        self._streaming_snapshots: dict[str, Mapping[str, Any]] = {}
 
     async def execute(
         self,
@@ -589,6 +595,7 @@ class OperationalBackbonePipeline:
         self._streaming_stop_event = stop_event
         self._streaming_consumer = consumer
         self._streaming_consumer_owned = owns_consumer and consumer is not self._consumer
+        self._subscribe_streaming_sensory()
         return task
 
     async def stop_streaming(self, *, cancel_timeout: float | None = None) -> None:
@@ -628,6 +635,8 @@ class OperationalBackbonePipeline:
             self._task_supervisor = None
             self._owns_task_supervisor = False
 
+        self._unsubscribe_streaming_sensory()
+
         if self._event_bus is not None and self._streaming_started_bus:
             await self._event_bus.stop()
             self._streaming_started_bus = False
@@ -648,6 +657,138 @@ class OperationalBackbonePipeline:
         if self._consumer is not None:
             return self._consumer, False
         return None, False
+
+    @property
+    def streaming_snapshots(self) -> Mapping[str, Mapping[str, Any]]:
+        """Expose the latest sensory snapshots generated from streaming ingest events."""
+
+        return dict(self._streaming_snapshots)
+
+    async def _streaming_ingest_handler(self, event: Event) -> None:
+        await self._handle_streaming_ingest_event(event)
+
+    def _subscribe_streaming_sensory(self) -> None:
+        if (
+            not self._stream_sensory_from_kafka
+            or self._sensory_organ is None
+            or self._event_bus is None
+        ):
+            return
+        if self._streaming_subscriptions:
+            return
+
+        handler = self._streaming_ingest_handler
+        subscriptions: list[SubscriptionHandle] = []
+        topics = self._event_topics or ("telemetry.ingest",)
+        for topic in topics:
+            try:
+                subscriptions.append(self._event_bus.subscribe(topic, handler))
+            except Exception:  # pragma: no cover - defensive guard
+                logger.exception(
+                    "Failed to subscribe sensory stream handler to topic %s", topic
+                )
+        self._streaming_subscriptions = subscriptions if subscriptions else None
+
+    def _unsubscribe_streaming_sensory(self) -> None:
+        if not self._streaming_subscriptions or self._event_bus is None:
+            self._streaming_subscriptions = None
+            return
+
+        for handle in self._streaming_subscriptions:
+            try:
+                self._event_bus.unsubscribe(handle)
+            except Exception:  # pragma: no cover - defensive guard
+                logger.exception(
+                    "Failed to unsubscribe sensory stream handler for topic %s",
+                    handle.event_type,
+                )
+        self._streaming_subscriptions = None
+
+    async def _handle_streaming_ingest_event(self, event: Event) -> None:
+        if (
+            not self._stream_sensory_from_kafka
+            or self._sensory_organ is None
+            or self._manager_shutdown
+        ):
+            return
+
+        payload = event.payload if isinstance(event.payload, Mapping) else None
+        if not payload:
+            return
+
+        result_payload = payload.get("result") if isinstance(payload, Mapping) else None
+        if not isinstance(result_payload, Mapping):
+            return
+
+        dimension = str(result_payload.get("dimension") or "").strip().lower()
+        if dimension != "daily_bars":
+            return
+
+        raw_symbols = result_payload.get("symbols")
+        if isinstance(raw_symbols, Mapping):  # pragma: no cover - legacy defensive path
+            symbols = [str(value).strip().upper() for value in raw_symbols.values() if value]
+        else:
+            symbols = [str(value).strip().upper() for value in (raw_symbols or ()) if value]
+        if not symbols:
+            return
+
+        start = result_payload.get("start_ts")
+        end = result_payload.get("end_ts")
+
+        for symbol in symbols:
+            snapshot = await self._produce_streaming_snapshot(
+                symbol=symbol,
+                start=start,
+                end=end,
+            )
+            if snapshot is None:
+                continue
+            self._streaming_snapshots[symbol] = snapshot
+            callback = self._sensory_snapshot_callback
+            if callback is not None:
+                try:
+                    callback(snapshot)
+                except Exception:  # pragma: no cover - defensive guard for callbacks
+                    logger.exception(
+                        "Sensory snapshot callback failed for symbol %s", symbol
+                    )
+
+    async def _produce_streaming_snapshot(
+        self,
+        *,
+        symbol: str,
+        start: object | None,
+        end: object | None,
+    ) -> Mapping[str, Any] | None:
+        def _build_snapshot() -> Mapping[str, Any] | None:
+            try:
+                frame = self._manager.fetch_data(
+                    symbol,
+                    start=start,
+                    end=end,
+                )
+            except Exception as exc:  # pragma: no cover - defensive logging
+                logger.warning(
+                    "Failed to fetch Timescale data for streaming sensory snapshot (%s): %s",
+                    symbol,
+                    exc,
+                )
+                return None
+
+            if frame.empty:
+                return None
+
+            try:
+                snapshot = self._sensory_organ.observe(frame, symbol=symbol)
+            except Exception:  # pragma: no cover - defensive logging
+                logger.exception(
+                    "Sensory organ failed to process streaming snapshot for %s",
+                    symbol,
+                )
+                return None
+            return snapshot
+
+        return await asyncio.to_thread(_build_snapshot)
 
 
 def create_operational_backbone_pipeline(

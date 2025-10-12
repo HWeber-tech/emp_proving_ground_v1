@@ -4,11 +4,12 @@ from .mini_cycle import (
     evaluate_lion_success,
     evaluate_quant_success,
 )
-from .mini_cycle_orchestration import run_day1_day2
+from .mini_cycle_orchestration import run_day1_day2, run_day3_day4
 
 __all__ = [
     "evaluate_lion_success",
     "evaluate_flash_success",
     "evaluate_quant_success",
     "run_day1_day2",
+    "run_day3_day4",
 ]

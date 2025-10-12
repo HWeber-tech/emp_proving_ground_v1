@@ -1,4 +1,4 @@
-"""End-to-end orchestration for the EMP mini-cycle days 1 and 2."""
+"""End-to-end orchestration for the EMP mini-cycle pilots."""
 from __future__ import annotations
 
 import json
@@ -21,6 +21,8 @@ except Exception:  # pragma: no cover - optional dependency
 
 ARTIFACTS_REPORT_DIR = Path("artifacts/reports/mc_d1d2")
 ARTIFACTS_CKPT_DIR = Path("artifacts/ckpts/mc_d1d2")
+ARTIFACTS_REPORT_DIR_D3D4 = Path("artifacts/reports/mc_d3d4")
+ARTIFACTS_CKPT_DIR_D3D4 = Path("artifacts/ckpts/mc_d3d4")
 
 
 def _ensure_dir(path: Path) -> None:
@@ -371,4 +373,361 @@ def run_day1_day2(emp_api: Any | None = None) -> Dict[str, Any]:
         "flash": flash_decision,
         "int8": int8_decision,
         "int4": int4_decision,
+    }
+
+
+def run_day3_day4(emp_api: Any | None = None) -> Dict[str, Any]:
+    """Execute the retrieval memory pilot for mini-cycle Days 3–4."""
+
+    emp = _resolve_emp(emp_api)
+
+    _ensure_dir(ARTIFACTS_REPORT_DIR_D3D4)
+    _ensure_dir(ARTIFACTS_CKPT_DIR_D3D4)
+
+    cfg: Dict[str, Any] = {
+        "REPO": "/opt/emp/emp_proving_ground_v1",
+        "ART_DIR": str(ARTIFACTS_REPORT_DIR_D3D4),
+        "CKPT_DIR": str(ARTIFACTS_CKPT_DIR_D3D4),
+        "MEMORY_ENABLED": True,
+        "TOPK": 8,
+        "EMBED_DIM": 384,
+        "EMBED_MODEL": "all-MiniLM-L6-v2",
+        "SIM_METRIC": "cosine",
+        "DECAY_HALF_LIFE_DAYS": 90,
+        "WRITE_EVERY_STEPS": 500,
+        "AUG_FEATURES": True,
+        "AUG_NOTES": True,
+        "REGIME_K": 6,
+        "REGIME_FEATURES": ["vol_14", "atr_14", "ret_5", "ret_20", "skew_20", "kurt_20"],
+        "STATE_SNAPSHOT_FEATURES": [
+            "ret_1",
+            "ret_5",
+            "ret_20",
+            "atr_14",
+            "vol_14",
+            "mom_14",
+            "rsi_14",
+            "bb_pos",
+            "spread",
+            "depth_imbalance",
+            "roll_impact",
+            "corr_benchmark_20",
+        ],
+        "OUTCOME_HORIZON": 20,
+        "OUTCOME_METRIC": "excess_ret",
+        "BACKTEST_SPLIT": "val",
+        "WINDOWS_FOR_EVAL": 1000,
+    }
+
+    emp.set_seed(4242)
+    emp.set_project("emp_mini_cycles")
+    emp.set_run_group("mc_day3_day4_retrieval_memory")
+    emp.env(cfg)
+
+    module = emp.module("emp.memory.retrieval")
+    module.ensure_installed(
+        deps=["faiss-cpu", "sqlite3", "sentence-transformers"]
+    )
+
+    memory_store = emp.memory.create_store(
+        name="emp_retrieval_memory",
+        kind="faiss_sqlite",
+        embedder=cfg["EMBED_MODEL"],
+        embed_dim=cfg["EMBED_DIM"],
+        sim_metric=cfg["SIM_METRIC"],
+        path_index="artifacts/memory/emp_mem.index",
+        path_meta="artifacts/memory/emp_mem.sqlite",
+    )
+
+    state_features = list(cfg["STATE_SNAPSHOT_FEATURES"])
+    regime_features = list(cfg["REGIME_FEATURES"])
+
+    def _state_embedding(batch_features: Dict[str, Any]) -> Any:
+        selected = emp.select_features(batch_features, state_features)
+        return emp.embed(cfg["EMBED_MODEL"], selected)
+
+    regime_model = emp.regime.kmeans(
+        k=cfg["REGIME_K"],
+        feature_names=regime_features,
+        split="train",
+        dataset="market_window_4h_lookahead",
+    )
+
+    def _aggregate_neighbors(neighbors: Iterable[Dict[str, Any]]) -> Dict[str, Any]:
+        records = list(neighbors)
+        if not records:
+            return {}
+        weights = [
+            emp.time.recency_weight(
+                rec["meta"].get("ts"), half_life_days=cfg["DECAY_HALF_LIFE_DAYS"]
+            )
+            for rec in records
+        ]
+        outcomes = [rec.get("outcome", 0.0) for rec in records]
+        weighted = emp.stats.weighted(values=outcomes, weights=weights)
+        hitrate = emp.stats.hitrate([1 if value > 0 else 0 for value in outcomes])
+        p90 = emp.stats.percentile(outcomes, 90)
+        return {
+            "mem_mean_outcome": weighted.get("mean", 0.0),
+            "mem_p90_outcome": p90,
+            "mem_hitrate": hitrate,
+            "mem_density": len(records),
+        }
+
+    def _make_note(context: Dict[str, Any], regime_tag: Any) -> str:
+        vol = float(context.get("vol_14", 0.0))
+        ret20 = float(context.get("ret_20", 0.0))
+        return f"regime={regime_tag} vol14={vol:.3f} ret20={ret20:.3f}"
+
+    def write_memory_from_backtest(run_id: str) -> Dict[str, Any]:
+        if not cfg.get("MEMORY_ENABLED") or memory_store is None:
+            return {"run_id": run_id, "written": 0}
+        stream = emp.data.iter_windows(
+            split=cfg["BACKTEST_SPLIT"],
+            limit=cfg["WINDOWS_FOR_EVAL"],
+            fields=state_features + regime_features + ["symbol", "ts"],
+        )
+        batch: list[Dict[str, Any]] = []
+        total_written = 0
+        for index, window in enumerate(stream, start=1):
+            regime_tag = regime_model.tag(window)
+            embedding = _state_embedding(window)
+            outcome = emp.labelers.future_outcome(
+                metric=cfg["OUTCOME_METRIC"],
+                horizon=cfg["OUTCOME_HORIZON"],
+                window=window,
+            )
+            note = _make_note(window, regime_tag)
+            meta = {
+                "ts": window.get("ts"),
+                "symbol": window.get("symbol"),
+                "regime_tag": regime_tag,
+            }
+            batch.append(
+                {
+                    "emb": embedding,
+                    "outcome": outcome,
+                    "note": note,
+                    "meta": meta,
+                }
+            )
+            if index % int(cfg["WRITE_EVERY_STEPS"]) == 0:
+                memory_store.add(batch)
+                total_written += len(batch)
+                batch = []
+            if index >= int(cfg["WINDOWS_FOR_EVAL"]):
+                break
+        if batch:
+            memory_store.add(batch)
+            total_written += len(batch)
+        emp.log(
+            f"Memory write complete for {run_id}; stored {total_written} entries.",
+            level="info",
+        )
+        return {"run_id": run_id, "written": total_written}
+
+    def memory_augment_hook(context: Dict[str, Any]) -> Dict[str, Any]:
+        if not (cfg.get("MEMORY_ENABLED") and cfg.get("AUG_FEATURES")):
+            return {}
+        if memory_store is None:
+            return {}
+        embedding = _state_embedding(context)
+        regime_tag = regime_model.tag(context)
+        filters = {"regime_tag": regime_tag}
+        if "symbol" in context:
+            filters["symbol"] = context["symbol"]
+        neighbors = memory_store.search(
+            embedding=embedding,
+            topk=int(cfg["TOPK"]),
+            where=filters,
+            recency_half_life_days=cfg["DECAY_HALF_LIFE_DAYS"],
+        )
+        if not neighbors:
+            return {}
+        return _aggregate_neighbors(neighbors)
+
+    def planner_notes_hook(context: Dict[str, Any]) -> str:
+        if not (cfg.get("MEMORY_ENABLED") and cfg.get("AUG_NOTES")):
+            return ""
+        if memory_store is None:
+            return ""
+        embedding = _state_embedding(context)
+        regime_tag = regime_model.tag(context)
+        filters = {"regime_tag": regime_tag}
+        if "symbol" in context:
+            filters["symbol"] = context["symbol"]
+        neighbors = memory_store.search(embedding, int(cfg["TOPK"]), where=filters)
+        if not neighbors:
+            return ""
+        bullets = [
+            "- {ts} {symbol} r{regime}: outcome={out:.4f} note={note}".format(
+                ts=neighbor.get("meta", {}).get("ts"),
+                symbol=neighbor.get("meta", {}).get("symbol"),
+                regime=neighbor.get("meta", {}).get("regime_tag"),
+                out=float(neighbor.get("outcome", 0.0)),
+                note=neighbor.get("note", ""),
+            )
+            for neighbor in neighbors[:5]
+        ]
+        return "Similar past states:\n" + "\n".join(bullets)
+
+    emp.inference.register_feature_hook(memory_augment_hook)
+    emp.planner.register_context_hook(planner_notes_hook)
+
+    write_memory_from_backtest("preload_mem_from_val")
+
+    task = {
+        "model_id": "emp_baseline_lstm_v3",
+        "dataset_id": "market_window_4h_lookahead",
+        "split": cfg["BACKTEST_SPLIT"],
+        "batch_size": 128,
+        "num_workers": 4,
+    }
+
+    schedule = {"epochs": 0, "eval_only": True, "log_every": 50}
+
+    cfg["MEMORY_ENABLED"] = False
+    run_off = emp.run_experiment(
+        label="day3_memOFF_backtest",
+        model=task["model_id"],
+        dataset=task["dataset_id"],
+        schedule=schedule,
+        metrics=[
+            "sharpe",
+            "sortino",
+            "max_dd",
+            "calmar",
+            "hit_rate",
+            "avg_trade",
+            "latency_ms",
+            "wall_clock_s",
+        ],
+        notes="A/B baseline without retrieval memory",
+    )
+
+    cfg["MEMORY_ENABLED"] = True
+    run_on = emp.run_experiment(
+        label="day4_memON_backtest",
+        model=task["model_id"],
+        dataset=task["dataset_id"],
+        schedule=schedule,
+        metrics=[
+            "sharpe",
+            "sortino",
+            "max_dd",
+            "calmar",
+            "hit_rate",
+            "avg_trade",
+            "latency_ms",
+            "wall_clock_s",
+        ],
+        notes="A/B with retrieval memory augment",
+    )
+
+    for run_id, tag in ((run_off, "memOFF"), (run_on, "memON")):
+        emp.export_csv(run_id, out=f"{cfg['ART_DIR']}/{tag}_metrics.csv")
+        emp.save_summary(run_id, out=f"{cfg['ART_DIR']}/{tag}_summary.json")
+
+    subset = emp.regime.repeat_subset(
+        split=cfg["BACKTEST_SPLIT"],
+        regime_model=regime_model,
+        match_threshold=0.8,
+    )
+
+    res_off = emp.evaluate_on_subset(
+        run_off,
+        subset=subset,
+        metrics=["sharpe", "max_dd", "sortino"],
+    )
+    res_on = emp.evaluate_on_subset(
+        run_on,
+        subset=subset,
+        metrics=["sharpe", "max_dd", "sortino"],
+    )
+
+    sharpe_off = float(res_off.get("sharpe", 0.0) or 0.0)
+    sharpe_on = float(res_on.get("sharpe", 0.0) or 0.0)
+    maxdd_off = float(res_off.get("max_dd", 0.0) or 0.0)
+    maxdd_on = float(res_on.get("max_dd", 0.0) or 0.0)
+    sortino_off = float(res_off.get("sortino", 0.0) or 0.0)
+    sortino_on = float(res_on.get("sortino", 0.0) or 0.0)
+
+    delta = {
+        "sharpe_delta": sharpe_on - sharpe_off,
+        "maxdd_delta": maxdd_on - maxdd_off,
+        "sortino_delta": sortino_on - sortino_off,
+    }
+
+    success = delta["sharpe_delta"] > 0.05 and delta["maxdd_delta"] < 0.0
+    abort = (delta["sharpe_delta"] < -0.05) or (
+        delta["maxdd_delta"] > 0.0 and abs(delta["maxdd_delta"]) > 0.02
+    )
+
+    decision = {
+        "ok": success and not abort,
+        "reason": "Improved Sharpe and reduced MaxDD on regime repeats"
+        if success and not abort
+        else "Did not meet Sharpe/DD thresholds on regime repeats",
+    }
+
+    if decision["ok"]:
+        emp.tag_run(run_on, "APPROVED_DEFAULT")
+        emp.set_flag("RETRIEVAL_MEMORY_DEFAULT", True)
+        emp.log("Retrieval memory APPROVED as default (flag on).", level="info")
+    else:
+        emp.tag_run(run_on, "REJECTED")
+        emp.set_flag("RETRIEVAL_MEMORY_DEFAULT", False)
+        cfg["MEMORY_ENABLED"] = False
+        emp.log("Retrieval memory REJECTED (kept off).", level="warn")
+
+    emp.generate_report(
+        title="EMP Mini-Cycle Days 3–4 — Retrieval Memory Pilot",
+        runs=[run_off, run_on],
+        decision=decision,
+        extras={
+            "subset_metrics_off": res_off,
+            "subset_metrics_on": res_on,
+            "deltas": delta,
+            "config": dict(cfg),
+        },
+        out=f"{cfg['ART_DIR']}/day3_4_report.html",
+    )
+
+    emp.summarize_to_markdown(
+        out=f"{cfg['ART_DIR']}/summary_day3_day4.md",
+        sections=[
+            {
+                "title": "Config",
+                "bullets": [
+                    f"TOPK={cfg['TOPK']}",
+                    f"Embedder={cfg['EMBED_MODEL']}",
+                    f"Regime K={cfg['REGIME_K']}",
+                ],
+            },
+            {"title": "Baseline (mem OFF)", "bullets": [f"run id: {run_off}"]},
+            {"title": "Treatment (mem ON)", "bullets": [f"run id: {run_on}"]},
+            {"title": "Regime-Repeat Deltas", "bullets": [str(delta)]},
+            {
+                "title": "Decision",
+                "bullets": [
+                    f"{'APPROVED' if decision['ok'] else 'REJECTED'} — {decision['reason']}"
+                ],
+            },
+        ],
+    )
+
+    emp.log(
+        "Mini-Cycle Days 3–4 complete. Artifacts at " + str(cfg["ART_DIR"]),
+        level="info",
+    )
+
+    return {
+        "baseline_run": run_off,
+        "treatment_run": run_on,
+        "delta": delta,
+        "decision": decision,
+        "subset": subset,
+        "metrics_off": res_off,
+        "metrics_on": res_on,
+        "config": dict(cfg),
     }

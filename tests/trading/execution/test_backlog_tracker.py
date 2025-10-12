@@ -26,7 +26,11 @@ def test_backlog_tracker_records_samples_and_breaches() -> None:
     assert snapshot["samples"] == 2
     assert snapshot["max_lag_ms"] == 150.0
     assert snapshot["avg_lag_ms"] == pytest.approx(100.0)
+    assert snapshot["p95_lag_ms"] == pytest.approx(145.0)
     assert snapshot["breaches"] == 1
+    assert snapshot["breach_rate"] == pytest.approx(0.5)
+    assert snapshot["max_breach_streak"] == 1
+    assert snapshot["latest_lag_ms"] == pytest.approx(150.0)
     assert snapshot["healthy"] is False
     assert snapshot["worst_breach_ms"] == 150.0
     assert snapshot["last_breach_at"] is not None
@@ -40,7 +44,11 @@ def test_backlog_tracker_handles_empty_samples() -> None:
         "threshold_ms": tracker.threshold_ms,
         "max_lag_ms": None,
         "avg_lag_ms": None,
+        "p95_lag_ms": None,
         "breaches": 0,
+        "breach_rate": 0.0,
+        "max_breach_streak": 0,
+        "latest_lag_ms": None,
         "healthy": True,
         "last_breach_at": None,
     }
@@ -52,6 +60,10 @@ def test_backlog_tracker_clamps_negative_lag() -> None:
     snapshot = tracker.snapshot()
     assert snapshot["max_lag_ms"] == 0.0
     assert snapshot["breaches"] == 0
+    assert snapshot["breach_rate"] == 0.0
+    assert snapshot["max_breach_streak"] == 0
+    assert snapshot["latest_lag_ms"] == 0.0
+    assert snapshot["p95_lag_ms"] == 0.0
     assert snapshot["healthy"] is True
 
 
@@ -66,7 +78,11 @@ def test_backlog_tracker_rolls_window_efficiency() -> None:
     assert snapshot["samples"] == 2
     assert snapshot["max_lag_ms"] == 150.0
     assert snapshot["avg_lag_ms"] == pytest.approx(110.0)
+    assert snapshot["p95_lag_ms"] == pytest.approx(146.0)
     assert snapshot["breaches"] == 1
+    assert snapshot["breach_rate"] == pytest.approx(0.5)
+    assert snapshot["max_breach_streak"] == 1
+    assert snapshot["latest_lag_ms"] == pytest.approx(70.0)
     assert snapshot["worst_breach_ms"] == 150.0
 
 
@@ -81,3 +97,7 @@ def test_backlog_tracker_updates_worst_breach_after_rollover() -> None:
     assert snapshot["breaches"] == 2
     assert snapshot["worst_breach_ms"] == 130.0
     assert snapshot["max_lag_ms"] == 130.0
+    assert snapshot["p95_lag_ms"] == pytest.approx(129.5)
+    assert snapshot["breach_rate"] == pytest.approx(1.0)
+    assert snapshot["max_breach_streak"] == 2
+    assert snapshot["latest_lag_ms"] == pytest.approx(130.0)

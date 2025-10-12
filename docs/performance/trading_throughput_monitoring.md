@@ -83,14 +83,18 @@ Event ingest lag also drives a dedicated `backlog` snapshot populated by the new
 | `samples` | Count of lag measurements retained in the sliding window. |
 | `threshold_ms` | Configured maximum tolerated lag before flagging a breach. |
 | `max_lag_ms` / `avg_lag_ms` | Observed extremes and average lag. |
+| `latest_lag_ms` | Most recent lag measurement to highlight current posture. |
+| `p95_lag_ms` | High-percentile lag for spotting creeping backlog. |
 | `breaches` | Number of lag breaches recorded in the current window. |
+| `breach_rate` | Fraction of samples breaching the threshold (0–1). |
+| `max_breach_streak` | Longest run of consecutive breach samples. |
 | `healthy` | `False` when `max_lag_ms` exceeds `threshold_ms`. |
 | `last_breach_at` | ISO timestamp of the most recent breach (if any). |
 | `worst_breach_ms` | Worst lag breach encountered in the retained window. |
 
 Operators can tighten or relax `threshold_ms` when instantiating the trading
-manager. Monitoring the breach counter alongside throughput makes backlog
-surges explicit during replay drills. Every breach now returns a
+manager. Monitoring the breach counter, breach rate, and streak alongside
+throughput makes backlog surges explicit during replay drills. Every breach now returns a
 `BacklogObservation`, triggers a warning log, increments the global
 `backlog_breaches` counter, and emits a `backlog_breach` experiment event with
 the offending lag payload so diaries and dashboards capture the exact moment
@@ -115,7 +119,8 @@ consistent schema so baseline scripts can still emit records.
 1. Run a high-frequency replay (or paper trading session) and periodically call
    `TradingManager.get_execution_stats()`.
 2. Confirm `throughput.avg_processing_ms` remains within your latency budget and
-   that `avg_lag_ms` stays near zero (indicating no backlog).
+   that `avg_lag_ms`/`p95_lag_ms` stay near zero with `breach_rate` close to 0
+   (indicating no backlog).
 3. Call `TradingManager.assess_throughput_health()` with the desired budgets and
    record both the raw metrics and the derived health verdict alongside `backlog`
    and `resource_usage` snapshots when establishing CPU/memory baselines for the

@@ -24,6 +24,10 @@ The returned dictionary contains:
   throttle summary.
 - `reports`: Markdown renderings that can be pasted directly into ops dossiers.
 
+The backlog snapshot now surfaces `latest_lag_ms`, `p95_lag_ms`, `breach_rate`,
+and `max_breach_streak` so trend analysis and drift detection can be done from a
+single payload.
+
 ## CLI utility
 
 A lightweight driver lives in `tools/performance_baseline.py`. Run it with the
@@ -57,7 +61,15 @@ Sample (truncated) output:
   },
   "performance": {
     "healthy": true,
-    "backlog": {"threshold_ms": 250.0, "max_lag_ms": 0.013},
+    "backlog": {
+      "threshold_ms": 250.0,
+      "max_lag_ms": 0.013,
+      "avg_lag_ms": 0.004,
+      "p95_lag_ms": 0.012,
+      "latest_lag_ms": 0.001,
+      "breach_rate": 0.0,
+      "max_breach_streak": 0
+    },
     "throttle": {
       "state": "rate_limited",
       "retry_at": "2025-10-12T21:11:19.776944+00:00",
@@ -74,4 +86,3 @@ Sample (truncated) output:
 Operators can archive the Markdown reports alongside the JSON payload to show
 baseline CPU/lag budgets remain within guardrails and that the trade throttle
 activates deterministically under burst conditions.
-

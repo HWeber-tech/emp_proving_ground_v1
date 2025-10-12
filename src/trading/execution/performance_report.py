@@ -13,6 +13,14 @@ def _format_float(value: object, *, precision: int = 2) -> str:
     return f"{number:.{precision}f}"
 
 
+def _format_percentage(value: object, *, precision: int = 1) -> str:
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return "—"
+    return f"{number * 100:.{precision}f}%"
+
+
 def _format_optional(value: object) -> str:
     if value in (None, "", "-", 0):
         return "—"
@@ -103,8 +111,16 @@ def build_execution_performance_report(stats: Mapping[str, object]) -> str:
         )
         lines.append(f"- Max lag (ms): {_format_float(backlog.get('max_lag_ms'))}")
         lines.append(f"- Avg lag (ms): {_format_float(backlog.get('avg_lag_ms'))}")
+        lines.append(f"- Latest lag (ms): {_format_float(backlog.get('latest_lag_ms'))}")
+        lines.append(f"- P95 lag (ms): {_format_float(backlog.get('p95_lag_ms'))}")
         breaches = backlog.get("breaches")
         lines.append(f"- Breaches: {_format_optional(breaches)}")
+        lines.append(
+            f"- Breach rate: {_format_percentage(backlog.get('breach_rate'))}"
+        )
+        lines.append(
+            f"- Max breach streak: {_format_optional(backlog.get('max_breach_streak'))}"
+        )
         worst_breach = backlog.get("worst_breach_ms")
         if worst_breach not in (None, ""):
             lines.append(f"- Worst breach (ms): {_format_float(worst_breach)}")
@@ -167,7 +183,14 @@ def build_performance_health_report(assessment: Mapping[str, object]) -> str:
             f"- Threshold (ms): {_format_float(backlog.get('threshold_ms'))}"
         )
         lines.append(f"- Max lag (ms): {_format_float(backlog.get('max_lag_ms'))}")
+        lines.append(f"- P95 lag (ms): {_format_float(backlog.get('p95_lag_ms'))}")
         lines.append(f"- Samples: {_format_optional(backlog.get('samples'))}")
+        lines.append(
+            f"- Breach rate: {_format_percentage(backlog.get('breach_rate'))}"
+        )
+        lines.append(
+            f"- Max breach streak: {_format_optional(backlog.get('max_breach_streak'))}"
+        )
     else:
         lines.append("")
         lines.append("## Backlog")

@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import click
 
+from emp.cli.final_dry_run import final_dry_run
+
 
 @click.group()
 def cli() -> None:
@@ -25,6 +27,9 @@ def mini_cycle(days: str) -> None:
         run_day3_day4()
     else:
         run_day1_day2()
+
+
+cli.add_command(final_dry_run)
 
 
 if __name__ == "__main__":  # pragma: no cover - CLI manual execution

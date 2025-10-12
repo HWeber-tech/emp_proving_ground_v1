@@ -9,9 +9,21 @@ This runbook describes how to execute the AlphaTrade final dry run in support of
 
 ## Launching the harness
 1. Pick an empty evidence directory, e.g. `artifacts/final_dry_run/2025-10-12`.
-2. Run the harness CLI, providing the runtime command after `--`:
+2. Run the harness CLI, providing the runtime command after `--`. The wrapper is
+   exposed both through the repo utility script and the consolidated EMP CLI:
    ```sh
    tools/operations/final_dry_run.py \
+     --log-dir artifacts/final_dry_run/2025-10-12 \
+     --progress-path artifacts/final_dry_run/2025-10-12/progress.json \
+     --duration-hours 72 \
+     --minimum-uptime-ratio 0.98 \
+     --diary data/diaries/final_dry_run.jsonl \
+     --performance artifacts/performance/final_dry_run.json \
+     --metadata sprint=phase2 --metadata run_id=final-dry-run-2025-10-12 \
+     -- python3 main.py --symbols EURUSD,GBPUSD
+
+   # or the equivalent EMP CLI entry point
+   emp final-dry-run \
      --log-dir artifacts/final_dry_run/2025-10-12 \
      --progress-path artifacts/final_dry_run/2025-10-12/progress.json \
      --duration-hours 72 \

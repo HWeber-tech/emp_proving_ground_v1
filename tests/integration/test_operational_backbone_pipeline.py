@@ -19,6 +19,8 @@ from src.data_foundation.streaming.kafka_stream import (
 )
 from src.data_integration.real_data_integration import RealDataManager
 from src.sensory.real_sensory_organ import RealSensoryOrgan
+from src.thinking.adaptation.policy_router import PolicyRouter, PolicyTactic
+from src.understanding.router import UnderstandingRouter
 
 
 class _FakeKafkaProducer:
@@ -186,5 +188,109 @@ async def test_operational_backbone_pipeline_full_cycle(tmp_path) -> None:
     assert result.sensory_snapshot["symbol"] == "EURUSD"
     integrated = result.sensory_snapshot["integrated_signal"]
     assert float(getattr(integrated, "confidence")) >= 0.0
+    assert result.ingest_error is None
+    assert result.belief_state is None
+    assert result.understanding_decision is None
 
     assert not event_bus.is_running()
+
+
+@pytest.mark.asyncio()
+async def test_operational_backbone_pipeline_understanding_failover(
+    tmp_path, monkeypatch
+) -> None:
+    url = f"sqlite:///{tmp_path / 'pipeline_timescale_understanding.db'}"
+    settings = TimescaleConnectionSettings(url=url)
+
+    producer = _FakeKafkaProducer()
+    publisher = KafkaIngestEventPublisher(
+        producer,
+        topic_map={
+            "daily_bars": "telemetry.ingest",
+            "intraday_trades": "telemetry.ingest",
+        },
+    )
+
+    manager = RealDataManager(timescale_settings=settings, ingest_publisher=publisher)
+    event_bus = EventBus()
+    sensory = RealSensoryOrgan()
+
+    policy_router = PolicyRouter()
+    policy_router.register_tactic(
+        PolicyTactic(
+            tactic_id="momentum",
+            base_weight=1.0,
+            parameters={"style": "momentum"},
+            guardrails={"risk_cap": "shadow"},
+        )
+    )
+    understanding_router = UnderstandingRouter(policy_router)
+
+    def consumer_factory() -> KafkaIngestEventConsumer:
+        consumer = _FakeKafkaConsumer(dict(message) for message in producer.messages)
+        return KafkaIngestEventConsumer(
+            consumer,
+            topics=("telemetry.ingest",),
+            event_bus=event_bus,
+            poll_timeout=0.1,
+            idle_sleep=0.0,
+        )
+
+    pipeline = OperationalBackbonePipeline(
+        manager=manager,
+        event_bus=event_bus,
+        kafka_consumer_factory=consumer_factory,
+        sensory_organ=sensory,
+        understanding_router=understanding_router,
+    )
+
+    base = datetime(2024, 5, 6, tzinfo=timezone.utc)
+    request = OperationalIngestRequest(
+        symbols=("eurusd",),
+        daily_lookback_days=2,
+        intraday_lookback_days=1,
+        intraday_interval="1m",
+    )
+
+    try:
+        result = await pipeline.execute(
+            request,
+            fetch_daily=lambda symbols, lookback: _daily_frame(base),
+            fetch_intraday=lambda symbols, lookback, interval: _intraday_frame(base),
+            poll_consumer=False,
+        )
+
+        assert result.ingest_error is None
+        assert result.belief_state is not None
+        assert result.regime_signal is not None
+        assert result.understanding_decision is not None
+
+        monkeypatch.setattr(
+            manager,
+            "ingest_market_slice",
+            lambda *_, **__: (_ for _ in ()).throw(RuntimeError("Timescale offline")),
+        )
+
+        monkeypatch.setattr(
+            manager._reader,
+            "fetch_daily_bars",
+            lambda *_, **__: (_ for _ in ()).throw(RuntimeError("Timescale unreachable")),
+        )
+
+        monkeypatch.setattr(
+            manager._reader,
+            "fetch_intraday_trades",
+            lambda *_, **__: (_ for _ in ()).throw(RuntimeError("Timescale unreachable")),
+        )
+
+        result_failover = await pipeline.execute(
+            request,
+            poll_consumer=False,
+        )
+
+        assert result_failover.ingest_error is not None
+        assert "daily_bars" in result_failover.frames
+        assert not result_failover.frames["daily_bars"].empty
+        assert result_failover.understanding_decision is not None
+    finally:
+        await pipeline.shutdown()

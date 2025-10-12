@@ -351,6 +351,30 @@ def _result_payload(
         "sensory_snapshot": result.sensory_snapshot,
         "connections": dict(_connection_metadata(config)),
     }
+    if result.ingest_error:
+        payload["ingest_error"] = result.ingest_error
+    if result.belief_state is not None:
+        payload["belief_state"] = result.belief_state.as_dict()
+    if result.regime_signal is not None:
+        payload["regime_signal"] = result.regime_signal.as_dict()
+    if result.belief_snapshot is not None:
+        snapshot = {
+            "belief_id": result.belief_snapshot.belief_id,
+            "regime": result.belief_snapshot.regime_state.regime,
+            "confidence": result.belief_snapshot.regime_state.confidence,
+            "features": dict(result.belief_snapshot.features),
+        }
+        if result.belief_snapshot.feature_flags:
+            snapshot["feature_flags"] = dict(result.belief_snapshot.feature_flags)
+        payload["belief_snapshot"] = snapshot
+    if result.understanding_decision is not None:
+        decision = result.understanding_decision.decision
+        payload["understanding_decision"] = {
+            "tactic_id": decision.tactic_id,
+            "selected_weight": decision.selected_weight,
+            "guardrails": dict(decision.guardrails),
+            "experiments": list(decision.experiments_applied),
+        }
     return payload
 
 

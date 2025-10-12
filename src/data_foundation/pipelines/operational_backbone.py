@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from dataclasses import dataclass
 from typing import Any, Callable, Mapping, MutableMapping, Sequence, TYPE_CHECKING
 
@@ -19,6 +20,9 @@ from src.data_foundation.streaming.kafka_stream import (
 from src.data_integration.real_data_integration import RealDataManager
 from src.governance.system_config import SystemConfig
 from src.sensory.real_sensory_organ import RealSensoryOrgan
+from src.understanding.belief import BeliefState, RegimeSignal
+from src.understanding.live_belief_manager import LiveBeliefManager
+from src.understanding.router import BeliefSnapshot, UnderstandingDecision, UnderstandingRouter
 
 if TYPE_CHECKING:  # pragma: no cover - typing support only
     from src.runtime.task_supervisor import TaskSupervisor
@@ -27,6 +31,9 @@ FetchDailyFn = Callable[[list[str], int], pd.DataFrame]
 FetchIntradayFn = Callable[[list[str], int, str], pd.DataFrame]
 FetchMacroFn = Callable[[str, str], Sequence[Mapping[str, object]]]
 KafkaConsumerFactory = Callable[[], KafkaIngestEventConsumer | None]
+
+
+logger = logging.getLogger(__name__)
 
 
 def _normalise_symbols(values: Sequence[str]) -> tuple[str, ...]:
@@ -82,6 +89,11 @@ class OperationalBackboneResult:
     cache_metrics_after_ingest: Mapping[str, int | float | str]
     cache_metrics_after_fetch: Mapping[str, int | float | str]
     sensory_snapshot: Mapping[str, Any] | None = None
+    belief_state: BeliefState | None = None
+    regime_signal: RegimeSignal | None = None
+    belief_snapshot: BeliefSnapshot | None = None
+    understanding_decision: UnderstandingDecision | None = None
+    ingest_error: str | None = None
 
 
 class OperationalBackbonePipeline:
@@ -97,9 +109,16 @@ class OperationalBackbonePipeline:
         sensory_organ: RealSensoryOrgan | None = None,
         event_topics: Sequence[str] | None = None,
         auto_close_consumer: bool = True,
+        belief_manager: LiveBeliefManager | None = None,
+        understanding_router: UnderstandingRouter | None = None,
+        belief_id: str | None = None,
     ) -> None:
         if kafka_consumer is not None and kafka_consumer_factory is not None:
             raise ValueError("Provide either kafka_consumer or kafka_consumer_factory, not both")
+        if understanding_router is not None and event_bus is None and belief_manager is None:
+            raise ValueError(
+                "event_bus must be provided when enabling understanding routing without a pre-built belief manager",
+            )
         self._manager = manager
         self._event_bus = event_bus
         self._consumer = kafka_consumer
@@ -108,6 +127,9 @@ class OperationalBackbonePipeline:
         self._event_topics = tuple(event_topics or ("telemetry.ingest",))
         self._auto_close_consumer = auto_close_consumer
         self._manager_shutdown = False
+        self._belief_manager = belief_manager
+        self._understanding_router = understanding_router
+        self._belief_id = belief_id
 
     async def execute(
         self,
@@ -135,21 +157,31 @@ class OperationalBackbonePipeline:
 
         try:
             cache_before = self._manager.cache_metrics(reset=True)
-            ingest_results = await asyncio.to_thread(
-                self._manager.ingest_market_slice,
-                symbols=request.symbols,
-                daily_lookback_days=request.daily_lookback_days,
-                intraday_lookback_days=request.intraday_lookback_days,
-                intraday_interval=request.intraday_interval,
-                macro_start=request.macro_start,
-                macro_end=request.macro_end,
-                macro_events=request.macro_events,
-                source=request.source,
-                macro_source=request.macro_source,
-                fetch_daily=fetch_daily,
-                fetch_intraday=fetch_intraday,
-                fetch_macro=fetch_macro,
-            )
+            ingest_error: str | None = None
+            try:
+                ingest_results = await asyncio.to_thread(
+                    self._manager.ingest_market_slice,
+                    symbols=request.symbols,
+                    daily_lookback_days=request.daily_lookback_days,
+                    intraday_lookback_days=request.intraday_lookback_days,
+                    intraday_interval=request.intraday_interval,
+                    macro_start=request.macro_start,
+                    macro_end=request.macro_end,
+                    macro_events=request.macro_events,
+                    source=request.source,
+                    macro_source=request.macro_source,
+                    fetch_daily=fetch_daily,
+                    fetch_intraday=fetch_intraday,
+                    fetch_macro=fetch_macro,
+                )
+            except Exception as exc:
+                ingest_results = {}
+                ingest_error = str(exc)
+                logger.warning(
+                    "Operational backbone ingest failed; continuing with cached data: %s",
+                    exc,
+                    exc_info=True,
+                )
             cache_after_ingest = self._manager.cache_metrics(reset=False)
 
             frames: MutableMapping[str, pd.DataFrame] = {}
@@ -158,7 +190,7 @@ class OperationalBackbonePipeline:
             async def _fetch_and_warm(
                 *,
                 dimension: str,
-                interval: str,
+                interval: str | None,
                 period: str | None,
             ) -> pd.DataFrame:
                 frame = await asyncio.to_thread(
@@ -183,6 +215,16 @@ class OperationalBackbonePipeline:
                     interval="1d",
                     period=request.daily_period(),
                 )
+            elif (
+                ingest_error is not None
+                and request.daily_lookback_days is not None
+                and request.daily_lookback_days > 0
+            ):
+                await _fetch_and_warm(
+                    dimension="daily_bars",
+                    interval="1d",
+                    period=request.daily_period(),
+                )
 
             if "intraday_trades" in ingest_results:
                 await _fetch_and_warm(
@@ -190,20 +232,114 @@ class OperationalBackbonePipeline:
                     interval=request.intraday_interval,
                     period=request.intraday_period(),
                 )
+            elif (
+                ingest_error is not None
+                and request.intraday_lookback_days is not None
+                and request.intraday_lookback_days > 0
+            ):
+                await _fetch_and_warm(
+                    dimension="intraday_trades",
+                    interval=request.intraday_interval,
+                    period=request.intraday_period(),
+                )
+
+            if "macro_events" in ingest_results:
+                await _fetch_and_warm(
+                    dimension="macro_events",
+                    interval=None,
+                    period=None,
+                )
+            elif (
+                ingest_error is not None
+                and (
+                    request.macro_events is not None
+                    or (request.macro_start is not None and request.macro_end is not None)
+                )
+            ):
+                await _fetch_and_warm(
+                    dimension="macro_events",
+                    interval=None,
+                    period=None,
+                )
 
             cache_after_fetch = self._manager.cache_metrics(reset=False)
 
             sensory_snapshot: Mapping[str, Any] | None = None
-            if (
-                self._sensory_organ is not None
-                and "daily_bars" in frames
-                and not frames["daily_bars"].empty
-            ):
-                sensory_snapshot = await asyncio.to_thread(
-                    self._sensory_organ.observe,
-                    frames["daily_bars"],
-                    symbol=symbol,
+            belief_state: BeliefState | None = None
+            regime_signal: RegimeSignal | None = None
+            belief_snapshot: BeliefSnapshot | None = None
+            understanding_decision: UnderstandingDecision | None = None
+
+            has_daily_frame = "daily_bars" in frames and not frames["daily_bars"].empty
+            if has_daily_frame:
+                daily_frame = frames["daily_bars"]
+                belief_enabled = (self._belief_manager is not None) or (
+                    self._understanding_router is not None
                 )
+                if belief_enabled:
+                    if self._belief_manager is None:
+                        if self._sensory_organ is None:
+                            raise ValueError(
+                                "sensory_organ must be provided when bootstrapping a belief manager",
+                            )
+                        if self._event_bus is None:
+                            raise ValueError(
+                                "event_bus must be provided when bootstrapping a belief manager",
+                            )
+                        belief_id = self._belief_id or f"operational.{symbol.lower()}"
+                        manager, snapshot, belief_state, regime_signal = LiveBeliefManager.from_market_data(
+                            market_data=daily_frame,
+                            symbol=symbol,
+                            belief_id=belief_id,
+                            event_bus=self._event_bus,
+                            organ=self._sensory_organ,
+                        )
+                        self._belief_manager = manager
+                        sensory_snapshot = snapshot
+                    else:
+                        snapshot, belief_state, regime_signal = self._belief_manager.process_market_data(
+                            daily_frame,
+                            symbol=symbol,
+                        )
+                        sensory_snapshot = snapshot
+
+                    if (
+                        self._understanding_router is not None
+                        and belief_state is not None
+                        and regime_signal is not None
+                    ):
+                        feature_flags: Mapping[str, bool] | None = None
+                        metadata = sensory_snapshot.get("metadata") if isinstance(sensory_snapshot, Mapping) else None
+                        if isinstance(metadata, Mapping):
+                            flags = metadata.get("feature_flags")
+                            if isinstance(flags, Mapping):
+                                feature_flags = {
+                                    str(key): bool(value) for key, value in flags.items()
+                                }
+                        fast_weights_enabled = True
+                        if isinstance(metadata, Mapping):
+                            fast_flag = metadata.get("fast_weights_enabled")
+                            if isinstance(fast_flag, bool):
+                                fast_weights_enabled = fast_flag
+                        belief_snapshot = BeliefSnapshot(
+                            belief_id=belief_state.belief_id,
+                            regime_state=regime_signal.regime_state,
+                            features=dict(regime_signal.features),
+                            metadata={
+                                "symbol": belief_state.symbol,
+                                "source": "operational_backbone",
+                                "ingest_error": bool(ingest_error),
+                            },
+                            fast_weights_enabled=fast_weights_enabled,
+                            feature_flags=feature_flags,
+                        )
+                        understanding_decision = self._understanding_router.route(belief_snapshot)
+                elif self._sensory_organ is not None:
+                    sensory_snapshot = await asyncio.to_thread(
+                        self._sensory_organ.observe,
+                        daily_frame,
+                        symbol=symbol,
+                    )
 
             consumer, owns_consumer = self._resolve_consumer()
             if poll_consumer and consumer is not None:
@@ -222,6 +358,11 @@ class OperationalBackbonePipeline:
                 cache_metrics_after_ingest=dict(cache_after_ingest),
                 cache_metrics_after_fetch=dict(cache_after_fetch),
                 sensory_snapshot=sensory_snapshot,
+                belief_state=belief_state,
+                regime_signal=regime_signal,
+                belief_snapshot=belief_snapshot,
+                understanding_decision=understanding_decision,
+                ingest_error=ingest_error,
             )
         finally:
             if self._event_bus is not None:

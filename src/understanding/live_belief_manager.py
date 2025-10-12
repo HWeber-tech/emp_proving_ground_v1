@@ -27,6 +27,7 @@ class LiveBeliefManager:
         emitter: BeliefEmitter,
         regime_fsm: RegimeFSM,
         calibration: BeliefRegimeCalibration | None = None,
+        scaling_hysteresis: float = 0.15,
     ) -> None:
         self._belief_id = belief_id
         self._symbol = symbol
@@ -34,7 +35,8 @@ class LiveBeliefManager:
         self._emitter = emitter
         self._regime_fsm = regime_fsm
         self._calibration = calibration
-        self._threshold_scaled = calibration is None
+        self._threshold_scale = 1.0
+        self._scaling_hysteresis = scaling_hysteresis if scaling_hysteresis >= 0.0 else 0.0
         self._last_snapshot: Mapping[str, object] | None = None
         self._last_belief_state: BeliefState | None = None
         self._last_regime_signal: RegimeSignal | None = None
@@ -148,20 +150,22 @@ class LiveBeliefManager:
         *,
         apply_threshold_scaling: bool | None = None,
     ) -> tuple[Mapping[str, object], BeliefState, RegimeSignal]:
-        should_scale = apply_threshold_scaling
-        if should_scale is None:
-            should_scale = not self._threshold_scaled
+        if apply_threshold_scaling is None:
+            should_scale = self._calibration is not None
+        else:
+            should_scale = bool(apply_threshold_scaling)
 
-        if (
-            should_scale
-            and not self._threshold_scaled
-            and self._calibration is not None
-        ):
+        if should_scale and self._calibration is not None:
             sample = extract_snapshot_volatility(snapshot, self._calibration.volatility_feature)
             scale = resolve_threshold_scale(self._calibration, sample)
             if scale is not None:
-                self._regime_fsm.apply_threshold_scale(scale)
-                self._threshold_scaled = True
+                target_scale = float(max(scale, 1.0))
+                hysteresis = 1.0 + self._scaling_hysteresis
+                if target_scale > self._threshold_scale * hysteresis:
+                    baseline = self._threshold_scale if self._threshold_scale > 0.0 else 1.0
+                    factor = target_scale / baseline
+                    self._regime_fsm.apply_threshold_scale(factor)
+                    self._threshold_scale = target_scale
 
         belief_state = self._emitter.emit(snapshot)
         regime_signal = self._regime_fsm.publish(belief_state)

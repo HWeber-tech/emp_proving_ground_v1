@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import deepcopy
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -204,3 +205,92 @@ def test_live_belief_manager_regime_transitions_with_snapshots() -> None:
 
     regime_events = [event for event in bus.events if event.type == "telemetry.understanding.regime"]
     assert regime_events, "expected regime telemetry to be published"
+
+
+@pytest.mark.guardrail
+def test_live_belief_manager_rescales_thresholds_for_large_spike() -> None:
+    base_prices = [1.105 + idx * 0.00005 for idx in range(64)]
+    frame = _frame_from_prices(base_prices)
+    bus = _RecordingBus()
+
+    manager, snapshot, _belief_state, _signal = LiveBeliefManager.from_market_data(
+        market_data=frame,
+        symbol="EURUSD",
+        belief_id="spike-belief",
+        event_bus=bus,
+    )
+
+    initial_health = manager.regime_fsm.healthcheck()
+    base_calm = float(initial_health["calm_threshold"])
+    base_storm = float(initial_health["storm_threshold"])
+
+    # Craft a volatility spike by cloning the last processed snapshot and amplifying HOW/ANOMALY signals.
+    spike_snapshot = deepcopy(snapshot)
+    spike_snapshot["generated_at"] = snapshot["generated_at"] + timedelta(minutes=1)
+
+    calibration = manager.calibration
+    saturation_cap = None
+    if calibration is not None:
+        saturation_cap = float(calibration.calm_threshold * 1e4)
+
+    how_payload = spike_snapshot["dimensions"]["HOW"]
+    spike_magnitude = base_calm * 1.2 or 1.0
+    if saturation_cap is not None:
+        spike_magnitude = min(spike_magnitude, saturation_cap * 0.99)
+    spike_magnitude = float(max(spike_magnitude, base_calm * 1.05, 1e-4))
+    how_payload["signal"] = float(spike_magnitude)
+    how_payload.setdefault("confidence", 0.7)
+    value_payload = how_payload.setdefault("value", {})
+    value_payload["volatility"] = float(spike_magnitude)
+    value_payload["strength"] = float(spike_magnitude)
+    metadata_payload = how_payload.setdefault("metadata", {})
+    metadata_payload["state"] = "alert"
+
+    anomaly_payload = spike_snapshot["dimensions"]["ANOMALY"]
+    anomaly_signal = spike_magnitude * 0.9
+    anomaly_payload["signal"] = float(anomaly_signal)
+    anomaly_payload.setdefault("confidence", 0.6)
+    anomaly_value = anomaly_payload.setdefault("value", {})
+    anomaly_value["is_anomaly"] = True
+    anomaly_value["z_score"] = float(anomaly_signal * 5.0)
+    anomaly_meta = anomaly_payload.setdefault("metadata", {})
+    anomaly_meta["is_anomaly"] = True
+    audit_payload = anomaly_meta.setdefault("audit", {})
+    audit_payload["z_score"] = float(anomaly_signal * 5.0)
+
+    integrated = spike_snapshot["integrated_signal"]
+    integrated.strength = float(min(max(integrated.strength + 0.15, -1.0), 1.0))
+    integrated.confidence = float(min(max(integrated.confidence, 0.35), 0.95))
+
+    _, _belief_state, first_spike_signal = manager.process_snapshot(
+        spike_snapshot,
+        apply_threshold_scaling=True,
+    )
+
+    first_spike_health = manager.regime_fsm.healthcheck()
+    assert first_spike_health["calm_threshold"] > base_calm
+    assert first_spike_health["storm_threshold"] > base_storm
+    assert first_spike_signal.regime_state.volatility_state in {"calm", "normal", "storm"}
+
+    mega_snapshot = deepcopy(spike_snapshot)
+    mega_snapshot["generated_at"] = spike_snapshot["generated_at"] + timedelta(minutes=1)
+    mega_magnitude = base_calm * 1.4
+    if saturation_cap is not None:
+        mega_magnitude = min(mega_magnitude, saturation_cap * 0.99)
+    mega_magnitude = float(max(mega_magnitude, spike_magnitude * 1.1))
+    mega_snapshot["dimensions"]["HOW"]["signal"] = float(mega_magnitude)
+    mega_snapshot["dimensions"]["HOW"]["value"]["volatility"] = float(mega_magnitude)
+    mega_snapshot["dimensions"]["HOW"]["value"]["strength"] = float(mega_magnitude)
+    mega_snapshot["dimensions"]["ANOMALY"]["signal"] = float(mega_magnitude * 0.9)
+    mega_snapshot["dimensions"]["ANOMALY"]["value"]["z_score"] = float(mega_magnitude * 4.5)
+    mega_snapshot["dimensions"]["ANOMALY"]["metadata"]["audit"]["z_score"] = float(mega_magnitude * 4.5)
+    _, _belief_state, mega_signal = manager.process_snapshot(
+        mega_snapshot,
+        apply_threshold_scaling=True,
+    )
+
+    mega_health = manager.regime_fsm.healthcheck()
+    assert mega_health["calm_threshold"] >= first_spike_health["calm_threshold"]
+    assert mega_health["storm_threshold"] >= first_spike_health["storm_threshold"]
+    assert mega_health["calm_threshold"] < mega_health["storm_threshold"]
+    assert mega_signal.regime_state.volatility_state in {"calm", "normal", "storm"}

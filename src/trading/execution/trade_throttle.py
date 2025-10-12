@@ -199,6 +199,8 @@ class TradeThrottle:
         if message is None:
             message = self._format_reason(reason, retry_at)
 
+        recent_trades = len(state.timestamps)
+
         snapshot = self._build_snapshot(
             state=throttle_state,
             active=active,
@@ -208,8 +210,9 @@ class TradeThrottle:
             message=message,
             scope_key=scope_key,
             scope_descriptor=scope_descriptor,
-            recent_trades=len(state.timestamps),
+            recent_trades=recent_trades,
             cooldown_until=state.cooldown_until,
+            moment=moment,
         )
         self._last_snapshot = snapshot
 
@@ -226,6 +229,8 @@ class TradeThrottle:
         return dict(self._last_snapshot)
 
     def _initial_snapshot(self) -> Mapping[str, Any]:
+        now = datetime.now(tz=UTC)
+
         return self._build_snapshot(
             state="open",
             active=False,
@@ -237,6 +242,7 @@ class TradeThrottle:
             scope_descriptor=None,
             recent_trades=0,
             cooldown_until=None,
+            moment=now,
         )
 
     def _build_snapshot(
@@ -252,11 +258,15 @@ class TradeThrottle:
         scope_descriptor: Mapping[str, Any] | None,
         recent_trades: int,
         cooldown_until: datetime | None,
+        moment: datetime,
     ) -> Mapping[str, Any]:
+        remaining_trades = max(self._config.max_trades - int(recent_trades), 0)
+
         meta_payload: MutableMapping[str, Any] = {
             "max_trades": self._config.max_trades,
             "window_seconds": float(self._config.window_seconds),
             "recent_trades": recent_trades,
+            "remaining_trades": remaining_trades,
         }
         if self._config.min_spacing_seconds:
             meta_payload["min_spacing_seconds"] = float(self._config.min_spacing_seconds)
@@ -276,6 +286,15 @@ class TradeThrottle:
             meta_payload["cooldown_until"] = cooldown_until.astimezone(UTC).isoformat()
         if metadata:
             meta_payload["context"] = dict(metadata)
+
+        retry_iso: str | None = None
+        retry_in_seconds: float | None = None
+        if retry_at is not None:
+            retry_iso = retry_at.astimezone(UTC).isoformat()
+            retry_in_seconds = max((retry_at - moment).total_seconds(), 0.0)
+            meta_payload["retry_at"] = retry_iso
+            meta_payload["retry_in_seconds"] = retry_in_seconds
+
         snapshot: dict[str, Any] = {
             "name": self._config.name,
             "state": state,
@@ -290,9 +309,6 @@ class TradeThrottle:
             snapshot["reason"] = reason
         if message:
             snapshot["message"] = message
-        if retry_at is not None:
-            snapshot.setdefault("metadata", meta_payload)
-            snapshot["metadata"]["retry_at"] = retry_at.astimezone(UTC).isoformat()
         return MappingProxyType(snapshot)
 
     def _get_state(self, scope_key: tuple[str, ...]) -> "TradeThrottle._ThrottleState":

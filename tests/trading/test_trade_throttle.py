@@ -26,6 +26,9 @@ def test_trade_throttle_enforces_window_and_retry(cooldown_seconds: float) -> No
     assert first.allowed is True
     assert first.snapshot["state"] == "open"
     assert first.retry_at is None
+    first_meta = first.snapshot.get("metadata", {})
+    assert first_meta.get("remaining_trades") == 0
+    assert first_meta.get("retry_in_seconds") is None
 
     second_time = base + timedelta(seconds=5)
     second = throttle.evaluate(now=second_time, metadata={"symbol": "EURUSD"})
@@ -40,6 +43,13 @@ def test_trade_throttle_enforces_window_and_retry(cooldown_seconds: float) -> No
     assert second.retry_at == retry_expected
     second_metadata = second.snapshot.get("metadata", {})
     assert second_metadata.get("recent_trades") == 1
+    expected_retry_seconds = (
+        cooldown_seconds if cooldown_seconds else 55.0
+    )
+    assert second_metadata.get("retry_in_seconds") == pytest.approx(
+        expected_retry_seconds
+    )
+    assert second_metadata.get("remaining_trades") == 0
     context = second_metadata.get("context", {})
     assert context.get("symbol") == "EURUSD"
 
@@ -50,12 +60,18 @@ def test_trade_throttle_enforces_window_and_retry(cooldown_seconds: float) -> No
         assert third.reason == "cooldown_active"
         assert third.retry_at == second.retry_at
         assert third.snapshot["state"] == "cooldown"
+        assert third.retry_at is not None
+        remaining = max((third.retry_at - third_time).total_seconds(), 0.0)
+        third_meta = third.snapshot.get("metadata", {})
+        assert third_meta.get("retry_in_seconds") == pytest.approx(remaining)
     else:
         # Without cooldown, the retry time should remain anchored to the rolling window.
         assert third.allowed is False
         assert third.reason == "max_1_trades_per_60s"
         assert third.retry_at == base + timedelta(seconds=60)
         assert third.snapshot["state"] == "rate_limited"
+        third_meta = third.snapshot.get("metadata", {})
+        assert third_meta.get("retry_in_seconds") == pytest.approx(45.0)
 
     resume_time = base + timedelta(seconds=75)
     fourth = throttle.evaluate(now=resume_time, metadata={"symbol": "EURUSD"})
@@ -79,6 +95,8 @@ def test_trade_throttle_scopes_by_metadata_field() -> None:
         now=base, metadata={"strategy_id": "alpha", "symbol": "EURUSD"}
     )
     assert alpha_first.allowed is True
+    alpha_meta = alpha_first.snapshot.get("metadata", {})
+    assert alpha_meta.get("remaining_trades") == 0
 
     beta_first = throttle.evaluate(
         now=base + timedelta(seconds=1),
@@ -139,6 +157,7 @@ def test_trade_throttle_enforces_minimum_spacing() -> None:
     metadata = second.snapshot.get("metadata", {})
     assert metadata.get("min_spacing_seconds") == 30.0
     assert metadata.get("recent_trades") == 1
+    assert metadata.get("retry_in_seconds") == pytest.approx(20.0)
 
     third = throttle.evaluate(
         now=base + timedelta(seconds=35), metadata={"strategy_id": "alpha"}

@@ -446,6 +446,44 @@ AlphaTrade now operates as a cohesive, explainable trading intelligence capable 
 ## 10. Publication & Stakeholder Review Plan
 The roadmap’s documentation milestone culminates in presenting the whitepaper to governance, research, and operations stakeholders. We follow a three-step plan: (1) regenerate evidence via the whitepaper build workflow and attach the resulting artefacts to the institutional readiness brief; (2) host a walkthrough anchored on the understanding-loop sprint brief to contextualise how the documented experiments close the remaining roadmap gaps; and (3) capture review feedback in the governance policy ledger so any follow-up actions are traceable.【F:scripts/docs/build_whitepaper.sh†L1-L126】【F:docs/context/sprint_briefs/understanding_loop_v1.md†L1-L120】【F:docs/context/alignment_briefs/institutional_risk_compliance.md†L115-L200】 The publication package therefore includes reproducible metrics, context pack crosswalks, and an approval log aligned with the compliance charter, satisfying the definition of done for the whitepaper milestone without editing the roadmap itself.
 
+Teams operating in sandboxes without `poetry` can mirror the automated workflow manually while still emitting the evidence bundle under `artifacts/whitepaper/`. Execute the following two commands (substituting paper API extras as appropriate):
+
+```bash
+python3 tools/trading/run_paper_trading_simulation.py \
+  --output artifacts/whitepaper/paper_trading_report.json \
+  --diary artifacts/whitepaper/decision_diary.json \
+  --ledger artifacts/paper_policy_ledger.json \
+  --pretty
+
+python3 - <<'PY'
+from pathlib import Path
+from src.trading.execution.performance_report import build_execution_performance_report
+
+stats = {
+    "orders_submitted": 0,
+    "orders_executed": 0,
+    "orders_failed": 0,
+    "trade_throttle": {"name": "paper-sim-refresh", "state": "idle"},
+    "throughput": {
+        "samples": 0,
+        "avg_processing_ms": 0.0,
+        "p95_processing_ms": 0.0,
+        "max_processing_ms": 0.0,
+        "avg_lag_ms": 0.0,
+        "max_lag_ms": 0.0,
+        "throughput_per_min": 0.0,
+    },
+}
+
+Path("artifacts/whitepaper/performance_report.md").write_text(
+    build_execution_performance_report(stats),
+    encoding="utf-8",
+)
+PY
+```
+
+This manual path mirrors the automation script’s behaviour,【F:scripts/docs/build_whitepaper.sh†L9-L43】 keeps the publication checklist reproducible when the wrapper cannot be invoked, and uses the versioned `artifacts/whitepaper/` directory (now tracked via `.gitkeep`) to anchor refreshed evidence for reviewer retrieval.
+
 ## 11. Editorial Completeness Checklist
 The documentation milestone’s definition of done calls for a cohesive narrative, architecture explanation, BDH feature discussion, and reproducible results. Table 2 summarises how this whitepaper satisfies each requirement so reviewers can perform an editorial spot-check without re-reading the entire document.
 

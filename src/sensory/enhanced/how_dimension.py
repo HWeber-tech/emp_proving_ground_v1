@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import random
-from math import tanh
-from typing import Any, Mapping
+from math import isfinite, tanh
+from typing import Any, Callable, Mapping
 
 from src.core.base import DimensionalReading, MarketRegime
 from src.sensory.enhanced._shared import (
@@ -17,6 +17,22 @@ __all__ = ["InstitutionalUnderstandingEngine", "InstitutionalIntelligenceEngine"
 
 
 class InstitutionalUnderstandingEngine:
+    def __init__(self, *, random_source: Callable[[], float] | None = None) -> None:
+        self._random_source = random_source or random.random
+
+    def _sample_unit_interval(self) -> float:
+        try:
+            sample = float(self._random_source())
+        except Exception:
+            sample = random.random()
+        if not isfinite(sample):
+            sample = random.random()
+        if sample < 0.0:
+            return 0.0
+        if sample > 1.0:
+            return 1.0
+        return sample
+
     def analyze_institutional_understanding(
         self, data: Mapping[str, Any] | Any | None = None
     ) -> ReadingAdapter:
@@ -70,7 +86,7 @@ class InstitutionalUnderstandingEngine:
         # Introduce slight stochasticity to avoid lock-step behaviour when
         # upstream data lacks variation.
         if confidence > 0.6:
-            jitter = 0.02 * random.random()
+            jitter = 0.02 * self._sample_unit_interval()
             signal_strength = clamp(signal_strength + jitter, -1.0, 1.0)
 
         reading = DimensionalReading(

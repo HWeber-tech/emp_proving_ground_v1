@@ -188,6 +188,8 @@ class HowSensor:
             "high": float(row.get("high", row.get("close", 0.0) or 0.0)),
             "low": float(row.get("low", row.get("close", 0.0) or 0.0)),
             "close": float(row.get("close", 0.0) or 0.0),
+            "bid": float(row.get("bid", row.get("close", 0.0) or 0.0)),
+            "ask": float(row.get("ask", row.get("close", 0.0) or 0.0)),
             "volume": float(row.get("volume", 0.0) or 0.0),
             "volatility": float(row.get("volatility", 0.0) or 0.0),
             "spread": float(row.get("spread", 0.0) or 0.0),

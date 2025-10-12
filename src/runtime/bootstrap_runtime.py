@@ -467,6 +467,12 @@ class BootstrapRuntime:
         paper_engine = getattr(self.trading_manager, "_live_engine", None)
         if isinstance(paper_engine, PaperBrokerExecutionAdapter):
             summary.setdefault("metrics", paper_engine.describe_metrics())
+            risk_snapshot = paper_engine.describe_risk_context()
+            if risk_snapshot:
+                summary.setdefault("risk_context", risk_snapshot)
+            last_error = paper_engine.describe_last_error()
+            if isinstance(last_error, Mapping) and last_error:
+                summary.setdefault("last_error", dict(last_error))
         return summary
 
     def _publish_sensory_outputs(self, snapshot: Mapping[str, Any] | None) -> None:

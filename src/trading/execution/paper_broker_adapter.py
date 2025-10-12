@@ -12,6 +12,7 @@ import asyncio
 import logging
 from collections import deque
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from time import perf_counter
 from typing import Any, Mapping, MutableMapping
 
@@ -73,6 +74,9 @@ class PaperBrokerExecutionAdapter:
     _error_history: deque[dict[str, object]] = field(
         default_factory=lambda: deque(maxlen=512), init=False, repr=False
     )
+    _first_order_time: datetime | None = field(default=None, init=False, repr=False)
+    _last_order_time: datetime | None = field(default=None, init=False, repr=False)
+    _last_error_time: datetime | None = field(default=None, init=False, repr=False)
 
     def set_risk_context_provider(
         self, provider: RiskContextProvider | None
@@ -246,6 +250,7 @@ class PaperBrokerExecutionAdapter:
         intent: Any,
         latency: float | None = None,
     ) -> None:
+        now = datetime.now(timezone.utc)
         metadata: MutableMapping[str, Any] = {}
         raw_metadata = _extract(intent, "metadata", default={})
         if isinstance(raw_metadata, Mapping):
@@ -258,6 +263,7 @@ class PaperBrokerExecutionAdapter:
             "quantity": quantity,
             "order_type": order_type,
             "metadata": dict(metadata),
+            "placed_at": now.isoformat(),
         }
         if latency is not None:
             self._last_order["latency_s"] = latency
@@ -268,6 +274,9 @@ class PaperBrokerExecutionAdapter:
             self._last_order["risk_error"] = dict(self._last_risk_error)
 
         self._order_history.append(dict(self._last_order))
+        self._last_order_time = now
+        if self._first_order_time is None:
+            self._first_order_time = now
 
     def describe_last_error(self) -> Mapping[str, object] | None:
         """Expose the most recent execution failure metadata, if any."""
@@ -301,6 +310,13 @@ class PaperBrokerExecutionAdapter:
             "success_ratio": success_ratio,
             "failure_ratio": failure_ratio,
         }
+        if self._first_order_time is not None:
+            payload["first_order_at"] = self._first_order_time.isoformat()
+        if self._last_order_time is not None:
+            payload["last_order_at"] = self._last_order_time.isoformat()
+        if self._last_error_time is not None:
+            payload["last_error_at"] = self._last_error_time.isoformat()
+        return payload
 
     def consume_order_history(self) -> list[Mapping[str, object]]:
         """Return and clear the buffered successfully submitted orders."""
@@ -357,9 +373,13 @@ class PaperBrokerExecutionAdapter:
         if self._last_risk_error is not None:
             payload["risk_error"] = dict(self._last_risk_error)
 
+        now = datetime.now(timezone.utc)
+        payload["recorded_at"] = now.isoformat()
+
         self._register_failure()
         self._last_error = dict(payload)
         self._error_history.append(dict(self._last_error))
+        self._last_error_time = now
 
     def _register_success(self, latency: float | None) -> None:
         self._total_orders += 1

@@ -173,6 +173,14 @@ async def run_paper_trading_simulation(
                 logger.debug("Paper trading simulation cleanup failed", exc_info=True)
 
     runtime_seconds = monotonic() - start_time
+    describe_last_error = getattr(paper_engine, "describe_last_error", None)
+    if callable(describe_last_error):
+        try:
+            residual_error = describe_last_error()
+        except Exception:  # pragma: no cover - defensive guard
+            logger.debug("Failed to capture fallback paper broker error", exc_info=True)
+        else:
+            _append_error_metadata(residual_error, errors, seen_errors)
     portfolio_snapshot = _resolve_portfolio_snapshot(paper_engine)
     release_summary = _resolve_release_summary(runtime)
 

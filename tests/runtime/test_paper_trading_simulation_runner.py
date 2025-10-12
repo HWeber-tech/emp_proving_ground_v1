@@ -99,6 +99,7 @@ async def test_run_paper_trading_simulation_executes_orders(tmp_path) -> None:
     assert captured, "Paper trading API did not receive any orders"
     assert report.orders, "Simulation did not capture any broker orders"
     assert report.orders[0]["symbol"] == "EURUSD"
+    assert "placed_at" in report.orders[0]
     assert report.paper_broker and report.paper_broker["base_url"] == base_url
     assert report.paper_metrics is not None
     assert report.paper_metrics.get("success_ratio") == pytest.approx(1.0)

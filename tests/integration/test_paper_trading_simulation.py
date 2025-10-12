@@ -105,6 +105,7 @@ async def test_bootstrap_runtime_paper_trading_simulation_records_diary(tmp_path
         execution_outcome = latest_entry.get("outcomes", {}).get("execution", {})
         assert "last_order" in execution_outcome
         assert execution_outcome["last_order"]["symbol"] == "EURUSD"
+        assert "placed_at" in execution_outcome["last_order"]
         assert execution_outcome.get("last_error") in (None, {})
         metrics_snapshot = execution_outcome.get("paper_metrics")
         assert isinstance(metrics_snapshot, dict)

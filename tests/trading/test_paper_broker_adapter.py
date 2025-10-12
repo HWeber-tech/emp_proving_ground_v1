@@ -1,4 +1,5 @@
 import asyncio
+from datetime import datetime
 from decimal import Decimal
 from typing import Any
 
@@ -96,6 +97,8 @@ async def test_paper_broker_adapter_submits_order_and_records_metadata() -> None
     assert last_order.get("symbol") == "EURUSD"
     assert last_order.get("order_id") == "FIX-42"
     assert last_order.get("latency_s") is not None
+    assert "placed_at" in last_order
+    assert datetime.fromisoformat(last_order["placed_at"])  # validates ISO timestamp
     assert adapter.describe_last_error() is None
     metrics = adapter.describe_metrics()
     assert metrics["total_orders"] == 1
@@ -184,6 +187,8 @@ async def test_paper_broker_adapter_consumes_error_history() -> None:
 
     errors = adapter.consume_error_history()
     assert errors and errors[0]["stage"] == "validation"
+    assert "recorded_at" in errors[0]
+    assert datetime.fromisoformat(errors[0]["recorded_at"])
     assert adapter.consume_error_history() == []
 
 

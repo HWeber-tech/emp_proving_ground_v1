@@ -16,9 +16,10 @@ python -m tools.operations.managed_ingest_connectors --format markdown
 The output lists whether the ingest slice should run, the active schedule, and
 redacted connector metadata (Timescale application name + URL, Redis cache
 summary, Kafka bootstrap servers/topics).  Add the `--connectivity` flag to run
-managed probes that issue `SELECT 1` against Timescale, ping the Redis cache via
-an in-memory stub, and confirm Kafka topic visibility through the supervised
-consumer bridge.
+managed probes that issue `SELECT 1` against Timescale, instantiate a Redis
+client from the configured settings (closing it on exit) before pinging, and
+reuse the Kafka bridge checkup so the JSON report returns `status`,
+`latency_ms`, and `error` fields aligned with runtime expectations.
 
 ## Configuration options
 
@@ -38,10 +39,12 @@ consumer bridge.
 
 The CLI leans on `plan_managed_manifest()` so the manifest and the runtime
 provisioner share the same metadata contract.  When connectivity checks are
-requested the tool instantiates the provisioner with a `TaskSupervisor`, using
-an in-memory Redis client and the Kafka bridge stubs already covered by the
-runtime guardrails.  As a result the evidence produced by the CLI matches what
-operators see once the ingest slice is promoted.
+requested the tool instantiates the provisioner with a `TaskSupervisor`, uses
+`_prepare_redis_client()` to reuse live Redis clients when ping succeeds, wires
+explicit probe overrides when creation fails, and always closes owned clients on
+exit while the Kafka bridge stubs remain supervised.  As a result the evidence
+produced by the CLI matches what operators see once the ingest slice is
+promoted and surfaces degraded or offline caches with actionable error text.【F:tools/operations/managed_ingest_connectors.py†L245-L352】【F:tests/tools/test_managed_ingest_connectors.py†L42-L156】
 
 Pair the connector report with the `tools.operations.institutional_ingest_readiness`
 CLI when you need a single artefact that combines the manifest, optional

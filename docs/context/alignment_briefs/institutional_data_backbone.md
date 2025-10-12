@@ -118,9 +118,12 @@
 - Progress: Managed connector summaries now reuse redacted Kafka metadata even
   when consumers fail to provision, normalise boolean/timeout knobs, capture
   consumer group defaults plus configured topics and counts, and expose
-  asynchronous `connectivity_report()` probes with timeout-aware error formatting
-  so the managed-ingest CLI and readiness dashboards inherit the same health
-  annotations and failure reasons under refreshed pytest coverage.【F:src/data_foundation/ingest/institutional_vertical.py†L132-L420】【F:tools/operations/managed_ingest_connectors.py†L200-L284】【F:tests/runtime/test_institutional_ingest_vertical.py:336】【F:tests/tools/test_managed_ingest_connectors.py†L30-L77】
+  asynchronous `connectivity_report()` probes that return
+  `ConnectivityProbeSnapshot`s with status strings, latency metrics, and masked
+  endpoints so the managed-ingest CLI and readiness dashboards inherit the same
+  health contract; the CLI now reuses live Redis clients, injects probe
+  overrides for offline caches, and records explicit error text under refreshed
+  pytest coverage.【F:src/data_integration/real_data_integration.py†L149-L785】【F:tools/operations/managed_ingest_connectors.py†L245-L352】【F:tests/runtime/test_institutional_ingest_vertical.py:336】【F:tests/tools/test_managed_ingest_connectors.py†L42-L156】
 - Progress: Institutional ingest services now surface Redis cache metrics in
   runtime summaries and managed manifests, recording namespace, hit, and miss
   telemetry while guarding best-effort collection so operators can audit cache

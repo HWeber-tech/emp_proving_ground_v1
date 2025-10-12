@@ -83,6 +83,7 @@
     sign-off reviews surface evidence drop-outs alongside curated summaries under
     pytest coverage.【F:src/operations/dry_run_audit.py†L18-L789】【F:tests/operations/test_dry_run_audit.py†L1-L220】【F:tools/operations/final_dry_run_audit.py†L1-L118】
   - Progress: Sign-off evaluation now layers minimum-duration and uptime gates on top of the audit summary, requires diary/performance evidence by default, and exposes CLI toggles so review boards can approve, warn, or fail runs with consistent criteria under regression coverage.【F:src/operations/dry_run_audit.py†L792-L835】【F:tools/operations/final_dry_run_audit.py†L21-L150】【F:tests/operations/test_dry_run_audit.py†L189-L259】
+  - Progress: Sign-off guardrails now enforce configurable Sharpe-ratio floors and add a `--sign-off-min-sharpe` CLI switch so governance can demand risk-adjusted performance proof, with tests covering success, failure, and missing-metric cases.【F:src/operations/dry_run_audit.py†L323-L1072】【F:tools/operations/final_dry_run_audit.py†L100-L178】【F:tests/operations/test_dry_run_audit.py†L226-L360】
 - Progress: Default alert policy now delivers email, SMS, webhook, Slack, and
   GitHub issue transports out of the box, with regression coverage asserting
   channel fan-out for readiness, incident response, and drift sentry alerts and
